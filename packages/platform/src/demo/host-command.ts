@@ -39,6 +39,7 @@
  * could return.
  */
 import type { ModuleManifest } from '@endora-commerce/contracts';
+import { DEMO_FORCE_DELETE_FINANCIAL_RECORDS_FLAG } from './refusal.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 
 import { UnknownCommandError } from '../cli/module-commands.js';
@@ -108,8 +109,17 @@ export function demoHelpFor(verb: DemoMode, program = 'pnpm run cli'): string {
         'own composition — the wiring that spans modules. A module that is not present\n' +
         'contributes nothing and is reported as a skip, never as an error.\n'
       : "Withdraws this instance's composition and then every present module's demo\n" +
-        'rows, in the reverse of the order they were created in. Rows you created\n' +
-        'yourself are left alone.\n') +
+        'rows, in the reverse of the order they were created in — together with what\n' +
+        'using the demo created under the demo organisation. Rows that belong to\n' +
+        'anybody else are left alone. It runs in one transaction: a reset that is\n' +
+        'refused has changed nothing.\n\n' +
+        'It refuses when the demo organisation holds financial records, and names what\n' +
+        'it found: a payment that was paid or refunded; an invoice or a correction, or\n' +
+        'an invoice of any kind with a KSeF or external reference; an accounting-system\n' +
+        'record; a refund. Orders placed and never paid — an awaiting or deferred\n' +
+        'payment, a pro-forma invoice — do not count and are withdrawn as they are.\n' +
+        `${DEMO_FORCE_DELETE_FINANCIAL_RECORDS_FLAG} deletes the financial records with the rest;\n` +
+        'it is read from this command line only and skips no other guard.\n') +
     '\nIt refuses to run against a production database — both NODE_ENV and the\n' +
     'DATABASE_URL are checked, each with its own explicit override — and writes\n' +
     'nothing when it refuses.\n'
@@ -198,6 +208,15 @@ export const NO_DEMO_COMPOSITION_NOTICE =
 export interface DemoCompositionInput {
   readonly em: EntityManager;
   readonly isPresent: (moduleId: string) => boolean;
+  /**
+   * The operator passed `--force-delete-financial-records` to this `demo
+   * reset` (issue #143 — `refusal.ts`). Absent or `false`, a composition that
+   * finds financial records among what it would delete refuses the reset.
+   *
+   * The dispatcher sets it from the command line of the invocation and from
+   * nothing else — never from the environment, never from a setting.
+   */
+  readonly deleteFinancialRecords?: boolean;
 }
 
 /** Present and loaded, or absent with the sentence to print. Never both. */

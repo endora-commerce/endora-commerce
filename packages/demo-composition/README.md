@@ -23,6 +23,69 @@ demo administrator holds. This package is what says it:
 `pnpm run cli demo reset` withdraws exactly what it created, before the modules withdraw their
 own rows.
 
+A demo that has been used resets too. Before any step is unwound, the reset removes what using
+the demo created under the demo organisation and its customer accounts — orders with their
+shipments, stock allocations (the stock they held is released) and credit reservations, return
+cases, carts, quote requests, shopping lists, saved addresses, API keys, webhooks, sessions, the
+accounts that joined the organisation, promotion uses (the limits they spent are given back), and
+any Sales Opportunity opened for that organisation. They are deleted, not re-pointed: the
+organisation they belong to is withdrawn, and every row here belongs to exactly one. Only rows of
+the demo organisation are matched — it is found by the tax id the demo gives it — so another
+organisation on the same instance loses nothing, and neither does a row that belongs to no
+organisation, such as a guest's cart.
+
+**The whole reset is one transaction.** It either completes or changes nothing: if a foreign key
+refuses it anywhere — a table of your own that references an order or a product, say — the
+command exits non-zero and the shop still works.
+
+**It refuses when the demo organisation holds financial records**, and says how many of each it
+found. What counts:
+
+- a payment whose status is `paid`, `refunded` or `partially_refunded`;
+- an invoice of kind `invoice` or `correction` — or of any kind that carries a KSeF reference
+  number or an external document reference, or that has an accounting-system row;
+- any row of `invoice_ledger_deliveries`, `invoice_ledger_document_maps` or
+  `invoice_ledger_client_maps`, in either environment;
+- a refund, and a refund settled against the credit limit.
+
+What does not: a payment still `awaiting_payment`, `deferred` or `failed`, a pro-forma invoice or
+a delivery note with no external reference. Those are what a placement opens, and they are
+withdrawn with their order — so a demo on which orders were placed and nothing was paid resets as
+it is. Where the data is disposable:
+
+```bash
+pnpm run cli demo reset --force-delete-financial-records
+```
+
+The flag is read from that command line only; no environment variable or setting stands in for
+it. It deletes the kinds listed above and forces nothing else — the production guard and every
+foreign key apply as before.
+
+If you write a composition of your own: every statement of `withdraw` and `withdrawFoundation`
+goes through the `EntityManager` the composition is built over (`em.execute`, `em.nativeDelete`),
+never through `em.getConnection()`, `em.getKnex()` or a fork — those take a second connection,
+outside the reset's transaction. Declare `withdrawsInsideTransaction: true` on the object you
+return once that holds; the reset refuses a composition that does not, and refuses on the spot a
+body that asks for a connection of its own. As a last resort the transaction's waits are bounded
+(a minute for a lock, two idle), so a body that bypasses all of this ends the reset instead of
+hanging it.
+
+A module being switched off does not exempt its rows: an Opportunity or a return case of the demo
+organisation is withdrawn whether or not its module is active, because it refers to the
+organisation either way. What decides is whether the module's tables exist.
+
+It also stops, before touching anything, when another organisation has been filed under the demo
+one: detach or delete the sub-organisation and run it again.
+
+Three records are kept on purpose, because they are logs of what happened rather than data of
+the demo organisation: the audit trail, the e-mail delivery log and administrators'
+notification history.
+
+A module that is not part of this package's repository is not covered: a table of its own that
+holds a foreign key onto one of these rows refuses the reset (with or without the flag), and one
+that holds a bare id is left naming a row that is gone. There is no extension point yet for such
+a module to add its own withdrawal.
+
 ## How an instance gets it
 
 Ask for demo data when you scaffold — `endora install --demo` or `endora new instance --demo` —

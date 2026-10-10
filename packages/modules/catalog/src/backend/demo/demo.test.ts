@@ -49,11 +49,13 @@ function fakeEm(seeded: readonly FakeRow[] = []): {
   created: FakeRow[];
   deletes: unknown[];
   sql: string[];
+  outsideTransaction: string[];
 } {
   const rows: FakeRow[] = [...seeded];
   const created: FakeRow[] = [];
   const deletes: unknown[] = [];
   const sql: string[] = [];
+  const outsideTransaction: string[] = [];
   let next = 0;
   const matches = (row: FakeRow, where: Record<string, unknown>): boolean =>
     Object.entries(where).every(([key, value]) => {
@@ -88,14 +90,22 @@ function fakeEm(seeded: readonly FakeRow[] = []): {
       for (const row of hit) rows.splice(rows.indexOf(row), 1);
       return hit.length;
     },
+    // The EntityManager's own `execute` carries its transaction; a statement
+    // sent through the bare connection does not. `seed` may use either;
+    // `reset` runs inside the one transaction a demo reset is (issue #143) and
+    // must use only the first, so the two are told apart.
+    execute: async (statement: string) => {
+      sql.push(statement.trim().split('\n')[0]!.trim());
+      return [{ n: '0' }];
+    },
     getConnection: () => ({
       execute: async (statement: string) => {
-        sql.push(statement.trim().split('\n')[0]!.trim());
+        outsideTransaction.push(statement.trim().split('\n')[0]!.trim());
         return [{ n: '0' }];
       },
     }),
   };
-  return { em: em as unknown as EntityManager, created, deletes, sql };
+  return { em: em as unknown as EntityManager, created, deletes, sql, outsideTransaction };
 }
 
 function contextOver(em: EntityManager): ModuleDemoContext<ModuleContext> {
@@ -196,6 +206,15 @@ describe('catalog demo data', () => {
       'delete from bundle_slots where parent_product_id in',
       'delete from grouped_items where parent_product_id in',
     ]);
+  });
+
+  it('withdraws inside the transaction it is handed, never on a connection of its own', async () => {
+    // A demo reset is one transaction (issue #143). A statement sent through
+    // the bare connection would commit on its own and wait on rows the reset
+    // has locked.
+    const { em, outsideTransaction } = fakeEm();
+    await resetDemo(contextOver(em));
+    expect(outsideTransaction).toEqual([]);
   });
 
   it('is declared over the entities this module owns', () => {

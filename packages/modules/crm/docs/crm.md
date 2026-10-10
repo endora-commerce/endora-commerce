@@ -2136,9 +2136,13 @@ Seeding again changes nothing that is already there: an opportunity you moved
 or edited stays as you left it — and an opportunity seeded before events
 existed gains none; reset and seed again to get them. `endora demo reset` removes the twelve
 opportunities and the three tags, with everything attached to those
-opportunities, and nothing you created yourself.
+opportunities. It also removes any other opportunity opened for the demo
+organization, because that organization is withdrawn together with everything
+created under it. Opportunities of every other organization, and tags you
+created yourself, are left alone.
 
-**Run `endora demo reset` with the CRM module switched on.** While the module
-is off its records are left alone — including the demo opportunities — and the
-demo organization they belong to cannot be removed, so the reset stops with an
-error at `organizations`. Switch CRM on and run it again.
+**The reset does not depend on CRM being switched on.** While the module is
+off, the opportunities of the demo organization are still removed with it —
+they would otherwise prevent that organization from being removed — but the
+three demo tags stay, because the module's own demo data is not touched while
+it is off. A reset run with CRM switched on removes them.

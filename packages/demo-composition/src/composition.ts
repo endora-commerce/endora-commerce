@@ -49,6 +49,16 @@
  * A step asks the database for what it needs, because there is no process in
  * which two modules' demo bodies hold their rows in memory at once.
  *
+ * ## Every statement goes through the EntityManager
+ *
+ * `em.execute(…)`, `em.nativeDelete(…)`, `em.flush()` — never
+ * `em.getConnection().execute(…)`. A `demo reset` is one transaction (issue
+ * #143; the platform's `demo/reset-transaction.ts`), and the `EntityManager`
+ * this composition is built over is what carries it. The bare connection
+ * carries no transaction context: a statement sent through it runs on a second
+ * connection, commits on its own, cannot see what the reset has already
+ * deleted, and waits on the rows the reset has locked.
+ *
  * ## Every module is imported when its step runs, never at load
  *
  * An instance installs the modules it chose. A static import of a module
@@ -77,6 +87,7 @@ import type {
 import { SalesChannel, hashPassword } from '@endora-commerce/platform/kernel';
 import { entityNamed } from '@endora-commerce/platform/packages';
 import { createAttributeFixture, findAttributeDefinitionByKey } from './attribute-fixtures.js';
+import { DEMO_USAGE_WITHDRAWAL_NAME, withdrawDemoUsage } from './demo-usage.js';
 import { demoSalesPipelineStep } from './sales-pipeline.js';
 
 /** A sign-in detail the runner prints — the platform's own shape. */
@@ -723,7 +734,6 @@ const FOUNDATION_STEPS: readonly CompositionStep[] = [
       // `demo reset` left `sales_channels` at 0 and `price_lists` at 0 — the
       // second being the platform's own `default` list, created by a migration
       // and destroyed by the same statement.
-      const conn = em.getConnection();
       // The assignment rows first, and by hand rather than by cascade: there is
       // **no foreign key** on `warehouse_channel_assignments.sales_channel_id`,
       // so the truncate this replaces left them dangling — measured, three
@@ -731,12 +741,12 @@ const FOUNDATION_STEPS: readonly CompositionStep[] = [
       // own `reset` has already removed the demo warehouse's; these are the
       // *system* warehouse's, made by that module's reconciler for a channel
       // this step created, and they go with the channel that caused them.
-      await conn.execute(
+      await em.execute(
         `delete from warehouse_channel_assignments where sales_channel_id in
            (select id from sales_channels where code = ?)`,
         [DEMO_VIP_CHANNEL_CODE],
       );
-      await conn.execute(`delete from sales_channels where code = ?`, [
+      await em.execute(`delete from sales_channels where code = ?`, [
         DEMO_VIP_CHANNEL_CODE,
       ]);
     },
@@ -869,18 +879,17 @@ const STEPS: readonly CompositionStep[] = [
     async withdraw(em) {
       // The menu this step created, by the name it created it under. An
       // operator's own menu is a different row and is left alone.
-      const conn = em.getConnection();
-      await conn.execute(
+      await em.execute(
         `delete from megamenu_bindings where megamenu_id in
            (select id from megamenus where name = ?)`,
         [DEMO_MENU_NAME],
       );
-      await conn.execute(
+      await em.execute(
         `delete from megamenu_items where megamenu_id in
            (select id from megamenus where name = ?)`,
         [DEMO_MENU_NAME],
       );
-      await conn.execute(`delete from megamenus where name = ?`, [DEMO_MENU_NAME]);
+      await em.execute(`delete from megamenus where name = ?`, [DEMO_MENU_NAME]);
     },
   },
   {
@@ -895,7 +904,6 @@ const STEPS: readonly CompositionStep[] = [
     modules: ['catalog'],
     async apply(em) {
       const { Product } = await catalogRows();
-      const conn = em.getConnection();
       const channel = await systemDefaultChannel(em);
       const products = await em.find(Product, {
         slug: { $like: `${DEMO_PRODUCT_SLUG_PREFIX}%` },
@@ -927,7 +935,7 @@ const STEPS: readonly CompositionStep[] = [
       // after the last run — finishes bridging on the next one, which a
       // whole-table probe would skip.
       if (categoryRows.length > 0) {
-        await conn.execute(
+        await em.execute(
           `insert into product_categories (product_id, category_id)
             values ${categoryRows.join(', ')}
             on conflict do nothing`,
@@ -935,7 +943,7 @@ const STEPS: readonly CompositionStep[] = [
         );
       }
       if (channelRows.length > 0) {
-        await conn.execute(
+        await em.execute(
           `insert into sales_channel_products (sales_channel_id, product_id)
             values ${channelRows.join(', ')}
             on conflict do nothing`,
@@ -944,13 +952,12 @@ const STEPS: readonly CompositionStep[] = [
       }
     },
     async withdraw(em) {
-      const conn = em.getConnection();
-      await conn.execute(
+      await em.execute(
         `delete from product_categories where product_id in
            (select id from products where slug like ?)`,
         [`${DEMO_PRODUCT_SLUG_PREFIX}%`],
       );
-      await conn.execute(
+      await em.execute(
         `delete from sales_channel_products where product_id in
            (select id from products where slug like ?)`,
         [`${DEMO_PRODUCT_SLUG_PREFIX}%`],
@@ -975,13 +982,12 @@ const STEPS: readonly CompositionStep[] = [
       await new DefaultPriceListMigrator(() => em).run(new CatalogProductReadService(() => em));
     },
     async withdraw(em) {
-      const conn = em.getConnection();
-      await conn.execute(
+      await em.execute(
         `delete from price_list_price_brackets where product_id in
            (select id from products where slug like ?)`,
         [`${DEMO_PRODUCT_SLUG_PREFIX}%`],
       );
-      await conn.execute(
+      await em.execute(
         `delete from price_list_products where product_id in
            (select id from products where slug like ?)`,
         [`${DEMO_PRODUCT_SLUG_PREFIX}%`],
@@ -1034,7 +1040,7 @@ const STEPS: readonly CompositionStep[] = [
       if (created > 0) await em.flush();
     },
     async withdraw(em) {
-      await em.getConnection().execute(
+      await em.execute(
         `delete from stock_levels where product_id in
            (select id from products where slug like ?)`,
         [`${DEMO_PRODUCT_SLUG_PREFIX}%`],
@@ -1095,6 +1101,9 @@ const STEPS: readonly CompositionStep[] = [
       await em.persistAndFlush(buyer);
     },
     async withdraw(em) {
+      // The buyer this step created, and only that one. Whoever joined the
+      // demo organisation since, and everything any of its accounts was used
+      // to create, is withdrawn before any step (`demo-usage.ts`).
       const { CustomerAccount } = await customerAccountRows();
       const buyer = await em.findOne(CustomerAccount, { email: DEMO_BUYER_EMAIL });
       if (buyer === null) return;
@@ -1150,27 +1159,26 @@ const STEPS: readonly CompositionStep[] = [
       // By the seven keys this step created, and in the order the references
       // run. The host's reset deleted **every** product-host definition, which
       // took an operator's own attributes with it.
-      const conn = em.getConnection();
       const keys = DEMO_PRODUCT_ATTRIBUTES.map((attribute) => attribute.key);
-      await conn.execute(
+      await em.execute(
         `delete from attribute_set_attributes where custom_field_definition_id in
            (select id from custom_field_definitions
              where entity_type = 'product' and key in (${placeholders(keys.length)}))`,
         keys,
       );
-      await conn.execute(
+      await em.execute(
         `delete from product_attributes where custom_field_definition_id in
            (select id from custom_field_definitions
              where entity_type = 'product' and key in (${placeholders(keys.length)}))`,
         keys,
       );
-      await conn.execute(
+      await em.execute(
         `delete from custom_field_options where definition_id in
            (select id from custom_field_definitions
              where entity_type = 'product' and key in (${placeholders(keys.length)}))`,
         keys,
       );
-      await conn.execute(
+      await em.execute(
         `delete from custom_field_definitions where entity_type = 'product'
             and key in (${placeholders(keys.length)})`,
         keys,
@@ -1192,9 +1200,8 @@ const STEPS: readonly CompositionStep[] = [
     name: 'placeholder images for the demo catalogue',
     modules: ['catalog', 'assets_library'],
     async apply(em) {
-      const conn = em.getConnection();
       const products = await demoSimpleProducts(em);
-      const held = await conn.execute<{ n: string }[]>(
+      const held = await em.execute<{ n: string }[]>(
         `select count(*)::text as n from product_assets where product_id in
            (select id from products where slug like ?)`,
         [`${DEMO_PRODUCT_SLUG_PREFIX}%`],
@@ -1238,21 +1245,21 @@ const STEPS: readonly CompositionStep[] = [
           }
         }
       }
-      await conn.execute(
+      await em.execute(
         `insert into assets (id, kind, filename, mime_type, size_bytes, storage_url, created_at, updated_at)
          values ${assetRows.join(', ')}`,
         assetParams,
       );
-      await conn.execute(
+      await em.execute(
         `insert into product_assets (product_id, asset_id, position) values ${productAssetRows.join(', ')}`,
         productAssetParams,
       );
-      await conn.execute(
+      await em.execute(
         `insert into gallery_items (id, product_id, asset_id, position, created_at, updated_at)
          values ${galleryRows.join(', ')}`,
         galleryParams,
       );
-      await conn.execute(
+      await em.execute(
         `insert into gallery_item_labels (gallery_item_id, product_id, label) values ${labelRows.join(', ')}`,
         labelParams,
       );
@@ -1263,9 +1270,8 @@ const STEPS: readonly CompositionStep[] = [
       // demo's. An operator's own upload against a demo product is a different
       // row and survives: only assets this step created carry both a demo
       // product's slug in their filename and the `.svg` the generator writes.
-      const conn = em.getConnection();
       const like = `${DEMO_PRODUCT_SLUG_PREFIX}%`;
-      const assets = await conn.execute<{ id: string }[]>(
+      const assets = await em.execute<{ id: string }[]>(
         `select a.id from assets a
            join product_assets pa on pa.asset_id = a.id
            join products p on p.id = pa.product_id
@@ -1273,23 +1279,23 @@ const STEPS: readonly CompositionStep[] = [
         [like],
       );
       const ids = assets.map((row) => row.id);
-      await conn.execute(
+      await em.execute(
         `delete from gallery_item_labels where product_id in
            (select id from products where slug like ?)`,
         [like],
       );
-      await conn.execute(
+      await em.execute(
         `delete from gallery_items where product_id in
            (select id from products where slug like ?)`,
         [like],
       );
-      await conn.execute(
+      await em.execute(
         `delete from product_assets where product_id in
            (select id from products where slug like ?)`,
         [like],
       );
       if (ids.length > 0) {
-        await conn.execute(
+        await em.execute(
           `delete from assets where id in (${placeholders(ids.length)})`,
           ids,
         );
@@ -1309,11 +1315,10 @@ const STEPS: readonly CompositionStep[] = [
     name: 'sample attachments for the demo catalogue',
     modules: ['catalog', 'assets_library'],
     async apply(em) {
-      const conn = em.getConnection();
       const products = (await demoSimpleProducts(em)).slice(0, 3);
       if (products.length === 0) return;
       const productIds = products.map((product) => product.id);
-      const held = await conn.execute<{ n: string }[]>(
+      const held = await em.execute<{ n: string }[]>(
         `select count(*)::text as n from product_attachments
           where product_id in (${placeholders(productIds.length)})`,
         productIds,
@@ -1329,14 +1334,14 @@ const STEPS: readonly CompositionStep[] = [
         assetRows.push(`(?, 'pdf', ?, 'application/pdf', ?, ?, now(), now())`);
         assetParams.push(assetId, asset.filename, asset.sizeBytes, asset.url);
       }
-      await conn.execute(
+      await em.execute(
         `insert into assets (id, kind, filename, mime_type, size_bytes, storage_url, created_at, updated_at)
          values ${assetRows.join(', ')}`,
         assetParams,
       );
 
       const typeCodes = DEMO_ATTACHMENT_ASSETS.map((asset) => asset.typeCode);
-      const types = await conn.execute<{ id: string; code: string }[]>(
+      const types = await em.execute<{ id: string; code: string }[]>(
         `select id, code from attachment_types where code in (${placeholders(typeCodes.length)})`,
         typeCodes,
       );
@@ -1345,7 +1350,7 @@ const STEPS: readonly CompositionStep[] = [
         for (const [position, asset] of DEMO_ATTACHMENT_ASSETS.entries()) {
           const typeId = typeIdByCode.get(asset.typeCode);
           if (typeId === undefined) continue;
-          await conn.execute(
+          await em.execute(
             `insert into product_attachments (id, product_id, asset_id, attachment_type_id, name, description, position, created_at, updated_at)
              values (?, ?, ?, ?, ?, ?, ?, now(), now())`,
             [
@@ -1362,14 +1367,13 @@ const STEPS: readonly CompositionStep[] = [
       }
     },
     async withdraw(em) {
-      const conn = em.getConnection();
-      await conn.execute(
+      await em.execute(
         `delete from product_attachments where product_id in
            (select id from products where slug like ?)`,
         [`${DEMO_PRODUCT_SLUG_PREFIX}%`],
       );
       const filenames = DEMO_ATTACHMENT_ASSETS.map((asset) => asset.filename);
-      await conn.execute(
+      await em.execute(
         `delete from assets where kind = 'pdf'
            and filename in (${placeholders(filenames.length)})`,
         filenames,
@@ -1410,7 +1414,7 @@ const STEPS: readonly CompositionStep[] = [
       // By the organisation the demo created, in SQL rather than through the
       // ORM: `CreditLimit` is `@OrgScoped`, and a withdrawal that depended on
       // the ambient tenant would remove a different set on a different scope.
-      await em.getConnection().execute(
+      await em.execute(
         `delete from credit_limits where organization_id in
            (select id from organizations where tax_id = ?)`,
         [DEMO_ORG_TAX_ID],
@@ -1478,8 +1482,38 @@ export function createDemoComposition(deps: DemoCompositionDeps): DemoCompositio
   };
 
   return {
+    // Every statement in this package goes through `deps.em` — see "Every
+    // statement goes through the EntityManager" above, and the test that
+    // reads these sources for anything else.
+    withdrawsInsideTransaction: true,
     apply: () => runSteps('apply', STEPS),
-    withdraw: () => runSteps('withdraw', STEPS),
+    // What using the demo left behind goes first (`demo-usage.ts`): every later
+    // step, and every module's own withdrawal, assumes nothing still refers to
+    // the rows it removes.
+    withdraw: async () => {
+      // `organizations` holds the demo organisation everything below is found
+      // through. Where it is not present there is no such organisation, and
+      // the question is not put to the database at all — an instance holding
+      // none of these modules is an ordinary instance.
+      const usage: DemoCompositionResult = deps.isPresent('organizations')
+        ? await withdrawDemoUsage({
+            em: deps.em,
+            organizationTaxId: DEMO_ORG_TAX_ID,
+            buyerEmail: DEMO_BUYER_EMAIL,
+            ...(deps.deleteFinancialRecords === true ? { deleteFinancialRecords: true } : {}),
+          })
+        : {
+            applied: [],
+            skipped: [
+              { step: DEMO_USAGE_WITHDRAWAL_NAME, reason: absenceReason(['organizations']) },
+            ],
+          };
+      const steps = await runSteps('withdraw', STEPS);
+      return {
+        applied: [...usage.applied, ...steps.applied],
+        skipped: [...usage.skipped, ...steps.skipped],
+      };
+    },
     // §5.5a. Declared rather than omitted even though `FOUNDATION_STEPS` holds
     // one step: the phase is what the runner calls, and an instance that grows
     // a second foundation step must not also have to remember to wire it.

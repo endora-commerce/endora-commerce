@@ -138,7 +138,34 @@ answer asks again. `--demo` also adds one package to your module list,
 the demo products sold on your default channel, the demo administrators holding their roles.
 If you change your mind later, `pnpm add -w @endora-commerce/demo-composition` and then
 `pnpm run cli demo seed` add demo data, and `pnpm run cli demo reset` withdraws it, leaving your
-own rows alone.
+own rows alone. The reset also removes what was created by *using* the demo under the demo
+organization — the orders its buyer placed, saved addresses, carts, quote requests and the
+like — because the organization they belong to goes with it. Another organization's data is
+never touched, and neither is a row that belongs to no organization, such as a guest's cart.
+
+The whole reset is one transaction: it either completes or changes nothing. When it is refused,
+the shop still works and the message says what refused it.
+
+**It refuses when the demo organization holds financial records**, and names how many of each it
+found. What counts:
+
+- a payment that was `paid`, `refunded` or `partially_refunded`;
+- an invoice of kind `invoice` or `correction` — or of any kind that carries a KSeF reference
+  number or an external document reference, or that was sent to an accounting system;
+- any accounting-system record (`invoice_ledger_*`);
+- a refund, including one settled against a credit limit.
+
+Orders that were placed and never paid do not count: the payment a placement opens
+(`awaiting_payment`, or `deferred` on credit) and its pro-forma invoice are withdrawn with the
+order, and so are failed payments and delivery notes. If the instance's data is disposable,
+delete the financial records with the rest:
+
+```bash
+pnpm run cli demo reset --force-delete-financial-records
+```
+
+The flag is read from that command line only — there is no environment variable or setting for
+it — and it skips no other check.
 
 **The administrator is never generated.** The password is the one value you have to remember, so
 nothing makes one up for you, and nothing else creates an account. It is not shown as you type it

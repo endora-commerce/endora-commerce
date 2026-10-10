@@ -780,7 +780,10 @@ export function nextSteps(
       ? `pnpm run cli demo seed — a shop's worth of example data from every module that ` +
         `declares any, wired together by the demo composition you asked for: the demo ` +
         `products sold on your default channel, the demo administrators holding their roles. ` +
-        `\`pnpm run cli demo reset\` withdraws it again, leaving your own rows alone.`
+        `\`pnpm run cli demo reset\` withdraws it again, leaving your own rows alone — and ` +
+        `refuses, changing nothing, once the demo holds a paid or refunded payment, an invoice ` +
+        `or anything sent to an accounting system, until it is run with ` +
+        `\`--force-delete-financial-records\`.`
       : `pnpm run cli demo seed — optional, and off unless you ask: a shop's worth of example ` +
         `data from every module that declares any, which \`pnpm run cli demo reset\` withdraws ` +
         `again leaving your own rows alone. For the demo shop as a whole — the products sold ` +

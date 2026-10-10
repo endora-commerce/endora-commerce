@@ -15,13 +15,18 @@
  *     been installed.
  *  2. **Switched on afterwards** — the next seed adds the tags and the
  *     pipeline to the shop that is already there, and nothing else moves.
- *  3. **Off at the reset** — the pipeline is *not* withdrawn: off is
- *     non-destructive, and a step whose module is absent is a skip in both
- *     directions (contract §5.4). The Opportunities still belong to the demo
- *     organisation, whose foreign key is `on delete restrict`, so
- *     `organizations`' own withdrawal is refused and the reset stops there,
- *     naming the module — loudly, and with every CRM row still in place.
- *  4. **Switched on again** — the reset completes and leaves no CRM row.
+ *  3. **Off at the reset** — the reset completes. The pipeline *step* is a
+ *     reported skip, as a step whose module is absent is in both directions
+ *     (contract §5.4), and `crm`'s own demo body does not run, so its three
+ *     tags stay. But the Opportunities belong to the demo organisation, and
+ *     they are withdrawn with it: operator activation says how a module
+ *     behaves, not whether its rows exist, and a row that exists still holds
+ *     the foreign key that refuses the organisation's deletion (issue #143).
+ *     Until that issue this case asserted the opposite — a reset refused at
+ *     `organizations`, by which point the demo payment methods and the buyer
+ *     had already been withdrawn and the shop could not be checked out of.
+ *  4. **Switched on again** — the next reset withdraws the tags, and no CRM
+ *     row is left.
  *
  * The activation value is written straight into `settings.global_value`,
  * between two CLI runs: each `endora demo …` is a process of its own that
@@ -134,6 +139,7 @@ describe('the demo sales pipeline while CRM is switched off', () => {
   let resetOff: RunOutcome;
   let crmAfterOffReset: Record<string, number>;
   let organizationsAfterOffReset: number;
+  let shopAfterOffReset: Record<string, number>;
   let resetOn: string;
   let crmAfterOnReset: Record<string, number>;
   let workflowAfterOnReset: Record<string, number>;
@@ -183,6 +189,7 @@ describe('the demo sales pipeline while CRM is switched off', () => {
     resetOff = await attempt(DEMO_RESET, url);
     crmAfterOffReset = await counts(shop, CRM_ROW_TABLES);
     organizationsAfterOffReset = (await counts(shop, ['organizations']))['organizations']!;
+    shopAfterOffReset = await counts(shop, SHOP_TABLES);
 
     await switchCrm(true);
     resetOn = await run('endora demo reset (CRM on)', DEMO_RESET, url);
@@ -248,18 +255,31 @@ describe('the demo sales pipeline while CRM is switched off', () => {
   });
 
   describe('resetting with CRM off', () => {
-    it('withdraws nothing of CRM’s: off is non-destructive', () => {
-      expect(crmAfterOffReset).toEqual(crmAfterOnSeed);
+    it('completes: a switched-off module does not hold the reset hostage', () => {
+      expect(resetOff.code, `${resetOff.out}\n${resetOff.err}`).toBe(0);
+      expect(organizationsAfterOffReset).toBe(0);
+      // The whole shop, not only the organisation: nothing is left half-way.
+      expect(shopAfterOffReset).toEqual({
+        organizations: 0,
+        admin_users: 0,
+        products: 0,
+        customer_accounts: 0,
+      });
     });
 
-    it('stops at the organisation the pipeline still belongs to, naming the module', () => {
-      // `crm_opportunities.organization_id` is `on delete restrict`. The reset
-      // is refused rather than cascading through rows of a module that is off,
-      // and it says where: an operator switches CRM on and runs it again.
-      expect(resetOff.code).not.toBe(0);
-      expect(`${resetOff.out}\n${resetOff.err}`).toMatch(/organizations/);
-      expect(`${resetOff.out}\n${resetOff.err}`).toMatch(/crm_opportunities/);
-      expect(organizationsAfterOffReset).toBe(1);
+    it('withdraws the Opportunities with the organisation they belong to', () => {
+      // `crm_opportunities.organization_id` is `on delete restrict`, and the
+      // rows are there whether or not the module is switched on. Their
+      // children follow through `crm`'s own cascades.
+      expect(crmAfterOffReset).toEqual({ ...NO_CRM_ROWS, crm_tags: 3 });
+    });
+
+    it('still reports the pipeline step and `crm` as skipped, and leaves the tags', () => {
+      // The step and the module's own body are guarded by presence, and
+      // neither ran: the tags are `crm`'s own demo rows, which name nobody.
+      expect(resetOff.out).toMatch(new RegExp(`^ {2}${PIPELINE_STEP} — .*'crm' is not present`, 'm'));
+      expect(resetOff.out).toMatch(/^ {2}crm — not present in this instance/m);
+      expect(crmAfterOffReset['crm_tags']).toBe(3);
     });
   });
 
@@ -267,6 +287,7 @@ describe('the demo sales pipeline while CRM is switched off', () => {
     it('completes, and leaves no CRM row behind', () => {
       expect(crmAfterOnReset).toEqual(NO_CRM_ROWS);
       expect(resetOn).toMatch(new RegExp(`^ {2}${PIPELINE_STEP}$`, 'm'));
+      expect(resetOn).toMatch(/CrmTag\D+3\b/);
     });
 
     it('leaves CRM’s workflow as its migration seeded it', () => {

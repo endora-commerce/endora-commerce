@@ -261,18 +261,21 @@ describe('the pipeline step in an instance', () => {
   });
 
   it('is a reported skip naming `crm` when CRM is not present, in both directions', async () => {
-    // `organizations` is the one module left present: it is on the step's own
+    // `admin_users` is the one module left present: it is on the step's own
     // list, and no step names it alone, so nothing runs over the EntityManager
-    // that throws on any use. The case where `crm` *alone* is off, over a real
-    // database, is `backend/test/integration/demo/demo-pipeline-off-state.test.ts`.
-    const onlyOrganizations = (moduleId: string): boolean => moduleId === 'organizations';
-    expect(DEMO_PIPELINE_MODULES).toContain('organizations');
+    // that throws on any use. It is not `organizations`, which it used to be:
+    // with that module present a withdrawal asks the database what using the
+    // demo left behind (issue #143). The case where `crm` *alone* is off, over
+    // a real database, is
+    // `backend/test/integration/demo/demo-pipeline-off-state.test.ts`.
+    const onlyAdminUsers = (moduleId: string): boolean => moduleId === 'admin_users';
+    expect(DEMO_PIPELINE_MODULES).toContain('admin_users');
     for (const direction of ['apply', 'withdraw'] as const) {
-      const composition = createDemoComposition({ em: untouchable, isPresent: onlyOrganizations });
+      const composition = createDemoComposition({ em: untouchable, isPresent: onlyAdminUsers });
       const result = await composition[direction]();
       const skip = result.skipped.find((entry) => entry.step === DEMO_PIPELINE_STEP_NAME);
       expect(skip?.reason, direction).toMatch(/\bcrm\b/);
-      expect(skip?.reason, direction).not.toMatch(/\borganizations\b/);
+      expect(skip?.reason, direction).not.toMatch(/\badmin_users\b/);
       expect(result.applied, direction).toEqual([]);
     }
   });

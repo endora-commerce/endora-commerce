@@ -307,7 +307,12 @@ database is neither on loopback nor named as a test database"* — and in this s
 not: the host is `postgres`, the compose service, and the name is `POSTGRES_DB` (`b2b` by
 default). With only the
 first, the command refuses on the second and says so.
-`node dist/cli.js demo reset` withdraws exactly what it created.
+`node dist/cli.js demo reset` withdraws exactly what it created, together with what using the
+demo created under the demo organisation, in one transaction. It refuses — changing nothing —
+when that organisation holds financial records: a payment that was paid or refunded, an invoice
+or correction (or any invoice with a KSeF or external reference), an accounting-system record, a
+refund. Orders that were placed and never paid do not count.
+`--force-delete-financial-records` on that command line deletes them with the rest. The flag has no environment-variable form.
 
 ---
 

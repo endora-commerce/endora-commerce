@@ -45,8 +45,10 @@ function fakeEm(existing: readonly string[] = []): {
       return payload;
     },
     flush: async () => undefined,
-    nativeDelete: async (_entity: unknown, where: unknown) => {
-      deletes.push(where);
+    find: async (_entity: unknown, where: { taxId: string }) =>
+      rows.has(where.taxId) ? [{ id: `id-of-${where.taxId}` }] : [],
+    nativeDelete: async (entity: { name: string }, where: unknown) => {
+      deletes.push({ [entity.name]: where });
       return rows.size;
     },
   };
@@ -78,7 +80,28 @@ describe('organizations demo data', () => {
   it('withdraws by the tax id it assigned, never by the table (§2.5)', async () => {
     const { em, deletes } = fakeEm([DEMO_ORGANIZATION.taxId, 'PL0000000000']);
     await resetDemo(contextOver(em));
-    expect(deletes).toEqual([{ taxId: DEMO_ORGANIZATION.taxId }]);
+    expect(deletes.at(-1)).toEqual({ Organization: { taxId: DEMO_ORGANIZATION.taxId } });
+  });
+
+  it('withdraws what this module holds against that organisation first (issue #143)', async () => {
+    // A buyer who invited a colleague, and an administrator who assigned a
+    // sales representative, each leave a row of this module's naming the demo
+    // organisation. The invitation's foreign key refuses the organisation's
+    // deletion; the assignment has none and would be left naming nothing.
+    const { em, deletes } = fakeEm([DEMO_ORGANIZATION.taxId, 'PL0000000000']);
+    await resetDemo(contextOver(em));
+    const demoOnly = { organizationId: { $in: [`id-of-${DEMO_ORGANIZATION.taxId}`] } };
+    expect(deletes).toEqual([
+      { OrganizationInvitation: demoOnly },
+      { OrganizationSalesRepAssignment: demoOnly },
+      { Organization: { taxId: DEMO_ORGANIZATION.taxId } },
+    ]);
+  });
+
+  it('touches no invitation or assignment when there is no demo organisation', async () => {
+    const { em, deletes } = fakeEm(['PL0000000000']);
+    await resetDemo(contextOver(em));
+    expect(deletes).toEqual([{ Organization: { taxId: DEMO_ORGANIZATION.taxId } }]);
   });
 
   it('creates no buyer and no credit limit — both are the composition\'s (§5.1)', async () => {

@@ -894,11 +894,12 @@ export const demoSalesPipelineStep: CompositionStep = {
     // ambient tenant would remove a different set on a different scope. The
     // history, the tag joins, the comments, the reference index and the Events
     // follow through `crm`'s own `on delete cascade` keys.
-    await em
-      .getConnection()
-      .execute(
-        `delete from crm_opportunities where id in (${placeholders(DEMO_OPPORTUNITY_IDS.length)})`,
-        [...DEMO_OPPORTUNITY_IDS],
-      );
+    // `em.execute`, which carries the reset's transaction; the bare connection
+    // does not (`composition.ts`, "Every statement goes through the
+    // EntityManager").
+    await em.execute(
+      `delete from crm_opportunities where id in (${placeholders(DEMO_OPPORTUNITY_IDS.length)})`,
+      [...DEMO_OPPORTUNITY_IDS],
+    );
   },
 };
