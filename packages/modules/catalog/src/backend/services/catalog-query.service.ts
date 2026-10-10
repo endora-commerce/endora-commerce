@@ -1,3 +1,4 @@
+import { raw } from '@mikro-orm/core';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { Product } from '../entities/product.entity.js';
 import { ProductVariant } from '../entities/product-variant.entity.js';
@@ -175,9 +176,9 @@ export interface ListProductsParams {
  * Eight times the page size. On the reference corpus it never bound: the first
  * page of 50 cost 213 source rows against a budget of 400. It binds only where
  * an operator restricts most of a catalogue from most viewers, and the answer
- * there is a short page — which is this listing's existing behaviour, since the
- * channel and audience filters already narrow a fetched page — rather than an
- * unbounded scan.
+ * there is a short page — the two price paths narrow each chunk they fetch by
+ * channel and audience, where the default path has those in its statement
+ * (issue #151) — rather than an unbounded scan.
  *
  * A setting was rejected because nobody has the number yet: the value it should
  * take is a function of how much of a catalogue a deployment hides, and shipping
@@ -235,6 +236,85 @@ function afterKeysetCursor(
   }
   const at = new Date(cursor.createdAt);
   return { $or: [{ createdAt: { [op]: at } }, { createdAt: at, id: { [op]: cursor.id } }] };
+}
+
+/**
+ * One condition of the listing statement: SQL over the `products` alias the ORM
+ * settles on, and the values its `?` placeholders bind, in order.
+ *
+ * A plain description rather than a `raw()` fragment on purpose — see
+ * `#listingNarrowing`.
+ */
+interface ListingCondition {
+  sql: (alias: string) => string;
+  params: unknown[];
+}
+
+/**
+ * JavaScript's `String(n)` for a `numeric` SQL expression.
+ *
+ * The attribute filter has always compared `String(value)`, and for a number
+ * that is not the text PostgreSQL stores: `jsonb` keeps `1e21` as a 22-digit
+ * integer where JavaScript prints `1e+21`, and keeps a hand-written `1.50` as
+ * written where JavaScript prints `1.5`. So the number is rendered the way
+ * JavaScript would render the double it parses to:
+ *
+ *  - beyond a double's range it is `Infinity`, and below its smallest
+ *    subnormal it is `0` — `JSON.parse`'s answers, and the two casts that would
+ *    otherwise fail the statement;
+ *  - at or above 1e21 and below 1e-6 JavaScript uses exponent notation, and so
+ *    does `float8`'s shortest round-trip output, which differs only in padding
+ *    the exponent to two digits (`1e-07`);
+ *  - from 1e-4 up to 1e15 both print the same plain shortest round-trip
+ *    decimal, which is what turns `1.50` into `1.5` and `2.0` into `2`;
+ *  - in the two bands between, `float8` has already switched to exponent
+ *    notation and JavaScript has not, so the stored digits are printed plain
+ *    with trailing zeros removed. That is exact for any value JavaScript wrote
+ *    and is the one place a value written by something else can differ: a
+ *    number in [1e15, 1e21) or [1e-6, 1e-4) carrying more than 17 significant
+ *    digits.
+ */
+function jsStringOfNumeric(n: string): string {
+  return (
+    `(case ` +
+    `when abs(${n}) > 1.7976931348623157e308 then (case when ${n} < 0 then '-' else '' end) || 'Infinity' ` +
+    `when abs(${n}) < 3e-324 then '0' ` +
+    `when abs(${n}) >= 1e21 or abs(${n}) < 1e-6 ` +
+    `then regexp_replace((${n})::float8::text, 'e([+-])0', 'e\\1') ` +
+    `when abs(${n}) >= 1e15 or abs(${n}) < 1e-4 then trim_scale(${n})::text ` +
+    `else (${n})::float8::text end)`
+  );
+}
+
+/**
+ * JavaScript's `String(value)` for a `jsonb` SQL expression, as the attribute
+ * filter needs it.
+ *
+ * A string or a boolean is its own text, a number is
+ * {@link jsStringOfNumeric}, a JSON `null` reads `'null'` and an object reads
+ * `[object Object]`. An **array** — a multiselect — joins its elements with a
+ * comma, each rendered the same way except that a `null` element is empty,
+ * which is `Array.prototype.join`'s rule.
+ *
+ * One kind is not reproduced: an array **nested inside** an array. JavaScript
+ * flattens it into the join (`[[1, 2], 3]` reads `1,2,3`); here the inner array
+ * contributes its JSON text. No attribute type stores one.
+ */
+function jsStringOfJsonb(value: string): string {
+  const scalar = (v: string, nullText: string): string =>
+    `(case jsonb_typeof(${v}) ` +
+    `when 'null' then '${nullText}' ` +
+    `when 'object' then '[object Object]' ` +
+    `when 'number' then (select ${jsStringOfNumeric('num.n')} ` +
+    `from (select (${v} #>> '{}')::numeric as n) num) ` +
+    `else ${v} #>> '{}' end)`;
+  return (
+    `(case jsonb_typeof(${value}) ` +
+    `when 'array' then (` +
+    `select coalesce(string_agg(${scalar('el.value', '')}, ',' order by el.position), '') ` +
+    `from jsonb_array_elements(${value}) with ordinality as el(value, position)) ` +
+    `else ${scalar(value, 'null')} end)`
+  );
 }
 
 export interface ListResult<T> {
@@ -599,34 +679,53 @@ export class CatalogQueryService {
       if (decoded) cursorClause = keyset.after(decoded);
     }
 
-    const effectiveWhere = cursorClause ? { $and: [where, cursorClause] } : where;
+    // Issue #151 — everything that decides whether a row is on the listing is
+    // part of the statement the page is cut from. See `#listingNarrowing`.
+    const narrowing = await this.#listingNarrowing(em, params, ctx);
+    if (narrowing === null) {
+      // The category names nothing a storefront may browse, so no row matches
+      // and there is no statement worth issuing.
+      return { data: [], pagination: { cursor: null, hasMore: false, limit: params.limit } };
+    }
 
-    // Over-fetch by one to detect hasMore.
-    const products = await em.find(Product, effectiveWhere, {
-      limit: params.limit + 1,
-      orderBy: this.orderForSort(params.sort),
-    });
+    // Over-fetch by one to detect hasMore — one more **matching** row, which is
+    // what makes `hasMore` a statement about the listing rather than about the
+    // table.
+    //
+    // The `raw()` keys are created here, in the expression that hands them to
+    // the statement, and nowhere earlier. MikroORM registers a fragment in a
+    // process-wide cache the moment it is used as a key and releases it when a
+    // statement consumes it, so one created on a path that then returns without
+    // querying is held for the life of the process — which an anonymous caller
+    // could repeat at will. Nothing may sit between the two: no `await`, no
+    // early return, nothing that can throw.
+    const products = await em.find(
+      Product,
+      {
+        $and: [
+          where,
+          ...(cursorClause ? [cursorClause] : []),
+          ...narrowing.map((c) => ({ [raw(c.sql, c.params)]: [] })),
+        ],
+      },
+      { limit: params.limit + 1, orderBy: this.orderForSort(params.sort) },
+    );
 
     const hasMore = products.length > params.limit;
     const page = hasMore ? products.slice(0, params.limit) : products;
     const nextCursor =
       hasMore && page.length > 0 ? encodeObjectCursor(keyset.of(page[page.length - 1]!)) : null;
 
-    // Sales Channel membership — only products associated with the channel are
-    // returned, failing closed to the empty set.
-    const visibleIds = await this.filterByChannel(
-      page.map((p) => p.id),
-      channel,
-    );
-
-    // Attribute filter post-filtering (simple equality on attributeValues JSONB).
-    const filtered = page.filter((p) => visibleIds.has(p.id) && this.#passesPageFilters(p, params, ctx));
-
-    // Category filter
-    let categoryFilteredIds: Set<string> | null = null;
-    if (params.categorySlug) {
-      categoryFilteredIds = await this.productIdsInCategoryTree(em, params.categorySlug);
-    }
+    // The audience and attribute predicates once more, over the rows the
+    // statement returned — kept deliberately, as defence in depth.
+    // `isProductVisibleTo` is the platform's one answer to "may this caller see
+    // this product" and the SQL above is a restatement of it; a restatement that
+    // admits a row the predicate refuses must not be what decides a disclosure.
+    // The case that exists today is a stored allow-list that is not an array:
+    // the statement reads it as "no allow-list", the predicate does not. It
+    // costs no statement, and while the two agree it removes nothing — which is
+    // what the contract test holds them to, rule by rule, with full pages.
+    const priceable = page.filter((p) => this.#passesPageFilters(p, params, ctx));
 
     // Build the summaries. The page is resolved **once** — `toSummary` used to
     // ask `price_lists` for a batch of one, so a 50-card page made 50 calls and
@@ -638,9 +737,6 @@ export class CatalogQueryService {
     // Its asset and its category slugs are resolved the same way and for the
     // same reason (issue #263): both helpers took an id list already, and both
     // were being handed one id at a time from inside the loop.
-    const priceable = filtered.filter((p) =>
-      categoryFilteredIds ? categoryFilteredIds.has(p.id) : true,
-    );
     const resolvedPrices = await this.#listingPricesFor(priceable, channel, ctx.audience);
     const cardReads = await this.#listingCardReadsFor(em, priceable.map((p) => p.id));
     const summaries = priceable.map((p) =>
@@ -650,6 +746,130 @@ export class CatalogQueryService {
     return {
       data: summaries,
       pagination: { cursor: nextCursor, hasMore, limit: params.limit },
+    };
+  }
+
+  /**
+   * What narrows the default listing, as conditions **of the statement its page
+   * is cut from** (issue #151) — or `null` when the category filter names
+   * nothing, so no row can match.
+   *
+   * These four were applied to the page after `limit + 1` rows had been fetched
+   * and `hasMore` and the cursor read off that cut. A page whose rows were all
+   * narrowed away was answered `data: []` with `hasMore: true`; one where some
+   * were was short. With two sales channels and the newest hundred products on
+   * one of them, the other's first page of a hundred was empty.
+   *
+   *  - **channel membership** comes from the kernel's accessor as a fragment
+   *    ({@link SalesChannelMembershipPort.entityIdsInChannelSubquery}); the bridge
+   *    is still not named here (Constitution XII);
+   *  - **the audience** is `isProductVisibleTo` restated — see
+   *    `#audienceCondition`;
+   *  - **the category** is an `exists` over this module's own
+   *    `product_categories`, against the tree's ids rather than against every
+   *    product id the tree holds, which is what the page-side test loaded;
+   *  - **each attribute filter** is `#passesPageFilters`' string comparison
+   *    restated — see `#attributeCondition`.
+   *
+   * **No `raw()` fragment is created here** — these are descriptions, and the
+   * caller turns them into keys in the expression that executes them. A
+   * fragment is registered process-wide when it becomes a key and released
+   * only by the statement that consumes it, so this method, which can answer
+   * `null` and awaits a read that can fail, is the wrong place to make one.
+   */
+  async #listingNarrowing(
+    em: EntityManager,
+    params: ListProductsParams,
+    ctx: CatalogQueryContext,
+  ): Promise<ListingCondition[] | null> {
+    // First, because it is the one part that can end the request: an unknown,
+    // inactive or deleted category means no row matches.
+    let categoryIds: string[] | null = null;
+    if (params.categorySlug) {
+      categoryIds = await this.#categoryTreeIds(em, params.categorySlug);
+      if (categoryIds.length === 0) return null;
+    }
+
+    const inChannel = this.#requireChannelMembership().entityIdsInChannelSubquery(
+      ctx.resolvedChannel.id,
+      'product',
+    );
+    const conditions: ListingCondition[] = [
+      { sql: (alias) => `${alias}.id in (${inChannel.sql})`, params: inChannel.params },
+      this.#audienceCondition(ctx.audience),
+    ];
+
+    if (categoryIds !== null) {
+      const ids = categoryIds;
+      conditions.push({
+        sql: (alias) =>
+          `exists (select 1 from product_categories pc ` +
+          `where pc.product_id = ${alias}.id ` +
+          `and pc.category_id in (${ids.map(() => '?').join(',')}))`,
+        params: ids,
+      });
+    }
+
+    for (const [key, values] of Object.entries(params.attributeFilters ?? {})) {
+      conditions.push(this.#attributeCondition(key, values));
+    }
+
+    return conditions;
+  }
+
+  /**
+   * `isProductVisibleTo`, as SQL, for the audience in front of the listing.
+   *
+   * The third restatement of that predicate in this module, and the only one
+   * that takes the audience as an argument: `catalog-quick-search.service.ts`
+   * answers for a signed-in buyer and `ANONYMOUS_AUDIENCE_CLAUSE` for nobody,
+   * so neither could be reused for a surface both kinds of caller read. The
+   * `case` follows the predicate branch for branch — a non-empty allow-list
+   * decides on its own, then `organization_restricted`, then `logged_in_only` —
+   * so a fourth visibility value falls to `else true` exactly as it falls to
+   * the predicate's last `return`.
+   *
+   * `@>` containment over the JSONB array, so the organisation has to be one of
+   * its elements rather than a substring of the serialised bag.
+   */
+  #audienceCondition(audience: ProductAudience): ListingCondition {
+    const onAllowList = audience.organizationId !== null;
+    return {
+      sql: (alias) =>
+        `(case ` +
+        `when (case when jsonb_typeof(${alias}.allowed_organization_ids) = 'array' ` +
+        `then jsonb_array_length(${alias}.allowed_organization_ids) else 0 end) > 0 ` +
+        `then ${onAllowList ? `${alias}.allowed_organization_ids @> ?::jsonb` : 'false'} ` +
+        `when ${alias}.visibility = 'organization_restricted' then false ` +
+        `when ${alias}.visibility = 'logged_in_only' then ${audience.authenticated ? 'true' : 'false'} ` +
+        `else true end)`,
+      params: onAllowList ? [JSON.stringify([audience.organizationId])] : [],
+    };
+  }
+
+  /**
+   * One `filter[attr.<key>]`, as SQL: the product's value for `key`, rendered
+   * the way `#passesPageFilters` renders it, is one of the requested values.
+   *
+   * That method compares `String(value)`, so this is `String` restated for the
+   * JSON kinds a stored value can take — see {@link jsStringOfJsonb}. A key the
+   * product does not carry is SQL `NULL` throughout and matches nothing, which
+   * is the method's `undefined` arm.
+   *
+   * The comparison is deliberately not improved here. A multiselect holding two
+   * options matches neither of them alone, on either side of this change; that
+   * is a question about what the filter means, and answering it in the
+   * statement only would make the page-side predicate disagree with it.
+   */
+  #attributeCondition(key: string, values: readonly string[]): ListingCondition {
+    const wanted = values.map((v) => String(v));
+    if (wanted.length === 0) return { sql: () => 'false', params: [] };
+    return {
+      sql: (alias) =>
+        `(select ${jsStringOfJsonb('val.v')} ` +
+        `from (select ${alias}.attribute_values -> ?::text as v) val) ` +
+        `in (${wanted.map(() => '?').join(',')})`,
+      params: [key, ...wanted],
     };
   }
 
@@ -670,13 +890,13 @@ export class CatalogQueryService {
     params: ListProductsParams,
     ctx: CatalogQueryContext,
   ): boolean {
-    // Issue #227 — the second scoping axis, alongside the channel one. It is
-    // applied on the page rather than in the `where` because the allow-list
-    // test is a JSONB containment the ORM query object cannot spell, and
-    // splitting the two axes across the query and the page would leave the
-    // `limit` accounting to reason about twice instead of once. The known cost
-    // is a page narrowed after the fetch coming back shorter than `limit`, and
-    // it is bounded by how much of a catalogue an operator restricts.
+    // Issue #227 — the second scoping axis, alongside the channel one. The two
+    // price paths apply it here, to each chunk they collect before cutting a
+    // page, and their known cost is the scan budget binding where an operator
+    // restricts most of a catalogue. The default path no longer relies on it
+    // (issue #151): `#audienceCondition` puts the same answer in the statement
+    // its page is cut from, and this runs afterwards only as the predicate's
+    // own word on each row.
     if (!isProductVisibleTo(product, ctx.audience)) return false;
     if (!params.attributeFilters) return true;
     for (const [k, values] of Object.entries(params.attributeFilters)) {
@@ -2004,6 +2224,21 @@ export class CatalogQueryService {
     em: EntityManager,
     categorySlug: string,
   ): Promise<Set<string>> {
+    const all = await this.#categoryTreeIds(em, categorySlug);
+    if (all.length === 0) return new Set();
+
+    const rows = await em.execute<{ product_id: string }[]>(
+      `select product_id from product_categories where category_id in (${all.map(() => '?').join(',')})`,
+      all,
+    );
+    return new Set(rows.map((r) => r.product_id));
+  }
+
+  /**
+   * The category a slug names and every active descendant of it — empty when
+   * the slug names nothing a storefront may browse.
+   */
+  async #categoryTreeIds(em: EntityManager, categorySlug: string): Promise<string[]> {
     // Feature 068 — an inactive category narrows to nothing, and an inactive
     // branch contributes no products to an active ancestor.
     const root = await em.findOne(Category, {
@@ -2011,7 +2246,7 @@ export class CatalogQueryService {
       deletedAt: null,
       isActive: true,
     });
-    if (!root) return new Set();
+    if (!root) return [];
 
     // Collect descendant ids (BFS).
     const all: string[] = [root.id];
@@ -2026,12 +2261,7 @@ export class CatalogQueryService {
       all.push(...nextIds);
       frontier = nextIds;
     }
-
-    const rows = await em.execute<{ product_id: string }[]>(
-      `select product_id from product_categories where category_id in (${all.map(() => '?').join(',')})`,
-      all,
-    );
-    return new Set(rows.map((r) => r.product_id));
+    return all;
   }
 
   /**

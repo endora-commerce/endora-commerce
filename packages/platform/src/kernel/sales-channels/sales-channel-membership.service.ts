@@ -399,6 +399,48 @@ export class SalesChannelMembershipService {
     return rows.map((row) => row[bridge.entityIdColumn]!);
   }
 
+  /**
+   * The membership set as a **subquery**: the ids of `entityType` bound to
+   * `channelId`, for the caller to place inside its own statement as
+   * `<its id column> in (…)` (issue #151).
+   *
+   * {@link filterEntityIdsInChannel} narrows a set of ids the caller already
+   * holds, which is the right question for one row and the wrong one for a
+   * page. A listing that fetches `limit` rows and *then* asks which of them the
+   * channel carries has cut its page before scoping it: the page comes back
+   * short or empty while still offering a next one, and `limit` is not the page
+   * size anybody gets. The scope has to be part of the statement the page is
+   * cut from, and this is how an owning module puts it there without naming
+   * the bridge table itself — the accessor clause of Constitution XII, kept for
+   * the one read the id-list accessor cannot serve.
+   *
+   * Not {@link listEntityIdsForChannel} either: enumerating a channel's whole
+   * membership to bind it back as parameters is the same answer at the cost of
+   * the catalogue's size, twice over the wire.
+   *
+   * Nothing is executed here and no `EntityManager` is reached: the subquery is
+   * the caller's to run, inside its own statement and its own transaction. It
+   * takes no text from the caller — the channel is bound, and the table and
+   * column are the registered bridge's — so there is nothing in it a request
+   * can shape.
+   *
+   * It fails closed the way every other read here does. An unregistered member
+   * refuses before a statement exists, and a channel id that names nothing
+   * selects no row.
+   */
+  entityIdsInChannelSubquery(
+    channelId: string,
+    entityType: ChannelMemberEntityType,
+  ): { sql: string; params: string[] } {
+    const bridge = this.bridges.require(entityType);
+    return {
+      sql:
+        `select "${bridge.entityIdColumn}" from "${bridge.table}" ` +
+        `where "sales_channel_id" = ?`,
+      params: [channelId],
+    };
+  }
+
   /** Channels an entity currently belongs to. */
   async listChannelsForEntity(
     entityType: ChannelMemberEntityType,
