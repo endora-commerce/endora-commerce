@@ -18,8 +18,9 @@ request/response itself must not change.
 ## What an interceptor may do — and what it is guaranteed
 
 - **Position in the lifecycle** — a `pre` interceptor runs after the route's own
-  `preHandler` guards (`requireAdmin` / `requireCustomer` / API-key checks) and
-  after Zod validation, immediately before the handler. A `post` interceptor
+  guards (`requireAdmin` / `requireCustomer` / API-key checks, which the platform
+  runs before validation — see [Permissions](./permissions.md#when-the-gate-runs))
+  and after Zod validation, immediately before the handler. A `post` interceptor
   runs at `preSerialization`, only for successful responses (`statusCode < 400`).
 - **Ambient context** — interceptors execute inside the same ambient
   `TenantContext` and see the resolved sales channel

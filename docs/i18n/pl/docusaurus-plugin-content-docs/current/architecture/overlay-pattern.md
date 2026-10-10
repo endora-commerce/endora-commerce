@@ -274,7 +274,7 @@ modułu, a nie nadpisanie, czyli dokładnie to, przed czym chroni reguła nienar
 ## Jedyna rzecz bez punktu rozszerzenia
 
 **Nie da się zastąpić w całości handlera trasy.** `ctx.interceptors` działa po własnych
-zabezpieczeniach `preHandler` trasy i po walidacji schematu: interceptor wstępny może zablokować
+zabezpieczeniach trasy i po walidacji schematu: interceptor wstępny może zablokować
 żądanie, rzucając zarejestrowany `HttpError`, i może podmienić zwalidowaną treść żądania, a
 interceptor końcowy może podmienić treść odpowiedzi, ale żaden nie może podstawić innego handlera.
 

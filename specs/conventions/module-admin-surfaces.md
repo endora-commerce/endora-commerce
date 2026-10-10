@@ -38,6 +38,13 @@ so they appear on `/admin-roles` and pass the CI inventory.
    permission-map member, and a `hasPermission` capability check), and **fails on an
    argument it cannot resolve** rather than skipping it. Write the code as a literal or
    a resolvable constant; do not compute it.
+   **Declare the gate as the route's `preHandler`, and do not check the session inside the
+   handler instead.** The platform moves the `preHandler` chain a route declares to that
+   route's `preValidation` (`packages/platform/src/http/guards-before-validation.ts`), so a
+   refused caller is answered `401`/`403` before the schema is consulted; a session check
+   written in the handler runs after validation and answers `400` first. A guard therefore
+   sees `request.body` parsed and **not validated** — the full statement is
+   `docs/docs/architecture/permissions.md` § *When the gate runs*.
 4. **i18n** — `adminRoles.permission.<code>` in **your own module's** `i18n/en.json` and
    `i18n/pl.json`, flat, in both shipped languages
    (`specs/091-module-owned-admin-surfaces/`, Phase 3). This item said `_i18n/i18n/{en,pl}.json`
