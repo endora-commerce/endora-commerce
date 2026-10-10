@@ -94,6 +94,38 @@ dostawy również otrzymują identyfikator tego kanału, którego wcześniej nie
 dostawały. Instancja, która ustawiła minimalną wartość ogólnie dla platformy albo
 wcale, nie zauważy zmiany.
 
+## Listy dozwolonych metod przy składaniu zamówienia
+
+Organizację można ograniczyć do wybranych metod dostawy i płatności (zob. moduł `organizations`,
+*Ograniczenia handlowe organizacji*). Złożenie zamówienia i oba podglądy odrzucają metodę spoza niepustej
+listy odpowiedzią `400 VALIDATION_FAILED`:
+
+| `error.details.code` | Zawiera też | Znaczenie |
+| --- | --- | --- |
+| `delivery_method_not_allowed_for_organization` | `deliveryMethodId` | Lista dozwolonych metod dostawy organizacji nie zawiera wybranej metody |
+| `payment_method_not_allowed_for_organization` | `paymentMethodId` | Lista dozwolonych metod płatności organizacji nie zawiera wybranej metody |
+
+- **Gdzie** — `POST /api/v1/orders`, `POST /api/v1/orders/preview-total`,
+  `POST /api/v1/admin/orders`, `POST /api/v1/admin/orders/preview`,
+  `POST /api/v1/external/orders` oraz każde inne wywołanie `orderPlacementPort.placeOrder`. Zakup
+  jednym kliknięciem nie dochodzi do tej odmowy: gdy lista wyklucza metodę domyślną, kupujący nie
+  może z niego skorzystać (`one_click_unavailable`, powód `missing_defaults`).
+- **Która organizacja** — ta, dla której składane jest zamówienie: organizacja zalogowanego
+  kupującego, organizacja powiązana z kluczem API albo organizacja klienta, gdy zamówienie tworzy
+  administrator. Żądanie nie może wskazać innej.
+- **Pusta lista nie ogranicza** — pusta lista albo jej brak dopuszcza każdą aktywną metodę, a obie
+  listy są niezależne.
+- **Nic nie jest zapisywane** — nie powstaje zamówienie, rezerwacja stanu ani płatność, a koszyk
+  klienta pozostaje bez zmian. Tworzenie zamówienia przez administratora i przyjęcie zamówienia
+  kluczem API sprawdzają listy, zanim zastąpią koszyk.
+- **Administratorów też to obowiązuje** — tak zostało postanowione: zamówienie utworzone w imieniu
+  klienta podlega listom dozwolonych metod organizacji tego klienta i żadne ustawienie tego nie
+  wyłącza. Formularz tworzenia pokazuje wszystkie metody; dla metody, na którą organizacja nie
+  pozwala, podgląd i utworzenie zamówienia zwracają powyższą odmowę.
+- **Gdy obie metody są spoza list**, odmowa dotyczy metody dostawy.
+- **Gdy list nie da się odczytać**, żądanie kończy się odpowiedzią `500 INTERNAL` i zamówienie nie
+  powstaje — tak samo odpowiadają obie listy metod.
+
 ## Statusy i przejścia (konfigurowalne)
 
 Cykl życia zamówienia **konfiguruje się w panelu administracyjnym**: statusy i dozwolone przejścia

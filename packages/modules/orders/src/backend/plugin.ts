@@ -53,6 +53,7 @@ import type {
   OrderStatusRegistry,
   OrderTransitionPort,
   OrganizationDetailsPort,
+  OrganizationRestrictionPort,
   PaymentAdapterRegistryPort,
   PaymentMethodReadPort,
   QuoteRequestReadPort,
@@ -172,6 +173,12 @@ export interface OrdersModuleOptions {
   catalogProductRead: CatalogProductReadPort;
   customerAccountRead: CustomerAccountReadPort;
   organizationDetails: OrganizationDetailsPort;
+  /**
+   * `organizations` — the per-Organization delivery- and payment-method
+   * allow-lists (feature 026 US4). `OrderService` refuses a placement, and a
+   * total preview, that names a method outside them.
+   */
+  organizationRestriction: OrganizationRestrictionPort;
   /** Accessors: both owners are deactivatable `degrades-without` edges. */
   deliveryMethodRead: () => DeliveryMethodReadPort | null;
   paymentMethodRead: () => PaymentMethodReadPort | null;
@@ -401,16 +408,6 @@ export interface OrdersModuleOptions {
   requireBoundApiKey?: (
     scope: string,
   ) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
-  /**
-   * Feature 062 / FR-021 — the org's payment/delivery allow-lists (feature
-   * 026 restriction service; empty list = unrestricted). The external intake
-   * enforces them at submit with the customer flow's method-unavailable
-   * refusal, since this surface has no listing/preflight step.
-   */
-  resolveOrganizationMethodAllowLists?: (organizationId: string) => Promise<{
-    paymentMethodIds: string[];
-    deliveryMethodIds: string[];
-  } | null>;
 }
 
 export function commerceModule(options: OrdersModuleOptions) {
@@ -496,6 +493,7 @@ export function commerceModule(options: OrdersModuleOptions) {
         ...(options.log ? { log: options.log } : {}),
         neighbours: {
           organizationDetails: options.organizationDetails,
+          organizationRestriction: options.organizationRestriction,
           customerAccountRead: options.customerAccountRead,
           addressRead: options.addressRead,
           catalogProductRead: options.catalogProductRead,
@@ -652,7 +650,6 @@ export function commerceModule(options: OrdersModuleOptions) {
         salesChannelMembership: options.salesChannelMembership,
         pricingService: options.pricingService,
         redis: options.redis,
-        resolveOrganizationMethodAllowLists: options.resolveOrganizationMethodAllowLists,
         auditLogService: options.auditLogService,
       });
       await registerOrdersExternalRoutes(app, {

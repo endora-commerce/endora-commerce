@@ -584,6 +584,14 @@ export function registerModule(ctx: ModuleContext): void {
             catalogProductRead: lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
             customerAccountRead: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
             organizationDetails: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
+            // The Organization's method allow-lists, which placement and the
+            // total preview refuse against. `organizations` is a binding
+            // dependency, so this is the port itself and not a presence
+            // accessor: an absent owner refuses at the call.
+            organizationRestriction: lazyPort<OrganizationRestrictionPort>(
+              ctx,
+              'organizationRestrictionPort',
+            ),
             deliveryMethodRead: () =>
               effectiveState.isPresent('delivery_methods')
                 ? lazyPort<DeliveryMethodReadPort>(ctx, 'deliveryMethodReadPort')
@@ -720,18 +728,6 @@ export function registerModule(ctx: ModuleContext): void {
               resolveAllowList(req, 'paymentMethodIds'),
             resolveOrganizationDeliveryMethodAllowList: (req: FastifyRequest) =>
               resolveAllowList(req, 'deliveryMethodIds'),
-            resolveOrganizationMethodAllowLists: async (organizationId: string) => {
-              const lists = await cradle().organizationRestrictionPort.allowedIdsFor(
-                organizationId,
-                'paymentMethodIds',
-              );
-              const delivery = await cradle().organizationRestrictionPort.allowedIdsFor(
-                organizationId,
-                'deliveryMethodIds',
-              );
-              if (lists === null || delivery === null) return null;
-              return { paymentMethodIds: lists, deliveryMethodIds: delivery };
-            },
 
             // The nine settings reads. Seven of them were passed by production
             // and by no test at all — see the note at the top of this file.

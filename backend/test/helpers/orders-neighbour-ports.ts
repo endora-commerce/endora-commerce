@@ -14,6 +14,7 @@ import { resolveAllocations, resolveEffectiveFulfilmentStrategy } from '@endora-
 import { CustomerAccountReadService } from '../../../packages/modules/customer_accounts/src/backend/services/customer-account-ports.js';
 import { twoFactorEnrolmentsFor } from './two-factor-enrolments.js';
 import { OrganizationDetailsService } from '../../../packages/modules/organizations/src/backend/services/organization-details-port.js';
+import { OrganizationRestrictionService } from '../../../packages/modules/organizations/src/backend/services/organization-restriction-service.js';
 import { CatalogProductReadService } from '../../../packages/modules/catalog/dist/backend/services/catalog-product-read.service.js';
 import { AddressReadService } from '../../../packages/modules/addresses/src/backend/services/address-ports.js';
 import { DeliveryMethodReadService } from '../../../packages/modules/delivery_methods/src/backend/services/delivery-method-read-port.js';
@@ -98,6 +99,10 @@ export function orderServiceNeighbours(
     addressRead,
     deliveryMethodRead: () => deliveryMethodRead,
     paymentMethodRead: () => paymentMethodRead,
+    // The Organization's method allow-lists placement refuses against. The
+    // real service, so a hand-built `OrderService` reads the same link rows
+    // the composed one does.
+    organizationRestriction: new OrganizationRestrictionService(emFactory),
     // Feature 080, T048 — the three seams placement used to spell with another
     // module's entity class. The real implementations, like every other port
     // here: they are the classes the container registers, so a hand-built

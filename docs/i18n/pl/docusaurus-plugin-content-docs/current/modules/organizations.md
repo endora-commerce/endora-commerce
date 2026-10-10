@@ -127,6 +127,13 @@ Trzy listy dozwolonych wartości określają, z czego organizacja może korzysta
 `GET /api/v1/payment-methods`, `GET /api/v1/delivery-methods` oraz endpointy stanów magazynowych,
 ograniczając je do części wspólnej z przypisaniami organizacji wywołującego.
 
+Listy metod płatności i dostawy obowiązują także przy **składaniu zamówienia**: zamówienie dla
+organizacji, które wskazuje metodę spoza niepustej listy, jest odrzucane odpowiedzią
+`400 VALIDATION_FAILED` wszędzie tam, gdzie zamówienie się składa lub podgląda — w checkoucie
+storefrontu, przy tworzeniu zamówienia przez administratora w imieniu klienta i przy przyjęciu
+zamówienia kluczem API — a zakup jednym kliknięciem nie jest oferowany, dopóki metoda domyślna jest
+wykluczona. Kody odmowy opisuje moduł `orders`, *Listy dozwolonych metod przy składaniu zamówienia*.
+
 Endpointy administracyjne:
 
 | Metoda i ścieżka | Przeznaczenie |

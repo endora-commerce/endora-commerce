@@ -138,6 +138,13 @@ storefront `GET /api/v1/payment-methods`, `GET /api/v1/delivery-methods`,
 and inventory stock-figure endpoints intersected with the caller's
 Organization assignment.
 
+The payment and delivery lists also bind **order placement**: an order for the
+Organization that names a method outside a non-empty list is refused with
+`400 VALIDATION_FAILED` on every surface that places or previews one —
+storefront checkout, admin create on a customer's behalf, the API-key intake —
+and one-click buy is not offered while a default method is excluded. The
+refusal codes are in the `orders` module, *Method allow-lists at placement*.
+
 Admin endpoints:
 
 | Verb + Path | Purpose |
