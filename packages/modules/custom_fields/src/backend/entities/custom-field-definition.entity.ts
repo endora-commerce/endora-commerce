@@ -1,7 +1,7 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
 import { GlobalEntity } from '@endora-commerce/platform/tenancy';
 import { randomUUID } from 'crypto';
-import type { CustomFieldValueType, SupportedEntityType } from '@endora-commerce/contracts';
+import type { CustomFieldAudience, CustomFieldValueType, SupportedEntityType } from '@endora-commerce/contracts';
 
 /**
  * CustomFieldDefinition — an operator-defined field for one host entity type
@@ -29,6 +29,7 @@ export class CustomFieldDefinition {
     | 'createdAt'
     | 'updatedAt'
     | 'required'
+    | 'audience'
     | 'sortOrder'
     | 'label'
     | 'config';
@@ -56,6 +57,15 @@ export class CustomFieldDefinition {
 
   @Property({ type: 'boolean' })
   required: boolean = false;
+
+  /**
+   * Who the field's stored values are answered to. A new definition is
+   * `internal` (administrators only) unless its author says otherwise; the
+   * rows that predate the column were migrated to `customer`, which is how
+   * their values were already being answered.
+   */
+  @Property({ type: 'string', length: 16 })
+  audience: CustomFieldAudience = 'internal';
 
   @Property({ type: 'integer' })
   sortOrder: number = 0;

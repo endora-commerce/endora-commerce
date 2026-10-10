@@ -109,6 +109,32 @@ export class CustomFieldValueService {
   }
 
   /**
+   * The bag as a non-administrator may read it: the keys whose definition is
+   * live **and** has the `customer` audience. An `internal` field's value, and
+   * a value whose definition no longer exists, are both left out — the second
+   * because nothing says any longer who that value was meant for.
+   *
+   * The one filter every host's buyer-facing and external serialiser goes
+   * through. Definitions come from the per-entity cache, so a list reply that
+   * calls this once per row reads the table at most once.
+   */
+  async projectForCustomer(
+    entityType: SupportedEntityType,
+    bag: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const out: Record<string, unknown> = {};
+    if (Object.keys(bag).length === 0) return out;
+    const defs = await this.definitions.listForEntity(entityType);
+    for (const { definition } of defs) {
+      if (definition.audience !== 'customer') continue;
+      if (Object.prototype.hasOwnProperty.call(bag, definition.key)) {
+        out[definition.key] = bag[definition.key];
+      }
+    }
+    return out;
+  }
+
+  /**
    * Existence probe for definition-change guards (FR-010): is there any host row
    * with a stored value at `key`? Read-only JSONB introspection on the host table.
    */

@@ -12,6 +12,8 @@ import { OrderStatusGraphService } from '../../../../packages/modules/orders/dis
 import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
 import { CustomerAccount } from '../../helpers/package-entities.js';
 import { Order, OrderComment } from '../../helpers/package-entities.js';
+import { adminUserIdKeys } from '../../helpers/strict-schema.js';
+import { orderCommentSchema } from '@endora-commerce/contracts';
 
 /**
  * Feature 038 (US5) — order comments: visibility + notify rules, terminal
@@ -79,6 +81,22 @@ describe('Order comments', () => {
     const custList = (await h.app.inject({ method: 'GET', url: `/api/v1/orders/${openOrderId}/comments`, ...customer })).json() as { data: Array<{ body: string }> };
     expect(custList.data).toHaveLength(1);
     expect(custList.data[0]!.body).toBe('visible to you');
+
+    // The administrator's identifier is the admin list's to answer, never the
+    // customer's: the key is absent there, and the reply still parses.
+    expect((adminList.data[0] as { authorAdminUserId?: unknown }).authorAdminUserId).toEqual(
+      expect.any(String),
+    );
+    expect(adminUserIdKeys(custList.data)).toEqual([]);
+    expect(orderCommentSchema.safeParse(custList.data[0]).success).toBe(true);
+    const own = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/orders/${openOrderId}/comments`,
+      ...customer,
+      payload: { body: 'a question' },
+    });
+    expect(own.statusCode).toBe(201);
+    expect(adminUserIdKeys(own.json())).toEqual([]);
   });
 
   it('customer comments are forced customer-visible and non-notifying', async () => {

@@ -16,6 +16,7 @@ const ORDER = {
   businessId: '1',
   organizationId: '00000000-0000-4000-8000-000000000002',
   placedByCustomerAccountId: '00000000-0000-4000-8000-000000000003',
+  placedOnBehalf: false,
   placedOnBehalfByAdminUserId: null,
   salesChannelId: '00000000-0000-4000-8000-000000000004',
   status: 'new',

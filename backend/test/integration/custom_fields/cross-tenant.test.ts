@@ -24,10 +24,32 @@ describe('Custom Fields — cross-tenant isolation on an org-scoped host [real D
   const customerBCookie = `stub-customer-cf-${Date.now()}`;
   let orderAId: string;
   let orderBId: string;
+  // A customer-visible order field: a buyer is answered only the values whose
+  // definition says `customer`, so the bag below needs a definition to be read at all.
+  const fieldKey = `tenant_ref_${randomUUID().replace(/-/g, '').slice(0, 10)}`;
 
   beforeAll(async () => {
     h = await setupBackendServer();
     CUSTOMER_COOKIES[customerBCookie] = { customerAccountId: customerBId, organizationId: orgBId };
+
+    const defined = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/custom-fields/definitions',
+      cookies: { b2b_session: 'stub-admin-session' },
+      payload: {
+        entityType: 'order',
+        key: fieldKey,
+        label: {},
+        labelDefault: fieldKey,
+        valueType: 'text',
+        required: false,
+        audience: 'customer',
+        sortOrder: 0,
+        config: {},
+        options: [],
+      },
+    });
+    expect(defined.statusCode, defined.body).toBe(201);
 
     await withSystemScope('test seed', async () => {
       const a = await seedInvoiceableOrder(h.em(), {
@@ -43,9 +65,9 @@ describe('Custom Fields — cross-tenant isolation on an org-scoped host [real D
       // Stamp distinct custom-field bags on each order.
       const em = h.em();
       const oa = await em.findOneOrFail(Order, { id: orderAId });
-      oa.customFieldValues = { secret_ref: 'ORG-A-ONLY' };
+      oa.customFieldValues = { [fieldKey]: 'ORG-A-ONLY' };
       const ob = await em.findOneOrFail(Order, { id: orderBId });
-      ob.customFieldValues = { secret_ref: 'ORG-B-ONLY' };
+      ob.customFieldValues = { [fieldKey]: 'ORG-B-ONLY' };
       await em.flush();
     });
   });
@@ -64,7 +86,7 @@ describe('Custom Fields — cross-tenant isolation on an org-scoped host [real D
     expect(res.statusCode).toBe(200);
     const rows = (res.json() as { data: Array<{ id: string; customFieldValues?: Record<string, unknown> }> }).data;
     const a = rows.find((o) => o.id === orderAId);
-    expect(a?.customFieldValues).toMatchObject({ secret_ref: 'ORG-A-ONLY' });
+    expect(a?.customFieldValues).toMatchObject({ [fieldKey]: 'ORG-A-ONLY' });
     // Org B's order — and thus its custom-field bag — never appears.
     expect(rows.some((o) => o.id === orderBId)).toBe(false);
     const leaked = JSON.stringify(rows).includes('ORG-B-ONLY');

@@ -112,18 +112,32 @@ export const orderSchema = z.object({
   businessId: z.string(),
   organizationId: uuidSchema,
   placedByCustomerAccountId: uuidSchema,
-  placedOnBehalfByAdminUserId: uuidSchema.nullable(),
+  /**
+   * Whether a member of staff placed this order on the customer's behalf.
+   * Carried by every order response.
+   */
+  placedOnBehalf: z.boolean(),
+  /**
+   * The administrator who placed the order on the customer's behalf, or `null`.
+   *
+   * **Admin replies only.** The buyer-facing and the external
+   * (`/api/v1/external/orders`) replies do not carry the key at all — an
+   * administrator's identifier is not theirs to read; they carry
+   * {@link placedOnBehalf} instead.
+   */
+  placedOnBehalfByAdminUserId: uuidSchema.nullable().optional(),
   salesChannelId: uuidSchema,
   status: orderStatusCodeSchema,
   /**
-   * The order's runtime custom-field values (feature 055), keyed by field key.
+   * The order's runtime custom-field values (feature 055), keyed by field key;
+   * `{}` when there are none to answer.
    *
-   * Carried by **every** order response — the buyer-facing reads, the admin
-   * reads and the external (`/api/v1/external/orders`) reads alike — and `{}`
-   * when the order has none. The values are written by an administrator
-   * (`PATCH /api/v1/admin/orders/:id/custom-fields`); a custom-field definition
-   * carries no audience, so whatever is stored on an order is answered to
-   * every reader of that order.
+   * Carried by **every** order response, and its content depends on the
+   * reader. The admin replies carry every stored value. The buyer-facing and
+   * the external (`/api/v1/external/orders`) replies carry only the values
+   * whose custom-field definition has the `customer` audience: a value of an
+   * `internal` field, or of a field whose definition no longer exists, is not
+   * answered to them.
    */
   customFieldValues: customFieldValuesSchema.default({}),
   /** Localized status labels; resolve statusName[language] → statusDefaultName → status. */
@@ -796,7 +810,8 @@ export type AdminOrderPreviewResponse = z.infer<typeof adminOrderPreviewResponse
 export const orderCommentSchema = z.object({
   id: uuidSchema,
   orderId: uuidSchema,
-  authorAdminUserId: uuidSchema.nullable(),
+  /** Admin replies only; a customer reply does not carry the key (staff wrote it when `authorCustomerAccountId` is `null`). */
+  authorAdminUserId: uuidSchema.nullable().optional(),
   authorCustomerAccountId: uuidSchema.nullable(),
   body: z.string(),
   isCustomerVisible: z.boolean(),

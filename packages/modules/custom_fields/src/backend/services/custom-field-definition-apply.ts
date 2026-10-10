@@ -33,6 +33,7 @@ export class CustomFieldDefinitionError extends Error {
       | 'options_forbidden'
       | 'entity_type_unknown'
       | 'value_type_locked'
+      | 'stored_values_exist'
       | 'option_in_use'
       | 'key_changed'
       | 'invalid_key',
@@ -102,6 +103,7 @@ export async function applyCreateDefinition(
     labelDefault: input.labelDefault,
     valueType: input.valueType,
     required: input.required,
+    audience: input.audience,
     sortOrder: input.sortOrder,
     config: input.config,
   });
@@ -137,6 +139,7 @@ export async function applyUpdateDefinition(
   if (patch.labelDefault !== undefined) def.labelDefault = patch.labelDefault;
   if (patch.valueType !== undefined) def.valueType = patch.valueType;
   if (patch.required !== undefined) def.required = patch.required;
+  if (patch.audience !== undefined) def.audience = patch.audience;
   if (patch.sortOrder !== undefined) def.sortOrder = patch.sortOrder;
   if (patch.config !== undefined) def.config = patch.config;
   return def;

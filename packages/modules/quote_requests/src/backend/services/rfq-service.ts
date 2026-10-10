@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
+  type CustomFieldValuePort,
   ERROR_CODES,
   isProductVisibleTo,
   type ProductAudience,
@@ -79,6 +80,12 @@ export interface RfqServiceDeps {
   revisionService: RfqRevisionService;
   notificationService: RfqNotificationService;
   salesRepAssignment: SalesRepAssignmentPort;
+  /**
+   * Narrows a quote's custom-field values to the ones a customer may read
+   * (`custom_fields`' `projectForCustomer`). Absent — the port is not wired —
+   * means the customer-facing reply carries none of them.
+   */
+  customFieldValues?: Pick<CustomFieldValuePort, 'projectForCustomer'>;
   /**
    * Feature 075, Phase C — the four rows this service reads and none of which
    * it owns, plus the one it writes.
@@ -930,7 +937,20 @@ export class RfqService {
 
   /** Serialise to the customer-facing response shape. Hides internal admin
    * actor identity behind `actorRoleLabel` per FR-037 unless
-   * `includeFullActorIdentity = true` (admin path). */
+   * `includeFullActorIdentity = true` (admin path).
+   *
+   * The same flag decides the custom-field values: the admin path answers
+   * every stored value, the customer path only those whose definition has the
+   * `customer` audience — an `internal` field's value, and one whose definition
+   * is gone, are not answered to a customer. This is the one place the quote
+   * surface applies that rule. */
+  private customFieldValuesFor(
+    rfq: QuoteRequest,
+    forAdmin: boolean,
+  ): Promise<Record<string, unknown>> {
+    return quoteCustomFieldValuesFor(this.deps.customFieldValues, rfq.customFieldValues ?? {}, forAdmin);
+  }
+
   async serializeFull(
     em: EntityManager,
     rfq: QuoteRequest,
@@ -975,15 +995,21 @@ export class RfqService {
       businessId: rfq.businessId,
       organizationId: rfq.organizationId,
       customerAccountId: rfq.customerAccountId,
-      createdByAdminUserId: rfq.createdByAdminUserId ?? null,
-      assignedAdminUserId: rfq.assignedAdminUserId ?? null,
+      // Administrator identifiers are the admin surface's to answer. A customer
+      // reply carries none of them — not as `null` either: the key is absent.
+      ...(includeFullActorIdentity
+        ? {
+            createdByAdminUserId: rfq.createdByAdminUserId ?? null,
+            assignedAdminUserId: rfq.assignedAdminUserId ?? null,
+          }
+        : {}),
       status: rfq.status,
       awaitingCustomerRevisionAcceptance: rfq.awaitingCustomerRevisionAcceptance,
       currentRevisionNumber: rfq.currentRevisionNumber,
       lastCustomerSeenRevisionNumber: rfq.lastCustomerSeenRevisionNumber,
       headerNote: rfq.headerNote ?? null,
       cancellationReason: rfq.cancellationReason ?? null,
-      customFieldValues: rfq.customFieldValues ?? {},
+      customFieldValues: await this.customFieldValuesFor(rfq, includeFullActorIdentity),
       items: items.map((it) => ({
         id: it.id,
         productId: it.productId,
@@ -1002,7 +1028,7 @@ export class RfqService {
       events: events.map((e) => ({
         id: e.id,
         eventType: e.eventType,
-        actorAdminUserId: includeFullActorIdentity ? e.actorAdminUserId ?? null : null,
+        ...(includeFullActorIdentity ? { actorAdminUserId: e.actorAdminUserId ?? null } : {}),
         actorCustomerAccountId: e.actorCustomerAccountId ?? null,
         actorRoleLabel: e.actorRoleLabel ?? null,
         payload: e.payload,
@@ -1142,4 +1168,19 @@ function groupBy<T, K>(arr: T[], key: (t: T) => K): Map<K, T[]> {
  */
 function rfqAudience(ctx: CustomerContext): ProductAudience {
   return { organizationId: ctx.organizationId, authenticated: true };
+}
+
+/**
+ * A quote's custom-field values as one reader may see them: all of them for an
+ * administrator, only the customer-visible ones for anyone else — and none at
+ * all when the `custom_fields` port is not wired, because then nothing can say
+ * which of them are internal.
+ */
+export async function quoteCustomFieldValuesFor(
+  port: Pick<CustomFieldValuePort, 'projectForCustomer'> | undefined,
+  bag: Record<string, unknown>,
+  forAdmin: boolean,
+): Promise<Record<string, unknown>> {
+  if (forAdmin) return bag;
+  return port ? port.projectForCustomer('quote_request', bag) : {};
 }

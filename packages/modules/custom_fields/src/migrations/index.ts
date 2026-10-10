@@ -23,11 +23,14 @@
  */
 
 import { Migration20260718T200338CustomFieldsInit } from './20260718T200338_custom_fields_init.js';
+import { Migration20261010T090000CustomFieldsDefinitionAudience } from './20261010T090000_custom_fields_definition_audience.js';
 
 export const migrations = [
   Migration20260718T200338CustomFieldsInit,
+  Migration20261010T090000CustomFieldsDefinitionAudience,
 ];
 
 export {
   Migration20260718T200338CustomFieldsInit,
+  Migration20261010T090000CustomFieldsDefinitionAudience,
 };

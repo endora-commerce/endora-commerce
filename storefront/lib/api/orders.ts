@@ -214,7 +214,6 @@ export interface OrderComment {
   body: string;
   isCustomerVisible: boolean;
   authorCustomerAccountId: string | null;
-  authorAdminUserId: string | null;
   createdAt: string;
 }
 

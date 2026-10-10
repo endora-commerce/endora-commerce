@@ -74,6 +74,7 @@ describe('custom_fields — one definitions cache [integration]', () => {
       labelDefault: 'Cache probe',
       valueType: 'text',
       required: false,
+      audience: 'internal',
       sortOrder: 900,
       config: {},
       options: [],

@@ -6,7 +6,7 @@ import {
   OrganizationCannotTransactError,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
-import { serializeOrder } from './order-response.js';
+import { serializeOrderForCustomer, type CustomerCustomFieldProjection } from './order-response.js';
 import type { OrderService } from './services/order-service.js';
 import type { OrderApiIntakeService } from './services/order-api-intake-service.js';
 
@@ -24,7 +24,7 @@ import type { OrderApiIntakeService } from './services/order-api-intake-service.
  *  - every endpoint requires a BOUND api key (`requireBoundApiKey`);
  *  - every response carries `Cache-Control: private, no-store` (scoped hook);
  *  - responses reuse the existing serialized order envelope — no partner DTO:
- *    the same `serializeOrder` (`order-response.ts`) the customer surface
+ *    the same `serializeOrderForCustomer` (`order-response.ts`) the customer surface
  *    answers with, minus the buyer's cancel capability.
  */
 
@@ -72,6 +72,11 @@ export interface OrdersExternalDeps {
   requireBoundApiKey: ExternalOrdersGateFactory;
   /** Feature 026 — same optional transact gate the customer surface wires. */
   assertOrganizationCanTransact?: ((organizationId: string) => Promise<void>) | undefined;
+  /**
+   * Narrows an order's custom-field values to the ones an external caller may
+   * read. Absent means none are answered (see `serializeOrderForCustomer`).
+   */
+  customFieldValues?: CustomerCustomFieldProjection | undefined;
 }
 
 export async function registerOrdersExternalRoutes(
@@ -154,7 +159,7 @@ export async function registerOrdersExternalRoutes(
           parsed.data,
         );
         reply.status(result.replayed ? 200 : 201);
-        return { data: await serializeOrder(emFactory(), result.order) };
+        return { data: await serializeOrderForCustomer(emFactory(), result.order, deps.customFieldValues) };
       },
     );
 
@@ -171,7 +176,7 @@ export async function registerOrdersExternalRoutes(
         const orders = await orderService.listForCustomer(ctx);
         const em = emFactory();
         return {
-          data: await Promise.all(orders.map((o) => serializeOrder(em, o))),
+          data: await Promise.all(orders.map((o) => serializeOrderForCustomer(em, o, deps.customFieldValues))),
           pagination: { cursor: null, hasMore: false, limit: 50 },
         };
       },
@@ -188,7 +193,7 @@ export async function registerOrdersExternalRoutes(
           organizationId: binding.organizationId,
         };
         const order = await orderService.getById(request.params.id, ctx);
-        return { data: await serializeOrder(emFactory(), order) };
+        return { data: await serializeOrderForCustomer(emFactory(), order, deps.customFieldValues) };
       },
     );
   });

@@ -218,6 +218,11 @@ export function createAttributeCommand(
           labelDefault,
           valueType: triple.cfValueType,
           required: req.isRequired ?? false,
+          // A product attribute is catalogue data: whether a shopper sees it is
+          // decided by this module's own attribute flags, and `custom_fields`
+          // does not consult the audience for a host-managed type. `customer`
+          // states what is true of it rather than leaving it to read as hidden.
+          audience: 'customer',
           sortOrder: input.sortOrder,
           config: {},
           options,

@@ -47,6 +47,7 @@ function definitionRecord(id: string): CustomFieldDefinitionWithOptions {
       labelDefault: 'Material',
       valueType: 'text',
       required: false,
+      audience: 'customer',
       sortOrder: 0,
       config: {},
       createdAt: NOW,

@@ -6,6 +6,7 @@ import { customFieldsClient } from '../api/custom-fields-client.js';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import type {
+  CustomFieldAudience,
   CustomFieldDefinitionDto,
   CustomFieldEntityTypeInfo,
   CustomFieldValueType,
@@ -27,6 +28,7 @@ const VALUE_TYPES: CustomFieldValueType[] = [
   'select',
   'multiselect',
 ];
+const AUDIENCES: CustomFieldAudience[] = ['internal', 'customer'];
 const SELECT_TYPES = new Set<CustomFieldValueType>(['select', 'multiselect']);
 
 /** Custom-field definition management (feature 055). List + create per entity type. */
@@ -56,6 +58,9 @@ export function CustomFieldsPage(): ReactNode {
   const [label, setLabel] = useState('');
   const [valueType, setValueType] = useState<CustomFieldValueType>('text');
   const [required, setRequired] = useState(false);
+  // `internal` until the administrator says otherwise: a field's values reach
+  // a customer only as a decision, never as the form's resting state.
+  const [audience, setAudience] = useState<CustomFieldAudience>('internal');
   const [options, setOptions] = useState('');
 
   const refresh = useCallback(async (): Promise<void> => {
@@ -116,6 +121,7 @@ export function CustomFieldsPage(): ReactNode {
         labelDefault: label.trim() || key.trim(),
         valueType,
         required,
+        audience,
         sortOrder: rows.length,
         config: {},
         options: opts,
@@ -123,6 +129,7 @@ export function CustomFieldsPage(): ReactNode {
       setKey('');
       setLabel('');
       setOptions('');
+      setAudience('internal');
     });
   };
 
@@ -175,6 +182,7 @@ export function CustomFieldsPage(): ReactNode {
                 <TableHead>Label</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Required</TableHead>
+                <TableHead>{t('customFields.audience.column')}</TableHead>
                 <TableHead>Options</TableHead>
                 <TableHead />
               </TableRow>
@@ -189,6 +197,29 @@ export function CustomFieldsPage(): ReactNode {
                     <Badge variant={d.required ? 'default' : 'secondary'}>
                       {d.required ? 'required' : 'optional'}
                     </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {managedBy ? (
+                      '—'
+                    ) : (
+                      <Select
+                        aria-label={t('customFields.audience.rowLabel', { key: d.key })}
+                        value={d.audience}
+                        onChange={(e) =>
+                          void run(() =>
+                            customFieldsClient.update(d.id, {
+                              audience: e.target.value as CustomFieldAudience,
+                            }),
+                          )
+                        }
+                      >
+                        {AUDIENCES.map((a) => (
+                          <option key={a} value={a}>
+                            {t(`customFields.audience.${a}`)}
+                          </option>
+                        ))}
+                      </Select>
+                    )}
                   </TableCell>
                   <TableCell className="text-xs">
                     {d.options.map((o) => o.value).join(', ') || '—'}
@@ -256,6 +287,21 @@ export function CustomFieldsPage(): ReactNode {
                 />
               </div>
             )}
+            <div className="space-y-1">
+              <Label htmlFor="audience">{t('customFields.audience.label')}</Label>
+              <Select
+                id="audience"
+                aria-describedby="audience-help"
+                value={audience}
+                onChange={(e) => setAudience(e.target.value as CustomFieldAudience)}
+              >
+                {AUDIENCES.map((a) => (
+                  <option key={a} value={a}>
+                    {t(`customFields.audience.${a}`)}
+                  </option>
+                ))}
+              </Select>
+            </div>
             <label className="flex items-center gap-1 text-sm">
               <input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} />
               Required
@@ -263,6 +309,9 @@ export function CustomFieldsPage(): ReactNode {
             <Button size="sm" disabled={!key.trim()} onClick={submit}>
               Add field
             </Button>
+            <p id="audience-help" className="basis-full text-sm text-muted-foreground">
+              {t('customFields.audience.help')}
+            </p>
           </div>
           )}
         </CardContent>

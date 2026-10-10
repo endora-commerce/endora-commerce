@@ -75,7 +75,8 @@ export type RfqEventType = z.infer<typeof rfqEventTypeSchema>;
 export const quoteRequestEventSchema = z.object({
   id: uuidSchema,
   eventType: rfqEventTypeSchema,
-  actorAdminUserId: uuidSchema.nullable(),
+  /** Admin replies only; a customer reply does not carry the key. */
+  actorAdminUserId: uuidSchema.nullable().optional(),
   actorCustomerAccountId: uuidSchema.nullable(),
   actorRoleLabel: z.string().nullable(),
   payload: z.record(z.string(), z.unknown()),
@@ -145,8 +146,13 @@ export const quoteRequestSchema = z.object({
   businessId: z.string(),
   organizationId: uuidSchema,
   customerAccountId: uuidSchema,
-  createdByAdminUserId: uuidSchema.nullable(),
-  assignedAdminUserId: uuidSchema.nullable(),
+  /**
+   * The administrator who created the quote on the customer's behalf, and the
+   * one it is assigned to. **Admin replies only** — a customer reply carries
+   * neither key: an administrator's identifier is not the customer's to read.
+   */
+  createdByAdminUserId: uuidSchema.nullable().optional(),
+  assignedAdminUserId: uuidSchema.nullable().optional(),
   status: rfqStatusSchema,
   awaitingCustomerRevisionAcceptance: z.boolean(),
   currentRevisionNumber: z.number().int().nonnegative(),

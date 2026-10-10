@@ -40,6 +40,21 @@ export const customFieldValueTypeSchema = z.enum([
 export type CustomFieldValueType = z.infer<typeof customFieldValueTypeSchema>;
 
 /** Per-locale label map (BCP-47-keyed). Empty is allowed when only `labelDefault` is filled. */
+/**
+ * Who a custom field's stored VALUES are answered to.
+ *
+ * - `customer` — the values are part of what a non-administrator reads: the
+ *   buyer-facing (storefront) replies and the external, API-key replies.
+ * - `internal` — administrators only. The values never leave the admin API.
+ *
+ * A definition created without the attribute is `internal`: a field has to be
+ * opened to customers deliberately. Definitions that existed before the
+ * attribute did were migrated to `customer`, which is how their values were
+ * already being answered.
+ */
+export const customFieldAudienceSchema = z.enum(['customer', 'internal']);
+export type CustomFieldAudience = z.infer<typeof customFieldAudienceSchema>;
+
 export const localizedLabelSchema = z.record(z.string(), z.string());
 export type LocalizedLabel = z.infer<typeof localizedLabelSchema>;
 
@@ -63,6 +78,8 @@ export const customFieldDefinitionSchema = z.object({
   labelDefault: z.string().min(1).max(200),
   valueType: customFieldValueTypeSchema,
   required: z.boolean(),
+  /** See {@link customFieldAudienceSchema}. */
+  audience: customFieldAudienceSchema,
   sortOrder: z.number().int(),
   // Opaque host-capability flags (FR-006). The generic core stores but never
   // interprets `config`; a host module reads its own flags from here.
@@ -74,17 +91,26 @@ export const customFieldDefinitionSchema = z.object({
 export type CustomFieldDefinitionDto = z.infer<typeof customFieldDefinitionSchema>;
 
 /** Create a definition. `entityType` + `key` are immutable after create. */
-export const createCustomFieldDefinitionSchema = customFieldDefinitionSchema.omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
+export const createCustomFieldDefinitionSchema = customFieldDefinitionSchema
+  .omit({ id: true, createdAt: true, updatedAt: true })
+  // A definition created without an audience is `internal`: values reach a
+  // customer only where an administrator has said they may.
+  .extend({ audience: customFieldAudienceSchema.default('internal') });
 export type CreateCustomFieldDefinitionRequest = z.infer<typeof createCustomFieldDefinitionSchema>;
 
 /** Patch a definition. `entityType` and `key` cannot change once records may hold values. */
 export const updateCustomFieldDefinitionSchema = createCustomFieldDefinitionSchema
   .partial()
-  .omit({ entityType: true, key: true });
+  .omit({ entityType: true, key: true })
+  // Declared again without the create defaults: an absent key on a patch means
+  // "leave it as it is". `.partial()` keeps a default, so without this a patch
+  // naming only the audience would arrive carrying `config: {}` and erase the
+  // definition's host-capability flags, and one naming only a label would make
+  // the field internal.
+  .extend({
+    audience: customFieldAudienceSchema.optional(),
+    config: z.record(z.string(), z.unknown()).optional(),
+  });
 export type UpdateCustomFieldDefinitionRequest = z.infer<typeof updateCustomFieldDefinitionSchema>;
 
 /**
@@ -248,6 +274,7 @@ export interface CustomFieldDefinitionRecord {
   labelDefault: string;
   valueType: CustomFieldValueType;
   required: boolean;
+  audience: CustomFieldAudience;
   sortOrder: number;
   config: Record<string, unknown>;
   createdAt: Date;
@@ -368,6 +395,20 @@ export interface CustomFieldValuePort {
   ): Promise<Record<string, unknown>>;
   /** The bag as a caller should render it: dormant keys stripped. */
   project(
+    entityType: SupportedEntityType,
+    bag: Record<string, unknown>,
+  ): Promise<Record<string, unknown>>;
+  /**
+   * The bag as a NON-administrator may read it: only the keys whose definition
+   * is live and has the `customer` audience. A key with an `internal`
+   * definition, or with no definition at all, is not returned.
+   *
+   * Every host that answers custom-field values to a buyer or to an external
+   * (API-key) caller passes the stored bag through here, in its one
+   * non-admin serialiser. Definitions are read from the module's per-entity
+   * cache, so calling it once per row of a list costs no query per row.
+   */
+  projectForCustomer(
     entityType: SupportedEntityType,
     bag: Record<string, unknown>,
   ): Promise<Record<string, unknown>>;

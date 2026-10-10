@@ -39,7 +39,57 @@ remains the only write surface (see "Host-managed entity types" below).
   out of range) with a field-specific error. The host then persists the values
   in its own `customFieldValues` column.
 - **Read alongside native fields.** Values are returned wherever the record is
-  read (admin detail + the relevant API responses).
+  read — to an administrator always, and to anyone else only when the field's
+  **audience** says so (next section).
+
+## Audience: who reads a field's values
+
+Every definition declares who its stored values are answered to:
+
+| Audience | Who reads the values |
+|---|---|
+| `internal` | Administrators only. The values never leave the admin API. |
+| `customer` | Administrators, **and** the non-admin replies of the host: the customer's own storefront replies and the external (API-key) replies. |
+
+- **A new field is `internal`** unless its author chooses otherwise — in the
+  definition form ("Who can see the value") or with `audience` on
+  `POST /api/v1/admin/custom-fields/definitions`. A note, a credit assessment or a risk
+  flag modelled as a custom field therefore stays inside the admin panel until
+  somebody opens it deliberately. The audience of an existing field is changed
+  on the same screen, or with `PATCH …/definitions/:id`; it takes effect on the
+  next read and rewrites no stored value.
+- **Upgrading changes nothing by itself.** Definitions that existed before the
+  attribute did were migrated to `customer`, because their values were already
+  being answered to customers. Review them after upgrading and move to
+  `internal` whatever was never meant to be shown.
+- **Where it applies today.** Two hosts answer custom-field values to a
+  non-administrator: **Order** (the customer's order replies under
+  `/api/v1/orders` and the external replies under `/api/v1/external/orders`)
+  and **Quote Request** (the customer's quote detail under
+  `/api/v1/quote-requests/:id`). Category, Organization, CustomerAccount and
+  Opportunity values are answered on admin routes only. In every case the
+  `customFieldValues` object keeps its shape and simply carries fewer keys.
+- **A value without a definition is treated as internal.** After a field is
+  deleted its stored values stay on the records (see *Data retention*), and they
+  are not answered to a customer or to an integration. For the same reason a
+  key that still has stored values cannot be **re-created as `customer`**: the
+  request is refused with `409`. Create the field as `internal`, review what the
+  records hold, then change the audience.
+- **A change of audience can take up to 5 seconds to reach every reply.**
+  Definitions are cached per API process for 5 seconds. The process that
+  handled the change applies it at once and tells the others; a process that
+  misses that message goes on answering the previous audience until its cached
+  copy expires. After moving a field to `internal`, allow 5 seconds before
+  relying on it.
+- **Product attributes are not governed by it.** The `product` type is
+  host-managed: whether a shopper sees an attribute is decided by the catalog's
+  own attribute flags.
+- **For a host module.** Pass the stored bag through
+  `CustomFieldValuePort.projectForCustomer(entityType, bag)` in the one
+  serialiser that answers a non-administrator, and never emit the raw column
+  there. It reads the per-entity definitions cache, so calling it once per row
+  of a list costs no query per row. No route lets a non-administrator *write*
+  custom-field values.
 
 ## Division of responsibility
 
@@ -133,6 +183,6 @@ mis-deletion is recoverable and host writes never cascade into data loss.
 ## Adding a custom field
 
 Define it from the admin custom-field surface for the target entity type
-(key + localized label + value type + required + options). It then renders on
+(key + localized label + value type + required + audience + options). It then renders on
 every record of that type and its value round-trips through the host's
 create/edit/read paths — no code change.

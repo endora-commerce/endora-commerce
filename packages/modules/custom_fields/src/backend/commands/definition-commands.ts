@@ -8,6 +8,7 @@ import { CustomFieldDefinition } from '../entities/custom-field-definition.entit
 import { CustomFieldOption } from '../entities/custom-field-option.entity.js';
 import {
   applyCreateDefinition,
+  CustomFieldDefinitionError,
   applyCreateOption,
   applyDeleteDefinition,
   applyDeleteOption,
@@ -36,6 +37,7 @@ function snapshotDefinition(def: CustomFieldDefinition): Record<string, unknown>
     labelDefault: def.labelDefault,
     valueType: def.valueType,
     required: def.required,
+    audience: def.audience,
     sortOrder: def.sortOrder,
     config: def.config,
   };
@@ -44,12 +46,29 @@ function snapshotDefinition(def: CustomFieldDefinition): Record<string, unknown>
 /** Create a definition (+ its options for select types). */
 export function createDefinitionCommand(
   input: CreateCustomFieldDefinitionRequest,
+  probes?: DefinitionChangeProbes,
 ): Command<CustomFieldDefinition> {
   return {
     action: 'custom_fields.definition.created',
     objectType: 'custom_field_definition',
     objectId: 'new',
     run: async ({ em }) => {
+      // Deleting a definition keeps its stored values, and nothing says any
+      // longer who those were meant for. A new `customer` definition under the
+      // same key would answer them to customers the moment it exists, so it is
+      // refused: create the field as internal, then open it — a second,
+      // deliberate step taken with the old values in view.
+      if (
+        input.audience === 'customer' &&
+        probes &&
+        (await probes.hasStoredValues(em, input.entityType, input.key))
+      ) {
+        throw new CustomFieldDefinitionError(
+          'stored_values_exist',
+          `Records already hold values under "${input.key}", left by a field that was deleted. ` +
+            'Create the field as internal, review those values, then change who can see it.',
+        );
+      }
       const def = await applyCreateDefinition(em, input);
       return { result: def, after: snapshotDefinition(def) };
     },
