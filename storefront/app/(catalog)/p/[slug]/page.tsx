@@ -155,7 +155,7 @@ export default async function ProductPage({
   // is eligible (setting enabled for the channel + all four valid defaults).
   const oneClickSession = await getSessionCookie();
   const oneClickEnabled = oneClickSession
-    ? await getOneClickEligibility(oneClickSession, product.id)
+    ? await getOneClickEligibility(oneClickSession, product.id, ctx)
         .then((e) => e.enabled)
         .catch(() => false)
     : false;
@@ -548,10 +548,15 @@ async function oneClickAction(formData: FormData): Promise<void> {
 
   let result;
   try {
-    result = await placeOneClickOrder(session, {
-      productId,
-      ...(variantId ? { variantId } : {}),
-    });
+    const { ctx } = await getServerContext();
+    result = await placeOneClickOrder(
+      session,
+      {
+        productId,
+        ...(variantId ? { variantId } : {}),
+      },
+      ctx,
+    );
   } catch (err) {
     const message = err instanceof StorefrontApiError ? err.message : 'Could not place the order.';
     redirect(`/cart?error=${encodeURIComponent(message)}`);

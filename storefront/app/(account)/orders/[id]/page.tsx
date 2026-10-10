@@ -467,7 +467,8 @@ async function reorderToQuoteAction(formData: FormData): Promise<void> {
   if (!session) redirect('/login');
   const id = (formData.get('id') as string) ?? '';
   try {
-    await cloneOrderToQuote(session, id);
+    const { ctx } = await getServerContext();
+    await cloneOrderToQuote(session, id, ctx);
   } catch (err) {
     const message = err instanceof StorefrontApiError ? err.message : 'Could not create quote request.';
     redirect(`/orders/${id}?error=${encodeURIComponent(message)}`);

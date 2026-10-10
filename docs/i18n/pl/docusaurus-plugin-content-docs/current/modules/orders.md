@@ -24,6 +24,76 @@ Trasy administracyjne są chronione przez `orders:read` (odczyt) i `orders:write
 | `POST /api/v1/admin/orders/:id/status` | administrator | Zmiana statusu (audytowana) |
 | `POST /api/v1/admin/orders/:id/payment-status` | administrator | Zmiana statusu płatności (audytowana) |
 
+## Który kanał sprzedaży zapisuje zamówienie
+
+Zamówienie zapisuje jeden kanał sprzedaży. Skąd on pochodzi, zależy od tego, kto
+składa zamówienie:
+
+| Miejsce | Kanał zamówienia |
+| --- | --- |
+| Sklep — `POST /api/v1/orders`, zakup jednym kliknięciem | Kanał **rozpoznany dla żądania**: `X-Sales-Channel`, `?salesChannel=`, mapa hostów, a w ostatniej kolejności kanał domyślny |
+| Tworzenie zamówienia w panelu — `POST /api/v1/admin/orders` | Kanał wybrany przez operatora dla zamówienia (`salesChannelId` w treści żądania) |
+| Klucz API — zewnętrzne przyjmowanie zamówień | Kanał, z którym powiązany jest klucz |
+
+W sklepie opcjonalne pole `salesChannelId` w treści żądania nie wybiera kanału.
+Żądanie bez tego pola jest składane w rozpoznanym kanale; żądanie z identyfikatorem
+rozpoznanego kanału jest przyjmowane; żądanie wskazujące **inny** kanał — inny
+istniejący, nieistniejący albo wyłączony — jest odrzucane odpowiedzią
+`422 VALIDATION_FAILED` z `details.code = "order_sales_channel_mismatch"`
+(szczegóły zawierają `requestedSalesChannelId` i `resolvedSalesChannelId`), zanim
+cokolwiek zostanie zapisane — koszyk pozostaje bez zmian.
+
+Z kanału zamówienia odczytywane są:
+
+- przy składaniu zamówienia — minimalna wartość zamówienia
+  (`orders.min_order_value`), magazyny brane pod uwagę przy rezerwacji i ustawienia
+  realizacji kanału, prefiks i sufiks numeru zamówienia, dodatkowi odbiorcy
+  potwierdzenia oraz identyfikator kanału przekazywany walidatorom adapterów
+  płatności i dostawy;
+- później — dane sprzedawcy i sekwencja numerów jego faktur, język i kanał
+  wiadomości e-mail o zamówieniu, płatności i przesyłce oraz to, czy zamówienie
+  można ponowić (`orders.reorder_enabled`).
+
+**Sklep musi wskazać kanał w samym żądaniu złożenia zamówienia.** Referencyjny
+sklep przekazuje `X-Sales-Channel` przy składaniu zamówienia, podglądzie sumy
+zamówienia, zakupie jednym kliknięciem i funkcji „zamów ponownie jako zapytanie
+ofertowe”. Sklep utworzony we wcześniejszym wydaniu tego
+nie robił; kroki opisuje strona *Aktualizacja instancji*.
+
+### Co nie jest powiązane z kanałem zamówienia
+
+- **Koszyk.** Koszyk powstaje w kanale domyślnym, niezależnie od kanału, w którym
+  kupuje klient, i trzy rzeczy są ustalane dla kanału koszyka, a nie zamówienia:
+  czy produkt można dodać (asortyment kanału rozpoznanego dla żądania
+  *dodającego*), ceny pozycji oraz promocje — przy składaniu zamówienia dokładnie
+  tak jak w koszyku. W instancji z wieloma kanałami zamówienie może więc zostać
+  zapisane w kanale, który nie sprzedaje jednego z jego produktów, w cenach kanału
+  domyślnego, a promocja ograniczona do kanału innego niż domyślny nie obejmuje
+  jeszcze zamówienia złożonego w tym kanale.
+- **Kupujący.** Zapisanie kanału żądania nie wiąże kupującego z kanałem.
+  `X-Sales-Channel` i `?salesChannel=` wysyła klient, a nic nie ogranicza kanałów,
+  w których klient lub organizacja może składać zamówienia.
+
+### Aktualizacja
+
+**Instancja z więcej niż jednym kanałem sprzedaży.** Do tej pory zamówienie ze
+sklepu, które nie przekazywało `salesChannelId` w treści żądania — czyli każde
+zamówienie złożone przez referencyjny sklep — było zapisywane w kanale domyślnym,
+niezależnie od tego, w którym kanale był kupujący. Nowe zamówienia składane w
+sklepie kanału innego niż domyślny są teraz zapisywane w tym kanale, więc wszystko,
+co wymieniono powyżej, jest odczytywane dla niego, a na liście zamówień i w
+raportach pojawiają się pod tym kanałem. Istniejące zamówienia nie są zmieniane.
+
+**Instancja z jednym kanałem sprzedaży.** Zamówienie ze sklepu docierało do
+sprawdzenia minimalnej wartości zamówienia bez żadnego kanału, a ustawienie
+odczytywane bez kanału zwraca wartość ogólną dla platformy. Teraz dociera z
+identyfikatorem kanału domyślnego, więc minimalna wartość zamówienia ustawiona
+**dla kanału domyślnego**, a nie dla wszystkich kanałów, jest egzekwowana przy
+składaniu zamówienia, choć wcześniej nie była. Walidatory adapterów płatności i
+dostawy również otrzymują identyfikator tego kanału, którego wcześniej nie
+dostawały. Instancja, która ustawiła minimalną wartość ogólnie dla platformy albo
+wcale, nie zauważy zmiany.
+
 ## Statusy i przejścia (konfigurowalne)
 
 Cykl życia zamówienia **konfiguruje się w panelu administracyjnym**: statusy i dozwolone przejścia

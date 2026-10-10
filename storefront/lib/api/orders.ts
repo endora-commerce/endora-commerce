@@ -1,5 +1,31 @@
 import { purchaseConversionClaimResponseSchema } from '@endora-commerce/contracts';
 import { apiGetAuthed, apiMutate } from './mutations';
+import type { RequestContext } from './client';
+
+/*
+ * Which calls in this file carry the sales channel, and why the others do not.
+ *
+ * The backend resolves a channel for every request and, where a call *creates*
+ * something or *asks a channel-dependent question*, the answer depends on it.
+ * These requests are made server-side to the backend's own host, so the
+ * `X-Sales-Channel` header — forwarded from the request context — is the only
+ * thing that can say which storefront the buyer is on. Three calls here take
+ * the context, as a required argument:
+ *
+ *   - `placeOrder`, `previewOrderTotal` — the order is recorded on the resolved
+ *     channel;
+ *   - `cloneOrderToQuote` — the quote request records the channel it was raised
+ *     on, and its lines are checked against that channel's assortment.
+ *
+ * The rest — listing and reading the buyer's own orders, their comments,
+ * cancelling one, reordering one, claiming a purchase conversion — address an
+ * order that already exists and already carries its channel. The backend
+ * answers them from the order, scoped to the buyer, and the channel of the
+ * request asking does not change the answer; they send none. That includes
+ * `reorderOrder`: whether an order may be reordered is read for the **order's**
+ * channel, and the basket it rebuilds is deliberately not filtered by the
+ * request's.
+ */
 
 /**
  * Order API bindings (T157, T158, T159). All endpoints require an
@@ -124,28 +150,51 @@ export interface OrderTotalPreview {
   currency: string;
 }
 
+/**
+ * `ctx` is required for the reason {@link placeOrder} gives: the preview is for
+ * the order the buyer is about to place, on the channel they are shopping.
+ */
 export async function previewOrderTotal(
   sessionCookie: string,
   payload: { deliveryMethodId: string; paymentMethodId: string; billingAddressId?: string },
+  ctx: RequestContext,
 ): Promise<OrderTotalPreview> {
   const result = await apiMutate<OrderTotalPreview>({
     method: 'POST',
     path: '/api/v1/orders/preview-total',
     body: payload,
     sessionCookie,
+    ctx,
   });
   return result.data!;
 }
 
+/**
+ * Places the order **on the sales channel the buyer is shopping**.
+ *
+ * `ctx` is not optional decoration. The backend records an order on the channel
+ * the placement request resolves, and this request is made server-side, to the
+ * backend's own host — so nothing but the `X-Sales-Channel` header `ctx`
+ * carries can tell the backend which storefront the buyer is on. This function
+ * used to send no `ctx` at all, which made every order placed here an order on
+ * the system-default channel, whichever channel's storefront it came from. A
+ * required parameter is what stops the next caller repeating that: the header
+ * cannot be forgotten, only passed.
+ *
+ * The body deliberately carries no `salesChannelId`: the channel is the
+ * request's, and the backend refuses a body that names a different one.
+ */
 export async function placeOrder(
   sessionCookie: string,
   payload: PlaceOrderPayload,
+  ctx: RequestContext,
 ): Promise<OrderSummary> {
   const result = await apiMutate<OrderSummary>({
     method: 'POST',
     path: '/api/v1/orders',
     body: payload,
     sessionCookie,
+    ctx,
   });
   return result.data!;
 }
@@ -230,12 +279,16 @@ export async function cancelMyOrder(sessionCookie: string, id: string): Promise<
 export async function cloneOrderToQuote(
   sessionCookie: string,
   id: string,
+  // Required: a quote request records the channel it was raised on — the one
+  // this request resolves — and its lines are checked against that channel.
+  ctx: RequestContext,
 ): Promise<{ quoteRequestId: string }> {
   const result = await apiMutate<{ quoteRequestId: string }>({
     method: 'POST',
     path: `/api/v1/orders/${id}/clone-to-quote`,
     body: {},
     sessionCookie,
+    ctx,
   });
   return result.data!;
 }

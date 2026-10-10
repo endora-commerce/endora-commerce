@@ -24,6 +24,75 @@ Admin routes are gated by `orders:read` (read) / `orders:write` (mutations).
 | `POST /api/v1/admin/orders/:id/status` | admin | Status transition (audited) |
 | `POST /api/v1/admin/orders/:id/payment-status` | admin | Payment status transition (audited) |
 
+## Which sales channel an order records
+
+An order records one sales channel. Where it comes from depends on who places
+the order:
+
+| Surface | The order's channel |
+| --- | --- |
+| Storefront — `POST /api/v1/orders`, one-click buy | The channel **the request resolved**: `X-Sales-Channel`, `?salesChannel=`, the host map, else the system default |
+| Admin order creation — `POST /api/v1/admin/orders` | The channel the operator chose for the order (`salesChannelId` in the body) |
+| API key — the external order intake | The channel the key is bound to |
+
+On the storefront the optional `salesChannelId` body field does not choose the
+channel. A request that omits it is placed on the resolved channel; one that
+sends the resolved channel's id is accepted; one that names a **different**
+channel — another one, one that does not exist, or one that is switched off —
+is refused with `422 VALIDATION_FAILED` and
+`details.code = "order_sales_channel_mismatch"` (the details carry
+`requestedSalesChannelId` and `resolvedSalesChannelId`), before anything is
+written — the basket is left as it was.
+
+What is read from an order's channel:
+
+- at placement — the minimum order value (`orders.min_order_value`), the
+  candidate warehouses and the channel's fulfilment settings, the order-number
+  prefix and suffix, the extra confirmation recipients, and the channel id the
+  payment and shipping adapters' validators are given;
+- afterwards — the seller details and number sequence of its invoices, the
+  language and channel of its order, payment and shipment e-mails, and whether
+  it may be reordered (`orders.reorder_enabled`).
+
+**The storefront has to name the channel on the placement request itself.** The
+reference storefront forwards `X-Sales-Channel` on order placement, the
+order-total preview, one-click buy and "order again as a quote request". One created by an earlier release did not; the steps are in
+*Upgrading an instance*.
+
+### What is not tied to the order's channel
+
+- **The basket.** A basket is created on the system-default channel whatever
+  channel the buyer is shopping, and three things are answered for the basket's
+  channel rather than the order's: whether a product may be added (the
+  assortment of the channel the *adding* request resolved), the line prices,
+  and the promotions — at checkout exactly as in the cart. On a multi-channel
+  instance an order can therefore be recorded on a channel that does not sell
+  one of its products, at the default channel's prices, and a promotion
+  restricted to a non-default channel does not yet apply to an order placed
+  there.
+- **The buyer.** Recording the request's channel does not bind a buyer to a
+  channel. `X-Sales-Channel` and `?salesChannel=` are sent by the client, and
+  nothing restricts which channels a customer or an Organization may order on.
+
+### Upgrading
+
+**An instance with more than one sales channel.** Until this rule, a storefront
+order that did not send `salesChannelId` in the body — which is every order
+placed through the reference storefront — was recorded on the system-default
+channel whichever channel the buyer was on. New orders placed on a non-default
+channel's storefront are now recorded on that channel, so everything listed
+above is read for it, and they appear under that channel in the order list and
+in reports. Existing orders are not rewritten.
+
+**An instance with one sales channel.** A storefront order used to reach the
+minimum-order-value check with no channel at all, and a setting read with no
+channel answers its platform-wide value. It now arrives with the default
+channel's id, so a minimum order value set **for the default channel** rather
+than for all channels is enforced at checkout where it was not before. The
+payment and shipping adapters' validators are given that channel id too, where
+they were given none. An instance that set the minimum platform-wide, or not at
+all, sees no change.
+
 ## Status machine (configurable)
 
 The order lifecycle is **admin-configurable**: statuses and allowed

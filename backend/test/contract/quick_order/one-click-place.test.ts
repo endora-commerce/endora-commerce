@@ -191,6 +191,64 @@ describe('POST /api/v1/quick-order/one-click — placement', () => {
     expect(items.map((i) => [i.productId, i.quantity])).toEqual([[SEED_PRODUCT_101_ID, 2]]);
   });
 
+  /**
+   * One-click buy already handed `placeOrder` the request's resolved channel
+   * (issue #99's repair), which is the rule `POST /api/v1/orders` adopted
+   * later. Held here on a **second** channel, because the case above cannot
+   * tell "the resolved channel" from "the system default" — they are the same
+   * row there.
+   */
+  it('records the channel the request resolved, not the system default', async () => {
+    const admin = { b2b_session: 'stub-admin-session' };
+    const created = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/sales-channels',
+      cookies: admin,
+      payload: {
+        code: 'one-click-channel-b',
+        name: { 'en-US': 'One-click channel B' },
+        languages: ['en-US'],
+        defaultLanguage: 'en-US',
+        currencies: ['PLN'],
+        defaultCurrency: 'PLN',
+        active: true,
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    const channelBId = (created.json() as { id: string }).id;
+
+    // The basket's assortment gate narrows to the request's channel, so the
+    // product has to be published there before it can be bought there.
+    const published = await h.app.inject({
+      method: 'PUT',
+      url: `/api/v1/admin/sales-channels/one-click-channel-b/product/${SEED_PRODUCT_101_ID}`,
+      cookies: admin,
+      payload: {},
+    });
+    expect([200, 201]).toContain(published.statusCode);
+
+    await h.settings.adminService.setValueForSubset(
+      ONE_CLICK_ENABLED,
+      [defaultChannelCode, 'one-click-channel-b'],
+      true,
+      null,
+      { actorAdminUserId: null },
+    );
+    await h.settings.cache.invalidate(ONE_CLICK_ENABLED);
+
+    const res = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/quick-order/one-click',
+      cookies: COOKIE,
+      headers: { 'x-sales-channel': 'one-click-channel-b' },
+      payload: { productId: SEED_PRODUCT_101_ID, quantity: 1 },
+    });
+    expect(res.statusCode).toBe(201);
+    const orderId = (res.json() as { data: { order: { id: string } } }).data.order.id;
+    const order = await h.em().findOneOrFail(Order, { id: orderId });
+    expect(order.salesChannelId).toBe(channelBId);
+  });
+
   it('refuses a blocked Organization at the service-seam guard', async () => {
     const res = await h.app.inject({
       method: 'POST',

@@ -79,7 +79,8 @@ Already at the version you asked for, it says so and changes nothing.
   is not beside the instance. So a storefront keeps the source it was created with: when a
   release changes the storefront a new installation gets, yours gains that change only when you
   bring it over — see [Module blocks in an existing storefront](#storefront-block-renderers) for
-  the one in `0.103.0` and [After upgrading to 0.104.0](#after-0-104-0) for the two in `0.104.0`.
+  the one in `0.103.0`, [After upgrading to 0.104.0](#after-0-104-0) for the two in `0.104.0` and
+  [After upgrading to 0.105.0](#after-0-105-0) for the one in `0.105.0`.
 
 ## After it finishes
 
@@ -392,6 +393,56 @@ storefront built and served their pages afterwards; `crm` was then added with `p
 workspace and not on an upgraded instance. Switching `crm` off, the two storefront changes, an
 instance with `auto-install-peers=false` and one with overlay modules were not exercised; what
 this section says about them is what the release's changelogs state.
+
+### After upgrading to 0.105.0 {#after-0-105-0}
+
+**An order placed on the storefront is recorded on the sales channel the request was made on.**
+`POST /api/v1/orders` used to take the order's channel from an optional `salesChannelId` in the
+body and otherwise use the system-default channel; it now uses the channel the request resolves —
+`X-Sales-Channel`, `?salesChannel=`, the host map, else the default — and refuses a body that names
+a different one. What that means depends on how many sales channels the instance has.
+
+- **One sales channel.** One thing can change. If `orders.min_order_value` is set **for the default
+  channel** rather than for all channels, it was not enforced on storefront orders and now is.
+  Check the value on **Settings** before upgrading if you are not sure which of the two it is.
+- **More than one.** New orders placed on a non-default channel's storefront are recorded on that
+  channel rather than on the default one, and its minimum order value, warehouses, fulfilment
+  settings, order numbering, invoice seller details and numbering, and e-mail language apply to
+  them. Existing orders are not rewritten. Baskets are still created on the default channel, so
+  the line prices and the promotions of such an order are still the default channel's, and each
+  product was checked against the channel of the request that added it to the basket, not against
+  the order's — see *Which sales channel an order records* on the `orders` module page.
+
+**In an existing storefront**, which keeps the source it was created with, the order calls do not
+tell the backend which channel the buyer is on: they are made without the request context, so no
+`X-Sales-Channel` header is sent and the backend resolves the default channel for them. On an
+instance with one sales channel that is the right answer and nothing has to change. On an instance
+with more than one, make these edits, or orders go on being recorded on the default channel:
+
+- In `lib/api/orders.ts`, add `import type { RequestContext } from './client';`, add a last
+  parameter `ctx: RequestContext` to `placeOrder`, `previewOrderTotal` and `cloneOrderToQuote`,
+  and add `ctx,` to the options object each of them hands to `apiMutate`.
+- In `lib/api/quick-order.ts`, which already imports `RequestContext`, do the same for
+  `placeOneClickOrder` (`apiMutate`) and `getOneClickEligibility` (`apiGetAuthed`).
+- Pass the context as the new last argument at the five call sites. `getServerContext` is already
+  imported in all three files:
+  - `app/(commerce)/checkout/page.tsx`, in `submitAction`: add
+    `const { ctx } = await getServerContext();` before the `placeOrder` call and pass `ctx`.
+  - `app/(catalog)/p/[slug]/page.tsx`: the page component **already has** `ctx` in scope, so pass
+    it to `getOneClickEligibility` and declare nothing; in `oneClickAction`, a separate function,
+    add `const { ctx } = await getServerContext();` before the `placeOneClickOrder` call and pass
+    `ctx`.
+  - `app/(account)/orders/[id]/page.tsx`, in `reorderToQuoteAction`: add
+    `const { ctx } = await getServerContext();` before the `cloneOrderToQuote` call and pass `ctx`.
+
+`getServerContext()` takes the channel from the `x-sales-channel` header of the request the
+storefront itself receives, which is what your reverse proxy or middleware already stamps per
+host for the pages to render in the right channel.
+
+How far this has been exercised: the backend behaviour, the header on each of the five storefront
+calls and the single-channel minimum-order-value change are covered by the release's tests. The
+edits were not applied to a storefront created by an earlier release, and the whole path was not
+run in a browser against an instance with two channels.
 
 ## An instance that is mixed from the start
 

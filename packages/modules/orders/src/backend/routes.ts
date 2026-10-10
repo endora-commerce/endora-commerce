@@ -38,7 +38,7 @@ import type {
 } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '@endora-commerce/platform/http';
-import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
+import { getResolvedChannel, rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import type { Command, CommandBus } from '@endora-commerce/platform/commands';
 import type { OrderService } from './services/order-service.js';
 import type { OrderStatusGraphService } from './services/order-status-graph-service.js';
@@ -264,7 +264,68 @@ export async function registerOrderRoutes(
           throw err;
         }
       }
-      const order = await orderService.placeOrder(ctx, body);
+      // The order's channel is the one **this request resolved** — header,
+      // query, host map or the system default, in the resolver's own order —
+      // and not the one the body names.
+      //
+      // `placeOrder` stamps `req.salesChannelId`, else the system default, and
+      // this route used to hand it the body untouched. So a request that named
+      // its channel the way every other storefront request does — with
+      // `X-Sales-Channel` — and left the body field out was recorded on the
+      // default channel, and took that channel's minimum order value, candidate
+      // warehouses and order-number prefix
+      // (test/contract/orders/place-order-request-channel.test.ts holds the
+      // observation; test/integration/orders/place-order-request-channel-consequences.test.ts
+      // holds those three reads). The reference storefront sent neither the
+      // header nor the field on this call; it sends the header now
+      // (`storefront/lib/api/orders.ts`).
+      //
+      // So the body field is a claim to be checked, not an instruction: equal
+      // to the resolved channel it is redundant and accepted, different it is
+      // refused — never silently overridden, because a client that believes it
+      // is on another channel has a defect worth hearing about. The refusal is
+      // here, ahead of the placement transaction, so nothing is written and the
+      // basket survives. 422 with a `details.code`, the shape
+      // `order_below_minimum` already gives a body that parses and cannot be
+      // honoured. The comparison ignores case: a UUID is the same id in either,
+      // and a client echoing one in upper case has named the same channel.
+      //
+      // **What this does not do, so nobody reads it as more than it is.** It
+      // makes the order's channel and the request's channel one thing; it does
+      // not bind a buyer to a channel. `X-Sales-Channel` and `?salesChannel=`
+      // are as much the client's to send as the body field was, and nothing
+      // ties a customer or an Organization to the channels they may order on —
+      // a buyer who sends another channel's header is placed under that
+      // channel's rules. Closing that is a decision about who may shop where,
+      // not about this route. Nor does it reconcile the order with its basket:
+      // a basket is created on the system-default channel whatever the request
+      // (`CartService`), so its assortment gate, its line prices and its
+      // promotions were all answered for that channel, and an order placed on
+      // another one carries them as they are.
+      //
+      // Admin order creation and the API-key intake call `placeOrder` from
+      // their own services with the operator's chosen channel and the key's
+      // bound one; neither passes through here, and neither changes.
+      const requestChannel = getResolvedChannel(request);
+      if (
+        body.salesChannelId !== undefined &&
+        body.salesChannelId.toLowerCase() !== requestChannel.id.toLowerCase()
+      ) {
+        throw new HttpError(
+          422,
+          ERROR_CODES.VALIDATION_FAILED,
+          'The order names a sales channel other than the one this request was made on.',
+          {
+            code: 'order_sales_channel_mismatch',
+            requestedSalesChannelId: body.salesChannelId,
+            resolvedSalesChannelId: requestChannel.id,
+          },
+        );
+      }
+      const order = await orderService.placeOrder(ctx, {
+        ...body,
+        salesChannelId: requestChannel.id,
+      });
       reply.status(201);
       return { data: await serializeForBuyer(order, ctx.customerAccountId) };
     },
