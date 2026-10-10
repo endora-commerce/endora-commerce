@@ -39,9 +39,19 @@ refuses it anywhere — a table of your own that references an order or a produc
 command exits non-zero and the shop still works.
 
 **It refuses when the demo organisation holds financial records**, and says how many of each it
-found: invoices (pro formas and corrections included), accounting-system records, payments,
-refunds, and refunds settled against the credit limit. One placed order is enough — it opens a
-payment and, with invoicing switched on, a pro-forma invoice. Where the data is disposable:
+found. What counts:
+
+- a payment whose status is `paid`, `refunded` or `partially_refunded`;
+- an invoice of kind `invoice` or `correction` — or of any kind that carries a KSeF reference
+  number or an external document reference, or that has an accounting-system row;
+- any row of `invoice_ledger_deliveries`, `invoice_ledger_document_maps` or
+  `invoice_ledger_client_maps`, in either environment;
+- a refund, and a refund settled against the credit limit.
+
+What does not: a payment still `awaiting_payment`, `deferred` or `failed`, a pro-forma invoice or
+a delivery note with no external reference. Those are what a placement opens, and they are
+withdrawn with their order — so a demo on which orders were placed and nothing was paid resets as
+it is. Where the data is disposable:
 
 ```bash
 pnpm run cli demo reset --force-delete-financial-records

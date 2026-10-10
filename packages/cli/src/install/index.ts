@@ -2594,9 +2594,9 @@ function closing(input: {
         `${input.passwordFromFlag ? 'passed on the command line' : 'entered above'}.`,
       input.demo
         ? `Demo data ${input.dryRun ? 'would be' : 'was'} seeded. \`${pnpm} run cli demo reset\` withdraws it ` +
-          'and leaves your own rows alone. Once the demo has been used to place an order it ' +
-          'holds invoices and payments, and the reset refuses — changing nothing — until it ' +
-          'is run with `--force-delete-financial-records`.'
+          'and leaves your own rows alone. Once the demo holds a paid or refunded payment, an ' +
+          'invoice or anything sent to an accounting system, the reset refuses — changing ' +
+          'nothing — until it is run with `--force-delete-financial-records`.'
         : `No demo data ${input.dryRun ? 'would be' : 'was'} seeded. \`${pnpm} run cli demo seed\` adds a ` +
           "shop's worth of it, and `demo reset` withdraws it again.",
     );

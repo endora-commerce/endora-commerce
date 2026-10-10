@@ -167,7 +167,7 @@ export interface DemoFinancialTable {
    * nowhere else — by a status set (`status in ('paid', 'refunded',
    * 'partially_refunded')`), by a kind (`kind in ('invoice', 'correction')`),
    * by whether the record left the shop (`ksef_reference_number is not null`).
-   * Today every entry says {@link EVERY_ROW}.
+   * {@link EVERY_ROW} where the table holds nothing else.
    */
   readonly financialWhen: string;
 }
@@ -184,40 +184,68 @@ export function countOf(entry: DemoFinancialTable): string {
 }
 
 /**
+ * A payment under which money actually moved. `awaiting_payment` and
+ * `deferred` are what every placement opens — an expectation, not a record —
+ * and `failed` is an attempt that moved nothing.
+ */
+const MONEY_MOVED = `status in ('paid', 'refunded', 'partially_refunded')`;
+
+/**
+ * An invoice that is an accounting document, or that has left the shop.
+ *
+ * By kind: `invoice` and `correction`. A `proforma` is what every placement
+ * issues while invoicing is on, and a `wz` is a delivery note; neither is
+ * booked. **But any kind is a record once it has an external life** — a KSeF
+ * reference number, an external document reference, or a row in the
+ * accounting-system ledger — whatever its kind says.
+ */
+const ACCOUNTING_DOCUMENT =
+  `kind in ('invoice', 'correction') or ksef_reference_number is not null ` +
+  `or external_document_ref is not null ` +
+  `or {id in (select invoice_id from invoice_ledger_deliveries)} ` +
+  `or {id in (select invoice_id from invoice_ledger_document_maps)}`;
+
+/**
  * The financial records a used demo can hold — the accounting, legal and
  * payment records of a transaction, as opposed to the transaction itself.
  *
- * ## Which tables, and which not
+ * ## The rule
  *
- * **Financial**: `invoices` (every kind — pro formas and corrections are rows
- * of the same table — with their `invoice_lines` and
- * `invoice_external_attachments`), the three `invoice_ledger_*` tables (what
- * was delivered to an accounting system and how its documents and clients map
- * back, in either environment), `payments`, `refunds`, and
- * `credit_limit_return_topups` (a refund settled against a credit limit).
+ * A reset refuses, unless run with `--force-delete-financial-records`, when the
+ * demo organisation holds any of:
  *
- * **Not financial**, and withdrawn without being asked: orders and their
- * lines, comments and applied promotions; shipments; stock allocations;
- * `credit_limit_reservations` and the limit itself (the shop's own record of
- * credit in use, not of money that moved); promotion redemptions; return
- * cases; carts, quote requests, shopping lists, comparisons; addresses;
- * accounts, sessions and two-factor enrolments; API keys and webhooks;
- * subscriptions and analytics events; Sales Opportunities.
+ *  - a **payment** whose status is `paid`, `refunded` or `partially_refunded`;
+ *  - an **invoice** of kind `invoice` or `correction`, or of *any* kind that
+ *    carries a KSeF reference number or an external document reference, or
+ *    that has an accounting-system row;
+ *  - an **accounting-system record** — any row of `invoice_ledger_deliveries`,
+ *    `invoice_ledger_document_maps` or `invoice_ledger_client_maps`, in either
+ *    environment: such a row means something reached an external system;
+ *  - a **refund**, or a **refund settled against the credit limit**
+ *    (`credit_limit_return_topups`).
  *
- * **What this means in practice**: placing an order writes a `payments` row
- * and, while `invoices` is switched on, a pro-forma invoice. So a demo on
- * which one order was placed already holds financial records, and its reset
- * needs the flag.
+ * ## What is not, and is withdrawn without being asked
  *
- * `demo-usage`'s own test holds this list to the sections: every table counted
- * here is one a section deletes.
+ * Payments still `awaiting_payment`, `deferred` or `failed`; pro-forma
+ * invoices and delivery notes with no external life; and everything that is
+ * not in those tables at all — orders and their lines, shipments, stock
+ * allocations, `credit_limit_reservations` and the limit itself, promotion
+ * redemptions, return cases, carts, quote requests, addresses, accounts,
+ * Sales Opportunities. So a demo on which orders were placed and nothing was
+ * paid or invoiced resets as it is: the payment and the pro forma each
+ * placement opens are not records of money or of a booked document.
+ *
+ * The rule decides only whether the reset **asks first**. A row of these
+ * tables that is not financial is deleted with its order like any other.
+ *
+ * Each predicate is evaluated inside the reset's transaction, in the same
+ * snapshot the deletes then read.
  */
 export const DEMO_FINANCIAL_RECORDS: readonly DemoFinancialRecordKind[] = [
   {
-    label: 'invoices',
+    label: 'invoices and corrections, or invoices of any kind with an external reference',
     tables: [
-      // Every `kind` today: `invoice`, `correction`, `proforma`, `wz`.
-      { table: 'invoices', ofTheDemo: `id in ${INVOICES}`, financialWhen: EVERY_ROW },
+      { table: 'invoices', ofTheDemo: `id in ${INVOICES}`, financialWhen: ACCOUNTING_DOCUMENT },
     ],
   },
   {
@@ -241,10 +269,9 @@ export const DEMO_FINANCIAL_RECORDS: readonly DemoFinancialRecordKind[] = [
     ],
   },
   {
-    label: 'payments',
+    label: 'payments that were paid or refunded',
     tables: [
-      // Every `status` today, `awaiting_payment` and `deferred` included.
-      { table: 'payments', ofTheDemo: `order_id in ${ORDERS}`, financialWhen: EVERY_ROW },
+      { table: 'payments', ofTheDemo: `order_id in ${ORDERS}`, financialWhen: MONEY_MOVED },
     ],
   },
   {
@@ -673,8 +700,10 @@ export class DemoOrganizationHoldsFinancialRecordsError extends DemoResetRefused
       `[demo] the demo organisation holds financial records, and a demo reset does not ` +
         `delete those unless it is told to:\n` +
         found.map((kind) => `  ${kind.label}: ${kind.rows}\n`).join('') +
-        `Nothing has been changed. They are records of transactions — an invoice may have ` +
-        `been reported, a payment matched in somebody's books. If this instance's data is ` +
+        `Nothing has been changed. These are records of transactions — money that moved, a ` +
+        `booked document, something sent to an accounting system. Payments that are still ` +
+        `awaiting or deferred, and pro-forma invoices with no external reference, are not ` +
+        `counted and do not stop a reset. If this instance's data is ` +
         `disposable, run the reset again with ${DEMO_FORCE_DELETE_FINANCIAL_RECORDS_FLAG} to ` +
         `delete them with the rest of the demo. The flag is read from the command line only, ` +
         `and deletes the kinds listed here and nothing else.`,

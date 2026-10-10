@@ -152,10 +152,19 @@ jak wiersze nienależące do żadnej organizacji, na przykład koszyk gościa.
 Cały reset to jedna transakcja: albo kończy się w całości, albo niczego nie zmienia. Gdy zostaje
 odrzucony, sklep nadal działa, a komunikat mówi, co go odrzuciło.
 
-**Reset odmawia, gdy organizacja demonstracyjna ma zapisy finansowe** — faktury, płatności,
-zwroty środków albo to, co wysłano do systemu księgowego — i podaje, ile których znalazł.
-Wystarczy jedno złożone zamówienie: otwiera ono płatność, a przy włączonym fakturowaniu także
-fakturę pro forma. Jeśli dane instancji są jednorazowe, usuń je razem z resztą:
+**Reset odmawia, gdy organizacja demonstracyjna ma zapisy finansowe**, i podaje, ile których
+znalazł. Liczy się:
+
+- płatność w statusie `paid`, `refunded` lub `partially_refunded`;
+- faktura rodzaju `invoice` lub `correction` — albo dowolnego rodzaju, jeśli ma numer referencyjny
+  KSeF lub zewnętrzną referencję dokumentu, albo została wysłana do systemu księgowego;
+- każdy zapis systemu księgowego (`invoice_ledger_*`);
+- zwrot środków, także rozliczony z limitem kupieckim.
+
+Zamówienia złożone i nieopłacone się nie liczą: płatność otwierana przy złożeniu zamówienia
+(`awaiting_payment`, a przy limicie kupieckim `deferred`) i jego faktura pro forma są wycofywane
+razem z zamówieniem, podobnie jak płatności nieudane i dokumenty WZ. Jeśli dane instancji są
+jednorazowe, usuń zapisy finansowe razem z resztą:
 
 ```bash
 pnpm run cli demo reset --force-delete-financial-records

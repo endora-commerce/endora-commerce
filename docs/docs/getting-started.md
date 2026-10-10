@@ -146,10 +146,19 @@ never touched, and neither is a row that belongs to no organization, such as a g
 The whole reset is one transaction: it either completes or changes nothing. When it is refused,
 the shop still works and the message says what refused it.
 
-**It refuses when the demo organization holds financial records** — invoices, payments, refunds,
-or what was sent to an accounting system — and names how many of each it found. Placing a single
-order is enough: it opens a payment and, with invoicing switched on, a pro-forma invoice. If the
-instance's data is disposable, delete them with the rest:
+**It refuses when the demo organization holds financial records**, and names how many of each it
+found. What counts:
+
+- a payment that was `paid`, `refunded` or `partially_refunded`;
+- an invoice of kind `invoice` or `correction` — or of any kind that carries a KSeF reference
+  number or an external document reference, or that was sent to an accounting system;
+- any accounting-system record (`invoice_ledger_*`);
+- a refund, including one settled against a credit limit.
+
+Orders that were placed and never paid do not count: the payment a placement opens
+(`awaiting_payment`, or `deferred` on credit) and its pro-forma invoice are withdrawn with the
+order, and so are failed payments and delivery notes. If the instance's data is disposable,
+delete the financial records with the rest:
 
 ```bash
 pnpm run cli demo reset --force-delete-financial-records

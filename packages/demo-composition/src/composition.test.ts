@@ -266,21 +266,43 @@ describe('what using the demo left behind (issue #143)', () => {
       for (const table of counted) expect(deleted, table).toContain(table);
     });
 
-    it('are every row of those tables today, and are narrowed in one column of one table', () => {
-      // The classification is `financialWhen`, per table. Narrowing it — to
-      // settled payments, to invoices that are accounting documents — is a
-      // change to that entry and to this test, and to nothing else.
-      for (const kind of DEMO_FINANCIAL_RECORDS) {
-        for (const entry of kind.tables) expect(entry.financialWhen, entry.table).toBe(EVERY_ROW);
+    it('are narrowed per table, to money that moved and to documents that are booked or left the shop', () => {
+      const when = Object.fromEntries(
+        DEMO_FINANCIAL_RECORDS.flatMap((kind) =>
+          kind.tables.map((entry) => [entry.table, entry.financialWhen]),
+        ),
+      );
+      expect(when['payments']).toBe("status in ('paid', 'refunded', 'partially_refunded')");
+      // By kind — and, whatever the kind, by an external life.
+      expect(when['invoices']).toContain("kind in ('invoice', 'correction')");
+      expect(when['invoices']).toContain('ksef_reference_number is not null');
+      expect(when['invoices']).toContain('external_document_ref is not null');
+      expect(when['invoices']).toContain('invoice_ledger_deliveries');
+      expect(when['invoices']).toContain('invoice_ledger_document_maps');
+      // What a placement opens is named by neither.
+      expect(when['payments']).not.toMatch(/awaiting_payment|deferred|failed/);
+      expect(when['invoices']).not.toMatch(/proforma|wz/);
+      // Tables that hold nothing but records stay whole.
+      for (const table of [
+        'invoice_ledger_deliveries',
+        'invoice_ledger_document_maps',
+        'invoice_ledger_client_maps',
+        'refunds',
+        'credit_limit_return_topups',
+      ]) {
+        expect(when[table], table).toBe(EVERY_ROW);
       }
-      expect(
-        countOf({
-          table: 'payments',
-          ofTheDemo: 'order_id in (1)',
-          financialWhen: "status in ('paid', 'refunded')",
-        }),
-      ).toBe(
-        "select count(*)::text as n from payments where (order_id in (1)) and (status in ('paid', 'refunded'))",
+    });
+
+    it('count an invoice by its external life even where the accounting-system tables are absent', () => {
+      // The two ledger arms are optional: without that module the invoice is
+      // still judged by its kind and its own references.
+      const invoices = DEMO_FINANCIAL_RECORDS[0]!.tables[0]!;
+      const settled = settleArms(countOf(invoices), new Set(['invoices', 'organizations', 'orders']));
+      expect(settled).not.toContain('invoice_ledger');
+      expect(settled).toContain("kind in ('invoice', 'correction')");
+      expect(countOf({ table: 't', ofTheDemo: 'a', financialWhen: 'b' })).toBe(
+        'select count(*)::text as n from t where (a) and (b)',
       );
     });
 
@@ -292,10 +314,10 @@ describe('what using the demo left behind (issue #143)', () => {
       );
       expect(refusal).toBeInstanceOf(DemoResetRefusedError);
       const message = (refusal as Error).message;
-      expect(message).toContain('  invoices: 2\n');
+      expect(message).toMatch(/^ {2}invoices and corrections[^\n]*: 2$/m);
       // Three tables of one kind, counted together.
       expect(message).toContain('  accounting-system records: 6\n');
-      expect(message).toContain('  payments: 2\n');
+      expect(message).toContain('  payments that were paid or refunded: 2\n');
       expect(message).toContain('Nothing has been changed');
       expect(message).toContain('--force-delete-financial-records');
       // Counts, never ids.
@@ -333,8 +355,8 @@ describe('what using the demo left behind (issue #143)', () => {
       const refusal = (await withdrawDemoUsage({ em: database.em, ...identity }).catch(
         (error: unknown) => error,
       )) as Error;
-      expect(refusal.message).not.toContain('invoices:');
-      expect(refusal.message).toContain('payments: 1');
+      expect(refusal.message).not.toContain('invoices and corrections');
+      expect(refusal.message).toContain('payments that were paid or refunded: 1');
     });
 
     it('reach the withdrawal from the composition input, and from nowhere else', async () => {

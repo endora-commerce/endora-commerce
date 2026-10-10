@@ -94,6 +94,14 @@ const SUITE_TIMEOUT_MS = 900_000;
 
 /** The demo organisation's tax id — `organizations`' own demo row is keyed on it. */
 const DEMO_ORG_TAX_ID = 'PL5210000099';
+/** The kinds a refusal counts, as it prints them. */
+const INVOICES = 'invoices and corrections, or invoices of any kind with an external reference';
+const PAYMENTS = 'payments that were paid or refunded';
+const LEDGER = 'accounting-system records';
+const ALL_KINDS = [INVOICES, PAYMENTS, LEDGER, 'refunds', 'refunds settled against the credit limit'];
+/** What a reset stopped by `STOP_AFTER_PREFLIGHT` says once the pre-flight has let it through. */
+const PREFLIGHT_PASSED = 'the financial pre-flight let this reset through';
+
 /** The organisation standing in for a real customer on the same instance. */
 const REAL_ORG_TAX_ID = 'PL7777777777';
 
@@ -396,6 +404,118 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
     }
   }
 
+  /** A run, and every column still naming a row it deleted. */
+  async function scanned(
+    run: () => Promise<DemoRun>,
+  ): Promise<{ run: DemoRun; leftBehind: Record<string, number> }> {
+    const before = await idsByTable();
+    const outcome = await run();
+    const after = await idsByTable();
+    const deleted: string[] = [];
+    for (const [table, ids] of before) {
+      const kept = after.get(table) ?? new Set<string>();
+      for (const id of ids) if (!kept.has(id)) deleted.push(id);
+    }
+    return { run: outcome, leftBehind: await referencesTo(deleted) };
+  }
+
+  /** One row that is, or is not, a financial record — and what the refusal counts for it. */
+  interface FinancialCase {
+    readonly name: string;
+    /** Bring the record into being; answers with how to take it away again. */
+    readonly make: () => Promise<() => Promise<void>>;
+    /** Count per kind the refusal names; empty for a row that is not financial. */
+    readonly counted: Record<string, number>;
+    run?: DemoRun;
+    unchanged?: boolean;
+  }
+
+  /** The demo the cases are made on: its organisation, one order, and the two pro formas placement issued. */
+  interface FinancialSubject {
+    readonly organizationId: string;
+    readonly orderId: string;
+    readonly proformaId: string;
+    readonly otherProformaId: string;
+  }
+
+  function financialCasesFor(subject: FinancialSubject): FinancialCase[] {
+    /** A new row of `table`. */
+    const row =
+      (table: string, given: Record<string, unknown>) => async (): Promise<() => Promise<void>> => {
+        const id = await insert('demo', table, given);
+        return async () => void (await db.query(`delete from "${table}" where id = $1`, [id]));
+      };
+    /** An external life given to a pro forma that placement issued — one per order and kind, so it cannot be a new row. */
+    const stamped =
+      (invoiceId: string, column: string, value: string) => async (): Promise<() => Promise<void>> => {
+        await db.query(`update invoices set "${column}" = $2 where id = $1`, [invoiceId, value]);
+        return async () =>
+          void (await db.query(`update invoices set "${column}" = null where id = $1`, [invoiceId]));
+      };
+    const payment = (status: string) => row('payments', { order_id: subject.orderId, status });
+    const invoice = (kind: string) =>
+      row('invoices', {
+        organization_id: subject.organizationId,
+        order_id: subject.orderId,
+        origin: 'platform',
+        kind,
+      });
+    return [
+      { name: 'a paid payment', make: payment('paid'), counted: { [PAYMENTS]: 1 } },
+      { name: 'a refunded payment', make: payment('refunded'), counted: { [PAYMENTS]: 1 } },
+      {
+        name: 'a partially refunded payment',
+        make: payment('partially_refunded'),
+        counted: { [PAYMENTS]: 1 },
+      },
+      { name: 'a final invoice', make: invoice('invoice'), counted: { [INVOICES]: 1 } },
+      { name: 'a correction', make: invoice('correction'), counted: { [INVOICES]: 1 } },
+      {
+        name: 'a pro forma with a KSeF reference number',
+        make: stamped(subject.proformaId, 'ksef_reference_number', 'KSEF-1'),
+        counted: { [INVOICES]: 1 },
+      },
+      {
+        name: 'a pro forma with an external document reference',
+        make: stamped(
+          subject.otherProformaId,
+          'external_document_ref',
+          '{"system":"erp","externalId":"1"}',
+        ),
+        counted: { [INVOICES]: 1 },
+      },
+      // The row itself, and the placement's own pro forma it is about — which
+      // has just acquired an external life.
+      {
+        name: 'an accounting-system row',
+        make: row('invoice_ledger_document_maps', {
+          organization_id: subject.organizationId,
+          invoice_id: subject.proformaId,
+          environment: 'sandbox',
+        }),
+        counted: { [LEDGER]: 1, [INVOICES]: 1 },
+      },
+      // And two that are not: an attempt that moved nothing, a delivery note.
+      { name: 'a failed payment', make: payment('failed'), counted: {} },
+      { name: 'a delivery note', make: invoice('wz'), counted: {} },
+    ];
+  }
+
+  /**
+   * A composition that lets the usage withdrawal — and so the pre-flight — run
+   * for real, and then stops the reset: the transaction rolls back, and a case
+   * that the pre-flight let through leaves the demo exactly as it was.
+   */
+  const STOP_AFTER_PREFLIGHT: RunVariation = {
+    composition: (built) => ({
+      ...built,
+      withdraw: async () => {
+        await built.withdraw();
+        throw new Error(PREFLIGHT_PASSED);
+      },
+    }),
+  };
+
   // ── the demo, used the way a visitor uses it ─────────────────────────────
 
   async function signInAsBuyer(): Promise<{ cookies: Record<string, string> }> {
@@ -436,6 +556,11 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
 
   /** Sign in, save two addresses, and place a one-line order on credit. */
   async function buyOnCredit(): Promise<string> {
+    return await buy('credit_limit');
+  }
+
+  /** The same, paying by the demo payment method with this code. */
+  async function buy(paymentMethodCode: 'credit_limit' | 'bank_transfer'): Promise<string> {
     const buyer = await signInAsBuyer();
     const deliveryAddressId = await saveAddress(buyer, 'delivery');
     const billingAddressId = await saveAddress(buyer, 'billing');
@@ -446,7 +571,8 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
       `select id from delivery_methods where code = 'in_person_pickup'`,
     );
     const [paymentMethod] = await query<{ id: string }>(
-      `select id from payment_methods where code = 'credit_limit'`,
+      `select id from payment_methods where code = $1`,
+      [paymentMethodCode],
     );
     const added = await h.app.inject({
       method: 'POST',
@@ -609,7 +735,7 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
       origin: 'transition',
       reason: 'order_cancelled',
     });
-    await add('payments', { order_id: orderId });
+    await add('payments', { order_id: orderId, status: 'paid' });
     await add('shipments', { order_id: orderId, status: 'pending' });
     // A second line, for a product the operator added themselves: three units
     // promised to this order and not released. The stock row is the
@@ -646,6 +772,7 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
       order_id: orderId,
       sales_channel_id: salesChannelId,
       origin: 'platform',
+      kind: 'invoice',
     });
     await add('invoice_lines', { invoice_id: invoiceId, order_item_id: orderItemId });
     await add('invoice_external_attachments', { invoice_id: invoiceId });
@@ -941,10 +1068,13 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
   let raced: DemoRun;
   let latePaymentSurvived: boolean;
   let racedLeftEverythingElse: boolean;
-  let refusedOverPayment: DemoRun;
-  let refusedOverInvoice: DemoRun;
-  let resetWithoutFlag: DemoRun;
+  let placedButUnpaid: { what: string; n: string }[];
+  let financialCases: FinancialCase[];
+  let unforced: { run: DemoRun; leftBehind: Record<string, number> };
   let demoRowsAfterUnforcedReset: number;
+  let refusedOverEverything: DemoRun;
+  let forced: { run: DemoRun; leftBehind: Record<string, number> };
+  let financialRowsAfterForcedReset: number;
 
   beforeAll(async () => {
     h = await setupBackendServer({ seed: 'none' });
@@ -1156,25 +1286,27 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
     const cleared = await demo('reset', FORCE);
     const again = await demo('seed');
     if (cleared.code !== 0 || again.code !== 0) return;
-    const buyer = await signInAsBuyer();
-    await saveAddress(buyer, 'delivery');
-    const [anyProduct] = await query<{ id: string }>(
-      `select id from products where slug like 'demo-screws-%' order by slug limit 1`,
-    );
-    await h.app.inject({
-      method: 'POST',
-      url: '/api/v1/cart/items',
-      payload: { productId: anyProduct!.id, quantity: 1 },
-      ...buyer,
-    });
-    // An order with nothing financial beside it, which no placement leaves
-    // behind but a migration or an import can; then a payment alone, then an
-    // invoice alone, each of which is enough to refuse.
+    // Three orders through the real placement path, two on credit and one by
+    // bank transfer, with invoicing on and nothing paid: a `deferred` payment
+    // or an `awaiting_payment` one, and a pro-forma invoice, each.
+    const creditOrderId = await buy('credit_limit');
+    await buy('credit_limit');
+    await buy('bank_transfer');
     const fresh = await demoTenantWithoutOrder();
-    const bareOrderId = await insert('demo', 'orders', {
-      organization_id: fresh.organizationId,
-      placed_by_customer_account_id: fresh.customerAccountId,
-    });
+    placedButUnpaid = await query<{ what: string; n: string }>(
+      `select 'payment ' || status as what, count(*)::text as n from payments
+        where order_id in (select id from orders where organization_id = $1) group by status
+       union all
+       select 'invoice ' || kind, count(*)::text from invoices
+        where order_id in (select id from orders where organization_id = $1) group by kind
+       order by 1`,
+      [fresh.organizationId],
+    );
+    const [proforma] = await query<{ id: string }>(
+      `select id from invoices where order_id = $1 and kind = 'proforma'`,
+      [creditOrderId],
+    );
+
     // A payment another session commits while the reset is already running —
     // after its snapshot, so after its pre-flight has counted none.
     const lateCounts = await tableCounts();
@@ -1185,7 +1317,7 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
           ...built,
           withdraw: async () => {
             latePaymentId = await insert('demo', 'payments', {
-              order_id: bareOrderId,
+              order_id: creditOrderId,
               status: 'paid',
             });
             return await built.withdraw();
@@ -1203,25 +1335,82 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
     racedLeftEverythingElse =
       JSON.stringify(await tableCounts()) === JSON.stringify(lateCounts);
 
-    const paymentId = await insert('demo', 'payments', { order_id: bareOrderId });
-    refusedOverPayment = await demo('reset');
-    await db.query(`delete from payments where id = $1`, [paymentId]);
-    const invoiceId = await insert('demo', 'invoices', {
-      organization_id: fresh.organizationId,
-      order_id: bareOrderId,
-      origin: 'platform',
+    // ── each financial record alone ─────────────────────────────────────────
+    const [otherProforma] = await query<{ id: string }>(
+      `select id from invoices
+        where kind = 'proforma' and id <> $2
+          and order_id in (select id from orders where organization_id = $1)
+        order by created_at limit 1`,
+      [fresh.organizationId, proforma!.id],
+    );
+    financialCases = financialCasesFor({
+      organizationId: fresh.organizationId,
+      orderId: creditOrderId,
+      proformaId: proforma!.id,
+      otherProformaId: otherProforma!.id,
     });
-    refusedOverInvoice = await demo('reset');
-    await db.query(`delete from invoices where id = $1`, [invoiceId]);
-    resetWithoutFlag = await demo('reset');
+    for (const financial of financialCases) {
+      const undo = await financial.make();
+      const countsBefore = await tableCounts();
+      // A case that is not financial would be withdrawn; it is asked through a
+      // composition that stops after the pre-flight instead, so that every
+      // case leaves the same demo behind for the next.
+      financial.run = await demoVaried(STOP_AFTER_PREFLIGHT, 'reset');
+      financial.unchanged =
+        JSON.stringify(await tableCounts()) === JSON.stringify(countsBefore);
+      await undo();
+    }
+
+    // ── placed, unpaid, uninvoiced: resets without the flag ─────────────────
+    unforced = await scanned(() => demo('reset'));
     demoRowsAfterUnforcedReset = Number(
       (
         await query<{ n: string }>(
-          `select (select count(*) from orders where id = $1)
-                + (select count(*) from addresses where organization_id = $2)
-                + (select count(*) from carts where organization_id = $2)
+          `select (select count(*) from orders where organization_id = $1)
+                + (select count(*) from payments where order_id = $2)
+                + (select count(*) from invoices where order_id = $2)
+                + (select count(*) from addresses where organization_id = $1)
+                + (select count(*) from organizations where id = $1) as n`,
+          [fresh.organizationId, creditOrderId],
+        )
+      )[0]!.n,
+    );
+
+    // ── every financial record at once: withdrawn with the flag ─────────────
+    if ((await demo('seed')).code !== 0) return;
+    const lastOrderId = await buy('credit_limit');
+    await buy('credit_limit');
+    await buy('bank_transfer');
+    const last = await demoTenantWithoutOrder();
+    const [lastProforma] = await query<{ id: string }>(
+      `select id from invoices where order_id = $1 and kind = 'proforma'`,
+      [lastOrderId],
+    );
+    const [lastOtherProforma] = await query<{ id: string }>(
+      `select id from invoices
+        where kind = 'proforma' and id <> $2
+          and order_id in (select id from orders where organization_id = $1)
+        order by created_at limit 1`,
+      [last.organizationId, lastProforma!.id],
+    );
+    for (const financial of financialCasesFor({
+      organizationId: last.organizationId,
+      orderId: lastOrderId,
+      proformaId: lastProforma!.id,
+      otherProformaId: lastOtherProforma!.id,
+    })) {
+      await financial.make();
+    }
+    refusedOverEverything = await demo('reset');
+    forced = await scanned(() => demo('reset', FORCE));
+    financialRowsAfterForcedReset = Number(
+      (
+        await query<{ n: string }>(
+          `select (select count(*) from payments where order_id = $1)
+                + (select count(*) from invoices where order_id = $1)
+                + (select count(*) from invoice_ledger_document_maps where organization_id = $2)
                 + (select count(*) from organizations where id = $2) as n`,
-          [bareOrderId, fresh.organizationId],
+          [lastOrderId, last.organizationId],
         )
       )[0]!.n,
     );
@@ -1298,10 +1487,11 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
     it('exits non-zero, saying what it found, that nothing changed, and how to force it', () => {
       const { run } = refusals['financial records']!;
       expect(run.code).toBe(1);
-      // One order placed over HTTP and one after it: a payment and a pro-forma
-      // invoice each, beside the rows written directly.
-      expect(run.err).toMatch(/^ {2}invoices: \d+$/m);
-      expect(run.err).toMatch(/^ {2}payments: \d+$/m);
+      // Exactly the one paid payment and the one final invoice written
+      // directly. The order placed over HTTP opened a payment (`deferred`) and
+      // a pro-forma invoice of its own, and neither is counted.
+      expect(run.err).toMatch(/^ {2}invoices and corrections[^\n]*: 1$/m);
+      expect(run.err).toMatch(/^ {2}payments that were paid or refunded: 1$/m);
       expect(run.err).toMatch(/^ {2}accounting-system records: 3$/m);
       expect(run.err).toMatch(/^ {2}refunds: 1$/m);
       expect(run.err).toContain('Nothing has been changed');
@@ -1411,22 +1601,89 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
     });
   });
 
-  describe('a demo whose usage is not financial', () => {
-    it('is refused over a payment alone', () => {
-      expect(refusedOverPayment.code).toBe(1);
-      expect(refusedOverPayment.err).toMatch(/^ {2}payments: 1$/m);
-      expect(refusedOverPayment.err).not.toContain('invoices:');
+  describe('orders placed and nothing paid: two on credit and one by bank transfer, invoicing on', () => {
+    it('hold deferred and awaiting payments and a pro forma per order, as placement left them', () => {
+      expect(placedButUnpaid).toEqual([
+        { what: 'invoice proforma', n: '3' },
+        { what: 'payment awaiting_payment', n: '1' },
+        { what: 'payment deferred', n: '2' },
+      ]);
     });
 
-    it('is refused over an invoice alone', () => {
-      expect(refusedOverInvoice.code).toBe(1);
-      expect(refusedOverInvoice.err).toMatch(/^ {2}invoices: 1$/m);
-      expect(refusedOverInvoice.err).not.toContain('payments:');
-    });
-
-    it('resets without the flag once it holds neither: the order, the address and the cart go', () => {
-      expect(resetWithoutFlag.code, resetWithoutFlag.err).toBe(0);
+    it('reset without the flag', () => {
+      expect(unforced.run.code, unforced.run.err).toBe(0);
       expect(demoRowsAfterUnforcedReset).toBe(0);
+    });
+
+    it('leave nothing naming a deleted row beyond the kept records', () => {
+      for (const column of Object.keys(unforced.leftBehind)) {
+        expect(Object.keys(KEPT_REFERENCES), column).toContain(column);
+      }
+    });
+  });
+
+  describe('one financial record alone, on that same demo', () => {
+    // `financialCases` is filled in `beforeAll`; the names are the table.
+    const names = [
+      'a paid payment',
+      'a refunded payment',
+      'a partially refunded payment',
+      'a final invoice',
+      'a correction',
+      'a pro forma with a KSeF reference number',
+      'a pro forma with an external document reference',
+      'an accounting-system row',
+    ];
+    const byName = (name: string): FinancialCase =>
+      financialCases.find((financial) => financial.name === name)!;
+
+    it('is every case this file runs', () => {
+      expect(financialCases.filter((c) => Object.keys(c.counted).length > 0).map((c) => c.name)).toEqual(names);
+    });
+
+    it.each(names)('%s refuses the reset, counted under its own kind and no other', (name) => {
+      const financial = byName(name);
+      expect(financial.run!.code).toBe(1);
+      expect(financial.run!.err).toContain('--force-delete-financial-records');
+      expect(financial.run!.err).toContain('Nothing has been changed');
+      for (const kind of ALL_KINDS) {
+        const line = `  ${kind}: ${String(financial.counted[kind] ?? 0)}\n`;
+        if (kind in financial.counted) expect(financial.run!.err).toContain(line);
+        else expect(financial.run!.err).not.toContain(`  ${kind}: `);
+      }
+    });
+
+    it.each(names)('%s leaves every table as it was', (name) => {
+      expect(byName(name).unchanged).toBe(true);
+    });
+
+    it.each(['a failed payment', 'a delivery note'])(
+      '%s is not a financial record: the pre-flight lets the reset through',
+      (name) => {
+        const financial = byName(name);
+        expect(financial.run!.err).toContain(PREFLIGHT_PASSED);
+        expect(financial.run!.err).not.toContain('holds financial records');
+        expect(financial.unchanged).toBe(true);
+      },
+    );
+  });
+
+  describe('every financial record at once', () => {
+    it('refuses without the flag, each kind counted', () => {
+      expect(refusedOverEverything.code).toBe(1);
+      // Three payments; a final invoice, a correction and the two pro formas
+      // that were given an external reference (one of them ledgered as well).
+      expect(refusedOverEverything.err).toContain(`  ${PAYMENTS}: 3\n`);
+      expect(refusedOverEverything.err).toContain(`  ${INVOICES}: 4\n`);
+      expect(refusedOverEverything.err).toContain(`  ${LEDGER}: 1\n`);
+    });
+
+    it('is withdrawn with the flag, and nothing is left naming a deleted row', () => {
+      expect(forced.run.code, forced.run.err).toBe(0);
+      expect(financialRowsAfterForcedReset).toBe(0);
+      for (const column of Object.keys(forced.leftBehind)) {
+        expect(Object.keys(KEPT_REFERENCES), column).toContain(column);
+      }
     });
   });
 

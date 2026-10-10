@@ -57,11 +57,20 @@ A module that is **switched off** does not exempt its rows: they are withdrawn w
 tables exist, whether or not it is active. A reset with CRM off used to stop at `organizations`;
 it now completes, and leaves only CRM's three demo tags, which a reset with CRM on removes.
 
-**Breaking: the reset refuses when the demo organisation holds financial records** — invoices
-(pro formas and corrections included), accounting-system records (`invoice_ledger_*`), payments,
-refunds, and refunds settled against the credit limit. It exits 1 before deleting anything and
-prints how many of each it found. Placing one order is enough: it opens a payment and, with
-invoicing on, a pro-forma invoice. To delete them with the rest:
+**Breaking: the reset refuses when the demo organisation holds financial records.** It exits 1
+before deleting anything and prints how many of each it found. What counts:
+
+- a payment whose status is `paid`, `refunded` or `partially_refunded`;
+- an invoice of kind `invoice` or `correction`, or of any kind that carries a KSeF reference
+  number or an external document reference, or that has an accounting-system row;
+- any row of `invoice_ledger_deliveries`, `invoice_ledger_document_maps` or
+  `invoice_ledger_client_maps`;
+- a refund, and a refund settled against the credit limit (`credit_limit_return_topups`).
+
+A payment still `awaiting_payment`, `deferred` or `failed`, and a pro-forma invoice or delivery
+note with no external reference, do not count: they are what an order placement opens and are
+withdrawn with the order, so a demo on which orders were placed and nothing was paid resets
+without the flag. To delete the financial records with the rest:
 
 ```
 pnpm run cli demo reset --force-delete-financial-records

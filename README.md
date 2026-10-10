@@ -310,7 +310,8 @@ not run. [`docs/docs/architecture/migrations.md`](docs/docs/architecture/migrati
 rules and the failure modes. Demo data is optional: `pnpm --filter backend run cli demo seed`
 loads a synthetic shop and prints its credentials, and `cli demo reset` withdraws it — in one
 transaction, together with what using the demo created. It refuses, changing nothing, when the
-demo organisation holds invoices, payments or other financial records;
+demo organisation holds financial records (paid or refunded payments, invoices and corrections,
+accounting-system records, refunds — not orders that were placed and never paid);
 `cli demo reset --force-delete-financial-records` deletes those with the rest.
 
 ### 🤝 Contributing

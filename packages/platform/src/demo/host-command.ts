@@ -113,9 +113,12 @@ export function demoHelpFor(verb: DemoMode, program = 'pnpm run cli'): string {
         'using the demo created under the demo organisation. Rows that belong to\n' +
         'anybody else are left alone. It runs in one transaction: a reset that is\n' +
         'refused has changed nothing.\n\n' +
-        'It refuses when the demo organisation holds financial records — invoices,\n' +
-        'payments, refunds, what was sent to an accounting system — and names what it\n' +
-        `found. ${DEMO_FORCE_DELETE_FINANCIAL_RECORDS_FLAG} deletes them with the rest;\n` +
+        'It refuses when the demo organisation holds financial records, and names what\n' +
+        'it found: a payment that was paid or refunded; an invoice or a correction, or\n' +
+        'an invoice of any kind with a KSeF or external reference; an accounting-system\n' +
+        'record; a refund. Orders placed and never paid — an awaiting or deferred\n' +
+        'payment, a pro-forma invoice — do not count and are withdrawn as they are.\n' +
+        `${DEMO_FORCE_DELETE_FINANCIAL_RECORDS_FLAG} deletes the financial records with the rest;\n` +
         'it is read from this command line only and skips no other guard.\n') +
     '\nIt refuses to run against a production database — both NODE_ENV and the\n' +
     'DATABASE_URL are checked, each with its own explicit override — and writes\n' +
