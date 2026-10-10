@@ -6,10 +6,7 @@ import {
   OrganizationCannotTransactError,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
-import type { Order } from './entities/order.entity.js';
-import { OrderItem } from './entities/order-item.entity.js';
-import { OrderStatus } from './entities/order-status.entity.js';
-import { OrderAppliedPromotion } from './entities/order-applied-promotion.entity.js';
+import { serializeOrder } from './order-response.js';
 import type { OrderService } from './services/order-service.js';
 import type { OrderApiIntakeService } from './services/order-api-intake-service.js';
 
@@ -26,7 +23,9 @@ import type { OrderApiIntakeService } from './services/order-api-intake-service.
  * Namespace invariants (§0):
  *  - every endpoint requires a BOUND api key (`requireBoundApiKey`);
  *  - every response carries `Cache-Control: private, no-store` (scoped hook);
- *  - responses reuse the existing serialized order envelope — no partner DTO.
+ *  - responses reuse the existing serialized order envelope — no partner DTO:
+ *    the same `serializeOrder` (`order-response.ts`) the customer surface
+ *    answers with, minus the buyer's cancel capability.
  */
 
 export type ExternalOrdersGateFactory = (
@@ -155,7 +154,7 @@ export async function registerOrdersExternalRoutes(
           parsed.data,
         );
         reply.status(result.replayed ? 200 : 201);
-        return { data: await serializeExternalOrder(emFactory(), result.order) };
+        return { data: await serializeOrder(emFactory(), result.order) };
       },
     );
 
@@ -172,7 +171,7 @@ export async function registerOrdersExternalRoutes(
         const orders = await orderService.listForCustomer(ctx);
         const em = emFactory();
         return {
-          data: await Promise.all(orders.map((o) => serializeExternalOrder(em, o))),
+          data: await Promise.all(orders.map((o) => serializeOrder(em, o))),
           pagination: { cursor: null, hasMore: false, limit: 50 },
         };
       },
@@ -189,7 +188,7 @@ export async function registerOrdersExternalRoutes(
           organizationId: binding.organizationId,
         };
         const order = await orderService.getById(request.params.id, ctx);
-        return { data: await serializeExternalOrder(emFactory(), order) };
+        return { data: await serializeOrder(emFactory(), order) };
       },
     );
   });
@@ -198,74 +197,4 @@ export async function registerOrdersExternalRoutes(
 function headerValue(raw: string | string[] | undefined): string | undefined {
   if (Array.isArray(raw)) return raw[0];
   return raw;
-}
-
-/**
- * The existing serialized order envelope (contract `orderSchema`). Mirrors the
- * customer surface's serializer in `routes.ts` — kept private there by the
- * "customer route file untouched" guard; both derive from the same
- * `@endora-commerce/contracts` `orderSchema`, which pins the shape against drift.
- */
-async function serializeExternalOrder(
-  em: EntityManager,
-  order: Order,
-): Promise<Record<string, unknown>> {
-  const items = await em.find(OrderItem, { orderId: order.id });
-  const statusDef = await em.findOne(OrderStatus, { code: order.status });
-  const appliedPromotions = await em.find(OrderAppliedPromotion, { orderId: order.id });
-  return {
-    id: order.id,
-    businessId: order.businessId,
-    organizationId: order.organizationId,
-    placedByCustomerAccountId: order.placedByCustomerAccountId,
-    placedOnBehalfByAdminUserId: order.placedOnBehalfByAdminUserId ?? null,
-    salesChannelId: order.salesChannelId,
-    status: order.status,
-    customFieldValues: order.customFieldValues ?? {},
-    statusName: statusDef?.name ?? {},
-    statusDefaultName: statusDef?.defaultName ?? order.status,
-    paymentStatus: order.paymentStatus,
-    deliveryAddress: order.deliveryAddress,
-    billingAddress: order.billingAddress,
-    deliveryPoint: order.deliveryPointSnapshot ?? null,
-    deliveryMethod: {
-      id: order.deliveryMethodId,
-      code: order.deliveryMethodSnapshot.code,
-      name: order.deliveryMethodSnapshot.name,
-      cost: order.deliveryMethodSnapshot.cost,
-    },
-    paymentMethod: {
-      id: order.paymentMethodId,
-      code: order.paymentMethodSnapshot.code,
-      name: order.paymentMethodSnapshot.name,
-      kind: order.paymentMethodSnapshot.kind,
-    },
-    sourceQuoteRequestId: order.sourceQuoteRequestId ?? null,
-    items: items.map((it) => ({
-      id: it.id,
-      productId: it.productId,
-      productSnapshot: it.productSnapshot,
-      variantId: it.variantId ?? null,
-      variantSnapshot: it.variantSnapshot ?? null,
-      quantity: it.quantity,
-      unitPrice: Number(it.unitPrice),
-      taxRate: Number(it.taxRate),
-      lineTotal: Number(it.lineTotal),
-    })),
-    subtotal: Number(order.subtotal),
-    taxTotal: Number(order.taxTotal),
-    discountTotal: Number(order.discountTotal),
-    appliedPromotions: appliedPromotions.map((ap) => ({
-      promotionId: ap.promotionId,
-      couponId: ap.couponId ?? null,
-      amount: Number(ap.amount),
-      currency: ap.currency,
-    })),
-    deliveryTotal: Number(order.deliveryTotal),
-    total: Number(order.total),
-    currency: order.currency,
-    customerNote: order.customerNote ?? null,
-    placedAt: order.placedAt.toISOString(),
-    nextAction: order.nextAction ?? null,
-  };
 }

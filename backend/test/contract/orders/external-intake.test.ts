@@ -6,6 +6,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import {
   seedSuspendedOrganization,
@@ -58,11 +59,12 @@ interface SerializedOrder {
   currency: string;
 }
 
-/** Every field of a serialized order the published schema refuses, as `path: message`. */
+/** A strict copy: a key the external routes answer that the contract does not declare fails. */
+const strictOrder = deepStrict(orderSchema);
+
+/** Every field of a serialized order the published schema refuses or does not declare. */
 function orderSchemaDisagreements(order: unknown): string[] {
-  const parsed = orderSchema.safeParse(order);
-  if (parsed.success) return [];
-  return parsed.error.issues.map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`);
+  return disagreements(strictOrder, order);
 }
 
 describe('POST /api/v1/external/orders — contract (062 / T020)', () => {

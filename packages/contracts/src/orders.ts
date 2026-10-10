@@ -8,6 +8,8 @@ import {
   uuidSchema,
   type OriginReference,
 } from './common.js';
+import { customFieldValuesSchema } from './custom-fields.js';
+import { vatStatusSchema } from './organizations.js';
 
 /**
  * Orders module contracts — Source of truth per Principle V.
@@ -113,6 +115,17 @@ export const orderSchema = z.object({
   placedOnBehalfByAdminUserId: uuidSchema.nullable(),
   salesChannelId: uuidSchema,
   status: orderStatusCodeSchema,
+  /**
+   * The order's runtime custom-field values (feature 055), keyed by field key.
+   *
+   * Carried by **every** order response — the buyer-facing reads, the admin
+   * reads and the external (`/api/v1/external/orders`) reads alike — and `{}`
+   * when the order has none. The values are written by an administrator
+   * (`PATCH /api/v1/admin/orders/:id/custom-fields`); a custom-field definition
+   * carries no audience, so whatever is stored on an order is answered to
+   * every reader of that order.
+   */
+  customFieldValues: customFieldValuesSchema.default({}),
   /** Localized status labels; resolve statusName[language] → statusDefaultName → status. */
   statusName: multilingualStringSchema.optional(),
   statusDefaultName: z.string().optional(),
@@ -192,6 +205,37 @@ export const orderSchema = z.object({
   pendingEffects: z.array(orderPendingEffectSchema).optional(),
 });
 export type Order = z.infer<typeof orderSchema>;
+
+/**
+ * What `GET /api/v1/admin/orders/:id` answers: the order, plus the basics of
+ * the Organization it belongs to and of the customer account that placed it,
+ * so an operator can handle the order without leaving the page.
+ *
+ * Both are `null` when the record can no longer be read. They are carried by
+ * this one route only — not by the other admin order replies (create, status,
+ * payment status, custom fields), which answer the plain {@link Order}, and
+ * never by a buyer-facing or external reply.
+ */
+export const adminOrderDetailSchema = orderSchema.extend({
+  organization: z
+    .object({
+      id: uuidSchema,
+      name: z.string(),
+      legalName: z.string().nullable(),
+      taxId: z.string(),
+      vatStatus: vatStatusSchema,
+    })
+    .nullable(),
+  customer: z
+    .object({
+      id: uuidSchema,
+      firstName: z.string(),
+      lastName: z.string(),
+      email: z.string(),
+    })
+    .nullable(),
+});
+export type AdminOrderDetail = z.infer<typeof adminOrderDetailSchema>;
 
 /**
  * What a status-changing order route answers when the change **committed** but
