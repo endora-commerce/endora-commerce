@@ -7,7 +7,7 @@ import {
   type MfaLoginPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
-import { verifyPassword } from '@endora-commerce/platform/kernel';
+import { verifyPasswordOrDummy } from '@endora-commerce/platform/kernel';
 import { AdminUser } from '../entities/admin-user.entity.js';
 
 /**
@@ -71,12 +71,13 @@ export class AdminAuthService {
       },
       async () => {
         const found = await em.findOne(AdminUser, { email, deletedAt: null });
-        if (!found || found.status !== 'active') return { ok: false };
-        admin = found;
-        return {
-          ok: await verifyPassword(found.passwordHash, input.password),
-          adminUserId: found.id,
-        };
+        const usable = found !== null && found.status === 'active' ? found : null;
+        // Verified whether or not there is an account to verify against: an
+        // address nobody holds must not be refused sooner than a wrong password.
+        const matches = await verifyPasswordOrDummy(usable?.passwordHash, input.password);
+        if (!usable) return { ok: false };
+        admin = usable;
+        return { ok: matches, adminUserId: usable.id };
       },
     );
     // Re-read through a typed local: the assignment above happens inside a

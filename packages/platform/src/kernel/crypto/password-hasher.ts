@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import argon2 from 'argon2';
 
 /**
@@ -43,4 +44,37 @@ export async function verifyPassword(hash: string, password: string): Promise<bo
   } catch {
     return false;
   }
+}
+
+/**
+ * One hash of a value nobody knows, made once per process with the parameters
+ * every stored hash is made with. It is what a sign-in verifies against when
+ * there is no account to verify against.
+ */
+const DUMMY_HASH: Promise<string> = argon2.hash(randomBytes(32).toString('hex'), HASH_OPTIONS);
+// Reported where it is awaited, not as an unhandled rejection at import.
+DUMMY_HASH.catch(() => undefined);
+
+/**
+ * {@link verifyPassword}, for a sign-in: when there is no usable stored hash —
+ * no such account, or one that may not sign in — the password is verified
+ * against {@link DUMMY_HASH} and the answer is `false`.
+ *
+ * Skipping the verification for an unknown address makes that refusal arrive
+ * tens of milliseconds sooner than the one for a wrong password, and the
+ * difference tells a caller which addresses have an account.
+ */
+export async function verifyPasswordOrDummy(
+  hash: string | null | undefined,
+  password: string,
+): Promise<boolean> {
+  if (hash) {
+    try {
+      return await argon2.verify(hash, password);
+    } catch {
+      // Not a hash at all: do the work below, as for a missing one.
+    }
+  }
+  await argon2.verify(await DUMMY_HASH, password);
+  return false;
 }
