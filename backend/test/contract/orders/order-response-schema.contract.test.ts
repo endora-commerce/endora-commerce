@@ -1,14 +1,18 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { z } from 'zod';
-import { adminOrdersListResponseSchema, orderSchema } from '@endora-commerce/contracts';
+import {
+  adminOrderDetailSchema,
+  adminOrdersListResponseSchema,
+  orderSchema,
+} from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
 import { seedCartForStubCustomer, SEED_PAYMENT_METHOD_ID } from '../../helpers/seed-commerce.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
-import { TEST_CUSTOMER_ID } from '../../helpers/test-actors.js';
+import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 
 const SALES_CHANNEL_ID = '00000000-0000-4000-8000-0000000000c1';
 const DELIVERY_ADDRESS_ID = '00000000-0000-4000-8000-0000000000d1';
@@ -18,31 +22,38 @@ const DELIVERY_METHOD_ID = '00000000-0000-4000-8000-0000000000e1';
 const CUSTOMER = { cookies: { b2b_session: 'stub-customer-session' } };
 const ADMIN = { cookies: { b2b_session: 'stub-admin-session' } };
 
-/**
- * Every disagreement between a response and a published schema, as
- * `path: message` lines. Asserted against `[]` so a failure names all the
- * fields that drifted at once rather than the first one zod met.
- */
-function disagreements(schema: z.ZodTypeAny, value: unknown): string[] {
-  const parsed = schema.safeParse(value);
-  if (parsed.success) return [];
-  return parsed.error.issues.map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`);
-}
+/** Strict copies: a key a route answers that the contract does not declare fails. */
+const strictOrder = deepStrict(orderSchema);
+const strictAdminOrderDetail = deepStrict(adminOrderDetailSchema);
+const strictAdminOrdersList = deepStrict(adminOrdersListResponseSchema);
 
 /**
- * The order routes answer what `@endora-commerce/contracts` publishes
- * (Constitution II).
+ * The order routes answer what `@endora-commerce/contracts` publishes, and
+ * nothing beside it (Constitution II).
  *
- * The serialiser behind these routes returns `Record<string, unknown>`, so the
- * compiler holds it to nothing and the published `orderSchema` could drift away
- * from the wire without any test noticing — which it had: an address snapshot
- * answers `phone: null`, and the schema said "a string, or absent". A consumer
- * that parsed an order response with the schema it was given was refused.
+ * Each route that claims the order shape is driven through the real HTTP stack
+ * here and its reply is parsed with a **strict copy** of the published schema.
+ * Two different drifts red this file:
  *
- * So each route that claims the order shape is driven through the real HTTP
- * stack here and its reply is parsed with the published schema. A new field
- * the serialiser emits with a type the schema does not allow, or a required
- * field it stops emitting, reds this file.
+ * - a field the schema declares that the reply carries with a type it does not
+ *   allow, or does not carry at all — which is how an address snapshot's
+ *   `phone: null` went unnoticed against "a string, or absent";
+ * - a key the reply carries that the schema does not declare (issue #128). The
+ *   published schemas are non-strict, so parsing with them drops such a key
+ *   silently: `customFieldValues` was on every order reply, and `organization`
+ *   and `customer` on the admin detail, with no contract promising any of them.
+ *
+ * The second is also what holds the audience of a key. `organization` and
+ * `customer` are declared by `adminOrderDetailSchema` only, so the buyer-facing
+ * replies below — parsed with the strict `orderSchema` — red the moment either
+ * appears on one of them; `test/contract/orders/external-intake.test.ts` holds
+ * the external surface the same way.
+ *
+ * The serialiser is typed against the contract since the same issue, so the
+ * compiler now refuses most of this before a test runs. What it cannot see is
+ * the JSON the serialiser passes through from a stored column (the address,
+ * method and line snapshots, `nextAction`), which is typed by assertion — that
+ * part is still held here and nowhere else.
  */
 describe('order responses parse with the published order schemas', () => {
   let h: BackendServerHandle;
@@ -73,13 +84,16 @@ describe('order responses parse with the published order schemas', () => {
   });
 
   it('POST /api/v1/orders — the placement reply', () => {
-    expect(disagreements(orderSchema, placed)).toEqual([]);
+    expect(disagreements(strictOrder, placed)).toEqual([]);
+    // Always emitted, `{}` when the order has none — the contract's default
+    // only describes what a consumer may assume of an older reply.
+    expect((placed as { customFieldValues?: unknown }).customFieldValues).toEqual({});
   });
 
   it('GET /api/v1/orders/:id — the buyer detail', async () => {
     const res = await h.app.inject({ method: 'GET', url: `/api/v1/orders/${orderId}`, ...CUSTOMER });
     expect(res.statusCode).toBe(200);
-    expect(disagreements(orderSchema, (res.json() as { data: unknown }).data)).toEqual([]);
+    expect(disagreements(strictOrder, (res.json() as { data: unknown }).data)).toEqual([]);
   });
 
   it('GET /api/v1/orders — every item of the buyer list', async () => {
@@ -87,13 +101,18 @@ describe('order responses parse with the published order schemas', () => {
     expect(res.statusCode).toBe(200);
     const items = (res.json() as { data: Array<{ id: string }> }).data;
     expect(items.some((o) => o.id === orderId)).toBe(true);
-    expect(items.flatMap((o) => disagreements(orderSchema, o))).toEqual([]);
+    expect(items.flatMap((o) => disagreements(strictOrder, o))).toEqual([]);
   });
 
   it('GET /api/v1/admin/orders/:id — the admin detail', async () => {
     const res = await h.app.inject({ method: 'GET', url: `/api/v1/admin/orders/${orderId}`, ...ADMIN });
     expect(res.statusCode).toBe(200);
-    expect(disagreements(orderSchema, (res.json() as { data: unknown }).data)).toEqual([]);
+    const detail = (res.json() as { data: Record<string, unknown> }).data;
+    expect(disagreements(strictAdminOrderDetail, detail)).toEqual([]);
+    // The enrichment is there, not merely allowed to be: a `null` on both would
+    // parse and prove nothing about the two objects' own keys.
+    expect(detail.organization).toMatchObject({ id: TEST_ORGANIZATION_ID });
+    expect(detail.customer).toMatchObject({ id: TEST_CUSTOMER_ID });
   });
 
   it('GET /api/v1/admin/orders — the admin list and its rows', async () => {
@@ -101,7 +120,7 @@ describe('order responses parse with the published order schemas', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json() as { data: Array<{ id: string }> };
     expect(body.data.some((o) => o.id === orderId)).toBe(true);
-    expect(disagreements(adminOrdersListResponseSchema, body)).toEqual([]);
+    expect(disagreements(strictAdminOrdersList, body)).toEqual([]);
   });
 
   it('POST /api/v1/admin/orders — an order created on behalf of a customer', async () => {
@@ -129,7 +148,7 @@ describe('order responses parse with the published order schemas', () => {
     expect(res.statusCode).toBe(201);
     const created = (res.json() as { data: { id: string } }).data;
     onBehalfOrderId = created.id;
-    expect(disagreements(orderSchema, created)).toEqual([]);
+    expect(disagreements(strictOrder, created)).toEqual([]);
   });
 
   it('PATCH /api/v1/admin/orders/:id/custom-fields — the reply to a custom-field write', async () => {
@@ -140,7 +159,7 @@ describe('order responses parse with the published order schemas', () => {
       payload: {},
     });
     expect(res.statusCode).toBe(200);
-    expect(disagreements(orderSchema, (res.json() as { data: unknown }).data)).toEqual([]);
+    expect(disagreements(strictOrder, (res.json() as { data: unknown }).data)).toEqual([]);
   });
 
   it('POST /api/v1/admin/orders/:id/payment-status — the reply to a payment transition', async () => {
@@ -151,7 +170,7 @@ describe('order responses parse with the published order schemas', () => {
       payload: { to: 'paid' },
     });
     expect(res.statusCode).toBe(200);
-    expect(disagreements(orderSchema, (res.json() as { data: unknown }).data)).toEqual([]);
+    expect(disagreements(strictOrder, (res.json() as { data: unknown }).data)).toEqual([]);
   });
 
   it('POST /api/v1/admin/orders/:id/status — the reply to a lifecycle transition', async () => {
@@ -162,12 +181,12 @@ describe('order responses parse with the published order schemas', () => {
       payload: { to: 'cancelled', reason: 'schema conformance' },
     });
     expect(res.statusCode).toBe(200);
-    expect(disagreements(orderSchema, (res.json() as { data: unknown }).data)).toEqual([]);
+    expect(disagreements(strictOrder, (res.json() as { data: unknown }).data)).toEqual([]);
   });
 
   it('POST /api/v1/orders/:id/cancel — the reply to a buyer cancellation', async () => {
     const res = await h.app.inject({ method: 'POST', url: `/api/v1/orders/${orderId}/cancel`, ...CUSTOMER });
     expect(res.statusCode).toBe(200);
-    expect(disagreements(orderSchema, (res.json() as { data: unknown }).data)).toEqual([]);
+    expect(disagreements(strictOrder, (res.json() as { data: unknown }).data)).toEqual([]);
   });
 });

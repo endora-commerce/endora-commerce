@@ -22,6 +22,8 @@ import {
   updateOrderStatusRequestSchema,
 } from '@endora-commerce/contracts';
 import type {
+  AdminOrderDetail,
+  Order as OrderResponse,
   OrderPendingEffect,
   AssetReadPort,
   CatalogProductReadPort,
@@ -40,7 +42,6 @@ import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import type { Command, CommandBus } from '@endora-commerce/platform/commands';
 import type { OrderService } from './services/order-service.js';
 import type { OrderStatusGraphService } from './services/order-status-graph-service.js';
-import { OrderStatus } from './entities/order-status.entity.js';
 import type { OrderTransitionService } from './services/order-transition-service.js';
 import type { OrderListService, OrderListScope } from './services/order-list-service.js';
 import type { OrderListViewService } from './services/order-list-view-service.js';
@@ -53,10 +54,9 @@ import type { OrderCreationAdminService } from './services/order-creation-admin-
 import type { CustomerOrderCancellationService } from './services/order-cancellation-service.js';
 import type { PurchaseConversionService } from './services/purchase-conversion-service.js';
 import { Order } from './entities/order.entity.js';
-import { OrderItem } from './entities/order-item.entity.js';
 import { replyAfterCommittedWrite } from './services/committed-write-reply.js';
+import { serializeOrder } from './order-response.js';
 import { OrderTransitionEffect } from './entities/order-transition-effect.entity.js';
-import { OrderAppliedPromotion } from './entities/order-applied-promotion.entity.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import type { PlatformLogger, RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
@@ -186,7 +186,7 @@ export async function registerOrderRoutes(
   const serializeForBuyer = async (
     order: Order,
     customerAccountId: string,
-  ): Promise<Record<string, unknown>> =>
+  ): Promise<OrderResponse> =>
     serializeOrder(emFactory(), order, {
       customerCancellable: await deps.customerOrderCancellation.isCancellableByCustomer(
         order,
@@ -899,28 +899,27 @@ export async function registerOrderRoutes(
         deps.organizationDetails.findById(order.organizationId),
         deps.customerAccountRead.findById(order.placedByCustomerAccountId),
       ]);
-      return {
-        data: {
-          ...(await serializeAdminOrder(em, order)),
-          organization: organization
-            ? {
-                id: organization.id,
-                name: organization.name,
-                legalName: organization.legalName ?? null,
-                taxId: organization.taxId,
-                vatStatus: organization.vatStatus,
-              }
-            : null,
-          customer: customer
-            ? {
-                id: customer.id,
-                firstName: customer.firstName,
-                lastName: customer.lastName,
-                email: customer.email,
-              }
-            : null,
-        },
+      const data: AdminOrderDetail = {
+        ...(await serializeAdminOrder(em, order)),
+        organization: organization
+          ? {
+              id: organization.id,
+              name: organization.name,
+              legalName: organization.legalName ?? null,
+              taxId: organization.taxId,
+              vatStatus: organization.vatStatus,
+            }
+          : null,
+        customer: customer
+          ? {
+              id: customer.id,
+              firstName: customer.firstName,
+              lastName: customer.lastName,
+              email: customer.email,
+            }
+          : null,
       };
+      return { data };
     },
   );
 
@@ -1218,85 +1217,6 @@ function resolveAdminUserId(req: FastifyRequest): string | null {
 }
 
 /**
- * @param capabilities what *this reader* may do with the order — computed by
- *   the platform and carried to the surface (feature 085, FR-018). Buyer-facing
- *   reads pass it; the admin reads do not, because an administrator's power to
- *   cancel has no per-order condition to report.
- */
-async function serializeOrder(
-  em: EntityManager,
-  order: Order,
-  capabilities?: { customerCancellable: boolean },
-): Promise<Record<string, unknown>> {
-  const items = await em.find(OrderItem, { orderId: order.id });
-  // Status label payload (feature 039 follow-up): the localized name map + the
-  // language-independent default name, so any client resolves
-  // name[language] → defaultName → code in the viewer's language.
-  const statusDef = await em.findOne(OrderStatus, { code: order.status });
-  // Feature 045 (US2) — per-promotion discount breakdown.
-  const appliedPromotions = await em.find(OrderAppliedPromotion, { orderId: order.id });
-  return {
-    id: order.id,
-    businessId: order.businessId,
-    organizationId: order.organizationId,
-    placedByCustomerAccountId: order.placedByCustomerAccountId,
-    placedOnBehalfByAdminUserId: order.placedOnBehalfByAdminUserId ?? null,
-    salesChannelId: order.salesChannelId,
-    status: order.status,
-    customFieldValues: order.customFieldValues ?? {},
-    statusName: statusDef?.name ?? {},
-    statusDefaultName: statusDef?.defaultName ?? order.status,
-    paymentStatus: order.paymentStatus,
-    deliveryAddress: order.deliveryAddress,
-    billingAddress: order.billingAddress,
-    deliveryPoint: order.deliveryPointSnapshot ?? null,
-    deliveryMethod: {
-      id: order.deliveryMethodId,
-      code: order.deliveryMethodSnapshot.code,
-      name: order.deliveryMethodSnapshot.name,
-      cost: order.deliveryMethodSnapshot.cost,
-    },
-    paymentMethod: {
-      id: order.paymentMethodId,
-      code: order.paymentMethodSnapshot.code,
-      name: order.paymentMethodSnapshot.name,
-      kind: order.paymentMethodSnapshot.kind,
-    },
-    sourceQuoteRequestId: order.sourceQuoteRequestId ?? null,
-    items: items.map((it) => ({
-      id: it.id,
-      productId: it.productId,
-      productSnapshot: it.productSnapshot,
-      variantId: it.variantId ?? null,
-      variantSnapshot: it.variantSnapshot ?? null,
-      quantity: it.quantity,
-      unitPrice: Number(it.unitPrice),
-      taxRate: Number(it.taxRate),
-      lineTotal: Number(it.lineTotal),
-    })),
-    subtotal: Number(order.subtotal),
-    taxTotal: Number(order.taxTotal),
-    discountTotal: Number(order.discountTotal),
-    appliedPromotions: appliedPromotions.map((ap) => ({
-      promotionId: ap.promotionId,
-      couponId: ap.couponId ?? null,
-      amount: Number(ap.amount),
-      currency: ap.currency,
-    })),
-    deliveryTotal: Number(order.deliveryTotal),
-    total: Number(order.total),
-    currency: order.currency,
-    customerNote: order.customerNote ?? null,
-    placedAt: order.placedAt.toISOString(),
-    // Feature 036 — real payment next-action captured at placement (transfer
-    // details / gateway redirect / none). Order reads (GET/list) load it as
-    // undefined → null.
-    nextAction: order.nextAction ?? null,
-    ...(capabilities ? { customerCancellable: capabilities.customerCancellable } : {}),
-  };
-}
-
-/**
  * The admin order response: the order, plus the follow-ups it still owes
  * (`specs/142-order-transition-atomicity/`, D10, FR-019).
  *
@@ -1310,7 +1230,7 @@ async function serializeOrder(
  * release the platform is still retrying is an operator's concern and changes
  * nothing a buyer can do.
  */
-async function serializeAdminOrder(em: EntityManager, order: Order): Promise<Record<string, unknown>> {
+async function serializeAdminOrder(em: EntityManager, order: Order): Promise<OrderResponse> {
   const outstanding = await em.find(
     OrderTransitionEffect,
     { orderId: order.id, completedAt: null },

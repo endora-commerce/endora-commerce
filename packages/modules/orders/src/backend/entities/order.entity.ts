@@ -116,9 +116,14 @@ export class Order {
     /**
      * Billing company name + tax-id (NIP) captured at placement. Default from
      * the Organization; overridable at checkout (feature: billing org override).
+     *
+     * A string or absent, never `null`: placement — the one writer — always
+     * resolves both to the Organization's own value, and an order placed before
+     * the two keys existed carries neither. That is what the published
+     * `addressSnapshotSchema` says, and the serialiser is typed against it.
      */
-    companyName?: string | null;
-    taxId?: string | null;
+    companyName?: string;
+    taxId?: string;
   };
 
   /**
