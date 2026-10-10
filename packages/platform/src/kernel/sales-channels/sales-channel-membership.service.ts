@@ -216,6 +216,7 @@ export class SalesChannelMembershipService {
   async bindToDefaultIfEmpty(
     entityType: ChannelMemberEntityType,
     entityId: string,
+    options: MembershipMutationOptions = {},
   ): Promise<MembershipMutationResult> {
     const bridge = this.bridges.require(entityType);
     const em = this.emFactory();
@@ -236,7 +237,9 @@ export class SalesChannelMembershipService {
         em.getTransactionContext(),
       );
 
-    await this.auditMembership(defaultId, entityType, entityId, 'add', {});
+    // The actor when the caller has one: a create that falls back to Default is
+    // still somebody's create, and its audit row should say whose.
+    await this.auditMembership(defaultId, entityType, entityId, 'add', options);
     this.emitMembershipChanged(defaultId, entityType, entityId, 'add');
     return { changed: true };
   }

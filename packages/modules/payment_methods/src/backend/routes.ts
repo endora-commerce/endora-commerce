@@ -412,7 +412,7 @@ async function applyChannelSelection(
   actor: { actorAdminUserId: string | null },
 ): Promise<void> {
   if (salesChannelIds === undefined) {
-    if (created) await membership.bindToDefaultIfEmpty('payment-method', methodId);
+    if (created) await membership.bindToDefaultIfEmpty('payment-method', methodId, actor);
     return;
   }
   if (salesChannelIds.length === 0) {

@@ -363,4 +363,32 @@ describe.each(KINDS)('$name methods — sales-channel availability', (kind) => {
     expect(changes.map((c) => c.actor)).toEqual(changes.map(() => TEST_ADMIN_ID));
   });
 
+  /**
+   * The fourth way the route assigns a channel: a create that does not mention
+   * channels falls back to the default one. That write names its actor too, so
+   * no assignment made through this route is anonymous.
+   */
+  it('audits the default-channel assignment of a create that names no channels with the acting administrator', async () => {
+    const method = await upsert(`audited_default_${kind.name}`);
+    expect(method.salesChannelIds).toEqual([channelA.id]);
+
+    const changes = (
+      await h.em().find(AuditLogEntry, { action: SALES_CHANNEL_AUDIT_ACTIONS.MEMBERSHIP_CHANGED })
+    )
+      .map((entry) => {
+        const after = entry.stateAfter as { entityId: string; channelId: string; op: string };
+        return {
+          actor: entry.actorAdminUserId ?? null,
+          entityId: after.entityId,
+          channelId: after.channelId,
+          op: after.op,
+        };
+      })
+      .filter((change) => change.entityId === method.id);
+
+    expect(changes).toEqual([
+      { actor: TEST_ADMIN_ID, entityId: method.id, channelId: channelA.id, op: 'add' },
+    ]);
+  });
+
 });

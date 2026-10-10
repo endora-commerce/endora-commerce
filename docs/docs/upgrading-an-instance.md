@@ -80,7 +80,7 @@ Already at the version you asked for, it says so and changes nothing.
   release changes the storefront a new installation gets, yours gains that change only when you
   bring it over — see [Module blocks in an existing storefront](#storefront-block-renderers) for
   the one in `0.103.0`, [After upgrading to 0.104.0](#after-0-104-0) for the two in `0.104.0` and
-  [After upgrading to 0.105.0](#after-0-105-0) for the one in `0.105.0`.
+  [After upgrading to 0.105.0](#after-0-105-0) for the ones in `0.105.0`.
 
 ## After it finishes
 
@@ -413,21 +413,68 @@ a different one. What that means depends on how many sales channels the instance
   product was checked against the channel of the request that added it to the basket, not against
   the order's — see *Which sales channel an order records* on the `orders` module page.
 
-**In an existing storefront**, which keeps the source it was created with, the order calls do not
-tell the backend which channel the buyer is on: they are made without the request context, so no
-`X-Sales-Channel` header is sent and the backend resolves the default channel for them. On an
-instance with one sales channel that is the right answer and nothing has to change. On an instance
-with more than one, make these edits, or orders go on being recorded on the default channel:
+**Delivery and payment methods are offered per sales channel.** On `/delivery-methods` and
+`/payment-methods` each method now has a **Sales channels** field, and the choice is enforced: the
+storefront lists only the methods offered in the channel the buyer is shopping, and an order is
+refused for a method its channel does not offer. A method assigned to no channel is offered in
+every channel.
+
+- **One sales channel.** Nothing changes: every method is offered on the one channel, whether it
+  is assigned to it or to none.
+- **More than one: review every method.** The **Sales channels** column on the two screens shows
+  where each one stands.
+  - Assigned to the **default channel only**, and so gone from the other channels' checkouts after
+    the upgrade: every method created in the Admin UI so far, because the screens offered nothing
+    else, and every method a gateway or carrier module created **under an earlier release** on an
+    instance that had already been started. Nothing widens these for you — such a method cannot be
+    told apart from one restricted on purpose.
+  - Assigned to **no channel**, and so offered on every channel: every method a module creates
+    from this release on, whenever it is installed; methods a module created under an earlier
+    release during the instance's first setup, before its first start; and methods from the demo
+    data.
+
+  Open each method and choose its channels, or untick all of them to offer it everywhere.
+
+Assigning sales channels needs `delivery_methods:write` / `payment_methods:write` and nothing
+else; the sales-channel permissions are not required.
+
+**If your own module seeds a delivery or payment method from its install hook**,
+`bindToDefaultChannel` is gone from the seed surface: delete the call after
+`ensureMethodForAdapter`. The module does not compile until you do, and nothing replaces it — the
+seeded method is offered on every channel.
+
+**In an existing storefront**, which keeps the source it was created with, neither the order calls
+nor the two method catalogues tell the backend which channel the buyer is on: they are made without
+the request context, so no `X-Sales-Channel` header is sent and the backend resolves the default
+channel for them. On an instance with one sales channel that is the right answer and nothing has to
+change. On an instance with more than one, make all of these edits together — with only some of
+them the checkout would list one channel's methods and place the order on another, and the order
+would be refused:
 
 - In `lib/api/orders.ts`, add `import type { RequestContext } from './client';`, add a last
   parameter `ctx: RequestContext` to `placeOrder`, `previewOrderTotal` and `cloneOrderToQuote`,
   and add `ctx,` to the options object each of them hands to `apiMutate`.
 - In `lib/api/quick-order.ts`, which already imports `RequestContext`, do the same for
   `placeOneClickOrder` (`apiMutate`) and `getOneClickEligibility` (`apiGetAuthed`).
-- Pass the context as the new last argument at the five call sites. `getServerContext` is already
-  imported in all three files:
-  - `app/(commerce)/checkout/page.tsx`, in `submitAction`: add
-    `const { ctx } = await getServerContext();` before the `placeOrder` call and pass `ctx`.
+- In `lib/api/methods.ts`:
+  - change the first import to `import { apiGet, type RequestContext } from './client';`;
+  - give the two exported functions a parameter and hand it on —
+    `listDeliveryMethods(ctx: RequestContext)` returning
+    `withModuleAbsence(() => fetchDeliveryMethods(ctx), [])`, and
+    `listPaymentMethods(ctx: RequestContext)` returning
+    `withModuleAbsence(() => fetchPaymentMethods(ctx), [])`;
+  - give the two private functions the same parameter, `fetchDeliveryMethods(ctx: RequestContext)`
+    and `fetchPaymentMethods(ctx: RequestContext)`, and in each pass `ctx` as the second argument
+    of its `apiGet` call.
+- Pass the context at the call sites. `getServerContext` is already imported in all four files:
+  - `app/(commerce)/checkout/page.tsx`: the page component reads
+    `const { locale } = await getServerContext();` — change it to
+    `const { locale, ctx } = await getServerContext();` and pass `ctx` to the `listDeliveryMethods`
+    and `listPaymentMethods` calls below it. In `submitAction`, a separate function, add
+    `const { ctx } = await getServerContext();` before the `placeOrder` call and pass `ctx` as its
+    last argument.
+  - `app/(account)/preferences/page.tsx`: the same change to
+    `const { locale } = await getServerContext();`, and pass `ctx` to the two list calls.
   - `app/(catalog)/p/[slug]/page.tsx`: the page component **already has** `ctx` in scope, so pass
     it to `getOneClickEligibility` and declare nothing; in `oneClickAction`, a separate function,
     add `const { ctx } = await getServerContext();` before the `placeOneClickOrder` call and pass
@@ -439,10 +486,13 @@ with more than one, make these edits, or orders go on being recorded on the defa
 storefront itself receives, which is what your reverse proxy or middleware already stamps per
 host for the pages to render in the right channel.
 
-How far this has been exercised: the backend behaviour, the header on each of the five storefront
-calls and the single-channel minimum-order-value change are covered by the release's tests. The
-edits were not applied to a storefront created by an earlier release, and the whole path was not
-run in a browser against an instance with two channels.
+How far this has been exercised: the backend behaviour — the order's channel, the method listing
+and the refusals — the header on each of the seven storefront calls and the single-channel
+minimum-order-value change are covered by the release's tests. The storefront edits above were
+applied exactly as written to the seven files as they are in `0.104.0` and the storefront
+type-checked; they were not run in a storefront created by an earlier release, and neither the
+Admin UI screens nor the checkout were looked at in a browser against an instance with two
+channels.
 
 ## An instance that is mixed from the start
 

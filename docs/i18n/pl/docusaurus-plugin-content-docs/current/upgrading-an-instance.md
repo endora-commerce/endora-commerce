@@ -83,7 +83,7 @@ Jeśli instancja jest już w żądanej wersji, polecenie to mówi i niczego nie 
   instalacja, Twój zyska tę zmianę dopiero wtedy, gdy sam ją przeniesiesz — zmianę z wydania
   `0.103.0` opisuje sekcja
   [Bloki modułów w istniejącym storefroncie](#storefront-block-renderers), a dwie z wydania
-  `0.104.0` — sekcja [Po aktualizacji do wydania 0.104.0](#after-0-104-0), a jedną z wydania
+  `0.104.0` — sekcja [Po aktualizacji do wydania 0.104.0](#after-0-104-0), a zmiany z wydania
   `0.105.0` — sekcja [Po aktualizacji do wydania 0.105.0](#after-0-105-0).
 
 ## Po zakończeniu
@@ -432,22 +432,69 @@ kanałów sprzedaży w instancji.
   koszyka, a nie względem kanału zamówienia — zobacz *Który kanał sprzedaży zapisuje zamówienie*
   na stronie modułu `orders`.
 
-**W istniejącym storefroncie**, który zachowuje źródła, z jakimi go utworzono, wywołania dotyczące
-zamówień nie informują backendu, w którym kanale jest kupujący: są wykonywane bez kontekstu
-żądania, więc nagłówek `X-Sales-Channel` nie jest wysyłany i backend rozpoznaje dla nich kanał
-domyślny. W instancji z jednym kanałem sprzedaży to poprawna odpowiedź i niczego nie trzeba
-zmieniać. W instancji z więcej niż jednym wprowadź poniższe zmiany — w przeciwnym razie zamówienia
-nadal będą zapisywane w kanale domyślnym:
+**Metody dostawy i płatności są udostępniane w wybranych kanałach sprzedaży.** Na ekranach
+`/delivery-methods` i `/payment-methods` każda metoda ma teraz pole **Kanały sprzedaży**, a wybór
+jest egzekwowany: storefront pokazuje tylko metody dostępne w kanale, w którym kupuje klient, a
+zamówienie z metodą niedostępną w jego kanale jest odrzucane. Metoda nieprzypisana do żadnego
+kanału jest dostępna w każdym kanale.
+
+- **Jeden kanał sprzedaży.** Nic się nie zmienia: każda metoda jest dostępna w jedynym kanale,
+  niezależnie od tego, czy jest do niego przypisana, czy nie jest przypisana do żadnego.
+- **Więcej niż jeden: przejrzyj każdą metodę.** Kolumna **Kanały sprzedaży** na obu ekranach
+  pokazuje stan każdej z nich.
+  - Przypisane **tylko do kanału domyślnego**, a więc po aktualizacji niedostępne przy składaniu
+    zamówienia w pozostałych kanałach: każda metoda utworzona dotąd w panelu administracyjnym, bo
+    ekrany nie dawały innej możliwości, oraz każda metoda utworzona przez moduł bramki płatności
+    lub przewoźnika **we wcześniejszym wydaniu** w instancji, która była już uruchomiona. Nic nie
+    poszerza ich za Ciebie — takiej metody nie da się odróżnić od ograniczonej celowo.
+  - Nieprzypisane **do żadnego kanału**, a więc dostępne w każdym kanale: każda metoda tworzona
+    przez moduł od tego wydania, niezależnie od chwili instalacji; metody utworzone przez moduł we
+    wcześniejszym wydaniu podczas pierwszej konfiguracji instancji, przed jej pierwszym
+    uruchomieniem; oraz metody z danych demonstracyjnych.
+
+  Otwórz każdą metodę i wybierz jej kanały albo odznacz wszystkie, aby była dostępna wszędzie.
+
+Przypisywanie kanałów sprzedaży wymaga `delivery_methods:write` / `payment_methods:write` i
+niczego więcej; uprawnienia kanałów sprzedaży nie są potrzebne.
+
+**Jeśli Twój własny moduł tworzy metodę dostawy lub płatności w swoim `installHook`**, funkcja
+`bindToDefaultChannel` zniknęła z interfejsu tworzenia metod: usuń jej wywołanie po
+`ensureMethodForAdapter`. Moduł nie skompiluje się, dopóki tego nie zrobisz, i nic jej nie
+zastępuje — utworzona metoda jest dostępna w każdym kanale.
+
+**W istniejącym storefroncie**, który zachowuje źródła, z jakimi go utworzono, ani wywołania
+dotyczące zamówień, ani oba katalogi metod nie informują backendu, w którym kanale jest kupujący:
+są wykonywane bez kontekstu żądania, więc nagłówek `X-Sales-Channel` nie jest wysyłany i backend
+rozpoznaje dla nich kanał domyślny. W instancji z jednym kanałem sprzedaży to poprawna odpowiedź i
+niczego nie trzeba zmieniać. W instancji z więcej niż jednym wprowadź wszystkie poniższe zmiany
+razem — przy tylko części z nich składanie zamówienia pokazywałoby metody jednego kanału, a
+zamówienie trafiałoby do innego i byłoby odrzucane:
 
 - W `lib/api/orders.ts` dodaj `import type { RequestContext } from './client';`, dodaj ostatni
   parametr `ctx: RequestContext` do funkcji `placeOrder`, `previewOrderTotal` i
   `cloneOrderToQuote` oraz dodaj `ctx,` do obiektu opcji, który każda z nich podaje do `apiMutate`.
 - W `lib/api/quick-order.ts`, który już importuje `RequestContext`, zrób to samo dla
   `placeOneClickOrder` (`apiMutate`) i `getOneClickEligibility` (`apiGetAuthed`).
-- Przekaż kontekst jako nowy ostatni argument w pięciu miejscach wywołań. `getServerContext` jest
-  już importowany we wszystkich trzech plikach:
-  - `app/(commerce)/checkout/page.tsx`, w `submitAction`: dodaj
-    `const { ctx } = await getServerContext();` przed wywołaniem `placeOrder` i przekaż `ctx`.
+- W `lib/api/methods.ts`:
+  - zmień pierwszy import na `import { apiGet, type RequestContext } from './client';`;
+  - dodaj parametr do obu eksportowanych funkcji i przekaż go dalej —
+    `listDeliveryMethods(ctx: RequestContext)` zwracające
+    `withModuleAbsence(() => fetchDeliveryMethods(ctx), [])` oraz
+    `listPaymentMethods(ctx: RequestContext)` zwracające
+    `withModuleAbsence(() => fetchPaymentMethods(ctx), [])`;
+  - dodaj ten sam parametr do obu prywatnych funkcji, `fetchDeliveryMethods(ctx: RequestContext)`
+    i `fetchPaymentMethods(ctx: RequestContext)`, i w każdej przekaż `ctx` jako drugi argument jej
+    wywołania `apiGet`.
+- Przekaż kontekst w miejscach wywołań. `getServerContext` jest już importowany we wszystkich
+  czterech plikach:
+  - `app/(commerce)/checkout/page.tsx`: komponent strony zawiera
+    `const { locale } = await getServerContext();` — zmień to na
+    `const { locale, ctx } = await getServerContext();` i przekaż `ctx` do znajdujących się niżej
+    wywołań `listDeliveryMethods` i `listPaymentMethods`. W `submitAction`, osobnej funkcji, dodaj
+    `const { ctx } = await getServerContext();` przed wywołaniem `placeOrder` i przekaż `ctx` jako
+    ostatni argument.
+  - `app/(account)/preferences/page.tsx`: ta sama zmiana wiersza
+    `const { locale } = await getServerContext();` i `ctx` przekazane do obu wywołań list.
   - `app/(catalog)/p/[slug]/page.tsx`: komponent strony **ma już** `ctx` w zasięgu, więc przekaż
     go do `getOneClickEligibility` i niczego nie deklaruj; w `oneClickAction`, osobnej funkcji,
     dodaj `const { ctx } = await getServerContext();` przed wywołaniem `placeOneClickOrder` i
@@ -460,10 +507,13 @@ nadal będą zapisywane w kanale domyślnym:
 storefront — tego samego, który Twoje reverse proxy albo middleware już ustawia dla każdego hosta,
 aby strony renderowały się we właściwym kanale.
 
-Na ile zostało to sprawdzone: zachowanie backendu, nagłówek w każdym z pięciu wywołań storefrontu
-oraz zmianę minimalnej wartości zamówienia w instancji z jednym kanałem obejmują testy wydania.
-Zmian nie naniesiono na storefront utworzony we wcześniejszym wydaniu, a całej ścieżki nie
-uruchomiono w przeglądarce na instancji z dwoma kanałami.
+Na ile zostało to sprawdzone: zachowanie backendu — kanał zamówienia, listę metod i odmowy —
+nagłówek w każdym z siedmiu wywołań storefrontu oraz zmianę minimalnej wartości zamówienia w
+instancji z jednym kanałem obejmują testy wydania. Powyższe zmiany w storefroncie naniesiono
+dokładnie tak, jak je opisano, na siedem plików w postaci z wydania `0.104.0`, po czym storefront
+przeszedł sprawdzenie typów; nie uruchomiono ich w storefroncie utworzonym we wcześniejszym
+wydaniu, a ekranów panelu administracyjnego ani składania zamówienia nie obejrzano w przeglądarce
+na instancji z dwoma kanałami.
 
 ## Instancja niespójna od początku
 

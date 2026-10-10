@@ -16,7 +16,10 @@ import { withModuleAbsence } from './module-absence';
  * was harmless while the backend ignored the channel and would now answer every
  * storefront with the **default** channel's methods — a checkout offering
  * methods the order placed from it would then be refused for. The parameter is
- * required so that the header can be passed and cannot be forgotten.
+ * required so that the header can be passed and cannot be forgotten, and the
+ * context is handed to `apiGet` whole, the way the placement calls in
+ * `./orders` hand it to `apiMutate`: the listing and the order it leads to are
+ * asked about the same request.
  */
 
 export interface DeliveryMethodSummary {
@@ -73,7 +76,7 @@ export async function listDeliveryMethods(ctx: RequestContext): Promise<Delivery
 async function fetchDeliveryMethods(ctx: RequestContext): Promise<DeliveryMethodSummary[]> {
   const payload = await apiGet<{ data: DeliveryMethodSummary[] }>(
     '/api/v1/delivery-methods',
-    channelOnly(ctx),
+    ctx,
   );
   return payload.data;
 }
@@ -107,19 +110,7 @@ export async function listPaymentMethods(ctx: RequestContext): Promise<PaymentMe
 async function fetchPaymentMethods(ctx: RequestContext): Promise<PaymentMethodSummary[]> {
   const payload = await apiGet<{ data: PaymentMethodSummary[] }>(
     '/api/v1/payment-methods',
-    channelOnly(ctx),
+    ctx,
   );
   return payload.data;
-}
-
-/**
- * The channel, and nothing else of the context.
- *
- * The two reads sent no headers before they took a context; forwarding the
- * whole of it would also start sending `Accept-Language`, which is a second
- * change to what these requests carry and not the one being made. The channel
- * is what the answer depends on.
- */
-function channelOnly(ctx: RequestContext): RequestContext {
-  return ctx.salesChannelCode !== undefined ? { salesChannelCode: ctx.salesChannelCode } : {};
 }

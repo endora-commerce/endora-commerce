@@ -75,6 +75,7 @@ export interface SalesChannelMembershipPort {
   bindToDefaultIfEmpty(
     entityType: ChannelMemberEntityType,
     entityId: string,
+    options?: MembershipMutationOptions,
   ): Promise<MembershipMutationResult>;
 
   /**
