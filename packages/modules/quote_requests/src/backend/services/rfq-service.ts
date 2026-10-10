@@ -38,6 +38,7 @@ import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kerne
 import { productIdsInRequestChannel } from '@endora-commerce/platform/kernel';
 import { raisedOnChannelId } from './raised-on-channel.js';
 import { hasUnpricedLine, quoteIncompleteError } from './agreed-price.js';
+import { underRowLock } from './transition-lock.js';
 
 /**
  * Customer-facing Quote Requests service — feature 008 workflow.
@@ -403,52 +404,54 @@ export class RfqService {
       throw new HttpError(409, ERROR_CODES.VERSION_CONFLICT, 'Quote Request was updated concurrently.');
     }
 
-    if (body.headerNote !== undefined) rfq.headerNote = body.headerNote ?? null;
+    await underRowLock(em, rfq, async () => {
+      if (body.headerNote !== undefined) rfq.headerNote = body.headerNote ?? null;
 
-    if (body.items) {
-      const productById = await this.#acquirableProductsById(
-        body.items.map((it) => it.productId),
-        ctx,
-      );
-      if (productById.size !== new Set(body.items.map((it) => it.productId)).size) {
-        // Issues #227 and #259 — see `createForCustomer`. A revision may not
-        // add a line the original submission could not have carried, on either
-        // axis.
-        throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'One or more products do not exist.');
-      }
-      const existingItems = await em.find(QuoteRequestItem, { quoteRequestId: rfq.id });
-      await em.removeAndFlush(existingItems);
-
-      const items: QuoteRequestItem[] = [];
-      for (const lineInput of body.items) {
-        const product = productById.get(lineInput.productId)!;
-        items.push(
-          em.create(QuoteRequestItem, {
-            quoteRequestId: rfq.id,
-            productId: product.id,
-            productName: anyLocaleValue(product.name),
-            productSlug: product.slug,
-            variantId: lineInput.variantId ?? null,
-            quantity: lineInput.quantity,
-            desiredUnitPrice:
-              lineInput.desiredUnitPrice !== undefined
-                ? lineInput.desiredUnitPrice.toFixed(2)
-                : null,
-            lineNote: lineInput.lineNote ?? null,
-            lineCurrency: 'PLN',
-          }),
+      if (body.items) {
+        const productById = await this.#acquirableProductsById(
+          body.items.map((it) => it.productId),
+          ctx,
         );
-      }
-      await em.persistAndFlush(items);
-    }
+        if (productById.size !== new Set(body.items.map((it) => it.productId)).size) {
+          // Issues #227 and #259 — see `createForCustomer`. A revision may not
+          // add a line the original submission could not have carried, on either
+          // axis.
+          throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'One or more products do not exist.');
+        }
+        const existingItems = await em.find(QuoteRequestItem, { quoteRequestId: rfq.id });
+        await em.removeAndFlush(existingItems);
 
-    rfq.currentRevisionNumber += 1;
-    rfq.lastCustomerSeenRevisionNumber = rfq.currentRevisionNumber;
-    rfq.version += 1;
-    this.#audit(em, 'quote_request.patch_draft', rfq.id, null, {
-      currentRevisionNumber: rfq.currentRevisionNumber,
+        const items: QuoteRequestItem[] = [];
+        for (const lineInput of body.items) {
+          const product = productById.get(lineInput.productId)!;
+          items.push(
+            em.create(QuoteRequestItem, {
+              quoteRequestId: rfq.id,
+              productId: product.id,
+              productName: anyLocaleValue(product.name),
+              productSlug: product.slug,
+              variantId: lineInput.variantId ?? null,
+              quantity: lineInput.quantity,
+              desiredUnitPrice:
+                lineInput.desiredUnitPrice !== undefined
+                  ? lineInput.desiredUnitPrice.toFixed(2)
+                  : null,
+              lineNote: lineInput.lineNote ?? null,
+              lineCurrency: 'PLN',
+            }),
+          );
+        }
+        await em.persistAndFlush(items);
+      }
+
+      rfq.currentRevisionNumber += 1;
+      rfq.lastCustomerSeenRevisionNumber = rfq.currentRevisionNumber;
+      rfq.version += 1;
+      this.#audit(em, 'quote_request.patch_draft', rfq.id, null, {
+        currentRevisionNumber: rfq.currentRevisionNumber,
+      });
+      await em.flush();
     });
-    await em.flush();
 
     const items = await em.find(QuoteRequestItem, { quoteRequestId: rfq.id });
     const previousRevision = await this.deps.revisionService.byNumber(
@@ -661,23 +664,25 @@ export class RfqService {
     }
 
     const now = new Date();
-    if (decision === 'accept') {
-      rfq.status = 'Approved';
-      rfq.approvedAt = now;
-    } else {
-      rfq.status = 'Canceled';
-      rfq.canceledAt = now;
-      if (reason) rfq.cancellationReason = reason;
-    }
-    rfq.awaitingCustomerRevisionAcceptance = false;
-    rfq.lastCustomerSeenRevisionNumber = rfq.currentRevisionNumber;
-    rfq.version += 1;
-    this.#audit(em, 'quote_request.respond_to_revision', rfq.id, null, {
-      decision,
-      status: rfq.status,
-      revisionNumber: rfq.currentRevisionNumber,
+    await underRowLock(em, rfq, async () => {
+      if (decision === 'accept') {
+        rfq.status = 'Approved';
+        rfq.approvedAt = now;
+      } else {
+        rfq.status = 'Canceled';
+        rfq.canceledAt = now;
+        if (reason) rfq.cancellationReason = reason;
+      }
+      rfq.awaitingCustomerRevisionAcceptance = false;
+      rfq.lastCustomerSeenRevisionNumber = rfq.currentRevisionNumber;
+      rfq.version += 1;
+      this.#audit(em, 'quote_request.respond_to_revision', rfq.id, null, {
+        decision,
+        status: rfq.status,
+        revisionNumber: rfq.currentRevisionNumber,
+      });
+      await em.flush();
     });
-    await em.flush();
 
     const eventType: QuoteRequestEventType =
       decision === 'accept' ? 'customer-accepted-revision' : 'customer-rejected-revision';

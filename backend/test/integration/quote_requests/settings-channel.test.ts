@@ -13,6 +13,7 @@ import {
 } from '../../../src/kernel/index.js';
 import { QUOTE_REQUESTS_SETTING_CODES } from '../../../../packages/modules/quote_requests/src/manifest.js';
 import { QuoteRequest } from '../../helpers/package-entities.js';
+import { ageQuoteRequest } from '../../helpers/quote-request-age.js';
 import type { QuoteRequestsCradle } from '../../../../packages/modules/quote_requests/src/backend/index.js';
 
 /**
@@ -51,11 +52,7 @@ describe('quote_requests settings resolve against the request channel', () => {
     });
     expect(created.statusCode).toBe(201);
     const id = (created.json() as { data: { id: string } }).data.id;
-    await h.em().nativeUpdate(
-      QuoteRequest,
-      { id },
-      { updatedAt: new Date(Date.now() - 30 * 86_400_000) },
-    );
+    await ageQuoteRequest(h.em(), id, new Date(Date.now() - 30 * 86_400_000));
     return id;
   }
 

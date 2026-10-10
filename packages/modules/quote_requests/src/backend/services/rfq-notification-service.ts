@@ -37,9 +37,37 @@ export class RfqNotificationService {
    * Persist one row per recipient × channel. Returns the number of
    * rows actually inserted (after dedupe).
    */
-  async enqueue(input: EnqueueNotificationInput): Promise<number> {
+  /**
+   * `within` is the caller's transactional EntityManager, for a caller whose
+   * rows must commit or roll back with the transition they announce. The rows
+   * are then written in one flush and nothing is absorbed: a unique violation
+   * inside a transaction aborts it, and a caller in a transaction names a
+   * source event it has just written, which no earlier attempt can have used.
+   */
+  async enqueue(input: EnqueueNotificationInput, within?: EntityManager): Promise<number> {
     // command-coverage-ignore: notification delivery queue — writes per-recipient
     // dispatch rows, delivery bookkeeping, not an audited domain-state mutation.
+    if (within) {
+      let persisted = 0;
+      for (const recipient of input.recipients) {
+        if (!recipient.adminUserId && !recipient.customerAccountId) continue;
+        for (const channel of input.channels) {
+          within.persist(
+            within.create(QuoteRequestNotificationEvent, {
+              quoteRequestId: input.quoteRequestId,
+              sourceEventId: input.sourceEventId,
+              recipientAdminUserId: recipient.adminUserId ?? null,
+              recipientCustomerAccountId: recipient.customerAccountId ?? null,
+              channel,
+              status: 'queued',
+            }),
+          );
+          persisted += 1;
+        }
+      }
+      await within.flush();
+      return persisted;
+    }
     const em = this.emFactory();
     let inserted = 0;
     for (const recipient of input.recipients) {

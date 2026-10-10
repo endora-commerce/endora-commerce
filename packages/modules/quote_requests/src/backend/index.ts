@@ -22,7 +22,9 @@ import type {
   WebhookEventRegistryPort,
 } from '@endora-commerce/contracts';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import type { Redis } from 'ioredis';
 import { QuoteRequestReadService } from './services/quote-request-read-port.js';
+import { startRfqExpirySweep } from './workers/rfq-expiry-sweep-worker.js';
 import { registerQuoteRequestSalesChannelAttributions } from './services/sales-channel-attributions.js';
 import {
   effectiveState,
@@ -113,6 +115,17 @@ export interface QuoteRequestsCradle {
    * name, and nobody can assemble it differently.
    */
   readonly organizationSalesRepScopePort: QuoteRequestsModuleOptions['salesRepAssignment'];
+  /**
+   * Whether this process runs queue consumers (Principle X) — the platform's
+   * one module-agnostic answer, `false` in the test kit.
+   */
+  readonly processRunsWorkers: boolean;
+  /**
+   * The connection a module may build a BullMQ queue on. `undefined` is a
+   * composition saying it wants no queues, and the expiry sweep's consumer is
+   * then not built.
+   */
+  readonly moduleQueueRedis: Redis | undefined;
   readonly quoteRequests: ReturnType<typeof quoteRequestsModule>;
   readonly rfqService: ReturnType<typeof quoteRequestsModule>['handle'] extends () => infer H
     ? H extends { rfqService: infer S }
@@ -525,7 +538,30 @@ export function registerModule(ctx: ModuleContext): void {
   });
 
   ctx.routes(async (app) => {
-    await ctx.cradle<QuoteRequestsCradle>().quoteRequests.register(app);
+    const cradle = ctx.cradle<QuoteRequestsCradle>();
+    await cradle.quoteRequests.register(app);
+
+    // The clock of the expiry sweep: a Job Scheduler and its consumer. Until
+    // this call existed nothing ran `RfqExpiryWorker.sweep()` at all — see
+    // `workers/rfq-expiry-sweep-worker.ts`. `ctx.worker` applies
+    // `defineModuleWorker('quote_requests', …)`, which is what stops the
+    // consumer with the module: while it is switched off, no tick runs.
+    //
+    // Attached here rather than at registration for the reason every worker in
+    // the tree is: this is where `app.log` exists, and a `BACKEND_ROLE=worker`
+    // process reaches it. Built only where the host says this process consumes
+    // queues and offers a connection to build one on; the shared test server
+    // says neither, and drives `sweep()` directly.
+    await startRfqExpirySweep({
+      processRunsWorkers: cradle.processRunsWorkers,
+      moduleQueueRedis: cradle.moduleQueueRedis,
+      expiry: cradle.quoteRequests.handle().expiryWorker,
+      log: ctx.log,
+      attach: (worker) => ctx.worker(worker, { logger: app.log }),
+      onClose: (close) => {
+        app.addHook('onClose', close);
+      },
+    });
   });
 }
 

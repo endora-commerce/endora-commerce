@@ -6,6 +6,7 @@ import { anyRowExists as crmAnyRowExists } from '../../../../packages/modules/cr
 import { anyRowExists as ordersAnyRowExists } from '../../../../packages/modules/orders/src/backend/services/scheduled-work-probe.js';
 import { anyRowExists as priceListsAnyRowExists } from '../../../../packages/modules/price_lists/src/backend/services/scheduled-work-probe.js';
 import { anyRowExists as productFeedsAnyRowExists } from '../../../../packages/modules/product_feeds/src/backend/services/scheduled-work-probe.js';
+import { anyRowExists as quoteRequestsAnyRowExists } from '../../../../packages/modules/quote_requests/src/backend/services/scheduled-work-probe.js';
 
 /**
  * Issue #120 — the question a scheduled tick asks **outside any tenant scope**
@@ -42,6 +43,7 @@ const PROBES = [
   { module: 'crm', file: 'services/event-reminder-service.ts', method: 'hasSweepWork' },
   { module: 'product_feeds', file: 'services/feed-run-reaper.service.ts', method: 'hasClaimedRuns' },
   { module: 'price_lists', file: 'services/price-list-status-worker.ts', method: 'hasDueTransitions' },
+  { module: 'quote_requests', file: 'services/rfq-expiry-worker.ts', method: 'hasExpirable' },
 ] as const;
 
 const HELPER = 'services/scheduled-work-probe.ts';
@@ -116,6 +118,7 @@ describe('scheduled work probes answer one bit (issue #120)', () => {
     ['crm', crmAnyRowExists],
     ['product_feeds', productFeedsAnyRowExists],
     ['price_lists', priceListsAnyRowExists],
+    ['quote_requests', quoteRequestsAnyRowExists],
   ] as const)('anyRowExists (%s)', (_module, anyRowExists) => {
     const emAnswering = (rows: unknown) => ({ execute: vi.fn(async () => rows) });
 

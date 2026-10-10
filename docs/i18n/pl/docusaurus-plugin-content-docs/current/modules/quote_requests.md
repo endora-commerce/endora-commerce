@@ -112,17 +112,81 @@ istniejący moduł ustawień.
 
 | Kod | Typ | Wartość domyślna | Działanie |
 | --- | --- | --- | --- |
-| `quote_requests.expiry_days` | integer | `0` | Automatyczne wygaszanie zapytań w statusie Pending lub Created from admin po N dniach. `0` wyłącza wygaszanie. |
+| `quote_requests.expiry_days` | integer | `0` | Wygaszanie zapytań w statusie Pending lub Created from admin po N dniach bez aktywności, o ile nie niosą oferty, która jest jeszcze ważna. `0` wyłącza. Ustawienie wartości wygasza istniejące zaległości — zobacz *Zadania w tle*. |
 | `quote_requests.show_add_to_quote_on_card` | boolean | `true` | Pokazuje lub ukrywa przycisk „Add to quote” na kartach produktów w storefroncie. |
 | `quote_requests.show_add_to_quote_on_pdp` | boolean | `true` | Pokazuje lub ukrywa przycisk „Add to quote” na stronach produktów. |
 
 ## Zadania w tle
 
-`RfqExpiryWorker.sweep()` jest uruchamiany co 30 minut przez podstawowy harmonogram BullMQ. Odczytuje
-`quote_requests.expiry_days` z migawki ustawień; gdy wartość wynosi 0, nic nie robi. W przeciwnym
-razie przestawia na `Expired` każdy wiersz w statusie Pending lub Created from admin, dla którego
-`updated_at < now() - INTERVAL <expiryDays> days`, zapisuje dla każdego z nich jedno zdarzenie
-`expired` i wysyła powiadomienia obu stronom.
+Zadanie wygaszania działa **co 30 minut** w każdym procesie, który obsługuje kolejki
+(`BACKEND_ROLE=worker` albo `all`): to harmonogram zadań BullMQ na kolejce
+`quote_requests.expiry.sweep`, który instaluje sam moduł. Gdy moduł jest wyłączony, żadne
+uruchomienie się nie wykonuje.
+
+### Które zapytania wygasza
+
+Każde uruchomienie odczytuje `quote_requests.expiry_days`. `0` — wartość domyślna — wyłącza
+wygaszanie. W przeciwnym razie zapytanie przechodzi do statusu `Expired`, gdy spełnione są
+**wszystkie trzy** warunki:
+
+1. **Jest nadal otwarte** — `Pending` albo `Created from admin`. Obejmuje to zapytanie czekające
+   na pierwszą odpowiedź sprzedawcy i ofertę czekającą na kupującego.
+2. **Nic się z nim nie działo przez `expiry_days`.** Zegarem jest najnowszy wpis w historii
+   zapytania — wpisy, które widzą obie strony. Zegar uruchamiają na nowo: złożenie zapytania,
+   edycja przez klienta, rewizja albo notatka sprzedawcy. **Nie** uruchamiają go: otwarcie
+   zapytania przez klienta (które jedynie oznacza rewizję jako widzianą), przypisanie do innego
+   administratora ani żaden inny zapis, który nie dodaje wpisu do historii.
+3. **Nie niesie oferty, która jest jeszcze ważna.** Gdy sprzedawca nadał ofercie termin ważności
+   (`expiresInDays` → `expiresAt`), ten termin ma pierwszeństwo przed `expiry_days`: zadanie nigdy
+   nie wygasza zapytania, dopóki termin jest przed nami, bez względu na to, jak długo nic się nie
+   działo. Gdy termin minął albo sprzedawca go nie ustawił, reguła bezczynności działa jak dla
+   każdego innego zapytania.
+
+Zadanie nie wygasza zapytania *dlatego*, że minął termin ważności. Ten termin jest egzekwowany,
+gdy kupujący akceptuje ofertę albo zamienia ją na zamówienie (`410`); sam z siebie nie zamyka
+zapytania.
+
+### Co robi jedno uruchomienie
+
+- **Jedno zapytanie naraz.** Zmiana statusu, wpis `expired` w historii i rekordy powiadomień
+  jednego zapytania są zatwierdzane razem, a `rfq.expired.v1` jest emitowane dopiero potem.
+  Zapytanie, przy którym coś się nie powiodło, zostaje bez zmian; proces zostawia je w spokoju na
+  dwie godziny i potem próbuje ponownie, więc zapytania, które stale się nie udają, nie
+  wstrzymują pozostałych.
+- **Nie może wejść w czyjąś odpowiedź.** Kupujący, który akceptuje albo odrzuca, oraz sprzedawca,
+  który zatwierdza, zmienia, anuluje albo przypisuje, trzymają zapytanie na czas zapisu. Zadanie
+  pomija trzymane zapytanie, a odpowiedź na zapytanie, które zadanie właśnie wygasiło, jest
+  odrzucana z `409 VERSION_CONFLICT`: zachodzi dokładnie jedno z dwojga.
+- **Ograniczona paczka.** Jedno uruchomienie wygasza najwyżej 500 zapytań, od najstarszych.
+  Większe zaległości są nadrabiane w kolejnych uruchomieniach.
+- **Bez rekordu powiadomienia dla wygaśnięcia, które jest starą wiadomością.** Zapytanie, które
+  powinno było wygasnąć ponad 24 godziny przed uruchomieniem, które do niego dotarło, zostaje
+  wygaszone, dostaje wpis w historii i jest ogłaszane jako `rfq.expired.v1` jak każde inne, ale
+  nie powstaje dla niego żaden rekord powiadomienia. Czym dziś jest rekord powiadomienia, opisuje
+  sekcja *Powiadomienia* poniżej.
+- **Bezczynne uruchomienie jest ciche.** Gdy nic nie czeka na wygaszenie, uruchomienie nie wchodzi
+  w zakres systemowy i nie zapisuje wiersza audytu `tenant.escape_hatch`.
+
+### Włączenie wygasza zaległości
+
+`expiry_days` nie działa od dnia, w którym zostało ustawione: działa na wszystko, co jest otwarte.
+**Zmiana z `0` na `N` wygasza, w kolejnych uruchomieniach, każde otwarte zapytanie, z którym nic
+się nie działo dłużej niż `N` dni** — w instancji, która przez rok działała z wartością `0`, może
+to być większość otwartych zapytań. To samo dotyczy zmniejszenia wartości. Zapytania z ofertą,
+która jest jeszcze ważna, pozostają nietknięte (warunek 3), a dla tych, które powinny były wygasnąć
+ponad 24 godziny wcześniej, nie powstaje rekord powiadomienia.
+
+Wydania do 0.104.0 włącznie opisywały to zadanie i nigdy go nie uruchamiały, więc instancja, w
+której `expiry_days` jest już ustawione, trafi na te same zaległości przy pierwszych
+uruchomieniach po aktualizacji. Ustaw `0` przed aktualizacją, aby najpierw przejrzeć otwarte
+zapytania.
+
+### Jedna wartość dla wszystkich kanałów sprzedaży
+
+Zadanie odczytuje `expiry_days` raz na uruchomienie, **dla domyślnego kanału sprzedaży**, i stosuje
+tę wartość do każdego zapytania, bez względu na kanał, w którym je złożono. Inna wartość ustawiona
+dla innego kanału nie jest przez zadanie używana, a kanał z wartością `0` nie jest wyłączony z
+wygaszania.
 
 ## Model danych
 
@@ -166,11 +230,15 @@ nie będzie.
 
 ## Powiadomienia
 
-Każde przejście stanu jest rozsyłane przez `RfqNotificationService` do właściwych odbiorców (do
-klienta przy działaniach administratora, do opiekunów handlowych i administratorów platformy przy
-działaniach klienta, do obu stron przy wygaśnięciu). Wysyłane są powiadomienia w obu kanałach —
-e-mail i na koncie klienta. Ograniczenie unikalności w `quote_request_notification_events` gwarantuje
-jednokrotne dostarczenie dla każdej trójki (przejście, odbiorca, kanał).
+Każde przejście stanu **zapisuje**, kogo należy powiadomić: `RfqNotificationService` zapisuje po
+jednym wierszu na odbiorcę i kanał (`email`, `in_app`) w `quote_request_notification_events`, ze
+statusem `queued` — klienta przy działaniach administratora, opiekunów handlowych i administratorów
+platformy przy działaniach klienta, obie strony przy wygaśnięciu. Ograniczenie unikalności w tej
+tabeli pilnuje, by na każdą trójkę (przejście, odbiorca, kanał) przypadał jeden wiersz.
+
+**Tych wierszy na razie nic nie doręcza.** Żaden proces nie odczytuje tej tabeli, więc dla żadnego
+przejścia zapytania ofertowego nie jest wysyłany e-mail ani powiadomienie na koncie; wiersze
+pozostają w statusie `queued`. Są zapisem, z którego korzystałby proces doręczający.
 
 ## Zamiana na zamówienie
 

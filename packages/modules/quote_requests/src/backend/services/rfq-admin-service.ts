@@ -23,6 +23,7 @@ import { recordAuditFromContext } from '@endora-commerce/platform/commands';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { QuoteRequest, type QuoteRequestStatus } from '../entities/quote-request.entity.js';
 import { QuoteRequestItem } from '../entities/quote-request-item.entity.js';
+import { underRowLock } from './transition-lock.js';
 import type { RfqService} from './rfq-service.js';
 import { type RfqEventBus, type RfqEvents } from './rfq-service.js';
 import type { RfqEventService } from './rfq-event-service.js';
@@ -272,13 +273,15 @@ export class RfqAdminService {
     if (hasUnpricedLine(lines)) throw quoteIncompleteError();
 
     const now = new Date();
-    rfq.status = 'Approved';
-    rfq.approvedAt = now;
-    rfq.awaitingCustomerRevisionAcceptance = false;
-    rfq.assignedAdminUserId = ctx.adminUserId;
-    rfq.version += 1;
-    this.#audit(em, 'quote_request.approve', rfq.id, { status: 'Pending' }, { status: 'Approved' });
-    await em.flush();
+    await underRowLock(em, rfq, async () => {
+      rfq.status = 'Approved';
+      rfq.approvedAt = now;
+      rfq.awaitingCustomerRevisionAcceptance = false;
+      rfq.assignedAdminUserId = ctx.adminUserId;
+      rfq.version += 1;
+      this.#audit(em, 'quote_request.approve', rfq.id, { status: 'Pending' }, { status: 'Approved' });
+      await em.flush();
+    });
 
     if (note && note.trim().length > 0) {
       await this.deps.eventService.append({
@@ -329,14 +332,16 @@ export class RfqAdminService {
     this.assertVersion(rfq, expectedVersion);
 
     const now = new Date();
-    rfq.status = 'Canceled';
-    rfq.canceledAt = now;
-    rfq.awaitingCustomerRevisionAcceptance = false;
-    if (reason) rfq.cancellationReason = reason;
-    rfq.assignedAdminUserId = ctx.adminUserId;
-    rfq.version += 1;
-    this.#audit(em, 'quote_request.cancel', rfq.id, null, { status: 'Canceled', reason: reason ?? null });
-    await em.flush();
+    await underRowLock(em, rfq, async () => {
+      rfq.status = 'Canceled';
+      rfq.canceledAt = now;
+      rfq.awaitingCustomerRevisionAcceptance = false;
+      if (reason) rfq.cancellationReason = reason;
+      rfq.assignedAdminUserId = ctx.adminUserId;
+      rfq.version += 1;
+      this.#audit(em, 'quote_request.cancel', rfq.id, null, { status: 'Canceled', reason: reason ?? null });
+      await em.flush();
+    });
 
     const evt = await this.deps.eventService.append({
       quoteRequestId: rfq.id,
@@ -369,13 +374,15 @@ export class RfqAdminService {
   async assign(ctx: AdminContext, rfqId: string, targetAdminUserId: string): Promise<RfqDto> {
     const em = this.deps.emFactory();
     const rfq = await this.findVisibleForAdmin(em, ctx, rfqId);
-    const previousAssignee = rfq.assignedAdminUserId;
-    rfq.assignedAdminUserId = targetAdminUserId;
-    rfq.version += 1;
-    this.#audit(em, 'quote_request.assign', rfq.id, { assignedAdminUserId: previousAssignee }, {
-      assignedAdminUserId: targetAdminUserId,
+    await underRowLock(em, rfq, async () => {
+      const previousAssignee = rfq.assignedAdminUserId;
+      rfq.assignedAdminUserId = targetAdminUserId;
+      rfq.version += 1;
+      this.#audit(em, 'quote_request.assign', rfq.id, { assignedAdminUserId: previousAssignee }, {
+        assignedAdminUserId: targetAdminUserId,
+      });
+      await em.flush();
     });
-    await em.flush();
     return this.deps.rfqService.serializeFull(em, rfq, true);
   }
 
@@ -396,74 +403,76 @@ export class RfqAdminService {
     }
     this.assertVersion(rfq, expectedVersion);
 
-    if (body.headerNote !== undefined) rfq.headerNote = body.headerNote ?? null;
+    await underRowLock(em, rfq, async () => {
+      if (body.headerNote !== undefined) rfq.headerNote = body.headerNote ?? null;
 
-    // Feature 055 — validate + merge custom-field values (host owns the write).
-    if (body.customFieldValues !== undefined && this.deps.customFieldValues) {
-      try {
-        rfq.customFieldValues = await this.deps.customFieldValues.validateAndMerge(
-          'quote_request',
-          rfq.customFieldValues ?? {},
-          body.customFieldValues,
-        );
-      } catch (err) {
-        if (isCustomFieldValidationFailure(err)) {
-          throw new HttpError(
-            422,
-            ERROR_CODES.CUSTOM_FIELD_VALUE_INVALID,
-            'One or more custom fields are invalid.',
-            err.errors.map((e) => ({ path: e.field, issue: e.message })),
+      // Feature 055 — validate + merge custom-field values (host owns the write).
+      if (body.customFieldValues !== undefined && this.deps.customFieldValues) {
+        try {
+          rfq.customFieldValues = await this.deps.customFieldValues.validateAndMerge(
+            'quote_request',
+            rfq.customFieldValues ?? {},
+            body.customFieldValues,
+          );
+        } catch (err) {
+          if (isCustomFieldValidationFailure(err)) {
+            throw new HttpError(
+              422,
+              ERROR_CODES.CUSTOM_FIELD_VALUE_INVALID,
+              'One or more custom fields are invalid.',
+              err.errors.map((e) => ({ path: e.field, issue: e.message })),
+            );
+          }
+          throw err;
+        }
+      }
+
+      if (body.items) {
+        const products = await this.deps.catalogProducts.findByIds(
+        body.items.map((it) => it.productId),
+      );
+        const productById = new Map(products.map((p) => [p.id, p]));
+        if (productById.size !== new Set(body.items.map((it) => it.productId)).size) {
+          throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'One or more products do not exist.');
+        }
+        const existing = await em.find(QuoteRequestItem, { quoteRequestId: rfq.id });
+        await em.removeAndFlush(existing);
+        const items: QuoteRequestItem[] = [];
+        for (const lineInput of body.items) {
+          const product = productById.get(lineInput.productId)!;
+          items.push(
+            em.create(QuoteRequestItem, {
+              quoteRequestId: rfq.id,
+              productId: product.id,
+              productName: anyLocaleValue(product.name),
+              productSlug: product.slug,
+              variantId: lineInput.variantId ?? null,
+              quantity: lineInput.quantity,
+              agreedUnitPrice:
+                lineInput.agreedUnitPrice !== undefined && lineInput.agreedUnitPrice !== null
+                  ? lineInput.agreedUnitPrice.toFixed(2)
+                  : null,
+              lineNote: lineInput.lineNote ?? null,
+              lineCurrency: 'PLN',
+            }),
           );
         }
-        throw err;
+        await em.persistAndFlush(items);
       }
-    }
 
-    if (body.items) {
-      const products = await this.deps.catalogProducts.findByIds(
-      body.items.map((it) => it.productId),
-    );
-      const productById = new Map(products.map((p) => [p.id, p]));
-      if (productById.size !== new Set(body.items.map((it) => it.productId)).size) {
-        throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'One or more products do not exist.');
+      rfq.currentRevisionNumber += 1;
+      rfq.awaitingCustomerRevisionAcceptance = true;
+      rfq.assignedAdminUserId = ctx.adminUserId;
+      if (body.expiresInDays !== undefined) {
+        rfq.expiresAt = new Date(Date.now() + body.expiresInDays * 86_400_000);
       }
-      const existing = await em.find(QuoteRequestItem, { quoteRequestId: rfq.id });
-      await em.removeAndFlush(existing);
-      const items: QuoteRequestItem[] = [];
-      for (const lineInput of body.items) {
-        const product = productById.get(lineInput.productId)!;
-        items.push(
-          em.create(QuoteRequestItem, {
-            quoteRequestId: rfq.id,
-            productId: product.id,
-            productName: anyLocaleValue(product.name),
-            productSlug: product.slug,
-            variantId: lineInput.variantId ?? null,
-            quantity: lineInput.quantity,
-            agreedUnitPrice:
-              lineInput.agreedUnitPrice !== undefined && lineInput.agreedUnitPrice !== null
-                ? lineInput.agreedUnitPrice.toFixed(2)
-                : null,
-            lineNote: lineInput.lineNote ?? null,
-            lineCurrency: 'PLN',
-          }),
-        );
-      }
-      await em.persistAndFlush(items);
-    }
-
-    rfq.currentRevisionNumber += 1;
-    rfq.awaitingCustomerRevisionAcceptance = true;
-    rfq.assignedAdminUserId = ctx.adminUserId;
-    if (body.expiresInDays !== undefined) {
-      rfq.expiresAt = new Date(Date.now() + body.expiresInDays * 86_400_000);
-    }
-    rfq.version += 1;
-    this.#audit(em, 'quote_request.modify', rfq.id, null, {
-      currentRevisionNumber: rfq.currentRevisionNumber,
-      status: rfq.status,
+      rfq.version += 1;
+      this.#audit(em, 'quote_request.modify', rfq.id, null, {
+        currentRevisionNumber: rfq.currentRevisionNumber,
+        status: rfq.status,
+      });
+      await em.flush();
     });
-    await em.flush();
 
     const items = await em.find(QuoteRequestItem, { quoteRequestId: rfq.id });
     const previousRevision = await this.deps.revisionService.byNumber(
