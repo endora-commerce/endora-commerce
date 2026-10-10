@@ -810,7 +810,8 @@ export type AdminOrderPreviewResponse = z.infer<typeof adminOrderPreviewResponse
 export const orderCommentSchema = z.object({
   id: uuidSchema,
   orderId: uuidSchema,
-  authorAdminUserId: uuidSchema.nullable(),
+  /** Admin replies only; a customer reply does not carry the key (staff wrote it when `authorCustomerAccountId` is `null`). */
+  authorAdminUserId: uuidSchema.nullable().optional(),
   authorCustomerAccountId: uuidSchema.nullable(),
   body: z.string(),
   isCustomerVisible: z.boolean(),

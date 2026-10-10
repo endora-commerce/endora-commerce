@@ -66,7 +66,14 @@ Każda definicja określa, komu zwracane są zapisane wartości pola:
   `customFieldValues` zachowuje swój kształt i po prostu zawiera mniej kluczy.
 - **Wartość bez definicji jest traktowana jak wewnętrzna.** Po usunięciu pola jego zapisane
   wartości pozostają w rekordach (zob. *Retencja danych*) i nie są zwracane ani klientowi, ani
-  integracji.
+  integracji. Z tego samego powodu klucza, pod którym wciąż istnieją zapisane wartości, nie da się
+  **utworzyć ponownie jako `customer`**: żądanie jest odrzucane z kodem `409`. Utwórz pole jako
+  `internal`, przejrzyj zawartość rekordów, a dopiero potem zmień widoczność.
+- **Zmiana widoczności może dotrzeć do wszystkich odpowiedzi nawet po 5 sekundach.** Definicje są
+  przechowywane w pamięci podręcznej każdego procesu API przez 5 sekund. Proces, który obsłużył
+  zmianę, stosuje ją natychmiast i powiadamia pozostałe; proces, do którego powiadomienie nie
+  dotrze, zwraca poprzednią widoczność do czasu wygaśnięcia swojej kopii. Po przeniesieniu pola do
+  `internal` odczekaj 5 sekund, zanim zaczniesz na tym polegać.
 - **Atrybutów produktu to nie dotyczy.** Typ `product` jest zarządzany przez moduł encji: o tym,
   czy kupujący widzi atrybut, decydują własne flagi atrybutów katalogu.
 - **Dla modułu encji.** Przepuść zapisany zbiór wartości przez

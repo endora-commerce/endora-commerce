@@ -9,7 +9,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
+import { adminUserIdKeys, deepStrict, disagreements } from '../../helpers/strict-schema.js';
 import {
   seedCustomFieldAudienceCases,
   type CustomFieldAudienceFixture,
@@ -253,6 +253,10 @@ describe('order responses parse with the published order schemas', () => {
     const items = (list.json() as { data: Array<Record<string, unknown>> }).data;
     expect(items.find((o) => o.id === onBehalfOrderId)?.placedOnBehalf).toBe(true);
     expect(items.filter((o) => 'placedOnBehalfByAdminUserId' in o)).toEqual([]);
+    // No key naming an administrator's identifier, at any depth, on any of them.
+    expect(adminUserIdKeys(order)).toEqual([]);
+    expect(adminUserIdKeys(items)).toEqual([]);
+    expect(adminUserIdKeys(placed)).toEqual([]);
   });
 
   it('PATCH /api/v1/admin/orders/:id/custom-fields — the reply to a custom-field write', async () => {
@@ -292,5 +296,6 @@ describe('order responses parse with the published order schemas', () => {
     const res = await h.app.inject({ method: 'POST', url: `/api/v1/orders/${orderId}/cancel`, ...CUSTOMER });
     expect(res.statusCode).toBe(200);
     expect(disagreements(strictOrder, (res.json() as { data: unknown }).data)).toEqual([]);
+    expect(adminUserIdKeys(res.json())).toEqual([]);
   });
 });

@@ -33,6 +33,13 @@ interface CacheEntry {
 export class CustomFieldDefinitionsCache {
   private readonly entries = new Map<string, CacheEntry>();
   private subscriber: Redis | null = null;
+  /**
+   * Bumped by every invalidation. A load that began before an invalidation and
+   * finishes after it read the table as it was; storing that would serve the
+   * old definitions — an audience just moved to `internal` among them — for a
+   * further TTL. Such a fill is answered to its caller and not cached.
+   */
+  private generation = 0;
 
   constructor(
     private readonly publisher?: Redis,
@@ -48,13 +55,17 @@ export class CustomFieldDefinitionsCache {
     if (hit && this.now() - hit.loadedAt < CUSTOM_FIELDS_CACHE_TTL_MS) {
       return hit.value;
     }
+    const generation = this.generation;
     const value = await loader();
-    this.entries.set(entityType, { value, loadedAt: this.now() });
+    if (generation === this.generation) {
+      this.entries.set(entityType, { value, loadedAt: this.now() });
+    }
     return value;
   }
 
   /** Drop the local cache for one entity type (or all when omitted). */
   invalidateLocal(entityType?: string): void {
+    this.generation += 1;
     if (entityType === undefined) this.entries.clear();
     else this.entries.delete(entityType);
   }

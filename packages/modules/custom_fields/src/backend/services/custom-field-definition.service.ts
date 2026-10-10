@@ -177,7 +177,7 @@ export class CustomFieldDefinitionService implements DefinitionSource, CustomFie
     if (existing) {
       throw new CustomFieldDefinitionError('duplicate_key', `A field "${input.key}" already exists on ${input.entityType}.`);
     }
-    const def = await this.commandBus.run(createDefinitionCommand(input));
+    const def = await this.commandBus.run(createDefinitionCommand(input, this.valueService));
     await this.cache.publishInvalidate(input.entityType);
     return def;
   }

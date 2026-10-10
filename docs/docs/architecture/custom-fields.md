@@ -71,7 +71,16 @@ Every definition declares who its stored values are answered to:
   `customFieldValues` object keeps its shape and simply carries fewer keys.
 - **A value without a definition is treated as internal.** After a field is
   deleted its stored values stay on the records (see *Data retention*), and they
-  are not answered to a customer or to an integration.
+  are not answered to a customer or to an integration. For the same reason a
+  key that still has stored values cannot be **re-created as `customer`**: the
+  request is refused with `409`. Create the field as `internal`, review what the
+  records hold, then change the audience.
+- **A change of audience can take up to 5 seconds to reach every reply.**
+  Definitions are cached per API process for 5 seconds. The process that
+  handled the change applies it at once and tells the others; a process that
+  misses that message goes on answering the previous audience until its cached
+  copy expires. After moving a field to `internal`, allow 5 seconds before
+  relying on it.
 - **Product attributes are not governed by it.** The `product` type is
   host-managed: whether a shopper sees an attribute is decided by the catalog's
   own attribute flags.

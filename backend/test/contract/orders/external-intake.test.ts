@@ -6,7 +6,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
+import { adminUserIdKeys, deepStrict, disagreements } from '../../helpers/strict-schema.js';
 import { seedCustomFieldAudienceCases } from '../../helpers/custom-field-audience.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import {
@@ -450,6 +450,28 @@ describe('POST /api/v1/external/orders — contract (062 / T020)', () => {
     expect((admin.json() as { data: { customFieldValues: unknown } }).data.customFieldValues).toEqual(
       audience.stored,
     );
+  });
+
+  it('an external create and its idempotent replay answer no internal value and no administrator id', async () => {
+    const idempotencyKey = `audience-${randomUUID()}`;
+    const created = await post(boundToken, basePayload(), idempotencyKey);
+    expect(created.statusCode).toBe(201);
+    const order = (created.json() as { data: Record<string, unknown> & { id: string } }).data;
+    expect(order.customFieldValues).toEqual({});
+    expect(adminUserIdKeys(order)).toEqual([]);
+
+    // The replay answers the STORED order, which by then carries values an
+    // administrator wrote: the same rule has to hold on this reply.
+    const audience = await seedCustomFieldAudienceCases(h, 'order', order.id);
+    const replay = await post(boundToken, basePayload(), idempotencyKey);
+    expect(replay.statusCode).toBe(200);
+    const replayed = (replay.json() as { data: Record<string, unknown> }).data;
+    expect(replayed.id).toBe(order.id);
+    expect(replayed.customFieldValues).toEqual(audience.customerVisible);
+    for (const key of [audience.internalKey, audience.implicitKey, audience.orphanKey]) {
+      expect(replay.body).not.toContain(key);
+    }
+    expect(adminUserIdKeys(replayed)).toEqual([]);
   });
 
   it("key of another org fetching org A's order id ⇒ 404 (no existence leak)", async () => {

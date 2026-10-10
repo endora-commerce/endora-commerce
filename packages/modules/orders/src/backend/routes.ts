@@ -1158,7 +1158,7 @@ export async function registerOrderRoutes(
       const ctx = resolveCustomerContext(request);
       await orderService.getById(request.params.id, ctx); // authorizes visibility (404 if out of scope)
       const comments = await deps.orderCommentService.listForCustomer(request.params.id);
-      return { data: comments.map(serializeComment) };
+      return { data: comments.map(serializeCommentForCustomer) };
     },
   );
 
@@ -1175,7 +1175,7 @@ export async function registerOrderRoutes(
         body,
       );
       reply.code(201);
-      return { data: serializeComment(comment) };
+      return { data: serializeCommentForCustomer(comment) };
     },
   );
 
@@ -1237,6 +1237,18 @@ export async function registerOrderRoutes(
       return { data: result };
     },
   );
+}
+
+/**
+ * A comment as the customer reads it. `authorAdminUserId` is left out — an
+ * administrator's identifier is the admin surface's to answer; a comment whose
+ * `authorCustomerAccountId` is `null` was written by staff, which is all a
+ * customer needs to know of it.
+ */
+function serializeCommentForCustomer(c: OrderComment): Record<string, unknown> {
+  const serialized = serializeComment(c);
+  delete serialized.authorAdminUserId;
+  return serialized;
 }
 
 function serializeComment(c: OrderComment): Record<string, unknown> {

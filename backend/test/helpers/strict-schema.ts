@@ -38,6 +38,21 @@ export function deepStrict(schema: z.ZodType): z.ZodType {
 }
 
 /**
+ * Every key, at any depth, that names an administrator's identifier
+ * (`…AdminUserId`), as dotted paths. A reply to a customer or to an external
+ * caller is asserted against `[]`: the key must be absent, not merely `null`,
+ * and data records (event payloads, custom-field bags) are walked too.
+ */
+export function adminUserIdKeys(value: unknown, path = ''): string[] {
+  if (Array.isArray(value)) return value.flatMap((v, i) => adminUserIdKeys(v, `${path}[${i}]`));
+  if (value === null || typeof value !== 'object') return [];
+  return Object.entries(value).flatMap(([key, child]) => {
+    const here = path ? `${path}.${key}` : key;
+    return [...(/adminuserid$/i.test(key) ? [here] : []), ...adminUserIdKeys(child, here)];
+  });
+}
+
+/**
  * Every disagreement between a value and a schema, as `path: message` lines.
  * Asserted against `[]` so a failure names all the fields that drifted at once
  * rather than the first one zod met.

@@ -944,15 +944,11 @@ export class RfqService {
    * `customer` audience — an `internal` field's value, and one whose definition
    * is gone, are not answered to a customer. This is the one place the quote
    * surface applies that rule. */
-  private async customFieldValuesFor(
+  private customFieldValuesFor(
     rfq: QuoteRequest,
     forAdmin: boolean,
   ): Promise<Record<string, unknown>> {
-    const bag = rfq.customFieldValues ?? {};
-    if (forAdmin) return bag;
-    return this.deps.customFieldValues
-      ? this.deps.customFieldValues.projectForCustomer('quote_request', bag)
-      : {};
+    return quoteCustomFieldValuesFor(this.deps.customFieldValues, rfq.customFieldValues ?? {}, forAdmin);
   }
 
   async serializeFull(
@@ -999,8 +995,14 @@ export class RfqService {
       businessId: rfq.businessId,
       organizationId: rfq.organizationId,
       customerAccountId: rfq.customerAccountId,
-      createdByAdminUserId: rfq.createdByAdminUserId ?? null,
-      assignedAdminUserId: rfq.assignedAdminUserId ?? null,
+      // Administrator identifiers are the admin surface's to answer. A customer
+      // reply carries none of them — not as `null` either: the key is absent.
+      ...(includeFullActorIdentity
+        ? {
+            createdByAdminUserId: rfq.createdByAdminUserId ?? null,
+            assignedAdminUserId: rfq.assignedAdminUserId ?? null,
+          }
+        : {}),
       status: rfq.status,
       awaitingCustomerRevisionAcceptance: rfq.awaitingCustomerRevisionAcceptance,
       currentRevisionNumber: rfq.currentRevisionNumber,
@@ -1026,7 +1028,7 @@ export class RfqService {
       events: events.map((e) => ({
         id: e.id,
         eventType: e.eventType,
-        actorAdminUserId: includeFullActorIdentity ? e.actorAdminUserId ?? null : null,
+        ...(includeFullActorIdentity ? { actorAdminUserId: e.actorAdminUserId ?? null } : {}),
         actorCustomerAccountId: e.actorCustomerAccountId ?? null,
         actorRoleLabel: e.actorRoleLabel ?? null,
         payload: e.payload,
@@ -1166,4 +1168,19 @@ function groupBy<T, K>(arr: T[], key: (t: T) => K): Map<K, T[]> {
  */
 function rfqAudience(ctx: CustomerContext): ProductAudience {
   return { organizationId: ctx.organizationId, authenticated: true };
+}
+
+/**
+ * A quote's custom-field values as one reader may see them: all of them for an
+ * administrator, only the customer-visible ones for anyone else — and none at
+ * all when the `custom_fields` port is not wired, because then nothing can say
+ * which of them are internal.
+ */
+export async function quoteCustomFieldValuesFor(
+  port: Pick<CustomFieldValuePort, 'projectForCustomer'> | undefined,
+  bag: Record<string, unknown>,
+  forAdmin: boolean,
+): Promise<Record<string, unknown>> {
+  if (forAdmin) return bag;
+  return port ? port.projectForCustomer('quote_request', bag) : {};
 }

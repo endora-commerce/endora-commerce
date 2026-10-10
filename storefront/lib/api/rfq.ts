@@ -43,7 +43,6 @@ export interface RfqItem {
 export interface RfqEvent {
   id: string;
   eventType: string;
-  actorAdminUserId: string | null;
   actorCustomerAccountId: string | null;
   actorRoleLabel: string | null;
   payload: Record<string, unknown>;
@@ -87,8 +86,6 @@ export interface RfqDetail {
   businessId: string;
   organizationId: string;
   customerAccountId: string;
-  createdByAdminUserId: string | null;
-  assignedAdminUserId: string | null;
   status: RfqStatus;
   awaitingCustomerRevisionAcceptance: boolean;
   currentRevisionNumber: number;

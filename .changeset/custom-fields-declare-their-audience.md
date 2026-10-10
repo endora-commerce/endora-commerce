@@ -6,8 +6,8 @@
 '@endora-commerce/mod-catalog': patch
 ---
 
-A custom field declares who reads its values, and an order reply stops naming the administrator
-who placed it. **Two breaking changes**, both described below.
+A custom field declares who reads its values, and customer-facing order and quote-request replies
+stop naming administrators. **Three breaking changes**, all described below.
 
 **Every custom-field definition has an `audience`: `customer` or `internal`.** Until now a
 definition had none, and whatever an administrator stored on an order or a quote request was
@@ -53,6 +53,32 @@ the customer, answered to the customer and to API-key callers. Those replies now
 (present on admin replies only). Replace `order.placedOnBehalfByAdminUserId !== null` with
 `order.placedOnBehalf` in a storefront or an integration; the reference storefront did not read
 the field.
+
+**Breaking: customer-facing replies carry no administrator identifier at all.** The same rule,
+applied to the other places it was broken:
+
+- Quote-request replies to a customer (`GET /api/v1/quote-requests/:id` and the replies to
+  creating, patching, resubmitting a quote and to accepting or rejecting a revision) no longer
+  carry `createdByAdminUserId` and `assignedAdminUserId`, and their `events[]` no longer carry
+  `actorAdminUserId` (it was already always `null` there; the key is now absent).
+  `actorRoleLabel` still says who acted.
+- Order-comment replies to a customer (`GET` and `POST /api/v1/orders/:id/comments`) no longer
+  carry `authorAdminUserId`. A comment whose `authorCustomerAccountId` is `null` was written by
+  staff.
+
+Admin replies are unchanged. In `quoteRequestSchema`, `quoteRequestEventSchema` and
+`orderCommentSchema` those four keys become optional (present on admin replies only). No boolean
+replaces them: the reference storefront declared the fields and read none of them.
+
+**Re-creating a deleted field.** Deleting a definition keeps its stored values. A
+`POST …/definitions` with `audience: "customer"` for a key that still has stored values is now
+refused with `409 CUSTOM_FIELD_DEFINITION_INVALID`, because it would answer those old values to
+customers at once. Create the field as `internal`, then change its audience. Product attributes
+(created through the catalog) are not affected.
+
+The definitions cache no longer stores a list that was read before an invalidation and arrived
+after it. A change of audience still takes up to 5 seconds to reach an API process that missed
+the invalidation message; the docs page says so.
 
 In `mod-orders`, `serializeOrder` is replaced by `serializeOrderForAdmin` and
 `serializeOrderForCustomer` (internal to the module).

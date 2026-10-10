@@ -33,6 +33,7 @@ export class CustomFieldDefinitionError extends Error {
       | 'options_forbidden'
       | 'entity_type_unknown'
       | 'value_type_locked'
+      | 'stored_values_exist'
       | 'option_in_use'
       | 'key_changed'
       | 'invalid_key',

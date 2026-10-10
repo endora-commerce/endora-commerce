@@ -35,6 +35,7 @@ function toHttp(err: unknown): never {
       case 'duplicate_key':
         throw new HttpError(409, ERROR_CODES.CUSTOM_FIELD_KEY_CONFLICT, err.message);
       case 'value_type_locked':
+      case 'stored_values_exist':
       case 'option_in_use':
         throw new HttpError(409, ERROR_CODES.CUSTOM_FIELD_DEFINITION_INVALID, err.message);
       default:

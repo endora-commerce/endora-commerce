@@ -6,6 +6,9 @@ import {
 } from '../../helpers/test-server.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { seedCustomFieldAudienceCases } from '../../helpers/custom-field-audience.js';
+import { adminUserIdKeys, deepStrict, disagreements } from '../../helpers/strict-schema.js';
+import { quoteRequestSchema } from '@endora-commerce/contracts';
+import { TEST_ADMIN_ID } from '../../helpers/test-actors.js';
 
 /**
  * T026 — Customer-facing Quote Requests routes.
@@ -54,6 +57,8 @@ describe('Customer Quote Requests routes (US1)', () => {
     expect(body.data.items[0]?.desiredUnitPrice).toBe(8);
     expect(body.data.events.map((e) => e.eventType)).toEqual(['created', 'submitted']);
     createdRfqId = body.data.id;
+    expect(adminUserIdKeys(body)).toEqual([]);
+    expect(disagreements(deepStrict(quoteRequestSchema), body.data)).toEqual([]);
   });
 
   it('lists the Quote Request in the customer view', async () => {
@@ -126,6 +131,57 @@ describe('Customer Quote Requests routes (US1)', () => {
     );
   });
 
+  it('answers the customer no administrator identifier; the administrator reads them', async () => {
+    // A quote an administrator created, is assigned to, and has acted on.
+    const conn = h.em().getConnection();
+    await conn.execute(
+      `update "quote_requests" set created_by_admin_user_id = ?, assigned_admin_user_id = ? where id = ?`,
+      [TEST_ADMIN_ID, TEST_ADMIN_ID, createdRfqId],
+    );
+    await conn.execute(
+      `update "quote_request_events" set actor_admin_user_id = ?, actor_customer_account_id = null where quote_request_id = ?`,
+      [TEST_ADMIN_ID, createdRfqId],
+    );
+
+    const res = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/quote-requests/${createdRfqId}`,
+      cookies: { b2b_session: 'stub-customer-session' },
+    });
+    expect(res.statusCode).toBe(200);
+    const detail = (res.json() as { data: unknown }).data;
+    expect(adminUserIdKeys(detail)).toEqual([]);
+    expect(res.body).not.toContain(TEST_ADMIN_ID);
+    expect(disagreements(deepStrict(quoteRequestSchema), detail)).toEqual([]);
+
+    const list = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/quote-requests',
+      cookies: { b2b_session: 'stub-customer-session' },
+    });
+    expect(adminUserIdKeys(list.json())).toEqual([]);
+    expect(list.body).not.toContain(TEST_ADMIN_ID);
+
+    const admin = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/quote-requests/${createdRfqId}`,
+      cookies: { b2b_session: 'stub-admin-session' },
+    });
+    expect(admin.statusCode).toBe(200);
+    const adminDetail = (
+      admin.json() as {
+        data: {
+          createdByAdminUserId: string | null;
+          assignedAdminUserId: string | null;
+          events: Array<{ actorAdminUserId: string | null }>;
+        };
+      }
+    ).data;
+    expect(adminDetail.createdByAdminUserId).toBe(TEST_ADMIN_ID);
+    expect(adminDetail.assignedAdminUserId).toBe(TEST_ADMIN_ID);
+    expect(adminDetail.events.every((e) => e.actorAdminUserId === TEST_ADMIN_ID)).toBe(true);
+  });
+
   it('rejects a draft body without items (FR-021)', async () => {
     const res = await h.app.inject({
       method: 'POST',
@@ -160,6 +216,9 @@ describe('Customer Quote Requests routes (US1)', () => {
     expect(body.data.items[0]?.desiredUnitPrice).toBeNull();
     const types = body.data.events.map((e) => e.eventType);
     expect(types).toContain('re-submitted');
+    // The source quote carries administrator ids by now; the reply to the customer names none.
+    expect(adminUserIdKeys(body)).toEqual([]);
+    expect(res.body).not.toContain(TEST_ADMIN_ID);
   });
 
   it('returns 404 for a Quote Request belonging to a different customer', async () => {

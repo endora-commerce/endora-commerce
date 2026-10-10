@@ -82,3 +82,27 @@ describe('CustomFieldDefinitionsCache', () => {
     expect(calls).toBe(2);
   });
 });
+
+describe('CustomFieldDefinitionsCache — a load overtaken by an invalidation', () => {
+  it('does not cache what was read before the invalidation', async () => {
+    const cache = new CustomFieldDefinitionsCache();
+    let release!: (value: never[]) => void;
+    let loads = 0;
+    const slow = cache.getForEntity('order', () => {
+      loads += 1;
+      return new Promise<never[]>((resolve) => {
+        release = resolve;
+      });
+    });
+    // A definition changes (its audience moves to internal) while the read is in flight…
+    cache.invalidateLocal('order');
+    release([]);
+    await slow;
+    // …so the next reader loads again instead of being served the pre-change list.
+    await cache.getForEntity('order', async () => {
+      loads += 1;
+      return [];
+    });
+    expect(loads).toBe(2);
+  });
+});
