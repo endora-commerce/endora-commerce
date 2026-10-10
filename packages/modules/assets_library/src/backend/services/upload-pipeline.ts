@@ -111,6 +111,10 @@ export class UploadPipeline {
         413,
         ERROR_CODES.ASSET_UPLOAD_TOO_LARGE,
         `File exceeds the configured maximum of ${policy.maxFileSizeMb} MB.`,
+        // Issue #86 — the figure the sentence above carried and the bundle
+        // sentence that replaces it did not. It is the value of the
+        // `assets.max_file_size_mb` setting, in the unit that setting is in.
+        { maxFileSizeMb: policy.maxFileSizeMb },
       );
     }
     if (
