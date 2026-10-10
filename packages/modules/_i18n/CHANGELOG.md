@@ -1,5 +1,382 @@
 # @endora-commerce/mod-i18n
 
+## 0.105.0
+
+### Minor Changes
+
+- 8ca54eb: Delivery and payment methods are offered per sales channel, and the choice is enforced.
+
+  The admin API already stored a channel assignment for each method, but nothing read it: the
+  storefront listed every active method on every channel, the two admin screens offered no way to
+  choose channels, and an order could be placed with any active method.
+
+  **The rule.** An assignment is a restriction. A method assigned to one or more sales channels is
+  offered in exactly those; a method assigned to **no** channel is offered in every channel. That
+  differs from products on purpose — methods exist without an assignment as a matter of course (a
+  module that ships its own method seeds it with none, and so does demo data), so "none" cannot mean
+  "nowhere".
+
+  **Upgrade note for an instance with more than one sales channel: review every method.** The new
+  **Sales channels** column on `/delivery-methods` and `/payment-methods` shows where each one stands.
+
+  - **Created in the admin so far** — assigned to the **default channel only** (the screens offered
+    nothing else), and so gone from the other channels' checkouts until changed.
+  - **Seeded by a gateway or carrier module under an earlier release, on an instance that had already
+    been started** — also assigned to the **default channel only**: that release's seed bound the
+    method to the default channel whenever it existed. They do not appear on other channels until an
+    operator widens them.
+  - **Seeded by a module from this release on** — assigned to **no channel**, and so offered on every
+    channel, whenever the module is installed. The same holds for methods a module seeded under an
+    earlier release during the instance's first setup, before its first start, and for demo data.
+
+  Open each method and choose its channels, or untick all of them to offer it everywhere. No data is
+  migrated: a method bound to the default channel by an earlier seed cannot be told apart from one an
+  operator restricted on purpose, so none is widened automatically. An instance with a single sales
+  channel is unaffected.
+
+  **For authors of a gateway or carrier module.** `bindToDefaultChannel` is removed from
+  `DeliveryMethodSeedApi` and `PaymentMethodSeedApi` (`@endora-commerce/mod-delivery-methods/ports`,
+  `@endora-commerce/mod-payment-methods/ports`, and the seeders their `./install` subpaths create).
+  An install hook that called it after `ensureMethodForAdapter` must delete the call, and needs no
+  replacement: the seeded method is offered on every channel until an operator restricts it. Two
+  things follow for a module that still calls it. Its **source** no longer compiles against this
+  release. And a **build published earlier** does not fail at compile time at all: the seeder object
+  simply has no such method, so the module's install hook throws a `TypeError` the first time it
+  creates its method — on a new instance, or on any instance where the method's row does not exist
+  yet. An instance that already has the row is unaffected, because the hook only calls the bind for a
+  row it has just created. Such modules must therefore be re-released for this version. A module that must seed a method restricted to particular channels has
+  no seam for that at install; restrict it in the admin.
+
+  **Permissions.** Choosing a method's sales channels is part of configuring the method:
+  `delivery_methods:write` / `payment_methods:write` is sufficient to assign, replace and clear them,
+  and `sales_channels:write` is not required. The form reads its options from a route of the method
+  module itself, `GET /api/v1/admin/{delivery,payment}-methods/sales-channels`, gated on that
+  module's `:read` code, so an administrator who configures methods and does not administer sales
+  channels can use the field.
+
+  **A storefront must name the channel when it reads the two catalogues.** The reference storefront
+  read `GET /api/v1/delivery-methods` and `GET /api/v1/payment-methods` with no `X-Sales-Channel`
+  header; it forwards the header now, on the checkout and on the buyer's preferences page. A
+  storefront created by an earlier release has the same omission in `lib/api/methods.ts`
+  (`listDeliveryMethods` and `listPaymentMethods` take the request context as a required argument
+  now) and, until it is changed, is answered with the default channel's methods on every channel;
+  the steps are in _Upgrading an instance_.
+
+  What changed, by package:
+
+  - **`mod-delivery-methods`, `mod-payment-methods`** — `GET /api/v1/delivery-methods` and
+    `GET /api/v1/payment-methods` list only the methods offered in the sales channel the request
+    resolved. Both admin screens gain a **Sales channels** field in the form and a column in the
+    list. `salesChannelIds` on `PUT /api/v1/admin/{delivery,payment}-methods/:code` now has three
+    meanings: **omitted** leaves the assignment unchanged on an update and assigns a new method to
+    the default channel (unchanged behaviour); **`[]`** removes every assignment, offering the method
+    in every channel (it used to be ignored); a non-empty list replaces the assignment (unchanged).
+    An id that names no sales channel is now refused with `400 VALIDATION_FAILED` and a
+    `salesChannelIds` field error, before anything is written; it used to answer `500`. Channel
+    changes made through these routes are audited with the acting administrator.
+    The modules' sales-channel bridges are registered with `emptyMeansEveryChannel: true`.
+  - **`mod-orders`** — placing an order and previewing its total refuse a delivery or payment method
+    not offered in the order's sales channel: `400 VALIDATION_FAILED` with
+    `details.code` `delivery_method_not_in_sales_channel` / `payment_method_not_in_sales_channel`.
+    This covers `POST /api/v1/orders`, `POST /api/v1/orders/preview-total`, one-click buy, admin
+    order creation and its preview, and the API-key order intake; the last three refuse before the
+    customer's basket is touched. The admin order-creation form narrows its method lists to the
+    chosen channel.
+  - **`contracts`** — new `SalesChannelOptionSchema` / `SalesChannelOption`, the shape of the two
+    channel-options routes. `DeliveryMethodReadPort` and `PaymentMethodReadPort` gain
+    `isAvailableInChannel(id, salesChannelId): Promise<boolean>`. An implementation of either port
+    outside this repository must add it.
+  - **`platform`** — a sales-channel bridge registration may declare `emptyMeansEveryChannel`, and
+    `SalesChannelMembershipPort` gains two methods that read it:
+    `filterEntityIdsAvailableInChannel(channelId, entityType, entityIds)` — the ids bound to the
+    channel, plus, for a declaring type only, the ids bound to none — and
+    `clearChannelsForEntity(entityType, entityId, options?)`, refused with
+    `ENTITY_WOULD_HAVE_ZERO_CHANNELS` for a type that does not declare it. Products keep the
+    at-least-one-channel rule. An implementation of the port outside this repository must add both.
+  - **`admin-kit`** — new `MethodSalesChannelsField`, `MethodSalesChannelsCell`,
+    `useSalesChannelOptions(path, enabled)` and `salesChannelIdsToSubmit` on
+    `@endora-commerce/admin-kit/components`.
+  - **`mod-i18n`** — the `methodSalesChannels.*` strings of the `core` bundle, in English and Polish.
+  - **`mod-quick-order`** — one-click buy is not offered when the buyer's default delivery or payment
+    method is not offered in the sales channel of the request:
+    `GET /api/v1/quick-order/one-click/eligibility` answers `{ enabled: false, reason: "missing_defaults" }`
+    there, and `POST /api/v1/quick-order/one-click` refuses with `one_click_unavailable` without
+    touching the basket.
+
+### Patch Changes
+
+- 1190180: The Admin UI says which Endora Commerce release it is talking to, and the health payload stops
+  saying `0.0.0`.
+
+  **A version badge in the admin header.** Under the wordmark in the sidebar, `AppShell` renders
+  the release the API runs — `v0.104.0` — in the kit's `Badge`. It is read from a new endpoint,
+  `GET /api/v1/admin/platform-info`, which any signed-in admin may call and which answers
+  `{ "version": string | null }` (`PlatformInfoSchema` / `PlatformInfo`, new exports of
+  `@endora-commerce/contracts`). With the sidebar collapsed the release moves into the logo's
+  tooltip. While the number is loading, when the read fails — an API older than this release
+  answers 404 — or when the platform cannot tell, the badge is not rendered at all; there is no
+  placeholder. An instance needs no change: upgrade the packages and the badge appears.
+
+  **`GET /api/v1/_health` reports the real release.** Its `version` was
+  `process.env.npm_package_version ?? '0.0.0'`: the _host application's_ manifest version, which is
+  `0.0.0` in every scaffolded instance, and a variable no package manager sets when a container
+  starts the server with `node dist/index.js`. Every deployment therefore reported `0.0.0`. It is
+  now the version of the `@endora-commerce/platform` package the process loaded, and `unknown` if
+  that cannot be read. If you compared this field against `0.0.0`, or set `npm_package_version` to
+  steer it, neither works any more.
+
+  `npm_package_version` is no longer a declared platform environment input
+  (`PLATFORM_ENVIRONMENT_INPUTS`), since nothing reads it.
+
+  One key joins the `core` bundle in English and Polish — `appShell.brand.versionLabel`, the
+  sentence a screen reader and the tooltip are given — and `@endora-commerce/admin-kit`'s
+  `theme.css` gains `.b2b-sidebar__brand-row`, `.b2b-sidebar__brand-row--versioned` and
+  `.b2b-sidebar__brand-version`; the sidebar header is 14px taller while a release is shown. A
+  theme override that styles `.b2b-sidebar__brand`'s bottom border should move it to
+  `.b2b-sidebar__brand-row`, which owns the divider now.
+
+- a65b215: An administrator changing their own password has to supply the current one.
+
+  **Breaking for API clients of `PATCH /api/v1/admin/me`.** The route used to store whatever
+  `password` it was sent: a signed-in session was the only proof asked for, so anybody holding one —
+  an unattended browser, a copied cookie — could replace the password and keep the account. A
+  request that carries `password` must now carry `currentPassword` as well:
+
+  ```jsonc
+  // before
+  { "password": "<new password>" }
+  // now
+  { "password": "<new password>", "currentPassword": "<current password>" }
+  ```
+
+  - `password` without `currentPassword` is refused with `400 VALIDATION_FAILED`, the issue naming
+    the `currentPassword` field.
+  - A wrong `currentPassword` is refused with `403 CURRENT_PASSWORD_INVALID`. It is 403 and not the
+    401 the buyer-side change-password route answers with, because the Admin UI treats every 401 as
+    an expired session and signs the administrator out.
+  - A refused request changes nothing: a first or last name sent in the same request is not applied
+    either.
+  - A request without `password` is unchanged — first and last name stay editable without any
+    password, and a `currentPassword` sent alone is ignored.
+
+  The current password is checked with the same hash verification sign-in uses. Nothing else about a
+  password change moves: the administrator's sessions and second factor are left as they were.
+
+  `updateAdminUserSelfRequestSchema` in `@endora-commerce/contracts` gains the optional
+  `currentPassword` field and the rule that ties it to `password`; `UpdateAdminUserSelfRequest` gains
+  the field. `AdminUserService` in `@endora-commerce/mod-admin-users` gains `updateSelf(id, input)`,
+  which the route calls, and `AdminUserService.update` no longer accepts `password` — it was the
+  unverified write, and the route was its only caller.
+
+  The other ways to set an administrator's password are untouched: creating an account,
+  `POST /api/v1/admin/admin-users/:id/password` (a peer reset, gated by `admin_users:manage`) and the
+  `admin_users create` command.
+
+  **Admin UI.** The profile screen has a "Current password" field above "New password". It is asked
+  for only when a new password is typed, and a wrong one is reported on the field itself, not in
+  the page banner.
+
+  **Sentences.** `errors.CURRENT_PASSWORD_INVALID` in the `core` bundle reads "The current password
+  is incorrect." / "Obecne hasło jest nieprawidłowe." instead of the placeholders "Current Password
+  Invalid." / "Błąd: current password invalid." — the buyer-side change-password route answers with
+  the same code, so its message changes too. Three keys join the bundle in English and Polish:
+  `profile.field.currentPassword`, `profile.field.currentPasswordHelp` and
+  `profile.error.currentPasswordRequired`.
+
+- 9260c36: An administrator's sessions are revoked when the credential behind them is withdrawn.
+
+  Three writes used to leave every session of the account answering:
+
+  - **Changing your own password** (`PATCH /api/v1/admin/me`) replaced the hash and nothing else, so
+    a browser signed in elsewhere — the one the password was being changed because of — stayed
+    signed in for up to thirty days. It now revokes **every other session of the account**: the
+    sign-ins on other browsers and devices and the impersonation sessions the administrator started.
+    The session the request was made from is kept, no new cookie is issued, and the profile screen
+    stays open. A refused change (wrong or missing `currentPassword`) and a name-only edit revoke
+    nothing.
+  - **Deactivating an administrator** (`PATCH /api/v1/admin/admin-users/:id` with
+    `status: 'inactive'`) and **deleting one** (`DELETE /api/v1/admin/admin-users/:id`) now revoke
+    every session of the account. A permission check already refused an inactive account, but a
+    route gated on the session alone — `GET` and `PATCH /api/v1/admin/me` among them — kept
+    answering it, and reactivating the account brought the old sessions back.
+
+  A peer reset (`POST /api/v1/admin/admin-users/:id/password`) already revoked every session and is
+  unchanged. API keys are not sessions and are not touched; neither is the account's second factor.
+
+  **A revoked session could come back.** `SessionService.destroyAllForAdmin` and
+  `destroyAllForCustomer` cleared the Redis cache entries and then deleted the rows, so a request from
+  a session being revoked could read the row in between and cache it again — after which it answered
+  from the cache until its thirty-day expiry. Rows are deleted first now, and `loadSession` looks for
+  the row again after filling the cache and takes the entry back out when it is gone.
+
+  **Logins begun with the old password are withdrawn.** A pending second-factor challenge or setup
+  ticket issued after the old password verified could still be completed after a password change, a
+  peer reset, a deactivation or a delete. `MfaLoginPort` gains a required method,
+  `invalidatePending(subject)` (**breaking for implementers**), which `mfa` implements with a
+  per-subject generation counter in its challenge store, and `AdminUserService` calls it wherever it
+  revokes sessions. `AdminUserService`'s constructor takes the lazily resolved MFA port as an optional
+  fifth argument.
+
+  **Write first, revoke second.** The self-service change, the peer reset, deactivation and deletion
+  now persist the new state and then revoke, where the peer reset used to revoke first: a sign-in with
+  the old password between the two steps kept a session nothing revoked. A refusal from the session
+  port therefore surfaces as the request's error with the new password already in force.
+
+  **Audit.** A self-service password change is now recorded as `admin_user.change_password` with
+  `via: 'self_service'` — the action a peer reset already records with `via: 'peer_reset'` — where it
+  used to be an `admin_user.update` indistinguishable from a rename. The entry carries neither the
+  password nor its hash. A request that changes the name as well records an `admin_user.update`
+  entry beside it; a password-only request no longer records one.
+
+  **A session of an account that is not active is refused, revoked or not.** Revocation is a step
+  each write has to remember, so the admin guard no longer relies on it: `requireAdmin` and
+  `requireAdminAny` answer `401 UNAUTHORIZED` to a session whose administrator account is
+  deactivated, deleted or gone. **This changes a status code:** a permission-gated route used to
+  answer such a session `403 FORBIDDEN`, and a route with no permission code answered it in full. An
+  active account that lacks the permission is still answered 403. The extra account read is made
+  only on a route with no permission code and after a refused permission check, so a granted
+  permission costs what it did. While `admin_roles` or `admin_users` is absent from the deployment the
+  check is not made — it has nobody to ask — so `GET /api/v1/admin/module-presence` keeps answering in
+  that state as before.
+
+  **A new password equal to the current one is refused** on `PATCH /api/v1/admin/me` with
+  `400 NEW_PASSWORD_UNCHANGED` ("The new password is the same as the current one. Choose a different
+  password." / "Nowe hasło jest takie samo jak obecne. Wybierz inne hasło."). It would have reported
+  a change, and signed the other sessions out, without changing the credential. The check runs after
+  the current password is verified. The buyer-side change-password route and the peer reset do not
+  make this check: the peer does not know the target's password, and comparing would tell them.
+
+  **Log redaction.** The request logger censored `*.password`, `*.passwordHash` and `*.secret` but not
+  `*.currentPassword` or `*.newPassword`, the two other names a password travels under in a request
+  body. Both are on the list now, which `buildServer` and `createLogger` share instead of each
+  carrying its own copy.
+
+  **API — two breaking changes, named first.**
+
+  - `AdminPermissionChecker` in `@endora-commerce/platform` gains a required method,
+    `isActiveAdministrator(adminUserId): Promise<boolean>`; `PermissionService` in
+    `@endora-commerce/mod-admin-roles` implements it. A hand-written checker passed to
+    `createRequireAdmin` / `createRequireAdminAny` has to add it.
+  - `AdminAuthService.changePassword` in `@endora-commerce/mod-admin-users` is **removed**, and the
+    class's constructor loses its fourth argument (the audit port). The method had no caller,
+    answered a wrong current password with 401 and revoked nothing; `AdminUserService.updateSelf` is
+    the one implementation.
+  - `AuthSessionPort.destroyAllForAdmin` in `@endora-commerce/contracts` takes an optional second
+    argument, `{ exceptSessionId }` (`AuthDestroyAllForAdminOptions`), which spares that one session
+    when it is one of the administrator's own; `SessionService.destroyAllForAdmin` in
+    `@endora-commerce/mod-auth` implements it. A port implementation that ignores the argument still
+    type-checks but revokes the calling session too.
+  - `AdminUserService.updateSelf` takes an optional third argument, `{ sessionCookieValue }`, from
+    which it works out which session to keep.
+  - `ERROR_CODES.NEW_PASSWORD_UNCHANGED` joins `@endora-commerce/contracts`, owned by `admin_users`.
+
+  A refused password change is not written to the audit log, as a failed sign-in is not.
+
+  **Admin UI.** After a password change the profile screen says that the other sessions were signed
+  out (`profile.info.passwordChanged`, English and Polish) instead of "Profile updated."
+
+- 149ee85: The Admin UI tells an administrator whose account holds no role why the panel is empty. Such an
+  account can sign in — `GET /api/v1/admin/me` answers 200 with `role: null` and no permissions —
+  while every permission-gated route refuses it with `403 ADMIN_ROLE_REQUIRED`. The shell mounted
+  normally, every gated sidebar and palette entry filtered itself out, and the sentence explaining
+  the refusal was never shown because no page was left to request it. `AppShell` now renders a
+  warning notice above the routed screen whenever the signed-in session's `role` is `null`, saying
+  that the account has no role and that another administrator, or `admin:create` on the command line,
+  has to assign one. The notice is an `Alert` from the design system, so it is announced
+  (`role="alert"`) as well as shown.
+
+  Two keys join the `core` bundle in English and Polish: `appShell.noRole.title` and
+  `appShell.noRole.description`.
+
+  No API, setting or permission changes.
+
+- 0184be5: An e-mail that was only written to the server log is no longer reported as sent. On an instance
+  with no `SMTP_URL` the console mailer logs the message and used to answer `{ status: 'sent' }`,
+  and the transactional e-mail service answered a constant `sent` of its own, so every module that
+  records or reports a delivery recorded one that did not happen.
+
+  **Breaking for a consumer of the two port types — three unions gain a member:**
+
+  - `EmailMailerSendOutcome` gains `{ status: 'logged' }`. The console mailer answers it instead of
+    `sent`; the SMTP mailer and `InMemoryMailer` still answer `sent`.
+  - `TransactionalSendOutcome` gains `{ status: 'logged' }`, and `TransactionalEmailSender.send`
+    passes the transport's `logged` on. A transport's `suppressed` (an already accepted message id)
+    is still answered as `sent`, as before.
+  - `emailDeliveryStatusSchema` / `EmailDeliveryStatus` gain `'logged'`, and
+    `invoiceEmailNotSentReasonSchema` / `InvoiceEmailNotSentReason` gain `'logged'`.
+
+  What to do: code with an exhaustive `switch` over one of these unions, or that passes
+  `outcome.status` into a closed union of its own, stops compiling until it handles `logged`; code
+  that reads `outcome.reason` after `outcome.status !== 'sent'` must narrow to
+  `outcome.status === 'suppressed'` first, because `logged` carries no reason. Code that compares
+  with `=== 'sent'` keeps compiling and now treats a logged message as not sent. `logged` is not a
+  failure and there is nothing to retry: the same call would log the message again. An own
+  implementation of `EmailMailerPort` or `TransactionalEmailSender` needs no change.
+
+  What changes on an instance without a mail server:
+
+  - `email_deliveries` rows are written with `status = 'logged'` instead of `'sent'`. The column is
+    a plain `varchar(16)`, so there is no migration; rows written earlier keep `sent`.
+  - The order, return, payment-status, shipment and invoice e-mail results answer
+    `{ sent: false, reason: 'logged' }`, each with its usual "was not sent" log line. Issuing an
+    invoice or re-sending its e-mail from the Admin UI says the e-mail was not sent because no mail
+    server is configured, in English and Polish (`invoices.emailNotSent.logged`).
+  - A CRM Event reminder is recorded as delivered to the bell alone — or as undeliverable when the
+    bell is unavailable too — instead of "bell and e-mail".
+  - `POST /api/v1/organizations/register` answers `emailVerificationSent: false` when the
+    verification e-mail went through the in-code builder and was only logged.
+
+  No setting, permission or migration changes.
+
+- 2bbf525: `POST /api/v1/admin/i18n/reload` and `GET /api/v1/admin/i18n/coverage` now require a permission.
+  Both required an administrator session and no permission code, so any administrator could call
+  them whatever their role granted — including an account that holds no role at all, which every
+  permission-checked route refuses. The reload is a write: it replaces the translation bundles for
+  the whole instance.
+
+  **Breaking for callers without the permission.** The reload now requires `settings:write` and the
+  coverage report `settings:read`; a caller holding neither is answered `403`. These are the codes
+  the screen that calls the reload already requires — the **Reload translations** button is on the
+  cache screen under Settings, which is `settings:write` — so no shipped Admin UI screen loses
+  anything. A script or integration that called either route with an administrator session whose
+  role lacks the code has to be granted it.
+
+  `GET /api/v1/admin/i18n/bundles` and `PATCH /api/v1/admin/me/preferred-language` are unchanged and
+  stay open to every administrator session.
+
+  No new permission code, setting or migration.
+
+- 602e5ba: The Webhooks form says which events an Organization binding applies to.
+
+  The help under the Organization field said a bound subscription receives "only that organization's
+  order events". Quote-request and credit-limit events are delivered now and are scoped the same way,
+  and product events are not about an Organization at all: they reach platform-wide subscriptions
+  only. The English and Polish sentences say so.
+
+- Updated dependencies [18ae962]
+- Updated dependencies [1190180]
+- Updated dependencies [a65b215]
+- Updated dependencies [9260c36]
+- Updated dependencies [3383720]
+- Updated dependencies [202f0d9]
+- Updated dependencies [0184be5]
+- Updated dependencies [560f2e3]
+- Updated dependencies [60cfd18]
+- Updated dependencies [31a2c0b]
+- Updated dependencies [266cd38]
+- Updated dependencies [bdb823b]
+- Updated dependencies [8d4440f]
+- Updated dependencies [8ca54eb]
+- Updated dependencies [6b2ba06]
+- Updated dependencies [be5b3ce]
+- Updated dependencies [82ca6dd]
+- Updated dependencies [38e8818]
+- Updated dependencies [335750c]
+- Updated dependencies [602e5ba]
+- Updated dependencies [8ee69de]
+  - @endora-commerce/contracts@0.105.0
+  - @endora-commerce/platform@0.105.0
+
 ## 0.104.0
 
 ### Patch Changes

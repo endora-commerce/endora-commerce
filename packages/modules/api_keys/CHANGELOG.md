@@ -1,5 +1,48 @@
 # @endora-commerce/mod-api-keys
 
+## 0.105.0
+
+### Patch Changes
+
+- eda5003: `403 API_KEY_OUT_OF_SCOPE` names the missing scope in `details`, and is answered in the caller's
+  language. The refusal's message — "API key lacks the required scope: catalog:write." — was the only
+  place the scope appeared, so an integration had to cut it out of prose, and the code had no bundle
+  sentence at all, so the answer was English whatever `Accept-Language` said.
+
+  The error now carries `details.requiredScope`, and the module's bundle holds a sentence in English
+  and Polish that interpolates it. The English sentence reads exactly as the message did; with
+  `Accept-Language: pl` the answer is "Klucz API nie ma wymaganego zakresu: catalog:write."
+
+  `details` names the scope the route requires and nothing else — not the key, and not the scopes it
+  does hold; those stay in the `api_key.out_of_scope` audit row. The code and the status are
+  unchanged.
+
+- Updated dependencies [18ae962]
+- Updated dependencies [1190180]
+- Updated dependencies [a65b215]
+- Updated dependencies [9260c36]
+- Updated dependencies [3383720]
+- Updated dependencies [202f0d9]
+- Updated dependencies [0184be5]
+- Updated dependencies [560f2e3]
+- Updated dependencies [60cfd18]
+- Updated dependencies [79bd849]
+- Updated dependencies [31a2c0b]
+- Updated dependencies [266cd38]
+- Updated dependencies [bdb823b]
+- Updated dependencies [8d4440f]
+- Updated dependencies [8ca54eb]
+- Updated dependencies [6b2ba06]
+- Updated dependencies [be5b3ce]
+- Updated dependencies [82ca6dd]
+- Updated dependencies [38e8818]
+- Updated dependencies [335750c]
+- Updated dependencies [602e5ba]
+- Updated dependencies [8ee69de]
+  - @endora-commerce/contracts@0.105.0
+  - @endora-commerce/platform@0.105.0
+  - @endora-commerce/admin-kit@0.105.0
+
 ## 0.104.0
 
 ### Patch Changes

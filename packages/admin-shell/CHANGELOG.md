@@ -1,5 +1,248 @@
 # @endora-commerce/admin-shell
 
+## 0.105.0
+
+### Minor Changes
+
+- 1190180: The Admin UI says which Endora Commerce release it is talking to, and the health payload stops
+  saying `0.0.0`.
+
+  **A version badge in the admin header.** Under the wordmark in the sidebar, `AppShell` renders
+  the release the API runs — `v0.104.0` — in the kit's `Badge`. It is read from a new endpoint,
+  `GET /api/v1/admin/platform-info`, which any signed-in admin may call and which answers
+  `{ "version": string | null }` (`PlatformInfoSchema` / `PlatformInfo`, new exports of
+  `@endora-commerce/contracts`). With the sidebar collapsed the release moves into the logo's
+  tooltip. While the number is loading, when the read fails — an API older than this release
+  answers 404 — or when the platform cannot tell, the badge is not rendered at all; there is no
+  placeholder. An instance needs no change: upgrade the packages and the badge appears.
+
+  **`GET /api/v1/_health` reports the real release.** Its `version` was
+  `process.env.npm_package_version ?? '0.0.0'`: the _host application's_ manifest version, which is
+  `0.0.0` in every scaffolded instance, and a variable no package manager sets when a container
+  starts the server with `node dist/index.js`. Every deployment therefore reported `0.0.0`. It is
+  now the version of the `@endora-commerce/platform` package the process loaded, and `unknown` if
+  that cannot be read. If you compared this field against `0.0.0`, or set `npm_package_version` to
+  steer it, neither works any more.
+
+  `npm_package_version` is no longer a declared platform environment input
+  (`PLATFORM_ENVIRONMENT_INPUTS`), since nothing reads it.
+
+  One key joins the `core` bundle in English and Polish — `appShell.brand.versionLabel`, the
+  sentence a screen reader and the tooltip are given — and `@endora-commerce/admin-kit`'s
+  `theme.css` gains `.b2b-sidebar__brand-row`, `.b2b-sidebar__brand-row--versioned` and
+  `.b2b-sidebar__brand-version`; the sidebar header is 14px taller while a release is shown. A
+  theme override that styles `.b2b-sidebar__brand`'s bottom border should move it to
+  `.b2b-sidebar__brand-row`, which owns the divider now.
+
+### Patch Changes
+
+- a65b215: An administrator changing their own password has to supply the current one.
+
+  **Breaking for API clients of `PATCH /api/v1/admin/me`.** The route used to store whatever
+  `password` it was sent: a signed-in session was the only proof asked for, so anybody holding one —
+  an unattended browser, a copied cookie — could replace the password and keep the account. A
+  request that carries `password` must now carry `currentPassword` as well:
+
+  ```jsonc
+  // before
+  { "password": "<new password>" }
+  // now
+  { "password": "<new password>", "currentPassword": "<current password>" }
+  ```
+
+  - `password` without `currentPassword` is refused with `400 VALIDATION_FAILED`, the issue naming
+    the `currentPassword` field.
+  - A wrong `currentPassword` is refused with `403 CURRENT_PASSWORD_INVALID`. It is 403 and not the
+    401 the buyer-side change-password route answers with, because the Admin UI treats every 401 as
+    an expired session and signs the administrator out.
+  - A refused request changes nothing: a first or last name sent in the same request is not applied
+    either.
+  - A request without `password` is unchanged — first and last name stay editable without any
+    password, and a `currentPassword` sent alone is ignored.
+
+  The current password is checked with the same hash verification sign-in uses. Nothing else about a
+  password change moves: the administrator's sessions and second factor are left as they were.
+
+  `updateAdminUserSelfRequestSchema` in `@endora-commerce/contracts` gains the optional
+  `currentPassword` field and the rule that ties it to `password`; `UpdateAdminUserSelfRequest` gains
+  the field. `AdminUserService` in `@endora-commerce/mod-admin-users` gains `updateSelf(id, input)`,
+  which the route calls, and `AdminUserService.update` no longer accepts `password` — it was the
+  unverified write, and the route was its only caller.
+
+  The other ways to set an administrator's password are untouched: creating an account,
+  `POST /api/v1/admin/admin-users/:id/password` (a peer reset, gated by `admin_users:manage`) and the
+  `admin_users create` command.
+
+  **Admin UI.** The profile screen has a "Current password" field above "New password". It is asked
+  for only when a new password is typed, and a wrong one is reported on the field itself, not in
+  the page banner.
+
+  **Sentences.** `errors.CURRENT_PASSWORD_INVALID` in the `core` bundle reads "The current password
+  is incorrect." / "Obecne hasło jest nieprawidłowe." instead of the placeholders "Current Password
+  Invalid." / "Błąd: current password invalid." — the buyer-side change-password route answers with
+  the same code, so its message changes too. Three keys join the bundle in English and Polish:
+  `profile.field.currentPassword`, `profile.field.currentPasswordHelp` and
+  `profile.error.currentPasswordRequired`.
+
+- 9260c36: An administrator's sessions are revoked when the credential behind them is withdrawn.
+
+  Three writes used to leave every session of the account answering:
+
+  - **Changing your own password** (`PATCH /api/v1/admin/me`) replaced the hash and nothing else, so
+    a browser signed in elsewhere — the one the password was being changed because of — stayed
+    signed in for up to thirty days. It now revokes **every other session of the account**: the
+    sign-ins on other browsers and devices and the impersonation sessions the administrator started.
+    The session the request was made from is kept, no new cookie is issued, and the profile screen
+    stays open. A refused change (wrong or missing `currentPassword`) and a name-only edit revoke
+    nothing.
+  - **Deactivating an administrator** (`PATCH /api/v1/admin/admin-users/:id` with
+    `status: 'inactive'`) and **deleting one** (`DELETE /api/v1/admin/admin-users/:id`) now revoke
+    every session of the account. A permission check already refused an inactive account, but a
+    route gated on the session alone — `GET` and `PATCH /api/v1/admin/me` among them — kept
+    answering it, and reactivating the account brought the old sessions back.
+
+  A peer reset (`POST /api/v1/admin/admin-users/:id/password`) already revoked every session and is
+  unchanged. API keys are not sessions and are not touched; neither is the account's second factor.
+
+  **A revoked session could come back.** `SessionService.destroyAllForAdmin` and
+  `destroyAllForCustomer` cleared the Redis cache entries and then deleted the rows, so a request from
+  a session being revoked could read the row in between and cache it again — after which it answered
+  from the cache until its thirty-day expiry. Rows are deleted first now, and `loadSession` looks for
+  the row again after filling the cache and takes the entry back out when it is gone.
+
+  **Logins begun with the old password are withdrawn.** A pending second-factor challenge or setup
+  ticket issued after the old password verified could still be completed after a password change, a
+  peer reset, a deactivation or a delete. `MfaLoginPort` gains a required method,
+  `invalidatePending(subject)` (**breaking for implementers**), which `mfa` implements with a
+  per-subject generation counter in its challenge store, and `AdminUserService` calls it wherever it
+  revokes sessions. `AdminUserService`'s constructor takes the lazily resolved MFA port as an optional
+  fifth argument.
+
+  **Write first, revoke second.** The self-service change, the peer reset, deactivation and deletion
+  now persist the new state and then revoke, where the peer reset used to revoke first: a sign-in with
+  the old password between the two steps kept a session nothing revoked. A refusal from the session
+  port therefore surfaces as the request's error with the new password already in force.
+
+  **Audit.** A self-service password change is now recorded as `admin_user.change_password` with
+  `via: 'self_service'` — the action a peer reset already records with `via: 'peer_reset'` — where it
+  used to be an `admin_user.update` indistinguishable from a rename. The entry carries neither the
+  password nor its hash. A request that changes the name as well records an `admin_user.update`
+  entry beside it; a password-only request no longer records one.
+
+  **A session of an account that is not active is refused, revoked or not.** Revocation is a step
+  each write has to remember, so the admin guard no longer relies on it: `requireAdmin` and
+  `requireAdminAny` answer `401 UNAUTHORIZED` to a session whose administrator account is
+  deactivated, deleted or gone. **This changes a status code:** a permission-gated route used to
+  answer such a session `403 FORBIDDEN`, and a route with no permission code answered it in full. An
+  active account that lacks the permission is still answered 403. The extra account read is made
+  only on a route with no permission code and after a refused permission check, so a granted
+  permission costs what it did. While `admin_roles` or `admin_users` is absent from the deployment the
+  check is not made — it has nobody to ask — so `GET /api/v1/admin/module-presence` keeps answering in
+  that state as before.
+
+  **A new password equal to the current one is refused** on `PATCH /api/v1/admin/me` with
+  `400 NEW_PASSWORD_UNCHANGED` ("The new password is the same as the current one. Choose a different
+  password." / "Nowe hasło jest takie samo jak obecne. Wybierz inne hasło."). It would have reported
+  a change, and signed the other sessions out, without changing the credential. The check runs after
+  the current password is verified. The buyer-side change-password route and the peer reset do not
+  make this check: the peer does not know the target's password, and comparing would tell them.
+
+  **Log redaction.** The request logger censored `*.password`, `*.passwordHash` and `*.secret` but not
+  `*.currentPassword` or `*.newPassword`, the two other names a password travels under in a request
+  body. Both are on the list now, which `buildServer` and `createLogger` share instead of each
+  carrying its own copy.
+
+  **API — two breaking changes, named first.**
+
+  - `AdminPermissionChecker` in `@endora-commerce/platform` gains a required method,
+    `isActiveAdministrator(adminUserId): Promise<boolean>`; `PermissionService` in
+    `@endora-commerce/mod-admin-roles` implements it. A hand-written checker passed to
+    `createRequireAdmin` / `createRequireAdminAny` has to add it.
+  - `AdminAuthService.changePassword` in `@endora-commerce/mod-admin-users` is **removed**, and the
+    class's constructor loses its fourth argument (the audit port). The method had no caller,
+    answered a wrong current password with 401 and revoked nothing; `AdminUserService.updateSelf` is
+    the one implementation.
+  - `AuthSessionPort.destroyAllForAdmin` in `@endora-commerce/contracts` takes an optional second
+    argument, `{ exceptSessionId }` (`AuthDestroyAllForAdminOptions`), which spares that one session
+    when it is one of the administrator's own; `SessionService.destroyAllForAdmin` in
+    `@endora-commerce/mod-auth` implements it. A port implementation that ignores the argument still
+    type-checks but revokes the calling session too.
+  - `AdminUserService.updateSelf` takes an optional third argument, `{ sessionCookieValue }`, from
+    which it works out which session to keep.
+  - `ERROR_CODES.NEW_PASSWORD_UNCHANGED` joins `@endora-commerce/contracts`, owned by `admin_users`.
+
+  A refused password change is not written to the audit log, as a failed sign-in is not.
+
+  **Admin UI.** After a password change the profile screen says that the other sessions were signed
+  out (`profile.info.passwordChanged`, English and Polish) instead of "Profile updated."
+
+- 149ee85: The Admin UI tells an administrator whose account holds no role why the panel is empty. Such an
+  account can sign in — `GET /api/v1/admin/me` answers 200 with `role: null` and no permissions —
+  while every permission-gated route refuses it with `403 ADMIN_ROLE_REQUIRED`. The shell mounted
+  normally, every gated sidebar and palette entry filtered itself out, and the sentence explaining
+  the refusal was never shown because no page was left to request it. `AppShell` now renders a
+  warning notice above the routed screen whenever the signed-in session's `role` is `null`, saying
+  that the account has no role and that another administrator, or `admin:create` on the command line,
+  has to assign one. The notice is an `Alert` from the design system, so it is announced
+  (`role="alert"`) as well as shown.
+
+  Two keys join the `core` bundle in English and Polish: `appShell.noRole.title` and
+  `appShell.noRole.description`.
+
+  No API, setting or permission changes.
+
+- 8d4440f: The configured admin idle-logout window now applies to every administrator, not only to those whose
+  role includes `settings:read`. The Admin UI learned the window by requesting
+  `GET /api/v1/admin/settings/admin.idle_logout_minutes`, which requires `settings:read`: an
+  administrator with a narrower role was answered 403 on every sign-in and was signed out after the
+  built-in 60 minutes whatever the operator had configured.
+
+  `GET /api/v1/admin/me` now carries the window as `idleLogoutMinutes` (`number | null`), described
+  by the new `adminMeResponseSchema` in `@endora-commerce/contracts`, and the Admin UI reads it from
+  there — it no longer calls the settings endpoint for it. `AdminMe` in `@endora-commerce/admin-kit`
+  gains the matching optional field. The field is additive; the Admin UI keeps its 60-minute default
+  when the field is absent (a backend older than this release) or `null` (the setting could not be
+  resolved).
+
+  The permission gate on the settings admin API is unchanged. No setting or permission changes.
+
+- a7d3609: The command palette offers the AI assistant as soon as it is configured, without a page reload.
+  The palette asked the backend whether the assistant was available once per page session and kept
+  that answer, so an operator who had opened the palette before enabling the assistant and attaching
+  credentials in Settings was shown the pre-save state — no **Ask the assistant…** row — until the
+  page was reloaded, while the backend had reported `ready` from the first read after the save. The
+  same remembered answer kept the row offered after the assistant was switched off, where every
+  prompt then answered `409`. The palette now asks each time it is opened, paints the last known
+  answer meanwhile, and withdraws the row when the question fails.
+
+  The module's documentation page described three settings that do not exist
+  (`prompt_actions.provider`, `prompt_actions.model`, `prompt_actions.api_key`). It now describes the
+  ones that do: the provider, model and API key come from an `llm` credential configuration
+  referenced by `prompt_actions.llm_credentials`.
+
+  No API, setting or permission changes.
+
+- Updated dependencies [18ae962]
+- Updated dependencies [1190180]
+- Updated dependencies [a65b215]
+- Updated dependencies [9260c36]
+- Updated dependencies [3383720]
+- Updated dependencies [0184be5]
+- Updated dependencies [560f2e3]
+- Updated dependencies [60cfd18]
+- Updated dependencies [79bd849]
+- Updated dependencies [31a2c0b]
+- Updated dependencies [266cd38]
+- Updated dependencies [8d4440f]
+- Updated dependencies [8ca54eb]
+- Updated dependencies [6b2ba06]
+- Updated dependencies [be5b3ce]
+- Updated dependencies [335750c]
+- Updated dependencies [602e5ba]
+- Updated dependencies [8ee69de]
+  - @endora-commerce/contracts@0.105.0
+  - @endora-commerce/admin-kit@0.105.0
+
 ## 0.104.0
 
 ### Minor Changes

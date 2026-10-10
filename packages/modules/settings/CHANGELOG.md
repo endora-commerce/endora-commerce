@@ -1,5 +1,63 @@
 # @endora-commerce/mod-settings
 
+## 0.105.0
+
+### Minor Changes
+
+- ab6a417: `400 SETTING_VALUE_SHAPE_MISMATCH` says what the setting accepts. Two refusals share the code — a
+  value of the wrong type, and a value an enumerated setting does not offer — and both were answered
+  with "Setting value does not match the required shape.", while the messages that sentence replaced
+  named the expected type and listed the options.
+
+  Each refusal now names itself in `details.code` and has its own sentence, in English and Polish:
+
+  - `wrong_type` — `details.settingCode`, `details.valueType`: "The value of "inventory.threshold"
+    must be of type "number"."
+  - `not_an_option` — `details.settingCode`, `details.allowedValues` (the options joined with ", "),
+    `details.enumOptions` (the same options as an array): "The value of "pricing.display_mode" must
+    be one of: gross_only, net_only, both, none."
+
+  **One shape changes for a client that read `details`.** The wrong-type refusal used to answer
+  `details` as a bare array of `{ path, issue }`; that array is now `details.issues`, inside the
+  object that carries the fields above. The option refusal used to carry no `details` at all. The
+  code and the status are unchanged.
+
+### Patch Changes
+
+- 5d27c85: The Quote Requests settings tab says what the auto-expiry setting does when it is turned on.
+
+  The help under "Auto-expire pending after (days)" now says, in English and Polish, that the rule
+  counts days without activity, that an offer whose validity date is still ahead is never expired by
+  it, that turning it on or lowering it expires every open request already inactive that long, and
+  that the default sales channel's value applies to all channels.
+
+- Updated dependencies [18ae962]
+- Updated dependencies [1190180]
+- Updated dependencies [a65b215]
+- Updated dependencies [9260c36]
+- Updated dependencies [3383720]
+- Updated dependencies [202f0d9]
+- Updated dependencies [0184be5]
+- Updated dependencies [560f2e3]
+- Updated dependencies [60cfd18]
+- Updated dependencies [79bd849]
+- Updated dependencies [31a2c0b]
+- Updated dependencies [266cd38]
+- Updated dependencies [bdb823b]
+- Updated dependencies [8d4440f]
+- Updated dependencies [8ca54eb]
+- Updated dependencies [6b2ba06]
+- Updated dependencies [be5b3ce]
+- Updated dependencies [82ca6dd]
+- Updated dependencies [38e8818]
+- Updated dependencies [335750c]
+- Updated dependencies [602e5ba]
+- Updated dependencies [8ee69de]
+  - @endora-commerce/contracts@0.105.0
+  - @endora-commerce/platform@0.105.0
+  - @endora-commerce/admin-kit@0.105.0
+  - @endora-commerce/mod-credentials@0.105.0
+
 ## 0.104.0
 
 ### Patch Changes

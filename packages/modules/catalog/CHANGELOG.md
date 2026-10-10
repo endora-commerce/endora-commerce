@@ -1,5 +1,365 @@
 # @endora-commerce/mod-catalog
 
+## 0.105.0
+
+### Minor Changes
+
+- 602e5ba: Six more events are delivered to webhooks: three product events, two quote-request events and the
+  credit-limit adjustment.
+
+  They were emitted on the in-process event bus and delivered to nobody. Each is now offered on the
+  Webhooks screen, accepted by the API and delivered, while the module that owns it is present:
+
+  | Event                      | Owner            | Payload, beside `eventId` and `occurredAt`                      |
+  | -------------------------- | ---------------- | --------------------------------------------------------------- |
+  | `product.created.v1`       | `catalog`        | `productId`, `sku`                                              |
+  | `product.updated.v1`       | `catalog`        | `productId`, `changedFields` (field names only)                 |
+  | `product.archived.v1`      | `catalog`        | `productId`                                                     |
+  | `rfq.created.v1`           | `quote_requests` | `rfqId`, `organizationId`                                       |
+  | `rfq.expired.v1`           | `quote_requests` | `rfqId`, `organizationId`                                       |
+  | `credit_limit.adjusted.v1` | `credit_limits`  | `organizationId`, `amount` (the granted limit after the change) |
+
+  **The owning module offers its own events.** `catalog`, `quote_requests` and `credit_limits` push
+  their event names into `webhooks`' `webhookEventRegistry` from a boot hook and declare the edge as
+  `contributes-to` — the mechanism `crm` already uses. `webhooks` names none of them, and its two
+  built-in types are unchanged. With `quote_requests` or `credit_limits` switched off, their types are
+  not offered and a new subscription to them is refused; stored subscriptions are kept and receive
+  nothing until the module is back.
+
+  **Who receives them.** Product events carry no `organizationId`, so they reach platform-wide
+  subscriptions only. Quote-request and credit-limit events reach platform-wide subscriptions and the
+  subscriptions bound to that Organization, never one bound to another.
+
+  **The payloads are published contracts.** `@endora-commerce/contracts` exports a strict schema for
+  each — `CATALOG_WEBHOOK_EVENT_SCHEMAS`, `QUOTE_REQUEST_WEBHOOK_EVENT_SCHEMAS`,
+  `CREDIT_LIMIT_WEBHOOK_EVENT_SCHEMAS` — with the matching `*_WEBHOOK_EVENT_TYPES` and
+  `*_WEBHOOK_EVENTS` constants and one `…EventV1Schema` and type per event.
+
+  Three changes of behaviour in the owning modules:
+
+  - **`catalog` now emits `product.archived.v1` when a product's status moves to `inactive`.** The
+    event was emitted only by a deprecated method nothing called, so no path an administrator, an
+    import or a PIM synchronisation takes ever announced it. It is emitted once per transition, after
+    the `product.updated.v1` of the same write, on every update path. A subscriber on the in-process
+    bus — the search indexer removes the product from the index on it — now receives it. The
+    archiving write waits for the subscribers of both events before it returns, so a reactivation
+    that follows at once cannot be undone by a removal still on its way; on the unaudited update
+    path (the API-key upsert, a bulk edit) that makes an archiving write as slow as its subscribers,
+    where it used to return without waiting.
+  - **`rfq.expired.v1` carries `organizationId`.** Without it the event could reach no subscription
+    bound to an Organization. An additive field.
+  - **`CreditLimitService` constructed without a Command Bus emits `credit_limit.adjusted.v1` after
+    its transaction has committed**, not from inside it, so an adjustment whose commit fails is not
+    announced. The composed module always has a Command Bus and was not affected.
+
+  **A contributed event type is delivered only while its owner is present.** `webhooks` asked for
+  its own presence before delivering and not for the contributing module's, so an event carrying the
+  name of a switched-off module was still delivered to the subscriptions stored for it. The bridge
+  now asks per event, for every contributed type — the `crm` ones included. The two built-in order
+  events are unaffected.
+
+  Not delivered, and documented as such: a product being deleted (`product.deleted.v1` stays
+  in-process), and a product being reactivated (there is no un-archive event; it shows as `status` in
+  `changedFields`). `rfq.expired.v1` is sent only by the quote-request expiry sweep, so it occurs
+  only on an instance where that sweep runs.
+
+  **Volume.** Nothing is batched: a bulk edit, an import or a PIM synchronisation writes products one
+  by one, so a subscription to `product.updated.v1` receives one delivery per product written. An
+  event type no subscription names enqueues nothing.
+
+### Patch Changes
+
+- 202f0d9: The storefront product list cuts its page from the products that match. On the default listing
+  path of `GET /api/v1/catalog/products` — no price ordering, no price range, not served by the
+  search engine — sales-channel membership, the caller's audience (`visibility` and the organisation
+  allow-list), `filter[category]` and every `filter[attr.<key>]` were applied to a page **after**
+  `limit + 1` rows had been fetched and `hasMore` and the cursor read off that cut. A page whose rows
+  were all filtered away was answered `data: []` with `hasMore: true`, and one where some were was
+  simply short: with two sales channels and the newest hundred products on one of them, the other's
+  first page of a hundred was empty.
+
+  All four are now conditions of the statement the page is cut from, so a page holds `limit` matching
+  products whenever that many exist, `hasMore` is `true` only when another matching product exists,
+  and walking the cursors yields each matching product exactly once. The response shape, the
+  ordering and the cursor format are unchanged, and a cursor issued before the upgrade still resumes
+  at the same row.
+
+  Two visible differences beyond the page size:
+
+  - `filter[category]` naming a category that does not exist, is inactive or is deleted answers one
+    empty page with `hasMore: false`. It used to answer a run of empty pages with `hasMore: true`,
+    one per `limit` rows of the catalogue.
+  - A consumer that worked around the defect by requesting further pages after an empty one keeps
+    working; it simply never meets an empty page before the last.
+
+  `filter[attr.<key>]` matches what it matched before: the stored value is compared as the string
+  JavaScript prints for it, numbers included (`1e+21`, `1e-7`, `1.5` for a stored `1.50`), and an
+  array as its comma-joined elements. Two stored shapes no attribute type produces compare
+  differently from the previous release: an array nested inside an array (it used to be flattened into
+  the join), and a number in `[1e15, 1e21)` or `[1e-6, 1e-4)` that was written with more than 17
+  significant digits by something other than JavaScript.
+
+  The two price-ordered paths (`sort=price`, `sort=-price`, `minPrice` / `maxPrice`) are not changed
+  by this release: they already collect matching rows before cutting a page, bounded by their scan
+  budget.
+
+  `@endora-commerce/platform`: `SalesChannelMembershipPort` gains
+  `entityIdsInChannelSubquery(channelId, entityType)`, which returns the membership set as a
+  `{ sql, params }` subquery (`select <entity id> from <bridge> where sales_channel_id = ?`) for a
+  module to place inside its own statement as `<id column> in (…)`. It executes nothing. Use it where
+  a listing has to be channel-scoped before its page is cut; `filterEntityIdsInChannel` remains the
+  accessor for narrowing ids already held.
+
+  **Breaking, hence `minor`: a hand-written implementation of `SalesChannelMembershipPort` no longer
+  type-checks until it adds `entityIdsInChannelSubquery`.** That is a test double or an overlay's own
+  stand-in typed as the port; code that only _calls_ the port is unaffected, and the platform's own
+  `SalesChannelMembershipService` already implements it. A minimal addition for a double that is
+  never asked for it:
+
+  ```ts
+  entityIdsInChannelSubquery: () => {
+    throw new Error('entityIdsInChannelSubquery is not stubbed');
+  },
+  ```
+
+  No setting, permission or migration changes.
+
+- 0184be5: An e-mail that was only written to the server log is no longer reported as sent. On an instance
+  with no `SMTP_URL` the console mailer logs the message and used to answer `{ status: 'sent' }`,
+  and the transactional e-mail service answered a constant `sent` of its own, so every module that
+  records or reports a delivery recorded one that did not happen.
+
+  **Breaking for a consumer of the two port types — three unions gain a member:**
+
+  - `EmailMailerSendOutcome` gains `{ status: 'logged' }`. The console mailer answers it instead of
+    `sent`; the SMTP mailer and `InMemoryMailer` still answer `sent`.
+  - `TransactionalSendOutcome` gains `{ status: 'logged' }`, and `TransactionalEmailSender.send`
+    passes the transport's `logged` on. A transport's `suppressed` (an already accepted message id)
+    is still answered as `sent`, as before.
+  - `emailDeliveryStatusSchema` / `EmailDeliveryStatus` gain `'logged'`, and
+    `invoiceEmailNotSentReasonSchema` / `InvoiceEmailNotSentReason` gain `'logged'`.
+
+  What to do: code with an exhaustive `switch` over one of these unions, or that passes
+  `outcome.status` into a closed union of its own, stops compiling until it handles `logged`; code
+  that reads `outcome.reason` after `outcome.status !== 'sent'` must narrow to
+  `outcome.status === 'suppressed'` first, because `logged` carries no reason. Code that compares
+  with `=== 'sent'` keeps compiling and now treats a logged message as not sent. `logged` is not a
+  failure and there is nothing to retry: the same call would log the message again. An own
+  implementation of `EmailMailerPort` or `TransactionalEmailSender` needs no change.
+
+  What changes on an instance without a mail server:
+
+  - `email_deliveries` rows are written with `status = 'logged'` instead of `'sent'`. The column is
+    a plain `varchar(16)`, so there is no migration; rows written earlier keep `sent`.
+  - The order, return, payment-status, shipment and invoice e-mail results answer
+    `{ sent: false, reason: 'logged' }`, each with its usual "was not sent" log line. Issuing an
+    invoice or re-sending its e-mail from the Admin UI says the e-mail was not sent because no mail
+    server is configured, in English and Polish (`invoices.emailNotSent.logged`).
+  - A CRM Event reminder is recorded as delivered to the bell alone — or as undeliverable when the
+    bell is unavailable too — instead of "bell and e-mail".
+  - `POST /api/v1/organizations/register` answers `emailVerificationSent: false` when the
+    verification e-mail went through the in-code builder and was only logged.
+
+  No setting, permission or migration changes.
+
+- 31a2c0b: A custom field declares who reads its values, and customer-facing order and quote-request replies
+  stop naming administrators. **Three breaking changes**, all described below.
+
+  **Every custom-field definition has an `audience`: `customer` or `internal`.** Until now a
+  definition had none, and whatever an administrator stored on an order or a quote request was
+  answered to the customer (`GET /api/v1/orders`, `GET /api/v1/orders/:id`, the replies to placing
+  and cancelling an order, `GET /api/v1/quote-requests/:id`) and to integrations
+  (`/api/v1/external/orders`) as `customFieldValues`. An operator who modelled an internal note, a
+  credit assessment or a risk flag as an order custom field was showing it to the buyer.
+
+  - `internal` values are answered on admin routes only. `customer` values are also answered on
+    the non-admin replies above. A stored value whose definition no longer exists is treated as
+    internal. Admin replies are unchanged and carry every stored value.
+  - **Existing definitions keep today's behaviour.** The migration
+    `Migration20261010T090000CustomFieldsDefinitionAudience` adds
+    `custom_field_definitions.audience` and sets every existing row to `customer`, so upgrading
+    hides nothing. Review your definitions after upgrading and move to `internal` whatever was
+    never meant to be shown.
+  - **Breaking: a new definition is `internal` unless it says otherwise.**
+    `POST /api/v1/admin/custom-fields/definitions` without `audience` used to create a field whose
+    values the customer could read; it now creates one they cannot. Send `"audience": "customer"`
+    to keep the old behaviour. `PATCH …/definitions/:id` accepts `audience` and leaves it alone
+    when the key is absent. The same patch no longer resets a definition's `config` to `{}` when
+    the body does not name it (`updateCustomFieldDefinitionSchema` carried the create default).
+  - The definition screen (Custom Fields) shows the choice with an explanation, defaulting to
+    internal, and lets the audience of an existing field be changed. Six keys join the module's
+    `en` and `pl` bundles under `customFields.audience.*`.
+
+  In `@endora-commerce/contracts`: new `customFieldAudienceSchema` / `CustomFieldAudience`;
+  `customFieldDefinitionSchema` and `CustomFieldDefinitionRecord` gain a required `audience`;
+  `createCustomFieldDefinitionSchema` defaults it to `internal`, so the inferred
+  `CreateCustomFieldDefinitionRequest` — the input of `CustomFieldDefinitionApplyApi.applyCreate` —
+  now requires it; and `CustomFieldValuePort` gains
+  `projectForCustomer(entityType, bag)`, which returns only the keys a non-administrator may read.
+  An implementation of that port must add the method. A host module that answers custom-field
+  values to a non-administrator calls it in its serialiser; `mod-orders` and `mod-quote-requests`
+  do. `mod-catalog` creates product attributes with `audience: 'customer'`; the audience is not
+  consulted for product attributes, whose storefront visibility stays with the catalog's own flags.
+
+  **Breaking: buyer-facing and external order replies no longer carry
+  `placedOnBehalfByAdminUserId`.** It was the UUID of the administrator who placed the order for
+  the customer, answered to the customer and to API-key callers. Those replies now carry
+  `placedOnBehalf: boolean` instead. Admin order replies carry both. In `orderSchema`,
+  `placedOnBehalf` is a new required key and `placedOnBehalfByAdminUserId` becomes optional
+  (present on admin replies only). Replace `order.placedOnBehalfByAdminUserId !== null` with
+  `order.placedOnBehalf` in a storefront or an integration; the reference storefront did not read
+  the field.
+
+  **Breaking: customer-facing replies carry no administrator identifier at all.** The same rule,
+  applied to the other places it was broken:
+
+  - Quote-request replies to a customer (`GET /api/v1/quote-requests/:id` and the replies to
+    creating, patching, resubmitting a quote and to accepting or rejecting a revision) no longer
+    carry `createdByAdminUserId` and `assignedAdminUserId`, and their `events[]` no longer carry
+    `actorAdminUserId` (it was already always `null` there; the key is now absent).
+    `actorRoleLabel` still says who acted.
+  - Order-comment replies to a customer (`GET` and `POST /api/v1/orders/:id/comments`) no longer
+    carry `authorAdminUserId`. A comment whose `authorCustomerAccountId` is `null` was written by
+    staff.
+
+  Admin replies are unchanged. In `quoteRequestSchema`, `quoteRequestEventSchema` and
+  `orderCommentSchema` those four keys become optional (present on admin replies only). No boolean
+  replaces them: the reference storefront declared the fields and read none of them.
+
+  **Re-creating a deleted field.** Deleting a definition keeps its stored values. A
+  `POST …/definitions` with `audience: "customer"` for a key that still has stored values is now
+  refused with `409 CUSTOM_FIELD_DEFINITION_INVALID`, because it would answer those old values to
+  customers at once. Create the field as `internal`, then change its audience. Product attributes
+  (created through the catalog) are not affected.
+
+  The definitions cache no longer stores a list that was read before an invalidation and arrived
+  after it. A change of audience still takes up to 5 seconds to reach an API process that missed
+  the invalidation message; the docs page says so.
+
+  In `mod-orders`, `serializeOrder` is replaced by `serializeOrderForAdmin` and
+  `serializeOrderForCustomer` (internal to the module).
+
+- bdb823b: `demo reset` withdraws a demo that has been used, in one transaction, and refuses to delete
+  financial records unless it is told to.
+
+  **What was wrong.** `demo reset` exited 1 as soon as the demo buyer had placed one order on credit
+  (`credit_limit_reservations_credit_limit_fk`) or saved one address (`addresses_organization_fk`).
+  The refusal came after the demo payment methods, the delivery methods and the buyer were already
+  gone, so checkout was left broken. A reset that did go through left the demo organisation's
+  orders, carts and quote requests naming an organisation that no longer existed.
+
+  **A reset is now one transaction** (`@endora-commerce/platform`). The dispatcher opens it, builds
+  the composition over it and hands it to every module's demo body as that body's own
+  `EntityManager`. A refusal anywhere in the run — the composition's withdrawal, a module's, a
+  foreign key from a table of your own — changes nothing. `demo seed` is unchanged.
+
+  - **Breaking for a module's `demo.reset` body and for a composition's `withdraw`**: write through
+    the `EntityManager` you are handed (`em.nativeDelete`, `em.execute`), not through
+    `em.getConnection().execute(…)`. The bare connection carries no transaction: the statement runs
+    on a second connection, cannot see what the reset has already deleted, and waits on rows the
+    reset has locked. `@endora-commerce/mod-catalog`'s reset and every statement of
+    `@endora-commerce/demo-composition` were moved accordingly.
+  - **Breaking for a demo composition**: declare `withdrawsInsideTransaction: true` on the object
+    `createDemoComposition` returns. A reset over a composition that does not is refused before it
+    starts — which is what happens to `@endora-commerce/demo-composition` 0.104 under this platform;
+    the two are released in lockstep and the composition's peer range is the exact platform version.
+  - The transaction is `REPEATABLE READ`, so what the reset counts and what it deletes are one
+    snapshot; `lock_timeout` (60 s) and `idle_in_transaction_session_timeout` (120 s) are set on it;
+    and while it runs, anything in its async context that asks the pool for a second connection is
+    refused immediately with "a reset body wrote outside the reset transaction". A body that brings a
+    database client of its own is ended by the idle bound instead of hanging.
+  - Every refusal — the composition's, a module's, the database's (an integrity constraint, a
+    snapshot conflict, a lock wait) — is printed as a message saying what refused and that nothing
+    has been changed, without a stack. An unanticipated failure keeps its stack and says the same.
+  - `DemoRunFailedError` says "nothing was changed" for such a run instead of telling the operator
+    to clear half-written rows away.
+
+  **What using the demo left behind is withdrawn first** (`@endora-commerce/demo-composition`):
+  orders with their shipments, stock allocations (the stock they held is released) and credit
+  reservations, return cases, carts, quote requests, shopping lists, comparisons, addresses, API
+  keys, webhooks, sessions, two-factor enrolments, newsletter and push subscriptions, analytics
+  events, price-list assignments, promotion uses (the usage counters they spent are given back),
+  promotions restricted to that organisation, Sales Opportunities opened for it, and the accounts
+  that joined it. **These rows are deleted, not re-pointed.** Only rows of the demo organisation
+  are matched — it is found by the tax id the demo gives it — so another organisation on the same
+  instance loses nothing, and neither does a row with no organisation, such as a guest's cart. The
+  audit trail, the e-mail delivery log and administrators' notification history are kept.
+
+  A module that is **switched off** does not exempt its rows: they are withdrawn when the module's
+  tables exist, whether or not it is active. A reset with CRM off used to stop at `organizations`;
+  it now completes, and leaves only CRM's three demo tags, which a reset with CRM on removes.
+
+  **Breaking: the reset refuses when the demo organisation holds financial records.** It exits 1
+  before deleting anything and prints how many of each it found. What counts:
+
+  - a payment whose status is `paid`, `refunded` or `partially_refunded`;
+  - an invoice of kind `invoice` or `correction`, or of any kind that carries a KSeF reference
+    number or an external document reference, or that has an accounting-system row;
+  - any row of `invoice_ledger_deliveries`, `invoice_ledger_document_maps` or
+    `invoice_ledger_client_maps`;
+  - a refund, and a refund settled against the credit limit (`credit_limit_return_topups`).
+
+  A payment still `awaiting_payment`, `deferred` or `failed`, and a pro-forma invoice or delivery
+  note with no external reference, do not count: they are what an order placement opens and are
+  withdrawn with the order, so a demo on which orders were placed and nothing was paid resets
+  without the flag. To delete the financial records with the rest:
+
+  ```
+  pnpm run cli demo reset --force-delete-financial-records
+  ```
+
+  The flag is read from that command line only — no environment variable, no setting — and forces
+  nothing else: the production guard and every foreign key apply as before. An automated job that
+  resets a used demo needs the flag on its command line.
+
+  The reset also stops before touching anything when another organisation has been filed under the
+  demo one — detach or delete the sub-organisation and run it again.
+
+  New exports of `@endora-commerce/platform/demo`: `DemoResetRefusedError` (thrown by a composition
+  to decline a reset; printed as its message, without a stack) and
+  `DEMO_FORCE_DELETE_FINANCIAL_RECORDS_FLAG`. `DemoCompositionInput` gains the optional
+  `deleteFinancialRecords`.
+
+  `organizations`' own demo withdrawal now removes the invitations sent from the demo organisation
+  and the sales representatives assigned to it before removing the organisation, and reports both
+  counts beside `Organization`.
+
+  Promotion counters: a redemption made before its promotion had a global limit bumped no counter,
+  and nothing records that, so it is subtracted like the others; a real promotion's counter can end
+  up lower than the real uses made since, never below zero.
+
+  `@endora-commerce/cli`: the install and `new instance` closing messages mention the refusal and
+  the flag beside `demo reset`.
+
+  The getting-started, upgrade and CRM documentation pages say what the reset now does.
+
+- Updated dependencies [18ae962]
+- Updated dependencies [1190180]
+- Updated dependencies [a65b215]
+- Updated dependencies [9260c36]
+- Updated dependencies [3383720]
+- Updated dependencies [202f0d9]
+- Updated dependencies [0184be5]
+- Updated dependencies [560f2e3]
+- Updated dependencies [60cfd18]
+- Updated dependencies [79bd849]
+- Updated dependencies [31a2c0b]
+- Updated dependencies [266cd38]
+- Updated dependencies [bdb823b]
+- Updated dependencies [8d4440f]
+- Updated dependencies [8ca54eb]
+- Updated dependencies [6b2ba06]
+- Updated dependencies [be5b3ce]
+- Updated dependencies [82ca6dd]
+- Updated dependencies [38e8818]
+- Updated dependencies [335750c]
+- Updated dependencies [602e5ba]
+- Updated dependencies [8ee69de]
+  - @endora-commerce/contracts@0.105.0
+  - @endora-commerce/platform@0.105.0
+  - @endora-commerce/admin-kit@0.105.0
+  - @endora-commerce/mod-custom-fields@0.105.0
+
 ## 0.104.0
 
 ### Minor Changes

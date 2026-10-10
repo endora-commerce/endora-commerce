@@ -1,5 +1,243 @@
 # @endora-commerce/mod-quote-requests
 
+## 0.105.0
+
+### Minor Changes
+
+- 31a2c0b: A custom field declares who reads its values, and customer-facing order and quote-request replies
+  stop naming administrators. **Three breaking changes**, all described below.
+
+  **Every custom-field definition has an `audience`: `customer` or `internal`.** Until now a
+  definition had none, and whatever an administrator stored on an order or a quote request was
+  answered to the customer (`GET /api/v1/orders`, `GET /api/v1/orders/:id`, the replies to placing
+  and cancelling an order, `GET /api/v1/quote-requests/:id`) and to integrations
+  (`/api/v1/external/orders`) as `customFieldValues`. An operator who modelled an internal note, a
+  credit assessment or a risk flag as an order custom field was showing it to the buyer.
+
+  - `internal` values are answered on admin routes only. `customer` values are also answered on
+    the non-admin replies above. A stored value whose definition no longer exists is treated as
+    internal. Admin replies are unchanged and carry every stored value.
+  - **Existing definitions keep today's behaviour.** The migration
+    `Migration20261010T090000CustomFieldsDefinitionAudience` adds
+    `custom_field_definitions.audience` and sets every existing row to `customer`, so upgrading
+    hides nothing. Review your definitions after upgrading and move to `internal` whatever was
+    never meant to be shown.
+  - **Breaking: a new definition is `internal` unless it says otherwise.**
+    `POST /api/v1/admin/custom-fields/definitions` without `audience` used to create a field whose
+    values the customer could read; it now creates one they cannot. Send `"audience": "customer"`
+    to keep the old behaviour. `PATCH …/definitions/:id` accepts `audience` and leaves it alone
+    when the key is absent. The same patch no longer resets a definition's `config` to `{}` when
+    the body does not name it (`updateCustomFieldDefinitionSchema` carried the create default).
+  - The definition screen (Custom Fields) shows the choice with an explanation, defaulting to
+    internal, and lets the audience of an existing field be changed. Six keys join the module's
+    `en` and `pl` bundles under `customFields.audience.*`.
+
+  In `@endora-commerce/contracts`: new `customFieldAudienceSchema` / `CustomFieldAudience`;
+  `customFieldDefinitionSchema` and `CustomFieldDefinitionRecord` gain a required `audience`;
+  `createCustomFieldDefinitionSchema` defaults it to `internal`, so the inferred
+  `CreateCustomFieldDefinitionRequest` — the input of `CustomFieldDefinitionApplyApi.applyCreate` —
+  now requires it; and `CustomFieldValuePort` gains
+  `projectForCustomer(entityType, bag)`, which returns only the keys a non-administrator may read.
+  An implementation of that port must add the method. A host module that answers custom-field
+  values to a non-administrator calls it in its serialiser; `mod-orders` and `mod-quote-requests`
+  do. `mod-catalog` creates product attributes with `audience: 'customer'`; the audience is not
+  consulted for product attributes, whose storefront visibility stays with the catalog's own flags.
+
+  **Breaking: buyer-facing and external order replies no longer carry
+  `placedOnBehalfByAdminUserId`.** It was the UUID of the administrator who placed the order for
+  the customer, answered to the customer and to API-key callers. Those replies now carry
+  `placedOnBehalf: boolean` instead. Admin order replies carry both. In `orderSchema`,
+  `placedOnBehalf` is a new required key and `placedOnBehalfByAdminUserId` becomes optional
+  (present on admin replies only). Replace `order.placedOnBehalfByAdminUserId !== null` with
+  `order.placedOnBehalf` in a storefront or an integration; the reference storefront did not read
+  the field.
+
+  **Breaking: customer-facing replies carry no administrator identifier at all.** The same rule,
+  applied to the other places it was broken:
+
+  - Quote-request replies to a customer (`GET /api/v1/quote-requests/:id` and the replies to
+    creating, patching, resubmitting a quote and to accepting or rejecting a revision) no longer
+    carry `createdByAdminUserId` and `assignedAdminUserId`, and their `events[]` no longer carry
+    `actorAdminUserId` (it was already always `null` there; the key is now absent).
+    `actorRoleLabel` still says who acted.
+  - Order-comment replies to a customer (`GET` and `POST /api/v1/orders/:id/comments`) no longer
+    carry `authorAdminUserId`. A comment whose `authorCustomerAccountId` is `null` was written by
+    staff.
+
+  Admin replies are unchanged. In `quoteRequestSchema`, `quoteRequestEventSchema` and
+  `orderCommentSchema` those four keys become optional (present on admin replies only). No boolean
+  replaces them: the reference storefront declared the fields and read none of them.
+
+  **Re-creating a deleted field.** Deleting a definition keeps its stored values. A
+  `POST …/definitions` with `audience: "customer"` for a key that still has stored values is now
+  refused with `409 CUSTOM_FIELD_DEFINITION_INVALID`, because it would answer those old values to
+  customers at once. Create the field as `internal`, then change its audience. Product attributes
+  (created through the catalog) are not affected.
+
+  The definitions cache no longer stores a list that was read before an invalidation and arrived
+  after it. A change of audience still takes up to 5 seconds to reach an API process that missed
+  the invalidation message; the docs page says so.
+
+  In `mod-orders`, `serializeOrder` is replaced by `serializeOrderForAdmin` and
+  `serializeOrderForCustomer` (internal to the module).
+
+- fe96d30: The Quote Request expiry sweep runs. Until now nothing called it.
+
+  `RfqExpiryWorker.sweep()` was built, exposed on the module's handle and documented as running every
+  30 minutes, and no scheduler, timer or command ever reached it. With `quote_requests.expiry_days`
+  set, a Pending or Created from admin Quote Request never became `Expired`, nobody was told, and
+  `rfq.expired.v1` was never emitted.
+
+  **This changes what a running instance does.** The module now installs a BullMQ Job Scheduler on the
+  queue `quote_requests.expiry.sweep` and a consumer for it, in every process that consumes queues.
+  It fires every 30 minutes and stops with the module.
+
+  **Which requests it expires.** `quote_requests.expiry_days = 0`, the default, disables the sweep.
+  Otherwise a request is expired when all three hold:
+
+  - it is still `Pending` or `Created from admin`;
+  - nothing has been added to its history for `expiry_days` — the clock is the request's latest
+    history entry, so a submission, an edit, a revision or a note restarts it, and the customer merely
+    opening the request, or an assignment, does not;
+  - **it carries no offer that is still valid**: when the seller dated an offer (`expiresAt`), that
+    date wins, and the request is never expired by inactivity while the date is ahead. The sweep does
+    not expire a request because its validity date passed; that date is enforced on accept and
+    convert, as before.
+
+  **Turning the setting on expires the backlog — read this before upgrading or changing it.** The rule
+  applies to everything that is open, not from the day it is set. Moving `expiry_days` from `0` to
+  `N`, or lowering it, expires over the next ticks every open request that has been inactive for more
+  than `N` days. Releases up to 0.104.0 never ran the sweep, so an instance that already has the
+  setting set meets the same backlog on the first ticks after this upgrade:
+
+  - they all become `Expired`, get their `expired` history entry, and `rfq.expired.v1` is emitted for
+    each;
+  - **no notification record is written for a request that became due more than 24 hours before the
+    tick that reached it.** A property of every run, not of the first one;
+  - at most 500 requests are expired per tick, oldest first.
+
+  Set `quote_requests.expiry_days` to `0` before upgrading to review the open requests first. The
+  sweep reads the value of the default sales channel and applies it to requests of every channel; a
+  channel set to `0` is not exempt.
+
+  **The sweep and an answer are mutually exclusive.** A buyer's accept or decline, a customer's edit,
+  and a seller's approve, revise, cancel or assign now take the request's row and check its `version`
+  before writing; the sweep skips a request that is held. A transition that loses to the sweep — or
+  to any other concurrent transition — is refused with `409 VERSION_CONFLICT`, where it used to
+  succeed and overwrite. Before this, an accept racing the sweep answered `200` and left a request
+  `Approved` with `expiredAt` set and an `rfq.expired.v1` announced for it.
+
+  Also fixed in the sweep itself:
+
+  - **A request that fails is retried later, not first.** The worker process leaves a request whose
+    expiry failed alone for two hours, so requests that keep failing cannot be the head of every
+    batch.
+  - **A failure no longer loses events.** The pass flushed every due request to `Expired` and then
+    walked them; a throw on the second of three left three requests `Expired`, one announced, and
+    nothing for the next pass to find. Each request is now one transaction — status, history row and
+    notification rows together — and its event is emitted after that transaction commits. A request
+    that fails stays due for the next tick and does not stop the others.
+  - **`rfq.expired.v1` carries `organizationId`**, the Organization the request belongs to. An
+    additive field.
+  - **An idle tick writes no audit row.** The tick asks whether anything is due before it enters its
+    system scope.
+
+  `RfqExpiryWorker.sweep()` now resolves to `{ expiredCount, failedCount,
+notificationsSuppressedCount, reachedBatchLimit }`; `expiredCount` is unchanged in meaning.
+  `RfqEventService.append` and `RfqNotificationService.enqueue` accept an optional transactional
+  EntityManager.
+
+- 602e5ba: Six more events are delivered to webhooks: three product events, two quote-request events and the
+  credit-limit adjustment.
+
+  They were emitted on the in-process event bus and delivered to nobody. Each is now offered on the
+  Webhooks screen, accepted by the API and delivered, while the module that owns it is present:
+
+  | Event                      | Owner            | Payload, beside `eventId` and `occurredAt`                      |
+  | -------------------------- | ---------------- | --------------------------------------------------------------- |
+  | `product.created.v1`       | `catalog`        | `productId`, `sku`                                              |
+  | `product.updated.v1`       | `catalog`        | `productId`, `changedFields` (field names only)                 |
+  | `product.archived.v1`      | `catalog`        | `productId`                                                     |
+  | `rfq.created.v1`           | `quote_requests` | `rfqId`, `organizationId`                                       |
+  | `rfq.expired.v1`           | `quote_requests` | `rfqId`, `organizationId`                                       |
+  | `credit_limit.adjusted.v1` | `credit_limits`  | `organizationId`, `amount` (the granted limit after the change) |
+
+  **The owning module offers its own events.** `catalog`, `quote_requests` and `credit_limits` push
+  their event names into `webhooks`' `webhookEventRegistry` from a boot hook and declare the edge as
+  `contributes-to` — the mechanism `crm` already uses. `webhooks` names none of them, and its two
+  built-in types are unchanged. With `quote_requests` or `credit_limits` switched off, their types are
+  not offered and a new subscription to them is refused; stored subscriptions are kept and receive
+  nothing until the module is back.
+
+  **Who receives them.** Product events carry no `organizationId`, so they reach platform-wide
+  subscriptions only. Quote-request and credit-limit events reach platform-wide subscriptions and the
+  subscriptions bound to that Organization, never one bound to another.
+
+  **The payloads are published contracts.** `@endora-commerce/contracts` exports a strict schema for
+  each — `CATALOG_WEBHOOK_EVENT_SCHEMAS`, `QUOTE_REQUEST_WEBHOOK_EVENT_SCHEMAS`,
+  `CREDIT_LIMIT_WEBHOOK_EVENT_SCHEMAS` — with the matching `*_WEBHOOK_EVENT_TYPES` and
+  `*_WEBHOOK_EVENTS` constants and one `…EventV1Schema` and type per event.
+
+  Three changes of behaviour in the owning modules:
+
+  - **`catalog` now emits `product.archived.v1` when a product's status moves to `inactive`.** The
+    event was emitted only by a deprecated method nothing called, so no path an administrator, an
+    import or a PIM synchronisation takes ever announced it. It is emitted once per transition, after
+    the `product.updated.v1` of the same write, on every update path. A subscriber on the in-process
+    bus — the search indexer removes the product from the index on it — now receives it. The
+    archiving write waits for the subscribers of both events before it returns, so a reactivation
+    that follows at once cannot be undone by a removal still on its way; on the unaudited update
+    path (the API-key upsert, a bulk edit) that makes an archiving write as slow as its subscribers,
+    where it used to return without waiting.
+  - **`rfq.expired.v1` carries `organizationId`.** Without it the event could reach no subscription
+    bound to an Organization. An additive field.
+  - **`CreditLimitService` constructed without a Command Bus emits `credit_limit.adjusted.v1` after
+    its transaction has committed**, not from inside it, so an adjustment whose commit fails is not
+    announced. The composed module always has a Command Bus and was not affected.
+
+  **A contributed event type is delivered only while its owner is present.** `webhooks` asked for
+  its own presence before delivering and not for the contributing module's, so an event carrying the
+  name of a switched-off module was still delivered to the subscriptions stored for it. The bridge
+  now asks per event, for every contributed type — the `crm` ones included. The two built-in order
+  events are unaffected.
+
+  Not delivered, and documented as such: a product being deleted (`product.deleted.v1` stays
+  in-process), and a product being reactivated (there is no un-archive event; it shows as `status` in
+  `changedFields`). `rfq.expired.v1` is sent only by the quote-request expiry sweep, so it occurs
+  only on an instance where that sweep runs.
+
+  **Volume.** Nothing is batched: a bulk edit, an import or a PIM synchronisation writes products one
+  by one, so a subscription to `product.updated.v1` receives one delivery per product written. An
+  event type no subscription names enqueues nothing.
+
+### Patch Changes
+
+- Updated dependencies [18ae962]
+- Updated dependencies [1190180]
+- Updated dependencies [a65b215]
+- Updated dependencies [9260c36]
+- Updated dependencies [3383720]
+- Updated dependencies [202f0d9]
+- Updated dependencies [0184be5]
+- Updated dependencies [560f2e3]
+- Updated dependencies [60cfd18]
+- Updated dependencies [79bd849]
+- Updated dependencies [31a2c0b]
+- Updated dependencies [266cd38]
+- Updated dependencies [bdb823b]
+- Updated dependencies [8d4440f]
+- Updated dependencies [8ca54eb]
+- Updated dependencies [6b2ba06]
+- Updated dependencies [be5b3ce]
+- Updated dependencies [82ca6dd]
+- Updated dependencies [38e8818]
+- Updated dependencies [335750c]
+- Updated dependencies [602e5ba]
+- Updated dependencies [8ee69de]
+  - @endora-commerce/contracts@0.105.0
+  - @endora-commerce/platform@0.105.0
+  - @endora-commerce/admin-kit@0.105.0
+
 ## 0.104.0
 
 ### Minor Changes

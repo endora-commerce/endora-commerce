@@ -1,5 +1,64 @@
 # @endora-commerce/mod-cms
 
+## 0.105.0
+
+### Patch Changes
+
+- 2e355fb: Every admin write to a CMS block, a CMS template and a CMS hook now runs through the Command Bus
+  and leaves one audit entry, written in the write's own transaction and attributed to the acting
+  admin. Page writes already did; these three kinds changed the row and recorded nothing, so "who
+  edited this block" or "who detached it from that hook" could not be answered afterwards.
+
+  - **Blocks** — `objectType: 'cms_block'`, actions `cms_block.create`, `cms_block.update`,
+    `cms_block.set_content`, `cms_block.delete`.
+  - **Templates** — `objectType: 'cms_template'`, actions `cms_template.create`,
+    `cms_template.update`, `cms_template.set_content`, `cms_template.delete`.
+  - **Hooks** — `objectType: 'cms_hook'`, actions `cms_hook.create`, `cms_hook.update`,
+    `cms_hook.delete`, and for the blocks attached to a hook `cms_hook.attach_block`,
+    `cms_hook.reorder_block`, `cms_hook.detach_block`. An attachment has no id of its own, so its
+    entries carry the hook id as `objectId` and name the block and its position in the state.
+
+  An entry records the facts an operator sets — name, code, active flag, description, languages,
+  sales channels and version — on each side of the write; a content save records the language and
+  the version it produced rather than the content tree, as a page's does. A refused write, a patch
+  that names no field, and detaching or reordering a block that was not attached record nothing.
+
+  Routes, request and response shapes and status codes are unchanged. Deleting a block, a template
+  or a hook, and detaching a block, now run inside a transaction; they ran as bare statements
+  before. `CmsBlockService`, `CmsTemplateService` and `CmsHookService` take the `CommandBus` as
+  their second constructor argument; the module's own composition supplies it, so a host composed
+  through `composeApp` or the test kit's `composeTestServer` needs no change.
+
+- Updated dependencies [18ae962]
+- Updated dependencies [1190180]
+- Updated dependencies [a65b215]
+- Updated dependencies [9260c36]
+- Updated dependencies [3383720]
+- Updated dependencies [202f0d9]
+- Updated dependencies [964ada7]
+- Updated dependencies [0184be5]
+- Updated dependencies [560f2e3]
+- Updated dependencies [60cfd18]
+- Updated dependencies [79bd849]
+- Updated dependencies [31a2c0b]
+- Updated dependencies [266cd38]
+- Updated dependencies [bdb823b]
+- Updated dependencies [8d4440f]
+- Updated dependencies [8ca54eb]
+- Updated dependencies [6b2ba06]
+- Updated dependencies [be5b3ce]
+- Updated dependencies [82ca6dd]
+- Updated dependencies [38e8818]
+- Updated dependencies [335750c]
+- Updated dependencies [602e5ba]
+- Updated dependencies [8ee69de]
+  - @endora-commerce/contracts@0.105.0
+  - @endora-commerce/platform@0.105.0
+  - @endora-commerce/admin-kit@0.105.0
+  - @endora-commerce/cms-components@0.105.0
+  - @endora-commerce/page-builder-admin@0.105.0
+  - @endora-commerce/page-builder-core@0.105.0
+
 ## 0.104.0
 
 ### Minor Changes

@@ -1,5 +1,86 @@
 # @endora-commerce/mod-customer-accounts
 
+## 0.105.0
+
+### Minor Changes
+
+- 560f2e3: More credential changes withdraw the sessions and pending sign-ins obtained before them.
+
+  - **`admin_users create` run again for an existing account** replaces the password, so it now
+    ends every session of that account and withdraws its pending second-factor challenges and
+    setup tickets, through the same path as a peer reset. The write is audited as
+    `admin_user.change_password` with `via: 'cli'` and no acting administrator. Creating a new
+    account is unchanged.
+  - **Removing a second factor.** Disabling your own two-factor authentication
+    (`POST /api/v1/admin/account/mfa/disable`, `POST /api/v1/account/mfa/disable`) ends every other
+    session of the account and keeps the one the request was made from. An administrator's reset of
+    a customer's second factor (`POST /api/v1/admin/customers/:customerId/mfa/reset`, and the bulk
+    route for each account it actually resets) ends every session of that customer. Both withdraw
+    the account's pending challenges and setup tickets. Enrolling a factor ends no session, and a
+    disable or reset that removes nothing ends none either.
+  - **Customer password change** (`POST /api/v1/me/customer/change-password`,
+    `POST /api/v1/me/password`) ends every other session of the account and keeps the calling one.
+    **Redeeming a reset token** (`POST /api/v1/auth/password-reset/confirm`) ends all of them. Both
+    mark every other outstanding reset token of the account as consumed and withdraw its pending
+    second-factor challenges and setup tickets.
+
+  In every case the new state is persisted first and the sessions are revoked after it.
+
+  Port changes, all additive: `AuthSessionPort.destroyAllForCustomer` takes an optional
+  `{ exceptSessionId }` (`AuthDestroyAllForCustomerOptions`), mirroring `destroyAllForAdmin`;
+  `CustomerAuthPort.changePassword` takes an optional fourth argument
+  `{ sessionCookieValue }` (`CustomerChangePasswordContext`) naming the session to keep — a caller
+  that omits it keeps none. No port member was removed or changed incompatibly.
+
+  Not ports, but changed for anyone constructing these classes directly: `PasswordResetService`'s
+  constructor takes the session port as its second argument (the audit port moved to third), and
+  `MfaEnrolmentService.disable` returns whether a factor was removed.
+
+### Patch Changes
+
+- 38e8818: Sign-in does the same password-hash work whether or not the address belongs to an account.
+
+  Administrator and customer sign-in looked the account up first and verified the password only when
+  there was one. An address nobody holds, a deleted customer and an inactive administrator were
+  therefore refused tens of milliseconds sooner than a wrong password for a real account, and the
+  difference told a caller which addresses have an account. Both now verify the submitted password
+  once in every case — against a dummy hash made once per process with the parameters of a stored
+  hash when there is no usable account — and answer exactly as for a wrong password.
+
+  `@endora-commerce/platform/kernel` exports `verifyPasswordOrDummy(hash, password)` for this.
+
+  **Behaviour change for customer sign-in.** `403 ACCOUNT_BLOCKED` used to be answered before the
+  password was looked at, so it told anybody that the address has an account and that it is blocked.
+  It is now answered only when the password is correct; a wrong password for a blocked account is
+  `401 INVALID_CREDENTIALS` like any other.
+
+- Updated dependencies [18ae962]
+- Updated dependencies [1190180]
+- Updated dependencies [a65b215]
+- Updated dependencies [9260c36]
+- Updated dependencies [3383720]
+- Updated dependencies [202f0d9]
+- Updated dependencies [0184be5]
+- Updated dependencies [560f2e3]
+- Updated dependencies [60cfd18]
+- Updated dependencies [79bd849]
+- Updated dependencies [31a2c0b]
+- Updated dependencies [266cd38]
+- Updated dependencies [bdb823b]
+- Updated dependencies [8d4440f]
+- Updated dependencies [8ca54eb]
+- Updated dependencies [6b2ba06]
+- Updated dependencies [be5b3ce]
+- Updated dependencies [82ca6dd]
+- Updated dependencies [38e8818]
+- Updated dependencies [335750c]
+- Updated dependencies [602e5ba]
+- Updated dependencies [8ee69de]
+  - @endora-commerce/contracts@0.105.0
+  - @endora-commerce/platform@0.105.0
+  - @endora-commerce/admin-kit@0.105.0
+  - @endora-commerce/mod-organizations@0.105.0
+
 ## 0.104.0
 
 ### Patch Changes

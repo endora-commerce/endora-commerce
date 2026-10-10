@@ -1,5 +1,44 @@
 # @endora-commerce/mod-assets-library
 
+## 0.105.0
+
+### Patch Changes
+
+- dd6e23c: `413 ASSET_UPLOAD_TOO_LARGE` says what the limit is. Its sentence was a placeholder — "Asset Upload
+  Too Large." in English and "Błąd: asset upload too large." in Polish — while the message it replaced
+  named the configured maximum.
+
+  The error now carries `details.maxFileSizeMb`, the value of the `assets.max_file_size_mb` setting,
+  and both sentences name it: "The file is too large: the largest file that can be uploaded is 25 MB."
+
+  The code and the status are unchanged; a client matching on either sees no difference.
+
+- Updated dependencies [18ae962]
+- Updated dependencies [1190180]
+- Updated dependencies [a65b215]
+- Updated dependencies [9260c36]
+- Updated dependencies [3383720]
+- Updated dependencies [202f0d9]
+- Updated dependencies [0184be5]
+- Updated dependencies [560f2e3]
+- Updated dependencies [60cfd18]
+- Updated dependencies [79bd849]
+- Updated dependencies [31a2c0b]
+- Updated dependencies [266cd38]
+- Updated dependencies [bdb823b]
+- Updated dependencies [8d4440f]
+- Updated dependencies [8ca54eb]
+- Updated dependencies [6b2ba06]
+- Updated dependencies [be5b3ce]
+- Updated dependencies [82ca6dd]
+- Updated dependencies [38e8818]
+- Updated dependencies [335750c]
+- Updated dependencies [602e5ba]
+- Updated dependencies [8ee69de]
+  - @endora-commerce/contracts@0.105.0
+  - @endora-commerce/platform@0.105.0
+  - @endora-commerce/admin-kit@0.105.0
+
 ## 0.104.0
 
 ### Patch Changes

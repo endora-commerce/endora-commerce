@@ -1,5 +1,49 @@
 # @endora-commerce/mod-prompt-actions
 
+## 0.105.0
+
+### Patch Changes
+
+- a7d3609: The command palette offers the AI assistant as soon as it is configured, without a page reload.
+  The palette asked the backend whether the assistant was available once per page session and kept
+  that answer, so an operator who had opened the palette before enabling the assistant and attaching
+  credentials in Settings was shown the pre-save state — no **Ask the assistant…** row — until the
+  page was reloaded, while the backend had reported `ready` from the first read after the save. The
+  same remembered answer kept the row offered after the assistant was switched off, where every
+  prompt then answered `409`. The palette now asks each time it is opened, paints the last known
+  answer meanwhile, and withdraws the row when the question fails.
+
+  The module's documentation page described three settings that do not exist
+  (`prompt_actions.provider`, `prompt_actions.model`, `prompt_actions.api_key`). It now describes the
+  ones that do: the provider, model and API key come from an `llm` credential configuration
+  referenced by `prompt_actions.llm_credentials`.
+
+  No API, setting or permission changes.
+
+- Updated dependencies [18ae962]
+- Updated dependencies [1190180]
+- Updated dependencies [a65b215]
+- Updated dependencies [9260c36]
+- Updated dependencies [3383720]
+- Updated dependencies [202f0d9]
+- Updated dependencies [0184be5]
+- Updated dependencies [560f2e3]
+- Updated dependencies [60cfd18]
+- Updated dependencies [31a2c0b]
+- Updated dependencies [266cd38]
+- Updated dependencies [bdb823b]
+- Updated dependencies [8d4440f]
+- Updated dependencies [8ca54eb]
+- Updated dependencies [6b2ba06]
+- Updated dependencies [be5b3ce]
+- Updated dependencies [82ca6dd]
+- Updated dependencies [38e8818]
+- Updated dependencies [335750c]
+- Updated dependencies [602e5ba]
+- Updated dependencies [8ee69de]
+  - @endora-commerce/contracts@0.105.0
+  - @endora-commerce/platform@0.105.0
+
 ## 0.104.0
 
 ### Patch Changes

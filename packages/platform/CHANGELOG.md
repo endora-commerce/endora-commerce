@@ -1,5 +1,451 @@
 # @endora-commerce/platform
 
+## 0.105.0
+
+### Minor Changes
+
+- 1190180: The Admin UI says which Endora Commerce release it is talking to, and the health payload stops
+  saying `0.0.0`.
+
+  **A version badge in the admin header.** Under the wordmark in the sidebar, `AppShell` renders
+  the release the API runs — `v0.104.0` — in the kit's `Badge`. It is read from a new endpoint,
+  `GET /api/v1/admin/platform-info`, which any signed-in admin may call and which answers
+  `{ "version": string | null }` (`PlatformInfoSchema` / `PlatformInfo`, new exports of
+  `@endora-commerce/contracts`). With the sidebar collapsed the release moves into the logo's
+  tooltip. While the number is loading, when the read fails — an API older than this release
+  answers 404 — or when the platform cannot tell, the badge is not rendered at all; there is no
+  placeholder. An instance needs no change: upgrade the packages and the badge appears.
+
+  **`GET /api/v1/_health` reports the real release.** Its `version` was
+  `process.env.npm_package_version ?? '0.0.0'`: the _host application's_ manifest version, which is
+  `0.0.0` in every scaffolded instance, and a variable no package manager sets when a container
+  starts the server with `node dist/index.js`. Every deployment therefore reported `0.0.0`. It is
+  now the version of the `@endora-commerce/platform` package the process loaded, and `unknown` if
+  that cannot be read. If you compared this field against `0.0.0`, or set `npm_package_version` to
+  steer it, neither works any more.
+
+  `npm_package_version` is no longer a declared platform environment input
+  (`PLATFORM_ENVIRONMENT_INPUTS`), since nothing reads it.
+
+  One key joins the `core` bundle in English and Polish — `appShell.brand.versionLabel`, the
+  sentence a screen reader and the tooltip are given — and `@endora-commerce/admin-kit`'s
+  `theme.css` gains `.b2b-sidebar__brand-row`, `.b2b-sidebar__brand-row--versioned` and
+  `.b2b-sidebar__brand-version`; the sidebar header is 14px taller while a release is shown. A
+  theme override that styles `.b2b-sidebar__brand`'s bottom border should move it to
+  `.b2b-sidebar__brand-row`, which owns the divider now.
+
+- 9260c36: An administrator's sessions are revoked when the credential behind them is withdrawn.
+
+  Three writes used to leave every session of the account answering:
+
+  - **Changing your own password** (`PATCH /api/v1/admin/me`) replaced the hash and nothing else, so
+    a browser signed in elsewhere — the one the password was being changed because of — stayed
+    signed in for up to thirty days. It now revokes **every other session of the account**: the
+    sign-ins on other browsers and devices and the impersonation sessions the administrator started.
+    The session the request was made from is kept, no new cookie is issued, and the profile screen
+    stays open. A refused change (wrong or missing `currentPassword`) and a name-only edit revoke
+    nothing.
+  - **Deactivating an administrator** (`PATCH /api/v1/admin/admin-users/:id` with
+    `status: 'inactive'`) and **deleting one** (`DELETE /api/v1/admin/admin-users/:id`) now revoke
+    every session of the account. A permission check already refused an inactive account, but a
+    route gated on the session alone — `GET` and `PATCH /api/v1/admin/me` among them — kept
+    answering it, and reactivating the account brought the old sessions back.
+
+  A peer reset (`POST /api/v1/admin/admin-users/:id/password`) already revoked every session and is
+  unchanged. API keys are not sessions and are not touched; neither is the account's second factor.
+
+  **A revoked session could come back.** `SessionService.destroyAllForAdmin` and
+  `destroyAllForCustomer` cleared the Redis cache entries and then deleted the rows, so a request from
+  a session being revoked could read the row in between and cache it again — after which it answered
+  from the cache until its thirty-day expiry. Rows are deleted first now, and `loadSession` looks for
+  the row again after filling the cache and takes the entry back out when it is gone.
+
+  **Logins begun with the old password are withdrawn.** A pending second-factor challenge or setup
+  ticket issued after the old password verified could still be completed after a password change, a
+  peer reset, a deactivation or a delete. `MfaLoginPort` gains a required method,
+  `invalidatePending(subject)` (**breaking for implementers**), which `mfa` implements with a
+  per-subject generation counter in its challenge store, and `AdminUserService` calls it wherever it
+  revokes sessions. `AdminUserService`'s constructor takes the lazily resolved MFA port as an optional
+  fifth argument.
+
+  **Write first, revoke second.** The self-service change, the peer reset, deactivation and deletion
+  now persist the new state and then revoke, where the peer reset used to revoke first: a sign-in with
+  the old password between the two steps kept a session nothing revoked. A refusal from the session
+  port therefore surfaces as the request's error with the new password already in force.
+
+  **Audit.** A self-service password change is now recorded as `admin_user.change_password` with
+  `via: 'self_service'` — the action a peer reset already records with `via: 'peer_reset'` — where it
+  used to be an `admin_user.update` indistinguishable from a rename. The entry carries neither the
+  password nor its hash. A request that changes the name as well records an `admin_user.update`
+  entry beside it; a password-only request no longer records one.
+
+  **A session of an account that is not active is refused, revoked or not.** Revocation is a step
+  each write has to remember, so the admin guard no longer relies on it: `requireAdmin` and
+  `requireAdminAny` answer `401 UNAUTHORIZED` to a session whose administrator account is
+  deactivated, deleted or gone. **This changes a status code:** a permission-gated route used to
+  answer such a session `403 FORBIDDEN`, and a route with no permission code answered it in full. An
+  active account that lacks the permission is still answered 403. The extra account read is made
+  only on a route with no permission code and after a refused permission check, so a granted
+  permission costs what it did. While `admin_roles` or `admin_users` is absent from the deployment the
+  check is not made — it has nobody to ask — so `GET /api/v1/admin/module-presence` keeps answering in
+  that state as before.
+
+  **A new password equal to the current one is refused** on `PATCH /api/v1/admin/me` with
+  `400 NEW_PASSWORD_UNCHANGED` ("The new password is the same as the current one. Choose a different
+  password." / "Nowe hasło jest takie samo jak obecne. Wybierz inne hasło."). It would have reported
+  a change, and signed the other sessions out, without changing the credential. The check runs after
+  the current password is verified. The buyer-side change-password route and the peer reset do not
+  make this check: the peer does not know the target's password, and comparing would tell them.
+
+  **Log redaction.** The request logger censored `*.password`, `*.passwordHash` and `*.secret` but not
+  `*.currentPassword` or `*.newPassword`, the two other names a password travels under in a request
+  body. Both are on the list now, which `buildServer` and `createLogger` share instead of each
+  carrying its own copy.
+
+  **API — two breaking changes, named first.**
+
+  - `AdminPermissionChecker` in `@endora-commerce/platform` gains a required method,
+    `isActiveAdministrator(adminUserId): Promise<boolean>`; `PermissionService` in
+    `@endora-commerce/mod-admin-roles` implements it. A hand-written checker passed to
+    `createRequireAdmin` / `createRequireAdminAny` has to add it.
+  - `AdminAuthService.changePassword` in `@endora-commerce/mod-admin-users` is **removed**, and the
+    class's constructor loses its fourth argument (the audit port). The method had no caller,
+    answered a wrong current password with 401 and revoked nothing; `AdminUserService.updateSelf` is
+    the one implementation.
+  - `AuthSessionPort.destroyAllForAdmin` in `@endora-commerce/contracts` takes an optional second
+    argument, `{ exceptSessionId }` (`AuthDestroyAllForAdminOptions`), which spares that one session
+    when it is one of the administrator's own; `SessionService.destroyAllForAdmin` in
+    `@endora-commerce/mod-auth` implements it. A port implementation that ignores the argument still
+    type-checks but revokes the calling session too.
+  - `AdminUserService.updateSelf` takes an optional third argument, `{ sessionCookieValue }`, from
+    which it works out which session to keep.
+  - `ERROR_CODES.NEW_PASSWORD_UNCHANGED` joins `@endora-commerce/contracts`, owned by `admin_users`.
+
+  A refused password change is not written to the audit log, as a failed sign-in is not.
+
+  **Admin UI.** After a password change the profile screen says that the other sessions were signed
+  out (`profile.info.passwordChanged`, English and Polish) instead of "Profile updated."
+
+- 202f0d9: The storefront product list cuts its page from the products that match. On the default listing
+  path of `GET /api/v1/catalog/products` — no price ordering, no price range, not served by the
+  search engine — sales-channel membership, the caller's audience (`visibility` and the organisation
+  allow-list), `filter[category]` and every `filter[attr.<key>]` were applied to a page **after**
+  `limit + 1` rows had been fetched and `hasMore` and the cursor read off that cut. A page whose rows
+  were all filtered away was answered `data: []` with `hasMore: true`, and one where some were was
+  simply short: with two sales channels and the newest hundred products on one of them, the other's
+  first page of a hundred was empty.
+
+  All four are now conditions of the statement the page is cut from, so a page holds `limit` matching
+  products whenever that many exist, `hasMore` is `true` only when another matching product exists,
+  and walking the cursors yields each matching product exactly once. The response shape, the
+  ordering and the cursor format are unchanged, and a cursor issued before the upgrade still resumes
+  at the same row.
+
+  Two visible differences beyond the page size:
+
+  - `filter[category]` naming a category that does not exist, is inactive or is deleted answers one
+    empty page with `hasMore: false`. It used to answer a run of empty pages with `hasMore: true`,
+    one per `limit` rows of the catalogue.
+  - A consumer that worked around the defect by requesting further pages after an empty one keeps
+    working; it simply never meets an empty page before the last.
+
+  `filter[attr.<key>]` matches what it matched before: the stored value is compared as the string
+  JavaScript prints for it, numbers included (`1e+21`, `1e-7`, `1.5` for a stored `1.50`), and an
+  array as its comma-joined elements. Two stored shapes no attribute type produces compare
+  differently from the previous release: an array nested inside an array (it used to be flattened into
+  the join), and a number in `[1e15, 1e21)` or `[1e-6, 1e-4)` that was written with more than 17
+  significant digits by something other than JavaScript.
+
+  The two price-ordered paths (`sort=price`, `sort=-price`, `minPrice` / `maxPrice`) are not changed
+  by this release: they already collect matching rows before cutting a page, bounded by their scan
+  budget.
+
+  `@endora-commerce/platform`: `SalesChannelMembershipPort` gains
+  `entityIdsInChannelSubquery(channelId, entityType)`, which returns the membership set as a
+  `{ sql, params }` subquery (`select <entity id> from <bridge> where sales_channel_id = ?`) for a
+  module to place inside its own statement as `<id column> in (…)`. It executes nothing. Use it where
+  a listing has to be channel-scoped before its page is cut; `filterEntityIdsInChannel` remains the
+  accessor for narrowing ids already held.
+
+  **Breaking, hence `minor`: a hand-written implementation of `SalesChannelMembershipPort` no longer
+  type-checks until it adds `entityIdsInChannelSubquery`.** That is a test double or an overlay's own
+  stand-in typed as the port; code that only _calls_ the port is unaffected, and the platform's own
+  `SalesChannelMembershipService` already implements it. A minimal addition for a double that is
+  never asked for it:
+
+  ```ts
+  entityIdsInChannelSubquery: () => {
+    throw new Error('entityIdsInChannelSubquery is not stubbed');
+  },
+  ```
+
+  No setting, permission or migration changes.
+
+- bdb823b: `demo reset` withdraws a demo that has been used, in one transaction, and refuses to delete
+  financial records unless it is told to.
+
+  **What was wrong.** `demo reset` exited 1 as soon as the demo buyer had placed one order on credit
+  (`credit_limit_reservations_credit_limit_fk`) or saved one address (`addresses_organization_fk`).
+  The refusal came after the demo payment methods, the delivery methods and the buyer were already
+  gone, so checkout was left broken. A reset that did go through left the demo organisation's
+  orders, carts and quote requests naming an organisation that no longer existed.
+
+  **A reset is now one transaction** (`@endora-commerce/platform`). The dispatcher opens it, builds
+  the composition over it and hands it to every module's demo body as that body's own
+  `EntityManager`. A refusal anywhere in the run — the composition's withdrawal, a module's, a
+  foreign key from a table of your own — changes nothing. `demo seed` is unchanged.
+
+  - **Breaking for a module's `demo.reset` body and for a composition's `withdraw`**: write through
+    the `EntityManager` you are handed (`em.nativeDelete`, `em.execute`), not through
+    `em.getConnection().execute(…)`. The bare connection carries no transaction: the statement runs
+    on a second connection, cannot see what the reset has already deleted, and waits on rows the
+    reset has locked. `@endora-commerce/mod-catalog`'s reset and every statement of
+    `@endora-commerce/demo-composition` were moved accordingly.
+  - **Breaking for a demo composition**: declare `withdrawsInsideTransaction: true` on the object
+    `createDemoComposition` returns. A reset over a composition that does not is refused before it
+    starts — which is what happens to `@endora-commerce/demo-composition` 0.104 under this platform;
+    the two are released in lockstep and the composition's peer range is the exact platform version.
+  - The transaction is `REPEATABLE READ`, so what the reset counts and what it deletes are one
+    snapshot; `lock_timeout` (60 s) and `idle_in_transaction_session_timeout` (120 s) are set on it;
+    and while it runs, anything in its async context that asks the pool for a second connection is
+    refused immediately with "a reset body wrote outside the reset transaction". A body that brings a
+    database client of its own is ended by the idle bound instead of hanging.
+  - Every refusal — the composition's, a module's, the database's (an integrity constraint, a
+    snapshot conflict, a lock wait) — is printed as a message saying what refused and that nothing
+    has been changed, without a stack. An unanticipated failure keeps its stack and says the same.
+  - `DemoRunFailedError` says "nothing was changed" for such a run instead of telling the operator
+    to clear half-written rows away.
+
+  **What using the demo left behind is withdrawn first** (`@endora-commerce/demo-composition`):
+  orders with their shipments, stock allocations (the stock they held is released) and credit
+  reservations, return cases, carts, quote requests, shopping lists, comparisons, addresses, API
+  keys, webhooks, sessions, two-factor enrolments, newsletter and push subscriptions, analytics
+  events, price-list assignments, promotion uses (the usage counters they spent are given back),
+  promotions restricted to that organisation, Sales Opportunities opened for it, and the accounts
+  that joined it. **These rows are deleted, not re-pointed.** Only rows of the demo organisation
+  are matched — it is found by the tax id the demo gives it — so another organisation on the same
+  instance loses nothing, and neither does a row with no organisation, such as a guest's cart. The
+  audit trail, the e-mail delivery log and administrators' notification history are kept.
+
+  A module that is **switched off** does not exempt its rows: they are withdrawn when the module's
+  tables exist, whether or not it is active. A reset with CRM off used to stop at `organizations`;
+  it now completes, and leaves only CRM's three demo tags, which a reset with CRM on removes.
+
+  **Breaking: the reset refuses when the demo organisation holds financial records.** It exits 1
+  before deleting anything and prints how many of each it found. What counts:
+
+  - a payment whose status is `paid`, `refunded` or `partially_refunded`;
+  - an invoice of kind `invoice` or `correction`, or of any kind that carries a KSeF reference
+    number or an external document reference, or that has an accounting-system row;
+  - any row of `invoice_ledger_deliveries`, `invoice_ledger_document_maps` or
+    `invoice_ledger_client_maps`;
+  - a refund, and a refund settled against the credit limit (`credit_limit_return_topups`).
+
+  A payment still `awaiting_payment`, `deferred` or `failed`, and a pro-forma invoice or delivery
+  note with no external reference, do not count: they are what an order placement opens and are
+  withdrawn with the order, so a demo on which orders were placed and nothing was paid resets
+  without the flag. To delete the financial records with the rest:
+
+  ```
+  pnpm run cli demo reset --force-delete-financial-records
+  ```
+
+  The flag is read from that command line only — no environment variable, no setting — and forces
+  nothing else: the production guard and every foreign key apply as before. An automated job that
+  resets a used demo needs the flag on its command line.
+
+  The reset also stops before touching anything when another organisation has been filed under the
+  demo one — detach or delete the sub-organisation and run it again.
+
+  New exports of `@endora-commerce/platform/demo`: `DemoResetRefusedError` (thrown by a composition
+  to decline a reset; printed as its message, without a stack) and
+  `DEMO_FORCE_DELETE_FINANCIAL_RECORDS_FLAG`. `DemoCompositionInput` gains the optional
+  `deleteFinancialRecords`.
+
+  `organizations`' own demo withdrawal now removes the invitations sent from the demo organisation
+  and the sales representatives assigned to it before removing the organisation, and reports both
+  counts beside `Organization`.
+
+  Promotion counters: a redemption made before its promotion had a global limit bumped no counter,
+  and nothing records that, so it is subtracted like the others; a real promotion's counter can end
+  up lower than the real uses made since, never below zero.
+
+  `@endora-commerce/cli`: the install and `new instance` closing messages mention the refusal and
+  the flag beside `demo reset`.
+
+  The getting-started, upgrade and CRM documentation pages say what the reset now does.
+
+- 8ca54eb: Delivery and payment methods are offered per sales channel, and the choice is enforced.
+
+  The admin API already stored a channel assignment for each method, but nothing read it: the
+  storefront listed every active method on every channel, the two admin screens offered no way to
+  choose channels, and an order could be placed with any active method.
+
+  **The rule.** An assignment is a restriction. A method assigned to one or more sales channels is
+  offered in exactly those; a method assigned to **no** channel is offered in every channel. That
+  differs from products on purpose — methods exist without an assignment as a matter of course (a
+  module that ships its own method seeds it with none, and so does demo data), so "none" cannot mean
+  "nowhere".
+
+  **Upgrade note for an instance with more than one sales channel: review every method.** The new
+  **Sales channels** column on `/delivery-methods` and `/payment-methods` shows where each one stands.
+
+  - **Created in the admin so far** — assigned to the **default channel only** (the screens offered
+    nothing else), and so gone from the other channels' checkouts until changed.
+  - **Seeded by a gateway or carrier module under an earlier release, on an instance that had already
+    been started** — also assigned to the **default channel only**: that release's seed bound the
+    method to the default channel whenever it existed. They do not appear on other channels until an
+    operator widens them.
+  - **Seeded by a module from this release on** — assigned to **no channel**, and so offered on every
+    channel, whenever the module is installed. The same holds for methods a module seeded under an
+    earlier release during the instance's first setup, before its first start, and for demo data.
+
+  Open each method and choose its channels, or untick all of them to offer it everywhere. No data is
+  migrated: a method bound to the default channel by an earlier seed cannot be told apart from one an
+  operator restricted on purpose, so none is widened automatically. An instance with a single sales
+  channel is unaffected.
+
+  **For authors of a gateway or carrier module.** `bindToDefaultChannel` is removed from
+  `DeliveryMethodSeedApi` and `PaymentMethodSeedApi` (`@endora-commerce/mod-delivery-methods/ports`,
+  `@endora-commerce/mod-payment-methods/ports`, and the seeders their `./install` subpaths create).
+  An install hook that called it after `ensureMethodForAdapter` must delete the call, and needs no
+  replacement: the seeded method is offered on every channel until an operator restricts it. Two
+  things follow for a module that still calls it. Its **source** no longer compiles against this
+  release. And a **build published earlier** does not fail at compile time at all: the seeder object
+  simply has no such method, so the module's install hook throws a `TypeError` the first time it
+  creates its method — on a new instance, or on any instance where the method's row does not exist
+  yet. An instance that already has the row is unaffected, because the hook only calls the bind for a
+  row it has just created. Such modules must therefore be re-released for this version. A module that must seed a method restricted to particular channels has
+  no seam for that at install; restrict it in the admin.
+
+  **Permissions.** Choosing a method's sales channels is part of configuring the method:
+  `delivery_methods:write` / `payment_methods:write` is sufficient to assign, replace and clear them,
+  and `sales_channels:write` is not required. The form reads its options from a route of the method
+  module itself, `GET /api/v1/admin/{delivery,payment}-methods/sales-channels`, gated on that
+  module's `:read` code, so an administrator who configures methods and does not administer sales
+  channels can use the field.
+
+  **A storefront must name the channel when it reads the two catalogues.** The reference storefront
+  read `GET /api/v1/delivery-methods` and `GET /api/v1/payment-methods` with no `X-Sales-Channel`
+  header; it forwards the header now, on the checkout and on the buyer's preferences page. A
+  storefront created by an earlier release has the same omission in `lib/api/methods.ts`
+  (`listDeliveryMethods` and `listPaymentMethods` take the request context as a required argument
+  now) and, until it is changed, is answered with the default channel's methods on every channel;
+  the steps are in _Upgrading an instance_.
+
+  What changed, by package:
+
+  - **`mod-delivery-methods`, `mod-payment-methods`** — `GET /api/v1/delivery-methods` and
+    `GET /api/v1/payment-methods` list only the methods offered in the sales channel the request
+    resolved. Both admin screens gain a **Sales channels** field in the form and a column in the
+    list. `salesChannelIds` on `PUT /api/v1/admin/{delivery,payment}-methods/:code` now has three
+    meanings: **omitted** leaves the assignment unchanged on an update and assigns a new method to
+    the default channel (unchanged behaviour); **`[]`** removes every assignment, offering the method
+    in every channel (it used to be ignored); a non-empty list replaces the assignment (unchanged).
+    An id that names no sales channel is now refused with `400 VALIDATION_FAILED` and a
+    `salesChannelIds` field error, before anything is written; it used to answer `500`. Channel
+    changes made through these routes are audited with the acting administrator.
+    The modules' sales-channel bridges are registered with `emptyMeansEveryChannel: true`.
+  - **`mod-orders`** — placing an order and previewing its total refuse a delivery or payment method
+    not offered in the order's sales channel: `400 VALIDATION_FAILED` with
+    `details.code` `delivery_method_not_in_sales_channel` / `payment_method_not_in_sales_channel`.
+    This covers `POST /api/v1/orders`, `POST /api/v1/orders/preview-total`, one-click buy, admin
+    order creation and its preview, and the API-key order intake; the last three refuse before the
+    customer's basket is touched. The admin order-creation form narrows its method lists to the
+    chosen channel.
+  - **`contracts`** — new `SalesChannelOptionSchema` / `SalesChannelOption`, the shape of the two
+    channel-options routes. `DeliveryMethodReadPort` and `PaymentMethodReadPort` gain
+    `isAvailableInChannel(id, salesChannelId): Promise<boolean>`. An implementation of either port
+    outside this repository must add it.
+  - **`platform`** — a sales-channel bridge registration may declare `emptyMeansEveryChannel`, and
+    `SalesChannelMembershipPort` gains two methods that read it:
+    `filterEntityIdsAvailableInChannel(channelId, entityType, entityIds)` — the ids bound to the
+    channel, plus, for a declaring type only, the ids bound to none — and
+    `clearChannelsForEntity(entityType, entityId, options?)`, refused with
+    `ENTITY_WOULD_HAVE_ZERO_CHANNELS` for a type that does not declare it. Products keep the
+    at-least-one-channel rule. An implementation of the port outside this repository must add both.
+  - **`admin-kit`** — new `MethodSalesChannelsField`, `MethodSalesChannelsCell`,
+    `useSalesChannelOptions(path, enabled)` and `salesChannelIdsToSubmit` on
+    `@endora-commerce/admin-kit/components`.
+  - **`mod-i18n`** — the `methodSalesChannels.*` strings of the `core` bundle, in English and Polish.
+  - **`mod-quick-order`** — one-click buy is not offered when the buyer's default delivery or payment
+    method is not offered in the sales channel of the request:
+    `GET /api/v1/quick-order/one-click/eligibility` answers `{ enabled: false, reason: "missing_defaults" }`
+    there, and `POST /api/v1/quick-order/one-click` refuses with `one_click_unavailable` without
+    touching the basket.
+
+- 82ca6dd: A route's guards now run before the request is validated. A caller with no session was answered
+  `400 VALIDATION_FAILED` — with the route's field names and constraints in `details` — wherever a
+  guarded route also declared a schema the request failed, because Fastify validates before
+  `preHandler` and `preHandler` is where every route declares `requireAdmin(...)`,
+  `requireCustomer` or an API-key gate. An administrator without the permission got the same `400`
+  in place of `403`. Measured on the composed application: 184 of 720 `/api/v1/admin/**` routes, 2
+  further routes gated by `requireAdmin`, 38 routes gated by `requireCustomer` and 1 gated by
+  `requireApiKey`. All of them now answer `401`/`403` first.
+
+  `buildServer` installs an `onRoute` listener that moves the `preHandler` chain a route declares in
+  its own options to that route's `preValidation`. **No call site changes**: `preHandler:
+requireAdmin('x')` is still what a route writes, including through a forwarding closure such as
+  `(permission) => async (req, reply) => cradle().requireAdmin(permission)(req, reply)`, and a
+  module built against an earlier platform is covered without being rebuilt. `requireAdmin`,
+  `requireAdminAny`, `requireCustomer`, `requireApiKey` and `requireBoundApiKey` are unchanged, and
+  so are the `401`/`403` bodies and the `400 VALIDATION_FAILED` body an authorised caller receives.
+
+  **Behaviour change for a module author — the one thing to check.** A function you pass as a
+  route's `preHandler` now runs after the body is parsed and **before** it is validated: it sees
+  `request.body` as any JSON value, and `request.params` / `request.query` without the coercions or
+  defaults the route's schema applies. A guard that reads the request has to tolerate any shape. If
+  a route-level `preHandler` of yours depends on the validated request, move that work into the
+  handler, into an API interceptor (`ctx.interceptors`, which still runs after validation), or into
+  a `preHandler` added with `addHook` on your plugin scope — the listener moves none of those.
+
+  **A second change follows from the first: an `addHook('preHandler')` on a plugin scope now runs
+  after the route's guards, where it used to run before them.** The hook stays in the `preHandler`
+  phase and the route's own guards have moved ahead of it, so a value such a hook puts on the request
+  is `undefined` when a route guard reads it. Anything a route guard depends on must be established
+  in `onRequest` or `preValidation`. No guard or hook in the platform's own modules needed a change.
+
+  Not covered: a request the body parser refuses (malformed JSON, an unsupported media type, a body
+  over the limit) is still answered before any guard, and so is a route that checks the session
+  inside its handler instead of declaring a guard.
+
+- 38e8818: Sign-in does the same password-hash work whether or not the address belongs to an account.
+
+  Administrator and customer sign-in looked the account up first and verified the password only when
+  there was one. An address nobody holds, a deleted customer and an inactive administrator were
+  therefore refused tens of milliseconds sooner than a wrong password for a real account, and the
+  difference told a caller which addresses have an account. Both now verify the submitted password
+  once in every case — against a dummy hash made once per process with the parameters of a stored
+  hash when there is no usable account — and answer exactly as for a wrong password.
+
+  `@endora-commerce/platform/kernel` exports `verifyPasswordOrDummy(hash, password)` for this.
+
+  **Behaviour change for customer sign-in.** `403 ACCOUNT_BLOCKED` used to be answered before the
+  password was looked at, so it told anybody that the address has an account and that it is blocked.
+  It is now answered only when the password is correct; a wrong password for a blocked account is
+  `401 INVALID_CREDENTIALS` like any other.
+
+### Patch Changes
+
+- Updated dependencies [18ae962]
+- Updated dependencies [1190180]
+- Updated dependencies [a65b215]
+- Updated dependencies [9260c36]
+- Updated dependencies [3383720]
+- Updated dependencies [0184be5]
+- Updated dependencies [560f2e3]
+- Updated dependencies [60cfd18]
+- Updated dependencies [31a2c0b]
+- Updated dependencies [266cd38]
+- Updated dependencies [8d4440f]
+- Updated dependencies [8ca54eb]
+- Updated dependencies [6b2ba06]
+- Updated dependencies [be5b3ce]
+- Updated dependencies [335750c]
+- Updated dependencies [602e5ba]
+- Updated dependencies [8ee69de]
+  - @endora-commerce/contracts@0.105.0
+
 ## 0.104.0
 
 ### Patch Changes

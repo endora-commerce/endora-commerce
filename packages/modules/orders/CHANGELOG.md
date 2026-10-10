@@ -1,5 +1,457 @@
 # @endora-commerce/mod-orders
 
+## 0.105.0
+
+### Minor Changes
+
+- 31a2c0b: A custom field declares who reads its values, and customer-facing order and quote-request replies
+  stop naming administrators. **Three breaking changes**, all described below.
+
+  **Every custom-field definition has an `audience`: `customer` or `internal`.** Until now a
+  definition had none, and whatever an administrator stored on an order or a quote request was
+  answered to the customer (`GET /api/v1/orders`, `GET /api/v1/orders/:id`, the replies to placing
+  and cancelling an order, `GET /api/v1/quote-requests/:id`) and to integrations
+  (`/api/v1/external/orders`) as `customFieldValues`. An operator who modelled an internal note, a
+  credit assessment or a risk flag as an order custom field was showing it to the buyer.
+
+  - `internal` values are answered on admin routes only. `customer` values are also answered on
+    the non-admin replies above. A stored value whose definition no longer exists is treated as
+    internal. Admin replies are unchanged and carry every stored value.
+  - **Existing definitions keep today's behaviour.** The migration
+    `Migration20261010T090000CustomFieldsDefinitionAudience` adds
+    `custom_field_definitions.audience` and sets every existing row to `customer`, so upgrading
+    hides nothing. Review your definitions after upgrading and move to `internal` whatever was
+    never meant to be shown.
+  - **Breaking: a new definition is `internal` unless it says otherwise.**
+    `POST /api/v1/admin/custom-fields/definitions` without `audience` used to create a field whose
+    values the customer could read; it now creates one they cannot. Send `"audience": "customer"`
+    to keep the old behaviour. `PATCH …/definitions/:id` accepts `audience` and leaves it alone
+    when the key is absent. The same patch no longer resets a definition's `config` to `{}` when
+    the body does not name it (`updateCustomFieldDefinitionSchema` carried the create default).
+  - The definition screen (Custom Fields) shows the choice with an explanation, defaulting to
+    internal, and lets the audience of an existing field be changed. Six keys join the module's
+    `en` and `pl` bundles under `customFields.audience.*`.
+
+  In `@endora-commerce/contracts`: new `customFieldAudienceSchema` / `CustomFieldAudience`;
+  `customFieldDefinitionSchema` and `CustomFieldDefinitionRecord` gain a required `audience`;
+  `createCustomFieldDefinitionSchema` defaults it to `internal`, so the inferred
+  `CreateCustomFieldDefinitionRequest` — the input of `CustomFieldDefinitionApplyApi.applyCreate` —
+  now requires it; and `CustomFieldValuePort` gains
+  `projectForCustomer(entityType, bag)`, which returns only the keys a non-administrator may read.
+  An implementation of that port must add the method. A host module that answers custom-field
+  values to a non-administrator calls it in its serialiser; `mod-orders` and `mod-quote-requests`
+  do. `mod-catalog` creates product attributes with `audience: 'customer'`; the audience is not
+  consulted for product attributes, whose storefront visibility stays with the catalog's own flags.
+
+  **Breaking: buyer-facing and external order replies no longer carry
+  `placedOnBehalfByAdminUserId`.** It was the UUID of the administrator who placed the order for
+  the customer, answered to the customer and to API-key callers. Those replies now carry
+  `placedOnBehalf: boolean` instead. Admin order replies carry both. In `orderSchema`,
+  `placedOnBehalf` is a new required key and `placedOnBehalfByAdminUserId` becomes optional
+  (present on admin replies only). Replace `order.placedOnBehalfByAdminUserId !== null` with
+  `order.placedOnBehalf` in a storefront or an integration; the reference storefront did not read
+  the field.
+
+  **Breaking: customer-facing replies carry no administrator identifier at all.** The same rule,
+  applied to the other places it was broken:
+
+  - Quote-request replies to a customer (`GET /api/v1/quote-requests/:id` and the replies to
+    creating, patching, resubmitting a quote and to accepting or rejecting a revision) no longer
+    carry `createdByAdminUserId` and `assignedAdminUserId`, and their `events[]` no longer carry
+    `actorAdminUserId` (it was already always `null` there; the key is now absent).
+    `actorRoleLabel` still says who acted.
+  - Order-comment replies to a customer (`GET` and `POST /api/v1/orders/:id/comments`) no longer
+    carry `authorAdminUserId`. A comment whose `authorCustomerAccountId` is `null` was written by
+    staff.
+
+  Admin replies are unchanged. In `quoteRequestSchema`, `quoteRequestEventSchema` and
+  `orderCommentSchema` those four keys become optional (present on admin replies only). No boolean
+  replaces them: the reference storefront declared the fields and read none of them.
+
+  **Re-creating a deleted field.** Deleting a definition keeps its stored values. A
+  `POST …/definitions` with `audience: "customer"` for a key that still has stored values is now
+  refused with `409 CUSTOM_FIELD_DEFINITION_INVALID`, because it would answer those old values to
+  customers at once. Create the field as `internal`, then change its audience. Product attributes
+  (created through the catalog) are not affected.
+
+  The definitions cache no longer stores a list that was read before an invalidation and arrived
+  after it. A change of audience still takes up to 5 seconds to reach an API process that missed
+  the invalidation message; the docs page says so.
+
+  In `mod-orders`, `serializeOrder` is replaced by `serializeOrderForAdmin` and
+  `serializeOrderForCustomer` (internal to the module).
+
+- 8ca54eb: Delivery and payment methods are offered per sales channel, and the choice is enforced.
+
+  The admin API already stored a channel assignment for each method, but nothing read it: the
+  storefront listed every active method on every channel, the two admin screens offered no way to
+  choose channels, and an order could be placed with any active method.
+
+  **The rule.** An assignment is a restriction. A method assigned to one or more sales channels is
+  offered in exactly those; a method assigned to **no** channel is offered in every channel. That
+  differs from products on purpose — methods exist without an assignment as a matter of course (a
+  module that ships its own method seeds it with none, and so does demo data), so "none" cannot mean
+  "nowhere".
+
+  **Upgrade note for an instance with more than one sales channel: review every method.** The new
+  **Sales channels** column on `/delivery-methods` and `/payment-methods` shows where each one stands.
+
+  - **Created in the admin so far** — assigned to the **default channel only** (the screens offered
+    nothing else), and so gone from the other channels' checkouts until changed.
+  - **Seeded by a gateway or carrier module under an earlier release, on an instance that had already
+    been started** — also assigned to the **default channel only**: that release's seed bound the
+    method to the default channel whenever it existed. They do not appear on other channels until an
+    operator widens them.
+  - **Seeded by a module from this release on** — assigned to **no channel**, and so offered on every
+    channel, whenever the module is installed. The same holds for methods a module seeded under an
+    earlier release during the instance's first setup, before its first start, and for demo data.
+
+  Open each method and choose its channels, or untick all of them to offer it everywhere. No data is
+  migrated: a method bound to the default channel by an earlier seed cannot be told apart from one an
+  operator restricted on purpose, so none is widened automatically. An instance with a single sales
+  channel is unaffected.
+
+  **For authors of a gateway or carrier module.** `bindToDefaultChannel` is removed from
+  `DeliveryMethodSeedApi` and `PaymentMethodSeedApi` (`@endora-commerce/mod-delivery-methods/ports`,
+  `@endora-commerce/mod-payment-methods/ports`, and the seeders their `./install` subpaths create).
+  An install hook that called it after `ensureMethodForAdapter` must delete the call, and needs no
+  replacement: the seeded method is offered on every channel until an operator restricts it. Two
+  things follow for a module that still calls it. Its **source** no longer compiles against this
+  release. And a **build published earlier** does not fail at compile time at all: the seeder object
+  simply has no such method, so the module's install hook throws a `TypeError` the first time it
+  creates its method — on a new instance, or on any instance where the method's row does not exist
+  yet. An instance that already has the row is unaffected, because the hook only calls the bind for a
+  row it has just created. Such modules must therefore be re-released for this version. A module that must seed a method restricted to particular channels has
+  no seam for that at install; restrict it in the admin.
+
+  **Permissions.** Choosing a method's sales channels is part of configuring the method:
+  `delivery_methods:write` / `payment_methods:write` is sufficient to assign, replace and clear them,
+  and `sales_channels:write` is not required. The form reads its options from a route of the method
+  module itself, `GET /api/v1/admin/{delivery,payment}-methods/sales-channels`, gated on that
+  module's `:read` code, so an administrator who configures methods and does not administer sales
+  channels can use the field.
+
+  **A storefront must name the channel when it reads the two catalogues.** The reference storefront
+  read `GET /api/v1/delivery-methods` and `GET /api/v1/payment-methods` with no `X-Sales-Channel`
+  header; it forwards the header now, on the checkout and on the buyer's preferences page. A
+  storefront created by an earlier release has the same omission in `lib/api/methods.ts`
+  (`listDeliveryMethods` and `listPaymentMethods` take the request context as a required argument
+  now) and, until it is changed, is answered with the default channel's methods on every channel;
+  the steps are in _Upgrading an instance_.
+
+  What changed, by package:
+
+  - **`mod-delivery-methods`, `mod-payment-methods`** — `GET /api/v1/delivery-methods` and
+    `GET /api/v1/payment-methods` list only the methods offered in the sales channel the request
+    resolved. Both admin screens gain a **Sales channels** field in the form and a column in the
+    list. `salesChannelIds` on `PUT /api/v1/admin/{delivery,payment}-methods/:code` now has three
+    meanings: **omitted** leaves the assignment unchanged on an update and assigns a new method to
+    the default channel (unchanged behaviour); **`[]`** removes every assignment, offering the method
+    in every channel (it used to be ignored); a non-empty list replaces the assignment (unchanged).
+    An id that names no sales channel is now refused with `400 VALIDATION_FAILED` and a
+    `salesChannelIds` field error, before anything is written; it used to answer `500`. Channel
+    changes made through these routes are audited with the acting administrator.
+    The modules' sales-channel bridges are registered with `emptyMeansEveryChannel: true`.
+  - **`mod-orders`** — placing an order and previewing its total refuse a delivery or payment method
+    not offered in the order's sales channel: `400 VALIDATION_FAILED` with
+    `details.code` `delivery_method_not_in_sales_channel` / `payment_method_not_in_sales_channel`.
+    This covers `POST /api/v1/orders`, `POST /api/v1/orders/preview-total`, one-click buy, admin
+    order creation and its preview, and the API-key order intake; the last three refuse before the
+    customer's basket is touched. The admin order-creation form narrows its method lists to the
+    chosen channel.
+  - **`contracts`** — new `SalesChannelOptionSchema` / `SalesChannelOption`, the shape of the two
+    channel-options routes. `DeliveryMethodReadPort` and `PaymentMethodReadPort` gain
+    `isAvailableInChannel(id, salesChannelId): Promise<boolean>`. An implementation of either port
+    outside this repository must add it.
+  - **`platform`** — a sales-channel bridge registration may declare `emptyMeansEveryChannel`, and
+    `SalesChannelMembershipPort` gains two methods that read it:
+    `filterEntityIdsAvailableInChannel(channelId, entityType, entityIds)` — the ids bound to the
+    channel, plus, for a declaring type only, the ids bound to none — and
+    `clearChannelsForEntity(entityType, entityId, options?)`, refused with
+    `ENTITY_WOULD_HAVE_ZERO_CHANNELS` for a type that does not declare it. Products keep the
+    at-least-one-channel rule. An implementation of the port outside this repository must add both.
+  - **`admin-kit`** — new `MethodSalesChannelsField`, `MethodSalesChannelsCell`,
+    `useSalesChannelOptions(path, enabled)` and `salesChannelIdsToSubmit` on
+    `@endora-commerce/admin-kit/components`.
+  - **`mod-i18n`** — the `methodSalesChannels.*` strings of the `core` bundle, in English and Polish.
+  - **`mod-quick-order`** — one-click buy is not offered when the buyer's default delivery or payment
+    method is not offered in the sales channel of the request:
+    `GET /api/v1/quick-order/one-click/eligibility` answers `{ enabled: false, reason: "missing_defaults" }`
+    there, and `POST /api/v1/quick-order/one-click` refuses with `one_click_unavailable` without
+    touching the basket.
+
+- 27ab092: Order placement and order preview honour an Organization's delivery- and payment-method
+  allow-lists (`PUT /api/v1/admin/organizations/:id/restrictions`) on every surface, as
+  `GET /api/v1/delivery-methods` and `GET /api/v1/payment-methods` do.
+
+  These requests answer **`400 VALIDATION_FAILED`** when the Organization the order is for has a
+  non-empty allow-list that does not contain the chosen method:
+
+  - `POST /api/v1/orders` and `POST /api/v1/orders/preview-total`
+  - `POST /api/v1/admin/orders` and `POST /api/v1/admin/orders/preview`
+  - `POST /api/v1/external/orders`
+  - every other caller of `orderPlacementPort.placeOrder`
+
+  `error.details.code` is `delivery_method_not_allowed_for_organization` (with `deliveryMethodId`) or
+  `payment_method_not_allowed_for_organization` (with `paymentMethodId`). When both methods are
+  outside the lists, the delivery method is the one reported. Nothing is written on a refusal — no
+  order, no stock reservation, no payment — and the customer's basket is left as it was.
+
+  - **The Organization** is the one the order is placed for: the signed-in buyer's, the one an API
+    key is bound to, or the customer's when an administrator creates the order.
+  - **An administrator is bound too.** An order created on a customer's behalf honours that
+    customer's Organization allow-lists; there is no setting that exempts it. The create form lists
+    every method, and the preview and the create answer the refusal above for one the Organization
+    does not allow.
+  - **An empty list is no restriction**, as before, and the two lists are independent.
+  - **One-click buy** is unchanged: a default method the lists do not contain makes the buyer
+    ineligible (`one_click_unavailable`, reason `missing_defaults`).
+
+  What an integrator sees differently:
+
+  - **Storefront and admin clients** receive the `400` above for a method outside the Organization's
+    lists. Offer the methods `GET /api/v1/delivery-methods` and `GET /api/v1/payment-methods` return
+    for the signed-in buyer, and handle the two `error.details.code` values.
+  - **`POST /api/v1/external/orders`** answered `400 VALIDATION_FAILED` for such a method before, and
+    still does. Three things about that answer are different:
+    - `error.message` is _"The selected delivery method is not available to this Organization."_ or
+      _"The selected payment method is not available to this Organization."_ (it ended _"… is not
+      available for this order."_, and said _"shipping method"_), and `error.details` is present.
+      Match on `error.details.code`.
+    - when both methods are outside the lists, the refusal names the delivery method (it named the
+      payment method);
+    - when the allow-lists cannot be read, the request answers `500 INTERNAL` and places nothing.
+
+- 335750c: A storefront order is recorded on the sales channel the request was made on.
+
+  `POST /api/v1/orders` took the order's channel from the optional `salesChannelId` body field and
+  fell back to the system-default channel, ignoring the channel the request itself resolved. A
+  request that named its channel with `X-Sales-Channel`, as every other storefront request does, was
+  therefore recorded on the default channel. The route now places the order on the channel the
+  request resolved (`X-Sales-Channel`, `?salesChannel=`, the host map, else the system default).
+
+  **The body field no longer chooses the channel.** Omitted, or equal to the resolved channel's id
+  (in either letter case), the request is accepted as before. Naming a different channel — another
+  one, one that does not exist, or one that is switched off — is refused with
+  `422 VALIDATION_FAILED` and `details.code = "order_sales_channel_mismatch"`
+  (`requestedSalesChannelId`, `resolvedSalesChannelId`), before anything is written. A client that
+  sends `salesChannelId` should stop sending it and name its channel in `X-Sales-Channel`.
+
+  **What changes on an instance with more than one sales channel.** New orders placed on a
+  non-default channel's storefront record that channel instead of the default one, and everything
+  read from an order's channel follows:
+
+  - at placement: the minimum order value (`orders.min_order_value`), the candidate warehouses and
+    the channel's fulfilment settings, the order-number prefix and suffix, and the extra
+    confirmation recipients (`orders.confirmation_recipients`);
+  - afterwards: the seller details and the number sequence of the order's invoices, the language and
+    channel of its order, payment and shipment e-mails, whether it may be reordered
+    (`orders.reorder_enabled`), and where it appears in the admin order list, per-channel reports and
+    the channel's attribution count.
+
+  Existing orders are not rewritten.
+
+  **What changes on an instance with one sales channel.** One setting. A storefront order used to
+  reach the minimum-order-value check with no channel at all, and a setting read with no channel
+  answers its platform-wide value. It now arrives with the default channel's id, so a minimum order
+  value (`orders.min_order_value`) set **for the default channel** — rather than for all channels —
+  is enforced at checkout where it was not before. An instance that set it platform-wide, or not at
+  all, sees no change. (The warehouses, the fulfilment settings and the order numbering were already
+  read for the default channel on such an order.)
+
+  **For authors of payment and shipping adapters.** `validateUseOnStorefront` (and `validateUseOnAdmin`
+  for an impersonated checkout) now receives the order's channel id in `salesChannelId` on a
+  storefront placement, where it received `null`. An adapter that treated `null` as "no channel
+  configuration applies" will be asked about the real channel.
+
+  **What is not reconciled, and is unchanged.** A basket is still created on the system-default
+  channel whatever channel the buyer is shopping, and three things are still answered for the
+  basket's channel rather than for the order's:
+
+  - **assortment** — a product is checked against the channel of the request that added it to the
+    basket, not against the order's channel, so an order can be recorded on a channel that does not
+    sell one of its products;
+  - **line prices** — resolved for the basket's channel;
+  - **promotions** — evaluated for the basket's channel, at checkout exactly as in the cart, so a
+    promotion restricted to a non-default channel does not yet apply to an order placed there.
+
+  Until this change the order was recorded on the default channel too, so the three agreed with it;
+  they can now differ from the order's channel on a multi-channel instance.
+
+  **What this is not.** It makes an order's channel the request's channel; it does not bind a buyer
+  to a channel. `X-Sales-Channel` and `?salesChannel=` are sent by whoever makes the request, and nothing restricts
+  which channels a customer or an Organization may order on.
+
+  Unchanged: admin order creation records the channel the operator chose, the API-key order intake
+  records the key's bound channel, and one-click buy already used the resolved channel on the
+  backend.
+
+### Patch Changes
+
+- 0184be5: An e-mail that was only written to the server log is no longer reported as sent. On an instance
+  with no `SMTP_URL` the console mailer logs the message and used to answer `{ status: 'sent' }`,
+  and the transactional e-mail service answered a constant `sent` of its own, so every module that
+  records or reports a delivery recorded one that did not happen.
+
+  **Breaking for a consumer of the two port types — three unions gain a member:**
+
+  - `EmailMailerSendOutcome` gains `{ status: 'logged' }`. The console mailer answers it instead of
+    `sent`; the SMTP mailer and `InMemoryMailer` still answer `sent`.
+  - `TransactionalSendOutcome` gains `{ status: 'logged' }`, and `TransactionalEmailSender.send`
+    passes the transport's `logged` on. A transport's `suppressed` (an already accepted message id)
+    is still answered as `sent`, as before.
+  - `emailDeliveryStatusSchema` / `EmailDeliveryStatus` gain `'logged'`, and
+    `invoiceEmailNotSentReasonSchema` / `InvoiceEmailNotSentReason` gain `'logged'`.
+
+  What to do: code with an exhaustive `switch` over one of these unions, or that passes
+  `outcome.status` into a closed union of its own, stops compiling until it handles `logged`; code
+  that reads `outcome.reason` after `outcome.status !== 'sent'` must narrow to
+  `outcome.status === 'suppressed'` first, because `logged` carries no reason. Code that compares
+  with `=== 'sent'` keeps compiling and now treats a logged message as not sent. `logged` is not a
+  failure and there is nothing to retry: the same call would log the message again. An own
+  implementation of `EmailMailerPort` or `TransactionalEmailSender` needs no change.
+
+  What changes on an instance without a mail server:
+
+  - `email_deliveries` rows are written with `status = 'logged'` instead of `'sent'`. The column is
+    a plain `varchar(16)`, so there is no migration; rows written earlier keep `sent`.
+  - The order, return, payment-status, shipment and invoice e-mail results answer
+    `{ sent: false, reason: 'logged' }`, each with its usual "was not sent" log line. Issuing an
+    invoice or re-sending its e-mail from the Admin UI says the e-mail was not sent because no mail
+    server is configured, in English and Polish (`invoices.emailNotSent.logged`).
+  - A CRM Event reminder is recorded as delivered to the bell alone — or as undeliverable when the
+    bell is unavailable too — instead of "bell and e-mail".
+  - `POST /api/v1/organizations/register` answers `emailVerificationSent: false` when the
+    verification e-mail went through the in-code builder and was only logged.
+
+  No setting, permission or migration changes.
+
+- 8ee69de: The module documentation pages no longer list events that nothing emits. `orders` listed
+  `order.cancelled.v1`, `payments` listed `payment.settled.v1` and `credit_limits` listed
+  `credit_limit.reservation_released.v1` under "Events emitted"; none of the three has ever been
+  emitted. A cancellation is announced as `order.status_changed.v1`, a settled payment as
+  `payment.received.v1`, and releasing a credit reservation emits no event. The `payments` and
+  `credit_limits` pages also say that their events are internal to the event bus and are not
+  delivered to outbound webhooks.
+
+  Documentation only: no event, API or behaviour changes.
+
+- 34fe84f: A scheduled tick that finds nothing to do no longer writes a `tenant.escape_hatch` audit row. Four
+  repeating jobs entered a system scope on every tick, and each entry is one row in
+  `audit_log_entries` because ticks are further apart than the audit writer's ten-second aggregation
+  window: the order follow-up sweep and the CRM event reminders (every 60 seconds, 1,440 rows a day
+  each), the product feed stale-claim reaper and the price list status sweep (every 5 minutes, 288 a
+  day each) — on an instance where none of them did anything.
+
+  Each now asks first whether a pass would do anything, with a statement that runs outside any scope
+  and returns one boolean and nothing else, and enters the system scope only when the answer is yes.
+  A tick with work is recorded exactly as before. A question that fails counts as yes, so a failing
+  probe can cost an audit row and never save one. Every probe goes through one helper,
+  `anyRowExists` (`services/scheduled-work-probe.ts`, an identical file in each of the four modules),
+  which builds the `select exists(…)` itself and returns a boolean, so a probe has no select list to
+  widen. In `mod-orders`, `mod-crm` and `mod-product-feeds` the probe and the pass read the same
+  statement of each condition, so the question cannot become narrower than the work. The rule is written down in
+  `docs/docs/architecture/tenant-scoping.md` § _A scheduled tick with nothing to do enters no scope_.
+
+  Not changed: the rows a process writes while it starts (`boot: …`), and the search reindex timer,
+  which reads a setting before it can know whether it has work.
+
+  For code that builds these consumers itself — inside 0.x, and nothing in the published surface of
+  `@endora-commerce/platform` moves:
+
+  - `mod-orders`: `TransitionEffectSweepDeps.effects` also needs `hasSweepWork`; new
+    `OrderTransitionEffectService.hasSweepWork()` and `runTransitionEffectSweepTick()`.
+  - `mod-crm`: `startEventReminders()` also takes `isPresent` and `hasWork`; new
+    `EventReminderService.hasSweepWork()` and `runEventReminderJob()`.
+  - `mod-product-feeds`: `createFeedReaperWorker(redis, hasWork, processor)` takes the question as its
+    second argument; new `FeedRunReaperService.hasClaimedRuns()`, `runFeedReaperJob()` and
+    `runFeedRunReaperTick()`.
+  - `mod-price-lists`: new `PriceListStatusWorker.hasDueTransitions()` and `statusSweepTick()`.
+
+- e308af9: `409 LIMIT_INSUFFICIENT` says the two amounts it is about. The refusal's English message carried
+  them — "Available credit limit (500.5) is below order total (999.5)." — but the sentence a buyer
+  actually receives, in English and in Polish, said only that the limit "does not cover this order".
+
+  The error now carries `details`: `availableAmount` and `orderTotal` as two-decimal strings
+  (`"500.50"`, `"999.50"`) and `currency` as the ISO 4217 code, and both sentences name them:
+  "The available credit limit (500.50 PLN) does not cover this order (999.50 PLN). Reduce the order
+  or choose a different payment method." Both amounts are the placing organization's own — the
+  available amount is what `GET /api/v1/me/credit-limit` already answers the same buyer.
+
+  The code and the status are unchanged; a client matching on either sees no difference. A client
+  that compared the message text sees the longer sentence.
+
+- c7dbfd1: `order.created.v1` and `promotion.used.v1` are emitted after the transaction that places the order
+  has committed. They were emitted from inside it, and no placement path — storefront checkout,
+  one-click buy, external order intake, an order an administrator creates — runs in an event scope
+  that would have buffered them, so subscribers ran before the commit. A subscriber reading on a
+  connection of its own could find no order, and a placement that failed after that point had
+  already been announced: the webhook bridge had enqueued an `order.created.v1` delivery for an
+  order that was then rolled back.
+
+  A placement that fails now announces nothing. The payloads are unchanged. A caller that places an
+  order inside an event scope of its own still has the events buffered until that scope ends.
+
+- 6b2ba06: The order serialiser is typed by the published contract, and there is one of it.
+
+  The function behind every order reply returned `Record<string, unknown>`, so the compiler held it to nothing, and it existed twice — once for the customer and admin routes and once, line for line, for `/api/v1/external/orders`. Both are now one `serializeOrder` whose return type is `Order` from `@endora-commerce/contracts`; the admin detail is typed as `AdminOrderDetail`. A field the contract does not declare, a required field that stops being emitted, or a value of the wrong type is a compile error instead of something a contract test may or may not meet.
+
+  No reply changed: the two functions were identical apart from the buyer's `customerCancellable`, which the external surface never carried and still does not.
+
+  The `Order` entity's `billingAddress.companyName` and `billingAddress.taxId` are now typed `string | undefined` rather than `string | null | undefined`. That is what placement — their only writer — has always stored, and what the published `addressSnapshotSchema` says. Code that reads them is unaffected; code that assigns `null` to either no longer compiles and should leave the key out instead.
+
+- fd3f055: `409 STOCK_UNAVAILABLE` says which product and which quantity. The refusal's sentence was a
+  placeholder — "Stock Unavailable." in English and "Błąd: stock unavailable." in Polish — while the
+  message it replaced named only a product id, so a buyer with many lines was not told which one to
+  change.
+
+  The error now carries `details` — `productId`, `sku`, `productName` (the name the order line would
+  have snapshotted) and `requestedQuantity` — and both sentences name them: "\"Example product\"
+  (EXAMPLE-SIMPLE-001) is not available in the quantity ordered (5). Reduce the quantity or remove the
+  product from the order."
+
+  How many are left is deliberately **not** in `details`: the storefront shows an exact stock figure
+  only in the `exact` stock display mode, and a refusal naming the available quantity would disclose
+  it in the two modes that withhold it.
+
+  The code and the status are unchanged; a client matching on either sees no difference.
+
+- Updated dependencies [18ae962]
+- Updated dependencies [1190180]
+- Updated dependencies [a65b215]
+- Updated dependencies [9260c36]
+- Updated dependencies [3383720]
+- Updated dependencies [1807ab0]
+- Updated dependencies [202f0d9]
+- Updated dependencies [0184be5]
+- Updated dependencies [560f2e3]
+- Updated dependencies [60cfd18]
+- Updated dependencies [79bd849]
+- Updated dependencies [31a2c0b]
+- Updated dependencies [266cd38]
+- Updated dependencies [bdb823b]
+- Updated dependencies [8ee69de]
+- Updated dependencies [8d4440f]
+- Updated dependencies [e308af9]
+- Updated dependencies [8ca54eb]
+- Updated dependencies [6b2ba06]
+- Updated dependencies [be5b3ce]
+- Updated dependencies [82ca6dd]
+- Updated dependencies [38e8818]
+- Updated dependencies [fd3f055]
+- Updated dependencies [335750c]
+- Updated dependencies [602e5ba]
+- Updated dependencies [8ee69de]
+  - @endora-commerce/contracts@0.105.0
+  - @endora-commerce/platform@0.105.0
+  - @endora-commerce/admin-kit@0.105.0
+  - @endora-commerce/mod-carts@0.105.0
+  - @endora-commerce/mod-inventory@0.105.0
+  - @endora-commerce/mod-credit-limits@0.105.0
+  - @endora-commerce/mod-invoices@0.105.0
+  - @endora-commerce/mod-promotions@0.105.0
+  - @endora-commerce/email-components@0.105.0
+
 ## 0.104.0
 
 ### Minor Changes

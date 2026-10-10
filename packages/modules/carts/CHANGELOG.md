@@ -1,5 +1,70 @@
 # @endora-commerce/mod-carts
 
+## 0.105.0
+
+### Minor Changes
+
+- 3383720: Two refusals of a cart line have an error code of their own instead of `VALIDATION_FAILED`, and a
+  sentence in English and Polish. **A client that matches on `VALIDATION_FAILED` for these two cases
+  now sees the specific code**; the HTTP status of each is unchanged.
+
+  - `CART_PRODUCT_QUOTE_ONLY` (`400`) — the product's price is withheld from this buyer (the resolved
+    price display mode is `none`), so it is quoted rather than added to a cart. It was
+    `400 VALIDATION_FAILED` with the identifier `product_quote_only` as its message, which is what
+    the buyer read, in every language. `details.productId` names the product. Besides
+    `POST /api/v1/cart/items`, every flow that fills a cart line by line can answer it: quick order,
+    one-click buy, a shopping list added to the cart, an order created in the admin and an order
+    taken in through the API.
+  - `CART_QUANTITY_INVALID` (`422`) — the quantity is below the minimum a cart line may hold. It was
+    `422 VALIDATION_FAILED` with the English message `Quantity must be > 0.`, held by no bundle.
+    `details.minimum` and `details.quantity` carry the values, and both sentences name the minimum.
+    No HTTP route reaches it — every request schema in front of the cart already refuses such a
+    quantity as a malformed request, which is still `400 VALIDATION_FAILED` — so it is what a module
+    calling the cart write port (`CartWritePort.addItem`) in-process is answered.
+
+  `@endora-commerce/contracts` gains the two members of `ERROR_CODES`. The `price_lists` documentation
+  page, which names the first refusal, names the new code. No setting or permission changes.
+
+### Patch Changes
+
+- 1807ab0: Four customer routes answer a request without a customer session with `401` before they
+  validate its body.
+
+  `PATCH /api/v1/organization/policies/cart-approval`, `POST /api/v1/organization/carts/:id/reject`,
+  `POST /api/v1/cart/convert-to-quote-request` and
+  `POST /api/v1/cart/items/:itemId/save-to-shopping-list` checked the session inside the handler,
+  which runs after schema validation, so an anonymous request with a malformed body was answered
+  `400` with the field details. Each now declares `auth`'s `requireCustomer` guard on the route,
+  which the platform runs ahead of validation. The `401` message for these four is the guard's,
+  `Customer session required.`; the code stays `UNAUTHORIZED`. A signed-in customer gets the same
+  `400` as before, and the organisation-administrator and cart-ownership rules are unchanged.
+
+- Updated dependencies [18ae962]
+- Updated dependencies [1190180]
+- Updated dependencies [a65b215]
+- Updated dependencies [9260c36]
+- Updated dependencies [3383720]
+- Updated dependencies [202f0d9]
+- Updated dependencies [0184be5]
+- Updated dependencies [560f2e3]
+- Updated dependencies [60cfd18]
+- Updated dependencies [79bd849]
+- Updated dependencies [31a2c0b]
+- Updated dependencies [266cd38]
+- Updated dependencies [bdb823b]
+- Updated dependencies [8d4440f]
+- Updated dependencies [8ca54eb]
+- Updated dependencies [6b2ba06]
+- Updated dependencies [be5b3ce]
+- Updated dependencies [82ca6dd]
+- Updated dependencies [38e8818]
+- Updated dependencies [335750c]
+- Updated dependencies [602e5ba]
+- Updated dependencies [8ee69de]
+  - @endora-commerce/contracts@0.105.0
+  - @endora-commerce/platform@0.105.0
+  - @endora-commerce/admin-kit@0.105.0
+
 ## 0.104.0
 
 ### Minor Changes

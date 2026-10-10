@@ -1,5 +1,328 @@
 # @endora-commerce/mod-admin-users
 
+## 0.105.0
+
+### Minor Changes
+
+- 1ba6b26: An instance can switch the account-wide administrator password limit off, by environment variable.
+
+  The account-wide limit — twenty wrong passwords for one account from all addresses that are not a
+  known device — assumes the password is a secret. On an instance that publishes an administrator
+  password on purpose, a public demo, every visitor is a first-time device, so anybody could keep all
+  of them out of the account with twenty wrong passwords and a few more each half hour.
+
+  `ADMIN_AUTH_ACCOUNT_WIDE_LIMIT=off` in the backend's environment switches off the account-wide
+  count of wrong **passwords** and nothing else: the limit per address on one account, the limit per
+  known device, both limits on second-factor codes and the delays are unchanged, and an attempt that
+  arrives with no client address is still counted for the account. It is read once at start, it is
+  not a Setting and cannot be changed from the Admin UI, and while it is off the backend logs
+  `account-wide administrator attempt limit is OFF — intended for demo instances with published
+credentials` on every start. Any value other than `off` leaves the limit on.
+
+  Do not set it on an instance whose administrator passwords are not public. Without the variable
+  nothing changes.
+
+  A scaffolded instance can set it too: the compose file `endora new instance` writes forwards
+  `ADMIN_AUTH_ACCOUNT_WIDE_LIMIT` to the backend, and its `.env.example` lists it, empty.
+
+- a65b215: An administrator changing their own password has to supply the current one.
+
+  **Breaking for API clients of `PATCH /api/v1/admin/me`.** The route used to store whatever
+  `password` it was sent: a signed-in session was the only proof asked for, so anybody holding one —
+  an unattended browser, a copied cookie — could replace the password and keep the account. A
+  request that carries `password` must now carry `currentPassword` as well:
+
+  ```jsonc
+  // before
+  { "password": "<new password>" }
+  // now
+  { "password": "<new password>", "currentPassword": "<current password>" }
+  ```
+
+  - `password` without `currentPassword` is refused with `400 VALIDATION_FAILED`, the issue naming
+    the `currentPassword` field.
+  - A wrong `currentPassword` is refused with `403 CURRENT_PASSWORD_INVALID`. It is 403 and not the
+    401 the buyer-side change-password route answers with, because the Admin UI treats every 401 as
+    an expired session and signs the administrator out.
+  - A refused request changes nothing: a first or last name sent in the same request is not applied
+    either.
+  - A request without `password` is unchanged — first and last name stay editable without any
+    password, and a `currentPassword` sent alone is ignored.
+
+  The current password is checked with the same hash verification sign-in uses. Nothing else about a
+  password change moves: the administrator's sessions and second factor are left as they were.
+
+  `updateAdminUserSelfRequestSchema` in `@endora-commerce/contracts` gains the optional
+  `currentPassword` field and the rule that ties it to `password`; `UpdateAdminUserSelfRequest` gains
+  the field. `AdminUserService` in `@endora-commerce/mod-admin-users` gains `updateSelf(id, input)`,
+  which the route calls, and `AdminUserService.update` no longer accepts `password` — it was the
+  unverified write, and the route was its only caller.
+
+  The other ways to set an administrator's password are untouched: creating an account,
+  `POST /api/v1/admin/admin-users/:id/password` (a peer reset, gated by `admin_users:manage`) and the
+  `admin_users create` command.
+
+  **Admin UI.** The profile screen has a "Current password" field above "New password". It is asked
+  for only when a new password is typed, and a wrong one is reported on the field itself, not in
+  the page banner.
+
+  **Sentences.** `errors.CURRENT_PASSWORD_INVALID` in the `core` bundle reads "The current password
+  is incorrect." / "Obecne hasło jest nieprawidłowe." instead of the placeholders "Current Password
+  Invalid." / "Błąd: current password invalid." — the buyer-side change-password route answers with
+  the same code, so its message changes too. Three keys join the bundle in English and Polish:
+  `profile.field.currentPassword`, `profile.field.currentPasswordHelp` and
+  `profile.error.currentPasswordRequired`.
+
+- 9260c36: An administrator's sessions are revoked when the credential behind them is withdrawn.
+
+  Three writes used to leave every session of the account answering:
+
+  - **Changing your own password** (`PATCH /api/v1/admin/me`) replaced the hash and nothing else, so
+    a browser signed in elsewhere — the one the password was being changed because of — stayed
+    signed in for up to thirty days. It now revokes **every other session of the account**: the
+    sign-ins on other browsers and devices and the impersonation sessions the administrator started.
+    The session the request was made from is kept, no new cookie is issued, and the profile screen
+    stays open. A refused change (wrong or missing `currentPassword`) and a name-only edit revoke
+    nothing.
+  - **Deactivating an administrator** (`PATCH /api/v1/admin/admin-users/:id` with
+    `status: 'inactive'`) and **deleting one** (`DELETE /api/v1/admin/admin-users/:id`) now revoke
+    every session of the account. A permission check already refused an inactive account, but a
+    route gated on the session alone — `GET` and `PATCH /api/v1/admin/me` among them — kept
+    answering it, and reactivating the account brought the old sessions back.
+
+  A peer reset (`POST /api/v1/admin/admin-users/:id/password`) already revoked every session and is
+  unchanged. API keys are not sessions and are not touched; neither is the account's second factor.
+
+  **A revoked session could come back.** `SessionService.destroyAllForAdmin` and
+  `destroyAllForCustomer` cleared the Redis cache entries and then deleted the rows, so a request from
+  a session being revoked could read the row in between and cache it again — after which it answered
+  from the cache until its thirty-day expiry. Rows are deleted first now, and `loadSession` looks for
+  the row again after filling the cache and takes the entry back out when it is gone.
+
+  **Logins begun with the old password are withdrawn.** A pending second-factor challenge or setup
+  ticket issued after the old password verified could still be completed after a password change, a
+  peer reset, a deactivation or a delete. `MfaLoginPort` gains a required method,
+  `invalidatePending(subject)` (**breaking for implementers**), which `mfa` implements with a
+  per-subject generation counter in its challenge store, and `AdminUserService` calls it wherever it
+  revokes sessions. `AdminUserService`'s constructor takes the lazily resolved MFA port as an optional
+  fifth argument.
+
+  **Write first, revoke second.** The self-service change, the peer reset, deactivation and deletion
+  now persist the new state and then revoke, where the peer reset used to revoke first: a sign-in with
+  the old password between the two steps kept a session nothing revoked. A refusal from the session
+  port therefore surfaces as the request's error with the new password already in force.
+
+  **Audit.** A self-service password change is now recorded as `admin_user.change_password` with
+  `via: 'self_service'` — the action a peer reset already records with `via: 'peer_reset'` — where it
+  used to be an `admin_user.update` indistinguishable from a rename. The entry carries neither the
+  password nor its hash. A request that changes the name as well records an `admin_user.update`
+  entry beside it; a password-only request no longer records one.
+
+  **A session of an account that is not active is refused, revoked or not.** Revocation is a step
+  each write has to remember, so the admin guard no longer relies on it: `requireAdmin` and
+  `requireAdminAny` answer `401 UNAUTHORIZED` to a session whose administrator account is
+  deactivated, deleted or gone. **This changes a status code:** a permission-gated route used to
+  answer such a session `403 FORBIDDEN`, and a route with no permission code answered it in full. An
+  active account that lacks the permission is still answered 403. The extra account read is made
+  only on a route with no permission code and after a refused permission check, so a granted
+  permission costs what it did. While `admin_roles` or `admin_users` is absent from the deployment the
+  check is not made — it has nobody to ask — so `GET /api/v1/admin/module-presence` keeps answering in
+  that state as before.
+
+  **A new password equal to the current one is refused** on `PATCH /api/v1/admin/me` with
+  `400 NEW_PASSWORD_UNCHANGED` ("The new password is the same as the current one. Choose a different
+  password." / "Nowe hasło jest takie samo jak obecne. Wybierz inne hasło."). It would have reported
+  a change, and signed the other sessions out, without changing the credential. The check runs after
+  the current password is verified. The buyer-side change-password route and the peer reset do not
+  make this check: the peer does not know the target's password, and comparing would tell them.
+
+  **Log redaction.** The request logger censored `*.password`, `*.passwordHash` and `*.secret` but not
+  `*.currentPassword` or `*.newPassword`, the two other names a password travels under in a request
+  body. Both are on the list now, which `buildServer` and `createLogger` share instead of each
+  carrying its own copy.
+
+  **API — two breaking changes, named first.**
+
+  - `AdminPermissionChecker` in `@endora-commerce/platform` gains a required method,
+    `isActiveAdministrator(adminUserId): Promise<boolean>`; `PermissionService` in
+    `@endora-commerce/mod-admin-roles` implements it. A hand-written checker passed to
+    `createRequireAdmin` / `createRequireAdminAny` has to add it.
+  - `AdminAuthService.changePassword` in `@endora-commerce/mod-admin-users` is **removed**, and the
+    class's constructor loses its fourth argument (the audit port). The method had no caller,
+    answered a wrong current password with 401 and revoked nothing; `AdminUserService.updateSelf` is
+    the one implementation.
+  - `AuthSessionPort.destroyAllForAdmin` in `@endora-commerce/contracts` takes an optional second
+    argument, `{ exceptSessionId }` (`AuthDestroyAllForAdminOptions`), which spares that one session
+    when it is one of the administrator's own; `SessionService.destroyAllForAdmin` in
+    `@endora-commerce/mod-auth` implements it. A port implementation that ignores the argument still
+    type-checks but revokes the calling session too.
+  - `AdminUserService.updateSelf` takes an optional third argument, `{ sessionCookieValue }`, from
+    which it works out which session to keep.
+  - `ERROR_CODES.NEW_PASSWORD_UNCHANGED` joins `@endora-commerce/contracts`, owned by `admin_users`.
+
+  A refused password change is not written to the audit log, as a failed sign-in is not.
+
+  **Admin UI.** After a password change the profile screen says that the other sessions were signed
+  out (`profile.info.passwordChanged`, English and Polish) instead of "Profile updated."
+
+- 560f2e3: More credential changes withdraw the sessions and pending sign-ins obtained before them.
+
+  - **`admin_users create` run again for an existing account** replaces the password, so it now
+    ends every session of that account and withdraws its pending second-factor challenges and
+    setup tickets, through the same path as a peer reset. The write is audited as
+    `admin_user.change_password` with `via: 'cli'` and no acting administrator. Creating a new
+    account is unchanged.
+  - **Removing a second factor.** Disabling your own two-factor authentication
+    (`POST /api/v1/admin/account/mfa/disable`, `POST /api/v1/account/mfa/disable`) ends every other
+    session of the account and keeps the one the request was made from. An administrator's reset of
+    a customer's second factor (`POST /api/v1/admin/customers/:customerId/mfa/reset`, and the bulk
+    route for each account it actually resets) ends every session of that customer. Both withdraw
+    the account's pending challenges and setup tickets. Enrolling a factor ends no session, and a
+    disable or reset that removes nothing ends none either.
+  - **Customer password change** (`POST /api/v1/me/customer/change-password`,
+    `POST /api/v1/me/password`) ends every other session of the account and keeps the calling one.
+    **Redeeming a reset token** (`POST /api/v1/auth/password-reset/confirm`) ends all of them. Both
+    mark every other outstanding reset token of the account as consumed and withdraw its pending
+    second-factor challenges and setup tickets.
+
+  In every case the new state is persisted first and the sessions are revoked after it.
+
+  Port changes, all additive: `AuthSessionPort.destroyAllForCustomer` takes an optional
+  `{ exceptSessionId }` (`AuthDestroyAllForCustomerOptions`), mirroring `destroyAllForAdmin`;
+  `CustomerAuthPort.changePassword` takes an optional fourth argument
+  `{ sessionCookieValue }` (`CustomerChangePasswordContext`) naming the session to keep — a caller
+  that omits it keeps none. No port member was removed or changed incompatibly.
+
+  Not ports, but changed for anyone constructing these classes directly: `PasswordResetService`'s
+  constructor takes the session port as its second argument (the audit port moved to third), and
+  `MfaEnrolmentService.disable` returns whether a factor was removed.
+
+### Patch Changes
+
+- 18ae962: Repeated wrong passwords and wrong second-factor codes for an administrator account are now
+  throttled. Until now the only limit in front of `POST /api/v1/auth/admin/login` was the global
+  ceiling of 1000 requests a minute per address, so a password could be tried a thousand times a
+  minute; and the second step's budget of five codes belonged to one challenge, so a new challenge —
+  one more password request — bought five more codes.
+
+  **What changes for a caller.** After five wrong attempts from one address on one account, or twenty
+  on one account from all addresses together, the attempt is answered
+  `429 ADMIN_AUTHENTICATION_THROTTLED` with a `Retry-After` header and
+  `error.details.retryAfterSeconds`. The delay is one minute, then doubles with each further wrong
+  attempt up to fifteen minutes; the count is cleared by a successful attempt and otherwise forgotten
+  thirty minutes after the first wrong one. A correct password or code is refused too while a delay
+  is running — it is not checked — and an e-mail address that belongs to no administrator is throttled
+  identically. Nothing is locked permanently. An IPv6 client is counted by its /64.
+
+  At most five attempts from one address (twenty for one account) are checked at the same time; one
+  beyond that is answered 429 with `Retry-After: 1`, unchecked, and nothing is counted for it.
+
+  It applies to `POST /api/v1/auth/admin/login`, the current password on `PATCH /api/v1/admin/me`,
+  `POST /api/v1/auth/admin/mfa/verify`,
+  `POST /api/v1/admin/account/mfa/disable` (password or code) and
+  `POST /api/v1/admin/account/mfa/recovery-codes/regenerate`. Passwords and codes are counted
+  separately. The customer routes are unchanged.
+
+  **Known devices.** A completed administrator sign-in sets a new cookie, `b2b_admin_device`: signed
+  with the server's cookie secret, `httpOnly`, 90 days. It is not a session and grants nothing. An
+  attempt that carries it is counted against that device's own budget of five and not against the
+  account-wide twenty, so wrong passwords sent by somebody else cannot keep an administrator out of a
+  device they have signed in on before. It stops being honoured when the account's password changes,
+  and is not honoured while the account is deactivated; a second-factor reset does not revoke it.
+  Only a password sign-in sets it, so an account that signs in only through Google or Microsoft never
+  has a known device. A device the account has never been signed in on can still be
+  delayed by somebody who knows the e-mail address and sends twenty wrong passwords from four or more
+  addresses.
+
+  **For an operator.**
+
+  - `pnpm run cli admin_users unlock --email=<e>`, from the root of an instance
+    (`node dist/cli.js admin_users unlock --email=<e>` in a production image), clears every count for
+    one account. Its first line of output names the Redis it acted on (host, port, database index).
+  - Behind a reverse proxy, set `TRUSTED_PROXY_HOPS` or `TRUSTED_PROXY_ADDRESSES`: without it every
+    client shares the proxy's address.
+  - Each delay that starts for an existing account writes one audit row,
+    `admin_user.authentication_throttled`, with the factor, the scope (`address`, `account` or
+    `device`) and the delay. Refused attempts write nothing.
+  - When Redis does not answer within three seconds the attempt is refused with
+    `503 ADMIN_AUTHENTICATION_UNAVAILABLE`.
+
+  **In `@endora-commerce/contracts`.** New: `AdminAuthenticationThrottlePort` (container name
+  `adminAuthenticationThrottlePort`, owned by `admin_users`) with `verify` and `issueKnownDevice`;
+  `AdminAuthenticationAttempt`, `AdminAuthenticationOrigin`, `AdminAuthenticationCheckResult` and
+  `AdminAuthenticationFactor`; `ADMIN_KNOWN_DEVICE_COOKIE_NAME` and
+  `ADMIN_KNOWN_DEVICE_MAX_AGE_SECONDS`; and the error codes `ADMIN_AUTHENTICATION_THROTTLED` and
+  `ADMIN_AUTHENTICATION_UNAVAILABLE`. A route that verifies an administrator credential adopts the
+  throttle with one call:
+
+  ```ts
+  const ok = await throttle.verify(
+    { factor: 'password', account: admin.email, ip: request.ip, knownDevice },
+    async () => ({ ok: await verifyPassword(admin.passwordHash, typed), adminUserId: admin.id }),
+  );
+  ```
+
+  `AdminPasswordVerificationPort.verifyPassword` takes an optional third argument,
+  `context?: AdminAuthenticationOrigin`, and now rejects with the 429 or the 503 above instead of
+  always resolving to a boolean.
+
+- 8d4440f: The configured admin idle-logout window now applies to every administrator, not only to those whose
+  role includes `settings:read`. The Admin UI learned the window by requesting
+  `GET /api/v1/admin/settings/admin.idle_logout_minutes`, which requires `settings:read`: an
+  administrator with a narrower role was answered 403 on every sign-in and was signed out after the
+  built-in 60 minutes whatever the operator had configured.
+
+  `GET /api/v1/admin/me` now carries the window as `idleLogoutMinutes` (`number | null`), described
+  by the new `adminMeResponseSchema` in `@endora-commerce/contracts`, and the Admin UI reads it from
+  there — it no longer calls the settings endpoint for it. `AdminMe` in `@endora-commerce/admin-kit`
+  gains the matching optional field. The field is additive; the Admin UI keeps its 60-minute default
+  when the field is absent (a backend older than this release) or `null` (the setting could not be
+  resolved).
+
+  The permission gate on the settings admin API is unchanged. No setting or permission changes.
+
+- 38e8818: Sign-in does the same password-hash work whether or not the address belongs to an account.
+
+  Administrator and customer sign-in looked the account up first and verified the password only when
+  there was one. An address nobody holds, a deleted customer and an inactive administrator were
+  therefore refused tens of milliseconds sooner than a wrong password for a real account, and the
+  difference told a caller which addresses have an account. Both now verify the submitted password
+  once in every case — against a dummy hash made once per process with the parameters of a stored
+  hash when there is no usable account — and answer exactly as for a wrong password.
+
+  `@endora-commerce/platform/kernel` exports `verifyPasswordOrDummy(hash, password)` for this.
+
+  **Behaviour change for customer sign-in.** `403 ACCOUNT_BLOCKED` used to be answered before the
+  password was looked at, so it told anybody that the address has an account and that it is blocked.
+  It is now answered only when the password is correct; a wrong password for a blocked account is
+  `401 INVALID_CREDENTIALS` like any other.
+
+- Updated dependencies [18ae962]
+- Updated dependencies [1190180]
+- Updated dependencies [a65b215]
+- Updated dependencies [9260c36]
+- Updated dependencies [3383720]
+- Updated dependencies [202f0d9]
+- Updated dependencies [0184be5]
+- Updated dependencies [560f2e3]
+- Updated dependencies [60cfd18]
+- Updated dependencies [79bd849]
+- Updated dependencies [31a2c0b]
+- Updated dependencies [266cd38]
+- Updated dependencies [bdb823b]
+- Updated dependencies [8d4440f]
+- Updated dependencies [8ca54eb]
+- Updated dependencies [6b2ba06]
+- Updated dependencies [be5b3ce]
+- Updated dependencies [82ca6dd]
+- Updated dependencies [38e8818]
+- Updated dependencies [335750c]
+- Updated dependencies [602e5ba]
+- Updated dependencies [8ee69de]
+  - @endora-commerce/contracts@0.105.0
+  - @endora-commerce/platform@0.105.0
+  - @endora-commerce/admin-kit@0.105.0
+
 ## 0.104.0
 
 ### Patch Changes
