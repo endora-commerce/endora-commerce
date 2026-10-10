@@ -127,7 +127,7 @@ export const manifest = defineModuleManifest({
     },
   ],
   /**
-   * The three error codes this module owns — feature 090 Phase 3
+   * The first three error codes this module owns — feature 090 Phase 3
    * (`specs/090-module-owned-error-codes/contracts/error-code-declaration.md`
    * §1.1). This is where each sentence is looked up from: `errors.<CODE>` in this
    * module's own `i18n/{en,pl}.json`, which already holds all three in both
@@ -175,6 +175,10 @@ export const manifest = defineModuleManifest({
     },
     { code: 'CART_EMPTY' },
     { code: 'CART_LINE_CAP_EXCEEDED' },
+    // Issue #86 — the two refusals `CartService.addItem` raised as
+    // `VALIDATION_FAILED`, a code whose message the envelope never replaces.
+    { code: 'CART_PRODUCT_QUOTE_ONLY' },
+    { code: 'CART_QUANTITY_INVALID' },
   ],
   settings,
   // Feature 074 (Constitution XVII), test C2 — functional base. This reverses

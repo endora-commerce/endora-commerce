@@ -1,6 +1,8 @@
 {
   "errors.CART_EMPTY": "Your cart is empty.",
   "errors.CART_LINE_CAP_EXCEEDED": "You have reached the maximum number of lines on this cart.",
+  "errors.CART_PRODUCT_QUOTE_ONLY": "This product is sold on request only, so it cannot be added to the cart. Ask for a quote instead.",
+  "errors.CART_QUANTITY_INVALID": "The quantity must be at least {minimum}.",
   "errors.CART_COUPON_REJECTED": "This coupon code could not be applied.",
   "errors.CART_COUPON_REJECTED.invalid_code": "This coupon code is invalid.",
   "errors.CART_COUPON_REJECTED.expired": "This coupon code has expired.",

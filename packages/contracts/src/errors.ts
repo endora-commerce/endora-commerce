@@ -132,6 +132,10 @@ export const ERROR_CODES = {
   CART_EMPTY: 'CART_EMPTY',
   CART_LINE_CAP_EXCEEDED: 'CART_LINE_CAP_EXCEEDED',
   CART_COUPON_REJECTED: 'CART_COUPON_REJECTED',
+  /** The product's price is withheld from this buyer, so it is quoted rather than added to a cart. */
+  CART_PRODUCT_QUOTE_ONLY: 'CART_PRODUCT_QUOTE_ONLY',
+  /** A cart line's quantity is below the minimum a line may hold (`details.minimum`). */
+  CART_QUANTITY_INVALID: 'CART_QUANTITY_INVALID',
   STOCK_UNAVAILABLE: 'STOCK_UNAVAILABLE',
   PROMOTION_INVALID: 'PROMOTION_INVALID',
   ORGANIZATION_SUSPENDED: 'ORGANIZATION_SUSPENDED',

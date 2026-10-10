@@ -133,7 +133,7 @@ control the column layout on every storefront price-bearing surface;
 `none` hides every price element and replaces Add-to-cart with the
 existing Quote Request CTA. The cart-line and
 order-placement endpoints additionally refuse the line with
-`400 product_quote_only` when the resolved mode is `none` for the
+`400 CART_PRODUCT_QUOTE_ONLY` when the resolved mode is `none` for the
 `(product, organization, channel)` tuple — defence in depth.
 
 ## Public surface

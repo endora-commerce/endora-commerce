@@ -244,7 +244,11 @@ describe('carts — quote-to-cart conversion reads quote_requests through its po
     } as unknown as CatalogProductReadPort;
     const cartService = {
       addItem: async () => {
-        throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, 'product_quote_only');
+        throw new HttpError(
+          400,
+          ERROR_CODES.CART_PRODUCT_QUOTE_ONLY,
+          'This product is sold on request only and cannot be added to the cart.',
+        );
       },
       getOrCreateForCustomer: async () => cartRow(),
     } as never;

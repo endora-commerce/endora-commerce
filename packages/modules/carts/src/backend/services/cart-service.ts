@@ -58,6 +58,12 @@ export interface CustomerContext {
  */
 export const CART_MAX_LINES = 200;
 
+/**
+ * The smallest quantity a cart line may hold. Carried in the refusal's
+ * `details.minimum`, which is what both bundle sentences name (issue #86).
+ */
+export const CART_LINE_MIN_QUANTITY = 1;
+
 export class CartService {
   /**
    * `pricingService` is **required** since issue #124. It used to be optional
@@ -200,8 +206,19 @@ export class CartService {
             );
           })();
 
-    if (input.quantity <= 0) {
-      throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'Quantity must be > 0.');
+    // Issue #86 — a refusal of its own, not `VALIDATION_FAILED`: the envelope
+    // never replaces that code's message, so the sentence below was answered in
+    // English whatever the reader asked for. `details.minimum` is what both
+    // bundle sentences name. Every request schema in front of this method
+    // already requires a positive integer, so this is what an in-process caller
+    // of the cart write port meets.
+    if (input.quantity < CART_LINE_MIN_QUANTITY) {
+      throw new HttpError(
+        422,
+        ERROR_CODES.CART_QUANTITY_INVALID,
+        `Quantity must be at least ${CART_LINE_MIN_QUANTITY}.`,
+        { quantity: input.quantity, minimum: CART_LINE_MIN_QUANTITY },
+      );
     }
     const product = await this.catalogProducts.findById(input.productId);
     // Issue #227 — a product this shopper may not see is a product they may not
@@ -289,10 +306,14 @@ export class CartService {
       // T084 — defence-in-depth: refuse the line when the resolver says
       // this product is quote-only for the (org, channel) tuple.
       if (resolved && resolved.displayMode === 'none') {
+        // Issue #86 — its own code: raised as `VALIDATION_FAILED` it could not
+        // be told from a malformed request, and the buyer read the identifier
+        // `product_quote_only` in every language.
         throw new HttpError(
           400,
-          ERROR_CODES.VALIDATION_FAILED,
-          'product_quote_only',
+          ERROR_CODES.CART_PRODUCT_QUOTE_ONLY,
+          'This product is sold on request only and cannot be added to the cart.',
+          { productId: product.id },
         );
       }
       const item = em.create(CartItem, {
