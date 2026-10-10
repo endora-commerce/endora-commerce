@@ -1,3 +1,4 @@
+import type {} from '@fastify/cookie';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
   mfaActivateRequestSchema,
@@ -12,6 +13,7 @@ import { currentSalesChannel } from '@endora-commerce/platform/kernel';
 import type { MfaEnrolmentService } from './services/mfa-enrolment-service.js';
 import type { MfaPolicyResolver } from './services/mfa-policy-resolver.js';
 import type { SocialLinkService } from './services/social-link-service.js';
+import type { FactorWithdrawal } from './services/factor-withdrawal.js';
 
 /**
  * Surface-agnostic self-service 2FA endpoints (feature 042). Mounted twice by
@@ -31,6 +33,10 @@ export interface MfaSelfServiceOptions {
   policyResolver: MfaPolicyResolver;
   socialLinkService: SocialLinkService;
   auditLogService: AuditPort;
+  /** The cookie this surface's sessions travel in. */
+  sessionCookieName: string;
+  /** Ends the subject's other sessions and pending logins once a factor is removed. */
+  withdrawFactorGrants: FactorWithdrawal;
   /**
    * `specs/110-instance-repository/` T118c — required, both of them. `mfa`
    * resolves each from its owner's published port rather than taking whatever a
@@ -108,13 +114,18 @@ export async function registerMfaSelfServiceRoutes(
       const body = mfaDisableRequestSchema.parse(request.body);
       const subject = subjectOf(request);
       await reauthenticate(opts, subject, body);
-      await enrolmentService.disable(subject);
+      const removed = await enrolmentService.disable(subject);
       await auditLogService.record({
         action: 'mfa.disabled',
         objectType: auditObjectType,
         objectId: subject.subjectId,
         ...(request.ip ? { ipAddress: request.ip } : {}),
       });
+      // The factor is gone; the sessions it protected elsewhere go with it.
+      // The one this request was made from stays.
+      if (removed) {
+        await opts.withdrawFactorGrants(subject, request.cookies?.[opts.sessionCookieName]);
+      }
       return { data: { status: 'disabled' } };
     },
   );

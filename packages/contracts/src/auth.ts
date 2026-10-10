@@ -89,11 +89,29 @@ export interface AuthDestroyAllForAdminOptions {
   exceptSessionId?: string;
 }
 
+/** What `AuthSessionPort.destroyAllForCustomer` may be asked to leave in place. */
+export interface AuthDestroyAllForCustomerOptions {
+  /** The one session to keep — the caller's own. */
+  exceptSessionId?: string;
+}
+
 export interface AuthSessionPort {
   createSession(input: AuthCreateSessionInput): Promise<AuthSessionCookiePayload>;
   loadSession(cookieValue: string): Promise<AuthResolvedSession | null>;
   destroySession(sessionId: string): Promise<void>;
-  destroyAllForCustomer(customerAccountId: string): Promise<void>;
+  /**
+   * Revoke every session held for a customer account — called when the account
+   * is blocked or deleted, when its password is changed or reset, and when its
+   * second factor is removed.
+   *
+   * `exceptSessionId` spares one session, the one a self-service change was
+   * made from. As with `destroyAllForAdmin`, it spares nothing unless it names
+   * a session this call would otherwise have revoked.
+   */
+  destroyAllForCustomer(
+    customerAccountId: string,
+    options?: AuthDestroyAllForCustomerOptions,
+  ): Promise<void>;
   /**
    * Revoke every session an admin user holds — the ones they signed in with
    * and the impersonations they started. Called when their password is set by

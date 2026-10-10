@@ -18,7 +18,8 @@
  *   --skip-role-bootstrap       (don't auto-create platform_admin if missing)
  *
  * Idempotent: re-running with the same email updates the password and the role
- * assignment instead of failing on the unique constraint.
+ * assignment instead of failing on the unique constraint. Doing so signs the
+ * account out everywhere and is recorded in the audit log.
  *
  * The first admin you create is the bootstrap administrator and gets the
  * `platform_admin` role with the wildcard `*` permission. From there you can use
@@ -48,6 +49,7 @@ import type { ModuleCliCommandContext } from '@endora-commerce/contracts';
 import { lazyPort, type ModuleContext } from '@endora-commerce/platform/kernel';
 import { hashPassword } from '@endora-commerce/platform/kernel';
 import { AdminUser } from '../entities/admin-user.entity.js';
+import type { AdminUserService } from '../services/admin-user-service.js';
 
 interface ParsedArgs {
   email: string;
@@ -61,6 +63,8 @@ interface ParsedArgs {
 /** The EntityManager factory every composition supplies. */
 interface CreateAdminCradle {
   readonly emFactory: () => EntityManager;
+  /** This module's own service, for the write an existing account needs. */
+  readonly adminUserService: AdminUserService;
 }
 
 /** The flag that takes the password from standard input. */
@@ -135,7 +139,9 @@ export async function createAdmin(
   // construction, before any Admin User exists — so there is no acting
   // principal for the Command Bus to attribute the write to. Every subsequent
   // admin-user write goes through the audited admin_users surface; this one
-  // exists so that surface has somebody to sign in to it.
+  // exists so that surface has somebody to sign in to it. A re-run for an
+  // account that already exists is not that case, and goes through
+  // `AdminUserService.restoreFromCli`, which audits it.
   const args = parseArgs(argv, wantsPasswordFromStdin(argv) ? await readPassword() : undefined);
   if ('error' in args) {
     err(args.error);
@@ -167,23 +173,25 @@ export async function createAdmin(
 
   // 2. Upsert the admin user — this module's own table, written directly for
   //    the reason the ignore marker above gives.
-  const passwordHash = await hashPassword(args.password);
   const existing = await em.findOne(AdminUser, { email: args.email });
   if (existing) {
-    existing.passwordHash = passwordHash;
-    existing.firstName = args.firstName;
-    existing.lastName = args.lastName;
-    existing.adminRoleId = role.id;
-    existing.status = 'active';
-    existing.deletedAt = null;
-    await em.flush();
+    // An account that exists may hold sessions and have logins under way, all
+    // obtained with the password this replaces. The service's password-write
+    // path withdraws them once the new one is committed, and audits the write.
+    await ctx.cradle<CreateAdminCradle>().adminUserService.restoreFromCli(existing.id, {
+      password: args.password,
+      firstName: args.firstName,
+      lastName: args.lastName,
+      adminRoleId: role.id,
+    });
     out(`Updated existing admin: ${args.email}`);
     out(`  id   : ${existing.id}`);
     out(`  role : ${role.code} (${role.id})`);
+    out('  Every session this account held was signed out.');
   } else {
     const created = em.create(AdminUser, {
       email: args.email,
-      passwordHash,
+      passwordHash: await hashPassword(args.password),
       firstName: args.firstName,
       lastName: args.lastName,
       adminRoleId: role.id,

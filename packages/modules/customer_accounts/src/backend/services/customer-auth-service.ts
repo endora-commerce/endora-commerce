@@ -3,6 +3,7 @@ import {
   ERROR_CODES,
   normalizeEmailAddress,
   type AuthSessionPort,
+  type CustomerChangePasswordContext,
   type MfaLoginPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -10,6 +11,11 @@ import { hashPassword, verifyPassword } from '@endora-commerce/platform/kernel';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
+import {
+  ownCustomerSessionId,
+  retireResetTokens,
+  withdrawCustomerCredentials,
+} from './credential-withdrawal.js';
 
 /**
  * Customer-side auth flows (T119; two-step login added in feature 042).
@@ -22,7 +28,9 @@ import type { AuditPort } from '@endora-commerce/platform/kernel';
  *   as before (password-only fallback, FR-033).
  * - logout: destroy session.
  * - changePassword: argon2 verify of `currentPassword`; reject with
- *   401 CURRENT_PASSWORD_INVALID otherwise; rehash + persist.
+ *   401 CURRENT_PASSWORD_INVALID otherwise; rehash + persist, then end every
+ *   other session of the account, retire its outstanding reset tokens and
+ *   withdraw the logins it had begun.
  *
  * Feature 075, Phase C — the three things this service needed from `auth` are
  * now named where they belong rather than in `auth`'s directory. Sessions come
@@ -134,6 +142,7 @@ export class CustomerAuthService {
     customerAccountId: string,
     currentPassword: string,
     newPassword: string,
+    context: CustomerChangePasswordContext = {},
   ): Promise<void> {
     const em = this.emFactory();
     const customer = await em.findOne(CustomerAccount, { id: customerAccountId });
@@ -148,7 +157,15 @@ export class CustomerAuthService {
         'Current password is incorrect.',
       );
     }
-    customer.passwordHash = await hashPassword(newPassword);
+    const passwordHash = await hashPassword(newPassword);
+    // Which session is the caller's is worked out before anything is written.
+    const keep = await ownCustomerSessionId(
+      this.sessionService,
+      customer.id,
+      context.sessionCookieValue,
+    );
+    customer.passwordHash = passwordHash;
+    await retireResetTokens(em, customer.id);
     // Issue #222 — the holder proved the current password and chose the new
     // one, so the account has a password on record whatever it had before.
     customer.passwordSetAt = new Date();
@@ -162,6 +179,12 @@ export class CustomerAuthService {
       });
     }
     await em.flush();
+    await withdrawCustomerCredentials(
+      this.sessionService,
+      this.getMfaLoginPort?.(),
+      customer.id,
+      keep,
+    );
   }
 
   async logout(sessionId: string): Promise<void> {

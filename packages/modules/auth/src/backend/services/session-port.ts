@@ -67,8 +67,8 @@ export function createAuthSessionPort(sessionService: SessionService): AuthSessi
       };
     },
     destroySession: (sessionId) => sessionService.destroySession(sessionId),
-    destroyAllForCustomer: (customerAccountId) =>
-      sessionService.destroyAllForCustomer(customerAccountId),
+    destroyAllForCustomer: (customerAccountId, options) =>
+      sessionService.destroyAllForCustomer(customerAccountId, options),
     destroyAllForAdmin: (adminUserId, options) =>
       sessionService.destroyAllForAdmin(adminUserId, options),
     touchLastSeen: (sessionId) => sessionService.touchLastSeen(sessionId),

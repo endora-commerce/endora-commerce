@@ -15,9 +15,9 @@ po stronie klienta.
 | --- | --- |
 | `POST /api/v1/auth/login` | E-mail i hasło (oraz krok TOTP, gdy włączone jest 2FA) |
 | `POST /api/v1/auth/logout` | Zakończenie sesji |
-| `POST /api/v1/me/password` | Zmiana hasła (odrzuca błędne `currentPassword`) |
+| `POST /api/v1/me/password` | Zmiana hasła (odrzuca błędne `currentPassword`). Udana zmiana wylogowuje konto ze wszystkich pozostałych sesji (sesja, z której wysłano żądanie, zostaje), unieważnia niewykorzystane tokeny resetu hasła i wycofuje każde rozpoczęte, a niedokończone logowanie. |
 | `POST /api/v1/auth/password-reset/request` | Rozpoczęcie resetu hasła |
-| `POST /api/v1/auth/password-reset/confirm` | Użycie tokenu resetu hasła |
+| `POST /api/v1/auth/password-reset/confirm` | Użycie tokenu resetu hasła. Wykorzystanie tokenu wylogowuje konto ze **wszystkich** sesji, unieważnia pozostałe niewykorzystane tokeny resetu i wycofuje każde rozpoczęte, a niedokończone logowanie. |
 
 ## Encje
 

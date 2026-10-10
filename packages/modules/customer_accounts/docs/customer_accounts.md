@@ -15,9 +15,9 @@ service; this module owns the customer-facing identity surface.
 | --- | --- |
 | `POST /api/v1/auth/login` | Email + password (+ TOTP step if 2FA enabled) |
 | `POST /api/v1/auth/logout` | Destroy session |
-| `POST /api/v1/me/password` | Change password (rejects wrong `currentPassword`) |
+| `POST /api/v1/me/password` | Change password (rejects wrong `currentPassword`). A successful change signs the account out of every other session (the one the request was made from is kept), retires its outstanding reset tokens and withdraws any sign-in it had begun and not finished. |
 | `POST /api/v1/auth/password-reset/request` | Begin reset flow |
-| `POST /api/v1/auth/password-reset/confirm` | Redeem reset token |
+| `POST /api/v1/auth/password-reset/confirm` | Redeem reset token. A redeemed token signs the account out of **every** session, retires its other outstanding reset tokens and withdraws any sign-in it had begun and not finished. |
 
 ## Entities
 

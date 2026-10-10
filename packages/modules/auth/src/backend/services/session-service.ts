@@ -128,11 +128,18 @@ export class SessionService {
    * blocked or soft-deleted so it loses access promptly (feature 040,
    * FR-016/SC-002). Clears both the Postgres rows and their Redis caches.
    */
-  async destroyAllForCustomer(customerAccountId: string): Promise<void> {
+  async destroyAllForCustomer(
+    customerAccountId: string,
+    options: { exceptSessionId?: string } = {},
+  ): Promise<void> {
     // command-coverage-ignore: session lifecycle — revokes all sessions for a
     // customer; auth infrastructure, not an audited domain write.
     const em = this.emFactory();
-    const sessions = await em.find(Session, { customerAccountId });
+    const held = await em.find(Session, { customerAccountId });
+    const sessions =
+      options.exceptSessionId === undefined
+        ? held
+        : held.filter((session) => session.id !== options.exceptSessionId);
     if (sessions.length === 0) return;
     // Rows first, cache keys second — see `destroyAllForAdmin`.
     const ids = sessions.map((session) => session.id);

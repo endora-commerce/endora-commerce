@@ -1,10 +1,12 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Redis } from 'ioredis';
+import { ADMIN_SESSION_COOKIE_NAME, SESSION_COOKIE_NAME } from '@endora-commerce/contracts';
 import type { AuthSessionPort, CustomerPasswordStatePort, MfaLoginPort } from '@endora-commerce/contracts';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { ChallengeStore } from './services/challenge-store.js';
+import { createFactorWithdrawal } from './services/factor-withdrawal.js';
 import {
   MfaPolicyResolver,
   type SettingsReader,
@@ -148,6 +150,8 @@ export function mfaModule(options: MfaModuleOptions): {
     options.customerPasswordState,
   );
 
+  const withdrawFactorGrants = createFactorWithdrawal(options.sessionService, challengeStore);
+
   const plugin: ModuleAttach = async (app) => {
     if (!enrolmentService) return; // enrolment disabled without an encryption key
     await registerMfaPublicRoutes(app, {
@@ -162,6 +166,8 @@ export function mfaModule(options: MfaModuleOptions): {
       pathPrefix: '/api/v1/account/mfa',
       subjectType: 'customer',
       auditObjectType: 'customer_account',
+      sessionCookieName: SESSION_COOKIE_NAME,
+      withdrawFactorGrants,
       requireGuard: options.requireCustomer,
       resolveSubjectId: (req) => options.resolveCustomerActor(req).customerAccountId,
       resolveOrganizationId: (req) => options.resolveCustomerActor(req).organizationId,
@@ -204,6 +210,8 @@ export function mfaModule(options: MfaModuleOptions): {
         pathPrefix: '/api/v1/admin/account/mfa',
         subjectType: 'admin',
         auditObjectType: 'admin_user',
+        sessionCookieName: ADMIN_SESSION_COOKIE_NAME,
+        withdrawFactorGrants,
         requireGuard: requireAdmin(),
         resolveSubjectId: (req) => resolveAdminActor(req).adminUserId,
         enrolmentService,
@@ -219,6 +227,7 @@ export function mfaModule(options: MfaModuleOptions): {
         auditLogService: options.auditLogService,
         requireAdmin,
         resolveAdminActor,
+        withdrawFactorGrants,
         resolveOrganizationCustomerIds: options.resolveOrganizationCustomerIds,
       });
     }
