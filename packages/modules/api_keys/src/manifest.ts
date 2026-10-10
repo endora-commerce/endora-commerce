@@ -129,25 +129,24 @@ export const manifest = defineModuleManifest({
    * this module is off. `test/integration/_lifecycle/non-binding-degradation.integration.test.ts`
    * asserts it with a bound key and a mismatching `x-sales-channel` header.
    *
-   * **None of the three arrives with a sentence.** `API_KEY_CHANNEL_MISMATCH`
-   * and `API_KEY_NOT_BOUND` never had one and stay on
-   * `UNTRANSLATED_ERROR_CODES`, under this module instead of under `_i18n`.
-   * `API_KEY_OUT_OF_SCOPE` carried a placeholder — `"Api Key Out Of Scope."` /
-   * `"Błąd: api key out of scope."` — which D-186 §2 deletes rather than
-   * carries, and it is **not** rewritten: it is the first code in the sweep
-   * ledgered despite a live raise site. Two reasons, and the second is the one
-   * that decides it. Its reader is an integration rather than a person, so a
-   * translation is answered to a program. And the raise names the scope the key
-   * is missing — `API key lacks the required scope: <scope>.` — which a fixed
-   * sentence would replace with a vaguer one, because
-   * `localizeErrorEnvelope` substitutes the message wholesale and the raise
-   * passes no `details` for a placeholder to be filled from. Writing one here
-   * would take information away from the only audience that meets it.
+   * **Two of the three have no sentence.** `API_KEY_CHANNEL_MISMATCH` and
+   * `API_KEY_NOT_BOUND` never had one and stay on `UNTRANSLATED_ERROR_CODES`,
+   * under this module instead of under `_i18n`.
+   *
+   * `API_KEY_OUT_OF_SCOPE` was the third until issue #86, and the reason it was
+   * ledgered is the reason it no longer is. It carried a placeholder —
+   * `"Api Key Out Of Scope."` / `"Błąd: api key out of scope."` — which D-186 §2
+   * deleted, and it was not rewritten because the raise names the scope the key
+   * is missing and passed no `details` for a placeholder to be filled from:
+   * `localizeErrorEnvelope` substitutes the message wholesale, so a fixed
+   * sentence would have taken information away. The raise now carries
+   * `details.requiredScope`, the sentence in this module's bundle interpolates
+   * it in both languages, and the English one reads exactly as the message did.
    *
    * **`tokens` is derived from the raise sites, not from the bundle**
-   * (runbook §5), and there are none: every raise is a bare
-   * `HttpError(403, code, message)` with no `details` argument, measured by
-   * balanced-paren extraction of each call's own arguments.
+   * (runbook §5), and there are none: no raise carries a `details.code`. The
+   * one `details` argument among them is `API_KEY_OUT_OF_SCOPE`'s
+   * `{ requiredScope }`, which fills a placeholder and selects nothing.
    */
   errorCodes: [
     { code: 'API_KEY_CHANNEL_MISMATCH' },

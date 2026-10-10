@@ -282,17 +282,14 @@ export const UNTRANSLATED_ERROR_CODES: ReadonlySet<string> = new Set([
   // carried a placeholder and arrives with prose in this module's own bundle.
   // This one is unraised, so its placeholder was deleted rather than rewritten.
   'ADDRESS_IN_USE',
-  // api_keys (3) — MR 5, and the whole of that module's declaration. The first
-  // two never had a sentence and were listed under `_i18n` above until this
-  // batch. `API_KEY_OUT_OF_SCOPE` is the third and is the first entry in this
-  // ledger whose code **has** a live raise site: its reader is an integration
-  // rather than a person, and the raise names the scope the key is missing,
-  // which a fixed sentence would replace with a vaguer one — the envelope
-  // substitutes the message wholesale and the raise passes no `details` for a
-  // placeholder to be filled from. All three ledgered means `api_keys`' new
-  // bundle installs zero entries, which is `d129-sweep.md` §5.4's default and
-  // the reason that merge request ran `scripts/boot-gate.sh --with-negatives`.
-  'API_KEY_CHANNEL_MISMATCH', 'API_KEY_NOT_BOUND', 'API_KEY_OUT_OF_SCOPE',
+  // api_keys (2) — MR 5. Neither ever had a sentence, and both were listed under
+  // `_i18n` above until that batch. `API_KEY_OUT_OF_SCOPE` was the third, and
+  // the first entry in this ledger whose code had a live raise site: it was
+  // held back because the raise names the scope the key is missing and passed
+  // no `details` for a placeholder to be filled from. Issue #86 gave the raise
+  // `details.requiredScope` and the bundle a sentence that interpolates it, so
+  // it left this list.
+  'API_KEY_CHANNEL_MISMATCH', 'API_KEY_NOT_BOUND',
   // catalog (12) — seven from Phase 3, five re-homed from `_i18n` by D-129's
   // sweep, MR 4 (Tier B). The five had no sentence in either language before
   // the move and none after, so what moved is which module owes it. The batch's

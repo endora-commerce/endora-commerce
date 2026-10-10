@@ -1,5 +1,6 @@
 {
   "nav.apiKeys.label": "Klucze API",
   "actions.openApiKeys.label": "Klucze API",
-  "actions.openApiKeys.description": "Tokeny bearer dla integracji maszynowych"
+  "actions.openApiKeys.description": "Tokeny bearer dla integracji maszynowych",
+  "errors.API_KEY_OUT_OF_SCOPE": "Klucz API nie ma wymaganego zakresu: {requiredScope}."
 }

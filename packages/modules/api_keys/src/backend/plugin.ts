@@ -113,6 +113,12 @@ export function integrationsModule(options: IntegrationsModuleOptions): {
         403,
         ERROR_CODES.API_KEY_OUT_OF_SCOPE,
         `API key lacks the required scope: ${scope}.`,
+        // Issue #86 — the scope where a program can read it without cutting
+        // it out of prose, and what lets the bundle sentence name it. Only
+        // the scope this route requires: the scopes the key *does* hold go to
+        // the audit row above, for the operator, and never into an answer to
+        // whoever holds the token.
+        { requiredScope: scope },
       );
     }
     return resolved;
