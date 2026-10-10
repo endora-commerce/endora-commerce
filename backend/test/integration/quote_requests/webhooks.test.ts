@@ -194,7 +194,7 @@ describe('quote_requests outbound webhooks — rfq.created / rfq.expired', () =>
               .execute<Array<{ n: string }>>(`select count(*) as "n" from "${table}" where "quote_request_id" = ?`, [
                 rfqId,
               ])
-          )[0]?.n ?? 0,
+          )[0]!.n,
         );
       return {
         lines: await count('quote_request_items'),
