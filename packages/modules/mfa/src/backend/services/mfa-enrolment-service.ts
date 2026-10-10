@@ -130,18 +130,22 @@ export class MfaEnrolmentService {
     return affected > 0;
   }
 
-  /** Disable 2FA for the subject (idempotent). Removes secret + recovery codes. */
-  async disable(subject: MfaSubjectRef): Promise<void> {
+  /**
+   * Disable 2FA for the subject (idempotent). Removes secret + recovery codes.
+   * Returns whether a factor was actually removed.
+   */
+  async disable(subject: MfaSubjectRef): Promise<boolean> {
     const em = this.emFactory();
     const active = await em.findOne(MfaEnrolment, {
       subjectType: subject.subjectType,
       subjectId: subject.subjectId,
       status: 'active',
     });
-    if (!active) return;
+    if (!active) return false;
     await em.nativeDelete(MfaRecoveryCode, { enrolmentId: active.id });
     this.#audit(em, 'mfa.disable', subject);
     await em.removeAndFlush(active);
+    return true;
   }
 
   /** Invalidate the old recovery-code set and issue a fresh one. */

@@ -60,7 +60,7 @@ Trasy administracyjne są chronione przez `customers:read` (odczyt), `customers:
 | --- | --- | --- |
 | `POST /api/v1/customers/register` | anonimowy | Samodzielna rejestracja (zależna od ustawienia) |
 | `GET /api/v1/me/customer` | klient | Własny profil |
-| `POST /api/v1/me/customer/change-password` | klient | Zmiana hasła |
+| `POST /api/v1/me/customer/change-password` | klient | Zmiana hasła. Udana zmiana wylogowuje konto ze wszystkich pozostałych sesji (sesja, z której wysłano żądanie, zostaje), unieważnia niewykorzystane tokeny resetu hasła i wycofuje każde rozpoczęte, a niedokończone logowanie. |
 | `GET /api/v1/me/customer/addresses` | klient | Adresy prywatne i wspólne adresy organizacji |
 | `POST/PATCH/DELETE /api/v1/me/customer/addresses[/:id]` | klient | Zarządzanie adresami prywatnymi |
 | `PUT /api/v1/me/customer/addresses/:id/default` | klient | Ustawienie adresu domyślnego |

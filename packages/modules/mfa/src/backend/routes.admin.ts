@@ -9,6 +9,7 @@ import { isOrgInScope } from '@endora-commerce/platform/tenancy';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { MfaEnrolmentService } from './services/mfa-enrolment-service.js';
 import type { MfaOrgPolicyService } from './services/mfa-org-policy-service.js';
+import type { FactorWithdrawal } from './services/factor-withdrawal.js';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 /**
@@ -22,6 +23,8 @@ export interface MfaAdminDeps {
   auditLogService: AuditPort;
   requireAdmin: RequireAdminFactory;
   resolveAdminActor: (req: FastifyRequest) => { adminUserId: string };
+  /** Ends every session and pending login of an account whose factor was reset. */
+  withdrawFactorGrants: FactorWithdrawal;
   /** Lists the customer-account ids belonging to an organization (US6 bulk). */
   resolveOrganizationCustomerIds: (organizationId: string) => Promise<string[]>;
 }
@@ -50,6 +53,11 @@ export async function registerMfaAdminRoutes(
         stateAfter: { affected },
         ...(request.ip ? { ipAddress: request.ip } : {}),
       });
+      // A reset is somebody else's decision about the account: no session of
+      // it is kept. One that removed nothing ends nothing.
+      if (affected) {
+        await deps.withdrawFactorGrants({ subjectType: 'customer', subjectId: customerId });
+      }
       return { data: { affected } };
     },
   );
@@ -81,6 +89,7 @@ export async function registerMfaAdminRoutes(
             objectId: customerId,
             ...(request.ip ? { ipAddress: request.ip } : {}),
           });
+          await deps.withdrawFactorGrants({ subjectType: 'customer', subjectId: customerId });
         }
       }
       const requested = customerIds.length;

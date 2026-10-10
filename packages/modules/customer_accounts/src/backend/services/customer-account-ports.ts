@@ -517,8 +517,8 @@ export function createCustomerAuthPort(
         sessionExpiresAt: outcome.sessionExpiresAt,
       };
     },
-    changePassword: (customerAccountId, currentPassword, newPassword) =>
-      getService().changePassword(customerAccountId, currentPassword, newPassword),
+    changePassword: (customerAccountId, currentPassword, newPassword, context) =>
+      getService().changePassword(customerAccountId, currentPassword, newPassword, context),
     logout: (sessionId) => getService().logout(sessionId),
   };
 }

@@ -403,7 +403,14 @@ export function registerModule(ctx: ModuleContext): void {
     ctx
       .asFunction(
         ({ emFactory, auditLogService }: CustomerAccountsCradle) =>
-          new PasswordResetService(emFactory, auditLogService),
+          new PasswordResetService(
+            emFactory,
+            lazyPort<AuthSessionPort>(ctx, 'authSessionPort'),
+            auditLogService,
+            // Same degrade as `customerAuthService` above: decided by presence,
+            // never by catching the gate.
+            () => (effectiveState.isPresent('mfa') ? mfaLoginPort : undefined),
+          ),
       )
       .singleton(),
   );

@@ -22,9 +22,9 @@ gated by `customers:manage`.
 | `POST /api/v1/auth/customer/login` | anon | Customer login → sets `b2b_session` cookie; merges anonymous cart |
 | `POST /api/v1/auth/customer/logout` | customer | Destroy session |
 | `POST /api/v1/auth/password-reset/request` | anon | Always 202 (defends against account enumeration) |
-| `POST /api/v1/auth/password-reset/confirm` | anon | Redeem the emailed reset token |
+| `POST /api/v1/auth/password-reset/confirm` | anon | Redeem the emailed reset token. A redeemed token signs the account out of **every** session, retires its other outstanding reset tokens and withdraws any sign-in it had begun and not finished. |
 | `GET /api/v1/me` | customer | Current customer + their organization, plus `impersonation: { impersonatorAdminUserId }` when an admin is acting as the buyer |
-| `POST /api/v1/me/password` | customer | Change password (rejects wrong `currentPassword`) |
+| `POST /api/v1/me/password` | customer | Change password (rejects wrong `currentPassword`). A successful change signs the account out of every other session (the one the request was made from is kept), retires its outstanding reset tokens and withdraws any sign-in it had begun and not finished. |
 | `GET /api/v1/organizations/mine/members` | org admin | List members |
 | `DELETE /api/v1/organizations/mine/members/:id` | org admin | Remove member (last-admin guard) |
 | `PATCH /api/v1/organizations/mine/members/:id/role` | org admin | Promote / demote (last-admin guard) |

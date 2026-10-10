@@ -6,6 +6,7 @@ import type {
   RfqCustomerPort,
 } from '@endora-commerce/contracts';
 import {
+  SESSION_COOKIE_NAME,
   changePasswordRequestSchema,
   customerAddressInputSchema,
   updateCustomerDefaultsRequestSchema,
@@ -115,6 +116,11 @@ export async function registerCustomersSelfRoutes(
         actor.customerAccountId,
         body.currentPassword,
         body.newPassword,
+        // The session this request was made from is the one the change keeps.
+        {
+          sessionCookieValue: (request as { cookies?: Record<string, string | undefined> })
+            .cookies?.[SESSION_COOKIE_NAME],
+        },
       );
       reply.code(204);
       return null;

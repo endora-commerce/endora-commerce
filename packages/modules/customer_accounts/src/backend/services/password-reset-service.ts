@@ -1,6 +1,11 @@
 import { createHash, randomBytes } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, normalizeEmailAddress } from '@endora-commerce/contracts';
+import {
+  ERROR_CODES,
+  normalizeEmailAddress,
+  type AuthSessionPort,
+  type MfaLoginPort,
+} from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 // Feature 075, Phase C — a pure function over its argument, so it lives in the
 // kernel rather than behind a gate that would answer 503 to "hash this string".
@@ -9,6 +14,7 @@ import { CustomerAccount } from '../entities/customer-account.entity.js';
 import { PasswordResetToken } from '../entities/password-reset-token.entity.js';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
+import { retireResetTokens, withdrawCustomerCredentials } from './credential-withdrawal.js';
 
 /**
  * Password reset flow (FR-045 / T119).
@@ -17,7 +23,9 @@ import type { AuditPort } from '@endora-commerce/platform/kernel';
  *     (account-enumeration defense). Issues a sha256-hashed token with a
  *     short TTL (1 hour). The raw token is returned for the email body.
  *   - confirm: validates token (one-shot, expiry), rehashes the new password,
- *     marks the token consumed.
+ *     marks the token and every other outstanding token of the account
+ *     consumed, then ends all of the account's sessions and withdraws the
+ *     logins it had begun.
  */
 
 const TOKEN_TTL_HOURS = 1;
@@ -25,7 +33,11 @@ const TOKEN_TTL_HOURS = 1;
 export class PasswordResetService {
   constructor(
     private readonly emFactory: () => EntityManager,
+    /** `auth`'s session surface: a reset ends the sessions the old password minted. */
+    private readonly sessions: AuthSessionPort,
     private readonly auditLog?: AuditPort,
+    /** `mfa`'s login port, resolved lazily and absent while `mfa` is. */
+    private readonly getMfaLoginPort?: () => MfaLoginPort | undefined,
   ) {}
 
   /** Returns the raw token only when the email matched a real account. Caller emails it. */
@@ -79,6 +91,7 @@ export class PasswordResetService {
     // created: it never knew a current password to change.
     customer.passwordSetAt = new Date();
     token.consumedAt = new Date();
+    await retireResetTokens(em, customer.id);
     if (this.auditLog) {
       recordAuditFromContext(this.auditLog, em, {
         action: 'customer_account.password_reset',
@@ -89,6 +102,8 @@ export class PasswordResetService {
       });
     }
     await em.flush();
+    // Whoever redeems a token holds no session, so there is none to keep.
+    await withdrawCustomerCredentials(this.sessions, this.getMfaLoginPort?.(), customer.id);
   }
 
   /** Test-only — returns the latest unconsumed token id for probe tests. */

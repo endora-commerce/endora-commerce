@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
+  SESSION_COOKIE_NAME,
   changePasswordRequestSchema,
   createAddressRequestSchema,
   updateAddressRequestSchema,
@@ -90,6 +91,11 @@ export async function registerOrganizationsCustomerRoutes(
         ctx.customerAccountId,
         body.currentPassword,
         body.newPassword,
+        // The session this request was made from is the one the change keeps.
+        {
+          sessionCookieValue: (request as { cookies?: Record<string, string | undefined> })
+            .cookies?.[SESSION_COOKIE_NAME],
+        },
       );
       return reply.status(204).send();
     },

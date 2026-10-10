@@ -63,6 +63,8 @@ potwierdzała:
 | Administrator zmienia własne hasło (`PATCH /api/v1/admin/me`) | Wszystkie sesje konta **poza tą, z której wysłano żądanie** |
 | Inny administrator resetuje hasło (`POST /api/v1/admin/admin-users/:id/password`) | Wszystkie sesje konta |
 | Konto zostaje dezaktywowane (`status: 'inactive'`) albo usunięte | Wszystkie sesje konta |
+| Polecenie `admin_users create` (`admin:create`) zostaje uruchomione ponownie dla konta, które już istnieje | Wszystkie sesje konta. Zapis trafia do dziennika audytu jako `admin_user.change_password` z `via: 'cli'` i bez administratora wykonującego |
+| Administrator wyłącza własne uwierzytelnianie dwuskładnikowe (`POST /api/v1/admin/account/mfa/disable`) | Wszystkie sesje konta **poza tą, z której wysłano żądanie** |
 
 „Wszystkie sesje” to logowania w innych przeglądarkach i na innych urządzeniach oraz sesje
 logowania jako klient rozpoczęte przez tego administratora. Te same zapisy wycofują każde

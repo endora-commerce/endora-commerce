@@ -67,7 +67,7 @@ Admin routes are gated by `customers:read` (reads), `customers:manage`
 | --- | --- | --- |
 | `POST /api/v1/customers/register` | anon | Standalone registration (setting-gated) |
 | `GET /api/v1/me/customer` | customer | Own profile |
-| `POST /api/v1/me/customer/change-password` | customer | Change password |
+| `POST /api/v1/me/customer/change-password` | customer | Change password. A successful change signs the account out of every other session (the one the request was made from is kept), retires its outstanding reset tokens and withdraws any sign-in it had begun and not finished. |
 | `GET /api/v1/me/customer/addresses` | customer | Personal + org-shared addresses |
 | `POST/PATCH/DELETE /api/v1/me/customer/addresses[/:id]` | customer | Manage personal addresses |
 | `PUT /api/v1/me/customer/addresses/:id/default` | customer | Set a default address |

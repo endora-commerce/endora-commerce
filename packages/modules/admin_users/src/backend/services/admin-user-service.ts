@@ -491,6 +491,41 @@ export class AdminUserService {
     return user;
   }
 
+  /**
+   * The bootstrap command (`admin_users create`) run again for an account that
+   * already exists: it sets the password, the name and the role, and puts the
+   * account back in service — a deactivated or deleted one included.
+   *
+   * That is a credential change made on somebody else's authority, so it does
+   * what `resetPassword` does: the write carries an
+   * `admin_user.change_password` audit row, marked `via: 'cli'`, and once it
+   * is committed every session the account holds and every login it had begun
+   * is withdrawn. The row has no acting administrator: the command runs from a
+   * shell on the host, outside any request, and no other operator command
+   * records one either.
+   */
+  async restoreFromCli(
+    id: string,
+    input: { password: string; firstName: string; lastName: string; adminRoleId: string },
+  ): Promise<AdminUser> {
+    const em = this.emFactory();
+    const user = await em.findOne(AdminUser, { id });
+    if (!user) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Admin user not found.');
+    user.passwordHash = await hashPassword(input.password);
+    user.firstName = input.firstName;
+    user.lastName = input.lastName;
+    user.adminRoleId = input.adminRoleId;
+    user.status = 'active';
+    user.deletedAt = null;
+    this.#audit(em, 'admin_user.change_password', user.id, null, {
+      email: user.email,
+      via: 'cli',
+    });
+    await em.flush();
+    await this.#withdrawCredentials(user.id);
+    return user;
+  }
+
   /** Live accounts that hold no role — the state the boot notice reports. */
   async countWithoutRole(): Promise<number> {
     return this.emFactory().count(AdminUser, { adminRoleId: null, deletedAt: null });

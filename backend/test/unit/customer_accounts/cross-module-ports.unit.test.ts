@@ -56,6 +56,8 @@ function ownTablesOnly(account: CustomerAccount | null): {
       if (where['id'] !== undefined && where['id'] !== account.id) return null;
       return account;
     },
+    // The account's outstanding reset tokens — this module's own table.
+    find: async () => [],
     flush: async () => {
       flushes += 1;
     },
@@ -171,7 +173,7 @@ describe('customer_accounts — sessions over a port, MFA over a contract, crypt
     expect(destroyed()).toEqual(['s-1']);
   });
 
-  it('rehashes a changed password with the kernel hasher, no port involved', async () => {
+  it('rehashes a changed password with the kernel hasher', async () => {
     const account = await makeAccount('a-very-strong-pass');
     const { em } = ownTablesOnly(account);
     const { port } = sessionPort({ cookieValue: 'cookie-value', expiresAt: new Date() });

@@ -391,12 +391,25 @@ export interface CustomerLoginInput {
  * `activation` to say, not this line's: a module declaring
  * `nonDeactivatable` never enters one.
  */
+/** Where a customer's password change came from. */
+export interface CustomerChangePasswordContext {
+  /** The raw session cookie the request carried. */
+  sessionCookieValue?: string | undefined;
+}
+
 export interface CustomerAuthPort {
   login(input: CustomerLoginInput): Promise<CustomerLoginOutcome>;
+  /**
+   * A successful change ends every other session of the account, retires its
+   * outstanding reset tokens and withdraws the logins it had begun. The
+   * session `context.sessionCookieValue` resolves to is kept when it is a
+   * session of this very account; without it there is none to spare.
+   */
   changePassword(
     customerAccountId: string,
     currentPassword: string,
     newPassword: string,
+    context?: CustomerChangePasswordContext,
   ): Promise<void>;
   logout(sessionId: string): Promise<void>;
 }

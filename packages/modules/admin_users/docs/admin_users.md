@@ -64,6 +64,8 @@ A session is a credential, so it is withdrawn when the thing it stood for is:
 | An administrator changes their own password (`PATCH /api/v1/admin/me`) | Every session of the account **except the one the request was made from** |
 | A peer resets the password (`POST /api/v1/admin/admin-users/:id/password`) | Every session of the account |
 | The account is deactivated (`status: 'inactive'`) or deleted | Every session of the account |
+| `admin_users create` (`admin:create`) is run again for an account that already exists | Every session of the account. The write is audited as `admin_user.change_password` with `via: 'cli'` and no acting administrator |
+| The administrator disables their own two-factor authentication (`POST /api/v1/admin/account/mfa/disable`) | Every session of the account **except the one the request was made from** |
 
 "Every session" means the sign-ins on other browsers and devices and the impersonation sessions
 the administrator started. The same writes withdraw every sign-in the account had begun and not
