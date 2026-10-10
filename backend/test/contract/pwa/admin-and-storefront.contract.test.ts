@@ -341,7 +341,7 @@ describe('PWA module — admin + storefront', () => {
    * together; this is the end-to-end proof of that, and it is the only thing
    * in the platform that holds the invariant on this side.
    */
-  it('clears the organisation when a previously owned device re-subscribes anonymously', async () => {
+  it('keeps the account and the organisation when an owned endpoint is re-subscribed anonymously', async () => {
     await enablePush();
     const endpoint = `https://fcm.googleapis.com/fcm/send/deassociate-${randomUUID()}`;
     const attribution = async (): Promise<{
@@ -369,18 +369,118 @@ describe('PWA module — admin + storefront', () => {
       organization_id: TEST_ORGANIZATION_ID,
     });
 
-    // The same device, nobody signed in. Idempotent upsert on `endpoint`, so
-    // this is the *same row*.
+    // The same endpoint, nobody signed in. An owned row is updated only by its
+    // owner's session, so this is answered like a fresh subscribe and changes
+    // nothing — the account and the organisation stay together.
     const anonymous = await h.app.inject({
       method: 'POST',
       url: '/api/v1/storefront/pwa/subscriptions',
       headers: channelHeader,
       payload: { endpoint, keys: { p256dh: 'p2', auth: 'a2' } },
     });
-    expect(anonymous.statusCode).toBe(200);
+    expect(anonymous.statusCode).toBe(201);
     expect(await attribution()).toEqual({
-      customer_account_id: null,
-      organization_id: null,
+      customer_account_id: TEST_CUSTOMER_ID,
+      organization_id: TEST_ORGANIZATION_ID,
+    });
+  });
+
+  // ---- Only the subscriber may re-subscribe an existing endpoint ----
+
+  const subscribe = async (
+    payload: Record<string, unknown>,
+    session?: string,
+  ): Promise<{ status: number; body: Record<string, unknown> }> => {
+    const res = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/storefront/pwa/subscriptions',
+      headers: channelHeader,
+      ...(session ? { cookies: { b2b_session: session } } : {}),
+      payload,
+    });
+    return { status: res.statusCode, body: res.json() as Record<string, unknown> };
+  };
+
+  const storedRow = async (
+    endpoint: string,
+  ): Promise<{ customer_account_id: string | null; p256dh: string; auth: string }> => {
+    const rows = (await h.em().getConnection().execute(
+      `select customer_account_id, p256dh, auth from push_subscriptions where endpoint = ?`,
+      [endpoint],
+    )) as Array<{ customer_account_id: string | null; p256dh: string; auth: string }>;
+    expect(rows).toHaveLength(1);
+    return rows[0]!;
+  };
+
+  it('does not let another party take over a customer subscription', async () => {
+    await enablePush();
+    const endpoint = `https://fcm.googleapis.com/fcm/send/takeover-${randomUUID()}`;
+    const keys = { p256dh: 'device-p256dh', auth: 'device-auth' };
+    const other = { p256dh: 'other-p256dh', auth: 'other-auth' };
+    const fresh = await subscribe({ endpoint, keys }, 'stub-customer-session');
+    expect(fresh.status).toBe(201);
+    const owned = { customer_account_id: TEST_CUSTOMER_ID, ...keys };
+
+    for (const session of [undefined, 'stub-customer-session-other-org']) {
+      // Answered exactly as a first subscribe is, and nothing changes.
+      const attempt = await subscribe({ endpoint, keys: other }, session);
+      expect(attempt.status).toBe(201);
+      expect(Object.keys(attempt.body).sort()).toEqual(Object.keys(fresh.body).sort());
+      expect(attempt.body['status']).toBe('active');
+      expect(attempt.body['id']).not.toBe(fresh.body['id']);
+      expect(await storedRow(endpoint)).toEqual(owned);
+
+      expect(await revoke({ endpoint, keys: other }, session)).toBe(204);
+      expect(await storedRow(endpoint)).toEqual(owned);
+    }
+
+    // Even the right keys do not move an owned row without its owner's session.
+    expect((await subscribe({ endpoint, keys })).status).toBe(201);
+    expect(await storedRow(endpoint)).toEqual(owned);
+  });
+
+  it('does not let another party take over an anonymous subscription', async () => {
+    await enablePush();
+    const endpoint = `https://fcm.googleapis.com/fcm/send/anon-takeover-${randomUUID()}`;
+    const keys = { p256dh: 'device-p256dh', auth: 'device-auth' };
+    const other = { p256dh: 'other-p256dh', auth: 'other-auth' };
+    expect((await subscribe({ endpoint, keys })).status).toBe(201);
+    const anonymous = { customer_account_id: null, ...keys };
+
+    // Unknown keys — a different party, or a browser whose keys were rotated —
+    // are answered as accepted and change nothing, signed in or not.
+    expect((await subscribe({ endpoint, keys: other })).status).toBe(201);
+    expect((await subscribe({ endpoint, keys: other }, 'stub-customer-session')).status).toBe(201);
+    expect(await storedRow(endpoint)).toEqual(anonymous);
+    expect(await revoke({ endpoint, keys: other })).toBe(204);
+    expect(await storedRow(endpoint)).toEqual(anonymous);
+  });
+
+  it('still re-subscribes, claims and re-keys for the party that proves ownership', async () => {
+    await enablePush();
+    const endpoint = `https://fcm.googleapis.com/fcm/send/legit-${randomUUID()}`;
+    const keys = { p256dh: 'device-p256dh', auth: 'device-auth' };
+    const fresh = await subscribe({ endpoint, keys });
+    expect(fresh.status).toBe(201);
+
+    // The same browser, unchanged keys.
+    const again = await subscribe({ endpoint, keys });
+    expect(again.status).toBe(200);
+    expect(again.body['id']).toBe(fresh.body['id']);
+
+    // A customer signs in on that browser: the keys it holds claim the row.
+    const claimed = await subscribe({ endpoint, keys }, 'stub-customer-session');
+    expect(claimed.status).toBe(200);
+    expect(await storedRow(endpoint)).toEqual({ customer_account_id: TEST_CUSTOMER_ID, ...keys });
+
+    // The push service rotated the keys: the owner's session carries the new ones.
+    const rotated = { p256dh: 'rotated-p256dh', auth: 'rotated-auth' };
+    const rekeyed = await subscribe({ endpoint, keys: rotated }, 'stub-customer-session');
+    expect(rekeyed.status).toBe(200);
+    expect(rekeyed.body['id']).toBe(fresh.body['id']);
+    expect(await storedRow(endpoint)).toEqual({
+      customer_account_id: TEST_CUSTOMER_ID,
+      ...rotated,
     });
   });
 
