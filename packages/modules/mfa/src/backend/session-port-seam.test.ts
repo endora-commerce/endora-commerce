@@ -94,6 +94,7 @@ async function buildApp(): Promise<{ app: FastifyInstance; created: AuthCreateSe
     challengeStore: {} as unknown as MfaPublicDeps['challengeStore'],
     enrolmentService: {} as unknown as MfaPublicDeps['enrolmentService'],
     auditLogService: { record: async () => undefined } as unknown as MfaPublicDeps['auditLogService'],
+    adminAuthenticationThrottle: { issueKnownDevice: async () => null },
   });
   await app.ready();
   return { app, created };

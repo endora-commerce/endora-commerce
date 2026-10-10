@@ -1,5 +1,6 @@
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import type {
+  AdminAuthenticationOrigin,
   AdminPasswordVerificationPort,
   AdminUserReadPort,
   CustomerAccountReadPort,
@@ -110,9 +111,12 @@ export function createAccountPasswordVerifier(
   subjectType: 'customer' | 'admin',
   subjectId: string,
   password: string,
+  context?: AdminAuthenticationOrigin,
 ) => Promise<boolean> {
-  return async (subjectType, subjectId, password) =>
+  // `context` reaches the administrator port only: it counts the attempt in
+  // the account's authentication throttle, which also counts per address.
+  return async (subjectType, subjectId, password, context) =>
     subjectType === 'admin'
-      ? admins.verifyPassword(subjectId, password)
+      ? admins.verifyPassword(subjectId, password, context)
       : customers.verifyPassword(subjectId, password);
 }

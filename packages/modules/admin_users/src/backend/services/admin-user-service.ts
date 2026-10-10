@@ -3,6 +3,8 @@ import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import {
   ERROR_CODES,
   normalizeEmailAddress,
+  type AdminAuthenticationOrigin,
+  type AdminAuthenticationThrottlePort,
   type AdminRolePort,
   type AuthSessionPort,
   type MfaLoginPort,
@@ -68,6 +70,15 @@ export interface UpdateOwnAdminUserContext {
    * is no session to spare and all of them go.
    */
   sessionCookieValue?: string | undefined;
+  /**
+   * The administrator authentication throttle the current-password check runs
+   * inside. Required: the current password is a credential check like the one
+   * at sign-in, and without the throttle a signed-in session could try
+   * passwords without a limit.
+   */
+  throttle: Pick<AdminAuthenticationThrottlePort, 'verify'>;
+  /** Where the request came from, for that throttle. */
+  origin: AdminAuthenticationOrigin;
 }
 
 /** The refusal a self-service password change earns without the right current password. */
@@ -402,21 +413,30 @@ export class AdminUserService {
   async updateSelf(
     id: string,
     input: UpdateOwnAdminUserInput,
-    context: UpdateOwnAdminUserContext = {},
+    context: UpdateOwnAdminUserContext,
   ): Promise<AdminUser> {
     const em = this.emFactory();
     const user = await this.#getByIdOn(em, id);
     let passwordHash: string | undefined;
     if (input.password !== undefined) {
-      if (
-        input.currentPassword === undefined ||
-        !(await verifyPassword(user.passwordHash, input.currentPassword))
-      ) {
-        throw currentPasswordInvalidRefusal();
-      }
+      const currentPassword = input.currentPassword;
+      // Nothing was presented, so there is no attempt to count.
+      if (currentPassword === undefined) throw currentPasswordInvalidRefusal();
+      // Counted under the account's e-mail address, the key sign-in uses: one
+      // budget for the password wherever it is asked for. While a delay runs
+      // this rejects with 429 before the password is looked at, and — like any
+      // refusal here — before anything below is assigned.
+      const matches = await context.throttle.verify(
+        { factor: 'password', account: user.email, ...context.origin },
+        async () => ({
+          ok: await verifyPassword(user.passwordHash, currentPassword),
+          adminUserId: user.id,
+        }),
+      );
+      if (!matches) throw currentPasswordInvalidRefusal();
       // `currentPassword` has just been verified, so comparing the two strings
       // is comparing the new password with the stored one.
-      if (input.password === input.currentPassword) throw newPasswordUnchangedRefusal();
+      if (input.password === currentPassword) throw newPasswordUnchangedRefusal();
       passwordHash = await hashPassword(input.password);
     }
     const editsProfile = input.firstName !== undefined || input.lastName !== undefined;

@@ -9,9 +9,14 @@ import type {
   PermissionReadPort,
 } from '@endora-commerce/contracts';
 import { AdminAuthService } from './services/admin-auth-service.js';
+import { AdminUser } from './entities/admin-user.entity.js';
+import {
+  AuthenticationThrottle,
+  type AttemptCounterStore,
+} from './services/authentication-throttle.js';
 import { ImpersonationService } from './services/impersonation-service.js';
 import { AdminUserService } from './services/admin-user-service.js';
-import type { AuditPort } from '@endora-commerce/platform/kernel';
+import type { AuditPort, PlatformLogger } from '@endora-commerce/platform/kernel';
 import { registerAdminPublicRoutes } from './routes.public.js';
 import { registerImpersonationRoutes } from './routes.impersonation.js';
 import { registerAdminUsersAdminRoutes } from './routes.admin.js';
@@ -26,6 +31,10 @@ import type { TwoFactorEnrolmentReader } from './services/two-factor-enrolments.
  */
 export interface AdminModuleOptions {
   emFactory: () => EntityManager;
+  /** Where the authentication throttle keeps its counters. */
+  redis: AttemptCounterStore;
+  /** The module's own logger — a throttle activation is reported on it. */
+  log: PlatformLogger;
   /** `auth`'s session surface — mints, loads and destroys the session rows. */
   authSessionPort: AuthSessionPort;
   auditLogService: AuditPort;
@@ -60,6 +69,13 @@ export interface AdminModuleOptions {
 
 export interface AdminModuleHandle {
   adminAuthService: AdminAuthService;
+  /**
+   * The throttle on wrong passwords and wrong second-factor codes. One
+   * instance: sign-in uses it directly, it is what
+   * `adminAuthenticationThrottlePort` publishes to `mfa`, and `admin_users
+   * unlock` clears one account's counters through it.
+   */
+  authenticationThrottle: AuthenticationThrottle;
   impersonationService: ImpersonationService;
   permissionService: PermissionReadPort;
   auditLogService: AuditPort;
@@ -79,9 +95,26 @@ export interface AdminModuleHandle {
 export function adminModule(
   options: AdminModuleOptions,
 ): { plugin: (app: FastifyInstance) => Promise<void>; handle: AdminModuleHandle } {
+  const authenticationThrottle = new AuthenticationThrottle({
+    redis: options.redis,
+    auditLog: options.auditLogService,
+    log: options.log,
+    // Read only for a known-device value whose signature a route has verified,
+    // and when one is minted. An inactive or deleted account answers `null`,
+    // which is what stops its devices being known the moment it is deactivated.
+    credentialOf: async (adminUserId) => {
+      const admin = await options.emFactory().findOne(AdminUser, {
+        id: adminUserId,
+        deletedAt: null,
+      });
+      if (!admin || admin.status !== 'active') return null;
+      return { adminUserId: admin.id, email: admin.email, passwordHash: admin.passwordHash };
+    },
+  });
   const adminAuthService = new AdminAuthService(
     options.emFactory,
     options.authSessionPort,
+    authenticationThrottle,
     options.getMfaLoginPort,
   );
   const impersonationService = new ImpersonationService(
@@ -99,6 +132,7 @@ export function adminModule(
   );
   const handle: AdminModuleHandle = {
     adminAuthService,
+    authenticationThrottle,
     impersonationService,
     permissionService: options.permissionService,
     auditLogService: options.auditLogService,
@@ -109,6 +143,7 @@ export function adminModule(
     plugin: async (app) => {
       await registerAdminPublicRoutes(app, {
         adminAuthService,
+        authenticationThrottle,
         twoFactorEnrolments: options.twoFactorEnrolments,
       });
       await registerImpersonationRoutes(app, {
@@ -122,6 +157,7 @@ export function adminModule(
       });
       await registerAdminUsersAdminRoutes(app, {
         adminUserService,
+        authenticationThrottle,
         adminRolePort: options.adminRolePort,
         permissionCataloguePort: options.permissionCataloguePort,
         permissionService: options.permissionService,

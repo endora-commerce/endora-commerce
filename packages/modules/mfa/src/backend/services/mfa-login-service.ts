@@ -1,5 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
+  AdminAuthenticationOrigin,
   MfaLoginContext,
   MfaLoginDecision,
   MfaLoginPort,
@@ -8,7 +9,7 @@ import type {
 import { MfaEnrolment } from '../entities/mfa-enrolment.entity.js';
 import type { ChallengeStore } from './challenge-store.js';
 import type { MfaPolicyResolver } from './mfa-policy-resolver.js';
-import type { MfaEnrolmentService } from './mfa-enrolment-service.js';
+import type { SecondFactorVerifier } from './second-factor-verifier.js';
 
 /** Result of completing the second step. */
 export type MfaVerifyResult =
@@ -32,7 +33,7 @@ export class MfaLoginService implements MfaLoginPort {
     private readonly challengeStore: ChallengeStore,
     private readonly policyResolver: MfaPolicyResolver,
     /** Present once the cipher key is configured; required by `verifyChallenge`. */
-    private readonly enrolmentService?: MfaEnrolmentService,
+    private readonly verifySecondFactor?: SecondFactorVerifier,
   ) {}
 
   async beginLogin(
@@ -82,9 +83,17 @@ export class MfaLoginService implements MfaLoginPort {
    * On failure, the attempt budget is decremented and the challenge burned when
    * exhausted. On success the challenge is consumed and the subject returned so
    * the route can mint the session.
+   *
+   * An administrator's code is checked inside the account's authentication
+   * throttle, which rejects with 429 before the code is looked at while a delay
+   * is running — so a refused attempt spends none of the challenge's budget.
    */
-  async verifyChallenge(challengeId: string, code: string): Promise<MfaVerifyResult> {
-    if (!this.enrolmentService) return { ok: false, error: 'invalid_challenge' };
+  async verifyChallenge(
+    challengeId: string,
+    code: string,
+    context?: AdminAuthenticationOrigin,
+  ): Promise<MfaVerifyResult> {
+    if (!this.verifySecondFactor) return { ok: false, error: 'invalid_challenge' };
     const challenge = await this.challengeStore.getChallenge(challengeId);
     if (!challenge) return { ok: false, error: 'invalid_challenge' };
 
@@ -92,7 +101,7 @@ export class MfaLoginService implements MfaLoginPort {
       subjectType: challenge.subjectType,
       subjectId: challenge.subjectId,
     };
-    const verified = await this.enrolmentService.verifySecondFactor(subject, code);
+    const verified = await this.verifySecondFactor(subject, code, context);
     if (!verified.ok) {
       const remaining = await this.challengeStore.recordFailedAttempt(challengeId);
       return { ok: false, error: remaining <= 0 ? 'locked' : 'invalid_code', subject };

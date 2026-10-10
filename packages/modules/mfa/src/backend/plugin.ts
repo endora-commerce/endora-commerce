@@ -2,7 +2,13 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Redis } from 'ioredis';
 import { ADMIN_SESSION_COOKIE_NAME, SESSION_COOKIE_NAME } from '@endora-commerce/contracts';
-import type { AuthSessionPort, CustomerPasswordStatePort, MfaLoginPort } from '@endora-commerce/contracts';
+import type {
+  AdminAuthenticationOrigin,
+  AdminAuthenticationThrottlePort,
+  AuthSessionPort,
+  CustomerPasswordStatePort,
+  MfaLoginPort,
+} from '@endora-commerce/contracts';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { ChallengeStore } from './services/challenge-store.js';
@@ -12,6 +18,7 @@ import {
   type SettingsReader,
 } from './services/mfa-policy-resolver.js';
 import { MfaLoginService } from './services/mfa-login-service.js';
+import { createSecondFactorVerifier } from './services/second-factor-verifier.js';
 import { MfaEnrolmentService } from './services/mfa-enrolment-service.js';
 import { MfaOrgPolicyService } from './services/mfa-org-policy-service.js';
 import {
@@ -106,7 +113,15 @@ export interface MfaModuleOptions {
     subjectType: 'customer' | 'admin',
     subjectId: string,
     password: string,
+    context?: AdminAuthenticationOrigin,
   ) => Promise<boolean>;
+  /**
+   * `admin_users`' throttle on repeated wrong administrator credentials. Every
+   * administrator second-factor check in this module runs inside it. Required:
+   * a composition without it would verify codes with no limit across
+   * challenges, and nothing would report the gap.
+   */
+  adminAuthenticationThrottle: AdminAuthenticationThrottlePort;
 }
 
 export interface MfaModuleHandle {
@@ -134,11 +149,18 @@ export function mfaModule(options: MfaModuleOptions): {
     ? new MfaEnrolmentService(options.emFactory, cipher, options.auditLogService)
     : null;
 
+  const verifySecondFactor = enrolmentService
+    ? createSecondFactorVerifier(
+        (subject, code) => enrolmentService.verifySecondFactor(subject, code),
+        options.adminAuthenticationThrottle,
+      )
+    : undefined;
+
   const loginService = new MfaLoginService(
     options.emFactory,
     challengeStore,
     policyResolver,
-    enrolmentService ?? undefined,
+    verifySecondFactor,
   );
   const orgPolicyService = new MfaOrgPolicyService(options.emFactory, options.auditLogService);
   // Deliberately not behind the `oauthProvider` check below: the links an
@@ -153,13 +175,15 @@ export function mfaModule(options: MfaModuleOptions): {
   const withdrawFactorGrants = createFactorWithdrawal(options.sessionService, challengeStore);
 
   const plugin: ModuleAttach = async (app) => {
-    if (!enrolmentService) return; // enrolment disabled without an encryption key
+    // enrolment disabled without an encryption key
+    if (!enrolmentService || !verifySecondFactor) return;
     await registerMfaPublicRoutes(app, {
       loginService,
       sessionService: options.sessionService,
       challengeStore,
       enrolmentService,
       auditLogService: options.auditLogService,
+      adminAuthenticationThrottle: options.adminAuthenticationThrottle,
     });
     // Storefront customer self-service (US1).
     await registerMfaSelfServiceRoutes(app, {
@@ -172,6 +196,7 @@ export function mfaModule(options: MfaModuleOptions): {
       resolveSubjectId: (req) => options.resolveCustomerActor(req).customerAccountId,
       resolveOrganizationId: (req) => options.resolveCustomerActor(req).organizationId,
       enrolmentService,
+      verifySecondFactor,
       policyResolver,
       socialLinkService,
       auditLogService: options.auditLogService,
@@ -215,6 +240,7 @@ export function mfaModule(options: MfaModuleOptions): {
         requireGuard: requireAdmin(),
         resolveSubjectId: (req) => resolveAdminActor(req).adminUserId,
         enrolmentService,
+        verifySecondFactor,
         policyResolver,
         socialLinkService,
         auditLogService: options.auditLogService,

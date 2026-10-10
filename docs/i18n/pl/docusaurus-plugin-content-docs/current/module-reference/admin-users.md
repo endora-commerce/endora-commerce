@@ -63,3 +63,4 @@ polecenia mają postać `pnpm --filter backend run cli -- admin_users <command>`
 | Polecenie | Działanie |
 | --- | --- |
 | `pnpm run cli admin_users create` | Tworzy lub aktualizuje administratora i w razie potrzeby tworzy rolę platform_admin. |
+| `pnpm run cli admin_users unlock` | Czyści ograniczenie prób uwierzytelnienia dla jednego konta administratora. |

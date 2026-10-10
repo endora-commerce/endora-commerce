@@ -8,6 +8,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 // this process and `check:singleton-identity`'s conjunct 1 is false.
 import { AdminUser } from '../../../../packages/modules/admin_users/src/backend/entities/admin-user.entity.js';
 import type {
+  AdminAuthenticationThrottlePort,
   AdminRolePort,
   AdminRoleRecord,
   AuthSessionPort,
@@ -227,6 +228,16 @@ function revocationRecordingSessionPort(): {
   return { port, revoked: () => revoked };
 }
 
+/**
+ * A throttle that admits every attempt and answers what the check found. What
+ * the real one does with repeated failures is asserted through the routes, in
+ * `test/contract/admin_users/authentication-throttle.test.ts`.
+ */
+const admitEverything: AdminAuthenticationThrottlePort = {
+  verify: async (_attempt, check) => (await check()).ok,
+  issueKnownDevice: async () => null,
+};
+
 function recordingAuditLog(): { log: AuditLogService; actions: () => string[] } {
   const actions: string[] = [];
   const log = {
@@ -244,7 +255,7 @@ describe('admin_users — sessions, roles and the impersonation target over port
     const expiresAt = new Date(Date.now() + 3_600_000);
     const { port, created } = sessionPort({ cookieValue: 'cookie-value', expiresAt });
 
-    const outcome = await new AdminAuthService(em, port).login({
+    const outcome = await new AdminAuthService(em, port, admitEverything).login({
       email: 'operator@example.test',
       password: 'a-very-strong-pass',
     });
@@ -255,6 +266,52 @@ describe('admin_users — sessions, roles and the impersonation target over port
     // `lastLoginAt` is stamped and flushed on this module's own row.
     expect(admin.lastLoginAt).toBeInstanceOf(Date);
     expect(flushes()).toBe(1);
+  });
+
+  it('reads neither the account nor the password while the throttle refuses the attempt', async () => {
+    // The attempt is taken first. Looking the account up, or comparing the
+    // password, before asking the throttle would make a refused request do the
+    // work — and take the time — of a verified one, for a known account only.
+    const admin = await makeAdmin('a-very-strong-pass');
+    const reads: unknown[] = [];
+    const em = (() => ({
+      findOne: async (_entity: unknown, where: unknown) => {
+        reads.push(where);
+        return admin;
+      },
+      flush: async () => undefined,
+    })) as unknown as () => EntityManager;
+    const { port, created } = sessionPort({ cookieValue: 'cookie-value', expiresAt: new Date() });
+    const refusal = new Error('throttled');
+    const attempts: unknown[] = [];
+    const refusing: AdminAuthenticationThrottlePort = {
+      verify: async (attempt) => {
+        attempts.push(attempt);
+        throw refusal;
+      },
+      issueKnownDevice: async () => null,
+    };
+
+    await expect(
+      new AdminAuthService(em, port, refusing).login({
+        email: 'Operator@Example.TEST',
+        password: 'a-very-strong-pass',
+        ip: '203.0.113.9',
+        knownDevice: 'v1.a-1.device.stamp',
+      }),
+    ).rejects.toBe(refusal);
+
+    expect(reads).toEqual([]);
+    expect(created()).toEqual([]);
+    // Keyed by the folded address, with the origin the route was given.
+    expect(attempts).toEqual([
+      {
+        factor: 'password',
+        account: 'operator@example.test',
+        ip: '203.0.113.9',
+        knownDevice: 'v1.a-1.device.stamp',
+      },
+    ]);
   });
 
   it('asks admin_roles whether a role exists instead of querying its table', async () => {

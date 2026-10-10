@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type {
+  AdminAuthenticationThrottlePort,
   AdminPasswordVerificationPort,
   AdminRolePort,
   AdminUserPreferencePort,
@@ -26,6 +27,7 @@ import {
   createAdminUserPreferencePort,
   createImpersonationPort,
 } from './services/admin-user-ports.js';
+import type { AttemptCounterStore } from './services/authentication-throttle.js';
 import { describeAdministratorsWithoutRole } from './services/admin-user-service.js';
 import type { TwoFactorEnrolmentReader } from './services/two-factor-enrolments.js';
 
@@ -67,6 +69,8 @@ import type { TwoFactorEnrolmentReader } from './services/two-factor-enrolments.
 /** What `admin_users` resolves from the container, and the names it owns. */
 export interface AdminUsersCradle {
   readonly emFactory: () => EntityManager;
+  /** The host's Redis client, as far as this module uses it. */
+  readonly redis: AttemptCounterStore;
   readonly auditLogService: AuditPort;
   readonly requireAdmin: RequireAdminFactory;
   /** Who the acting admin is — production reads `actor`, the harness `testActor`. */
@@ -109,9 +113,11 @@ export function registerModule(ctx: ModuleContext): void {
 
   ctx.di.register({
     admin: ctx
-      .asFunction(({ emFactory, auditLogService }: AdminUsersCradle) =>
+      .asFunction(({ emFactory, redis, auditLogService }: AdminUsersCradle) =>
         adminModule({
           emFactory,
+          redis,
+          log: ctx.log,
           auditLogService,
           // Feature 075, Phase C — every collaborator below is another
           // module's published port, resolved lazily by a string literal so
@@ -185,9 +191,20 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.providePort<AdminPasswordVerificationPort>(
     'adminPasswordVerificationPort',
     ctx
-      .asFunction(({ emFactory }: AdminUsersCradle) =>
-        createAdminPasswordVerificationPort(emFactory),
+      .asFunction(({ emFactory, admin }: AdminUsersCradle) =>
+        createAdminPasswordVerificationPort(emFactory, admin.handle.authenticationThrottle),
       )
+      .singleton(),
+  );
+
+  // The throttle on repeated wrong administrator credentials, for `mfa`: a
+  // second-factor code is guessed the same way a password is, and it is `mfa`
+  // that verifies one. Published from the instance sign-in uses, so there is
+  // one set of counters whichever module took the attempt.
+  ctx.di.providePort<AdminAuthenticationThrottlePort>(
+    'adminAuthenticationThrottlePort',
+    ctx
+      .asFunction(({ admin }: AdminUsersCradle) => admin.handle.authenticationThrottle)
       .singleton(),
   );
 
