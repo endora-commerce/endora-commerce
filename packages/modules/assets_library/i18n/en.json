@@ -7,7 +7,7 @@
   "errors.ASSET_FOLDER_CYCLE": "Asset Folder Cycle.",
   "errors.ASSET_UPLOAD_NO_FILE": "Asset Upload No File.",
   "errors.ASSET_UPLOAD_TYPE_NOT_ALLOWED": "Asset Upload Type Not Allowed.",
-  "errors.ASSET_UPLOAD_TOO_LARGE": "Asset Upload Too Large.",
+  "errors.ASSET_UPLOAD_TOO_LARGE": "The file is too large: the largest file that can be uploaded is {maxFileSizeMb} MB.",
   "errors.ASSET_STORAGE_UNAVAILABLE": "Asset Storage Unavailable.",
   "errors.ASSET_STORAGE_MISCONFIGURED": "Asset Storage Misconfigured.",
   "errors.ASSET_LEGACY_LOCATOR_CANNOT_HARDEN": "Asset Legacy Locator Cannot Harden.",
