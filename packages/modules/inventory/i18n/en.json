@@ -1,7 +1,7 @@
 {
   "actions.openInventory.label": "Open inventory",
   "actions.openInventory.description": "View and manage warehouse stock levels",
-  "errors.STOCK_UNAVAILABLE": "Stock Unavailable.",
+  "errors.STOCK_UNAVAILABLE": "\"{productName}\" ({sku}) is not available in the quantity ordered ({requestedQuantity}). Reduce the quantity or remove the product from the order.",
   "errors.WAREHOUSE_NOT_FOUND": "Warehouse Not Found.",
   "errors.WAREHOUSE_CODE_TAKEN": "Warehouse Code Taken.",
   "errors.WAREHOUSE_INVALID_CODE": "Warehouse Invalid Code.",
