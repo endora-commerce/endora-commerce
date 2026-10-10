@@ -29,10 +29,16 @@ export interface AppendEventInput {
 export class RfqEventService {
   constructor(private readonly emFactory: () => EntityManager) {}
 
-  async append(input: AppendEventInput): Promise<QuoteRequestEvent> {
+  /**
+   * `within` is the caller's transactional EntityManager, for a caller whose
+   * history row must commit or roll back with the state change it records —
+   * the expiry sweep is one. Without it the row is written, and committed, on
+   * an EntityManager of this service's own.
+   */
+  async append(input: AppendEventInput, within?: EntityManager): Promise<QuoteRequestEvent> {
     // command-coverage-ignore: this IS the RFQ's own append-only event timeline
     // (the domain's audit trail); the parent RFQ action carries the audit entry.
-    const em = this.emFactory();
+    const em = within ?? this.emFactory();
     const event = em.create(QuoteRequestEvent, {
       quoteRequestId: input.quoteRequestId,
       eventType: input.eventType,

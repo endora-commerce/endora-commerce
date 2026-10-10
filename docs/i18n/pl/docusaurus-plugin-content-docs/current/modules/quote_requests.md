@@ -118,11 +118,36 @@ istniejący moduł ustawień.
 
 ## Zadania w tle
 
-`RfqExpiryWorker.sweep()` jest uruchamiany co 30 minut przez podstawowy harmonogram BullMQ. Odczytuje
-`quote_requests.expiry_days` z migawki ustawień; gdy wartość wynosi 0, nic nie robi. W przeciwnym
-razie przestawia na `Expired` każdy wiersz w statusie Pending lub Created from admin, dla którego
-`updated_at < now() - INTERVAL <expiryDays> days`, zapisuje dla każdego z nich jedno zdarzenie
-`expired` i wysyła powiadomienia obu stronom.
+Zadanie wygaszania działa **co 30 minut** w każdym procesie, który obsługuje kolejki
+(`BACKEND_ROLE=worker` albo `all`): to harmonogram zadań BullMQ na kolejce
+`quote_requests.expiry.sweep`, który instaluje sam moduł. Gdy moduł jest wyłączony, żadne
+uruchomienie się nie wykonuje.
+
+Każde uruchomienie odczytuje `quote_requests.expiry_days`; `0` — wartość domyślna — wyłącza
+wygaszanie, więc świeża instancja niczego nie wygasza, dopóki operator nie ustawi tej wartości. W
+przeciwnym razie każde zapytanie w statusie Pending lub Created from admin, dla którego
+`updated_at < now() - <expiry_days> dni`, przechodzi do statusu `Expired`:
+
+- **Jedno zapytanie naraz.** Zmiana statusu, wpis `expired` w historii i wiersze powiadomień
+  jednego zapytania są zatwierdzane razem, a `rfq.expired.v1` jest emitowane dopiero potem.
+  Zapytanie, przy którym coś się nie powiodło, zostaje bez zmian i jest ponawiane przy następnym
+  uruchomieniu; pozostałe nie są przez nie wstrzymywane.
+- **Ograniczona paczka.** Jedno uruchomienie wygasza najwyżej 500 zapytań, od najstarszych.
+  Większe zaległości są nadrabiane w kolejnych uruchomieniach.
+- **Spóźnionych wiadomości się nie wysyła.** Zapytanie, które powinno było wygasnąć ponad 24
+  godziny przed uruchomieniem, które do niego dotarło, zostaje wygaszone, dostaje wpis w historii
+  i jest ogłaszane jako `rfq.expired.v1` jak każde inne, ale nie powstaje dla niego żaden wiersz
+  powiadomienia — ani dla klienta, ani dla strony sprzedającej. Tak dzieje się z zaległościami
+  instancji zaktualizowanej z wydania, w którym wygaszanie nie działało: zapytania stają się
+  `Expired`, a nikt nie dostaje wiadomości spóźnionej o miesiące.
+- **Bezczynne uruchomienie jest ciche.** Gdy nic nie czeka na wygaszenie, uruchomienie nie wchodzi
+  w zakres systemowy i nie zapisuje wiersza audytu `tenant.escape_hatch`.
+
+> **Zanim wygaszanie zostało zaplanowane.** W wydaniach do 0.104.0 włącznie zadanie istniało i było
+> tu opisane, ale nic go nie uruchamiało: żadne zapytanie nie wygasło automatycznie. Jeśli w twojej
+> instancji `quote_requests.expiry_days` jest ustawione, pierwsze uruchomienia po aktualizacji
+> wygaszą wszystko, co czekało od tamtej pory. Ustaw `0` przed aktualizacją, jeśli chcesz najpierw
+> przejrzeć te zaległości.
 
 ## Model danych
 

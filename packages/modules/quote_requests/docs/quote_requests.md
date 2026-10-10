@@ -128,13 +128,37 @@ group and are configured through the existing settings module.
 
 ## Background jobs
 
-`RfqExpiryWorker.sweep()` runs every 30 minutes via the foundation
-BullMQ scheduler. It reads `quote_requests.expiry_days` from the
-settings module's resolved snapshot; if that value is 0 the sweep is
-a no-op. Otherwise it transitions every Pending and Created from
-admin row whose `updated_at < now() - INTERVAL <expiryDays> days` to
-`Expired`, writes one `expired` event per row, and fans out
-notifications to both parties.
+The expiry sweep runs **every 30 minutes** in every process that consumes
+queues (`BACKEND_ROLE=worker` or `all`): a BullMQ Job Scheduler on the queue
+`quote_requests.expiry.sweep`, installed by the module itself. While the module
+is switched off, no tick runs.
+
+Each tick reads `quote_requests.expiry_days`; `0` — the default — disables the
+sweep, so a fresh instance expires nothing until an operator sets it. Otherwise
+every Pending and Created from admin request whose
+`updated_at < now() - <expiry_days> days` is moved to `Expired`:
+
+- **One request at a time.** The status change, the `expired` history row and
+  the notification rows of one request commit together, and
+  `rfq.expired.v1` is emitted once they have. A request that fails stays as it
+  was and is tried again on the next tick; the others are not held up by it.
+- **A bounded batch.** A tick expires at most 500 requests, oldest first. A
+  larger backlog is worked off over the following ticks.
+- **Late news is not sent.** A request that became due more than 24 hours
+  before the tick that reaches it is expired, gets its history row and is
+  announced as `rfq.expired.v1` like any other, but no notification row is
+  written for it, for the customer or for the sales side. This is what happens
+  to the backlog of an instance upgraded from a release in which the sweep did
+  not run: the requests become `Expired`, and nobody is told months late.
+- **An idle tick is silent.** When nothing is due, the tick enters no system
+  scope and writes no `tenant.escape_hatch` audit row.
+
+> **Before this was scheduled.** In releases up to and including 0.104.0 the
+> sweep existed and was documented here, and nothing ran it: no request was
+> ever expired automatically. If `quote_requests.expiry_days` is set on your
+> instance, the first ticks after the upgrade expire everything that has been
+> due since. Set it to `0` before upgrading if you want to review that backlog
+> first.
 
 ## Data model
 
