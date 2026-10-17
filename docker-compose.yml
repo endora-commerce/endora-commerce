@@ -66,7 +66,10 @@ services:
     volumes:
       - b2b-meilisearch-data:/meili_data
     healthcheck:
-      test: ['CMD', 'wget', '--quiet', '--spider', 'http://localhost:7700/health']
+      # 127.0.0.1 and not localhost: the image resolves localhost to ::1 as
+      # well and meilisearch binds IPv4 only, so busybox wget gives up on the
+      # first refusal and the check never reports healthy.
+      test: ['CMD', 'wget', '--quiet', '--spider', 'http://127.0.0.1:7700/health']
       interval: 5s
       timeout: 3s
       retries: 10

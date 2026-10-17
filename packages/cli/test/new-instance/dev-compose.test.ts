@@ -315,6 +315,28 @@ describe('T1-E / defect F-2 — the image tags agree by instrument rather than b
     }
   });
 
+  it('this repository\'s own development composes probe health the way the catalogue does', () => {
+    // The catalogue's meilisearch check moved to 127.0.0.1 and the two
+    // repository files kept `localhost`, which the image resolves to ::1 while
+    // meilisearch binds IPv4 only: the container never reported healthy and
+    // `docker compose up --wait` failed on every machine. The image tags agreed
+    // by instrument; the checks agreed by nothing.
+    const document = devDocument();
+    for (const file of ['docker-compose.yml', '.warden/warden-env.yml']) {
+      const infra = parseComposeYaml(readFileSync(join(repositoryRoot(), file), 'utf8'));
+      for (const name of ['meilisearch', 'mailpit']) {
+        if (!serviceNames(infra).includes(name)) continue;
+        const own = serviceOf(infra, name);
+        // A service on another image (warden's MailHog) carries its own check.
+        if (own['image'] !== serviceOf(document, name)['image']) continue;
+        expect(
+          (own['healthcheck'] as YamlMapping)['test'],
+          `${file} probes ${name} differently from packages/cli/src/new-instance/deploy.ts`,
+        ).toEqual((serviceOf(document, name)['healthcheck'] as YamlMapping)['test']);
+      }
+    }
+  });
+
   it('it runs Mailpit rather than MailHog (FR-112)', () => {
     const infra = readFileSync(join(repositoryRoot(), 'docker-compose.yml'), 'utf8');
     // Measured 2026-09-14: `mailhog/MailHog`'s last commit is 2024-02-13,
