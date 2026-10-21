@@ -581,7 +581,7 @@ export class PriceListService {
     // the audited write: `price_list.activate` for a live state, or
     // `price_list.expire` when the start/end dates push it straight to expired.
     const preRow = await this.getById(id);
-    if (!preRow.isSystem && (preRow.applicationRule === null || preRow.applicationRule.kind === 'all')) {
+    if (!preRow.isSystem && (preRow.applicationRule == null || preRow.applicationRule.kind === 'all')) {
       throw new HttpError(
         400,
         ERROR_CODES.VALIDATION_FAILED,

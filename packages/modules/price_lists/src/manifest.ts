@@ -268,5 +268,21 @@ export const recentActivity = defineModuleRecentActivity({
       icon: 'Archive',
       labelKey: 'activity.verb.price_list.matrix_entry_delete',
     },
+    // Feature 160 — price books.
+    {
+      action: 'price_list.base_prices_set',
+      icon: 'CircleDollarSign',
+      labelKey: 'activity.verb.price_list.base_prices_set',
+    },
+    {
+      action: 'price_list.channels_replace',
+      icon: 'Edit',
+      labelKey: 'activity.verb.price_list.channels_replace',
+    },
+    {
+      action: 'price_list.rows_replace',
+      icon: 'Edit',
+      labelKey: 'activity.verb.price_list.rows_replace',
+    },
   ],
 });

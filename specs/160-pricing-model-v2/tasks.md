@@ -37,7 +37,7 @@ a test task in *Traceability* at the end.
 
 - [X] T001 `git pull --rebase` on `feat/160-pricing-model-v2`, `pnpm run build:packages`, run `pnpm --filter backend run test:unit:fast` and record the green baseline in the PR description draft (no file change)
 - [ ] T002 Re-measure the pre-change baselines with `PERF_RUN=true`: `backend/test/perf/price_lists/resolver.bench.ts`, `backend/test/perf/catalog/listing-price-viewer-cost.bench.ts`, `backend/test/perf/catalog/price-sort-cost.bench.ts`; write the numbers into `specs/pricing/read-paths-and-performance.md` §7 as the SC-004 baseline
-- [ ] T003 [P] Create the shared pricing fixture of `worked-examples.md` §10.1, §10.12 and §10.14 (channels CH/CH1–CH3, Screws/Bolts, `color` with `isPriceRule`, P1–P5 with variants P5r/P5b, VIP/Gold/Silver, Acme/Beta/Gamma/AcmeW, base books) in `backend/test/helpers/pricing-fixture.ts`, written against the new entities (fails to compile until T018)
+- [X] T003 [P] Create the shared pricing fixture of `worked-examples.md` §10.1, §10.12 and §10.14 (channels CH/CH1–CH3, Screws/Bolts, `color` with `isPriceRule`, P1–P5 with variants P5r/P5b, VIP/Gold/Silver, Acme/Beta/Gamma/AcmeW, base books) in `backend/test/helpers/pricing-fixture.ts`, written against the new entities (fails to compile until T018)
 - [ ] T004 [P] Inventory every file under `backend/test/**`, `admin/test/**`, `storefront/test/**` and `packages/**/src/**/*.test.ts` that imports or spawns an artefact the plan deletes (`plan.md` *Test disposition*), and list it in `specs/160-pricing-model-v2/checklists/deletions.md` (consumed by T127)
 
 ---
@@ -79,14 +79,14 @@ currency. **Independent test**: base books only; vectors below for a guest.
 
 ### Tests first
 
-- [ ] T023 [P] [US1] Base vectors V1, V2, V7, E1.2, E1.3 (no books), K1.3 and §10.8 Q4 in `WX/base.test.ts` on `pricing-fixture.ts` (FR-009, FR-012, FR-018)
-- [ ] T024 [P] [US1] Base-book write rules (one per currency, product and variant rows only, product rows fixed, variant rows fixed/percent/amount of the product's base) in `PL/backend/services/price-book-service.base.test.ts` (FR-009)
-- [ ] T025 [P] [US1] Base-book uniqueness and channel independence, replacing `IT/price_lists/system-price-list-singleton.test.ts`, in `IT/price_lists/base-book-singleton.test.ts`
+- [X] T023 [P] [US1] Base vectors V1, V2, V7, E1.2, E1.3 (no books), K1.3 and §10.8 Q4 in `WX/base.test.ts` on `pricing-fixture.ts` (FR-009, FR-012, FR-018)
+- [X] T024 [P] [US1] Base-book write rules (one per currency, product and variant rows only, product rows fixed, variant rows fixed/percent/amount of the product's base) in `PL/backend/services/price-book-service.base.test.ts` (FR-009)
+- [X] T025 [P] [US1] Base-book uniqueness and channel independence, replacing `IT/price_lists/system-price-list-singleton.test.ts`, in `IT/price_lists/base-book-singleton.test.ts`
 
 ### Implementation
 
-- [ ] T026 [US1] Base-price command (per product, all currencies, variant rows) through `CommandBus.run`, creating a currency's base book on first use, in `PL/backend/services/price-book-service.ts`
-- [ ] T027 [US1] Re-implement the base tier of `resolveListingPrices`, `resolveListingPriceDetails` and `resolveLinePrices` on `book-resolver.ts` in `PL/backend/services/pricing-service.ts`, keeping the P0 statement budget
+- [X] T026 [US1] Base-price command (per product, all currencies, variant rows) through `CommandBus.run`, creating a currency's base book on first use, in `PL/backend/services/price-book-service.ts`
+- [X] T027 [US1] Re-implement the base tier of `resolveListingPrices`, `resolveListingPriceDetails` and `resolveLinePrices` on `book-resolver.ts` in `PL/backend/services/pricing-service.ts`, keeping the P0 statement budget
 - [ ] T028 [US1] Remove the own-price arm (`defaultPrice`) from `PL/backend/services/listing-price-chain.ts`: an unpriced line answers `none` (FR-018)
 
 **Checkpoint**: US1 vectors green.

@@ -12,7 +12,7 @@ import { RuleScoped } from '@endora-commerce/platform/tenancy';
  * a channel set (the `sales_channel_price_lists` bridge, reached only through
  * `SalesChannelMembershipService`), a type (`regular` | `sale`), a schedule and
  * a `priority`. It carries **no** application rule: until the conversion
- * migration drops the column, `applicationRule === null` is what marks a row as
+ * migration drops the column, a null `applicationRule` is what marks a row as
  * a price book rather than a list of the old engine, which reads only rows with
  * a rule. The system rows (`isSystem`) are the per-currency base books; the
  * PLN one is the old `Default` list (`…d51b`), shared by both models during the
@@ -140,5 +140,6 @@ export class PriceList {
 export type OldModelPriceList = PriceList & { applicationRule: ApplicationRule; type: 'base' | 'sale' };
 
 export function isOldModelList(list: PriceList): list is OldModelPriceList {
-  return list.applicationRule !== null && list.type !== 'regular';
+  // `!= null`: the ORM hydrates a SQL null as `undefined` (`forceUndefined`).
+  return list.applicationRule != null && list.type !== 'regular';
 }
