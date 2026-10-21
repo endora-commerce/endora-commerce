@@ -258,25 +258,14 @@ in the same commit.
 | FR-042, SC-006 | `product_variants.price_override` and the `defaultPrice`/`price` keys of `products.attribute_values` are removed from all code in P1 but **physically** by `catalog`'s first migration of the next release | the migration order runs every `catalog` migration before every `price_lists` migration in one run; a same-release drop would precede the conversion read (`research.md` R2) | two inert storage fields for one release; a contract test pins that nothing reads them |
 | D-287 §5.1 | the channel set is `sales_channel_price_lists`, a registered bridge, not `price_list_sales_channels` | Principle XII's sanctioned accessor | none on semantics |
 | D-287 §5.1 | audience members are two FK columns, not one polymorphic id | real FKs, cascade on permanent deletion | none on semantics |
-| FR-044, SC-007 | see *Open question* | the three scenarios conflict on one demo organization and product | pending the owner |
 
-## Open question for the owner
+## Demo configuration of E1–E3 (FR-044, SC-007)
 
-**Demo configuration of E1–E3 (FR-044, SC-007).** E2 and E3 both define *Acme B2B (demo)*'s terms for
-*Screws 0200* and *Screws* (−20 %/−10 % against −5 %/−15 %), and E1 raises *Screws 0200*'s catalogue
-price for everyone to 120, which moves every percentage of E2 and E3 (`worked-examples.md` E2.5). The
-demo has one demo organization (`packages/modules/organizations/src/backend/demo/rows.ts:34`), so the
-three cannot all show their literal numbers at once. Options:
-
-- **(A)** seed all three scenarios' books with E3's active and E1's and E2's as drafts; a presenter
-  activates one scenario at a time and each shows its literal numbers (the demo test activates each in
-  turn);
-- **(B)** add demo entities so all three show at once — a second demo organization for E2 and a second
-  red screw for E1 — at the cost of renaming the owner's literal examples;
-- **(C)** activate all three and document the combined answers (for example, Acme pays 114.00 for
-  *Screws 0200*).
-
-**Default: (A)** — the only option in which every scenario is reproduced exactly as the owner wrote it.
+The three scenarios conflict on the one demo organization and product (E2 and E3 give *Acme B2B
+(demo)* different terms for *Screws 0200*; E1 raises its catalogue price). The owner answered **(A)**
+(spec Clarifications, Session 2026-10-21): the examples are alternatives. The demo step seeds every
+scenario's books, E3's active and E1's and E2's as drafts; the demo test prices E3 after a reset,
+then activates E1's books alone and E2's books alone in turn and prices each.
 
 ## Follow-ups (outside P1, recorded)
 

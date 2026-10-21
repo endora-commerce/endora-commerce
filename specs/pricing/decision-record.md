@@ -72,6 +72,7 @@ section named.
 | N12 demo price lists | Yes — the demo instance's price lists reproduce E1–E3 | 2026-10-21 | §8 |
 | N13 dev price lists | Drop the non-system price lists of development databases and reseed; no conversion | 2026-10-21 | §8 |
 | Q-A (spec 160) admin editing between P1 and P2 | P1 and P2 are **released together**, so no release lacks a price editor; no interim editor | 2026-10-21 | §8.2 |
+| Demo E1–E3 (spec 160 FR-044) | The examples are **alternatives**, not one combined setup: the demo seeds all three, E3 active and E1/E2 as drafts, one scenario active at a time | 2026-10-21 | §8.1 |
 
 ## 0. Decision in one paragraph
 

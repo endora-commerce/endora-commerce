@@ -24,6 +24,9 @@ list dropped (`contracts/conversion-and-removal.md`). Nothing else needs convert
 | E2 | *Acme B2B (demo)* | *Screws 0200* | 80.00 |
 | E3 | *Acme B2B (demo)* (VIP) | *Screws 0200* | 95.00 |
 
+The scenarios are alternatives. After a reset E3's books are active and E1's and E2's are drafts; to
+see E1 or E2, activate that scenario's books and deactivate the others'.
+
 Ask the explanation endpoint why:
 
 ```bash

@@ -315,8 +315,9 @@ rows, `module-migrations.md` item 4a). E1–E3 need: the existing *Screws* categ
 (`CAT/backend/demo/rows.ts:61`), a `color` attribute flagged `isPriceRule` with a red value (the
 catalogue demo already generates colour values, `rows.ts:169`; the flag is set by `catalog`'s demo
 step), a *VIP* customer group with *Acme B2B (demo)* in it (each by its owner's demo step), a product
-*Screws 0200* priced 100 PLN and the books of `worked-examples.md` §10.2–§10.4. A demo test prices
-the E vectors after a reset (SC-007).
+*Screws 0200* priced 100 PLN and the books of `worked-examples.md` §10.2–§10.4. The scenarios are
+alternatives (owner, 2026-10-21): E3's books are seeded active, E1's and E2's as drafts. A demo test
+prices E3 after a reset, then E1 and E2 each with only its own books active (SC-007).
 
 ## R14. Documentation rebuild (FR-048, SC-010)
 

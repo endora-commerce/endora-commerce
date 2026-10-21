@@ -64,6 +64,12 @@ most; development price books dropped and reseeded; demo books reproduce E1–E3
   production deployment, and a throwaway interim editor would be built only to be replaced. Neither
   feature's changes reach `master` ahead of the other in a way that leaves the admin without price
   editing; the plan decides the branch and merge mechanics.
+- Q: E1–E3 conflict on the one demo organization and product (E2 and E3 give *Acme B2B (demo)*
+  different terms for *Screws 0200*; E1 raises its catalogue price, which moves every percentage of
+  E2 and E3). How must the demo show them? → A: **(A) one scenario active at a time.** The examples
+  were illustrations of possible variants, never meant to be active together. The demo seeds all
+  three scenarios' books; E3's are active and E1's and E2's are drafts, and a presenter activates one
+  scenario at a time, each then showing its literal numbers.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -254,7 +260,9 @@ representative over the books of §10.11, and read the audit log.
 
 A prospect or developer opening the demo instance finds price books that reproduce E1–E3 for the
 demo organization *Acme B2B (demo)*, the customer group *VIP*, the category *Screws* and the
-attribute value *color = red*.
+attribute value *color = red*. The three scenarios are alternatives, not one combined setup: E3's
+books are active after a reset, E1's and E2's are drafts, and activating one scenario's books (and
+deactivating the others') shows that scenario's literal numbers.
 
 **Why this priority**: The owner ruled it (N12); it is the most direct demonstration of the model
 but adds no capability.
@@ -264,9 +272,11 @@ storefront.
 
 **Acceptance Scenarios**:
 
-1. **Given** a freshly reset demo, **When** the E1, E2 and E3 vectors are priced against the demo's
-   data, **Then** each returns the vector's expected amount.
-2. **Given** a development database with old-model price lists, **When** the feature is installed,
+1. **Given** a freshly reset demo, **When** the E3 vectors are priced against the demo's data,
+   **Then** each returns the vector's expected amount.
+2. **Given** a freshly reset demo, **When** only E1's books are made active, and separately only
+   E2's, **Then** that scenario's vectors return their expected amounts.
+3. **Given** a development database with old-model price lists, **When** the feature is installed,
    **Then** those lists are gone and the demo seed's books are present after a demo reset (N13).
 
 ### Edge Cases
@@ -439,7 +449,9 @@ storefront.
   message that prices are set in price books.
 - **FR-044**: The demo seed MUST create base prices directly in the base books and price books that
   reproduce vectors E1–E3 against the demo's own organization, customer group, category, attribute
-  and products (N12); a demo reset MUST restore them.
+  and products (N12); a demo reset MUST restore them. The scenarios are alternatives: E3's books MUST
+  be active after a reset and E1's and E2's MUST be drafts, so that activating one scenario's books
+  alone reproduces that scenario's vectors (Clarifications, Session 2026-10-21).
 
 **Behaviour that D-287 replaces** (`current-model.md` §1.4)
 
@@ -504,7 +516,8 @@ storefront.
   change is reflected in sorted listings within 60 seconds.
 - **SC-006**: After installation, nothing of the old model listed in FR-042 remains, and no product or
   variant that had a price before has none afterwards in the currency it had it in.
-- **SC-007**: A freshly reset demo reproduces E1–E3: 0 mismatches.
+- **SC-007**: A freshly reset demo reproduces E3, and with only E1's or only E2's books active
+  reproduces that scenario: 0 mismatches across the three.
 - **SC-008**: A sales representative cannot learn, from any status code or message, that an
   organization-set book with an out-of-scope member exists.
 - **SC-009**: Every new user-facing string exists in English and Polish (0 missing keys).
