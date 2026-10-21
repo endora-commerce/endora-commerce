@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { ADMIN_PRODUCT_SELECTION_MAX, type ProductResolvedPrice } from './catalog.js';
 import { isoDateTimeSchema, moneySchema, uuidSchema } from './common.js';
+import { priceSourceSchema, type PriceSource } from './price-books.js';
 
 /**
  * Pricing contracts (feature 011 engine).
@@ -530,6 +531,18 @@ export const listingPriceSchema = z.discriminatedUnion('source', [
     currency: CURRENCY,
     priceListId: uuidSchema,
     isSale: z.boolean(),
+    /**
+     * Feature 160 (D-287 P1) — which tier of the price-book resolution priced
+     * the card. Named `priceSource` because `source` is this union's
+     * discriminant. Absent on an answer of the pre-160 engine.
+     */
+    priceSource: priceSourceSchema.optional(),
+    /** Feature 160 — the buyer price, struck through, when a sale is charged (FR-025). */
+    compareAtAmount: DECIMAL_STRING.optional(),
+    /** Feature 160 — the variants of the product resolve to different prices (FR-024). */
+    variesByVariant: z.boolean().optional(),
+    /** Feature 160 — the highest variant price; `amount` is the lowest ("from"). */
+    maxAmount: DECIMAL_STRING.optional(),
   }),
   z.object({
     source: z.literal('product'),
@@ -638,6 +651,17 @@ export interface ListingPriceInput {
  */
 export interface ListingPriceDetail extends ProductResolvedPrice {
   price: ListingPrice;
+  /**
+   * Feature 160 (D-287 P1) — the amount of each tier of the price-book
+   * resolution that produced `price`, where the tier priced anything. Absent on
+   * an answer of the pre-160 engine.
+   */
+  tiers?: {
+    base: { amount: string; currency: string } | null;
+    catalogue: { amount: string; currency: string } | null;
+    buyer: { amount: string; currency: string } | null;
+    sale: { amount: string; currency: string } | null;
+  };
 }
 
 /**
@@ -926,6 +950,13 @@ export interface LinePriceResult {
   isSale: boolean;
   bracketStartQuantity: number;
   displayMode: DisplayMode;
+  /**
+   * Feature 160 (D-287 P1) — which tier priced the line (FR-030). Absent on an
+   * answer of the pre-160 engine; `isSale` is `source === 'sale'` when set.
+   */
+  source?: PriceSource;
+  /** Feature 160 — the buyer price a charged sale undercut (FR-015), else absent. */
+  compareAt?: string | null;
 }
 
 /**

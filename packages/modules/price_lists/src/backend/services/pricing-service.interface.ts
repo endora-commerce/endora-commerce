@@ -16,6 +16,8 @@ import type {
   ListingPriceViewerContext,
 } from '@endora-commerce/contracts';
 import type { PriceBracketRow } from './price-bracket-resolver.js';
+import type { PriceSource } from '@endora-commerce/contracts';
+import type { BookExplanation } from './book-resolver.js';
 
 /**
  * The product a price is resolved for, as this engine reads it (feature 075
@@ -96,6 +98,19 @@ export interface PricingLineResult {
    * contract: the published `LinePriceResult` is deliberately not widened (D-77).
    */
   matrixEntryId?: string | null;
+  /**
+   * Feature 160 (D-287 P1) — which tier priced the line (FR-030); set by the
+   * price-book engine. `isSale` is `source === 'sale'`.
+   */
+  source?: PriceSource;
+  /** Feature 160 — the buyer price a charged sale undercut (FR-015). */
+  compareAt?: string | null;
+  /**
+   * Feature 160 — why this price (FR-020): tier, cell, book, row, reference and
+   * precedence version. Internal to this module's contract, like
+   * `matrixEntryId`; the published `LinePriceResult` does not carry it.
+   */
+  explanation?: BookExplanation;
 }
 
 /**

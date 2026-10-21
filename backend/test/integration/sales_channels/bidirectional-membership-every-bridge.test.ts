@@ -85,6 +85,7 @@ describe('bidirectional membership: every bridge (T043)', () => {
     customer: async () => insertCustomerAccount(),
     promotion: async () => insertPromotion(),
     'cms-page': async () => insertCmsPage(),
+    'price-list': async () => insertPriceBook(),
   };
 
   async function rawExec(sql: string, params: unknown[] = []): Promise<void> {
@@ -195,6 +196,19 @@ describe('bidirectional membership: every bridge (T043)', () => {
     return id;
   }
 
+  /** Feature 160 — a price book; its channel set is the `sales_channel_price_lists` bridge. */
+  async function insertPriceBook(): Promise<string> {
+    const id = randomUUID();
+    await rawExec(
+      `insert into "price_lists"
+         ("id","code","name","currency_code","is_default","priority","type","status",
+          "application_rule","audience_kind","is_system","modified_at","created_at","updated_at")
+       values (?, ?, ?, 'EUR', false, 0, 'regular', 'draft', null, 'everyone', false, now(), now(), now())`,
+      [id, `t043-pb-${id.slice(0, 8)}`, `Book ${id.slice(0, 8)}`],
+    );
+    return id;
+  }
+
   const ENTITY_TYPES: ChannelMemberEntityType[] = [
     'product',
     'category',
@@ -205,6 +219,7 @@ describe('bidirectional membership: every bridge (T043)', () => {
     'customer',
     'promotion',
     'cms-page',
+    'price-list',
   ];
 
   it.each(ENTITY_TYPES)(

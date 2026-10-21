@@ -58,12 +58,16 @@ export const TABLE_OWNER_OVERRIDES: Readonly<Record<string, string>> = {
   // `test/unit/db/instance-migration-order.test.ts`, is what stops the next
   // relocation from leaving this map behind: it reconciles the two, and the nine
   // entries below were the only nine they disagreed on.
+  // `sales_channel_price_lists` joined them with feature 160 (a price book's
+  // channel set), on the same footing: registered by its owner, created by its
+  // owner's migration.
   sales_channel_categories: 'catalog',
   sales_channel_cms_pages: 'cms',
   sales_channel_customer_accounts: 'customer_accounts',
   sales_channel_delivery_methods: 'delivery_methods',
   sales_channel_organizations: 'organizations',
   sales_channel_payment_methods: 'payment_methods',
+  sales_channel_price_lists: 'price_lists',
   sales_channel_products: 'catalog',
   sales_channel_promotions: 'promotions',
   sales_channel_taxes: 'taxes',

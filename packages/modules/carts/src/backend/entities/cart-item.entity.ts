@@ -31,7 +31,8 @@ export class CartItem {
     | 'packagingUnitBaseQuantity'
     | 'agreedQuantity'
     | 'agreedUnitPrice'
-    | 'agreedCurrency';
+    | 'agreedCurrency'
+    | 'priceSource';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -55,6 +56,14 @@ export class CartItem {
 
   @Property({ type: 'string', length: 3 })
   currency!: string;
+
+  /**
+   * Feature 160 (D-287 P1, FR-030) — which tier priced `unitPrice` (`base`,
+   * `catalogue`, `buyer`, `sale`), or `agreed` for a quote's agreed price.
+   * Written with `unitPrice`; `null` on a line priced before the feature.
+   */
+  @Property({ type: 'string', length: 16, nullable: true })
+  priceSource?: 'agreed' | 'base' | 'catalogue' | 'buyer' | 'sale' | null = null;
 
   /**
    * Most-recent re-resolved unit price (per feature 011 PricingService).

@@ -71,6 +71,7 @@ import { Migration20260830T112911CartsOrganizationAttributionCheck } from '@endo
 import { Migration20261008T061751CartsCartSourceQuoteRequest } from '@endora-commerce/mod-carts/migrations';
 import { Migration20261018T074021CartsCartItemAgreedPrice } from '@endora-commerce/mod-carts/migrations';
 import { Migration20261019T043854CartsChannelBackfill } from '@endora-commerce/mod-carts/migrations';
+import { Migration20261021T165244CartsCartItemsPriceSource } from '@endora-commerce/mod-carts/migrations';
 
 // ── catalog ─────────────────────────────────────────────────────────────────
 import { Migration20260429T064146CatalogAttributeSetsInit } from '@endora-commerce/mod-catalog/migrations';
@@ -249,6 +250,7 @@ import { Migration20261003T201537OrdersOrderTransitionEffects } from '@endora-co
 import { Migration20261016T082022OrdersOrderItemReturnableAtPurchase } from '@endora-commerce/mod-orders/migrations';
 import { Migration20261020T172007OrdersOrderItemGroups } from '@endora-commerce/mod-orders/migrations';
 import { Migration20261021T164807OrdersOrderCommentSystemNote } from '@endora-commerce/mod-orders/migrations';
+import { Migration20261021T165247OrdersOrderItemsPriceSource } from '@endora-commerce/mod-orders/migrations';
 
 // ── organizations ───────────────────────────────────────────────────────────
 import { Migration20260424T205317OrganizationsInit } from '@endora-commerce/mod-organizations/migrations';
@@ -280,6 +282,7 @@ import { Migration20260504T125655PriceListsEngine } from '@endora-commerce/mod-p
 import { Migration20260817T055457PriceListsSingleSystemPriceList } from '@endora-commerce/mod-price-lists/migrations';
 import { Migration20260821T135907PriceListsUnitPriceAmountIndex } from '@endora-commerce/mod-price-lists/migrations';
 import { Migration20261016T131148PriceListsPriceMatrixEntries } from '@endora-commerce/mod-price-lists/migrations';
+import { Migration20261021T165239PriceListsPriceBooksExpand } from '@endora-commerce/mod-price-lists/migrations';
 
 // ── product_feeds ───────────────────────────────────────────────────────────
 import { Migration20260802T073547ProductFeedsInit } from '@endora-commerce/mod-product-feeds/migrations';
@@ -403,6 +406,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('carts', Migration20261008T061751CartsCartSourceQuoteRequest),
   migration('carts', Migration20261018T074021CartsCartItemAgreedPrice),
   migration('carts', Migration20261019T043854CartsChannelBackfill),
+  migration('carts', Migration20261021T165244CartsCartItemsPriceSource),
 
   // ── catalog ─────────────────────────────────────────────────────────────────
   migration('catalog', Migration20260429T064146CatalogAttributeSetsInit),
@@ -581,6 +585,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('orders', Migration20261016T082022OrdersOrderItemReturnableAtPurchase),
   migration('orders', Migration20261020T172007OrdersOrderItemGroups),
   migration('orders', Migration20261021T164807OrdersOrderCommentSystemNote),
+  migration('orders', Migration20261021T165247OrdersOrderItemsPriceSource),
 
   // ── organizations ───────────────────────────────────────────────────────────
   migration('organizations', Migration20260424T205317OrganizationsInit),
@@ -612,6 +617,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('price_lists', Migration20260817T055457PriceListsSingleSystemPriceList),
   migration('price_lists', Migration20260821T135907PriceListsUnitPriceAmountIndex),
   migration('price_lists', Migration20261016T131148PriceListsPriceMatrixEntries),
+  migration('price_lists', Migration20261021T165239PriceListsPriceBooksExpand),
 
   // ── product_feeds ───────────────────────────────────────────────────────────
   migration('product_feeds', Migration20260802T073547ProductFeedsInit),

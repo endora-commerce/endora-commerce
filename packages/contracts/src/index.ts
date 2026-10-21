@@ -29,6 +29,8 @@ export * from './orders.js';
 export * from './saved-list-views.js';
 export * from './returns.js';
 export * from './price-lists.js';
+// Feature 160 (D-287 P1) — price books: header, sets, rows, explanation, precedence.
+export * from './price-books.js';
 export * from './taxes.js';
 export * from './promotions.js';
 export * from './inventory.js';

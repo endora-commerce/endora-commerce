@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { PriceListReadPort, PriceListRecord } from '@endora-commerce/contracts';
-import { PriceList } from '../entities/price-list.entity.js';
+import { isOldModelList, PriceList } from '../entities/price-list.entity.js';
 
 /**
  * The row-level read model `price_lists` publishes (feature 075, Phase P).
@@ -42,7 +42,10 @@ export class PriceListReadService implements PriceListReadPort {
       {},
       { orderBy: { priority: 'desc', code: 'asc' } },
     );
-    return lists.map(toPriceListRecord);
+    // Feature 160 — the enumerations answer the old engine's lists only: their
+    // one consumer (`organizations`' effective price lists) evaluates the rule,
+    // and a price book has none. It is re-pointed to price books later in P1.
+    return lists.filter(isOldModelList).map(toPriceListRecord);
   }
 
   async listActive(): Promise<PriceListRecord[]> {
@@ -51,7 +54,7 @@ export class PriceListReadService implements PriceListReadPort {
       { status: 'active' },
       { orderBy: { priority: 'desc', code: 'asc' } },
     );
-    return lists.map(toPriceListRecord);
+    return lists.filter(isOldModelList).map(toPriceListRecord);
   }
 }
 
@@ -63,11 +66,13 @@ export function toPriceListRecord(list: PriceList): PriceListRecord {
     currency: list.currency,
     isDefault: list.isDefault,
     priority: list.priority,
-    type: list.type,
+    // Feature 160 — `regular` is the price-book name of the legacy `base`.
+    type: list.type === 'regular' ? 'base' : list.type,
     status: list.status,
     startsAt: list.startsAt ?? null,
     endsAt: list.endsAt ?? null,
-    applicationRule: list.applicationRule,
+    // A price book carries no rule; the record's shape predates it.
+    applicationRule: list.applicationRule ?? { kind: 'all' },
     isSystem: list.isSystem,
     modifiedAt: list.modifiedAt,
     createdAt: list.createdAt,

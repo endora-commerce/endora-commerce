@@ -35,7 +35,7 @@ a test task in *Traceability* at the end.
 
 ## Phase 1: Setup
 
-- [ ] T001 `git pull --rebase` on `feat/160-pricing-model-v2`, `pnpm run build:packages`, run `pnpm --filter backend run test:unit:fast` and record the green baseline in the PR description draft (no file change)
+- [X] T001 `git pull --rebase` on `feat/160-pricing-model-v2`, `pnpm run build:packages`, run `pnpm --filter backend run test:unit:fast` and record the green baseline in the PR description draft (no file change)
 - [ ] T002 Re-measure the pre-change baselines with `PERF_RUN=true`: `backend/test/perf/price_lists/resolver.bench.ts`, `backend/test/perf/catalog/listing-price-viewer-cost.bench.ts`, `backend/test/perf/catalog/price-sort-cost.bench.ts`; write the numbers into `specs/pricing/read-paths-and-performance.md` §7 as the SC-004 baseline
 - [ ] T003 [P] Create the shared pricing fixture of `worked-examples.md` §10.1, §10.12 and §10.14 (channels CH/CH1–CH3, Screws/Bolts, `color` with `isPriceRule`, P1–P5 with variants P5r/P5b, VIP/Gold/Silver, Acme/Beta/Gamma/AcmeW, base books) in `backend/test/helpers/pricing-fixture.ts`, written against the new entities (fails to compile until T018)
 - [ ] T004 [P] Inventory every file under `backend/test/**`, `admin/test/**`, `storefront/test/**` and `packages/**/src/**/*.test.ts` that imports or spawns an artefact the plan deletes (`plan.md` *Test disposition*), and list it in `specs/160-pricing-model-v2/checklists/deletions.md` (consumed by T127)
@@ -46,27 +46,27 @@ a test task in *Traceability* at the end.
 
 ### Tests first
 
-- [ ] T005 [P] Contract schema tests for books, audience sets, channel sets, rows (selection kinds, `fixed`/`percent`/`amount`, −100 ≤ percent ≤ 1000, fixed on *all* refused), explanation and precedence in `packages/contracts/test/price-books.unit.test.ts` (FR-001, FR-002, FR-005, FR-006)
-- [ ] T006 [P] Contract test that `ChannelMemberEntityTypeSchema` accepts `price-list` in `packages/contracts/test/sales-channel-entity-types.unit.test.ts`
-- [ ] T007 [P] Exhaustive precedence tests in `PL/backend/services/precedence.test.ts`: generate all 924 interleavings × 2 toggles × 2 depth modes; exactly 266 accepted; each I2 violation names its pair; `nearest_organization_first` with a non-AF order refused (I5); seeded I1-breaking permutations refused; the four preset constants equal `decision-record.md` §5.6 (FR-021, FR-022)
-- [ ] T008 [P] Resolver unit tests in `PL/backend/services/book-resolver.test.ts`: the four tier passes, the order key (cell rank → depth → priority → min quantity → amount → ids), half-up 4-dp rounding, a negative result skipping the row and 0 as a valid price, and the property tests over all 266 configurations (the populated cell with the smallest rank wins; removing a non-winning row never changes the answer) (FR-008, FR-013–FR-015, FR-019, FR-022)
-- [ ] T009 [P] Profile resolution unit tests in `PL/backend/services/pricing-profile.test.ts`: vector sorting, the everyone profile, stable hash, effective group through `effectiveCustomerGroupId` (FR-010)
-- [ ] T010 Schema integration test in `IT/price_lists/price-books-schema.test.ts`: new tables, CHECKs (one member kind column, row selection shapes, price-type columns), FKs with cascade, unique base book per currency, precedence v1 = HY active, `sales_channel_price_lists` registered as `price-list` (FR-001, FR-009, FR-021)
+- [X] T005 [P] Contract schema tests for books, audience sets, channel sets, rows (selection kinds, `fixed`/`percent`/`amount`, −100 ≤ percent ≤ 1000, fixed on *all* refused), explanation and precedence in `packages/contracts/test/price-books.unit.test.ts` (FR-001, FR-002, FR-005, FR-006)
+- [X] T006 [P] Contract test that `ChannelMemberEntityTypeSchema` accepts `price-list` in `packages/contracts/test/sales-channel-entity-types.unit.test.ts`
+- [X] T007 [P] Exhaustive precedence tests in `PL/backend/services/precedence.test.ts`: generate all 924 interleavings × 2 toggles × 2 depth modes; exactly 266 accepted; each I2 violation names its pair; `nearest_organization_first` with a non-AF order refused (I5); seeded I1-breaking permutations refused; the four preset constants equal `decision-record.md` §5.6 (FR-021, FR-022)
+- [X] T008 [P] Resolver unit tests in `PL/backend/services/book-resolver.test.ts`: the four tier passes, the order key (cell rank → depth → priority → min quantity → amount → ids), half-up 4-dp rounding, a negative result skipping the row and 0 as a valid price, and the property tests over all 266 configurations (the populated cell with the smallest rank wins; removing a non-winning row never changes the answer) (FR-008, FR-013–FR-015, FR-019, FR-022)
+- [X] T009 [P] Profile resolution unit tests in `PL/backend/services/pricing-profile.test.ts`: vector sorting, the everyone profile, stable hash, effective group through `effectiveCustomerGroupId` (FR-010)
+- [X] T010 Schema integration test in `IT/price_lists/price-books-schema.test.ts`: new tables, CHECKs (one member kind column, row selection shapes, price-type columns), FKs with cascade, unique base book per currency, precedence v1 = HY active, `sales_channel_price_lists` registered as `price-list` (FR-001, FR-009, FR-021)
 
 ### Implementation
 
-- [ ] T011 [P] Book, row, set, explanation and precedence schemas in `packages/contracts/src/price-books.ts`; export from the package barrel
-- [ ] T012 [P] Add `'price-list'` to `ChannelMemberEntityTypeSchema` in `packages/contracts/src/sales-channels.ts`
-- [ ] T013 Reshape `ListingPrice` (`source`, `compareAtAmount`, `variesByVariant`, `maxAmount`), `ListingPriceDetail`, `PricingLineResult`/`LinePriceResult` (`source`, `compareAt`) in `packages/contracts/src/price-lists.ts` and `PL/backend/services/pricing-service.interface.ts` (additive at this step; removals in T125)
-- [ ] T014 Scaffold the `price_lists` expand migration with `pnpm --filter backend run migration:new` in `PL/migrations/`: header columns (`currency_code` from `currency`, `audience_kind`), `price_list_audience_members`, `sales_channel_price_lists`, row columns (`variant_id`, signed `percent`, `amount` adjustment, `price_type` values), `price_list_precedence` seeded with HY, `price_profiles`, `price_profile_prices`, indexes of `data-model.md` §1–§6
-- [ ] T015 [P] Scaffold the `carts` migration adding `cart_items.price_source` and the entity property in `packages/modules/carts/src/backend/entities/cart-item.entity.ts`
-- [ ] T016 [P] Scaffold the `orders` migration adding `order_items.price_source` and the entity property in `packages/modules/orders/src/backend/entities/order-item.entity.ts`
-- [ ] T017 Run `pnpm --filter backend run composer:generate`, `pnpm --filter backend run manifests:generate` and `pnpm install --lockfile-only`; commit `backend/src/db/migrations-registry.generated.ts` and every regenerated artefact with T014–T016
-- [ ] T018 [P] Entities `PriceList` (evolved), `PriceListMatrixEntry` (evolved), `PriceListAudienceMember`, `PriceListPrecedence`, `PriceProfile`, `PriceProfilePrice` in `PL/backend/entities/`
-- [ ] T019 Register the `sales_channel_price_lists` bridge in `salesChannelBridgeRegistry` from `PL/backend/index.ts` (default row-less convention)
-- [ ] T020 [P] Presets, `validatePrecedence` and the rank table in `PL/backend/services/precedence.ts`; active-version memo per pricing generation
-- [ ] T021 [P] Pure three-tier resolver in `PL/backend/services/book-resolver.ts` over `matrix-decimal.ts` arithmetic
-- [ ] T022 [P] Profile resolution in `PL/backend/services/pricing-profile.ts` (one indexed statement, memoised per organization, group, channel and currency under the generation)
+- [X] T011 [P] Book, row, set, explanation and precedence schemas in `packages/contracts/src/price-books.ts`; export from the package barrel
+- [X] T012 [P] Add `'price-list'` to `ChannelMemberEntityTypeSchema` in `packages/contracts/src/sales-channels.ts`
+- [X] T013 Reshape `ListingPrice` (`source`, `compareAtAmount`, `variesByVariant`, `maxAmount`), `ListingPriceDetail`, `PricingLineResult`/`LinePriceResult` (`source`, `compareAt`) in `packages/contracts/src/price-lists.ts` and `PL/backend/services/pricing-service.interface.ts` (additive at this step; removals in T125)
+- [X] T014 Scaffold the `price_lists` expand migration with `pnpm --filter backend run migration:new` in `PL/migrations/`: header columns (`currency_code` from `currency`, `audience_kind`), `price_list_audience_members`, `sales_channel_price_lists`, row columns (`variant_id`, signed `percent`, `amount` adjustment, `price_type` values), `price_list_precedence` seeded with HY, `price_profiles`, `price_profile_prices`, indexes of `data-model.md` §1–§6
+- [X] T015 [P] Scaffold the `carts` migration adding `cart_items.price_source` and the entity property in `packages/modules/carts/src/backend/entities/cart-item.entity.ts`
+- [X] T016 [P] Scaffold the `orders` migration adding `order_items.price_source` and the entity property in `packages/modules/orders/src/backend/entities/order-item.entity.ts`
+- [X] T017 Run `pnpm --filter backend run composer:generate`, `pnpm --filter backend run manifests:generate` and `pnpm install --lockfile-only`; commit `backend/src/db/migrations-registry.generated.ts` and every regenerated artefact with T014–T016
+- [X] T018 [P] Entities `PriceList` (evolved), `PriceListMatrixEntry` (evolved), `PriceListAudienceMember`, `PriceListPrecedence`, `PriceProfile`, `PriceProfilePrice` in `PL/backend/entities/`
+- [X] T019 Register the `sales_channel_price_lists` bridge in `salesChannelBridgeRegistry` from `PL/backend/index.ts` (default row-less convention)
+- [X] T020 [P] Presets, `validatePrecedence` and the rank table in `PL/backend/services/precedence.ts`; active-version memo per pricing generation
+- [X] T021 [P] Pure three-tier resolver in `PL/backend/services/book-resolver.ts` over `matrix-decimal.ts` arithmetic
+- [X] T022 [P] Profile resolution in `PL/backend/services/pricing-profile.ts` (one indexed statement, memoised per organization, group, channel and currency under the generation)
 
 **Checkpoint**: T005–T010 green; the old model still compiles and its tests still pass.
 

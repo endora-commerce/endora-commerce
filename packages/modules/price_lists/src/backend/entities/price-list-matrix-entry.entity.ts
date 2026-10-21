@@ -3,7 +3,14 @@ import { randomUUID } from 'crypto';
 import { RuleScoped } from '@endora-commerce/platform/tenancy';
 
 /**
- * PriceListMatrixEntry — one cell of a price list's price matrix (feature 148).
+ * PriceListMatrixEntry — one cell of a price list's price matrix (feature 148),
+ * and since feature 160 (D-287 P1) one **row of a price book**: a selection
+ * (variant, product, category ∩ attribute, category, attribute, all), a
+ * quantity window and a price — `fixed` (`amount`), `percent` (a signed
+ * `percent` of the reference) or `amount` (a signed adjustment in `amount`).
+ * A price-book row names neither an organization nor a currency (the header
+ * does); those two columns and the legacy `discount_percent` arm stay until the
+ * conversion migration.
  *
  * Prices a *selection* of products — one product, a category, an attribute
  * value, a category and an attribute value, or every product — for an optional
@@ -38,6 +45,8 @@ export class PriceListMatrixEntry {
     | 'amount'
     | 'currencyCode'
     | 'discountPercent'
+    | 'variantId'
+    | 'percent'
     | 'createdAt'
     | 'updatedAt';
 
@@ -46,6 +55,10 @@ export class PriceListMatrixEntry {
 
   @Property({ type: 'uuid' })
   priceListId!: string;
+
+  /** Feature 160 — the variant a row prices; `productId` is then its parent. */
+  @Property({ type: 'uuid', nullable: true })
+  variantId: string | null = null;
 
   @Property({ type: 'uuid', nullable: true })
   productId: string | null = null;
@@ -69,7 +82,7 @@ export class PriceListMatrixEntry {
   maxQuantity: number | null = null;
 
   @Property({ type: 'string', length: 16 })
-  priceType!: 'fixed' | 'discount_percent';
+  priceType!: 'fixed' | 'percent' | 'amount' | 'discount_percent';
 
   @Property({ type: 'decimal', precision: 14, scale: 4, nullable: true })
   amount: string | null = null;
@@ -79,6 +92,10 @@ export class PriceListMatrixEntry {
 
   @Property({ type: 'decimal', precision: 5, scale: 2, nullable: true })
   discountPercent: string | null = null;
+
+  /** Feature 160 — signed: price = reference × (1 + percent / 100), −100 ≤ percent ≤ 1000. */
+  @Property({ type: 'decimal', precision: 7, scale: 2, nullable: true })
+  percent: string | null = null;
 
   @Property({ type: 'datetime', onCreate: () => new Date() })
   createdAt: Date = new Date();

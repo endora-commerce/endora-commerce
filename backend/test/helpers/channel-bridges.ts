@@ -5,7 +5,7 @@
  * `SalesChannelMembershipService` resolves `{ table, entityIdColumn }` through
  * the kernel's `ChannelBridgeRegistry`, which each owning module fills from its
  * own boot hook. A test that boots a **server** therefore needs nothing from
- * this file: the nine registrations arrive with the composition, exactly as
+ * this file: the registrations arrive with the composition, exactly as
  * they do in production.
  *
  * `setupTestDb` is the other harness — a bare database with no container and no
@@ -21,7 +21,7 @@
  * moves this harness with it, and a module that stops owning a bridge takes its
  * entry out of here by deleting its own export. That is the whole difference
  * between declaring the bridges and re-declaring them: the total map D-226
- * deleted was total *and* authored in a place that owns none of the nine.
+ * deleted was total *and* authored in a place that owns none of them.
  *
  * The registry is reached at the platform's build output, the way
  * `backend/src/<subpath>/` re-export shims reach it. It is not a new host reach
@@ -43,7 +43,7 @@ let declared: Promise<void> | undefined;
  * Declare every core bridge into the process-level registry, once.
  *
  * The imports are dynamic and the promise is memoised so that a unit file which
- * merely mentions this module pays nothing: nine module backends are a large
+ * merely mentions this module pays nothing: the owning module backends are a large
  * graph, and the suites that need them are already paying for a real database.
  *
  * Registration is idempotent for an identical triple, so this is safe beside a
@@ -61,6 +61,7 @@ export async function declareChannelBridgesForTests(): Promise<void> {
       import('@endora-commerce/mod-customer-accounts/backend'),
       import('@endora-commerce/mod-promotions/backend'),
       import('@endora-commerce/mod-cms/backend'),
+      import('@endora-commerce/mod-price-lists/backend'),
     ]);
     for (const owner of owners) {
       for (const bridge of owner.salesChannelBridges) channelBridges.register(bridge);

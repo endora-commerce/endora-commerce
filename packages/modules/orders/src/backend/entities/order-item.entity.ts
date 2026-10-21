@@ -13,7 +13,8 @@ export class OrderItem {
     | 'packagingUnitSnapshot'
     | 'returnableAtPurchase'
     | 'groupId'
-    | 'position';
+    | 'position'
+    | 'priceSource';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -60,6 +61,14 @@ export class OrderItem {
 
   @Property({ type: 'decimal', precision: 12, scale: 2 })
   unitPrice!: string;
+
+  /**
+   * Feature 160 (D-287 P1, FR-030) — the price source of the cart line this
+   * line was placed from, copied at placement. `null` on a line placed before
+   * the feature.
+   */
+  @Property({ type: 'string', length: 16, nullable: true })
+  priceSource?: 'agreed' | 'base' | 'catalogue' | 'buyer' | 'sale' | null = null;
 
   @Property({ type: 'decimal', precision: 5, scale: 4 })
   taxRate!: string;

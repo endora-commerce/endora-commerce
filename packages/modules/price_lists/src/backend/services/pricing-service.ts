@@ -12,7 +12,7 @@ import type {
   ListingPriceOrderRow,
   ListingPriceViewerContext,
 } from '@endora-commerce/contracts';
-import { PriceList } from '../entities/price-list.entity.js';
+import { isOldModelList, PriceList } from '../entities/price-list.entity.js';
 import { PriceListPriceBracket } from '../entities/price-list-price-bracket.entity.js';
 import { PriceListMatrixEntry } from '../entities/price-list-matrix-entry.entity.js';
 import { DEFAULT_PRICE_LIST_ID } from './default-price-list-migration.js';
@@ -48,7 +48,17 @@ import {
   type UnitPriceStream,
 } from './unit-price-ordering.js';
 import type { PriceListTargetReads } from './price-list-service.js';
-import type { PricingCacheKey } from './pricing-cache.js';
+import type { PricingCache, PricingCacheKey, ProfilePricingCacheKey } from './pricing-cache.js';
+import {
+  BookPricing,
+  engineFromBook,
+  lineFromBook,
+  listingDetailFromBook,
+  listingPriceFromBook,
+  type BookLineAnswer,
+  type ChannelBridgeSubquery,
+} from './book-pricing.js';
+import type { PricingProfile, ProfileMemoKey } from './pricing-profile.js';
 import { effectiveCustomerGroupId } from './customer-group-rule.js';
 import type {
   LinePricesInput,
@@ -171,11 +181,38 @@ function matrixEntryRow(e: PriceListMatrixEntry): MatrixEntryRow {
     organizationId: e.organizationId ?? null,
     minQuantity: e.minQuantity,
     maxQuantity: e.maxQuantity ?? null,
-    priceType: e.priceType,
+    // Feature 160 — the reads below keep to the old engine's two price types.
+    priceType: e.priceType as MatrixEntryRow['priceType'],
     amount: e.amount ?? null,
     currencyCode: e.currencyCode ?? null,
     discountPercent: e.discountPercent ?? null,
   };
+}
+
+/**
+ * Feature 160 (D-287 P1) — how the engine is composed.
+ *
+ * `model: 'books'` routes every batched entry point — and the single-line
+ * wrappers over them — through the price-book engine (`book-pricing.ts`):
+ * base → catalogue → buyer, then sale when lower, over the configurable
+ * precedence. `'legacy'` (the default) keeps the Application-rule engine.
+ *
+ * Both exist only on the feature-160 release branch, and only until its
+ * consumer phase: the old engine is what every consumer and every pre-160
+ * fixture in the tree is written against, and the plan keeps them working
+ * behind the same seams while the new engine is built and proven on the
+ * worked examples. The consumer phase switches the composition to `'books'`
+ * and the removal phase deletes `'legacy'` with the old model — the option
+ * never reaches `master` as a choice.
+ */
+export interface PricingServiceOptions {
+  model?: 'legacy' | 'books';
+  /** The registered `price-list` bridge's sanctioned subquery (Principle XII). Required for `'books'`. */
+  channelBridge?: ChannelBridgeSubquery;
+  /** The price-book answers, keyed by pricing profile (research R6). */
+  bookCache?: PricingCache<BookLineAnswer, ProfilePricingCacheKey>;
+  /** The profile memo, per organization chain, group, channel and currency. */
+  profileMemo?: PricingCache<PricingProfile, ProfileMemoKey>;
 }
 
 export class PricingService implements PricingServiceContract {
@@ -207,7 +244,64 @@ export class PricingService implements PricingServiceContract {
      * group, which is the defect this exists to end.
      */
     private readonly customerAccountRead?: Pick<CustomerAccountReadPort, 'findById'>,
+    private readonly options: PricingServiceOptions = {},
   ) {}
+
+  #books: BookPricing | undefined;
+
+  /** Whether the batched entry points resolve on price books (feature 160). */
+  get usesPriceBooks(): boolean {
+    return this.options.model === 'books';
+  }
+
+  /** The price-book engine, built once. */
+  get bookPricing(): BookPricing {
+    if (this.#books) return this.#books;
+    const channelBridge = this.options.channelBridge;
+    if (!channelBridge) {
+      throw new Error(
+        "PricingService: price-book resolution reads a book's channel set through the registered " +
+          '`price-list` bridge, and this composition constructed the engine without the membership accessor.',
+      );
+    }
+    this.#books = new BookPricing({
+      emFactory: this.emFactory,
+      channelBridge,
+      ...(this.resolveOrgChain ? { resolveOrgChain: this.resolveOrgChain } : {}),
+      categoryRead: () => this.#categoryRead(),
+      attributeRead: () => this.#attributeRead(),
+      displayModes: async (input) => {
+        const { PriceListService } = await import('./price-list-service.js');
+        return new PriceListService(this.emFactory, undefined, undefined, undefined, this.targetReads).resolveDisplayModes(
+          input,
+        );
+      },
+      ...(this.options.bookCache ? { cache: this.options.bookCache } : {}),
+      ...(this.options.profileMemo ? { profileMemo: this.options.profileMemo } : {}),
+    });
+    return this.#books;
+  }
+
+  /** Feature 160 — every line on price books, for one buyer. */
+  async #bookAnswers(
+    lines: readonly PricingLineRequest[],
+    context: {
+      organization?: PricingOrganizationRef | null;
+      customerGroupId?: string | null;
+      customerAccountId?: string | null;
+      salesChannel: { id: string; defaultCurrency: string };
+      currencyCode?: string;
+    },
+  ): Promise<Map<string, BookLineAnswer | null>> {
+    const viewer = await this.#viewer(context);
+    return this.bookPricing.resolve(lines, {
+      organizationId: viewer.organization?.id ?? null,
+      customerGroupId: viewer.customerGroupId,
+      signedIn: viewer.organization !== null,
+      salesChannelId: viewer.salesChannel.id,
+      currencyCode: viewer.currencyCode,
+    });
+  }
 
   /**
    * The customer group a resolution is for — {@link effectiveCustomerGroupId},
@@ -305,6 +399,9 @@ export class PricingService implements PricingServiceContract {
     if (listIds.length === 0 || products.size === 0) return context;
     const rows = await em.find(PriceListMatrixEntry, {
       priceListId: { $in: listIds },
+      // Feature 160 — the old engine's two price types only: the base book it
+      // shares with price books (`…d51b`) may carry price-book rows.
+      priceType: { $in: ['fixed', 'discount_percent'] },
       $and: [
         { $or: [{ productId: null }, { productId: { $in: [...products.keys()] } }] },
         organizationChain.length > 0
@@ -462,6 +559,18 @@ export class PricingService implements PricingServiceContract {
     displayMode: DisplayMode;
     currencyCode: string;
   }> {
+    if (this.usesPriceBooks) {
+      // Feature 160 — a wrapper over the batch of one.
+      const answers = await this.#bookAnswers(
+        [{ key: 'line', product: input.product, variantId: input.variantId ?? null, quantity: input.context.quantity }],
+        input.context,
+      );
+      return engineFromBook(
+        answers.get('line') ?? null,
+        input.product.id,
+        (input.context.currencyCode ?? input.context.salesChannel.defaultCurrency).toUpperCase(),
+      );
+    }
     const em = this.emFactory();
     const { product, context } = input;
     const currencyCode = (context.currencyCode ?? context.salesChannel.defaultCurrency).toUpperCase();
@@ -501,7 +610,8 @@ export class PricingService implements PricingServiceContract {
     };
 
     // Load every active list and evaluate.
-    const activeLists = await em.find(PriceList, { status: 'active' });
+    // Feature 160 — the old engine reads its own lists only (`isOldModelList`).
+    const activeLists = (await em.find(PriceList, { status: 'active' })).filter(isOldModelList);
     const baseMatches: MatchedList[] = [];
     const saleMatches: MatchedList[] = [];
     for (const list of activeLists) {
@@ -628,6 +738,14 @@ export class PricingService implements PricingServiceContract {
     displayMode: DisplayMode;
     matrixEntryId?: string | null;
   } | null> {
+    if (this.usesPriceBooks) {
+      // Feature 160 — a wrapper over the batch of one.
+      const answers = await this.#bookAnswers(
+        [{ key: 'line', product: input.product, variantId: input.variantId ?? null, quantity: input.context.quantity }],
+        input.context,
+      );
+      return lineFromBook(answers.get('line') ?? null);
+    }
     return lineFromEngine(await this.resolveEngine(input));
   }
 
@@ -681,6 +799,10 @@ export class PricingService implements PricingServiceContract {
    */
   async resolveListingPrices(input: ListingPricesInput): Promise<Map<string, ListingPrice>> {
     const out = new Map<string, ListingPrice>();
+    if (this.usesPriceBooks) {
+      for (const [productId, answer] of await this.#bookListing(input)) out.set(productId, listingPriceFromBook(answer));
+      return out;
+    }
     for (const [productId, { price }] of await this.#listingEngines(input)) out.set(productId, price);
     return out;
   }
@@ -699,6 +821,12 @@ export class PricingService implements PricingServiceContract {
    */
   async resolveListingPriceDetails(input: ListingPricesInput): Promise<Map<string, ListingPriceDetail>> {
     const out = new Map<string, ListingPriceDetail>();
+    if (this.usesPriceBooks) {
+      for (const [productId, answer] of await this.#bookListing(input)) {
+        out.set(productId, listingDetailFromBook(answer));
+      }
+      return out;
+    }
     for (const [productId, { price, engine }] of await this.#listingEngines(input)) {
       out.set(productId, {
         price,
@@ -714,6 +842,17 @@ export class PricingService implements PricingServiceContract {
       });
     }
     return out;
+  }
+
+  /** Feature 160 — the listing entry points on price books: one batch at quantity 1. */
+  async #bookListing(input: ListingPricesInput): Promise<Map<string, BookLineAnswer | null>> {
+    const requested = new Map<string, PricedProductRef>();
+    for (const product of input.products) if (!requested.has(product.id)) requested.set(product.id, product);
+    if (requested.size === 0) return new Map();
+    return this.#bookAnswers(
+      [...requested.values()].map((product) => ({ key: product.id, product, quantity: 1 })),
+      input.context,
+    );
   }
 
   /** The two listing entry points' shared body: one batched resolution at quantity 1. */
@@ -764,6 +903,10 @@ export class PricingService implements PricingServiceContract {
   async resolveLinePrices(input: LinePricesInput): Promise<Map<string, PricingLineResult | null>> {
     const out = new Map<string, PricingLineResult | null>();
     if (input.lines.length === 0) return out;
+    if (this.usesPriceBooks) {
+      for (const [key, answer] of await this.#bookAnswers(input.lines, input.context)) out.set(key, lineFromBook(answer));
+      return out;
+    }
     const viewer = await this.#viewer(input.context);
     for (const [key, engine] of await this.#resolveEngineSet(input.lines, viewer)) {
       out.set(key, lineFromEngine(engine));
@@ -878,7 +1021,7 @@ export class PricingService implements PricingServiceContract {
         : orgId !== null
           ? [orgId]
           : [];
-    const activeLists = await em.find(PriceList, { status: 'active' });
+    const activeLists = (await em.find(PriceList, { status: 'active' })).filter(isOldModelList);
 
     // Rule evaluation depends on the product, not the quantity: once per product.
     const baseByProduct = new Map<string, MatchedList[]>();
@@ -1221,7 +1364,7 @@ export class PricingService implements PricingServiceContract {
       salesChannelId: context.salesChannel.id,
       currencyCode,
     };
-    const activeLists = await em.find(PriceList, { status: 'active' });
+    const activeLists = (await em.find(PriceList, { status: 'active' })).filter(isOldModelList);
     const candidates = buildCandidateVector(
       activeLists.map((list) => ({
         id: list.id,
@@ -1293,6 +1436,7 @@ export class PricingService implements PricingServiceContract {
       await em.find(PriceListMatrixEntry, {
         priceListId: { $in: listIds },
         minQuantity: 1,
+        priceType: { $in: ['fixed', 'discount_percent'] },
         $and: [
           organizationChain.length > 0
             ? { $or: [{ organizationId: null }, { organizationId: { $in: [...organizationChain] } }] }

@@ -257,6 +257,8 @@ export const ChannelMemberEntityTypeSchema = z.enum([
   'customer',
   'promotion',
   'cms-page',
+  // Feature 160 (D-287 P1) — a price book's channel set, `sales_channel_price_lists`.
+  'price-list',
 ]);
 export type ChannelMemberEntityType = z.infer<typeof ChannelMemberEntityTypeSchema>;
 

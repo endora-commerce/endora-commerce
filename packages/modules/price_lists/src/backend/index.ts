@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type {
+  ChannelMemberEntityType,
   BuyerLinePricePort,
   CatalogAttributeReadPort,
   CatalogCategoryReadPort,
@@ -35,6 +36,10 @@ import { PriceListMatrixEntry } from './entities/price-list-matrix-entry.entity.
 import { PriceListPriceBracket } from './entities/price-list-price-bracket.entity.js';
 import { PriceListProduct } from './entities/price-list-product.entity.js';
 import { PriceList } from './entities/price-list.entity.js';
+import { PriceListAudienceMember } from './entities/price-list-audience-member.entity.js';
+import { PriceListPrecedence } from './entities/price-list-precedence.entity.js';
+import { PriceProfile } from './entities/price-profile.entity.js';
+import { PriceProfilePrice } from './entities/price-profile-price.entity.js';
 
 /**
  * `price_lists` — the decoration proof target (feature 072, wave 3, T127).
@@ -81,6 +86,14 @@ import { PriceList } from './entities/price-list.entity.js';
 /** What `price_lists` resolves from the container, and the names it owns. */
 export interface PriceListsCradle {
   readonly emFactory: () => EntityManager;
+  /**
+   * Feature 160 — the platform's channel-bridge registry, resolved by
+   * container name (as `catalog` does): the shape is the narrow one this
+   * module needs, and the registry is published on no barrel.
+   */
+  readonly salesChannelBridgeRegistry: {
+    register(bridge: { entityType: ChannelMemberEntityType; table: string; entityIdColumn: string }): void;
+  };
   /** D-287 P0 — publishes the pricing generation bump to every process. */
   readonly redis: PricingGenerationPublisher;
   /** The composition's one shared subscriber connection (see `custom_fields`). */
@@ -293,6 +306,22 @@ export function registerModule(ctx: ModuleContext): void {
   });
 
   /**
+   * Feature 160 (D-287 P1, research R3) — a price book's channel set is the
+   * `sales_channel_price_lists` bridge, which this module's migration creates,
+   * so this module says where it is. Read and written only through
+   * `SalesChannelMembershipService` (Principle XII); the kernel's channel-delete
+   * path clears it like every other bridge.
+   *
+   * A **contribution** hook and deliberately unprobed (D-62/D-68), as for
+   * `catalog`'s bridges: a registration is an inert statement about the schema,
+   * and the rows outlive the module's operator switch.
+   */
+  ctx.onBoot(() => {
+    const { salesChannelBridgeRegistry } = ctx.cradle<PriceListsCradle>();
+    for (const bridge of salesChannelBridges) salesChannelBridgeRegistry.register(bridge);
+  });
+
+  /**
    * D-287 P0 — every process clears its pricing LRU when any process bumps the
    * pricing generation (a price write after commit, a status sweep that flipped
    * a list). The subscriber is the composition's one shared connection, as for
@@ -375,7 +404,28 @@ export const entities = [
   PriceListPriceBracket,
   PriceListProduct,
   PriceList,
+  // Feature 160 (D-287 P1) — price books.
+  PriceListAudienceMember,
+  PriceListPrecedence,
+  PriceProfile,
+  PriceProfilePrice,
 ];
+
+/**
+ * The sales-channel bridges this module owns (feature 160): a price book's
+ * channel set. Published by name, as every bridge owner publishes its own, so a
+ * harness that composes no platform declares it from here rather than holding a
+ * copy of the table name (`backend/test/helpers/channel-bridges.ts`).
+ *
+ * The default convention: a book bound to no channel is offered in **no**
+ * channel (data-model §2). The base books are channel-independent by D-287 and
+ * are never bound, which the resolver knows; nothing reads them through this.
+ */
+export const salesChannelBridges: ReadonlyArray<{
+  readonly entityType: ChannelMemberEntityType;
+  readonly table: string;
+  readonly entityIdColumn: string;
+}> = [{ entityType: 'price-list', table: 'sales_channel_price_lists', entityIdColumn: 'price_list_id' }];
 
 /**
  * The one-off migrator that creates this module's system price list and fills

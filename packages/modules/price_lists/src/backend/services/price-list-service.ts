@@ -439,7 +439,7 @@ export class PriceListService {
           status: row.status,
           startsAt: row.startsAt ?? null,
           endsAt: row.endsAt ?? null,
-          applicationRuleKind: row.applicationRule.kind,
+          applicationRuleKind: row.applicationRule?.kind ?? null,
         },
       };
     });
@@ -581,7 +581,7 @@ export class PriceListService {
     // the audited write: `price_list.activate` for a live state, or
     // `price_list.expire` when the start/end dates push it straight to expired.
     const preRow = await this.getById(id);
-    if (!preRow.isSystem && preRow.applicationRule.kind === 'all') {
+    if (!preRow.isSystem && (preRow.applicationRule === null || preRow.applicationRule.kind === 'all')) {
       throw new HttpError(
         400,
         ERROR_CODES.VALIDATION_FAILED,
@@ -912,7 +912,7 @@ export class PriceListService {
         list: {
           id: list.id,
           name: list.name,
-          type: list.type,
+          type: list.type === 'regular' ? 'base' : list.type,
           status: list.status,
           modifiedAt: list.modifiedAt,
         },

@@ -115,7 +115,9 @@ function toRow(entity: PriceListMatrixEntry): MatrixEntryRow {
     organizationId: entity.organizationId ?? null,
     minQuantity: entity.minQuantity,
     maxQuantity: entity.maxQuantity ?? null,
-    priceType: entity.priceType,
+    // Feature 160 — the old engine's matrix holds its own two price types; a
+    // price-book row is never read here (its book carries no rule).
+    priceType: entity.priceType as MatrixEntryRow['priceType'],
     amount: entity.amount ?? null,
     currencyCode: entity.currencyCode ?? null,
     discountPercent: entity.discountPercent ?? null,
