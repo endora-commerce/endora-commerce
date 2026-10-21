@@ -38,35 +38,36 @@ the failure `current-model.md` §1.4 records twelve times.
 consumer and the overlay seam would change for no semantic gain; the published names are what
 consumers and overlays already depend on.
 
-## R2. Migration order constrains the conversion — and one removal moves to the next release
+## R2. Migration order and the catalogue fields — do not convert them
 
-**Finding.** Migrations execute *module by module in a topological order of the manifest
+**Finding (kept).** Migrations execute *module by module in a topological order of the manifest
 `dependencies` graph* (`specs/conventions/module-migrations.md` item 3). `price_lists` depends on
 `catalog`, so **every pending `catalog` migration runs before every pending `price_lists`
 migration** in one `migrate` run, whatever the timestamps. A `price_lists` migration may *read* a
-`catalog` table (R1 of `check:module-boundary`: the dependency is declared) but may not write or
-alter one (R2).
+`catalog` table (`check:module-boundary` R1: the dependency is declared) but may not write or alter
+one (R2). So a `price_lists` conversion can never read a `catalog` field that a `catalog` migration of
+the same release drops.
 
-**Consequence.** The spec wants the conversion to read `product_variants.price_override` and
-`products.attribute_values.defaultPrice` and *then* `catalog` to drop them (FR-042: "removed by the
-catalogue module, after the conversion has read it"). In one release both migrations are pending in
-the same run, and `catalog`'s would run first: the conversion would find nothing.
+**Decision (owner ruling, 2026-10-21): one release, no conversion of the catalogue fields.** The
+conversion reads only `price_lists`' own data — Default-list brackets become base-book rows of their
+currencies (R4). `products.attribute_values.defaultPrice` and `product_variants.price_override` are
+**not** converted; `catalog`'s own migration in this release drops `price_override` and strips the
+`defaultPrice`/`price` keys, and `catalog`'s code, DTOs, admin field and import stop knowing them
+(FR-042, FR-043). With nothing reading the fields across modules, the ordering cannot bite.
 
-**Decision.** P1 does everything else of FR-042 in the release, and moves the **physical** removal of
-the two catalogue fields to the **first `catalog` migration of the following release**:
+**Rationale (the owner's).** A variant price override was never charged (`current-model.md` §1.4),
+so converting it would turn a never-paid number into a charged price; the product *default price*
+mattered only for products without a Default bracket; there is no production deployment, the demo
+seeds base prices directly (FR-044, R13) and development price lists are dropped and reseeded (N13).
 
-- In P1, `catalog` stops being a price owner in code: the `priceOverride` entity property, the DTO
-  fields, the admin variant field and the `defaultPrice` virtual key and editor field are removed;
-  create, update and import refuse `defaultPrice` (FR-043) and `priceOverride`; nothing reads either.
-- The `price_lists` conversion migration reads both (R1-legal) in the same run.
-- A `catalog` migration in the next release (tracked as a P3 task, `plan.md` *Follow-ups*) drops
-  `product_variants.price_override` and strips `defaultPrice`/`price` from `products.attribute_values`.
-
-This is a **deviation from SC-006's wording** ("nothing of the old model listed in FR-042 remains")
-for two inert storage fields for one release; every behaviour SC-006 protects holds. It is recorded
-in `plan.md` *Deviations*.
+**Accepted cost.** In a development database, a hand-made product without a Default bracket has no
+price until a demo reset or a manually entered base price. **Caveat**: if a production deployment
+appears before this release ships, the ruling is to be revisited.
 
 **Rejected.**
+- *Two-release removal* (P1 removes the fields from code, `catalog` drops them physically in the next
+  release) — **rejected by the owner, 2026-10-21**: it leaves inert storage behind for a release to
+  protect a conversion that should not happen.
 - *A cycle* (`catalog` depending on `price_lists`) to invert the order: a cycle is a diagnostic, not
   an ordering tool, and it would make `catalog` — non-deactivatable — depend on a switchable module.
 - *`catalog` writes the converted rows into `price_lists`' tables*: R2 forbids a migration owned by
@@ -74,7 +75,6 @@ in `plan.md` *Deviations*.
 - *A `catalog`-owned holding table* read by `price_lists` and dropped later: the drop has the same
   ordering problem, and the table is a third temporary home for a price.
 - *Converting at boot* (`installHook`): the column would already be gone in the same run.
-- *Skipping the variant conversion*: FR-041 requires it; it is cheap where the column is still there.
 
 ## R3. Storage — evolve `price_lists`' tables, add three, drop four
 
@@ -112,28 +112,30 @@ audit reference and test for a name.
 
 ## R4. One-shot conversion and removal (FR-041, FR-042, N13)
 
-**Decision.** One `price_lists` migration, scaffolded with `pnpm --filter backend run
-migration:new`, in this order inside one transaction:
+**Decision.** Two `price_lists` migrations, each scaffolded with `pnpm --filter backend run
+migration:new` and ordered by timestamp within the module: an **expand** migration that creates the
+new tables and columns (step 1, landed first so the branch stays green while consumers move), and the
+**conversion** migration that runs steps 2–5 inside one transaction, landed in the removal phase once
+nothing reads the old tables. Both ship in the same release; on a database migrating across the whole
+release they run back to back.
 
 1. create the new tables and columns;
 2. create one system base book per currency that has a Default-list bracket or is the platform
    default currency (the default channel's `default_currency`); the platform default currency's book
    keeps the id `00000000-0000-4000-8000-00000000d51b`;
 3. copy every Default-list bracket into a product row of its currency's base book;
-4. for every product with no Default bracket and a numeric `attribute_values.defaultPrice`
-   (`price` as fallback), insert a base row in the default currency;
-5. for every variant with a non-null `price_override`, insert a fixed variant row in the default
-   currency's base book;
-6. delete every non-system price list (cascades rows, roster, brackets) and the Default list's own
-   matrix entries (N13: only brackets and the two catalogue fields are converted);
-7. drop the old tables and columns of `price_lists`.
+4. delete every non-system price list (cascades rows, roster, brackets) and the Default list's own
+   matrix entries (N13: only Default brackets are converted);
+5. drop the old tables and columns of `price_lists`.
+
+The catalogue fields are not read (R2); `catalog`'s own migration in this release removes them.
 
 A dry-run report is **not** built (decision-record §8.1). The step is one-way for data: `down()`
 recreates the old tables' shape empty and drops the new ones, so a rollback leaves a reseedable
 database rather than a half-converted one.
 
-**Rationale.** No production deployment (§8); the demo is reseeded (R13). Steps 3–5 are the only
-data a developer would miss.
+**Rationale.** No production deployment (§8); the demo is reseeded (R13). Step 3 is the only data a
+developer would miss; the catalogue fields are not converted by owner ruling (R2).
 
 **Rejected.** Converting Application rules into books: §8.1 rejects it (N13).
 

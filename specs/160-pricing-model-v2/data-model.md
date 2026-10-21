@@ -2,7 +2,7 @@
 
 Normative for P1. Semantics: `specs/pricing/decision-record.md` §5.1–§5.8 (D-287). Owner of every
 table below: **`price_lists`**, except the two line columns (owned by `carts` and `orders`) and the
-deferred catalogue removal (owned by `catalog`, next release — `research.md` R2). All tables are
+removal of the two catalogue fields (owned by `catalog`, same release — `research.md` R2). All tables are
 `@RuleScoped()` (as `price_lists` is today): the audience is a price coordinate, not a tenant column,
 and storefront reads filter by the buyer's own chain and group (Principle XI, *Tenancy* below).
 Migrations are timestamped and scaffolded with `pnpm --filter backend run migration:new`; no number
@@ -158,9 +158,10 @@ Each in its owner's migration; no FK; null for lines priced before the feature.
 | `price_list_matrix_entries.organization_id`, `currency_code` | price_lists | dropped after the non-system lists are deleted (only base rows remain, and they carry neither) |
 | `PriceListProduct`, `PriceListPriceBracket` entities; Application-rule evaluator; candidate vector | price_lists | code removed |
 
-**Deferred to the next release** (`research.md` R2): `product_variants.price_override` and the
-`defaultPrice`/`price` keys of `products.attribute_values` — removed from `catalog`'s code, DTOs,
-admin and import in P1, physically removed by `catalog`'s first migration of the next release.
+**Removed by `catalog` in the same release, not converted** (`research.md` R2, owner ruling
+2026-10-21): `product_variants.price_override` (column dropped) and the `defaultPrice`/`price` keys of
+`products.attribute_values` (stripped), by `catalog`'s own migration; and the entity property, DTO
+fields, admin field and import mapping of both.
 
 ## 9. State transitions
 

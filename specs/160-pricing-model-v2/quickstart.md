@@ -13,8 +13,10 @@ pnpm run cli demo reset            # withdraw the demo data, then load it again 
 ```
 
 On a database that held the old model, `pnpm --filter backend run migration:up` runs the one-shot
-conversion: base prices kept (Default brackets, `defaultPrice`, variant overrides), every other price
-list dropped (`contracts/conversion-and-removal.md`). Nothing else needs converting — reseed the demo.
+conversion: Default-list brackets kept as base prices, every other price
+list dropped, and the catalogue's `defaultPrice` and variant price override removed without
+conversion (`contracts/conversion-and-removal.md`). A hand-made product with no Default bracket has no
+price until you reseed the demo or enter a base price.
 
 ## 2. See the owner's scenarios
 

@@ -70,6 +70,20 @@ most; development price books dropped and reseeded; demo books reproduce E1–E3
   were illustrations of possible variants, never meant to be active together. The demo seeds all
   three scenarios' books; E3's are active and E1's and E2's are drafts, and a presenter activates one
   scenario at a time, each then showing its literal numbers.
+- Q: The migration order runs every catalogue migration before every price-list migration, so the
+  catalogue fields cannot be dropped in the same release after a price-list conversion has read
+  them. Remove them a release later, or do not convert them? → A: **one release, no conversion of
+  the catalogue fields.** The conversion reads only the price-list module's own data (Default-list
+  brackets become base-book rows of their currencies); `products.attribute_values.defaultPrice` and
+  `product_variants.price_override` are not converted, and the catalogue module's own migration in
+  this release drops `price_override` and strips the `defaultPrice`/`price` keys. A variant price
+  override was never charged, so converting it would turn a never-paid number into a charged price;
+  the product *default price* mattered only for products without a Default bracket; there is no
+  production deployment, the demo seeds base prices directly (FR-044) and development price lists are
+  dropped and reseeded (N13). **Accepted cost**: in a development database a hand-made product
+  without a Default bracket has no price until a demo reset or a manually entered base price; "a
+  price" in SC-006 therefore means a price the old price lists held. **Caveat**: if a production
+  deployment appears before this release, this ruling is to be revisited.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -85,21 +99,18 @@ the old model is.
 percentage (requirement 1 of D-287). Nothing else in this feature can be tested without it.
 
 **Independent Test**: On a database holding old-model prices, run the conversion; then, with no
-price book defined, price every product and variant for a guest and compare with the converted base
-prices.
+price book defined, price every product for a guest and compare with the old Default-list brackets.
 
 **Acceptance Scenarios**:
 
 1. **Given** a product with an old Default-list bracket per currency, **When** the conversion runs,
    **Then** the product has the same base price and tiers in each currency's base book.
-2. **Given** a product with only the old product-level *default price* and no Default bracket,
-   **When** the conversion runs, **Then** it has a base price of that amount in the platform's
-   default currency.
-3. **Given** a variant with an old variant price override, **When** the conversion runs, **Then** the
-   variant has a fixed base price of that amount in the platform's default currency.
-4. **Given** the conversion has run, **When** the old price lists, brackets, rules and matrix entries
+2. **Given** a product with only the old product-level *default price* and no Default bracket, or a
+   variant with an old variant price override, **When** the conversion runs, **Then** neither value
+   becomes a price, and both fields are gone from the catalogue (Clarifications, Session 2026-10-21).
+3. **Given** the conversion has run, **When** the old price lists, brackets, rules and matrix entries
    are looked for, **Then** none exist, and every non-system price list of the old model is gone.
-5. Vectors **V1, V2, V7** (variant inherits; variant percentage; variant amount adjustment), **E1.2,
+4. Vectors **V1, V2, V7** (variant inherits; variant percentage; variant amount adjustment), **E1.2,
    E1.3** with no books (base only), **K1.3** and **Q4** of §10.8 (no base in the currency →
    unpriced).
 
@@ -436,17 +447,17 @@ storefront.
 
 **Conversion and removal** (§8.1)
 
-- **FR-041**: Installing the feature MUST convert, once: Default-list brackets into base-book rows of
-  their currencies; the product *default price* of products without a Default bracket into base rows
-  in the platform's default currency; variant price overrides into fixed variant base rows in the
-  platform's default currency.
+- **FR-041**: Installing the feature MUST convert, once, the price-list module's own data only:
+  Default-list brackets into base-book rows of their currencies. The product *default price* and the
+  variant price override MUST NOT be converted (Clarifications, Session 2026-10-21).
 - **FR-042**: Installing the feature MUST remove every non-system price list of the old model with its
   roster, brackets, rule and matrix entries (N13), and the old model's storage: the Application rule,
   the per-product roster and bracket tables, the legacy feature-014 tables, the matrix entries'
-  organization and currency coordinates, the product *default price* key and its editor field, and the
-  variant price override (removed by the catalogue module, after the conversion has read it).
-- **FR-043**: Product create, update and import MUST refuse the old *default price* key with a
-  message that prices are set in price books.
+  organization and currency coordinates; and the catalogue module MUST remove, in the same release,
+  the product *default price* (the `defaultPrice`/`price` keys and the editor field) and the variant
+  price override.
+- **FR-043**: Product and variant create, update and import MUST refuse the old *default price* key and
+  the variant price override with a message that prices are set in price books.
 - **FR-044**: The demo seed MUST create base prices directly in the base books and price books that
   reproduce vectors E1–E3 against the demo's own organization, customer group, category, attribute
   and products (N12); a demo reset MUST restore them. The scenarios are alternatives: E3's books MUST
@@ -527,8 +538,8 @@ storefront.
 
 ## Assumptions
 
-- The "platform's default currency" of FR-041 is the default currency of the platform's system-default
-  sales channel.
+- The base book of the platform's default currency (the default currency of the system-default sales
+  channel) exists after installation even when no Default-list bracket was in that currency.
 - Product feeds keep their current contract: a feed pinned to a book lists only what that book prices.
 - Quote requests keep their stored price at request and accepted agreements keep their agreed price;
   open carts are re-priced on read and placement refuses a changed line as today.

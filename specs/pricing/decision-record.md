@@ -72,6 +72,7 @@ section named.
 | N12 demo price lists | Yes — the demo instance's price lists reproduce E1–E3 | 2026-10-21 | §8 |
 | N13 dev price lists | Drop the non-system price lists of development databases and reseed; no conversion | 2026-10-21 | §8 |
 | Q-A (spec 160) admin editing between P1 and P2 | P1 and P2 are **released together**, so no release lacks a price editor; no interim editor | 2026-10-21 | §8.2 |
+| Catalogue fields at conversion (spec 160) | **One release, no conversion of the catalogue fields**: the conversion reads only `price_lists`' own data (Default brackets → base books); `products.attribute_values.defaultPrice` and `product_variants.price_override` are not converted, and `catalog`'s own migration in the same release drops `price_override` and strips the `defaultPrice`/`price` keys. An override was never charged; `defaultPrice` mattered only without a Default bracket; no production deployment. Accepted cost: a hand-made dev product without a Default bracket loses its price until a demo reset or a manual base price. Caveat: revisit if a production deployment appears before this release | 2026-10-21 | §5.8, §8.1 |
 | Demo E1–E3 (spec 160 FR-044) | The examples are **alternatives**, not one combined setup: the demo seeds all three, E3 active and E1/E2 as drafts, one scenario active at a time | 2026-10-21 | §8.1 |
 
 ## 0. Decision in one paragraph
@@ -533,11 +534,10 @@ Variant axes are product attributes flagged `isVariantAxis`
   their axis values. The price surface stores one row per (profile, product) with the minimum and the
   maximum; the worker resolves variants to compute it.
 
-**Migration**: `price_override` values become fixed variant rows in the base book of the platform's
-default currency (the value has no currency, as `defaultPrice` had none); the column is then
-dropped by a new `catalog`-owned migration in the same feature (§8.1). The data
-migration reads variants through `catalog`'s product read port (`catalog-product-read.service.ts:262`
-already exposes `priceOverride`), never by SQL on `catalog`'s tables.
+**Migration** (owner ruling, 2026-10-21): `price_override` values are **not** converted — they were
+never charged, and converting them would turn a never-paid number into a charged price. `catalog`'s
+own migration in the same release drops the column (§8.1); variant prices start empty and are entered
+in the base books.
 
 **Recommendation**: the `variant_id` column and effective-attribute matching ship in **P1** (the
 schema and resolver change once); the variant rows in the grid and the PDP/listing behaviour ship in
@@ -682,13 +682,15 @@ feature that introduces the new ones.
 
 One migration step, owned by `price_lists` and scaffolded with `pnpm --filter backend run
 migration:new` (no number is assigned here), converts the only data worth keeping in a development
-database — product prices — and drops the rest:
+database — the Default list's prices — and drops the rest. By owner ruling (2026-10-21) it reads
+only `price_lists`' own data; the catalogue's `defaultPrice` and variant price override are not
+converted:
 
 | Today | Becomes |
 | --- | --- |
 | Default list brackets | rows of the per-currency system base books (PLN keeps `…d51b`) |
-| `products.attribute_values.defaultPrice` on products with no Default bracket | base row in the platform default currency |
-| `product_variants.price_override` | fixed variant row in the base book of the platform default currency, read through `catalog`'s product read port (`catalog-product-read.service.ts:262`), never by SQL on `catalog`'s tables |
+| `products.attribute_values.defaultPrice` | **not converted**; the keys are stripped by `catalog`'s migration — a product priced only by it has no price until a base price is entered or the demo is reseeded |
+| `product_variants.price_override` | **not converted**; the column is dropped by `catalog`'s migration |
 | every non-system price list, its roster, brackets and matrix entries | **dropped**. Converting Application rules (AND/OR trees, category criteria, mixed audiences) into price books is the hardest part of a behaviour-preserving migration and protects no one |
 
 The demo is **reseeded**, not converted: the demo composition seeds base prices today through
@@ -703,9 +705,11 @@ Removed in the same feature (formerly the separate contract phase): `price_lists
 the feature-014 tables `price_list_items` and `price_list_assignments`; the matrix entries'
 `organization_id` and `currency_code`; the `defaultPrice` virtual key in `catalog`
 (`CAT/backend/services/catalog-admin.service.ts:114-125`) and the Product editor field; and
-`product_variants.price_override` — the last in a **new migration owned by `catalog`**, in the same
-feature, after the conversion step has read it (module ownership of migrations,
-`specs/conventions/module-migrations.md`; nobody edits another module's existing migration).
+`product_variants.price_override` and the `defaultPrice`/`price` keys — the last two in a **new
+migration owned by `catalog`**, in the same feature (module ownership of migrations,
+`specs/conventions/module-migrations.md`; nobody edits another module's existing migration). Because
+nothing is converted from them, it does not matter that every `catalog` migration runs before every
+`price_lists` migration in one run (spec 160 `research.md` R2).
 
 **Principle II, stated honestly.** The constitution says "Breaking API changes MUST be versioned"
 with no exception for the absence of external consumers (`.specify/memory/constitution.md:403-414`),

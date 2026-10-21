@@ -52,7 +52,7 @@ overlay); FR-001–FR-048; 8 user stories
 
 | Principle | Verdict | How |
 | --- | --- | --- |
-| **I. Modular (NN)** | pass | `price_lists` owns books, rows, sets, precedence and the surface. `catalog` keeps products, variants, categories and attributes and is read only through its ports (`catalogProductReadPort`, `catalogCategoryReadPort`, `catalogAttributeReadPort`) and its published events. `carts` and `orders` own their new `price_source` columns. The conversion migration only **reads** `catalog`'s tables (declared dependency, `check:module-boundary` R1) and writes only its own (R2). `catalog` removes `price_override` and `defaultPrice` from its code in P1; the **physical** removal is `catalog`'s own migration in the next release, because the migration order would otherwise drop them before the conversion reads them (`research.md` R2). `organizations` loses its copy of the rule evaluator and asks `PriceListReadPort`. |
+| **I. Modular (NN)** | pass | `price_lists` owns books, rows, sets, precedence and the surface. `catalog` keeps products, variants, categories and attributes and is read only through its ports (`catalogProductReadPort`, `catalogCategoryReadPort`, `catalogAttributeReadPort`) and its published events. `carts` and `orders` own their new `price_source` columns. The conversion migration reads and writes only `price_lists`' own tables. `catalog` removes `price_override` and the `defaultPrice`/`price` keys — code **and** storage — in its own migration in this release; nothing converts them, so the migration order (every `catalog` migration before every `price_lists` one) poses no problem (`research.md` R2, owner ruling 2026-10-21). `organizations` loses its copy of the rule evaluator and asks `PriceListReadPort`. |
 | **II. API-first** | pass | Zod schemas in `packages/contracts/src/price-books.ts` (new) and `price-lists.ts` before routes; the admin API is a **new versioned resource** `/api/v1/admin/price-books/…` and the old `/api/v1/admin/price-lists-engine/…`, `/api/v1/admin/pricing/rule-targets/…` and `/api/v1/admin/products/:id/resolved-price` are **removed in the same release** (FR-037); **`minor` changesets** (the breaking level in 0.x, D-225) on `@endora-commerce/contracts`, `mod-price-lists`, `mod-catalog`, `mod-carts`, `mod-orders`, `mod-organizations`, `mod-product-feeds`, `mod-search`, `mod-comparisons`, `mod-quote-requests`, each naming the old call and the new one (`research.md` R11). |
 | **III. TDD (NN)** | pass | Failing-first: the `worked-examples.md` §10 vectors as one integration suite (SC-001), the exhaustive precedence tests (924 × 2 × 2 configurations), the four kept identity tests on rebuilt fixtures, the new surface-identity and surfaces-agree tests, the conversion test; each FR maps to a test in `tasks.md` (next command). |
 | **IV. YAGNI, no new dependency** | pass | No new runtime, dev or workspace dependency. The *profile factor* mitigation is designed but built only on a measured trigger (`research.md` R7). P3's precedence write path is not built (FR-023). |
@@ -72,8 +72,7 @@ overlay); FR-001–FR-048; 8 user stories
 
 **Post-design re-check (after Phase 1)**: unchanged — pass. Two places differ from D-287's sketch as
 improvements within its intent, not violations: audience members as two real FK columns and the
-channel set as a Principle XII bridge (`research.md` R3). One deviation from the spec's wording is
-recorded under *Deviations*.
+channel set as a Principle XII bridge (`research.md` R3); the owner approved both (2026-10-21).
 
 ## Project Structure
 
@@ -156,13 +155,13 @@ failing-test-first. All phases land on the release branch.
 
 | Phase | Stories | Content |
 | --- | --- | --- |
-| **1. Contracts and schema** | all | `price-books.ts`; reshaped result types; `'price-list'` bridge type; the conversion migration (`research.md` R4) incl. precedence v1 = HY; `carts`/`orders` `price_source` migrations; `composer:generate`, `manifests:generate` and the lockfile in the same commit |
+| **1. Contracts and schema** | all | `price-books.ts`; reshaped result types; `'price-list'` bridge type; the `price_lists` expand migration (`research.md` R4) incl. precedence v1 = HY; `carts`/`orders` `price_source` migrations; `composer:generate`, `manifests:generate` and the lockfile in the same commit |
 | **2. Resolver and precedence** | US1–US4 | `book-resolver.ts`, `precedence.ts` (presets, `validatePrecedence`, rank table), `pricing-profile.ts`; the batched entry points re-implemented on them; the cache re-keyed; exhaustive precedence tests; the §10 vector suite for E, F, S, T, quantity, C∩, C, H, A, K, U |
 | **3. Variants** | US5 | variant rows, effective attributes, listing min/max, `listTierStarts`; V1–V9 |
 | **4. Admin API and audit** | US7 | `/api/v1/admin/price-books/…` (contract), `price-book-service.ts` through the Command Bus, representative scope, duplicate, explanation, targets; bridge writes through the membership service; old routes deleted |
 | **5. Consumers** | US6 | every row of `contracts/pricing-resolution-v2.md` §5; `CartLinePricing.orderablePrices` without the own-price step and with `price_source`; the three N+1 paths P0 left open; catalogue removals (FR-043); identity tests on rebuilt fixtures; `pricing-surfaces-agree.test.ts` |
 | **6. Price surface** | US6 | tables, profile registry, worker, subscriptions (`research.md` R9), two-stream ordering, profile-miss path, `price-surface-identity.test.ts` under AF, SF, HY and AF-N, the SC-005 bench |
-| **7. Conversion, removal, demo** | US1, US8 | conversion test (SC-006); old entities, services and admin code deleted; demo reseed (R13); the module-removal residue ledger and every `backend/test/**` reference to a deleted file re-derived in the same commit (`AGENTS.md`, *The traps*) |
+| **7. Conversion, removal, demo** | US1, US8 | the `price_lists` conversion migration and the `catalog` migration dropping `product_variants.price_override` and stripping the `defaultPrice`/`price` keys; conversion test (SC-006, incl. the two catalogue fields gone and not converted); old entities, services and admin code deleted; demo reseed (R13); the module-removal residue ledger and every `backend/test/**` reference to a deleted file re-derived in the same commit (`AGENTS.md`, *The traps*) |
 | **8. P2 (separate spec)** | — | the price-book editor on this API; the release gate |
 | **9. Documentation (FR-048, SC-010)** | — | after P2: the rebuild below |
 
@@ -253,9 +252,11 @@ in the same commit.
 
 ## Deviations from D-287 and the spec
 
+Both approved by the owner (2026-10-21). The catalogue fields are removed in this release without
+conversion (owner ruling, spec Clarifications), which is not a deviation but the spec's FR-041/FR-042.
+
 | Where | Deviation | Why | Effect |
 | --- | --- | --- | --- |
-| FR-042, SC-006 | `product_variants.price_override` and the `defaultPrice`/`price` keys of `products.attribute_values` are removed from all code in P1 but **physically** by `catalog`'s first migration of the next release | the migration order runs every `catalog` migration before every `price_lists` migration in one run; a same-release drop would precede the conversion read (`research.md` R2) | two inert storage fields for one release; a contract test pins that nothing reads them |
 | D-287 §5.1 | the channel set is `sales_channel_price_lists`, a registered bridge, not `price_list_sales_channels` | Principle XII's sanctioned accessor | none on semantics |
 | D-287 §5.1 | audience members are two FK columns, not one polymorphic id | real FKs, cascade on permanent deletion | none on semantics |
 
@@ -269,8 +270,6 @@ then activates E1's books alone and E2's books alone in turn and prices each.
 
 ## Follow-ups (outside P1, recorded)
 
-- `catalog` migration (next release): drop `product_variants.price_override` and strip the
-  `defaultPrice`/`price` keys (*Deviations*).
 - P3: the precedence change flow; the optional Meilisearch everyone price; the profile factor if the
   bench has not already required it.
 - P4: the promotions exclusion on `price_source`.

@@ -1,34 +1,38 @@
 # Contract — Conversion and removal (FR-041–FR-044, SC-006, SC-007)
 
-Design: `research.md` R2, R4, R13. Tables: `data-model.md` §8.
+Design: `research.md` R2, R4, R13. Tables: `data-model.md` §8. Owner ruling 2026-10-21: one release,
+the catalogue fields are removed and **not** converted (spec Clarifications).
 
-## 1. The `price_lists` conversion migration (one, one transaction)
+## 1. The `price_lists` migrations (expand, then conversion in one transaction)
+
+Step 1 is the expand migration (foundation phase); steps 2–5 are the conversion migration (removal
+phase), both in this release (`research.md` R4).
 
 | Step | Effect | Reads | Writes |
 | --- | --- | --- | --- |
-| 1 | create new tables/columns | — | own |
+| 1 | create new tables/columns; seed precedence v1 = HY | — | own |
 | 2 | one base book per currency used by a Default bracket, plus the platform default currency (system-default channel's `default_currency`); default currency keeps `…d51b` | own, `sales_channels` (kernel) | own |
 | 3 | Default brackets → product rows of their currency's base book | own | own |
-| 4 | products with no Default bracket and numeric `attribute_values.defaultPrice` (else `price`) → base row, default currency | `products` (catalog, declared dependency, read-only) | own |
-| 5 | variants with `price_override` → fixed variant rows, default currency | `product_variants` (catalog, read-only) | own |
-| 6 | delete every non-system list and the Default list's matrix entries | own | own |
-| 7 | rename `type` value `base` → `regular`; drop old tables/columns; seed precedence v1 = HY | own | own |
+| 4 | delete every non-system list and the Default list's matrix entries | own | own |
+| 5 | rename `type` value `base` → `regular`; drop old tables/columns | own | own |
 
-`check:module-boundary` R1 holds (reads of a declared dependency), R2 holds (no write outside
-`price_lists`).
+The migration reads and writes only `price_lists`' own tables (and reads the kernel's
+`sales_channels`); `check:module-boundary` has nothing to judge across modules.
 
 ## 2. Other owners' migrations in P1
 
 - `carts`: `cart_items.price_source` (nullable).
 - `orders`: `order_items.price_source` (nullable).
+- `catalog`: drop `product_variants.price_override`; strip the `defaultPrice` and `price` keys from
+  `products.attribute_values`. Nothing is converted; it runs before the `price_lists` migration (module
+  order), which does not need it.
 
-## 3. Deferred (next release, `catalog`)
+## 3. Catalogue code removed with the fields
 
-`product_variants.price_override` drop and the removal of `defaultPrice`/`price` keys from
-`products.attribute_values`. Until then: no code reads or writes them (removed from the entity,
-DTOs, admin and import; FR-043 refuses `defaultPrice` and `priceOverride` on create, update and
-import with `400 PRICE_SET_IN_PRICE_BOOKS`). A contract test pins "no reader" by grepping the
-compiled packages, so the deferral cannot grow a consumer.
+The `priceOverride` entity property and DTO fields, the admin variant price field, the Product
+editor's *Default unit price* field, the `defaultPrice`/`price` virtual-key whitelist
+(`CAT/backend/services/catalog-admin.service.ts:114-125`) and the import mapping. FR-043: create,
+update and import refuse `defaultPrice`, `price` and `priceOverride` with `400 PRICE_SET_IN_PRICE_BOOKS`.
 
 ## 4. Demo (N12, FR-044)
 
@@ -37,13 +41,16 @@ compiled packages, so the deferral cannot grow a consumer.
 then the `price_lists` demo step through its published install surface: base books for every demo
 product (from the price the catalogue demo generated, carried in the demo step's own data, not in
 `attribute_values`), and the books of `worked-examples.md` §10.2–§10.4 bound to the demo channel.
-`demo reset` clears and re-runs the step. A demo test resets and prices E1.1–E3.6 (SC-007).
+`demo reset` clears and re-runs the step. E3's books are active after a reset, E1's and E2's are
+drafts (spec Clarifications). A demo test resets and prices E3.1–E3.6, then activates only E1's books
+and prices E1.1–E1.4, then only E2's and prices E2.1–E2.4 (SC-007).
 
 ## 5. Verification
 
 - `backend/test/integration/price_lists/conversion.test.ts`: a database prepared with old-model data
   (Default brackets in two currencies, a product with only `defaultPrice`, a variant override, a
-  rule-based list with matrix entries) → after migration: base rows equal, variant row present,
-  no non-system list, old tables absent, precedence v1 = HY (SC-006).
+  rule-based list with matrix entries) → after migration: base rows equal the Default brackets; the
+  `defaultPrice`-only product and the variant have **no** price; `price_override` and the
+  `defaultPrice` keys are gone; no non-system list; old tables absent; precedence v1 = HY (SC-006).
 - `db:fresh` + `module:install --all` on an empty database: green, base books for the default currency
   exist, precedence seeded.
