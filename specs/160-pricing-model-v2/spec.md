@@ -449,6 +449,24 @@ storefront.
 - **FR-047**: Activation and expiry by date MUST take effect at the scheduled instant for every
   request, not at the next sweep.
 
+**Documentation** (product owner, 2026-10-21)
+
+- **FR-048**: When P1 and P2 are complete, the Docusaurus documentation MUST be rebuilt to describe the
+  new price determination, in English and Polish (`docs/docs/contributing/documentation-i18n.md`).
+  For **platform users** (administrators, sales representatives, buyers): what a base price, a
+  catalogue, buyer and sale price book are; how the winning price is chosen (the tiers, the configured
+  precedence and its default HY preset, priority, quantity tiers, percentages taken off the catalogue
+  price, a sale charged only when lower); channels, currency and audience on the book header;
+  duplication; the resolved-price check; and worked examples E1–E3. For **Endora Commerce
+  developers**: the data model, the resolution algorithm and its rank table, the batched pricing
+  service as the only sanctioned read path, caching and cross-replica invalidation, the versioned
+  admin API, how a consumer module reads a price and how the conversion from the old model ran. Pages
+  describing the removed Application rule, per-product roster and brackets, the product *default
+  price* and the variant price override MUST be rewritten or removed, not left beside the new text.
+  At minimum this covers the module-owned page `packages/modules/price_lists/docs/price_lists.md`,
+  the generated module reference, and every docs page that describes how a price is obtained
+  (catalog, carts, orders, quote requests, search, product feeds, organizations).
+
 ### Key Entities *(include if feature involves data)*
 
 - **Price book** — header of FR-001; owned by the price-list module; has channel-set entries,
@@ -490,6 +508,9 @@ storefront.
 - **SC-008**: A sales representative cannot learn, from any status code or message, that an
   organization-set book with an out-of-scope member exists.
 - **SC-009**: Every new user-facing string exists in English and Polish (0 missing keys).
+- **SC-010**: After P1 and P2, `check:docs-translations` passes and no docs page, in either locale,
+  still describes the Application rule, the product *default price* or the variant price override as
+  current behaviour (a search for them returns only migration or history notes).
 
 ## Assumptions
 
@@ -513,8 +534,7 @@ storefront.
   activation invalidation and its batched consumer paths, and should be planned on top of P0 once P0
   is merged rather than re-implementing any of them. Where P0 fixes a consumer this feature re-points
   (FR-028), this feature keeps P0's batching.
-- `specs/pricing/` (branch `docs/pricing-domain-analysis`, PR #393) must be merged first: this
-  specification cites it as normative.
+- `specs/pricing/` (merged in PR #393, 2026-10-21): this specification cites it as normative.
 - Organizations (chain), customer accounts (groups), catalogue (products, variants, categories,
   attributes), sales channels (currencies) and currencies (references) as existing read sources;
   carts and orders own their new line field; product feeds, search, comparisons, quote requests and
