@@ -143,13 +143,13 @@ column), §10.11.
 
 ### Tests first
 
-- [ ] T044 [P] [US4] Vectors S1.1–S1.3, S2 and U2.2 in `WX/sale.test.ts` (FR-015, FR-046)
-- [ ] T045 [P] [US4] A listing card carries `compareAtAmount` when a sale is charged and none when equal, in `IT/price_lists/listing-compare-at.test.ts` (FR-025)
+- [X] T044 [P] [US4] Vectors S1.1–S1.3, S2 and U2.2 in `WX/sale.test.ts` (FR-015, FR-046)
+- [X] T045 [P] [US4] A listing card carries `compareAtAmount` when a sale is charged and none when equal, in `IT/price_lists/listing-compare-at.test.ts` (FR-025)
 
 ### Implementation
 
-- [ ] T046 [US4] Sale tier and the charge rule (strictly lower, compare-at = buyer price) replacing `lineFromEngine` in `PL/backend/services/pricing-service.ts`
-- [ ] T047 [US4] `compareAtAmount` mapped through `ProductSummary` in `packages/modules/catalog/src/backend/services/catalog-query.service.ts` and rendered with strikethrough on the card in `storefront/components/ProductCard.tsx` / `storefront/components/PriceTag.tsx`
+- [X] T046 [US4] Sale tier and the charge rule (strictly lower, compare-at = buyer price) replacing `lineFromEngine` in `PL/backend/services/pricing-service.ts`
+- [X] T047 [US4] `compareAtAmount` mapped through `ProductSummary` in `packages/modules/catalog/src/backend/services/catalog-query.service.ts` and rendered with strikethrough on the card in `storefront/components/ProductCard.tsx` / `storefront/components/PriceTag.tsx`
 
 ---
 

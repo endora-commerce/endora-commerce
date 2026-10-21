@@ -260,6 +260,16 @@ export const productSummarySchema = z.object({
   categorySlugs: z.array(z.string()),
   primaryAssetUrl: z.string().url().nullable(),
   price: moneySchema.nullable(),
+  /**
+   * Feature 160 (FR-025) — the buyer's own price, struck through, when `price`
+   * is a charged sale. Absent otherwise.
+   */
+  compareAtPrice: moneySchema.nullable().optional(),
+  /**
+   * Feature 160 (FR-024) — the product's variants resolve to different prices
+   * for this viewer, and `price` is the lowest ("from").
+   */
+  priceVariesByVariant: z.boolean().optional(),
   stockIndicator: stockIndicatorSchema.nullable(),
   stockLevel: z.number().int().nullable(),
   /**

@@ -36,6 +36,8 @@ export type MessageKey =
   | 'catalog.price.unitNote'
   | 'product.outOfStock'
   | 'product.requestQuote'
+  | 'product.priceFromVariants'
+  | 'product.compareAtLabel'
   | 'product.addToCart'
   | 'product.addToCartFailed'
   | 'product.oneClickFailed'
@@ -440,6 +442,8 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
       'Prices shown are your unit prices. Quantity discounts and promotions are applied in the cart.',
     'product.outOfStock': 'Out of stock',
     'product.requestQuote': 'Request a quote',
+    'product.priceFromVariants': 'from, depending on the variant',
+    'product.compareAtLabel': 'Your price',
     'product.addToCart': 'Add to cart',
     'product.addToCartFailed': 'Could not add the product to the cart.',
     'product.oneClickFailed': 'Could not place the order.',
@@ -822,6 +826,8 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
       'Pokazane ceny to Twoje ceny jednostkowe. Rabaty ilościowe i promocje naliczamy w koszyku.',
     'product.outOfStock': 'Brak w magazynie',
     'product.requestQuote': 'Zapytaj o oferte',
+    'product.priceFromVariants': 'od, zależnie od wariantu',
+    'product.compareAtLabel': 'Twoja cena',
     'product.addToCart': 'Dodaj do koszyka',
     'product.addToCartFailed': 'Nie udało się dodać produktu do koszyka.',
     'product.oneClickFailed': 'Nie udało się złożyć zamówienia.',

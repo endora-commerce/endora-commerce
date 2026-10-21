@@ -14,12 +14,10 @@ import type { ReactNode } from 'react';
  *   - SKU as small caption
  *   - a stock badge if set
  *
- * **No price per variant** (D-287 P0). It used to print
- * `product_variants.price_override`, which no price list reads: a variant line
- * is charged the product's resolved price, so the figure here was one the cart
- * would never charge. The product page's price block is the price for every
- * variant until variant prices live in the price books (issue #377,
- * `specs/pricing/decision-record.md` §5.8).
+ * **Each variant's resolved price** (feature 160, FR-031), when the page
+ * passes one: the price the cart will charge for that variant, resolved by the
+ * price books. It never prints `product_variants.price_override`, which no
+ * price list ever read (D-287 P0).
  *
  * The currently-selected variant (matched against the `variant` URL query
  * parameter resolved by the parent page) gets `aria-current="true"`.
@@ -30,10 +28,14 @@ interface Variant {
   sku: string;
   variantAttributeValues: Record<string, unknown>;
   stockLevel?: number | null;
+  /** Feature 160 — the variant's resolved unit price for this viewer; `null` when unpriced. */
+  price?: { amount: string; currency: string } | null;
 }
 
 export interface VariantPickerProps {
   productSlug: string;
+  /** Feature 160 — the locale prices are formatted in. */
+  locale?: string;
   variants: Variant[];
   /** SKU of the variant currently chosen (e.g. from `?variant=...`). */
   selectedSku?: string | null;
@@ -49,6 +51,7 @@ export interface VariantPickerProps {
 
 export function VariantPicker({
   productSlug,
+  locale = 'pl-PL',
   variants,
   selectedSku,
   labels,
@@ -85,6 +88,15 @@ export function VariantPicker({
                 <span className="text-[0.875rem] text-muted">
                   {labels.sku}: <code>{v.sku}</code>
                 </span>
+                {v.price ? (
+                  <span data-testid={`variant-price-${v.sku}`} className="font-mono text-[0.875rem] font-semibold">
+                    {new Intl.NumberFormat(locale, {
+                      style: 'currency',
+                      currency: v.price.currency,
+                      minimumFractionDigits: 2,
+                    }).format(Number(v.price.amount))}
+                  </span>
+                ) : null}
                 {v.stockLevel != null ? (
                   <span className="text-[0.875rem]">
                     {outOfStock ? labels.outOfStock : `${labels.stockLevel}: ${v.stockLevel}`}

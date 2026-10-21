@@ -2474,6 +2474,27 @@ export class CatalogQueryService {
         ? (product.minOrderQuantity ?? null)
         : null,
       resolvedPrice: this.#summaryResolvedPrice(resolvedPrices, product.id),
+      ...this.#summaryPriceBookFields(resolvedPrices, product.id),
+    };
+  }
+
+  /**
+   * Feature 160 (FR-024, FR-025) — the compare-at price of a charged sale and
+   * the "from" flag of a product whose variants differ, from the same
+   * resolution as `price`. Present only when the price books answered them.
+   */
+  #summaryPriceBookFields(
+    resolved: Map<string, ListingPriceDetail>,
+    productId: string,
+  ): Pick<ProductSummary, 'compareAtPrice' | 'priceVariesByVariant'> {
+    const price = resolved.get(productId)?.price;
+    if (!price || price.source !== 'price_list') return {};
+    const compareAt = price.compareAtAmount !== undefined ? Number(price.compareAtAmount) : null;
+    return {
+      ...(compareAt !== null && Number.isFinite(compareAt)
+        ? { compareAtPrice: { amount: compareAt, currency: price.currency } }
+        : {}),
+      ...(price.variesByVariant ? { priceVariesByVariant: true } : {}),
     };
   }
 

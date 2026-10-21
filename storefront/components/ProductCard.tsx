@@ -206,9 +206,30 @@ function renderPriceSlot(args: {
     );
   }
 
+  // Feature 160 — the buyer's own price, struck through, when `price` is a
+  // charged sale (FR-025); and "from" when the variants differ (FR-024).
+  const compareAtFmt = product.compareAtPrice
+    ? new Intl.NumberFormat(locale, {
+        style: 'currency',
+        currency: product.compareAtPrice.currency,
+        minimumFractionDigits: 2,
+      }).format(product.compareAtPrice.amount)
+    : null;
+
   return (
     <>
-      <div className="industria-product-card__price__from">od / szt.</div>
+      <div className="industria-product-card__price__from">
+        {product.priceVariesByVariant ? t('product.priceFromVariants') : 'od / szt.'}
+      </div>
+      {compareAtFmt ? (
+        <s
+          data-testid="card-compare-at"
+          aria-label={t('product.compareAtLabel')}
+          className="font-mono text-[11px] text-muted"
+        >
+          {compareAtFmt}
+        </s>
+      ) : null}
       <div className="font-mono text-[16px] font-semibold tracking-[-0.01em] text-fg">{priceFmt}</div>
       {grossFmt ? (
         <div className="font-mono text-[11px] text-muted">brutto {grossFmt}</div>
