@@ -54,16 +54,16 @@ depth-first preset; fixed product prices apply to every variant; amount adjustme
 "from" price for variant products; surcharge bound +1000 %; one category ∩ one attribute value at
 most; development price books dropped and reseeded; demo books reproduce E1–E3.
 
-### Open
+### Session 2026-10-21
 
-- **Q-A (scope)**: Removing the old model removes what today's admin screens edit — the price-list
-  editor's *Products & brackets*, *Application rule* and *Price matrix* tabs, and the Product
-  editor's *Default unit price* field. The new editor is the next phase (P2, issue #378 re-scoped).
-  [NEEDS CLARIFICATION: Between this feature and P2, must administrators be able to edit prices in
-  the admin at all? (A) this feature ships a minimal working editor — header form, a plain row table
-  and a base-price field on the product — that P2 replaces; (B) this feature removes the old screens
-  and prices are edited only through the versioned API and the demo seed until P2; (C) this feature
-  and P2 are released together, so no release ever lacks an editor.]
+- Q: Between this feature and P2, must administrators be able to edit prices in the admin at all?
+  Removing the old model removes what today's admin screens edit — the price-list editor's
+  *Products & brackets*, *Application rule* and *Price matrix* tabs, and the Product editor's
+  *Default unit price* field. → A: **(C) this feature and P2 (the price-book editor, issue #378
+  re-scoped) are released together**, so no release ever lacks a working price editor. There is no
+  production deployment, and a throwaway interim editor would be built only to be replaced. Neither
+  feature's changes reach `master` ahead of the other in a way that leaves the admin without price
+  editing; the plan decides the branch and merge mechanics.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -523,7 +523,7 @@ storefront.
 ## Out of Scope
 
 - The price-book editor UX, the product editor's base-price panel UX and the "list price / your price"
-  display setting (P2, issue #378) — subject to Q-A.
+  display setting (P2, issue #378), released together with this feature (Clarifications, Session 2026-10-21).
 - Changing the precedence through the admin, with impact preview and versioned rebuild (P3).
 - A search-engine field for everyone's price (P3, optional).
 - Promotions excluding sale- or contract-priced lines (P4); this feature only records the price

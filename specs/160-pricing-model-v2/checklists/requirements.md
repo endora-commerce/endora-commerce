@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain
+- [x] No [NEEDS CLARIFICATION] markers remain
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -31,9 +31,8 @@
 
 ## Notes
 
-- One marker remains, by design: **Q-A** (whether administrators can edit prices in the admin between
-  this feature and P2). It decides scope — a minimal editor in this feature, API-only editing until
-  P2, or a joint release with P2 — and is the owner's to answer before `/speckit.plan`.
+- The one marker (Q-A, admin price editing between this feature and P2) was answered by the owner on
+  2026-10-21: (C) this feature and P2 are released together.
 - Deliberate exceptions to "no implementation details", each required by a binding source rather
   than chosen: FR-037 names a versioned admin resource and a breaking-change release note because
   Constitution Principle II and `specs/conventions/release-intent.md` require them; SC-004 and SC-005
