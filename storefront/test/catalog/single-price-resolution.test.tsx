@@ -21,10 +21,13 @@ import { PriceTag } from '../../components/PriceTag';
 const source = (path: string): string => readFileSync(resolve(__dirname, '../..', path), 'utf8');
 
 describe('one price resolution per catalogue surface', () => {
-  it('the product page reads the detail’s resolvedPrice and asks resolved-price nothing', () => {
+  it('the product page reads the detail’s resolvedPrice, and asks resolved-price only for a selected variant', () => {
     const page = source('app/(catalog)/p/[slug]/page.tsx');
-    expect(page).not.toMatch(/getResolvedPrice\s*\(/);
     expect(page).toContain('product.resolvedPrice');
+    // Feature 160 (FR-031) — a selected variant is priced as itself: exactly one
+    // call, guarded by the selection, so a page without one resolves once.
+    expect(page.match(/getResolvedPrice\s*\(/g) ?? []).toHaveLength(1);
+    expect(page).toMatch(/if \(selectedVariantId\) \{\s*const variantResolved = await getResolvedPrice\(/);
   });
 
   it('the home page’s cards read the listing’s resolvedPrice, with no per-card fan-out', () => {
