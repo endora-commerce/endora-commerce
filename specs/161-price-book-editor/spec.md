@@ -3,8 +3,8 @@
 **Feature Branch**: `feat/161-price-book-editor` (spec directory `specs/161-price-book-editor/`),
 branched from the release branch `feat/160-pricing-model-v2`
 **Created**: 2026-10-21
-**Status**: Draft — three open questions for the owner (*Clarifications → Open*), each with a
-recommended default; nine gaps in P1's admin API to feed back to feature 160 (*Dependencies*).
+**Status**: Draft — the owner answered every open question (*Clarifications*, Session 2026-10-21);
+ten additive gaps in P1's admin API to feed back to feature 160 (*Dependencies*).
 **Input**: Issue #378, *"Price lists: replace 'Products & brackets' with a rebuilt multi-currency
 Price matrix"*, re-scoped by D-287 §8.2 to **P2 — the price-book editor**: the admin screens on top of
 the price-book model and the versioned admin API of feature 160 (`specs/160-pricing-model-v2/`). P1
@@ -52,28 +52,20 @@ only** (Q8a, N4: the list price only when above "your price"); the promotions ex
 `promotions` and is P4, not this feature (Q8b, N5); the precedence is configurable but only through
 P3 — this feature **displays** it (Q11, FR-023 of 160); P1 and P2 ship together (Q-A).
 
-### Open (questions for the owner)
+### Session 2026-10-21
 
-- **Q-1 Grid columns.** [NEEDS CLARIFICATION: How are quantity tiers laid out in the grid?
-  **(A)** one column per tier start used anywhere in the book ("from 1", "from 10", "from 100"); a
-  line that has no price at a start shows an empty cell, a line with a tier window not on the shared
-  starts opens in a cell detail; **(B)** one column only (the quantity-1 price), every other tier in a
-  per-cell expansion, as Medusa's bulk editor does; **(C)** a column per tier start, but limited to the
-  book's first five starts, the rest in the expansion. *Recommended: (A)* — tiers are what B2B price
-  books are about, and a table that shows them side by side is the issue's "easier entry"; the
-  expansion still covers windows that do not fit.]
-- **Q-2 Import and export.** [NEEDS CLARIFICATION: Is moving a price book in and out of a
-  spreadsheet part of this release? **(A)** paste from a spreadsheet into the grid and copy out of it
-  (keyboard), plus a CSV **export** of a book; CSV **import** later; **(B)** paste and copy only;
-  **(C)** paste, copy, CSV export and CSV import (upload with a preview of every change before
-  saving). *Recommended: (A)* — export answers "send Acme its prices" now; a file import needs its own
-  preview and error report and is better as a follow-up.]
-- **Q-4 Price books on the product editor.** [NEEDS CLARIFICATION: Besides the base-price panel,
-  should the product editor list the price books that price this product directly (book, audience,
-  price, link to the grid), as the removed *Linked price lists* panel did? **(A)** yes, read-only, with
-  a "Why this price?" link to the explanation screen; **(B)** no, the explanation screen answers it.
-  *Recommended: (A)* — it replaces a panel administrators had, and it needs one small additive filter
-  in P1's API (gap G1).]
+- Q-1: How are quantity tiers laid out in the grid? → A: **(A) one column per tier start used anywhere
+  in the book** ("from 1", "from 10", "from 100"). Organization and customer group are the book's
+  header audience, not grid dimensions, so each audience is its own book; lines are selections, ordered
+  from general to specific (all products, attribute value, category, category ∩ attribute value,
+  product, variant) with a filter by kind and a search; an **empty cell inherits the line's nearest
+  lower tier**, and the editor shows what it inherits; which line wins for a buyer is decided by the
+  precedence, shown read-only (US6) and through "Why this price?" (US5).
+- Q-2: Is moving a price book in and out of a spreadsheet part of this release? → A: **(C) paste and
+  copy, CSV export and CSV import with a preview**, all in this release.
+- Q-4: Should the product editor list the price books that price the product? → A: **Yes**, read-only,
+  linking to the grid and to "Why this price?"; it replaces the removed *Linked price lists* panel
+  (gap G1 is therefore required).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -189,7 +181,7 @@ in the panel and confirm V1 and V2 through the explanation screen.
    shows the resulting 88.00 beside it, and P5b shows "inherits 80.00".
 4. **Given** the product editor is saved, **When** the base-price panel has an invalid value, **Then**
    the error is shown on the field and the product save does not report success for the prices.
-5. (Q-4 = A) **Given** the product is priced by other books, **Then** a read-only list shows each book,
+5. **Given** the product is priced by other books, **Then** a read-only list shows each book,
    its audience and the price it sets, linking to the grid and to "Why this price?".
 
 ---
@@ -302,6 +294,38 @@ their scope.
 2. **Given** a representative creating a book, **Then** the audience step offers only *organizations*
    and only their own organizations.
 
+### User Story 9 — Move a price book in and out of a spreadsheet (Priority: P2)
+
+A pricing administrator exports a book to CSV, edits it in a spreadsheet (or receives one from a
+buyer or an ERP), and imports it back: the editor shows exactly what would change and what cannot be
+imported, and writes nothing until they confirm.
+
+**Why this priority**: Ruled by the owner (Q-2 = C); large books are maintained in spreadsheets, and
+a contract is often sent to the customer as one.
+
+**Independent Test**: Export the E3 Acme book, change one price, add a row for an unknown SKU and one
+for a new product, import in merge mode: the preview shows one change, one addition and one refused
+row; after fixing the file and confirming, the grid equals the file.
+
+**Acceptance Scenarios**:
+
+1. **Given** a book, **When** it is exported, **Then** the file has the fixed header and one row per
+   tier, opens in a spreadsheet with Polish settings without mangling decimals or diacritics, and
+   re-imported unchanged produces an empty preview ("no changes").
+2. **Given** a file with a changed price, a new line and a line whose SKU does not exist, **When** it is
+   uploaded in merge mode, **Then** the preview lists 1 changed cell (old → new), 1 added line and
+   1 refused row (line number, "unknown SKU …"), shows that nothing has been written, and cannot be
+   confirmed until the refused row is fixed.
+3. **Given** a valid file in replace mode, **When** previewed, **Then** the rows of the book missing from
+   the file are listed as removed, with their count stated before the confirm button.
+4. **Given** a confirmed preview, **When** the import runs, **Then** one audited change is written and
+   the grid shows the result; **Given** someone else saved the book after the preview, **Then** the
+   confirmation is refused and a fresh preview is offered.
+5. **Given** a file in Windows-1250 with semicolons and decimal commas, **When** uploaded, **Then** it is
+   read correctly, or the administrator is asked to choose the encoding when detection is uncertain.
+6. **Given** a preview with refused rows, **When** the administrator downloads them, **Then** they get a
+   CSV of exactly those rows with a reason column.
+
 ### Edge Cases
 
 - A book at the 5 000-row limit: adding lines is refused before saving, with the limit stated.
@@ -320,6 +344,17 @@ their scope.
 - The module switched off: navigation, palette, product-editor panel and settings section disappear;
   a stale address answers as for a module that is not installed.
 - Slow network: every save, load and pick shows progress within 400 ms and cannot be double-submitted.
+- An import file with an unknown or duplicated header, an empty file, a file over 5 MB or more than
+  5 000 rows: refused before the preview, with the reason.
+- An import row naming a variant of another product, a category path that matches two categories, an
+  attribute value code that does not exist, or an attribute without the *Price list rules* flag:
+  refused in the preview with the line number.
+- Two import rows for the same line and overlapping quantity windows: both refused in the preview.
+- A percentage or amount on a base book line other than a variant: refused (base books hold fixed
+  product prices and variant adjustments only).
+- An import into a book the representative may only read: the import action is absent.
+- An empty cell whose line has no lower tier: shown as "not priced by this line at this quantity",
+  never as zero.
 
 ## Requirements *(mandatory)*
 
@@ -343,9 +378,16 @@ their scope.
 
 **Grid** (US2)
 
-- **FR-006**: The grid MUST show one line per row selection of the book (variant, product, category ∩
-  attribute value, category, attribute value, all products), labelled by name and identifier, and one
-  column per quantity tier start of the book (per Q-1), with each cell's price and kind.
+- **FR-006**: The grid MUST show one line per selection of the book, labelled by name and identifier,
+  **ordered from general to specific** — all products, attribute values, categories, category ∩
+  attribute values, products, variants (under their product) — and alphabetically by label within a
+  kind; and **one column per quantity tier start used anywhere in the book**, with each cell's price
+  and kind.
+- **FR-037**: An empty cell MUST show, de-emphasised and labelled as inherited, the value the line's
+  nearest lower tier gives at that quantity ("inherits from 1: −5 %"); when no lower tier of the line
+  exists, it MUST say the line does not price that quantity and offer "Why this price?". The grid MUST
+  state, next to the line ordering, that which line wins for a buyer is decided by the precedence, and
+  link to the precedence view.
 - **FR-007**: Cells MUST accept a fixed amount, a signed percentage or a signed amount adjustment
   typed as in US2 scenario 2, normalised liberally (decimal comma or point, spaces, currency symbol,
   `%` with or without a space) and shown with the kind as text and icon; percentages MUST state their
@@ -373,8 +415,33 @@ their scope.
 - **FR-017**: Rules the API enforces (overlapping windows, fixed price on *all products*, percentage
   bounds, base books holding only product and variant lines) MUST be checked in the browser before
   saving where the rule needs no server data, and always reported per cell when the server refuses.
-- **FR-018**: (Q-2) A book MUST be exportable as CSV (lines, tiers, kinds, values), and pasting from a
-  spreadsheet MUST be the bulk-entry path; [CSV import per Q-2].
+**Import and export** (US9)
+
+- **FR-018**: A book MUST be exportable as a CSV file in the **fixed price-book format**: a header row,
+  then one row per tier — selection kind, product SKU, variant SKU, category path, attribute key,
+  attribute value code, minimum quantity, maximum quantity, price kind, value — in UTF-8 with a BOM,
+  semicolon-separated, decimal comma for a Polish administrator and point otherwise (stated in the file
+  name), so the file opens correctly in a spreadsheet and imports back unchanged.
+- **FR-038**: A CSV file in that format MUST be importable into a book in one of two modes: **merge**
+  (default — cells in the file are added or changed, others stay) or **replace** (the book's rows become
+  exactly the file's). Column order is fixed by the header; the header names MUST be recognised in
+  English and Polish; unknown columns MUST be refused with their names.
+- **FR-039**: Import MUST accept a comma or semicolon separator, a decimal comma or point, UTF-8 with
+  or without a BOM, and Windows-1250 (detected, or chosen by the administrator when detection fails),
+  and MUST refuse a file over 5 MB or more rows than the book's limit (5 000) before parsing further.
+- **FR-040**: Before anything is written, import MUST show a **preview**: counts and a list of added,
+  changed (old → new) and, in replace mode, removed cells, and every row that cannot be imported with
+  its line number and reason — an unknown SKU, variant, category or attribute value, an ineligible
+  attribute, an unreadable number, an overlap, a rule of the book (e.g. a base book line other than
+  product or variant). The preview MUST come from the server's validation of the same batch it would
+  write (gap G10).
+- **FR-041**: Nothing MUST be written until the administrator confirms the preview; a preview with any
+  refused row MUST NOT be confirmable (the administrator fixes the file and uploads again, or downloads
+  the refused rows as CSV with their reasons); confirmation MUST write the batch as **one audited
+  change** against the book version the preview was made from, and a book changed since MUST be refused
+  with a new preview offered.
+- **FR-042**: Import MUST NOT run while the grid holds unsaved edits for the same book (the
+  administrator saves or discards them first).
 
 **Base prices on the product** (US3)
 
@@ -383,8 +450,9 @@ their scope.
   variant *inherits* / fixed / ± % / ± amount with the resulting price shown.
 - **FR-020**: The panel MUST save with the product editor's save action, report its own errors on its
   fields, and state when the product has no base price and is therefore not orderable.
-- **FR-021**: (Q-4) The product editor MUST list read-only the books that price the product directly,
-  with audience and price, linking to the grid and the explanation screen.
+- **FR-021**: The product editor MUST list read-only the books that price the product directly,
+  with audience and price, linking to the grid and the explanation screen, replacing the removed
+  *Linked price lists* panel.
 
 **Duplicate** (US4)
 
@@ -473,11 +541,16 @@ module. Browser-only state: unsaved edits, undo history, the book version the ed
 - **SC-007**: With the setting on, vectors D1–D4 hold on the product page and listing cards; with it off, buyers see
   one price everywhere.
 - **SC-008**: Every new string exists in English and Polish (0 missing keys).
+- **SC-009**: Importing a 1 000-row file shows its preview within 10 seconds, writes nothing before
+  confirmation (0 rows changed by an unconfirmed or refused import), and after confirmation the grid
+  equals the file in 100 % of cells; an export re-imported unchanged yields an empty preview.
 
 ## Assumptions
 
 - Feature 160's API, schemas and error messages are the contract; this feature changes it only through
   the gaps listed under *Dependencies*, each additive.
+- An empty cell inherits from the line's nearest lower tier because a tier's window runs until the
+  line's next tier starts (or without end); this is the 160 row model, displayed, not a new rule.
 - Quantity-tier columns are the book's tier starts; a tier window ends where the next start begins
   unless a cell detail sets an explicit end.
 - Paging, not virtualised scrolling: pages of 50/100/200 lines (no new dependency). Search and filters
@@ -494,17 +567,18 @@ module. Browser-only state: unsaved edits, undo history, the book version the ed
 **Feature 160 — gaps in its admin API that this editor needs** (feed back to the 160 implementation;
 each is additive and justified by the requirement named):
 
-| # | Gap | Needed by |
+| # | Gap (endpoint and shape) | Needed by |
 | --- | --- | --- |
-| G1 | `GET /api/v1/admin/price-books?productId=` — books with a row selecting the product (or its variants) directly, with that row's price | FR-021 (Q-4) |
-| G2 | Row read model carries display labels: product name and SKU, variant label, category name, attribute label and value label, and a deleted marker — so the grid needs no per-row lookups | FR-006, FR-016 |
-| G3 | `?search=` on `GET …/rows` over those labels | FR-015 |
-| G4 | The book read model carries its distinct tier starts (`tierStarts`), so columns are known before all lines are loaded | FR-006 (Q-1) |
-| G5 | Optimistic concurrency: a book `version` returned on read and required by `PUT …/rows` and `PATCH …/:id`; `409 PRICE_BOOK_STALE` when it moved | FR-014, SC-005 |
-| G6 | Batch refusals list **every** failing row (input index or id, field, reason), not the first | FR-014 |
-| G7 | `PUT …/rows` accepts base books, restricted to product and variant rows (FR-009 of 160), so the base grid of US1 scenario 6 saves through the same path | FR-005, FR-017 |
-| G8 | The `pricing.show_list_price` setting (manifest, default false) with an audited write route; the existing display-mode settings write bypasses the Command Bus and must not be copied | FR-026 |
-| G9 | `ListingPriceDetail` and the storefront resolved price carry the catalogue price when it is above the buyer price **and** the setting is on, so the storefront renders the pair without computing a price | FR-026, SC-007 |
+| G1 | `GET /api/v1/admin/price-books?productId=&variantId=` → page of `PriceBookSummary` plus `matches: [{ rowId, selectionKind, minQuantity, maxQuantity, price }]` for rows selecting the product or its variants directly (required: Q-4 = yes) | FR-021 |
+| G2 | `PriceBookRow` gains `labels: { productName?, productSku?, variantLabel?, variantSku?, categoryPath?, attributeLabel?, attributeValueLabel? }` and `targetDeleted: boolean` | FR-006, FR-016, FR-018 |
+| G3 | `GET /api/v1/admin/price-books/:id/rows?search=` matching those labels and SKUs | FR-015 |
+| G4 | `PriceBook` and `PriceBookSummary` gain `tierStarts: number[]` (distinct `min_quantity` over the book's rows, ascending) | FR-006 |
+| G5 | `PriceBook` gains `version: number`; `PUT …/:id/rows` and `PATCH …/:id` require `expectedVersion` (or `If-Match`) and answer `409 PRICE_BOOK_STALE` with the current version when it moved | FR-014, FR-041, SC-005 |
+| G6 | A refused `PUT …/:id/rows` answers `400`/`409` with `errors: [{ index?, rowId?, field, code, message }]` listing **every** failing row, not the first | FR-014, FR-040 |
+| G7 | `PUT …/:id/rows` accepts a base book's id, restricted to product rows (`fixed`) and variant rows (`fixed`/`percent`/`amount`) per 160 FR-009, refusing other shapes per row | FR-005, FR-017 |
+| G8 | Manifest setting `pricing.show_list_price` (boolean, default `false`) with `PUT /api/v1/admin/price-books/settings/show-list-price` `{ value }` through `CommandBus.run` (audited); not the display-mode settings write, which bypasses the bus | FR-026 |
+| G9 | `ListingPriceDetail` and `GET /api/v1/storefront/products/:id/resolved-price` gain `listPrice?: { amount, currency }`, present only when the setting is on and the catalogue price is above the buyer price | FR-026, SC-007 |
+| G10 | `PUT /api/v1/admin/price-books/:id/rows?dryRun=true` (same body plus `mode: 'merge' \| 'replace'`, rows also addressable by natural keys `{ productSku?, variantSku?, categoryPath?, attribute?: {key, valueCode} }`) → writes nothing and answers `{ version, resolved: rows with ids, diff: { added[], changed[{ before, after }], removed[], unchangedCount }, errors[] }` (G6 shape, with `index` = file line); the confirming call is the same body without `dryRun`, with `expectedVersion` (G5) | FR-038–FR-041, SC-009 |
 
 **Other**: the product picker of feature 145; the product editor's zone mechanism (feature 091); the
 release gate of feature 160 (one pull request to `master` after this feature and 160's Phase 13).
@@ -512,6 +586,7 @@ release gate of feature 160 (one pull request to `master` after this feature and
 ## Out of Scope
 
 - Changing the precedence (P3); promotions excluding sale or contract lines (P4).
-- CSV import (subject to Q-2), scheduled bulk changes, approval workflows for price changes.
+- Scheduled bulk changes, approval workflows for price changes, column mapping for files that are not
+  in the price-book format (the fixed format is the contract).
 - Price history per row beyond the audit log.
 - The storefront variant-selection experience (#377), which consumes 160's variant prices.

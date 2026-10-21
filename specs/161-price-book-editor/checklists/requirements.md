@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain
+- [x] No [NEEDS CLARIFICATION] markers remain
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -31,13 +31,13 @@
 
 ## Notes
 
-- Three markers remain, by design, for the owner: Q-1 (grid columns), Q-2 (import/export scope), Q-4
-  (price books listed on the product editor). Each has options and a recommended default. The
-  surfaces of the list-price pair were decided as a documented default (Assumptions) to stay within
-  the three-marker limit.
-- Deliberate exceptions to "no implementation details": the *Dependencies* table names API gaps in
-  feature 160's admin contract (G1–G9) because this feature consumes that contract and must not
-  change it silently; FR-034 names the admin-kit and admin-shell reuse obligation of Constitution IX;
-  FR-031 cites the WCAG/ARIA obligations of `.claude/skills/ux-laws/SKILL.md`.
+- The owner answered Q-1 (A), Q-2 (C) and Q-4 (yes) on 2026-10-21 (spec *Clarifications*, Session
+  2026-10-21); no marker remains. Q-2 added User Story 9 and FR-018, FR-038–FR-042, SC-009 and gap G10;
+  Q-1 added FR-037 (empty-cell inheritance, general-to-specific ordering).
+- Deliberate exceptions to "no implementation details": the *Dependencies* table names gaps G1–G10 in
+  feature 160's admin contract with endpoints and shapes, because this feature consumes that contract
+  and must not change it silently; FR-034 names the admin-kit and admin-shell reuse obligation of
+  Constitution IX; FR-031 cites the WCAG/ARIA obligations of `.claude/skills/ux-laws/SKILL.md`; FR-018
+  fixes the CSV format because the file is itself a contract with spreadsheets and ERPs.
 - Pricing semantics are not restated: scenarios cite `specs/pricing/worked-examples.md` vector ids.
-- Validation iterations: 2 (Q-3 folded into a default to respect the three-marker limit).
+- Validation iterations: 3.
