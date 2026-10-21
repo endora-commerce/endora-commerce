@@ -170,7 +170,7 @@ describe('price matrix — every surface agrees (feature 148, US5)', () => {
 
   it("includes the matrix's starting quantities in the tier ladder", async () => {
     const pricing = new PricingService(h.em, undefined, undefined, neighbourReadPorts(h.em));
-    const quantities = await pricing.listBracketMinQuantities(SEED_PRODUCT_101_ID, 'PLN');
+    const quantities = await pricing.listTierStarts(SEED_PRODUCT_101_ID, 'PLN');
     expect(quantities).toEqual(expect.arrayContaining([1, 500]));
     expect([...quantities]).toEqual([...quantities].sort((a, b) => a - b));
     expect(new Set(quantities).size).toBe(quantities.length);

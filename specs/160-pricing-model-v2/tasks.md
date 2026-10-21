@@ -159,17 +159,17 @@ column), §10.11.
 
 ### Tests first
 
-- [ ] T048 [P] [US5] Vectors V3–V9 in `WX/variants.test.ts` (FR-016, FR-017, FR-024, FR-031)
-- [ ] T049 [P] [US5] `listTierStarts` returns the starts of rows and base tiers that can apply to a product and variant, in `PL/backend/services/pricing-service.tier-starts.test.ts`
-- [ ] T050 [P] [US5] Storefront: the PDP shows the selected variant's resolved price and the listing card shows "from {lowest}" when variants differ, in `storefront/test/catalog/variant-price.test.tsx` (FR-024, FR-031)
+- [X] T048 [P] [US5] Vectors V3–V9 in `WX/variants.test.ts` (FR-016, FR-017, FR-024, FR-031)
+- [X] T049 [P] [US5] `listTierStarts` returns the starts of rows and base tiers that can apply to a product and variant, in `PL/backend/services/pricing-service.tier-starts.test.ts`
+- [X] T050 [P] [US5] Storefront: the PDP shows the selected variant's resolved price and the listing card shows "from {lowest}" when variants differ, in `storefront/test/catalog/variant-price.test.tsx` (FR-024, FR-031)
 
 ### Implementation
 
-- [ ] T051 [US5] Variant rows and effective attributes (product values overlaid by the variant's axis values via `catalogProductReadPort`) in `PL/backend/services/pricing-service.ts`
-- [ ] T052 [US5] Listing min/max over a product's variants and `variesByVariant` in `PL/backend/services/pricing-service.ts`
-- [ ] T053 [US5] Rename `listBracketMinQuantities` to `listTierStarts` in `PL/backend/services/pricing-service.ts` and its caller `packages/modules/catalog/src/backend/services/catalog-org-price-decorator.ts`
-- [ ] T054 [US5] `GET /api/v1/storefront/products/:id/resolved-price` accepts `variantId` and returns `source`/`compareAt` in `PL/backend/routes.storefront.ts`
-- [ ] T055 [US5] PDP variant price and listing "from" label in `storefront/app/(catalog)/p/[slug]/page.tsx`, `storefront/components/VariantPicker.tsx`, `storefront/components/ProductCard.tsx`, with pl + en strings in the storefront message catalogue `storefront/lib/i18n/messages.ts`
+- [X] T051 [US5] Variant rows and effective attributes (product values overlaid by the variant's axis values via `catalogProductReadPort`) in `PL/backend/services/pricing-service.ts`
+- [X] T052 [US5] Listing min/max over a product's variants and `variesByVariant` in `PL/backend/services/pricing-service.ts`
+- [X] T053 [US5] Rename `listBracketMinQuantities` to `listTierStarts` in `PL/backend/services/pricing-service.ts` and its caller `packages/modules/catalog/src/backend/services/catalog-org-price-decorator.ts`
+- [X] T054 [US5] `GET /api/v1/storefront/products/:id/resolved-price` accepts `variantId` and returns `source`/`compareAt` in `PL/backend/routes.storefront.ts`
+- [X] T055 [US5] PDP variant price and listing "from" label in `storefront/app/(catalog)/p/[slug]/page.tsx`, `storefront/components/VariantPicker.tsx`, `storefront/components/ProductCard.tsx`, with pl + en strings in the storefront message catalogue `storefront/lib/i18n/messages.ts`
 
 ---
 

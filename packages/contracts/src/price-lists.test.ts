@@ -168,8 +168,8 @@ describe('LinePricePort and OrgLinePricePort are unchanged', () => {
   it('an OrgLinePricePort stub written before this feature still compiles', async () => {
     const port: OrgLinePricePort = {
       resolveLinePrice: async () => null,
-      listBracketMinQuantities: async () => [1, 10],
+      listTierStarts: async () => [1, 10],
     };
-    expect(await port.listBracketMinQuantities(ID(3), 'PLN')).toEqual([1, 10]);
+    expect(await port.listTierStarts(ID(3), 'PLN')).toEqual([1, 10]);
   });
 });

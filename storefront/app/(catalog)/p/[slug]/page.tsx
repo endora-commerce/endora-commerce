@@ -36,6 +36,7 @@ import { JsonLd } from '../../../../lib/seo/JsonLd';
 import { ViewItemTracker } from '../../../../components/analytics/EcommerceTrackers';
 import { getStorefrontQuoteRequestSettings } from '../../../../lib/api/rfq';
 import { getProductBySlug } from '../../../../lib/api/catalog';
+import { getResolvedPrice, PRICING_UNAVAILABLE } from '../../../../lib/api/pricing';
 import { getStorefrontProductStock } from '../../../../lib/api/inventory';
 import { getMe } from '../../../../lib/api/account';
 import { addCartItem, type CartCookieJar } from '../../../../lib/api/cart';
@@ -148,8 +149,8 @@ export default async function ProductPage({
    * this page from a module the platform is not serving. A channel that
    * withholds prices answers `price: null` and `resolvedPrice: null`.
    */
-  const resolved = product.resolvedPrice ?? null;
-  const price = product.price;
+  let resolved = product.resolvedPrice ?? null;
+  let price = product.price;
   const isQuoteOnly = resolved?.displayMode === 'none';
   // Feature 039 (US5) — one-click buy is offered only to a logged-in buyer who
   // is eligible (setting enabled for the channel + all four valid defaults).
@@ -165,6 +166,24 @@ export default async function ProductPage({
     selectedVariantSku
       ? product.variants.find((v) => v.sku === selectedVariantSku)?.id ?? null
       : null;
+  // Feature 160 (FR-031) — a selected variant is priced as itself: the price
+  // the cart will charge for it, resolved by the price books. One resolution,
+  // and only when a variant is selected; the listing's "from" price stands
+  // otherwise.
+  let selectedVariantPrice: { amount: string; currency: string } | null = null;
+  if (selectedVariantId) {
+    const variantResolved = await getResolvedPrice(product.id, { variantId: selectedVariantId }, ctx);
+    if (variantResolved && variantResolved !== PRICING_UNAVAILABLE) {
+      resolved = {
+        basePrice: variantResolved.basePrice,
+        salePrice: variantResolved.salePrice,
+        displayMode: variantResolved.displayMode,
+      };
+      const charged = variantResolved.salePrice ?? variantResolved.basePrice;
+      selectedVariantPrice = charged;
+      price = charged ? { amount: Number(charged.amount), currency: charged.currency } : null;
+    }
+  }
 
   // The "Add to compare" toggle rides in the ProductBuyActions second row when
   // that row renders; otherwise it's shown on its own below the action zone.
@@ -445,7 +464,11 @@ export default async function ProductPage({
           {product.type === 'configurable' && product.variants.length > 0 ? (
             <VariantPicker
               productSlug={product.slug}
-              variants={product.variants}
+              locale={locale}
+              variants={product.variants.map((v) => ({
+                ...v,
+                price: v.id === selectedVariantId ? selectedVariantPrice : null,
+              }))}
               selectedSku={selectedVariantSku}
               labels={{
                 heading: t('product.variants.heading'),

@@ -2,6 +2,8 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   CatalogAttributeReadPort,
   CatalogCategoryReadPort,
+  CatalogProductReadPort,
+  CatalogProductVariantRecord,
   DisplayMode,
   ListingPrice,
   ListingPriceDetail,
@@ -23,7 +25,31 @@ import {
   type ProfileMemoKey,
 } from './pricing-profile.js';
 import { PrecedenceStore, type ActivePrecedence, type CellCode } from './precedence.js';
-import type { PricingEngineResult, PricingLineRequest, PricingLineResult } from './pricing-service.interface.js';
+import type {
+  PricedProductRef,
+  PricingEngineResult,
+  PricingLineRequest,
+  PricingLineResult,
+} from './pricing-service.interface.js';
+import { compareDecimal } from './matrix-decimal.js';
+
+/** A listing card's answer: the lowest variant's (or the product's) resolution, and the range. */
+export interface ListingAnswer {
+  answer: BookLineAnswer | null;
+  maxAmount: string | null;
+  variesByVariant: boolean;
+}
+
+/** The product's attribute values overlaid by the line's variant's axis values (FR-016). */
+function effectiveAttributes(
+  line: PricingLineRequest,
+  variants: ReadonlyMap<string, CatalogProductVariantRecord>,
+): Record<string, unknown> {
+  const own = line.product.attributeValues ?? {};
+  const variant = line.variantId ? variants.get(line.variantId) : undefined;
+  if (!variant || variant.parentProductId !== line.product.id) return own;
+  return { ...own, ...variant.variantAttributeValues };
+}
 
 /**
  * The price-book engine behind the batched entry points — feature 160,
@@ -79,6 +105,8 @@ export interface BookPricingDeps {
   resolveOrgChain?: (orgId: string) => Promise<readonly string[]>;
   categoryRead: () => CatalogCategoryReadPort;
   attributeRead: () => CatalogAttributeReadPort;
+  /** `catalog`'s variants, for a variant's axis values (FR-016) and a listing's variant range (FR-024). */
+  variantRead: () => Pick<CatalogProductReadPort, 'listVariantsByProductIds'>;
   displayModes: (input: {
     productIds: readonly string[];
     organizationId: string | null;
@@ -131,6 +159,7 @@ export class BookPricing {
   async resolve(
     lines: readonly PricingLineRequest[],
     viewer: BookPricingViewer,
+    prefetchedVariants?: ReadonlyMap<string, CatalogProductVariantRecord>,
   ): Promise<Map<string, BookLineAnswer | null>> {
     const out = new Map<string, BookLineAnswer | null>();
     if (lines.length === 0) return out;
@@ -197,6 +226,15 @@ export class BookPricing {
       variantIds,
     );
     const categoryIdsByProduct = await this.#categoryMemberships(productIds);
+    // FR-016 — a variant line matches attribute rows on the product's values
+    // overlaid by the variant's axis values: one read of the batch's variants.
+    let variants = prefetchedVariants ?? new Map<string, CatalogProductVariantRecord>();
+    if (!prefetchedVariants && variantIds.length > 0) {
+      const withVariant = [...new Set(pending.filter((p) => p.line.variantId).map((p) => p.line.product.id))];
+      variants = new Map(
+        (await this.deps.variantRead().listVariantsByProductIds(withVariant)).map((v) => [v.id, v]),
+      );
+    }
     let eligibleAttributes: ReadonlyMap<string, EligibleAttribute> = new Map();
     if (rows.some((r) => r.attributeKey !== null)) {
       eligibleAttributes = buildEligibleAttributes(await this.deps.attributeRead().listByFlag('isPriceRule'));
@@ -216,7 +254,7 @@ export class BookPricing {
         variantId: line.variantId ?? null,
         quantity: line.quantity,
         categoryIds: categoryIdsByProduct.get(line.product.id) ?? new Set<string>(),
-        attributes: line.product.attributeValues ?? {},
+        attributes: effectiveAttributes(line, variants),
       });
       const answer: BookLineAnswer = {
         resolution,
@@ -225,6 +263,54 @@ export class BookPricing {
       };
       cache?.set(keyOf(line), answer, generation);
       for (const key of keys) out.set(key, answer);
+    }
+    return out;
+  }
+
+  /**
+   * A listing at quantity 1 (FR-024): a product with variants is priced by
+   * resolving every variant — the card shows the lowest ("from"), with the
+   * highest beside it — and a product without variants by itself. One read of
+   * the page's variants, then one batch.
+   */
+  async resolveListing(
+    products: readonly PricedProductRef[],
+    viewer: BookPricingViewer,
+  ): Promise<Map<string, ListingAnswer>> {
+    const out = new Map<string, ListingAnswer>();
+    if (products.length === 0) return out;
+    const variantsByProduct = new Map<string, CatalogProductVariantRecord[]>();
+    const records = await this.deps.variantRead().listVariantsByProductIds(products.map((p) => p.id));
+    for (const v of records) {
+      const list = variantsByProduct.get(v.parentProductId);
+      if (list) list.push(v);
+      else variantsByProduct.set(v.parentProductId, [v]);
+    }
+    const lines: PricingLineRequest[] = [];
+    for (const product of products) {
+      const variants = variantsByProduct.get(product.id) ?? [];
+      if (variants.length === 0) lines.push({ key: product.id, product, quantity: 1 });
+      for (const v of variants) lines.push({ key: `${product.id}|${v.id}`, product, variantId: v.id, quantity: 1 });
+    }
+    const answers = await this.resolve(lines, viewer, new Map(records.map((v) => [v.id, v])));
+    for (const product of products) {
+      const variants = variantsByProduct.get(product.id) ?? [];
+      if (variants.length === 0) {
+        out.set(product.id, { answer: answers.get(product.id) ?? null, maxAmount: null, variesByVariant: false });
+        continue;
+      }
+      let lowest: BookLineAnswer | null = null;
+      let highest: string | null = null;
+      const distinct = new Set<string>();
+      for (const v of variants) {
+        const answer = answers.get(`${product.id}|${v.id}`) ?? null;
+        const amount = answer?.resolution.price?.amount;
+        if (!answer || amount === undefined) continue;
+        distinct.add(amount);
+        if (!lowest || compareDecimal(amount, lowest.resolution.price!.amount) < 0) lowest = answer;
+        if (highest === null || compareDecimal(amount, highest) > 0) highest = amount;
+      }
+      out.set(product.id, { answer: lowest, maxAmount: highest, variesByVariant: distinct.size > 1 });
     }
     return out;
   }
@@ -374,10 +460,15 @@ export function lineFromBook(answer: BookLineAnswer | null): PricingLineResult |
  * There is no "product's own price" arm any more — a product no tier prices is
  * unpriced, and follows the quote-only path.
  */
-export function listingPriceFromBook(answer: BookLineAnswer | null): ListingPrice {
+export function listingPriceFromBook(
+  answer: BookLineAnswer | null,
+  range?: { maxAmount: string | null; variesByVariant: boolean },
+): ListingPrice {
   const price = answer?.resolution.price ?? null;
   if (!answer || !price) return { source: 'none' };
   return {
+    ...(range?.variesByVariant ? { variesByVariant: true } : {}),
+    ...(range?.maxAmount ? { maxAmount: range.maxAmount } : {}),
     source: 'price_list',
     amount: price.amount,
     currency: answer.currencyCode,
@@ -389,8 +480,11 @@ export function listingPriceFromBook(answer: BookLineAnswer | null): ListingPric
 }
 
 /** The base / sale / tier split from the same resolution. */
-export function listingDetailFromBook(answer: BookLineAnswer | null): ListingPriceDetail {
-  const price = listingPriceFromBook(answer);
+export function listingDetailFromBook(
+  answer: BookLineAnswer | null,
+  range?: { maxAmount: string | null; variesByVariant: boolean },
+): ListingPriceDetail {
+  const price = listingPriceFromBook(answer, range);
   const currency = answer?.currencyCode ?? '';
   const money = (amount: string | null | undefined) => (amount ? { amount, currency } : null);
   const r = answer?.resolution ?? null;
@@ -449,5 +543,7 @@ export function engineFromBook(answer: BookLineAnswer | null, productId: string,
         : null,
     displayMode: answer?.displayMode ?? 'gross_only',
     currencyCode: answer?.currencyCode ?? currencyCode,
+    source: charged?.source ?? null,
+    compareAt: charged?.compareAt ?? null,
   };
 }

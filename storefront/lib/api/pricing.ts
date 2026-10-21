@@ -46,6 +46,10 @@ export interface ResolvedPrice {
     minQuantity: number;
     maxQuantity: number | null;
   } | null;
+  /** Feature 160 — which tier priced the charged line. */
+  source?: 'base' | 'catalogue' | 'buyer' | 'sale' | null;
+  /** Feature 160 — the buyer price a charged sale undercut. */
+  compareAt?: string | null;
 }
 
 /**

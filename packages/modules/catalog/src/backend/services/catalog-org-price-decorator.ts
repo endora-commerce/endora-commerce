@@ -52,7 +52,7 @@ export interface CatalogOrgPriceDecoratorDeps {
    * two of its methods. `OrgLinePricePort` — `LinePricePort` plus the bracket
    * ladder — was published in this cut, because `PricingServiceContract` is
    * deliberately not in `@endora-commerce/contracts` (it is the overlay decoration's
-   * contract gate) and was `listBracketMinQuantities`' only declaration.
+   * contract gate) and was `listBracketMinQuantities`' (now `listTierStarts`) only declaration.
    *
    * D-287 P0 — and `LinePricesPort`, named beside it rather than folded into
    * it: summaries, bulk lines and the tier ladder are each priced in one
@@ -240,7 +240,7 @@ export class CatalogOrgPriceDecorator {
     salesChannel: ExternalPricingChannel,
   ): Promise<ProductPriceTier[]> {
     const currencyCode = salesChannel.defaultCurrency.toUpperCase();
-    const minQuantities = await this.deps.pricingService.listBracketMinQuantities(
+    const minQuantities = await this.deps.pricingService.listTierStarts(
       product.id,
       currencyCode,
     );

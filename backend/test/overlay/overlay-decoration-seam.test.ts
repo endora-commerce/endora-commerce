@@ -58,7 +58,7 @@ function corePricingModule(calls: { count: number }): ModuleEntry {
             calls.count += 1;
             return { priceListId: 'core-list' };
           },
-          listBracketMinQuantities: async (): Promise<number[]> => [1, 5],
+          listTierStarts: async (): Promise<number[]> => [1, 5],
         }),
       });
     },
@@ -94,7 +94,7 @@ describe('T-A — a deployment’s overlay module decorates a core registration 
 
     const pricing = cradle['pricingService'] as {
       resolveLinePrice(input: unknown): Promise<{ priceListId: string } | null>;
-      listBracketMinQuantities(): Promise<number[]>;
+      listTierStarts(): Promise<number[]>;
     };
     const line = await pricing.resolveLinePrice({});
 
@@ -104,7 +104,7 @@ describe('T-A — a deployment’s overlay module decorates a core registration 
     expect(calls.count).toBe(1);
     expect(line?.priceListId).toBe('overlay:core-list');
     // A method the decoration does not touch is core's, not a copy of it.
-    expect(await pricing.listBracketMinQuantities()).toEqual([1, 5]);
+    expect(await pricing.listTierStarts()).toEqual([1, 5]);
   });
 });
 

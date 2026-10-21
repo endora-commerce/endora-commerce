@@ -496,6 +496,10 @@ export const resolvedPriceEngineSchema = z.object({
     minQuantity: POSITIVE_INT,
     maxQuantity: POSITIVE_INT.nullable(),
   }),
+  /** Feature 160 — which tier priced the charged line; `null` when nothing did. */
+  source: priceSourceSchema.nullable().optional(),
+  /** Feature 160 — the buyer price a charged sale undercut. */
+  compareAt: z.string().nullable().optional(),
 });
 export type ResolvedPriceEngine = z.infer<typeof resolvedPriceEngineSchema>;
 
@@ -1076,7 +1080,7 @@ export interface ProductDisplayModePort {
  * A caller that needs both asks for both by name.
  *
  * It had to be published somewhere for feature 075's `catalog` cut, because
- * `listBracketMinQuantities` was declared **only** on
+ * `listBracketMinQuantities` (`listTierStarts` since feature 160) was declared **only** on
  * `price_lists/services/pricing-service.interface.ts` — and that file is
  * deliberately not in this package, because it is the target of the
  * feature-057 overlay decoration and moving it would move the contract gate.
@@ -1096,7 +1100,7 @@ export interface OrgLinePricePort extends LinePricePort {
    * `resolveLinePrice` at each one to build the buying organisation's effective
    * tier ladder without re-implementing resolution.
    */
-  listBracketMinQuantities(productId: string, currencyCode: string): Promise<number[]>;
+  listTierStarts(productId: string, currencyCode: string, variantId?: string | null): Promise<number[]>;
 }
 
 /** One line of a {@link BuyerLinePriceQuery}. */

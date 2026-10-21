@@ -83,6 +83,10 @@ export interface PricingEngineResult {
   sale: { listId: string; listName: string; bracket: PriceBracketRow } | null;
   displayMode: DisplayMode;
   currencyCode: string;
+  /** Feature 160 — the tier that priced the charged line (price-book engine only). */
+  source?: PriceSource | null;
+  /** Feature 160 — the buyer price a charged sale undercut. */
+  compareAt?: string | null;
 }
 
 export interface PricingLineResult {
@@ -199,12 +203,13 @@ export interface PricingServiceContract {
     productIds: readonly string[];
   }): Promise<Map<string, string>>;
   /**
-   * Feature 062 — distinct bracket start quantities (ascending) across every
-   * ACTIVE price list for a (product, currency). The external catalog detail
+   * Feature 062, renamed by feature 160 (was `listBracketMinQuantities`) —
+   * distinct starting quantities (ascending) of the rows and base tiers that
+   * can apply to a (product, variant?, currency). The external catalog detail
    * probes `resolveLinePrice` at each returned quantity to build the caller
    * org's effective tier ladder without re-implementing resolution.
    */
-  listBracketMinQuantities(productId: string, currencyCode: string): Promise<number[]>;
+  listTierStarts(productId: string, currencyCode: string, variantId?: string | null): Promise<number[]>;
   /**
    * Feature 086 — the catalogue in resolved-unit-price order, for one viewer,
    * one chunk at a time. Published as the `ListingPriceOrderPort` slice of the

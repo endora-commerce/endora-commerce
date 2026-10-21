@@ -57,6 +57,7 @@ import {
   listingPriceFromBook,
   type BookLineAnswer,
   type ChannelBridgeSubquery,
+  type ListingAnswer,
 } from './book-pricing.js';
 import type { PricingProfile, ProfileMemoKey } from './pricing-profile.js';
 import { effectiveCustomerGroupId } from './customer-group-rule.js';
@@ -270,6 +271,7 @@ export class PricingService implements PricingServiceContract {
       ...(this.resolveOrgChain ? { resolveOrgChain: this.resolveOrgChain } : {}),
       categoryRead: () => this.#categoryRead(),
       attributeRead: () => this.#attributeRead(),
+      variantRead: () => this.#productRead(),
       displayModes: async (input) => {
         const { PriceListService } = await import('./price-list-service.js');
         return new PriceListService(this.emFactory, undefined, undefined, undefined, this.targetReads).resolveDisplayModes(
@@ -800,7 +802,9 @@ export class PricingService implements PricingServiceContract {
   async resolveListingPrices(input: ListingPricesInput): Promise<Map<string, ListingPrice>> {
     const out = new Map<string, ListingPrice>();
     if (this.usesPriceBooks) {
-      for (const [productId, answer] of await this.#bookListing(input)) out.set(productId, listingPriceFromBook(answer));
+      for (const [productId, listed] of await this.#bookListing(input)) {
+        out.set(productId, listingPriceFromBook(listed.answer, listed));
+      }
       return out;
     }
     for (const [productId, { price }] of await this.#listingEngines(input)) out.set(productId, price);
@@ -822,8 +826,8 @@ export class PricingService implements PricingServiceContract {
   async resolveListingPriceDetails(input: ListingPricesInput): Promise<Map<string, ListingPriceDetail>> {
     const out = new Map<string, ListingPriceDetail>();
     if (this.usesPriceBooks) {
-      for (const [productId, answer] of await this.#bookListing(input)) {
-        out.set(productId, listingDetailFromBook(answer));
+      for (const [productId, listed] of await this.#bookListing(input)) {
+        out.set(productId, listingDetailFromBook(listed.answer, listed));
       }
       return out;
     }
@@ -844,15 +848,19 @@ export class PricingService implements PricingServiceContract {
     return out;
   }
 
-  /** Feature 160 — the listing entry points on price books: one batch at quantity 1. */
-  async #bookListing(input: ListingPricesInput): Promise<Map<string, BookLineAnswer | null>> {
+  /** Feature 160 — the listing entry points on price books: one batch at quantity 1, variants ranged. */
+  async #bookListing(input: ListingPricesInput): Promise<Map<string, ListingAnswer>> {
     const requested = new Map<string, PricedProductRef>();
     for (const product of input.products) if (!requested.has(product.id)) requested.set(product.id, product);
     if (requested.size === 0) return new Map();
-    return this.#bookAnswers(
-      [...requested.values()].map((product) => ({ key: product.id, product, quantity: 1 })),
-      input.context,
-    );
+    const viewer = await this.#viewer(input.context);
+    return this.bookPricing.resolveListing([...requested.values()], {
+      organizationId: viewer.organization?.id ?? null,
+      customerGroupId: viewer.customerGroupId,
+      signedIn: viewer.organization !== null,
+      salesChannelId: viewer.salesChannel.id,
+      currencyCode: viewer.currencyCode,
+    });
   }
 
   /** The two listing entry points' shared body: one batched resolution at quantity 1. */
@@ -1590,8 +1598,33 @@ export class PricingService implements PricingServiceContract {
    * amount as its predecessor and is de-duplicated by the caller — no
    * cross-org data leaks through this read.
    */
-  async listBracketMinQuantities(productId: string, currencyCode: string): Promise<number[]> {
+  async listTierStarts(productId: string, currencyCode: string, variantId?: string | null): Promise<number[]> {
     const em = this.emFactory();
+    if (this.usesPriceBooks) {
+      // Feature 160 — the starts of the rows that can price this product (or
+      // this variant) in this currency: its own and its variants' rows, and the
+      // selection-wide ones, on the base books and on every book that applies
+      // now. Over-inclusion is this method's contract (a start no row of the
+      // buyer's applies at resolves to its predecessor's price), so neither
+      // the channel nor the audience is narrowed. One statement.
+      const rows = await em.execute<Array<{ min_quantity: number | string }>>(
+        `select distinct e."min_quantity"
+           from "price_list_matrix_entries" e
+           join "price_lists" l on l."id" = e."price_list_id"
+          where l."currency_code" = ?
+            and e."price_type" in ('fixed', 'percent', 'amount')
+            and (e."product_id" is null or e."product_id" = ?)
+            and (e."variant_id" is null or e."variant_id" = ?)
+            and (l."is_system" = true
+                 or (l."application_rule" is null
+                     and l."status" in ('active', 'scheduled')
+                     and (l."starts_at" is null or l."starts_at" <= now())
+                     and (l."ends_at" is null or l."ends_at" > now())))
+          order by e."min_quantity" asc`,
+        [currencyCode.toUpperCase(), productId, variantId ?? null],
+      );
+      return [...new Set(rows.map((r) => Number(r.min_quantity)))].sort((a, b) => a - b);
+    }
     // Feature 148 / FR-018 — the union with the starting quantities of matrix
     // entries that could price this product in this currency on an active
     // list: product-less or this product, a percentage or a fixed price in this
