@@ -122,16 +122,16 @@ column), §10.11.
 
 ### Tests first
 
-- [ ] T037 [P] [US3] Vectors E1.1–E1.4, C∩0–C∩3, F2, F4, C2, U1.1–U1.3, U3.1–U3.2 in `WX/catalogue.test.ts` (FR-008, FR-013)
-- [ ] T038 [P] [US3] Vectors K1.1–K3.3 plus Principle XII cases (a book bound to another channel never applies; a null/unresolved channel fails closed; a currency the channel does not offer prices nothing) in `IT/price_lists/channel-set.test.ts` (FR-003, FR-011)
-- [ ] T039 [P] [US3] Attribute eligibility: a row on an unflagged, language-scoped, channel-scoped or free-text attribute is refused at write and inert at read; clearing the flag stops it without error, setting it resumes, in `IT/price_lists/attribute-eligibility.test.ts` (FR-007)
-- [ ] T040 [P] [US3] Dates at read time: a book is applied from `starts_at` and stops at `ends_at` with no sweep in between, in `IT/price_lists/applicability-dates.test.ts` (FR-011, FR-047)
+- [X] T037 [P] [US3] Vectors E1.1–E1.4, C∩0–C∩3, F2, F4, C2, U1.1–U1.3, U3.1–U3.2 in `WX/catalogue.test.ts` (FR-008, FR-013)
+- [X] T038 [P] [US3] Vectors K1.1–K3.3 plus Principle XII cases (a book bound to another channel never applies; a null/unresolved channel fails closed; a currency the channel does not offer prices nothing) in `IT/price_lists/channel-set.test.ts` (FR-003, FR-011)
+- [X] T039 [P] [US3] Attribute eligibility: a row on an unflagged, language-scoped, channel-scoped or free-text attribute is refused at write and inert at read; clearing the flag stops it without error, setting it resumes, in `IT/price_lists/attribute-eligibility.test.ts` (FR-007)
+- [X] T040 [P] [US3] Dates at read time: a book is applied from `starts_at` and stops at `ends_at` with no sweep in between, in `IT/price_lists/applicability-dates.test.ts` (FR-011, FR-047)
 
 ### Implementation
 
-- [ ] T041 [US3] Channel-set command through `SalesChannelMembershipService.replaceChannelsForEntity` with the currency validation and dormant-binding report in `PL/backend/services/price-book-service.ts`
-- [ ] T042 [US3] Applicable-book query: `listEntityIdsForChannel('price-list', channelId)` memoised per generation, `k ∈ channel.currencies`, dates at read time, in `PL/backend/services/pricing-profile.ts`
-- [ ] T043 [US3] Catalogue tier and attribute eligibility through `catalogAttributeReadPort.listByFlag('isPriceRule')` in `PL/backend/services/pricing-service.ts`
+- [X] T041 [US3] Channel-set command through `SalesChannelMembershipService.replaceChannelsForEntity` with the currency validation and dormant-binding report in `PL/backend/services/price-book-service.ts`
+- [X] T042 [US3] Applicable-book query: `listEntityIdsForChannel('price-list', channelId)` memoised per generation, `k ∈ channel.currencies`, dates at read time, in `PL/backend/services/pricing-profile.ts`
+- [X] T043 [US3] Catalogue tier and attribute eligibility through `catalogAttributeReadPort.listByFlag('isPriceRule')` in `PL/backend/services/pricing-service.ts`
 
 **Checkpoint**: US1–US3 green — the P1 stories are complete on the resolver.
 
