@@ -17,8 +17,7 @@ import { Product } from '../../helpers/package-entities.js';
 import { CustomerAccount } from '../../helpers/package-entities.js';
 import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 import { hashPassword } from '@endora-commerce/platform/kernel';
-import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
-import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
+import { seedPriceBookSql } from '../../helpers/price-book-sql.js';
 import { bindOrganizationsToFixtureChannelsSql } from '../../helpers/sales-channel-access.js';
 
 /**
@@ -217,43 +216,23 @@ describe('External bulk pricing parity with cart pricing (062 / T015, SC-001)', 
       ],
     );
 
-    // Two org-targeted price lists with DIFFERENT bracket ladders.
-    const priceLists = new PriceListService(() => h.em(), undefined, undefined, undefined, neighbourReadPorts(() => h.em()));
-    const listA = await priceLists.create({
-      name: 'Parity list org A',
-      type: 'base',
-      applicationRule: {
-        kind: 'criterion',
-        type: 'organization',
-        values: [TEST_ORGANIZATION_ID],
-      },
-    });
-    await priceLists.addProduct(listA.id, shared.id);
-    await priceLists.replaceBrackets(listA.id, shared.id, {
-      PLN: [
-        { minQuantity: 1, maxQuantity: 9, amount: '111.00' },
-        { minQuantity: 10, maxQuantity: null, amount: '99.00' },
+    // Two organization price books with DIFFERENT tier ladders.
+    await seedPriceBookSql(em, {
+      name: 'Parity book org A',
+      audience: { organizations: [TEST_ORGANIZATION_ID] },
+      rows: [
+        { productId: shared.id, minQuantity: 1, fixed: '111.00' },
+        { productId: shared.id, minQuantity: 10, fixed: '99.00' },
       ],
     });
-    await priceLists.activate(listA.id);
-
-    const listB = await priceLists.create({
-      name: 'Parity list org B',
-      type: 'base',
-      applicationRule: {
-        kind: 'criterion',
-        type: 'organization',
-        values: [ORG_B_ID],
-      },
-    });
-    await priceLists.addProduct(listB.id, shared.id);
-    await priceLists.replaceBrackets(listB.id, shared.id, {
-      PLN: [
-        { minQuantity: 1, maxQuantity: 9, amount: '88.00' },
-        { minQuantity: 10, maxQuantity: null, amount: '77.00' },
+    await seedPriceBookSql(em, {
+      name: 'Parity book org B',
+      audience: { organizations: [ORG_B_ID] },
+      rows: [
+        { productId: shared.id, minQuantity: 1, fixed: '88.00' },
+        { productId: shared.id, minQuantity: 10, fixed: '77.00' },
       ],
     });
-    await priceLists.activate(listB.id);
 
     keyOrgA = await mint({
       name: 'Parity key org A',

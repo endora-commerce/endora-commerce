@@ -2268,6 +2268,8 @@ export class OrderService {
           ...(item.variantId ? { variantId: item.variantId } : {}),
           quantity: item.quantity,
           unitPrice: item.unitPrice,
+          // Feature 160 (FR-030) — the tier that priced the cart line, copied.
+          priceSource: item.priceSource ?? null,
           // Feature 155 (FR-016a, D-44) — the product's returnable flag as it
           // stands now, from the one basket read above; copied once and never
           // updated. Always an explicit boolean (fail-closed): `null` is kept

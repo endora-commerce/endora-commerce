@@ -5,8 +5,7 @@ import type {
   PriceBookRowInput,
   PriceBookType,
 } from '@endora-commerce/contracts';
-import type { CommandBus } from '@endora-commerce/platform/commands';
-import { SalesChannel, type SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 import {
   Category,
   CustomerAccount,
@@ -18,11 +17,9 @@ import {
 } from './package-entities.js';
 import type { BackendServerHandle } from './test-server.js';
 import { findAttributeExtensionByKey } from './seed-catalog.js';
-import { neighbourReadPorts } from './price-list-neighbour-ports.js';
-import { customerAccountPortsFor } from './customer-account-ports.js';
 import { withSystemScope } from '../../src/tenancy/escape-hatch.js';
-import { PricingService } from '../../../packages/modules/price_lists/src/backend/services/pricing-service.js';
-import { PriceBookService } from '../../../packages/modules/price_lists/src/backend/services/price-book-service.js';
+import type { PricingService } from '../../../packages/modules/price_lists/src/backend/services/pricing-service.js';
+import type { PriceBookService } from '../../../packages/modules/price_lists/src/backend/services/price-book-service.js';
 import type { PricingLineResult } from '../../../packages/modules/price_lists/src/backend/services/pricing-service.interface.js';
 
 /**
@@ -261,27 +258,15 @@ export async function setupPricingFixture(h: BackendServerHandle): Promise<Prici
   await em.persistAndFlush([ola, betaSilver, betaPlain]);
 
   // --- The engine and the write path ----------------------------------------
-  const reads = neighbourReadPorts(h.em, h.catalogAttributeRead);
   const container = h.container as unknown as { resolve<T>(name: string): T };
-  const membership = container.resolve<SalesChannelMembershipPort>('salesChannelMembershipPort');
-  const inheritance = container.resolve<{ priceListOrgChain(id: string): Promise<readonly string[]> }>(
-    'organizationInheritancePort',
-  );
-  const pricing = new PricingService(
-    h.em,
-    undefined,
-    (orgId) => inheritance.priceListOrgChain(orgId),
-    reads,
-    customerAccountPortsFor(h.em).read,
-    { model: 'books', channelBridge: membership },
-  );
-  const books = new PriceBookService({
-    emFactory: h.em,
-    commandBus: container.resolve<CommandBus>('commandBus'),
-    pricingGeneration: { invalidateAll: () => undefined },
-    channelMembership: membership,
-    targetReads: reads,
-  });
+  // The composed engine and write service (`price_lists` composes the price-book
+  // engine since the consumer phase), so every surface the fixture prices
+  // through — and the price surface its writes mark stale — is the platform's.
+  const handle = container.resolve<{
+    handle: { pricingEngine: PricingService; priceBookService: PriceBookService };
+  }>('priceLists').handle;
+  const pricing = handle.pricingEngine;
+  const books = handle.priceBookService;
 
   const fixture: PricingFixture = {
     h,

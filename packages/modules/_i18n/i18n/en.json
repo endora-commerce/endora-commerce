@@ -2161,5 +2161,6 @@
   "appShell.feedback.error.phone": "Enter a phone number using digits, spaces and + ( ) - only.",
   "appShell.feedback.error.notConfigured": "Sending feedback is switched off on this instance. Write to us at {email}.",
   "appShell.feedback.error.rateLimited": "You have sent several messages in a short time. Try again in a few minutes, or write to us at {email}.",
-  "appShell.feedback.error.delivery": "Your feedback could not be sent. What you wrote is kept — try again, or write to us at {email}."
+  "appShell.feedback.error.delivery": "Your feedback could not be sent. What you wrote is kept — try again, or write to us at {email}.",
+  "organizations.applicablePriceLists.reason.ancestor_organization_match": "Inherited from a parent organization"
 }

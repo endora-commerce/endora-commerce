@@ -2161,5 +2161,6 @@
   "appShell.feedback.error.phone": "Podaj numer telefonu, używając tylko cyfr, spacji i znaków + ( ) -.",
   "appShell.feedback.error.notConfigured": "Wysyłanie opinii jest wyłączone na tej instancji. Napisz do nas na {email}.",
   "appShell.feedback.error.rateLimited": "Wysłano kilka wiadomości w krótkim czasie. Spróbuj ponownie za kilka minut albo napisz do nas na {email}.",
-  "appShell.feedback.error.delivery": "Nie udało się wysłać opinii. To, co napisano, zostało zachowane — spróbuj ponownie albo napisz do nas na {email}."
+  "appShell.feedback.error.delivery": "Nie udało się wysłać opinii. To, co napisano, zostało zachowane — spróbuj ponownie albo napisz do nas na {email}.",
+  "organizations.applicablePriceLists.reason.ancestor_organization_match": "Odziedziczony z organizacji nadrzędnej"
 }

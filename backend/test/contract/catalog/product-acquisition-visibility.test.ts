@@ -9,6 +9,7 @@ import {
   TEST_ORGANIZATION_ID,
 } from '../../helpers/test-actors.js';
 import { Product } from '../../helpers/package-entities.js';
+import { seedBasePriceSql } from '../../helpers/price-book-sql.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 
 /**
@@ -83,9 +84,10 @@ describe('a caller cannot acquire or probe a product they may not see', () => {
         description: { 'en-US': 'Bound to pl_retail.' },
         visibility: fixture.visibility,
         allowedOrganizationIds: fixture.allowedOrganizationIds,
-        attributeValues: { defaultPrice: 10 },
+        attributeValues: {},
       });
       await em.persistAndFlush(product);
+      await seedBasePriceSql(em, product.id, '10.00');
       ids.set(fixture.sku, product.id);
       await em
         .getConnection()

@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { SalesChannel, Setting, SettingValue } from '@endora-commerce/platform/kernel';
 import { PRICING_SETTING_CODES } from '@endora-commerce/contracts';
-import { PriceList, PriceListPriceBracket, PriceListProduct, Product } from './package-entities.js';
+import { Product } from './package-entities.js';
+import { seedPriceBookSql } from './price-book-sql.js';
 import { addOrganizationChannels } from './sales-channel-access.js';
 import { TEST_ORGANIZATION_ID } from './test-actors.js';
 import type { BackendServerHandle } from './test-server.js';
@@ -15,12 +16,12 @@ import type { BackendServerHandle } from './test-server.js';
  * The prices are what make the channel visible: a basket priced on the wrong
  * channel — the system default, as every basket was before — reads as neither
  * {@link TwoChannelBasket.priceOnA} nor {@link TwoChannelBasket.priceOnB},
- * because the product has no price of its own and no list the default channel
- * matches. So a line that is priced at all was priced on one of the two stores,
+ * because the product has no base price and no book bound to the default
+ * channel. So a line that is priced at all was priced on one of the two stores,
  * and the figure says which.
  *
- * Each list targets its channel through a `salesChannel` criterion, the
- * dimension the pricing engine resolves against the channel it is handed. The
+ * Each price is a catalogue book bound to its one channel (feature 160 US3),
+ * which the pricing engine selects by the channel it is handed. The
  * test Organization is assigned both channels through the membership service,
  * so the access rule lets the fixture buyer shop on either.
  */
@@ -56,32 +57,13 @@ async function priceOnChannel(
   em: EntityManager,
   input: { code: string; channelId: string; productId: string; amount: string },
 ): Promise<void> {
-  const list = em.create(PriceList, {
-    code: input.code,
+  // A channel catalogue book (feature 160 US3): everyone, on that one channel.
+  await seedPriceBookSql(em, {
     name: input.code,
-    currency: 'PLN',
-    isDefault: false,
-    priority: 0,
-    type: 'base',
-    status: 'active',
-    startsAt: null,
-    endsAt: null,
-    applicationRule: { kind: 'criterion', type: 'salesChannel', values: [input.channelId] },
-    isSystem: false,
-    modifiedAt: new Date(),
+    audience: 'everyone',
+    channelIds: [input.channelId],
+    rows: [{ productId: input.productId, fixed: input.amount }],
   });
-  await em.persistAndFlush(list);
-  em.create(PriceListProduct, { priceListId: list.id, productId: input.productId });
-  await em.flush();
-  em.create(PriceListPriceBracket, {
-    priceListId: list.id,
-    productId: input.productId,
-    currencyCode: 'PLN',
-    minQuantity: 1,
-    maxQuantity: null,
-    amount: input.amount,
-  });
-  await em.flush();
 }
 
 export async function seedTwoChannelBasket(

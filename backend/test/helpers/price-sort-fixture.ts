@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { PriceList, PriceListPriceBracket, PriceListProduct } from './package-entities.js';
+import { seedPriceBookSql } from './price-book-sql.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { Product } from './package-entities.js';
 import { OTHER_TEST_ORGANIZATION_ID, TEST_ORGANIZATION_ID } from './test-actors.js';
@@ -104,48 +104,28 @@ async function seedProduct(
     ]);
 }
 
+/**
+ * Feature 160 — a price book standing where the old list stood: a `kind: 'all'`
+ * rule is a book for everyone (the catalogue tier), an organization criterion a
+ * book of those organizations (the buyer tier).
+ */
 async function seedList(
   em: EntityManager,
   input: {
     id: string;
     code: string;
     name: string;
-    applicationRule: PriceList['applicationRule'];
+    applicationRule: { kind: 'all' } | { kind: 'criterion'; type: 'organization'; values: string[] };
     modifiedAt: Date;
     amounts: Record<string, string>;
   },
 ): Promise<void> {
-  const list = em.create(PriceList, {
+  await seedPriceBookSql(em, {
     id: input.id,
-    code: input.code,
     name: input.name,
-    currency: 'PLN',
-    isDefault: false,
-    priority: 0,
-    type: 'base',
-    status: 'active',
-    startsAt: null,
-    endsAt: null,
-    applicationRule: input.applicationRule,
-    isSystem: false,
-    modifiedAt: input.modifiedAt,
+    audience: input.applicationRule.kind === 'all' ? 'everyone' : { organizations: input.applicationRule.values },
+    rows: Object.entries(input.amounts).map(([productId, amount]) => ({ productId, fixed: amount })),
   });
-  await em.persistAndFlush(list);
-  for (const productId of Object.keys(input.amounts)) {
-    em.create(PriceListProduct, { priceListId: list.id, productId });
-  }
-  await em.flush();
-  for (const [productId, amount] of Object.entries(input.amounts)) {
-    em.create(PriceListPriceBracket, {
-      priceListId: list.id,
-      productId,
-      currencyCode: 'PLN',
-      minQuantity: 1,
-      maxQuantity: null,
-      amount,
-    });
-  }
-  await em.flush();
 }
 
 export async function seedPriceSortFixture(em: EntityManager): Promise<void> {

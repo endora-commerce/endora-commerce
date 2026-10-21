@@ -35,6 +35,7 @@ import type {
   InvoicePdfPort,
   InvoiceReadPort,
   LinePricePort,
+  LinePricesPort,
   OrganizationDetailsPort,
   PaymentMethodReadPort,
 } from '@endora-commerce/contracts';
@@ -104,7 +105,7 @@ export interface OrdersDeps {
    * the catalogue's legacy `defaultPrice` attribute", which is a price no price
    * list supports, on the form an operator is about to turn into an order.
    */
-  pricingService: LinePricePort;
+  pricingService: LinePricePort & LinePricesPort;
   /**
    * The same VAT authority `placeOrder` uses (issue #124). The preview used to
    * apply a hard-coded 23% — so it disagreed with the order it claims to mirror
@@ -953,16 +954,45 @@ export async function registerOrderRoutes(
             currency: string;
           };
       const evaluated: EvaluatedLine[] = [];
-      for (const it of body.items) {
+      // Feature 160 — the orderable lines are priced in **one** batched call
+      // (it was one `resolveLinePrice` per line), on the cart's chain: a line no
+      // price book prices is unpriced, as the cart refuses it — there is no
+      // `defaultPrice` fallback any more (FR-018), so preview == order.
+      const availableByIndex = new Map<number, NonNullable<ReturnType<typeof productsById.get>>>();
+      for (const [index, it] of body.items.entries()) {
         const product = productsById.get(it.productId) ?? null;
         const availability = previewLineAvailability({
           product,
           organizationId,
           inChannel: inChannel.has(it.productId),
         });
-        // `!product` is implied by `available === false` with PRODUCT_NOT_FOUND;
-        // it is stated again only so the compiler narrows `product` below.
-        if (!availability.available || !product) {
+        if (availability.available && product) availableByIndex.set(index, product);
+      }
+      const resolvedByIndex =
+        availableByIndex.size > 0
+          ? await deps.pricingService.resolveLinePrices({
+              lines: [...availableByIndex].map(([index, product]) => ({
+                key: String(index),
+                product,
+                variantId: body.items[index]!.variantId ?? null,
+                quantity: body.items[index]!.quantity,
+              })),
+              context: {
+                organization: organization ?? null,
+                customerGroupId,
+                salesChannel,
+                currencyCode: currency,
+              },
+            })
+          : new Map();
+      for (const [index, it] of body.items.entries()) {
+        const product = availableByIndex.get(index);
+        if (!product) {
+          const availability = previewLineAvailability({
+            product: productsById.get(it.productId) ?? null,
+            organizationId,
+            inChannel: inChannel.has(it.productId),
+          });
           evaluated.push({
             item: it,
             code: availability.available ? 'PRODUCT_NOT_FOUND' : availability.code,
@@ -970,18 +1000,7 @@ export async function registerOrderRoutes(
           });
           continue;
         }
-
-        const resolved = await deps.pricingService.resolveLinePrice({
-          product,
-          variantId: it.variantId ?? null,
-          context: {
-            quantity: it.quantity,
-            organization: organization ?? null,
-            customerGroupId,
-            salesChannel,
-            currencyCode: currency,
-          },
-        });
+        const resolved = resolvedByIndex.get(String(index)) ?? null;
 
         // Quote-only products (displayMode 'none') cannot be ordered directly —
         // CartService rejects them at add time, so the preview flags them.
@@ -989,20 +1008,20 @@ export async function registerOrderRoutes(
           evaluated.push({ item: it, code: 'QUOTE_ONLY', currency: resolved.currency });
           continue;
         }
-
-        // Mirror CartService.addItem: the resolved engine price, else the legacy
-        // `defaultPrice` / `price` catalogue attribute (so preview == order).
-        // `resolved === null` is `price_lists` answering "no list applies"; an
-        // absent `price_lists` never reaches here, because resolving the port
-        // above throws `MODULE_DISABLED` (issue #124).
-        const unitPrice = resolved
-          ? Number(resolved.amount).toFixed(2)
-          : Number(
-              (product.attributeValues?.['defaultPrice'] as number | string | undefined) ??
-                (product.attributeValues?.['price'] as number | string | undefined) ??
-                0,
-            ).toFixed(2);
-        evaluated.push({ item: it, code: null, product, unitPrice, currency: resolved?.currency ?? currency });
+        // `null` is `price_lists` answering "no tier prices it"; an absent
+        // `price_lists` never reaches here, because resolving the port above
+        // throws `MODULE_DISABLED` (issue #124).
+        if (!resolved) {
+          evaluated.push({ item: it, code: 'UNPRICED', currency });
+          continue;
+        }
+        evaluated.push({
+          item: it,
+          code: null,
+          product,
+          unitPrice: Number(resolved.amount).toFixed(2),
+          currency: resolved.currency,
+        });
       }
 
       // Step 5 (feature 155, FR-009, FR-035): the minimum, judged only over the

@@ -9,6 +9,7 @@ import {
   type CatalogProductReadPort,
   type CatalogProductRecord,
   type LinePricePort,
+  type LinePricesPort,
   type OrganizationDetailsPort,
   type OrganizationRecord,
 } from '@endora-commerce/contracts';
@@ -66,7 +67,7 @@ export interface OrderApiIntakeDeps {
    * catalogue attribute whenever the pricing engine was not wired — including
    * with `price_lists` switched off, which is exactly when nobody was watching.
    */
-  pricingService: LinePricePort;
+  pricingService: LinePricePort & LinePricesPort;
   /** Per-key intake lock (research §R8 step 2). Absent ⇒ no serialization. */
   redis?: Redis | undefined;
   /** Audit attribution of key placements (`order.place_via_api_key`). */
@@ -215,9 +216,23 @@ export class OrderApiIntakeService {
 
     const issues: Array<{ path: string; issue: string; sku: string }> = [];
     const resolvedLines: Array<{ productId: string; quantity: number }> = [];
+    // Feature 160 — the "no resolvable org price" probe of every line in one
+    // batched resolution (it was one `resolveLinePrice` per line), with no
+    // `defaultPrice` fallback (FR-018): a line the buyer's own cart would refuse
+    // as unpriced is refused here too.
+    const assorted = new Map<number, CatalogProductRecord>();
     for (const [index, line] of body.lines.entries()) {
       const product = productBySku.get(line.sku);
-      if (!product || !inChannel.has(product.id)) {
+      if (product && inChannel.has(product.id)) assorted.set(index, product);
+    }
+    const priced = await this.#resolvablePrices(
+      [...assorted].map(([index, product]) => ({ key: String(index), product, quantity: body.lines[index]!.quantity })),
+      organization,
+      channel,
+    );
+    for (const [index, line] of body.lines.entries()) {
+      const product = assorted.get(index);
+      if (!product) {
         // Unknown / inactive / unpublished are indistinguishable — no leak.
         issues.push({
           path: `lines.${index}.sku`,
@@ -226,8 +241,7 @@ export class OrderApiIntakeService {
         });
         continue;
       }
-      const priced = await this.#hasResolvablePrice(product, organization, channel, line.quantity);
-      if (!priced) {
+      if (!priced.has(String(index))) {
         issues.push({
           path: `lines.${index}.sku`,
           issue: ERROR_CODES.PRICE_UNAVAILABLE,
@@ -345,34 +359,26 @@ export class OrderApiIntakeService {
 
   /**
    * "No resolvable org price" probe (contract §4 `PRICE_UNAVAILABLE`): the
-   * pricing-engine resolution at the requested quantity, with the same
-   * catalog `defaultPrice` fallback the storefront cart applies — a product
-   * the org's own buyer can put in a cart is never refused here.
+   * keys of the lines the price books price at their quantities, in one
+   * batched resolution. No `catch` (issue #84): an unreachable engine must not
+   * read as "unpriced" or as "priced".
    */
-  async #hasResolvablePrice(
-    product: CatalogProductRecord,
+  async #resolvablePrices(
+    lines: ReadonlyArray<{ key: string; product: CatalogProductRecord; quantity: number }>,
     organization: OrganizationRecord | null,
     channel: SalesChannel | null,
-    quantity: number,
-  ): Promise<boolean> {
-    // No `catch` (issue #84): `resolveLinePrice` returns `null` for "nothing
-    // resolves", which is the answer this probe wants, and the fall-through to
-    // the catalogue default below already covers it. Catching turned "the
-    // pricing engine is unreachable" into "this product is priced at the
-    // catalogue default", and the API accepted an order at that price.
-    if (channel) {
-      const resolved = await this.deps.pricingService.resolveLinePrice({
-        product,
-        context: {
-          quantity,
-          organization,
-          salesChannel: { id: channel.id, defaultCurrency: channel.defaultCurrency },
-        },
-      });
-      if (resolved) return true;
-    }
-    const fallback = product.attributeValues['defaultPrice'] ?? product.attributeValues['price'];
-    return fallback !== undefined && fallback !== null;
+  ): Promise<Set<string>> {
+    const out = new Set<string>();
+    if (!channel || lines.length === 0) return out;
+    const resolved = await this.deps.pricingService.resolveLinePrices({
+      lines: lines.map((l) => ({ key: l.key, product: l.product, quantity: l.quantity })),
+      context: {
+        organization,
+        salesChannel: { id: channel.id, defaultCurrency: channel.defaultCurrency },
+      },
+    });
+    for (const [key, price] of resolved) if (price) out.add(key);
+    return out;
   }
 
   /** Settle the intent on a FRESH em — the placement error may have aborted the caller's. */

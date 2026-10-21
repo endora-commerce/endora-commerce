@@ -1226,6 +1226,31 @@ export interface PriceListReadPort {
   listAll(): Promise<PriceListRecord[]>;
   /** Only `status === 'active'`, ordered by priority then code. */
   listActive(): Promise<PriceListRecord[]>;
+  /**
+   * Feature 160 (FR-032) — the price books that apply to an organization now:
+   * those whose audience set holds the organization (`organization`, depth 0)
+   * or an ancestor of it (`ancestor`, its depth in the chain), and those whose
+   * audience set holds its customer group (`customer_group`). The caller
+   * passes the chain (nearest first) and the group, which are the
+   * organization's own facts. Ordered by priority desc, then name.
+   */
+  listForOrganization(input: {
+    organizationChain: readonly string[];
+    customerGroupId: string | null;
+  }): Promise<OrganizationPriceBookRecord[]>;
+}
+
+/** One book of {@link PriceListReadPort.listForOrganization}. */
+export interface OrganizationPriceBookRecord {
+  id: string;
+  name: string;
+  type: 'regular' | 'sale';
+  currencyCode: string;
+  priority: number;
+  status: 'scheduled' | 'active';
+  reason: 'organization' | 'ancestor' | 'customer_group';
+  /** Chain depth of the nearest member; `null` for a customer-group book. */
+  depth: number | null;
 }
 
 /**

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   CatalogAttributeReadPort,
@@ -15,10 +16,13 @@ import {
   type BookPriceType,
   type BookResolution,
   type BookRow,
+  type ResolverBook,
 } from './book-resolver.js';
 import type { PricingCache, ProfilePricingCacheKey } from './pricing-cache.js';
 import {
   PricingProfileResolver,
+  profileKey,
+  type ProfileVectorEntry,
   type ApplicableBookRow,
   type ApplicableBooksQuery,
   type PricingProfile,
@@ -120,6 +124,35 @@ export interface BookPricingDeps {
 
 const uuidArray = (ids: readonly string[]): string => `{${ids.join(',')}}`;
 
+/**
+ * Whether a channel offers a currency: its `currencies`, and its default
+ * currency, which is one of them by the channel's own invariant (read
+ * defensively, so a channel row whose list was never filled still offers its
+ * default). A channel that does not exist offers nothing.
+ */
+export async function channelOffers(em: EntityManager, channelId: string, currencyCode: string): Promise<boolean> {
+  const channel = await em.findOne(SalesChannel, { id: channelId }, { fields: ['currencies', 'defaultCurrency'] });
+  if (!channel) return false;
+  const offered = [...(channel.currencies ?? []), channel.defaultCurrency]
+    .filter((c): c is string => typeof c === 'string')
+    .map((c) => c.toUpperCase());
+  return offered.includes(currencyCode.toUpperCase());
+}
+
+/** The profile of a channel and currency that is not offered: no book applies. */
+function emptyProfile(channelId: string, currencyCode: string, precedenceVersion: number): PricingProfile {
+  return { key: `not-offered:${channelId}:${currencyCode}`, channelId, currencyCode, precedenceVersion, vector: [], books: [] };
+}
+
+/** The old `Default` list, which is the PLN base book and holds the not-yet-converted brackets. */
+export const LEGACY_DEFAULT_LIST_ID = '00000000-0000-4000-8000-00000000d51b';
+
+/** A stable uuid-shaped id for a Default bracket read as a base row (it has no id of its own). */
+function bracketRowId(productId: string, currencyCode: string, minQuantity: number): string {
+  const hex = createHash('sha1').update(`${productId}|${currencyCode}|${minQuantity}`).digest('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
+
 interface MatrixRowRecord {
   id: string;
   price_list_id: string;
@@ -160,35 +193,23 @@ export class BookPricing {
     lines: readonly PricingLineRequest[],
     viewer: BookPricingViewer,
     prefetchedVariants?: ReadonlyMap<string, CatalogProductVariantRecord>,
+    /** A profile already resolved (the price surface builds a profile, not a buyer). */
+    fixedProfile?: PricingProfile,
   ): Promise<Map<string, BookLineAnswer | null>> {
     const out = new Map<string, BookLineAnswer | null>();
     if (lines.length === 0) return out;
     const currencyCode = viewer.currencyCode.toUpperCase();
     const em = this.deps.emFactory();
 
-    // K3.2 — a currency the channel does not offer prices nothing. A channel
-    // that does not exist offers nothing either.
-    const channel = await em.findOne(SalesChannel, { id: viewer.salesChannelId }, { fields: ['currencies'] });
-    const offered = (channel?.currencies ?? []).map((c) => c.toUpperCase());
-    if (!offered.includes(currencyCode)) {
-      for (const line of lines) out.set(line.key, null);
-      return out;
-    }
+    // K3.2 — a currency the channel does not offer prices nothing (the lines
+    // still carry the viewer's display mode). A channel that does not exist
+    // offers nothing either.
+    const offered = await channelOffers(em, viewer.salesChannelId, currencyCode);
 
     const precedence = await this.precedence.active();
-    const organizationChain =
-      viewer.organizationId === null
-        ? []
-        : this.deps.resolveOrgChain
-          ? await this.deps.resolveOrgChain(viewer.organizationId)
-          : [viewer.organizationId];
-    const profile = await this.profiles.profileFor({
-      channelId: viewer.salesChannelId,
-      currencyCode,
-      precedenceVersion: precedence.version,
-      organizationChain,
-      effectiveGroupId: viewer.customerGroupId,
-    });
+    const profile = !offered
+      ? emptyProfile(viewer.salesChannelId, currencyCode, precedence.version)
+      : (fixedProfile ?? (await this.#profileOf(viewer, currencyCode, precedence.version)));
 
     const cache = this.deps.cache;
     const generation = cache?.generation;
@@ -219,12 +240,17 @@ export class BookPricing {
     const variantIds = [
       ...new Set(pending.map((p) => p.line.variantId).filter((v): v is string => typeof v === 'string')),
     ];
+    const books = [...profile.books];
     const rows = await this.#loadRows(
       em,
-      profile.books.map((b) => b.id),
+      books.map((b) => b.id),
       productIds,
       variantIds,
     );
+    // Transition (until the conversion migration): the old Default list's
+    // brackets are base rows of their currency.
+    const legacyBase = offered ? await this.#legacyDefaultBrackets(em, currencyCode, productIds, rows, books) : [];
+    rows.push(...legacyBase);
     const categoryIdsByProduct = await this.#categoryMemberships(productIds);
     // FR-016 — a variant line matches attribute rows on the product's values
     // overlaid by the variant's axis values: one read of the batch's variants.
@@ -239,7 +265,7 @@ export class BookPricing {
     if (rows.some((r) => r.attributeKey !== null)) {
       eligibleAttributes = buildEligibleAttributes(await this.deps.attributeRead().listByFlag('isPriceRule'));
     }
-    const resolver = createBookResolver({ books: profile.books, rows, precedence, eligibleAttributes });
+    const resolver = createBookResolver({ books, rows, precedence, eligibleAttributes });
     const displayModes = await this.deps.displayModes({
       productIds,
       organizationId: viewer.organizationId,
@@ -267,6 +293,104 @@ export class BookPricing {
     return out;
   }
 
+  async #profileOf(viewer: BookPricingViewer, currencyCode: string, precedenceVersion: number): Promise<PricingProfile> {
+    const organizationChain =
+      viewer.organizationId === null
+        ? []
+        : this.deps.resolveOrgChain
+          ? await this.deps.resolveOrgChain(viewer.organizationId)
+          : [viewer.organizationId];
+    return this.profiles.profileFor({
+      channelId: viewer.salesChannelId,
+      currencyCode,
+      precedenceVersion,
+      organizationChain,
+      effectiveGroupId: viewer.customerGroupId,
+    });
+  }
+
+  /**
+   * The viewer's pricing profile and the everyone profile of its channel and
+   * currency — what the price surface keys on — or `null` when the channel does
+   * not offer the currency (K3.2: nothing is priced, so nothing is ordered).
+   */
+  async profilesFor(
+    viewer: BookPricingViewer,
+  ): Promise<{ buyer: PricingProfile; everyone: PricingProfile; precedenceVersion: number } | null> {
+    const currencyCode = viewer.currencyCode.toUpperCase();
+    const em = this.deps.emFactory();
+    if (!(await channelOffers(em, viewer.salesChannelId, currencyCode))) return null;
+    const precedence = await this.precedence.active();
+    const buyer = await this.#profileOf(viewer, currencyCode, precedence.version);
+    const everyone =
+      buyer.vector.length === 0
+        ? buyer
+        : await this.#profileOf(
+            { ...viewer, organizationId: null, customerGroupId: null, signedIn: false },
+            currencyCode,
+            precedence.version,
+          );
+    return { buyer, everyone, precedenceVersion: precedence.version };
+  }
+
+  /**
+   * A profile rebuilt from its stored book vector (the surface worker builds a
+   * profile with no buyer in hand): the vector's books at their audiences and
+   * depths, beside the channel's everyone books and the currency's base book.
+   * One statement. Books of the vector that no longer apply are left out.
+   */
+  async profileFromVector(input: {
+    channelId: string;
+    currencyCode: string;
+    precedenceVersion: number;
+    vector: readonly ProfileVectorEntry[];
+  }): Promise<PricingProfile> {
+    const em = this.deps.emFactory();
+    const bridge = this.deps.channelBridge.entityIdsInChannelSubquery(input.channelId, 'price-list');
+    const rows = await em.execute<
+      Array<{ id: string; name: string; type: string; audience_kind: string; priority: number; is_system: boolean }>
+    >(
+      `select l."id", l."name", l."type", l."audience_kind", l."priority", l."is_system"
+         from "price_lists" l
+        where l."currency_code" = ?
+          and (l."is_system" = true
+               or (l."application_rule" is null
+                   and l."status" in ('active', 'scheduled')
+                   and (l."starts_at" is null or l."starts_at" <= now())
+                   and (l."ends_at" is null or l."ends_at" > now())
+                   and l."id" in (${bridge.sql})
+                   and (l."audience_kind" = 'everyone' or l."id" = any(?::uuid[]))))`,
+      [input.currencyCode, ...bridge.params, uuidArray(input.vector.map((v) => v.bookId))],
+    );
+    const entries = new Map(input.vector.map((v) => [v.bookId, v]));
+    const books: ResolverBook[] = [];
+    for (const r of rows) {
+      const entry = entries.get(r.id);
+      const audience: ResolverBook['audience'] =
+        r.is_system || r.audience_kind === 'everyone'
+          ? { kind: 'everyone' }
+          : entry?.audienceKind === 'organizations'
+            ? { kind: 'organizations', depth: entry.depth ?? 0 }
+            : { kind: 'customer_groups' };
+      books.push({
+        id: r.id,
+        name: r.name,
+        type: r.type === 'sale' ? 'sale' : 'regular',
+        isSystem: r.is_system,
+        priority: Number(r.priority),
+        audience,
+      });
+    }
+    return {
+      key: profileKey(input),
+      channelId: input.channelId,
+      currencyCode: input.currencyCode,
+      precedenceVersion: input.precedenceVersion,
+      vector: [...input.vector],
+      books,
+    };
+  }
+
   /**
    * A listing at quantity 1 (FR-024): a product with variants is priced by
    * resolving every variant — the card shows the lowest ("from"), with the
@@ -276,6 +400,7 @@ export class BookPricing {
   async resolveListing(
     products: readonly PricedProductRef[],
     viewer: BookPricingViewer,
+    fixedProfile?: PricingProfile,
   ): Promise<Map<string, ListingAnswer>> {
     const out = new Map<string, ListingAnswer>();
     if (products.length === 0) return out;
@@ -292,7 +417,7 @@ export class BookPricing {
       if (variants.length === 0) lines.push({ key: product.id, product, quantity: 1 });
       for (const v of variants) lines.push({ key: `${product.id}|${v.id}`, product, variantId: v.id, quantity: 1 });
     }
-    const answers = await this.resolve(lines, viewer, new Map(records.map((v) => [v.id, v])));
+    const answers = await this.resolve(lines, viewer, new Map(records.map((v) => [v.id, v])), fixedProfile);
     for (const product of products) {
       const variants = variantsByProduct.get(product.id) ?? [];
       if (variants.length === 0) {
@@ -311,6 +436,94 @@ export class BookPricing {
         if (highest === null || compareDecimal(amount, highest) > 0) highest = amount;
       }
       out.set(product.id, { answer: lowest, maxAmount: highest, variesByVariant: distinct.size > 1 });
+    }
+    return out;
+  }
+
+  /**
+   * FR-029 — what a feed pinned to one book reads: the book's rows at quantity 1
+   * over the catalogue price of the channel and currency (what a guest's
+   * catalogue tier answers), ranked as the book's own selections rank. A
+   * product the book does not price is absent. The base book answers its base
+   * prices. Two resolutions' worth of statements for the whole batch.
+   */
+  async namedBookPrices(input: {
+    bookId: string;
+    salesChannelId: string;
+    currencyCode: string;
+    products: readonly PricedProductRef[];
+  }): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    if (input.products.length === 0) return out;
+    const em = this.deps.emFactory();
+    const currencyCode = input.currencyCode.toUpperCase();
+    const [header] = await em.execute<Array<{ id: string; name: string; is_system: boolean; currency_code: string }>>(
+      `select "id", "name", "is_system", "currency_code" from "price_lists" where "id" = ?`,
+      [input.bookId],
+    );
+    if (!header || header.currency_code.trim().toUpperCase() !== currencyCode) return out;
+    const guest = await this.resolve(
+      input.products.map((product) => ({ key: product.id, product, quantity: 1 })),
+      {
+        organizationId: null,
+        customerGroupId: null,
+        signedIn: false,
+        salesChannelId: input.salesChannelId,
+        currencyCode,
+      },
+    );
+    if (header.is_system) {
+      for (const product of input.products) {
+        const base = guest.get(product.id)?.resolution.base?.amount;
+        if (base !== undefined) out.set(product.id, base);
+      }
+      return out;
+    }
+    const productIds = input.products.map((p) => p.id);
+    const rows = (await this.#loadRows(em, [input.bookId], productIds, [])).filter((r) => r.variantId === null);
+    // The catalogue price stands as the base the book's rows are taken off.
+    const reference: BookRow[] = [];
+    for (const product of input.products) {
+      const answer = guest.get(product.id);
+      const catalogue = answer?.resolution.catalogue?.amount ?? answer?.resolution.base?.amount;
+      if (catalogue === undefined) continue;
+      reference.push({
+        id: bracketRowId(product.id, `${currencyCode}:reference`, 1),
+        bookId: '__reference__',
+        variantId: null,
+        productId: product.id,
+        categoryId: null,
+        attributeKey: null,
+        attributeValue: null,
+        minQuantity: 1,
+        maxQuantity: null,
+        priceType: 'fixed',
+        amount: catalogue,
+        percent: null,
+      });
+    }
+    const categoryIdsByProduct = await this.#categoryMemberships(productIds);
+    const eligibleAttributes = rows.some((r) => r.attributeKey !== null)
+      ? buildEligibleAttributes(await this.deps.attributeRead().listByFlag('isPriceRule'))
+      : new Map<string, EligibleAttribute>();
+    const resolver = createBookResolver({
+      books: [
+        { id: '__reference__', name: 'reference', type: 'regular', isSystem: true, priority: 0, audience: { kind: 'everyone' } },
+        { id: header.id, name: header.name, type: 'regular', isSystem: false, priority: 0, audience: { kind: 'everyone' } },
+      ],
+      rows: [...reference, ...rows],
+      precedence: await this.precedence.active(),
+      eligibleAttributes,
+    });
+    for (const product of input.products) {
+      const resolution = resolver.resolve({
+        productId: product.id,
+        variantId: null,
+        quantity: 1,
+        categoryIds: categoryIdsByProduct.get(product.id) ?? new Set<string>(),
+        attributes: product.attributeValues ?? {},
+      });
+      if (resolution.catalogue) out.set(product.id, resolution.catalogue.amount);
     }
     return out;
   }
@@ -421,6 +634,66 @@ export class BookPricing {
       amount: r.amount === null ? null : String(r.amount),
       percent: r.percent === null ? null : String(r.percent),
     }));
+  }
+
+  /**
+   * **Transition, until the conversion migration (T117) runs.** The old
+   * `Default` list (`…d51b`) keeps its base prices as brackets in
+   * `price_list_price_brackets`, per currency. The conversion copies them into
+   * base-book rows; until it has, they *are* the base prices, so a product with
+   * no base-book row of its own in this currency is priced from its Default
+   * brackets — one statement for the batch. A base-book row, where one exists,
+   * wins. When no base book of the currency exists, the Default list stands in
+   * as that currency's base book.
+   */
+  async #legacyDefaultBrackets(
+    em: EntityManager,
+    currencyCode: string,
+    productIds: readonly string[],
+    rows: readonly BookRow[],
+    books: ResolverBook[],
+  ): Promise<BookRow[]> {
+    if (productIds.length === 0) return [];
+    const brackets = await em.execute<
+      Array<{ product_id: string; min_quantity: number; max_quantity: number | null; amount: string }>
+    >(
+      `select "product_id", "min_quantity", "max_quantity", "amount"
+         from "price_list_price_brackets"
+        where "price_list_id" = ? and "currency_code" = ? and "product_id" = any(?::uuid[])`,
+      [LEGACY_DEFAULT_LIST_ID, currencyCode, uuidArray(productIds)],
+    );
+    if (brackets.length === 0) return [];
+    let base = books.find((b) => b.isSystem);
+    if (!base) {
+      base = {
+        id: LEGACY_DEFAULT_LIST_ID,
+        name: 'Default',
+        type: 'regular',
+        isSystem: true,
+        priority: 0,
+        audience: { kind: 'everyone' },
+      };
+      books.push(base);
+    }
+    const covered = new Set(
+      rows.filter((r) => r.bookId === base.id && r.variantId === null && r.productId !== null).map((r) => r.productId!),
+    );
+    return brackets
+      .filter((b) => !covered.has(b.product_id))
+      .map((b) => ({
+        id: bracketRowId(b.product_id, currencyCode, Number(b.min_quantity)),
+        bookId: base.id,
+        variantId: null,
+        productId: b.product_id,
+        categoryId: null,
+        attributeKey: null,
+        attributeValue: null,
+        minQuantity: Number(b.min_quantity),
+        maxQuantity: b.max_quantity === null ? null : Number(b.max_quantity),
+        priceType: 'fixed' as const,
+        amount: String(b.amount),
+        percent: null,
+      }));
   }
 
   /** `(product, category)` memberships for the batch, through `catalog`'s port — one call. */

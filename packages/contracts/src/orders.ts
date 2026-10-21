@@ -872,6 +872,8 @@ export const ADMIN_ORDER_PREVIEW_MESSAGE_PRECEDENCE = [
   'PRODUCT_NOT_VISIBLE_TO_CUSTOMER',
   'PRODUCT_NOT_IN_SALES_CHANNEL',
   'QUOTE_ONLY',
+  /** Feature 160 (FR-018) — no price book prices the line; the cart would refuse it as unpriced. */
+  'UNPRICED',
   /** Feature 155 — the line is below its product's pieces or packaging-unit minimum. */
   'BELOW_MINIMUM_QUANTITY',
 ] as const;

@@ -1,5 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { Asset, Organization, PriceList, PriceListPriceBracket, PriceListProduct } from './package-entities.js';
+import { Asset, Organization } from './package-entities.js';
+import { seedPriceBookSql } from './price-book-sql.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { Category } from './package-entities.js';
 import { GalleryItem } from './package-entities.js';
@@ -14,18 +15,17 @@ import { bindOrganizationsToFixtureChannelsSql } from './sales-channel-access.js
  * an anonymous visitor sees the channel price and a signed-in buyer sees their
  * organisation's.
  *
- * The three price lists are what make the three answers distinguishable. A
- * `kind: 'all'` list is the one every caller matches, so it is the channel
- * answer; the two `organization` criterion lists each name exactly one
- * Organization, and an explicit organisation match outranks `all` in
- * `pickPriorityChain`. So a listing that lost the viewer quotes 88, a listing
- * that priced everybody for whoever asked first quotes one buyer's figure to
- * the other, and only a listing that resolves the caller quotes three different
- * numbers to three callers.
+ * The three price books are what make the three answers distinguishable
+ * (feature 160): a book for everyone on the channel is the catalogue price
+ * every caller meets, and two organization-set books each name exactly one
+ * Organization, whose buyer tier outranks the catalogue price. So a listing
+ * that lost the viewer quotes 88, a listing that priced everybody for whoever
+ * asked first quotes one buyer's figure to the other, and only a listing that
+ * resolves the caller quotes three different numbers to three callers.
  *
- * `defaultPrice` is set to a fourth value nobody should ever see: it is the
- * chain's last-resort fallback, so a run in which the price lists never applied
- * at all reads as 5 rather than as a plausible price.
+ * `defaultPrice` is set to a fourth value nobody should ever see: it is not a
+ * price since feature 160 (FR-018), so a run that read it would quote 5 rather
+ * than a plausible price.
  */
 
 export const VIEWER_PRICED_SKU = 'VIEWER-PRICED-0001';
@@ -84,7 +84,7 @@ export const CHANNEL_AMOUNT = 88;
 export const ORG_A_AMOUNT = 10;
 /** What a buyer of {@link OTHER_TEST_ORGANIZATION_ID} is quoted. */
 export const ORG_B_AMOUNT = 20;
-/** The product's own attribute — the chain's fallback, and nobody's answer. */
+/** The product's legacy own attribute — not a price (FR-018), and nobody's answer. */
 export const FALLBACK_ATTRIBUTE_PRICE = 5;
 
 /** The signed-in buyer of the seeded Organization. */
@@ -93,50 +93,8 @@ export const ORG_A_BUYER = { b2b_session: 'stub-customer-session' };
 export const ORG_B_BUYER = { b2b_session: 'stub-customer-session-other-org' };
 export const RETAIL_CHANNEL = { 'x-sales-channel': 'pl_retail' };
 
-async function seedList(
-  em: EntityManager,
-  input: {
-    /** The list's unique `code` column — a literal, never derived from a name. */
-    code: string;
-    name: string;
-    applicationRule: PriceList['applicationRule'];
-    amount: string;
-    modifiedAt: Date;
-  },
-): Promise<void> {
-  const list = em.create(PriceList, {
-    code: input.code,
-    name: input.name,
-    currency: 'PLN',
-    isDefault: false,
-    priority: 0,
-    type: 'base',
-    status: 'active',
-    startsAt: null,
-    endsAt: null,
-    applicationRule: input.applicationRule,
-    isSystem: false,
-    modifiedAt: input.modifiedAt,
-  });
-  await em.persistAndFlush(list);
-  em.create(PriceListProduct, {
-    priceListId: list.id,
-    productId: VIEWER_PRICED_PRODUCT_ID,
-  });
-  await em.flush();
-  em.create(PriceListPriceBracket, {
-    priceListId: list.id,
-    productId: VIEWER_PRICED_PRODUCT_ID,
-    currencyCode: 'PLN',
-    minQuantity: 1,
-    maxQuantity: null,
-    amount: input.amount,
-  });
-  await em.flush();
-}
-
 /**
- * Seeds the product, its channel membership and the three price lists.
+ * Seeds the product, its channel membership and the three price books.
  *
  * Idempotent per test database: the harness seeds one Organization and the
  * second one is created here, because `stub-customer-session-other-org`
@@ -218,36 +176,23 @@ export async function seedViewerPricedFixture(em: EntityManager): Promise<void> 
 
   await seedCardReads(em);
 
-  // Ascending `modifiedAt` so the tie-break inside a level is fixed; the two
-  // organisation lists never compete with each other (each names one org).
-  await seedList(em, {
-    code: 'viewer-priced-channel',
-    name: 'Viewer probe channel list',
-    applicationRule: { kind: 'all' },
-    amount: `${CHANNEL_AMOUNT}.00`,
-    modifiedAt: new Date('2026-01-01T00:00:00.000Z'),
+  // Feature 160 — three price books: the channel price for everyone (the
+  // catalogue tier), and one organization-set book per Organization (the buyer
+  // tier). No base price, so a resolution that lost the books quotes nothing.
+  await seedPriceBookSql(em, {
+    name: 'Viewer probe channel book',
+    audience: 'everyone',
+    rows: [{ productId: VIEWER_PRICED_PRODUCT_ID, fixed: `${CHANNEL_AMOUNT}.00` }],
   });
-  await seedList(em, {
-    code: 'viewer-priced-org-a',
+  await seedPriceBookSql(em, {
     name: 'Viewer probe organisation A',
-    applicationRule: {
-      kind: 'criterion',
-      type: 'organization',
-      values: [TEST_ORGANIZATION_ID],
-    },
-    amount: `${ORG_A_AMOUNT}.00`,
-    modifiedAt: new Date('2026-01-02T00:00:00.000Z'),
+    audience: { organizations: [TEST_ORGANIZATION_ID] },
+    rows: [{ productId: VIEWER_PRICED_PRODUCT_ID, fixed: `${ORG_A_AMOUNT}.00` }],
   });
-  await seedList(em, {
-    code: 'viewer-priced-org-b',
+  await seedPriceBookSql(em, {
     name: 'Viewer probe organisation B',
-    applicationRule: {
-      kind: 'criterion',
-      type: 'organization',
-      values: [OTHER_TEST_ORGANIZATION_ID],
-    },
-    amount: `${ORG_B_AMOUNT}.00`,
-    modifiedAt: new Date('2026-01-03T00:00:00.000Z'),
+    audience: { organizations: [OTHER_TEST_ORGANIZATION_ID] },
+    rows: [{ productId: VIEWER_PRICED_PRODUCT_ID, fixed: `${ORG_B_AMOUNT}.00` }],
   });
 }
 

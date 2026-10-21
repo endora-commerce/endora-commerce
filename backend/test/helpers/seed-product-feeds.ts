@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { PriceList, PriceListPriceBracket, PriceListProduct } from './package-entities.js';
+import { seedPriceBookSql } from './price-book-sql.js';
 import type { BackendServerHandle } from './test-server.js';
 import {
   SEED_PRODUCT_101_ID,
@@ -45,52 +45,19 @@ export async function setChannelStorefrontUrl(
 }
 
 /**
- * Seeds an active, rule-less base price list covering the three products from
- * `seedUs1Catalog`, so the anonymous channel resolution has something to
- * resolve.
- *
- * The list is a **catch-all, not the system list** (issue #50). What the
- * anonymous resolution lands on is `{kind:'all'}` plus `status: 'active'`; the
- * `is_system` flag it used to raise was never read on this path and marks the
- * platform's one seeded `Default` row, which is now a database singleton. Every
- * caller committed such a row and every one of them left it behind, so the next
- * file to seed `Default` saw two — which is how the guard in
- * `default-seed-and-migration` started failing. The flag was also never
- * overridden by a caller, so the option it hung off is gone with it.
+ * Seeds an active price book for everyone on every channel covering the three
+ * products from `seedUs1Catalog`, so the anonymous channel resolution has
+ * something to resolve (feature 160: a channel catalogue book, which overrides
+ * their base prices). Answers the book's id, which a feed may also name.
  */
 export async function seedFeedPrices(
   em: EntityManager,
   options: { code?: string; amount?: string } = {},
 ): Promise<string> {
-  const list = em.create(PriceList, {
-    code: options.code ?? 'feed_test_default',
-    name: 'Feed test list',
-    currency: 'PLN',
-    type: 'base',
-    status: 'active',
-    applicationRule: { kind: 'all' },
-    modifiedAt: new Date(),
+  const amount = options.amount ?? '100.0000';
+  return seedPriceBookSql(em, {
+    name: options.code ?? 'Feed test book',
+    audience: 'everyone',
+    rows: [SEED_PRODUCT_101_ID, SEED_PRODUCT_102_ID, SEED_PRODUCT_103_ID].map((productId) => ({ productId, fixed: amount })),
   });
-  await em.persistAndFlush(list);
-
-  const productIds = [SEED_PRODUCT_101_ID, SEED_PRODUCT_102_ID, SEED_PRODUCT_103_ID];
-  // The assignment rows must land before the brackets: the bracket table's
-  // foreign key cascades off `price_list_products`, and MikroORM batches
-  // inserts by entity type rather than in persist order.
-  for (const productId of productIds) {
-    em.create(PriceListProduct, { priceListId: list.id, productId });
-  }
-  await em.flush();
-
-  for (const productId of productIds) {
-    em.create(PriceListPriceBracket, {
-      priceListId: list.id,
-      productId,
-      currencyCode: 'PLN',
-      minQuantity: 1,
-      amount: options.amount ?? '100.0000',
-    });
-  }
-  await em.flush();
-  return list.id;
 }

@@ -1,3 +1,4 @@
+import { testChannelBridges } from './channel-bridges.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   AddressReadPort,
@@ -142,12 +143,14 @@ export function orderServiceNeighbours(
       new CartLinePricing(
         // D-287 P0 — the engine reads the basket customer's own group, so the
         // rig hands it `customer_accounts`' read port as the composition does.
+        // Feature 160 — the price-book engine, as the composition runs it.
         new PricingService(
           emFactory,
           undefined,
           undefined,
           neighbourReadPorts(emFactory),
           new CustomerAccountReadService(emFactory, twoFactorEnrolmentsFor(emFactory, 'customer')),
+          { model: 'books', channelBridge: priceListChannelBridge() },
         ),
         {
           resolveDisplayMode: (input) =>
@@ -200,5 +203,24 @@ export function orderServiceNeighbours(
       // the two above.
       reservationApply: new InventoryReservationApplyService(),
     }),
+  };
+}
+
+/**
+ * Feature 160 — the `price-list` bridge's sanctioned subquery for a hand-built
+ * engine, from the process registry the composed server filled (the table name
+ * is the owner's registration, not a copy here).
+ */
+export function priceListChannelBridge(): {
+  entityIdsInChannelSubquery(channelId: string, entityType: 'price-list'): { sql: string; params: string[] };
+} {
+  return {
+    entityIdsInChannelSubquery(channelId) {
+      const bridge = testChannelBridges().require('price-list');
+      return {
+        sql: `select "${bridge.entityIdColumn}" from "${bridge.table}" where "sales_channel_id" = ?`,
+        params: [channelId],
+      };
+    },
   };
 }

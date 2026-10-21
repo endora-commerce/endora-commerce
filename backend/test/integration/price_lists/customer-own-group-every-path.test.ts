@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { PricingServiceContract } from '../../../../packages/modules/price_lists/src/backend/services/pricing-service.interface.js';
-import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
 import { CustomerAccount, CustomerGroup } from '../../helpers/package-entities.js';
 import {
   setupBackendServer,
@@ -8,7 +7,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { TEST_CUSTOMER_ID } from '../../helpers/test-actors.js';
-import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
+import { seedPriceBookSql } from '../../helpers/price-book-sql.js';
 import {
   ORG_A_AMOUNT,
   ORG_A_BUYER,
@@ -28,7 +27,8 @@ import {
  *     effective group = customer.customerGroupId ?? organization.customerGroupId ?? null
  *
  * The signed-in buyer of `ORG_A_BUYER` gets a customer group of their **own**
- * (their organisation has none), and a sale list targets that group. Before P0
+ * (their organisation has none), and a sale book (feature 160) targets that
+ * group. Before P0
  * the listing, the product page, the resolved-price endpoint and the cart all
  * passed the organisation alone, so this buyer was quoted their organisation's
  * price there while a quote resolved the account and gave them the sale
@@ -62,17 +62,13 @@ describe('the customer’s own customer group is honoured on every storefront pa
     account.customerGroupId = group.id;
     await em.flush();
 
-    const lists = new PriceListService(h.em, undefined, undefined, undefined, neighbourReadPorts(h.em));
-    const sale = await lists.create({
+    // Feature 160 — a sale book for the customer's own group.
+    await seedPriceBookSql(em, {
       name: 'Own-group sale',
       type: 'sale',
-      applicationRule: { kind: 'criterion', type: 'customerGroup', values: [group.id] },
+      audience: { groups: [group.id] },
+      rows: [{ productId: VIEWER_PRICED_PRODUCT_ID, fixed: String(SALE_AMOUNT) }],
     });
-    await lists.addProduct(sale.id, VIEWER_PRICED_PRODUCT_ID);
-    await lists.replaceBrackets(sale.id, VIEWER_PRICED_PRODUCT_ID, {
-      PLN: [{ minQuantity: 1, maxQuantity: null, amount: String(SALE_AMOUNT) }],
-    });
-    await lists.activate(sale.id);
   }, 60_000);
 
   afterAll(async () => {

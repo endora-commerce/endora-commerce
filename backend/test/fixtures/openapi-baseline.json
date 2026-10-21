@@ -3206,6 +3206,15 @@
         }
       }
     },
+    "/api/v1/admin/feedback": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/global-search": {
       "get": {
         "responses": {

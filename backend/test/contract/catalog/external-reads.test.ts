@@ -10,10 +10,9 @@ import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { Product } from '../../helpers/package-entities.js';
 import { Category } from '../../helpers/package-entities.js';
 import { AuditLogEntry } from '@endora-commerce/platform/kernel';
-import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
+import { seedBasePriceSql, seedPriceBookSql } from '../../helpers/price-book-sql.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
-import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
  * Feature 062 / T013 — external catalog reads (contracts/catalog-api-key-reads.md).
@@ -97,7 +96,7 @@ describe('External catalog reads (062 / T013)', () => {
       description: { 'en-US': '' },
       visibility: 'public',
       manageStock: false,
-      attributeValues: { defaultPrice: 42.5 },
+      attributeValues: {},
     });
     const unpriced = em.create(Product, {
       sku: 'EXT-UNPRICED-002',
@@ -108,7 +107,7 @@ describe('External catalog reads (062 / T013)', () => {
       description: { 'en-US': '' },
       visibility: 'public',
       manageStock: false,
-      attributeValues: { defaultPrice: 13 },
+      attributeValues: {},
     });
     await em.persistAndFlush([priced, unpriced]);
     productPricedId = priced.id;
@@ -128,25 +127,18 @@ describe('External catalog reads (062 / T013)', () => {
       [priced.id, category.id],
     );
 
-    // Org-targeted price list with a two-step bracket ladder for EXT-PRICED-001.
-    const priceLists = new PriceListService(() => h.em(), undefined, undefined, undefined, neighbourReadPorts(() => h.em()));
-    const list = await priceLists.create({
-      name: 'Org A external base',
-      type: 'base',
-      applicationRule: {
-        kind: 'criterion',
-        type: 'organization',
-        values: [TEST_ORGANIZATION_ID],
-      },
-    });
-    await priceLists.addProduct(list.id, priced.id);
-    await priceLists.replaceBrackets(list.id, priced.id, {
-      PLN: [
-        { minQuantity: 1, maxQuantity: 9, amount: '100.00' },
-        { minQuantity: 10, maxQuantity: null, amount: '90.00' },
+    // The base price everyone sees, and an organization book with a two-step
+    // tier ladder for EXT-PRICED-001. EXT-UNPRICED-002 has no price anywhere.
+    await seedBasePriceSql(em, priced.id, '42.50');
+    await seedPriceBookSql(em, {
+      name: 'Org A external',
+      audience: { organizations: [TEST_ORGANIZATION_ID] },
+      channelIds: [channel.id],
+      rows: [
+        { productId: priced.id, minQuantity: 1, fixed: '100.00' },
+        { productId: priced.id, minQuantity: 10, fixed: '90.00' },
       ],
     });
-    await priceLists.activate(list.id);
 
     boundToken = await mint({
       name: 'Bound external reader',
@@ -219,7 +211,8 @@ describe('External catalog reads (062 / T013)', () => {
     expect(unpriced).toBeDefined();
     // Channel-default pricing exactly as the public surface computes it.
     expect(priced!.price).toEqual({ amount: 42.5, currency: 'PLN' });
-    expect(unpriced!.price).toEqual({ amount: 13, currency: 'PLN' });
+    // No price in any book: the platform context shows no price (FR-018).
+    expect(unpriced!.price).toBeNull();
     expect(priced!.priceUnavailable).toBeUndefined();
     expect(unpriced!.priceUnavailable).toBeUndefined();
     // Availability indication is channel-public data — present for any key.
@@ -244,7 +237,7 @@ describe('External catalog reads (062 / T013)', () => {
     // Org-effective unit price at quantity 1 — NOT the channel default.
     expect(priced!.price).toEqual({ amount: 100, currency: 'PLN' });
     expect(priced!.priceUnavailable).toBeUndefined();
-    // No bracket for this product on any matching list ⇒ explicit marker.
+    // No row for this product in any applying book ⇒ explicit marker.
     expect(unpriced!.price).toBeNull();
     expect(unpriced!.priceUnavailable).toBe(true);
     expect(priced!.availability).toEqual({ band: 'available', inStock: true });

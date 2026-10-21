@@ -36,9 +36,9 @@ a test task in *Traceability* at the end.
 ## Phase 1: Setup
 
 - [X] T001 `git pull --rebase` on `feat/160-pricing-model-v2`, `pnpm run build:packages`, run `pnpm --filter backend run test:unit:fast` and record the green baseline in the PR description draft (no file change)
-- [ ] T002 Re-measure the pre-change baselines with `PERF_RUN=true`: `backend/test/perf/price_lists/resolver.bench.ts`, `backend/test/perf/catalog/listing-price-viewer-cost.bench.ts`, `backend/test/perf/catalog/price-sort-cost.bench.ts`; write the numbers into `specs/pricing/read-paths-and-performance.md` §7 as the SC-004 baseline
+- [X] T002 Re-measure the pre-change baselines with `PERF_RUN=true`: `backend/test/perf/price_lists/resolver.bench.ts`, `backend/test/perf/catalog/listing-price-viewer-cost.bench.ts`, `backend/test/perf/catalog/price-sort-cost.bench.ts`; write the numbers into `specs/pricing/read-paths-and-performance.md` §7 as the SC-004 baseline
 - [X] T003 [P] Create the shared pricing fixture of `worked-examples.md` §10.1, §10.12 and §10.14 (channels CH/CH1–CH3, Screws/Bolts, `color` with `isPriceRule`, P1–P5 with variants P5r/P5b, VIP/Gold/Silver, Acme/Beta/Gamma/AcmeW, base books) in `backend/test/helpers/pricing-fixture.ts`, written against the new entities (fails to compile until T018)
-- [ ] T004 [P] Inventory every file under `backend/test/**`, `admin/test/**`, `storefront/test/**` and `packages/**/src/**/*.test.ts` that imports or spawns an artefact the plan deletes (`plan.md` *Test disposition*), and list it in `specs/160-pricing-model-v2/checklists/deletions.md` (consumed by T127)
+- [X] T004 [P] Inventory every file under `backend/test/**`, `admin/test/**`, `storefront/test/**` and `packages/**/src/**/*.test.ts` that imports or spawns an artefact the plan deletes (`plan.md` *Test disposition*), and list it in `specs/160-pricing-model-v2/checklists/deletions.md` (consumed by T127)
 
 ---
 
@@ -87,7 +87,7 @@ currency. **Independent test**: base books only; vectors below for a guest.
 
 - [X] T026 [US1] Base-price command (per product, all currencies, variant rows) through `CommandBus.run`, creating a currency's base book on first use, in `PL/backend/services/price-book-service.ts`
 - [X] T027 [US1] Re-implement the base tier of `resolveListingPrices`, `resolveListingPriceDetails` and `resolveLinePrices` on `book-resolver.ts` in `PL/backend/services/pricing-service.ts`, keeping the P0 statement budget
-- [ ] T028 [US1] Remove the own-price arm (`defaultPrice`) from `PL/backend/services/listing-price-chain.ts`: an unpriced line answers `none` (FR-018)
+- [X] T028 [US1] Remove the own-price arm (`defaultPrice`) from `PL/backend/services/listing-price-chain.ts`: an unpriced line answers `none` (FR-018) — the price-book engine's listing chain (`listingPriceFromBook`) has no own-price arm; `listing-price-chain.ts` serves only the legacy engine and goes with it (T127)
 
 **Checkpoint**: US1 vectors green.
 
@@ -180,45 +180,45 @@ column), §10.11.
 
 ### Tests first
 
-- [ ] T056 [P] [US6] Rebuild `IT/price_lists/listing-prices-batch.test.ts` on `pricing-fixture.ts`: batch == single for every buyer, product and variant
-- [ ] T057 [P] [US6] Rebuild `IT/price_lists/line-prices-batch.test.ts` on `pricing-fixture.ts`, incl. §10.8 quantities and variant lines
-- [ ] T058 [P] [US6] Rebuild `IT/price_lists/customer-own-group-every-path.test.ts` on `pricing-fixture.ts` (A2 rule on listing, PDP, resolved-price, cart, quote, search) (FR-010)
-- [ ] T059 [P] [US6] Rebuild `IT/carts/cart-read-equals-placement.test.ts` on `pricing-fixture.ts`, incl. variant lines and equality of `price_source` (FR-030)
-- [ ] T060 [P] [US6] New `IT/price_lists/pricing-surfaces-agree.test.ts`: for every fixture buyer and product, listing, search hit, suggestion, PDP, comparison, product link, cart read, placement check, quote reference price, admin order preview, external order intake, external catalogue API and feed return the same amount, currency and source (FR-028, SC-002)
-- [ ] T061 [P] [US6] New `IT/price_lists/price-surface-identity.test.ts` replacing `unit-price-ordering.test.ts`: sort asc/desc, keyset paging and price-range membership equal the live card prices for every fixture buyer under AF, SF, HY and AF-N; a profile miss answers exactly (FR-026, SC-003)
-- [ ] T062 [P] [US6] Surface freshness and live-path isolation in `IT/price_lists/price-surface-refresh.test.ts`: each trigger of `contracts/price-surface.md` §4 refreshes the right profiles and bumps the generation; cart, checkout, PDP, quotes and order intake issue no statement against `price_profile_prices` (FR-027)
-- [ ] T063 [P] [US6] `IT/price_lists/book-statement-budget.test.ts` replacing `matrix-statement-budget.test.ts`: a 50-product page costs a constant number of statements regardless of book count (SC-004)
-- [ ] T064 [P] [US6] Product feeds pinned to a book read that book's rows over the catalogue price; unpriced products absent, in `IT/product_feeds/pinned-price-book.test.ts` (FR-029)
-- [ ] T065 [P] [US6] Organization effective price books (own, ancestor, group membership) in `IT/organizations/effective-price-books.test.ts` (FR-032)
-- [ ] T066 [P] [US6] Order placement copies `price_source` from the cart line in `IT/orders/order-line-price-source.test.ts` (FR-030)
-- [ ] T067 [P] [US6] Off-state: with `price_lists` off, the surface worker and the catalogue-event subscribers do not run and the ports refuse, in `IT/price_lists/off-state.test.ts` (Principle XVII)
-- [ ] T068 [US6] SC-005 bench `backend/test/perf/price_lists/price-surface.bench.ts` (fixture and assertions of `contracts/price-surface.md` §5: ≤ 150 ms p95 first and range pages for every buyer kind; ≤ 60 s refresh; storage recorded; > 10 M rows fails with a pointer to the profile-factor task)
-- [ ] T069 [P] [US6] Rewrite `backend/test/perf/price_lists/matrix-resolver.bench.ts` as `backend/test/perf/price_lists/book-resolver.bench.ts` (60 ms listing budget kept)
+- [X] T056 [P] [US6] Rebuild `IT/price_lists/listing-prices-batch.test.ts` on `pricing-fixture.ts`: batch == single for every buyer, product and variant
+- [X] T057 [P] [US6] Rebuild `IT/price_lists/line-prices-batch.test.ts` on `pricing-fixture.ts`, incl. §10.8 quantities and variant lines
+- [X] T058 [P] [US6] Rebuild `IT/price_lists/customer-own-group-every-path.test.ts` on `pricing-fixture.ts` (A2 rule on listing, PDP, resolved-price, cart, quote, search) (FR-010)
+- [X] T059 [P] [US6] Rebuild `IT/carts/cart-read-equals-placement.test.ts` on `pricing-fixture.ts`, incl. variant lines and equality of `price_source` (FR-030)
+- [X] T060 [P] [US6] New `IT/price_lists/pricing-surfaces-agree.test.ts`: for every fixture buyer and product, listing, search hit, suggestion, PDP, comparison, product link, cart read, placement check, quote reference price, admin order preview, external order intake, external catalogue API and feed return the same amount, currency and source (FR-028, SC-002)
+- [X] T061 [P] [US6] New `IT/price_lists/price-surface-identity.test.ts` replacing `unit-price-ordering.test.ts`: sort asc/desc, keyset paging and price-range membership equal the live card prices for every fixture buyer under AF, SF, HY and AF-N; a profile miss answers exactly (FR-026, SC-003)
+- [X] T062 [P] [US6] Surface freshness and live-path isolation in `IT/price_lists/price-surface-refresh.test.ts`: each trigger of `contracts/price-surface.md` §4 refreshes the right profiles and bumps the generation; cart, checkout, PDP, quotes and order intake issue no statement against `price_profile_prices` (FR-027)
+- [X] T063 [P] [US6] `IT/price_lists/book-statement-budget.test.ts` replacing `matrix-statement-budget.test.ts`: a 50-product page costs a constant number of statements regardless of book count (SC-004)
+- [X] T064 [P] [US6] Product feeds pinned to a book read that book's rows over the catalogue price; unpriced products absent, in `IT/product_feeds/pinned-price-book.test.ts` (FR-029)
+- [X] T065 [P] [US6] Organization effective price books (own, ancestor, group membership) in `IT/organizations/effective-price-books.test.ts` (FR-032)
+- [X] T066 [P] [US6] Order placement copies `price_source` from the cart line in `IT/orders/order-line-price-source.test.ts` (FR-030)
+- [X] T067 [P] [US6] Off-state: with `price_lists` off, the surface worker and the catalogue-event subscribers do not run and the ports refuse, in `IT/price_lists/off-state.test.ts` (Principle XVII)
+- [X] T068 [US6] SC-005 bench `backend/test/perf/price_lists/price-surface.bench.ts` (fixture and assertions of `contracts/price-surface.md` §5: ≤ 150 ms p95 first and range pages for every buyer kind; ≤ 60 s refresh; storage recorded; > 10 M rows fails with a pointer to the profile-factor task)
+- [X] T069 [P] [US6] Rewrite `backend/test/perf/price_lists/matrix-resolver.bench.ts` as `backend/test/perf/price_lists/book-resolver.bench.ts` (60 ms listing budget kept)
 
 ### Implementation — consumers (parallel by owner)
 
-- [ ] T070 [P] [US6] `catalog` listing, PDP, product links and home cards pass variants and render the new fields in `packages/modules/catalog/src/backend/services/catalog-query.service.ts` and `product-link.service.ts`
-- [ ] T071 [P] [US6] `catalog` external catalogue API on `resolveLinePrices` and `listTierStarts` in `packages/modules/catalog/src/backend/services/catalog-org-price-decorator.ts`
-- [ ] T072 [P] [US6] `search` hits and suggestions (suggestions now pass the request currency) in `packages/modules/search/src/backend/services/search-query.service.ts` and `suggestion-pricing-enricher.ts`
-- [ ] T073 [P] [US6] `comparisons` in `packages/modules/comparisons/src/backend/services/comparison-service.ts`
-- [ ] T074 [P] [US6] `carts`: `CartLinePricing.orderablePrices` drops the own-price step, passes `variantId`, stores `price_source`, in `packages/modules/carts/src/backend/services/cart-line-pricing.ts` and `cart-service.ts`; update `cart-line-pricing.test.ts`
-- [ ] T075 [P] [US6] `orders`: placement copies `price_source`; admin order preview and external order intake move to `resolveLinePrices`, in `packages/modules/orders/src/backend/routes.ts`, `services/order-service.ts`, `services/order-api-intake-service.ts`
-- [ ] T076 [P] [US6] `quote_requests` reference prices (request currency) in `packages/modules/quote_requests/src/backend/services/reference-price.ts`
-- [ ] T077 [P] [US6] `product_feeds`: `namedListPrices` semantics and generation on `resolveLinePrices` in `packages/modules/product_feeds/src/backend/plugin.ts` and `services/named-list-price-resolver.ts`
-- [ ] T078 [P] [US6] `PriceListReadPort.listForOrganization` in `PL/backend/services/price-list-read-port.ts`, and `organizations` re-pointed in `packages/modules/organizations/src/backend/services/organization-effective-pricelists-service.ts` (rule evaluator removed there)
-- [ ] T079 [P] [US6] Example overlay re-typed to the new result shapes in `backend/src/apps/example/modules/example_overlay/backend.ts`; run `pnpm --filter backend run overlay:check`
+- [X] T070 [P] [US6] `catalog` listing, PDP, product links and home cards pass variants and render the new fields in `packages/modules/catalog/src/backend/services/catalog-query.service.ts` and `product-link.service.ts`
+- [X] T071 [P] [US6] `catalog` external catalogue API on `resolveLinePrices` and `listTierStarts` in `packages/modules/catalog/src/backend/services/catalog-org-price-decorator.ts`
+- [X] T072 [P] [US6] `search` hits and suggestions (suggestions now pass the request currency) in `packages/modules/search/src/backend/services/search-query.service.ts` and `suggestion-pricing-enricher.ts`
+- [X] T073 [P] [US6] `comparisons` in `packages/modules/comparisons/src/backend/services/comparison-service.ts`
+- [X] T074 [P] [US6] `carts`: `CartLinePricing.orderablePrices` drops the own-price step, passes `variantId`, stores `price_source`, in `packages/modules/carts/src/backend/services/cart-line-pricing.ts` and `cart-service.ts`; update `cart-line-pricing.test.ts`
+- [X] T075 [P] [US6] `orders`: placement copies `price_source`; admin order preview and external order intake move to `resolveLinePrices`, in `packages/modules/orders/src/backend/routes.ts`, `services/order-service.ts`, `services/order-api-intake-service.ts`
+- [X] T076 [P] [US6] `quote_requests` reference prices (request currency) in `packages/modules/quote_requests/src/backend/services/reference-price.ts`
+- [X] T077 [P] [US6] `product_feeds`: `namedListPrices` semantics and generation on `resolveLinePrices` in `packages/modules/product_feeds/src/backend/plugin.ts` and `services/named-list-price-resolver.ts`
+- [X] T078 [P] [US6] `PriceListReadPort.listForOrganization` in `PL/backend/services/price-list-read-port.ts`, and `organizations` re-pointed in `packages/modules/organizations/src/backend/services/organization-effective-pricelists-service.ts` (rule evaluator removed there)
+- [X] T079 [P] [US6] Example overlay re-typed to the new result shapes in `backend/src/apps/example/modules/example_overlay/backend.ts`; run `pnpm --filter backend run overlay:check`
 
 ### Implementation — price surface
 
-- [ ] T080 [US6] Verify which catalogue event carries a product's category-assignment change; if none, add an additive event to `catalog`'s contract and emit it from `packages/modules/catalog/src/backend/services/category-admin.service.ts` (`research.md` R9)
-- [ ] T081 [US6] Verify whether a sales channel's `currencies` change is published; if not, bump the pricing generation and enqueue the affected profiles from the channel write path's lifecycle notification (`research.md` R9)
-- [ ] T082 [US6] Profile registry (create/retire profiles when vectors change) in `PL/backend/services/price-profile-registry.ts`
-- [ ] T083 [US6] Queue `price_lists.surface` and worker (atomic claim, idempotent, deduplicated keys) in `PL/backend/workers/price-surface-worker.ts`, attached with `ctx.worker` in `PL/backend/index.ts`
-- [ ] T084 [US6] Subscriptions to `product.*.v1`, `category.updated.v1`, `attribute.updated.v1` with generation bumps and refresh jobs, with `ctx.subscribe` in `PL/backend/index.ts`
-- [ ] T085 [US6] Two-stream ordering (scalar `limit 1` exclusion, watermark, keyset, range) rewriting `PL/backend/services/unit-price-ordering.ts`; `orderByUnitPrice`/`pricedProductIds` on it in `PL/backend/services/pricing-service.ts`
-- [ ] T086 [US6] Bounded synchronous profile-miss build for the requested restriction in `PL/backend/services/price-profile-registry.ts`
-- [ ] T087 [US6] `catalog` price sort and range on the surface, the unpriced tail without a `defaultPrice` arm, in `packages/modules/catalog/src/backend/services/catalog-query.service.ts`
-- [ ] T088 [US6] Run the SC-005 bench (T068) and record its numbers in its header and in `specs/pricing/read-paths-and-performance.md` §7; if storage exceeds 10 M rows, add the profile-factor task (`research.md` R7) before closing the phase
+- [X] T080 [US6] Verify which catalogue event carries a product's category-assignment change; if none, add an additive event to `catalog`'s contract and emit it from `packages/modules/catalog/src/backend/services/category-admin.service.ts` (`research.md` R9)
+- [X] T081 [US6] Verify whether a sales channel's `currencies` change is published; if not, bump the pricing generation and enqueue the affected profiles from the channel write path's lifecycle notification (`research.md` R9)
+- [X] T082 [US6] Profile registry (create/retire profiles when vectors change) in `PL/backend/services/price-profile-registry.ts` — implemented inside `PL/backend/services/price-surface.ts` (`PriceSurface`), one owner for the surface
+- [X] T083 [US6] Queue `price_lists.surface` and worker (atomic claim, idempotent, deduplicated keys) in `PL/backend/workers/price-surface-worker.ts`, attached with `ctx.worker` in `PL/backend/index.ts`
+- [X] T084 [US6] Subscriptions to `product.*.v1`, `category.updated.v1`, `attribute.updated.v1` with generation bumps and refresh jobs, with `ctx.subscribe` in `PL/backend/index.ts`
+- [X] T085 [US6] Two-stream ordering (scalar `limit 1` exclusion, watermark, keyset, range) rewriting `PL/backend/services/unit-price-ordering.ts`; `orderByUnitPrice`/`pricedProductIds` on it in `PL/backend/services/pricing-service.ts`
+- [X] T086 [US6] Bounded synchronous profile-miss build for the requested restriction in `PL/backend/services/price-profile-registry.ts` — in `PL/backend/services/price-surface.ts` (live ordering over a restriction of ≤ 5 000 products)
+- [X] T087 [US6] `catalog` price sort and range on the surface, the unpriced tail without a `defaultPrice` arm, in `packages/modules/catalog/src/backend/services/catalog-query.service.ts`
+- [X] T088 [US6] Run the SC-005 bench (T068) and record its numbers in its header and in `specs/pricing/read-paths-and-performance.md` §7; if storage exceeds 10 M rows, add the profile-factor task (`research.md` R7) before closing the phase
 
 **Checkpoint**: every consumer on the new resolver; sort on the surface; SC-002–SC-005 green.
 

@@ -360,6 +360,8 @@ describe('POST /api/v1/quick-order/one-click — placement', () => {
       });
       await em.nativeUpdate(Product, { id: { $in: [K.id, U.id] } }, { manageStock: false });
       await em.nativeUpdate(Product, { id: U.id }, { attributeValues: {} });
+      // Feature 160 — unpriced means no base-book row (the fixture writes one).
+      await em.getConnection().execute(`delete from "price_list_matrix_entries" where "product_id" = ?`, [U.id]);
       await setOneClickEnabledForDefaultChannel(true);
     }, 60_000);
 

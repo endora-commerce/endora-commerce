@@ -5,6 +5,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { seedBasePriceSql } from '../../helpers/price-book-sql.js';
 
 /**
  * Feature 043 — buyer ordering by a packaging unit (US2).
@@ -36,13 +37,14 @@ describe('Cart add-item packaging units (043)', () => {
         name: { 'en-US': `Pallet product ${suffix}` },
         description: { 'en-US': '' },
         categoryIds: [],
-        attributeValues: { defaultPrice: 3 },
+        attributeValues: {},
         visibility: 'public',
       },
       cookies: adminCookie,
     });
     expect(created.statusCode).toBe(201);
     const product = (created.json() as { data: { id: string; slug: string } }).data;
+    await seedBasePriceSql(h.em(), product.id, '3.00');
 
     const unit = await h.app.inject({
       method: 'POST',

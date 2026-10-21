@@ -6,12 +6,7 @@ import {
 } from '../../helpers/test-server.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { Product } from '../../helpers/package-entities.js';
-import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
-import {
-  DefaultPriceListMigrator,
-  DEFAULT_PRICE_LIST_ID,
-} from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
-import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
+import { seedBasePriceSql } from '../../helpers/price-book-sql.js';
 
 /**
  * Issue #132 — a catalogue listing asks `price_lists`.
@@ -73,12 +68,7 @@ describe('catalogue listing price source (#132)', () => {
   });
 
   async function seedDefaultListWithBracket(amount: string): Promise<void> {
-    await new DefaultPriceListMigrator(h.em).seedDefault();
-    const svc = new PriceListService(h.em, undefined, undefined, undefined, neighbourReadPorts(h.em));
-    await svc.addProduct(DEFAULT_PRICE_LIST_ID, SEED_PRODUCT_101_ID);
-    await svc.replaceBrackets(DEFAULT_PRICE_LIST_ID, SEED_PRODUCT_101_ID, {
-      PLN: [{ minQuantity: 1, maxQuantity: null, amount }],
-    });
+    await seedBasePriceSql(h.em(), SEED_PRODUCT_101_ID, amount);
   }
 
   async function listedProduct(): Promise<Summary | undefined> {
@@ -92,7 +82,7 @@ describe('catalogue listing price source (#132)', () => {
     return body.data.find((p) => p.id === SEED_PRODUCT_101_ID);
   }
 
-  it('shows the price the applicable price list holds, not the catalogue attribute', async () => {
+  it('shows the base price the price book holds, not the catalogue attribute', async () => {
     await seedDefaultListWithBracket('88.00');
     const listed = await listedProduct();
     expect(listed?.price).toEqual({ amount: 88, currency: 'PLN' });
@@ -106,12 +96,12 @@ describe('catalogue listing price source (#132)', () => {
     expect(listed?.price).not.toBeNull();
   });
 
-  it('falls back to the price assigned directly to the Product when no list applies', async () => {
-    // No price list at all — the margin the product ruling names. The system
-    // Default list is guarded three ways, so this is a state the platform
-    // should not reach; it still has to render honestly when it does.
+  it('renders no price from the attribute on the Product when no book prices it (160 FR-018)', async () => {
+    // No price book at all: the legacy `defaultPrice` attribute is not a price
+    // any more, so the listing renders honestly as unpriced.
     const listed = await listedProduct();
-    expect(listed?.price).toEqual({ amount: SEED_DEFAULT_PRICE, currency: 'PLN' });
+    expect(listed).toBeDefined();
+    expect(listed?.price).toBeNull();
   });
 
   it('renders no price when neither a list nor the Product carries one', async () => {

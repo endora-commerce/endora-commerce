@@ -1,23 +1,19 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import {
-  evaluateApplicationRule,
-  type PriceListReadPort,
-  type PriceListResolutionContext,
-} from '@endora-commerce/contracts';
+import type { PriceListReadPort } from '@endora-commerce/contracts';
 import { Organization } from '../entities/organization.entity.js';
 
 /**
- * Maps the application-rule-evaluator's `RuleCriterionType` tags to the
- * customer-facing "reason" labels surfaced by the Organization detail
- * panel (feature 026 US5). The Organization detail page reads
- * `reasons[]` and renders one chip per entry.
+ * The reason chips the Organization detail panel renders, one per way a price
+ * book reaches the organization (feature 026 US5; since feature 160 the books
+ * of `price_lists`, FR-032).
  *
- * The category criterion is mapped to `segment_rule_match` because in
- * practice a category-scoped price list functions as a segment rule
- * from the operator's perspective.
+ * `sales_channel_inheritance` and `segment_rule_match` were reasons of the old
+ * Application rule and are no longer produced; they stay in the union so a
+ * stale client keeps type-checking.
  */
 export type ApplicablePriceListReason =
   | 'direct_organization_match'
+  | 'ancestor_organization_match'
   | 'customer_group_match'
   | 'sales_channel_inheritance'
   | 'segment_rule_match';
@@ -31,29 +27,23 @@ export interface ApplicablePriceListEntry {
 
 export interface OrganizationEffectivePriceListsDeps {
   emFactory: () => EntityManager;
+  /** This module's own inheritance chain (nearest first), as pricing reads it. */
+  resolveOrgChain: (organizationId: string) => Promise<readonly string[]>;
   /**
-   * Sales-channel id used to evaluate channel-bound rules. The org-detail
-   * panel is read-only; passing the platform's system-default channel is
-   * sufficient because the panel surfaces what applies "to this
-   * Organization broadly" — channel-specific overrides are visible when
-   * an admin opens the relevant Sales Channel.
-   */
-  resolveDefaultSalesChannelId: () => Promise<string>;
-  /**
-   * `price_lists`' own answer to "which lists are active", rather than this
-   * module's copy of the status filter (feature 075, Phase C). With
-   * `price_lists` off the call fails closed and the panel refuses: an empty
-   * list here reads as "no price list applies to this organisation", which is
-   * a plausible answer and the wrong one.
+   * `price_lists`' own answer to "which books apply to this organisation"
+   * (feature 160, `listForOrganization`). With `price_lists` off the call fails
+   * closed and the panel refuses: an empty list here reads as "no price book
+   * applies to this organisation", which is a plausible answer and the wrong
+   * one.
    */
   priceListRead: PriceListReadPort;
 }
 
 /**
- * Returns the set of Price Lists currently applicable to a given
- * Organization, each tagged with the reasons it applies. Implementation
- * reuses the existing application-rule evaluator (no new persistence
- * surface) — see research.md R6.
+ * The price books currently applicable to an Organization, each tagged with how
+ * it reaches it: its own membership, an ancestor's, or its customer group's.
+ * The audience is the book's header now, so this is one port read rather than
+ * an evaluation of a rule this module used to copy.
  */
 export class OrganizationEffectivePriceListsService {
   constructor(private readonly deps: OrganizationEffectivePriceListsDeps) {}
@@ -62,52 +52,22 @@ export class OrganizationEffectivePriceListsService {
     const em = this.deps.emFactory();
     const org = await em.findOne(Organization, { id: organizationId, deletedAt: null });
     if (!org) return [];
-
-    const salesChannelId = await this.deps.resolveDefaultSalesChannelId();
-    const now = new Date();
-
-    const candidates = await this.deps.priceListRead.listActive();
-
-    const ctx: PriceListResolutionContext = {
-      organizationId: org.id,
+    const organizationChain = await this.deps.resolveOrgChain(org.id);
+    const books = await this.deps.priceListRead.listForOrganization({
+      organizationChain: organizationChain.length > 0 ? organizationChain : [org.id],
       customerGroupId: org.customerGroupId ?? null,
-      salesChannelId,
-      currencyCode: 'PLN',
-      productCategoryIds: new Set<string>(),
-    };
-
-    const results: ApplicablePriceListEntry[] = [];
-    for (const pl of candidates) {
-      // Time-window check: skip lists that haven't started or have expired.
-      if (pl.startsAt && pl.startsAt > now) continue;
-      if (pl.endsAt && pl.endsAt < now) continue;
-
-      const evaluation = evaluateApplicationRule(pl.applicationRule, ctx);
-      if (!evaluation.matched) continue;
-
-      const reasons: ApplicablePriceListReason[] = [];
-      if (evaluation.explicitOn.has('organization')) reasons.push('direct_organization_match');
-      if (evaluation.explicitOn.has('customerGroup')) reasons.push('customer_group_match');
-      if (evaluation.explicitOn.has('salesChannel')) reasons.push('sales_channel_inheritance');
-      if (evaluation.explicitOn.has('category')) reasons.push('segment_rule_match');
-      // The "all" rule (kind='all') matches without any explicitOn — surface
-      // as a segment-rule-match-like blanket entry so the UI shows something.
-      if (reasons.length === 0) reasons.push('segment_rule_match');
-
-      results.push({
-        priceListId: pl.id,
-        name: pl.name,
-        priority: reasons.length, // higher specificity → higher priority
-        reasons,
-      });
-    }
-
-    // Sort by priority desc, then by name asc for stable display.
-    results.sort((a, b) => {
-      if (b.priority !== a.priority) return b.priority - a.priority;
-      return a.name.localeCompare(b.name);
     });
-
-    return results;
+    return books.map((book) => ({
+      priceListId: book.id,
+      name: book.name,
+      priority: book.priority,
+      reasons: [
+        book.reason === 'organization'
+          ? 'direct_organization_match'
+          : book.reason === 'ancestor'
+            ? 'ancestor_organization_match'
+            : 'customer_group_match',
+      ],
+    }));
   }
 }

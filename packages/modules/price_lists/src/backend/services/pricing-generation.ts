@@ -60,11 +60,25 @@ export class PricingGeneration {
   constructor(
     private readonly local: { invalidateAll(): void },
     private readonly publisher?: PricingGenerationPublisher,
+    /**
+     * Feature 160 — what the **writer** does once per bump, after clearing its
+     * layer: mark the price surface stale and ask for its rebuild. Not run for
+     * another process's announcement (one writer, one marking). Best effort,
+     * like the announcement: the write has already committed.
+     */
+    private readonly afterBump?: () => Promise<void>,
   ) {}
 
   /** Clear this process's layer and announce the bump to every other process. */
   async bump(): Promise<void> {
     this.local.invalidateAll();
+    if (this.afterBump) {
+      try {
+        await this.afterBump();
+      } catch {
+        // Degraded: the surface stays as it is until the next bump or rebuild.
+      }
+    }
     if (!this.publisher) return;
     try {
       await this.publisher.publish(

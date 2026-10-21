@@ -167,7 +167,6 @@ export const UNSCOPED_WIPES_BASELINE: Readonly<Record<string, number>> = {
   'integration/price_lists/display-mode-chain.test.ts': 4,
   'integration/price_lists/inherited-price-list.test.ts': 3,
   'integration/price_lists/resolver-priority-and-tiebreak.test.ts': 3,
-  'integration/price_lists/sale-special-price.test.ts': 3,
   'integration/product_feeds/schedule-lifecycle.test.ts': 1,
   'integration/product_feeds/taxonomy-bundled-data.test.ts': 4,
   'integration/product_feeds/taxonomy-fetch-check.test.ts': 3,

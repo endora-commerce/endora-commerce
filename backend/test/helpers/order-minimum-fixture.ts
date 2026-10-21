@@ -1,3 +1,4 @@
+import { seedBasePriceSql } from './price-book-sql.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { Product, ProductPackagingUnit, ProductVariant } from './package-entities.js';
@@ -55,11 +56,14 @@ export async function createMinimumProduct(
     description: { en: '' },
     visibility: 'public',
     allowedOrganizationIds: [],
-    attributeValues: { defaultPrice: 10 },
+    attributeValues: {},
     minOrderQuantity: input.minOrderQuantity ?? null,
     returnable: input.returnable ?? false,
   });
   await em.persistAndFlush(product);
+  // Feature 160 — its price is a base-book row (the legacy `defaultPrice` it
+  // carried is not a price any more, FR-018).
+  await seedBasePriceSql(em, product.id, '10');
   for (const channelId of input.channelIds) {
     await em
       .getConnection()

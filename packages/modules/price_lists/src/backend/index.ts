@@ -25,6 +25,12 @@ import { registerPriceListAuditReferences } from './services/audit-references.js
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import { priceListsModule, type PriceListsModuleOptions } from './plugin.js';
 import { DEFAULT_PRICING_CACHE_TTL_MS } from './services/pricing-cache.js';
+import type { Redis } from 'ioredis';
+import {
+  createPriceSurfaceProducer,
+  startPriceSurfaceWorker,
+  type PriceSurfaceProducer,
+} from './workers/price-surface-worker.js';
 import type {
   PricingGenerationPublisher,
   PricingGenerationSubscriber,
@@ -126,6 +132,16 @@ export interface PriceListsCradle {
     PriceListsModuleOptions['resolveAdminAuditContext']
   >;
   readonly priceLists: ReturnType<typeof priceListsModule>;
+  /** Feature 160 — the composition's queue connection, when it has one. */
+  readonly moduleQueueRedis: Redis | undefined;
+  /** Feature 160 — whether this process consumes queues (the API may not). */
+  readonly processRunsWorkers: boolean;
+  readonly priceListsSurfaceProducer: PriceSurfaceProducer;
+  /**
+   * Feature 160 — which engine the batched entry points run (`books` since the
+   * consumer phase; `legacy` remains only until the removal phase).
+   */
+  readonly priceListsPricingModel: 'legacy' | 'books';
   readonly pricingService: PricingServiceContract;
   readonly priceListService: ReturnType<typeof priceListsModule>['handle']['priceListService'];
 }
@@ -142,6 +158,13 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction((): number => DEFAULT_PRICING_CACHE_TTL_MS)
       .singleton(),
 
+    // Feature 160 — the price-book engine is the composition's engine.
+    priceListsPricingModel: ctx.asFunction((): 'legacy' | 'books' => 'books').singleton(),
+
+    priceListsSurfaceProducer: ctx
+      .asFunction(({ moduleQueueRedis }: PriceListsCradle) => createPriceSurfaceProducer(moduleQueueRedis))
+      .singleton(),
+
     priceLists: ctx
       .asFunction(
         ({
@@ -151,8 +174,14 @@ export function registerModule(ctx: ModuleContext): void {
           commandBus,
           priceListsEnableStatusSweeper,
           priceListsPricingCacheTtlMs,
+          priceListsPricingModel,
+          priceListsSurfaceProducer,
         }: PriceListsCradle) =>
           priceListsModule({
+            pricingModel: priceListsPricingModel,
+            requestSurfaceRebuild: async () => {
+              await priceListsSurfaceProducer.enqueue();
+            },
             emFactory,
             auditLogService,
             commandBus,
@@ -308,6 +337,51 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.routes(async (app) => {
     await ctx.cradle<PriceListsCradle>().priceLists.plugin(app);
   });
+
+  /**
+   * Feature 160 — the price-surface worker (`price_lists.surface`), attached with
+   * `ctx.worker` so it stops with the module, and built only where the host says
+   * this process consumes queues. The shared test server says neither: there a
+   * stale profile is rebuilt by the request that meets it.
+   */
+  ctx.routes(async (app) => {
+    const cradle = ctx.cradle<PriceListsCradle>();
+    app.addHook('onClose', () => cradle.priceListsSurfaceProducer.close());
+    startPriceSurfaceWorker({
+      processRunsWorkers: cradle.processRunsWorkers,
+      moduleQueueRedis: cradle.moduleQueueRedis,
+      rebuildStale: () =>
+        cradle.priceLists.handle.pricingEngine.usesPriceBooks
+          ? cradle.priceLists.handle.pricingEngine.priceSurface.rebuildStale()
+          : Promise.resolve(0),
+      log: ctx.log,
+      attach: (worker) => ctx.worker(worker, { logger: app.log }),
+    });
+  });
+
+  /**
+   * Feature 160 (research R9) — catalogue facts and channel currencies decide
+   * prices (category assignments, attribute values and flags, variants, a
+   * channel's currencies), so their events bump the pricing generation, which
+   * clears every process's cached prices and marks the price surface stale.
+   * `ctx.subscribe`, so nothing runs while the module is off. A product's
+   * category assignment change is a `product.updated.v1` (`changedFields:
+   * ['categoryIds']`), so no new catalogue event is needed (T080 verified).
+   */
+  for (const event of [
+    'product.created.v1',
+    'product.updated.v1',
+    'product.archived.v1',
+    'product.deleted.v1',
+    'category.updated.v1',
+    'attribute.updated.v1',
+    'sales_channels.identity_changed',
+    'sales_channels.lifecycle_changed',
+  ] as const) {
+    ctx.subscribe(event, async () => {
+      await ctx.cradle<PriceListsCradle>().priceLists.handle.pricingGeneration.bump();
+    });
+  }
 
   /**
    * Feature 160 (D-287 P1, research R3) — a price book's channel set is the

@@ -13,8 +13,7 @@ import { Product } from '../../helpers/package-entities.js';
 import { Category } from '../../helpers/package-entities.js';
 import { CustomerAccount } from '../../helpers/package-entities.js';
 import { hashPassword } from '@endora-commerce/platform/kernel';
-import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
-import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
+import { seedPriceBookSql } from '../../helpers/price-book-sql.js';
 
 /**
  * Feature 062 / T016 — tenant + channel isolation on the external catalog
@@ -152,19 +151,13 @@ describe('External catalog tenant/channel isolation (062 / T016, SC-002)', () =>
       [channel1.id, categoryCh1.id, channel2.id, categoryCh2.id],
     );
 
-    // Different org price lists for the shared SKU.
-    const priceLists = new PriceListService(() => h.em(), undefined, undefined, undefined, neighbourReadPorts(() => h.em()));
+    // Different organization price books for the shared SKU.
     const seedList = async (name: string, orgId: string, amount: string): Promise<void> => {
-      const list = await priceLists.create({
+      await seedPriceBookSql(em, {
         name,
-        type: 'base',
-        applicationRule: { kind: 'criterion', type: 'organization', values: [orgId] },
+        audience: { organizations: [orgId] },
+        rows: [{ productId: productShared.id, fixed: amount }],
       });
-      await priceLists.addProduct(list.id, productShared.id);
-      await priceLists.replaceBrackets(list.id, productShared.id, {
-        PLN: [{ minQuantity: 1, maxQuantity: null, amount }],
-      });
-      await priceLists.activate(list.id);
     };
     await seedList('Iso list org A', TEST_ORGANIZATION_ID, '50.00');
     await seedList('Iso list org B', ORG_B_ID, '40.00');

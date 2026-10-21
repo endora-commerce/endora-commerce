@@ -1,5 +1,9 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { PriceListReadPort, PriceListRecord } from '@endora-commerce/contracts';
+import type {
+  OrganizationPriceBookRecord,
+  PriceListReadPort,
+  PriceListRecord,
+} from '@endora-commerce/contracts';
 import { isOldModelList, PriceList } from '../entities/price-list.entity.js';
 
 /**
@@ -55,6 +59,58 @@ export class PriceListReadService implements PriceListReadPort {
       { orderBy: { priority: 'desc', code: 'asc' } },
     );
     return lists.filter(isOldModelList).map(toPriceListRecord);
+  }
+
+  /**
+   * Feature 160 (FR-032) — one statement: the applicable books (status active or
+   * scheduled, within their dates) with a member in the chain or the group.
+   */
+  async listForOrganization(input: {
+    organizationChain: readonly string[];
+    customerGroupId: string | null;
+  }): Promise<OrganizationPriceBookRecord[]> {
+    const chain = [...input.organizationChain];
+    if (chain.length === 0 && !input.customerGroupId) return [];
+    const rows = await this.emFactory().execute<
+      Array<{
+        id: string;
+        name: string;
+        type: string;
+        currency_code: string;
+        priority: number;
+        status: 'scheduled' | 'active';
+        organization_id: string | null;
+        customer_group_id: string | null;
+      }>
+    >(
+      `select l."id", l."name", l."type", l."currency_code", l."priority", l."status",
+              m."organization_id", m."customer_group_id"
+         from "price_lists" l
+         join "price_list_audience_members" m on m."price_list_id" = l."id"
+        where l."application_rule" is null and l."is_system" = false
+          and l."status" in ('active', 'scheduled')
+          and (l."starts_at" is null or l."starts_at" <= now())
+          and (l."ends_at" is null or l."ends_at" > now())
+          and (m."organization_id" = any(?::uuid[]) or m."customer_group_id" = ?::uuid)`,
+      [`{${chain.join(',')}}`, input.customerGroupId],
+    );
+    const byBook = new Map<string, OrganizationPriceBookRecord>();
+    for (const row of rows) {
+      const depth = row.organization_id ? chain.indexOf(row.organization_id) : null;
+      const entry: OrganizationPriceBookRecord = {
+        id: row.id,
+        name: row.name,
+        type: row.type === 'sale' ? 'sale' : 'regular',
+        currencyCode: row.currency_code.trim(),
+        priority: Number(row.priority),
+        status: row.status,
+        reason: depth === null ? 'customer_group' : depth === 0 ? 'organization' : 'ancestor',
+        depth,
+      };
+      const held = byBook.get(row.id);
+      if (!held || (entry.depth !== null && (held.depth === null || entry.depth < held.depth))) byBook.set(row.id, entry);
+    }
+    return [...byBook.values()].sort((a, b) => b.priority - a.priority || a.name.localeCompare(b.name));
   }
 }
 

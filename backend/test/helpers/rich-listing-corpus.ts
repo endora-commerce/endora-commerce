@@ -1,15 +1,12 @@
+import { ensureBaseBookSql } from './price-book-sql.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { Asset, PriceList, PriceListPriceBracket, PriceListProduct } from './package-entities.js';
+import { Asset } from './package-entities.js';
 import type { AssetRow } from './package-entities.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { Category } from './package-entities.js';
 import { GalleryItem } from './package-entities.js';
 import { GalleryItemLabel } from './package-entities.js';
 import { Product } from './package-entities.js';
-import {
-  DefaultPriceListMigrator,
-  DEFAULT_PRICE_LIST_ID,
-} from '../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
 import { TEST_ORGANIZATION_ID } from './test-actors.js';
 
 /**
@@ -43,14 +40,14 @@ import { TEST_ORGANIZATION_ID } from './test-actors.js';
  * - **a legacy `product_assets` row** on the others, so the fallback arm and
  *   its own `findByIds` run on the same page as the gallery arm.
  *
- * Priced through the seeded system Default list, because an unpriced page skips
+ * Priced by base-book rows (feature 160), because an unpriced page skips
  * the pricing resolution and would time a page the shop never serves.
  */
 
 /** How many distinct categories the corpus rotates its cards through. */
 export const RICH_CORPUS_CATEGORY_POOL = 8;
 
-/** What every card is quoted, through the seeded Default price list. */
+/** What every card is quoted: its base-book row. */
 export const RICH_CORPUS_AMOUNT = 99;
 
 /**
@@ -127,10 +124,27 @@ export async function seedRichListingCorpus(
       description: { 'en-US': `Synthetic product ${idx}.` },
       visibility: restricted ? 'organization_restricted' : 'public',
       allowedOrganizationIds: restricted ? [TEST_ORGANIZATION_ID] : [],
-      attributeValues: { defaultPrice: 10 + (i % 100) },
+      attributeValues: {},
     });
   });
   await em.persistAndFlush(products);
+  // Feature 160 — the corpus is priced by base-book rows (the legacy
+  // `defaultPrice` it carried is not a price any more, FR-018).
+  const baseBook = await ensureBaseBookSql(em);
+  await em
+    .getConnection()
+    .execute(
+      `insert into "price_list_matrix_entries" ("id", "price_list_id", "product_id", "min_quantity", "price_type", "amount", "created_at", "updated_at")
+       select gen_random_uuid(), ?, p.id, 1, 'fixed', p.amount, now(), now()
+         from unnest(?::uuid[], ?::numeric[]) as p(id, amount)`,
+      [
+        baseBook,
+        `{${products.map((p) => p.id).join(',')}}`,
+        `{${products.map(() => RICH_CORPUS_AMOUNT).join(',')}}`,
+      ],
+      'run',
+      em.getTransactionContext(),
+    );
   products.forEach((p, i) => {
     if (restrictedEvery > 0 && i % restrictedEvery === 0) restrictedProductIds.push(p.id);
   });
@@ -244,7 +258,6 @@ export async function seedRichListingCorpus(
     );
   }
 
-  await priceThroughDefaultList(em, productIds);
 
   return {
     productIds,
@@ -253,30 +266,4 @@ export async function seedRichListingCorpus(
     expectedAssetId,
     expectedCategorySlugs,
   };
-}
-
-/**
- * The channel answer every card is quoted: the seeded system Default list, one
- * bracket per product. Written as entities rather than through
- * `PriceListService` because that service is a per-product round trip and this
- * corpus is sized for a page, not for a unit test.
- */
-async function priceThroughDefaultList(em: EntityManager, productIds: string[]): Promise<void> {
-  const existing = await em.findOne(PriceList, { id: DEFAULT_PRICE_LIST_ID });
-  if (!existing) await new DefaultPriceListMigrator(() => em).seedDefault();
-  for (const productId of productIds) {
-    em.create(PriceListProduct, { priceListId: DEFAULT_PRICE_LIST_ID, productId });
-  }
-  await em.flush();
-  for (const productId of productIds) {
-    em.create(PriceListPriceBracket, {
-      priceListId: DEFAULT_PRICE_LIST_ID,
-      productId,
-      currencyCode: 'PLN',
-      minQuantity: 1,
-      maxQuantity: null,
-      amount: `${RICH_CORPUS_AMOUNT}.00`,
-    });
-  }
-  await em.flush();
 }

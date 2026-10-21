@@ -143,6 +143,8 @@ describe('155 — a refused order request leaves the basket alone and names the 
     Q = await createMinimumProduct(em, { sku: `RRB-Q-${RUN}`, nameEn: `On request ${RUN}`, namePl: `Na zapytanie ${RUN}`, channelIds: channels });
     await em.nativeUpdate(Product, { id: { $in: [A.id, D.id, K.id, U.id, Q.id] } }, { manageStock: false });
     await em.nativeUpdate(Product, { id: U.id }, { attributeValues: {} });
+    // Feature 160 — unpriced means no base-book row (the fixture writes one).
+    await em.getConnection().execute(`delete from "price_list_matrix_entries" where "product_id" = ?`, [U.id]);
     em.create(PriceDisplayModeOverride, { scope: 'product', targetId: Q.id, mode: 'none' });
     await em.flush();
 

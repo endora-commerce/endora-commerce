@@ -689,6 +689,7 @@ export class CartService {
       existing.quantity = quantity;
       existing.unitPrice = price.unitPrice;
       existing.currency = price.currency;
+      existing.priceSource = price.priceSource;
       cart.lastActivityAt = new Date();
       await em.flush();
       return;
@@ -726,6 +727,8 @@ export class CartService {
       quantity: effectiveQuantity,
       unitPrice: price.unitPrice,
       currency: price.currency,
+      // Feature 160 (FR-030) — the tier that priced the line, written with it.
+      priceSource: price.priceSource,
       ...(separate ? { createdAt: separate.createdAt } : {}),
     });
     em.persist(item);
@@ -942,6 +945,7 @@ export class CartService {
       item.quantity = quantity;
       item.unitPrice = price.unitPrice;
       item.currency = price.currency;
+      item.priceSource = price.priceSource;
     }
     cart.lastActivityAt = new Date();
     await em.flush();
@@ -1234,6 +1238,7 @@ export class CartService {
       }
       item.unitPrice = answer.unitPrice;
       item.currency = answer.currency;
+      item.priceSource = answer.priceSource;
     }
     return refused;
   }

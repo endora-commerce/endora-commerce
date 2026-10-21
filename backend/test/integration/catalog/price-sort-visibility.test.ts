@@ -124,9 +124,6 @@ describe('a price-ordered page costs a constant number of statements in page siz
     // 120 more priced products, so page sizes 5…100 are all genuinely full.
     const em = h.em();
     const { Product } = await import('../../helpers/package-entities.js');
-    const { PriceListProduct, PriceListPriceBracket } = await import(
-      '../../helpers/package-entities.js'
-    );
     const { SalesChannel } = await import(
       '@endora-commerce/platform/kernel'
     );
@@ -157,20 +154,17 @@ describe('a price-ordered page costs a constant number of statements in page siz
           retail.id,
           id,
         ]);
-      em.create(PriceListProduct, { priceListId: listId, productId: id });
     }
-    await em.flush();
+    // Rows of the fixture's channel catalogue book (feature 160).
     for (const [i, id] of ids.entries()) {
-      em.create(PriceListPriceBracket, {
-        priceListId: listId,
-        productId: id,
-        currencyCode: 'PLN',
-        minQuantity: 1,
-        maxQuantity: null,
-        amount: `${100 + i}.00`,
-      });
+      await em
+        .getConnection()
+        .execute(
+          `insert into "price_list_matrix_entries" ("id", "price_list_id", "product_id", "min_quantity", "price_type", "amount", "created_at", "updated_at")
+           values (gen_random_uuid(), ?, ?, 1, 'fixed', ?, now(), now())`,
+          [listId, id, `${100 + i}.00`],
+        );
     }
-    await em.flush();
   }, 120_000);
 
   afterAll(async () => {
@@ -215,32 +209,31 @@ describe('a price-ordered page costs a constant number of statements in page siz
 
   it('costs a price-ordered page no more than the default ordering plus a stated constant', async () => {
     // SC-003 — "plus a stated constant", and the constant is **stated**, here,
-    // rather than left as a ceiling nobody re-derives. Measured on this corpus
-    // at page 50: 13 statements for `-createdAt`, 19 for `price`. The six are
+    // rather than left as a ceiling nobody re-derives. Re-measured on the price
+    // surface (feature 160) on this corpus at page 50, with the harness's
+    // pricing caches off: 16 statements for `-createdAt`, 30 for `price`. The
+    // fourteen are
     //
-    //   1  the active price lists, for the candidate vector;
-    //   1  the merge itself (one candidate for an anonymous viewer, so the
-    //      watermark probe *is* the merge — a second statement appears only
-    //      where the viewer has more than one candidate list);
-    //   1  hydrating the ordered ids into product rows;
-    //   1  channel membership over that chunk;
-    //   2  the second pass the loop makes when a chunk comes back full and the
-    //      page is not.
+    //  10  two passes over the surface (the loop makes a second one when a
+    //      chunk comes back full and the page is not — here DELTA, restricted,
+    //      drops out of the first), each costing the channel's currencies, the
+    //      active precedence, the applicable books, the profile id and the
+    //      surface page itself;
+    //   3  hydrating each pass's ids and its channel membership (4), less the
+    //      default ordering's one product read that carries membership as a
+    //      sub-select;
+    //   1  the category display-mode overrides, which the seeded products the
+    //      price ordering leads with have and the bulk products do not.
     //
-    // Both numbers include the two statements FR-016's answer costs — the
-    // `pricing.*` setting row and its per-channel value — because the listing
-    // reports that answer on **every** response (FR-023: the storefront gates
-    // its controls on the server's answer rather than guessing the display mode
-    // it cannot see), so they are on the default page too and cancel out of the
-    // difference. They are the price of not offering a control the API refuses.
-    //
-    // None of the six is per card, which is the property that matters and which
-    // the two page sizes above assert directly.
+    // With the caches on, the precedence and the books of the profile are
+    // memoised per pricing generation, so production pays fewer. None of the
+    // fourteen is per card, which is the property that matters and which the
+    // two page sizes above assert directly.
     const priced = await statementsFor(50, 'price');
     const byDate = await statementsFor(50, '-createdAt');
     // eslint-disable-next-line no-console
     console.log(`[086] price=${priced.count} default=${byDate.count} statements at page 50`);
-    expect(priced.count - byDate.count).toBeLessThanOrEqual(8);
+    expect(priced.count - byDate.count).toBeLessThanOrEqual(14);
   });
 
   it('costs the same number of statements at page 5 and 50 with a range filter too', async () => {

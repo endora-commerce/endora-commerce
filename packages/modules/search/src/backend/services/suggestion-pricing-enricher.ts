@@ -68,6 +68,8 @@ export function createSuggestionPricingEnricher(deps: {
           organization: organization ? { id: organization.id, customerGroupId: organization.customerGroupId } : null,
           ...(organization && ctx.customerAccountId ? { customerAccountId: ctx.customerAccountId } : {}),
           salesChannel: channel,
+          // Feature 160 — the request's currency, as the result cards are priced.
+          ...(ctx.currencyCode ? { currencyCode: ctx.currencyCode } : {}),
         },
       });
     } catch (error) {

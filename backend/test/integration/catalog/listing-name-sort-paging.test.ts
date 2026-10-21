@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { PriceList, PriceListPriceBracket, PriceListProduct } from '../../helpers/package-entities.js';
+import { seedPriceBookSql } from '../../helpers/price-book-sql.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   setupBackendServer,
@@ -79,37 +79,13 @@ async function seed(em: EntityManager): Promise<void> {
     priced.push(await make(suffix, new Date(Date.UTC(2026, 0, index + 1))));
   }
 
-  const list = em.create(PriceList, {
+  await seedPriceBookSql(em, {
     id: LIST_ID,
-    code: 'zz-page-list',
-    name: 'Paging list',
-    currency: 'PLN',
-    isDefault: false,
-    priority: 0,
-    type: 'base',
-    status: 'active',
-    startsAt: null,
-    endsAt: null,
-    applicationRule: { kind: 'all' },
-    isSystem: false,
-    modifiedAt: new Date('2026-01-01T00:00:00.000Z'),
+    name: 'Paging book',
+    audience: 'everyone',
+    channelIds: [retail.id],
+    rows: priced.map((productId, index) => ({ productId, fixed: `${(index + 1) * 10}.00` })),
   });
-  await em.persistAndFlush(list);
-  for (const productId of priced) {
-    em.create(PriceListProduct, { priceListId: list.id, productId });
-  }
-  await em.flush();
-  for (const [index, productId] of priced.entries()) {
-    em.create(PriceListPriceBracket, {
-      priceListId: list.id,
-      productId,
-      currencyCode: 'PLN',
-      minQuantity: 1,
-      maxQuantity: null,
-      amount: `${(index + 1) * 10}.00`,
-    });
-  }
-  await em.flush();
 }
 
 describe('a name-ordered listing pages by the slug it is ordered by', () => {

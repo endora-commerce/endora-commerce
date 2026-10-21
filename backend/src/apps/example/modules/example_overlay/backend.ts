@@ -27,6 +27,7 @@
 
 import type { ModuleContext } from '../../../../kernel/index.js';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { PriceSource } from '@endora-commerce/contracts';
 
 /**
  * The one method this deployment intercepts on the core pricing engine.
@@ -39,7 +40,10 @@ import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
  * honest description of what a decoration does.
  */
 interface PricedLine {
+  /** The price book that priced the line (feature 160 keeps the field name). */
   readonly priceListId: string;
+  /** Feature 160 — the tier that priced it; carried through untouched. */
+  readonly source?: PriceSource;
 }
 
 interface DecoratedPricing {

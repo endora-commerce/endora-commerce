@@ -383,6 +383,35 @@ Benches (all `describe.skipIf(PERF_RUN !== 'true')`):
 | `backend/test/perf/catalog/price-sort-cost.bench.ts` | query plans of the merge, 5 000 products | plan-shape comparisons (`:17-41`) |
 | `backend/test/perf/catalog/listing-filtered-page.bench.ts`, `listing-card-reads-cost.bench.ts`, `carts/cart-routes.bench.ts` | adjacent | not pricing-specific |
 
+**SC-004 baseline (feature 160, T002).** Re-measured with `PERF_RUN=true` on
+`feat/160-pricing-model-v2` before the engine switch (old model, one developer machine, local
+PostgreSQL):
+
+| Bench | Measured |
+| --- | --- |
+| `price_lists/resolver.bench.ts` | 50 lists × 5 brackets, 200 iterations: p50 8.71 ms, p95 **12.87 ms**, p99 14.06 ms (budget 35) |
+| `catalog/listing-price-viewer-cost.bench.ts`, anonymous, page 50 | cold 15 statements / 68.9 ms; warm **12** statements, p50 23.3 ms, p95 **24.8 ms** |
+| `catalog/listing-price-viewer-cost.bench.ts`, signed-in, page 50 | cold 20 statements / 41.7 ms; warm **19** statements, p50 27.4 ms, p95 **29.3 ms** |
+| `catalog/price-sort-cost.bench.ts`, HTTP, page 50, 5 000 products | p50 28.1 ms, p95 **31.2 ms** |
+
+**SC-005 and the price-book resolver (feature 160, T088).** Measured 2026-10-22 on the price-book
+engine (same machine), `PERF_RUN=true`:
+
+| Bench | Measured |
+| --- | --- |
+| `price_lists/price-surface.bench.ts` (50 000 products, 1 000 organizations, 500 with books, 20 group books, one everyone book), first page and range page p95 | guest 4.6 / 4.9 / 5.0 ms (asc / desc / range); group-only 27.5 / 7.6 / 32.4 ms; organization product rows 18.3 / 7.3 / 18.3 ms; organization category % 18.6 / 28.3 / 17.5 ms; organization all-products % 7.5 / 6.5 / 6.2 ms — budget **150 ms** |
+| same, profile-miss page (250 products, live) | 71 ms (recorded) |
+| same, one book change until the sorted listing shows it | 51.8 s (budget 60 s) |
+| same, storage | 5 profiles, 101 205 rows, 22 MB; the synchronous first build of a profile 8.8–13.4 s (sparse) and 61.2 s (an all-products percentage) — recorded, not asserted |
+| `price_lists/book-resolver.bench.ts`, a 50-product listing page | no book p95 13.0 ms; 100 rows 11.5 ms; 1 950 rows on other products 11.1 ms (budget 60) |
+
+The all-products descending page measured 2 401.9 ms p95 before `PriceSurface` learned to skip the
+everyone stream when the buyer surface holds every product (an anti-join that can only exclude
+scanned the whole everyone surface); the fix and its statement-level test
+(`price-surface-identity.test.ts`) are part of the same change. Extrapolated storage for the
+fixture's 520 profiles — 50 all-products organizations at 50 000 rows, the rest sparse — is about
+2.6 M rows, under the 10 M of research R7, so the profile-factor task is not due.
+
 What is **not** measured (gap): catalogue scale beyond 5 000 products for the listing path; many
 (100s) active price lists with org-targeted rules (the resolver loads and evaluates all of them per
 request); category-rule-heavy configurations; multi-replica cache behaviour; typeahead and

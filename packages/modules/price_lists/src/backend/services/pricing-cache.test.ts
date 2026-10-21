@@ -131,6 +131,7 @@ describe('PricingCache — keyed by pricing profile (feature 160)', () => {
               : []),
           ];
         }
+        if (sql.includes('price_list_price_brackets')) return [];
         reads.rows += 1;
         return [
           { id: 'r-base', price_list_id: 'base', variant_id: null, product_id: 'p1', category_id: null, attribute_key: null, attribute_value: null, min_quantity: 1, max_quantity: null, price_type: 'fixed', amount: '100.0000', percent: null },
@@ -145,6 +146,7 @@ describe('PricingCache — keyed by pricing profile (feature 160)', () => {
       channelBridge: { entityIdsInChannelSubquery: () => ({ sql: 'select 1', params: [] }) },
       categoryRead: () => ({ listAssignmentsForProducts: async () => [] }) as never,
       attributeRead: () => ({ listByFlag: async () => [] }) as never,
+      variantRead: () => ({ listVariantsByProductIds: async () => [] }),
       displayModes: async () => new Map(),
       cache,
       profileMemo,

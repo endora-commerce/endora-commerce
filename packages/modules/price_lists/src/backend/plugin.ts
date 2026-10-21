@@ -148,6 +148,8 @@ export interface PriceListsModuleOptions {
    * `PricingServiceOptions`.
    */
   pricingModel?: PricingServiceOptions['model'];
+  /** Feature 160 — ask the `price_lists.surface` worker for a rebuild (best effort). */
+  requestSurfaceRebuild?: () => Promise<void>;
 }
 
 export interface PriceListsModuleHandle {
@@ -166,6 +168,8 @@ export interface PriceListsModuleHandle {
   pricingGeneration: PricingGeneration;
   /** Feature 160 — the price-book write service (base prices, books, rows, channel sets). */
   priceBookService: PriceBookService;
+  /** Feature 160 — the engine itself, for the surface worker and the subscriptions. */
+  pricingEngine: PricingService;
 }
 
 export function priceListsModule(options: PriceListsModuleOptions): {
@@ -192,6 +196,10 @@ export function priceListsModule(options: PriceListsModuleOptions): {
       },
     },
     options.pricingGenerationPublisher,
+    // Feature 160 — the writer marks the price surface stale after its commit.
+    async () => {
+      if (pricingEngine?.usesPriceBooks) await pricingEngine.priceSurface.markStale();
+    },
   );
   const priceListService = new PriceListService(
     options.emFactory,
@@ -225,6 +233,7 @@ export function priceListsModule(options: PriceListsModuleOptions): {
         : {}),
       bookCache,
       profileMemo,
+      ...(options.requestSurfaceRebuild ? { requestSurfaceRebuild: options.requestSurfaceRebuild } : {}),
     },
   );
   const pricingService: PricingServiceContract = pricingEngine;
@@ -257,6 +266,7 @@ export function priceListsModule(options: PriceListsModuleOptions): {
       buyerLinePriceService,
       pricingGeneration,
       priceBookService,
+      pricingEngine,
     },
     plugin: async (app: FastifyInstance) => {
       await registerPricingRoutes(app, {

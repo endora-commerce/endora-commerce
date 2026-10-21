@@ -19,6 +19,7 @@ import {
   DEFAULT_PRICE_LIST_ID,
 } from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
 import { SEED_PRODUCT_101_ID, SEED_PRODUCT_103_ID } from '../../helpers/seed-catalog.js';
+import { seedDefaultBracketSql } from '../../helpers/price-book-sql.js';
 
 /**
  * Issue #86, first slice — the two refusals `CartService.addItem` raised as
@@ -68,12 +69,14 @@ describe('cart line refusals carry their own code and sentence (issue #86)', () 
   describe('CART_PRODUCT_QUOTE_ONLY — a product no price list holds (issue #236)', () => {
     beforeAll(async () => {
       const em = h.em();
-      // No list for this product: the seed catalogue is priced from the
-      // catalogue attribute in a fresh test database. Asserted, not assumed —
-      // a list price would make this the case above.
+      // Feature 160 — no price book prices this product: its seeded base price
+      // is taken away here and given back after. Asserted, not assumed — a
+      // price would make this the case below.
+      await em.nativeDelete(PriceListPriceBracket, { productId: SEED_PRODUCT_103_ID });
+      await em.getConnection().execute(`delete from "price_list_matrix_entries" where "product_id" = ?`, [SEED_PRODUCT_103_ID]);
       expect(
         await em.findOne(PriceListPriceBracket, { productId: SEED_PRODUCT_103_ID }),
-        'the product must have no list price for this case to mean anything',
+        'the product must have no price for this case to mean anything',
       ).toBeNull();
       em.create(PriceDisplayModeOverride, {
         scope: 'product',
@@ -88,6 +91,7 @@ describe('cart line refusals carry their own code and sentence (issue #86)', () 
         scope: 'product',
         targetId: SEED_PRODUCT_103_ID,
       });
+      await seedDefaultBracketSql(h.em(), SEED_PRODUCT_103_ID, '39.00');
     });
 
     const add = (productId: string) =>
@@ -107,14 +111,15 @@ describe('cart line refusals carry their own code and sentence (issue #86)', () 
       expect(error.details).toEqual({ productId: SEED_PRODUCT_103_ID });
     });
 
-    it('still adds an unlisted product that is not sold on request only', async () => {
+    it('refuses an unpriced product that is not sold on request only as unpriced (160 FR-018)', async () => {
       await h.em().nativeDelete(PriceDisplayModeOverride, {
         scope: 'product',
         targetId: SEED_PRODUCT_103_ID,
       });
       try {
         const res = await add(SEED_PRODUCT_103_ID);
-        expect(res.statusCode, res.body).toBe(200);
+        expect(res.statusCode, res.body).toBe(422);
+        expect((res.json() as ErrorBody).error.code).toBe(ERROR_CODES.CART_PRODUCT_UNPRICED);
       } finally {
         const em = h.em();
         em.create(PriceDisplayModeOverride, { scope: 'product', targetId: SEED_PRODUCT_103_ID, mode: 'none' });

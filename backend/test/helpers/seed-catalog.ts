@@ -4,6 +4,7 @@ import { Category } from './package-entities.js';
 import { AttributeSetAttribute } from './package-entities.js';
 import { createAttributeFixture } from '@endora-commerce/demo-composition';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
+import { seedDefaultBracketSql } from './price-book-sql.js';
 
 // Feature 061 — attribute fixtures create the product-host Custom Field
 // definition + catalog extension pair; re-export the helpers so test files
@@ -187,6 +188,15 @@ export async function seedUs1Catalog(em: EntityManager): Promise<void> {
     attributeValues: { color: 'green', material: 'plastic', defaultPrice: 39 },
   });
   await em.persistAndFlush([exampleSimple, exampleB, exampleC]);
+  // Feature 160 — the seed products' base prices, as Default-list brackets
+  // (the PLN base book until the conversion; a suite rewriting them through
+  // `replaceBrackets` replaces them). They were priced from their legacy
+  // `defaultPrice` attribute (the old own-price arm), which is not a price any
+  // more (FR-018); the same figures stand here so every suite built on the seed
+  // keeps its prices.
+  await seedDefaultBracketSql(em, exampleSimple.id, '19.99');
+  await seedDefaultBracketSql(em, exampleB.id, '24.50');
+  await seedDefaultBracketSql(em, exampleC.id, '39.00');
 
   // --- Associations (M:N bridges authored via raw SQL to avoid a relation graph) ---
   const conn = em.getConnection();

@@ -10,7 +10,6 @@ import {
   CHANNEL_PRICES,
   DELTA,
   GAMMA,
-  GAMMA_ATTRIBUTE_PRICE,
   ORG_A_PRICES,
   ORG_B_PRICES,
   PRICE_SORT_CHANNEL,
@@ -137,18 +136,13 @@ describe('a catalogue listing is ordered by the viewer\'s own price', () => {
     // because "no price" is the absence of the value being ordered by rather
     // than a large number or a small one.
     //
-    // Its **card** still shows the attribute figure, which is spec
-    // clarification 1's recommendation taken literally: the attribute is not
-    // part of the ordering and it is not removed from the card either. The
-    // alternative — interleaving it — needs one statement across two modules'
-    // tables for a case measured at zero incidence.
+    // Since feature 160 (FR-018) the attribute is not a price anywhere: its
+    // card shows no price either.
     const asc = await list('sort=price');
     const desc = await list('sort=-price');
     expect(asc.skus[asc.skus.length - 1]).toBe(GAMMA.sku);
     expect(desc.skus[desc.skus.length - 1]).toBe(GAMMA.sku);
-    expect(asc.entries.find((e) => e.sku === GAMMA.sku)?.price?.amount).toBe(
-      GAMMA_ATTRIBUTE_PRICE,
-    );
+    expect(asc.entries.find((e) => e.sku === GAMMA.sku)?.price ?? null).toBeNull();
   });
 
   it('excludes the unpriced product from a price range, in every ordering', async () => {

@@ -52,6 +52,7 @@ import type {
   InvoicePdfPort,
   InvoiceReadPort,
   LinePricePort,
+  LinePricesPort,
   OrderStatusRegistry,
   OrderTransitionPort,
   OrganizationDetailsPort,
@@ -128,7 +129,7 @@ export interface OrdersModuleOptions {
    * catalogue's legacy `defaultPrice` attribute. Absence is now a `lazyPort`
    * gate that throws `MODULE_DISABLED`, which nothing can mistake for a price.
    */
-  pricingService: LinePricePort;
+  pricingService: LinePricePort & LinePricesPort;
   /**
    * Feature 038 (US3) — the org address book. The admin create-order flow and
    * the external intake persist (and clean up) addresses typed inline on the

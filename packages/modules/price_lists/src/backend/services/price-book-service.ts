@@ -317,7 +317,9 @@ export class PriceBookService {
       channels: channels
         .map((c) => ({
           channelId: c.id,
-          dormant: !c.currencies.map((x) => x.toUpperCase()).includes(book.currency.toUpperCase()),
+          dormant: ![...c.currencies, c.defaultCurrency]
+            .map((x) => x.toUpperCase())
+            .includes(book.currency.toUpperCase()),
         }))
         .sort((a, b) => (a.channelId < b.channelId ? -1 : 1)),
     };
@@ -458,7 +460,7 @@ export class PriceBookService {
         issues.push({ path: ['channelIds', String(i)], message: `Sales channel ${id} does not exist.` });
         return;
       }
-      if (!channel.currencies.map((c) => c.toUpperCase()).includes(currencyCode.toUpperCase())) {
+      if (![...channel.currencies, channel.defaultCurrency].map((c) => c.toUpperCase()).includes(currencyCode.toUpperCase())) {
         issues.push({
           path: ['channelIds', String(i)],
           message: `Sales channel ${channel.code} does not offer ${currencyCode.toUpperCase()}.`,

@@ -2,6 +2,8 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import {
   ERROR_CODES,
+  listingCurrencyQuerySchema,
+  resolveListingCurrency,
   RecordPhraseRequestSchema,
   SearchSuggestQuerySchema,
   SEARCH_PHRASE_MAX_LENGTH,
@@ -90,6 +92,11 @@ export type SuggestionPricingEnricher = (
      * overrides the organisation's; null for guests.
      */
     customerAccountId?: string | null;
+    /**
+     * Feature 160 — the currency the request is priced in (`?currency=`, else
+     * the channel's default), so a suggestion quotes what its card quotes.
+     */
+    currencyCode?: string;
   },
 ) => Promise<SearchSuggestItem[]>;
 
@@ -187,10 +194,16 @@ export async function registerSearchPublicRoutes(
       if (enrichSuggestionPricing) {
         const { organizationId, customerAccountId } = customerOf(request);
         try {
+          const requested = (request.query as Record<string, unknown> | undefined)?.['currency'];
+          const currencyCode = resolveListingCurrency(
+            requested === undefined ? undefined : listingCurrencyQuerySchema.parse(requested),
+            getResolvedChannel(request),
+          );
           const enriched = await enrichSuggestionPricing(result.data, {
             resolvedChannel: ctx.resolvedChannel,
             organizationId,
             customerAccountId,
+            currencyCode,
           });
           return {
             data: enriched,

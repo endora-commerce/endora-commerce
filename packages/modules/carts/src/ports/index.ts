@@ -147,4 +147,6 @@ export interface CartLinePriceDrift {
   /** Decimal string — the price it may be ordered at now; `null` when it may not be ordered. */
   currentUnitPrice: string | null;
   currentCurrency: string | null;
+  /** Feature 160 (FR-030) — the tier that prices the line now; `null` when it may not be ordered. */
+  currentPriceSource?: 'agreed' | 'base' | 'catalogue' | 'buyer' | 'sale' | null;
 }

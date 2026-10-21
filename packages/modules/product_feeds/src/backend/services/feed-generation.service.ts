@@ -72,20 +72,28 @@ const HYDRATE_BATCH_SIZE = 500;
 
 const STOREFRONT_URL_SETTING = 'sales_channels.storefront_url';
 
-/** Resolves a product's unit price from a specific price list (FR-020, verbatim). */
+/**
+ * The unit prices a pinned price book gives a batch of products (FR-020, and
+ * feature 160's FR-029: the book's rows over the channel's catalogue price).
+ * Unpriced products are absent.
+ */
 export type NamedListPriceResolver = (input: {
   priceListId: string;
-  productId: string;
+  productIds: readonly string[];
   currencyCode: string;
-}) => Promise<number | null>;
+  salesChannelId: string;
+}) => Promise<Map<string, number>>;
 
-/** Resolves the anonymous channel price — organization-less, the storefront's own path. */
+/**
+ * The anonymous channel price of a batch of products — organization-less, the
+ * storefront's own path — in one batched resolution (feature 160: it was one
+ * resolution per product). Unpriced products are absent.
+ */
 export type AnonymousPriceResolver = (input: {
-  product: CatalogProductRecord;
-  variantId: string | null;
+  products: readonly CatalogProductRecord[];
   salesChannel: { id: string; defaultCurrency: string };
   currencyCode: string;
-}) => Promise<{ amount: number; isSale: boolean } | null>;
+}) => Promise<Map<string, { amount: number; isSale: boolean }>>;
 
 /** Percentage VAT rate for a country, or null when no rule and no default matched. */
 export type TaxRateResolver = (input: {
@@ -737,6 +745,9 @@ export class FeedGenerationService {
       variantsByProduct.set(variant.parentProductId, list);
     }
 
+    // Feature 160 — the batch's prices in one resolution, not one per product.
+    const netByProduct = await this.netPrices(products, prepared);
+
     const out: FeedItemSource[] = [];
     for (const product of products) {
       const productCategoryIds = categoryRows
@@ -760,7 +771,7 @@ export class FeedGenerationService {
         .map((r) => publicUrls.get(r.assetId))
         .filter((url): url is string => typeof url === 'string');
       const privateImageCount = productGallery.length - images.length;
-      const price = await this.resolvePrice(product, null, prepared);
+      const price = await this.priceOf(product, netByProduct.get(product.id) ?? null, prepared);
       const stock = availability.get(product.id) ?? null;
 
       const base: Omit<FeedItemSource, 'variantId' | 'sku' | 'groupingId'> = {
@@ -822,34 +833,35 @@ export class FeedGenerationService {
     return best;
   }
 
-  private async resolvePrice(
+  /** The net unit price of every product of a batch: the pinned book verbatim, else the channel's. */
+  private async netPrices(
+    products: readonly CatalogProductRecord[],
+    prepared: FeedItemHydrationScope,
+  ): Promise<Map<string, number>> {
+    const currencyCode = prepared.context.currencyCode;
+    if (prepared.context.priceListId) {
+      // A named list is used verbatim (FR-020) — no buyer is resolved, so the
+      // operator gets exactly the prices they pointed at.
+      return this.deps.resolveNamedListPrice({
+        priceListId: prepared.context.priceListId,
+        productIds: products.map((p) => p.id),
+        currencyCode,
+        salesChannelId: prepared.salesChannelId,
+      });
+    }
+    const resolved = await this.deps.resolveAnonymousPrice({
+      products,
+      salesChannel: { id: prepared.salesChannelId, defaultCurrency: prepared.channelDefaultCurrency },
+      currencyCode,
+    });
+    return new Map([...resolved].map(([id, price]) => [id, price.amount]));
+  }
+
+  private async priceOf(
     product: CatalogProductRecord,
-    variantId: string | null,
+    net: number | null,
     prepared: FeedItemHydrationScope,
   ): Promise<FeedItemPrice | null> {
-    const currencyCode = prepared.context.currencyCode;
-    let net: number | null = null;
-
-    if (prepared.context.priceListId) {
-      // A named list is used verbatim (FR-020) — no rule evaluation, so the
-      // operator gets exactly the prices they pointed at.
-      net = await this.deps.resolveNamedListPrice({
-        priceListId: prepared.context.priceListId,
-        productId: product.id,
-        currencyCode,
-      });
-    } else {
-      const resolved = await this.deps.resolveAnonymousPrice({
-        product,
-        variantId,
-        salesChannel: {
-          id: prepared.salesChannelId,
-          defaultCurrency: prepared.channelDefaultCurrency,
-        },
-        currencyCode,
-      });
-      net = resolved ? resolved.amount : null;
-    }
     if (net === null) return null;
 
     if (prepared.context.pricePresentation === 'net') {

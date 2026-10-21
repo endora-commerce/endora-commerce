@@ -509,17 +509,13 @@ export function registerModule(ctx: ModuleContext): void {
             ),
             effectivePriceListsService: new OrganizationEffectivePriceListsService({
               emFactory,
-              // D-48 — this was `?? 'default'`, a channel *code* landing in
-              // `ResolutionContext.salesChannelId`, which the price-list
-              // evaluator compares against channel **uuids**. On the fallback
-              // branch every `salesChannel` criterion therefore evaluated false
-              // and the panel reported channel-scoped lists as not applying.
-              // The branch cannot be taken, so the fallback goes with it.
-              resolveDefaultSalesChannelId: async () =>
-                (await cradle().salesChannelResolutionPort.getSystemDefault()).id,
-              // Feature 075, Phase C — `price_lists`' own `listActive`, where
-              // this service used to run `em.find(PriceList, …)` against that
-              // module's table and spell the status filter itself.
+              // Feature 160 — the chain pricing reads (this module's own
+              // inheritance service), passed to `listForOrganization`.
+              resolveOrgChain: (organizationId) =>
+                cradle().organizationInheritancePort.priceListOrgChain(organizationId),
+              // Feature 075, Phase C; feature 160 — `price_lists`' own answer
+              // (`listForOrganization`), where this service used to evaluate the
+              // old Application rule itself.
               priceListRead: lazyPort<PriceListReadPort>(ctx, 'priceListReadPort'),
             }),
             taxIdValidationService: new OrganizationTaxIdValidationService({

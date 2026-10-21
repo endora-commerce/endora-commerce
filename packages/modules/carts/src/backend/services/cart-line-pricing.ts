@@ -25,18 +25,13 @@ import { SalesChannel } from '@endora-commerce/platform/kernel';
  *     agreed for. It holds only while the line holds that quantity; at any other
  *     quantity the line is priced like any other, and it gets the agreed price
  *     back if it returns to the agreed quantity.
- *  2. **The price list**, at the line's quantity — so a quantity-tier bracket
- *     applies to the quantity actually ordered.
- *  3. **The Product's own price** (the `defaultPrice` / `price` attribute) when
- *     no list applies — the second step of the catalogue's pricing chain
- *     (issue #132), which is what the storefront lists the product at. It is in
- *     the basket channel's default currency, as the listing chain labels it
- *     (`price_lists`' `listingPriceFrom`); it used to be labelled `PLN` whatever
- *     the channel (D-287 P0, issue #303's cart half), so on a EUR channel the
- *     card said 100 EUR and the cart line 100 PLN. A basket whose channel is
- *     gone has no currency to claim for the attribute and is unpriced.
- *  4. **Nothing.** A product nobody priced is not orderable; it used to become a
- *     line at `0.00`.
+ *  2. **The price books**, at the line's quantity and for the line's variant —
+ *     base → catalogue → buyer, then a sale when lower (feature 160). The tier
+ *     that priced the line is what the line records as its price source.
+ *  3. **Nothing.** A line no tier prices is not orderable (FR-018). The
+ *     Product's own legacy price (`defaultPrice`) stood in here until feature
+ *     160; it is not a price, and the line follows the quote-only path instead.
+ *     It used to become a line at `0.00` before that.
  *
  * A product sold on request only (display mode `none`) is not orderable outside
  * an agreement either.
@@ -74,7 +69,18 @@ export interface CartLinePriceInput {
 }
 
 export type CartLinePriceAnswer =
-  | { ok: true; unitPrice: string; currency: string; source: 'agreed' | 'price_list' | 'product' }
+  | {
+      ok: true;
+      unitPrice: string;
+      currency: string;
+      source: 'agreed' | 'price_list';
+      /**
+       * Feature 160 (FR-030) — what the line records as `cart_items.price_source`:
+       * `agreed`, or the price-book tier that priced it; `null` when the engine
+       * named none.
+       */
+      priceSource: 'agreed' | 'base' | 'catalogue' | 'buyer' | 'sale' | null;
+    }
   | { ok: false; reason: 'unpriced' | 'quote_only' };
 
 export class CartLinePricing {
@@ -94,8 +100,7 @@ export class CartLinePricing {
    * The channel and buyer every line of one cart is priced for, resolved once.
    * `salesChannelId` is the basket's channel; there is no fallback to the system
    * default, so a basket is never priced for a store it is not used on. A
-   * channel that no longer exists prices nothing from a list, which leaves the
-   * Product's own price or "unpriced" — never another channel's list.
+   * channel that no longer exists prices nothing — never another channel's list.
    */
   async contextFor(
     em: EntityManager,
@@ -143,7 +148,7 @@ export class CartLinePricing {
     const toResolve: Array<CartLinePriceInput & { key: string }> = [];
     for (const line of lines) {
       const agreed = agreedUnitPriceFor(line.quantity, line.agreed ?? null);
-      if (agreed) out.set(line.key, { ok: true, ...agreed, source: 'agreed' });
+      if (agreed) out.set(line.key, { ok: true, ...agreed, source: 'agreed', priceSource: 'agreed' });
       else toResolve.push(line);
     }
     if (toResolve.length === 0) return out;
@@ -192,22 +197,14 @@ export class CartLinePricing {
           unitPrice: Number(price.amount).toFixed(2),
           currency: price.currency,
           source: 'price_list',
+          priceSource: price.source ?? null,
         });
         continue;
       }
-      const own = productOwnUnitPrice(line.product.attributeValues);
-      // The attribute carries no currency; the basket channel's default is the
-      // only one it was ever entered in (D-287 P0 — it used to read `PLN`).
-      if (own === null || !ctx.channel) {
-        out.set(line.key, { ok: false, reason: 'unpriced' });
-        continue;
-      }
-      out.set(line.key, {
-        ok: true,
-        unitPrice: own,
-        currency: ctx.channel.defaultCurrency.toUpperCase(),
-        source: 'product',
-      });
+      // Feature 160 (FR-018) — a line no tier prices is unpriced. The product's
+      // legacy own price (`defaultPrice`) used to stand in here; it is not a
+      // price, and the line follows the quote-only path instead.
+      out.set(line.key, { ok: false, reason: 'unpriced' });
     }
     return out;
   }
@@ -225,19 +222,6 @@ export function agreedUnitPriceFor(
   return { unitPrice: Number(agreed.unitPrice).toFixed(2), currency: agreed.currency };
 }
 
-/**
- * The Product's own price — the legacy `defaultPrice` (and older `price`)
- * attribute — or `null` when it carries no non-negative number. Zero is a price
- * an operator entered and stays one.
- */
-export function productOwnUnitPrice(attributeValues: Record<string, unknown>): string | null {
-  const raw = attributeValues['defaultPrice'] ?? attributeValues['price'];
-  if (typeof raw !== 'number' && typeof raw !== 'string') return null;
-  if (typeof raw === 'string' && raw.trim() === '') return null;
-  const value = Number(raw);
-  if (!Number.isFinite(value) || value < 0) return null;
-  return value.toFixed(2);
-}
 
 /** Whether a stored line price is not the price the line may be ordered at now. */
 export function storedPriceDiffers(

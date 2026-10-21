@@ -7,12 +7,7 @@ import {
 import { ANONYMOUS_PRODUCT_AUDIENCE } from '@endora-commerce/contracts';
 import { Product, type ProductRow } from '../../helpers/package-entities.js';
 import { ProductLinkService } from '../../../../packages/modules/catalog/dist/backend/services/product-link.service.js';
-import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
-import {
-  DefaultPriceListMigrator,
-  DEFAULT_PRICE_LIST_ID,
-} from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
-import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
+import { ensureBaseBookSql, seedBasePriceSql } from '../../helpers/price-book-sql.js';
 
 /**
  * Issue #132 — a related / up-sell / cross-sell tile prices through
@@ -57,7 +52,7 @@ describe('product link tile price source (#132)', () => {
       .execute(
         `truncate table "price_list_price_brackets", "price_list_products", "price_lists" cascade`,
       );
-    await new DefaultPriceListMigrator(h.em).seedDefault();
+    await ensureBaseBookSql(h.em());
   });
 
   async function makeProduct(attributeValues: Record<string, unknown>): Promise<ProductRow> {
@@ -90,11 +85,7 @@ describe('product link tile price source (#132)', () => {
       { targetProductId: target.id, kind: 'cross_sell' },
     ]);
     if (listAmount !== null) {
-      const lists = new PriceListService(h.em, undefined, undefined, undefined, neighbourReadPorts(h.em));
-      await lists.addProduct(DEFAULT_PRICE_LIST_ID, target.id);
-      await lists.replaceBrackets(DEFAULT_PRICE_LIST_ID, target.id, {
-        PLN: [{ minQuantity: 1, maxQuantity: null, amount: listAmount }],
-      });
+      await seedBasePriceSql(h.em(), target.id, listAmount);
     }
     const rows = await svc.listForStorefront(source.id, {
       resolvedChannel: {
@@ -111,7 +102,7 @@ describe('product link tile price source (#132)', () => {
     return rows.find((r) => r.product.id === target.id)?.product.price ?? null;
   }
 
-  it('quotes the price list amount, not the catalogue attribute', async () => {
+  it('quotes the base book amount, not the catalogue attribute', async () => {
     expect(await tilePrice({ defaultPrice: 19.99 }, '88.00')).toEqual({
       amount: 88,
       currency: 'PLN',
@@ -125,11 +116,8 @@ describe('product link tile price source (#132)', () => {
     });
   });
 
-  it("falls back to the Product's own price when no list prices it", async () => {
-    expect(await tilePrice({ defaultPrice: 19.99 }, null)).toEqual({
-      amount: 19.99,
-      currency: 'PLN',
-    });
+  it('renders no price from the attribute on the Product when no book prices it (160 FR-018)', async () => {
+    expect(await tilePrice({ defaultPrice: 19.99 }, null)).toBeNull();
   });
 
   it('renders no price when neither a list nor the Product carries one', async () => {

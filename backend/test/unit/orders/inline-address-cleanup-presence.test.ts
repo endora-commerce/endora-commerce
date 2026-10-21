@@ -169,8 +169,10 @@ describe('OrderApiIntakeService — inline-address cleanup', () => {
       salesChannelMembership: {
         listChannelsForEntity: async () => [{ id: CHANNEL_ID }],
       } as never,
+      // Feature 160 — the intake prices its lines in one batched resolution.
       pricingService: {
-        resolveLinePrice: async () => ({ unitPrice: '10.00' }),
+        resolveLinePrices: async (input: { lines: Array<{ key: string }> }) =>
+          new Map(input.lines.map((line) => [line.key, { amount: '10.0000', currency: 'PLN' }])),
       } as never,
     });
 

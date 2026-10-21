@@ -87,7 +87,7 @@ function deps(overrides: Partial<FeedGenerationDeps>): FeedGenerationDeps {
     catalogGallery: { listForProducts: async () => [] as CatalogGalleryBatchItem[] },
     resolvePublicImageUrls: async () => new Map<string, string>(),
     resolveAvailability: async () => new Map(),
-    resolveAnonymousPrice: async () => null,
+    resolveAnonymousPrice: async () => new Map(),
     ...overrides,
   } as unknown as FeedGenerationDeps;
 }

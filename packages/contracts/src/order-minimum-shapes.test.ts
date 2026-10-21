@@ -169,12 +169,13 @@ describe('checkout preview', () => {
 });
 
 describe('admin order preview', () => {
-  it('appends BELOW_MINIMUM_QUANTITY last and keeps the first four in order', () => {
+  it('keeps BELOW_MINIMUM_QUANTITY last, after the pricing codes (UNPRICED since feature 160)', () => {
     expect(ADMIN_ORDER_PREVIEW_MESSAGE_PRECEDENCE).toEqual([
       'PRODUCT_NOT_FOUND',
       'PRODUCT_NOT_VISIBLE_TO_CUSTOMER',
       'PRODUCT_NOT_IN_SALES_CHANNEL',
       'QUOTE_ONLY',
+      'UNPRICED',
       'BELOW_MINIMUM_QUANTITY',
     ]);
   });

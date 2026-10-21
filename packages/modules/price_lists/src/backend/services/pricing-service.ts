@@ -60,6 +60,7 @@ import {
   type ListingAnswer,
 } from './book-pricing.js';
 import type { PricingProfile, ProfileMemoKey } from './pricing-profile.js';
+import { PriceSurface } from './price-surface.js';
 import { effectiveCustomerGroupId } from './customer-group-rule.js';
 import type {
   LinePricesInput,
@@ -214,6 +215,8 @@ export interface PricingServiceOptions {
   bookCache?: PricingCache<BookLineAnswer, ProfilePricingCacheKey>;
   /** The profile memo, per organization chain, group, channel and currency. */
   profileMemo?: PricingCache<PricingProfile, ProfileMemoKey>;
+  /** Ask the `price_lists.surface` worker to rebuild stale profiles (best effort). */
+  requestSurfaceRebuild?: () => Promise<void>;
 }
 
 export class PricingService implements PricingServiceContract {
@@ -249,6 +252,37 @@ export class PricingService implements PricingServiceContract {
   ) {}
 
   #books: BookPricing | undefined;
+  #surface: PriceSurface | undefined;
+
+  /** The price surface over the price-book engine (feature 160, research R7). */
+  get priceSurface(): PriceSurface {
+    this.#surface ??= new PriceSurface({
+      emFactory: this.emFactory,
+      books: this.bookPricing,
+      listProducts: () => this.#productRead().listAll(),
+      productsByIds: (ids) => this.#productRead().findByIds(ids),
+      ...(this.options.requestSurfaceRebuild ? { requestRebuild: this.options.requestSurfaceRebuild } : {}),
+    });
+    return this.#surface;
+  }
+
+  /** The viewer the price-book engine reads, from a listing context. */
+  async #bookViewer(context: ListingPriceViewerContext): Promise<{
+    organizationId: string | null;
+    customerGroupId: string | null;
+    signedIn: boolean;
+    salesChannelId: string;
+    currencyCode: string;
+  }> {
+    const viewer = await this.#viewer(context);
+    return {
+      organizationId: viewer.organization?.id ?? null,
+      customerGroupId: viewer.customerGroupId,
+      signedIn: viewer.organization !== null,
+      salesChannelId: viewer.salesChannel.id,
+      currencyCode: viewer.currencyCode,
+    };
+  }
 
   /** Whether the batched entry points resolve on price books (feature 160). */
   get usesPriceBooks(): boolean {
@@ -731,15 +765,7 @@ export class PricingService implements PricingServiceContract {
       salesChannel: { id: string; defaultCurrency: string };
       currencyCode?: string;
     };
-  }): Promise<{
-    amount: string;
-    currency: string;
-    priceListId: string;
-    isSale: boolean;
-    bracketStartQuantity: number;
-    displayMode: DisplayMode;
-    matrixEntryId?: string | null;
-  } | null> {
+  }): Promise<PricingLineResult | null> {
     if (this.usesPriceBooks) {
       // Feature 160 — a wrapper over the batch of one.
       const answers = await this.#bookAnswers(
@@ -1169,6 +1195,10 @@ export class PricingService implements PricingServiceContract {
    * reused rather than re-read.
    */
   async orderByUnitPrice(input: ListingPriceOrderQuery): Promise<ListingPriceOrderChunk> {
+    if (this.usesPriceBooks) {
+      // Feature 160 — served from the price surface (`price-surface.ts`).
+      return this.priceSurface.orderByUnitPrice(input, await this.#bookViewer(input.context));
+    }
     const empty: ListingPriceOrderChunk = { rows: [], exhausted: true, sourceRowsRead: 0 };
     if (input.limit <= 0) return { rows: [], exhausted: false, sourceRowsRead: 0 };
     // An empty restriction means "nothing", which is a different answer from
@@ -1275,6 +1305,9 @@ export class PricingService implements PricingServiceContract {
   }): Promise<ReadonlySet<string>> {
     const out = new Set<string>();
     if (input.productIds.length === 0) return out;
+    if (this.usesPriceBooks) {
+      return this.priceSurface.pricedProductIds(input.productIds, await this.#bookViewer(input.context));
+    }
     const em = this.emFactory();
     const currencyCode = this.#listingCurrency(input.context);
     const streams = await this.#candidateStreams(em, input.context, currencyCode, input.productIds);
@@ -1571,9 +1604,24 @@ export class PricingService implements PricingServiceContract {
     priceListId: string;
     currencyCode: string;
     productIds: readonly string[];
+    /** Feature 160 — the feed's channel, whose catalogue price the book's rows are taken off. */
+    salesChannelId?: string;
   }): Promise<Map<string, string>> {
     const out = new Map<string, string>();
     if (input.productIds.length === 0) return out;
+    if (this.usesPriceBooks) {
+      // Feature 160 (FR-029) — the book's rows over the channel's catalogue price.
+      if (!input.salesChannelId) {
+        throw new Error('PricingService.namedListPrices: a price book is read on a sales channel; none was named.');
+      }
+      const products = await this.#productRead().findByIds([...new Set(input.productIds)]);
+      return this.bookPricing.namedBookPrices({
+        bookId: input.priceListId,
+        salesChannelId: input.salesChannelId,
+        currencyCode: input.currencyCode,
+        products,
+      });
+    }
     const em = this.emFactory();
     const placeholders = input.productIds.map(() => '?').join(',');
     const rows = await em.getConnection().execute<Array<{ product_id: string; amount: string }>>(
@@ -1608,7 +1656,7 @@ export class PricingService implements PricingServiceContract {
       // buyer's applies at resolves to its predecessor's price), so neither
       // the channel nor the audience is narrowed. One statement.
       const rows = await em.execute<Array<{ min_quantity: number | string }>>(
-        `select distinct e."min_quantity"
+        `select e."min_quantity"
            from "price_list_matrix_entries" e
            join "price_lists" l on l."id" = e."price_list_id"
           where l."currency_code" = ?
@@ -1620,8 +1668,15 @@ export class PricingService implements PricingServiceContract {
                      and l."status" in ('active', 'scheduled')
                      and (l."starts_at" is null or l."starts_at" <= now())
                      and (l."ends_at" is null or l."ends_at" > now())))
-          order by e."min_quantity" asc`,
-        [currencyCode.toUpperCase(), productId, variantId ?? null],
+         union
+         -- Transition: the old Default list's brackets are base tiers until
+         -- the conversion migration copies them into the base books.
+         select b."min_quantity"
+           from "price_list_price_brackets" b
+          where b."price_list_id" = '00000000-0000-4000-8000-00000000d51b'
+            and b."currency_code" = ? and b."product_id" = ?
+          order by "min_quantity" asc`,
+        [currencyCode.toUpperCase(), productId, variantId ?? null, currencyCode.toUpperCase(), productId],
       );
       return [...new Set(rows.map((r) => Number(r.min_quantity)))].sort((a, b) => a - b);
     }

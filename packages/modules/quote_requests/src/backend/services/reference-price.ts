@@ -37,6 +37,13 @@ export interface ReferencePriceRequest {
   lines: readonly ReferencePriceLine[];
   /** Index-aligned with `lines`; a non-`null` entry is used as is and not resolved. */
   supplied?: ReadonlyArray<LineReference | null>;
+  /**
+   * Feature 160 — the currency the request is priced in. A quote request carries
+   * no currency of its own today (issue #303's quote-line half), so callers
+   * omit it and the reference is in the channel's default currency, which is the
+   * request's currency.
+   */
+  currencyCode?: string;
 }
 
 /**
@@ -86,6 +93,7 @@ export async function resolveReferencePrices(
           organizationId: request.owner.organizationId,
         },
         salesChannelId: request.salesChannelId,
+        ...(request.currencyCode ? { currencyCode: request.currencyCode } : {}),
         lines: chunk.map(({ line, index }) => ({
           key: String(index),
           productId: line.productId,

@@ -18,12 +18,7 @@ import {
   OrganizationSalesRepAssignment,
 } from '../../helpers/package-entities.js';
 import { ensureSalesChannel } from '../../helpers/sales-channel-fixtures.js';
-import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
-import {
-  DefaultPriceListMigrator,
-  DEFAULT_PRICE_LIST_ID,
-} from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
-import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
+import { seedBasePriceSql, seedPriceBookSql } from '../../helpers/price-book-sql.js';
 
 /**
  * Admin resolver endpoint for customer-specific pricing.
@@ -51,12 +46,7 @@ describe('Admin resolved-price endpoint', () => {
       .execute(
         `truncate table "price_list_price_brackets", "price_list_products", "price_lists" cascade`,
       );
-    await new DefaultPriceListMigrator(h.em).seedDefault();
-    const svc = new PriceListService(h.em, undefined, undefined, undefined, neighbourReadPorts(h.em));
-    await svc.addProduct(DEFAULT_PRICE_LIST_ID, SEED_PRODUCT_101_ID);
-    await svc.replaceBrackets(DEFAULT_PRICE_LIST_ID, SEED_PRODUCT_101_ID, {
-      PLN: [{ minQuantity: 1, maxQuantity: null, amount: '199.0000' }],
-    });
+    await seedBasePriceSql(h.em(), SEED_PRODUCT_101_ID, '199.0000');
   });
 
   it('resolves the unit price for a customer + product', async () => {
@@ -76,44 +66,6 @@ describe('Admin resolved-price endpoint', () => {
     expect(body.data.resolvedPrice?.currency).toBe('PLN');
   });
 
-  /**
-   * Feature 148 / FR-020 — the probe names the matrix entry that priced the
-   * line, and `null` for a line a stored bracket priced.
-   */
-  it('names the matrix entry that priced the line, and null for a bracket price', async () => {
-    const probe = async () => {
-      const res = await h.app.inject({
-        method: 'GET',
-        url:
-          `/api/v1/admin/products/${SEED_PRODUCT_101_ID}/resolved-price` +
-          `?organizationId=${TEST_ORGANIZATION_ID}&quantity=1`,
-        cookies: ADMIN_COOKIE,
-      });
-      expect(res.statusCode).toBe(200);
-      return (res.json() as {
-        data: { resolvedPrice: { amount: string; priceListId: string; matrixEntryId: string | null } };
-      }).data.resolvedPrice;
-    };
-    expect((await probe()).matrixEntryId).toBeNull();
-
-    const created = await h.app.inject({
-      method: 'POST',
-      url: `/api/v1/admin/price-lists-engine/${DEFAULT_PRICE_LIST_ID}/matrix`,
-      cookies: ADMIN_COOKIE,
-      payload: {
-        organizationId: TEST_ORGANIZATION_ID,
-        minQuantity: 1,
-        price: { type: 'discount_percent', percent: '10' },
-      },
-    });
-    expect(created.statusCode).toBe(201);
-    const entryId = (created.json() as { data: { id: string } }).data.id;
-    const priced = await probe();
-    expect(priced.matrixEntryId).toBe(entryId);
-    expect(Number(priced.amount)).toBeCloseTo(179.1, 4);
-    expect(priced.priceListId).toBe(DEFAULT_PRICE_LIST_ID);
-  });
-
   it('returns 404 for an unknown product', async () => {
     const res = await h.app.inject({
       method: 'GET',
@@ -128,7 +80,7 @@ describe('Admin resolved-price endpoint', () => {
  * Feature 146, Phase 4 (T020) — the probe on a sales channel, and its authority.
  *
  * `salesChannelId` resolves on that channel (US1 #4b: 120.00 on channel A, the
- * system default list's 130.00 everywhere else). The probe also answers only
+ * base book's 130.00 everywhere else). The probe also answers only
  * about organizations the caller may see (threat model T8, decision D-3M): a
  * sales representative asking about an organization they are not assigned to —
  * by `organizationId` or through a customer account of it — is refused with the
@@ -180,31 +132,17 @@ describe('Admin resolved-price endpoint — channel and authority (feature 146)'
     // `setupBackendServer` has just emptied the price tables (`price_lists` is
     // a seeded table, truncated with cascade), so this block adds its lists
     // and wipes nothing (`check-shared-table-wipes`).
-    await new DefaultPriceListMigrator(h.em).seedDefault();
-    const lists = new PriceListService(
-      h.em,
-      undefined,
-      undefined,
-      undefined,
-      neighbourReadPorts(h.em),
-    );
-    await lists.addProduct(DEFAULT_PRICE_LIST_ID, SEED_PRODUCT_101_ID);
-    await lists.replaceBrackets(DEFAULT_PRICE_LIST_ID, SEED_PRODUCT_101_ID, {
-      PLN: [{ minQuantity: 1, maxQuantity: null, amount: '130.0000' }],
-    });
+    await seedBasePriceSql(em, SEED_PRODUCT_101_ID, '130.0000');
 
     const channelA = await ensureSalesChannel(em, `pl146_channel_a`);
     channelAId = channelA.id;
-    const channelList = await lists.create({
+    // A channel catalogue book bound to channel A only (feature 160 US3).
+    await seedPriceBookSql(em, {
       name: 'Feature 146 channel A',
-      type: 'base',
-      applicationRule: { kind: 'criterion', type: 'salesChannel', values: [channelAId] },
+      audience: 'everyone',
+      channelIds: [channelAId],
+      rows: [{ productId: SEED_PRODUCT_101_ID, fixed: '120.0000' }],
     });
-    await lists.addProduct(channelList.id, SEED_PRODUCT_101_ID);
-    await lists.replaceBrackets(channelList.id, SEED_PRODUCT_101_ID, {
-      PLN: [{ minQuantity: 1, maxQuantity: null, amount: '120.0000' }],
-    });
-    await lists.activate(channelList.id);
 
     // The admin scope keys on this exact role code and the row is shared with
     // every other file in the run: widen it with the one code these cases need.

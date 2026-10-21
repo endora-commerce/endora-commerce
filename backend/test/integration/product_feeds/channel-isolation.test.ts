@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync } from 'node:fs';
-import { PriceList, PriceListPriceBracket, PriceListProduct } from '../../helpers/package-entities.js';
+import { seedPriceBookSql } from '../../helpers/price-book-sql.js';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -140,37 +140,14 @@ describe('product feed channel isolation [integration]', () => {
       [closingChannelId, ONLY_A_ID],
     );
 
-    // One price list covering everything, named by every feed here, so an
+    // One price book covering everything, named by every feed here, so an
     // absent price can never be mistaken for channel scoping doing its job.
-    // Catch-all rather than `isSystem` (issue #50): the system flag marks the
-    // platform's one seeded `Default` row and is now a database singleton.
-    const priceList = em.create(PriceList, {
-      code: 'feed_isolation_list',
-      name: 'Feed isolation list',
-      currency: 'PLN',
-      type: 'base',
-      status: 'active',
-      applicationRule: { kind: 'all' },
-      modifiedAt: new Date(),
-    });
-    await em.persistAndFlush(priceList);
-    priceListId = priceList.id;
-
     const allProducts = await em.find(Product, { status: 'active' });
-    for (const product of allProducts) {
-      em.create(PriceListProduct, { priceListId, productId: product.id });
-    }
-    await em.flush();
-    for (const product of allProducts) {
-      em.create(PriceListPriceBracket, {
-        priceListId,
-        productId: product.id,
-        currencyCode: 'PLN',
-        minQuantity: 1,
-        amount: '42.0000',
-      });
-    }
-    await em.flush();
+    priceListId = await seedPriceBookSql(em, {
+      name: 'Feed isolation book',
+      audience: 'everyone',
+      rows: allProducts.map((product) => ({ productId: product.id, fixed: '42.0000' })),
+    });
     em.clear();
 
     const templates = await h.app.inject({

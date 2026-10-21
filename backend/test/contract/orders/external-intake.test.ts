@@ -22,8 +22,7 @@ import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { Product } from '../../helpers/package-entities.js';
 import { StockLevel } from '../../helpers/package-entities.js';
-import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
-import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
+import { seedPriceBookSql } from '../../helpers/price-book-sql.js';
 import { ApiKey } from '../../helpers/package-entities.js';
 import { Order } from '../../helpers/package-entities.js';
 
@@ -150,23 +149,13 @@ describe('POST /api/v1/external/orders — contract (062 / T020)', () => {
       [channelId, SEED_PRODUCT_101_ID, channelId, unpriced.id],
     );
 
-    // Org-targeted price list — the intake must charge the ORG price (100),
-    // not the channel default (19.99).
-    const priceLists = new PriceListService(() => h.em(), undefined, undefined, undefined, neighbourReadPorts(() => h.em()));
-    const list = await priceLists.create({
-      name: 'Org A intake base',
-      type: 'base',
-      applicationRule: {
-        kind: 'criterion',
-        type: 'organization',
-        values: [TEST_ORGANIZATION_ID],
-      },
+    // Organization price book — the intake must charge the ORG price (100),
+    // not the base price (19.99).
+    await seedPriceBookSql(em, {
+      name: 'Org A intake',
+      audience: { organizations: [TEST_ORGANIZATION_ID] },
+      rows: [{ productId: SEED_PRODUCT_101_ID, fixed: '100.00' }],
     });
-    await priceLists.addProduct(list.id, SEED_PRODUCT_101_ID);
-    await priceLists.replaceBrackets(list.id, SEED_PRODUCT_101_ID, {
-      PLN: [{ minQuantity: 1, maxQuantity: null, amount: '100.00' }],
-    });
-    await priceLists.activate(list.id);
 
     boundToken = await mint({
       name: 'Intake key A',

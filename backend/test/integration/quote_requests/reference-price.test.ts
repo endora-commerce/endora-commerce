@@ -8,6 +8,7 @@ import {
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { QuoteRequestItem } from '../../helpers/package-entities.js';
 import { ensureSalesChannel } from '../../helpers/sales-channel-fixtures.js';
+import { seedPriceBookSql } from '../../helpers/price-book-sql.js';
 import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
 import {
   DefaultPriceListMigrator,
@@ -74,16 +75,14 @@ describe('146 — reference price captured at customer submission [integration]'
           `on conflict (sales_channel_id, product_id) do nothing`,
         [channelA.id, SEED_PRODUCT_101_ID],
       );
-    const channelList = await lists.create({
+    // Feature 160 — channel A's price is a book for everyone bound to channel A
+    // (the catalogue tier there), where it was a channel-rule list.
+    await seedPriceBookSql(em, {
       name: 'Feature 146 reference channel A',
-      type: 'base',
-      applicationRule: { kind: 'criterion', type: 'salesChannel', values: [channelA.id] },
+      audience: 'everyone',
+      channelIds: [channelA.id],
+      rows: [{ productId: SEED_PRODUCT_101_ID, fixed: '120.0000' }],
     });
-    await lists.addProduct(channelList.id, SEED_PRODUCT_101_ID);
-    await lists.replaceBrackets(channelList.id, SEED_PRODUCT_101_ID, {
-      PLN: [{ minQuantity: 1, maxQuantity: null, amount: '120.0000' }],
-    });
-    await lists.activate(channelList.id);
   });
 
   afterAll(async () => {

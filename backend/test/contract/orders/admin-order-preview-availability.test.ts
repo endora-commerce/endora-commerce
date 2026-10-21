@@ -30,7 +30,7 @@ import {
   type MinimumProductFixture,
 } from '../../helpers/order-minimum-fixture.js';
 
-const [NOT_FOUND, NOT_VISIBLE, NOT_IN_CHANNEL, QUOTE_ONLY, BELOW_MINIMUM] = ADMIN_ORDER_PREVIEW_MESSAGE_PRECEDENCE;
+const [NOT_FOUND, NOT_VISIBLE, NOT_IN_CHANNEL, QUOTE_ONLY, , BELOW_MINIMUM] = ADMIN_ORDER_PREVIEW_MESSAGE_PRECEDENCE;
 
 const ADMIN = { b2b_session: 'stub-admin-session' };
 const OTHER_ORG_ID = '00000000-0000-4000-8000-0000000a1450';

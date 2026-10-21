@@ -618,6 +618,12 @@ export interface CartItemRecord {
    * the line's agreed quantity, the one its agreed price holds at.
    */
   quoteSeededQuantity: number | null;
+  /**
+   * Feature 160 (FR-030) — which tier priced `unitPrice` (`base`, `catalogue`,
+   * `buyer`, `sale`), or `agreed`; `null` for a line priced before the feature.
+   * Order placement copies it onto the order line.
+   */
+  priceSource?: 'agreed' | 'base' | 'catalogue' | 'buyer' | 'sale' | null;
   createdAt: Date;
   updatedAt: Date;
 }
