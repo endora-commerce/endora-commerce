@@ -3,7 +3,12 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { CustomerAccountReadPort, SalesRepAssignmentPort } from '@endora-commerce/contracts';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { PriceListService } from './services/price-list-service.js';
-import { PricingService } from './services/pricing-service.js';
+import { PricingService, type PricingServiceOptions } from './services/pricing-service.js';
+import type { BookLineAnswer, ChannelBridgeSubquery } from './services/book-pricing.js';
+import type { ProfilePricingCacheKey } from './services/pricing-cache.js';
+import type { PricingProfile, ProfileMemoKey } from './services/pricing-profile.js';
+import { PriceBookService } from './services/price-book-service.js';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import type { PriceListTargetReads } from './services/price-list-service.js';
 import type { PricingServiceContract } from './services/pricing-service.interface.js';
 import { PriceListStatusWorker, type SweepResult } from './services/price-list-status-worker.js';
@@ -128,6 +133,21 @@ export interface PriceListsModuleOptions {
    * they may see.
    */
   salesRepScope: SalesRepAssignmentPort;
+  /**
+   * Feature 160 — the kernel's membership accessor: a price book's channel set
+   * is the registered `price-list` bridge, read through its sanctioned
+   * subquery and written through `replaceChannelsForEntity` (Principle XII).
+   */
+  salesChannelMembership?: Pick<
+    SalesChannelMembershipPort,
+    'entityIdsInChannelSubquery' | 'replaceChannelsForEntity' | 'listChannelsForEntity'
+  >;
+  /**
+   * Feature 160 — which engine the batched entry points run. `legacy` until the
+   * consumer phase of the feature switches the composition to `books`; see
+   * `PricingServiceOptions`.
+   */
+  pricingModel?: PricingServiceOptions['model'];
 }
 
 export interface PriceListsModuleHandle {
@@ -144,18 +164,35 @@ export interface PriceListsModuleHandle {
    * subscriber, and every writer bumps it after commit.
    */
   pricingGeneration: PricingGeneration;
+  /** Feature 160 — the price-book write service (base prices, books, rows, channel sets). */
+  priceBookService: PriceBookService;
 }
 
 export function priceListsModule(options: PriceListsModuleOptions): {
   plugin: (app: FastifyInstance) => Promise<void>;
   handle: PriceListsModuleHandle;
 } {
-  const pricingCache = new PricingCache<Awaited<ReturnType<PricingService['resolveEngine']>>>(
-    options.pricingCacheTtlMs !== undefined ? { ttlMs: options.pricingCacheTtlMs } : {},
-  );
+  const ttl = options.pricingCacheTtlMs !== undefined ? { ttlMs: options.pricingCacheTtlMs } : {};
+  const pricingCache = new PricingCache<Awaited<ReturnType<PricingService['resolveEngine']>>>(ttl);
+  // Feature 160 — the price-book engine's layers: answers keyed by pricing
+  // profile, and the profile memo per organization chain, group, channel and
+  // currency (research R6). Same TTL, same generation.
+  const bookCache = new PricingCache<BookLineAnswer, ProfilePricingCacheKey>(ttl);
+  const profileMemo = new PricingCache<PricingProfile, ProfileMemoKey>(ttl);
+  let pricingEngine: PricingService | undefined;
   // Every writer tells the generation, never the LRU directly: a bump clears
-  // this process's LRU and announces itself to every other process.
-  const pricingGeneration = new PricingGeneration(pricingCache, options.pricingGenerationPublisher);
+  // this process's layers and announces itself to every other process.
+  const pricingGeneration = new PricingGeneration(
+    {
+      invalidateAll: () => {
+        pricingCache.invalidateAll();
+        bookCache.invalidateAll();
+        profileMemo.invalidateAll();
+        if (pricingEngine?.usesPriceBooks) pricingEngine.bookPricing.invalidateAll();
+      },
+    },
+    options.pricingGenerationPublisher,
+  );
   const priceListService = new PriceListService(
     options.emFactory,
     pricingGeneration,
@@ -174,14 +211,30 @@ export function priceListsModule(options: PriceListsModuleOptions): {
   // Consumers read `handle.pricingService` as the *contract* rather than as the
   // class, and that still matters: what the container hands out is a wrapper
   // whenever a deployment decorates the registration.
-  const pricingService: PricingServiceContract = new PricingService(
+  pricingEngine = new PricingService(
     options.emFactory,
     pricingCache,
     options.resolveOrgChain,
     options.targetReads,
     // D-287 P0 — the customer's own group, for callers that name the account.
     options.customerAccountRead,
+    {
+      model: options.pricingModel ?? 'legacy',
+      ...(options.salesChannelMembership
+        ? { channelBridge: options.salesChannelMembership as ChannelBridgeSubquery }
+        : {}),
+      bookCache,
+      profileMemo,
+    },
   );
+  const pricingService: PricingServiceContract = pricingEngine;
+  const priceBookService = new PriceBookService({
+    emFactory: options.emFactory,
+    ...(options.commandBus ? { commandBus: options.commandBus } : {}),
+    pricingGeneration,
+    ...(options.salesChannelMembership ? { channelMembership: options.salesChannelMembership } : {}),
+    targetReads: options.targetReads,
+  });
   const statusWorker = new PriceListStatusWorker(options.emFactory, pricingGeneration);
   // One engine instance behind the probe and the port alike: a quote's "price
   // at request" and its "current price" must be the same question.
@@ -203,6 +256,7 @@ export function priceListsModule(options: PriceListsModuleOptions): {
       statusWorker,
       buyerLinePriceService,
       pricingGeneration,
+      priceBookService,
     },
     plugin: async (app: FastifyInstance) => {
       await registerPricingRoutes(app, {

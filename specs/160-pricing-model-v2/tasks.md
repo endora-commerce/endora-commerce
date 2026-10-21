@@ -100,17 +100,17 @@ column), §10.11.
 
 ### Tests first
 
-- [ ] T029 [P] [US2] Vectors E2.1–E2.5 and E3.1–E3.6 in `WX/buyer.test.ts` (FR-014)
-- [ ] T030 [P] [US2] The N11 evidence table, F1–F5, C1 and H1–H2 under **all four presets** (configured through a test-only precedence row) in `WX/precedence.test.ts` (FR-022)
-- [ ] T031 [P] [US2] Vectors A1.1–A1.4 and A2.1–A2.3 in `WX/audience.test.ts` (FR-002, FR-010)
-- [ ] T032 [P] [US2] Vectors T1–T3, §10.8 Q1–Q3, U2.1, U4 in `WX/priority-and-tiers.test.ts`; plus: renaming a book or editing a non-winning row never changes the winner (FR-045)
-- [ ] T033 [P] [US2] Pricing cache keyed by profile: two organizations with the same applicable books share an entry; a write bumps it, in `PL/backend/services/pricing-cache.test.ts`
+- [X] T029 [P] [US2] Vectors E2.1–E2.5 and E3.1–E3.6 in `WX/buyer.test.ts` (FR-014)
+- [X] T030 [P] [US2] The N11 evidence table, F1–F5, C1 and H1–H2 under **all four presets** (configured through a test-only precedence row) in `WX/precedence.test.ts` (FR-022)
+- [X] T031 [P] [US2] Vectors A1.1–A1.4 and A2.1–A2.3 in `WX/audience.test.ts` (FR-002, FR-010)
+- [X] T032 [P] [US2] Vectors T1–T3, §10.8 Q1–Q3, U2.1, U4 in `WX/priority-and-tiers.test.ts`; plus: renaming a book or editing a non-winning row never changes the winner (FR-045)
+- [X] T033 [P] [US2] Pricing cache keyed by profile: two organizations with the same applicable books share an entry; a write bumps it, in `PL/backend/services/pricing-cache.test.ts`
 
 ### Implementation
 
-- [ ] T034 [US2] Audience-set validation (one kind, members exist, rep scope hook point) in `PL/backend/services/price-book-service.ts`
-- [ ] T035 [US2] Buyer tier wired into the batched entry points with the organization chain (`organizationInheritancePort`) and `effectiveCustomerGroupId` in `PL/backend/services/pricing-service.ts`
-- [ ] T036 [US2] Re-key `PL/backend/services/pricing-cache.ts` by `(profileId, productId, variantId, quantity)`
+- [X] T034 [US2] Audience-set validation (one kind, members exist, rep scope hook point) in `PL/backend/services/price-book-service.ts`
+- [X] T035 [US2] Buyer tier wired into the batched entry points with the organization chain (`organizationInheritancePort`) and `effectiveCustomerGroupId` in `PL/backend/services/pricing-service.ts`
+- [X] T036 [US2] Re-key `PL/backend/services/pricing-cache.ts` by `(profileId, productId, variantId, quantity)`
 
 **Checkpoint**: US1 + US2 green.
 

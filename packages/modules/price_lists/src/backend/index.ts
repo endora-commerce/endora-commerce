@@ -15,6 +15,7 @@ import type {
   DictionaryReferenceRegistryPort,
   SalesRepAssignmentPort,
 } from '@endora-commerce/contracts';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
@@ -197,6 +198,9 @@ export function registerModule(ctx: ModuleContext): void {
             // non-platform admin only about organizations they may see.
             // `organizations` is already a declared dependency.
             salesRepScope: lazyPort<SalesRepAssignmentPort>(ctx, 'organizationSalesRepScopePort'),
+            // Feature 160 — a price book's channel set is the registered
+            // `price-list` bridge; the kernel's accessor reads and writes it.
+            salesChannelMembership: lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort'),
           }),
       )
       .singleton(),
