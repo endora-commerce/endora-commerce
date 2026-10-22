@@ -482,16 +482,30 @@ export class PriceBookReads {
     const pageRows =
       smallKeys.length === 0 && productPage.ids.length === 0
         ? []
-        : ((await em.execute(
+        : // The page's product rows through a LATERAL per id, fenced with `offset 0` so
+          // it is not flattened into a join: each probe is an index lookup on
+          // `(price_list_id, product_id)` whatever the statistics. On a book never
+          // analysed (right after a bulk import) the planner otherwise estimated a
+          // 125 000-row book at 86 rows and filtered all of it with `price_list_id`
+          // as the only index condition — 27–40 ms instead of 0.5 ms (161 G15,
+          // Checkpoint 2b). The small kinds' rows are few (`product_id is null`).
+          ((await em.execute(
             `select e."id", e."price_list_id", e."variant_id", e."product_id", e."category_id", e."attribute_key",
                     e."attribute_value", e."min_quantity", e."max_quantity", e."price_type", e."amount", e."percent"
-               from "price_list_matrix_entries" e
-              where e."price_list_id" = ?
-                and (e."product_id" = any(?::uuid[])
-                     or (e."product_id" is null
-                         and coalesce(e."category_id"::text, '') || '|' || coalesce(e."attribute_key", '') || '|' || coalesce(e."attribute_value", '') = any(?::text[])))
+               from (
+                 select x.* from unnest(?::uuid[]) as "pid"("id")
+                  cross join lateral (
+                    select r.* from "price_list_matrix_entries" r
+                     where r."price_list_id" = ? and r."product_id" = "pid"."id"
+                    offset 0
+                  ) x
+                 union all
+                 select r.* from "price_list_matrix_entries" r
+                  where r."price_list_id" = ? and r."product_id" is null
+                    and coalesce(r."category_id"::text, '') || '|' || coalesce(r."attribute_key", '') || '|' || coalesce(r."attribute_value", '') = any(?::text[])
+               ) e
               order by e."min_quantity" asc, e."id" asc`,
-            [bookId, `{${productPage.ids.join(',')}}`, toTextArray(smallKeys)],
+            [`{${productPage.ids.join(',')}}`, bookId, bookId, toTextArray(smallKeys)],
           )) as MatrixRecord[]).map(storedOf);
     const productSelections = productPage.ids.map((id) => selectionRow(null, id, null, null, null));
     const labelled = await this.label([...pageRows, ...productSelections], language);
