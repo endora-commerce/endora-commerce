@@ -1171,16 +1171,15 @@ export const entities = [
 /**
  * The catalogue read surface a host program needs, published **by name**.
  *
- * `@endora-commerce/demo-composition` hands a `CatalogProductReadService` to
- * `price_lists`' `DefaultPriceListMigrator`, and its attribute helper maps a legacy
- * attribute value type onto the unified custom-field model. That is a package an
+ * `@endora-commerce/demo-composition`'s attribute helper maps a legacy attribute
+ * value type onto the unified custom-field model. That is a package an
  * instance installs, so it may name this one by its published door and by nothing
  * else: a filesystem path would evaluate the file a second time, and in an instance
  * there is no source to name.
  *
  * D-168 bars an **entity class** from leaving by this door; a service and a pure
  * mapping function are not entities, and `inventory`'s `WarehouseChannelReconciler` /
- * `price_lists`' `DefaultPriceListMigrator` are the precedent for exactly this shape.
+ * `price_lists`' `seedDemoPriceBooks` are the precedent for exactly this shape.
  *
  * `CatalogQueryService` is published as a **type** for `src/composition.ts`, which
  * declares the cradle slot `promotions`, `quick_order` and `search` each resolve their

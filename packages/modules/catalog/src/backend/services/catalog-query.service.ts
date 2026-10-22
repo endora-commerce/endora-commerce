@@ -990,17 +990,9 @@ export class CatalogQueryService {
    * place the answer is exclusion, and it is exclusion from a filter the buyer
    * typed rather than from the catalogue.
    *
-   * **The legacy product price attribute joins the tail rather than
-   * interleaving** (spec 086, clarification 1). `listingPriceFrom`'s second arm
-   * — the price assigned directly to the Product — is not part of the ordering:
-   * the priced stream is the price-list relation, and everything else is the
-   * tail. Measured incidence of a product carrying that attribute *and* priced
-   * by no active list: zero. Interleaving it would mean ordering across
-   * `price_list_price_brackets` and `products.attribute_values` in one
-   * statement — two modules' tables, which `check:module-boundary` refuses — and
-   * the operator's remedy is one action: price the product on the default list.
-   * The decision is expressed here, in which set feeds which stream, and
-   * nowhere else.
+   * **A product has no price of its own** (feature 160, FR-042): the priced
+   * stream is the price surface — every price a book gives this viewer — and
+   * everything else is the tail.
    */
   async #listByViewerPrice(
     em: EntityManager,
@@ -1497,7 +1489,6 @@ export class CatalogQueryService {
         id: v.id,
         sku: v.sku,
         variantAttributeValues: v.variantAttributeValues,
-        priceOverride: v.priceOverride != null ? Number(v.priceOverride) : null,
         stockLevel: v.stockLevel ?? null,
       })),
       categories: categories.map((c) => ({

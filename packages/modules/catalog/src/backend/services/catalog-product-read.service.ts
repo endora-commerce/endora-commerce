@@ -262,7 +262,6 @@ export function toCatalogProductVariantRecord(
     parentProductId: variant.parentProductId,
     sku: variant.sku,
     variantAttributeValues: variant.variantAttributeValues ?? {},
-    priceOverride: variant.priceOverride ?? null,
     stockLevel: variant.stockLevel ?? null,
     createdAt: variant.createdAt,
     updatedAt: variant.updatedAt,

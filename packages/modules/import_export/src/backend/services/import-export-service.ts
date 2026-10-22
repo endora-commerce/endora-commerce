@@ -156,6 +156,14 @@ export class ImportExportService {
       }
     }
 
+    for (const refused of adapter.refusedHeader ?? []) {
+      if (rawHeader.includes(refused.column)) {
+        throw new HttpError(400, refused.code, refused.message, [
+          { path: refused.column, issue: 'this column is not accepted' },
+        ]);
+      }
+    }
+
     const report = await adapter.importRows(rowsToRecords(parsed));
     return {
       imported: report.imported,

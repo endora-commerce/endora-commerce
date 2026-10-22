@@ -496,6 +496,8 @@ export const manifest = defineModuleManifest({
     { code: 'PACKAGING_UNIT_NOT_SUPPORTED_FOR_TYPE' },
     { code: 'PRICE_ORDERING_UNAVAILABLE' },
     { code: 'PRICE_RANGE_INVALID' },
+    // Feature 160 (FR-043): a product or variant write naming an old price field.
+    { code: 'PRICE_SET_IN_PRICE_BOOKS' },
     { code: 'PRODUCT_ARCHIVED' },
     { code: 'PRODUCT_BELOW_MINIMUM_QUANTITY' },
     { code: 'PRODUCT_DELETE_BLOCKED' },

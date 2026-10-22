@@ -75,7 +75,6 @@ describe('Admin Variants CRUD (T054 backend)', () => {
       payload: {
         sku: 'CONF-VAR-A-RED',
         variantAttributeValues: { color: 'red', size: 'M' },
-        priceOverride: 49.99,
         stockLevel: 10,
       },
       cookies: adminCookie,
@@ -163,14 +162,13 @@ describe('Admin Variants CRUD (T054 backend)', () => {
     const res = await h.app.inject({
       method: 'PATCH',
       url: `/api/v1/admin/catalog/products/${parent.id}/variants/${variantId}`,
-      payload: { priceOverride: 99.99, stockLevel: 5 },
+      payload: { stockLevel: 5 },
       cookies: adminCookie,
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json() as {
-      data: { priceOverride: number | string; stockLevel: number };
-    };
-    expect(Number(body.data.priceOverride)).toBe(99.99);
+    const body = res.json() as { data: { stockLevel: number } };
+    // A variant's price is a price-book row (feature 160): the variant carries none.
+    expect(body.data).not.toHaveProperty('priceOverride');
     expect(body.data.stockLevel).toBe(5);
   });
 

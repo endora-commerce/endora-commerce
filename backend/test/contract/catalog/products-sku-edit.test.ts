@@ -113,10 +113,12 @@ describe('Admin Products contract — feature 012 editable SKU (T027)', () => {
   });
 
   // Regression: the admin Product editor always round-trips the full
-  // `attributeValues` map on save — including the virtual `defaultPrice` key,
-  // which belongs to no AttributeSet. A SKU-only edit must not be rejected
-  // with ATTRIBUTE_VALUE_REJECTED because that virtual key is present.
-  it('PATCH changing only the SKU while round-tripping the virtual defaultPrice succeeds', async () => {
+  // `attributeValues` map on save. A SKU-only edit must not be rejected with
+  // ATTRIBUTE_VALUE_REJECTED for the values it carries back. (The editor used
+  // to carry a virtual `defaultPrice` key too; a product has no price of its
+  // own since feature 160, and that key is refused —
+  // `price-fields-refused.test.ts`.)
+  it('PATCH changing only the SKU while round-tripping the attribute values succeeds', async () => {
     const create = await h.app.inject({
       method: 'POST',
       url: '/api/v1/admin/catalog/products',
@@ -126,9 +128,8 @@ describe('Admin Products contract — feature 012 editable SKU (T027)', () => {
         name: { 'en-US': 'priced' },
         description: { 'en-US': 'desc' },
         categoryIds: [],
-        // `internal_sku_notes` is a real Default-set attribute (seed); the
-        // `defaultPrice` virtual key reproduces the editor's save payload.
-        attributeValues: { internal_sku_notes: 'note', defaultPrice: 49.99 },
+        // `internal_sku_notes` is a real Default-set attribute (seed).
+        attributeValues: { internal_sku_notes: 'note' },
         visibility: 'public',
       },
       cookies: adminCookie,
@@ -141,7 +142,7 @@ describe('Admin Products contract — feature 012 editable SKU (T027)', () => {
       url: `/api/v1/admin/catalog/products/${id}`,
       payload: {
         sku: 'SKU-EDIT-PRICE-renamed',
-        attributeValues: { internal_sku_notes: 'note', defaultPrice: 49.99 },
+        attributeValues: { internal_sku_notes: 'note' },
       },
       cookies: adminCookie,
     });

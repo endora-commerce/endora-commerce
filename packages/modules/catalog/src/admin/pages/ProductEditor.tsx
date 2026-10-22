@@ -132,7 +132,6 @@ export function ProductEditor(): ReactNode {
     'en-US': '',
     'pl-PL': '',
   });
-  const [defaultPrice, setDefaultPrice] = useState<string>('');
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<string>('details');
   // Feature 002 (T034) — Attribute Set selector
@@ -158,7 +157,6 @@ export function ProductEditor(): ReactNode {
     visibility,
     name,
     description,
-    defaultPrice,
     categoryIds,
     attributeSetId,
     attrValues,
@@ -193,7 +191,6 @@ export function ProductEditor(): ReactNode {
           visibility: 'public',
           name: { 'en-US': '', 'pl-PL': '' },
           description: { 'en-US': '', 'pl-PL': '' },
-          defaultPrice: '',
           categoryIds: [],
           attributeSetId: defaultSet?.id ?? '',
           attrValues: {},
@@ -218,9 +215,6 @@ export function ProductEditor(): ReactNode {
           'pl-PL': p.description['pl-PL'] ?? '',
         };
         setDescription(loadedDescription);
-        const price = (p.attributeValues['defaultPrice'] as number | undefined) ?? null;
-        const loadedPrice = price != null ? String(price) : '';
-        setDefaultPrice(loadedPrice);
         setAttrValues(p.attributeValues ?? {});
         setAttributeSetId(p.attributeSetId);
         setCategoryIds(p.categoryIds ?? []);
@@ -232,7 +226,6 @@ export function ProductEditor(): ReactNode {
           visibility: p.visibility,
           name: loadedName,
           description: loadedDescription,
-          defaultPrice: loadedPrice,
           categoryIds: p.categoryIds ?? [],
           attributeSetId: p.attributeSetId,
           attrValues: p.attributeValues ?? {},
@@ -264,18 +257,9 @@ export function ProductEditor(): ReactNode {
         setError('At least one locale name is required.');
         return;
       }
-      // Seed from the Attributes-tab edits; `defaultPrice` is a virtual
-      // attribute owned by the Details tab and re-applied just below.
+      // The Attributes-tab edits. A product has no price of its own: prices
+      // are set in price books (feature 160), so nothing else is added here.
       const attributeValues: Record<string, unknown> = { ...attrValues };
-      delete attributeValues['defaultPrice'];
-      if (defaultPrice.trim()) {
-        const v = Number(defaultPrice);
-        if (!Number.isFinite(v) || v < 0) {
-          setError('Default price must be a number ≥ 0.');
-          return;
-        }
-        attributeValues['defaultPrice'] = v;
-      }
       try {
         if (isNew) {
           const res = await apiClient.post<{ data: AdminProduct }>(
@@ -322,7 +306,7 @@ export function ProductEditor(): ReactNode {
         setError(err instanceof ApiError ? err.envelope.error.message : 'Save failed.');
       }
     },
-    [isNew, id, sku, status, type, name, description, categoryIds, defaultPrice, attrValues, attributeSetId, visibility, navigate, refresh],
+    [isNew, id, sku, status, type, name, description, categoryIds, attrValues, attributeSetId, visibility, navigate, refresh],
   );
 
   const handleAttrChange = useCallback((key: string, value: unknown): void => {
@@ -331,8 +315,7 @@ export function ProductEditor(): ReactNode {
 
   // Swapping the Attribute Set drops the values whose keys are not in the
   // newly-selected set, so the save payload doesn't carry orphan keys left
-  // over from the previous set. `defaultPrice` / `price` are virtual keys
-  // owned by the Details tab (not bound to any set) and are always kept.
+  // over from the previous set.
   const handleAttributeSetChange = useCallback(
     async (newSetId: string): Promise<void> => {
       setAttributeSetId(newSetId);
@@ -345,7 +328,7 @@ export function ProductEditor(): ReactNode {
         setAttrValues((prev) => {
           const next: Record<string, unknown> = {};
           for (const [k, v] of Object.entries(prev)) {
-            if (allowed.has(k) || k === 'defaultPrice' || k === 'price') {
+            if (allowed.has(k)) {
               next[k] = v;
             }
           }
@@ -664,18 +647,6 @@ export function ProductEditor(): ReactNode {
                       </Select>
                       <p className="b2b-help">{t('productEditor.field.status.help')}</p>
                     </div>
-                    <div>
-                      <Label htmlFor="dp">{t('productEditor.field.defaultPrice')}</Label>
-                      <Input
-                        id="dp"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={defaultPrice}
-                        onChange={(e): void => setDefaultPrice(e.target.value)}
-                      />
-                      <p className="b2b-help">{t('productEditor.field.defaultPrice.help')}</p>
-                    </div>
                   </div>
                 </div>
 
@@ -766,9 +737,9 @@ export function ProductEditor(): ReactNode {
                   product. A contributor with no binding over the product
                   renders nothing, which is every product until one is bound. */}
               <AdminZone name="product.editor.pricing.before" props={{ productId: id }} />
-              {/* Feature 091 / P7a — the end of the Pricing tab. `price_lists`
-                  contributes its linked-lists panel here; this screen used to
-                  import that panel by path. */}
+              {/* Feature 091 / P7a — the end of the Pricing tab. Feature 160
+                  removed `price_lists`' linked-lists panel with the old model;
+                  P2's base-price zone contributes here. */}
               <AdminZone name="product.editor.pricing.after" props={{ productId: id }} />
             </div>
           ) : null}
@@ -868,7 +839,6 @@ interface AdminVariant {
   parentProductId: string;
   sku: string;
   variantAttributeValues: Record<string, unknown>;
-  priceOverride: number | null;
   stockLevel: number | null;
   createdAt: string;
   updatedAt: string;
@@ -908,7 +878,6 @@ function VariantsSection({ productId }: { productId: string }): ReactNode {
     async (input: {
       sku: string;
       attrs: string;
-      priceOverride: string;
       stockLevel: string;
     }): Promise<void> => {
       // attrs is a comma-separated list of `key=value` pairs.
@@ -924,9 +893,6 @@ function VariantsSection({ productId }: { productId: string }): ReactNode {
           sku: input.sku,
           variantAttributeValues,
         };
-        if (input.priceOverride.trim()) {
-          payload['priceOverride'] = Number(input.priceOverride);
-        }
         if (input.stockLevel.trim()) {
           payload['stockLevel'] = Number(input.stockLevel);
         }
@@ -986,7 +952,6 @@ function VariantsSection({ productId }: { productId: string }): ReactNode {
               <TableRow>
                 <TableHead>{t('productEditor.variants.column.sku')}</TableHead>
                 <TableHead>{t('productEditor.variants.column.attributes')}</TableHead>
-                <TableHead>{t('productEditor.variants.column.priceOverride')}</TableHead>
                 <TableHead>{t('productEditor.variants.column.stock')}</TableHead>
                 <TableHead className="w-[1%] whitespace-nowrap">{t('productEditor.variants.column.actions')}</TableHead>
               </TableRow>
@@ -1000,7 +965,6 @@ function VariantsSection({ productId }: { productId: string }): ReactNode {
                       .map(([k, val]) => `${k}=${String(val)}`)
                       .join(', ') || '—'}
                   </TableCell>
-                  <TableCell>{v.priceOverride ?? '—'}</TableCell>
                   <TableCell>{v.stockLevel ?? '—'}</TableCell>
                   <TableCell>
                     <Button
@@ -1030,19 +994,17 @@ function CreateVariantInline({
   onCreate: (input: {
     sku: string;
     attrs: string;
-    priceOverride: string;
     stockLevel: string;
   }) => Promise<void>;
 }): ReactNode {
   const t = useTranslation('catalog');
   const [sku, setSku] = useState('');
   const [attrs, setAttrs] = useState('');
-  const [priceOverride, setPriceOverride] = useState('');
   const [stockLevel, setStockLevel] = useState('');
 
   return (
     <div
-      className="grid gap-3 md:grid-cols-5 border-t pt-4"
+      className="grid gap-3 md:grid-cols-4 border-t pt-4"
       role="group"
       aria-label={t('productEditor.variants.createTitle')}
     >
@@ -1060,17 +1022,6 @@ function CreateVariantInline({
         />
       </div>
       <div className="space-y-1">
-        <Label htmlFor="vprice">{t('productEditor.variants.field.priceOverride')}</Label>
-        <Input
-          id="vprice"
-          type="number"
-          step="0.01"
-          min="0"
-          value={priceOverride}
-          onChange={(e): void => setPriceOverride(e.target.value)}
-        />
-      </div>
-      <div className="space-y-1">
         <Label htmlFor="vstock">{t('productEditor.variants.field.stock')}</Label>
         <Input
           id="vstock"
@@ -1080,14 +1031,13 @@ function CreateVariantInline({
           onChange={(e): void => setStockLevel(e.target.value)}
         />
       </div>
-      <div className="md:col-span-5">
+      <div className="md:col-span-4">
         <Button
           type="button"
           onClick={() => {
-            void onCreate({ sku, attrs, priceOverride, stockLevel }).then(() => {
+            void onCreate({ sku, attrs, stockLevel }).then(() => {
               setSku('');
               setAttrs('');
-              setPriceOverride('');
               setStockLevel('');
             });
           }}

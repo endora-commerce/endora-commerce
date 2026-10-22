@@ -753,6 +753,15 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'the refusal of a permalink that breaks the shared permalink rule, the broken rule named by the `details.code` token. ' +
       'The noun is the asset, its file and its permalink — `assets_library`\' own row — and every raise site is in that module.',
   },
+  PRICE_SET_IN_PRICE_BOOKS: {
+    to: 'catalog',
+    reason:
+      'Minted by feature 160 (`specs/160-pricing-model-v2/`, FR-043) for a product or variant ' +
+      'write — the admin create and update routes and the products import — that names the old ' +
+      '*default price* key or the variant price override. D-121 T1: the noun is the product\'s ' +
+      'own field, `catalog`\'s, so `catalog` owns the sentence; `import_export` raises it too, ' +
+      'from the products adapter.',
+  },
   PRODUCT_BELOW_MINIMUM_QUANTITY: {
     to: 'catalog',
     reason:

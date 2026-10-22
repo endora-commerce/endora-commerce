@@ -5,6 +5,7 @@ import {
   ERROR_CODES,
   isOrderMinimumEligibleType,
   isValidOrderMinimum,
+  PRICE_FIELDS_REFUSED_ON_PRODUCTS,
   // Aliased: the private method below keeps the name, so the shared function
   // needs one the class body cannot shadow.
   slugify as slugifyText,
@@ -112,17 +113,23 @@ export { dbToApiAttributeType, resolveAttributeApiType } from './attribute-type-
 export type AdminAuditContext = CatalogAdminAuditContext;
 
 /**
- * Virtual attribute-value keys that are NOT bound to any AttributeSet but are
- * legitimately stored under `product.attributeValues`. `defaultPrice` / `price`
- * are the per-product base price the Details tab edits and the PriceList engine
- * reads (see `default-price-list-migration.ts`). They must never be rejected by
- * `assertAttributeValueKeysAllowed`, otherwise every save that carries a price
- * (i.e. nearly all of them) fails with ATTRIBUTE_VALUE_REJECTED.
+ * Feature 160 (FR-043) — a product has no price of its own: a price is a row of
+ * a price book (D-287 §5.8). The old *default price* keys of `attributeValues`
+ * are refused on every write rather than stored where nothing reads them, with
+ * a code that says where prices are set. Exported for the routes, which refuse
+ * the same names at the top level of an old client's body.
  */
-const VIRTUAL_ATTRIBUTE_VALUE_KEYS: ReadonlySet<string> = new Set([
-  'defaultPrice',
-  'price',
-]);
+export function refusePriceFields(fields: Readonly<Record<string, unknown>> | undefined, pathPrefix = ''): void {
+  if (!fields) return;
+  const named = PRICE_FIELDS_REFUSED_ON_PRODUCTS.filter((key) => Object.prototype.hasOwnProperty.call(fields, key));
+  if (named.length === 0) return;
+  throw new HttpError(
+    400,
+    ERROR_CODES.PRICE_SET_IN_PRICE_BOOKS,
+    'Prices are set in price books, not on the product.',
+    named.map((key) => ({ path: `${pathPrefix}${key}`, issue: 'prices are set in price books' })),
+  );
+}
 
 /**
  * Feature 068 — the width of `products.sku` / `product_variants.sku` and the
@@ -267,6 +274,7 @@ export class CatalogAdminService {
     req: CreateProductRequest,
     _auditCtx?: AdminAuditContext,
   ): Promise<Product> {
+    refusePriceFields(req.attributeValues as Record<string, unknown> | undefined, 'attributeValues.');
     // Feature 002 (T047): cross-field validation for virtual download
     // fields. Zod's .refine() catches most cases at the boundary; the
     // service-level guard is the belt-and-braces backstop for any
@@ -539,6 +547,7 @@ export class CatalogAdminService {
     /** Whether this write moved the status to `inactive` from another one. */
     archived: boolean;
   }> {
+    refusePriceFields(req.attributeValues as Record<string, unknown> | undefined, 'attributeValues.');
     const product = await em.findOne(Product, { id });
     if (!product) {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
@@ -1012,7 +1021,6 @@ export class CatalogAdminService {
           parentProductId: dup.id,
           sku: variantSku,
           variantAttributeValues: { ...v.variantAttributeValues },
-          ...(v.priceOverride != null ? { priceOverride: v.priceOverride } : {}),
           ...(v.stockLevel != null ? { stockLevel: v.stockLevel } : {}),
         });
         em.persist(newVariant);
@@ -1799,9 +1807,6 @@ export class CatalogAdminService {
         parentProductId,
         sku: req.sku,
         variantAttributeValues: req.variantAttributeValues,
-        ...(req.priceOverride !== undefined
-          ? { priceOverride: String(req.priceOverride) }
-          : {}),
         ...(req.stockLevel !== undefined ? { stockLevel: req.stockLevel } : {}),
       });
       try {
@@ -1844,14 +1849,10 @@ export class CatalogAdminService {
       const before = {
         sku: v.sku,
         variantAttributeValues: { ...v.variantAttributeValues },
-        priceOverride: v.priceOverride,
         stockLevel: v.stockLevel,
       };
       if (req.variantAttributeValues !== undefined) {
         v.variantAttributeValues = req.variantAttributeValues;
-      }
-      if (req.priceOverride !== undefined) {
-        v.priceOverride = String(req.priceOverride);
       }
       if (req.stockLevel !== undefined) {
         v.stockLevel = req.stockLevel;
@@ -1859,7 +1860,7 @@ export class CatalogAdminService {
       return {
         result: v,
         before,
-        after: { sku: v.sku, priceOverride: v.priceOverride, stockLevel: v.stockLevel },
+        after: { sku: v.sku, stockLevel: v.stockLevel },
       };
     });
     this.events.emit('product.updated.v1', {
@@ -1943,8 +1944,7 @@ export class CatalogAdminService {
     const rejected = keys.filter(
       (k) =>
         !allowed.has(k) &&
-        !existingKeys.has(k) &&
-        !VIRTUAL_ATTRIBUTE_VALUE_KEYS.has(k),
+        !existingKeys.has(k),
     );
     if (rejected.length > 0) {
       throw new HttpError(

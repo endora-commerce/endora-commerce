@@ -1,4 +1,5 @@
 import {
+  ERROR_CODES,
   productStatusWriteSchema,
   productVisibilitySchema,
   type BulkImportReport,
@@ -52,6 +53,14 @@ export function productsAdapter(ports: ImportExportPorts): ImportExportAdapter {
     },
 
     importHeader: ['sku', 'status', 'visibility', 'name_en', 'description_en'] as const,
+    // Feature 160 (FR-043) — a product has no price of its own; prices are set
+    // in price books. A file still carrying a price column is refused rather
+    // than imported without it.
+    refusedHeader: ['default_price', 'defaultPrice', 'price', 'price_override', 'priceOverride'].map((column) => ({
+      column,
+      code: ERROR_CODES.PRICE_SET_IN_PRICE_BOOKS,
+      message: 'Prices are set in price books, not on the product: remove the price column.',
+    })),
 
     async importRows(records): Promise<BulkImportReport> {
       const errors: BulkImportRowError[] = [];

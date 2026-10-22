@@ -264,9 +264,9 @@ export async function registerCatalogPublicRoutes(
     // every product it does not and only then consults B — a different relation
     // from "A's price if A prices it, else B's".
     //
-    // `IndexedDocument.price` is not the exception it looks like. It carries
-    // the legacy `defaultPrice` attribute, is read by nothing on the query
-    // path, and is not any price list's figure.
+    // A search document carries no price at all (issue #287), and since
+    // feature 160 a product has none of its own either: the price is the
+    // viewer's, resolved from the price books.
     const useMeili =
       indexAnswersListing(process.env['CATALOG_SEARCH_BACKEND'], q) &&
       searchQueryService !== undefined &&

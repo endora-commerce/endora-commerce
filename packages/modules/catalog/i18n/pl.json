@@ -387,8 +387,6 @@
   "productEditor.field.status.help": "Wybierz szkic, aktywny lub nieaktywny. Nieaktywny wycofuje produkt z oferty bez usuwania go z katalogu.",
   "productEditor.action.delete": "Usuń",
   "productEditor.deleteConfirm": "Trwale usunąć ten produkt z katalogu? W panelu admin nie będzie można tego cofnąć.",
-  "productEditor.field.defaultPrice": "Domyślna cena jednostkowa",
-  "productEditor.field.defaultPrice.help": "Nadpisania z cenników mają pierwszeństwo przy kasie.",
   "productEditor.field.localizedName": "Nazwa [{locale}]",
   "productEditor.field.localizedDescription": "Opis [{locale}]",
   "productEditor.seo.title": "SEO per locale",
@@ -404,7 +402,6 @@
   "productEditor.variants.deleteConfirm": "Usunąć wariant „{sku}”?",
   "productEditor.variants.column.sku": "SKU",
   "productEditor.variants.column.attributes": "Atrybuty",
-  "productEditor.variants.column.priceOverride": "Nadpisanie ceny",
   "productEditor.variants.column.stock": "Stan",
   "productEditor.variants.column.actions": "Akcje",
   "productEditor.variants.action.delete": "Usuń",
@@ -413,7 +410,6 @@
   "productEditor.variants.field.sku": "SKU",
   "productEditor.variants.field.attributes": "Atrybuty",
   "productEditor.variants.field.attributesPlaceholder": "color=red, size=M",
-  "productEditor.variants.field.priceOverride": "Nadpisanie ceny",
   "productEditor.variants.field.stock": "Stan",
   "productEditor.gallery.title": "Galeria",
   "productEditor.gallery.productImages.title": "Zdjęcia produktu",
@@ -699,5 +695,6 @@
   "adminSearch.product.status.inactive": "Nieaktywny",
   "adminSearch.category.group.label": "Kategorie",
   "adminSearch.category.field.name": "Nazwa",
-  "adminSearch.category.field.slug": "Klucz URL (slug)"
+  "adminSearch.category.field.slug": "Klucz URL (slug)",
+  "errors.PRICE_SET_IN_PRICE_BOOKS": "Ceny ustala się w cennikach, a nie w produkcie."
 }

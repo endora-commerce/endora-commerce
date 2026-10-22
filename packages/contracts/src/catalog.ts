@@ -41,8 +41,7 @@ export type ProductStatus = z.infer<typeof productStatusSchema>;
 /**
  * The most products one admin selection may carry: the cap of the admin product
  * browser (a session refuses to select a 201st row) and the `.max()` of every
- * request that submits such a selection in one call, e.g.
- * `bulkAddPriceListProductsRequestSchema`. One home for the number, so the
+ * request that submits such a selection in one call. One home for the number, so the
  * screen and the endpoint cannot disagree about it.
  */
 export const ADMIN_PRODUCT_SELECTION_MAX = 200;
@@ -305,7 +304,6 @@ export const productVariantSchema = z.object({
   id: uuidSchema,
   sku: z.string().min(1).max(255),
   variantAttributeValues: z.record(z.string(), z.unknown()),
-  priceOverride: z.number().finite().nullable(),
   stockLevel: z.number().int().nullable(),
 });
 export type ProductVariant = z.infer<typeof productVariantSchema>;
@@ -957,10 +955,15 @@ export type BulkOperationsListResponse = z.infer<typeof bulkOperationsListRespon
 export const bulkOperationResponseSchema = z.object({ data: bulkOperationSchema });
 export type BulkOperationResponse = z.infer<typeof bulkOperationResponseSchema>;
 
+/**
+ * A variant's price is a row of a price book (feature 160, D-287 §5.8), not a
+ * field of the variant: a `priceOverride` in the body is refused with
+ * `400 PRICE_SET_IN_PRICE_BOOKS` by the route, before this schema strips it
+ * (FR-043; {@link PRICE_FIELDS_REFUSED_ON_VARIANTS}).
+ */
 export const createVariantRequestSchema = z.object({
   sku: z.string().min(1).max(255),
   variantAttributeValues: z.record(z.string(), z.unknown()),
-  priceOverride: z.number().finite().optional(),
   stockLevel: z.number().int().nonnegative().optional(),
 });
 export type CreateVariantRequest = z.infer<typeof createVariantRequestSchema>;
@@ -969,6 +972,15 @@ export const updateVariantRequestSchema = createVariantRequestSchema
   .partial()
   .omit({ sku: true });
 export type UpdateVariantRequest = z.infer<typeof updateVariantRequestSchema>;
+
+/**
+ * Feature 160 (FR-043) — the old price fields a product or variant write
+ * refuses with `400 PRICE_SET_IN_PRICE_BOOKS`: prices are set in price books.
+ * On a product they are keys of `attributeValues` (the old *default price*) or,
+ * from an old client, of the body itself; on a variant, the old price override.
+ */
+export const PRICE_FIELDS_REFUSED_ON_PRODUCTS = ['defaultPrice', 'price'] as const;
+export const PRICE_FIELDS_REFUSED_ON_VARIANTS = ['priceOverride', 'defaultPrice', 'price'] as const;
 
 /**
  * Slider-numeric-kind discriminant (feature 002 T013/T021/T022). The API
@@ -2146,8 +2158,6 @@ export interface CatalogProductVariantRecord {
   parentProductId: string;
   sku: string;
   variantAttributeValues: Record<string, unknown>;
-  /** Decimal string, or `null` when the variant inherits the parent's price. */
-  priceOverride: string | null;
   stockLevel: number | null;
   createdAt: Date;
   updatedAt: Date;

@@ -387,8 +387,6 @@
   "productEditor.field.status.help": "Choose draft, active, or inactive. Inactive withdraws the product from merchandising without deleting it.",
   "productEditor.action.delete": "Delete",
   "productEditor.deleteConfirm": "Permanently delete this product from the catalog? This cannot be undone in the admin.",
-  "productEditor.field.defaultPrice": "Default unit price",
-  "productEditor.field.defaultPrice.help": "Price-list overrides take precedence at checkout.",
   "productEditor.field.localizedName": "Name [{locale}]",
   "productEditor.field.localizedDescription": "Description [{locale}]",
   "productEditor.seo.title": "Per-locale SEO",
@@ -404,7 +402,6 @@
   "productEditor.variants.deleteConfirm": "Delete variant \"{sku}\"?",
   "productEditor.variants.column.sku": "SKU",
   "productEditor.variants.column.attributes": "Attributes",
-  "productEditor.variants.column.priceOverride": "Price override",
   "productEditor.variants.column.stock": "Stock",
   "productEditor.variants.column.actions": "Actions",
   "productEditor.variants.action.delete": "Delete",
@@ -413,7 +410,6 @@
   "productEditor.variants.field.sku": "SKU",
   "productEditor.variants.field.attributes": "Attributes",
   "productEditor.variants.field.attributesPlaceholder": "color=red, size=M",
-  "productEditor.variants.field.priceOverride": "Price override",
   "productEditor.variants.field.stock": "Stock",
   "productEditor.gallery.title": "Gallery",
   "productEditor.gallery.productImages.title": "Product images",
@@ -699,5 +695,6 @@
   "adminSearch.product.status.inactive": "Inactive",
   "adminSearch.category.group.label": "Categories",
   "adminSearch.category.field.name": "Name",
-  "adminSearch.category.field.slug": "URL key (slug)"
+  "adminSearch.category.field.slug": "URL key (slug)",
+  "errors.PRICE_SET_IN_PRICE_BOOKS": "Prices are set in price books, not on the product."
 }

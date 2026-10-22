@@ -69,6 +69,11 @@ export const ERROR_CODES = {
   PACKAGING_UNIT_BELOW_MINIMUM_QUANTITY: 'PACKAGING_UNIT_BELOW_MINIMUM_QUANTITY',
   PACKAGING_UNIT_MISMATCH: 'PACKAGING_UNIT_MISMATCH',
 
+  // Catalog 160 — a product or variant write names an old price field; prices
+  // are set in price books (owned by `catalog`, raised by its admin writes and
+  // by the products import of `import_export`)
+  PRICE_SET_IN_PRICE_BOOKS: 'PRICE_SET_IN_PRICE_BOOKS',
+
   // Catalog 002 — Product Links (US4)
   SELF_LINK_NOT_ALLOWED: 'SELF_LINK_NOT_ALLOWED',
   LINK_ALREADY_EXISTS: 'LINK_ALREADY_EXISTS',

@@ -1,5 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
+  PRICE_FIELDS_REFUSED_ON_PRODUCTS,
+  PRICE_FIELDS_REFUSED_ON_VARIANTS,
   assignAttributesRequestSchema,
   batchByIdProductsRequestSchema,
   bulkUpdateProductsRequestSchema,
@@ -58,6 +60,34 @@ import type { ProductListViewService } from './services/product-list-view-servic
 import type { ProductValueResolverService } from './services/product-value-resolver.service.js';
 import type { ProductOverridesService } from './services/product-overrides.service.js';
 import { productValueOverridesPatchRequestSchema } from '@endora-commerce/contracts';
+
+/**
+ * Feature 160 (FR-043) — the old price fields an admin body names, read in
+ * `preValidation`: the request schemas strip unknown keys, so by the handler a
+ * `priceOverride` or a top-level `defaultPrice` would be gone and the write
+ * would succeed without it. The hook only notes the names; the handler — after
+ * `requireAdmin` — refuses them with `400 PRICE_SET_IN_PRICE_BOOKS`, so an
+ * unauthenticated request still answers 401.
+ */
+const namedPriceFields = new WeakMap<FastifyRequest, string[]>();
+const notePriceFields =
+  (keys: readonly string[]) =>
+  async (request: FastifyRequest): Promise<void> => {
+    const body = request.body;
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return;
+    const named = keys.filter((key) => Object.prototype.hasOwnProperty.call(body, key));
+    if (named.length > 0) namedPriceFields.set(request, named);
+  };
+function refuseNotedPriceFields(request: FastifyRequest, subject: 'product' | 'variant'): void {
+  const named = namedPriceFields.get(request);
+  if (!named) return;
+  throw new HttpError(
+    400,
+    ERROR_CODES.PRICE_SET_IN_PRICE_BOOKS,
+    `Prices are set in price books, not on the ${subject}.`,
+    named.map((key) => ({ path: key, issue: 'prices are set in price books' })),
+  );
+}
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { ProductVariant } from './entities/product-variant.entity.js';
 import type { Product } from './entities/product.entity.js';
@@ -232,10 +262,12 @@ export async function registerCatalogAdminRoutes(
   app.post(
     '/api/v1/admin/catalog/products',
     {
+      preValidation: notePriceFields(PRICE_FIELDS_REFUSED_ON_PRODUCTS),
       preHandler: requireAdmin('catalog:write'),
       schema: { body: createProductRequestSchema },
     },
     async (request, reply) => {
+      refuseNotedPriceFields(request, 'product');
       const body = createProductRequestSchema.parse(request.body);
       const auditCtx = deps.resolveAdminAuditContext?.(request);
       const product = await adminService.createProduct(
@@ -261,10 +293,12 @@ export async function registerCatalogAdminRoutes(
   app.patch<{ Params: { id: string } }>(
     '/api/v1/admin/catalog/products/:id',
     {
+      preValidation: notePriceFields(PRICE_FIELDS_REFUSED_ON_PRODUCTS),
       preHandler: requireAdmin('catalog:write'),
       schema: { body: updateProductRequestSchema },
     },
     async (request) => {
+      refuseNotedPriceFields(request, 'product');
       const body = updateProductRequestSchema.parse(request.body);
       // Feature 054 — audited co-transactionally via the Command Bus; the actor
       // is derived from the ambient TenantContext (not from the request body).
@@ -1483,10 +1517,12 @@ export async function registerCatalogAdminRoutes(
   app.post<{ Params: { productId: string } }>(
     '/api/v1/admin/catalog/products/:productId/variants',
     {
+      preValidation: notePriceFields(PRICE_FIELDS_REFUSED_ON_VARIANTS),
       preHandler: requireAdmin('catalog:write'),
       schema: { body: createVariantRequestSchema },
     },
     async (request, reply) => {
+      refuseNotedPriceFields(request, 'variant');
       const body = createVariantRequestSchema.parse(request.body);
       const variant = await adminService.createVariant(request.params.productId, body);
       reply.status(201);
@@ -1497,10 +1533,12 @@ export async function registerCatalogAdminRoutes(
   app.patch<{ Params: { productId: string; variantId: string } }>(
     '/api/v1/admin/catalog/products/:productId/variants/:variantId',
     {
+      preValidation: notePriceFields(PRICE_FIELDS_REFUSED_ON_VARIANTS),
       preHandler: requireAdmin('catalog:write'),
       schema: { body: updateVariantRequestSchema },
     },
     async (request) => {
+      refuseNotedPriceFields(request, 'variant');
       const body = updateVariantRequestSchema.parse(request.body);
       const variant = await adminService.updateVariant(
         request.params.productId,
@@ -1901,7 +1939,6 @@ function serializeAdminVariant(v: ProductVariant) {
     parentProductId: v.parentProductId,
     sku: v.sku,
     variantAttributeValues: v.variantAttributeValues,
-    priceOverride: v.priceOverride != null ? Number(v.priceOverride) : null,
     stockLevel: v.stockLevel ?? null,
     createdAt: v.createdAt.toISOString(),
     updatedAt: v.updatedAt.toISOString(),

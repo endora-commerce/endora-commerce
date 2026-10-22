@@ -4,6 +4,7 @@ import type {
   CatalogCategoryReadPort,
   CatalogProductReadPort,
   CustomerAccountReadPort,
+  ErrorCode,
   InventoryStockImportPort,
   InventoryStockReadPort,
   OrderReadPort,
@@ -64,6 +65,13 @@ export interface ImportExportAdapter {
   exportRows(): Promise<string[][]>;
   /** Header columns the import expects. Undefined when import is unsupported. */
   importHeader?: readonly string[];
+  /**
+   * Header columns the import **refuses**, with the refusal: a column that
+   * once carried data the owner no longer accepts from a file (feature 160 —
+   * a product's price, which is set in price books). Ignoring it would apply
+   * the rest of the row and drop the value without a word.
+   */
+  refusedHeader?: ReadonlyArray<{ readonly column: string; readonly code: ErrorCode; readonly message: string }>;
   /**
    * Map the parsed CSV records onto the owner's import port and return its
    * report.

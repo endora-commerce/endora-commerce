@@ -10,7 +10,7 @@ import { randomUUID } from 'crypto';
 @GlobalEntity()
 @Entity({ tableName: 'product_variants' })
 export class ProductVariant {
-  [OptionalProps]?: 'id' | 'createdAt' | 'updatedAt' | 'priceOverride' | 'stockLevel';
+  [OptionalProps]?: 'id' | 'createdAt' | 'updatedAt' | 'stockLevel';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -25,9 +25,6 @@ export class ProductVariant {
 
   @Property({ type: 'json' })
   variantAttributeValues: Record<string, unknown> = {};
-
-  @Property({ type: 'decimal', precision: 12, scale: 2, nullable: true })
-  priceOverride?: string | null;
 
   @Property({ type: 'integer', nullable: true })
   stockLevel?: number | null;

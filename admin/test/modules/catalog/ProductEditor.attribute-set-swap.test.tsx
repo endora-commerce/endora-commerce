@@ -14,7 +14,8 @@ import {
  * Regression — swapping the Attribute Set prunes attribute values whose keys
  * are not in the newly-selected set, so the save payload no longer carries
  * orphan keys (which the backend used to reject with ATTRIBUTE_VALUE_REJECTED).
- * The virtual `defaultPrice` key is always kept.
+ * Feature 160: the old virtual `defaultPrice` key is no longer special — a
+ * product has no price of its own — so it is pruned like any other orphan.
  */
 
 const getSpy = vi.fn();
@@ -147,7 +148,7 @@ describe('ProductEditor — attribute set swap prunes orphan values', () => {
     vi.clearAllMocks();
   });
 
-  it('drops keys absent from the new set but keeps defaultPrice', async () => {
+  it('drops keys absent from the new set, the old price key with them', async () => {
     const user = userEvent.setup();
     renderEditor();
 
@@ -170,7 +171,7 @@ describe('ProductEditor — attribute set swap prunes orphan values', () => {
     const [, body] = patchSpy.mock.calls[0] as [string, Record<string, unknown>];
     const attrs = body['attributeValues'] as Record<string, unknown>;
     expect(attrs).not.toHaveProperty('legacy_attr');
-    expect(attrs['defaultPrice']).toBe(10);
+    expect(attrs).not.toHaveProperty('defaultPrice');
     expect(body['attributeSetId']).toBe(SET_B);
   });
 });
