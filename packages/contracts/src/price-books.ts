@@ -715,3 +715,62 @@ export const SHOW_LIST_PRICE_SETTING_CODE = 'pricing.show_list_price';
 /** Body of `PUT /api/v1/admin/price-books/settings/show-list-price`. */
 export const showListPriceWriteSchema = z.object({ value: z.boolean() });
 export type ShowListPriceWrite = z.infer<typeof showListPriceWriteSchema>;
+
+// --- Cross-module base-price writes (FR-049, owner ruling 2026-10-22) -----------
+
+/**
+ * One product's base price per currency — the body of
+ * `GET /api/v1/admin/price-books/base-prices?productId=` and the answer of
+ * every {@link PriceBookWritePort} call. A variant's row is `null` when it
+ * inherits the product's base price.
+ */
+export const productBasePricesSchema = z.object({
+  productId: uuidSchema,
+  byCurrency: z.record(
+    CURRENCY,
+    z.object({
+      bookId: uuidSchema,
+      product: z.array(basePriceTierSchema),
+      variants: z.record(uuidSchema, variantBaseRowSchema.nullable()),
+    }),
+  ),
+});
+export type ProductBasePrices = z.infer<typeof productBasePricesSchema>;
+
+/**
+ * Container name: `priceBookWritePort`. Owner: `price_lists`
+ * (`specs/160-pricing-model-v2/contracts/price-book-write-port.md`).
+ *
+ * What another module — the PIM connectors' price import — may do to a
+ * product's **base prices**, and nothing more: read them, replace them, and
+ * list the books that price the product directly for a field-protection
+ * compare. It replaces `priceListAdminPort` (removed with the old model;
+ * the method mapping is in the contract §3). Both writes are the admin API's
+ * own base-price command: one audited Command Bus run, the base books' version
+ * moved, the pricing caches told after the commit, the same refusals. A
+ * currency with no base book gets one inside that command, as the admin write
+ * does.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `price_lists` has an off state at all is its manifest's
+ * `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface PriceBookWritePort {
+  /** The product's base price per currency, each variant's row (`null` = inherits). */
+  basePrices(productId: string): Promise<ProductBasePrices>;
+  /**
+   * Replace the product-level base tiers in each named currency (a code is
+   * upper-cased); the variants' base rows stay as they are, and currencies not
+   * named are untouched. Amounts are decimal strings.
+   */
+  replaceProductBaseTiers(
+    productId: string,
+    tiersByCurrency: Readonly<Record<string, readonly BasePriceTier[]>>,
+  ): Promise<ProductBasePrices>;
+  /** Replace product and variant base rows per currency — exactly `PUT …/base-prices/:productId`. */
+  replaceBasePrices(productId: string, write: BasePricesWrite): Promise<ProductBasePrices>;
+  /** The books with a row naming the product (or the variant) directly — the admin G1 list, every page. */
+  booksPricingProduct(productId: string, variantId?: string | null): Promise<PriceBookSummary[]>;
+}

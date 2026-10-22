@@ -156,6 +156,9 @@ price never — cards are always resolved live. Measured in
    account, so a customer's own group is not applied there.
 5. **Next.js `pricing:*` cache tags are never revalidated**, and short price-sorted and search
    pages (#235) remain, as in P0.
-6. **No in-process write port for books.** `priceListAdminPort` — through which the PIM
-   connectors' price import wrote brackets — was removed with the old model and has no replacement
-   in P1.
+6. **The in-process write port covers base prices only.** `priceListAdminPort` — through which
+   the PIM connectors' price import wrote brackets — was removed with the old model and replaced by
+   `priceBookWritePort` (FR-049, owner ruling 2026-10-22,
+   `specs/160-pricing-model-v2/contracts/price-book-write-port.md`): base tiers per currency, read,
+   replace, and the G1 list of books pricing a product. Rows of non-base books are written through
+   the admin API only.

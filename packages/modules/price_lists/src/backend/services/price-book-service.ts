@@ -207,8 +207,20 @@ export class PriceBookService {
    * every currency the write names, as **one** command. A currency's base book
    * is created on first use: the platform default currency's with the id the
    * old `Default` list had, any other with a new one.
+   *
+   * `keepVariantRows` (FR-049, `priceBookWritePort.replaceProductBaseTiers`)
+   * replaces only the product-level rows and leaves the variants' base rows as
+   * they are — `write.byCurrency[code].variants` must then be empty. A kept
+   * percentage or amount adjustment still needs the product's own base price,
+   * so clearing the product's tiers under one is refused, as it is here when
+   * the adjustment is part of the write.
    */
-  async setBasePrices(productId: string, write: BasePricesWrite): Promise<{ bookIds: Record<string, string> }> {
+  async setBasePrices(
+    productId: string,
+    write: BasePricesWrite,
+    options: { keepVariantRows?: boolean } = {},
+  ): Promise<{ bookIds: Record<string, string> }> {
+    const keepVariantRows = options.keepVariantRows === true;
     const currencies = Object.keys(write.byCurrency).sort();
     if (currencies.length === 0) return { bookIds: {} };
     const product = await this.deps.targetReads.catalogProductRead.findById(productId);
@@ -221,6 +233,12 @@ export class PriceBookService {
     const planned = new Map<string, PlannedRow[]>();
     const issues: RuleIssue[] = [];
     for (const currencyCode of currencies) {
+      if (keepVariantRows && Object.keys(write.byCurrency[currencyCode]!.variants ?? {}).length > 0) {
+        issues.push({
+          path: ['byCurrency', currencyCode, 'variants'],
+          message: 'Variant rows are kept by this write and cannot be named in it.',
+        });
+      }
       const plan = planBasePriceRows({
         productId,
         currencyCode,
@@ -269,10 +287,30 @@ export class PriceBookService {
       const after: Record<string, unknown> = {};
       for (const code of currencies) {
         const bookId = bookIds[code]!;
-        const old = await txEm.find(PriceListMatrixEntry, { priceListId: bookId, productId });
+        const replaced = keepVariantRows ? { priceListId: bookId, productId, variantId: null } : { priceListId: bookId, productId };
+        const old = await txEm.find(PriceListMatrixEntry, replaced);
         before[code] = old.map(rowState);
-        await txEm.nativeDelete(PriceListMatrixEntry, { priceListId: bookId, productId });
         const rows = planned.get(code)!;
+        if (keepVariantRows && rows.length === 0) {
+          const adjusted = await txEm.count(PriceListMatrixEntry, {
+            priceListId: bookId,
+            productId,
+            variantId: { $ne: null },
+            priceType: { $in: ['percent', 'amount'] },
+          });
+          if (adjusted > 0) {
+            validation(
+              [
+                {
+                  path: ['byCurrency', code, 'product'],
+                  message: "A variant's percentage or amount adjustment needs the product's own base price in this currency.",
+                },
+              ],
+              'The base prices were refused.',
+            );
+          }
+        }
+        await txEm.nativeDelete(PriceListMatrixEntry, replaced);
         for (const row of rows) txEm.persist(txEm.create(PriceListMatrixEntry, { priceListId: bookId, ...row }));
         await txEm.flush();
         if (!toCreate.includes(code)) await this.#bumpVersion(txEm, bookId, null);
@@ -281,7 +319,7 @@ export class PriceBookService {
       return {
         result: { bookIds },
         before: { productId, byCurrency: before },
-        after: { productId, byCurrency: after, createdBaseBooks: toCreate },
+        after: { productId, byCurrency: after, createdBaseBooks: toCreate, ...(keepVariantRows ? { variantRowsKept: true } : {}) },
       };
     });
   }

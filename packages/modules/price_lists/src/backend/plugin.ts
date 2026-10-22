@@ -168,6 +168,8 @@ export interface PriceListsModuleHandle {
   pricingGeneration: PricingGeneration;
   /** Feature 160 — the price-book write service (base prices, books, rows, channel sets). */
   priceBookService: PriceBookService;
+  /** Feature 160 — the price-book reads (the admin list, G1), for `priceBookWritePort`. */
+  priceBookReads: PriceBookReads;
   /** Feature 160 — the engine itself, for the surface worker and the subscriptions. */
   pricingEngine: PricingService;
 }
@@ -265,6 +267,7 @@ export function priceListsModule(options: PriceListsModuleOptions): {
       buyerLinePriceService,
       pricingGeneration,
       priceBookService,
+      priceBookReads,
       pricingEngine,
     },
     plugin: async (app: FastifyInstance) => {

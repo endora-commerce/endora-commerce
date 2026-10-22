@@ -12,7 +12,8 @@ import { priceSourceSchema, type PriceSource } from './price-books.js';
  * line answers, the ports that produce them, the display-mode chain, the price
  * ordering, and the price-list read port. The Application-rule tree and its
  * evaluator, the bracket and roster shapes, the matrix-entry v1 shapes and the
- * `priceListAdminPort` were removed with the old model.
+ * `priceListAdminPort` were removed with the old model (`priceBookWritePort`, in
+ * `price-books.ts`, replaces the last).
  */
 
 const CURRENCY = z.string().regex(/^[A-Z]{3}$/, 'ISO 4217 currency code');

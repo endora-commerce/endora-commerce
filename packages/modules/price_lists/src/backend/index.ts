@@ -9,6 +9,7 @@ import type {
   CustomerAccountReadPort,
   CustomerGroupReadPort,
   OrganizationDetailsPort,
+  PriceBookWritePort,
   PriceListReadPort,
   ProductDisplayModePort,
   DictionaryReferenceRegistryPort,
@@ -35,6 +36,7 @@ import type {
   PricingGenerationSubscriber,
 } from './services/pricing-generation.js';
 import { PriceListReadService } from './services/price-list-read-port.js';
+import { createPriceBookWritePort } from './services/price-book-write-port.js';
 import type { PricingServiceContract } from './services/pricing-service.interface.js';
 import { registerPriceListCurrencyReferences } from './services/price-list-currency-reference.js';
 import { PriceDisplayModeOverride } from './entities/price-display-mode-override.entity.js';
@@ -301,6 +303,22 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.providePort<PriceListReadPort>(
     'priceListReadPort',
     ctx.asFunction(({ emFactory }: PriceListsCradle) => new PriceListReadService(emFactory)).singleton(),
+  );
+
+  // Feature 160, FR-049 (owner ruling 2026-10-22) — the PIM price import's
+  // seam, replacing `priceListAdminPort`. Both writes are the admin base-price
+  // command (`contracts/price-book-write-port.md`); `providePort` makes it fail
+  // closed while this module is absent.
+  ctx.di.providePort<PriceBookWritePort>(
+    'priceBookWritePort',
+    ctx
+      .asFunction(({ priceLists }: PriceListsCradle) =>
+        createPriceBookWritePort({
+          priceBookService: priceLists.handle.priceBookService,
+          reads: priceLists.handle.priceBookReads,
+        }),
+      )
+      .singleton(),
   );
 
   ctx.routes(async (app) => {

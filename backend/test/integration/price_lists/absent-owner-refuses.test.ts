@@ -107,6 +107,37 @@ describe('price_lists — an absent owner refuses to price a cart line [integrat
     expect((res.json() as { error: { code: string } }).error.code).toBe('MODULE_DISABLED');
   });
 
+  it('refuses the PIM price write port while `price_lists` is absent (FR-049)', async () => {
+    // `providePort` gates the resolution: a caller resolves the port per use,
+    // so the refusal comes before anything executes.
+    const resolvePort = () =>
+      (h.container as unknown as { resolve<T>(name: string): T }).resolve<{
+        replaceProductBaseTiers(productId: string, tiers: Record<string, unknown[]>): Promise<unknown>;
+      }>('priceBookWritePort');
+    const count = () =>
+      h
+        .em()
+        .getConnection()
+        .execute<Array<{ n: string }>>(`select count(*) as "n" from "price_list_matrix_entries" where "product_id" = ?`, [
+          SEED_PRODUCT_101_ID,
+        ]);
+    const before = await count();
+    registryCache.__setEnabledForTesting(ALL_IDS.filter((id) => id !== 'price_lists'));
+
+    let refusal: unknown;
+    try {
+      await resolvePort().replaceProductBaseTiers(SEED_PRODUCT_101_ID, {
+        PLN: [{ minQuantity: 1, maxQuantity: null, amount: '1.0000' }],
+      });
+    } catch (error) {
+      refusal = error;
+    }
+    expect(refusal).toMatchObject({ code: 'MODULE_DISABLED' });
+
+    registryCache.__setEnabledForTesting(ALL_IDS);
+    expect(await count()).toEqual(before);
+  });
+
   it('adds the line again once `price_lists` is back', async () => {
     const res = await addItem();
 

@@ -328,6 +328,12 @@ the repository's generated-artefact, ledger and changeset obligations.
 - [X] T132 Rewrite `specs/pricing/current-model.md` to describe the shipped model and refresh the *Verified against* lines of the files re-checked (working rule of `specs/conventions/pricing.md`) — rewritten for the price-book model; `read-paths-and-performance.md` and `worked-examples.md` carry a status note saying which passages describe the pre-160 engine (their full refresh is T147)
 - [X] T133 Full verification: `pnpm -r run typecheck`, `pnpm -r run lint`, `pnpm --filter backend run test` (unit + contract + integration on `dev:infra:test`), `pnpm --filter '!backend' run test`; report every failure with its output — 2026-10-22: typecheck and lint green in every workspace member; the complete backend suite on `dev:infra:test` at 6 workers: 1642 files, 14 992 passed, 1 expected fail, 39 skipped, 1 failed (`check-module-boundary.test.ts`'s tree walk timed out at 30 s under load; 154/154 at 1 worker); `pnpm --filter '!backend' run test`: 12 825 passed, 64 failed — all in five admin files that call `window.localStorage.clear()`, absent on Node 26 (pre-existing); every `check:*` script and `check:release-intent --since origin/master` green; the SC-005 bench green (p95 ≤ 28.2 ms, refresh 47.2 s); a fresh `pnpm run setup` then `demo reset` and `demo seed` prices E3.1–E3.6
 
+### Owner rulings 2026-10-22 — the PIM write port (FR-049)
+
+- [x] T160 [P] Port test `IT/price_lists/price-book-write-port.test.ts` (`contracts/price-book-write-port.md` §4): write then resolve equals the written tiers; batch == single; one generation bump, after the commit; invalid tiers refused with nothing written; variant rows kept by `replaceProductBaseTiers`; summary equals the admin G1 list. Fail-closed case added to `IT/price_lists/absent-owner-refuses.test.ts`
+- [x] T161 `PriceBookWritePort`, `productBasePricesSchema` in `packages/contracts/src/price-books.ts`; `setBasePrices(…, { keepVariantRows })` in `PL/backend/services/price-book-service.ts` (one write path); `ctx.di.providePort('priceBookWritePort', …)` in `PL/backend/index.ts`; port ledgers re-derived (no ledger names a provided port: `check:port-shape`, `check:port-dependencies`, `check:port-catches` and `check:off-state-coverage` pass unchanged)
+- [x] T162 Changeset: `priceListAdminPort` removed and replaced by `priceBookWritePort`, with the method mapping of `contracts/price-book-write-port.md` §3
+
 ---
 
 ## Phase 12: P2 hand-off (the release is gated on P2)
@@ -442,6 +448,7 @@ and Phase 13 (`plan.md` *Release gate*).
 | FR-046 | T044 |
 | FR-047 | T040 |
 | FR-048 | T138, T145, T146 (absence and translation are tested; content completeness is reviewed) |
+| FR-049 | T160 |
 | SC-001 | T023, T029–T032, T037, T044, T048 |
 | SC-002 | T060 |
 | SC-003 | T061 |
