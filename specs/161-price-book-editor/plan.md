@@ -171,8 +171,8 @@ No FR is unmapped (`contracts/ui-api-mapping.md`).
 | FR-036 5 000-row save | stays interactive, progress shown | — | — |
 | SC-009 1 000-row preview | < 10 s | — | — |
 | G15 100-line page, 50 000-line book — prototype, DB side (R14) | ≤ 150 ms p95 | first 35.8, middle 31.7, last 36.2; search 54.9–82.3 ms | local `postgres-test`, 16 cores |
-| G15 end to end — bench T029, steady (VACUUM ANALYZE) | ≤ 150 ms p95, every case | 26 of 26 cases in each of 3 runs; largest 119.0 ms | local `postgres-test`, 16 threads |
-| G15 end to end — bench T029, fresh (no VACUUM) | reported | 22 of 26 in each of 2 runs; over: middle page 152.5, two-character search 159.9 / 150.3, all-matching last 156.5 ms (statistics and visibility map missing until autovacuum's first analyze) | same |
+| G15 end to end — bench T029, steady (VACUUM ANALYZE) | ≤ 150 ms p95, every case | 26 of 26 in each of 3 runs (largest 119.0 ms); after the page-rows lookup change, 1 run, 26 of 26 (largest 125.3 ms) | local `postgres-test`, 16 threads |
+| G15 end to end — bench T029, fresh (no VACUUM) | reported | after the page-rows lookup change, 2 runs: over in 3 case-runs, all 50 003-line searches — broad first 151.9, all-matching last 152.6, two-character first 150.6 ms; the search count and the dense walk read every product's heap tuple until autovacuum's first pass | same |
 
 ## Complexity Tracking
 

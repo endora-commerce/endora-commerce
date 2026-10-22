@@ -40,21 +40,19 @@ import {
  *
  * PERF_RUN=true to run.
  *
- * **Measured 2026-10-22** (one developer machine, 16 threads, the test Postgres,
- * load average about 1; p95 ms). Steady, three runs: every case ≤ 150 ms — the
- * largest 119.0 (all-matching search, last page, 50 003 lines) and 117.8
- * (all-matching, first page, 300 lines); pages 62.2–100.6 at 50 003 lines.
- * Fresh, two runs: 22 of 26 cases within budget in each, over in four
- * case-runs — middle page 152.5, two-character search first page 159.9 / 150.3,
- * all-matching last page 156.5. Why fresh is slower: with no statistics and no
- * visibility map the ordered walk fetches every heap tuple it passes (59 ms
- * against 32 ms on the deepest page), and the page-rows read uses only
- * `price_list_id` as its index condition and filters 125 003 entries (27–40 ms
- * against 0.5 ms). Both end with autovacuum's first analyze after the import;
- * until then an operator sees the deepest and broadest pages of a 50 000-line
- * book answer in about 150–160 ms instead of about 120 ms. The full table per
- * case is in `specs/161-price-book-editor/plan.md` *Measurements* and the
- * change's report.
+ * **Measured 2026-10-22, after the page-rows read became an index lookup per
+ * id** (one developer machine, 16 threads, the test Postgres, load average about
+ * 1; p95 ms). Steady, one run: every case ≤ 150 ms, the largest 125.3
+ * (all-matching search, last page, 50 003 lines); before that change, three
+ * runs, largest 119.0. Fresh, two runs: 23 and 24 of the cases that ran within
+ * budget; over in three case-runs, all searches on the 50 003-line book — broad
+ * first page 151.9, all-matching last page 152.6, two-character first page
+ * 150.6. Per statement on fresh data (p50 / p95): the search count 41 / 54–64
+ * ms and the dense walk 39–47 / 55–76 ms, both reading all 50 000 products'
+ * heap tuples because there is no visibility map yet; the page-rows read 4.4
+ * ms (it was 27–40 ms before it became a lookup per id). Both end with
+ * autovacuum's first pass after the import; until then the broadest searches
+ * of a 50 000-line book answer in about 150 ms instead of about 125 ms.
  *
  * Before the Checkpoint 2b fix the planner sorted every member instead of
  * walking the index: all-matching search, last page 142.5 / 157.7 ms; middle

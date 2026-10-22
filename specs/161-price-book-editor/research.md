@@ -311,6 +311,26 @@ validation and label work in Node, which the bench T029 measures end to end; the
 count (≈ 45 ms, a scan of the order index) is the known headroom if it is ever needed (a capped
 trigram pre-count).
 
+**Implementation follow-up (Checkpoint 2b, measured 2026-10-22).** Two statements did not plan as the
+prototype assumed, and both are pinned in the code with the measurement beside them:
+
+- *The ordered page* (no search, and the dense search strategy) was planned as a seq scan of `products`
+  plus a sort of every member, before **and** after `VACUUM ANALYZE`: the hashed membership filter
+  `(p.id in (…)) is true` is estimated at a fixed half of the table, and on unanalysed data the planner
+  also assumes a few thousand rows and an empty visibility map, so it prices the index walk above the
+  sort (84–92 ms; walking: 32 ms vacuumed, 59 ms unvacuumed with 50 003 heap fetches). No query shape
+  kept the walk on unanalysed data — an `offset 0`-fenced ordered subquery, `limit all`, a keyset walk
+  in 2 000-row index-range chunks — so the page statement runs in its own transaction under
+  **`set local enable_sort = off`**, which ends with that transaction (`catalog-product-read.service.ts`
+  `withSort`). The sparse strategy must sort its materialised trigram hits (with the sort off the
+  planner abandons the trigram index, ≈ 400 ms), so it runs under `enable_sort = on`, restated so both
+  strategies issue the same statements. The search count stays a seq scan: exact and plan-insensitive.
+- *The page-rows read* (`price-book-reads.ts` `lines`) of `price_list_matrix_entries` used only
+  `price_list_id` as its index condition on unanalysed data (the 125 003-row book estimated at 86
+  rows) and filtered the whole book: 27–40 ms against 0.5 ms. The page's product rows are read through
+  a `LATERAL` per id fenced with `offset 0`, so each probe is an index lookup on `(price_list_id,
+  product_id)` in both states (0.66 ms); `price-book-lines-rows-plan.test.ts` holds it.
+
 **The name rule, and how it relates to `pickName`.** Display name for admin language `L`: the
 non-empty name whose language tag's primary subtag is `L`, taking the **alphabetically first tag**
 when there are several (`en-GB` before `en-US`); else the same for English; else the first non-empty
