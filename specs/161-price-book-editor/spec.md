@@ -582,6 +582,9 @@ each is additive and justified by the requirement named):
 | G9 | `ListingPriceDetail` and `GET /api/v1/storefront/products/:id/resolved-price` gain `listPrice?: { amount, currency }`, present only when the setting is on and the catalogue price is above the buyer price | FR-026, SC-007 |
 | G10 | `PUT /api/v1/admin/price-books/:id/rows?dryRun=true` (same body plus `mode: 'merge' \| 'replace'`, rows also addressable by natural keys `{ productSku?, variantSku?, categoryPath?, attribute?: {key, valueCode} }`) → writes nothing and answers `{ version, resolved: rows with ids, diff: { added[], changed[{ before, after }], removed[], unchangedCount }, errors[] }` (G6 shape, with `index` = file line); the confirming call is the same body without `dryRun`, with `expectedVersion` (G5) | FR-038–FR-041, SC-009 |
 
+**Found while planning against the implemented P1** (2026-10-22): seven further additive gaps,
+G11–G17, built as backend tasks of this feature — `contracts/backend-gaps.md`.
+
 **Other**: the product picker of feature 145; the product editor's zone mechanism (feature 091); the
 release gate of feature 160 (one pull request to `master` after this feature and 160's Phase 13).
 
