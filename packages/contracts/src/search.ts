@@ -95,6 +95,10 @@ export const searchSuggestItemSchema = productSummarySchema.extend({
   /** Resolved price-visibility mode. `none` ⇒ the storefront must hide the
    *  price and offer a quote affordance instead. */
   priceDisplayMode: displayModeSchema.optional(),
+  /** Feature 161 (G19) — the catalogue price beside a lower buyer price
+   *  ("list price / your price"), as on the catalogue cards (G14): present only
+   *  while `pricing.show_list_price` is on and it is above the price charged. */
+  listPrice: searchSuggestMoneySchema.optional(),
 });
 export type SearchSuggestItem = z.infer<typeof searchSuggestItemSchema>;
 

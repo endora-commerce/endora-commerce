@@ -85,6 +85,8 @@ export function createSuggestionPricingEnricher(deps: {
         basePrice: detail.basePrice,
         salePrice: detail.salePrice,
         priceDisplayMode: detail.displayMode,
+        // Feature 161 (G19) — the list price beside a lower buyer price, as on the result cards.
+        ...(detail.listPrice ? { listPrice: { amount: detail.listPrice.amount, currency: detail.listPrice.currency } } : {}),
       };
     });
   };
