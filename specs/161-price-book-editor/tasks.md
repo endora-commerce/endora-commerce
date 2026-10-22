@@ -34,29 +34,29 @@ moves on before the checkpoint passes; no budget or assertion is loosened to pas
 
 ### Tests first
 
-- [ ] T004 [P] G11 contract test in `CT/price-books-writable.test.ts`: `writable` on book and summary, `meta.creatableAudienceKinds`, `writable` on base prices, for a platform admin and a representative scoped to {Acme}
-- [ ] T005 [P] G12 contract test in `CT/price-book-targets-ids.test.ts`: `?ids=` labels in-scope organizations, omits out-of-scope and unknown ids without an error, refuses `ids` with `search`
-- [ ] T006 [P] G13 admin test in `admin/test/modules/audit_logs/audit-log-viewer-url-filters.test.tsx`: `/audit-log?objectType=price_list&objectId=<id>` opens filtered; changing a filter updates the URL
-- [ ] T007 [P] G14 integration test in `backend/test/integration/catalog/list-price-in-summaries.test.ts`: vectors D1–D4 on the listing response and on the product detail `resolvedPrice.listPrice`
-- [ ] T008 [P] G15 contract test in `CT/price-book-lines.test.ts`: a base book of 1 200 products (1–4 tiers each, variants on 100) at `pageSize=100` — no line split across pages (each line's rows equal the stored rows of that selection), variants on their product's page, `totalLines` correct, pages concatenate to every line exactly once in general-to-specific order; `kind` and `search` filters
-- [ ] T009 [P] G15 statement-count test in `CT/price-book-lines-statements.test.ts`: a page call issues the same number of statements for a 300-line and a 30 000-line book
-- [ ] T010 [P] G15 catalogue port test in `backend/test/integration/catalog/page-product-ids-by-name.test.ts`: `pageProductIdsByName` orders by localized name, SKU, id; filters by name/SKU search; offset/limit; language fallback
-- [ ] T011 [P] G15 bench `backend/test/perf/price_lists/book-lines-page.bench.ts` (`PERF_RUN=true`): p95 of a 100-line page of a 50 000-line base book, first and last page, with and without search, asserted ≤ 150 ms; numbers recorded in the header
-- [ ] T012 [P] G18 contract test in `CT/price-book-batch-scope.test.ts`: a base book of 6 000 rows accepts a batch; a non-base book refused at 5 001 rows; a 10-row batch issues the same number of statements on a 300-row and a 30 000-row book; replace mode on a large base book lists every removed row in the dry run
-- [ ] T013 [P] G16: extend `CT/price-books-resolve.test.ts` — E3.1 runner-ups carry `bookName` and `labels`
-- [ ] T014 [P] G17 unit tests moved to `packages/contracts/test/price-book-decimal.unit.test.ts` (every case of `PL/backend/services/matrix-decimal.test.ts`), plus a re-export identity test in `PL/backend/services/matrix-decimal.test.ts`
+- [x] T004 [P] G11 contract test in `CT/price-books-writable.test.ts`: `writable` on book and summary, `meta.creatableAudienceKinds`, `writable` on base prices, for a platform admin and a representative scoped to {Acme}
+- [x] T005 [P] G12 contract test in `CT/price-book-targets-ids.test.ts`: `?ids=` labels in-scope organizations, omits out-of-scope and unknown ids without an error, refuses `ids` with `search`
+- [x] T006 [P] G13 admin test in `admin/test/modules/audit_logs/audit-log-viewer-url-filters.test.tsx`: `/audit-log?objectType=price_list&objectId=<id>` opens filtered; changing a filter updates the URL
+- [x] T007 [P] G14 integration test in `backend/test/integration/catalog/list-price-in-summaries.test.ts`: vectors D1–D4 on the listing response and on the product detail `resolvedPrice.listPrice`
+- [x] T008 [P] G15 contract test in `CT/price-book-lines.test.ts`: a base book of 1 200 products (1–4 tiers each, variants on 100) at `pageSize=100` — no line split across pages (each line's rows equal the stored rows of that selection), variants on their product's page, `totalLines` correct, pages concatenate to every line exactly once in general-to-specific order; `kind` and `search` filters
+- [x] T009 [P] G15 statement-count test in `CT/price-book-lines-statements.test.ts`: a page call issues the same number of statements for a 300-line and a 30 000-line book
+- [x] T010 [P] G15 catalogue port test in `backend/test/integration/catalog/page-product-ids-by-name.test.ts`: `pageProductIdsByName` orders by localized name, SKU, id; filters by name/SKU search; offset/limit; language fallback
+- [ ] T011 [P] G15 bench `backend/test/perf/price_lists/book-lines-page.bench.ts` (`PERF_RUN=true`): p95 of a 100-line page of a 50 000-line base book, first and last page, with and without search, asserted ≤ 150 ms; numbers recorded in the header — **written and run 2026-10-22: over budget** (p95 649 / 674 / 1 320 / 1 284 ms, numbers in the bench header); the budget stands, owner decision pending
+- [x] T012 [P] G18 contract test in `CT/price-book-batch-scope.test.ts`: a base book of 6 000 rows accepts a batch; a non-base book refused at 5 001 rows; a 10-row batch issues the same number of statements on a 300-row and a 30 000-row book; replace mode on a large base book lists every removed row in the dry run
+- [x] T013 [P] G16: extend `CT/price-books-resolve.test.ts` — E3.1 runner-ups carry `bookName` and `labels`
+- [x] T014 [P] G17 unit tests moved to `packages/contracts/test/price-book-decimal.unit.test.ts` (every case of `PL/backend/services/matrix-decimal.test.ts`), plus a re-export identity test in `PL/backend/services/matrix-decimal.test.ts`
 
 ### Implementation
 
-- [ ] T015 G11 in `packages/contracts/src/price-books.ts` (`writable`, `creatableAudienceKinds`, base-prices `writable`) and `PL/backend/services/price-book-reads.ts` using `price-book-scope.ts`
-- [ ] T016 [P] G12 `ids` parameter in `PL/backend/routes.price-books.ts` (`targets/organizations`) through `organizationDetailsPort.findByIds` (existing, `packages/contracts/src/organizations.ts`)
-- [ ] T017 [P] G13 URL-backed filters in `packages/modules/audit_logs/src/admin/pages/AuditLogViewer.tsx`
-- [ ] T018 [P] G14 `listPrice` on `productResolvedPriceSchema` (`packages/contracts/src/price-lists.ts`) and on the catalogue summary (`packages/contracts/src/catalog.ts`); mapping in `packages/modules/catalog/src/backend/services/catalog-query.service.ts`
-- [ ] T019 G15 `priceBookLinesQuerySchema`, `priceBookLineSchema`, `priceBookLinesResponseSchema` in `packages/contracts/src/price-books.ts`; `pageProductIdsByName` on `CatalogProductReadPort` (`packages/contracts/src/catalog.ts`) implemented in `packages/modules/catalog/src/backend/services/catalog-product-read.service.ts`; the lines read (distinct selections by kind, page cut, rows and labels for the page only) in `PL/backend/services/price-book-reads.ts`; route `GET /api/v1/admin/price-books/:id/lines` in `PL/backend/routes.price-books.ts`
-- [ ] T020 G18 scoped batch validation (rows of the touched selections, row count, replace-mode ids) and the base-book exemption from `PRICE_BOOK_MAX_ROWS` in `PL/backend/services/price-book-service.ts` and `price-book-batch.ts`
-- [ ] T021 [P] G16 candidate `bookName` and `labels` in `packages/contracts/src/price-books.ts` and `PL/backend/services/buyer-line-price-service.ts`
-- [ ] T022 [P] G17 move the decimal helpers to `packages/contracts/src/price-book-decimal.ts`, export from `packages/contracts/src/index.ts`, re-export from `PL/backend/services/matrix-decimal.ts`
-- [ ] T023 `minor` changesets `.changeset/161-contracts-editor-gaps.md`, `.changeset/161-price-lists-editor-gaps.md`, `.changeset/161-catalog-list-price-and-paging.md`, `.changeset/161-audit-logs-url-filters.md` (old and new shapes in each body); `pnpm --filter backend run check:release-intent`
+- [x] T015 G11 in `packages/contracts/src/price-books.ts` (`writable`, `creatableAudienceKinds`, base-prices `writable`) and `PL/backend/services/price-book-reads.ts` using `price-book-scope.ts`
+- [x] T016 [P] G12 `ids` parameter in `PL/backend/routes.price-books.ts` (`targets/organizations`) through `organizationDetailsPort.findByIds` (existing, `packages/contracts/src/organizations.ts`)
+- [x] T017 [P] G13 URL-backed filters in `packages/modules/audit_logs/src/admin/pages/AuditLogViewer.tsx`
+- [x] T018 [P] G14 `listPrice` on `productResolvedPriceSchema` (`packages/contracts/src/price-lists.ts`) and on the catalogue summary (`packages/contracts/src/catalog.ts`); mapping in `packages/modules/catalog/src/backend/services/catalog-query.service.ts`
+- [ ] T019 G15 `priceBookLinesQuerySchema`, `priceBookLineSchema`, `priceBookLinesResponseSchema` in `packages/contracts/src/price-books.ts`; `pageProductIdsByName` on `CatalogProductReadPort` (`packages/contracts/src/catalog.ts`) implemented in `packages/modules/catalog/src/backend/services/catalog-product-read.service.ts`; the lines read (distinct selections by kind, page cut, rows and labels for the page only) in `PL/backend/services/price-book-reads.ts`; route `GET /api/v1/admin/price-books/:id/lines` in `PL/backend/routes.price-books.ts` — **implemented as specified, contract and statement tests green; per-page time over the T011 budget**, owner decision pending
+- [x] T020 G18 scoped batch validation (rows of the touched selections, row count, replace-mode ids) and the base-book exemption from `PRICE_BOOK_MAX_ROWS` in `PL/backend/services/price-book-service.ts` and `price-book-batch.ts`
+- [x] T021 [P] G16 candidate `bookName` and `labels` in `packages/contracts/src/price-books.ts` and `PL/backend/services/buyer-line-price-service.ts`
+- [x] T022 [P] G17 move the decimal helpers to `packages/contracts/src/price-book-decimal.ts`, export from `packages/contracts/src/index.ts`, re-export from `PL/backend/services/matrix-decimal.ts`
+- [x] T023 `minor` changesets `.changeset/161-contracts-editor-gaps.md`, `.changeset/161-price-lists-editor-gaps.md`, `.changeset/161-catalog-list-price-and-paging.md`, `.changeset/161-audit-logs-url-filters.md` (old and new shapes in each body); `pnpm --filter backend run check:release-intent`
 
 **Checkpoint 2** — report G11–G18 to the 160 owner as built on the release branch.
 
