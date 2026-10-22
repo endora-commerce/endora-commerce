@@ -303,13 +303,30 @@ export const PRICE_BOOK_CELL_CODES = [
 export const priceBookCellCodeSchema = z.enum(PRICE_BOOK_CELL_CODES);
 export type PriceBookCellCode = z.infer<typeof priceBookCellCodeSchema>;
 
+/** Human labels of a row's selection, resolved in batch for the grid (G2). */
+export const priceBookRowLabelsSchema = z.object({
+  productName: z.string().nullable(),
+  productSku: z.string().nullable(),
+  variantLabel: z.string().nullable(),
+  variantSku: z.string().nullable(),
+  /** Category names from the root, joined by ` › `. */
+  categoryPath: z.string().nullable(),
+  attributeLabel: z.string().nullable(),
+  attributeValueLabel: z.string().nullable(),
+});
+export type PriceBookRowLabels = z.infer<typeof priceBookRowLabelsSchema>;
+
 /** Most runner-up candidates an explanation lists. */
 export const PRICE_BOOK_MAX_EXPLANATION_CANDIDATES = 10;
 
 export const priceBookExplanationCandidateSchema = z.object({
   cell: priceBookCellCodeSchema.nullable(),
   bookId: uuidSchema,
+  /** Feature 161 (G16) — the runner-up's book, by name. */
+  bookName: z.string(),
   rowId: uuidSchema,
+  /** Feature 161 (G16) — what the runner-up's row selects, in words (all `null` once the row is gone). */
+  labels: priceBookRowLabelsSchema,
   amount: z.string(),
 });
 
@@ -385,6 +402,13 @@ export const priceBookSchema = z.object({
   tierStarts: z.array(POSITIVE_INT),
   channels: z.array(priceBookChannelBindingSchema),
   rowCount: z.number().int().nonnegative(),
+  /**
+   * Feature 161 (G11) — whether the caller may change this book: its header,
+   * rows, activation and deletion. The server's scope rule
+   * (`price-book-scope.ts` `bookWritable`); the browser does not know the
+   * caller's organization scope, so it reads this rather than deriving it.
+   */
+  writable: z.boolean(),
 });
 export type PriceBook = z.infer<typeof priceBookSchema>;
 
@@ -421,6 +445,8 @@ export const priceBookSummarySchema = z.object({
   appliesNowhere: z.boolean(),
   /** Only on a list filtered by `productId`: the rows of this book that price it directly (G1). */
   matches: z.array(priceBookRowMatchSchema).optional(),
+  /** Feature 161 (G11) — whether the caller may change this book, as on {@link priceBookSchema}. */
+  writable: z.boolean(),
 });
 export type PriceBookSummary = z.infer<typeof priceBookSummarySchema>;
 
@@ -457,7 +483,14 @@ export const pageMetaSchema = z.object({
 
 export const priceBookListResponseSchema = z.object({
   data: z.array(priceBookSummarySchema),
-  meta: pageMetaSchema,
+  meta: pageMetaSchema.extend({
+    /**
+     * Feature 161 (G11) — the audience kinds the caller may create a book of
+     * (`price-book-scope.ts` `audienceKindWritable`): every kind for a platform
+     * administrator, `organizations` alone for a sales representative.
+     */
+    creatableAudienceKinds: z.array(priceBookAudienceKindSchema),
+  }),
 });
 export type PriceBookListResponse = z.infer<typeof priceBookListResponseSchema>;
 
@@ -514,19 +547,6 @@ export const priceBookNaturalKeySchema = z.object({
 });
 export type PriceBookNaturalKey = z.infer<typeof priceBookNaturalKeySchema>;
 
-/** Human labels of a row's selection, resolved in batch for the grid (G2). */
-export const priceBookRowLabelsSchema = z.object({
-  productName: z.string().nullable(),
-  productSku: z.string().nullable(),
-  variantLabel: z.string().nullable(),
-  variantSku: z.string().nullable(),
-  /** Category names from the root, joined by ` › `. */
-  categoryPath: z.string().nullable(),
-  attributeLabel: z.string().nullable(),
-  attributeValueLabel: z.string().nullable(),
-});
-export type PriceBookRowLabels = z.infer<typeof priceBookRowLabelsSchema>;
-
 export const priceBookRowSchema = z.object({
   id: uuidSchema,
   selectionKind: priceBookSelectionKindSchema,
@@ -559,6 +579,66 @@ export const priceBookRowsQuerySchema = z.object({
   pageSize: z.coerce.number().int().positive().max(1000).default(200),
 });
 export type PriceBookRowsQuery = z.infer<typeof priceBookRowsQuerySchema>;
+
+// --- Lines (161 G15) -------------------------------------------------------------
+
+/** Most lines one page of `GET …/:id/lines` answers. */
+export const PRICE_BOOK_LINES_MAX_PAGE_SIZE = 500;
+
+/**
+ * `GET /api/v1/admin/price-books/:id/lines` (feature 161, G15): the grid's
+ * pages, cut by **line** — a selection with every row it holds, a product with
+ * its variants — never by row. `kind` narrows to selection kinds (a `variant`
+ * filter answers the product lines that carry a variant line); `search`
+ * matches the labels of attribute and category lines and the catalogue's name
+ * and SKU search for product lines.
+ */
+export const priceBookLinesQuerySchema = z.object({
+  kind: oneOrMany(priceBookSelectionKindSchema),
+  search: z.string().trim().min(1).max(200).optional(),
+  page: PAGE,
+  pageSize: z.coerce.number().int().positive().max(PRICE_BOOK_LINES_MAX_PAGE_SIZE).default(100),
+});
+export type PriceBookLinesQuery = z.infer<typeof priceBookLinesQuerySchema>;
+
+const priceBookLineFields = {
+  /** The selection as one comparable string — the grid's key for the line. */
+  selectionKey: z.string(),
+  selectionKind: priceBookSelectionKindSchema,
+  selection: priceBookRowSchema.shape.selection,
+  labels: priceBookRowLabelsSchema,
+  naturalKey: priceBookNaturalKeySchema,
+  inactiveReason: priceBookRowInactiveReasonSchema.nullable(),
+  targetDeleted: z.boolean(),
+  /** Every row of the selection, by `minQuantity` — a line is never split across pages. */
+  rows: z.array(priceBookRowSchema),
+};
+
+/** A variant's line, nested under its product's. */
+export const priceBookVariantLineSchema = z.object(priceBookLineFields);
+export type PriceBookVariantLine = z.infer<typeof priceBookVariantLineSchema>;
+
+/**
+ * One line of a book. A product line carries `variants` — its variants that
+ * the book prices — and exists even when only its variants hold rows (`rows`
+ * is then empty). Other kinds carry no `variants`.
+ */
+export const priceBookLineSchema = z.object({
+  ...priceBookLineFields,
+  variants: z.array(priceBookVariantLineSchema).optional(),
+});
+export type PriceBookLine = z.infer<typeof priceBookLineSchema>;
+
+/** The answer of `GET …/:id/lines`: general to specific, by label within a kind (FR-006). */
+export const priceBookLinesResponseSchema = z.object({
+  data: z.array(priceBookLineSchema),
+  meta: z.object({
+    page: z.number().int().positive(),
+    pageSize: z.number().int().positive(),
+    totalLines: z.number().int().nonnegative(),
+  }),
+});
+export type PriceBookLinesResponse = z.infer<typeof priceBookLinesResponseSchema>;
 
 /**
  * One row of an admin batch: by ids (`selection`, the grid) or by natural key
@@ -734,6 +814,13 @@ export const productBasePricesSchema = z.object({
       variants: z.record(uuidSchema, variantBaseRowSchema.nullable()),
     }),
   ),
+  /**
+   * Feature 161 (G11) — whether the caller may write these base prices: the
+   * base books are everyone's prices, so `false` for a sales representative;
+   * `true` for a platform administrator and for an in-process caller of
+   * {@link PriceBookWritePort}, which acts on every book.
+   */
+  writable: z.boolean(),
 });
 export type ProductBasePrices = z.infer<typeof productBasePricesSchema>;
 

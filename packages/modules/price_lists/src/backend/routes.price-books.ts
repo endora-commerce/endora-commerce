@@ -3,9 +3,12 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
 import {
   ERROR_CODES,
+  PRICE_BOOK_MAX_EXPLANATION_CANDIDATES,
+  PRICE_BOOK_MAX_MEMBERS,
   basePricesWriteSchema,
   priceBookCreateSchema,
   priceBookDuplicateSchema,
+  priceBookLinesQuerySchema,
   priceBookListQuerySchema,
   priceBookPatchRequestSchema,
   priceBookResolveRequestSchema,
@@ -19,6 +22,7 @@ import {
   type CustomerGroupReadPort,
   type OrganizationDetailsPort,
   type PriceBookResolvedLine,
+  type PriceBookRowLabels,
   type SalesRepAssignmentPort,
   type SettingsAdminPort,
 } from '@endora-commerce/contracts';
@@ -72,6 +76,17 @@ export interface PriceBookRoutesDeps {
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The labels of a row that is gone (a runner-up deleted since it was resolved). */
+const NO_LABELS: PriceBookRowLabels = {
+  productName: null,
+  productSku: null,
+  variantLabel: null,
+  variantSku: null,
+  categoryPath: null,
+  attributeLabel: null,
+  attributeValueLabel: null,
+};
 
 /** A short language tag for display labels: `?lang=`, else the first `Accept-Language` tag. */
 function labelLanguage(request: FastifyRequest): string | null {
@@ -198,7 +213,7 @@ export async function registerPriceBookRoutes(app: FastifyInstance, deps: PriceB
 
   app.get(`${base}/base-prices`, { preHandler: readGate }, async (request) => {
     const { productId } = parseOr400(z.object({ productId: z.string().regex(UUID, 'productId must be a uuid') }), request.query);
-    return { data: await books.basePrices(productId) };
+    return { data: await books.basePrices(productId, currentPriceBookScope()) };
   });
 
   app.put<{ Params: { productId: string } }>(`${base}/base-prices/:productId`, { preHandler: writeGate }, async (request) => {
@@ -207,17 +222,44 @@ export async function registerPriceBookRoutes(app: FastifyInstance, deps: PriceB
     if (!currentPriceBookScope().all) throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Base prices are read-only for you.');
     const body = parseOr400(basePricesWriteSchema, request.body);
     await books.setBasePrices(request.params.productId, body);
-    return { data: await books.basePrices(request.params.productId) };
+    return { data: await books.basePrices(request.params.productId, currentPriceBookScope()) };
   });
 
   // ---- Targets (pickers) ----------------------------------------------------------
 
   app.get(`${base}/targets/organizations`, { preHandler: readGate }, async (request) => {
     const query = parseOr400(
-      z.object({ search: z.string().max(200).optional(), limit: z.coerce.number().int().min(1).max(200).default(50) }),
+      z
+        .object({
+          search: z.string().max(200).optional(),
+          limit: z.coerce.number().int().min(1).max(200).default(50),
+          // 161 G12 — label stored members: a comma-separated list, at most an audience's worth.
+          ids: z
+            .string()
+            .transform((raw) => [...new Set(raw.split(',').map((id) => id.trim()).filter((id) => id.length > 0))])
+            .pipe(z.array(z.string().regex(UUID, 'ids must be uuids')).min(1).max(PRICE_BOOK_MAX_MEMBERS))
+            .optional(),
+        })
+        .refine((q) => q.ids === undefined || q.search === undefined, { message: 'Name organizations by ids or search them, not both.', path: ['ids'] }),
       request.query,
     );
     const scope = currentPriceBookScope();
+    if (query.ids) {
+      // Scope-filtered exactly as the search: an organization out of the
+      // caller's reach is absent, like an unknown id — never an error that
+      // would tell the two apart (FR-034).
+      const found = new Map((await deps.organizationDetails.findByIds(query.ids)).map((r) => [r.id, r]));
+      return {
+        data: {
+          items: query.ids
+            .filter((id) => found.has(id) && organizationInScope(scope, id))
+            .map((id) => {
+              const r = found.get(id)!;
+              return { id: r.id, name: r.name, taxId: r.taxId };
+            }),
+        },
+      };
+    }
     // Over-fetch for a representative, whose scope narrows the page afterwards.
     const rows = await deps.organizationDetails.searchByName((query.search ?? '').trim(), scope.all ? query.limit : 200);
     return {
@@ -331,7 +373,14 @@ export async function registerPriceBookRoutes(app: FastifyInstance, deps: PriceB
       })),
     });
     const version = (await deps.activePrecedence()).version;
-    const data: PriceBookResolvedLine[] = answers.map((answer) => ({
+    // G16 of 161 — every runner-up named: its book (from the resolution) and
+    // its selection (one batched label read across every line's candidates).
+    const shown = answers.map((answer) => answer.explanation?.candidates.slice(0, PRICE_BOOK_MAX_EXPLANATION_CANDIDATES) ?? []);
+    const labelsOf = await deps.reads.rowLabels(
+      shown.flatMap((candidates) => candidates.map((c) => c.rowId)),
+      labelLanguage(request),
+    );
+    const data: PriceBookResolvedLine[] = answers.map((answer, index) => ({
       key: answer.key,
       price:
         answer.price && answer.source
@@ -351,7 +400,7 @@ export async function registerPriceBookRoutes(app: FastifyInstance, deps: PriceB
             rowId: answer.explanation.rowId,
             reference: answer.explanation.reference,
             precedenceVersion: answer.explanation.precedenceVersion,
-            candidates: answer.explanation.candidates.slice(0, 10),
+            candidates: shown[index]!.map((c) => ({ ...c, labels: labelsOf.get(c.rowId) ?? NO_LABELS })),
           }
         : { tier: null, precedenceVersion: version },
     }));
@@ -425,6 +474,13 @@ export async function registerPriceBookRoutes(app: FastifyInstance, deps: PriceB
     if (!UUID.test(request.params.id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Price book not found.');
     const query = parseOr400(priceBookRowsQuerySchema, request.query);
     return deps.reads.rows(request.params.id, query, currentPriceBookScope(), labelLanguage(request));
+  });
+
+  // 161 G15 — the grid's pages: whole lines, at a cost that does not grow with the book.
+  app.get<{ Params: { id: string } }>(`${base}/:id/lines`, { preHandler: readGate }, async (request) => {
+    if (!UUID.test(request.params.id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Price book not found.');
+    const query = parseOr400(priceBookLinesQuerySchema, request.query);
+    return deps.reads.lines(request.params.id, query, currentPriceBookScope(), labelLanguage(request));
   });
 
   app.put<{ Params: { id: string }; Querystring: { dryRun?: string } }>(

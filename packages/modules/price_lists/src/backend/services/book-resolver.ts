@@ -133,7 +133,7 @@ export interface BookExplanation {
   reference: string | null;
   precedenceVersion: number;
   /** The deciding tier's priced candidates in rank order, at most ten. */
-  candidates: Array<{ cell: CellCode | null; bookId: string; rowId: string; amount: string }>;
+  candidates: Array<{ cell: CellCode | null; bookId: string; bookName: string; rowId: string; amount: string }>;
 }
 
 export interface BookResolution {
@@ -420,7 +420,7 @@ export function createBookResolver(input: BookResolverInput): BookResolver {
           precedenceVersion: precedence.version,
           candidates: (deciding?.candidates ?? [])
             .slice(0, PRICE_BOOK_MAX_EXPLANATION_CANDIDATES)
-            .map((cand) => ({ cell: cand.cell, bookId: cand.book.id, rowId: cand.row.id, amount: cand.amount })),
+            .map((cand) => ({ cell: cand.cell, bookId: cand.book.id, bookName: cand.book.name, rowId: cand.row.id, amount: cand.amount })),
         },
       };
     },

@@ -1,6 +1,7 @@
 import type { EntityManager, FilterQuery } from '@mikro-orm/postgresql';
 import type {
   CatalogAttributeValueQuery,
+  CatalogProductNamePageQuery,
   CatalogPackagingUnitRecord,
   CatalogProductLinkRow,
   CatalogProductLookupOptions,
@@ -206,6 +207,59 @@ export class CatalogProductReadService implements CatalogProductReadPort {
       params,
     );
     return rows.map((row) => row.id);
+  }
+
+  /**
+   * Feature 161 (G15) — one page of `ids` by shown name, then SKU, then id,
+   * and the total, in **one** statement whatever the page (the total is read
+   * beside the page, so a page past the end still counts).
+   *
+   * The shown name follows the admin's label rule (`pickName` in
+   * `price_lists`): the exact tag, the first name of the same language, the
+   * English name, the first English one, the first non-empty one, else the
+   * SKU. `jsonb_each_text … with ordinality` walks the keys in the order the
+   * object's own entries are read in, so "first" means the same thing on both
+   * sides. The search is literal (`%`, `_` and `\` escaped).
+   */
+  async pageProductIdsByName(query: CatalogProductNamePageQuery): Promise<{ ids: string[]; total: number }> {
+    if (query.ids.length === 0) return { ids: [], total: 0 };
+    const language = query.language && /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(query.language) ? query.language : null;
+    const prefix = language ? language.split('-')[0]!.toLowerCase() : null;
+    const firstOf = (predicate: string) =>
+      `(select n.value from jsonb_each_text(p.name) with ordinality as n(key, value, ord)
+         where n.value <> '' ${predicate} order by n.ord limit 1)`;
+    const params: unknown[] = [];
+    const candidates: string[] = [];
+    if (language && prefix) {
+      candidates.push(`nullif(p.name ->> ?, '')`, firstOf(`and lower(split_part(n.key, '-', 1)) = ?`));
+      params.push(language, prefix);
+    }
+    candidates.push(`nullif(p.name ->> 'en', '')`, firstOf(`and lower(split_part(n.key, '-', 1)) = 'en'`), firstOf(''), 'p.sku');
+    const search = query.search?.trim() ? `%${query.search.trim().replace(/[\\%_]/g, (c) => `\\${c}`)}%` : null;
+    params.push(`{${[...new Set(query.ids)].join(',')}}`);
+    if (search) params.push(search, search, search);
+    params.push(Math.max(0, query.offset), Math.max(0, query.limit));
+    const rows = await this.emFactory().execute<Array<{ total: number; ids: string[] | null }>>(
+      `with named as (
+         select p.id, p.sku, coalesce(${candidates.join(', ')}) as label
+           from products p
+          where p.id = any(?::uuid[])
+       ), matched as (
+         select m.id, m.sku, m.label from named m
+          ${
+            search
+              ? `where m.label ilike ? escape '\\' or m.sku ilike ? escape '\\'
+                    or exists (select 1 from product_variants v where v.parent_product_id = m.id and v.sku ilike ? escape '\\')`
+              : ''
+          }
+       )
+       select (select count(*)::int from matched) as total,
+              (select array_agg(pg.id order by pg.label, pg.sku, pg.id)
+                 from (select m.id, m.label, m.sku from matched m order by m.label, m.sku, m.id offset ? limit ?) pg) as ids`,
+      params,
+    );
+    const row = rows[0];
+    return { ids: row?.ids ?? [], total: Number(row?.total ?? 0) };
   }
 }
 

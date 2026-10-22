@@ -83,6 +83,54 @@ describe('admin price explanation (feature 160 US7)', () => {
     expect(own.status, own.raw).toBe(200);
   });
 
+  it('161 G16 — E3.1 names every runner-up: its book and its selection', async () => {
+    // A fresh E3 configuration (worked-examples §10.4): the cases above are done with their books.
+    await f.clearBooks();
+    const vip = (await f.book({ name: 'VIP prices', audience: { groups: [f.groups.VIP] }, rows: [{ product: f.products.P1, percent: '-10' }] })).id;
+    const acme = await f.book({
+      name: 'Acme contract',
+      audience: { organizations: [f.orgs.Acme] },
+      rows: [
+        { product: f.products.P1, percent: '-5' },
+        { category: f.categories.screws, percent: '-15' },
+      ],
+    });
+    const res = await resolve({ buyer: { organizationId: f.orgs.Acme.id }, lines: [{ key: 'e3.1', productId: f.products.P1.id }] });
+    expect(res.status, res.raw).toBe(200);
+    const [line] = res.body.data;
+    expect(line).toMatchObject({
+      price: { amount: '95.0000', source: 'buyer' },
+      explanation: { cell: 'org.product', bookId: acme.id, bookName: 'Acme contract', rowId: acme.rowIds[0] },
+    });
+    const noLabels = { productName: null, productSku: null, variantLabel: null, variantSku: null, categoryPath: null, attributeLabel: null, attributeValueLabel: null };
+    expect(line!.explanation.candidates).toEqual([
+      {
+        cell: 'org.product',
+        bookId: acme.id,
+        bookName: 'Acme contract',
+        rowId: acme.rowIds[0],
+        amount: '95.0000',
+        labels: { ...noLabels, productName: 'Screws 0200', productSku: f.products.P1.sku },
+      },
+      {
+        cell: 'org.category',
+        bookId: acme.id,
+        bookName: 'Acme contract',
+        rowId: acme.rowIds[1],
+        amount: '85.0000',
+        labels: { ...noLabels, categoryPath: 'Screws' },
+      },
+      {
+        cell: 'group.product',
+        bookId: vip,
+        bookName: 'VIP prices',
+        rowId: expect.any(String),
+        amount: '90.0000',
+        labels: { ...noLabels, productName: 'Screws 0200', productSku: f.products.P1.sku },
+      },
+    ]);
+  });
+
   it('refuses more than 200 lines and an unknown channel', async () => {
     const many = Array.from({ length: 201 }, (_, i) => ({ key: String(i), productId: f.products.P1.id }));
     expect((await resolve({ lines: many })).status).toBe(400);

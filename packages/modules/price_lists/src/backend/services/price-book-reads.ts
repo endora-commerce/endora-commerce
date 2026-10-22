@@ -1,24 +1,30 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
+  priceBookAudienceKindSchema,
   priceBookSelectionKind,
   type CatalogAttributeView,
   type CatalogCategoryReadPort,
   type CatalogAttributeReadPort,
   type CatalogProductReadPort,
   type PriceBook,
+  type PriceBookLine,
+  type PriceBookLinesQuery,
   type PriceBookListQuery,
   type PriceBookNaturalKey,
   type PriceBookRow,
   type PriceBookRowLabels,
   type PriceBookRowsQuery,
+  type PriceBookSelectionKind,
   type PriceBookSummary,
+  type PriceBookVariantLine,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { attributeInactiveReason } from './attribute-eligibility.js';
 import { priceOfStored, type StoredRow } from './price-book-batch.js';
-import { bookVisible, visibleBookSql, type PriceBookScope } from './price-book-scope.js';
+import { selectionKey } from './price-book-rules.js';
+import { audienceKindWritable, bookVisible, bookWritable, visibleBookSql, type PriceBookScope } from './price-book-scope.js';
 
 /**
  * The admin reads of price books — feature 160 (US7,
@@ -39,7 +45,7 @@ export interface PriceBookReadsDeps {
   channelBridge?: {
     entityIdsInChannelSubquery(channelId: string, entityType: 'price-list'): { sql: string; params: string[] };
   };
-  catalogProductRead: Pick<CatalogProductReadPort, 'findByIds' | 'listVariantsByProductIds'>;
+  catalogProductRead: Pick<CatalogProductReadPort, 'findByIds' | 'listVariantsByProductIds' | 'pageProductIdsByName'>;
   catalogCategoryRead: Pick<CatalogCategoryReadPort, 'listAll'>;
   catalogAttributeRead: Pick<CatalogAttributeReadPort, 'listAll'>;
 }
@@ -139,10 +145,13 @@ export class PriceBookReads {
   async get(id: string, scope: PriceBookScope): Promise<PriceBook> {
     const header = await this.header(id, scope);
     const [bindings] = [await this.#bindings([header])];
-    return bookOf(header, bindings.get(header.id) ?? []);
+    return bookOf(header, bindings.get(header.id) ?? [], scope);
   }
 
-  async list(query: PriceBookListQuery, scope: PriceBookScope): Promise<{ data: PriceBookSummary[]; meta: { page: number; pageSize: number; totalCount: number } }> {
+  async list(
+    query: PriceBookListQuery,
+    scope: PriceBookScope,
+  ): Promise<{ data: PriceBookSummary[]; meta: { page: number; pageSize: number; totalCount: number; creatableAudienceKinds: PriceBook['audience']['kind'][] } }> {
     const em = this.deps.emFactory();
     const where: string[] = ['true'];
     const params: unknown[] = [];
@@ -206,7 +215,7 @@ export class PriceBookReads {
     const matches = query.productId ? await this.#matches(rows.map((r) => r.id), query.productId, query.variantId ?? null) : null;
     return {
       data: rows.map((row) => {
-        const book = bookOf(row, bindings.get(row.id) ?? []);
+        const book = bookOf(row, bindings.get(row.id) ?? [], scope);
         return {
           id: book.id,
           name: book.name,
@@ -226,9 +235,16 @@ export class PriceBookReads {
           appliesToNoOne: book.audience.kind !== 'everyone' && book.audience.memberIds.length === 0,
           appliesNowhere: !book.isSystem && !book.channels.some((c) => !c.dormant),
           ...(matches ? { matches: matches.get(row.id) ?? [] } : {}),
+          writable: book.writable,
         };
       }),
-      meta: { page: query.page, pageSize: query.pageSize, totalCount: Number(n) },
+      meta: {
+        page: query.page,
+        pageSize: query.pageSize,
+        totalCount: Number(n),
+        // G11 — what the caller may create, from the same rule the create route applies.
+        creatableAudienceKinds: priceBookAudienceKindSchema.options.filter((kind) => audienceKindWritable(scope, kind)),
+      },
     };
   }
 
@@ -290,6 +306,24 @@ export class PriceBookReads {
     return out;
   }
 
+  /**
+   * The labels of stored rows named by id, whichever books hold them — the
+   * explanation's runner-ups (G16 of 161): one statement for the rows, then
+   * the batched label reads. A row that is gone is absent from the map.
+   */
+  async rowLabels(rowIds: readonly string[], language: string | null): Promise<Map<string, PriceBookRowLabels>> {
+    const ids = [...new Set(rowIds)];
+    if (ids.length === 0) return new Map();
+    const rows = (await this.deps.emFactory().execute(
+      `select e."id", e."price_list_id", e."variant_id", e."product_id", e."category_id", e."attribute_key",
+              e."attribute_value", e."min_quantity", e."max_quantity", e."price_type", e."amount", e."percent"
+         from "price_list_matrix_entries" e where e."id" = any(?::uuid[])`,
+      [`{${ids.join(',')}}`],
+    )) as MatrixRecord[];
+    const labelled = await this.label(rows.map(storedOf), language);
+    return new Map(labelled.map((row) => [row.id, row.labels]));
+  }
+
   /** A book's stored rows (no labels). */
   async storedRows(bookId: string, em: EntityManager = this.deps.emFactory()): Promise<StoredRow[]> {
     const rows = (await em.execute(
@@ -343,6 +377,148 @@ export class PriceBookReads {
     return {
       data: filtered.slice(offset, offset + query.pageSize),
       meta: { page: query.page, pageSize: query.pageSize, totalCount: filtered.length },
+    };
+  }
+
+  /**
+   * One page of a book's **lines** (G15 of 161): a line is a selection with
+   * every row it holds, a product line carries its variant lines, and the page
+   * is cut between lines, general to specific and by label within a kind
+   * (FR-006). The cost per page does not grow with the book:
+   *
+   * 1. the book's distinct selections — the attribute and category kinds (few)
+   *    in one statement, the products' ids in one scan of
+   *    `(price_list_id, product_id)`, no labels;
+   * 2. the attribute and category lines labelled in full and searched by label;
+   *    the product segment ordered, searched and cut by the catalogue
+   *    (`pageProductIdsByName`, one statement);
+   * 3. rows and labels read for the page's lines only.
+   */
+  async lines(
+    bookId: string,
+    query: PriceBookLinesQuery,
+    scope: PriceBookScope,
+    language: string | null,
+  ): Promise<{ data: PriceBookLine[]; meta: { page: number; pageSize: number; totalLines: number } }> {
+    await this.header(bookId, scope);
+    const em = this.deps.emFactory();
+    const kinds = new Set<PriceBookSelectionKind>(query.kind ?? []);
+    const wants = (kind: PriceBookSelectionKind) => kinds.size === 0 || kinds.has(kind);
+    const search = query.search?.toLowerCase() ?? null;
+
+    // 1a. The few selections that name no product: all, attribute, category, category ∩ attribute.
+    const smallKinds = (['all', 'attribute', 'category', 'category_attribute'] as const).filter(wants);
+    const small =
+      smallKinds.length === 0
+        ? []
+        : ((await em.execute(
+            `select distinct e."category_id", e."attribute_key", e."attribute_value"
+               from "price_list_matrix_entries" e
+              where e."price_list_id" = ? and e."product_id" is null`,
+            [bookId],
+          )) as Array<{ category_id: string | null; attribute_key: string | null; attribute_value: string | null }>);
+    // 1b. The products: every product the book prices, or those with own / variant rows for a kind filter.
+    const productLines = wants('product') || wants('variant');
+    const productFilter =
+      kinds.size === 0 || (kinds.has('product') && kinds.has('variant'))
+        ? ''
+        : kinds.has('variant')
+          ? `and e."variant_id" is not null`
+          : `and e."variant_id" is null`;
+    const productIds = productLines
+      ? ((await em.execute(
+          `select distinct e."product_id" from "price_list_matrix_entries" e
+            where e."price_list_id" = ? and e."product_id" is not null ${productFilter}`,
+          [bookId],
+        )) as Array<{ product_id: string }>).map((r) => r.product_id)
+      : [];
+
+    // 2a. The small kinds, labelled in full, filtered, ordered.
+    const smallSelections = small.map((r) => selectionRow(null, null, r.category_id, r.attribute_key, r.attribute_value));
+    const smallLabelled = (await this.label(smallSelections, language))
+      .filter((line) => wants(line.selectionKind))
+      .filter((line) => !search || haystackOf(line).includes(search))
+      .sort(compareLines);
+    // 2b. The page cut: the small kinds come first, the products after them.
+    const offset = (query.page - 1) * query.pageSize;
+    const smallPage = smallLabelled.slice(offset, offset + query.pageSize);
+    const productOffset = Math.max(0, offset - smallLabelled.length);
+    const productLimit = query.pageSize - smallPage.length;
+    const productPage =
+      productIds.length === 0
+        ? { ids: [] as string[], total: 0 }
+        : await this.deps.catalogProductRead.pageProductIdsByName({
+            ids: productIds,
+            ...(query.search ? { search: query.search } : {}),
+            language,
+            offset: productOffset,
+            limit: productLimit,
+          });
+
+    // 3. Rows and labels of the page's lines only.
+    const smallKeys = smallPage.map((line) => smallKeyOf(line.selection.categoryId, line.selection.attribute?.key ?? null, line.selection.attribute?.value ?? null));
+    const pageRows =
+      smallKeys.length === 0 && productPage.ids.length === 0
+        ? []
+        : ((await em.execute(
+            `select e."id", e."price_list_id", e."variant_id", e."product_id", e."category_id", e."attribute_key",
+                    e."attribute_value", e."min_quantity", e."max_quantity", e."price_type", e."amount", e."percent"
+               from "price_list_matrix_entries" e
+              where e."price_list_id" = ?
+                and (e."product_id" = any(?::uuid[])
+                     or (e."product_id" is null
+                         and coalesce(e."category_id"::text, '') || '|' || coalesce(e."attribute_key", '') || '|' || coalesce(e."attribute_value", '') = any(?::text[])))
+              order by e."min_quantity" asc, e."id" asc`,
+            [bookId, `{${productPage.ids.join(',')}}`, toTextArray(smallKeys)],
+          )) as MatrixRecord[]).map(storedOf);
+    const productSelections = productPage.ids.map((id) => selectionRow(null, id, null, null, null));
+    const labelled = await this.label([...pageRows, ...productSelections], language);
+    const rows = labelled.slice(0, pageRows.length);
+    const productHeads = new Map(labelled.slice(pageRows.length).map((line) => [line.selection.productId!, line]));
+    const rowsByKey = new Map<string, PriceBookRow[]>();
+    rows.forEach((row, index) => {
+      const key = selectionKey(pageRows[index]!);
+      const list = rowsByKey.get(key);
+      if (list) list.push(row);
+      else rowsByKey.set(key, [row]);
+    });
+
+    const lineOf = (head: PriceBookRow, key: string): PriceBookVariantLine => ({
+      selectionKey: key,
+      selectionKind: head.selectionKind,
+      selection: head.selection,
+      labels: head.labels,
+      naturalKey: head.naturalKey,
+      inactiveReason: head.inactiveReason,
+      targetDeleted: head.targetDeleted,
+      rows: rowsByKey.get(key) ?? [],
+    });
+    const data: PriceBookLine[] = [
+      ...smallPage.map((head) => lineOf(head, selectionKey(storedOfSelection(head)))),
+      ...productPage.ids.map((productId) => {
+        const head = productHeads.get(productId)!;
+        const variants = new Map<string, PriceBookRow>();
+        for (const row of rows) {
+          if (row.selection.productId === productId && row.selection.variantId && !variants.has(row.selection.variantId)) {
+            variants.set(row.selection.variantId, row);
+          }
+        }
+        return {
+          ...lineOf(head, selectionKey(storedOfSelection(head))),
+          variants: [...variants.values()]
+            .map((variant) => lineOf(variant, selectionKey(storedOfSelection(variant))))
+            .sort(
+              (a, b) =>
+                (a.labels.variantLabel ?? '').localeCompare(b.labels.variantLabel ?? '') ||
+                (a.labels.variantSku ?? '').localeCompare(b.labels.variantSku ?? '') ||
+                (a.selection.variantId! < b.selection.variantId! ? -1 : 1),
+            ),
+        };
+      }),
+    ];
+    return {
+      data,
+      meta: { page: query.page, pageSize: query.pageSize, totalLines: smallLabelled.length + productPage.total },
     };
   }
 
@@ -471,6 +647,72 @@ function compareRows(a: PriceBookRow, b: PriceBookRow): number {
   return a.minQuantity - b.minQuantity;
 }
 
+/** General to specific, then by label (the small kinds of a lines page). */
+function compareLines(a: PriceBookRow, b: PriceBookRow): number {
+  const byKind = KIND_ORDER[a.selectionKind] - KIND_ORDER[b.selectionKind];
+  if (byKind !== 0) return byKind;
+  const label = (r: PriceBookRow) => [r.labels.categoryPath, r.labels.attributeLabel, r.labels.attributeValueLabel].filter(Boolean).join(' ');
+  return label(a).localeCompare(label(b)) || selectionKey(storedOfSelection(a)).localeCompare(selectionKey(storedOfSelection(b)));
+}
+
+/** What a search matches on a line: its labels, natural key and attribute key (as `rows`' search, G3). */
+function haystackOf(row: PriceBookRow): string {
+  return [
+    ...Object.values(row.labels),
+    row.naturalKey.productSku,
+    row.naturalKey.variantSku,
+    row.naturalKey.categoryPath,
+    row.naturalKey.attribute?.valueCode,
+    row.selection.attribute?.key,
+  ]
+    .filter((v): v is string => typeof v === 'string')
+    .join('\u0000')
+    .toLowerCase();
+}
+
+/** A selection as a stored row with no price — what `label` needs to name it. */
+function selectionRow(
+  variantId: string | null,
+  productId: string | null,
+  categoryId: string | null,
+  attributeKey: string | null,
+  attributeValue: string | null,
+): StoredRow {
+  return {
+    id: `selection:${[variantId, productId, categoryId, attributeKey, attributeValue].map((v) => v ?? '').join('|')}`,
+    variantId,
+    productId,
+    categoryId,
+    attributeKey,
+    attributeValue,
+    minQuantity: 1,
+    maxQuantity: null,
+    priceType: 'fixed',
+    amount: null,
+    percent: null,
+  };
+}
+
+function storedOfSelection(row: PriceBookRow): Pick<StoredRow, 'variantId' | 'productId' | 'categoryId' | 'attributeKey' | 'attributeValue'> {
+  return {
+    variantId: row.selection.variantId,
+    productId: row.selection.productId,
+    categoryId: row.selection.categoryId,
+    attributeKey: row.selection.attribute?.key ?? null,
+    attributeValue: row.selection.attribute?.value ?? null,
+  };
+}
+
+/** The key the page's row read matches a small selection by. */
+function smallKeyOf(categoryId: string | null, attributeKey: string | null, attributeValue: string | null): string {
+  return `${categoryId ?? ''}|${attributeKey ?? ''}|${attributeValue ?? ''}`;
+}
+
+/** A Postgres text-array literal, every element quoted. */
+function toTextArray(values: readonly string[]): string {
+  return `{${values.map((v) => `"${v.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`).join(',')}}`;
+}
+
 interface MatrixRecord {
   id: string;
   price_list_id: string;
@@ -502,7 +744,7 @@ function storedOf(r: MatrixRecord): StoredRow {
   };
 }
 
-function bookOf(row: BookHeaderRow, channels: Array<{ channelId: string; dormant: boolean }>): PriceBook {
+function bookOf(row: BookHeaderRow, channels: Array<{ channelId: string; dormant: boolean }>, scope: PriceBookScope): PriceBook {
   return {
     id: row.id,
     name: row.name,
@@ -519,5 +761,7 @@ function bookOf(row: BookHeaderRow, channels: Array<{ channelId: string; dormant
     tierStarts: (row.tier_starts ?? []).map(Number),
     channels,
     rowCount: Number(row.row_count),
+    // G11 — the scope rule the write routes apply, so the flag predicts their answer.
+    writable: bookWritable(scope, { audienceKind: row.audience_kind, isSystem: row.is_system, organizationIds: row.member_org_ids ?? [] }),
   };
 }

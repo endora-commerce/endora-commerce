@@ -170,7 +170,17 @@ function book(spec: {
     tierStarts: [...new Set(spec.rows.map((r) => r.minQuantity))].sort((a, b) => a - b),
     channels: spec.isSystem ? [] : [{ channelId: IDS.channel, dormant: false }],
     rowCount: spec.rows.length,
+    writable: true,
   });
+}
+
+/**
+ * A book as a sales representative scoped to {Acme} reads it (G11): writable
+ * only when it is an organization book whose every member is Acme.
+ */
+export function asSeenByAcmeRep(b: PriceBook): PriceBook {
+  const writable = !b.isSystem && b.audience.kind === 'organizations' && b.audience.memberIds.every((id) => id === IDS.orgs.Acme);
+  return priceBookSchema.parse({ ...b, writable });
 }
 
 export const BOOKS = {
@@ -201,6 +211,7 @@ export function summaryOf(b: PriceBook): PriceBookSummary {
     rowCount: b.rowCount,
     appliesToNoOne: b.audience.kind !== 'everyone' && b.audience.memberIds.length === 0,
     appliesNowhere: !b.isSystem && !b.channels.some((c) => !c.dormant),
+    writable: b.writable,
   });
 }
 

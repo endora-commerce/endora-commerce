@@ -205,7 +205,17 @@ describe('price books — explanation and precedence (FR-020, FR-021)', () => {
   });
 
   it('an explanation carries the tier, the precedence version and at most ten candidates', () => {
-    const candidate = { cell: 'org.product', bookId: ID(30), rowId: ID(31), amount: '95.0000' };
+    // 161 G16 — a runner-up names its book and its selection.
+    const labels = {
+      productName: 'Screws 0200',
+      productSku: 'P1',
+      variantLabel: null,
+      variantSku: null,
+      categoryPath: null,
+      attributeLabel: null,
+      attributeValueLabel: null,
+    };
+    const candidate = { cell: 'org.product', bookId: ID(30), bookName: 'Acme', rowId: ID(31), labels, amount: '95.0000' };
     expect(
       priceBookExplanationSchema.safeParse({
         tier: 'buyer',
@@ -225,6 +235,8 @@ describe('price books — explanation and precedence (FR-020, FR-021)', () => {
         candidates: Array.from({ length: 11 }, () => candidate),
       }).success,
     ).toBe(false);
+    const { bookName: _unnamed, ...anonymous } = candidate;
+    expect(priceBookExplanationSchema.safeParse({ tier: 'buyer', precedenceVersion: 1, candidates: [anonymous] }).success).toBe(false);
   });
 
   it('a precedence configuration names all twelve cells once', () => {

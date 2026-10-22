@@ -2312,6 +2312,30 @@ export interface CatalogProductReadPort {
    * consulted.
    */
   listProductIdsByAttributeValue(query: CatalogAttributeValueQuery): Promise<string[]>;
+
+  /**
+   * Feature 161 (G15) — one page of the given products, ordered by their name
+   * in `language` (the language, any tag of it, English, any name, else the
+   * SKU), then SKU, then id, and how many there are. `search` narrows to the
+   * products whose shown name or SKU, or one of whose variants' SKU, contains it
+   * (case-insensitive, taken literally). How `price_lists` pages a price book's
+   * product lines by label without reading this module's tables.
+   *
+   * **Structural** like `listProductIdsByAttributeValue`: soft-deleted and
+   * inactive products answer like any other, and the caller passes ids it
+   * already holds; ids naming no product are not counted. One statement.
+   */
+  pageProductIdsByName(query: CatalogProductNamePageQuery): Promise<{ ids: string[]; total: number }>;
+}
+
+/** {@link CatalogProductReadPort.pageProductIdsByName}'s query. */
+export interface CatalogProductNamePageQuery {
+  readonly ids: readonly string[];
+  readonly search?: string | null;
+  /** A language tag (`pl`, `pl-PL`); `null` orders by English, then any name. */
+  readonly language: string | null;
+  readonly offset: number;
+  readonly limit: number;
 }
 
 /** {@link CatalogProductReadPort.listProductIdsByAttributeValue}'s question. */

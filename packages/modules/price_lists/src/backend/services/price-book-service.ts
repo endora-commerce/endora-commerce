@@ -324,9 +324,14 @@ export class PriceBookService {
     });
   }
 
-  /** One product's base price per currency, with each variant's row (`null` = inherits). */
-  async basePrices(productId: string): Promise<{
+  /**
+   * One product's base price per currency, with each variant's row (`null` =
+   * inherits), and whether `scope` may write them (G11 of 161): base books are
+   * everyone's prices, which only a caller reaching every book changes.
+   */
+  async basePrices(productId: string, scope: PriceBookScope = ALL_BOOKS_SCOPE): Promise<{
     productId: string;
+    writable: boolean;
     byCurrency: Record<
       string,
       {
@@ -368,7 +373,11 @@ export class PriceBookService {
         variants: variantRows as never,
       };
     }
-    return { productId, byCurrency };
+    return {
+      productId,
+      byCurrency,
+      writable: bookWritable(scope, { audienceKind: 'everyone', isSystem: true, organizationIds: [] }),
+    };
   }
 
   // ---- Books -----------------------------------------------------------------
