@@ -16,7 +16,8 @@ release.
 Feature 160 replaces the Application rule, the per-product brackets and the matrix tab with **price
 books** and removes the old admin screens; it leaves the complete admin API
 (`specs/160-pricing-model-v2/contracts/admin-price-books-api.md`), the shared schemas, the error
-messages and the palette actions ready for this feature (`specs/160-pricing-model-v2/plan.md`, *What
+messages ready for this feature (the palette actions are this feature's own: P1 does not register
+them, because their target screens are built here) (`specs/160-pricing-model-v2/plan.md`, *What
 P1 leaves ready for P2*). The pricing semantics this editor exposes are D-287
 (`specs/pricing/decision-record.md`) and are not restated; the vectors of
 `specs/pricing/worked-examples.md` §10 are the scenarios an administrator must be able to configure.
@@ -488,7 +489,8 @@ row; after fixing the file and confirming, the grid equals the file.
 - **FR-028**: Screens MUST require the price-list read permission to view and the write permission to
   change; controls the user may not use MUST be absent rather than failing on click.
 - **FR-029**: *Price books*, *New price book* and *Price explainer* MUST be reachable from ⌘K / CTRL+K
-  and the navigation; the base-price panel, list and settings MUST disappear when the price-list module
+  and the navigation; this feature registers those palette actions (moved from spec 160 T105, whose
+  target screens did not exist yet); the base-price panel, list and settings MUST disappear when the price-list module
   is off, and a stale address MUST answer as for an absent module.
 - **FR-030**: Every write the screens perform MUST go through the API of feature 160 (and the gaps of
   *Dependencies*); the screens MUST NOT compute a price themselves — previews in the grid and panel
