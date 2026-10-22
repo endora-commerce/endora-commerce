@@ -33,6 +33,8 @@ export * from './price-lists.js';
 export * from './price-books.js';
 // Feature 161 (G17) — the decimal arithmetic the resolver prices with, shared with the admin's previews.
 export * from './price-book-decimal.js';
+// Feature 161 (G15) — the admin name fold shared by catalog's stored keys and price_lists' grid order.
+export * from './admin-name.js';
 export * from './taxes.js';
 export * from './promotions.js';
 export * from './inventory.js';

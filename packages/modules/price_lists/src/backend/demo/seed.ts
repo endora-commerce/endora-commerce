@@ -35,6 +35,7 @@ import { randomUUID } from 'node:crypto';
 import { PriceList } from '../entities/price-list.entity.js';
 import { PriceListAudienceMember } from '../entities/price-list-audience-member.entity.js';
 import { PriceListMatrixEntry } from '../entities/price-list-matrix-entry.entity.js';
+import { syncProductLines } from '../services/price-book-product-lines.js';
 import {
   DEMO_BASE_CURRENCIES,
   DEMO_PRICE_BOOKS,
@@ -182,6 +183,8 @@ export async function seedDemoPriceBooks(em: EntityManager, refs: DemoPriceBookR
     );
   }
 
+  // 161 G15 — the books' product lines, as every write of this module keeps them.
+  await syncProductLines(em, [...(await em.find(PriceList, { isSystem: true }, { fields: ['id'] })).map((b) => b.id), ...DEMO_PRICE_BOOK_IDS], refs.products.map((p) => p.id));
   await em.execute(`delete from "price_profiles"`);
   return { baseRows, books: books.length };
 }
@@ -205,6 +208,10 @@ export async function withdrawDemoPriceBooks(
             $in: (await em.find(PriceList, { isSystem: true }, { fields: ['id'] })).map((b) => b.id),
           },
         });
+  // 161 G15 — the base books' lines of the withdrawn products (the demo books' cascade with them).
+  if (demoProductIds.length > 0) {
+    await syncProductLines(em, (await em.find(PriceList, { isSystem: true }, { fields: ['id'] })).map((b) => b.id), demoProductIds);
+  }
   await em.execute(`delete from "price_profiles"`);
   return { baseRows, books };
 }

@@ -1,7 +1,7 @@
 import type { EntityManager, FilterQuery } from '@mikro-orm/postgresql';
 import type {
   CatalogAttributeValueQuery,
-  CatalogProductNamePageQuery,
+  CatalogAdminNamePageQuery,
   CatalogPackagingUnitRecord,
   CatalogProductLinkRow,
   CatalogProductLookupOptions,
@@ -12,6 +12,7 @@ import type {
   CatalogProductVariantRecord,
   ProductLinkKind,
 } from '@endora-commerce/contracts';
+import { adminNameLanguage } from '@endora-commerce/contracts';
 import { Product } from '../entities/product.entity.js';
 import { ProductLink } from '../entities/product-link.entity.js';
 import { ProductPackagingUnit } from '../entities/product-packaging-unit.entity.js';
@@ -36,7 +37,21 @@ import { ProductVariant } from '../entities/product-variant.entity.js';
  * wider read the default it already is.
  */
 export class CatalogProductReadService implements CatalogProductReadPort {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  readonly #sparseSearchLimit: number;
+
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    options: {
+      /**
+       * Feature 161 (G15): at most this many matching members, a searched page
+       * is cut from the trigram hits; above it, from the ordered index walk.
+       * Both answer the same page; a test forces each.
+       */
+      sparseSearchLimit?: number;
+    } = {},
+  ) {
+    this.#sparseSearchLimit = options.sparseSearchLimit ?? SPARSE_SEARCH_LIMIT;
+  }
 
   async findById(
     id: string,
@@ -210,58 +225,75 @@ export class CatalogProductReadService implements CatalogProductReadPort {
   }
 
   /**
-   * Feature 161 (G15) — one page of `ids` by shown name, then SKU, then id,
-   * and the total, in **one** statement whatever the page (the total is read
-   * beside the page, so a page past the end still counts).
+   * Feature 161 (G15, `specs/161-price-book-editor/research.md` R14) — a page
+   * of the products the caller's membership seam names, by the stored admin
+   * name key (`products_admin_order_<lang>`), then SKU, then id.
    *
-   * The shown name follows the admin's label rule (`pickName` in
-   * `price_lists`): the exact tag, the first name of the same language, the
-   * English name, the first English one, the first non-empty one, else the
-   * SKU. `jsonb_each_text … with ordinality` walks the keys in the order the
-   * object's own entries are read in, so "first" means the same thing on both
-   * sides. The search is literal (`%`, `_` and `\` escaped).
+   * - Without a search: **one** statement — the page walks the order index
+   *   and probes the seam as a hashed sub-plan (`(p.id in (…)) is true`, which
+   *   keeps the planner from turning it into a join that would sort), with the
+   *   count beside it unless `withTotal` is `false`.
+   * - With a search: a count of the matching members, then the page — from the
+   *   trigram hits when at most `sparseSearchLimit` match (few rows, sorted),
+   *   from the ordered walk otherwise (the first rows come quickly). The term
+   *   is folded by the same `catalog_admin_fold` the stored key is, and matched
+   *   literally (`%`, `_` and `\\` escaped); a variant's SKU finds its product.
    */
-  async pageProductIdsByName(query: CatalogProductNamePageQuery): Promise<{ ids: string[]; total: number }> {
-    if (query.ids.length === 0) return { ids: [], total: 0 };
-    const language = query.language && /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(query.language) ? query.language : null;
-    const prefix = language ? language.split('-')[0]!.toLowerCase() : null;
-    const firstOf = (predicate: string) =>
-      `(select n.value from jsonb_each_text(p.name) with ordinality as n(key, value, ord)
-         where n.value <> '' ${predicate} order by n.ord limit 1)`;
-    const params: unknown[] = [];
-    const candidates: string[] = [];
-    if (language && prefix) {
-      candidates.push(`nullif(p.name ->> ?, '')`, firstOf(`and lower(split_part(n.key, '-', 1)) = ?`));
-      params.push(language, prefix);
+  async pageProductsByAdminName(query: CatalogAdminNamePageQuery): Promise<{ ids: string[]; total: number | null }> {
+    const lang = adminNameLanguage(query.language);
+    const key = `p."admin_name_key_${lang}"`;
+    const searchKey = `p."admin_search_key_${lang}"`;
+    const order = `${key}, p."sku", p."id"`;
+    const member = `(p."id" in (${query.membership.sql})) is true`;
+    const offset = Math.max(0, Math.floor(query.offset));
+    const limit = Math.max(0, Math.floor(query.limit));
+    const em = this.emFactory();
+    const term = query.search?.trim() ?? '';
+
+    if (term.length === 0) {
+      const withTotal = query.withTotal !== false;
+      const rows = await em.execute<Array<{ total: number | null; ids: string[] | null }>>(
+        `select ${withTotal ? `(select count(*)::int from "products" p where ${member})` : 'null::int'} as "total",
+                array(select p."id" from "products" p where ${member} order by ${order} offset ? limit ?) as "ids"`,
+        [...(withTotal ? query.membership.params : []), ...query.membership.params, offset, limit],
+      );
+      const row = rows[0];
+      return { ids: row?.ids ?? [], total: withTotal ? Number(row?.total ?? 0) : null };
     }
-    candidates.push(`nullif(p.name ->> 'en', '')`, firstOf(`and lower(split_part(n.key, '-', 1)) = 'en'`), firstOf(''), 'p.sku');
-    const search = query.search?.trim() ? `%${query.search.trim().replace(/[\\%_]/g, (c) => `\\${c}`)}%` : null;
-    params.push(`{${[...new Set(query.ids)].join(',')}}`);
-    if (search) params.push(search, search, search);
-    params.push(Math.max(0, query.offset), Math.max(0, query.limit));
-    const rows = await this.emFactory().execute<Array<{ total: number; ids: string[] | null }>>(
-      `with named as (
-         select p.id, p.sku, coalesce(${candidates.join(', ')}) as label
-           from products p
-          where p.id = any(?::uuid[])
-       ), matched as (
-         select m.id, m.sku, m.label from named m
-          ${
-            search
-              ? `where m.label ilike ? escape '\\' or m.sku ilike ? escape '\\'
-                    or exists (select 1 from product_variants v where v.parent_product_id = m.id and v.sku ilike ? escape '\\')`
-              : ''
-          }
-       )
-       select (select count(*)::int from matched) as total,
-              (select array_agg(pg.id order by pg.label, pg.sku, pg.id)
-                 from (select m.id, m.label, m.sku from matched m order by m.label, m.sku, m.id offset ? limit ?) pg) as ids`,
-      params,
+
+    const literal = term.replace(/[\\%_]/g, (c) => `\\${c}`);
+    const matches = `(${searchKey} like '%' || catalog_admin_fold(?) || '%'
+                      or (p."id" in (select v."parent_product_id" from "product_variants" v
+                                      where lower(v."sku") like '%' || lower(?) || '%')) is true)`;
+    const counted = await em.execute<Array<{ n: number }>>(
+      `select count(*)::int as "n" from "products" p where ${member} and ${matches}`,
+      [...query.membership.params, literal, literal],
     );
-    const row = rows[0];
-    return { ids: row?.ids ?? [], total: Number(row?.total ?? 0) };
+    const total = Number(counted[0]?.n ?? 0);
+    if (total === 0 || offset >= total || limit === 0) return { ids: [], total };
+    const page =
+      total <= this.#sparseSearchLimit
+        ? // Few matches: the trigram hits, materialised, then the members among them sorted.
+          await em.execute<Array<{ id: string }>>(
+            `with "hits" as materialized (
+               select p."id", ${key} as "k", p."sku" from "products" p where ${matches}
+             )
+             select h."id" from "hits" h
+              where (h."id" in (${query.membership.sql})) is true
+              order by h."k", h."sku", h."id" offset ? limit ?`,
+            [literal, literal, ...query.membership.params, offset, limit],
+          )
+        : // Many: walk the order index, keeping the matching members.
+          await em.execute<Array<{ id: string }>>(
+            `select p."id" from "products" p where ${member} and ${matches} order by ${order} offset ? limit ?`,
+            [...query.membership.params, literal, literal, offset, limit],
+          );
+    return { ids: page.map((r) => r.id), total };
   }
 }
+
+/** Feature 161 (G15): the most matching members a searched page is cut from the trigram hits for. */
+export const SPARSE_SEARCH_LIMIT = 2000;
 
 /**
  * `{}` by default — the wider read. `liveOnly` drops soft-deleted rows,

@@ -177,7 +177,7 @@ describe('comparisons — catalog rows arrive over catalogProductReadPort', () =
       listLinksBySourceIds: async () => [],
       listValueOverridesByProductIds: async () => [],
       listProductIdsByAttributeValue: async () => [],
-      pageProductIdsByName: async () => ({ ids: [], total: 0 }),
+      pageProductsByAdminName: async () => ({ ids: [], total: 0 }),
     };
 
     const service = new ComparisonService(
@@ -217,7 +217,7 @@ describe('comparisons — catalog rows arrive over catalogProductReadPort', () =
       listLinksBySourceIds: async () => [],
       listValueOverridesByProductIds: async () => [],
       listProductIdsByAttributeValue: async () => [],
-      pageProductIdsByName: async () => ({ ids: [], total: 0 }),
+      pageProductsByAdminName: async () => ({ ids: [], total: 0 }),
     };
 
     const service = new ComparisonService(

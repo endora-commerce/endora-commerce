@@ -34,6 +34,7 @@ import {
   type StoredRow,
 } from './price-book-batch.js';
 import type { PriceBookReads } from './price-book-reads.js';
+import { reconcileProductLines, syncProductLines } from './price-book-product-lines.js';
 import {
   audienceKindWritable,
   bookVisible,
@@ -314,6 +315,7 @@ export class PriceBookService {
         await txEm.nativeDelete(PriceListMatrixEntry, replaced);
         for (const row of rows) txEm.persist(txEm.create(PriceListMatrixEntry, { priceListId: bookId, ...row }));
         await txEm.flush();
+        await syncProductLines(txEm, [bookId], [productId]);
         if (!toCreate.includes(code)) await this.#bumpVersion(txEm, bookId, null);
         after[code] = rows.map(rowState);
       }
@@ -681,6 +683,12 @@ export class PriceBookService {
       if (toDelete.length > 0) await txEm.nativeDelete(PriceListMatrixEntry, { priceListId: bookId, id: { $in: toDelete } });
       for (const row of toInsert) txEm.persist(txEm.create(PriceListMatrixEntry, { priceListId: bookId, ...row }));
       await txEm.flush();
+      // 161 G15 — the product lines of the products the batch touched, in the same transaction.
+      await syncProductLines(
+        txEm,
+        [bookId],
+        [...plan.removed, ...plan.changed.map((c) => c.before), ...toInsert].flatMap((r) => (r.productId ? [r.productId] : [])),
+      );
       const version = await this.#bumpVersion(txEm, bookId, expectedVersion);
       return {
         result: { version },
@@ -825,12 +833,22 @@ export class PriceBookService {
         );
       }
       await txEm.flush();
+      await syncProductLines(txEm, [id], 'all');
       return {
         result: view,
         before: null,
         after: { ...view, sourceBookId: bookId, amountMultiplier: input.amountMultiplier, rowCount: rows.length, channelIds: [...input.channelIds] },
       };
     });
+  }
+
+  /**
+   * 161 G15 — drop the product lines of `productId` that no row holds any more
+   * (a catalogue variant delete cascaded its rows away). The catalogue-event
+   * subscriber's work; not a domain write, so no command and no audit row.
+   */
+  async reconcileProductLines(productId: string): Promise<void> {
+    await reconcileProductLines(this.deps.emFactory(), productId);
   }
 
   /** A visible book, as the admin API answers it. */

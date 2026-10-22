@@ -7,6 +7,7 @@ import { BASE_BOOK_ID } from '../../helpers/price-book-sql.js';
 import {
   seedBulkProductsSql,
   seedBulkVariantsSql,
+  seedEmptyBookSql,
   seedProductTiersSql,
   seedVariantRowsSql,
 } from '../../helpers/price-book-bulk.js';
@@ -22,7 +23,11 @@ import {
  *
  * The base book holds 1 200 extra products with 1–4 tiers each and a variant
  * on 100 of them, beside the fixture's own base prices; a small regular book
- * holds one line of every kind for the ordering and the filters.
+ * holds one line of every kind for the ordering and the filters; a sparse
+ * regular book holds 300 of the bulk products, and a dense one 2 300 more, so a
+ * search exercises both of the catalogue's strategies (trigram hits at most
+ * 2 000 matches, the ordered walk above). `totalLines` is the book's
+ * `price_list_product_lines` count (G15 redesign, `research.md` R14).
  */
 describe('price-book lines (161 G15)', () => {
   let h: BackendServerHandle;
@@ -31,6 +36,9 @@ describe('price-book lines (161 G15)', () => {
   let bulk: string[];
   let variantOf: Map<string, string>;
   let mixed: { id: string; rowIds: string[] };
+  let sparse: string;
+  let dense: string;
+  let denseProducts: string[];
 
   type Stored = { id: string; product_id: string | null; variant_id: string | null };
 
@@ -61,6 +69,11 @@ describe('price-book lines (161 G15)', () => {
     await seedProductTiersSql(em, BASE_BOOK_ID, bulk, 4);
     variantOf = await seedBulkVariantsSql(em, bulk.filter((_, i) => i % 12 === 5), 'G15LV');
     await seedVariantRowsSql(em, BASE_BOOK_ID, variantOf);
+    sparse = await seedEmptyBookSql(em, 'G15 sparse 300');
+    await seedProductTiersSql(em, sparse, bulk.slice(0, 300), 2);
+    denseProducts = await seedBulkProductsSql(em, { count: 2300, namePrefix: 'Dense', skuPrefix: 'G15D' });
+    dense = await seedEmptyBookSql(em, 'G15 dense 2 300');
+    await seedProductTiersSql(em, dense, denseProducts, 1);
     mixed = await f.book({
       name: 'G15 every kind',
       audience: 'everyone',
@@ -90,6 +103,11 @@ describe('price-book lines (161 G15)', () => {
     const productIds = [...new Set(stored.map((r) => r.product_id!))];
     const { lines, total } = await allPages(BASE_BOOK_ID);
     expect(total).toBe(productIds.length);
+    const lineRows = (await h.em().getConnection().execute(
+      `select count(*)::int as n from "price_list_product_lines" where "price_list_id" = ?`,
+      [BASE_BOOK_ID],
+    )) as Array<{ n: number }>;
+    expect(total).toBe(lineRows[0]!.n);
     expect(lines.length).toBe(total);
     expect(new Set(lines.map((l) => l.selectionKey)).size).toBe(total);
     expect(new Set(lines.map((l) => l.selection.productId))).toEqual(new Set(productIds));
@@ -157,6 +175,32 @@ describe('price-book lines (161 G15)', () => {
     const { lines, total } = await allPages(BASE_BOOK_ID, 'search=Lines%200');
     expect(total).toBe(999);
     expect(lines.map((l) => l.selection.productId)).toEqual(bulk.slice(0, 999));
+  });
+
+  it('pages a sparse 300-line book and searches it', async () => {
+    const { lines, total } = await allPages(sparse);
+    expect(total).toBe(300);
+    expect(lines.map((l) => l.selection.productId)).toEqual(bulk.slice(0, 300));
+    expect(lines.every((l) => l.rows.length === 2 || l.rows.length === 1)).toBe(true);
+    const searched = await allPages(sparse, 'search=Lines%2001');
+    expect(searched.total).toBe(100);
+    expect(searched.lines.map((l) => l.selection.productId)).toEqual(bulk.slice(99, 199));
+  });
+
+  it('a search answers the same lines on the sparse path (≤ 2 000 matches) and the dense path (more)', async () => {
+    // Dense: 2 300 matches of `dense`, paged by the ordered walk.
+    const broad = await allPages(dense, 'search=dense');
+    expect(broad.total).toBe(2300);
+    expect(broad.lines.map((l) => l.selection.productId)).toEqual(denseProducts);
+    // Sparse: 1 000 of them (`Dense 1…` and `Dense 2…` minus the tail), from the trigram hits.
+    const narrow = await allPages(dense, 'search=dense%201');
+    expect(narrow.total).toBe(1000);
+    expect(narrow.lines.map((l) => l.selection.productId)).toEqual(denseProducts.slice(999, 1999));
+    // A variant's SKU finds its product on the base book.
+    const variantSku = await page(BASE_BOOK_ID, 'page=1&pageSize=50&search=G15LV-1');
+    expect(variantSku.status, variantSku.raw).toBe(200);
+    expect(variantSku.body.data.length).toBeGreaterThan(0);
+    expect(variantSku.body.data.every((l) => (l.variants ?? []).length === 1)).toBe(true);
   });
 
   it('refuses a page size above 500 and answers an unknown book 404', async () => {

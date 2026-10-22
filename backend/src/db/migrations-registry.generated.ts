@@ -103,6 +103,7 @@ import { Migration20261008T092714CatalogCategoryContent } from '@endora-commerce
 import { Migration20261014T170531CatalogProductListSavedViews } from '@endora-commerce/mod-catalog/migrations';
 import { Migration20261016T082008CatalogOrderRules } from '@endora-commerce/mod-catalog/migrations';
 import { Migration20261022T111811CatalogPriceFieldsRemoved } from '@endora-commerce/mod-catalog/migrations';
+import { Migration20261022T182523CatalogAdminNameKeys } from '@endora-commerce/mod-catalog/migrations';
 
 // ── cms ─────────────────────────────────────────────────────────────────────
 import { Migration20260425T162418CmsPagesInit } from '@endora-commerce/mod-cms/migrations';
@@ -287,6 +288,7 @@ import { Migration20261021T165239PriceListsPriceBooksExpand } from '@endora-comm
 import { Migration20261021T232310PriceListsPriceBooksVersion } from '@endora-commerce/mod-price-lists/migrations';
 import { Migration20261022T012134PriceListsPriceSurfaceGenerations } from '@endora-commerce/mod-price-lists/migrations';
 import { Migration20261022T111815PriceListsPriceBooksConversion } from '@endora-commerce/mod-price-lists/migrations';
+import { Migration20261022T182527PriceListsProductLines } from '@endora-commerce/mod-price-lists/migrations';
 
 // ── product_feeds ───────────────────────────────────────────────────────────
 import { Migration20260802T073547ProductFeedsInit } from '@endora-commerce/mod-product-feeds/migrations';
@@ -442,6 +444,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('catalog', Migration20261014T170531CatalogProductListSavedViews),
   migration('catalog', Migration20261016T082008CatalogOrderRules),
   migration('catalog', Migration20261022T111811CatalogPriceFieldsRemoved),
+  migration('catalog', Migration20261022T182523CatalogAdminNameKeys),
 
   // ── cms ─────────────────────────────────────────────────────────────────────
   migration('cms', Migration20260425T162418CmsPagesInit),
@@ -626,6 +629,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('price_lists', Migration20261021T232310PriceListsPriceBooksVersion),
   migration('price_lists', Migration20261022T012134PriceListsPriceSurfaceGenerations),
   migration('price_lists', Migration20261022T111815PriceListsPriceBooksConversion),
+  migration('price_lists', Migration20261022T182527PriceListsProductLines),
 
   // ── product_feeds ───────────────────────────────────────────────────────────
   migration('product_feeds', Migration20260802T073547ProductFeedsInit),

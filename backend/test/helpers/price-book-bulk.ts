@@ -13,14 +13,22 @@ const run = (em: EntityManager, sql: string, params: unknown[] = []) => em.getCo
 
 /**
  * `count` simple products named `${namePrefix} 0001` … (zero-padded to the
- * width of `count`), SKU `${skuPrefix}-0001` …, in `en-US`. Ids are
+ * width of `count`; prefixed by a word when `words` is given), SKU
+ * `${skuPrefix}-0001` …, in `en-US`. Ids are
  * deterministic per prefix so a caller can rebuild them; answered in name order.
  */
 export async function seedBulkProductsSql(
   em: EntityManager,
-  input: { count: number; namePrefix: string; skuPrefix: string },
+  input: {
+    count: number;
+    namePrefix: string;
+    skuPrefix: string;
+    /** When given, product `i`'s name is `${words[i mod n]} ${namePrefix} ${i}` instead (search fixtures). */
+    words?: readonly string[];
+  },
 ): Promise<string[]> {
   const width = Math.max(4, String(input.count).length);
+  const words = input.words && input.words.length > 0 ? `{${input.words.map((w) => `"${w}"`).join(',')}}` : null;
   const rows = (await run(
     em,
     `insert into "products" ("id", "sku", "slug", "type", "status", "name", "description", "visibility",
@@ -29,11 +37,13 @@ export async function seedBulkProductsSql(
             ? || '-' || lpad(g::text, ?, '0'),
             lower(? || '-' || lpad(g::text, ?, '0')),
             'simple', 'active',
-            jsonb_build_object('en-US', ? || ' ' || lpad(g::text, ?, '0')),
+            jsonb_build_object('en-US',
+              coalesce((?::text[])[1 + (g - 1) % greatest(coalesce(array_length(?::text[], 1), 1), 1)] || ' ', '')
+              || ? || ' ' || lpad(g::text, ?, '0')),
             '{}'::jsonb, 'public', '{}'::jsonb, now(), now()
        from generate_series(1, ?) g
      returning "id", "sku"`,
-    [input.skuPrefix, width, input.skuPrefix, width, input.namePrefix, width, input.count],
+    [input.skuPrefix, width, input.skuPrefix, width, words, words, input.namePrefix, width, input.count],
   )) as Array<{ id: string; sku: string }>;
   return rows.sort((a, b) => (a.sku < b.sku ? -1 : 1)).map((r) => r.id);
 }
@@ -84,6 +94,30 @@ export async function seedProductTiersSql(
       [bookId, offset, `{${slice.join(',')}}`, offset, tiers],
     );
   }
+  await syncProductLinesSql(em, bookId);
+}
+
+/**
+ * The book's `price_list_product_lines` brought in line with its rows, as
+ * `price_lists`' own writes keep it (161 G15): what a fixture that writes rows
+ * past the service must do too.
+ */
+export async function syncProductLinesSql(em: EntityManager, bookId: string): Promise<void> {
+  await run(
+    em,
+    `insert into "price_list_product_lines" ("price_list_id", "product_id")
+     select distinct e."price_list_id", e."product_id" from "price_list_matrix_entries" e
+      where e."price_list_id" = ? and e."product_id" is not null
+     on conflict do nothing`,
+    [bookId],
+  );
+  await run(
+    em,
+    `delete from "price_list_product_lines" l
+      where l."price_list_id" = ?
+        and not exists (select 1 from "price_list_matrix_entries" e where e."price_list_id" = l."price_list_id" and e."product_id" = l."product_id")`,
+    [bookId],
+  );
 }
 
 /** One percentage row per variant (`-5`), under its product, in `bookId`. */
@@ -97,6 +131,7 @@ export async function seedVariantRowsSql(em: EntityManager, bookId: string, vari
        from unnest(?::uuid[], ?::uuid[]) as v(product_id, variant_id)`,
     [bookId, `{${[...variantByProduct.keys()].join(',')}}`, `{${[...variantByProduct.values()].join(',')}}`],
   );
+  await syncProductLinesSql(em, bookId);
 }
 
 /** A non-base, everyone, draft book in PLN with no channel; answers its id. */

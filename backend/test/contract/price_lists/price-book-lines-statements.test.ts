@@ -13,9 +13,13 @@ import {
  * Feature 161, G15 (`contracts/backend-gaps.md`) — a page of a book's lines
  * costs the same number of statements whatever the book's size: the distinct
  * selections in one scan, the page cut by the catalogue's ordering
- * (`catalogProductReadPort.pageProductIdsByName`), and rows and labels read for
+ * (`catalogProductReadPort.pageProductsByAdminName`), and rows and labels read for
  * the page's lines only. Measured over the whole request, first and last page,
  * with and without a search, at 300 and at 30 000 lines.
+ *
+ * Since the G15 redesign (`research.md` R14) the page comes from the
+ * catalogue's stored admin name key through a membership seam, and the count
+ * from `price_list_product_lines`; the assertions are the same.
  */
 describe('price-book lines — statements per page do not grow with the book (161 G15)', () => {
   let h: BackendServerHandle;
@@ -66,5 +70,15 @@ describe('price-book lines — statements per page do not grow with the book (16
     const searchLarge = await measure(large, 'page=1&search=Statement%2000');
     expect(searchLarge.body.data.length).toBe(100);
     expect(searchLarge.statements).toBe(searchSmall.statements);
+
+    // 161 G15 redesign — a broad search takes the catalogue's dense path on the
+    // large book (30 000 matches) and its sparse path on the small one (300):
+    // the same statements either way.
+    const broadSmall = await measure(small, 'page=2&search=statement');
+    const broadLarge = await measure(large, 'page=2&search=statement');
+    expect(broadSmall.body.meta.totalLines).toBe(300);
+    expect(broadLarge.body.meta.totalLines).toBe(30_000);
+    expect(broadLarge.statements).toBe(broadSmall.statements);
+    expect(broadLarge.statements).toBe(searchLarge.statements);
   });
 });

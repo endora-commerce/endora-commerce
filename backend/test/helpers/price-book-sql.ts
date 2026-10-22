@@ -11,7 +11,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
  * price and no write semantics — a test of a cart, a listing or a feed — and
  * that seeded the old model's Default brackets or rule lists before. They write
  * exactly the rows the service writes: the header, the audience members, the
- * channel bridge rows and the rows.
+ * channel bridge rows, the rows and the book's product lines (161 G15).
  */
 
 /** The platform default currency's base book (the old `Default` list's id). */
@@ -19,6 +19,29 @@ export const BASE_BOOK_ID = '00000000-0000-4000-8000-00000000d51b';
 
 const exec = (em: EntityManager, sql: string, params: unknown[] = []) =>
   em.getConnection().execute(sql, params, 'run', em.getTransactionContext());
+
+/**
+ * `price_list_product_lines` (161 G15) for the products named, as the service
+ * keeps it: a product line exists exactly while the book holds a row of it.
+ */
+async function syncLinesSql(em: EntityManager, productIds: readonly string[], bookId?: string): Promise<void> {
+  const ids = `{${productIds.join(',')}}`;
+  await exec(
+    em,
+    `insert into "price_list_product_lines" ("price_list_id", "product_id")
+     select distinct e."price_list_id", e."product_id" from "price_list_matrix_entries" e
+      where e."product_id" = any(?::uuid[]) ${bookId ? 'and e."price_list_id" = ?' : ''}
+     on conflict do nothing`,
+    bookId ? [ids, bookId] : [ids],
+  );
+  await exec(
+    em,
+    `delete from "price_list_product_lines" l
+      where l."product_id" = any(?::uuid[]) ${bookId ? 'and l."price_list_id" = ?' : ''}
+        and not exists (select 1 from "price_list_matrix_entries" e where e."price_list_id" = l."price_list_id" and e."product_id" = l."product_id")`,
+    bookId ? [ids, bookId] : [ids],
+  );
+}
 
 /** The base book of a currency, created when missing; answers its id. */
 export async function ensureBaseBookSql(em: EntityManager, currencyCode = 'PLN'): Promise<string> {
@@ -62,6 +85,7 @@ export async function seedBasePriceSql(
      values (?, ?, ?, 1, 'fixed', ?, now(), now())`,
     [randomUUID(), bookId, productId, String(amount)],
   );
+  await syncLinesSql(em, [productId], bookId);
 }
 
 export interface SqlBookRow {
@@ -143,6 +167,8 @@ export async function seedPriceBookSql(
       ],
     );
   }
+  const productIds = [...new Set(input.rows.map((r) => r.productId).filter((p): p is string => !!p))];
+  if (productIds.length > 0) await syncLinesSql(em, productIds, id);
   return id;
 }
 
@@ -154,6 +180,7 @@ export async function removeBasePriceSql(em: EntityManager, productId: string): 
       where "product_id" = ? and "price_list_id" in (select "id" from "price_lists" where "is_system" = true)`,
     [productId],
   );
+  await syncLinesSql(em, [productId]);
 }
 
 /** Whether a product has a base price of its own (a product row of a base book, any currency). */
@@ -191,4 +218,5 @@ export async function seedBaseTiersSql(
       [randomUUID(), bookId, productId, tier.minQuantity, tier.maxQuantity, String(tier.amount)],
     );
   }
+  await syncLinesSql(em, [productId], bookId);
 }

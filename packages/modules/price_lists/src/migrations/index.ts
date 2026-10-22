@@ -31,6 +31,7 @@ import { Migration20261021T165239PriceListsPriceBooksExpand } from './20261021T1
 import { Migration20261021T232310PriceListsPriceBooksVersion } from './20261021T232310_price_lists_price_books_version.js';
 import { Migration20261022T012134PriceListsPriceSurfaceGenerations } from './20261022T012134_price_lists_price_surface_generations.js';
 import { Migration20261022T111815PriceListsPriceBooksConversion } from './20261022T111815_price_lists_price_books_conversion.js';
+import { Migration20261022T182527PriceListsProductLines } from './20261022T182527_price_lists_product_lines.js';
 
 export const migrations = [
   Migration20260426T075235PriceListsPricingInit,
@@ -42,6 +43,7 @@ export const migrations = [
   Migration20261021T232310PriceListsPriceBooksVersion,
   Migration20261022T012134PriceListsPriceSurfaceGenerations,
   Migration20261022T111815PriceListsPriceBooksConversion,
+  Migration20261022T182527PriceListsProductLines,
 ];
 
 export {
@@ -54,4 +56,5 @@ export {
   Migration20261021T232310PriceListsPriceBooksVersion,
   Migration20261022T012134PriceListsPriceSurfaceGenerations,
   Migration20261022T111815PriceListsPriceBooksConversion,
+  Migration20261022T182527PriceListsProductLines,
 };

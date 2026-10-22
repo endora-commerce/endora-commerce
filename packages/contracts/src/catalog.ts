@@ -2321,28 +2321,47 @@ export interface CatalogProductReadPort {
   listProductIdsByAttributeValue(query: CatalogAttributeValueQuery): Promise<string[]>;
 
   /**
-   * Feature 161 (G15) — one page of the given products, ordered by their name
-   * in `language` (the language, any tag of it, English, any name, else the
-   * SKU), then SKU, then id, and how many there are. `search` narrows to the
-   * products whose shown name or SKU, or one of whose variants' SKU, contains it
-   * (case-insensitive, taken literally). How `price_lists` pages a price book's
-   * product lines by label without reading this module's tables.
+   * Feature 161 (G15, `specs/161-price-book-editor/research.md` R14) — one page
+   * of the products a caller's **membership seam** names, ordered by the stored
+   * admin name key of the admin language (`en`, `pl`; any other reads `en`),
+   * then SKU, then id, and how many there are. `search` narrows to the products
+   * whose stored search key (folded shown name and SKU) or one of whose
+   * variants' SKU contains it — case- and accent-folded, taken literally. How
+   * `price_lists` pages a price book's product lines by label without either
+   * module naming the other's table.
    *
-   * **Structural** like `listProductIdsByAttributeValue`: soft-deleted and
-   * inactive products answer like any other, and the caller passes ids it
-   * already holds; ids naming no product are not counted. One statement.
+   * The seam is embedded as `(p.id in (<sql>)) is true`: a hashed probe while
+   * this module walks its own order index. It must select one uuid column.
+   * **Structural**: soft-deleted and inactive products answer like any other.
+   * One statement without a search (two with one: a count, then the page — by
+   * the trigram hits when they are few, by the ordered walk when many).
+   * `withTotal: false` skips the count of an unsearched page (`total` is then
+   * `null`) for a caller that counts its membership itself.
    */
-  pageProductIdsByName(query: CatalogProductNamePageQuery): Promise<{ ids: string[]; total: number }>;
+  pageProductsByAdminName(query: CatalogAdminNamePageQuery): Promise<{ ids: string[]; total: number | null }>;
 }
 
-/** {@link CatalogProductReadPort.pageProductIdsByName}'s query. */
-export interface CatalogProductNamePageQuery {
-  readonly ids: readonly string[];
+/**
+ * A subquery another module hands the catalogue to name a set of products
+ * (feature 161, G15): `sql` selects one uuid column, `params` bind its `?`.
+ * The precedent is `CustomFieldListFilterPort.condition`; the owner of the
+ * table the subquery reads is the module that wrote it.
+ */
+export interface CatalogProductMembership {
+  readonly sql: string;
+  readonly params: readonly unknown[];
+}
+
+/** {@link CatalogProductReadPort.pageProductsByAdminName}'s query. */
+export interface CatalogAdminNamePageQuery {
+  readonly membership: CatalogProductMembership;
   readonly search?: string | null;
-  /** A language tag (`pl`, `pl-PL`); `null` orders by English, then any name. */
+  /** A language tag (`pl`, `pl-PL`); its primary subtag picks the key, `en` when it has none. */
   readonly language: string | null;
   readonly offset: number;
   readonly limit: number;
+  /** Default `true`. Without a search, `false` skips the count. */
+  readonly withTotal?: boolean;
 }
 
 /** {@link CatalogProductReadPort.listProductIdsByAttributeValue}'s question. */

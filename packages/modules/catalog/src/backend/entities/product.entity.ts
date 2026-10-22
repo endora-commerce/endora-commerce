@@ -209,4 +209,36 @@ export class Product {
    */
   @Property({ type: 'boolean' })
   returnable: boolean = false;
+
+  /**
+   * Feature 161 (G15, `specs/161-price-book-editor/research.md` R14) — the
+   * admin name key and search key per admin language: **generated stored**
+   * columns Postgres computes from `name` and `sku` on every write (migration
+   * `…_catalog_admin_name_keys`). Read-only here: the ORM never writes them,
+   * never loads them unless asked (`lazy`) and never serialises them
+   * (`hidden`); `pageProductsByAdminName` reads them in SQL.
+   */
+  @Property({ type: 'text', generated: `(catalog_admin_name_key("name", "sku", 'en')) stored`, lazy: true, hidden: true, nullable: true })
+  readonly adminNameKeyEn?: string;
+
+  @Property({ type: 'text', generated: `(catalog_admin_name_key("name", "sku", 'pl')) stored`, lazy: true, hidden: true, nullable: true })
+  readonly adminNameKeyPl?: string;
+
+  @Property({
+    type: 'text',
+    generated: `(catalog_admin_name_key("name", "sku", 'en') || ' ' || lower("sku")) stored`,
+    lazy: true,
+    hidden: true,
+    nullable: true,
+  })
+  readonly adminSearchKeyEn?: string;
+
+  @Property({
+    type: 'text',
+    generated: `(catalog_admin_name_key("name", "sku", 'pl') || ' ' || lower("sku")) stored`,
+    lazy: true,
+    hidden: true,
+    nullable: true,
+  })
+  readonly adminSearchKeyPl?: string;
 }

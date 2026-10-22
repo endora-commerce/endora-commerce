@@ -1,6 +1,8 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
+  adminNameLanguage,
+  foldAdminName,
   priceBookAudienceKindSchema,
   priceBookSelectionKind,
   type CatalogAttributeView,
@@ -24,6 +26,7 @@ import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { attributeInactiveReason } from './attribute-eligibility.js';
 import { priceOfStored, type StoredRow } from './price-book-batch.js';
 import { selectionKey } from './price-book-rules.js';
+import { priceBookMembership } from './price-book-membership.js';
 import { audienceKindWritable, bookVisible, bookWritable, visibleBookSql, type PriceBookScope } from './price-book-scope.js';
 
 /**
@@ -45,7 +48,7 @@ export interface PriceBookReadsDeps {
   channelBridge?: {
     entityIdsInChannelSubquery(channelId: string, entityType: 'price-list'): { sql: string; params: string[] };
   };
-  catalogProductRead: Pick<CatalogProductReadPort, 'findByIds' | 'listVariantsByProductIds' | 'pageProductIdsByName'>;
+  catalogProductRead: Pick<CatalogProductReadPort, 'findByIds' | 'listVariantsByProductIds' | 'pageProductsByAdminName'>;
   catalogCategoryRead: Pick<CatalogCategoryReadPort, 'listAll'>;
   catalogAttributeRead: Pick<CatalogAttributeReadPort, 'listAll'>;
 }
@@ -140,6 +143,21 @@ export class PriceBookReads {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Price book not found.');
     }
     return row;
+  }
+
+  /** The 404 of a missing or out-of-scope book, reading only what visibility needs (161 G15). */
+  async #visible(id: string, scope: PriceBookScope): Promise<void> {
+    const rows = (await this.deps.emFactory().execute(
+      `select l."audience_kind", l."is_system",
+              array(select m."organization_id" from "price_list_audience_members" m
+                     where m."price_list_id" = l."id" and m."organization_id" is not null) as "member_org_ids"
+         from "price_lists" l where l."id" = ?`,
+      [id],
+    )) as Array<Pick<BookHeaderRow, 'audience_kind' | 'is_system' | 'member_org_ids'>>;
+    const row = rows[0];
+    if (!row || !bookVisible(scope, { audienceKind: row.audience_kind, isSystem: row.is_system, organizationIds: row.member_org_ids ?? [] })) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Price book not found.');
+    }
   }
 
   async get(id: string, scope: PriceBookScope): Promise<PriceBook> {
@@ -384,15 +402,18 @@ export class PriceBookReads {
    * One page of a book's **lines** (G15 of 161): a line is a selection with
    * every row it holds, a product line carries its variant lines, and the page
    * is cut between lines, general to specific and by label within a kind
-   * (FR-006). The cost per page does not grow with the book:
+   * (FR-006). Within 150 ms p95 at 50 000 lines (redesign, `research.md` R14):
    *
-   * 1. the book's distinct selections — the attribute and category kinds (few)
-   *    in one statement, the products' ids in one scan of
-   *    `(price_list_id, product_id)`, no labels;
-   * 2. the attribute and category lines labelled in full and searched by label;
-   *    the product segment ordered, searched and cut by the catalogue
-   *    (`pageProductIdsByName`, one statement);
-   * 3. rows and labels read for the page's lines only.
+   * 1. a visibility-only header;
+   * 2. the attribute and category lines (few) in one statement, labelled in
+   *    full, searched and ordered by `foldAdminName`, the catalogue's fold;
+   * 3. the product segment ordered, searched and cut by the catalogue's stored
+   *    admin name key (`pageProductsByAdminName`) over this book's membership
+   *    seam, counted from `price_list_product_lines` when nothing narrows it;
+   * 4. rows and labels read for the page's lines only.
+   *
+   * The labels and the order use the admin language (`en` or `pl`), so a
+   * product line's label (`pickName`) is the name its key was built from.
    */
   async lines(
     bookId: string,
@@ -400,13 +421,16 @@ export class PriceBookReads {
     scope: PriceBookScope,
     language: string | null,
   ): Promise<{ data: PriceBookLine[]; meta: { page: number; pageSize: number; totalLines: number } }> {
-    await this.header(bookId, scope);
+    // A visibility check only: the book read's tier starts and row count are not this read's (R14).
+    await this.#visible(bookId, scope);
     const em = this.deps.emFactory();
     const kinds = new Set<PriceBookSelectionKind>(query.kind ?? []);
     const wants = (kind: PriceBookSelectionKind) => kinds.size === 0 || kinds.has(kind);
-    const search = query.search?.toLowerCase() ?? null;
+    const search = query.search?.trim() ? foldAdminName(query.search.trim()) : null;
+    // The admin language the catalogue keys, the labels and the order are read in.
+    language = adminNameLanguage(language);
 
-    // 1a. The few selections that name no product: all, attribute, category, category ∩ attribute.
+    // 1. The few selections that name no product: all, attribute, category, category ∩ attribute.
     const smallKinds = (['all', 'attribute', 'category', 'category_attribute'] as const).filter(wants);
     const small =
       smallKinds.length === 0
@@ -417,43 +441,41 @@ export class PriceBookReads {
               where e."price_list_id" = ? and e."product_id" is null`,
             [bookId],
           )) as Array<{ category_id: string | null; attribute_key: string | null; attribute_value: string | null }>);
-    // 1b. The products: every product the book prices, or those with own / variant rows for a kind filter.
-    const productLines = wants('product') || wants('variant');
-    const productFilter =
-      kinds.size === 0 || (kinds.has('product') && kinds.has('variant'))
-        ? ''
-        : kinds.has('variant')
-          ? `and e."variant_id" is not null`
-          : `and e."variant_id" is null`;
-    const productIds = productLines
-      ? ((await em.execute(
-          `select distinct e."product_id" from "price_list_matrix_entries" e
-            where e."price_list_id" = ? and e."product_id" is not null ${productFilter}`,
-          [bookId],
-        )) as Array<{ product_id: string }>).map((r) => r.product_id)
-      : [];
-
-    // 2a. The small kinds, labelled in full, filtered, ordered.
     const smallSelections = small.map((r) => selectionRow(null, null, r.category_id, r.attribute_key, r.attribute_value));
     const smallLabelled = (await this.label(smallSelections, language))
       .filter((line) => wants(line.selectionKind))
-      .filter((line) => !search || haystackOf(line).includes(search))
+      .filter((line) => !search || foldAdminName(haystackOf(line)).includes(search))
       .sort(compareLines);
-    // 2b. The page cut: the small kinds come first, the products after them.
+
+    // 2. The page cut: the small kinds come first, the products after them —
+    // ordered, searched and cut by the catalogue's stored admin name key over
+    // this book's membership seam (`price-book-membership.ts`).
     const offset = (query.page - 1) * query.pageSize;
     const smallPage = smallLabelled.slice(offset, offset + query.pageSize);
     const productOffset = Math.max(0, offset - smallLabelled.length);
     const productLimit = query.pageSize - smallPage.length;
-    const productPage =
-      productIds.length === 0
-        ? { ids: [] as string[], total: 0 }
-        : await this.deps.catalogProductRead.pageProductIdsByName({
-            ids: productIds,
+    const productLines = wants('product') || wants('variant');
+    const productKinds = new Set([...kinds].filter((k) => k === 'product' || k === 'variant'));
+    // Without a search or a kind filter the line table counts the product lines (PK, index-only).
+    const countsLines = productLines && !query.search && kinds.size === 0;
+    const [productPage, lineCount] = productLines
+      ? await Promise.all([
+          this.deps.catalogProductRead.pageProductsByAdminName({
+            membership: priceBookMembership(bookId, productKinds),
             ...(query.search ? { search: query.search } : {}),
             language,
             offset: productOffset,
             limit: productLimit,
-          });
+            withTotal: !countsLines,
+          }),
+          countsLines
+            ? (em.execute(`select count(*)::int as "n" from "price_list_product_lines" l where l."price_list_id" = ?`, [bookId]) as Promise<
+                Array<{ n: number }>
+              >).then((rows) => Number(rows[0]?.n ?? 0))
+            : Promise.resolve(null),
+        ])
+      : [{ ids: [] as string[], total: 0 }, null];
+    const productTotal = lineCount ?? productPage.total ?? 0;
 
     // 3. Rows and labels of the page's lines only.
     const smallKeys = smallPage.map((line) => smallKeyOf(line.selection.categoryId, line.selection.attribute?.key ?? null, line.selection.attribute?.value ?? null));
@@ -518,7 +540,7 @@ export class PriceBookReads {
     ];
     return {
       data,
-      meta: { page: query.page, pageSize: query.pageSize, totalLines: smallLabelled.length + productPage.total },
+      meta: { page: query.page, pageSize: query.pageSize, totalLines: smallLabelled.length + productTotal },
     };
   }
 
@@ -651,8 +673,12 @@ function compareRows(a: PriceBookRow, b: PriceBookRow): number {
 function compareLines(a: PriceBookRow, b: PriceBookRow): number {
   const byKind = KIND_ORDER[a.selectionKind] - KIND_ORDER[b.selectionKind];
   if (byKind !== 0) return byKind;
-  const label = (r: PriceBookRow) => [r.labels.categoryPath, r.labels.attributeLabel, r.labels.attributeValueLabel].filter(Boolean).join(' ');
-  return label(a).localeCompare(label(b)) || selectionKey(storedOfSelection(a)).localeCompare(selectionKey(storedOfSelection(b)));
+  // The catalogue's fold, compared bytewise, as its stored product keys are (161 G15).
+  const label = (r: PriceBookRow) => foldAdminName([r.labels.categoryPath, r.labels.attributeLabel, r.labels.attributeValueLabel].filter(Boolean).join(' '));
+  const [x, y] = [label(a), label(b)];
+  if (x !== y) return x < y ? -1 : 1;
+  const [kx, ky] = [selectionKey(storedOfSelection(a)), selectionKey(storedOfSelection(b))];
+  return kx < ky ? -1 : kx > ky ? 1 : 0;
 }
 
 /** What a search matches on a line: its labels, natural key and attribute key (as `rows`' search, G3). */

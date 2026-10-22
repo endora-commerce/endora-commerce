@@ -41,6 +41,7 @@ import type { PricingServiceContract } from './services/pricing-service.interfac
 import { registerPriceListCurrencyReferences } from './services/price-list-currency-reference.js';
 import { PriceDisplayModeOverride } from './entities/price-display-mode-override.entity.js';
 import { PriceListMatrixEntry } from './entities/price-list-matrix-entry.entity.js';
+import { PriceListProductLine } from './entities/price-list-product-line.entity.js';
 import { PriceList } from './entities/price-list.entity.js';
 import { PriceListAudienceMember } from './entities/price-list-audience-member.entity.js';
 import { PriceListPrecedence } from './entities/price-list-precedence.entity.js';
@@ -368,6 +369,19 @@ export function registerModule(ctx: ModuleContext): void {
   }
 
   /**
+   * Feature 161 (G15) — a catalogue variant delete cascades its price rows
+   * away and can leave a book's product line holding none; the catalogue says
+   * so with `product.updated.v1` (`changedFields: ['variants']`), and the line
+   * is dropped here. `price_list_product_lines` is this module's own table.
+   */
+  ctx.subscribe('product.updated.v1', async (payload) => {
+    const event = payload as { productId?: unknown; changedFields?: unknown };
+    if (typeof event.productId !== 'string') return;
+    if (Array.isArray(event.changedFields) && !event.changedFields.includes('variants')) return;
+    await ctx.cradle<PriceListsCradle>().priceLists.handle.priceBookService.reconcileProductLines(event.productId);
+  });
+
+  /**
    * Feature 160 (D-287 P1, research R3) — a price book's channel set is the
    * `sales_channel_price_lists` bridge, which this module's migration creates,
    * so this module says where it is. Read and written only through
@@ -469,6 +483,8 @@ export const entities = [
   PriceListPrecedence,
   PriceProfile,
   PriceProfilePrice,
+  // Feature 161 (G15) — a book's product lines.
+  PriceListProductLine,
 ];
 
 /**
