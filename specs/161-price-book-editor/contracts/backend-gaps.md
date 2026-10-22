@@ -1,9 +1,9 @@
-# Contract — Backend gaps G11–G17 (built in feature 161)
+# Contract — Backend gaps G11–G18 (built in feature 161)
 
 The admin API of feature 160 is the contract (`specs/160-pricing-model-v2/contracts/admin-price-books-api.md`,
 implemented in `packages/modules/price_lists/src/backend/routes.price-books.ts`, schemas in
-`packages/contracts/src/price-books.ts`). G1–G10 are implemented by 160. These seven were found while
-planning against the code (`research.md` R1); each is **additive** (no field removed, no route
+`packages/contracts/src/price-books.ts`). G1–G10 are implemented by 160. These eight were found while
+planning against the code (`research.md` R1; G18 after the coordinator's review of 2026-10-22); each is **additive** (no field removed, no route
 renamed) and is built test-first in Phase 2 of `tasks.md`, before any screen depends on it. Each
 needs a `minor` changeset on the package it changes (`specs/conventions/release-intent.md`, D-225).
 
@@ -48,14 +48,42 @@ Whether it is present stays P1's decision (`listPriceOf`: setting on and catalog
 Test: `backend/test/integration/catalog/list-price-in-summaries.test.ts` (vectors D1–D4 of
 `specs/pricing/worked-examples.md` §10.15 on the listing and detail responses).
 
-## G15 — load a whole book in one request
+## G15 — page the grid by line, at a cost independent of the book
 
-`priceBookRowsQuerySchema.pageSize` maximum raised from 1 000 to `PRICE_BOOK_MAX_ROWS` (5 000).
-Nothing else changes; the read already labels the whole book per call.
+`GET /api/v1/admin/price-books/:id/lines?page=1&pageSize=100&kind=…&search=…`
 
-Test: `backend/test/contract/price_lists/price-book-rows-page-size.test.ts` — 5 000 rows in one
-response; the response time of a 5 000-row book recorded in the test's header (measured, not a
-loosened budget) and asserted below 2 s on the CI runner's recorded baseline.
+- `pageSize`: lines, 50/100/200 offered by the UI, maximum 500. `kind`: one or more selection kinds
+  (a `variant` filter returns product lines that carry matching variant lines).
+- Answer `{ data: PriceBookLine[], meta: { page, pageSize, totalLines } }` with
+  `PriceBookLine = { selectionKey, selectionKind, selection, labels, naturalKey, inactiveReason,
+  targetDeleted, rows: PriceBookRow[], variants?: PriceBookLine[] }` — **every** row of the line,
+  never a part; a product line carries its variant lines (a product with only variant rows still gets
+  a product line, with `rows: []`).
+- Order: `all`, attribute values, categories, category ∩ attribute values, products (variants nested),
+  by label within a kind (FR-006).
+- Cost per call, independent of the book's size except for one index-only scan of ids:
+  1. distinct selections of the book by kind with counts, from `price_list_matrix_entries`
+     (`price_list_id`, selection columns) — no labels;
+  2. the page is cut in that order; attribute and category kinds (few) are labelled in full; the
+     product segment is ordered and searched by the catalogue through
+     **`catalogProductReadPort.pageProductIdsByName({ ids, search?, language, offset, limit })` →
+     `{ ids, total }`** (new, owned by `catalog`; `order by` localized name, SKU, id);
+  3. rows and labels only for the page's lines.
+- The row endpoint (`GET …/:id/rows`) is unchanged; export reads it page by page.
+
+Tests:
+- `backend/test/contract/price_lists/price-book-lines.test.ts` — a base book of 1 200 products with 1–4
+  tiers each and variants on 100 of them, `pageSize=100`: no line split across pages (every line's
+  rows equal the stored rows of that selection), variants on their product's page, `totalLines`
+  correct, pages concatenate to every line exactly once in order; `search` and `kind` filters.
+- `backend/test/contract/price_lists/price-book-lines-statements.test.ts` — the statement count of a
+  page call is the same for a 300-line and a 30 000-line book.
+- `backend/test/perf/price_lists/book-lines-page.bench.ts` (`PERF_RUN=true`) — p95 of a 100-line page
+  at a 50 000-line base book, first and last page, with and without search; budget **150 ms p95**
+  (the platform's listing-page budget of SC-005 of spec 160), asserted; measurement recorded in the
+  header.
+- `packages/modules/catalog` — unit/integration test of `pageProductIdsByName` (order, search,
+  offset, language fallback) in `backend/test/integration/catalog/page-product-ids-by-name.test.ts`.
 
 ## G16 — name the runner-ups
 
@@ -64,6 +92,19 @@ resolved in the same batch as the winner's (`services/buyer-line-price-service.t
 
 Test: extend `backend/test/contract/price_lists/price-books-resolve.test.ts` with E3.1: candidates
 named *Acme contract* (category *Screws*) and *VIP prices* (product *Screws 0200*).
+
+## G18 — batch writes read only what they validate; base books uncapped
+
+- `PriceBookService.writeRows` (and its `dryRun`) loads the stored rows of the **selections the batch
+  touches** (overlap is per selection), the book's row **count**, and, in `replace` mode, the ids of
+  every stored row (index-only) — not every row with its labels.
+- `PRICE_BOOK_MAX_ROWS` (5 000) applies to non-base books only; base books are bounded by the
+  catalogue (FR-009 of spec 160). `PRICE_BOOK_MAX_ROWS_PER_BATCH` (5 000) is unchanged for every book.
+
+Tests: `backend/test/contract/price_lists/price-book-batch-scope.test.ts` — a base book of 6 000 rows
+accepts a batch; a non-base book is refused at 5 001; statement count of a 10-row batch is the same for
+a 300-row and a 30 000-row book; replace mode on a large base book still lists every removed row in
+the dry run.
 
 ## G17 — one decimal implementation for server and browser
 

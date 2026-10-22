@@ -1,14 +1,16 @@
 # Data model — Price-book editor (feature 161)
 
 **No new table and no migration.** The editor edits feature 160's entities
-(`specs/160-pricing-model-v2/data-model.md`) through its admin API; the seven backend gaps
+(`specs/160-pricing-model-v2/data-model.md`) through its admin API; the eight backend gaps
 (`contracts/backend-gaps.md`) add response fields and one query parameter, no column. What this
 feature does model is **browser state**, below, and the CSV file (`contracts/csv-format.md`).
 
 ## 1. Loaded book (read model, from P1)
 
-`PriceBook` (`packages/contracts/src/price-books.ts`) + `writable` (G11) + every `PriceBookRow` of
-the book in one request (G15). Held immutable; edits live beside it.
+`PriceBook` (`packages/contracts/src/price-books.ts`) + `writable` (G11), and the **current page of
+lines** (`PriceBookLine[]`, G15: whole lines, variants nested, `totalLines`). Pages are fetched on
+demand and cached per `(page, pageSize, kind, search, version)`; edits live beside them, keyed by
+selection, so they survive page changes.
 
 ## 2. Grid line
 

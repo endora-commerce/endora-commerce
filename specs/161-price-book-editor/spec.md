@@ -68,6 +68,17 @@ P3 — this feature **displays** it (Q11, FR-023 of 160); P1 and P2 ship togethe
   linking to the grid and to "Why this price?"; it replaces the removed *Linked price lists* panel
   (gap G1 is therefore required).
 
+### Session 2026-10-22
+
+- OQ-1: How does the base-price panel save (FR-020)? → A: **(B) its own *Save prices* button** with
+  an unsaved-changes prompt, as every product-editor zone panel saves today. One Save for the whole
+  product edit page is the future direction, tracked as issue #407.
+- OQ-2: Saved views on the book list (FR-034)? → A: **(B) not now**: the list's filters live in the
+  URL (shareable, bookmarkable); saved views on the price-book list are issue #408.
+- Review (coordinator, 2026-10-22): the grid pages by **product line**, never splitting a line's tiers
+  across pages, and a page call does not read the whole book. The 5 000-row figure is the CSV/batch
+  limit, not a book size: base books hold a row per product tier and variant across the catalogue.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 — Find, create and configure a price book (Priority: P1) 🎯 MVP
@@ -329,7 +340,8 @@ row; after fixing the file and confirming, the grid equals the file.
 
 ### Edge Cases
 
-- A book at the 5 000-row limit: adding lines is refused before saving, with the limit stated.
+- A non-base book at the 5 000-row limit: adding lines is refused before saving, with the limit
+  stated. Base books are not capped by it (they hold the catalogue's base prices).
 - A pasted block larger than the visible lines: extra rows are ignored with a notice; extra columns
   beyond the tier columns create no columns.
 - A value with three or more decimals for a fixed price, a percentage outside −100…+1000, a percentage
@@ -410,8 +422,10 @@ row; after fixing the file and confirming, the grid equals the file.
 - **FR-014**: A refused save MUST mark every failing cell with its reason and keep every edit; a save
   against a book changed by someone else since it was opened MUST be refused and offer reload with the
   unsaved cells kept for re-application.
-- **FR-015**: The grid MUST page lines, search them by name, identifier, category or attribute value,
-  filter by selection kind, and keep unsaved edits across pages.
+- **FR-015**: The grid MUST page by **line** — a page boundary never splits a line's tiers, and a
+  product's variant lines stay on its product's page — with the total line count shown; search lines by
+  name, identifier, category or attribute value; filter by selection kind; and keep unsaved edits
+  across pages. A page MUST load without the server reading the whole book.
 - **FR-016**: Lines that are inactive (an ineligible attribute, a deleted target) MUST show the reason.
 - **FR-017**: Rules the API enforces (overlapping windows, fixed price on *all products*, percentage
   bounds, base books holding only product and variant lines) MUST be checked in the browser before
@@ -422,14 +436,16 @@ row; after fixing the file and confirming, the grid equals the file.
   then one row per tier — selection kind, product SKU, variant SKU, category path, attribute key,
   attribute value code, minimum quantity, maximum quantity, price kind, value — in UTF-8 with a BOM,
   semicolon-separated, decimal comma for a Polish administrator and point otherwise (stated in the file
-  name), so the file opens correctly in a spreadsheet and imports back unchanged.
+  name), so the file opens correctly in a spreadsheet and imports back unchanged. A book (or a filtered
+  view of it) with more than 5 000 rows MUST export as numbered files of at most 5 000 rows each, each
+  importable on its own in merge mode.
 - **FR-038**: A CSV file in that format MUST be importable into a book in one of two modes: **merge**
   (default — cells in the file are added or changed, others stay) or **replace** (the book's rows become
   exactly the file's). Column order is fixed by the header; the header names MUST be recognised in
   English and Polish; unknown columns MUST be refused with their names.
 - **FR-039**: Import MUST accept a comma or semicolon separator, a decimal comma or point, UTF-8 with
   or without a BOM, and Windows-1250 (detected, or chosen by the administrator when detection fails),
-  and MUST refuse a file over 5 MB or more rows than the book's limit (5 000) before parsing further.
+  and MUST refuse a file over 5 MB or with more than 5 000 rows (one batch) before parsing further.
 - **FR-040**: Before anything is written, import MUST show a **preview**: counts and a list of added,
   changed (old → new) and, in replace mode, removed cells, and every row that cannot be imported with
   its line number and reason — an unknown SKU, variant, category or attribute value, an ineligible
@@ -449,8 +465,10 @@ row; after fixing the file and confirming, the grid equals the file.
 - **FR-019**: The product editor MUST contain a base-price panel contributed by the price-list module
   through the product editor's zone: per currency offered by any channel, the product's tiers, and per
   variant *inherits* / fixed / ± % / ± amount with the resulting price shown.
-- **FR-020**: The panel MUST save with the product editor's save action, report its own errors on its
-  fields, and state when the product has no base price and is therefore not orderable.
+- **FR-020**: The panel MUST have its own *Save prices* action, guarded by an unsaved-changes prompt
+  when leaving the Pricing tab or the page; it MUST report its own errors on its fields and state when
+  the product has no base price and is therefore not orderable (Clarifications, Session 2026-10-22;
+  one Save for the whole product page is issue #407).
 - **FR-021**: The product editor MUST list read-only the books that price the product directly,
   with audience and price, linking to the grid and the explanation screen, replacing the removed
   *Linked price lists* panel.
@@ -509,7 +527,8 @@ row; after fixing the file and confirming, the grid equals the file.
   confirmed (`ux-laws` Von Restorff, Fitts).
 - **FR-034**: Screens MUST reuse admin-kit and admin-shell primitives and pickers (product picker,
   organization, customer-group, customer, category and sales-channel pickers, modal dialog, responsive
-  table, pagination, sticky form actions, saved views where lists have filters); a new shared primitive
+  table, pagination, sticky form actions); list filters MUST live in the URL (saved views on the
+  price-book list are issue #408); a new shared primitive
   (the editable grid) MUST live in admin-kit with its own tests if no existing one fits.
 - **FR-035**: All text MUST exist in English and Polish.
 - **FR-036**: The grid MUST remain responsive (scroll, focus move and typing under 100 ms) on a page of
@@ -555,8 +574,9 @@ module. Browser-only state: unsaved edits, undo history, the book version the ed
   line's next tier starts (or without end); this is the 160 row model, displayed, not a new rule.
 - Quantity-tier columns are the book's tier starts; a tier window ends where the next start begins
   unless a cell detail sets an explicit end.
-- Paging, not virtualised scrolling: pages of 50/100/200 lines (no new dependency). Search and filters
-  find lines across pages.
+- Paging, not virtualised scrolling: pages of 50/100/200 **lines** (a product line with its variants
+  counts as one), with page numbers (no new dependency). Search and filters run on the server and find
+  lines across pages.
 - When the list-price display is on, the pair shows on the product page and listing cards only; the
   basket and checkout show the charged price alone, so a buyer never sees two prices beside one charge.
 - Undo/redo covers unsaved edits of the current session only; saved changes are reverted by editing.
@@ -582,8 +602,8 @@ each is additive and justified by the requirement named):
 | G9 | `ListingPriceDetail` and `GET /api/v1/storefront/products/:id/resolved-price` gain `listPrice?: { amount, currency }`, present only when the setting is on and the catalogue price is above the buyer price | FR-026, SC-007 |
 | G10 | `PUT /api/v1/admin/price-books/:id/rows?dryRun=true` (same body plus `mode: 'merge' \| 'replace'`, rows also addressable by natural keys `{ productSku?, variantSku?, categoryPath?, attribute?: {key, valueCode} }`) → writes nothing and answers `{ version, resolved: rows with ids, diff: { added[], changed[{ before, after }], removed[], unchangedCount }, errors[] }` (G6 shape, with `index` = file line); the confirming call is the same body without `dryRun`, with `expectedVersion` (G5) | FR-038–FR-041, SC-009 |
 
-**Found while planning against the implemented P1** (2026-10-22): seven further additive gaps,
-G11–G17, built as backend tasks of this feature — `contracts/backend-gaps.md`.
+**Found while planning against the implemented P1** (2026-10-22): eight further additive gaps,
+G11–G18, built as backend tasks of this feature — `contracts/backend-gaps.md`.
 
 **Other**: the product picker of feature 145; the product editor's zone mechanism (feature 091); the
 release gate of feature 160 (one pull request to `master` after this feature and 160's Phase 13).

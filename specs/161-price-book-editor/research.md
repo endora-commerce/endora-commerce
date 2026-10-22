@@ -21,7 +21,8 @@ setting through the Command Bus (G8, `routes.price-books.ts` `settings/show-list
 `ListingPriceDetail` (G9, `CON/price-lists.ts`), and the `?dryRun=true` preview with natural keys and
 merge/replace (G10, `priceBookRowsDryRunSchema`).
 
-Reading the code against every FR of the spec found **seven** further gaps. Each becomes a backend
+Reading the code against every FR of the spec found **eight** further gaps (G18 added after the
+coordinator's review of 2026-10-22). Each becomes a backend
 task in this feature, ahead of the screens that need it (`contracts/backend-gaps.md`):
 
 | # | Gap | Found in | Needed by |
@@ -30,9 +31,10 @@ task in this feature, ahead of the screens that need it (`contracts/backend-gaps
 | G12 | Book members are ids only (`priceBookSchema.audience.memberIds`) and `GET …/targets/organizations` searches by name only — a stored organization member cannot be labelled | FR-003, US1 |
 | G13 | The audit-log viewer (`packages/modules/audit_logs/src/admin/pages/AuditLogViewer.tsx`) keeps its filters in component state; a "history of this book" link cannot pre-filter it | spec *Assumptions* (book history) |
 | G14 | `listPrice` exists on `ListingPriceDetail` but **not** on `productResolvedPriceSchema` (`CON/price-lists.ts`) nor on the catalogue's `ProductSummary` (`CON/catalog.ts`); `catalog-query.service.ts` never maps it, so neither the PDP nor the cards can render the pair | FR-026, SC-007 |
-| G15 | `GET …/rows` pages **rows** (`pageSize ≤ 1000`, `priceBookRowsQuerySchema`) while the grid pages **lines** (a selection with several tiers); a page boundary can split a line, and unsaved edits across pages need the whole book in memory | FR-006, FR-013, FR-015 |
+| G15 | `GET …/rows` pages **rows** (`pageSize ≤ 1000`) while the grid pages **lines** (a selection with several tiers, a product with its variants): a page boundary can split a line; and every call reads and labels the **whole** book (`price-book-reads.ts` `rows` → `storedRows` + `label`), a cost that grows with the book — base books hold a row per product tier and variant across the catalogue, far beyond 5 000 | FR-006, FR-013, FR-015 |
 | G16 | Explanation candidates carry `bookId`, `rowId`, `cell`, `amount` only (`priceBookExplanationCandidateSchema`); the screen must name each runner-up's book and selection | FR-023 |
 | G17 | The decimal arithmetic the server prices with (`PL/backend/services/matrix-decimal.ts` — `applySignedPercent`, `applyAmountAdjustment`, half-up 4 dp) is module-private; the base-price panel's "resulting price" preview must use the identical rounding (FR-030) | FR-019, FR-030 |
+| G18 | The batch write validates against the **whole** stored book (`price-book-service.ts` `writeRows` → `#storedRows`) and refuses any book over `PRICE_BOOK_MAX_ROWS` (5 000, `price-book-batch.ts`) — including base books, which the base-price endpoint grows past 5 000 on any real catalogue, so the base grid could never save; the same whole-book read makes every save cost O(book) | FR-005, FR-013, FR-017, US1 scenario 6 |
 
 **Rejected.** Deriving writability in the browser from the book's audience: the browser does not know
 the caller's organization scope, and a second copy of the scope rule is the drift P1's `price-book-scope.ts`
@@ -52,12 +54,35 @@ exists to prevent.
   `ListingPriceDetail.listPrice` into `ProductSummary.resolvedPrice` (product detail) and into the
   listing summary for cards; the storefront renders it (US7). The decision of *whether* to show stays
   server-side (P1's `listPriceOf`, setting + "above the buyer price").
-- **G15** — raise the rows endpoint's `pageSize` maximum to `PRICE_BOOK_MAX_ROWS` (5 000), so the grid
-  loads a whole book in one request; the grid pages lines client-side. The endpoint already reads and
-  labels the whole book on every call (`price-book-reads.ts` `rows`), so one call is cheaper than five.
-  Measured by a contract test timing a 5 000-row book (budget recorded, not loosened).
+- **G15** — **page by line**, not by row (coordinator review, 2026-10-22). A new read
+  `GET …/:id/lines?page&pageSize&kind&search` (pageSize 50/100/200 lines, max 500) answers
+  `{ data: PriceBookLine[], meta: { page, pageSize, totalLines } }`, a line being one selection with
+  **all** its rows, and a product line carrying its variant lines; the existing row endpoint is kept for
+  export and for callers that want rows. Order is general → specific (FR-006): `all`, attributes,
+  categories, category ∩ attribute, products (with variants), by label within a kind. **Cost per page
+  does not grow with the book**: (1) one index-only statement over `price_list_matrix_entries
+  (price_list_id, …)` yields the book's distinct selections per kind and their counts — ids only, no
+  labels; (2) the page is cut in that ordering: the small kinds (attributes, categories) are labelled
+  in full (they are few), and the product segment is ordered by the catalogue through a new
+  `catalogProductReadPort.pageProductIdsByName({ ids, search, language, offset, limit })` (owned by
+  `catalog`: `select id from products where id = any(?) [and name/sku match] order by name, sku, id
+  offset ? limit ?`); (3) rows and labels are read **only for the page's lines**. Search runs in the
+  same steps (labels of the small kinds, the catalogue's search for products). **Page numbers rather
+  than infinite scroll**: the grid is a keyboard-first ARIA grid whose `aria-rowcount` must be honest
+  and whose "go to line N" must not depend on having scrolled there; page numbers keep focus,
+  announcement and unsaved-edit bookkeeping deterministic, match the admin's list pattern
+  (`PaginationFooter`), and each page is one bounded request. Tested by a book larger than one page
+  (no line split, correct `totalLines`, pages concatenate to every line exactly once in order), a
+  statement-count test (constant per page whatever the book size) and a p95 bench at a 50 000-line
+  base book.
 - **G16** — candidates gain `bookName` and `labels` (`priceBookRowLabelsSchema`), resolved in the same
   batch as the winner's.
+- **G18** — batch validation reads only what it needs: the stored rows of the **selections the batch
+  touches** (overlap is a per-selection rule, `price-book-batch.ts` `rowOverlaps`), the book's row
+  **count** for the limit, and — in replace mode only — the ids of every stored row (index-only). The
+  5 000-row cap stays for non-base books (feature 148's product decision) and **does not apply to base
+  books**, which are bounded by the catalogue (FR-009 of spec 160). Tested by a base book above 5 000
+  rows accepting a batch, a non-base book refused at 5 001, and a statement-count test.
 - **G17** — move the pure decimal helpers to `CON/price-book-decimal.ts`; `matrix-decimal.ts` re-exports
   them so the server keeps one implementation. Unit tests move with them.
 
@@ -120,7 +145,9 @@ uses admin-kit's `use-unsaved-changes-prompt.ts`.
 
 **Decision.** Pure codec in `PL/admin/lib/price-book-csv.ts`:
 
-- **Export**: rows from G15's one-request load, written in the fixed format of
+- **Export**: rows read through the row endpoint page by page (≤ 1 000 a call) for the current
+  filter, split into numbered files of at most 5 000 rows when larger (FR-018), written in the fixed
+  format of
   `contracts/csv-format.md`: UTF-8 with BOM, `;` separator, decimal comma when the admin language is
   Polish (point otherwise, stated in the file name), header names in the admin language.
 - **Import**: size check (≤ 5 MB) before reading; decode with `TextDecoder('utf-8', { fatal: true })`,
@@ -145,10 +172,10 @@ take part in the host's Save**: every existing zone panel saves itself (e.g.
 
 **Consequence.** FR-020 ("the panel MUST save with the product editor's save action") needs either a
 new zone save-participation contract in admin-kit and the catalogue host, or a change of the FR to a
-panel with its own save. This is the owner's call — **open question OQ-1** in `plan.md`. The plan
-carries both task paths; the default path (own save, the platform's precedent) is marked.
+panel with its own save. **Owner ruling (OQ-1 = B, 2026-10-22)**: the panel has its own *Save prices*
+with an unsaved-changes prompt (FR-020 amended); one Save for the whole product page is issue #407.
 
-**Decision (either way).** The panel lists one line per currency from `GET …/targets/currencies`,
+**Decision.** The panel lists one line per currency from `GET …/targets/currencies`,
 reads `GET …/base-prices?productId=`, writes `PUT …/base-prices/:productId`, previews variant
 results with G17's helpers, and shows the books pricing the product from G1 (FR-021) with links to
 `/price-lists/:id` and `/price-lists/explain?productId=`.

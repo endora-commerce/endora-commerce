@@ -12,7 +12,8 @@ a server-validated preview, duplication, the product editor's base-price panel a
 pricing the product, the explanation screen with named runner-ups, the read-only precedence and the
 list-price switch on *Pricing settings*, the storefront list-price pair, and representative scope —
 restoring `/price-lists` as the module's landing and registering the three palette actions. Seven
-small additive backend gaps found while reading P1's code (G11–G17) are built first. Design decisions:
+small additive backend gaps found while reading P1's code (G11–G18 — G15 pages the grid by line at a
+cost independent of the book, G18 scopes batch validation and uncaps base books) are built first. Design decisions:
 `research.md`; screen ↔ API mapping of every FR: `contracts/ui-api-mapping.md`.
 
 ## Technical Context
@@ -22,16 +23,17 @@ small additive backend gaps found while reading P1's code (G11–G17) are built 
 and `@endora-commerce/admin-shell` (admin); Next.js 15 App Router (storefront, list-price pair only);
 Fastify + Zod (backend gaps) — **no new runtime or dev dependency** (`axe-core` already an admin
 devDependency, feature 147)
-**Storage**: none new — P1's tables; one query-parameter and several response fields (G11–G17)
+**Storage**: none new — P1's tables; one new read endpoint (`GET …/:id/lines`), one new catalogue
+port method (`pageProductIdsByName`), one query parameter and several response fields (G11–G18)
 **Testing**: Vitest + Testing Library + `admin/test/helpers/axe.ts` (`expectNoAxeViolations`) for
 admin; backend contract/integration suites for the gaps; storefront component tests
 **Target Platform**: browser admin, SSR storefront, Linux API
 **Project Type**: modular monolith web application
 **Performance Goals**: FR-036 / SC-004 — grid interactions under 100 ms at 200 lines × 6 columns;
 feedback within 400 ms; a 5 000-row save stays interactive
-**Constraints**: P1's API is the contract — changed only through G11–G17, each additive; no client
+**Constraints**: P1's API is the contract — changed only through G11–G18, each additive; no client
 price computation except labelled previews with the server's own rounding (G17)
-**Scale/Scope**: books up to 5 000 rows; one admin-kit primitive (editable grid); five admin routes;
+**Scale/Scope**: non-base books up to 5 000 rows, base books as large as the catalogue (paged by line); one admin-kit primitive (editable grid); five admin routes;
 one zone contribution; three palette actions; FR-001–FR-042, SC-001–SC-009
 
 ## Constitution Check
@@ -40,23 +42,23 @@ one zone contribution; three palette actions; FR-001–FR-042, SC-001–SC-009
 
 | Principle | Verdict | How |
 | --- | --- | --- |
-| I. Modular (NN) | pass | Screens in `price_lists`' own `src/admin/`; the base-price panel enters the product editor through the existing `product.editor.pricing.after` zone; `audit_logs` (G13) and `catalog` (G14) change only their own code; the grid primitive lives in admin-kit with no pricing knowledge |
+| I. Modular (NN) | pass | Screens in `price_lists`' own `src/admin/`; the base-price panel enters the product editor through the existing `product.editor.pricing.after` zone; `audit_logs` (G13) and `catalog` (G14, and G15's `pageProductIdsByName` on its read port) change only their own code, and `price_lists` reaches catalogue ordering only through that port; the grid primitive lives in admin-kit with no pricing knowledge |
 | II. API-first | pass | Every gap is a Zod schema change in `@endora-commerce/contracts` before the route; additive; `minor` changesets |
 | III. TDD (NN) | pass | Each phase writes failing tests first (component, axe, contract); every FR and SC traced in `tasks.md`; SC-001, SC-002 and the wall-clock half of SC-004 are recorded manual measurements (stated, not hidden) |
-| IV. YAGNI | pass | No dependency; no virtualisation; no column mapping; saved views pending OQ-2 |
+| IV. YAGNI | pass | No dependency; no virtualisation; no column mapping; no saved views (OQ-2 = B, issue #408) |
 | V/VI/VIII | pass | strict TS; naming check; English in code, pl + en strings |
 | VII. Storefront | pass | the list-price pair renders in existing server components (`BaseSalePriceBlock`/`PriceTag`), SSR intact |
 | IX. UI reuse | pass | admin-kit pickers (product 145, organization, customer, customer group, category, sales channel), modal dialog, responsive table, pagination, sticky form actions, unsaved-changes prompt; one new shared primitive (editable grid) justified in `research.md` R4 |
 | X. Queues | n/a | no async work |
 | XI. Tenancy (NN) | pass | visibility is the server's; writability via G11; organization pickers scope-filtered; SC-006 tested by equality with an unknown id |
 | XII. Channels (NN) | pass | channel set through P1's bridge; the UI offers only channels offering the currency (`targets/sales-channels?currency=`) |
-| XIII. Command Bus (NN) | pass | every write is a P1 endpoint already on the bus; G11–G17 add no write path |
+| XIII. Command Bus (NN) | pass | every write is a P1 endpoint already on the bus; G11–G18 add no write path |
 | XIV, XV | pass | no host columns; overlays unaffected |
 | XVI. Palette | pass | `open-price-lists`, `new-price-book`, `open-price-explainer` in the manifest; `check:action-route-permissions`, `registered-bundles-shape` |
 | XVII. Toggleable (NN) | pass | contributions (routes, nav, palette, zone) dropped when off; off-state tests extended |
 
-**Post-design re-check**: pass. Two FRs depend on the owner's answer (OQ-1, OQ-2); neither changes a
-principle verdict.
+**Post-design re-check**: pass. The owner's rulings of 2026-10-22 (OQ-1 = B, OQ-2 = B) and the
+by-line paging review are applied.
 
 ## Project Structure
 
@@ -66,7 +68,7 @@ principle verdict.
 specs/161-price-book-editor/
 ├── spec.md, plan.md, research.md, data-model.md, quickstart.md, tasks.md
 ├── contracts/ui-api-mapping.md       # every FR → endpoint or gap
-├── contracts/backend-gaps.md         # G11–G17
+├── contracts/backend-gaps.md         # G11–G18
 ├── contracts/csv-format.md
 └── checklists/requirements.md
 ```
@@ -80,8 +82,8 @@ packages/contracts/src/
 ├── price-lists.ts               # G14 listPrice on productResolvedPriceSchema
 └── catalog.ts                   # G14 ProductSummary carries it
 packages/modules/price_lists/
-├── src/backend/routes.price-books.ts, services/price-book-reads.ts, services/buyer-line-price-service.ts,
-│   services/matrix-decimal.ts   # G11, G12, G15, G16, G17
+├── src/backend/routes.price-books.ts, services/price-book-reads.ts (lines read), services/price-book-service.ts
+│   (G18), services/buyer-line-price-service.ts, services/matrix-decimal.ts   # G11, G12, G15–G18
 ├── src/manifest.ts              # palette actions; i18n keys
 ├── i18n/en.json, pl.json
 └── src/admin/
@@ -95,6 +97,7 @@ packages/modules/price_lists/
 packages/admin-kit/src/components/editable-grid/   # the shared grid primitive
 packages/modules/audit_logs/src/admin/pages/AuditLogViewer.tsx   # G13
 packages/modules/catalog/src/backend/services/catalog-query.service.ts   # G14
+packages/modules/catalog/src/backend/services/catalog-product-read.service.ts  # G15 pageProductIdsByName
 storefront/components/pricing/BaseSalePriceBlock.tsx, storefront/components/PriceTag.tsx   # list-price pair
 admin/test/modules/price_lists/*, admin/test/kit/editable-grid.test.tsx, admin/test/modules/audit_logs/*
 backend/test/contract/price_lists/*, backend/test/integration/catalog/list-price-in-summaries.test.ts
@@ -111,11 +114,11 @@ before the next phase starts. No budget, threshold or assertion is loosened to p
 | # | Phase | Stories / FRs |
 | --- | --- | --- |
 | 1 | Setup and baseline | — |
-| 2 | Backend gaps G11–G17 | FR-019, FR-023, FR-026, FR-027, FR-030; G13 for the history link |
+| 2 | Backend gaps G11–G18 | FR-005, FR-006, FR-013, FR-015, FR-019, FR-023, FR-026, FR-027, FR-030; G13 for the history link |
 | 3 | Foundations: API client, editable-grid primitive, cell parser, CSV codec, routes skeleton, nav and palette restored, i18n keys | FR-007, FR-011, FR-029, FR-031, FR-034, FR-035 |
 | 4 | US1 — list and header | FR-001–FR-005 |
 | 5 | US2 — grid | FR-006–FR-017, FR-037 |
-| 6 | US3 — base-price panel and books on the product | FR-019–FR-021 (OQ-1) |
+| 6 | US3 — base-price panel (own *Save prices*) and books on the product | FR-019–FR-021 |
 | 7 | US4 — duplicate | FR-022 |
 | 8 | US5 — explanation | FR-023, FR-024 |
 | 9 | US6 + US7 — precedence view, list-price switch, storefront pair | FR-025, FR-026 |
@@ -140,25 +143,17 @@ assertions of `admin/test/modules/price_lists/price-lists-zones.test.tsx`; then 
 `backend/test/**`, `admin/test/**`, `storefront/test/**` for the old names and the module-removal
 residue ledger re-derived (`AGENTS.md`, *The traps*).
 
-## Open questions for the owner
+## Owner rulings applied (2026-10-22)
 
-- **OQ-1 — How does the base-price panel save (FR-020)?** The spec says the panel saves *with the
-  product editor's save action*. Zone contributions cannot do that today: admin-kit's zone API has no
-  save participation, and every existing zone panel on the product editor saves itself (`research.md`
-  R7). Options: **(A)** build a save-participation contract — admin-kit lets a zone register a
-  `flush()` the host awaits on Save, and the catalogue product editor adopts it (two modules, one new
-  admin-kit API, also usable by the PIM panels); **(B)** the panel has its own *Save prices* button
-  inside the Pricing tab, guarded by the unsaved-changes prompt, as every other zone panel; FR-020 is
-  amended accordingly. The architect's recommendation is (B) (the platform's existing pattern, no
-  cross-module protocol); `tasks.md` carries both paths and marks the (B) tasks as the default.
-- **OQ-2 — Saved views on the book list (FR-034)?** FR-034 requires saved views "where lists have
-  filters". Saved views exist for products, quotes and orders (feature 147), each with a table owned
-  by its module. For the book list this means a new `price_lists`-owned table, migration and API.
-  Options: **(A)** build them in this feature; **(B)** keep the list's filters in the URL (shareable,
-  bookmarkable) now and add saved views when asked; FR-034 is amended. The recommendation is (B)
-  (books are few compared with products or orders); `tasks.md` carries (A) as an optional block.
+- **OQ-1 = (B)**: the base-price panel has its own *Save prices* with an unsaved-changes prompt
+  (FR-020 amended). One Save for the whole product edit page is the future direction — issue #407.
+- **OQ-2 = (B)**: the book list keeps its filters in the URL (FR-034 amended); saved views on the
+  price-book list are issue #408.
+- **Review — G15 by line** (coordinator): the grid pages by product line through a new lines read
+  whose per-page cost does not grow with the book; G18 removes the whole-book read from batch
+  validation and lifts the 5 000-row cap from base books (`research.md` R2).
 
-No other FR is unmapped (`contracts/ui-api-mapping.md`).
+No FR is unmapped (`contracts/ui-api-mapping.md`).
 
 ## Measurements (filled at Phase 12)
 
@@ -169,6 +164,7 @@ No other FR is unmapped (`contracts/ui-api-mapping.md`).
 | SC-004 focus move, 200 × 6 | < 100 ms | — | — |
 | FR-036 5 000-row save | stays interactive, progress shown | — | — |
 | SC-009 1 000-row preview | < 10 s | — | — |
+| G15 100-line page, 50 000-line base book (bench) | ≤ 150 ms p95 | — | — |
 
 ## Complexity Tracking
 
