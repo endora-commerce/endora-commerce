@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { setupPricingFixture, type PricingFixture } from '../../helpers/pricing-fixture.js';
+import { setupPricingFixture, type PricingFixture, type RowSpec } from '../../helpers/pricing-fixture.js';
 import { countRebuildRequests, settlePriceSurface } from '../../helpers/price-surface.js';
 
 /**
@@ -84,6 +84,77 @@ describe('price surface — freshness and live-path isolation', () => {
     expect((await firstPage()).rows[0]).toMatchObject({ productId: f.products.P3.id, amount: '1.0000' });
     await f.clearBooks();
     await settlePriceSurface(h);
+  });
+
+  /**
+   * Run `request` with a build swapped in between the read path's look at the
+   * served generation and its read of the surface rows — the moment a swap
+   * committing under a request lands. The swap happens on the first surface
+   * read of the request, once.
+   */
+  async function withSwapBeforeSurfaceRead<T>(request: () => Promise<T>): Promise<{ result: T; swapped: number }> {
+    const driver = h.em().getDriver() as unknown as { execute: (...args: unknown[]) => Promise<unknown> };
+    const original = driver.execute;
+    let swapped = -1;
+    driver.execute = async function (this: unknown, ...args: unknown[]) {
+      if (swapped === -1 && /from "price_profile_prices" [eb]\b/.test(String(args[0]))) {
+        swapped = 0;
+        driver.execute = original;
+        swapped = await settlePriceSurface(h);
+      }
+      return original.apply(this, args);
+    };
+    try {
+      return { result: await request(), swapped };
+    } finally {
+      driver.execute = original;
+    }
+  }
+
+  it('a swap committing while a request reads the surface leaves it one whole build, never an empty or mixed page', async () => {
+    // A guest (everyone stream only), a buyer with one own row (both streams),
+    // and a buyer whose all-products percentage covers the everyone surface (the
+    // buyer stream alone) — once with a write that keeps the coverage and once
+    // with one that ends it, where the page read for the old pair of builds
+    // must not be served from the new buyer build alone.
+    const everyoneWrite = async () => {
+      await f.book({ audience: 'everyone', rows: [{ product: f.products.P3, fixed: '1' }] });
+    };
+    const cases: Array<{ viewer?: PricingFixture['orgs']['Acme']; row: RowSpec; write: (acmeBook: { id: string; rowIds: string[] }) => Promise<void> }> = [
+      { row: { product: f.products.P2, fixed: '2' }, write: everyoneWrite },
+      { viewer: f.orgs.Acme, row: { product: f.products.P2, fixed: '2' }, write: everyoneWrite },
+      { viewer: f.orgs.Acme, row: { percent: '-2' }, write: everyoneWrite },
+      {
+        viewer: f.orgs.Acme,
+        row: { percent: '-2' },
+        write: async (acmeBook) => {
+          await f.system(() =>
+            f.books.replaceRows(acmeBook.id, {
+              upsert: [{ selection: { productId: f.products.P2.id }, minQuantity: 1, maxQuantity: null, price: { type: 'fixed', amount: '2' } }],
+              delete: acmeBook.rowIds,
+            }),
+          );
+        },
+      },
+    ];
+    for (const { viewer, row, write } of cases) {
+      const acmeBook = await f.book({ audience: { organizations: [f.orgs.Acme] }, rows: [row] });
+      await firstPage(viewer);
+      await settlePriceSurface(h);
+      await ready();
+      const before = (await firstPage(viewer)).rows.map((r) => `${r.productId}:${r.amount}`);
+      expect(before.length).toBeGreaterThan(0);
+      await write(acmeBook);
+      await expectStale();
+      const { result, swapped } = await withSwapBeforeSurfaceRead(() => firstPage(viewer));
+      expect(swapped).toBeGreaterThan(0);
+      const after = (await firstPage(viewer)).rows.map((r) => `${r.productId}:${r.amount}`);
+      expect(after).not.toEqual(before);
+      const during = result.rows.map((r) => `${r.productId}:${r.amount}`);
+      expect([before, after]).toContainEqual(during);
+      await f.clearBooks();
+      await settlePriceSurface(h);
+    }
   });
 
   it('a never-built unrestricted request returns without building and asks the worker', async () => {

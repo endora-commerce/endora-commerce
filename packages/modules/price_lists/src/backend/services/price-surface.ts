@@ -231,7 +231,7 @@ export class PriceSurface {
   /**
    * Whether every product of the everyone surface has a row on the buyer's —
    * answered once per pair of builds and memoised in this process (a rebuild
-   * moves `built_at`, so a stale answer is never read).
+   * moves the generation, so a stale answer is never read; the page statement checks the pair).
    */
   async #buyerCoversEveryone(buyer: ReadySurface, everyone: ReadySurface): Promise<boolean> {
     const key = `${buyer.id}@${buyer.generation}|${everyone.id}@${everyone.generation}`;
@@ -372,7 +372,15 @@ export class PriceSurface {
     return { generation: Number(row?.serving_generation ?? 0) };
   }
 
-  /** The two-stream merge over ready surfaces (`contracts/price-surface.md` §2). */
+  /**
+   * The two-stream merge over served surfaces (`contracts/price-surface.md` §2).
+   *
+   * Every read of surface rows names its generation by a sub-select in the same
+   * statement, and the buyer stream, its watermark and the everyone stream are
+   * one statement: one snapshot, so a swap committing under the request — which
+   * drops the generation it replaces — leaves the request one whole build or the
+   * other, never an empty or a mixed page (§3).
+   */
   async #twoStreams(
     query: ListingPriceOrderQuery,
     everyone: ReadySurface,
@@ -404,43 +412,60 @@ export class PriceSurface {
       }
       return out.map((c) => ` and ${c}`).join('');
     };
-
+    const served = `(select "serving_generation" from "price_profiles" where "id" = ?)`;
     const everyoneId = everyone.id;
     const buyerId = buyer?.id ?? null;
-    type Hit = { product_id: string; amount: string; source_tier: string };
-    let lead: Hit[] = [];
-    if (buyerId) {
-      const params: unknown[] = [buyerId, buyer!.generation];
+    type Hit = { s: 'b' | 'e' | 'x'; product_id: string; amount: string; source_tier: string };
+
+    const params: unknown[] = [];
+    let sql = '';
+    if (buyer) {
+      params.push(buyer.id, buyer.id);
       const where = filters('b', params);
       params.push(query.limit);
-      lead = await em.execute<Hit[]>(
-        `select b."product_id", b."amount", b."source_tier" from "price_profile_prices" b
-          where b."profile_id" = ? and b."generation" = ?${where}
-          order by b."amount" ${dir}, b."product_id" ${dir} limit ?`,
-        params,
-      );
+      sql = `with "lead" as materialized (
+               select b."product_id", b."amount", b."source_tier" from "price_profile_prices" b
+                where b."profile_id" = ? and b."generation" = ${served}${where}
+                order by b."amount" ${dir}, b."product_id" ${dir} limit ?
+             )
+             select 'b' as "s", "product_id", "amount", "source_tier" from "lead"`;
     }
-    const watermark = buyerId && lead.length >= query.limit ? lead[lead.length - 1]!.amount : null;
-    const params: unknown[] = [everyoneId, everyone.generation];
-    let where = filters('e', params);
-    if (watermark !== null) {
-      where += ` and e."amount" ${desc ? '>=' : '<='} ?::numeric`;
-      params.push(watermark);
+    if (buyer && buyerCoversEveryone) {
+      // The everyone stream has nothing to add — for the pair of builds the
+      // coverage was answered for, which this statement checks in its own
+      // snapshot. After a swap it answers `x`, and the page is read again with
+      // both streams.
+      const sameBuilds = `${served} = ? and ${served} = ?`;
+      sql += ` where ${sameBuilds} union all select 'x', null, null, null where not (${sameBuilds})`;
+      params.push(buyer.id, buyer.generation, everyone.id, everyone.generation);
+      params.push(buyer.id, buyer.generation, everyone.id, everyone.generation);
+    } else {
+      params.push(everyone.id, everyone.id);
+      let where = filters('e', params);
+      if (buyer) {
+        // The watermark: once the buyer stream filled its window, nothing of the
+        // everyone stream beyond its last amount can reach the page.
+        where += ` and e."amount" ${desc ? '>=' : '<='} coalesce(
+                     (select case when count(*) >= ? then ${desc ? 'min' : 'max'}("amount") end from "lead"),
+                     '${desc ? '-' : ''}Infinity'::numeric)`;
+        params.push(query.limit);
+        where += ` and (select 1 from "price_profile_prices" x
+                         where x."profile_id" = ? and x."generation" = ${served}
+                           and x."product_id" = e."product_id" limit 1) is null`;
+        params.push(buyer.id, buyer.id);
+      }
+      params.push(query.limit);
+      const rest = `(select 'e' as "s", e."product_id", e."amount", e."source_tier" from "price_profile_prices" e
+                      where e."profile_id" = ? and e."generation" = ${served}${where}
+                      order by e."amount" ${dir}, e."product_id" ${dir} limit ?)`;
+      sql = buyer ? `${sql} union all ${rest}` : rest;
     }
-    if (buyerId) {
-      where += ` and (select 1 from "price_profile_prices" x
-                       where x."profile_id" = ? and x."generation" = ? and x."product_id" = e."product_id" limit 1) is null`;
-      params.push(buyerId, buyer!.generation);
-    }
-    params.push(query.limit);
-    const rest = buyerCoversEveryone
-      ? []
-      : await em.execute<Hit[]>(
-          `select e."product_id", e."amount", e."source_tier" from "price_profile_prices" e
-            where e."profile_id" = ? and e."generation" = ?${where}
-            order by e."amount" ${dir}, e."product_id" ${dir} limit ?`,
-          params,
-        );
+    const hits = await em.execute<Hit[]>(sql, params);
+    if (hits.some((hit) => hit.s === 'x')) return this.#twoStreams(query, everyone, buyer, currency, false);
+
+    const lead = hits.filter((hit) => hit.s === 'b');
+    const rest = hits.filter((hit) => hit.s === 'e');
+    const watermark = buyerId !== null && lead.length >= query.limit;
     const merged = [...lead.map((h) => ({ h, profile: buyerId! })), ...rest.map((h) => ({ h, profile: everyoneId }))].sort(
       (a, b) => {
         const byAmount = compareDecimal(String(a.h.amount), String(b.h.amount));
@@ -457,7 +482,7 @@ export class PriceSurface {
       priceListId: profile,
       isSale: h.source_tier === 'sale',
     }));
-    const exhausted = watermark === null && lead.length < query.limit && rest.length < query.limit && merged.length <= query.limit;
+    const exhausted = !watermark && lead.length < query.limit && rest.length < query.limit && merged.length <= query.limit;
     return { rows, exhausted, sourceRowsRead: lead.length + rest.length };
   }
 
