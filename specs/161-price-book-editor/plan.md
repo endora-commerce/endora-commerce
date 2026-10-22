@@ -12,8 +12,10 @@ a server-validated preview, duplication, the product editor's base-price panel a
 pricing the product, the explanation screen with named runner-ups, the read-only precedence and the
 list-price switch on *Pricing settings*, the storefront list-price pair, and representative scope —
 restoring `/price-lists` as the module's landing and registering the three palette actions. Seven
-small additive backend gaps found while reading P1's code (G11–G18 — G15 pages the grid by line at a
-cost independent of the book, G18 scopes batch validation and uncaps base books) are built first. Design decisions:
+small additive backend gaps found while reading P1's code (G11–G19 — G15 pages the grid by line at a
+cost independent of the book — redesigned after its first implementation missed the budget
+(`research.md` R14) —, G18 scopes batch validation and uncaps base books, G19 brings the list price to
+search listings) are built first. Design decisions:
 `research.md`; screen ↔ API mapping of every FR: `contracts/ui-api-mapping.md`.
 
 ## Technical Context
@@ -23,15 +25,18 @@ cost independent of the book, G18 scopes batch validation and uncaps base books)
 and `@endora-commerce/admin-shell` (admin); Next.js 15 App Router (storefront, list-price pair only);
 Fastify + Zod (backend gaps) — **no new runtime or dev dependency** (`axe-core` already an admin
 devDependency, feature 147)
-**Storage**: none new — P1's tables; one new read endpoint (`GET …/:id/lines`), one new catalogue
-port method (`pageProductIdsByName`), one query parameter and several response fields (G11–G18)
+**Storage**: `catalog` — four generated stored columns on `products` (`admin_name_key_<en|pl>`,
+`admin_search_key_<en|pl>`), two IMMUTABLE SQL functions, a btree and a trigram index per admin language,
+a trigram index on `product_variants.sku`; `price_lists` — one table `price_list_product_lines`; plus one
+read endpoint (`GET …/:id/lines`), one catalogue port method (`pageProductsByAdminName`), one query
+parameter and several response fields (G11–G19)
 **Testing**: Vitest + Testing Library + `admin/test/helpers/axe.ts` (`expectNoAxeViolations`) for
 admin; backend contract/integration suites for the gaps; storefront component tests
 **Target Platform**: browser admin, SSR storefront, Linux API
 **Project Type**: modular monolith web application
 **Performance Goals**: FR-036 / SC-004 — grid interactions under 100 ms at 200 lines × 6 columns;
 feedback within 400 ms; a 5 000-row save stays interactive
-**Constraints**: P1's API is the contract — changed only through G11–G18, each additive; no client
+**Constraints**: P1's API is the contract — changed only through G11–G19, each additive; no client
 price computation except labelled previews with the server's own rounding (G17)
 **Scale/Scope**: non-base books up to 5 000 rows, base books as large as the catalogue (paged by line); one admin-kit primitive (editable grid); five admin routes;
 one zone contribution; three palette actions; FR-001–FR-042, SC-001–SC-009
@@ -42,17 +47,17 @@ one zone contribution; three palette actions; FR-001–FR-042, SC-001–SC-009
 
 | Principle | Verdict | How |
 | --- | --- | --- |
-| I. Modular (NN) | pass | Screens in `price_lists`' own `src/admin/`; the base-price panel enters the product editor through the existing `product.editor.pricing.after` zone; `audit_logs` (G13) and `catalog` (G14, and G15's `pageProductIdsByName` on its read port) change only their own code, and `price_lists` reaches catalogue ordering only through that port; the grid primitive lives in admin-kit with no pricing knowledge |
+| I. Modular (NN) | pass | Screens in `price_lists`' own `src/admin/`; the base-price panel enters the product editor through the existing `product.editor.pricing.after` zone; `audit_logs` (G13) and `catalog` (G14, and G15's `pageProductIdsByName` on its read port) change only their own code, and `price_lists` reaches catalogue ordering only through that port, handing it book membership as a sanctioned subquery (`priceBookMembership`, precedent `CustomFieldListFilterPort.condition`) — the catalogue owns names and their stored sort keys, `price_lists` owns rows and its product-line table; the grid primitive lives in admin-kit with no pricing knowledge |
 | II. API-first | pass | Every gap is a Zod schema change in `@endora-commerce/contracts` before the route; additive; `minor` changesets |
 | III. TDD (NN) | pass | Each phase writes failing tests first (component, axe, contract); every FR and SC traced in `tasks.md`; SC-001, SC-002 and the wall-clock half of SC-004 are recorded manual measurements (stated, not hidden) |
-| IV. YAGNI | pass | No dependency; no virtualisation; no column mapping; no saved views (OQ-2 = B, issue #408) |
+| IV. YAGNI | pass | No npm dependency; one Postgres extension (`pg_trgm`), already installed in the platform, justified in Complexity Tracking; no virtualisation; no column mapping; no saved views (OQ-2 = B, issue #408) |
 | V/VI/VIII | pass | strict TS; naming check; English in code, pl + en strings |
 | VII. Storefront | pass | the list-price pair renders in existing server components (`BaseSalePriceBlock`/`PriceTag`), SSR intact |
 | IX. UI reuse | pass | admin-kit pickers (product 145, organization, customer, customer group, category, sales channel), modal dialog, responsive table, pagination, sticky form actions, unsaved-changes prompt; one new shared primitive (editable grid) justified in `research.md` R4 |
 | X. Queues | n/a | no async work |
 | XI. Tenancy (NN) | pass | visibility is the server's; writability via G11; organization pickers scope-filtered; SC-006 tested by equality with an unknown id |
 | XII. Channels (NN) | pass | channel set through P1's bridge; the UI offers only channels offering the currency (`targets/sales-channels?currency=`) |
-| XIII. Command Bus (NN) | pass | every write is a P1 endpoint already on the bus; G11–G18 add no write path |
+| XIII. Command Bus (NN) | pass | every write is a P1 endpoint already on the bus; G11–G19 add no write path |
 | XIV, XV | pass | no host columns; overlays unaffected |
 | XVI. Palette | pass | `open-price-lists`, `new-price-book`, `open-price-explainer` in the manifest; `check:action-route-permissions`, `registered-bundles-shape` |
 | XVII. Toggleable (NN) | pass | contributions (routes, nav, palette, zone) dropped when off; off-state tests extended |
@@ -68,7 +73,7 @@ by-line paging review are applied.
 specs/161-price-book-editor/
 ├── spec.md, plan.md, research.md, data-model.md, quickstart.md, tasks.md
 ├── contracts/ui-api-mapping.md       # every FR → endpoint or gap
-├── contracts/backend-gaps.md         # G11–G18
+├── contracts/backend-gaps.md         # G11–G19
 ├── contracts/csv-format.md
 └── checklists/requirements.md
 ```
@@ -114,7 +119,8 @@ before the next phase starts. No budget, threshold or assertion is loosened to p
 | # | Phase | Stories / FRs |
 | --- | --- | --- |
 | 1 | Setup and baseline | — |
-| 2 | Backend gaps G11–G18 | FR-005, FR-006, FR-013, FR-015, FR-019, FR-023, FR-026, FR-027, FR-030; G13 for the history link |
+| 2 | Backend gaps G11–G18 (done; G15 over budget) | FR-005, FR-006, FR-013, FR-015, FR-019, FR-023, FR-026, FR-027, FR-030; G13 for the history link |
+| 2b | G15 redesign (stored catalogue keys, product-line table, membership seam) and G19 | FR-006, FR-015, FR-026; checkpoint: every bench case ≤ 150 ms p95 |
 | 3 | Foundations: API client, editable-grid primitive, cell parser, CSV codec, routes skeleton, nav and palette restored, i18n keys | FR-007, FR-011, FR-029, FR-031, FR-034, FR-035 |
 | 4 | US1 — list and header | FR-001–FR-005 |
 | 5 | US2 — grid | FR-006–FR-017, FR-037 |
@@ -164,8 +170,15 @@ No FR is unmapped (`contracts/ui-api-mapping.md`).
 | SC-004 focus move, 200 × 6 | < 100 ms | — | — |
 | FR-036 5 000-row save | stays interactive, progress shown | — | — |
 | SC-009 1 000-row preview | < 10 s | — | — |
-| G15 100-line page, 50 000-line base book (bench) | ≤ 150 ms p95 | — | — |
+| G15 100-line page, 50 000-line book — prototype, DB side (R14) | ≤ 150 ms p95 | first 35.8, middle 31.7, last 36.2; search 54.9–82.3 ms | local `postgres-test`, 16 cores |
+| G15 end to end — bench T029 | ≤ 150 ms p95, every case | — | — |
 
 ## Complexity Tracking
 
-No violation and no new dependency: nothing to justify.
+| Addition | Why needed | Simpler alternative rejected because |
+| --- | --- | --- |
+| Postgres extension `pg_trgm` required by `catalog` (`create extension if not exists`) | substring search over 50 000 names and SKUs within the budget (FR-015, `research.md` R14): a selective search page in 3 ms through the trigram index | it is **already** created by `product_feeds`' migration (`packages/modules/product_feeds/src/migrations/20260802T110630_product_feeds_taxonomies.ts`) wherever that module is installed — the demo and the test templates included — and it is a *trusted* extension since PostgreSQL 13, so a database owner without superuser can create it; `catalog` declares it itself because it cannot depend on `product_feeds` being installed. A prefix-only btree would not find `0123` in `SKU-0123-B` or a word inside a name |
+| Generated stored columns and IMMUTABLE functions in `catalog` | the key must be stored to be sorted without evaluating it (`research.md` R14: the expression-index variant took 1 467 ms on the last page) and maintained on every write path | an application-maintained key table needs every catalogue write path (admin, import, bulk, PIM, migrations) to remember it; Postgres maintains generated columns on all of them |
+| `price_list_product_lines` in `price_lists` | membership of 50 000 lines from 50 000 keys instead of 125 003 rows with duplicates (8–17 ms instead of 40–110 ms) | hashing the matrix rows directly leaves no margin on search pages |
+
+No new npm dependency.

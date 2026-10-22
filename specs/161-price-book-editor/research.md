@@ -21,8 +21,8 @@ setting through the Command Bus (G8, `routes.price-books.ts` `settings/show-list
 `ListingPriceDetail` (G9, `CON/price-lists.ts`), and the `?dryRun=true` preview with natural keys and
 merge/replace (G10, `priceBookRowsDryRunSchema`).
 
-Reading the code against every FR of the spec found **eight** further gaps (G18 added after the
-coordinator's review of 2026-10-22). Each becomes a backend
+Reading the code against every FR of the spec found **nine** further gaps (G18 after the
+coordinator's review of 2026-10-22; G19 with the G15 redesign, R14–R15). Each becomes a backend
 task in this feature, ahead of the screens that need it (`contracts/backend-gaps.md`):
 
 | # | Gap | Found in | Needed by |
@@ -35,6 +35,7 @@ task in this feature, ahead of the screens that need it (`contracts/backend-gaps
 | G16 | Explanation candidates carry `bookId`, `rowId`, `cell`, `amount` only (`priceBookExplanationCandidateSchema`); the screen must name each runner-up's book and selection | FR-023 |
 | G17 | The decimal arithmetic the server prices with (`PL/backend/services/matrix-decimal.ts` — `applySignedPercent`, `applyAmountAdjustment`, half-up 4 dp) is module-private; the base-price panel's "resulting price" preview must use the identical rounding (FR-030) | FR-019, FR-030 |
 | G18 | The batch write validates against the **whole** stored book (`price-book-service.ts` `writeRows` → `#storedRows`) and refuses any book over `PRICE_BOOK_MAX_ROWS` (5 000, `price-book-batch.ts`) — including base books, which the base-price endpoint grows past 5 000 on any real catalogue, so the base grid could never save; the same whole-book read makes every save cost O(book) | FR-005, FR-013, FR-017, US1 scenario 6 |
+| G19 | The search module's `resolvedPrice` (search listing summaries in `packages/modules/search/src/backend/services/search-query.service.ts`, suggestion items in `suggestion-pricing-enricher.ts`) carries base, sale and display mode but not `listPrice`, so a search-backed storefront listing cannot show the list-price pair catalogue cards show (G14) | FR-026, SC-007 |
 
 **Rejected.** Deriving writability in the browser from the book's audience: the browser does not know
 the caller's organization scope, and a second copy of the scope rule is the drift P1's `price-book-scope.ts`
@@ -54,7 +55,8 @@ exists to prevent.
   `ListingPriceDetail.listPrice` into `ProductSummary.resolvedPrice` (product detail) and into the
   listing summary for cards; the storefront renders it (US7). The decision of *whether* to show stays
   server-side (P1's `listPriceOf`, setting + "above the buyer price").
-- **G15** — **page by line**, not by row (coordinator review, 2026-10-22). A new read
+- **G15** — **page by line**, not by row (coordinator review, 2026-10-22). *The first implementation of
+  this design missed the budget 4–9×; its redesign is R14, which supersedes the cost steps below.* A new read
   `GET …/:id/lines?page&pageSize&kind&search` (pageSize 50/100/200 lines, max 500) answers
   `{ data: PriceBookLine[], meta: { page, pageSize, totalLines } }`, a line being one selection with
   **all** its rows, and a product line carrying its variant lines; the existing row endpoint is kept for
@@ -225,3 +227,131 @@ the palette action targeting it, i18n descriptions "Price display modes"), comme
 
 React, admin-kit, Radix primitives, `TextDecoder` (windows-1250 included), `Blob`/`URL.createObjectURL`
 for export, `axe-core` already an admin devDependency (147). Nothing to add.
+
+## R14. G15 redesign — meeting 150 ms p95 at 50 000 lines (measured)
+
+**Problem (measured by the dev, bench header of `backend/test/perf/price_lists/book-lines-page.bench.ts`).**
+The first by-line read ran p95 645 / 690 ms (first / last page) and ≈ 1 300 ms with search on a
+50 003-line, 126 003-row book: 38 ms for a header that aggregates the whole book, 59 ms for the book's
+product ids, and **428 ms in `catalogProductReadPort.pageProductIdsByName`**, which derives each of
+50 000 display names through `pickName`'s fallback chain in SQL and sorts them on every call.
+
+**Prototype.** A scratch database cloned from the current test template
+(`b2b_test_tpl_ee67e276b7fa`, the release-branch schema), seeded with 50 000 products (English and
+Polish names; 100 with two English names; 2 500 variants) and a 50 001-line, 125 003-row book plus a
+300-line book; local test Postgres 16 (the `postgres-test` container); 50 iterations after 5 warm-ups;
+the whole DB side of one call (visibility header, small kinds, count, page ids, page rows, page labels,
+page variants). The prototype (seed, DDL, queries and a 50-iteration harness) lived outside the repository and was
+never in the tree; the scratch database was dropped after measuring.
+
+**Chosen design.**
+
+1. **Catalogue-owned stored sort and search keys, maintained by Postgres.** `catalog` adds two
+   IMMUTABLE SQL functions — `catalog_admin_display_name(name, sku, lang)` (the rule below) and
+   `catalog_admin_name_key(name, sku, lang)` (its fold) — and four **generated stored** columns on
+   `products`: `admin_name_key_en`, `admin_name_key_pl` (collation `"C"`) and `admin_search_key_en`,
+   `admin_search_key_pl` (= key ‖ `' '` ‖ `lower(sku)`). *Who maintains them*: Postgres, on every
+   insert and update of `products` — admin writes, imports, bulk edits, PIM writes, SQL migrations — so
+   there is no write path to forget and no drift. *Backfill*: the `alter table … add column … generated
+   always as (…) stored` of `catalog`'s migration computes them for every row (measured 3.5–7 s per
+   column at 50 000 products; a table rewrite under an exclusive lock, which on a 1 M-product catalogue
+   would be minutes — acceptable with no production deployment, and recorded as the caveat if one
+   appears). *Write cost*: about 1 ms per product update including the index updates (measured on 100
+   updates: 98 ms). *Languages*: the admin UI languages (`en`, `pl`, `AdminMe.preferredLanguage`);
+   another admin language is a migration adding its two columns and indexes; an unknown language reads
+   `en`. Indexes: `products_admin_order_<lang>` btree `(admin_name_key_<lang>, sku, id) include
+   (admin_search_key_<lang>)` (7.3 MB at 50 000), GIN trigram on `admin_search_key_<lang>` (8.4 MB) and
+   on `lower(product_variants.sku)` (0.2 MB).
+2. **A per-book product-line table in `price_lists`.** `price_list_product_lines (price_list_id,
+   product_id)` — one row per product line (product or variant rows), PK, both FKs `on delete cascade`
+   (6 MB for 50 000 lines). Maintained in the same transaction by every `price_lists` write that adds
+   or removes product or variant rows (batch write, base-price write, duplicate, the conversion
+   backfill); a product hard delete cascades; a variant delete that leaves a product line with no rows
+   is reconciled by the catalogue-event subscriber `price_lists` already has. It turns "which products
+   does this book hold" from 125 003 rows with duplicates into 50 000 unique keys.
+3. **Membership through a sanctioned subquery seam** (precedent: `CustomFieldListFilterPort.condition`,
+   `packages/contracts/src/custom-fields.ts`): `price_lists` hands the catalogue `{ sql: 'select
+   l.product_id from price_list_product_lines l where l.price_list_id = ?', params }`; the catalogue
+   embeds it as `(p.id in (<seam>)) is true` — a **hashed** sub-plan probed while walking its own
+   `products_admin_order_<lang>` index in order (index-only, `Heap Fetches: 0`). Neither module's code
+   names the other's table. The port becomes `pageProductsByAdminName({ membership, language, search?,
+   offset, limit }) → { ids, total }`.
+4. **Search** uses `pg_trgm`, already installed in the platform by `product_feeds`' migration
+   (`20260802T110630_product_feeds_taxonomies.ts`); `catalog`'s migration runs `create extension if
+   not exists pg_trgm` itself, because it must not depend on `product_feeds` being installed (Complexity
+   Tracking). The count is one statement over the membership-filtered order index with `like` on the
+   stored search key (or a variant SKU in a hashed trigram hit set); the page takes the **trigram hits
+   first** when at most 2 000 lines match (small result, sorted) and the **ordered walk** otherwise
+   (many matches, the first 100 come quickly) — the catalogue picks from the count it has just made.
+5. **`totalLines`**: without search, `count(*)` of the book's line rows (PK index-only); with search,
+   the catalogue's count above. Exact in both, and never a scan of the whole book's rows.
+6. **A visibility-only header** for the lines read (audience kind, members, `isSystem`): `tier_starts`
+   and `row_count` are the book read's, which the grid calls once per load.
+
+**Measured (p95 of the DB side of one call; 50 iterations).**
+
+| Case | 50 001-line book | 300-line book |
+| --- | --- | --- |
+| first page | 35.8 ms | 10.2 ms |
+| middle page (offset 25 000) | 31.7 ms | 12.8 ms |
+| last page | 36.2 ms | 12.2 ms |
+| search broad `screw` (7 128 matches), first / last | 75.7 / 77.4 ms | 32.0 / 31.0 ms |
+| search selective `sku-0123` (100), first / last | 54.9 / 55.4 ms | 21.3 / 20.8 ms |
+| search two-character `cr` (7 128), first / last | 80.3 / 82.3 ms | 46.5 / 45.5 ms |
+| search all-matching `sku` (50 000), first / last | 61.1 / 79.5 ms | 64.7 / 62.0 ms |
+| search no match `zz`, first / last | 64.4 / 63.3 ms | 40.6 / 40.8 ms |
+
+EXPLAIN ANALYZE (single runs, instrumented): line count `count(*)` over `price_list_product_lines`
+7–22 ms; first page = index-only scan of `products_admin_order_en` with the hashed membership sub-plan
+(build ≈ 8–17 ms over 50 000 line keys), `Heap Fetches: 0`; last page (offset 49 900) the same scan
+reading 50 000 entries, 68 ms instrumented / 36 ms p95 uninstrumented; search count 45 ms; selective
+search page (trigram bitmap on `products_admin_search_en_trgm`, 117 candidates, membership by PK
+probe) 3.3 ms. The largest case leaves about 65 ms of the 150 ms budget for the HTTP, authorisation,
+validation and label work in Node, which the bench T029 measures end to end; the selective-search
+count (≈ 45 ms, a scan of the order index) is the known headroom if it is ever needed (a capped
+trigram pre-count).
+
+**The name rule, and how it relates to `pickName`.** Display name for admin language `L`: the
+non-empty name whose language tag's primary subtag is `L`, taking the **alphabetically first tag**
+when there are several (`en-GB` before `en-US`); else the same for English; else the first non-empty
+name by tag; else the SKU. Sort key: that name case-folded and accent-folded (NFKD, combining marks
+removed, `ł→l`, `đ→d`, `ø→o`, `ß→s`, `æ→a`), compared bytewise (`"C"`), ties by SKU then id —
+deterministic and independent of the database's locale. `pickName`
+(`PL/backend/services/price-book-reads.ts`) tries the exact tag first and then the same primary subtag
+in the object's key order; for names read from `jsonb` (whose key order is length, then bytes) that is
+the same choice, so the **grid's label and its order agree**, and T025 pins it. The two can differ
+only for a product with **two names in the same language** (`en-GB` and `en-US` both set), if a caller
+built the name object in another key order — never from the database. The order itself differs from
+the old `localeCompare` order only in folding: accented letters sort with their base letter (`Ążur`
+with `A`, `Łącznik` with `L`), a deliberate, locale-independent choice.
+
+**The PDP and the cards need not agree with the grid**: the storefront picks a product's name by the
+channel's language (`pickLang` in `catalog-query.service.ts`: request language, channel default
+language, `en-US`, `en`, any), for buyers; the grid picks by the administrator's UI language, for staff,
+and is the only surface that orders by this key. Neither reads the other's choice.
+
+**Rejected, with the measurement that rejected it** (same scratch database):
+
+| Option | Measured | Why rejected |
+| --- | --- | --- |
+| Status quo: id list → catalogue derives `pickName` in SQL and sorts | 263 ms DB (428 ms in the app) | per-call derivation and sort of 50 000 names |
+| (1) Reshape the port only: subquery instead of id list (dev) | 181 ms | still derives and sorts every name |
+| (3a) Expression index on an IMMUTABLE key function, no stored column | first 20 ms, **last 1 467 ms** | Postgres still evaluates the function for every row it sorts or returns (≈ 28 µs each) |
+| (3b) Stored key + `exists` semi-join to `price_list_matrix_entries` | first 2.7 ms, middle **206 ms**, last 72 ms | the planner switches to a hash join over 125 003 rows and a sort as the offset grows |
+| Stored key + materialised `distinct` + join + sort | 128–168 ms | sorts 50 000 rows per call |
+| Stored key + hashed membership over `price_list_matrix_entries` (no line table) | 40–110 ms for the membership alone | 125 003 rows with duplicates; the line table builds the same hash from 50 000 keys in 8–17 ms |
+| Search as an `OR` in the ordered walk, function-computed text | 149 ms selective, 1 160 ms broad | the `OR` defeats the trigram index; computing the text per row costs ≈ 45 µs |
+| (4) Cache the order per book version and language | — | every save moves the version, so the editor would pay the full cost on the first page after each save; not needed once (1)–(3) meet the budget |
+| (2) Lighter header alone | saves ≈ 38 ms | necessary, adopted, but far from sufficient |
+| Keyset cursor instead of page numbers | first/next ≈ 3 ms | not needed: with the hashed walk an offset costs ≤ 36 ms p95, so page numbers (R2) stay |
+
+## R15. G19 — the list price on search-backed listings
+
+`packages/modules/search/src/backend/services/search-query.service.ts` projects
+`ProductSummary.resolvedPrice` as `{ basePrice, salePrice, displayMode }` and
+`suggestion-pricing-enricher.ts` adds `basePrice`/`salePrice` to suggestion items; both drop the
+`listPrice` the batched resolution already returns (`ListingPriceDetail.listPrice`, G9). The fix maps it
+through, in the search module's own code and its contracts (`packages/contracts/src/search.ts`), so the
+storefront search listing and typeahead render the pair exactly as catalogue cards do (G14). Tested
+with vectors D1–D4 (T030).
+

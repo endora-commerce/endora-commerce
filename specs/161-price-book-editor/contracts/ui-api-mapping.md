@@ -17,7 +17,7 @@ this feature (`backend-gaps.md`). No FR is served by anything outside this table
 | FR-010 | Cell detail (custom window) | edits → `PUT B/:id/rows` | P1 |
 | FR-011, FR-012 | Keyboard, paste, fill, undo, bulk actions | client (admin-kit grid) | client |
 | FR-013, FR-014 | One batch; every error per cell; stale refusal | `PUT B/:id/rows` (`expectedVersion`; `errors[]`; `409 PRICE_BOOK_STALE`), validation scoped to touched selections | P1 + G18 |
-| FR-015 | Paging by line, search, kind filter | `GET B/:id/lines?page&pageSize&kind&search` (`totalLines`) | G15 |
+| FR-015 | Paging by line, search, kind filter | `GET B/:id/lines?page&pageSize&kind&search` (`totalLines`), ordered by the catalogue's stored admin name key | G15 (R14) |
 | FR-016 | Inactive lines | `inactiveReason`, `targetDeleted` | P1 |
 | FR-017 | Browser-side rule checks | `priceBookRowShapeIssues` (contracts) | P1 |
 | FR-018, FR-038–FR-042 | CSV export (numbered files ≤ 5 000 rows), import with preview | export: `GET B/:id/rows?page&pageSize=1000` page by page; import: `PUT B/:id/rows?dryRun=true` (`priceBookRowsDryRunSchema`), then `PUT B/:id/rows` with `expectedVersion` | P1 (G10) + G18 |
@@ -26,7 +26,7 @@ this feature (`backend-gaps.md`). No FR is served by anything outside this table
 | FR-022 | Duplicate | `POST B/:id/duplicate` (`priceBookDuplicateSchema`) | P1 |
 | FR-023, FR-024 | Explanation, pre-fill | `POST B/resolve` (`priceBookResolvedLineSchema`); runner-up names | P1 + G16 |
 | FR-025 | Precedence read-only | `GET B/precedence` (`precedenceViewSchema`) | P1 |
-| FR-026 | List-price switch; storefront pair | `GET`/`PUT B/settings/show-list-price`; storefront reads `resolvedPrice.listPrice` | P1 (G8, G9) + G14 |
+| FR-026 | List-price switch; storefront pair (catalogue and search listings, PDP) | `GET`/`PUT B/settings/show-list-price`; storefront reads `resolvedPrice.listPrice` | P1 (G8, G9) + G14 + G19 |
 | FR-027 | Representative scope | server visibility (P1) + `writable`, `creatableAudienceKinds`, scope-filtered targets | P1 + G11 |
 | FR-028 | Permission gates, absent controls | route `requiredPermission`; `useAuth().hasPermission`; `writable` | P1 + G11 |
 | FR-029 | Palette, nav, off-state | `manifest.ts` `actions`, `admin/index.ts` routes/nav | 161 |

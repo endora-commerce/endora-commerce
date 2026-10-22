@@ -1,9 +1,9 @@
-# Contract — Backend gaps G11–G18 (built in feature 161)
+# Contract — Backend gaps G11–G19 (built in feature 161)
 
 The admin API of feature 160 is the contract (`specs/160-pricing-model-v2/contracts/admin-price-books-api.md`,
 implemented in `packages/modules/price_lists/src/backend/routes.price-books.ts`, schemas in
-`packages/contracts/src/price-books.ts`). G1–G10 are implemented by 160. These eight were found while
-planning against the code (`research.md` R1; G18 after the coordinator's review of 2026-10-22); each is **additive** (no field removed, no route
+`packages/contracts/src/price-books.ts`). G1–G10 are implemented by 160. These nine were found while
+planning against the code (`research.md` R1; G18 after the coordinator's review of 2026-10-22; G19 and the G15 redesign after the bench of 2026-10-22); each is **additive** (no field removed, no route
 renamed) and is built test-first in Phase 2 of `tasks.md`, before any screen depends on it. Each
 needs a `minor` changeset on the package it changes (`specs/conventions/release-intent.md`, D-225).
 
@@ -48,42 +48,39 @@ Whether it is present stays P1's decision (`listPriceOf`: setting on and catalog
 Test: `backend/test/integration/catalog/list-price-in-summaries.test.ts` (vectors D1–D4 of
 `specs/pricing/worked-examples.md` §10.15 on the listing and detail responses).
 
-## G15 — page the grid by line, at a cost independent of the book
+## G15 — page the grid by line, within 150 ms p95 at 50 000 lines
 
-`GET /api/v1/admin/price-books/:id/lines?page=1&pageSize=100&kind=…&search=…`
+**Endpoint (unchanged since the first implementation):**
+`GET /api/v1/admin/price-books/:id/lines?page=1&pageSize=100&kind=…&search=…` → `{ data:
+PriceBookLine[], meta: { page, pageSize, totalLines } }`, a line carrying **all** its rows and a
+product line its variant lines, ordered general → specific, page numbers (`research.md` R2).
 
-- `pageSize`: lines, 50/100/200 offered by the UI, maximum 500. `kind`: one or more selection kinds
-  (a `variant` filter returns product lines that carry matching variant lines).
-- Answer `{ data: PriceBookLine[], meta: { page, pageSize, totalLines } }` with
-  `PriceBookLine = { selectionKey, selectionKind, selection, labels, naturalKey, inactiveReason,
-  targetDeleted, rows: PriceBookRow[], variants?: PriceBookLine[] }` — **every** row of the line,
-  never a part; a product line carries its variant lines (a product with only variant rows still gets
-  a product line, with `rows: []`).
-- Order: `all`, attribute values, categories, category ∩ attribute values, products (variants nested),
-  by label within a kind (FR-006).
-- Cost per call, independent of the book's size except for one index-only scan of ids:
-  1. distinct selections of the book by kind with counts, from `price_list_matrix_entries`
-     (`price_list_id`, selection columns) — no labels;
-  2. the page is cut in that order; attribute and category kinds (few) are labelled in full; the
-     product segment is ordered and searched by the catalogue through
-     **`catalogProductReadPort.pageProductIdsByName({ ids, search?, language, offset, limit })` →
-     `{ ids, total }`** (new, owned by `catalog`; `order by` localized name, SKU, id);
-  3. rows and labels only for the page's lines.
-- The row endpoint (`GET …/:id/rows`) is unchanged; export reads it page by page.
+**Read design (redesign of 2026-10-22, `research.md` R14):**
 
-Tests:
-- `backend/test/contract/price_lists/price-book-lines.test.ts` — a base book of 1 200 products with 1–4
-  tiers each and variants on 100 of them, `pageSize=100`: no line split across pages (every line's
-  rows equal the stored rows of that selection), variants on their product's page, `totalLines`
-  correct, pages concatenate to every line exactly once in order; `search` and `kind` filters.
-- `backend/test/contract/price_lists/price-book-lines-statements.test.ts` — the statement count of a
-  page call is the same for a 300-line and a 30 000-line book.
-- `backend/test/perf/price_lists/book-lines-page.bench.ts` (`PERF_RUN=true`) — p95 of a 100-line page
-  at a 50 000-line base book, first and last page, with and without search; budget **150 ms p95**
-  (the platform's listing-page budget of SC-005 of spec 160), asserted; measurement recorded in the
-  header.
-- `packages/modules/catalog` — unit/integration test of `pageProductIdsByName` (order, search,
-  offset, language fallback) in `backend/test/integration/catalog/page-product-ids-by-name.test.ts`.
+| Owner | Piece |
+| --- | --- |
+| `catalog` | IMMUTABLE SQL functions `catalog_admin_display_name(name jsonb, sku text, lang text)` and `catalog_admin_name_key(…)`; generated stored columns `products.admin_name_key_<lang>` (collation `"C"`) and `products.admin_search_key_<lang>` for `lang ∈ {en, pl}`; btree `products_admin_order_<lang> (admin_name_key_<lang>, sku, id) include (admin_search_key_<lang>)`; GIN trigram on `admin_search_key_<lang>` and on `lower(product_variants.sku)`; `create extension if not exists pg_trgm` |
+| `catalog` | `CatalogProductReadPort.pageProductsByAdminName({ membership: { sql, params }, language, search?, offset, limit }) → { ids, total }` replacing `pageProductIdsByName` |
+| `price_lists` | `price_list_product_lines (price_list_id, product_id)` — PK, FKs `on delete cascade` to `price_lists` and `products`; maintained in the batch write, base-price write and duplicate transactions; backfilled by its migration; row-less lines reconciled on catalogue events |
+| `price_lists` | `priceBookMembership(bookId) → { sql, params }` — the only SQL of one module that runs inside the other's statement (precedent `CustomFieldListFilterPort.condition`) |
+| `price_lists` | the lines read: visibility-only header; small kinds; `totalLines` = line-table count (no search) or the port's `total` (search); page ids from the port; rows and labels for the page only |
+
+**Name rule** (`catalog_admin_display_name`): for admin language `L`, the non-empty name with the
+alphabetically first tag whose primary subtag is `L`; else the same for `en`; else the first non-empty
+name by tag; else the SKU. Key: that name case- and accent-folded (NFKD without combining marks;
+`ł→l`, `đ→d`, `ø→o`, `ß→s`, `æ→a`), bytewise order, ties by SKU then id. Equal to `pickName` for every
+name read from the database (T025).
+
+**Search**: `like '%term%'` on `admin_search_key_<lang>` (folded the same way) or a variant SKU; the
+catalogue counts once, then pages from the trigram hits when `total ≤ 2 000`, else by the ordered
+walk.
+
+**Measured (prototype, `research.md` R14)**: p95 of the DB side ≤ 36 ms for first, middle and last
+page and ≤ 83 ms for every search case at 50 001 lines; the bench T029 asserts ≤ 150 ms p95 end to end
+for every case.
+
+Tests: T024–T029 (rule, parity, port, line table, reworked contract and statement tests, bench); the
+original T008/T009 assertions are kept.
 
 ## G16 — name the runner-ups
 
@@ -116,3 +113,16 @@ re-exports them, so the resolver's imports do not change.
 
 Test: move `matrix-decimal.test.ts`'s cases to `packages/contracts/test/price-book-decimal.unit.test.ts`;
 keep a re-export identity test in the module.
+
+## G19 — the list price on search-backed listings
+
+| Where | Change |
+| --- | --- |
+| `packages/contracts/src/search.ts` | the search listing summary's `resolvedPrice` and the suggestion item gain `listPrice?: { amount, currency }` |
+| `packages/modules/search/src/backend/services/search-query.service.ts` | maps `ListingPriceDetail.listPrice` into `ProductSummary.resolvedPrice` |
+| `packages/modules/search/src/backend/services/suggestion-pricing-enricher.ts` | maps it onto suggestion items |
+
+Whether it is present stays P1's decision (`listPriceOf`). Test:
+`backend/test/integration/search/list-price-in-search.test.ts` — D1–D4 on the search listing and the
+suggestions (T030).
+
