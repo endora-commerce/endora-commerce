@@ -85,6 +85,18 @@ most; development price books dropped and reseeded; demo books reproduce E1–E3
   price" in SC-006 therefore means a price the old price lists held. **Caveat**: if a production
   deployment appears before this release, this ruling is to be revisited.
 
+### Session 2026-10-22
+
+- Q: Removing the old model removes `priceListAdminPort`, through which the PIM connectors' price
+  import wrote a product's prices. Is a replacement part of this release? → A: **yes — a narrow
+  in-process write port on price books ships in P1, before the release** (owner ruling 2026-10-22,
+  FR-049), so no release leaves the PIM price import without a target.
+- Q: The demo seeds its base prices in PLN only; the old Default list copied each amount into every
+  currency a channel offered, EUR included. Must the demo price EUR too? → A: **no, PLN only**
+  (owner ruling 2026-10-22). A base price is per currency and is never converted (K1.3), and an EUR
+  base book created by the demo would be a system book that a demo reset cannot tell from the
+  operator's own.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 — Every product and variant has a base price in each currency (Priority: P1)
@@ -489,6 +501,18 @@ storefront.
   At minimum this covers the module-owned page `packages/modules/price_lists/docs/price_lists.md`,
   the generated module reference, and every docs page that describes how a price is obtained
   (catalog, carts, orders, quote requests, search, product feeds, organizations).
+
+**Cross-module price writes** (owner ruling 2026-10-22, Clarifications Session 2026-10-22)
+
+- **FR-049**: The price-list module MUST publish an in-process port through which another module
+  (the PIM connectors' price import) reads a product's base prices per currency, replaces a
+  product's base tiers in the currencies it names — product tiers alone, leaving the variants' base
+  rows as they are, or product and variant rows together exactly as the admin base-price write does —
+  and lists the price books that price the product directly, for its field-protection compare. Every
+  write MUST go through the same write path as the admin API (one audited command, the book's
+  version moved, the pricing caches invalidated after the commit, the price surface marked stale)
+  and MUST be refused for the same reasons with the same codes. With the price-list module absent
+  the port MUST fail closed. It replaces `priceListAdminPort`, which this release removes.
 
 ### Key Entities *(include if feature involves data)*
 

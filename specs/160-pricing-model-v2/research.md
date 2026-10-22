@@ -321,6 +321,12 @@ step), a *VIP* customer group with *Acme B2B (demo)* in it (each by its owner's 
 alternatives (owner, 2026-10-21): E3's books are seeded active, E1's and E2's as drafts. A demo test
 prices E3 after a reset, then E1 and E2 each with only its own books active (SC-007).
 
+**Demo currency (owner ruling 2026-10-22).** The demo seeds base prices in **PLN only**. The old
+Default list copied one amount into every currency a channel offered; a base price is per currency
+and is never converted (K1.3), and an EUR base book the demo created would be a system book that a
+`demo reset` cannot tell from the operator's own, so it could neither withdraw it nor leave the
+database as the reset found it. An EUR view of the demo therefore shows its products unpriced.
+
 ## R14. Documentation rebuild (FR-048, SC-010)
 
 **Decision.** The last phase of the release branch, after P2: rewrite
@@ -336,3 +342,19 @@ returns only history notes for *Application rule*, *default price* and *price ov
 Postgres, Redis pub/sub (`PricingGeneration`), BullMQ, MikroORM, Zod: all in the stack. The
 exhaustive precedence tests enumerate the configuration space (924 × 2 × 2) without a
 property-testing library.
+
+## R16. A write port for the PIM price import (FR-049, owner ruling 2026-10-22)
+
+**Decision.** `price_lists` publishes `priceBookWritePort` (`contracts/price-book-write-port.md`),
+narrowed to what `pim_ergonode` called on the removed `priceListAdminPort`, mapped to price books:
+read a product's base prices per currency, replace its product-level base tiers per currency
+(variants untouched) or its product and variant base rows together, and list the books pricing the
+product directly. It is a facade over `PriceBookService.basePrices` / `setBasePrices` and
+`PriceBookReads.list({ productId })` — the admin API's own methods — so there is one write path and
+one summary.
+
+**Rejected.** Exposing `PriceBookService` itself (publishing the class); a write port taking an
+arbitrary book id and rows (the PIM writes base prices only, and a book-row port would be a second
+admin API without its scope and version rules); a port that refuses to create a missing base book
+(the admin base-price write creates the base book of a currency on first use, and a second rule
+would make the two writers disagree).
