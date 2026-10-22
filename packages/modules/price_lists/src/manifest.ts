@@ -157,11 +157,15 @@ export const manifest = defineModuleManifest({
   /**
     * Nothing to demonstrate of its own (feature 113, T225 — contract §1.2).
     *
-    * The demo's prices are a backfill over `catalog`'s demo products into this
-    * module's default list — two modules' rows in one step, so it is step 3 of
-    * `@endora-commerce/demo-composition` and not this module's demo data
-    * (§5.1). The default list itself is **platform data**: a migration creates
-    * it and the platform needs it whether or not anybody ever seeds a demo.
+    * The demo's prices — a base price for every demo product and the price
+    * books of the owner's scenarios E1–E3 (feature 160, FR-044) — each name
+    * another module's row (a product, the *Screws* category, the demo
+    * organisation, the VIP group, the demo channel), so they are a composition
+    * step of `@endora-commerce/demo-composition` and not this module's demo
+    * data (§5.1). This module writes them, through `seedDemoPriceBooks` and
+    * `withdrawDemoPriceBooks` on `./backend`. The base books themselves are
+    * **platform data**: a migration creates them and the platform needs them
+    * whether or not anybody ever seeds a demo.
     *
     * `false` rather than absent, because the two are different states: this is
     * a decision that the module owes nothing, not a module nobody has looked at.

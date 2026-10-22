@@ -1,4 +1,22 @@
-import { defineModuleManifest } from '@endora-commerce/contracts';
+import { defineModuleManifest, type ModuleDemoManifest } from '@endora-commerce/contracts';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+
+/**
+ * The demo data this module owns (feature 160, FR-044): the *VIP* customer
+ * group of the E3 pricing scenario. A typed `const` so `context.ctx` is a
+ * `ModuleContext`; both bodies are reached by a relative `await import()`, so
+ * a process that loads this manifest does not load them (feature 113 §1.4).
+ *
+ * The demo **buyer** is still not here: `customer_accounts.organization_id` is
+ * `NOT NULL` (Principle XI), so the account and its organisation are created
+ * together by a composition step of `@endora-commerce/demo-composition`, as is
+ * the organisation's membership of this group.
+ */
+const demo: ModuleDemoManifest<ModuleContext> = {
+  summary: 'The VIP customer group of the demo pricing scenarios.',
+  seed: async (context) => (await import('./backend/demo/seed.js')).seedDemo(context),
+  reset: async (context) => (await import('./backend/demo/reset.js')).resetDemo(context),
+};
 
 /**
  * Customer Accounts module — manifest backfill (Module Lifecycle, feature 018).
@@ -92,21 +110,7 @@ export const manifest = defineModuleManifest({
   // off and no customer-side path exists at all — no registration, no login,
   // no cart belonging to anyone, no order placed by anyone — which is the
   // reachability test rather than a reduction in capability.
-  /**
-   * Nothing to demonstrate of its own (feature 113, T211/T222 — contract §1.2).
-   *
-   * The demo shop does have a buyer, and it is not this module's demo data:
-   * `customer_accounts.organization_id` is `NOT NULL` (Principle XI), so there
-   * is no account to create before an `organizations` row exists to hold it, and
-   * "create the account, then join it" cannot be written at all. The account and
-   * its organisation are created in one statement, which makes them two modules'
-   * rows and a composition step (§5.1) — step 5 of
-   * `@endora-commerce/demo-composition`, which says so in its own words.
-   *
-   * `false` rather than absent, because the two are different states: this is a
-   * decision that the module owes nothing, not a module nobody has looked at.
-   */
-  demo: false,
+  demo,
   activation: {
     nonDeactivatable: true,
     reason:

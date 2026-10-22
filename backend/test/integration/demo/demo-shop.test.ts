@@ -273,6 +273,8 @@ const SEED_DELTA: Readonly<Record<string, number>> = {
   admin_roles: 1,
   admin_users: 3,
   organizations: 1,
+  // `customer_accounts`' own demo data (feature 160): the VIP group of E3.
+  customer_groups: 1,
   taxes: 1,
   delivery_methods: 1,
   payment_methods: 2,
@@ -299,9 +301,15 @@ const SEED_DELTA: Readonly<Record<string, number>> = {
   // 2 — the product↔category and channel↔product bridges
   product_categories: 203,
   sales_channel_products: 203,
-  // 3 — the price-list backfill
-  price_list_products: 203,
-  price_list_price_brackets: 406,
+  // 3a — the demo organisation joins the VIP group: no table of its own, it
+  //      sets `organizations.customer_group_id` (feature 160).
+  // 3b — the demo's prices (feature 160): a base row per demo product in the
+  //      PLN base book (203), and the six rows of the E1–E3 books; the four
+  //      books, their three audience members and four channel rows.
+  price_list_matrix_entries: 209,
+  price_lists: 4,
+  price_list_audience_members: 3,
+  sales_channel_price_lists: 4,
   // 4 — the stock spread across the two warehouses
   stock_levels: 406,
   // 5 — the demo buyer joins the demo organisation

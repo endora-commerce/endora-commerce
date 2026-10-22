@@ -527,6 +527,18 @@ export const salesChannelBridges: ReadonlyArray<{
 export { DefaultPriceListMigrator, DEFAULT_PRICE_LIST_ID } from './services/default-price-list-migration.js';
 
 /**
+ * Feature 160 (FR-044) — the demo's prices, published **by name** on
+ * `./backend` for `@endora-commerce/demo-composition`'s price-book step: base
+ * prices for every demo product and the E1–E3 books. A composition step
+ * because every row names another module's (feature 113 §5.1); the functions
+ * write only this module's tables, over the `EntityManager` the demo runner
+ * hands the composition, and use the entity classes this package's `entities`
+ * array registered (D-160.6.1, as the migrator above).
+ */
+export { seedDemoPriceBooks, withdrawDemoPriceBooks, type DemoPriceBookRefs } from './demo/seed.js';
+export { DEMO_PRICE_BOOKS, DEMO_VECTOR_SKUS, demoBasePrice } from './demo/rows.js';
+
+/**
  * The price-list write service, published **by name** for the same reason as
  * the migrator above: two integration tests construct it directly over their
  * own `EntityManager`, in a process that already holds this package's published

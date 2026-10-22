@@ -157,8 +157,9 @@ async function shopState(client: Client): Promise<ShopState> {
             join sales_channels ch on ch.id = scp.sales_channel_id
            where p.slug like 'demo-%' and ch.system_default)::text as sold,
          (select count(*) from megamenus)::text as menus,
-         (select count(distinct plp.product_id) from price_list_products plp
-            join products p on p.id = plp.product_id
+         (select count(distinct e.product_id) from price_list_matrix_entries e
+            join price_lists b on b.id = e.price_list_id and b.is_system
+            join products p on p.id = e.product_id
            where p.slug like 'demo-%')::text as priced`,
     )
   ).rows;

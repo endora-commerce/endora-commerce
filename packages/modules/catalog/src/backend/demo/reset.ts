@@ -13,7 +13,7 @@
  * demo did not create.
  *
  * Everything that *references* these products from another module's table — the
- * category and channel bridges, the price brackets, the stock, the images and
+ * category and channel bridges, the base prices, the stock, the images and
  * the attachments — is withdrawn first, by the composition, because `reset`
  * runs the composition's withdrawal before any module's (§5.5).
  */

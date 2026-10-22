@@ -111,6 +111,7 @@ interface CategoryRow {
 interface ProductRow {
   id: Opt<string>;
   slug: string;
+  sku: string;
 }
 interface MegamenuRow {
   id: Opt<string>;
@@ -272,6 +273,8 @@ async function creditLimitRows() {
 export const DEMO_BUYER_EMAIL = 'buyer@demo-org.example';
 export const DEMO_BUYER_PASSWORD = 'ChangeMe!123';
 const DEMO_ORG_TAX_ID = 'PL5210000099';
+/** The demo's customer group, by the code `customer_accounts`' demo data assigns (feature 160). */
+const DEMO_VIP_GROUP_CODE = 'demo-vip';
 /** The demo's two sales channels, by the codes the foundation step assigns. */
 const DEMO_RETAIL_CHANNEL_CODE = 'pl_retail';
 /**
@@ -327,6 +330,9 @@ const DEMO_PRODUCT_ATTRIBUTES: readonly Parameters<typeof createAttributeFixture
     valueType: 'enum',
     isSearchable: true,
     isFilterable: true,
+    // Feature 160 (E1): a price book may select on `color = red`, which only an
+    // attribute flagged as a price rule allows (D-287 §5.9).
+    isPriceRule: true,
     sortOrder: 0,
     options: ['red', 'green', 'blue', 'black', 'white'].map((value, index) => ({
       value,
@@ -965,32 +971,80 @@ const STEPS: readonly CompositionStep[] = [
     },
   },
   {
-    // ── 3. the price-list backfill ────────────────────────────────────────
-    // The Default price list is created by a migration and gets a bracket per
-    // currency from each product's `attributeValues.defaultPrice`. Re-running
-    // the migrator picks up whatever the demo just created, so the storefront
-    // resolver always finds a Base bracket. It is idempotent, and it asks
-    // `catalog` for its products over the published read port rather than
-    // importing the entity.
-    name: 'price-list backfill over the demo catalogue',
-    modules: ['price_lists', 'catalog'],
+    // ── 3a. the demo organisation joins the VIP customer group ────────────
+    // Feature 160 (FR-044, E3): *Acme B2B (demo)* is in *VIP*. The group is
+    // `customer_accounts`' demo data and the organisation `organizations'`; the
+    // membership is the organisation's column naming the group, so it is two
+    // modules' rows and this step's (§5.1).
+    name: 'demo organisation joins the VIP customer group',
+    modules: ['organizations', 'customer_accounts'],
     async apply(em) {
-      const [{ DefaultPriceListMigrator }, { CatalogProductReadService }] = await Promise.all([
-        import('@endora-commerce/mod-price-lists/backend'),
-        import('@endora-commerce/mod-catalog/backend'),
-      ]);
-      await new DefaultPriceListMigrator(() => em).run(new CatalogProductReadService(() => em));
+      await em.execute(
+        `update organizations set customer_group_id = (select id from customer_groups where code = ?)
+          where tax_id = ? and customer_group_id is null`,
+        [DEMO_VIP_GROUP_CODE, DEMO_ORG_TAX_ID],
+      );
     },
     async withdraw(em) {
       await em.execute(
-        `delete from price_list_price_brackets where product_id in
-           (select id from products where slug like ?)`,
-        [`${DEMO_PRODUCT_SLUG_PREFIX}%`],
+        `update organizations set customer_group_id = null
+          where tax_id = ? and customer_group_id in (select id from customer_groups where code = ?)`,
+        [DEMO_ORG_TAX_ID, DEMO_VIP_GROUP_CODE],
       );
-      await em.execute(
-        `delete from price_list_products where product_id in
-           (select id from products where slug like ?)`,
-        [`${DEMO_PRODUCT_SLUG_PREFIX}%`],
+    },
+  },
+  {
+    // ── 3b. the demo's prices ──────────────────────────────────────────────
+    // Feature 160 (FR-044, N12): a base price for every demo product in the
+    // PLN base book, and the price books of the owner's scenarios E1–E3 on the
+    // demo channel (E3's active, E1's and E2's drafts). Every row names a demo
+    // product, the *Screws* category, the demo organisation or the VIP group,
+    // so the step is the composition's; the writing is `price_lists`' own,
+    // through the install surface it publishes, over the ids resolved here.
+    // A product carries no price of its own any more, so nothing is read off
+    // the catalogue but the products' SKUs.
+    name: 'base prices and price books over the demo catalogue',
+    modules: ['price_lists', 'catalog', 'organizations', 'customer_accounts'],
+    async apply(em) {
+      const [{ seedDemoPriceBooks }, { Product }, { Organization }] = await Promise.all([
+        import('@endora-commerce/mod-price-lists/backend'),
+        catalogRows(),
+        organizationRows(),
+      ]);
+      const channel = await systemDefaultChannel(em);
+      const products = await em.find(
+        Product,
+        { slug: { $like: `${DEMO_PRODUCT_SLUG_PREFIX}%` } },
+        { fields: ['id', 'sku'] },
+      );
+      const screws = (await categoriesBySlug(em)).get('screws');
+      const organization = await em.findOne(Organization, { taxId: DEMO_ORG_TAX_ID });
+      const [group] = await em.execute<Array<{ id: string }>>(
+        `select id from customer_groups where code = ?`,
+        [DEMO_VIP_GROUP_CODE],
+      );
+      if (screws === undefined || organization === null || group === undefined) return;
+      await seedDemoPriceBooks(em, {
+        channelId: channel.id,
+        products: products.map((product) => ({ id: product.id, sku: product.sku })),
+        screwsCategoryId: screws.id,
+        acmeOrganizationId: organization.id,
+        vipCustomerGroupId: group.id,
+      });
+    },
+    async withdraw(em) {
+      const [{ withdrawDemoPriceBooks }, { Product }] = await Promise.all([
+        import('@endora-commerce/mod-price-lists/backend'),
+        catalogRows(),
+      ]);
+      const products = await em.find(
+        Product,
+        { slug: { $like: `${DEMO_PRODUCT_SLUG_PREFIX}%` } },
+        { fields: ['id'] },
+      );
+      await withdrawDemoPriceBooks(
+        em,
+        products.map((product) => product.id),
       );
     },
   },

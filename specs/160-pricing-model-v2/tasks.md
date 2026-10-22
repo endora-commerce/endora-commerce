@@ -278,16 +278,16 @@ Added 2026-10-21 at the request of the P2 spec; each test first, then the contra
 
 ### Tests first
 
-- [ ] T107 [P] [US8] Demo test in `packages/modules/price_lists/src/backend/demo/demo.test.ts`: after a reset E3's books are active and E1's and E2's are drafts; E3.1–E3.6 hold; with only E1's books active E1.1–E1.4 hold; with only E2's E2.1–E2.4 hold (FR-044, SC-007)
-- [ ] T108 [P] [US8] Demo data budget unchanged in kind: `pnpm --filter backend run check:demo-data-budget` covers the new demo rows
+- [X] T107 [P] [US8] Demo test in `packages/modules/price_lists/src/backend/demo/demo.test.ts`: after a reset E3's books are active and E1's and E2's are drafts; E3.1–E3.6 hold; with only E1's books active E1.1–E1.4 hold; with only E2's E2.1–E2.4 hold (FR-044, SC-007) — **in `IT/price_lists/demo-scenarios.test.ts`**: pricing the demo needs the database and the composed engine, which a co-located unit test has neither of; it drives `demo reset` → `demo seed` through `dispatchCli` over the harness, prices every vector (E3.4 with e3b added and removed), activates E1 alone and E2 alone, and checks a second reset and seed restore E3 active / E1, E2 drafts; the VIP body's own unit test is `packages/modules/customer_accounts/src/backend/demo/demo.test.ts`
+- [X] T108 [P] [US8] Demo data budget unchanged in kind: `pnpm --filter backend run check:demo-data-budget` covers the new demo rows — green: `declaring=10 … assets=0 bytes=0 B findings=0` (all demo data is generated `.ts`)
 
 ### Implementation
 
-- [ ] T109 [P] [US8] `price_lists` demo manifest entry and `PL/backend/demo/seed.ts`, `reset.ts`, `rows.ts`: base books for every demo product (prices carried in the step's own rows), and the E1–E3 books bound to the demo channel (E3 active, E1/E2 drafts), through the module's own services
-- [ ] T110 [P] [US8] `catalog` demo: `color` flagged `isPriceRule`, a red *Screws 0200* priced through the price-lists demo rows, no `defaultPrice`, in `packages/modules/catalog/src/backend/demo/seed.ts` and `rows.ts`
-- [ ] T111 [P] [US8] Customer group *VIP* seeded by its owner: a `customer_accounts` demo entry (`packages/modules/customer_accounts/src/manifest.ts`, `src/backend/demo/`)
-- [ ] T112 [P] [US8] *Acme B2B (demo)* in VIP in `packages/modules/organizations/src/backend/demo/rows.ts` and `seed.ts`
-- [ ] T113 [US8] `demo-composition` stops calling `DefaultPriceListMigrator` and clearing `price_list_assignments`, in `packages/demo-composition/src/composition.ts` and `demo-usage.ts`
+- [X] T109 [P] [US8] `price_lists` demo manifest entry and `PL/backend/demo/seed.ts`, `reset.ts`, `rows.ts`: base books for every demo product (prices carried in the step's own rows), and the E1–E3 books bound to the demo channel (E3 active, E1/E2 drafts), through the module's own services — `PL/backend/demo/rows.ts` (data, fixed book ids) and `seed.ts` (`seedDemoPriceBooks` / `withdrawDemoPriceBooks`, published on `./backend`); **no manifest demo entry**: every row names another module's row, so it is a composition step (`contracts/conversion-and-removal.md` §4, feature 113 §5.1) and the manifest keeps `demo: false` with the reason; PLN base prices only (K1.3: never converted; an EUR base book would be a system book a reset cannot tell from the operator's)
+- [X] T110 [P] [US8] `catalog` demo: `color` flagged `isPriceRule`, a red *Screws 0200* priced through the price-lists demo rows, no `defaultPrice`, in `packages/modules/catalog/src/backend/demo/seed.ts` and `rows.ts` — `isPriceRule` is set where the attribute is created, the composition's attribute step (`packages/demo-composition/src/composition.ts`); *Screws 0032* (blue) and *Bolts 0025* (red) are priced 50 / 30 as the vectors' P2 / P3
+- [X] T111 [P] [US8] Customer group *VIP* seeded by its owner: a `customer_accounts` demo entry (`packages/modules/customer_accounts/src/manifest.ts`, `src/backend/demo/`) — code `demo-vip`, name *VIP*
+- [X] T112 [P] [US8] *Acme B2B (demo)* in VIP in `packages/modules/organizations/src/backend/demo/rows.ts` and `seed.ts` — as a composition step (*demo organisation joins the VIP customer group*): the membership is `organizations`' column naming `customer_accounts`' row, which a module's demo body may not read (feature 113 §2.2)
+- [ ] T113 [US8] `demo-composition` stops calling `DefaultPriceListMigrator` and clearing `price_list_assignments`, in `packages/demo-composition/src/composition.ts` and `demo-usage.ts` — the migrator call is gone (Phase 10); the `price_list_assignments` statement goes with the table in Phase 11
 
 ---
 
