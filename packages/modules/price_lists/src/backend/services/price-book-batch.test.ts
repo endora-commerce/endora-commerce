@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CatalogAttributeView } from '@endora-commerce/contracts';
-import { batchNeeds, parseBatchRows, planBatch, type BatchLookups, type StoredRow } from './price-book-batch.js';
+import { PRICE_BOOK_MAX_ROWS } from '@endora-commerce/contracts';
+import { batchNeeds, parseBatchRows, planBatch, touchedSelections, type BatchLookups, type StoredRow } from './price-book-batch.js';
 
 /**
  * Feature 160 (G6, G7, G10 of `specs/161-price-book-editor/`) — planning one
@@ -55,11 +56,15 @@ const stored = (id: string, productId: string, min: number, max: number | null, 
 let seq = 0;
 const newId = () => `00000000-0000-4000-8000-${String(++seq).padStart(12, '0')}`;
 
-function plan(upsert: unknown[], options: { mode?: 'merge' | 'replace'; rows?: StoredRow[]; base?: boolean; deleteIds?: string[] } = {}) {
+function plan(
+  upsert: unknown[],
+  options: { mode?: 'merge' | 'replace'; rows?: StoredRow[]; base?: boolean; deleteIds?: string[]; storedRowCount?: number } = {},
+) {
   const { parsed, errors } = parseBatchRows(upsert);
   return planBatch({
     isBaseBook: options.base ?? false,
     stored: options.rows ?? [],
+    storedRowCount: options.storedRowCount ?? (options.rows ?? []).length,
     mode: options.mode ?? 'merge',
     parsed,
     parseErrors: errors,
@@ -165,5 +170,57 @@ describe('price-book batch planning (feature 160)', () => {
     expect([...needs.productIds]).toEqual([P1]);
     expect([...needs.productSkus]).toEqual(['SKU-2']);
     expect([...needs.categoryPaths]).toEqual(['a/b']);
+  });
+});
+
+/**
+ * Feature 161, G18 — a batch is planned against the stored rows of the
+ * selections it touches and the book's row count, not against every row of the
+ * book; the 5 000-row cap holds for non-base books only.
+ */
+describe('price-book batch planning — scoped to what the batch touches (161 G18)', () => {
+  const upsert = (productId: string, min = 1, amount = '1') => ({
+    selection: { productId },
+    minQuantity: min,
+    maxQuantity: min === 1 ? 9 : null,
+    price: { type: 'fixed', amount },
+  });
+
+  it('caps a non-base book by its row count after the batch, not by the rows it was handed', () => {
+    const atCap = plan([upsert(P2)], { storedRowCount: PRICE_BOOK_MAX_ROWS - 1 });
+    expect(atCap.errors).toEqual([]);
+    const over = plan([upsert(P2), upsert(P2, 10)], { storedRowCount: PRICE_BOOK_MAX_ROWS - 1 });
+    expect(over.errors.map((e) => e.code)).toEqual(['PRICE_BOOK_ROW_LIMIT']);
+    // A changed row adds none: at the cap, replacing a stored row is accepted.
+    const changed = plan([upsert(P1, 1, '9')], { rows: [stored('r1', P1, 1, null, '1.0000')], storedRowCount: PRICE_BOOK_MAX_ROWS });
+    expect(changed.errors).toEqual([]);
+    expect(changed.changed).toHaveLength(1);
+    // A delete frees a row.
+    const swapped = plan([upsert(P2)], { rows: [stored('r1', P1, 1, null, '1.0000')], storedRowCount: PRICE_BOOK_MAX_ROWS, deleteIds: ['r1'] });
+    expect(swapped.errors).toEqual([]);
+  });
+
+  it('does not cap a base book', () => {
+    const result = plan([upsert(P2), upsert(P2, 10)], { base: true, storedRowCount: 40_000 });
+    expect(result.errors).toEqual([]);
+    expect(result.added).toHaveLength(2);
+  });
+
+  it('touches the selections of the rows it can resolve, once, a variant under its product', () => {
+    const { parsed } = parseBatchRows([
+      upsert(P1),
+      upsert(P1, 10),
+      { selection: { productId: P1, variantId: V1 }, minQuantity: 1, price: { type: 'percent', percent: '5' } },
+      { key: { categoryPath: 'tools/screws', attribute: { key: 'color', valueCode: 'red' } }, minQuantity: 1, price: { type: 'percent', percent: '5' } },
+      { key: { productSku: 'NOPE' }, minQuantity: 1, price: { type: 'fixed', amount: '1' } },
+      { selection: {}, minQuantity: 1, price: { type: 'percent', percent: '-1' } },
+    ]);
+    const touched = touchedSelections(parsed, lookups);
+    expect(touched).toEqual([
+      { variantId: null, productId: P1, categoryId: null, attributeKey: null, attributeValue: null },
+      { variantId: V1, productId: P1, categoryId: null, attributeKey: null, attributeValue: null },
+      { variantId: null, productId: null, categoryId: C1, attributeKey: 'color', attributeValue: 'red' },
+      { variantId: null, productId: null, categoryId: null, attributeKey: null, attributeValue: null },
+    ]);
   });
 });

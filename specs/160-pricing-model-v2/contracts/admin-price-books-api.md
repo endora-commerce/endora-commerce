@@ -59,8 +59,10 @@ category's slugs from the root joined by `/`). No currency (the book's), no orga
 header's). A row without an `id` whose selection and `minQuantity` equal a stored row's replaces
 that row (*changed*); `merge` keeps the rows the batch does not name, `replace` removes them
 (`delete` must then be empty). Amounts are stored at four places, percentages at two. Limit per book:
-5 000 rows (unchanged from 148, FR-007 of 148); the diff and the write cost a bounded number of
-statements whatever the batch size.
+5 000 rows (unchanged from 148, FR-007 of 148) for every book **but a base book**, which the
+catalogue bounds (FR-009; owner ruling of 2026-10-22, `specs/161-price-book-editor/` G18); the diff
+and the write cost a bounded number of statements whatever the batch size, and read the rows of the
+selections the batch touches rather than the whole book (G18).
 
 ## Base prices (the product editor's zone in P2)
 

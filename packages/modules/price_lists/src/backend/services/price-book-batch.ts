@@ -167,7 +167,14 @@ function sameRow(a: PlannedRow, b: PlannedRow): boolean {
  */
 export function planBatch(input: {
   isBaseBook: boolean;
+  /**
+   * The stored rows the batch can affect (G18 of 161): in `merge` mode the
+   * rows of the selections it touches and the rows it names by id
+   * ({@link touchedSelections}); in `replace` mode every row of the book.
+   */
   stored: readonly StoredRow[];
+  /** How many rows the book holds now, for the per-book limit. */
+  storedRowCount: number;
   mode: 'merge' | 'replace';
   parsed: readonly Parsed[];
   parseErrors: readonly PriceBookRowError[];
@@ -188,26 +195,7 @@ export function planBatch(input: {
     const before = errors.length;
 
     // 1. The selection, from ids or from the natural key.
-    let selection: PriceBookRowInput['selection'] = {};
-    if (row.selection) {
-      selection = row.selection;
-      const { productId, variantId, categoryId, attribute } = row.selection;
-      if (variantId) {
-        const variant = lookups.variantsById.get(variantId);
-        if (!productId) fail('selection.productId', 'PRICE_BOOK_ROW_SHAPE', 'A variant row names its product.');
-        else if (!variant || variant.parentProductId !== productId) {
-          fail('selection.variantId', 'PRICE_BOOK_ROW_TARGET', 'This variant does not belong to the product.');
-        }
-      } else if (productId && !lookups.productsById.has(productId)) {
-        fail('selection.productId', 'PRICE_BOOK_ROW_TARGET', `Product ${productId} does not exist.`);
-      }
-      if (categoryId && !lookups.categoriesById.has(categoryId)) {
-        fail('selection.categoryId', 'PRICE_BOOK_ROW_TARGET', `Category ${categoryId} does not exist.`);
-      }
-      if (attribute) attributeIssue(attribute.key, attribute.value, 'selection.attribute', lookups, fail);
-    } else if (row.key) {
-      selection = selectionOfKey(row.key, lookups, fail);
-    }
+    const selection = selectionOfRow(row, lookups, fail);
 
     // 2. Shape (FR-005, FR-006) and the base book's rules (FR-009, G7).
     const candidate: PriceBookRowInput = {
@@ -228,13 +216,7 @@ export function planBatch(input: {
 
     const price = normalisedPrice(row.price);
     const planned: PlannedRow = {
-      variantId: selection.variantId ?? null,
-      productId: selection.variantId
-        ? (lookups.variantsById.get(selection.variantId)?.parentProductId ?? selection.productId ?? null)
-        : (selection.productId ?? null),
-      categoryId: selection.categoryId ?? null,
-      attributeKey: selection.attribute?.key ?? null,
-      attributeValue: selection.attribute?.value ?? null,
+      ...storedSelectionOf(selection, lookups),
       minQuantity: row.minQuantity,
       maxQuantity: row.maxQuantity,
       priceType: price.type,
@@ -271,8 +253,12 @@ export function planBatch(input: {
       ? input.stored.filter((r) => !incomingIds.has(r.id))
       : input.stored.filter((r) => deleted.has(r.id) && !incomingIds.has(r.id));
 
-  // 4. The limit and overlapping windows over the book as it would be.
-  if (final.length > PRICE_BOOK_MAX_ROWS) {
+  // 4. The limit and overlapping windows over the book as it would be. The
+  // count is the book's, moved by what the batch adds and removes (a changed
+  // row adds none); base books are bounded by the catalogue, not by the cap
+  // (G18 of 161, FR-009 of 160).
+  const rowsAfter = input.mode === 'replace' ? final.length : input.storedRowCount + added.length - removed.length;
+  if (!input.isBaseBook && rowsAfter > PRICE_BOOK_MAX_ROWS) {
     errors.push({ field: 'upsert', code: 'PRICE_BOOK_ROW_LIMIT', message: `A price book holds at most ${PRICE_BOOK_MAX_ROWS} rows.` });
   }
   const indexOf = new Map<string, number>();
@@ -302,6 +288,71 @@ export function planBatch(input: {
     unchangedCount,
     errors: errors.sort((x, y) => (x.index ?? Number.MAX_SAFE_INTEGER) - (y.index ?? Number.MAX_SAFE_INTEGER)),
   };
+}
+
+type Fail = (field: string, code: PriceBookRowError['code'], message: string) => void;
+
+/** A row's selection, from its ids (checked against the lookups) or from its natural key. */
+function selectionOfRow(row: PriceBookBatchRowInput, lookups: BatchLookups, fail: Fail): PriceBookRowInput['selection'] {
+  if (row.selection) {
+    const { productId, variantId, categoryId, attribute } = row.selection;
+    if (variantId) {
+      const variant = lookups.variantsById.get(variantId);
+      if (!productId) fail('selection.productId', 'PRICE_BOOK_ROW_SHAPE', 'A variant row names its product.');
+      else if (!variant || variant.parentProductId !== productId) {
+        fail('selection.variantId', 'PRICE_BOOK_ROW_TARGET', 'This variant does not belong to the product.');
+      }
+    } else if (productId && !lookups.productsById.has(productId)) {
+      fail('selection.productId', 'PRICE_BOOK_ROW_TARGET', `Product ${productId} does not exist.`);
+    }
+    if (categoryId && !lookups.categoriesById.has(categoryId)) {
+      fail('selection.categoryId', 'PRICE_BOOK_ROW_TARGET', `Category ${categoryId} does not exist.`);
+    }
+    if (attribute) attributeIssue(attribute.key, attribute.value, 'selection.attribute', lookups, fail);
+    return row.selection;
+  }
+  if (row.key) return selectionOfKey(row.key, lookups, fail);
+  return {};
+}
+
+/** The stored columns of a selection: a variant row carries its product. */
+function storedSelectionOf(
+  selection: PriceBookRowInput['selection'],
+  lookups: BatchLookups,
+): Pick<PlannedRow, 'variantId' | 'productId' | 'categoryId' | 'attributeKey' | 'attributeValue'> {
+  return {
+    variantId: selection.variantId ?? null,
+    productId: selection.variantId
+      ? (lookups.variantsById.get(selection.variantId)?.parentProductId ?? selection.productId ?? null)
+      : (selection.productId ?? null),
+    categoryId: selection.categoryId ?? null,
+    attributeKey: selection.attribute?.key ?? null,
+    attributeValue: selection.attribute?.value ?? null,
+  };
+}
+
+/**
+ * The selections a batch's rows name, resolved and de-duplicated, in the
+ * order first named (G18 of 161): what the service reads the stored rows of,
+ * since overlap is a rule within one selection. A row whose selection cannot
+ * be resolved touches nothing — {@link planBatch} refuses it.
+ */
+export function touchedSelections(
+  rows: readonly Parsed[],
+  lookups: BatchLookups,
+): Array<Pick<PlannedRow, 'variantId' | 'productId' | 'categoryId' | 'attributeKey' | 'attributeValue'>> {
+  const out = new Map<string, Pick<PlannedRow, 'variantId' | 'productId' | 'categoryId' | 'attributeKey' | 'attributeValue'>>();
+  for (const { row } of rows) {
+    let failed = false;
+    const selection = selectionOfRow(row, lookups, () => {
+      failed = true;
+    });
+    if (failed) continue;
+    const stored = storedSelectionOf(selection, lookups);
+    const key = selectionKey(stored);
+    if (!out.has(key)) out.set(key, stored);
+  }
+  return [...out.values()];
 }
 
 function attributeIssue(

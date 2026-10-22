@@ -29,6 +29,7 @@ import {
   normaliseCategoryPath,
   parseBatchRows,
   planBatch,
+  touchedSelections,
   type BatchLookups,
   type StoredRow,
 } from './price-book-batch.js';
@@ -626,10 +627,24 @@ export class PriceBookService {
 
     const { parsed, errors: parseErrors } = parseBatchRows(body.upsert);
     const lookups = await this.#lookups(batchNeeds(parsed));
-    const stored = await this.#storedRows(em, bookId);
+    // G18 of 161 — read what the batch is validated against, not the book: in
+    // merge mode the stored rows of the selections it touches and of the ids it
+    // names, plus the row count for the cap (non-base books only); in replace
+    // mode every row, which the diff lists as removed.
+    const { stored, storedRowCount } =
+      body.mode === 'replace'
+        ? await this.#storedRows(em, bookId).then((rows) => ({ stored: rows, storedRowCount: rows.length }))
+        : {
+            stored: await this.#touchedRows(em, bookId, touchedSelections(parsed, lookups), [
+              ...parsed.flatMap(({ row }) => (row.id ? [row.id] : [])),
+              ...body.delete,
+            ]),
+            storedRowCount: book.isSystem ? 0 : await em.count(PriceListMatrixEntry, { priceListId: bookId }),
+          };
     const plan = planBatch({
       isBaseBook: book.isSystem,
       stored,
+      storedRowCount,
       mode: body.mode,
       parsed,
       parseErrors,
@@ -639,8 +654,9 @@ export class PriceBookService {
       newId: () => randomUUID(),
     });
 
+    // Natural keys of what the answer and the diff name — never of the untouched book.
     const keyOf = await this.#naturalKeys([
-      ...plan.final,
+      ...plan.resolved.filter((r): r is StoredRow => r !== null),
       ...plan.removed,
       ...plan.changed.map((c) => c.before),
     ]);
@@ -844,6 +860,55 @@ export class PriceBookService {
     return entries.map(plannedOfEntity);
   }
 
+  /**
+   * The stored rows of `selections` and of the rows named by `ids`, in one
+   * statement (G18 of 161). Each kind matches through the book's own indexes —
+   * `(price_list_id, product_id)`, `(price_list_id, variant_id)` and, for the
+   * selections that name no product, `product_id is null` — so the read is the
+   * size of what the batch touches, not of the book.
+   */
+  async #touchedRows(
+    em: EntityManager,
+    bookId: string,
+    selections: ReadonlyArray<Pick<StoredRow, 'variantId' | 'productId' | 'categoryId' | 'attributeKey' | 'attributeValue'>>,
+    ids: readonly string[],
+  ): Promise<StoredRow[]> {
+    const productIds = selections.filter((s) => s.productId !== null && s.variantId === null).map((s) => s.productId!);
+    const variantIds = selections.filter((s) => s.variantId !== null).map((s) => s.variantId!);
+    const generalKeys = selections
+      .filter((s) => s.productId === null && s.variantId === null)
+      .map((s) => `${s.categoryId ?? ''}|${s.attributeKey ?? ''}|${s.attributeValue ?? ''}`);
+    const uuidIds = ids.filter((id) => UUID.test(id));
+    if (productIds.length + variantIds.length + generalKeys.length + uuidIds.length === 0) return [];
+    const rows = (await em.getConnection().execute(
+      `select e."id", e."variant_id", e."product_id", e."category_id", e."attribute_key", e."attribute_value",
+              e."min_quantity", e."max_quantity", e."price_type", e."amount", e."percent"
+         from "price_list_matrix_entries" e
+        where e."price_list_id" = ?
+          and (e."id" = any(?::uuid[])
+               or (e."variant_id" is null and e."product_id" = any(?::uuid[]))
+               or e."variant_id" = any(?::uuid[])
+               or (e."product_id" is null
+                   and coalesce(e."category_id"::text, '') || '|' || coalesce(e."attribute_key", '') || '|' || coalesce(e."attribute_value", '') = any(?::text[])))`,
+      [bookId, uuidArray(uuidIds), uuidArray(productIds), uuidArray(variantIds), textArray(generalKeys)],
+      'all',
+      em.getTransactionContext(),
+    )) as Array<Record<string, unknown>>;
+    return rows.map((r) => ({
+      id: String(r['id']),
+      variantId: (r['variant_id'] as string | null) ?? null,
+      productId: (r['product_id'] as string | null) ?? null,
+      categoryId: (r['category_id'] as string | null) ?? null,
+      attributeKey: (r['attribute_key'] as string | null) ?? null,
+      attributeValue: (r['attribute_value'] as string | null) ?? null,
+      minQuantity: Number(r['min_quantity']),
+      maxQuantity: r['max_quantity'] === null ? null : Number(r['max_quantity']),
+      priceType: r['price_type'] === 'percent' ? 'percent' : r['price_type'] === 'amount' ? 'amount' : 'fixed',
+      amount: r['amount'] === null ? null : String(r['amount']),
+      percent: r['percent'] === null ? null : String(r['percent']),
+    }));
+  }
+
   /** The batch's targets, in one read per kind (bounded statements for 5 000 rows). */
   async #lookups(needs: ReturnType<typeof batchNeeds>): Promise<BatchLookups> {
     const reads = this.deps.targetReads;
@@ -938,6 +1003,18 @@ export class PriceBookService {
     });
     if (issues.length > 0) validation(issues, 'The channel set was refused.', ERROR_CODES.PRICE_BOOK_CHANNEL_CURRENCY);
   }
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** A Postgres uuid-array literal. */
+function uuidArray(ids: readonly string[]): string {
+  return `{${ids.join(',')}}`;
+}
+
+/** A Postgres text-array literal, every element quoted. */
+function textArray(values: readonly string[]): string {
+  return `{${values.map((v) => `"${v.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`).join(',')}}`;
 }
 
 /** A refused batch: overlaps alone are a conflict (409); anything else is a bad request (400). */
