@@ -7,8 +7,8 @@ import { RuleScoped } from '@endora-commerce/platform/tenancy';
  * data-model §6): the buyers of one channel and currency who meet the same
  * applicable buyer books at the same chain depths, under one precedence
  * version. `bookVector` is the sorted `[{ bookId, audienceKind, depth }]`;
- * `[]` is the everyone profile. Written only by the surface worker and the
- * synchronous profile-miss build, never by an admin write.
+ * `[]` is the everyone profile. Rows are built only by the surface worker; a request
+ * at most registers a profile (`state = 'building'`), never builds it.
  */
 @RuleScoped()
 @Entity({ tableName: 'price_profiles' })
@@ -17,7 +17,7 @@ import { RuleScoped } from '@endora-commerce/platform/tenancy';
   name: 'price_profiles_key_unique',
 })
 export class PriceProfile {
-  [OptionalProps]?: 'id' | 'uniformPercent' | 'builtAt';
+  [OptionalProps]?: 'id' | 'uniformPercent' | 'builtAt' | 'servingGeneration' | 'stale' | 'markedAt';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -46,4 +46,16 @@ export class PriceProfile {
 
   @Property({ type: 'datetime', nullable: true })
   builtAt: Date | null = null;
+
+  /** The generation of `price_profile_prices` readers are served (`contracts/price-surface.md` §3). */
+  @Property({ type: 'integer', default: 0 })
+  servingGeneration: number = 0;
+
+  /** A pricing write since the served build: still served, rebuilt by the worker. */
+  @Property({ type: 'boolean', default: false })
+  stale: boolean = false;
+
+  /** When the profile was last marked stale; a build clears `stale` only if nothing marked it after it began. */
+  @Property({ type: 'datetime', nullable: true })
+  markedAt: Date | null = null;
 }

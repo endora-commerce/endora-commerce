@@ -5,14 +5,18 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { setupPricingFixture, type PricingFixture } from '../../helpers/pricing-fixture.js';
+import { countRebuildRequests, settlePriceSurface } from '../../helpers/price-surface.js';
 
 /**
  * Feature 160 (FR-027, `contracts/price-surface.md` §4) — the price surface is
  * refreshed after every change that can move a price: a book, its rows, its
  * channel set, a base price, a catalogue event, a channel change. Each marks
- * the profiles stale and bumps the pricing generation; the next ordering
- * rebuilds. The live paths — line and listing resolution, which the cart,
- * checkout, product page, quotes and order intake use — never read the surface.
+ * the profiles stale and bumps the pricing generation; the worker rebuilds. A
+ * request never waits on a build (`contracts/price-surface.md` §3): a stale
+ * profile keeps serving its previous surface until the rebuilt one is swapped
+ * in, and a profile never built is answered without one. The live paths — line
+ * and listing resolution, which the cart, checkout, product page, quotes and
+ * order intake use — never read the surface.
  */
 describe('price surface — freshness and live-path isolation', () => {
   let h: BackendServerHandle;
@@ -31,11 +35,89 @@ describe('price surface — freshness and live-path isolation', () => {
 
   async function ready(): Promise<void> {
     await f.pricing.orderByUnitPrice({ context: context(), direction: 'asc', after: null, limit: 1 });
-    expect(await sql(`select distinct "state" from "price_profiles"`)).toEqual([{ state: 'ready' }]);
+    await settlePriceSurface(h);
+    expect(await sql(`select distinct "state", "stale" from "price_profiles"`)).toEqual([{ state: 'ready', stale: false }]);
   }
   async function expectStale(): Promise<void> {
-    expect(await sql(`select distinct "state" from "price_profiles"`)).toEqual([{ state: 'building' }]);
+    // Stale, and still serving the surface it had.
+    expect(await sql(`select distinct "state", "stale" from "price_profiles"`)).toEqual([{ state: 'ready', stale: true }]);
   }
+
+  /** The surface rows a request writes while it runs: none, ever. */
+  async function surfaceWritesOf(run: () => Promise<unknown>): Promise<string[]> {
+    const knex = h.em().getConnection().getKnex();
+    const writes: string[] = [];
+    const listen = (q: { sql: string }) => {
+      if (/^\s*(insert into|delete from|update) "price_profile_prices"/i.test(q.sql)) writes.push(q.sql);
+    };
+    knex.on('query', listen);
+    try {
+      await run();
+    } finally {
+      knex.off('query', listen);
+    }
+    return writes;
+  }
+
+  const firstPage = async (organization?: PricingFixture['orgs']['Acme']) =>
+    f.pricing.orderByUnitPrice({
+      context: { ...context(), ...(organization ? { organization } : {}) },
+      direction: 'asc',
+      after: null,
+      limit: 50,
+    });
+
+  it('a request during a rebuild answers from the previous surface, and the swap brings the new order', async () => {
+    await ready();
+    const before = (await firstPage()).rows.map((r) => r.productId);
+    await f.book({ audience: 'everyone', rows: [{ product: f.products.P3, fixed: '1' }] });
+    await expectStale();
+    let during: string[] = [];
+    const started = Date.now();
+    const writes = await surfaceWritesOf(async () => {
+      during = (await firstPage()).rows.map((r) => r.productId);
+    });
+    expect(Date.now() - started).toBeLessThan(150);
+    expect(writes).toEqual([]);
+    expect(during).toEqual(before);
+    await settlePriceSurface(h);
+    expect((await firstPage()).rows[0]).toMatchObject({ productId: f.products.P3.id, amount: '1.0000' });
+    await f.clearBooks();
+    await settlePriceSurface(h);
+  });
+
+  it('a never-built unrestricted request returns without building and asks the worker', async () => {
+    await sql(`delete from "price_profiles"`);
+    const rebuilds = countRebuildRequests(h);
+    try {
+      // Nothing is built: no order to give, and none is built for the request.
+      let guest: Awaited<ReturnType<typeof firstPage>> | null = null;
+      expect(await surfaceWritesOf(async () => (guest = await firstPage()))).toEqual([]);
+      expect(guest!).toMatchObject({ rows: [], unordered: true });
+      expect(rebuilds.count).toBeGreaterThan(0);
+      expect(await sql(`select distinct "state" from "price_profiles"`)).toEqual([{ state: 'building' }]);
+
+      // The everyone surface is built; Acme's is not — Acme is ordered from the
+      // everyone surface meanwhile, and the build of Acme's is asked for.
+      await settlePriceSurface(h);
+      await f.book({ audience: { organizations: [f.orgs.Acme] }, rows: [{ product: f.products.P2, fixed: '1' }] });
+      await settlePriceSurface(h);
+      const asked = rebuilds.count;
+      let acme: Awaited<ReturnType<typeof firstPage>> | null = null;
+      expect(await surfaceWritesOf(async () => (acme = await firstPage(f.orgs.Acme)))).toEqual([]);
+      expect(acme!.rows.map((r) => r.productId)).toEqual((await firstPage()).rows.map((r) => r.productId));
+      expect(rebuilds.count).toBeGreaterThan(asked);
+
+      // Once built, Acme's order is Acme's.
+      await settlePriceSurface(h);
+      expect((await firstPage(f.orgs.Acme)).rows[0]).toMatchObject({ productId: f.products.P2.id, amount: '1.0000' });
+    } finally {
+      rebuilds.restore();
+      await f.clearBooks();
+      await settlePriceSurface(h);
+    }
+  });
+
 
   it('a book with rows, a row batch, a channel set and a base price each mark the surface stale', async () => {
     await ready();

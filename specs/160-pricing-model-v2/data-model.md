@@ -122,15 +122,19 @@ Seeded: version 1 = **HY**, `category_before_attribute = true`, `depth_mode = wi
 | `key_hash` | char(64) | sha-256 of the canonical book vector; unique `(sales_channel_id, currency_code, precedence_version, key_hash)` |
 | `book_vector` | jsonb | sorted `[{bookId, audienceKind, depth}]`; `[]` = the everyone profile |
 | `uniform_percent` | numeric(7,2) null | reserved for the *profile factor* mitigation (`research.md` R7); unused unless the bench requires it |
-| `state` | varchar(16) | `building \| ready` |
+| `state` | varchar(16) | `building \| ready` — `building` only until the first build: a built profile stays `ready` |
 | `built_at` | timestamptz | |
+| `serving_generation` | integer | the generation of `price_profile_prices` readers are served; a build writes the next one and swaps it in (`contracts/price-surface.md` §3) |
+| `stale` | boolean | a pricing write since the served build; the profile is still served |
+| `marked_at` | timestamptz null | the last mark; a build clears `stale` only if nothing marked it after the build began |
 
-`price_profile_prices` — PK `(profile_id, product_id)`; covering index
-`(profile_id, amount, product_id)`.
+`price_profile_prices` — PK `(profile_id, generation, product_id)`; covering index
+`(profile_id, generation, amount, product_id)`.
 
 | Column | Type | Rule |
 | --- | --- | --- |
 | `profile_id` | uuid | FK cascade |
+| `generation` | integer | the build the row belongs to |
 | `product_id` | uuid | FK `products` cascade |
 | `amount` | numeric(14,4) | the quantity-1 price the card shows (lowest variant price for variant products) |
 | `max_amount` | numeric(14,4) | highest variant price; = `amount` otherwise |
@@ -139,7 +143,7 @@ Seeded: version 1 = **HY**, `category_before_attribute = true`, `depth_mode = wi
 
 Density: the everyone profile holds every product it prices; another profile holds only the products
 whose answer differs from the everyone profile's (`research.md` R7). Rows are written only by the
-surface worker and the synchronous profile-miss build, never by an admin write.
+surface worker, never by a request or an admin write.
 
 ## 7. Line price source (new columns, other owners)
 

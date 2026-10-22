@@ -8,12 +8,13 @@ import { enterSystemScope, type PlatformLogger } from '@endora-commerce/platform
  *
  * A pricing write marks every profile stale after its commit and enqueues one
  * **coalesced** job (a fixed job id while one is waiting, so a burst of writes
- * costs one rebuild); the worker rebuilds every stale profile from its stored
- * book vector. The job is idempotent — a rebuild recomputes from source and a
- * profile already rebuilt is skipped under its advisory lock — so a retry or a
- * second worker is harmless. Requests never wait for it: a stale profile is
- * answered exactly by the read path, and the worker only makes the next request
- * cheap again.
+ * costs one rebuild); a request meeting a never-built profile enqueues the same
+ * job. The worker builds never-built profiles first, then rebuilds the stale
+ * ones, from their stored book vectors, and swaps each new generation in. The
+ * job is idempotent — a rebuild recomputes from source and a profile already
+ * rebuilt is skipped under its advisory lock — so a retry or a second worker is
+ * harmless. Requests never wait for it (`contracts/price-surface.md` §3): a
+ * stale profile keeps serving its previous surface meanwhile.
  *
  * Attached with `ctx.worker`, so it stops with the module (Principle XVII), and
  * built only where the host says this process consumes queues.

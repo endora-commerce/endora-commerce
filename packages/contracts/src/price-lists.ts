@@ -951,6 +951,13 @@ export interface ListingPriceOrderChunk {
    * chunks rather than per chunk.
    */
   sourceRowsRead: number;
+  /**
+   * Feature 160 (`specs/160-pricing-model-v2/contracts/price-surface.md` §3) —
+   * `true` when no price order exists yet for the viewer's channel and currency
+   * (no surface built) and none is built for the request: the caller serves its
+   * default order, cards priced live, until the worker has built one.
+   */
+  unordered?: boolean;
 }
 
 /** What a resolved line price is, once the whole chain has run. */

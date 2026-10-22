@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PriceDisplayModeOverride } from '../../helpers/package-entities.js';
 import type { DisplayMode } from '@endora-commerce/contracts';
+import { warmPriceSort } from '../../helpers/price-surface.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -15,6 +16,7 @@ import {
   GAMMA,
   PRICE_SORT_CHANNEL,
   PRICE_SORT_ORG_A,
+  PRICE_SORT_ORG_B,
   seedPriceSortFixture,
 } from '../../helpers/price-sort-fixture.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
@@ -44,6 +46,12 @@ describe('a page that may not show prices refuses to order by them', () => {
   beforeAll(async () => {
     h = await setupBackendServer();
     await seedPriceSortFixture(h.em());
+    // A request never builds a price surface: register and build them first.
+    await warmPriceSort(h, [
+      { headers: PRICE_SORT_CHANNEL },
+      { headers: PRICE_SORT_CHANNEL, cookies: PRICE_SORT_ORG_A },
+      { headers: PRICE_SORT_CHANNEL, cookies: PRICE_SORT_ORG_B },
+    ]);
     retailChannelId = (await h.em().findOneOrFail(SalesChannel, { code: 'pl_retail' })).id;
   }, 60_000);
 

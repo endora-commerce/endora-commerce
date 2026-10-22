@@ -395,22 +395,32 @@ PostgreSQL):
 | `catalog/price-sort-cost.bench.ts`, HTTP, page 50, 5 000 products | p50 28.1 ms, p95 **31.2 ms** |
 
 **SC-005 and the price-book resolver (feature 160, T088).** Measured 2026-10-22 on the price-book
-engine (same machine), `PERF_RUN=true`:
+engine (same machine), `PERF_RUN=true`, after the owner decision that **a request never waits on a
+surface build** (`specs/160-pricing-model-v2/contracts/price-surface.md` §3): two runs of
+`price_lists/price-surface.bench.ts` (50 000 products, 1 000 organizations, 500 with books, 20 group
+books, one everyone book), every scenario asserting that no request writes the surface.
 
-| Bench | Measured |
-| --- | --- |
-| `price_lists/price-surface.bench.ts` (50 000 products, 1 000 organizations, 500 with books, 20 group books, one everyone book), first page and range page p95 | guest 4.6 / 4.9 / 5.0 ms (asc / desc / range); group-only 27.5 / 7.6 / 32.4 ms; organization product rows 18.3 / 7.3 / 18.3 ms; organization category % 18.6 / 28.3 / 17.5 ms; organization all-products % 7.5 / 6.5 / 6.2 ms — budget **150 ms** |
-| same, profile-miss page (250 products, live) | 71 ms (recorded) |
-| same, one book change until the sorted listing shows it | 51.8 s (budget 60 s) |
-| same, storage | 5 profiles, 101 205 rows, 22 MB; the synchronous first build of a profile 8.8–13.4 s (sparse) and 61.2 s (an all-products percentage) — recorded, not asserted |
-| `price_lists/book-resolver.bench.ts`, a 50-product listing page | no book p95 13.0 ms; 100 rows 11.5 ms; 1 950 rows on other products 11.1 ms (budget 60) |
+| Scenario | Run 1 | Run 2 | Budget |
+| --- | --- | --- | --- |
+| first page / desc / range p95, guest | 3.9 / 3.8 / 3.9 ms | 4.0 / 4.0 / 3.6 ms | 150 ms |
+| same, group-only | 7.2 / 8.1 / 6.0 ms | 7.1 / 7.0 / 6.9 ms | 150 ms |
+| same, organization product rows | 83.9 / 8.0 / 102.4 ms | 14.4 / 7.1 / 24.1 ms | 150 ms |
+| same, organization category % | 110.1 / 7.7 / 7.5 ms | 80.9 / 8.8 / 7.8 ms | 150 ms |
+| same, organization all-products % | 6.3 / 6.3 / 5.4 ms | 7.2 / 7.0 / 7.4 ms | 150 ms |
+| a never-built first page (no build) | 26–40 ms | 9–13 ms | recorded |
+| a guest page while stale (previous surface) | 5.5 ms | 5.6 ms | 150 ms |
+| one book change until the sorted listing shows it | 56.9 s | 42.0 s | 60 s |
+| worker build of the five profiles | 53.5 s | 60.0 s | recorded |
+| profile-miss page (250 products, live) | 55 ms | 144 ms | recorded |
 
-The all-products descending page measured 2 401.9 ms p95 before `PriceSurface` learned to skip the
-everyone stream when the buyer surface holds every product (an anti-join that can only exclude
-scanned the whole everyone surface); the fix and its statement-level test
-(`price-surface-identity.test.ts`) are part of the same change. Extrapolated storage for the
-fixture's 520 profiles — 50 all-products organizations at 50 000 rows, the rest sparse — is about
-2.6 M rows, under the 10 M of research R7, so the profile-factor task is not due.
+Storage: 5 profiles, 101 205 rows, 24 MB; extrapolated to the fixture's 520 profiles about 2.6 M rows,
+under research R7's 10 M, so the profile-factor task is not due. `price_lists/book-resolver.bench.ts`,
+a 50-product listing page: no book p95 13.0 ms; 100 rows 11.5 ms; 1 950 rows on other products
+11.1 ms (budget 60). Before this change a request that met a never-built or stale profile built it
+synchronously — up to 61.2 s for an all-products percentage — and the all-products descending page
+measured 2 401.9 ms p95 before `PriceSurface` skipped the everyone stream for a buyer surface holding
+every product. The organization pages vary between runs (up to 110 ms p95 against 18 ms in an
+earlier run); all stay within budget, and the refresh is within its 60 s with little headroom.
 
 What is **not** measured (gap): catalogue scale beyond 5 000 products for the listing path; many
 (100s) active price lists with org-targeted rules (the resolver loads and evaluates all of them per

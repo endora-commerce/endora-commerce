@@ -5,6 +5,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { settlePriceSurface } from '../../helpers/price-surface.js';
 import { setupPricingFixture, type PricingFixture } from '../../helpers/pricing-fixture.js';
 import {
   presetConfig,
@@ -58,6 +59,27 @@ describe('price surface — sort and range equal the cards, every buyer, every p
   });
 
   async function usePreset(preset: PresetName): Promise<void> {
+    await switchPreset(preset);
+    await prepare();
+  }
+
+  /**
+   * A request never builds a surface (`contracts/price-surface.md` §3): each
+   * buyer's request registers its profiles, then the worker's pass builds them.
+   */
+  async function prepare(): Promise<void> {
+    for (const [, buyer] of buyers()) {
+      await f.pricing.orderByUnitPrice({
+        context: { salesChannel: { id: f.channels.CH1.id, defaultCurrency: 'PLN' }, ...buyer },
+        direction: 'asc',
+        after: null,
+        limit: 1,
+      });
+    }
+    await settlePriceSurface(h);
+  }
+
+  async function switchPreset(preset: PresetName): Promise<void> {
     await sql(`delete from "price_profiles" where "precedence_version" = 2`);
     await sql(`delete from "price_list_precedence" where "version" = 2`);
     if (preset === 'HY') {
@@ -168,8 +190,9 @@ describe('price surface — sort and range equal the cards, every buyer, every p
     const context: ListingPriceViewerContext = { salesChannel: { id: f.channels.CH1.id, defaultCurrency: 'PLN' } };
     await walk(context, 'asc');
     await f.book({ audience: 'everyone', rows: [{ product: f.products.P3, fixed: '1' }] });
-    const states = await sql(`select distinct "state" from "price_profiles"`);
-    expect(states).toEqual([{ state: 'building' }]);
+    const states = await sql(`select distinct "stale" from "price_profiles"`);
+    expect(states).toEqual([{ stale: true }]);
+    await settlePriceSurface(h);
     const first = (await f.pricing.orderByUnitPrice({ context, direction: 'asc', after: null, limit: 1 })).rows[0];
     expect(first).toMatchObject({ productId: f.products.P3.id, amount: '1.0000' });
   });

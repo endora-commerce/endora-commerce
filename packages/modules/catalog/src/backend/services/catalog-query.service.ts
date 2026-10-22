@@ -1054,6 +1054,14 @@ export class CatalogQueryService {
         ...(restrictToProductIds !== undefined ? { restrictToProductIds } : {}),
         ...(amountRange ? { amountRange } : {}),
       });
+      // Feature 160 (`specs/160-pricing-model-v2/contracts/price-surface.md` §3)
+      // — no price order exists yet for this channel and currency, and none is
+      // built for a request: the page is served in the default order, cards
+      // priced live, until the worker has built one.
+      if (chunk.unordered && collected.length === 0) {
+        const { sort: _sort, cursor: _cursor, ...rest } = params;
+        return this.listProducts(rest, ctx);
+      }
       spent += Math.max(chunk.sourceRowsRead, chunk.rows.length);
       pricedExhausted = chunk.exhausted;
       if (chunk.rows.length === 0) {

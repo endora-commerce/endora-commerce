@@ -27,11 +27,26 @@ Memoised per `(organizationId, groupId, channel, currency)` under the pricing ge
 as today (no `defaultPrice` arm any more). Variant products sort by `amount` (the lowest variant
 price), FR-026. The SQL is built in `unit-price-ordering.ts` (rewritten, same three shapes).
 
-## 3. Profile miss
+## 3. Profile miss and staleness — a request never waits on a build
 
-A request whose profile is not `ready`: build it synchronously for `restrictToProductIds` (bounded by
-the category or search id set) inside the request, mark the rest `building`, enqueue the full build.
-The answer is exact; the bench (§5) measures the miss path separately.
+Owner decision (2026-10-22): no request builds a surface. The order may lag a change by the worker's
+turnaround (SC-005: ≤ 60 s); a displayed price never lags, because cards are always resolved live.
+
+- **Stale profile** (a pricing write since its last build): keeps serving its previous surface. A
+  build writes the next generation of rows (`price_profile_prices.generation`) beside the served
+  one and swaps `price_profiles.serving_generation` in the same transaction, dropping the old rows;
+  readers filter on the served generation, so they see one build or the other, never a mix. A
+  write is a mark (`stale = true`, `marked_at`), not an unready state; a build clears it only if no
+  write marked the profile after the build began.
+- **Never-built profile** (no served surface): the request registers it (`state = 'building'`)
+  and asks the worker for a build, then answers at once:
+  - restricted to a bounded set (≤ 5 000 products: a category, a search result) — ordered from a
+    live resolution of that set, exact;
+  - unrestricted, the everyone surface of the channel and currency served — ordered from it, an
+    approximation until the buyer's own surface exists;
+  - unrestricted, no everyone surface either — `unordered: true` on the chunk; the catalogue serves
+    its default order, cards priced live.
+- The bench (§5) asserts that no request path writes the surface.
 
 ## 4. Refresh
 
@@ -48,8 +63,10 @@ Queue `price_lists.surface` (BullMQ), worker attached with `ctx.worker`, off whe
 | status flip by the sweeper / a start or end instant | the profiles containing the book |
 | precedence version (P3) | full rebuild under the new version, beside the old |
 
-A refresh writes its rows in one transaction, flips `state` to `ready`, and bumps `PricingGeneration`.
-SC-005's freshness bound (60 s) is the queue's p95 latency, measured by the bench.
+A refresh writes the next generation in one transaction and swaps it in (§3). One coalesced job id
+deduplicates the queue; a worker pass builds never-built profiles first, then the stale ones
+(everyone before buyer), and repeats while a pass leaves work, so a write during a pass is not lost.
+SC-005's freshness bound (60 s) is the worker's turnaround, measured by the bench.
 
 ## 5. Measurement — `backend/test/perf/price_lists/price-surface.bench.ts`
 

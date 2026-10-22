@@ -1,5 +1,6 @@
 import type { Knex } from '@mikro-orm/postgresql';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { warmPriceSort } from '../../helpers/price-surface.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -12,6 +13,7 @@ import {
   GAMMA,
   PRICE_SORT_CHANNEL,
   PRICE_SORT_ORG_A,
+  PRICE_SORT_ORG_B,
   deleteRestrictedProduct,
   seedPriceSortFixture,
 } from '../../helpers/price-sort-fixture.js';
@@ -40,6 +42,12 @@ describe('a price ordering discloses nothing about a product the viewer may not 
   beforeAll(async () => {
     h = await setupBackendServer();
     await seedPriceSortFixture(h.em());
+    // A request never builds a price surface: register and build them first.
+    await warmPriceSort(h, [
+      { headers: PRICE_SORT_CHANNEL },
+      { headers: PRICE_SORT_CHANNEL, cookies: PRICE_SORT_ORG_A },
+      { headers: PRICE_SORT_CHANNEL, cookies: PRICE_SORT_ORG_B },
+    ]);
   }, 60_000);
 
   afterAll(async () => {
@@ -165,6 +173,13 @@ describe('a price-ordered page costs a constant number of statements in page siz
           [listId, id, `${100 + i}.00`],
         );
     }
+    // A request never builds a price surface: register and build them, after
+    // the bulk products so the built surfaces hold them.
+    await warmPriceSort(h, [
+      { headers: PRICE_SORT_CHANNEL },
+      { headers: PRICE_SORT_CHANNEL, cookies: PRICE_SORT_ORG_A },
+      { headers: PRICE_SORT_CHANNEL, cookies: PRICE_SORT_ORG_B },
+    ]);
   }, 120_000);
 
   afterAll(async () => {

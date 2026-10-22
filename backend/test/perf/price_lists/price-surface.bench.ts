@@ -26,7 +26,9 @@ import type { PricingService } from '../../../../packages/modules/price_lists/sr
  * everyone book on the channel (a red-in-category fixed price).
  *
  * Scenarios, each over `PERF_ITERATIONS` runs (default 50), the LRU off (the
- * harness sets the TTL to 0), on ready surfaces:
+ * harness sets the TTL to 0), on ready surfaces; no request may write the
+ * surface (`contracts/price-surface.md` §3 — the worker builds, a request never
+ * waits on a build), which every scenario asserts:
  *   - first page of 50, ascending and descending, for a guest, a group-only
  *     buyer and a buyer of each organization-book kind — asserted ≤ 150 ms p95;
  *   - a price-range page for the same buyers — asserted ≤ 150 ms p95;
@@ -39,18 +41,21 @@ import type { PricingService } from '../../../../packages/modules/price_lists/sr
  *
  * PERF_RUN=true to run.
  *
- * **Measured 2026-10-22** (T088; one developer machine, local PostgreSQL, the
- * default fixture, 50 iterations): first and range pages p95 — guest 4.6 /
- * 4.9 / 5.0 ms (asc / desc / range), group-only 27.5 / 7.6 / 32.4 ms,
- * organization product rows 18.3 / 7.3 / 18.3 ms, organization category %
- * 18.6 / 28.3 / 17.5 ms, organization all-products % 7.5 / 6.5 / 6.2 ms; a
- * profile-miss page of 250 products, live, 71 ms; a single-book change in the
- * sorted listing after 51.8 s (budget 60 s); five profiles, 101 205 rows,
- * 22 MB. The synchronous first build of a profile is recorded, not asserted:
- * 8.8–13.4 s for the sparse profiles and 61.2 s for the all-products
- * percentage, whose surface holds every product. Before the coverage check of
- * `PriceSurface` (the everyone stream skipped when the buyer surface holds every
- * product) the all-products descending page was 2 401.9 ms p95.
+ * **Measured 2026-10-22, two runs, after the non-blocking surface** (owner
+ * decision: a request never waits on a build; one developer machine, local
+ * PostgreSQL, the default fixture, 50 iterations). No request wrote the surface
+ * in either run. First and range pages p95 (asc / desc / range), run 1 | run 2:
+ * guest 3.9 / 3.8 / 3.9 | 4.0 / 4.0 / 3.6 ms; group-only 7.2 / 8.1 / 6.0 |
+ * 7.1 / 7.0 / 6.9 ms; organization product rows 83.9 / 8.0 / 102.4 | 14.4 /
+ * 7.1 / 24.1 ms; organization category % 110.1 / 7.7 / 7.5 | 80.9 / 8.8 /
+ * 7.8 ms; organization all-products % 6.3 / 6.3 / 5.4 | 7.2 / 7.0 / 7.4 ms.
+ * A never-built first page answers in 26–40 | 9–13 ms without building; the
+ * worker builds the five profiles in 53.5 | 60.0 s; a guest page while stale
+ * (previous surface) 5.5 | 5.6 ms p95; a single-book change visible after
+ * 56.9 | 42.0 s (budget 60 s); a profile-miss page of 250 products, live, 55 |
+ * 144 ms; 101 205 rows, 24 MB. Before the coverage check of `PriceSurface` the
+ * all-products descending page was 2 401.9 ms p95, and before this change a
+ * request met a never-built or stale profile by building it, up to 61.2 s.
  */
 
 const productCount = Number(process.env['PERF_SURFACE_PRODUCTS'] ?? '50000');
@@ -220,6 +225,13 @@ describe.skipIf(!shouldRun)('price surface — SC-005', () => {
     await teardownBackendServer(h);
   });
 
+  /** Every surface write statement issued while `run` executes (a request must issue none). */
+  let surfaceWrites = 0;
+  let counting = false;
+  const countWrites = (q: { sql: string }) => {
+    if (counting && /^\s*(insert into|delete from|update) "price_profile_prices"/i.test(q.sql)) surfaceWrites += 1;
+  };
+
   const order = (buyer: string, direction: 'asc' | 'desc', extra: Record<string, unknown> = {}) =>
     pricing.orderByUnitPrice({
       context: { salesChannel: channel, ...buyers[buyer] },
@@ -229,12 +241,19 @@ describe.skipIf(!shouldRun)('price surface — SC-005', () => {
       ...extra,
     });
 
-  it('builds each buyer’s profile (recorded)', async () => {
+  it('a request never builds: a never-built profile answers at once, and the worker builds (recorded)', async () => {
+    h.em().getConnection().getKnex().on('query', countWrites);
     for (const buyer of Object.keys(buyers)) {
+      counting = true;
       const start = performance.now();
       await order(buyer, 'asc');
-      results.push(`build+first page ${buyer}: ${(performance.now() - start).toFixed(0)} ms`);
+      counting = false;
+      results.push(`never-built first page ${buyer}: ${(performance.now() - start).toFixed(0)} ms (no build)`);
     }
+    expect(surfaceWrites, 'surface writes issued by a request').toBe(0);
+    const start = performance.now();
+    const built = await pricing.priceSurface.rebuildStale();
+    results.push(`worker build of ${built} profiles: ${((performance.now() - start) / 1000).toFixed(1)} s`);
     const [{ rows, size }] = (await sql<{ rows: string; size: string }>(
       `select count(*)::text as rows, pg_size_pretty(pg_total_relation_size('price_profile_prices')) as size from "price_profile_prices"`,
     )) as [{ rows: string; size: string }];
@@ -252,28 +271,36 @@ describe.skipIf(!shouldRun)('price surface — SC-005', () => {
       ] as const) {
         for (let i = 0; i < 5; i += 1) await run();
         const samples: number[] = [];
+        counting = true;
         for (let i = 0; i < iterations; i += 1) {
           const start = performance.now();
           const chunk = await run();
           samples.push(performance.now() - start);
           expect(chunk.rows.length).toBe(50);
         }
+        counting = false;
         const value = p95(samples);
         results.push(`p95 ${buyer} ${label}: ${value.toFixed(1)} ms`);
         if (value > pageBudget) misses.push(`${buyer} ${label} ${value.toFixed(1)} ms`);
       }
     }
     expect(misses, `pages over ${pageBudget} ms p95`).toEqual([]);
+    expect(surfaceWrites, 'surface writes issued by a request').toBe(0);
   }, 60 * 60_000);
 
   it('a profile-miss page restricted to a category (recorded)', async () => {
     const restricted = (
       await sql<{ product_id: string }>(`select "product_id" from "product_categories" where "category_id" = ?`, [categoryIds[5]])
     ).map((r) => r.product_id);
-    await sql(`update "price_profiles" set "state" = 'building'`);
+    // Every buyer profile as if never built (the everyone surface stays).
+    await sql(`update "price_profiles" set "state" = 'building', "serving_generation" = 0 where jsonb_array_length("book_vector") > 0`);
+    counting = true;
     const start = performance.now();
     await order('org category %', 'asc', { restrictToProductIds: restricted });
+    counting = false;
     results.push(`profile-miss page (${restricted.length} products, live): ${(performance.now() - start).toFixed(0)} ms`);
+    expect(surfaceWrites, 'surface writes issued by a request').toBe(0);
+    await pricing.priceSurface.rebuildStale();
   }, 60 * 60_000);
 
   it('a single-book change reaches the sorted listing within 60 s', async () => {
@@ -289,6 +316,18 @@ describe.skipIf(!shouldRun)('price surface — SC-005', () => {
       rowsParams: [target],
     });
     await pricing.priceSurface.markStale();
+    // During the rebuild a request is served the previous surface, at once.
+    counting = true;
+    const during: number[] = [];
+    for (let i = 0; i < 20; i += 1) {
+      const t = performance.now();
+      await order('guest', 'asc');
+      during.push(performance.now() - t);
+    }
+    counting = false;
+    results.push(`p95 guest asc while stale (previous surface): ${p95(during).toFixed(1)} ms`);
+    expect(p95(during)).toBeLessThanOrEqual(pageBudget);
+    expect(surfaceWrites, 'surface writes issued by a request').toBe(0);
     const rebuilt = await pricing.priceSurface.rebuildStale();
     const first = await order('guest', 'asc');
     const elapsed = performance.now() - start;

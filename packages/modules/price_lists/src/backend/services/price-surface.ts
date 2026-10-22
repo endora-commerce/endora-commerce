@@ -26,13 +26,22 @@ import type { PricingProfile } from './pricing-profile.js';
  * the same call the cards are priced with, so the surface and the cards agree
  * by construction; `price-surface-identity.test.ts` holds it.
  *
- * **Freshness.** A pricing write marks every profile stale (`state =
- * 'building'`) after its commit and asks the `price_lists.surface` worker to
- * rebuild; a request meeting a stale profile is still answered **exactly**: a
- * request restricted to a bounded set of products (a category, a search result)
- * is ordered from a live resolution of that set, and an unrestricted one builds
- * the profile synchronously first. Live paths (cart, checkout, product page,
- * quotes, order intake) never read the surface (FR-027).
+ * **Freshness — a request never waits on a build** (`contracts/price-surface.md`
+ * §3). A pricing write marks every profile **stale** after its commit and asks
+ * the `price_lists.surface` worker to rebuild; a stale profile keeps serving the
+ * surface it had until the worker swaps the rebuilt one in (a build writes the
+ * next generation of rows beside the served one and switches
+ * `serving_generation` in the same transaction). Only the **order** may lag a
+ * change — by the worker's turnaround, within SC-005's 60 s — never a displayed
+ * price: cards are always resolved live. A profile **never built** is
+ * registered and its build asked for, and the request is answered at once: a
+ * restriction to a bounded set (a category, a search result) is ordered from a
+ * live resolution of that set; an unrestricted buyer request is ordered from
+ * the everyone surface of its channel and currency, an approximation until its
+ * own surface exists; and with no everyone surface either the answer is
+ * `unordered`, which the catalogue serves in its default order, cards priced
+ * live. Live paths (cart, checkout, product page, quotes, order intake) never
+ * read the surface (FR-027).
  */
 
 /** Product rows resolved per statement batch when building a profile. */
@@ -43,11 +52,17 @@ const LIVE_ORDER_LIMIT = 5_000;
 /** Pairs of builds whose coverage answer this process keeps. */
 const COVERAGE_MEMO_LIMIT = 10_000;
 
-/** A ready surface: its id and when it was built (which keys every memo of it). */
+/** Rebuild passes per worker job: a write that marks a profile during a pass is picked up by the next. */
+const REBUILD_PASSES = 10;
+
+/** A served surface: the profile id and the generation readers see (which keys every memo of it). */
 interface ReadySurface {
   id: string;
-  builtAt: string | null;
+  generation: number;
 }
+
+/** What the read path finds for a profile: a served surface, a live ordering, or nothing yet. */
+type SurfaceAnswer = ReadySurface | 'live' | 'missing';
 
 export interface PriceSurfaceDeps {
   emFactory: () => EntityManager;
@@ -104,36 +119,48 @@ export class PriceSurface {
 
   constructor(private readonly deps: PriceSurfaceDeps) {}
 
-  /** After a committed pricing write: every profile is stale until rebuilt. */
+  /** After a committed pricing write: every profile is stale — still served — until rebuilt. */
   async markStale(): Promise<void> {
-    await this.deps.emFactory().execute(`update "price_profiles" set "state" = 'building' where "state" = 'ready'`);
+    await this.deps
+      .emFactory()
+      .execute(`update "price_profiles" set "stale" = true, "marked_at" = clock_timestamp()`);
     await this.deps.requestRebuild?.().catch(() => undefined);
   }
 
-  /** The worker's job: rebuild every stale profile from its stored vector. Answers how many. */
+  /**
+   * The worker's job: build every never-built profile, then rebuild every stale
+   * one, from its stored vector — never-built first (a request is waiting on an
+   * approximation for those), the everyone profiles before the buyer profiles
+   * that compare against them. Repeats while a pass leaves work, so a write that
+   * marks a profile during a pass is not lost to the coalesced job id. Answers
+   * how many builds ran.
+   */
   async rebuildStale(): Promise<number> {
-    const stale = await this.deps.emFactory().execute<
-      Array<{
-        sales_channel_id: string;
-        currency_code: string;
-        precedence_version: number;
-        book_vector: PricingProfile['vector'];
-      }>
-    >(
-      `select "sales_channel_id", "currency_code", "precedence_version", "book_vector"
-         from "price_profiles" where "state" = 'building'
-        order by jsonb_array_length("book_vector") asc`,
-    );
     let rebuilt = 0;
-    for (const row of stale) {
-      const profile = await this.deps.books.profileFromVector({
-        channelId: row.sales_channel_id,
-        currencyCode: row.currency_code.trim(),
-        precedenceVersion: Number(row.precedence_version),
-        vector: row.book_vector,
-      });
-      await this.#build(profile, row.book_vector.length === 0 ? null : await this.#everyoneOf(profile));
-      rebuilt += 1;
+    for (let pass = 0; pass < REBUILD_PASSES; pass += 1) {
+      const due = await this.deps.emFactory().execute<
+        Array<{
+          sales_channel_id: string;
+          currency_code: string;
+          precedence_version: number;
+          book_vector: PricingProfile['vector'];
+        }>
+      >(
+        `select "sales_channel_id", "currency_code", "precedence_version", "book_vector"
+           from "price_profiles" where "state" = 'building' or "stale"
+          order by ("state" = 'building') desc, jsonb_array_length("book_vector") asc`,
+      );
+      if (due.length === 0) break;
+      for (const row of due) {
+        const profile = await this.deps.books.profileFromVector({
+          channelId: row.sales_channel_id,
+          currencyCode: row.currency_code.trim(),
+          precedenceVersion: Number(row.precedence_version),
+          vector: row.book_vector,
+        });
+        await this.#build(profile, row.book_vector.length === 0 ? null : await this.#everyoneOf(profile));
+        rebuilt += 1;
+      }
     }
     return rebuilt;
   }
@@ -148,15 +175,20 @@ export class PriceSurface {
     const { buyer, everyone } = profiles;
     const currency = buyer.currencyCode;
 
-    const everyoneReady = await this.#readyProfileId(everyone, null, query);
-    const buyerReady = buyer === everyone ? null : await this.#readyProfileId(buyer, everyone, query);
+    const everyoneReady = await this.#served(everyone, query);
+    const buyerReady = buyer === everyone ? null : await this.#served(buyer, query);
     if (everyoneReady === 'live' || buyerReady === 'live') return this.#orderLive(query, viewer, currency);
+    // Nothing built for the channel and currency yet: no order to give. The
+    // catalogue serves its default order, cards priced live, while the worker builds.
+    if (everyoneReady === 'missing') return { rows: [], exhausted: false, sourceRowsRead: 0, unordered: true };
+    // The buyer's own surface is not built yet: the everyone order stands in.
+    const buyerServed = buyerReady === 'missing' ? null : buyerReady;
     // A buyer surface that holds every product the everyone surface holds leaves
     // the everyone stream nothing to contribute — and an anti-join that can only
     // exclude would scan the everyone surface to find that out (an organization
     // with an all-products percentage, sorted against its discount).
-    const covered = buyerReady !== null && (await this.#buyerCoversEveryone(buyerReady, everyoneReady));
-    return this.#twoStreams(query, everyoneReady.id, buyerReady?.id ?? null, currency, covered);
+    const covered = buyerServed !== null && (await this.#buyerCoversEveryone(buyerServed, everyoneReady));
+    return this.#twoStreams(query, everyoneReady, buyerServed, currency, covered);
   }
 
   /** {@link ListingPriceOrderPort.pricedProductIds}: membership, from a live resolution of the set. */
@@ -172,36 +204,28 @@ export class PriceSurface {
   // ---- Internals --------------------------------------------------------------
 
   /**
-   * The id of a ready surface for the profile, building it first when it is
-   * stale — or `'live'` when the request is restricted to a bounded set, which
-   * is then ordered from a live resolution instead (the profile-miss path,
-   * `contracts/price-surface.md` §3), while the worker builds the full profile.
+   * The surface served for the profile — stale or not, a served surface is
+   * served — or, for a profile never built, `'live'` when the request is
+   * restricted to a bounded set and `'missing'` otherwise. A never-built profile
+   * is registered and its build asked for; the request never builds.
    */
-  async #readyProfileId(
-    profile: PricingProfile,
-    everyone: PricingProfile | null,
-    query: ListingPriceOrderQuery,
-  ): Promise<ReadySurface | 'live'> {
+  async #served(profile: PricingProfile, query: ListingPriceOrderQuery): Promise<SurfaceAnswer> {
     const held = await this.#profileRow(profile);
-    if (held && held.state === 'ready') return { id: held.id, builtAt: held.builtAt };
-    if (query.restrictToProductIds !== undefined && query.restrictToProductIds.length <= LIVE_ORDER_LIMIT) {
-      await this.#ensureRow(profile);
-      await this.deps.requestRebuild?.().catch(() => undefined);
-      return 'live';
-    }
-    const id = await this.#build(profile, everyone);
-    return { id, builtAt: (await this.#profileRow(profile))?.builtAt ?? null };
+    if (held && held.state === 'ready') return { id: held.id, generation: held.generation };
+    await this.#ensureRow(profile);
+    await this.deps.requestRebuild?.().catch(() => undefined);
+    if (query.restrictToProductIds !== undefined && query.restrictToProductIds.length <= LIVE_ORDER_LIMIT) return 'live';
+    return 'missing';
   }
 
-  async #profileRow(profile: PricingProfile): Promise<{ id: string; state: string; builtAt: string | null } | null> {
-    const [row] = await this.deps.emFactory().execute<Array<{ id: string; state: string; built_at: Date | string | null }>>(
-      `select "id", "state", "built_at" from "price_profiles"
+  async #profileRow(profile: PricingProfile): Promise<{ id: string; state: string; generation: number } | null> {
+    const [row] = await this.deps.emFactory().execute<Array<{ id: string; state: string; serving_generation: number }>>(
+      `select "id", "state", "serving_generation" from "price_profiles"
         where "sales_channel_id" = ? and "currency_code" = ? and "precedence_version" = ? and "key_hash" = ?`,
       [profile.channelId, profile.currencyCode, profile.precedenceVersion, profile.key],
     );
     if (!row) return null;
-    const builtAt = row.built_at === null ? null : new Date(row.built_at).toISOString();
-    return { id: row.id, state: row.state, builtAt };
+    return { id: row.id, state: row.state, generation: Number(row.serving_generation) };
   }
 
   /**
@@ -210,16 +234,17 @@ export class PriceSurface {
    * moves `built_at`, so a stale answer is never read).
    */
   async #buyerCoversEveryone(buyer: ReadySurface, everyone: ReadySurface): Promise<boolean> {
-    const key = `${buyer.id}@${buyer.builtAt}|${everyone.id}@${everyone.builtAt}`;
+    const key = `${buyer.id}@${buyer.generation}|${everyone.id}@${everyone.generation}`;
     const held = this.#coverage.get(key);
     if (held !== undefined) return held;
     const [row] = await this.deps.emFactory().execute<Array<{ uncovered: boolean }>>(
       `select exists (
          select 1 from "price_profile_prices" e
-          where e."profile_id" = ?
-            and not exists (select 1 from "price_profile_prices" b where b."profile_id" = ? and b."product_id" = e."product_id")
+          where e."profile_id" = ? and e."generation" = ?
+            and not exists (select 1 from "price_profile_prices" b
+                             where b."profile_id" = ? and b."generation" = ? and b."product_id" = e."product_id")
        ) as "uncovered"`,
-      [everyone.id, buyer.id],
+      [everyone.id, everyone.generation, buyer.id, buyer.generation],
     );
     const covered = row ? !row.uncovered : false;
     if (this.#coverage.size >= COVERAGE_MEMO_LIMIT) this.#coverage.clear();
@@ -248,36 +273,49 @@ export class PriceSurface {
   }
 
   /**
-   * Build a profile's rows in one transaction, serialised per profile by an
-   * advisory lock: the everyone profile with every priced product, a buyer
-   * profile with the products whose answer differs from the everyone profile's
-   * (whose ready rows it compares against, building them first). Answers the
-   * profile id.
+   * Build a profile's next generation in one transaction, serialised per profile
+   * by an advisory lock, and swap it in: the everyone profile with every priced
+   * product, a buyer profile with the products whose answer differs from the
+   * everyone profile's served rows (built first when it has none). Readers keep
+   * the served generation until the commit; the old rows go in the same
+   * transaction. `stale` is cleared only when no write marked the profile after
+   * the build began. Called by the worker, never by a request. Answers the id.
    */
   async #build(profile: PricingProfile, everyone: PricingProfile | null): Promise<string> {
-    let everyoneId: string | null = null;
+    let everyoneServed: ReadySurface | null = null;
     if (everyone) {
       const held = await this.#profileRow(everyone);
-      everyoneId = held && held.state === 'ready' ? held.id : await this.#build(everyone, null);
+      if (held && held.state === 'ready') everyoneServed = { id: held.id, generation: held.generation };
+      else {
+        const id = await this.#build(everyone, null);
+        const built = await this.#profileRowById(id);
+        everyoneServed = { id, generation: built.generation };
+      }
     }
     const id = await this.#ensureRow(profile);
     const products = await this.deps.listProducts();
     await this.deps.emFactory().transactional(async (em) => {
       await em.execute(`select pg_advisory_xact_lock(hashtext(?))`, [`price_lists.surface:${id}`]);
-      const [state] = await em.execute<Array<{ state: string }>>(`select "state" from "price_profiles" where "id" = ?`, [id]);
-      if (state?.state === 'ready') return;
-      await em.execute(`delete from "price_profile_prices" where "profile_id" = ?`, [id]);
+      const [current] = await em.execute<Array<{ state: string; stale: boolean; serving_generation: number; started: Date }>>(
+        `select "state", "stale", "serving_generation", clock_timestamp() as "started" from "price_profiles" where "id" = ?`,
+        [id],
+      );
+      // Another worker built it while this one waited for the lock.
+      if (current?.state === 'ready' && !current.stale) return;
+      const next = Number(current?.serving_generation ?? 0) + 1;
+      await em.execute(`delete from "price_profile_prices" where "profile_id" = ? and "generation" = ?`, [id, next]);
       for (let start = 0; start < products.length; start += BUILD_CHUNK) {
         const chunk = products.slice(start, start + BUILD_CHUNK);
         const listed = await this.deps.books.resolveListing(chunk, builderViewer(profile), profile);
         let rows = chunk.map((p) => rowOf(p.id, listed.get(p.id))).filter((r): r is SurfaceRow => r !== null);
-        if (everyoneId) {
+        if (everyoneServed) {
           const base = new Map(
             (
               await em.execute<Array<{ product_id: string; amount: string; max_amount: string; compare_at: string | null; source_tier: SurfaceRow['sourceTier'] }>>(
                 `select "product_id", "amount", "max_amount", "compare_at", "source_tier"
-                   from "price_profile_prices" where "profile_id" = ? and "product_id" = any(?::uuid[])`,
-                [everyoneId, uuidArray(chunk.map((p) => p.id))],
+                   from "price_profile_prices"
+                  where "profile_id" = ? and "generation" = ? and "product_id" = any(?::uuid[])`,
+                [everyoneServed.id, everyoneServed.generation, uuidArray(chunk.map((p) => p.id))],
               )
             ).map((r) => [
               r.product_id,
@@ -300,10 +338,11 @@ export class PriceSurface {
         }
         if (rows.length === 0) continue;
         await em.execute(
-          `insert into "price_profile_prices" ("profile_id", "product_id", "amount", "max_amount", "compare_at", "source_tier")
-           select ?, * from unnest(?::uuid[], ?::numeric[], ?::numeric[], ?::numeric[], ?::varchar[])`,
+          `insert into "price_profile_prices" ("profile_id", "generation", "product_id", "amount", "max_amount", "compare_at", "source_tier")
+           select ?, ?, * from unnest(?::uuid[], ?::numeric[], ?::numeric[], ?::numeric[], ?::varchar[])`,
           [
             id,
+            next,
             uuidArray(rows.map((r) => r.productId)),
             `{${rows.map((r) => r.amount).join(',')}}`,
             `{${rows.map((r) => r.maxAmount).join(',')}}`,
@@ -312,16 +351,32 @@ export class PriceSurface {
           ],
         );
       }
-      await em.execute(`update "price_profiles" set "state" = 'ready', "built_at" = now() where "id" = ?`, [id]);
+      // The swap: readers move to the new generation at commit.
+      await em.execute(
+        `update "price_profiles"
+            set "state" = 'ready', "serving_generation" = ?, "built_at" = now(),
+                "stale" = ("marked_at" is not null and "marked_at" > ?)
+          where "id" = ?`,
+        [next, current?.started ?? new Date(0), id],
+      );
+      await em.execute(`delete from "price_profile_prices" where "profile_id" = ? and "generation" <> ?`, [id, next]);
     });
     return id;
+  }
+
+  async #profileRowById(id: string): Promise<{ generation: number }> {
+    const [row] = await this.deps.emFactory().execute<Array<{ serving_generation: number }>>(
+      `select "serving_generation" from "price_profiles" where "id" = ?`,
+      [id],
+    );
+    return { generation: Number(row?.serving_generation ?? 0) };
   }
 
   /** The two-stream merge over ready surfaces (`contracts/price-surface.md` §2). */
   async #twoStreams(
     query: ListingPriceOrderQuery,
-    everyoneId: string,
-    buyerId: string | null,
+    everyone: ReadySurface,
+    buyer: ReadySurface | null,
     currency: string,
     /** The buyer surface holds every everyone product: the everyone stream is skipped. */
     buyerCoversEveryone = false,
@@ -350,36 +405,39 @@ export class PriceSurface {
       return out.map((c) => ` and ${c}`).join('');
     };
 
+    const everyoneId = everyone.id;
+    const buyerId = buyer?.id ?? null;
     type Hit = { product_id: string; amount: string; source_tier: string };
     let lead: Hit[] = [];
     if (buyerId) {
-      const params: unknown[] = [buyerId];
+      const params: unknown[] = [buyerId, buyer!.generation];
       const where = filters('b', params);
       params.push(query.limit);
       lead = await em.execute<Hit[]>(
         `select b."product_id", b."amount", b."source_tier" from "price_profile_prices" b
-          where b."profile_id" = ?${where}
+          where b."profile_id" = ? and b."generation" = ?${where}
           order by b."amount" ${dir}, b."product_id" ${dir} limit ?`,
         params,
       );
     }
     const watermark = buyerId && lead.length >= query.limit ? lead[lead.length - 1]!.amount : null;
-    const params: unknown[] = [everyoneId];
+    const params: unknown[] = [everyoneId, everyone.generation];
     let where = filters('e', params);
     if (watermark !== null) {
       where += ` and e."amount" ${desc ? '>=' : '<='} ?::numeric`;
       params.push(watermark);
     }
     if (buyerId) {
-      where += ` and (select 1 from "price_profile_prices" x where x."profile_id" = ? and x."product_id" = e."product_id" limit 1) is null`;
-      params.push(buyerId);
+      where += ` and (select 1 from "price_profile_prices" x
+                       where x."profile_id" = ? and x."generation" = ? and x."product_id" = e."product_id" limit 1) is null`;
+      params.push(buyerId, buyer!.generation);
     }
     params.push(query.limit);
     const rest = buyerCoversEveryone
       ? []
       : await em.execute<Hit[]>(
           `select e."product_id", e."amount", e."source_tier" from "price_profile_prices" e
-            where e."profile_id" = ?${where}
+            where e."profile_id" = ? and e."generation" = ?${where}
             order by e."amount" ${dir}, e."product_id" ${dir} limit ?`,
           params,
         );

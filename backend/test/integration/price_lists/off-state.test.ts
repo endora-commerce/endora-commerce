@@ -7,6 +7,7 @@ import {
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 import { setupPricingFixture, type PricingFixture } from '../../helpers/pricing-fixture.js';
+import { settlePriceSurface } from '../../helpers/price-surface.js';
 
 /**
  * Feature 160 (Principle XVII) — `price_lists` is non-deactivatable by an
@@ -45,7 +46,8 @@ describe('price_lists — absent, the surface subscriptions and the ports stop',
       after: null,
       limit: 1,
     });
-    expect(await sql<{ state: string }>(`select distinct "state" from "price_profiles"`)).toEqual([{ state: 'ready' }]);
+    await settlePriceSurface(h);
+    expect(await sql<{ stale: boolean }>(`select distinct "stale" from "price_profiles"`)).toEqual([{ stale: false }]);
   }
 
   const emitProductUpdated = async () => {
@@ -61,14 +63,14 @@ describe('price_lists — absent, the surface subscriptions and the ports stop',
   it('on: a catalogue event marks the surface stale', async () => {
     await buildSurface();
     await emitProductUpdated();
-    expect(await sql<{ state: string }>(`select distinct "state" from "price_profiles"`)).toEqual([{ state: 'building' }]);
+    expect(await sql<{ stale: boolean }>(`select distinct "stale" from "price_profiles"`)).toEqual([{ stale: true }]);
   });
 
   it('absent: the same event marks nothing, and the pricing port refuses', async () => {
     await buildSurface();
     registryCache.__setEnabledForTesting(ALL_IDS.filter((id) => id !== 'price_lists'));
     await emitProductUpdated();
-    expect(await sql<{ state: string }>(`select distinct "state" from "price_profiles"`)).toEqual([{ state: 'ready' }]);
+    expect(await sql<{ stale: boolean }>(`select distinct "stale" from "price_profiles"`)).toEqual([{ stale: false }]);
     const order = async () =>
       (h.container as unknown as { resolve<T>(n: string): T })
         .resolve<{ orderByUnitPrice: typeof f.pricing.orderByUnitPrice }>('pricingService')

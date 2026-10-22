@@ -11,12 +11,16 @@ import { RuleScoped } from '@endora-commerce/platform/tenancy';
  */
 @RuleScoped()
 @Entity({ tableName: 'price_profile_prices' })
-@Index({ properties: ['profileId', 'amount', 'productId'], name: 'price_profile_prices_order_idx' })
+@Index({ properties: ['profileId', 'generation', 'amount', 'productId'], name: 'price_profile_prices_order_idx' })
 export class PriceProfilePrice {
   [OptionalProps]?: 'compareAt';
 
   @PrimaryKey({ type: 'uuid' })
   profileId!: string;
+
+  /** The build these rows belong to; readers see the profile's `servingGeneration` only. */
+  @PrimaryKey({ type: 'integer' })
+  generation!: number;
 
   @PrimaryKey({ type: 'uuid' })
   productId!: string;

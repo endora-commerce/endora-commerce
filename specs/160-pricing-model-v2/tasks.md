@@ -219,6 +219,7 @@ column), §10.11.
 - [X] T086 [US6] Bounded synchronous profile-miss build for the requested restriction in `PL/backend/services/price-profile-registry.ts` — in `PL/backend/services/price-surface.ts` (live ordering over a restriction of ≤ 5 000 products)
 - [X] T087 [US6] `catalog` price sort and range on the surface, the unpriced tail without a `defaultPrice` arm, in `packages/modules/catalog/src/backend/services/catalog-query.service.ts`
 - [X] T088 [US6] Run the SC-005 bench (T068) and record its numbers in its header and in `specs/pricing/read-paths-and-performance.md` §7; if storage exceeds 10 M rows, add the profile-factor task (`research.md` R7) before closing the phase
+- [X] T159 [US6] A request never waits on a surface build (owner decision 2026-10-22): stale profiles keep serving their previous generation until the worker swaps the rebuilt one in; a never-built profile is ordered live for a bounded restriction, from the everyone surface otherwise, or in the default order (`unordered`) when none exists, and its build is enqueued; the worker builds never-built profiles first. Tests in `IT/price_lists/price-surface-refresh.test.ts`, `price-surface-identity.test.ts`, `IT/catalog/price-sort-viewer-scope.test.ts` and the SC-005 bench; migration `price_lists_price_surface_generations`; `contracts/price-surface.md` §3
 
 **Checkpoint**: every consumer on the new resolver; sort on the surface; SC-002–SC-005 green.
 
