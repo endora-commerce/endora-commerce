@@ -252,10 +252,12 @@ export class CatalogProductReadService implements CatalogProductReadPort {
 
     if (term.length === 0) {
       const withTotal = query.withTotal !== false;
-      const rows = await em.execute<Array<{ total: number | null; ids: string[] | null }>>(
-        `select ${withTotal ? `(select count(*)::int from "products" p where ${member})` : 'null::int'} as "total",
-                array(select p."id" from "products" p where ${member} order by ${order} offset ? limit ?) as "ids"`,
-        [...(withTotal ? query.membership.params : []), ...query.membership.params, offset, limit],
+      const rows = await withSort(em, false, (tx) =>
+        tx.execute<Array<{ total: number | null; ids: string[] | null }>>(
+          `select ${withTotal ? `(select count(*)::int from "products" p where ${member})` : 'null::int'} as "total",
+                  array(select p."id" from "products" p where ${member} order by ${order} offset ? limit ?) as "ids"`,
+          [...(withTotal ? query.membership.params : []), ...query.membership.params, offset, limit],
+        ),
       );
       const row = rows[0];
       return { ids: row?.ids ?? [], total: withTotal ? Number(row?.total ?? 0) : null };
@@ -274,22 +276,58 @@ export class CatalogProductReadService implements CatalogProductReadPort {
     const page =
       total <= this.#sparseSearchLimit
         ? // Few matches: the trigram hits, materialised, then the members among them sorted.
-          await em.execute<Array<{ id: string }>>(
-            `with "hits" as materialized (
-               select p."id", ${key} as "k", p."sku" from "products" p where ${matches}
-             )
-             select h."id" from "hits" h
-              where (h."id" in (${query.membership.sql})) is true
-              order by h."k", h."sku", h."id" offset ? limit ?`,
-            [literal, literal, ...query.membership.params, offset, limit],
+          // The sort this needs stays on — set explicitly, so both strategies issue
+          // the same statements whatever the count picked.
+          await withSort(em, true, (tx) =>
+            tx.execute<Array<{ id: string }>>(
+              `with "hits" as materialized (
+                 select p."id", ${key} as "k", p."sku" from "products" p where ${matches}
+               )
+               select h."id" from "hits" h
+                where (h."id" in (${query.membership.sql})) is true
+                order by h."k", h."sku", h."id" offset ? limit ?`,
+              [literal, literal, ...query.membership.params, offset, limit],
+            ),
           )
         : // Many: walk the order index, keeping the matching members.
-          await em.execute<Array<{ id: string }>>(
-            `select p."id" from "products" p where ${member} and ${matches} order by ${order} offset ? limit ?`,
-            [...query.membership.params, literal, literal, offset, limit],
+          await withSort(em, false, (tx) =>
+            tx.execute<Array<{ id: string }>>(
+              `select p."id" from "products" p where ${member} and ${matches} order by ${order} offset ? limit ?`,
+              [...query.membership.params, literal, literal, offset, limit],
+            ),
           );
     return { ids: page.map((r) => r.id), total };
   }
+}
+
+/**
+ * Run an ordered page statement with the sort `off` — as an **index walk** of
+ * `products_admin_order_<lang>` — feature 161, G15 (Checkpoint 2b).
+ *
+ * The page orders by exactly that index, so walking it reads the members in
+ * order and stops at `offset + limit`; a sort reads and sorts every member
+ * instead. The planner cannot be trusted to see that: the hashed membership
+ * filter is estimated at a fixed half of the table, and on a table not yet
+ * analysed (right after a bulk import) it assumes a few thousand rows and an
+ * empty visibility map, so it prices the walk above a seq scan plus a sort and
+ * picks the sort — measured on 50 000 products: 84–92 ms with the sort, 32 ms
+ * walking after `VACUUM ANALYZE`, 59 ms walking before it (50 003 heap
+ * fetches, all buffer hits). No query shape tried (a fenced ordered subquery,
+ * `limit all`, a keyset walk in 2 000-row index-range chunks) keeps the walk on
+ * unanalysed data, so the statement runs in its own transaction with
+ * `set local enable_sort = off`: the setting ends with that transaction, and
+ * with the ordered index there the walk is the plan that remains.
+ *
+ * The sparse strategy (trigram hits, materialised) must sort — there is no
+ * index on a materialised set, and with the sort off the planner abandons the
+ * trigram index instead (measured: ≈ 400 ms) — so it runs with `on`, restated
+ * so that both strategies issue the same statements.
+ */
+async function withSort<T>(em: EntityManager, sort: boolean, run: (tx: EntityManager) => Promise<T>): Promise<T> {
+  return em.transactional(async (tx) => {
+    await tx.execute(`set local enable_sort = ${sort ? 'on' : 'off'}`);
+    return run(tx);
+  });
 }
 
 /** Feature 161 (G15): the most matching members a searched page is cut from the trigram hits for. */

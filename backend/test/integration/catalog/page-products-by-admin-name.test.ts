@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Product, ProductVariant } from '../../helpers/package-entities.js';
 import { setupBackendServer, teardownBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
 import { CatalogProductReadService } from '../../../../packages/modules/catalog/src/backend/services/catalog-product-read.service.js';
+import { seedBulkProductsSql } from '../../helpers/price-book-bulk.js';
 
 /**
  * Feature 161, G15 redesign (`research.md` R14) — `catalogProductReadPort.pageProductsByAdminName`:
@@ -117,5 +118,49 @@ describe('CatalogProductReadService.pageProductsByAdminName (161 G15)', () => {
         expect(await page(dense, query), `${search} ${offset}`).toEqual(await page(sparse, query));
       }
     }
+  });
+
+  /**
+   * The ordered walk at a deep offset (Checkpoint 2b): on a freshly
+   * bulk-inserted, never-analysed table the planner prices the index walk
+   * above a sort of every member (`research.md` R14 follow-up), so the page
+   * statement runs with `set local enable_sort = off` — and must still answer
+   * exactly the sparse strategy's page, with and without a search.
+   */
+  it('the dense walk answers the sparse pages at a deep offset, on unanalysed bulk data', async () => {
+    const bulk = await seedBulkProductsSql(h.em(), { count: 3000, namePrefix: `Deep ${stamp}`, skuPrefix: `G15W-${stamp}`, words: ['Screw', 'Bolt', 'Nut'] });
+    const deep = { sql: 'select m.id from unnest(?::uuid[]) as m(id)', params: [`{${bulk.join(',')}}`] };
+    const at = (svc: CatalogProductReadService, search: string | undefined, offset: number) =>
+      svc.pageProductsByAdminName({ membership: deep, language: 'en', ...(search ? { search } : {}), offset, limit: 100 });
+    for (const [search, offset] of [
+      [undefined, 2900],
+      [undefined, 1500],
+      ['deep', 2900],
+      ['screw', 900],
+    ] as const) {
+      expect(await at(dense, search, offset), `${search} ${offset}`).toEqual(await at(sparse, search, offset));
+    }
+    const all = await at(port, undefined, 2950);
+    expect(all.total).toBe(3000);
+    expect(all.ids).toHaveLength(50);
+  });
+
+  it('runs the ordered page with the sort disabled, so the walk does not depend on statistics', async () => {
+    const conn = h.em().getConnection() as unknown as { execute: (...args: unknown[]) => Promise<unknown> };
+    const original = conn.execute.bind(conn);
+    const seen: string[] = [];
+    conn.execute = (...args: unknown[]) => {
+      seen.push(String(args[0]).replace(/\s+/g, ' ').trim());
+      return original(...args);
+    };
+    try {
+      await dense.pageProductsByAdminName({ membership, language: 'en', search: 'g15n', offset: 1, limit: 2 });
+      await port.pageProductsByAdminName({ membership, language: 'en', offset: 1, limit: 2 });
+    } finally {
+      conn.execute = original;
+    }
+    const pages = seen.map((sql, i) => ({ sql, i })).filter(({ sql }) => /order by (p\."admin_name_key_en"|h\."k")/.test(sql));
+    expect(pages).toHaveLength(2);
+    expect(pages.map(({ i }) => seen[i - 1])).toEqual(['set local enable_sort = off', 'set local enable_sort = off']);
   });
 });
