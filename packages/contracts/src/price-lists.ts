@@ -500,6 +500,8 @@ export const resolvedPriceEngineSchema = z.object({
   source: priceSourceSchema.nullable().optional(),
   /** Feature 160 — the buyer price a charged sale undercut. */
   compareAt: z.string().nullable().optional(),
+  /** Feature 160 (G9) — the catalogue price beside a lower buyer price, when shown. */
+  listPrice: z.object({ amount: z.string(), currency: CURRENCY }).optional(),
 });
 export type ResolvedPriceEngine = z.infer<typeof resolvedPriceEngineSchema>;
 
@@ -655,6 +657,12 @@ export interface ListingPriceInput {
  */
 export interface ListingPriceDetail extends ProductResolvedPrice {
   price: ListingPrice;
+  /**
+   * Feature 160 (G9 of `specs/161-price-book-editor/`) — the catalogue price
+   * beside a lower buyer price: present only while `pricing.show_list_price`
+   * is on and the channel's everyone price is above the price charged.
+   */
+  listPrice?: { amount: string; currency: string };
   /**
    * Feature 160 (D-287 P1) — the amount of each tier of the price-book
    * resolution that produced `price`, where the tier priced anything. Absent on

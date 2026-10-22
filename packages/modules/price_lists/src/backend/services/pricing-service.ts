@@ -217,6 +217,8 @@ export interface PricingServiceOptions {
   profileMemo?: PricingCache<PricingProfile, ProfileMemoKey>;
   /** Ask the `price_lists.surface` worker to rebuild stale profiles (best effort). */
   requestSurfaceRebuild?: () => Promise<void>;
+  /** `pricing.show_list_price` (G9): whether a detail carries the catalogue price beside a lower one. */
+  showListPrice?: () => Promise<boolean>;
 }
 
 export class PricingService implements PricingServiceContract {
@@ -285,6 +287,12 @@ export class PricingService implements PricingServiceContract {
   }
 
   /** Whether the batched entry points resolve on price books (feature 160). */
+  /** `pricing.show_list_price`, read through the settings module (cached there); off when unreadable. */
+  async #showListPrice(): Promise<boolean> {
+    if (!this.options.showListPrice) return false;
+    return this.options.showListPrice();
+  }
+
   get usesPriceBooks(): boolean {
     return this.options.model === 'books';
   }
@@ -605,6 +613,7 @@ export class PricingService implements PricingServiceContract {
         answers.get('line') ?? null,
         input.product.id,
         (input.context.currencyCode ?? input.context.salesChannel.defaultCurrency).toUpperCase(),
+        await this.#showListPrice(),
       );
     }
     const em = this.emFactory();
@@ -852,8 +861,10 @@ export class PricingService implements PricingServiceContract {
   async resolveListingPriceDetails(input: ListingPricesInput): Promise<Map<string, ListingPriceDetail>> {
     const out = new Map<string, ListingPriceDetail>();
     if (this.usesPriceBooks) {
-      for (const [productId, listed] of await this.#bookListing(input)) {
-        out.set(productId, listingDetailFromBook(listed.answer, listed));
+      const listing = await this.#bookListing(input);
+      const showListPrice = listing.size > 0 ? await this.#showListPrice() : false;
+      for (const [productId, listed] of listing) {
+        out.set(productId, listingDetailFromBook(listed.answer, listed, showListPrice));
       }
       return out;
     }

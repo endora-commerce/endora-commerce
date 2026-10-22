@@ -54,6 +54,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | Code | Name | Type |
 | --- | --- | --- |
 | `pricing.default_display_mode` | Default price display mode | `string` |
+| `pricing.show_list_price` | Show list price beside the buyer price | `boolean` |
 | `pricing.unauthenticated_display_mode` | Unauthenticated price display mode | `string` |
 
 ## Translations

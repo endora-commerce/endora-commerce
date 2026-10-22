@@ -352,3 +352,366 @@ export const precedenceConfigSchema = z.object({
   depthMode: precedenceDepthModeSchema,
 });
 export type PrecedenceConfigShape = z.infer<typeof precedenceConfigSchema>;
+
+// --- Admin API (US7, `contracts/admin-price-books-api.md`) ---------------------
+
+/** A channel binding of a book; `dormant` while the channel does not offer the book's currency (FR-011). */
+export const priceBookChannelBindingSchema = z.object({
+  channelId: uuidSchema,
+  dormant: z.boolean(),
+});
+export type PriceBookChannelBinding = z.infer<typeof priceBookChannelBindingSchema>;
+
+/**
+ * A book as the admin reads it. `version` moves on every write to the book —
+ * header, channel set, members, rows — and a write that names an older one is
+ * refused `409 PRICE_BOOK_STALE` (G5). `tierStarts` is every `minQuantity` a
+ * row of the book uses, ascending (G4): the grid's columns.
+ */
+export const priceBookSchema = z.object({
+  id: uuidSchema,
+  name: z.string(),
+  type: priceBookTypeSchema,
+  status: priceBookStatusSchema,
+  currencyCode: CURRENCY,
+  audience: z.object({ kind: priceBookAudienceKindSchema, memberIds: z.array(uuidSchema) }),
+  priority: z.number().int(),
+  startsAt: isoDateTimeSchema.nullable(),
+  endsAt: isoDateTimeSchema.nullable(),
+  isSystem: z.boolean(),
+  /** Whether the book was ever activated: the audience kind is fixed from then on (FR-004). */
+  everActivated: z.boolean(),
+  version: z.number().int().positive(),
+  tierStarts: z.array(POSITIVE_INT),
+  channels: z.array(priceBookChannelBindingSchema),
+  rowCount: z.number().int().nonnegative(),
+});
+export type PriceBook = z.infer<typeof priceBookSchema>;
+
+/** A row of a book that prices the product a book list was filtered by (G1). */
+export const priceBookRowMatchSchema = z.object({
+  rowId: uuidSchema,
+  selectionKind: priceBookSelectionKindSchema,
+  minQuantity: POSITIVE_INT,
+  maxQuantity: POSITIVE_INT.nullable(),
+  price: priceBookRowPriceSchema,
+});
+export type PriceBookRowMatch = z.infer<typeof priceBookRowMatchSchema>;
+
+/** One line of the book list. */
+export const priceBookSummarySchema = z.object({
+  id: uuidSchema,
+  name: z.string(),
+  type: priceBookTypeSchema,
+  status: priceBookStatusSchema,
+  currencyCode: CURRENCY,
+  audienceKind: priceBookAudienceKindSchema,
+  priority: z.number().int(),
+  startsAt: isoDateTimeSchema.nullable(),
+  endsAt: isoDateTimeSchema.nullable(),
+  isSystem: z.boolean(),
+  version: z.number().int().positive(),
+  tierStarts: z.array(POSITIVE_INT),
+  channelCount: z.number().int().nonnegative(),
+  memberCount: z.number().int().nonnegative(),
+  rowCount: z.number().int().nonnegative(),
+  /** A book of organizations or customer groups that names no member. */
+  appliesToNoOne: z.boolean(),
+  /** A non-base book with no channel binding that is not dormant. */
+  appliesNowhere: z.boolean(),
+  /** Only on a list filtered by `productId`: the rows of this book that price it directly (G1). */
+  matches: z.array(priceBookRowMatchSchema).optional(),
+});
+export type PriceBookSummary = z.infer<typeof priceBookSummarySchema>;
+
+const PAGE = z.coerce.number().int().positive().default(1);
+const PAGE_SIZE = z.coerce.number().int().positive().max(200).default(25);
+const oneOrMany = <T extends z.ZodTypeAny>(item: T) =>
+  z.preprocess((v) => (v === undefined ? undefined : Array.isArray(v) ? v : [v]), z.array(item).optional());
+
+/**
+ * `GET /api/v1/admin/price-books`. With `productId` (and optionally
+ * `variantId`) the list holds only books with a row naming that product or
+ * variant directly, each carrying its `matches` (G1).
+ */
+export const priceBookListQuerySchema = z.object({
+  type: oneOrMany(priceBookTypeSchema),
+  status: oneOrMany(priceBookStatusSchema),
+  currency: CURRENCY.optional(),
+  channelId: uuidSchema.optional(),
+  audienceKind: priceBookAudienceKindSchema.optional(),
+  memberId: uuidSchema.optional(),
+  search: z.string().trim().min(1).max(200).optional(),
+  productId: uuidSchema.optional(),
+  variantId: uuidSchema.optional(),
+  page: PAGE,
+  pageSize: PAGE_SIZE,
+});
+export type PriceBookListQuery = z.infer<typeof priceBookListQuerySchema>;
+
+export const pageMetaSchema = z.object({
+  page: z.number().int().positive(),
+  pageSize: z.number().int().positive(),
+  totalCount: z.number().int().nonnegative(),
+});
+
+export const priceBookListResponseSchema = z.object({
+  data: z.array(priceBookSummarySchema),
+  meta: pageMetaSchema,
+});
+export type PriceBookListResponse = z.infer<typeof priceBookListResponseSchema>;
+
+/** Body of `PATCH /api/v1/admin/price-books/:id`: the patch and the version it was made against (G5). */
+export const priceBookPatchRequestSchema = z
+  .object({
+    name: z.string().trim().min(1).max(200).optional(),
+    priority: z.number().int().min(-1_000_000).max(1_000_000).optional(),
+    startsAt: isoDateTimeSchema.nullable().optional(),
+    endsAt: isoDateTimeSchema.nullable().optional(),
+    channelIds: priceBookChannelIdsSchema.optional(),
+    audience: priceBookAudienceSchema.optional(),
+    /** Required here or as an `If-Match` header. */
+    expectedVersion: POSITIVE_INT.optional(),
+  })
+  .superRefine(datesRefinement);
+export type PriceBookPatchRequest = z.infer<typeof priceBookPatchRequestSchema>;
+
+/** Body of `POST /api/v1/admin/price-books/:id/duplicate` (FR-036). */
+export const priceBookDuplicateSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  channelIds: priceBookChannelIdsSchema.default([]),
+  currencyCode: CURRENCY,
+  audience: priceBookAudienceSchema,
+  /** Fixed and amount rows are multiplied, half-up to 4 dp; percentages are copied verbatim. */
+  amountMultiplier: z
+    .string()
+    .regex(/^\d{1,6}(\.\d{1,6})?$/, 'non-negative decimal')
+    .refine((v) => Number(v) > 0, 'The multiplier must be greater than zero.')
+    .default('1'),
+});
+export type PriceBookDuplicate = z.infer<typeof priceBookDuplicateSchema>;
+
+// --- Rows (admin) ---------------------------------------------------------------
+
+/** Why a stored row prices nothing now (FR-016 of 161). */
+export const priceBookRowInactiveReasonSchema = z.enum([
+  'attribute_not_price_rule',
+  'attribute_deleted',
+  'target_deleted',
+]);
+export type PriceBookRowInactiveReason = z.infer<typeof priceBookRowInactiveReasonSchema>;
+
+/**
+ * The natural key of a row's selection (G10): what a CSV file names instead of
+ * ids. `categoryPath` is the category's slugs from the root, joined by `/`;
+ * `attribute.valueCode` is the option code stored on the row.
+ */
+export const priceBookNaturalKeySchema = z.object({
+  productSku: z.string().trim().min(1).max(255).optional(),
+  variantSku: z.string().trim().min(1).max(255).optional(),
+  categoryPath: z.string().trim().min(1).max(2000).optional(),
+  attribute: z.object({ key: z.string().min(1).max(64), valueCode: z.string().min(1).max(255) }).optional(),
+});
+export type PriceBookNaturalKey = z.infer<typeof priceBookNaturalKeySchema>;
+
+/** Human labels of a row's selection, resolved in batch for the grid (G2). */
+export const priceBookRowLabelsSchema = z.object({
+  productName: z.string().nullable(),
+  productSku: z.string().nullable(),
+  variantLabel: z.string().nullable(),
+  variantSku: z.string().nullable(),
+  /** Category names from the root, joined by ` › `. */
+  categoryPath: z.string().nullable(),
+  attributeLabel: z.string().nullable(),
+  attributeValueLabel: z.string().nullable(),
+});
+export type PriceBookRowLabels = z.infer<typeof priceBookRowLabelsSchema>;
+
+export const priceBookRowSchema = z.object({
+  id: uuidSchema,
+  selectionKind: priceBookSelectionKindSchema,
+  selection: z.object({
+    variantId: uuidSchema.nullable(),
+    productId: uuidSchema.nullable(),
+    categoryId: uuidSchema.nullable(),
+    attribute: priceBookAttributeSchema.nullable(),
+  }),
+  minQuantity: POSITIVE_INT,
+  maxQuantity: POSITIVE_INT.nullable(),
+  price: priceBookRowPriceSchema,
+  inactiveReason: priceBookRowInactiveReasonSchema.nullable(),
+  /** The product, variant or category the row names no longer exists (G2). */
+  targetDeleted: z.boolean(),
+  labels: priceBookRowLabelsSchema,
+  naturalKey: priceBookNaturalKeySchema,
+});
+export type PriceBookRow = z.infer<typeof priceBookRowSchema>;
+
+/** `GET /api/v1/admin/price-books/:id/rows`; `search` matches the labels and SKUs (G3). */
+export const priceBookRowsQuerySchema = z.object({
+  selectionKind: oneOrMany(priceBookSelectionKindSchema),
+  productId: uuidSchema.optional(),
+  variantId: uuidSchema.optional(),
+  categoryId: uuidSchema.optional(),
+  attributeKey: z.string().min(1).max(64).optional(),
+  search: z.string().trim().min(1).max(200).optional(),
+  page: PAGE,
+  pageSize: z.coerce.number().int().positive().max(1000).default(200),
+});
+export type PriceBookRowsQuery = z.infer<typeof priceBookRowsQuerySchema>;
+
+/**
+ * One row of an admin batch: by ids (`selection`, the grid) or by natural key
+ * (`key`, a CSV import) — exactly one of the two (G10). A row without an `id`
+ * whose selection and `minQuantity` equal a stored row's replaces that row.
+ */
+export const priceBookBatchRowInputSchema = z
+  .object({
+    id: uuidSchema.optional(),
+    selection: priceBookSelectionSchema.optional(),
+    key: priceBookNaturalKeySchema.optional(),
+    minQuantity: POSITIVE_INT,
+    maxQuantity: POSITIVE_INT.nullable().default(null),
+    price: priceBookRowPriceSchema,
+  })
+  .superRefine((value, ctx) => {
+    if ((value.selection === undefined) === (value.key === undefined)) {
+      ctx.addIssue({ code: 'custom', path: ['selection'], message: 'A row names its selection by ids or by key, exactly one.' });
+    }
+  });
+export type PriceBookBatchRowInput = z.infer<typeof priceBookBatchRowInputSchema>;
+
+/**
+ * Body of `PUT /api/v1/admin/price-books/:id/rows` (and of its `?dryRun=true`
+ * preview, G10). `merge` (default) upserts the rows and deletes `delete`;
+ * `replace` makes the book's rows exactly `upsert` (`delete` must be empty).
+ */
+export const priceBookRowsWriteSchema = z
+  .object({
+    expectedVersion: POSITIVE_INT.optional(),
+    mode: z.enum(['merge', 'replace']).default('merge'),
+    upsert: z.array(z.unknown()).max(PRICE_BOOK_MAX_ROWS_PER_BATCH).default([]),
+    delete: z.array(uuidSchema).max(PRICE_BOOK_MAX_ROWS_PER_BATCH).default([]),
+  })
+  .superRefine((value, ctx) => {
+    if (value.upsert.length + value.delete.length > PRICE_BOOK_MAX_ROWS_PER_BATCH) {
+      ctx.addIssue({ code: 'custom', path: ['upsert'], message: `A batch carries at most ${PRICE_BOOK_MAX_ROWS_PER_BATCH} rows.` });
+    }
+    if (value.mode === 'replace' && value.delete.length > 0) {
+      ctx.addIssue({ code: 'custom', path: ['delete'], message: 'A replace names no row to delete: every row not in the batch goes.' });
+    }
+  });
+export type PriceBookRowsWrite = z.infer<typeof priceBookRowsWriteSchema>;
+
+/**
+ * Why one row of a batch was refused (G6). `index` is the row's position in
+ * `upsert` (for an import, the file line the client maps it to); `rowId` names
+ * a stored row (an overlap partner, a delete of a missing row).
+ */
+export const PRICE_BOOK_ROW_ERROR_CODES = [
+  'PRICE_BOOK_ROW_SHAPE',
+  'PRICE_BOOK_ROW_OVERLAP',
+  'PRICE_BOOK_ROW_TARGET',
+  'PRICE_BOOK_ROW_LIMIT',
+] as const;
+export const priceBookRowErrorSchema = z.object({
+  index: z.number().int().nonnegative().optional(),
+  rowId: uuidSchema.optional(),
+  field: z.string(),
+  code: z.enum(PRICE_BOOK_ROW_ERROR_CODES),
+  message: z.string(),
+});
+export type PriceBookRowError = z.infer<typeof priceBookRowErrorSchema>;
+
+/** A stored or resolved row in a diff (no labels). */
+export const priceBookDiffRowSchema = z.object({
+  id: uuidSchema.optional(),
+  selectionKind: priceBookSelectionKindSchema,
+  selection: priceBookRowSchema.shape.selection,
+  naturalKey: priceBookNaturalKeySchema,
+  minQuantity: POSITIVE_INT,
+  maxQuantity: POSITIVE_INT.nullable(),
+  price: priceBookRowPriceSchema,
+});
+export type PriceBookDiffRow = z.infer<typeof priceBookDiffRowSchema>;
+
+/** The answer of `PUT …/rows?dryRun=true` (G10): what the same body would write, writing nothing. */
+export const priceBookRowsDryRunSchema = z.object({
+  version: z.number().int().positive(),
+  /** Each `upsert` row with its selection resolved to ids (`null` where it could not be). */
+  resolved: z.array(priceBookDiffRowSchema.nullable()),
+  diff: z.object({
+    added: z.array(priceBookDiffRowSchema),
+    changed: z.array(z.object({ before: priceBookDiffRowSchema, after: priceBookDiffRowSchema })),
+    removed: z.array(priceBookDiffRowSchema),
+    unchangedCount: z.number().int().nonnegative(),
+  }),
+  errors: z.array(priceBookRowErrorSchema),
+});
+export type PriceBookRowsDryRun = z.infer<typeof priceBookRowsDryRunSchema>;
+
+/** The answer of a committed `PUT …/rows`. */
+export const priceBookRowsWriteResultSchema = z.object({
+  version: z.number().int().positive(),
+  rows: z.array(priceBookDiffRowSchema),
+});
+export type PriceBookRowsWriteResult = z.infer<typeof priceBookRowsWriteResultSchema>;
+
+// --- Explanation (FR-020, FR-038) ----------------------------------------------
+
+export const PRICE_BOOK_MAX_RESOLVE_LINES = 200;
+
+export const priceBookResolveRequestSchema = z.object({
+  /** Absent: the system default channel, as the probe this replaces. */
+  salesChannelId: uuidSchema.optional(),
+  currencyCode: CURRENCY.optional(),
+  buyer: z
+    .object({
+      organizationId: uuidSchema.optional(),
+      customerAccountId: uuidSchema.optional(),
+    })
+    .default({}),
+  lines: z
+    .array(
+      z.object({
+        key: z.string().min(1).max(100),
+        productId: uuidSchema,
+        variantId: uuidSchema.optional(),
+        quantity: POSITIVE_INT.default(1),
+      }),
+    )
+    .min(1)
+    .max(PRICE_BOOK_MAX_RESOLVE_LINES),
+});
+export type PriceBookResolveRequest = z.infer<typeof priceBookResolveRequestSchema>;
+
+export const priceBookResolvedLineSchema = z.object({
+  key: z.string(),
+  price: z
+    .object({
+      amount: z.string(),
+      currency: CURRENCY,
+      source: priceSourceSchema,
+      compareAt: z.string().nullable().optional(),
+    })
+    .nullable(),
+  explanation: priceBookExplanationSchema,
+});
+export type PriceBookResolvedLine = z.infer<typeof priceBookResolvedLineSchema>;
+
+// --- Precedence (read only until P3) --------------------------------------------
+
+export const precedenceViewSchema = precedenceConfigSchema.extend({
+  version: z.number().int().positive(),
+  preset: precedencePresetNameSchema.nullable(),
+});
+export type PrecedenceView = z.infer<typeof precedenceViewSchema>;
+
+// --- Settings (G8) ---------------------------------------------------------------
+
+/** Setting code: show the catalogue price beside a lower buyer price (owner ruling Q8a, N4). */
+export const SHOW_LIST_PRICE_SETTING_CODE = 'pricing.show_list_price';
+
+/** Body of `PUT /api/v1/admin/price-books/settings/show-list-price`. */
+export const showListPriceWriteSchema = z.object({ value: z.boolean() });
+export type ShowListPriceWrite = z.infer<typeof showListPriceWriteSchema>;

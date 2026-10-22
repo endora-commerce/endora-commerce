@@ -74,7 +74,6 @@ function payloadWith(warning: Warning | undefined, packagingUnitName: string | n
 function installDetail(payload: Record<string, unknown>): void {
   getSpy.mockImplementation((url: string) => {
     if (url.startsWith('/api/v1/admin/quote-requests/')) return Promise.resolve({ data: payload });
-    if (url.includes('/resolved-price')) return Promise.reject(new Error('no probe in this file'));
     return Promise.resolve({ data: {} });
   });
 }

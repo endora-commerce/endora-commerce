@@ -21,6 +21,8 @@ is assigned here.
 | `audience_kind` | varchar(16) | no | `everyone \| customer_groups \| organizations`; CHECK; immutable once the book has been active |
 | `priority` | integer | no | default 0; the legacy column, now read (same-cell tie-break, §5.4) |
 | `is_system` | boolean | no | true only for base books |
+| `version` | integer | no | default 1; moves on every write to the book (header, channel set, members, rows, activation); a write naming an older one is refused `409 PRICE_BOOK_STALE` (gap G5 of `specs/161-price-book-editor/`) |
+| `ever_activated` | boolean | no | default false; set by the first activation and never cleared: the audience kind is immutable from then on (FR-004). Backfilled true for every non-draft and every system row |
 | `created_at`, `updated_at` | timestamptz | no | `modified_at` is dropped: it no longer decides anything (FR-045) |
 
 Indexes: `(currency_code, status)`; unique `(currency_code) where is_system`.

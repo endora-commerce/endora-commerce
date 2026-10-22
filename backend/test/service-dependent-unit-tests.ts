@@ -108,13 +108,6 @@ export const SERVICE_DEPENDENT_UNIT_TESTS: readonly ServiceDependentUnitTest[] =
       'compile against the migrated shape.',
   },
   {
-    path: 'test/unit/price_lists/price-list-audit-emissions.test.ts',
-    needs: 'postgres',
-    reason:
-      'Lifecycle and content mutations are driven through HTTP and asserted as audit rows ' +
-      'with an identity-bearing snapshot.',
-  },
-  {
     path: 'test/unit/price_lists/price-list-status-worker.test.ts',
     needs: 'postgres',
     reason:

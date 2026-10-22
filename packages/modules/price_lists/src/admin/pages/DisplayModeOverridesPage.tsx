@@ -106,10 +106,10 @@ export function DisplayModeOverridesPage(): ReactNode {
       try {
         const [orgsRes, catsRes, prodRes] = await Promise.all([
           apiClient.get<{ data: { items: OrganizationRow[] } }>(
-            '/api/v1/admin/pricing/rule-targets/organizations?limit=200',
+            '/api/v1/admin/price-books/targets/organizations?limit=200',
           ),
           apiClient.get<{ data: { items: CategoryRow[] } }>(
-            '/api/v1/admin/pricing/rule-targets/categories',
+            '/api/v1/admin/price-books/targets/categories',
           ),
           apiClient.get<{ data: ProductRow[] }>('/api/v1/admin/catalog/products'),
         ]);

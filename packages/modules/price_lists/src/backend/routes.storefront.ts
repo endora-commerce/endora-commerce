@@ -209,6 +209,8 @@ export async function registerStorefrontPricingRoutes(
             // the selected variant, and the buyer price a charged sale undercut.
             ...(out.source !== undefined ? { source: out.source } : {}),
             ...(out.compareAt !== undefined ? { compareAt: out.compareAt } : {}),
+            // G9 — the catalogue price beside a lower buyer price, when the shop shows it.
+            ...(out.listPrice ? { listPrice: out.listPrice } : {}),
           },
         },
       };

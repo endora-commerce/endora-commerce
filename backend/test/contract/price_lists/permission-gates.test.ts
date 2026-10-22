@@ -19,10 +19,11 @@ import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
  * module that owns them, and the split is read/write rather than one code:
  * listing a price list and editing its brackets are not the same authority.
  *
- * The customer-group rule-target picker is asserted here too. Issue #180's
- * ruling took `catalog:write` off the canonical customer-group endpoints and
- * this copy was missed — the `promotions` and `pwa` twins have always answered
- * behind their own module's read permission.
+ * The customer-group target picker is asserted here too. Issue #180's ruling
+ * took `catalog:write` off the canonical customer-group endpoints and this copy
+ * was missed — the `promotions` and `pwa` twins have always answered behind
+ * their own module's read permission. Feature 160 moved every route onto the
+ * price-book API (`/api/v1/admin/price-books/…`); the codes did not change.
  *
  * There is deliberately **no** compatibility shim: `catalog:write` is refused,
  * not accepted alongside the new codes.
@@ -105,157 +106,73 @@ describe('price_lists admin permission gates (issue #219)', () => {
     await teardownBackendServer(h);
   });
 
+  const BOOK = {
+    name: 'Gate book (219)',
+    type: 'regular',
+    currencyCode: 'PLN',
+    channelIds: [],
+    audience: { kind: 'everyone', memberIds: [] },
+  };
+
   it('refuses a catalogue editor every pricing surface', async () => {
-    const list = await h.app.inject({
-      method: 'GET',
-      url: '/api/v1/admin/price-lists-engine',
-      ...CATALOG_EDITOR,
-    });
-    expect(list.statusCode).toBe(403);
-
-    const create = await h.app.inject({
-      method: 'POST',
-      url: '/api/v1/admin/price-lists-engine',
-      ...CATALOG_EDITOR,
-      payload: {
-        name: 'Catalogue editor should not get here',
-        type: 'base',
-        applicationRule: { kind: 'criterion', type: 'currency', values: ['PLN'] },
-      },
-    });
+    for (const url of [
+      '/api/v1/admin/price-books',
+      '/api/v1/admin/price-books/precedence',
+      '/api/v1/admin/price-books/targets/attributes',
+      '/api/v1/admin/pricing/display-mode-overrides',
+    ]) {
+      const res = await h.app.inject({ method: 'GET', url, ...CATALOG_EDITOR });
+      expect(res.statusCode, url).toBe(403);
+    }
+    const create = await h.app.inject({ method: 'POST', url: '/api/v1/admin/price-books', ...CATALOG_EDITOR, payload: BOOK });
     expect(create.statusCode).toBe(403);
-
-    const overrides = await h.app.inject({
-      method: 'GET',
-      url: '/api/v1/admin/pricing/display-mode-overrides',
-      ...CATALOG_EDITOR,
-    });
-    expect(overrides.statusCode).toBe(403);
   });
 
-  it('lets a pricing viewer read but not write', async () => {
-    const list = await h.app.inject({
-      method: 'GET',
-      url: '/api/v1/admin/price-lists-engine',
-      ...PRICING_VIEWER,
-    });
+  it('lets a pricing viewer read but not write, refused before the body is read', async () => {
+    const list = await h.app.inject({ method: 'GET', url: '/api/v1/admin/price-books', ...PRICING_VIEWER });
     expect(list.statusCode).toBe(200);
-
-    const create = await h.app.inject({
-      method: 'POST',
-      url: '/api/v1/admin/price-lists-engine',
-      ...PRICING_VIEWER,
-      payload: {
-        name: 'Viewer should not get here',
-        type: 'base',
-        applicationRule: { kind: 'criterion', type: 'currency', values: ['PLN'] },
-      },
-    });
-    expect(create.statusCode).toBe(403);
+    const id = '00000000-0000-4000-8000-0000000002f9';
+    for (const [method, url] of [
+      ['POST', '/api/v1/admin/price-books'],
+      ['PATCH', `/api/v1/admin/price-books/${id}`],
+      ['PUT', `/api/v1/admin/price-books/${id}/rows`],
+      ['POST', `/api/v1/admin/price-books/${id}/activate`],
+      ['POST', `/api/v1/admin/price-books/${id}/duplicate`],
+      ['DELETE', `/api/v1/admin/price-books/${id}`],
+      ['PUT', `/api/v1/admin/price-books/base-prices/${id}`],
+      ['PUT', '/api/v1/admin/price-books/settings/show-list-price'],
+    ] as const) {
+      const refused = await h.app.inject({ method, url, ...PRICING_VIEWER, payload: {} });
+      expect(refused.statusCode, `${method} ${url}`).toBe(403);
+    }
   });
 
   it('lets a pricing editor read and write', async () => {
-    const created = await h.app.inject({
-      method: 'POST',
-      url: '/api/v1/admin/price-lists-engine',
-      ...PRICING_EDITOR,
-      payload: {
-        name: 'Pricing editor list (219)',
-        type: 'base',
-        applicationRule: { kind: 'criterion', type: 'currency', values: ['PLN'] },
-      },
-    });
-    expect(created.statusCode).toBe(201);
+    const created = await h.app.inject({ method: 'POST', url: '/api/v1/admin/price-books', ...PRICING_EDITOR, payload: BOOK });
+    expect(created.statusCode, created.body).toBe(201);
     const id = (created.json() as { data: { id: string } }).data.id;
-
-    const read = await h.app.inject({
-      method: 'GET',
-      url: `/api/v1/admin/price-lists-engine/${id}`,
-      ...PRICING_EDITOR,
-    });
+    const read = await h.app.inject({ method: 'GET', url: `/api/v1/admin/price-books/${id}`, ...PRICING_EDITOR });
     expect(read.statusCode).toBe(200);
-
-    const removed = await h.app.inject({
-      method: 'DELETE',
-      url: `/api/v1/admin/price-lists-engine/${id}`,
-      ...PRICING_EDITOR,
-    });
+    const removed = await h.app.inject({ method: 'DELETE', url: `/api/v1/admin/price-books/${id}`, ...PRICING_EDITOR });
     expect(removed.statusCode).toBe(204);
   });
 
   /**
-   * Issue #180's ruling, applied to the copy it missed. A rule-target picker
-   * lists customer groups so a pricing rule can name one; that is a pricing
-   * read, and the module that owns the screen owns the gate.
+   * Issue #180's ruling, applied to the copy it missed. A target picker lists
+   * customer groups so a price book can name one; that is a pricing read, and
+   * the module that owns the screen owns the gate.
    */
-  it('serves the customer-group rule target behind the pricing read code, not catalog:write', async () => {
-    const refused = await h.app.inject({
-      method: 'GET',
-      url: '/api/v1/admin/pricing/rule-targets/customer-groups',
-      ...CATALOG_EDITOR,
-    });
+  it('serves the customer-group target behind the pricing read code, not catalog:write', async () => {
+    const refused = await h.app.inject({ method: 'GET', url: '/api/v1/admin/price-books/targets/customer-groups', ...CATALOG_EDITOR });
     expect(refused.statusCode).toBe(403);
-
-    const allowed = await h.app.inject({
-      method: 'GET',
-      url: '/api/v1/admin/pricing/rule-targets/customer-groups',
-      ...PRICING_VIEWER,
-    });
+    const allowed = await h.app.inject({ method: 'GET', url: '/api/v1/admin/price-books/targets/customer-groups', ...PRICING_VIEWER });
     expect(allowed.statusCode).toBe(200);
     const body = allowed.json() as { data: { items: Array<{ id: string; code: string }> } };
     expect(Array.isArray(body.data.items)).toBe(true);
   });
 
   it('refuses an unauthenticated caller', async () => {
-    const res = await h.app.inject({ method: 'GET', url: '/api/v1/admin/price-lists-engine' });
+    const res = await h.app.inject({ method: 'GET', url: '/api/v1/admin/price-books' });
     expect([401, 403]).toContain(res.statusCode);
-  });
-
-  /**
-   * Feature 148 — the price matrix reuses the module's two codes: reading the
-   * matrix and the attribute picker is `price_lists:read`, every write is
-   * `price_lists:write`, and a refused write answers 403 before its body is
-   * validated (an empty body would otherwise be a 400).
-   */
-  it('gates the price matrix on the pricing read and write codes', async () => {
-    const created = await h.app.inject({
-      method: 'POST',
-      url: '/api/v1/admin/price-lists-engine',
-      ...PRICING_EDITOR,
-      payload: { name: 'Matrix gate list (148)', type: 'base' },
-    });
-    expect(created.statusCode).toBe(201);
-    const id = (created.json() as { data: { id: string } }).data.id;
-    const matrix = `/api/v1/admin/price-lists-engine/${id}/matrix`;
-    const entryUrl = `${matrix}/00000000-0000-4000-8000-00000000e148`;
-
-    for (const url of [matrix, entryUrl, '/api/v1/admin/pricing/rule-targets/attributes']) {
-      const refused = await h.app.inject({ method: 'GET', url, ...CATALOG_EDITOR });
-      expect(refused.statusCode, url).toBe(403);
-    }
-    const viewerList = await h.app.inject({ method: 'GET', url: matrix, ...PRICING_VIEWER });
-    expect(viewerList.statusCode).toBe(200);
-    const viewerPicker = await h.app.inject({
-      method: 'GET',
-      url: '/api/v1/admin/pricing/rule-targets/attributes',
-      ...PRICING_VIEWER,
-    });
-    expect(viewerPicker.statusCode).toBe(200);
-
-    for (const [method, url] of [
-      ['POST', matrix],
-      ['PATCH', entryUrl],
-      ['DELETE', entryUrl],
-    ] as const) {
-      const refused = await h.app.inject({ method, url, ...PRICING_VIEWER, payload: {} });
-      expect(refused.statusCode, `${method} ${url}`).toBe(403);
-    }
-    const editorPost = await h.app.inject({
-      method: 'POST',
-      url: matrix,
-      ...PRICING_EDITOR,
-      payload: { minQuantity: 1, price: { type: 'discount_percent', percent: '1' } },
-    });
-    expect(editorPost.statusCode).toBe(201);
   });
 });

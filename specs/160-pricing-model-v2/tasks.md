@@ -230,27 +230,44 @@ column), §10.11.
 
 ### Tests first
 
-- [ ] T089 [P] [US7] Book routes (list filters, create, read, patch incl. currency immutability and audience kind after activation, activate/draftify incl. `PRICE_BOOK_NOT_APPLICABLE`, delete incl. system book 403) in `backend/test/contract/price_lists/price-books-api.test.ts` (FR-001–FR-004, FR-033)
-- [ ] T090 [P] [US7] Row batch upsert/delete (shape refusals, overlap with named rows, 5 000 limit, one audit entry per batch) in `backend/test/contract/price_lists/price-book-rows-api.test.ts` (FR-005, FR-006, FR-035)
-- [ ] T091 [P] [US7] Base-price endpoints across currencies with variant rows in `backend/test/contract/price_lists/base-prices-api.test.ts` (FR-009)
-- [ ] T092 [P] [US7] Duplicate with channel set, currency, audience and multiplier (half-up, percentages verbatim, draft, channel validation) in `IT/price_lists/price-book-duplicate.test.ts` (FR-036)
-- [ ] T093 [P] [US7] Representative scope A3.1–A3.3 and A4, and SC-008 (status code and body identical to an unknown id; lists and counts exclude) in `IT/price_lists/price-book-tenant-scope.test.ts` replacing `price-matrix-tenant-scope.test.ts` (FR-034)
-- [ ] T094 [P] [US7] Audit: every write of a book, row batch, channel set, member, duplicate, base price and activation writes exactly one audit entry with before/after and commits with it; nothing is audited on a refused write, in `IT/price_lists/price-book-audit.test.ts` (FR-035)
-- [ ] T095 [P] [US7] Explanation endpoint (tier, cell, book, row, reference, precedence version, ranked candidates; representative scope) in `backend/test/contract/price_lists/price-books-resolve.test.ts` (FR-020, FR-038)
-- [ ] T096 [P] [US7] Precedence: `GET` returns version 1 = HY; every write answers `409 PRECEDENCE_CHANGE_UNAVAILABLE`, in `backend/test/contract/price_lists/precedence-api.test.ts` (FR-021, FR-023)
-- [ ] T097 [P] [US7] Old routes gone: every path under `/api/v1/admin/price-lists-engine/`, `/api/v1/admin/pricing/rule-targets/` and `/api/v1/admin/products/:id/resolved-price` answers 404; the display-mode routes still answer, in `backend/test/contract/price_lists/removed-routes.test.ts` (FR-037)
-- [ ] T098 [P] [US7] Currency deletion refused while a book (base books included) uses it, in `IT/price_lists/currency-reference.test.ts` (FR-039)
-- [ ] T099 [P] [US7] Target pickers (eligible attributes only, channels offering a currency) in `backend/test/contract/price_lists/price-book-targets.test.ts` (FR-007, FR-003)
+- [X] T089 [P] [US7] Book routes (list filters, create, read, patch incl. currency immutability and audience kind after activation, activate/draftify incl. `PRICE_BOOK_NOT_APPLICABLE`, delete incl. system book 403) in `backend/test/contract/price_lists/price-books-api.test.ts` (FR-001–FR-004, FR-033)
+- [X] T090 [P] [US7] Row batch upsert/delete (shape refusals, overlap with named rows, 5 000 limit, one audit entry per batch) in `backend/test/contract/price_lists/price-book-rows-api.test.ts` (FR-005, FR-006, FR-035)
+- [X] T091 [P] [US7] Base-price endpoints across currencies with variant rows in `backend/test/contract/price_lists/base-prices-api.test.ts` (FR-009)
+- [X] T092 [P] [US7] Duplicate with channel set, currency, audience and multiplier (half-up, percentages verbatim, draft, channel validation) in `IT/price_lists/price-book-duplicate.test.ts` (FR-036)
+- [X] T093 [P] [US7] Representative scope A3.1–A3.3 and A4, and SC-008 (status code and body identical to an unknown id; lists and counts exclude) in `IT/price_lists/price-book-tenant-scope.test.ts` replacing `price-matrix-tenant-scope.test.ts` (FR-034)
+- [X] T094 [P] [US7] Audit: every write of a book, row batch, channel set, member, duplicate, base price and activation writes exactly one audit entry with before/after and commits with it; nothing is audited on a refused write, in `IT/price_lists/price-book-audit.test.ts` (FR-035)
+- [X] T095 [P] [US7] Explanation endpoint (tier, cell, book, row, reference, precedence version, ranked candidates; representative scope) in `backend/test/contract/price_lists/price-books-resolve.test.ts` (FR-020, FR-038)
+- [X] T096 [P] [US7] Precedence: `GET` returns version 1 = HY; every write answers `409 PRECEDENCE_CHANGE_UNAVAILABLE`, in `backend/test/contract/price_lists/precedence-api.test.ts` (FR-021, FR-023)
+- [X] T097 [P] [US7] Old routes gone: every path under `/api/v1/admin/price-lists-engine/`, `/api/v1/admin/pricing/rule-targets/` and `/api/v1/admin/products/:id/resolved-price` answers 404; the display-mode routes still answer, in `backend/test/contract/price_lists/removed-routes.test.ts` (FR-037)
+- [X] T098 [P] [US7] Currency deletion refused while a book (base books included) uses it, in `IT/price_lists/currency-reference.test.ts` (FR-039)
+- [X] T099 [P] [US7] Target pickers (eligible attributes only, channels offering a currency) in `backend/test/contract/price_lists/price-book-targets.test.ts` (FR-007, FR-003)
 
 ### Implementation
 
-- [ ] T100 [US7] Book, row-batch, member, channel-set, duplicate and activation commands with `PricingGeneration.bump()` after commit in `PL/backend/services/price-book-service.ts`
-- [ ] T101 [US7] Routes `/api/v1/admin/price-books/…` of `contracts/admin-price-books-api.md` in `PL/backend/routes.ts`; delete the old engine, rule-target and admin resolved-price routes
-- [ ] T102 [US7] Representative scope filter (organization-set books with every member in scope) in `PL/backend/services/price-book-scope.ts`
-- [ ] T103 [US7] Explanation with ranked candidates in `PL/backend/services/buyer-line-price-service.ts`
-- [ ] T104 [US7] Base books counted by `registerPriceListCurrencyReferences` in `PL/backend/services/price-list-currency-reference.ts`
-- [ ] T105 [US7] New error codes (`PRICE_BOOK_CHANNEL_CURRENCY`, `PRICE_BOOK_AUDIENCE_KIND`, `PRICE_BOOK_IMMUTABLE_FIELD`, `PRICE_BOOK_NOT_APPLICABLE`, `PRICE_BOOK_ROW_OVERLAP`, `PRICE_BOOK_ROW_SHAPE`, `PRECEDENCE_CHANGE_UNAVAILABLE`) and palette actions *Price books*, *New price book*, *Price explainer* in `PL/manifest.ts`; validation and error messages pl + en in `packages/modules/price_lists/i18n/en.json` and `pl.json` (FR-040)
-- [ ] T106 [US7] i18n completeness: `pnpm --filter backend run check:error-translations` and the bundle tests under `backend/test/unit/_i18n/` green for every key this feature adds to `price_lists`, `catalog`, `carts` and the storefront catalogue (FR-040, SC-009)
+- [X] T100 [US7] Book, row-batch, member, channel-set, duplicate and activation commands with `PricingGeneration.bump()` after commit in `PL/backend/services/price-book-service.ts`
+- [X] T101 [US7] Routes `/api/v1/admin/price-books/…` of `contracts/admin-price-books-api.md` in `PL/backend/routes.ts`; delete the old engine, rule-target and admin resolved-price routes
+- [X] T102 [US7] Representative scope filter (organization-set books with every member in scope) in `PL/backend/services/price-book-scope.ts` — reads and writes take the request's scope; list and count filter in SQL (`visibleBookSql`)
+- [X] T103 [US7] Explanation with ranked candidates in `PL/backend/services/buyer-line-price-service.ts` — the ranked candidates come from `book-resolver.ts`; `BuyerLinePriceService.resolveDetailed` carries source, compareAt and the explanation to `POST …/price-books/resolve`
+- [X] T104 [US7] Base books counted by `registerPriceListCurrencyReferences` in `PL/backend/services/price-list-currency-reference.ts`
+- [ ] T105 [US7] New error codes (`PRICE_BOOK_CHANNEL_CURRENCY`, `PRICE_BOOK_AUDIENCE_KIND`, `PRICE_BOOK_IMMUTABLE_FIELD`, `PRICE_BOOK_NOT_APPLICABLE`, `PRICE_BOOK_ROW_OVERLAP`, `PRICE_BOOK_ROW_SHAPE`, `PRECEDENCE_CHANGE_UNAVAILABLE`) and palette actions *Price books*, *New price book*, *Price explainer* in `PL/manifest.ts`; validation and error messages pl + en in `packages/modules/price_lists/i18n/en.json` and `pl.json` (FR-040) — **error codes, EN/PL messages and manifest declarations done; the three palette actions are not**: their targets (book list, new-book flow, explainer) are P2's screens (`specs/161-price-book-editor/` FR-029), and an action whose route does not exist yet would open a 404 — added with the screens
+- [X] T106 [US7] i18n completeness: `pnpm --filter backend run check:error-translations` and the bundle tests under `backend/test/unit/_i18n/` green for every key this feature adds to `price_lists`, `catalog`, `carts` and the storefront catalogue (FR-040, SC-009)
+
+### P2 gaps (`specs/161-price-book-editor/` *Dependencies*, G1–G10)
+
+Added 2026-10-21 at the request of the P2 spec; each test first, then the contract
+(`contracts/admin-price-books-api.md`, `data-model.md` §1) and the implementation.
+
+- [X] T148 [US7] G1 — `GET /api/v1/admin/price-books?productId=&variantId=` answers only books with a row naming the product (variant) directly, each with `matches[]`, in `backend/test/contract/price_lists/price-books-api.test.ts` and `PL/backend/services/price-book-reads.ts`
+- [X] T149 [US7] G2 — `PriceBookRow.labels` and `targetDeleted` (and `naturalKey`), batched one read per target kind, in `backend/test/contract/price_lists/price-book-rows-api.test.ts` and `PL/backend/services/price-book-reads.ts`
+- [X] T150 [US7] G3 — `GET …/:id/rows?search=` over labels and SKUs, same test file and service
+- [X] T151 [US7] G4 — `tierStarts` on `PriceBook` and `PriceBookSummary`, in `price-books-api.test.ts`
+- [X] T152 [US7] G5 — `price_lists.version` (+ `ever_activated`) migration, `PriceBook.version`; `PATCH` and `PUT …/rows` require `expectedVersion` / `If-Match` and answer `409 PRICE_BOOK_STALE` with `details.currentVersion`, in both contract tests and `PL/backend/services/price-book-service.ts`
+- [X] T153 [US7] G6 — a refused batch names every failing row (`details.errors[{index?, rowId?, field, code, message}]`), in `price-book-rows-api.test.ts` and `PL/backend/services/price-book-batch.ts` (+ `price-book-batch.test.ts`)
+- [X] T154 [US7] G7 — `PUT …/rows` on a base book: product rows fixed, variant rows fixed/percent/amount, anything else refused per row, in `price-book-rows-api.test.ts`
+- [X] T155 [US7] G8 — manifest setting `pricing.show_list_price` and `PUT /api/v1/admin/price-books/settings/show-list-price` through one `CommandBus.run`, in `backend/test/contract/price_lists/show-list-price.test.ts` and `PL/backend/routes.price-books.ts`
+- [X] T156 [US7] G9 — `ListingPriceDetail.listPrice` and the storefront resolved price's `listPrice`, only when the setting is on and the everyone price is above the price charged (D1–D4), same test file, `PL/backend/services/book-pricing.ts`, `routes.storefront.ts`
+- [X] T157 [US7] G10 — `PUT …/rows?dryRun=true` with `mode: merge | replace` and natural keys, writing nothing and answering `{version, resolved, diff, errors}`; confirmation is the same body, in `price-book-rows-api.test.ts` and `price-book-batch.ts`
+- [X] T158 [US7] Re-point the consumers of the removed routes: the RFQ create prefill and the RFQ reference probe (`packages/modules/quote_requests/src/admin/`) and the display-mode page's pickers onto `/api/v1/admin/price-books/…`, with their admin tests; `rep-scope`, `rfq-handle-gate-off-state` and `permission-gates` on the new routes
 
 ---
 

@@ -83,7 +83,7 @@ describe('worked examples — audience sets (A1, A2, A4)', () => {
           priority: 0,
         }),
       ),
-    ).rejects.toMatchObject({ statusCode: 400, code: 'VALIDATION_FAILED' });
+    ).rejects.toMatchObject({ statusCode: 400, code: 'PRICE_BOOK_AUDIENCE_KIND' });
   });
 
   it('a set naming a member that does not exist is refused', async () => {
@@ -103,7 +103,8 @@ describe('worked examples — audience sets (A1, A2, A4)', () => {
 
   it('a book of a set with no member cannot be activated', async () => {
     await expect(f.book({ audience: { groups: [] }, rows: [{ product: f.products.P2, percent: '-20' }] })).rejects.toMatchObject({
-      statusCode: 400,
+      statusCode: 409,
+      code: 'PRICE_BOOK_NOT_APPLICABLE',
     });
   });
 });

@@ -13,7 +13,8 @@ import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
 /**
  * D-173 — a cross-owner permission gate, proved at the seam it breaks.
  *
- * `GET /api/v1/admin/products/:id/resolved-price` belongs to `price_lists`,
+ * `POST /api/v1/admin/price-books/resolve` (the resolved-price probe until
+ * feature 160) belongs to `price_lists`,
  * which declares itself `nonDeactivatable`. It was gated on `rfqs:handle`, a
  * code `PERMISSION_CATALOGUE` attributes to `quote_requests` — a module an
  * operator can switch off. `PermissionCatalogueService` presence-filters the
@@ -101,17 +102,21 @@ describe('price_lists resolved-price gate while quote requests is off [integrati
       }
       ADMIN_COOKIES['stub-d173-max-grant-session'] = { adminUserId: MAX_GRANT_ID };
 
+      // Feature 160 — the probe is the price explanation now; a product that
+      // does not exist is a line priced at nothing, not a refusal.
       const resolved = await h.app.inject({
-        method: 'GET',
-        url: `/api/v1/admin/products/${MISSING_PRODUCT_ID}/resolved-price`,
+        method: 'POST',
+        url: '/api/v1/admin/price-books/resolve',
         ...MAX_GRANT,
+        payload: { lines: [{ key: 'missing', productId: MISSING_PRODUCT_ID, quantity: 1 }] },
       });
       expect(
         resolved.statusCode,
         'a permanently mounted endpoint behind a permission nobody can be ' +
           'granted — the gate must name a code `price_lists` owns',
       ).not.toBe(403);
-      expect(resolved.statusCode).toBe(404);
+      expect(resolved.statusCode).toBe(200);
+      expect((resolved.json() as { data: Array<{ price: unknown }> }).data[0]!.price).toBeNull();
     });
   });
 });

@@ -90,7 +90,6 @@ function groupedPayload(status = 'Pending'): Record<string, unknown> {
 function answer(payload: Record<string, unknown>): void {
   getSpy.mockImplementation((url: string) => {
     if (url === `/api/v1/admin/quote-requests/${RFQ_ID}`) return Promise.resolve({ data: payload });
-    if (url.includes('/resolved-price')) return Promise.resolve({ data: { resolvedPrice: null } });
     return Promise.resolve({ data: {} });
   });
 }

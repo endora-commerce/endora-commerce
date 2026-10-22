@@ -3,6 +3,7 @@ import {
   defineModuleRecentActivity,
   defineModuleSettingsManifest,
   PRICING_SETTING_CODES,
+  SHOW_LIST_PRICE_SETTING_CODE,
 } from '@endora-commerce/contracts';
 
 /**
@@ -52,6 +53,18 @@ const settings = defineModuleSettingsManifest({
       valueType: 'string',
       defaultValue: 'gross_only',
       enumOptions: ['gross_only', 'net_only', 'both', 'none'],
+    },
+    {
+      // Feature 160 (G8 of `specs/161-price-book-editor/`, owner ruling Q8a):
+      // show the catalogue price beside a buyer's lower price on the product
+      // page and listing cards. Platform-wide; never in the basket or checkout.
+      code: SHOW_LIST_PRICE_SETTING_CODE,
+      name: 'Show list price beside the buyer price',
+      description:
+        "When on, a buyer whose price is below the catalogue price sees both on the product page and listing cards (never in the basket or checkout). Off by default.",
+      groupCode: 'pricing',
+      valueType: 'boolean',
+      defaultValue: false,
     },
   ],
 });
@@ -202,6 +215,19 @@ export const manifest = defineModuleManifest({
     { code: 'PRICE_MATRIX_ENTRY_OVERLAP' },
     { code: 'PRICE_MATRIX_ATTRIBUTE_NOT_ELIGIBLE' },
     { code: 'PRICE_MATRIX_ENTRY_LIMIT' },
+    // Feature 160 — the price-book API (`contracts/admin-price-books-api.md`).
+    // Each carries a sentence in both bundles; `details` (the failing rows, the
+    // current version) is for the admin UI's placement, not interpolated.
+    { code: 'PRICE_BOOK_CHANNEL_CURRENCY' },
+    { code: 'PRICE_BOOK_AUDIENCE_KIND' },
+    { code: 'PRICE_BOOK_IMMUTABLE_FIELD' },
+    { code: 'PRICE_BOOK_NOT_APPLICABLE' },
+    { code: 'PRICE_BOOK_ROW_OVERLAP' },
+    { code: 'PRICE_BOOK_ROW_SHAPE' },
+    { code: 'PRICE_BOOK_ROW_TARGET' },
+    { code: 'PRICE_BOOK_ROW_LIMIT' },
+    { code: 'PRICE_BOOK_STALE' },
+    { code: 'PRECEDENCE_CHANGE_UNAVAILABLE' },
   ],
 });
 
@@ -284,5 +310,6 @@ export const recentActivity = defineModuleRecentActivity({
       icon: 'Edit',
       labelKey: 'activity.verb.price_list.rows_replace',
     },
+    { action: 'price_list.delete', icon: 'Archive', labelKey: 'activity.verb.price_list.delete' },
   ],
 });

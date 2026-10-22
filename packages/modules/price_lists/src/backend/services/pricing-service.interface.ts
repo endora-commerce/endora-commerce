@@ -87,6 +87,8 @@ export interface PricingEngineResult {
   source?: PriceSource | null;
   /** Feature 160 — the buyer price a charged sale undercut. */
   compareAt?: string | null;
+  /** Feature 160 (G9) — the catalogue price beside a lower buyer price, when `pricing.show_list_price` is on. */
+  listPrice?: { amount: string; currency: string };
 }
 
 export interface PricingLineResult {
@@ -201,6 +203,8 @@ export interface PricingServiceContract {
     priceListId: string;
     currencyCode: string;
     productIds: readonly string[];
+    /** Feature 160 — the feed's channel (required on price books). */
+    salesChannelId?: string;
   }): Promise<Map<string, string>>;
   /**
    * Feature 062, renamed by feature 160 (was `listBracketMinQuantities`) —

@@ -300,15 +300,15 @@ export function RfqCreatePage(): ReactNode {
   useEffect(() => {
     const queue = createPricePrefillQueue({
       fetch: async (q) => {
-        const params = new URLSearchParams({
-          organizationId: q.organizationId,
-          customerAccountId: q.customerId,
-          quantity: String(q.quantity),
-        });
-        const res = await apiClient.get<{ data: { resolvedPrice: { amount: string } | null } }>(
-          `/api/v1/admin/products/${encodeURIComponent(q.productId)}/resolved-price?${params.toString()}`,
+        // Feature 160 — the price explanation, which replaced the per-product probe.
+        const res = await apiClient.post<{ data: Array<{ price: { amount: string } | null }> }>(
+          '/api/v1/admin/price-books/resolve',
+          {
+            buyer: { organizationId: q.organizationId, customerAccountId: q.customerId },
+            lines: [{ key: 'line', productId: q.productId, quantity: q.quantity }],
+          },
         );
-        return res.data.resolvedPrice?.amount ?? null;
+        return res.data[0]?.price?.amount ?? null;
       },
       onResult: (key, amount) => {
         markResolving(key, false);

@@ -105,3 +105,35 @@ export function applyAmountAdjustment(reference: string, delta: string): string 
 export function normaliseAmount(value: string): string {
   return formatUnits(parseUnits(value));
 }
+
+/** A signed decimal string normalised to four fractional digits. */
+export function normaliseSignedAmount(value: string): string {
+  return formatUnits(parseSignedUnits(value));
+}
+
+/** A signed percentage normalised to two fractional digits (the column's scale). */
+export function normaliseSignedPercent(value: string): string {
+  const hundredths = parseSignedPercentHundredths(value);
+  const negative = hundredths < 0n;
+  const abs = negative ? -hundredths : hundredths;
+  return `${negative ? '-' : ''}${(abs / 100n).toString()}.${(abs % 100n).toString().padStart(2, '0')}`;
+}
+
+const MULTIPLIER = /^(\d{1,6})(?:\.(\d{1,6}))?$/;
+
+/**
+ * `value × multiplier`, rounded half-up (half away from zero) to four
+ * fractional digits — a duplicated book's fixed and amount rows (FR-036). The
+ * multiplier carries up to six fractional digits, so the product is exact in
+ * millionths of a ten-thousandth before the one rounding step.
+ */
+export function multiplySignedAmount(value: string, multiplier: string): string {
+  const match = MULTIPLIER.exec(multiplier);
+  if (!match) throw new Error(`Not a multiplier with up to 6 fractional digits: "${multiplier}"`);
+  const factor = BigInt(match[1]!) * 1_000_000n + BigInt((match[2] ?? '').padEnd(6, '0'));
+  const units = parseSignedUnits(value);
+  const negative = units < 0n;
+  const product = (negative ? -units : units) * factor;
+  const rounded = (product + 500_000n) / 1_000_000n;
+  return formatUnits(negative && rounded !== 0n ? -rounded : rounded);
+}

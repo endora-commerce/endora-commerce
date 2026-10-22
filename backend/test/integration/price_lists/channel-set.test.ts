@@ -68,7 +68,7 @@ describe('price books — channel sets and currency (K1–K3, Principle XII)', (
         priority: 0,
       }),
     );
-    await expect(attempt).rejects.toMatchObject({ statusCode: 400, code: 'VALIDATION_FAILED' });
+    await expect(attempt).rejects.toMatchObject({ statusCode: 400, code: 'PRICE_BOOK_CHANNEL_CURRENCY' });
     await expect(attempt).rejects.toThrow(f.channels.CH3.code);
   });
 
@@ -118,12 +118,13 @@ describe('price books — channel sets and currency (K1–K3, Principle XII)', (
     expect(await f.amount('guest', f.products.P2, { channel: f.channels.CH2 })).toBe('50.0000');
     await expect(f.system(() => f.books.replaceChannels(book.id, [f.channels.CH3.id]))).rejects.toMatchObject({
       statusCode: 400,
+      code: 'PRICE_BOOK_CHANNEL_CURRENCY',
     });
   });
 
   it('a book whose every binding is dormant cannot be activated', async () => {
     const draft = await f.book({ audience: 'everyone', channels: [f.channels.CH2], activate: false, rows: [{ product: f.products.P2, fixed: '48' }] });
     await setCurrencies(f.channels.CH2.id, ['EUR']);
-    await expect(f.system(() => f.books.activate(draft.id))).rejects.toMatchObject({ statusCode: 400 });
+    await expect(f.system(() => f.books.activate(draft.id))).rejects.toMatchObject({ statusCode: 409, code: 'PRICE_BOOK_NOT_APPLICABLE' });
   });
 });

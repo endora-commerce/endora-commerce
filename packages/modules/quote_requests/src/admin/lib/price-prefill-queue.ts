@@ -18,7 +18,7 @@
  * is never sent.
  *
  * Pure on purpose: the page injects `fetch` (over
- * `GET /api/v1/admin/products/:id/resolved-price`) and `onResult` (which must
+ * `POST /api/v1/admin/price-books/resolve`) and `onResult` (which must
  * itself refuse to overwrite a hand-typed price — the operator may type one
  * while its question is in flight).
  */

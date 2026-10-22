@@ -125,10 +125,8 @@ const SQL_ENTRY: ReadonlySet<string> = new Set(['execute', 'query']);
 export const UNSCOPED_WIPES_BASELINE: Readonly<Record<string, number>> = {
   'contract/carts/cart-coupon-autodrop.contract.test.ts': 1,
   'contract/carts/cart-coupon.contract.test.ts': 1,
-  'contract/price_lists/admin-resolved-price.test.ts': 3,
   'contract/price_lists/display-modes.test.ts': 1,
   'contract/price_lists/pricing-resolution.test.ts': 3,
-  'contract/price_lists/product-pricing-panel.test.ts': 3,
   'contract/product_feeds/taxonomy-revisions.test.ts': 3,
   'contract/promotions/attribute-criterion.test.ts': 1,
   'contract/promotions/coupon-generator.test.ts': 1,

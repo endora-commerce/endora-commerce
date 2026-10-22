@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CustomerAccountReadPort, SalesRepAssignmentPort } from '@endora-commerce/contracts';
+import type { CustomerAccountReadPort, SalesRepAssignmentPort, SettingsAdminPort } from '@endora-commerce/contracts';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { PriceListService } from './services/price-list-service.js';
 import { PricingService, type PricingServiceOptions } from './services/pricing-service.js';
@@ -8,6 +8,8 @@ import type { BookLineAnswer, ChannelBridgeSubquery } from './services/book-pric
 import type { ProfilePricingCacheKey } from './services/pricing-cache.js';
 import type { PricingProfile, ProfileMemoKey } from './services/pricing-profile.js';
 import { PriceBookService } from './services/price-book-service.js';
+import { PriceBookReads } from './services/price-book-reads.js';
+import { readShowListPrice, registerPriceBookRoutes } from './routes.price-books.js';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import type { PriceListTargetReads } from './services/price-list-service.js';
 import type { PricingServiceContract } from './services/pricing-service.interface.js';
@@ -22,7 +24,7 @@ import { registerPricingRoutes } from './routes.js';
 import { registerStorefrontPricingRoutes } from './routes.storefront.js';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { CommandBus } from '@endora-commerce/platform/commands';
-import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory, SettingsReadPort } from '@endora-commerce/platform/kernel';
 import {
   effectiveState,
   enterSystemScope,
@@ -143,6 +145,13 @@ export interface PriceListsModuleOptions {
     'entityIdsInChannelSubquery' | 'replaceChannelsForEntity' | 'listChannelsForEntity'
   >;
   /**
+   * Feature 160 (G8, G9) — `pricing.show_list_price`: read through the settings
+   * module's cached getter, written by the settings admin port inside one
+   * audited command.
+   */
+  settingsRead?: SettingsReadPort;
+  settingsAdmin?: SettingsAdminPort;
+  /**
    * Feature 160 — which engine the batched entry points run. `legacy` until the
    * consumer phase of the feature switches the composition to `books`; see
    * `PricingServiceOptions`.
@@ -234,15 +243,24 @@ export function priceListsModule(options: PriceListsModuleOptions): {
       bookCache,
       profileMemo,
       ...(options.requestSurfaceRebuild ? { requestSurfaceRebuild: options.requestSurfaceRebuild } : {}),
+      showListPrice: () => readShowListPrice(options.settingsRead),
     },
   );
   const pricingService: PricingServiceContract = pricingEngine;
+  const priceBookReads = new PriceBookReads({
+    emFactory: options.emFactory,
+    ...(options.salesChannelMembership ? { channelBridge: options.salesChannelMembership } : {}),
+    catalogProductRead: options.targetReads.catalogProductRead,
+    catalogCategoryRead: options.targetReads.catalogCategoryRead,
+    catalogAttributeRead: options.targetReads.catalogAttributeRead,
+  });
   const priceBookService = new PriceBookService({
     emFactory: options.emFactory,
     ...(options.commandBus ? { commandBus: options.commandBus } : {}),
     pricingGeneration,
     ...(options.salesChannelMembership ? { channelMembership: options.salesChannelMembership } : {}),
     targetReads: options.targetReads,
+    reads: priceBookReads,
   });
   const statusWorker = new PriceListStatusWorker(options.emFactory, pricingGeneration);
   // One engine instance behind the probe and the port alike: a quote's "price
@@ -269,21 +287,28 @@ export function priceListsModule(options: PriceListsModuleOptions): {
       pricingEngine,
     },
     plugin: async (app: FastifyInstance) => {
-      await registerPricingRoutes(app, {
-        priceListService,
+      await registerPricingRoutes(app, { priceListService, requireAdmin: options.requireAdmin });
+      await registerPriceBookRoutes(app, {
+        priceBookService,
+        reads: priceBookReads,
+        buyerLinePriceService,
         emFactory: options.emFactory,
         requireAdmin: options.requireAdmin,
-        catalogProductRead: options.targetReads.catalogProductRead,
-        catalogCategoryRead: options.targetReads.catalogCategoryRead,
         organizationDetails: options.targetReads.organizationDetails,
         customerGroupRead: options.targetReads.customerGroupRead,
         customerAccountRead: options.customerAccountRead,
-        buyerLinePriceService,
+        catalogCategoryRead: options.targetReads.catalogCategoryRead,
+        catalogAttributeRead: options.targetReads.catalogAttributeRead,
         salesRepScope: options.salesRepScope,
         statusWorker,
-        ...(options.resolveAdminAuditContext
-          ? { resolveAdminAuditContext: options.resolveAdminAuditContext }
-          : {}),
+        activePrecedence: async () => {
+          const active = await pricingEngine!.bookPricing.precedence.active();
+          return { version: active.version, config: active.config };
+        },
+        ...(options.settingsRead ? { settingsRead: options.settingsRead } : {}),
+        ...(options.settingsAdmin ? { settingsAdmin: options.settingsAdmin } : {}),
+        ...(options.commandBus ? { commandBus: options.commandBus } : {}),
+        ...(options.resolveAdminAuditContext ? { resolveAdminAuditContext: options.resolveAdminAuditContext } : {}),
       });
       await registerStorefrontPricingRoutes(app, {
         priceListService,

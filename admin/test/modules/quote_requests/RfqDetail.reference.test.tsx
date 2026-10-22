@@ -12,6 +12,7 @@ import {
 } from './rfq-reference-fixtures';
 
 const getSpy = vi.fn();
+const postSpy = vi.fn();
 
 vi.mock('@endora-commerce/admin-kit/lib', async () => {
   const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
@@ -21,7 +22,7 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
     ...actual,
     apiClient: {
       get: (...args: unknown[]) => getSpy(...args),
-      post: vi.fn(),
+      post: (...args: unknown[]) => postSpy(...args),
       put: vi.fn(),
       patch: vi.fn(),
       delete: vi.fn(),
@@ -48,6 +49,7 @@ async function lineRow(): Promise<HTMLElement> {
 
 beforeEach(() => {
   getSpy.mockReset();
+  postSpy.mockReset();
 });
 
 /**
@@ -57,7 +59,7 @@ beforeEach(() => {
  */
 describe('RfqDetail Overview — reference, proposal, difference', () => {
   it('names the four price columns', async () => {
-    installGet(getSpy, {}, 'reject');
+    installGet(getSpy, {}, 'reject', postSpy);
     renderRfqDetail(RfqDetail);
     await lineRow();
     for (const header of [
@@ -71,7 +73,7 @@ describe('RfqDetail Overview — reference, proposal, difference', () => {
   });
 
   it('shows 120.00 at request, 100.00 proposed and −20.00 PLN / −16.67 % (US1 #1, #5)', async () => {
-    installGet(getSpy, {}, 'reject');
+    installGet(getSpy, {}, 'reject', postSpy);
     renderRfqDetail(RfqDetail);
     const row = await lineRow();
     expect(row).toHaveTextContent('120.00 PLN');
@@ -80,12 +82,12 @@ describe('RfqDetail Overview — reference, proposal, difference', () => {
     expect(row).toHaveTextContent('−20.00 PLN');
     expect(row).toHaveTextContent('−16.67 %');
     // A stored reference is the reference: the current price is not asked for.
-    expect(probeCalls(getSpy)).toEqual([]);
+    expect(probeCalls(postSpy)).toEqual([]);
     expect(within(row).queryByText('rfq.detail.reference.current')).not.toBeInTheDocument();
   });
 
   it('formats every amount in the admin language — Polish separators in Polish (review fix N3)', async () => {
-    installGet(getSpy, { agreedUnitPrice: 110 }, 'reject');
+    installGet(getSpy, { agreedUnitPrice: 110 }, 'reject', postSpy);
     renderRfqDetail(RfqDetail, 'pl');
     const row = await lineRow();
     const cells = within(row).getAllByRole('cell');
@@ -98,7 +100,7 @@ describe('RfqDetail Overview — reference, proposal, difference', () => {
   });
 
   it('formats in English conventions in English, whatever the currency (review fix N3)', async () => {
-    installGet(getSpy, { agreedUnitPrice: 1100 }, 'reject');
+    installGet(getSpy, { agreedUnitPrice: 1100 }, 'reject', postSpy);
     renderRfqDetail(RfqDetail);
     const row = await lineRow();
     // 2 × 1100 — English grouping, not the Polish the screen used to hard-code.
@@ -106,21 +108,21 @@ describe('RfqDetail Overview — reference, proposal, difference', () => {
   });
 
   it('labels the reference "per base unit" only on a line sold in a packaging unit (review fix N4)', async () => {
-    installGet(getSpy, { packagingUnitName: 'Box' }, 'reject');
+    installGet(getSpy, { packagingUnitName: 'Box' }, 'reject', postSpy);
     renderRfqDetail(RfqDetail);
     const row = await lineRow();
     expect(within(row).getByText(/rfq\.detail\.reference\.perBaseUnit/)).toBeInTheDocument();
   });
 
   it('shows no "per base unit" label on a line without a packaging unit', async () => {
-    installGet(getSpy, {}, 'reject');
+    installGet(getSpy, {}, 'reject', postSpy);
     renderRfqDetail(RfqDetail);
     const row = await lineRow();
     expect(within(row).queryByText(/rfq\.detail\.reference\.perBaseUnit/)).not.toBeInTheDocument();
   });
 
   it('signs a proposal above the reference with "+"', async () => {
-    installGet(getSpy, { customerProposedUnitPrice: 132 }, 'reject');
+    installGet(getSpy, { customerProposedUnitPrice: 132 }, 'reject', postSpy);
     renderRfqDetail(RfqDetail);
     const row = await lineRow();
     expect(row).toHaveTextContent('+12.00 PLN');
@@ -128,7 +130,7 @@ describe('RfqDetail Overview — reference, proposal, difference', () => {
   });
 
   it('shows the reference and "—" for proposal and difference when the customer proposed nothing (US1 #3)', async () => {
-    installGet(getSpy, { customerProposedUnitPrice: null, desiredUnitPrice: null }, 'reject');
+    installGet(getSpy, { customerProposedUnitPrice: null, desiredUnitPrice: null }, 'reject', postSpy);
     renderRfqDetail(RfqDetail);
     const row = await lineRow();
     expect(row).toHaveTextContent('120.00 PLN');
@@ -143,6 +145,7 @@ describe('RfqDetail Overview — reference, proposal, difference', () => {
       getSpy,
       { referencePrice: { amount: 120, currency: 'EUR', capturedAt: '2026-10-01T10:00:00.000Z' } },
       'reject',
+      postSpy,
     );
     renderRfqDetail(RfqDetail);
     const row = await lineRow();
@@ -155,6 +158,7 @@ describe('RfqDetail Overview — reference, proposal, difference', () => {
       getSpy,
       { referencePrice: { amount: 0, currency: 'PLN', capturedAt: '2026-10-01T10:00:00.000Z' } },
       'reject',
+      postSpy,
     );
     renderRfqDetail(RfqDetail);
     const row = await lineRow();
@@ -165,7 +169,7 @@ describe('RfqDetail Overview — reference, proposal, difference', () => {
   });
 
   it('asks the admin probe for the customer’s current price on the request’s channel when none is stored (US1 #6)', async () => {
-    installGet(getSpy, { referencePrice: null }, { amount: '125.00', currency: 'PLN' });
+    installGet(getSpy, { referencePrice: null }, { amount: '125.00', currency: 'PLN' }, postSpy);
     renderRfqDetail(RfqDetail);
     const row = await lineRow();
     await waitFor(() => expect(within(row).getByText('rfq.detail.reference.current')).toBeInTheDocument());
@@ -173,20 +177,18 @@ describe('RfqDetail Overview — reference, proposal, difference', () => {
     expect(row).toHaveTextContent('−25.00 PLN');
     expect(within(row).queryByText('rfq.detail.reference.atRequest')).not.toBeInTheDocument();
 
-    const calls = probeCalls(getSpy);
+    const calls = probeCalls(postSpy);
     expect(calls.length).toBeGreaterThan(0);
-    for (const url of calls) {
-      expect(url.pathname).toBe(`/api/v1/admin/products/${PRODUCT_ID}/resolved-price`);
-      expect(url.searchParams.get('customerAccountId')).toBe(CUSTOMER_ID);
-      expect(url.searchParams.get('salesChannelId')).toBe(CHANNEL_ID);
-      expect(url.searchParams.get('quantity')).toBe('2');
-      expect(url.searchParams.get('variantId')).toBe(VARIANT_ID);
+    for (const request of calls) {
+      expect(request.buyer.customerAccountId).toBe(CUSTOMER_ID);
+      expect(request.salesChannelId).toBe(CHANNEL_ID);
+      expect(request.lines).toEqual([expect.objectContaining({ productId: PRODUCT_ID, quantity: 2, variantId: VARIANT_ID })]);
     }
     expect(getSpy.mock.calls.some((c) => String(c[0]).includes('/storefront/'))).toBe(false);
   });
 
   it('shows "no price" when the probe resolves no price (US1 #7)', async () => {
-    installGet(getSpy, { referencePrice: null }, null);
+    installGet(getSpy, { referencePrice: null }, null, postSpy);
     renderRfqDetail(RfqDetail);
     const row = await lineRow();
     await waitFor(() => expect(within(row).getByText('rfq.detail.reference.none')).toBeInTheDocument());
@@ -196,7 +198,7 @@ describe('RfqDetail Overview — reference, proposal, difference', () => {
   it.each(PROBE_FAILURES)(
     'a %s from the probe renders "no price" and "—", and the rest of the screen renders (L2)',
     async (_label, failure) => {
-      installGet(getSpy, { referencePrice: null, agreedUnitPrice: 110 }, failure);
+      installGet(getSpy, { referencePrice: null, agreedUnitPrice: 110 }, failure, postSpy);
       renderRfqDetail(RfqDetail);
       const row = await lineRow();
       await waitFor(() => expect(within(row).getByText('rfq.detail.reference.none')).toBeInTheDocument());

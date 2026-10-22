@@ -8,7 +8,9 @@ import {
   type OrganizationDetailsPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
+import type { PriceSource } from '@endora-commerce/contracts';
 import type { PricingServiceContract } from './pricing-service.interface.js';
+import type { BookExplanation } from './book-resolver.js';
 import { effectiveCustomerGroupId } from './customer-group-rule.js';
 
 /**
@@ -52,6 +54,10 @@ export interface BuyerLinePriceDetailedAnswer extends BuyerLinePriceAnswer {
    * the published `BuyerLinePriceAnswer` is not widened (D-77).
    */
   matrixEntryId: string | null;
+  /** Feature 160 — the tier that priced the line, the buyer price a charged sale undercut, and why (FR-020). */
+  source?: PriceSource | undefined;
+  compareAt?: string | null | undefined;
+  explanation?: BookExplanation | undefined;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -172,6 +178,9 @@ export class BuyerLinePriceService implements BuyerLinePricePort {
             : null,
           productFound: true,
           matrixEntryId: resolved?.matrixEntryId ?? null,
+          ...(resolved?.source !== undefined ? { source: resolved.source } : {}),
+          ...(resolved?.compareAt !== undefined ? { compareAt: resolved.compareAt } : {}),
+          ...(resolved?.explanation !== undefined ? { explanation: resolved.explanation } : {}),
         });
       }
     }

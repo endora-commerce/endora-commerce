@@ -82,19 +82,27 @@ export async function probeCustomerPrice(
   signal?: AbortSignal,
 ): Promise<ReferenceAmount | null> {
   try {
-    const params = new URLSearchParams({
-      customerAccountId: rfq.customerAccountId,
-      quantity: String(line.quantity > 0 ? line.quantity : 1),
-    });
-    if (rfq.salesChannelId) params.set('salesChannelId', rfq.salesChannelId);
-    if (line.variantId) params.set('variantId', line.variantId);
-    const res = await apiClient.get<{
-      data: { resolvedPrice: { amount: string; currency: string } | null };
+    // Feature 160 — the price explanation (`POST /api/v1/admin/price-books/resolve`),
+    // which replaced `GET /api/v1/admin/products/:id/resolved-price` with the same scope.
+    const res = await apiClient.post<{
+      data: Array<{ key: string; price: { amount: string; currency: string } | null }>;
     }>(
-      `/api/v1/admin/products/${line.productId}/resolved-price?${params.toString()}`,
+      '/api/v1/admin/price-books/resolve',
+      {
+        ...(rfq.salesChannelId ? { salesChannelId: rfq.salesChannelId } : {}),
+        buyer: { customerAccountId: rfq.customerAccountId },
+        lines: [
+          {
+            key: 'line',
+            productId: line.productId,
+            ...(line.variantId ? { variantId: line.variantId } : {}),
+            quantity: line.quantity > 0 ? line.quantity : 1,
+          },
+        ],
+      },
       signal ? { signal } : undefined,
     );
-    const resolved = res.data.resolvedPrice;
+    const resolved = res.data[0]?.price ?? null;
     if (!resolved) return null;
     const amount = Number(resolved.amount);
     return Number.isFinite(amount) ? { amount, currency: resolved.currency } : null;

@@ -21,6 +21,8 @@ import { adminSession, modulePresence, withSession } from '../../helpers/render-
 
 const getSpy = vi.fn();
 const postSpy = vi.fn();
+/** The quote-request creations posted (the price explanation posts too, feature 160). */
+const creates = () => postSpy.mock.calls.filter(([path]) => path === '/api/v1/admin/quote-requests');
 const navigateSpy = vi.fn();
 
 vi.mock('@endora-commerce/admin-kit/lib', async () => {
@@ -109,10 +111,15 @@ beforeEach(() => {
         data: PRODUCTS.filter((p) => p.name['en-US'].toLowerCase().startsWith(q.toLowerCase())),
       });
     }
-    if (path.includes('/resolved-price')) return Promise.resolve({ data: { resolvedPrice: { amount: '10.00' } } });
     return Promise.resolve({ data: [] });
   });
-  postSpy.mockResolvedValue({ data: { id: 'new-rfq-1' } });
+  postSpy.mockImplementation((path: string) =>
+    Promise.resolve(
+      path === '/api/v1/admin/price-books/resolve'
+        ? { data: [{ key: 'line', price: { amount: '10.00', currency: 'PLN', source: 'base' } }] }
+        : { data: { id: 'new-rfq-1' } },
+    ),
+  );
 });
 
 function renderPage(): void {
@@ -170,8 +177,8 @@ describe('RfqCreatePage — groups (T032)', () => {
     const submit = screen.getByText('rfqCreate.submit');
     await waitFor(() => expect(submit).not.toBeDisabled());
     await userEvent.click(submit);
-    await waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
-    const [, body] = postSpy.mock.calls[0] as [string, { groups: Array<{ key: string; name: string }>; items: Array<Record<string, unknown>> }];
+    await waitFor(() => expect(creates()).toHaveLength(1));
+    const [, body] = creates()[0] as [string, { groups: Array<{ key: string; name: string }>; items: Array<Record<string, unknown>> }];
     expect(body.groups).toHaveLength(1);
     expect(body.groups[0]).toEqual({ key: expect.any(String), name: 'Hall A' });
     expect(body.items).toEqual([
@@ -205,15 +212,21 @@ describe('RfqCreatePage — groups (T032)', () => {
     await userEvent.type(hallQuantity, '5');
     // Each line asks its own price, at its own quantity.
     await waitFor(() =>
-      expect(getSpy.mock.calls.some(([url]) => String(url).includes('/resolved-price') && String(url).includes('quantity=5'))).toBe(true),
+      expect(
+        postSpy.mock.calls.some(
+          ([url, body]) =>
+            url === '/api/v1/admin/price-books/resolve' &&
+            (body as { lines: Array<{ quantity: number }> }).lines[0]?.quantity === 5,
+        ),
+      ).toBe(true),
     );
     expect(within(rowgroup('Ungrouped')).getByRole('textbox', { name: 'rfqCreate.field.quantity Widget' })).toHaveValue('1');
 
     const submit = screen.getByText('rfqCreate.submit');
     await waitFor(() => expect(submit).not.toBeDisabled());
     await userEvent.click(submit);
-    await waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
-    const [, body] = postSpy.mock.calls[0] as [string, { groups: Array<{ key: string }>; items: Array<Record<string, unknown>> }];
+    await waitFor(() => expect(creates()).toHaveLength(1));
+    const [, body] = creates()[0] as [string, { groups: Array<{ key: string }>; items: Array<Record<string, unknown>> }];
     expect(body.items).toEqual([
       { productId: 'prod-1', quantity: 5, agreedUnitPrice: 10, groupKey: body.groups[0]!.key },
       { productId: 'prod-1', quantity: 1, agreedUnitPrice: 10, groupKey: null },
@@ -235,8 +248,8 @@ describe('RfqCreatePage — groups (T032)', () => {
     const submit = screen.getByText('rfqCreate.submit');
     await waitFor(() => expect(submit).not.toBeDisabled());
     await userEvent.click(submit);
-    await waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
-    expect(postSpy.mock.calls[0]![1]).toEqual({
+    await waitFor(() => expect(creates()).toHaveLength(1));
+    expect(creates()[0]![1]).toEqual({
       organizationId: ORGANIZATION_ID,
       customerAccountId: 'cust-1',
       items: [{ productId: 'prod-1', quantity: 1, agreedUnitPrice: 10 }],

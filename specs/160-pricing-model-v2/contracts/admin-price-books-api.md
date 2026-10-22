@@ -17,15 +17,27 @@ Common rules:
   absent from lists and counts; everyone and customer-group books are read-only for a representative
   (`403`); a representative may not add an out-of-scope member.
 - Errors: the platform envelope; codes below are new unless marked.
+- **Versions (G5).** `PriceBook.version` moves on every write to the book — header, channel set,
+  members, rows, activation. `PATCH …/:id` and `PUT …/:id/rows` name the version they were made
+  against, as `expectedVersion` in the body or an `If-Match` header; without one they answer `400`,
+  and against an older one `409 PRICE_BOOK_STALE` with `details.currentVersion`, writing nothing.
+- **Row refusals (G6)** name every failing row: `details.errors: [{ index?, rowId?, field, code,
+  message }]`, `index` being the row's position in `upsert` and `rowId` a stored row (an overlap
+  partner, a delete of a row the book does not hold). Row codes: `PRICE_BOOK_ROW_SHAPE`,
+  `PRICE_BOOK_ROW_OVERLAP`, `PRICE_BOOK_ROW_TARGET` (unknown product, variant, category, SKU, path or
+  attribute value, or an attribute that cannot select prices), `PRICE_BOOK_ROW_LIMIT`. The envelope's
+  code is `PRICE_BOOK_ROW_OVERLAP` (`409`) when every error is an overlap, else
+  `PRICE_BOOK_ROW_SHAPE` (`400`).
+- Paged answers are `{ data: T[], meta: { page, pageSize, totalCount } }`.
 
 ## Books
 
 | Method + path | Body / query | Answer |
 | --- | --- | --- |
-| `GET /api/v1/admin/price-books` | `?type&status&currency&channelId&audienceKind&memberId&search&page&pageSize` | page of `PriceBookSummary` (header, channel count, member count, row count, *applies to no one / nowhere* flags) |
+| `GET /api/v1/admin/price-books` | `?type&status&currency&channelId&audienceKind&memberId&search&productId&variantId&page&pageSize` | page of `PriceBookSummary` (header, `version`, `tierStarts`, channel count, member count, row count, *applies to no one / nowhere* flags). With `productId` (and `variantId`): only books with a row naming that product (or variant) directly, each with `matches: [{rowId, selectionKind, minQuantity, maxQuantity, price}]` (G1) |
 | `POST /api/v1/admin/price-books` | `PriceBookCreate`: name, type, currencyCode, channelIds[], audience `{kind, memberIds[]}`, priority, startsAt, endsAt | `201 PriceBook` (status `draft`); `400 PRICE_BOOK_CHANNEL_CURRENCY` naming channels (FR-003); `400 PRICE_BOOK_AUDIENCE_KIND` (mixed kinds, A4) |
-| `GET /api/v1/admin/price-books/:id` | | `PriceBook` incl. channels (with `dormant` per binding) and members |
-| `PATCH /api/v1/admin/price-books/:id` | name, priority, dates, channelIds, members; **not** currency; audience kind only while never activated | `PriceBook`; `409 PRICE_BOOK_IMMUTABLE_FIELD` |
+| `GET /api/v1/admin/price-books/:id` | | `PriceBook` incl. channels (with `dormant` per binding), members, `version`, `everActivated`, `rowCount` and `tierStarts` — every `minQuantity` a row uses, ascending (G4) |
+| `PATCH /api/v1/admin/price-books/:id` | name, priority, dates, channelIds, members, `expectedVersion`; **not** currency or type; audience kind only while never activated; nothing on a base book | `PriceBook`; `409 PRICE_BOOK_IMMUTABLE_FIELD`; `409 PRICE_BOOK_STALE` |
 | `POST /api/v1/admin/price-books/:id/activate` · `/draftify` | | `PriceBook`; `409 PRICE_BOOK_NOT_APPLICABLE` when no non-dormant channel or no member |
 | `POST /api/v1/admin/price-books/:id/duplicate` | `PriceBookDuplicate`: name, channelIds, currencyCode, audience, `amountMultiplier` (decimal string, default `1`) | `201 PriceBook` (draft) — fixed and amount rows × multiplier, half-up, 4 dp; percentages verbatim (FR-036) |
 | `DELETE /api/v1/admin/price-books/:id` | | `204`; system books refused `403 FORBIDDEN` as today (`price-list-service.ts` `remove`) |
@@ -34,14 +46,21 @@ Common rules:
 
 | Method + path | Body / query | Answer |
 | --- | --- | --- |
-| `GET /api/v1/admin/price-books/:id/rows` | `?selectionKind&productId&variantId&categoryId&attributeKey&page&pageSize` | page of `PriceBookRow` with `inactiveReason` (attribute not eligible, deleted target) |
-| `PUT /api/v1/admin/price-books/:id/rows` | `PriceBookRowBatch`: `{ upsert: PriceBookRowInput[], delete: rowId[] }`, ≤ 5 000 per call | one audited command for the batch; `PriceBookRow[]`; `409 PRICE_BOOK_ROW_OVERLAP` naming the rows; `400 PRICE_BOOK_ROW_SHAPE` with the FR-005–FR-009 reason. **The grid of P2 saves through this.** |
+| `GET /api/v1/admin/price-books/:id/rows` | `?selectionKind&productId&variantId&categoryId&attributeKey&search&page&pageSize` | page of `PriceBookRow`, ordered general to specific and by label: `inactiveReason` (`attribute_not_price_rule`, `attribute_deleted`, `target_deleted`), `targetDeleted`, `labels {productName, productSku, variantLabel, variantSku, categoryPath, attributeLabel, attributeValueLabel}` resolved in one read per target kind (G2), and `naturalKey`; `search` matches the labels and SKUs (G3) |
+| `PUT /api/v1/admin/price-books/:id/rows` | `{ expectedVersion, mode: 'merge' \| 'replace', upsert: Row[], delete: rowId[] }`, ≤ 5 000 per call | one audited command for the batch; `{ version, rows }`; `409 PRICE_BOOK_ROW_OVERLAP` naming the rows; `400 PRICE_BOOK_ROW_SHAPE` with every failing row (G6). **The grid of P2 saves through this.** A base book accepts product rows (fixed) and variant rows (fixed, percent, amount) and refuses any other row per row (G7) |
+| `PUT /api/v1/admin/price-books/:id/rows?dryRun=true` | the same body; `expectedVersion` optional | writes nothing; `{ version, resolved: (Row \| null)[], diff: { added[], changed: [{before, after}], removed[], unchangedCount }, errors[] }` — `resolved[i]` is `upsert[i]` with its selection resolved to ids, `unchangedCount` the batch rows equal to the stored row they replace, `errors` in the G6 shape (G10). Confirmation is the same body without `dryRun`, with the version the preview answered |
 | `PATCH /api/v1/admin/price-books/:id/rows/:rowId` · `DELETE …/:rowId` | | single-row conveniences over the same command |
 
-`PriceBookRowInput`: `{ id?, selection: {variantId?, productId?, categoryId?, attribute?: {key, value}},
-minQuantity, maxQuantity, price: {type:'fixed', amount} | {type:'percent', percent} | {type:'amount', amount} }`
-— no currency (the book's), no organization (the header's). Limit per book: 5 000 rows (unchanged
-from 148, FR-007 of 148).
+`Row`: `{ id?, selection?: {variantId?, productId?, categoryId?, attribute?: {key, value}}, key?:
+{productSku?, variantSku?, categoryPath?, attribute?: {key, valueCode}}, minQuantity, maxQuantity,
+price: {type:'fixed', amount} | {type:'percent', percent} | {type:'amount', amount} }` — exactly one
+of `selection` (ids, the grid) and `key` (natural keys, a CSV import, G10; `categoryPath` is the
+category's slugs from the root joined by `/`). No currency (the book's), no organization (the
+header's). A row without an `id` whose selection and `minQuantity` equal a stored row's replaces
+that row (*changed*); `merge` keeps the rows the batch does not name, `replace` removes them
+(`delete` must then be empty). Amounts are stored at four places, percentages at two. Limit per book:
+5 000 rows (unchanged from 148, FR-007 of 148); the diff and the write cost a bounded number of
+statements whatever the batch size.
 
 ## Base prices (the product editor's zone in P2)
 
@@ -49,6 +68,15 @@ from 148, FR-007 of 148).
 | --- | --- | --- |
 | `GET /api/v1/admin/price-books/base-prices?productId=` | | per currency: the product's tiers and each variant's row (`inherits` / fixed / percent / amount) |
 | `PUT /api/v1/admin/price-books/base-prices/:productId` | `{ byCurrency: { [code]: { product: Tier[], variants: { [variantId]: VariantBaseRow \| null } } } }` | one audited command across currencies; creates a currency's base book on first use |
+
+## Settings (G8)
+
+`GET /api/v1/admin/price-books/settings/show-list-price` → `{ value }`;
+`PUT …/settings/show-list-price` `{ value: boolean }` — the manifest setting `pricing.show_list_price`
+(boolean, default `false`), written by the settings module inside **one** `CommandBus.run`
+(`price_list.show_list_price_set`). While on, `ListingPriceDetail` and the storefront resolved price
+carry `listPrice: { amount, currency }` — the channel's everyone price (catalogue, else base) — only
+when it is above the price charged (G9; vectors D1–D4 of `worked-examples.md` §10.15).
 
 ## Targets (pickers)
 
@@ -58,9 +86,10 @@ their option values; `sales-channels?currency=` lists only channels offering the
 
 ## Explanation (FR-020, FR-038)
 
-`POST /api/v1/admin/price-books/resolve` — body `{ salesChannelId, currencyCode?, buyer:
+`POST /api/v1/admin/price-books/resolve` — body `{ salesChannelId?, currencyCode?, buyer:
 {organizationId?, customerAccountId?}, lines: [{key, productId, variantId?, quantity}] }` (≤ 200
-lines), scoped like the old probe. Answer per line:
+lines), scoped like the old probe; no `salesChannelId` prices on the system default channel, as the
+probe did. Answer per line:
 
 ```ts
 { key, price: null | { amount, currency, source: 'base'|'catalogue'|'buyer'|'sale', compareAt?: string },
@@ -78,6 +107,8 @@ name if it equals one). Any `POST`/`PUT` under `…/precedence` answers
 
 ## Removed (same release)
 
-Every route under `/api/v1/admin/price-lists-engine/`, `/api/v1/admin/pricing/rule-targets/`, and
-`/api/v1/admin/products/:id/resolved-price`. A `minor` changeset on `@endora-commerce/contracts` and
+Every route under `/api/v1/admin/price-lists-engine/`, `/api/v1/admin/pricing/rule-targets/`,
+`/api/v1/admin/products/:id/price-lists` (the linked-lists panel; its replacement is the book list
+filtered by `productId`, G1) and `/api/v1/admin/products/:id/resolved-price`. The test-only status
+sweep moved to `POST /api/v1/admin/price-books/internal/sweep`. A `minor` changeset on `@endora-commerce/contracts` and
 `@endora-commerce/mod-price-lists` lists each with its replacement.

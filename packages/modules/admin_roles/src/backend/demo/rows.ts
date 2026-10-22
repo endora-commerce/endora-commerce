@@ -57,7 +57,7 @@ export const SALES_REPRESENTATIVE_PERMISSIONS: readonly string[] = [
   'rfqs:handle',
   'catalog:read',
   // D-173 — the RFQ create screen prefills the agreed unit price from
-  // `GET /admin/products/:id/resolved-price`, which is `price_lists`' own
+  // `POST /admin/price-books/resolve` (feature 160), which is `price_lists`' own
   // endpoint and is gated on `price_lists:read` rather than on
   // `rfqs:handle`. Without this code the prefill answers 403.
   'price_lists:read',

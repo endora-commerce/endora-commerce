@@ -45,6 +45,8 @@ export class PriceList {
     | 'endsAt'
     | 'applicationRule'
     | 'audienceKind'
+    | 'version'
+    | 'everActivated'
     | 'hasMatrixEntries';
 
   @PrimaryKey({ type: 'uuid' })
@@ -103,6 +105,18 @@ export class PriceList {
 
   @Property({ type: 'boolean' })
   isSystem: boolean = false;
+
+  /**
+   * Feature 160 (G5 of `specs/161-price-book-editor/`) — moves on every write to
+   * the book (header, channel set, members, rows, activation); a write that
+   * names an older one is refused `409 PRICE_BOOK_STALE`.
+   */
+  @Property({ type: 'integer', default: 1 })
+  version: number = 1;
+
+  /** Feature 160 — set by the first activation, never cleared: the audience kind is fixed from then on (FR-004). */
+  @Property({ type: 'boolean', default: false })
+  everActivated: boolean = false;
 
   @Property({ type: 'datetime' })
   modifiedAt: Date = new Date();

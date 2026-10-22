@@ -21,7 +21,7 @@ import { adminSession, modulePresence, withSession } from '../../helpers/render-
  * screen's test does), so a missing key fails here instead of passing as its name.
  *
  * **The server is a small fake**: the catalogue list filters, counts and paginates
- * what the picker asks for; `resolved-price` answers per product, customer and
+ * what the picker asks for; the price explanation (`POST …/price-books/resolve`) answers per product, customer and
  * quantity, with a few products resolving to nothing.
  */
 
@@ -161,17 +161,18 @@ interface ResolveCall {
 }
 
 function resolveCalls(): ResolveCall[] {
-  return getSpy.mock.calls
-    .map(([path]) => String(path))
-    .filter((path) => path.includes('/resolved-price'))
-    .map((path) => {
-      const [head, query] = path.split('?');
-      const params = new URLSearchParams(query ?? '');
+  return postSpy.mock.calls
+    .filter(([path]) => path === '/api/v1/admin/price-books/resolve')
+    .map(([, body]) => {
+      const request = body as {
+        buyer: { organizationId?: string; customerAccountId?: string };
+        lines: Array<{ productId: string; quantity: number }>;
+      };
       return {
-        productId: (head ?? '').split('/').at(-2) ?? '',
-        organizationId: params.get('organizationId'),
-        customerAccountId: params.get('customerAccountId'),
-        quantity: Number(params.get('quantity')),
+        productId: request.lines[0]?.productId ?? '',
+        organizationId: request.buyer.organizationId ?? null,
+        customerAccountId: request.buyer.customerAccountId ?? null,
+        quantity: request.lines[0]?.quantity ?? 0,
       };
     });
 }
@@ -193,18 +194,6 @@ beforeEach(() => {
     const one = CUSTOMERS.find((c) => path === `/api/v1/admin/customers/${c.id}`);
     if (one) return Promise.resolve({ data: one });
     if (path.startsWith('/api/v1/admin/customers')) return Promise.resolve({ data: CUSTOMERS });
-    if (path.includes('/resolved-price')) {
-      const [head, query] = path.split('?');
-      const productId = (head ?? '').split('/').at(-2) ?? '';
-      const params = new URLSearchParams(query ?? '');
-      const amount = priceFor(productId, params.get('customerAccountId') ?? '', Number(params.get('quantity')));
-      const body = { data: { resolvedPrice: amount === null ? null : { amount, currency: 'PLN' } } };
-      if (holdNext.has(productId)) {
-        holdNext.delete(productId);
-        return new Promise((resolveHeld) => held.set(productId, () => resolveHeld(body)));
-      }
-      return Promise.resolve(body);
-    }
     if (path.startsWith(`${LIST_PATH}?`)) return Promise.resolve(serveCatalog(path));
     if (path.startsWith(`${LIST_PATH}/`)) {
       const row = CATALOG.find((p) => p.id === path.slice(LIST_PATH.length + 1));
@@ -212,7 +201,17 @@ beforeEach(() => {
     }
     return Promise.resolve({ data: [] });
   });
-  postSpy.mockResolvedValue({ data: { id: 'new-rfq-1' } });
+  postSpy.mockImplementation((path: string, request: { buyer: { customerAccountId?: string }; lines: Array<{ key: string; productId: string; quantity: number }> }) => {
+    if (path !== '/api/v1/admin/price-books/resolve') return Promise.resolve({ data: { id: 'new-rfq-1' } });
+    const line = request.lines[0]!;
+    const amount = priceFor(line.productId, request.buyer.customerAccountId ?? '', line.quantity);
+    const body = { data: [{ key: line.key, price: amount === null ? null : { amount, currency: 'PLN', source: 'buyer' } }] };
+    if (holdNext.has(line.productId)) {
+      holdNext.delete(line.productId);
+      return new Promise((resolveHeld) => held.set(line.productId, () => resolveHeld(body)));
+    }
+    return Promise.resolve(body);
+  });
 });
 
 /** Opened with cust-1 chosen unless `customer` says otherwise (`null` = none). */

@@ -15,11 +15,11 @@ import type {
   DictionaryReferenceRegistryPort,
   SalesRepAssignmentPort,
 } from '@endora-commerce/contracts';
-import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
+import type { SalesChannelMembershipPort, SettingsReadPort } from '@endora-commerce/platform/kernel';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
-import type { AuditReferenceRegistryPort } from '@endora-commerce/contracts';
+import type { AuditReferenceRegistryPort, SettingsAdminPort } from '@endora-commerce/contracts';
 import { lazyPort } from '@endora-commerce/platform/kernel';
 import { registerPriceListAuditReferences } from './services/audit-references.js';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
@@ -230,6 +230,12 @@ export function registerModule(ctx: ModuleContext): void {
             // Feature 160 — a price book's channel set is the registered
             // `price-list` bridge; the kernel's accessor reads and writes it.
             salesChannelMembership: lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort'),
+            // Feature 160 (G8, G9) — `pricing.show_list_price`, this module's own
+            // setting: read through the kernel's cached getter, written by the
+            // settings module's admin port (a declared dependency) inside one
+            // audited command.
+            settingsRead: lazyPort<SettingsReadPort>(ctx, 'settingsReadPort'),
+            settingsAdmin: lazyPort<SettingsAdminPort>(ctx, 'settingsAdminService'),
           }),
       )
       .singleton(),

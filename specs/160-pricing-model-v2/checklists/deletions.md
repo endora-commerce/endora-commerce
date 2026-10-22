@@ -45,17 +45,17 @@ Backend:
 
 - [ ] `backend/test/integration/price_lists/rule-builder-normalisation.test.ts`
 - [ ] `backend/test/integration/price_lists/resolver-priority-and-tiebreak.test.ts`
-- [ ] `backend/test/integration/price_lists/price-matrix-lifecycle.test.ts`
+- [X] `backend/test/integration/price_lists/price-matrix-lifecycle.test.ts`
 - [ ] `backend/test/integration/price_lists/bracket-pricing-end-to-end.test.ts`
 - [ ] `backend/test/integration/price_lists/default-seed-and-migration.test.ts`
 - [ ] `backend/test/integration/price_lists/listing-price-per-organization.test.ts` (A vectors)
-- [ ] `backend/test/contract/price_lists/price-lists-engine.test.ts` (route removed in Phase 9)
-- [ ] `backend/test/contract/price_lists/price-list-products.test.ts` (route removed in Phase 9)
-- [ ] `backend/test/contract/price_lists/price-list-products-bulk-add.test.ts` (route removed in Phase 9)
-- [ ] `backend/test/contract/price_lists/price-matrix-entries.test.ts` (route removed in Phase 9)
-- [ ] `backend/test/contract/price_lists/rule-targets.test.ts` (route removed in Phase 9)
+- [X] `backend/test/contract/price_lists/price-lists-engine.test.ts` (route removed in Phase 9)
+- [X] `backend/test/contract/price_lists/price-list-products.test.ts` (route removed in Phase 9)
+- [X] `backend/test/contract/price_lists/price-list-products-bulk-add.test.ts` (route removed in Phase 9)
+- [X] `backend/test/contract/price_lists/price-matrix-entries.test.ts` (route removed in Phase 9)
+- [X] `backend/test/contract/price_lists/rule-targets.test.ts` (route removed in Phase 9)
 - [ ] `backend/test/unit/price_lists/legacy-default-price-key.audit.test.ts` (the audited chain goes)
-- [ ] `backend/test/unit/price_lists/price-list-audit-emissions.test.ts` → re-asserted on the
+- [X] `backend/test/unit/price_lists/price-list-audit-emissions.test.ts` → re-asserted on the
       price-book commands, or deleted with `PriceListService`
 
 Package unit tests of deleted services:
@@ -82,6 +82,9 @@ Admin (`admin/test/modules/price_lists/*` per *Test disposition*, plus the scree
 - [ ] `admin/test/modules/catalog/ProductEditor.channels-tab.test.tsx` — drop the
       `LinkedPriceListsPanel` expectation (edit, not delete)
 
+Also deleted in Phase 9 with the routes they covered: `backend/test/contract/price_lists/admin-resolved-price.test.ts`
+(the probe; `price-books-resolve.test.ts` replaces it).
+
 ## Re-pointed to price books (fixture rebuilt, T127 or earlier)
 
 They seed through `DefaultPriceListMigrator`, `PriceListService` or the bracket entities and
@@ -97,9 +100,9 @@ assert behaviour that survives the model; each moves to `helpers/price-book-sql.
 - [ ] `backend/test/helpers/tiered-product-fixture.ts`
 - [ ] `backend/test/contract/carts/cart-conversions.contract.test.ts`
 - [ ] `backend/test/contract/orders/admin-order-preview-availability.test.ts`
-- [ ] `backend/test/contract/price_lists/permission-gates.test.ts` (gates of the new routes)
+- [X] `backend/test/contract/price_lists/permission-gates.test.ts` (gates of the new routes)
 - [ ] `backend/test/contract/price_lists/pricing-resolution.test.ts`
-- [ ] `backend/test/contract/price_lists/product-pricing-panel.test.ts`
+- [X] `backend/test/contract/price_lists/product-pricing-panel.test.ts` — deleted with the route in Phase 9 (G1 replaces it)
 - [ ] `backend/test/fixtures/openapi-baseline.json` (regenerated after the route change)
 - [ ] `backend/test/integration/carts/cart-line-refusal-codes.test.ts`
 - [ ] `backend/test/integration/catalog/listing-price-batching.test.ts`
@@ -111,14 +114,14 @@ assert behaviour that survives the model; each moves to `helpers/price-book-sql.
 - [ ] `backend/test/integration/price_lists/absent-owner-refuses.test.ts`
 - [ ] `backend/test/integration/price_lists/display-mode-chain.test.ts`
 - [ ] `backend/test/integration/price_lists/inherited-price-list.test.ts` → H and A vectors
-- [ ] `backend/test/integration/price_lists/price-matrix-tenant-scope.test.ts` → `price-book-tenant-scope`
+- [X] `backend/test/integration/price_lists/price-matrix-tenant-scope.test.ts` → `price-book-tenant-scope`
 - [ ] `backend/test/integration/price_lists/pricing-invalidation-after-commit.test.ts`
 - [ ] `backend/test/integration/price_lists/status-lifecycle.test.ts`
 - [ ] `backend/test/integration/product_feeds/image-urls-are-absolute.test.ts`
 - [ ] `backend/test/integration/product_feeds/run-diagnostics.test.ts`
 - [ ] `backend/test/integration/quote_requests/line-carry-over.test.ts`
 - [ ] `backend/test/integration/quote_requests/reference-price.test.ts`
-- [ ] `backend/test/integration/tenancy/price-lists.cross-tenant.test.ts` (new routes)
+- [X] `backend/test/integration/tenancy/price-lists.cross-tenant.test.ts` — deleted in Phase 9; the representative scope of books is `price-book-tenant-scope.test.ts`
 - [ ] `backend/test/perf/catalog/listing-price-cost.bench.ts`
 - [ ] `backend/test/perf/catalog/listing-price-viewer-cost.bench.ts`
 - [ ] `backend/test/perf/price_lists/resolver.bench.ts` (superseded by `book-resolver.bench.ts`; delete or re-point)

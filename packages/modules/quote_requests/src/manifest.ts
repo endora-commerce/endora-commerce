@@ -341,7 +341,8 @@ export const manifest = defineModuleManifest({
    * (D-175, feature 080 T057).
    *
    * `RfqCreatePage` prefills an agreed price from
-   * `GET /api/v1/admin/products/:id/resolved-price`, which `price_lists` gates
+   * `POST /api/v1/admin/price-books/resolve` (feature 160; it was the per-product
+   * resolved-price probe), which `price_lists` gates
    * with `price_lists:read`. D-173 made that gate deliberately: the route used
    * to enforce `rfqs:handle`, a code its own switchable owner could take off
    * `/admin-roles` while `price_lists` — `nonDeactivatable` — went on demanding

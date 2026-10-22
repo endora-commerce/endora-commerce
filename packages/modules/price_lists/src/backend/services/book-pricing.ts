@@ -752,10 +752,30 @@ export function listingPriceFromBook(
   };
 }
 
+/**
+ * The catalogue price beside a lower buyer price (G9 of `specs/161-price-book-editor/`,
+ * owner ruling Q8a, N4; vectors D1–D4 of `worked-examples.md` §10.15): the
+ * everyone price of the channel — its catalogue price, else the base — when
+ * `pricing.show_list_price` is on and it is **above** the price charged.
+ * Nothing otherwise, so a surcharge or an equal price shows one price.
+ */
+export function listPriceOf(
+  answer: BookLineAnswer | null,
+  showListPrice: boolean,
+): { amount: string; currency: string } | undefined {
+  if (!showListPrice || !answer) return undefined;
+  const r = answer.resolution;
+  const charged = r.price?.amount ?? null;
+  const everyone = r.catalogue?.amount ?? r.base?.amount ?? null;
+  if (charged === null || everyone === null || compareDecimal(everyone, charged) <= 0) return undefined;
+  return { amount: everyone, currency: answer.currencyCode };
+}
+
 /** The base / sale / tier split from the same resolution. */
 export function listingDetailFromBook(
   answer: BookLineAnswer | null,
   range?: { maxAmount: string | null; variesByVariant: boolean },
+  showListPrice = false,
 ): ListingPriceDetail {
   const price = listingPriceFromBook(answer, range);
   const currency = answer?.currencyCode ?? '';
@@ -763,8 +783,10 @@ export function listingDetailFromBook(
   const r = answer?.resolution ?? null;
   const regular = r ? (r.buyer?.amount ?? r.catalogue?.amount ?? r.base?.amount ?? null) : null;
   const saleCharged = r?.price?.source === 'sale';
+  const listPrice = listPriceOf(answer, showListPrice);
   return {
     price,
+    ...(listPrice ? { listPrice } : {}),
     basePrice: money(regular),
     salePrice: saleCharged ? money(r!.price!.amount) : null,
     displayMode: answer?.displayMode ?? 'gross_only',
@@ -778,8 +800,14 @@ export function listingDetailFromBook(
 }
 
 /** The legacy engine shape, for `resolveEngine` callers: the regular price, and the sale when charged. */
-export function engineFromBook(answer: BookLineAnswer | null, productId: string, currencyCode: string): PricingEngineResult {
+export function engineFromBook(
+  answer: BookLineAnswer | null,
+  productId: string,
+  currencyCode: string,
+  showListPrice = false,
+): PricingEngineResult {
   const r = answer?.resolution ?? null;
+  const listPrice = listPriceOf(answer, showListPrice);
   const regular = r ? (r.buyer ?? r.catalogue ?? r.base) : null;
   const charged = r?.price ?? null;
   return {
@@ -818,5 +846,6 @@ export function engineFromBook(answer: BookLineAnswer | null, productId: string,
     currencyCode: answer?.currencyCode ?? currencyCode,
     source: charged?.source ?? null,
     compareAt: charged?.compareAt ?? null,
+    ...(listPrice ? { listPrice } : {}),
   };
 }

@@ -151,24 +151,31 @@ export const PROBE_FAILURES: Array<[string, () => unknown]> = [
   ['network', () => new Error('network down')],
 ];
 
+/** The price explanation the reference probe posts to (feature 160; it was a per-product GET). */
+export const RESOLVE_URL = '/api/v1/admin/price-books/resolve';
+
 export function installGet(
   getSpy: Mock,
   item: ItemOverrides,
   probe: ProbeAnswer | (() => unknown),
+  postSpy?: Mock,
 ): void {
   getSpy.mockImplementation((url: string) => {
     if (url.startsWith('/api/v1/admin/quote-requests/')) {
       return Promise.resolve({ data: rfqPayload(item) });
     }
-    if (url.includes('/resolved-price')) {
+    return Promise.resolve({ data: {} });
+  });
+  postSpy?.mockImplementation((url: string, body?: { lines?: Array<{ key: string }> }) => {
+    if (url === RESOLVE_URL) {
       if (typeof probe === 'function') return Promise.reject(probe());
       if (probe === 'reject') return Promise.reject(new Error('unexpected'));
       return Promise.resolve({
-        data: {
-          resolvedPrice: probe
-            ? { ...probe, isSale: false, priceListId: '00000000-0000-4000-8000-0000000000b1' }
-            : null,
-        },
+        data: (body?.lines ?? [{ key: 'line' }]).map((line) => ({
+          key: line.key,
+          price: probe ? { ...probe, source: 'buyer' } : null,
+          explanation: { tier: probe ? 'buyer' : null, precedenceVersion: 1 },
+        })),
       });
     }
     return Promise.resolve({ data: {} });
@@ -206,10 +213,13 @@ export function renderRfqDetail(
   );
 }
 
-/** The probe URLs the screen asked, parsed. */
-export function probeCalls(getSpy: Mock): URL[] {
-  return getSpy.mock.calls
-    .map((c) => String(c[0]))
-    .filter((u) => u.includes('/resolved-price'))
-    .map((u) => new URL(u, 'http://admin.test'));
+/** The probe requests the screen sent: the bodies posted to the price explanation. */
+export interface ProbeRequest {
+  salesChannelId?: string;
+  buyer: { organizationId?: string; customerAccountId?: string };
+  lines: Array<{ key: string; productId: string; variantId?: string; quantity: number }>;
+}
+
+export function probeCalls(postSpy: Mock): ProbeRequest[] {
+  return postSpy.mock.calls.filter((c) => c[0] === RESOLVE_URL).map((c) => c[1] as ProbeRequest);
 }
