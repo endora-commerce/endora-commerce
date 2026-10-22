@@ -36,9 +36,14 @@ export const TABLE_OWNER_OVERRIDES: Readonly<Record<string, string>> = {
   // Legacy outbound-integration table, read through the webhooks module.
   external_integrations: 'webhooks',
 
-  // Price-list child tables, reached through PriceList.
+  // Price-list child tables of the old model, reached through PriceList until
+  // feature 160's conversion migration dropped them with their entities: only
+  // these overrides still name the owner of the migrations that create and
+  // drop them (the `invoice_templates` precedent above).
   price_list_assignments: 'price_lists',
   price_list_items: 'price_lists',
+  price_list_products: 'price_lists',
+  price_list_price_brackets: 'price_lists',
 
   // Catalog junction tables.
   product_assets: 'catalog',

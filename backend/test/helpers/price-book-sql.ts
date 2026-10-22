@@ -10,8 +10,8 @@ import type { EntityManager } from '@mikro-orm/postgresql';
  * through it); these helpers exist for the many consumer fixtures that need *a*
  * price and no write semantics — a test of a cart, a listing or a feed — and
  * that seeded the old model's Default brackets or rule lists before. They write
- * exactly the rows the service writes: the header with no Application rule, the
- * audience members, the channel bridge rows and the rows.
+ * exactly the rows the service writes: the header, the audience members, the
+ * channel bridge rows and the rows.
  */
 
 /** The platform default currency's base book (the old `Default` list's id). */
@@ -31,27 +31,15 @@ export async function ensureBaseBookSql(em: EntityManager, currencyCode = 'PLN')
       em.getTransactionContext(),
     )) as Array<{ id: string }>;
   if (rows[0]) return rows[0].id;
-  if (currencyCode === 'PLN') {
-    // The PLN base book is the old `Default` list until the conversion, in the
-    // shape `DefaultPriceListMigrator.seedDefault` writes, so both engines read it.
-    await exec(
-      em,
-      `insert into "price_lists" ("id", "code", "name", "currency_code", "is_default", "priority", "type", "status",
-                                  "application_rule", "audience_kind", "is_system", "modified_at", "created_at", "updated_at")
-       values (?, 'default', 'Default', 'PLN', true, 0, 'base', 'active', '{"kind":"all"}'::jsonb, 'everyone', true, now(), now(), now())
-       on conflict ("id") do nothing`,
-      [BASE_BOOK_ID],
-    );
-    return BASE_BOOK_ID;
-  }
-  const id = randomUUID();
+  // The PLN base book keeps the old `Default` list's id, as on a real install.
+  const id = currencyCode === 'PLN' ? BASE_BOOK_ID : randomUUID();
   await exec(
     em,
-    `insert into "price_lists" ("id", "code", "name", "currency_code", "is_default", "priority", "type", "status",
-                                "application_rule", "audience_kind", "is_system", "modified_at", "created_at", "updated_at")
-     values (?, ?, ?, ?, false, 0, 'regular', 'active', null, 'everyone', true, now(), now(), now())
+    `insert into "price_lists" ("id", "name", "currency_code", "priority", "type", "status",
+                                "audience_kind", "is_system", "ever_activated", "created_at", "updated_at")
+     values (?, ?, ?, 0, 'regular', 'active', 'everyone', true, true, now(), now())
      on conflict ("id") do nothing`,
-    [id, `base-${currencyCode.toLowerCase()}`, `Base prices ${currencyCode}`, currencyCode],
+    [id, `Base prices (${currencyCode})`, currencyCode],
   );
   return id;
 }
@@ -73,29 +61,6 @@ export async function seedBasePriceSql(
     `insert into "price_list_matrix_entries" ("id", "price_list_id", "product_id", "min_quantity", "price_type", "amount", "created_at", "updated_at")
      values (?, ?, ?, 1, 'fixed', ?, now(), now())`,
     [randomUUID(), bookId, productId, String(amount)],
-  );
-}
-
-/**
- * A product's price as an old `Default`-list bracket (PLN). Until the
- * conversion migration, such a bracket **is** the product's base price on both
- * engines (`BookPricing`'s transition read), and a test that rewrites the
- * product's Default brackets through `PriceListService.replaceBrackets`
- * replaces it — which is why the harness seeds its catalogue this way.
- */
-export async function seedDefaultBracketSql(em: EntityManager, productId: string, amount: string | number): Promise<void> {
-  await ensureBaseBookSql(em, 'PLN');
-  await exec(
-    em,
-    `insert into "price_list_products" ("price_list_id", "product_id", "created_at") values (?, ?, now()) on conflict do nothing`,
-    [BASE_BOOK_ID, productId],
-  );
-  await exec(
-    em,
-    `insert into "price_list_price_brackets" ("price_list_id", "product_id", "currency_code", "min_quantity", "max_quantity", "amount", "created_at", "updated_at")
-     values (?, ?, 'PLN', 1, null, ?, now(), now())
-     on conflict ("price_list_id", "product_id", "currency_code", "min_quantity") do update set "amount" = excluded."amount"`,
-    [BASE_BOOK_ID, productId, String(amount)],
   );
 }
 
@@ -128,10 +93,10 @@ export async function seedPriceBookSql(
     input.audience === 'everyone' ? 'everyone' : 'organizations' in input.audience ? 'organizations' : 'customer_groups';
   await exec(
     em,
-    `insert into "price_lists" ("id", "code", "name", "currency_code", "is_default", "priority", "type", "status",
-                                "application_rule", "audience_kind", "is_system", "modified_at", "created_at", "updated_at")
-     values (?, ?, ?, ?, false, 0, ?, ?, null, ?, false, now(), now(), now())`,
-    [id, `pb-${id}`, input.name, input.currencyCode ?? 'PLN', input.type ?? 'regular', input.status ?? 'active', kind],
+    `insert into "price_lists" ("id", "name", "currency_code", "priority", "type", "status",
+                                "audience_kind", "is_system", "ever_activated", "created_at", "updated_at")
+     values (?, ?, ?, 0, ?, ?, ?, false, ?, now(), now())`,
+    [id, input.name, input.currencyCode ?? 'PLN', input.type ?? 'regular', input.status ?? 'active', kind, (input.status ?? 'active') === 'active'],
   );
   if (input.audience !== 'everyone') {
     const isOrg = 'organizations' in input.audience;
@@ -179,4 +144,51 @@ export async function seedPriceBookSql(
     );
   }
   return id;
+}
+
+/** A product's base prices, in every currency (its own rows and its variants'), removed. */
+export async function removeBasePriceSql(em: EntityManager, productId: string): Promise<void> {
+  await exec(
+    em,
+    `delete from "price_list_matrix_entries"
+      where "product_id" = ? and "price_list_id" in (select "id" from "price_lists" where "is_system" = true)`,
+    [productId],
+  );
+}
+
+/** Whether a product has a base price of its own (a product row of a base book, any currency). */
+export async function hasBasePriceSql(em: EntityManager, productId: string): Promise<boolean> {
+  const rows = (await em
+    .getConnection()
+    .execute(
+      `select 1 from "price_list_matrix_entries" e join "price_lists" b on b."id" = e."price_list_id" and b."is_system"
+        where e."product_id" = ? and e."variant_id" is null limit 1`,
+      [productId],
+      'all',
+      em.getTransactionContext(),
+    )) as unknown[];
+  return rows.length > 0;
+}
+
+/** A product's base price in quantity tiers, replacing what it had in that currency. */
+export async function seedBaseTiersSql(
+  em: EntityManager,
+  productId: string,
+  tiers: ReadonlyArray<{ minQuantity: number; maxQuantity: number | null; amount: string | number }>,
+  currencyCode = 'PLN',
+): Promise<void> {
+  const bookId = await ensureBaseBookSql(em, currencyCode);
+  await exec(em, `delete from "price_list_matrix_entries" where "price_list_id" = ? and "product_id" = ? and "variant_id" is null`, [
+    bookId,
+    productId,
+  ]);
+  for (const tier of tiers) {
+    await exec(
+      em,
+      `insert into "price_list_matrix_entries"
+         ("id", "price_list_id", "product_id", "min_quantity", "max_quantity", "price_type", "amount", "created_at", "updated_at")
+       values (?, ?, ?, ?, ?, 'fixed', ?, now(), now())`,
+      [randomUUID(), bookId, productId, tier.minQuantity, tier.maxQuantity, String(tier.amount)],
+    );
+  }
 }

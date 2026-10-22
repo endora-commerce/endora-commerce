@@ -1,21 +1,18 @@
 import { z } from 'zod';
-import { ADMIN_PRODUCT_SELECTION_MAX, type ProductResolvedPrice } from './catalog.js';
+import type { ProductResolvedPrice } from './catalog.js';
 import { isoDateTimeSchema, moneySchema, uuidSchema } from './common.js';
 import { priceSourceSchema, type PriceSource } from './price-books.js';
 
 /**
- * Pricing contracts (feature 011 engine).
+ * Pricing contracts — what every consumer of a price reads.
  *
- * Schemas: `priceListEngineSchema`, `applicationRuleSchema`,
- * `priceListBracketSchema`, `displayModeSchema`, etc. Model the B2B
- * pricing engine: multi-currency multi-bracket prices per product, an
- * Application Rule tree (AND/OR over SC/CG/Org/Cat/Currency criteria),
- * Base/Sale split, lifecycle status, and the four-level price-display
- * mode chain.
- *
- * Legacy feature-014 schemas (`priceListItemSchema`,
- * `priceListAssignmentSchema`, etc.) were retired by T011 alongside
- * their entity files and admin endpoints.
+ * Feature 160 (D-287 P1) replaced the feature-011 engine with price books:
+ * the book, its rows, its sets and the explanation are in `price-books.ts`;
+ * this file keeps what a *price* looks like to its readers — the listing and
+ * line answers, the ports that produce them, the display-mode chain, the price
+ * ordering, and the price-list read port. The Application-rule tree and its
+ * evaluator, the bracket and roster shapes, the matrix-entry v1 shapes and the
+ * `priceListAdminPort` were removed with the old model.
  */
 
 const CURRENCY = z.string().regex(/^[A-Z]{3}$/, 'ISO 4217 currency code');
@@ -23,424 +20,6 @@ const POSITIVE_INT = z.number().int().positive();
 const DECIMAL_STRING = z
   .string()
   .regex(/^\d+(\.\d{1,4})?$/, 'decimal as string with up to 4 fractional digits');
-
-// --- Customer Group ---------------------------------------------------------
-//
-// The schemas, the record and the read port moved to `customer-accounts.ts`
-// with the entity (feature 076, D-79): a customer group describes the customer,
-// and a price list merely refers to one by id. Nothing here imports them back —
-// `PriceListAssignment` and the rule-target types carry a `customerGroupId`
-// string, never the record.
-
-// =============================================================================
-// FEATURE 011 — pricing-engine schemas
-// =============================================================================
-
-// --- Application Rule AST ---------------------------------------------------
-
-export const ruleCriterionTypeSchema = z.enum([
-  'salesChannel',
-  'customerGroup',
-  'organization',
-  'category',
-  'currency',
-]);
-export type RuleCriterionType = z.infer<typeof ruleCriterionTypeSchema>;
-
-const ruleCriterionNodeSchema = z.object({
-  kind: z.literal('criterion'),
-  type: ruleCriterionTypeSchema,
-  values: z.array(z.string()).max(1000),
-});
-
-const ruleAllNodeSchema = z.object({ kind: z.literal('all') });
-
-export type RuleAllNode = { kind: 'all' };
-export type RuleCriterionNode = {
-  kind: 'criterion';
-  type: RuleCriterionType;
-  values: string[];
-};
-export type RuleGroupNode = {
-  kind: 'group';
-  op: 'AND' | 'OR';
-  children: ApplicationRule[];
-};
-export type ApplicationRule = RuleAllNode | RuleCriterionNode | RuleGroupNode;
-
-const ruleNodeSchema: z.ZodType<ApplicationRule> = z.lazy(() =>
-  z.discriminatedUnion('kind', [
-    ruleAllNodeSchema,
-    ruleCriterionNodeSchema,
-    z.object({
-      kind: z.literal('group'),
-      op: z.enum(['AND', 'OR']),
-      children: z.array(ruleNodeSchema).min(1).max(20),
-    }),
-  ]),
-);
-
-function ruleDepth(node: ApplicationRule): number {
-  if (node.kind !== 'group') return 0;
-  return 1 + Math.max(...node.children.map(ruleDepth));
-}
-
-export const applicationRuleSchema = ruleNodeSchema.refine(
-  (node) => ruleDepth(node) <= 5,
-  { message: 'rule_depth_exceeds_5' },
-);
-
-// --- Price list (engine shape) ---------------------------------------------
-
-export const priceListTypeSchema = z.enum(['base', 'sale']);
-export type PriceListType = z.infer<typeof priceListTypeSchema>;
-
-export const priceListStatusSchema = z.enum([
-  'draft',
-  'active',
-  'scheduled',
-  'expired',
-]);
-export type PriceListStatus = z.infer<typeof priceListStatusSchema>;
-
-export const priceListEngineSchema = z.object({
-  id: uuidSchema,
-  name: z.string().min(1).max(200),
-  type: priceListTypeSchema,
-  status: priceListStatusSchema,
-  startsAt: isoDateTimeSchema.nullable(),
-  endsAt: isoDateTimeSchema.nullable(),
-  applicationRule: applicationRuleSchema,
-  isSystem: z.boolean(),
-  modifiedAt: isoDateTimeSchema,
-  createdAt: isoDateTimeSchema,
-});
-export type PriceListEngine = z.infer<typeof priceListEngineSchema>;
-
-export const createPriceListEngineRequestSchema = z.object({
-  name: z.string().min(1).max(200),
-  type: priceListTypeSchema,
-  startsAt: isoDateTimeSchema.nullable().optional(),
-  endsAt: isoDateTimeSchema.nullable().optional(),
-  applicationRule: applicationRuleSchema.optional(),
-});
-
-export const patchPriceListEngineRequestSchema = z
-  .object({
-    name: z.string().min(1).max(200).optional(),
-    type: priceListTypeSchema.optional(),
-    startsAt: isoDateTimeSchema.nullable().optional(),
-    endsAt: isoDateTimeSchema.nullable().optional(),
-    applicationRule: applicationRuleSchema.optional(),
-  })
-  .refine(
-    (v) => Object.keys(v).length > 0,
-    { message: 'patch_body_empty' },
-  );
-
-// --- Price brackets ---------------------------------------------------------
-
-export const priceListBracketSchema = z.object({
-  priceListId: uuidSchema,
-  productId: uuidSchema,
-  currencyCode: CURRENCY,
-  minQuantity: POSITIVE_INT,
-  maxQuantity: POSITIVE_INT.nullable(),
-  amount: DECIMAL_STRING,
-});
-export type PriceListBracket = z.infer<typeof priceListBracketSchema>;
-
-export const replaceBracketsRequestSchema = z.object({
-  bracketsByCurrency: z.record(
-    CURRENCY,
-    z.array(
-      z.object({
-        minQuantity: POSITIVE_INT,
-        maxQuantity: POSITIVE_INT.nullable(),
-        amount: DECIMAL_STRING,
-      }),
-    ),
-  ),
-});
-
-export const productAssignmentSchema = z.object({
-  priceListId: uuidSchema,
-  productId: uuidSchema,
-  bracketsByCurrency: z.record(CURRENCY, z.array(priceListBracketSchema)),
-});
-export type ProductAssignment = z.infer<typeof productAssignmentSchema>;
-
-export const replaceProductsRequestSchema = z.object({
-  productIds: z.array(uuidSchema),
-});
-
-// --- Price matrix (feature 148) ---------------------------------------------
-//
-// A matrix entry prices a *selection* of products (one product, a category, an
-// attribute value, a category and an attribute value, or every product) for an
-// optional organization and a quantity window, at a fixed unit price or a
-// percentage off the reference price. It lives inside a price list: the list's
-// application rule still decides which buyers the list serves, and the entry
-// decides the price within it. Resolution semantics:
-// `specs/148-price-list-matrix-rules/contracts/pricing-resolution-matrix.md`.
-
-/** At most this many entries per price list (spec FR-007) — a product decision. */
-export const PRICE_MATRIX_MAX_ENTRIES_PER_LIST = 5000;
-
-export const priceMatrixPriceTypeSchema = z.enum(['fixed', 'discount_percent']);
-export type PriceMatrixPriceType = z.infer<typeof priceMatrixPriceTypeSchema>;
-
-/** Derived from which selection coordinates are set; never stored. */
-export const priceMatrixSelectionKindSchema = z.enum([
-  'product',
-  'category_attribute',
-  'attribute',
-  'category',
-  'all',
-]);
-export type PriceMatrixSelectionKind = z.infer<typeof priceMatrixSelectionKindSchema>;
-
-/** A percentage with at most two decimals, greater than 0 and at most 100. */
-const PRICE_MATRIX_PERCENT_SHAPE = /^\d{1,3}(\.\d{1,2})?$/;
-const PRICE_MATRIX_PERCENT = z.string().superRefine((v, ctx) => {
-  if (!PRICE_MATRIX_PERCENT_SHAPE.test(v)) {
-    ctx.addIssue({ code: 'custom', message: 'percentage with up to 2 fractional digits' });
-    return;
-  }
-  const n = Number(v);
-  if (!(n > 0 && n <= 100)) {
-    ctx.addIssue({ code: 'custom', message: 'percentage must be greater than 0 and at most 100' });
-  }
-});
-
-export const priceMatrixAttributeSchema = z.object({
-  key: z.string().min(1).max(64),
-  value: z.string().min(1).max(255),
-});
-export type PriceMatrixAttribute = z.infer<typeof priceMatrixAttributeSchema>;
-
-export const priceMatrixPriceSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('fixed'), amount: DECIMAL_STRING, currencyCode: CURRENCY }),
-  z.object({ type: z.literal('discount_percent'), percent: PRICE_MATRIX_PERCENT }),
-]);
-export type PriceMatrixPrice = z.infer<typeof priceMatrixPriceSchema>;
-
-/** The coordinates of an entry, after defaults — what the shape rules read. */
-export interface PriceMatrixEntryShape {
-  productId: string | null;
-  categoryId: string | null;
-  attribute: PriceMatrixAttribute | null;
-  organizationId: string | null;
-  minQuantity: number;
-  maxQuantity: number | null;
-  price: PriceMatrixPrice;
-}
-
-/** `selectionKind` of an entry, from which selection coordinates are set. */
-export function priceMatrixSelectionKind(entry: {
-  productId: string | null;
-  categoryId: string | null;
-  attribute: { key: string; value: string } | null;
-}): PriceMatrixSelectionKind {
-  if (entry.productId !== null) return 'product';
-  if (entry.categoryId !== null && entry.attribute !== null) return 'category_attribute';
-  if (entry.attribute !== null) return 'attribute';
-  if (entry.categoryId !== null) return 'category';
-  return 'all';
-}
-
-/**
- * The cross-field rules of an entry — the CHECK constraints of
- * `price_list_matrix_entries` that a single field cannot express (data-model
- * §1). One function so the create schema and the service's merge-then-validate
- * of a PATCH apply exactly the same rules.
- */
-export function priceMatrixEntryShapeIssues(
-  entry: PriceMatrixEntryShape,
-): Array<{ path: Array<string>; message: string }> {
-  const out: Array<{ path: Array<string>; message: string }> = [];
-  if (entry.productId !== null && (entry.categoryId !== null || entry.attribute !== null)) {
-    out.push({
-      path: ['productId'],
-      message: 'A product selection cannot be combined with a category or an attribute.',
-    });
-  }
-  if (entry.productId !== null && entry.organizationId === null) {
-    out.push({
-      path: ['organizationId'],
-      message:
-        "A product selection needs an organization — without one it is the list's own product price.",
-    });
-  }
-  if (entry.maxQuantity !== null && entry.maxQuantity < entry.minQuantity) {
-    out.push({ path: ['maxQuantity'], message: 'maxQuantity must be at least minQuantity.' });
-  }
-  if (
-    entry.price.type === 'fixed' &&
-    entry.productId === null &&
-    entry.categoryId === null &&
-    entry.attribute === null
-  ) {
-    out.push({
-      path: ['price', 'type'],
-      message: 'A fixed price needs a product, category or attribute selection.',
-    });
-  }
-  return out;
-}
-
-const priceMatrixEntryFields = {
-  productId: uuidSchema.nullable().default(null),
-  categoryId: uuidSchema.nullable().default(null),
-  attribute: priceMatrixAttributeSchema.nullable().default(null),
-  organizationId: uuidSchema.nullable().default(null),
-  minQuantity: POSITIVE_INT,
-  maxQuantity: POSITIVE_INT.nullable().default(null),
-  price: priceMatrixPriceSchema,
-};
-
-/** Body of `POST /api/v1/admin/price-lists-engine/:id/matrix`. */
-export const priceMatrixEntryInputSchema = z
-  .object(priceMatrixEntryFields)
-  .superRefine((value, ctx) => {
-    for (const issue of priceMatrixEntryShapeIssues(value)) {
-      ctx.addIssue({ code: 'custom', path: issue.path, message: issue.message });
-    }
-  });
-export type PriceMatrixEntryInput = z.infer<typeof priceMatrixEntryInputSchema>;
-
-/**
- * Body of `PATCH …/matrix/:entryId` — every field optional, at least one
- * present. The cross-field rules run on the merged entry in the service.
- */
-export const priceMatrixEntryPatchSchema = z
-  .object({
-    productId: uuidSchema.nullable().optional(),
-    categoryId: uuidSchema.nullable().optional(),
-    attribute: priceMatrixAttributeSchema.nullable().optional(),
-    organizationId: uuidSchema.nullable().optional(),
-    minQuantity: POSITIVE_INT.optional(),
-    maxQuantity: POSITIVE_INT.nullable().optional(),
-    price: priceMatrixPriceSchema.optional(),
-  })
-  .refine((v) => Object.keys(v).length > 0, { message: 'patch_body_empty' });
-export type PriceMatrixEntryPatch = z.infer<typeof priceMatrixEntryPatchSchema>;
-
-/** Query of `GET …/matrix`. `organizationId = 'none'` lists not organization-specific entries. */
-export const priceMatrixListQuerySchema = z.object({
-  page: z.coerce.number().int().min(0).default(0),
-  pageSize: z.coerce.number().int().min(1).max(200).default(50),
-  selectionKind: priceMatrixSelectionKindSchema.optional(),
-  organizationId: z.union([uuidSchema, z.literal('none')]).optional(),
-  productId: uuidSchema.optional(),
-  categoryId: uuidSchema.optional(),
-});
-export type PriceMatrixListQuery = z.infer<typeof priceMatrixListQuerySchema>;
-
-/** Why an attribute entry does not price anything right now (spec FR-010). */
-export const priceMatrixInactiveReasonSchema = z.enum([
-  'attribute_not_flagged',
-  'attribute_not_found',
-  'attribute_language_scoped',
-  'attribute_channel_scoped',
-  'attribute_value_type',
-]);
-export type PriceMatrixInactiveReason = z.infer<typeof priceMatrixInactiveReasonSchema>;
-
-export const priceMatrixEntrySchema = z.object({
-  id: uuidSchema,
-  priceListId: uuidSchema,
-  selectionKind: priceMatrixSelectionKindSchema,
-  productId: uuidSchema.nullable(),
-  categoryId: uuidSchema.nullable(),
-  attribute: priceMatrixAttributeSchema.nullable(),
-  organizationId: uuidSchema.nullable(),
-  minQuantity: POSITIVE_INT,
-  maxQuantity: POSITIVE_INT.nullable(),
-  price: priceMatrixPriceSchema,
-  /** `false` ⇒ the attribute is no longer eligible; always `true` for non-attribute entries. */
-  active: z.boolean(),
-  inactiveReason: priceMatrixInactiveReasonSchema.nullable(),
-  /**
-   * `true` when the named product, category or organization no longer resolves
-   * as live (soft-deleted — the foreign-key cascade only fires on a purge).
-   */
-  targetDeleted: z.boolean(),
-  /** Display labels resolved server-side, so the table needs no request per row. */
-  labels: z.object({
-    product: z.object({ sku: z.string(), name: z.string() }).nullable(),
-    category: z.string().nullable(),
-    attribute: z.object({ label: z.string(), valueLabel: z.string() }).nullable(),
-    organization: z.string().nullable(),
-  }),
-  createdAt: isoDateTimeSchema,
-  updatedAt: isoDateTimeSchema,
-});
-export type PriceMatrixEntry = z.infer<typeof priceMatrixEntrySchema>;
-
-export const priceMatrixListResponseSchema = z.object({
-  data: z.object({
-    items: z.array(priceMatrixEntrySchema),
-    total: z.number().int().min(0),
-    page: z.number().int().min(0),
-    pageSize: z.number().int().min(1),
-    limit: z.number().int().min(1),
-  }),
-});
-export type PriceMatrixListResponse = z.infer<typeof priceMatrixListResponseSchema>;
-
-export const priceMatrixEntryResponseSchema = z.object({ data: priceMatrixEntrySchema });
-
-/** One item of `GET /api/v1/admin/pricing/rule-targets/attributes`. */
-export const priceMatrixAttributeTargetSchema = z.object({
-  key: z.string(),
-  label: z.string(),
-  valueType: z.enum(['select', 'enum', 'multiselect', 'boolean']),
-  options: z.array(z.object({ value: z.string(), label: z.string() })),
-});
-export type PriceMatrixAttributeTarget = z.infer<typeof priceMatrixAttributeTargetSchema>;
-
-/** Route params of every `/api/v1/admin/price-lists-engine/:id/...` route. */
-export const priceListIdParamsSchema = z.object({ id: uuidSchema });
-export type PriceListIdParams = z.infer<typeof priceListIdParamsSchema>;
-
-/**
- * Body of `POST /api/v1/admin/price-lists-engine/:id/products/bulk-add`: add
- * the products to the list's roster in one audited write. Additive — products
- * already on the roster keep their brackets. At least one id, at most
- * {@link ADMIN_PRODUCT_SELECTION_MAX}.
- */
-export const bulkAddPriceListProductsRequestSchema = z.object({
-  productIds: z.array(uuidSchema).min(1).max(ADMIN_PRODUCT_SELECTION_MAX),
-});
-export type BulkAddPriceListProductsRequest = z.infer<typeof bulkAddPriceListProductsRequestSchema>;
-
-/** Why a product of a bulk add was not added. `product_not_found`: unknown or deleted. */
-export const bulkAddPriceListProductFailureReasonSchema = z.enum(['product_not_found']);
-export type BulkAddPriceListProductFailureReason = z.infer<
-  typeof bulkAddPriceListProductFailureReasonSchema
->;
-
-/**
- * Per-product outcome of a bulk add, over the de-duplicated ids: `added` now
- * on the roster, `unchanged` already on it (a retry is safe), `failed` with a
- * reason.
- */
-export const bulkAddPriceListProductsResultSchema = z.object({
-  added: z.array(uuidSchema),
-  unchanged: z.array(uuidSchema),
-  failed: z.array(
-    z.object({ productId: uuidSchema, reason: bulkAddPriceListProductFailureReasonSchema }),
-  ),
-});
-export type BulkAddPriceListProductsResult = z.infer<typeof bulkAddPriceListProductsResultSchema>;
-
-export const bulkAddPriceListProductsResponseSchema = z.object({
-  data: bulkAddPriceListProductsResultSchema,
-});
-export type BulkAddPriceListProductsResponse = z.infer<
-  typeof bulkAddPriceListProductsResponseSchema
->;
 
 // --- Display modes ----------------------------------------------------------
 
@@ -510,21 +89,23 @@ export type ResolvedPriceEngine = z.infer<typeof resolvedPriceEngineSchema>;
 /**
  * What a catalogue listing may show as a product's price — issue #132.
  *
- * There is always one default price list, so the first arm is the path a
- * listing normally takes. The product ruling names the whole chain and this
- * union is that chain, one arm each:
+ * Two arms:
  *
- *   `price_list` — an applicable list priced this product for this buyer;
- *   `product`    — no list applied, so the price assigned directly to the
- *                  Product stands in (the legacy `defaultPrice` attribute);
- *   `none`       — neither exists, and the listing renders no price.
+ *   `price_list` — a price book priced this product for this buyer (the base
+ *                  book, an everyone book of the channel, a buyer book or a
+ *                  sale; `priceSource` names the tier);
+ *   `none`       — nothing prices it, and the listing renders no price.
+ *
+ * Feature 160 removed the third arm, `product` — the price assigned directly
+ * to the Product (the legacy `defaultPrice` attribute): a product has no price
+ * of its own any more (FR-042).
  *
  * The `none` arm carries **no `amount` field**, following the `ResolvedTax`
  * precedent (issue #124): a listing showing nothing and a listing offering a
  * free product are different pages, so a caller has to narrow on `source`
  * before it can read a figure. A product priced at zero comes back as
- * `{ source: 'price_list' | 'product', amount: '0.00' }` and renders as zero —
- * `amount` is never a falsy sentinel for absence.
+ * `{ source: 'price_list', amount: '0.00' }` and renders as zero — `amount` is
+ * never a falsy sentinel for absence.
  *
  * As with `ResolvedTax`, "the `price_lists` module is absent" is deliberately
  * not an arm: absence is not a value, and the port gate throws
@@ -540,7 +121,7 @@ export const listingPriceSchema = z.discriminatedUnion('source', [
     /**
      * Feature 160 (D-287 P1) — which tier of the price-book resolution priced
      * the card. Named `priceSource` because `source` is this union's
-     * discriminant. Absent on an answer of the pre-160 engine.
+     * discriminant.
      */
     priceSource: priceSourceSchema.optional(),
     /** Feature 160 — the buyer price, struck through, when a sale is charged (FR-025). */
@@ -549,11 +130,6 @@ export const listingPriceSchema = z.discriminatedUnion('source', [
     variesByVariant: z.boolean().optional(),
     /** Feature 160 — the highest variant price; `amount` is the lowest ("from"). */
     maxAmount: DECIMAL_STRING.optional(),
-  }),
-  z.object({
-    source: z.literal('product'),
-    amount: DECIMAL_STRING,
-    currency: CURRENCY,
   }),
   z.object({ source: z.literal('none') }),
 ]);
@@ -1200,21 +776,21 @@ export const PRICING_SETTING_CODES = {
 // whose assignability to it is the contract gate. Moving it would move the gate.
 // ---------------------------------------------------------------------------
 
-/** A price list as a module outside `price_lists` sees it. */
+/**
+ * A price book as a module outside `price_lists` sees it (feature 160: every
+ * price list is a price book; the base books are the `isSystem` ones).
+ */
 export interface PriceListRecord {
   id: string;
-  code: string;
   name: string;
-  currency: string;
-  isDefault: boolean;
+  currencyCode: string;
   priority: number;
-  type: 'base' | 'sale';
+  type: 'regular' | 'sale';
   status: 'draft' | 'active' | 'scheduled' | 'expired';
+  audienceKind: 'everyone' | 'customer_groups' | 'organizations';
   startsAt: Date | null;
   endsAt: Date | null;
-  applicationRule: ApplicationRule;
   isSystem: boolean;
-  modifiedAt: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -1222,10 +798,10 @@ export interface PriceListRecord {
 /**
  * Container name: `priceListReadPort`. Owner: `price_lists`.
  *
- * `organizations` resolves which lists apply to an org, `product_feeds` reads
- * the list a feed prices from. Both read the row; neither should own the
- * question of what "active" means, which is why `listActive` is here rather
- * than a status filter in each caller.
+ * `organizations` reads the books that apply to an org, `product_feeds` reads
+ * the book a feed prices from. Both read the row; neither should own the
+ * question of what "applies" means, which is why `listForOrganization` is here
+ * rather than a status filter in each caller.
  *
  * **Owner off:** the seam fails closed — resolving this port throws
  * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
@@ -1236,10 +812,9 @@ export interface PriceListRecord {
 export interface PriceListReadPort {
   findById(id: string): Promise<PriceListRecord | null>;
   findByIds(ids: readonly string[]): Promise<PriceListRecord[]>;
-  findByCode(code: string): Promise<PriceListRecord | null>;
-  /** Every list, ordered by priority then code. */
+  /** Every book, ordered by priority desc then name. */
   listAll(): Promise<PriceListRecord[]>;
-  /** Only `status === 'active'`, ordered by priority then code. */
+  /** Only `status === 'active'`, ordered by priority desc then name. */
   listActive(): Promise<PriceListRecord[]>;
   /**
    * Feature 160 (FR-032) — the price books that apply to an organization now:
@@ -1266,235 +841,4 @@ export interface OrganizationPriceBookRecord {
   reason: 'organization' | 'ancestor' | 'customer_group';
   /** Chain depth of the nearest member; `null` for a customer-group book. */
   depth: number | null;
-}
-
-/**
- * One quantity bracket of a product's price on a list.
- *
- * `amount` is a decimal **string** — the storage shape on
- * `price_list_price_brackets`. A `number` cannot round-trip a price, and this
- * value comes in from a PIM import and goes out to a checkout.
- */
-export interface PriceBracketInput {
-  minQuantity: number;
-  maxQuantity: number | null;
-  amount: string;
-}
-
-/** One list's brackets for a product, as the admin summary renders them. */
-export interface PriceListBracketSummary {
-  list: {
-    id: string;
-    name: string;
-    type: 'base' | 'sale';
-    status: 'draft' | 'active' | 'scheduled' | 'expired';
-    modifiedAt: Date;
-  };
-  summary: Array<{ currencyCode: string; summary: string }>;
-  deepLinkPath: string;
-}
-
-/**
- * Container name: `priceListAdminPort`. Owner: `price_lists`.
- *
- * `pim_ergonode` writes prices as part of an import run: it resolves the list,
- * adds the product to it if it is not there, replaces the brackets, and reads
- * back the summary its field-protection rules compare against. That is the
- * whole of what it needs, and publishing more would be publishing the class.
- *
- * **Owner off:** the seam fails closed — resolving this port throws
- * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
- * half-executes. Whether `price_lists` has an off state at all is its manifest's
- * `activation` to say, not this line's: a module declaring
- * `nonDeactivatable` never enters one.
- */
-export interface PriceListAdminPort {
-  getById(id: string): Promise<PriceListRecord>;
-  listProducts(
-    priceListId: string,
-  ): Promise<Array<{ productId: string; bracketsByCurrency: Record<string, PriceBracketInput[]> }>>;
-  addProduct(priceListId: string, productId: string): Promise<void>;
-  replaceBrackets(
-    priceListId: string,
-    productId: string,
-    bracketsByCurrency: Record<string, readonly PriceBracketInput[]>,
-  ): Promise<Record<string, PriceBracketInput[]>>;
-  summarizeBracketsForProduct(productId: string): Promise<PriceListBracketSummary[]>;
-}
-
-// --- the application-rule evaluator -----------------------------------------
-//
-// Relocated here from `price_lists/services/application-rule-evaluator.ts`
-// (feature 075, Phase P, FR-013). It is a **pure function** over an
-// `ApplicationRule` — which this file already declares — and a context of
-// plain ids: switching `price_lists` off does not change whether a rule
-// matches, so a gated port answering 503 would be a bug rather than a degrade.
-//
-// `organizations` evaluates the same rules to work out an organisation's
-// effective price lists, and it has to reach the *same* answer as the resolver
-// does: two copies that drifted would show an operator one set of lists on the
-// organisation screen and price from another at checkout.
-
-/** What a rule is evaluated against. */
-export interface PriceListResolutionContext {
-  organizationId: string | null;
-  /**
-   * Feature 056 — the acting org's inheritance chain, nearest-first
-   * (`[orgId, ...ancestorIds]`). When present, the `organization` criterion
-   * matches ANY org in the chain, and the resolver ranks by nearness so a list
-   * naming a nearer org outranks one naming a farther ancestor (R5). When
-   * absent, it defaults to `[organizationId]` (flat behaviour, byte-for-byte).
-   */
-  organizationChain?: readonly string[];
-  customerGroupId: string | null;
-  salesChannelId: string;
-  currencyCode: string;
-  productCategoryIds: ReadonlySet<string>;
-}
-
-export interface PriceListRuleEvaluation {
-  matched: boolean;
-  explicitOn: ReadonlySet<RuleCriterionType>;
-  /**
-   * Feature 056 — index of the NEAREST org (in the resolution chain) that this
-   * rule explicitly names, or `undefined` when the rule names no org in the
-   * chain. Lower = nearer = higher price-list priority within the
-   * `organization` level (R5). A direct-org match (flat) is rank 0.
-   */
-  organizationRank?: number;
-}
-
-const NO_EXPLICIT: ReadonlySet<RuleCriterionType> = new Set();
-
-/**
- * Pure rule evaluator (feature 011 / FR-022, FR-023, FR-026, FR-029).
- *
- * Walks the discriminated-union AST and returns:
- *   - `matched`: the overall AST truth value against the resolution context.
- *   - `explicitOn`: the criterion types that contributed to the match AND had
- *     non-empty value lists. The resolver's priority chain consults this to
- *     award the per-step boost (FR-026 steps 1..4).
- *
- * Notes:
- *   - The `category` criterion is product-driven (FR-029): it matches when the
- *     product belongs to any category named in the rule's value list.
- *   - The `currency` criterion never appears in the priority chain even when
- *     explicit; it is purely a matching criterion.
- *   - `{ kind: 'all' }` and any criterion with `values: []` are treated as
- *     always-true and contribute nothing to `explicitOn` (FR-022).
- */
-export function evaluateApplicationRule(
-  rule: ApplicationRule,
-  ctx: PriceListResolutionContext,
-): PriceListRuleEvaluation {
-  if (rule.kind === 'all') {
-    return { matched: true, explicitOn: NO_EXPLICIT };
-  }
-
-  if (rule.kind === 'criterion') {
-    if (rule.values.length === 0) {
-      return { matched: true, explicitOn: NO_EXPLICIT };
-    }
-    if (rule.type === 'organization') {
-      const rank = organizationMatchRank(rule.values, ctx);
-      if (rank === undefined) return { matched: false, explicitOn: NO_EXPLICIT };
-      return { matched: true, explicitOn: new Set(['organization']), organizationRank: rank };
-    }
-    const matched = matchesCriterion(rule.type, rule.values, ctx);
-    return {
-      matched,
-      explicitOn: matched ? new Set([rule.type]) : NO_EXPLICIT,
-    };
-  }
-
-  // group node
-  if (rule.children.length === 0) {
-    // defensive — schema disallows, but evaluate as always-true (empty AND/OR)
-    return { matched: true, explicitOn: NO_EXPLICIT };
-  }
-  const childEvaluations = rule.children.map((c) => evaluateApplicationRule(c, ctx));
-
-  if (rule.op === 'AND') {
-    const allMatch = childEvaluations.every((e) => e.matched);
-    if (!allMatch) return { matched: false, explicitOn: NO_EXPLICIT };
-    return {
-      matched: true,
-      explicitOn: unionExplicit(childEvaluations),
-      ...withRank(minRank(childEvaluations)),
-    };
-  }
-
-  // OR
-  const matchingChildren = childEvaluations.filter((e) => e.matched);
-  if (matchingChildren.length === 0) return { matched: false, explicitOn: NO_EXPLICIT };
-  // Only matching children contribute to the explicit set + nearness rank.
-  return {
-    matched: true,
-    explicitOn: unionExplicit(matchingChildren),
-    ...withRank(minRank(matchingChildren)),
-  };
-}
-
-/**
- * The nearness rank of the nearest org (in `ctx.organizationChain`, else
- * `[organizationId]`) named by `values`, or `undefined` when none match.
- */
-function organizationMatchRank(
-  values: readonly string[],
-  ctx: PriceListResolutionContext,
-): number | undefined {
-  const chain =
-    ctx.organizationChain && ctx.organizationChain.length > 0
-      ? ctx.organizationChain
-      : ctx.organizationId !== null
-        ? [ctx.organizationId]
-        : [];
-  const valueSet = new Set(values);
-  for (let i = 0; i < chain.length; i += 1) {
-    if (valueSet.has(chain[i]!)) return i; // nearest-first → first hit is the nearest
-  }
-  return undefined;
-}
-
-function minRank(evaluations: readonly PriceListRuleEvaluation[]): number | undefined {
-  let min: number | undefined;
-  for (const e of evaluations) {
-    if (e.organizationRank !== undefined && (min === undefined || e.organizationRank < min)) {
-      min = e.organizationRank;
-    }
-  }
-  return min;
-}
-
-function withRank(rank: number | undefined): { organizationRank?: number } {
-  return rank === undefined ? {} : { organizationRank: rank };
-}
-
-function matchesCriterion(
-  type: RuleCriterionType,
-  values: readonly string[],
-  ctx: PriceListResolutionContext,
-): boolean {
-  switch (type) {
-    case 'salesChannel':
-      return values.includes(ctx.salesChannelId);
-    case 'organization':
-      return organizationMatchRank(values, ctx) !== undefined;
-    case 'customerGroup':
-      return ctx.customerGroupId !== null && values.includes(ctx.customerGroupId);
-    case 'category':
-      return values.some((c) => ctx.productCategoryIds.has(c));
-    case 'currency':
-      return values.includes(ctx.currencyCode);
-  }
-}
-
-function unionExplicit(
-  evaluations: readonly PriceListRuleEvaluation[],
-): ReadonlySet<RuleCriterionType> {
-  const out = new Set<RuleCriterionType>();
-  for (const e of evaluations) {
-    for (const t of e.explicitOn) out.add(t);
-  }
-  return out;
 }

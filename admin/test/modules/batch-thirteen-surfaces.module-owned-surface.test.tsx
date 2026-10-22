@@ -199,7 +199,10 @@ interface Subject {
 const SUBJECTS: readonly Subject[] = [
   {
     module: 'price_lists',
-    route: '/price-lists',
+    // Feature 160 — the display-mode page is the module's one screen until
+    // P2's price-book editor; the roster and the list detail went with the
+    // old model they edited.
+    route: '/price-lists/display-modes',
     permission: 'price_lists:read',
     // The module's own write code, and the sharp near miss: `routes.ts` builds
     // one `readGate` and one `writeGate`, every screen gates its save controls
@@ -209,14 +212,10 @@ const SUBJECTS: readonly Subject[] = [
     labelKey: 'nav.priceLists.label',
     specifier: '@endora-commerce/mod-price-lists/admin',
     section: 'pricing',
-    routes: ['/price-lists', '/price-lists/display-modes', '/price-lists/:id'],
-    navTargets: ['/price-lists'],
+    routes: ['/price-lists/display-modes'],
+    navTargets: ['/price-lists/display-modes'],
     retiredSharedKeys: ['appShell.nav.priceLists', 'appShell.palette.sub.pricingRules'],
-    zones: [
-      'category.editor.after',
-      'product.editor.pricing.after',
-      'organization.detail.after',
-    ],
+    zones: ['category.editor.after', 'organization.detail.after'],
     surfaceDirectories: ['price_lists'],
     locked: true,
   },
@@ -862,11 +861,7 @@ describe('the surfaces each module does not contribute, derived from the contrib
 
 describe('the moved screens take no reach the package cannot resolve', () => {
   const MOVED = [
-    'price_lists/src/admin/components/ApplicationRuleBuilder.tsx',
-    'price_lists/src/admin/components/BracketGrid.tsx',
     'price_lists/src/admin/pages/DisplayModeOverridesPage.tsx',
-    'price_lists/src/admin/pages/PriceListDetailPage.tsx',
-    'price_lists/src/admin/pages/PriceListsPage.tsx',
     'quick_order/src/admin/api/quick-order-client.ts',
     'quick_order/src/admin/pages/QuickOrderOnBehalfPage.tsx',
     'inventory/src/admin/api/warehouses-client.ts',

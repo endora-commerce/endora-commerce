@@ -44,7 +44,7 @@ describe('comparison price source (#132)', () => {
     await em
       .getConnection()
       .execute(
-        `truncate table "price_list_price_brackets", "price_list_products", "price_lists" cascade`,
+        `truncate table "price_lists" cascade`,
       );
   });
 

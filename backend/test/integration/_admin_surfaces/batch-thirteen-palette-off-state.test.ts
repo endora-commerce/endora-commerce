@@ -214,7 +214,9 @@ describe('batch 13 contributes no palette action while off (Constitution XVII it
       (entry) => entry.manifest.id === 'price_lists',
     )?.manifest;
     const action = (manifest?.actions ?? []).find((entry) => entry.id === 'open-price-lists');
-    expect(action?.targetRoute).toBe('/price-lists');
+    // Feature 160 — the display-mode page, the module's one screen until P2's
+    // price-book editor (the roster went with the old model).
+    expect(action?.targetRoute).toBe('/price-lists/display-modes');
     expect(action?.requiredPermission).toBe('price_lists:read');
     for (const keyword of ['pricing', 'prices', 'price list', 'cennik']) {
       expect(action?.keywords, keyword).toContain(keyword);

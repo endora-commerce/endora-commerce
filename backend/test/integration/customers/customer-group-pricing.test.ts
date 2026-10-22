@@ -3,17 +3,18 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { Product } from '../../helpers/package-entities.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
-import { CustomerGroup } from '../../helpers/package-entities.js';
-import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
+import { CustomerGroup, Organization } from '../../helpers/package-entities.js';
 import { PricingService } from '../../../../packages/modules/price_lists/src/backend/services/pricing-service.js';
-import { DefaultPriceListMigrator } from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
 import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
+import { priceListChannelBridge } from '../../helpers/orders-neighbour-ports.js';
+import { seedPriceBookSql } from '../../helpers/price-book-sql.js';
 
 /**
  * Feature 040, US6 / R6 — the customer's DIRECT customer-group overrides the
- * Organization's group in pricing. A customer-group-targeted price list applies
- * when the resolved group is passed via `context.customerGroupId`, and does not
- * apply when it is absent.
+ * Organization's group in pricing. A customer-group price book applies when the
+ * resolved group is passed via `context.customerGroupId`, and does not apply
+ * when it is absent (feature 160: on price books; the buyer belongs to an
+ * organization with no group of its own, as every customer belongs to one).
  */
 describe('Customer-group pricing override (US6)', () => {
   let db: TestDb;
@@ -29,7 +30,6 @@ describe('Customer-group pricing override (US6)', () => {
 
   beforeEach(async () => {
     em = await db.beginTx();
-    await new DefaultPriceListMigrator(() => em).seedDefault();
   });
 
   afterEach(async () => {
@@ -58,33 +58,40 @@ describe('Customer-group pricing override (US6)', () => {
     });
     await em.persistAndFlush([channel, group, product]);
 
-    const svc = new PriceListService(() => em, undefined, undefined, undefined, neighbourReadPorts(() => em));
-    const list = await svc.create({
-      name: 'VIP List',
-      type: 'base',
-      applicationRule: { kind: 'criterion', type: 'customerGroup', values: [group.id] },
+    const organization = em.create(Organization, {
+      name: 'CG pricing org',
+      taxId: `CGPX${Math.floor(performance.now())}`,
+      vatStatus: 'vat_payer',
+      status: 'active',
+      registeredAddress: { street: 'T 1', city: 'W', postalCode: '00-001', country: 'PL' },
     });
-    await svc.addProduct(list.id, product.id);
-    await svc.replaceBrackets(list.id, product.id, {
-      PLN: [{ minQuantity: 1, maxQuantity: null, amount: '50.0000' }],
+    await em.persistAndFlush(organization);
+    const list = await seedPriceBookSql(em, {
+      name: 'VIP book',
+      audience: { groups: [group.id] },
+      channelIds: [channel.id],
+      rows: [{ productId: product.id, fixed: '50.0000' }],
     });
-    await svc.activate(list.id);
+    const listId = list;
 
-    const pricing = new PricingService(() => em, undefined, undefined, neighbourReadPorts(() => em));
+    const pricing = new PricingService(() => em, undefined, neighbourReadPorts(() => em), undefined, {
+      channelBridge: priceListChannelBridge(),
+    });
+    const buyer = { id: organization.id, customerGroupId: null };
 
-    // With the customer group present → the VIP list applies.
+    // With the customer group present → the VIP book applies.
     const withGroup = await pricing.resolveLinePrice({
       product,
-      context: { quantity: 1, salesChannel: channel, customerGroupId: group.id },
+      context: { quantity: 1, salesChannel: channel, organization: buyer, customerGroupId: group.id },
     });
-    expect(withGroup?.priceListId).toBe(list.id);
+    expect(withGroup?.priceListId).toBe(listId);
     expect(Number(withGroup?.amount)).toBe(50);
 
-    // Without it → the VIP list does NOT apply (a different list, or null).
+    // Without it → the VIP book does NOT apply (unpriced: the product has no base price).
     const withoutGroup = await pricing.resolveLinePrice({
       product,
-      context: { quantity: 1, salesChannel: channel, customerGroupId: null, organization: null },
+      context: { quantity: 1, salesChannel: channel, customerGroupId: null, organization: buyer },
     });
-    expect(withoutGroup?.priceListId).not.toBe(list.id);
+    expect(withoutGroup?.priceListId).not.toBe(listId);
   });
 });

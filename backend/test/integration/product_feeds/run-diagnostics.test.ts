@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { PriceListPriceBracket, PriceListProduct } from '../../helpers/package-entities.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -80,19 +79,13 @@ describe('feed run diagnostics [integration]', () => {
         [channelId, id],
       );
     }
-    // The translated one gets a price; the other deliberately does not.
-    // Assignment first, bracket second: the bracket table cascades off
-    // `price_list_products` and MikroORM batches inserts by entity type.
-    em.create(PriceListProduct, { priceListId: listId, productId: NO_TRANSLATION_ID });
-    await em.flush();
-    em.create(PriceListPriceBracket, {
-      priceListId: listId,
-      productId: NO_TRANSLATION_ID,
-      currencyCode: 'PLN',
-      minQuantity: 1,
-      amount: '42.0000',
-    });
-    await em.flush();
+    // The translated one gets a price — a row of the feed's everyone book; the
+    // other deliberately does not.
+    await conn.execute(
+      `insert into "price_list_matrix_entries" ("id", "price_list_id", "product_id", "min_quantity", "price_type", "amount", "created_at", "updated_at")
+       values (gen_random_uuid(), ?, ?, 1, 'fixed', 42, now(), now())`,
+      [listId, NO_TRANSLATION_ID],
+    );
 
     const templates = await h.app.inject({
       method: 'GET',

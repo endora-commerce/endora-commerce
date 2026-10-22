@@ -88,11 +88,9 @@ export class PriceListStatusWorker {
 
     for (const row of toActivate) {
       row.status = 'active';
-      row.modifiedAt = now;
     }
     for (const row of toExpire) {
       row.status = 'expired';
-      row.modifiedAt = now;
     }
 
     if (toActivate.length > 0 || toExpire.length > 0) {

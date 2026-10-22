@@ -609,7 +609,7 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
       `select id from sales_channels where system_default limit 1`,
     );
     const salesChannelId = channel!.id;
-    const [priceList] = await query<{ id: string }>(`select id from price_lists limit 1`);
+    const [priceList] = await query<{ id: string }>(`select id from price_lists where is_system limit 1`);
     const [warehouse] = await query<{ id: string }>(
       `select id from warehouses where code <> 'pl-krk' order by created_at limit 1`,
     );
@@ -685,7 +685,9 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
       target_id: organizationId,
       mode: 'net_only',
     });
-    await add('price_list_assignments', {
+    // Feature 160 — an operator's price book naming the organisation in its
+    // audience set (the member row cascades with the organisation).
+    await add('price_list_audience_members', {
       organization_id: organizationId,
       price_list_id: priceList!.id,
     });
@@ -968,7 +970,7 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
       `select id from sales_channels where system_default limit 1`,
     );
     const salesChannelId = channel!.id;
-    const [priceList] = await query<{ id: string }>(`select id from price_lists limit 1`);
+    const [priceList] = await query<{ id: string }>(`select id from price_lists where is_system limit 1`);
     const token = (): string => randomBytes(12).toString('hex');
 
     // A guest's cart and comparison.
@@ -989,7 +991,8 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
     await add('webhooks', {});
     await add('api_keys', {});
     await add('promotions', {});
-    await add('price_list_assignments', { price_list_id: priceList!.id });
+    // Feature 160 — an operator's channel binding of a price book.
+    await add('sales_channel_price_lists', { sales_channel_id: salesChannelId, price_list_id: priceList!.id });
     // An administrator's session names no customer account.
     await add('sessions', {});
     // Documents that name an order and no organisation of their own.

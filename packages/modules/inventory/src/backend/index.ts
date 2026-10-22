@@ -555,8 +555,8 @@ export const entities = [
  * would evaluate `warehouse.entity.ts` a second time and the reconciler would
  * `em.create` a `WarehouseChannelAssignment` class the ORM has never heard of
  * (D-160.6.1). D-168 bars an entity class from leaving by this door; a service
- * and a constant are not entities, and `price_lists`' `DefaultPriceListMigrator`
- * / `DEFAULT_PRICE_LIST_ID` pair is the precedent for exactly this shape.
+ * and a constant are not entities, and `price_lists`' `seedDemoPriceBooks` /
+ * `DEMO_PRICE_BOOKS` pair is a second instance of exactly this shape.
  */
 export { WarehouseChannelReconciler } from './services/warehouse-channel-reconciler.js';
 export { DEFAULT_WAREHOUSE_ID } from './entities/warehouse.entity.js';

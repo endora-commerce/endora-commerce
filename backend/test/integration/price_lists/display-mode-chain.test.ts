@@ -12,12 +12,9 @@ import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { Setting } from '@endora-commerce/platform/kernel';
 import { SettingValue } from '@endora-commerce/platform/kernel';
 import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
-import { PricingService } from '../../../../packages/modules/price_lists/src/backend/services/pricing-service.js';
-import {
-  DefaultPriceListMigrator,
-  DEFAULT_PRICE_LIST_ID,
-} from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
 import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
+import { seedBasePriceSql } from '../../helpers/price-book-sql.js';
+import { pricingEngineOf } from '../../helpers/price-surface.js';
 
 /**
  * Feature 011 / US7 — Price display mode chain (T079).
@@ -49,9 +46,8 @@ describe('Feature 011 / US7 — display-mode chain (T079)', () => {
       .em()
       .getConnection()
       .execute(
-        `truncate table "price_list_price_brackets", "price_list_products", "price_lists", "price_display_mode_overrides" cascade`,
+        `truncate table "price_lists", "price_display_mode_overrides" cascade`,
       );
-    await new DefaultPriceListMigrator(h.em).seedDefault();
 
     const em = h.em();
     product = await em.findOneOrFail(Product, { id: SEED_PRODUCT_101_ID });
@@ -88,22 +84,12 @@ describe('Feature 011 / US7 — display-mode chain (T079)', () => {
       await em.flush();
     }
 
-    // Seed Default with a bracket so resolveEngine returns a base.
-    const svc = new PriceListService(
-      h.em,
-      undefined,
-      undefined,
-      undefined,
-      neighbourReadPorts(h.em),
-    );
-    await svc.addProduct(DEFAULT_PRICE_LIST_ID, product.id);
-    await svc.replaceBrackets(DEFAULT_PRICE_LIST_ID, product.id, {
-      PLN: [{ minQuantity: 1, maxQuantity: null, amount: '100' }],
-    });
+    // A base price, so resolveEngine returns a base.
+    await seedBasePriceSql(em, product.id, '100');
   });
 
   it('FR-039: defaults to settings.default_display_mode for signed-in customers when no override', async () => {
-    const pricing = new PricingService(h.em, undefined, undefined, neighbourReadPorts(h.em));
+    const pricing = pricingEngineOf(h);
     const out = await pricing.resolveEngine({
       product,
       context: { quantity: 1, organization, salesChannel },
@@ -113,16 +99,10 @@ describe('Feature 011 / US7 — display-mode chain (T079)', () => {
 
   it('FR-039: defaults to settings.unauthenticated_display_mode for guests when no override', async () => {
     // Set unauthenticated mode = 'none' via the service.
-    const svc = new PriceListService(
-      h.em,
-      undefined,
-      undefined,
-      undefined,
-      neighbourReadPorts(h.em),
-    );
+    const svc = new PriceListService(h.em, undefined, neighbourReadPorts(h.em));
     await svc.setSettingsDisplayMode('unauthenticated_display_mode', 'none');
 
-    const pricing = new PricingService(h.em, undefined, undefined, neighbourReadPorts(h.em));
+    const pricing = pricingEngineOf(h);
     const out = await pricing.resolveEngine({
       product,
       context: { quantity: 1, organization: null, salesChannel },
@@ -140,7 +120,7 @@ describe('Feature 011 / US7 — display-mode chain (T079)', () => {
     setting.globalValue = 'both';
     await em.flush();
 
-    const pricing = new PricingService(h.em, undefined, undefined, neighbourReadPorts(h.em));
+    const pricing = pricingEngineOf(h);
     const out = await pricing.resolveEngine({
       product,
       context: { quantity: 1, organization, salesChannel },
@@ -149,16 +129,10 @@ describe('Feature 011 / US7 — display-mode chain (T079)', () => {
   });
 
   it('FR-038/039: Organization override beats Settings for signed-in customers', async () => {
-    const svc = new PriceListService(
-      h.em,
-      undefined,
-      undefined,
-      undefined,
-      neighbourReadPorts(h.em),
-    );
+    const svc = new PriceListService(h.em, undefined, neighbourReadPorts(h.em));
     await svc.upsertDisplayModeOverride('organization', organization.id, 'both');
 
-    const pricing = new PricingService(h.em, undefined, undefined, neighbourReadPorts(h.em));
+    const pricing = pricingEngineOf(h);
     const out = await pricing.resolveEngine({
       product,
       context: { quantity: 1, organization, salesChannel },
@@ -167,17 +141,11 @@ describe('Feature 011 / US7 — display-mode chain (T079)', () => {
   });
 
   it('FR-039: Organization override is ignored for guests; Settings.unauthenticated wins', async () => {
-    const svc = new PriceListService(
-      h.em,
-      undefined,
-      undefined,
-      undefined,
-      neighbourReadPorts(h.em),
-    );
+    const svc = new PriceListService(h.em, undefined, neighbourReadPorts(h.em));
     await svc.upsertDisplayModeOverride('organization', organization.id, 'both');
     await svc.setSettingsDisplayMode('unauthenticated_display_mode', 'none');
 
-    const pricing = new PricingService(h.em, undefined, undefined, neighbourReadPorts(h.em));
+    const pricing = pricingEngineOf(h);
     const out = await pricing.resolveEngine({
       product,
       context: { quantity: 1, organization: null, salesChannel },
@@ -186,17 +154,11 @@ describe('Feature 011 / US7 — display-mode chain (T079)', () => {
   });
 
   it('FR-039: Category override beats Organization', async () => {
-    const svc = new PriceListService(
-      h.em,
-      undefined,
-      undefined,
-      undefined,
-      neighbourReadPorts(h.em),
-    );
+    const svc = new PriceListService(h.em, undefined, neighbourReadPorts(h.em));
     await svc.upsertDisplayModeOverride('organization', organization.id, 'both');
     await svc.upsertDisplayModeOverride('category', category.id, 'net_only');
 
-    const pricing = new PricingService(h.em, undefined, undefined, neighbourReadPorts(h.em));
+    const pricing = pricingEngineOf(h);
     const out = await pricing.resolveEngine({
       product,
       context: { quantity: 1, organization, salesChannel },
@@ -205,18 +167,12 @@ describe('Feature 011 / US7 — display-mode chain (T079)', () => {
   });
 
   it('FR-039: Product override beats Category and Organization', async () => {
-    const svc = new PriceListService(
-      h.em,
-      undefined,
-      undefined,
-      undefined,
-      neighbourReadPorts(h.em),
-    );
+    const svc = new PriceListService(h.em, undefined, neighbourReadPorts(h.em));
     await svc.upsertDisplayModeOverride('organization', organization.id, 'both');
     await svc.upsertDisplayModeOverride('category', category.id, 'net_only');
     await svc.upsertDisplayModeOverride('product', product.id, 'none');
 
-    const pricing = new PricingService(h.em, undefined, undefined, neighbourReadPorts(h.em));
+    const pricing = pricingEngineOf(h);
     const out = await pricing.resolveEngine({
       product,
       context: { quantity: 1, organization, salesChannel },
@@ -225,16 +181,10 @@ describe('Feature 011 / US7 — display-mode chain (T079)', () => {
   });
 
   it('FR-039 + Category: Product override applies for guests too (no Organization step)', async () => {
-    const svc = new PriceListService(
-      h.em,
-      undefined,
-      undefined,
-      undefined,
-      neighbourReadPorts(h.em),
-    );
+    const svc = new PriceListService(h.em, undefined, neighbourReadPorts(h.em));
     await svc.upsertDisplayModeOverride('product', product.id, 'gross_only');
 
-    const pricing = new PricingService(h.em, undefined, undefined, neighbourReadPorts(h.em));
+    const pricing = pricingEngineOf(h);
     const out = await pricing.resolveEngine({
       product,
       context: { quantity: 1, organization: null, salesChannel },
@@ -243,13 +193,7 @@ describe('Feature 011 / US7 — display-mode chain (T079)', () => {
   });
 
   it('FR-038: setting an override to "inherit" deletes the override row', async () => {
-    const svc = new PriceListService(
-      h.em,
-      undefined,
-      undefined,
-      undefined,
-      neighbourReadPorts(h.em),
-    );
+    const svc = new PriceListService(h.em, undefined, neighbourReadPorts(h.em));
     await svc.upsertDisplayModeOverride('product', product.id, 'none');
     expect(await svc.listDisplayModeOverrides()).toHaveLength(1);
 
@@ -258,13 +202,7 @@ describe('Feature 011 / US7 — display-mode chain (T079)', () => {
   });
 
   it('FR-038: rejects an override targeting a non-existent row', async () => {
-    const svc = new PriceListService(
-      h.em,
-      undefined,
-      undefined,
-      undefined,
-      neighbourReadPorts(h.em),
-    );
+    const svc = new PriceListService(h.em, undefined, neighbourReadPorts(h.em));
     await expect(
       svc.upsertDisplayModeOverride('product', '00000000-0000-4000-8000-000000ffff00', 'none'),
     ).rejects.toMatchObject({ statusCode: 400 });

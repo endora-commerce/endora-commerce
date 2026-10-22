@@ -15,7 +15,6 @@ import type {
   ListingPriceOrderQuery,
   ListingPriceViewerContext,
 } from '@endora-commerce/contracts';
-import type { PriceBracketRow } from './price-bracket-resolver.js';
 import type { PriceSource } from '@endora-commerce/contracts';
 import type { BookExplanation } from './book-resolver.js';
 
@@ -27,8 +26,9 @@ import type { BookExplanation } from './book-resolver.js';
  * one specifier: this module could not compile without `catalog`, and the
  * contract an overlay decoration is written against named a class the overlay
  * had no business seeing. The engine reads exactly two fields — the id it keys
- * every bracket lookup on, and the legacy price attribute the listing chain
- * falls back to — so those two are what it asks for.
+ * every row lookup on, and the attribute values a price-book attribute row
+ * matches (D-287 §5.9) — so those two are what it asks for. A product carries
+ * no price of its own (feature 160, FR-042).
  *
  * Narrowing is what makes this a cut rather than a rename: a `Product` entity
  * and a `CatalogProductRecord` are both assignable here, and nothing wider is
@@ -36,7 +36,7 @@ import type { BookExplanation } from './book-resolver.js';
  */
 export interface PricedProductRef {
   id: string;
-  /** JSONB `{ attributeKey: value }` — the legacy `defaultPrice` / `price`. */
+  /** JSONB `{ attributeKey: value }` — what an attribute row of a price book matches. */
   attributeValues: Record<string, unknown>;
 }
 
@@ -76,6 +76,23 @@ export interface PricingResolutionInput {
     salesChannel: { id: string; defaultCurrency: string };
     currencyCode?: string;
   };
+}
+
+/**
+ * One quantity tier of a resolved price, as {@link PricingEngineResult} carries
+ * it: the book that priced it, its window and its amount (a 4 dp decimal
+ * string). Feature 160 kept the shape `resolveEngine` callers read; the row it
+ * describes is a price-book row, whose id is `matrixEntryId`.
+ */
+export interface PriceBracketRow {
+  priceListId: string;
+  productId: string;
+  currencyCode: string;
+  minQuantity: number;
+  maxQuantity: number | null;
+  amount: string;
+  /** The price-book row that priced the line. */
+  matrixEntryId?: string;
 }
 
 export interface PricingEngineResult {
@@ -189,15 +206,16 @@ export interface PricingServiceContract {
    */
   resolveLinePrices(input: LinePricesInput): Promise<Map<string, PricingLineResult | null>>;
   /**
-   * The lowest-quantity bracket amount on one **named** price list, per
-   * product, for callers that use a list verbatim rather than resolving it
-   * (a product feed pinned to a list — feature 067, FR-020). Products with no
-   * bracket on that list are absent from the map.
+   * The quantity-1 price of each product on one **named** price book, for
+   * callers that use a book verbatim rather than resolving the buyer's (a
+   * product feed pinned to a book — feature 067 FR-020, feature 160 FR-029):
+   * the book's rows over the channel's catalogue price. Products the book does
+   * not price are absent from the map.
    *
-   * It exists so that reading a named list is a port call rather than a raw
-   * `select` against `price_list_price_brackets` from another module: the
-   * table is this module's, and the port is what makes an absent owner refuse
-   * instead of a feed publishing prices the platform is not serving.
+   * It exists so that reading a named book is a port call rather than a raw
+   * `select` against this module's tables from another module: the port is
+   * what makes an absent owner refuse instead of a feed publishing prices the
+   * platform is not serving.
    */
   namedListPrices(input: {
     priceListId: string;

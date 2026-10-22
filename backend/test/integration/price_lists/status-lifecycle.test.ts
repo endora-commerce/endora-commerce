@@ -1,302 +1,102 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { PriceListPriceBracket, PriceListProduct } from '../../helpers/package-entities.js';
-import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { Product } from '../../helpers/package-entities.js';
-import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
-import { PriceListStatusWorker } from '../../../../packages/modules/price_lists/src/backend/services/price-list-status-worker.js';
-import {
-  DefaultPriceListMigrator,
-  DEFAULT_PRICE_LIST_ID,
-} from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
-import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ERROR_CODES } from '@endora-commerce/contracts';
+import { setupBackendServer, teardownBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
+import { setupPricingFixture, type PricingFixture } from '../../helpers/pricing-fixture.js';
+import { BASE_BOOK_ID } from '../../helpers/price-book-sql.js';
 
 /**
- * Feature 011 / US2 — Admin CRUD + status lifecycle (T034).
+ * Feature 011 / US2 → feature 160 — a price book's status lifecycle (T034, on
+ * price books).
  *
- * Verifies:
- *   - FR-007/008: create / patch / delete / duplicate happy paths.
- *   - FR-009: status transitions (manual + automatic via the worker).
- *   - FR-010: date sanity guards (endsAt > startsAt; endsAt > now()).
- *   - FR-011: lists in non-active states are excluded from resolution.
- *   - FR-012: modifiedAt bumps on every material edit.
- *   - FR-013: duplication semantics (rule + products + brackets copied;
- *     status reset to draft; dates cleared; name suffixed).
- *   - FR-005/006: Default-list protections.
+ * `status` is what the admin shows; whether a book applies is read from its
+ * dates at resolution time (FR-047, `applicability-dates.test.ts`). Verifies:
+ *   - activation lands on `scheduled` for a future start and on `active`
+ *     otherwise (FR-009 rows 1–2);
+ *   - the status worker promotes `scheduled → active` and expires
+ *     `active → expired` once the instants pass (rows 3–4), and a sweep with
+ *     nothing due changes nothing;
+ *   - an end not after the start is refused (FR-010);
+ *   - an expired book can be moved back to draft (row 5), a base book cannot.
+ *
+ * The CRUD, duplication and base-book protections of the old `PriceListService`
+ * are the price-book API's now: `contract/price_lists/price-books-api.test.ts`
+ * and `price-book-duplicate.test.ts`.
  */
-
-/** A non-empty rule for tests that activate lists. The currency criterion
- * skips DB target validation (only the regex check applies). */
-const TEST_RULE = { kind: 'criterion' as const, type: 'currency' as const, values: ['PLN'] };
-describe('Feature 011 / US2 — Admin CRUD + status lifecycle (T034)', () => {
-  let db: TestDb;
+describe('price books — status lifecycle (feature 160, T034)', () => {
+  let h: BackendServerHandle;
+  let f: PricingFixture;
+  const DAY = 86_400_000;
+  const sql = <T>(statement: string, params: unknown[] = []) => h.em().getConnection().execute<T[]>(statement, params);
+  const statusOf = async (id: string) =>
+    (await sql<{ status: string }>(`select "status" from "price_lists" where "id" = ?`, [id]))[0]!.status;
+  const versionOf = async (id: string) =>
+    Number((await sql<{ version: number }>(`select "version" from "price_lists" where "id" = ?`, [id]))[0]!.version);
+  const worker = () =>
+    (h.container as unknown as { resolve<T>(name: string): T }).resolve<{
+      handle: { statusWorker: { sweep(now: Date): Promise<{ scheduledToActive: number; activeToExpired: number }> } };
+    }>('priceLists').handle.statusWorker;
 
   beforeAll(async () => {
-    db = await setupTestDb();
-  });
+    h = await setupBackendServer();
+    f = await setupPricingFixture(h);
+  }, 5 * 60_000);
 
   afterAll(async () => {
-    await db.close();
+    await f.clearBooks();
+    await teardownBackendServer(h);
   });
 
-  beforeEach(async () => {
-    await db.beginTx();
-    const migrator = new DefaultPriceListMigrator(() => db.em());
-    await migrator.seedDefault();
+  const rows = () => [{ product: f.products.P1, fixed: '10' }];
+
+  it('FR-009 rows 1–2: activation is scheduled for a future start, active otherwise', async () => {
+    const later = await f.book({ audience: 'everyone', rows: rows(), startsAt: new Date(Date.now() + DAY) });
+    expect(await statusOf(later.id)).toBe('scheduled');
+    const now = await f.book({ audience: 'everyone', rows: rows(), startsAt: new Date(Date.now() - DAY) });
+    expect(await statusOf(now.id)).toBe('active');
   });
 
-  it('FR-007/008: create yields a draft list with the engine columns set', async () => {
-    try {
-      const svc = new PriceListService(() => db.em(), undefined, undefined, undefined, neighbourReadPorts(() => db.em()));
-      const created = await svc.create({
-        name: 'Q3 Wholesale',
-        type: 'base',
-      });
-      expect(created.name).toBe('Q3 Wholesale');
-      expect(created.type).toBe('base');
-      expect(created.status).toBe('draft');
-      expect(created.applicationRule).toEqual({ kind: 'all' });
-      expect(created.isSystem).toBe(false);
-      expect(created.modifiedAt).toBeInstanceOf(Date);
-    } finally {
-      await db.rollbackTx();
-    }
+  it('FR-009 rows 3–4: the worker promotes and expires once the instants pass; nothing due changes nothing', async () => {
+    const scheduled = await f.book({ audience: 'everyone', rows: rows(), startsAt: new Date(Date.now() + DAY) });
+    const live = await f.book({
+      audience: 'everyone',
+      rows: rows(),
+      startsAt: new Date(Date.now() - DAY),
+      endsAt: new Date(Date.now() + DAY),
+    });
+    const idle = await worker().sweep(new Date());
+    expect(idle).toEqual({ scheduledToActive: 0, activeToExpired: 0 });
+    const result = await worker().sweep(new Date(Date.now() + 2 * DAY));
+    expect(result.scheduledToActive).toBeGreaterThanOrEqual(1);
+    expect(result.activeToExpired).toBeGreaterThanOrEqual(1);
+    expect(await statusOf(scheduled.id)).toBe('active');
+    expect(await statusOf(live.id)).toBe('expired');
+    const again = await worker().sweep(new Date(Date.now() + 2 * DAY));
+    expect(again).toEqual({ scheduledToActive: 0, activeToExpired: 0 });
   });
 
-  it('FR-010: refuses save when endsAt <= startsAt', async () => {
-    try {
-      const svc = new PriceListService(() => db.em(), undefined, undefined, undefined, neighbourReadPorts(() => db.em()));
-      await expect(
-        svc.create({
-          name: 'Bad Dates',
-          type: 'sale',
-          startsAt: new Date('2026-06-01T00:00:00Z'),
-          endsAt: new Date('2026-05-01T00:00:00Z'),
-        }),
-      ).rejects.toMatchObject({ statusCode: 400 });
-    } finally {
-      await db.rollbackTx();
-    }
+  it('FR-010: an end not after the start is refused', async () => {
+    const book = await f.book({ audience: 'everyone', rows: rows(), activate: false });
+    const start = new Date(Date.now() + DAY).toISOString();
+    const expectedVersion = await versionOf(book.id);
+    await expect(
+      f.system(() => f.books.patchBook(book.id, { startsAt: start, endsAt: start }, { expectedVersion })),
+    ).rejects.toMatchObject({ statusCode: 400, code: ERROR_CODES.VALIDATION_FAILED });
   });
 
-  it('FR-010: refuses save when endsAt is in the past at creation', async () => {
-    try {
-      const svc = new PriceListService(() => db.em(), undefined, undefined, undefined, neighbourReadPorts(() => db.em()));
-      await expect(
-        svc.create({
-          name: 'Already Done',
-          type: 'sale',
-          endsAt: new Date(Date.now() - 86_400_000),
-        }),
-      ).rejects.toMatchObject({ statusCode: 400 });
-    } finally {
-      await db.rollbackTx();
-    }
-  });
-
-  it('FR-009 row 1: activate coerces to scheduled when startsAt is in the future', async () => {
-    try {
-      const svc = new PriceListService(() => db.em(), undefined, undefined, undefined, neighbourReadPorts(() => db.em()));
-      const created = await svc.create({
-        name: 'Wiosna 2026',
-        type: 'sale',
-        applicationRule: TEST_RULE,
-        startsAt: new Date(Date.now() + 7 * 86_400_000),
-        endsAt: new Date(Date.now() + 30 * 86_400_000),
-      });
-      const activated = await svc.activate(created.id);
-      expect(activated.status).toBe('scheduled');
-    } finally {
-      await db.rollbackTx();
-    }
-  });
-
-  it('FR-009 row 1: activate of a list with startsAt in the past goes straight to active', async () => {
-    try {
-      const svc = new PriceListService(() => db.em(), undefined, undefined, undefined, neighbourReadPorts(() => db.em()));
-      const created = await svc.create({
-        name: 'Already Started',
-        type: 'sale',
-        applicationRule: TEST_RULE,
-        startsAt: new Date(Date.now() - 86_400_000),
-      });
-      const activated = await svc.activate(created.id);
-      expect(activated.status).toBe('active');
-    } finally {
-      await db.rollbackTx();
-    }
-  });
-
-  it('FR-009 row 3: status worker promotes scheduled→active when startsAt has passed', async () => {
-    try {
-      const svc = new PriceListService(() => db.em(), undefined, undefined, undefined, neighbourReadPorts(() => db.em()));
-      const worker = new PriceListStatusWorker(() => db.em());
-
-      const created = await svc.create({
-        name: 'Sweep Test',
-        type: 'sale',
-        applicationRule: TEST_RULE,
-        startsAt: new Date(Date.now() + 86_400_000),
-      });
-      await svc.activate(created.id); // → scheduled
-
-      // Pretend the clock is past startsAt.
-      const future = new Date(Date.now() + 2 * 86_400_000);
-      const result = await worker.sweep(future);
-      expect(result.scheduledToActive).toBeGreaterThanOrEqual(1);
-
-      const after = await svc.getById(created.id);
-      expect(after.status).toBe('active');
-      expect(after.modifiedAt.getTime()).toBeGreaterThanOrEqual(created.modifiedAt.getTime());
-    } finally {
-      await db.rollbackTx();
-    }
-  });
-
-  it('FR-009 row 4: status worker expires active→expired when endsAt has passed', async () => {
-    try {
-      const svc = new PriceListService(() => db.em(), undefined, undefined, undefined, neighbourReadPorts(() => db.em()));
-      const worker = new PriceListStatusWorker(() => db.em());
-
-      const created = await svc.create({
-        name: 'Expiry Test',
-        type: 'sale',
-        applicationRule: TEST_RULE,
-        startsAt: new Date(Date.now() - 2 * 86_400_000),
-        endsAt: new Date(Date.now() + 86_400_000),
-      });
-      await svc.activate(created.id); // → active
-
-      // Pretend the clock is past endsAt.
-      const after = new Date(Date.now() + 2 * 86_400_000);
-      const result = await worker.sweep(after);
-      expect(result.activeToExpired).toBeGreaterThanOrEqual(1);
-
-      const reloaded = await svc.getById(created.id);
-      expect(reloaded.status).toBe('expired');
-    } finally {
-      await db.rollbackTx();
-    }
-  });
-
-  it('FR-012: patch bumps modifiedAt and persists the change', async () => {
-    try {
-      const svc = new PriceListService(() => db.em(), undefined, undefined, undefined, neighbourReadPorts(() => db.em()));
-      const created = await svc.create({ name: 'Edit Me', type: 'base' });
-      const t0 = created.modifiedAt.getTime();
-      await new Promise((r) => setTimeout(r, 5));
-      const patched = await svc.patch(created.id, { name: 'Edited' });
-      expect(patched.name).toBe('Edited');
-      expect(patched.modifiedAt.getTime()).toBeGreaterThan(t0);
-    } finally {
-      await db.rollbackTx();
-    }
-  });
-
-  it('FR-013: duplicate copies rule + products + brackets, resets status to draft, suffixes name', async () => {
-    try {
-      const em = db.em();
-      const svc = new PriceListService(() => em, undefined, undefined, undefined, neighbourReadPorts(() => em));
-
-      const product = em.create(Product, {
-        sku: 'us2-dup-1',
-        slug: 'us2-dup-1',
-        type: 'simple',
-        name: { 'en-US': 'Dup test' },
-        description: { 'en-US': '' },
-        attributeValues: {},
-        visibility: 'public',
-      });
-      await em.persistAndFlush(product);
-
-      const original = await svc.create({
-        name: 'Original',
-        type: 'sale',
-        applicationRule: TEST_RULE,
-      });
-
-      // Add a product + bracket directly so we can verify the dup copies them.
-      em.create(PriceListProduct, { priceListId: original.id, productId: product.id });
-      await em.flush();
-      em.create(PriceListPriceBracket, {
-        priceListId: original.id,
-        productId: product.id,
-        currencyCode: 'PLN',
-        minQuantity: 1,
-        maxQuantity: null,
-        amount: '100.0000',
-      });
-      await em.flush();
-
-      const dup = await svc.duplicate(original.id);
-      expect(dup.name).toMatch(/^Original \(copy\b/);
-      expect(dup.status).toBe('draft');
-      expect(dup.startsAt ?? null).toBeNull();
-      expect(dup.endsAt ?? null).toBeNull();
-      expect(dup.type).toBe('sale');
-      expect(dup.applicationRule).toEqual(original.applicationRule);
-
-      const dupProducts = await em.find(PriceListProduct, { priceListId: dup.id });
-      expect(dupProducts.map((p) => p.productId)).toEqual([product.id]);
-
-      const dupBrackets = await em.find(PriceListPriceBracket, { priceListId: dup.id });
-      expect(dupBrackets).toHaveLength(1);
-      expect(Number(dupBrackets[0]?.amount)).toBeCloseTo(100);
-    } finally {
-      await db.rollbackTx();
-    }
-  });
-
-  it('FR-013: a second duplicate of the same source uses a numbered suffix', async () => {
-    try {
-      const svc = new PriceListService(() => db.em(), undefined, undefined, undefined, neighbourReadPorts(() => db.em()));
-      const original = await svc.create({ name: 'Source', type: 'base' });
-
-      const a = await svc.duplicate(original.id);
-      const b = await svc.duplicate(original.id);
-
-      expect(a.name).toBe('Source (copy)');
-      expect(b.name).toMatch(/^Source \(copy 2\)$/);
-    } finally {
-      await db.rollbackTx();
-    }
-  });
-
-  it('FR-005/006: Default refuses delete, rule attach, and out-of-active status moves', async () => {
-    try {
-      const svc = new PriceListService(() => db.em(), undefined, undefined, undefined, neighbourReadPorts(() => db.em()));
-      await expect(svc.remove(DEFAULT_PRICE_LIST_ID)).rejects.toMatchObject({ statusCode: 403 });
-      await expect(
-        svc.patch(DEFAULT_PRICE_LIST_ID, {
-          applicationRule: { kind: 'criterion', type: 'salesChannel', values: ['sc'] },
-        }),
-      ).rejects.toMatchObject({ statusCode: 403 });
-      await expect(svc.draftify(DEFAULT_PRICE_LIST_ID)).rejects.toMatchObject({ statusCode: 403 });
-    } finally {
-      await db.rollbackTx();
-    }
-  });
-
-  it('FR-009 row 5 (loose): expired list can be moved back to draft', async () => {
-    try {
-      const svc = new PriceListService(() => db.em(), undefined, undefined, undefined, neighbourReadPorts(() => db.em()));
-      const worker = new PriceListStatusWorker(() => db.em());
-      const created = await svc.create({
-        name: 'Restage',
-        type: 'sale',
-        applicationRule: TEST_RULE,
-        startsAt: new Date(Date.now() - 2 * 86_400_000),
-        endsAt: new Date(Date.now() + 86_400_000),
-      });
-      await svc.activate(created.id);
-      // Trigger expiry.
-      await worker.sweep(new Date(Date.now() + 2 * 86_400_000));
-      const expired = await svc.getById(created.id);
-      expect(expired.status).toBe('expired');
-
-      const drafted = await svc.draftify(created.id);
-      expect(drafted.status).toBe('draft');
-    } finally {
-      await db.rollbackTx();
-    }
+  it('FR-009 row 5: an expired book can be moved back to draft; a base book cannot', async () => {
+    const book = await f.book({
+      audience: 'everyone',
+      rows: rows(),
+      startsAt: new Date(Date.now() - 2 * DAY),
+      endsAt: new Date(Date.now() + DAY),
+    });
+    await worker().sweep(new Date(Date.now() + 2 * DAY));
+    expect(await statusOf(book.id)).toBe('expired');
+    await f.system(() => f.books.draftify(book.id));
+    expect(await statusOf(book.id)).toBe('draft');
+    await expect(f.system(() => f.books.draftify(BASE_BOOK_ID))).rejects.toMatchObject({
+      statusCode: 409,
+      code: ERROR_CODES.PRICE_BOOK_IMMUTABLE_FIELD,
+    });
   });
 });

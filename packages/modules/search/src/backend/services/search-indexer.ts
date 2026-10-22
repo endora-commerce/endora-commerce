@@ -148,8 +148,9 @@ export interface SearchIndexerOptions {
  * A per-buyer price cannot live here in any case: there is one index per sales
  * channel and one document per product, so pricing the document would multiply
  * the corpus by the customer base. Feature 086 sorts by price without
- * Meilisearch for that reason. The legacy attribute itself is untouched and
- * still indexed under `attributes.defaultPrice`, where its name says what it is.
+ * Meilisearch for that reason. The legacy attribute itself is gone: feature 160
+ * stripped `defaultPrice` and `price` from every product (FR-042), so a product
+ * has no price of its own to index.
  */
 export interface IndexedDocument {
   id: string;

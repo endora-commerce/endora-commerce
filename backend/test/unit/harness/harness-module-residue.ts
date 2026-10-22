@@ -25,12 +25,14 @@
  *
  * **The wipe list holds no table a module package owns**, and no kind of
  * reference into one of those packages survives in that file either — specifier,
- * type reference and table name alike. The 92 table names below rose from 80
- * because `fix/master-red-baseline` (!1722) added twelve `product_feed*` entries
+ * type reference and table name alike. The 90 table names below rose from 80 to
+ * 92 because `fix/master-red-baseline` (!1722) added twelve `product_feed*` entries
  * to close a cross-file leak, and `product_feeds` has no `src/test-support/` to
  * declare them in — the row above counts the names of modules that do; that
  * branch's twelve `xl_*` entries went to `comarch_xl`'s own `volatileTables`
- * instead, so the repair is kept in full and the row above stays at zero.
+ * instead, so the repair is kept in full and the row above stays at zero. They
+ * fell to 90 when feature 160 dropped `price_list_assignments` and
+ * `price_list_items` with the old price-list model.
  *
  * **The compile-time hard stop `spec.md` §2.4 measures is closed.** Seven
  * declarations reached into `packages/modules/<id>/src/` — `KsefCradle`,
@@ -214,8 +216,6 @@ export const LEDGERED_MODULE_TABLE_NAMES: readonly string[] = [
   'organizations',
   'payment_methods',
   'payments',
-  'price_list_assignments',
-  'price_list_items',
   'price_lists',
   'product_assets',
   'product_attachments',

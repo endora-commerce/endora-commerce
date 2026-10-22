@@ -1361,7 +1361,7 @@ export const entities = [
  * needs a number. Taking it here keeps one statement of the format and one
  * sequence: a demo Opportunity and the next one an operator creates cannot
  * collide. D-168 bars an entity class from leaving by this door; a function is
- * not one, and `price_lists`' `DefaultPriceListMigrator` and `inventory`'s
+ * not one, and `price_lists`' `seedDemoPriceBooks` and `inventory`'s
  * `WarehouseChannelReconciler` are the precedent for exactly this shape.
  */
 export { nextOpportunityNumber } from './services/opportunity-number.js';

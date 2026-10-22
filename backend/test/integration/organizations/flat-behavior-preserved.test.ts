@@ -15,15 +15,12 @@ import { OrganizationTreeService } from '../../../../packages/modules/organizati
 import { OrganizationInheritanceService } from '../../../../packages/modules/organizations/src/backend/services/organization-inheritance-service.js';
 import { CreditLimitReadService } from '../../../../packages/modules/credit_limits/src/backend/services/credit-limit-read.js';
 import { SalesRepAssignmentService } from '../../../../packages/modules/organizations/src/backend/services/sales-rep-assignment-service.js';
-import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
 import { PricingService } from '../../../../packages/modules/price_lists/src/backend/services/pricing-service.js';
-import {
-  DefaultPriceListMigrator,
-  DEFAULT_PRICE_LIST_ID,
-} from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
 import { CreditLimitService } from '../../../../packages/modules/credit_limits/src/backend/services/credit-limit-service.js';
 import { EventBus } from '@endora-commerce/platform/events';
 import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
+import { priceListChannelBridge } from '../../helpers/orders-neighbour-ports.js';
+import { seedBasePriceSql, seedPriceBookSql } from '../../helpers/price-book-sql.js';
 import { Order } from '../../helpers/package-entities.js';
 
 /**
@@ -125,14 +122,8 @@ describe('flat-behavior preservation (feature 056, FR-001/FR-013)', () => {
     );
   });
 
-  it('pricing: a root org resolves the same list with or without the org-chain resolver', async () => {
-    await h
-      .em()
-      .getConnection()
-      .execute(
-        `truncate table "price_list_price_brackets", "price_list_products", "price_lists" cascade`,
-      );
-    await new DefaultPriceListMigrator(h.em).seedDefault();
+  it('pricing: a root org resolves the same book with or without the org-chain resolver', async () => {
+    await h.em().getConnection().execute(`truncate table "price_lists" cascade`);
 
     const em = h.em();
     const product = await em.findOneOrFail(Product, { id: SEED_PRODUCT_101_ID });
@@ -143,33 +134,25 @@ describe('flat-behavior preservation (feature 056, FR-001/FR-013)', () => {
     org.customerGroupId = cg.id;
     await em.flush();
 
-    const svc = new PriceListService(h.em, undefined, undefined, undefined, neighbourReadPorts(h.em));
-    await svc.addProduct(DEFAULT_PRICE_LIST_ID, product.id);
-    await svc.replaceBrackets(DEFAULT_PRICE_LIST_ID, product.id, {
-      PLN: [{ minQuantity: 1, maxQuantity: null, amount: '100' }],
+    await seedBasePriceSql(em, product.id, '100');
+    const orgBook = await seedPriceBookSql(em, {
+      name: 'Flat Org Book',
+      audience: { organizations: [org.id] },
+      channelIds: [salesChannel.id],
+      rows: [{ productId: product.id, fixed: '80' }],
     });
-    const orgList = await svc.create({
-      name: 'Flat Org List',
-      type: 'base',
-      applicationRule: { kind: 'criterion', type: 'organization', values: [org.id] } as never,
-    });
-    await svc.addProduct(orgList.id, product.id);
-    await svc.replaceBrackets(orgList.id, product.id, {
-      PLN: [{ minQuantity: 1, maxQuantity: null, amount: '80' }],
-    });
-    await svc.activate(orgList.id);
 
-    const flatPricing = new PricingService(h.em, undefined, undefined, neighbourReadPorts(h.em));
-    // Both engines get the neighbour ports: the org-chain resolver is the one
-    // difference this case is about, and a real composition always supplies
-    // them. The wired one went without until `price_lists` stopped reading
-    // `product_categories` in its own SQL (feature 075 / D-87), which is when
-    // the omission stopped being invisible.
+    // Both engines get the neighbour ports and the channel bridge: the
+    // org-chain resolver is the one difference this case is about.
+    const flatPricing = new PricingService(h.em, undefined, neighbourReadPorts(h.em), undefined, {
+      channelBridge: priceListChannelBridge(),
+    });
     const wiredPricing = new PricingService(
       h.em,
-      undefined,
       (id) => inheritance.priceListOrgChain(id),
       neighbourReadPorts(h.em),
+      undefined,
+      { channelBridge: priceListChannelBridge() },
     );
 
     const flatOut = await flatPricing.resolveEngine({
@@ -183,7 +166,8 @@ describe('flat-behavior preservation (feature 056, FR-001/FR-013)', () => {
     expect(wiredOut.base.listId).toBe(flatOut.base.listId);
     expect(wiredOut.base.listName).toBe(flatOut.base.listName);
     expect(Number(wiredOut.base.bracket!.amount)).toBe(Number(flatOut.base.bracket!.amount));
-    expect(wiredOut.base.listName).toBe('Flat Org List');
+    expect(wiredOut.base.listId).toBe(orgBook);
+    expect(Number(wiredOut.base.bracket!.amount)).toBe(80);
   });
 
   it('credit: a root org reserves identically with or without inheritance wiring', async () => {

@@ -165,7 +165,8 @@ describe('catalog list — sorted on the Meilisearch backend', () => {
     // The field mirrored `attributes.defaultPrice` — a legacy catalogue
     // attribute, not any price list's figure — was read by nothing on the
     // query path, and was named exactly what a price sort would reach for.
-    // The attribute it was copied from is still indexed and still filterable.
+    // Since feature 160 a product has no such attribute either (FR-042): the
+    // seeded product's attributes are its real ones.
     const client = new Meilisearch({ host: meilisearchHost, apiKey: meilisearchKey });
     const docs = await client.index(indexUid).getDocuments<{
       sku: string;
@@ -176,6 +177,7 @@ describe('catalog list — sorted on the Meilisearch backend', () => {
       expect(doc).not.toHaveProperty('price');
     }
     const seeded = docs.results.find((d) => d.sku === SEED_PRODUCT_101_SKU);
-    expect(seeded?.attributes['defaultPrice']).toBe(19.99);
+    expect(seeded?.attributes).not.toHaveProperty('defaultPrice');
+    expect(seeded?.attributes['color']).toBe('red');
   });
 });

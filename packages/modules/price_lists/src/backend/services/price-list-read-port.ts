@@ -4,7 +4,7 @@ import type {
   PriceListReadPort,
   PriceListRecord,
 } from '@endora-commerce/contracts';
-import { isOldModelList, PriceList } from '../entities/price-list.entity.js';
+import { PriceList } from '../entities/price-list.entity.js';
 
 /**
  * The row-level read model `price_lists` publishes (feature 075, Phase P).
@@ -35,36 +35,20 @@ export class PriceListReadService implements PriceListReadPort {
     return lists.map(toPriceListRecord);
   }
 
-  async findByCode(code: string): Promise<PriceListRecord | null> {
-    const list = await this.emFactory().findOne(PriceList, { code });
-    return list ? toPriceListRecord(list) : null;
-  }
-
   async listAll(): Promise<PriceListRecord[]> {
-    const lists = await this.emFactory().find(
-      PriceList,
-      {},
-      { orderBy: { priority: 'desc', code: 'asc' } },
-    );
-    // Feature 160 — the enumerations answer the old engine's lists only: their
-    // one consumer (`organizations`' effective price lists) evaluates the rule,
-    // and a price book has none. It is re-pointed to price books later in P1.
-    return lists.filter(isOldModelList).map(toPriceListRecord);
+    const lists = await this.emFactory().find(PriceList, {}, { orderBy: { priority: 'desc', name: 'asc' } });
+    return lists.map(toPriceListRecord);
   }
 
   async listActive(): Promise<PriceListRecord[]> {
     const lists = await this.emFactory().find(
       PriceList,
       { status: 'active' },
-      { orderBy: { priority: 'desc', code: 'asc' } },
+      { orderBy: { priority: 'desc', name: 'asc' } },
     );
-    return lists.filter(isOldModelList).map(toPriceListRecord);
+    return lists.map(toPriceListRecord);
   }
 
-  /**
-   * Feature 160 (FR-032) — one statement: the applicable books (status active or
-   * scheduled, within their dates) with a member in the chain or the group.
-   */
   async listForOrganization(input: {
     organizationChain: readonly string[];
     customerGroupId: string | null;
@@ -87,7 +71,7 @@ export class PriceListReadService implements PriceListReadPort {
               m."organization_id", m."customer_group_id"
          from "price_lists" l
          join "price_list_audience_members" m on m."price_list_id" = l."id"
-        where l."application_rule" is null and l."is_system" = false
+        where l."is_system" = false
           and l."status" in ('active', 'scheduled')
           and (l."starts_at" is null or l."starts_at" <= now())
           and (l."ends_at" is null or l."ends_at" > now())
@@ -117,22 +101,16 @@ export class PriceListReadService implements PriceListReadPort {
 export function toPriceListRecord(list: PriceList): PriceListRecord {
   return {
     id: list.id,
-    code: list.code,
     name: list.name,
-    currency: list.currency,
-    isDefault: list.isDefault,
+    currencyCode: list.currency.trim(),
     priority: list.priority,
-    // Feature 160 — `regular` is the price-book name of the legacy `base`.
-    type: list.type === 'regular' ? 'base' : list.type,
+    type: list.type,
     status: list.status,
+    audienceKind: list.audienceKind,
     startsAt: list.startsAt ?? null,
     endsAt: list.endsAt ?? null,
-    // A price book carries no rule; the record's shape predates it.
-    applicationRule: list.applicationRule ?? { kind: 'all' },
     isSystem: list.isSystem,
-    modifiedAt: list.modifiedAt,
     createdAt: list.createdAt,
     updatedAt: list.updatedAt,
   };
 }
-

@@ -47,7 +47,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 
 | Akcja | Otwiera | Uprawnienie |
 | --- | --- | --- |
-| `open-price-lists` | `/price-lists` | `price_lists:read` |
+| `open-price-lists` | `/price-lists/display-modes` | `price_lists:read` |
 
 ## Ustawienia
 

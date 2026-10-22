@@ -201,10 +201,9 @@ describe('bidirectional membership: every bridge (T043)', () => {
     const id = randomUUID();
     await rawExec(
       `insert into "price_lists"
-         ("id","code","name","currency_code","is_default","priority","type","status",
-          "application_rule","audience_kind","is_system","modified_at","created_at","updated_at")
-       values (?, ?, ?, 'EUR', false, 0, 'regular', 'draft', null, 'everyone', false, now(), now(), now())`,
-      [id, `t043-pb-${id.slice(0, 8)}`, `Book ${id.slice(0, 8)}`],
+         ("id","name","currency_code","priority","type","status","audience_kind","is_system","created_at","updated_at")
+       values (?, ?, 'EUR', 0, 'regular', 'draft', 'everyone', false, now(), now())`,
+      [id, `Book ${id.slice(0, 8)}`],
     );
     return id;
   }

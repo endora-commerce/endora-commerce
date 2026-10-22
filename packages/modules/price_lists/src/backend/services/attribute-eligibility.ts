@@ -1,8 +1,12 @@
-import type {
-  AttributeValueType,
-  CatalogAttributeView,
-  PriceMatrixInactiveReason,
-} from '@endora-commerce/contracts';
+import type { AttributeValueType, CatalogAttributeView } from '@endora-commerce/contracts';
+
+/** Why an attribute row cannot select prices at the moment (it stays, inactive). */
+export type AttributeInactiveReason =
+  | 'attribute_not_found'
+  | 'attribute_not_flagged'
+  | 'attribute_language_scoped'
+  | 'attribute_channel_scoped'
+  | 'attribute_value_type';
 
 /**
  * Attribute eligibility for price selections — feature 148, kept by feature 160
@@ -43,7 +47,7 @@ const ELIGIBLE_VALUE_TYPES: ReadonlySet<AttributeValueType> = new Set<AttributeV
  */
 export function attributeInactiveReason(
   view: Pick<CatalogAttributeView, 'isPriceRule' | 'languageScoped' | 'channelScoped' | 'valueType'> | null,
-): PriceMatrixInactiveReason | null {
+): AttributeInactiveReason | null {
   if (!view) return 'attribute_not_found';
   if (!view.isPriceRule) return 'attribute_not_flagged';
   if (view.languageScoped) return 'attribute_language_scoped';

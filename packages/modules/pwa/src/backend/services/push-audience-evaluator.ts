@@ -5,8 +5,9 @@ import type { PushAudienceCriterionType, PushAudienceRule } from '@endora-commer
  *
  * Walks the AST defined in `@endora-commerce/contracts/pwa#PushAudienceRule` and returns
  * whether a single subscriber (resolved into the context below) is in the
- * target audience. Mirrors the price-list `evaluateApplicationRule` shape but
- * keeps a boolean result — push targeting has no priority chain.
+ * target audience. It was modelled on the price lists' Application-rule
+ * evaluator (removed with that model in feature 160) and keeps a boolean
+ * result — push targeting has no priority chain.
  *
  * Semantics:
  *   - `{ kind: 'all' }` and any criterion with an empty value list match

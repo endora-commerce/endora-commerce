@@ -42,7 +42,7 @@ import type { PricingLineResult } from '../../../packages/modules/price_lists/sr
  *   Beta customer with her own group Silver and one with none.
  *
  * Every price is asked through the batched entry point the consumers use
- * (`resolveLinePrices`) on a `PricingService` composed with `model: 'books'`,
+ * (`resolveLinePrices`) on the composed `PricingService` (price books),
  * and every book is written through `PriceBookService` — the audited write path
  * — inside a system scope, as a worker would.
  */
@@ -345,7 +345,7 @@ export async function setupPricingFixture(h: BackendServerHandle): Promise<Prici
       await h
         .em()
         .getConnection()
-        .execute(`delete from "price_lists" where "is_system" = false and "application_rule" is null`);
+        .execute(`delete from "price_lists" where "is_system" = false`);
     },
 
     async resetBase() {

@@ -570,7 +570,6 @@ describe('idle worker ticks write no escape-hatch audit row (issue #120)', () =>
       const em = h.em();
       const suffix = randomUUID().slice(0, 8);
       const scheduled = em.create(PriceList, {
-        code: `idle-ticks-${suffix}`,
         name: `Idle ticks ${suffix}`,
         currency: 'PLN',
         type: 'sale',
@@ -593,7 +592,6 @@ describe('idle worker ticks write no escape-hatch audit row (issue #120)', () =>
       const em = h.em();
       const suffix = randomUUID().slice(0, 8);
       const active = em.create(PriceList, {
-        code: `idle-ticks-ended-${suffix}`,
         name: `Idle ticks ended ${suffix}`,
         currency: 'PLN',
         type: 'sale',
@@ -615,7 +613,6 @@ describe('idle worker ticks write no escape-hatch audit row (issue #120)', () =>
       const em = h.em();
       const suffix = randomUUID().slice(0, 8);
       const scheduled = em.create(PriceList, {
-        code: `idle-ticks-unanswered-${suffix}`,
         name: `Idle ticks unanswered ${suffix}`,
         currency: 'PLN',
         type: 'sale',

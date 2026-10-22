@@ -5,16 +5,11 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { seedBasePriceSql } from '../../helpers/price-book-sql.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { QuoteRequestItem } from '../../helpers/package-entities.js';
 import { ensureSalesChannel } from '../../helpers/sales-channel-fixtures.js';
 import { seedPriceBookSql } from '../../helpers/price-book-sql.js';
-import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
-import {
-  DefaultPriceListMigrator,
-  DEFAULT_PRICE_LIST_ID,
-} from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
-import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 import { addOrganizationChannels } from '../../helpers/sales-channel-access.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 
@@ -57,12 +52,7 @@ describe('146 — reference price captured at customer submission [integration]'
     // `setupBackendServer` has just emptied the price tables (`price_lists` is
     // a seeded table, truncated with cascade), so this block adds its lists
     // and wipes nothing (`check-shared-table-wipes`).
-    await new DefaultPriceListMigrator(h.em).seedDefault();
-    const lists = new PriceListService(h.em, undefined, undefined, undefined, neighbourReadPorts(h.em));
-    await lists.addProduct(DEFAULT_PRICE_LIST_ID, SEED_PRODUCT_101_ID);
-    await lists.replaceBrackets(DEFAULT_PRICE_LIST_ID, SEED_PRODUCT_101_ID, {
-      PLN: [{ minQuantity: 1, maxQuantity: null, amount: '130.0000' }],
-    });
+    await seedBasePriceSql(em, SEED_PRODUCT_101_ID, '130.0000');
 
     const channelA = await ensureSalesChannel(em, CHANNEL_A);
     // Feature 154 — the buyer shops on channel A.

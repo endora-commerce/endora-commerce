@@ -704,8 +704,6 @@ const SEEDED_TABLES = [
   'mfa_enrolments',
   'mfa_social_identities',
   'mfa_organization_policies',
-  'price_list_assignments',
-  'price_list_items',
   'price_lists',
   'customer_groups',
   'taxes',

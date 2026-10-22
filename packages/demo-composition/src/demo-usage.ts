@@ -527,9 +527,11 @@ export const DEMO_USAGE_SECTIONS: readonly DemoUsageSection[] = [
     statements: [`delete from customer_addresses where customer_account_id in ${ACCOUNTS}`],
   },
   {
-    name: 'price lists and price display set for the demo organisation',
+    // Feature 160 — a price book naming the organisation in its audience set
+    // loses the member with it (`on delete cascade`); the display mode set for
+    // it has no foreign key and is withdrawn here.
+    name: 'price display set for the demo organisation',
     statements: [
-      `delete from price_list_assignments where organization_id in ${ORGANIZATIONS}`,
       `delete from price_display_mode_overrides
         where scope = 'organization' and target_id in ${ORGANIZATIONS}`,
     ],

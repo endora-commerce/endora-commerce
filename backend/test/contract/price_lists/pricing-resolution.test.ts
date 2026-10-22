@@ -5,13 +5,8 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
-import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
-import {
-  DefaultPriceListMigrator,
-  DEFAULT_PRICE_LIST_ID,
-} from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
-import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
+import { BASE_BOOK_ID, seedBasePriceSql, seedBaseTiersSql } from '../../helpers/price-book-sql.js';
 
 /**
  * Feature 011 / US5 — Storefront resolver endpoint contract (T058).
@@ -33,17 +28,10 @@ describe('Storefront resolver endpoint (feature 011 US5)', () => {
     await h
       .em()
       .getConnection()
-      .execute(
-        `truncate table "price_list_price_brackets", "price_list_products", "price_lists" cascade`,
-      );
-    await new DefaultPriceListMigrator(h.em).seedDefault();
+      .execute(`truncate table "price_lists" cascade`);
 
-    // Ensure SEED_PRODUCT_101 has a Default bracket.
-    const svc = new PriceListService(h.em, undefined, undefined, undefined, neighbourReadPorts(h.em));
-    await svc.addProduct(DEFAULT_PRICE_LIST_ID, SEED_PRODUCT_101_ID);
-    await svc.replaceBrackets(DEFAULT_PRICE_LIST_ID, SEED_PRODUCT_101_ID, {
-      PLN: [{ minQuantity: 1, maxQuantity: null, amount: '199.0000' }],
-    });
+    // SEED_PRODUCT_101's base price in the PLN base book.
+    await seedBasePriceSql(h.em(), SEED_PRODUCT_101_ID, '199.0000');
   });
 
   it('GET /resolved-price returns the resolved price envelope', async () => {
@@ -67,7 +55,7 @@ describe('Storefront resolver endpoint (feature 011 US5)', () => {
         };
       };
     };
-    expect(body.data.resolvedPrice.baseListId).toBe(DEFAULT_PRICE_LIST_ID);
+    expect(body.data.resolvedPrice.baseListId).toBe(BASE_BOOK_ID);
     expect(body.data.resolvedPrice.basePrice?.currency).toBe('PLN');
     expect(Number(body.data.resolvedPrice.basePrice?.amount)).toBe(199);
     expect(body.data.resolvedPrice.saleListId).toBeNull();
@@ -109,15 +97,12 @@ describe('Storefront resolver endpoint (feature 011 US5)', () => {
     expect(res.statusCode).toBe(404);
   });
 
-  it('honours the quantity query param for bracket selection', async () => {
+  it('honours the quantity query param for tier selection', async () => {
     const channel = await h.em().findOneOrFail(SalesChannel, { systemDefault: true });
-    const svc = new PriceListService(h.em, undefined, undefined, undefined, neighbourReadPorts(h.em));
-    await svc.replaceBrackets(DEFAULT_PRICE_LIST_ID, SEED_PRODUCT_101_ID, {
-      PLN: [
-        { minQuantity: 1, maxQuantity: 9, amount: '100' },
-        { minQuantity: 10, maxQuantity: null, amount: '90' },
-      ],
-    });
+    await seedBaseTiersSql(h.em(), SEED_PRODUCT_101_ID, [
+      { minQuantity: 1, maxQuantity: 9, amount: '100' },
+      { minQuantity: 10, maxQuantity: null, amount: '90' },
+    ]);
 
     const res1 = await h.app.inject({
       method: 'GET',

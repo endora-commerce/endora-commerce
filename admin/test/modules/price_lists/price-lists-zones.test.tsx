@@ -7,7 +7,11 @@ import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 
 /**
- * `price_lists` contributes two zones (feature 091, P7a; FR-007).
+ * `price_lists` contributes two zones (feature 091, P7a and P7b; FR-007).
+ *
+ * Feature 160 removed the third, `product.editor.pricing.after` with its
+ * *Linked price lists* panel, along with the old model it listed; P2's
+ * base-price zone takes the member back.
  *
  * ## The defect this replaces
  *
@@ -65,7 +69,6 @@ const priceLists = await import('@endora-commerce/mod-price-lists/admin');
 const { manifest } = await import('@endora-commerce/mod-price-lists');
 
 const CATEGORY_ID = '33333333-3333-4333-8333-333333333303';
-const PRODUCT_ID = '11111111-1111-4111-8111-111111111101';
 const ORGANIZATION_ID = '00000000-0000-4000-8000-0000000000a1';
 
 const REGISTRY = [{ moduleId: 'price_lists', contributions: priceLists.contributions }];
@@ -78,11 +81,6 @@ const BUNDLE = passthroughBundle('core', [
   'priceLists.displayMode.both',
   'priceLists.displayMode.none',
   'priceLists.displayMode.savedSuffix',
-  'priceLists.linked.loading',
-  'priceLists.linked.error.load',
-  'priceLists.linked.emptyTitle',
-  'priceLists.linked.emptyDescription',
-  'priceLists.linked.helpText',
 ]);
 
 function renderZone(options: {
@@ -97,8 +95,8 @@ function renderZone(options: {
             this helper is generic over the two members this module serves, so
             the cast is the harness's and not a host's. */}
         <AdminZone
-          name={options.name as 'product.editor.pricing.after'}
-          props={options.props as { productId: string }}
+          name={options.name as 'category.editor.after'}
+          props={options.props as { categoryId: string }}
         />
       </MemoryRouter>,
       {
@@ -112,27 +110,22 @@ function renderZone(options: {
   return container;
 }
 
-describe('price_lists contributes the category, pricing and organization zones', () => {
+describe('price_lists contributes the category and organization zones', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getSpy.mockImplementation(async (url: string) => {
       if (url.includes('/display-mode-overrides/')) return { data: { mode: 'inherit' } };
-      if (url.includes('/price-lists')) return { data: { items: [] } };
       throw new Error(`unexpected url ${url}`);
     });
   });
 
-  it('declares exactly the three members P7a and P7b add, with no match on any', () => {
+  it('declares exactly the two display-mode members, with no match on any', () => {
     // `match` narrows the *mounts of one place* (Z13). Each of these members
     // has one host and one mount, so a `match` here could only ever be an
     // enumeration of another module's vocabulary — asserted absent so a later
     // author cannot add one quietly.
     const zones = priceLists.contributions.zones ?? [];
-    expect(zones.map((zone) => zone.zone)).toEqual([
-      'category.editor.after',
-      'product.editor.pricing.after',
-      'organization.detail.after',
-    ]);
+    expect(zones.map((zone) => zone.zone)).toEqual(['category.editor.after', 'organization.detail.after']);
     for (const zone of zones) {
       expect(zone.match, zone.zone).toBeUndefined();
       expect(zone.requiredPermission, zone.zone).toBe('price_lists:read');
@@ -152,17 +145,6 @@ describe('price_lists contributes the category, pricing and organization zones',
     );
     expect(getSpy).toHaveBeenCalledWith(
       `/api/v1/admin/pricing/display-mode-overrides/category/${CATEGORY_ID}`,
-    );
-  });
-
-  it('renders the linked price lists panel into the pricing zone', async () => {
-    const container = renderZone({
-      name: 'product.editor.pricing.after',
-      props: { productId: PRODUCT_ID },
-    });
-    await waitFor(() => expect(container.textContent).toContain('priceLists.linked.emptyTitle'));
-    expect(getSpy).toHaveBeenCalledWith(
-      `/api/v1/admin/products/${PRODUCT_ID}/price-lists`,
     );
   });
 
@@ -234,23 +216,23 @@ describe('price_lists contributes the category, pricing and organization zones',
       props: { categoryId: CATEGORY_ID },
       permissions: ['catalog:write'],
     });
-    const pricing = renderZone({
-      name: 'product.editor.pricing.after',
-      props: { productId: PRODUCT_ID },
+    const organization = renderZone({
+      name: 'organization.detail.after',
+      props: { organizationId: ORGANIZATION_ID },
       permissions: ['catalog:write'],
     });
     await waitFor(() => expect(category.textContent).toBe(''));
-    expect(pricing.textContent).toBe('');
+    expect(organization.textContent).toBe('');
     expect(getSpy).not.toHaveBeenCalled();
   });
 
   it('restores both zones when the permission comes back', async () => {
     const container = renderZone({
-      name: 'product.editor.pricing.after',
-      props: { productId: PRODUCT_ID },
+      name: 'category.editor.after',
+      props: { categoryId: CATEGORY_ID },
       permissions: ['price_lists:read'],
     });
-    await waitFor(() => expect(container.textContent).toContain('priceLists.linked.emptyTitle'));
+    await waitFor(() => expect(container.textContent).toContain('priceLists.displayMode.rowLabel'));
   });
 
   it('leaves neither host naming this module in its own source', async () => {

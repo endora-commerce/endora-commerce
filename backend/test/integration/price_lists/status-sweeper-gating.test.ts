@@ -178,7 +178,6 @@ async function seedRows(db: TestDb): Promise<SeededRows> {
   const longPast = new Date(Date.now() - 4 * 86_400_000);
 
   const scheduled = em.create(PriceList, {
-    code: `sweep-scheduled-${suffix}`,
     name: `Sweep scheduled ${suffix}`,
     currency: 'PLN',
     type: 'sale',
@@ -186,7 +185,6 @@ async function seedRows(db: TestDb): Promise<SeededRows> {
     startsAt: past,
   });
   const active = em.create(PriceList, {
-    code: `sweep-active-${suffix}`,
     name: `Sweep active ${suffix}`,
     currency: 'PLN',
     type: 'sale',

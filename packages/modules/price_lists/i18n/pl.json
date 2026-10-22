@@ -1,5 +1,5 @@
 {
-  "actions.openPriceLists.description": "Reguły cenowe + przypisania",
+  "actions.openPriceLists.description": "Tryby wyświetlania cen",
   "actions.openPriceLists.label": "Cenniki",
   "activity.verb.price_list.activate": "aktywował(a) cennik",
   "activity.verb.price_list.base_prices_set": "ustawił(a) ceny bazowe w",

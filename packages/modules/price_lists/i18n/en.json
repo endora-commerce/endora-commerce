@@ -1,5 +1,5 @@
 {
-  "actions.openPriceLists.description": "Pricing rules + assignments",
+  "actions.openPriceLists.description": "Price display modes",
   "actions.openPriceLists.label": "Price lists",
   "activity.verb.price_list.activate": "activated price list",
   "activity.verb.price_list.base_prices_set": "set base prices in",

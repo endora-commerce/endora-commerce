@@ -34,7 +34,6 @@ describe('price_lists — price-book schema (feature 160)', () => {
     const id = randomUUID();
     const row = {
       id,
-      code: `pb-${id}`,
       name: 'Schema book',
       currency_code: 'PLN',
       audience_kind: 'everyone',
@@ -45,8 +44,8 @@ describe('price_lists — price-book schema (feature 160)', () => {
     };
     const columns = Object.keys(row);
     await sql(
-      `insert into "price_lists" (${columns.map((c) => `"${c}"`).join(', ')}, "is_default", "priority", "modified_at", "created_at", "updated_at")
-       values (${columns.map(() => '?').join(', ')}, false, 0, now(), now(), now())`,
+      `insert into "price_lists" (${columns.map((c) => `"${c}"`).join(', ')}, "priority", "created_at", "updated_at")
+       values (${columns.map(() => '?').join(', ')}, 0, now(), now())`,
       Object.values(row),
     );
     return id;

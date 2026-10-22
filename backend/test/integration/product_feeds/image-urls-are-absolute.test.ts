@@ -9,12 +9,10 @@ import {
 } from '../../helpers/test-server.js';
 import {
   FeedRunIssue,
-  PriceList,
-  PriceListPriceBracket,
-  PriceListProduct,
 } from '../../helpers/package-entities.js';
 import { SalesChannel, resolvePublicApiBaseUrl } from '@endora-commerce/platform/kernel';
 import { setChannelStorefrontUrl } from '../../helpers/seed-product-feeds.js';
+import { seedBasePriceSql } from '../../helpers/price-book-sql.js';
 import {
   SEED_PRODUCT_101_ID,
   SEED_PRODUCT_102_ID,
@@ -141,31 +139,9 @@ describe('product feed image URLs [integration]', () => {
     // three seeded products, not only the one carrying the image: two unpriced
     // siblings put the run over `skip_threshold_exceeded`, which fails it before
     // an artefact is published (measured, on the first draft of this file).
-    const list = em.create(PriceList, {
-      code: 'feed_image_default',
-      name: 'Feed image default list',
-      currency: 'PLN',
-      type: 'base',
-      status: 'active',
-      applicationRule: { kind: 'all' },
-      modifiedAt: new Date(),
-    });
-    await em.persistAndFlush(list);
-    const priced = [SEED_PRODUCT_101_ID, SEED_PRODUCT_102_ID, SEED_PRODUCT_103_ID];
-    for (const productId of priced) {
-      em.create(PriceListProduct, { priceListId: list.id, productId });
+    for (const productId of [SEED_PRODUCT_101_ID, SEED_PRODUCT_102_ID, SEED_PRODUCT_103_ID]) {
+      await seedBasePriceSql(em, productId, '100.0000');
     }
-    await em.flush();
-    for (const productId of priced) {
-      em.create(PriceListPriceBracket, {
-        priceListId: list.id,
-        productId,
-        currencyCode: 'PLN',
-        minQuantity: 1,
-        amount: '100.0000',
-      });
-    }
-    await em.flush();
 
     const templates = await h.app.inject({
       method: 'GET',

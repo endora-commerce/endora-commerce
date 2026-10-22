@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { Organization, PriceListPriceBracket, PriceListProduct } from '../../helpers/package-entities.js';
+import { Organization } from '../../helpers/package-entities.js';
 import { seedBasePriceSql, seedPriceBookSql } from '../../helpers/price-book-sql.js';
 import {
   setupBackendServer,
@@ -268,8 +268,6 @@ async function seedPriceLists(h: BackendServerHandle): Promise<void> {
   // would be a claim about the platform, and the two amounts below are only
   // meaningful against whatever else the platform is already serving.
   const em = h.em();
-  await em.nativeDelete(PriceListPriceBracket, { productId: SEED_PRODUCT_101_ID });
-  await em.nativeDelete(PriceListProduct, { productId: SEED_PRODUCT_101_ID });
   await seedBasePriceSql(em, SEED_PRODUCT_101_ID, CHANNEL_AMOUNT.toFixed(2));
 
   for (const [orgId, amount] of [

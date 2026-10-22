@@ -70,20 +70,15 @@ async function baseBookOf(em: EntityManager, currency: string): Promise<string> 
   const id = randomUUID();
   const book = em.create(PriceList, {
     id,
-    code: `pb-${id}`,
     name: `Base prices (${currency})`,
     currency,
-    isDefault: false,
     priority: 0,
     type: 'regular',
     status: 'active',
     audienceKind: 'everyone',
-    applicationRule: null,
     isSystem: true,
     everActivated: true,
-    modifiedAt: new Date(),
   });
-  book.applicationRule = null;
   em.persist(book);
   await em.flush();
   return id;
@@ -137,21 +132,16 @@ export async function seedDemoPriceBooks(em: EntityManager, refs: DemoPriceBookR
     if (existing.has(spec.id)) continue;
     const book = em.create(PriceList, {
       id: spec.id,
-      code: `pb-${spec.id}`,
       name: spec.name,
       currency: DEMO_PRICE_CURRENCY,
-      isDefault: false,
       priority: 0,
       type: 'regular',
       status: spec.status,
       audienceKind:
         spec.audience === 'everyone' ? 'everyone' : 'organizations' in spec.audience ? 'organizations' : 'customer_groups',
-      applicationRule: null,
       isSystem: false,
       everActivated: spec.status === 'active',
-      modifiedAt: new Date(),
     });
-    book.applicationRule = null;
     em.persist(book);
     // No ORM relation orders the inserts, so the header goes first.
     await em.flush();

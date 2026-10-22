@@ -446,6 +446,11 @@ const SERVICE_BOUND_BEYOND_THE_SCREEN: Readonly<Record<string, string>> = {
     'activation setting with `pg` and spawns the demo command as child processes. Measured ' +
     'under `BACKEND_TEST_SERVICES=none` (2026-10-20): `connect ECONNREFUSED 127.0.0.1:1`, the ' +
     '`beforeAll` fails and all 9 cases are skipped. Correctly III(c).',
+  'test/integration/price_lists/fresh-install.test.ts':
+    'Feature 160 (T116), the same shape as `demo-shop.test.ts`: it takes a PostgreSQL database ' +
+    'of its own through `migratedDatabase()`, spawns `module:install --all` into it as a child ' +
+    'process and reads it with `pg` — none of which is an import the closure screen can ' +
+    'follow. Correctly III(c).',
   'test/integration/demo/migrated-clone-parity.test.ts':
     'It creates a PostgreSQL database with `pg`, spawns the migration runner into it, takes a ' +
     'template clone through `migratedDatabase()` and compares the two through `pg` clients — ' +

@@ -87,7 +87,7 @@ describe('SearchEventSubscriber — incremental index updates', () => {
       visibility: 'public',
       name: { 'en-US': 'Event-created widget' },
       description: { 'en-US': 'Widget produced by the integration test.' },
-      attributeValues: { defaultPrice: 42.5 },
+      attributeValues: {},
     });
     await em.persistAndFlush(newProduct);
     await em.getConnection().execute(

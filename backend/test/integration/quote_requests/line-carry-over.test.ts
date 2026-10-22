@@ -4,14 +4,9 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { seedBaseTiersSql } from '../../helpers/price-book-sql.js';
 import { SEED_PRODUCT_101_ID, SEED_PRODUCT_102_ID, SEED_PRODUCT_103_ID } from '../../helpers/seed-catalog.js';
 import { QuoteRequestItem } from '../../helpers/package-entities.js';
-import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
-import {
-  DefaultPriceListMigrator,
-  DEFAULT_PRICE_LIST_ID,
-} from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
-import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 import { createMinimumPackagingUnit, minimumFixtureRun } from '../../helpers/order-minimum-fixture.js';
 
 /**
@@ -32,7 +27,6 @@ describe('146 — line data carried across rewrites [integration]', () => {
   const admin = { b2b_session: 'stub-admin-session' };
   const VARIANT_V = '00000000-0000-4000-8000-0000001460a1';
   const VARIANT_W = '00000000-0000-4000-8000-0000001460a2';
-  let lists: PriceListService;
   // Feature 155 (FR-026) — a buyer's line may only name a unit the product
   // has, so the units these lines name are real catalogue units, per run.
   const RUN = minimumFixtureRun();
@@ -41,12 +35,10 @@ describe('146 — line data carried across rewrites [integration]', () => {
   const PALETA_10 = `Paleta10 ${RUN}`;
 
   const setPrices = (below10: string, from10: string) =>
-    lists.replaceBrackets(DEFAULT_PRICE_LIST_ID, SEED_PRODUCT_101_ID, {
-      PLN: [
-        { minQuantity: 1, maxQuantity: 9, amount: below10 },
-        { minQuantity: 10, maxQuantity: null, amount: from10 },
-      ],
-    });
+    seedBaseTiersSql(h.em(), SEED_PRODUCT_101_ID, [
+      { minQuantity: 1, maxQuantity: 9, amount: below10 },
+      { minQuantity: 10, maxQuantity: null, amount: from10 },
+    ]);
 
   const create = async (items: Array<Record<string, unknown>>) => {
     const res = await h.app.inject({
@@ -91,10 +83,7 @@ describe('146 — line data carried across rewrites [integration]', () => {
     h = await setupBackendServer();
     // `setupBackendServer` has already emptied the price tables (`price_lists`
     // is a seeded table, truncated with cascade); this file only adds its own
-    // default list and brackets, and wipes nothing (`check-shared-table-wipes`).
-    await new DefaultPriceListMigrator(h.em).seedDefault();
-    lists = new PriceListService(h.em, undefined, undefined, undefined, neighbourReadPorts(h.em));
-    await lists.addProduct(DEFAULT_PRICE_LIST_ID, SEED_PRODUCT_101_ID);
+    // base-price tiers, and wipes nothing (`check-shared-table-wipes`).
     await setPrices('130.0000', '110.0000');
     const em = h.em();
     await createMinimumPackagingUnit(em, { productId: SEED_PRODUCT_101_ID, name: PALETA, baseQuantity: 2 });

@@ -59,7 +59,7 @@ describe('worked examples — priority, quantity tiers, U2.1, U4', () => {
     await h
       .em()
       .getConnection()
-      .execute(`update "price_lists" set "name" = 'AAA renamed', "modified_at" = now() + interval '1 day' where "id" = ?`, [loser.id]);
+      .execute(`update "price_lists" set "name" = 'AAA renamed', "updated_at" = now() + interval '1 day' where "id" = ?`, [loser.id]);
     expect(await f.price(acme(), f.products.P1)).toMatchObject({ amount: '95.0000', priceListId: winner.id });
     await f.system(() =>
       f.books.replaceRows(loser.id, {

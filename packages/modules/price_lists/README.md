@@ -40,7 +40,6 @@ Everything below is a **peer** dependency, so the application resolves exactly o
 - `ioredis` ^5
 - `lucide-react` ^1 — *optional*
 - `react` ^19 — *optional*
-- `react-router-dom` ^7 — *optional*
 - `zod` ^4
 
 ## What the tarball carries

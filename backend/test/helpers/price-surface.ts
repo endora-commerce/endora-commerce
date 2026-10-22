@@ -1,4 +1,5 @@
 import type { BackendServerHandle } from './test-server.js';
+import type { PricingService } from '../../../packages/modules/price_lists/src/backend/services/pricing-service.js';
 
 /**
  * Feature 160 — the price surface as a test drives it. Requests never build a
@@ -51,4 +52,15 @@ export function countRebuildRequests(h: BackendServerHandle): { readonly count: 
     return original();
   };
   return counter;
+}
+
+/**
+ * The composed pricing engine of a test server — the price-book engine with
+ * its channel bridge, caches and read ports, exactly as production builds it.
+ * A test that constructed a `PricingService` of its own did so for the old
+ * engine, which needed none of them.
+ */
+export function pricingEngineOf(h: BackendServerHandle): PricingService {
+  const container = h.container as unknown as { resolve<T>(name: string): T };
+  return container.resolve<{ handle: { pricingEngine: PricingService } }>('priceLists').handle.pricingEngine;
 }

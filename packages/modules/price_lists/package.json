@@ -64,7 +64,6 @@
     "ioredis": "^5",
     "lucide-react": "^1",
     "react": "^19",
-    "react-router-dom": "^7",
     "zod": "^4"
   },
   "peerDependenciesMeta": {
@@ -75,9 +74,6 @@
       "optional": true
     },
     "react": {
-      "optional": true
-    },
-    "react-router-dom": {
       "optional": true
     }
   },
@@ -95,7 +91,6 @@
     "ioredis": "^5.10.1",
     "lucide-react": "^1.11.0",
     "react": "^19.2.5",
-    "react-router-dom": "^7.18.2",
     "typescript": "^5.9.3",
     "vitest": "^4.1.11",
     "zod": "^4.2.0"

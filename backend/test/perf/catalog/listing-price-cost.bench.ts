@@ -1,5 +1,6 @@
 // perf-weight: fast — 5912 ms on the CI runner (pipeline 13444, 2026-09-09).
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { seedBasePriceSql } from '../../helpers/price-book-sql.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -7,12 +8,6 @@ import {
 } from '../../helpers/test-server.js';
 import { Product } from '../../helpers/package-entities.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
-import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
-import {
-  DefaultPriceListMigrator,
-  DEFAULT_PRICE_LIST_ID,
-} from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
-import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
  * Issue #132 — what the listing pays now that it asks `price_lists`.
@@ -67,7 +62,7 @@ describe.skipIf(!shouldRun)('priced catalogue listing — p95 latency', () => {
         name: { 'en-US': `Priced product ${idx}` },
         description: { 'en-US': `Synthetic product ${idx}.` },
         visibility: 'public',
-        attributeValues: { defaultPrice: 10 + (i % 100) },
+        attributeValues: {},
       });
     });
     await em.persistAndFlush(products);
@@ -75,14 +70,7 @@ describe.skipIf(!shouldRun)('priced catalogue listing — p95 latency', () => {
       await h.salesChannels.membershipService.addToChannel(channel.id, 'product', product.id);
     }
 
-    await new DefaultPriceListMigrator(h.em).seedDefault();
-    const lists = new PriceListService(h.em, undefined, undefined, undefined, neighbourReadPorts(h.em));
-    for (const product of products) {
-      await lists.addProduct(DEFAULT_PRICE_LIST_ID, product.id);
-      await lists.replaceBrackets(DEFAULT_PRICE_LIST_ID, product.id, {
-        PLN: [{ minQuantity: 1, maxQuantity: null, amount: '99.00' }],
-      });
-    }
+    for (const product of products) await seedBasePriceSql(em, product.id, '99.00');
   }, 10 * 60_000);
 
   afterAll(async () => {

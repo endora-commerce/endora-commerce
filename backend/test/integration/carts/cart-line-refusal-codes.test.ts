@@ -10,16 +10,9 @@ import { systemDefaultSalesChannelId } from '../../helpers/sales-channel-fixture
 import { DECLARED_ERROR_TRANSLATION_TARGETS } from '../../helpers/error-code-targets.js';
 import {
   PriceDisplayModeOverride,
-  PriceList,
-  PriceListPriceBracket,
-  PriceListProduct,
 } from '../../helpers/package-entities.js';
-import {
-  DefaultPriceListMigrator,
-  DEFAULT_PRICE_LIST_ID,
-} from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
 import { SEED_PRODUCT_101_ID, SEED_PRODUCT_103_ID } from '../../helpers/seed-catalog.js';
-import { seedDefaultBracketSql } from '../../helpers/price-book-sql.js';
+import { hasBasePriceSql, removeBasePriceSql, seedBasePriceSql } from '../../helpers/price-book-sql.js';
 
 /**
  * Issue #86, first slice — the two refusals `CartService.addItem` raised as
@@ -72,12 +65,11 @@ describe('cart line refusals carry their own code and sentence (issue #86)', () 
       // Feature 160 — no price book prices this product: its seeded base price
       // is taken away here and given back after. Asserted, not assumed — a
       // price would make this the case below.
-      await em.nativeDelete(PriceListPriceBracket, { productId: SEED_PRODUCT_103_ID });
       await em.getConnection().execute(`delete from "price_list_matrix_entries" where "product_id" = ?`, [SEED_PRODUCT_103_ID]);
       expect(
-        await em.findOne(PriceListPriceBracket, { productId: SEED_PRODUCT_103_ID }),
+        await hasBasePriceSql(em, SEED_PRODUCT_103_ID),
         'the product must have no price for this case to mean anything',
-      ).toBeNull();
+      ).toBe(false);
       em.create(PriceDisplayModeOverride, {
         scope: 'product',
         targetId: SEED_PRODUCT_103_ID,
@@ -91,7 +83,7 @@ describe('cart line refusals carry their own code and sentence (issue #86)', () 
         scope: 'product',
         targetId: SEED_PRODUCT_103_ID,
       });
-      await seedDefaultBracketSql(h.em(), SEED_PRODUCT_103_ID, '39.00');
+      await seedBasePriceSql(h.em(), SEED_PRODUCT_103_ID, '39.00');
     });
 
     const add = (productId: string) =>
@@ -129,36 +121,16 @@ describe('cart line refusals carry their own code and sentence (issue #86)', () 
   });
 
   describe('CART_PRODUCT_QUOTE_ONLY — a product whose price is withheld', () => {
-    /** Whether this file put the product on the Default list, and so removes it. */
+    /** Whether this file gave the product a base price, and so removes it. */
     let listedHere = false;
 
     beforeAll(async () => {
       const em = h.em();
       // The refusal is raised on a *resolved* price whose mode is `none`, so
-      // the product needs a list price first: a fresh test database prices the
-      // seed catalogue from the catalogue attribute, and no list holds it.
-      if (!(await em.findOne(PriceList, { id: DEFAULT_PRICE_LIST_ID }))) {
-        await new DefaultPriceListMigrator(h.em).seedDefault();
-      }
-      const listed = await em.findOne(PriceListProduct, {
-        priceListId: DEFAULT_PRICE_LIST_ID,
-        productId: SEED_PRODUCT_101_ID,
-      });
-      if (!listed) {
+      // the product needs a price first (the seed gives it a base price).
+      if (!(await hasBasePriceSql(em, SEED_PRODUCT_101_ID))) {
         listedHere = true;
-        em.create(PriceListProduct, {
-          priceListId: DEFAULT_PRICE_LIST_ID,
-          productId: SEED_PRODUCT_101_ID,
-        });
-        await em.flush();
-        em.create(PriceListPriceBracket, {
-          priceListId: DEFAULT_PRICE_LIST_ID,
-          productId: SEED_PRODUCT_101_ID,
-          currencyCode: 'PLN',
-          minQuantity: 1,
-          maxQuantity: null,
-          amount: '100.00',
-        });
+        await seedBasePriceSql(em, SEED_PRODUCT_101_ID, '100.00');
       }
       // The most specific step of the display-mode chain, so nothing but this
       // one product is withheld while the file runs.
@@ -177,11 +149,7 @@ describe('cart line refusals carry their own code and sentence (issue #86)', () 
         scope: 'product',
         targetId: SEED_PRODUCT_101_ID,
       });
-      if (listedHere) {
-        const own = { priceListId: DEFAULT_PRICE_LIST_ID, productId: SEED_PRODUCT_101_ID };
-        await em.nativeDelete(PriceListPriceBracket, own);
-        await em.nativeDelete(PriceListProduct, own);
-      }
+      if (listedHere) await removeBasePriceSql(em, SEED_PRODUCT_101_ID);
     });
 
     async function addQuoteOnly(acceptLanguage: string): Promise<ErrorBody['error']> {

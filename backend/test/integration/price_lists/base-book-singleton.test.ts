@@ -63,9 +63,9 @@ describe('price_lists — one base book per currency (feature 160)', () => {
   it('the database refuses a second system book in one currency', async () => {
     await expect(
       sql(
-        `insert into "price_lists" ("id", "code", "name", "currency_code", "is_default", "priority", "type", "status",
-                                    "audience_kind", "is_system", "modified_at", "created_at", "updated_at")
-         values (gen_random_uuid(), 'second-pln-base', 'Second', 'PLN', false, 0, 'regular', 'active', 'everyone', true, now(), now(), now())`,
+        `insert into "price_lists" ("id", "name", "currency_code", "priority", "type", "status",
+                                    "audience_kind", "is_system", "created_at", "updated_at")
+         values (gen_random_uuid(), 'Second', 'PLN', 0, 'regular', 'active', 'everyone', true, now(), now())`,
       ),
     ).rejects.toThrow(/price_lists_system_currency_unique/);
   });

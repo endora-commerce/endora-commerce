@@ -1,10 +1,10 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { Command, CommandBus } from '@endora-commerce/platform/commands';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
+import { PriceBookService } from '../../../../packages/modules/price_lists/src/backend/services/price-book-service.js';
 import { PriceListStatusWorker } from '../../../../packages/modules/price_lists/src/backend/services/price-list-status-worker.js';
-import { DefaultPriceListMigrator } from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
 import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
+import { seedPriceBookSql } from '../../helpers/price-book-sql.js';
 
 /**
  * D-287 P0 — **when** the pricing cache is told about a price write, and by whom
@@ -23,9 +23,12 @@ import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js'
  * one commits when its `transactional` callback returns, which is the same
  * moment, and this file's transaction-rollback fixture cannot nest a second
  * commit inside it.
+ *
+ * Feature 160 — the audited writes are the price-book commands. P0's third
+ * property, "a write that changed nothing invalidates nothing", has no
+ * price-book counterpart: every book write moves the book's `version` (G5 of
+ * `specs/161-price-book-editor/`), so there is no write that changes nothing.
  */
-
-const TEST_RULE = { kind: 'criterion' as const, type: 'currency' as const, values: ['PLN'] };
 
 class RecordingCache {
   readonly calls: Array<{ committed: boolean }> = [];
@@ -67,7 +70,6 @@ describe('price_lists — pricing cache invalidation happens after commit', () =
   });
   beforeEach(async () => {
     await db.beginTx();
-    await new DefaultPriceListMigrator(() => db.em()).seedDefault();
   });
   afterEach(async () => {
     await db.rollbackTx();
@@ -76,46 +78,28 @@ describe('price_lists — pricing cache invalidation happens after commit', () =
   it('invalidates an audited write once, after the Command Bus has committed it', async () => {
     const bus = recordingBus(db);
     const cache = new RecordingCache(bus);
-    const svc = new PriceListService(
-      () => db.em(),
-      cache,
-      undefined,
-      bus,
-      neighbourReadPorts(() => db.em()),
-    );
+    const svc = new PriceBookService({
+      emFactory: () => db.em(),
+      commandBus: bus,
+      pricingGeneration: cache,
+      targetReads: neighbourReadPorts(() => db.em()),
+    });
 
-    const list = await svc.create({ name: 'After commit', type: 'base', applicationRule: TEST_RULE });
+    const book = await svc.createBook({
+      name: 'After commit',
+      type: 'regular',
+      currencyCode: 'PLN',
+      channelIds: [],
+      audience: { kind: 'everyone', memberIds: [] },
+      priority: 0,
+    });
     expect(cache.calls).toEqual([{ committed: true }]);
 
-    await svc.patch(list.id, { name: 'After commit, renamed' });
+    await svc.patchBook(book.id, { name: 'After commit, renamed' }, { expectedVersion: 1 });
     expect(cache.calls).toEqual([{ committed: true }, { committed: true }]);
   });
 
-  it('does not invalidate a write that changed nothing', async () => {
-    const bus = recordingBus(db);
-    const cache = new RecordingCache(bus);
-    const svc = new PriceListService(
-      () => db.em(),
-      cache,
-      undefined,
-      bus,
-      neighbourReadPorts(() => db.em()),
-    );
-    const list = await svc.create({ name: 'Unchanged', type: 'base', applicationRule: TEST_RULE });
-    cache.calls.length = 0;
-
-    await svc.patch(list.id, { name: 'Unchanged' });
-    expect(cache.calls).toEqual([]);
-  });
-
-  it('the status sweeper invalidates when it activates or expires a list, and only then', async () => {
-    const svc = new PriceListService(
-      () => db.em(),
-      undefined,
-      undefined,
-      undefined,
-      neighbourReadPorts(() => db.em()),
-    );
+  it('the status sweeper invalidates when it activates or expires a book, and only then', async () => {
     const invalidations: number[] = [];
     const worker = new PriceListStatusWorker(() => db.em(), {
       invalidateAll: () => {
@@ -127,14 +111,16 @@ describe('price_lists — pricing cache invalidation happens after commit', () =
     await worker.sweep(new Date());
     expect(invalidations).toHaveLength(0);
 
-    const scheduled = await svc.create({
-      name: 'Midnight sale',
-      type: 'sale',
-      applicationRule: TEST_RULE,
-      startsAt: new Date(Date.now() + 86_400_000),
-      endsAt: new Date(Date.now() + 3 * 86_400_000),
-    });
-    await svc.activate(scheduled.id);
+    const em = db.em();
+    const scheduled = await seedPriceBookSql(em, { name: 'Midnight sale', type: 'sale', audience: 'everyone', rows: [], status: 'draft' });
+    await em
+      .getConnection()
+      .execute(
+        `update "price_lists" set "status" = 'scheduled', "starts_at" = ?, "ends_at" = ? where "id" = ?`,
+        [new Date(Date.now() + 86_400_000), new Date(Date.now() + 3 * 86_400_000), scheduled],
+        'run',
+        em.getTransactionContext(),
+      );
 
     const started = await worker.sweep(new Date(Date.now() + 2 * 86_400_000));
     expect(started.scheduledToActive).toBe(1);

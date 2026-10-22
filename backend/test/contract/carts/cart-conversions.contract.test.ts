@@ -8,15 +8,9 @@ import {
   Cart,
   CartItem,
   PriceDisplayModeOverride,
-  PriceList,
-  PriceListPriceBracket,
-  PriceListProduct,
   Product,
 } from '../../helpers/package-entities.js';
-import {
-  DefaultPriceListMigrator,
-  DEFAULT_PRICE_LIST_ID,
-} from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
+import { removeBasePriceSql, seedBasePriceSql } from '../../helpers/price-book-sql.js';
 import { OTHER_TEST_ORGANIZATION_ID, TEST_CUSTOMER_ID } from '../../helpers/test-actors.js';
 import {
   buyerChannelIds,
@@ -163,20 +157,8 @@ describe('POST /api/v1/cart/from-quote-request/:id — minimums (feature 155) [c
 
     // Q is withheld (display mode `none`) on a resolved list price, so the cart's
     // add step refuses it as quote-only — the `no_price_in_customer_list` case.
-    if (!(await em.findOne(PriceList, { id: DEFAULT_PRICE_LIST_ID }))) {
-      await new DefaultPriceListMigrator(h.em).seedDefault();
-    }
     listedQ = true;
-    em.create(PriceListProduct, { priceListId: DEFAULT_PRICE_LIST_ID, productId: Q.id });
-    await em.flush();
-    em.create(PriceListPriceBracket, {
-      priceListId: DEFAULT_PRICE_LIST_ID,
-      productId: Q.id,
-      currencyCode: 'PLN',
-      minQuantity: 1,
-      maxQuantity: null,
-      amount: '100.00',
-    });
+    await seedBasePriceSql(em, Q.id, '100.00');
     em.create(PriceDisplayModeOverride, { scope: 'product', targetId: Q.id, mode: 'none' });
     await em.flush();
 
@@ -213,11 +195,7 @@ describe('POST /api/v1/cart/from-quote-request/:id — minimums (feature 155) [c
     await clearCustomerCart();
     const em = h.em();
     await em.nativeDelete(PriceDisplayModeOverride, { scope: 'product', targetId: Q.id });
-    if (listedQ) {
-      const own = { priceListId: DEFAULT_PRICE_LIST_ID, productId: Q.id };
-      await em.nativeDelete(PriceListPriceBracket, own);
-      await em.nativeDelete(PriceListProduct, own);
-    }
+    if (listedQ) await removeBasePriceSql(em, Q.id);
     await teardownBackendServer(h);
   });
 

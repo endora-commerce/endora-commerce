@@ -3,7 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { CustomerAccountReadPort, SalesRepAssignmentPort, SettingsAdminPort } from '@endora-commerce/contracts';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { PriceListService } from './services/price-list-service.js';
-import { PricingService, type PricingServiceOptions } from './services/pricing-service.js';
+import { PricingService } from './services/pricing-service.js';
 import type { BookLineAnswer, ChannelBridgeSubquery } from './services/book-pricing.js';
 import type { ProfilePricingCacheKey } from './services/pricing-cache.js';
 import type { PricingProfile, ProfileMemoKey } from './services/pricing-profile.js';
@@ -22,7 +22,6 @@ import {
 import { BuyerLinePriceService } from './services/buyer-line-price-service.js';
 import { registerPricingRoutes } from './routes.js';
 import { registerStorefrontPricingRoutes } from './routes.storefront.js';
-import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { RequireAdminFactory, SettingsReadPort } from '@endora-commerce/platform/kernel';
 import {
@@ -102,8 +101,6 @@ export interface PriceListsModuleOptions {
    * existed). The subscribing half is armed by the module's boot hook.
    */
   pricingGenerationPublisher?: PricingGenerationPublisher;
-  /** Feature 024 — optional cross-module hook so price-list mutations land in the audit log. */
-  auditLogService?: AuditPort;
   /** Feature 054 — audits `patch` co-transactionally when provided. */
   commandBus?: CommandBus;
   /** Feature 024 — resolves the admin actor identity for audit entries. */
@@ -151,12 +148,6 @@ export interface PriceListsModuleOptions {
    */
   settingsRead?: SettingsReadPort;
   settingsAdmin?: SettingsAdminPort;
-  /**
-   * Feature 160 — which engine the batched entry points run. `legacy` until the
-   * consumer phase of the feature switches the composition to `books`; see
-   * `PricingServiceOptions`.
-   */
-  pricingModel?: PricingServiceOptions['model'];
   /** Feature 160 — ask the `price_lists.surface` worker for a rebuild (best effort). */
   requestSurfaceRebuild?: () => Promise<void>;
 }
@@ -186,7 +177,6 @@ export function priceListsModule(options: PriceListsModuleOptions): {
   handle: PriceListsModuleHandle;
 } {
   const ttl = options.pricingCacheTtlMs !== undefined ? { ttlMs: options.pricingCacheTtlMs } : {};
-  const pricingCache = new PricingCache<Awaited<ReturnType<PricingService['resolveEngine']>>>(ttl);
   // Feature 160 — the price-book engine's layers: answers keyed by pricing
   // profile, and the profile memo per organization chain, group, channel and
   // currency (research R6). Same TTL, same generation.
@@ -198,25 +188,18 @@ export function priceListsModule(options: PriceListsModuleOptions): {
   const pricingGeneration = new PricingGeneration(
     {
       invalidateAll: () => {
-        pricingCache.invalidateAll();
         bookCache.invalidateAll();
         profileMemo.invalidateAll();
-        if (pricingEngine?.usesPriceBooks) pricingEngine.bookPricing.invalidateAll();
+        pricingEngine?.bookPricing.invalidateAll();
       },
     },
     options.pricingGenerationPublisher,
     // Feature 160 — the writer marks the price surface stale after its commit.
     async () => {
-      if (pricingEngine?.usesPriceBooks) await pricingEngine.priceSurface.markStale();
+      await pricingEngine?.priceSurface.markStale();
     },
   );
-  const priceListService = new PriceListService(
-    options.emFactory,
-    pricingGeneration,
-    options.auditLogService,
-    options.commandBus,
-    options.targetReads,
-  );
+  const priceListService = new PriceListService(options.emFactory, pricingGeneration, options.targetReads);
   // This module builds the engine; a deployment that overrides it wraps the
   // `pricingService` **registration** from an overlay module's
   // `ctx.di.decorate` (D-103), so nothing about the override reaches this
@@ -230,13 +213,11 @@ export function priceListsModule(options: PriceListsModuleOptions): {
   // whenever a deployment decorates the registration.
   pricingEngine = new PricingService(
     options.emFactory,
-    pricingCache,
     options.resolveOrgChain,
     options.targetReads,
     // D-287 P0 — the customer's own group, for callers that name the account.
     options.customerAccountRead,
     {
-      model: options.pricingModel ?? 'legacy',
       ...(options.salesChannelMembership
         ? { channelBridge: options.salesChannelMembership as ChannelBridgeSubquery }
         : {}),

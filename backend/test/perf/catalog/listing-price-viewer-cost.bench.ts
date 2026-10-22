@@ -1,6 +1,6 @@
 // perf-weight: fast — 6003 ms on the CI runner (pipeline 13444, 2026-09-09).
 import type { Knex } from '@mikro-orm/postgresql';
-import { PriceList, PriceListPriceBracket, PriceListProduct } from '../../helpers/package-entities.js';
+import { seedBasePriceSql, seedPriceBookSql } from '../../helpers/price-book-sql.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   setupBackendServer,
@@ -9,12 +9,6 @@ import {
 } from '../../helpers/test-server.js';
 import { Product } from '../../helpers/package-entities.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
-import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
-import {
-  DefaultPriceListMigrator,
-  DEFAULT_PRICE_LIST_ID,
-} from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
-import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 
 /**
@@ -134,7 +128,7 @@ describe.skipIf(!shouldRun)('priced catalogue listing — anonymous vs signed-in
         name: { 'en-US': `Viewer-priced product ${idx}` },
         description: { 'en-US': `Synthetic product ${idx}.` },
         visibility: 'public',
-        attributeValues: { defaultPrice: 10 + (i % 100) },
+        attributeValues: {},
       });
     });
     await em.persistAndFlush(products);
@@ -143,53 +137,18 @@ describe.skipIf(!shouldRun)('priced catalogue listing — anonymous vs signed-in
       await h.salesChannels.membershipService.addToChannel(channel.id, 'product', product.id);
     }
 
-    // The channel answer: the seeded system Default, matching every caller.
-    await new DefaultPriceListMigrator(h.em).seedDefault();
-    const lists = new PriceListService(h.em, undefined, undefined, undefined, neighbourReadPorts(h.em));
-    for (const product of products) {
-      await lists.addProduct(DEFAULT_PRICE_LIST_ID, product.id);
-      await lists.replaceBrackets(DEFAULT_PRICE_LIST_ID, product.id, {
-        PLN: [{ minQuantity: 1, maxQuantity: null, amount: '99.00' }],
-      });
-    }
+    // The channel answer: the PLN base book, matching every caller.
+    for (const product of products) await seedBasePriceSql(em, product.id, '99.00');
 
-    // The buyer's answer: one list naming their Organization, outranking the
-    // Default at the `organization` level of the priority chain.
-    const orgList = em.create(PriceList, {
+    // The buyer's answer: one price book naming their Organization, which
+    // outranks the base price as the buyer tier (feature 160).
+    await seedPriceBookSql(em, {
       id: ORG_LIST_ID,
-      code: 'viewer-perf-org-list',
-      name: 'Viewer perf organisation list',
-      currency: 'PLN',
-      isDefault: false,
-      priority: 0,
-      type: 'base',
-      status: 'active',
-      startsAt: null,
-      endsAt: null,
-      applicationRule: {
-        kind: 'criterion',
-        type: 'organization',
-        values: [TEST_ORGANIZATION_ID],
-      },
-      isSystem: false,
-      modifiedAt: new Date('2026-01-02T00:00:00.000Z'),
+      name: 'Viewer perf organisation book',
+      audience: { organizations: [TEST_ORGANIZATION_ID] },
+      channelIds: [channel.id],
+      rows: productIds.map((productId) => ({ productId, fixed: '89.00' })),
     });
-    await em.persistAndFlush(orgList);
-    for (const productId of productIds) {
-      em.create(PriceListProduct, { priceListId: ORG_LIST_ID, productId });
-    }
-    await em.flush();
-    for (const productId of productIds) {
-      em.create(PriceListPriceBracket, {
-        priceListId: ORG_LIST_ID,
-        productId,
-        currencyCode: 'PLN',
-        minQuantity: 1,
-        maxQuantity: null,
-        amount: '89.00',
-      });
-    }
-    await em.flush();
   }, 10 * 60_000);
 
   afterAll(async () => {

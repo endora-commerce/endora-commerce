@@ -7,14 +7,12 @@ import {
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
-import { PriceListMatrixEntry, Product } from '../../helpers/package-entities.js';
+import { Product } from '../../helpers/package-entities.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { PricingService } from '../../../../packages/modules/price_lists/src/backend/services/pricing-service.js';
-import {
-  DefaultPriceListMigrator,
-  DEFAULT_PRICE_LIST_ID,
-} from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
 import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
+import { priceListChannelBridge } from '../../helpers/orders-neighbour-ports.js';
+import { seedPriceBookSql } from '../../helpers/price-book-sql.js';
 import { CUSTOMER_COOKIES } from '../../helpers/test-actors.js';
 
 /**
@@ -121,23 +119,24 @@ describe('price_lists — an absent owner refuses to price a cart line [integrat
    * engine refuses the line; it never treats "cannot ask" as "no attribute is
    * eligible", which would price the line as though the entry did not exist.
    */
-  it('refuses a line a matrix attribute entry could price when the attribute read port is absent', async () => {
-    await new DefaultPriceListMigrator(h.em).seedDefault();
+  it('refuses a line a price-book attribute row could price when the attribute read port is absent', async () => {
     const em = h.em();
-    const entry = em.create(PriceListMatrixEntry, {
-      priceListId: DEFAULT_PRICE_LIST_ID,
-      attributeKey: 'material',
-      attributeValue: 'steel',
-      minQuantity: 1,
-      priceType: 'discount_percent',
-      discountPercent: '10',
-    });
-    await em.persistAndFlush(entry);
+    // An everyone book of the channel with one attribute row: a resolution of
+    // any product on it has to ask which attributes select prices.
+    const bookId = await seedPriceBookSql(em, { name: 'Attribute book', audience: 'everyone', rows: [] });
+    await em.getConnection().execute(
+      `insert into "price_list_matrix_entries"
+         ("id", "price_list_id", "attribute_key", "attribute_value", "min_quantity", "price_type", "percent", "created_at", "updated_at")
+       values (gen_random_uuid(), ?, 'material', 'steel', 1, 'percent', -10, now(), now())`,
+      [bookId],
+    );
     try {
       const channel = await em.findOneOrFail(SalesChannel, { code: 'pl_retail' });
       const product = await em.findOneOrFail(Product, { id: SEED_PRODUCT_101_ID });
       // `neighbourReadPorts` without an attribute read is the unwired port.
-      const pricing = new PricingService(h.em, undefined, undefined, neighbourReadPorts(h.em));
+      const pricing = new PricingService(h.em, undefined, neighbourReadPorts(h.em), undefined, {
+        channelBridge: priceListChannelBridge(),
+      });
       await expect(
         pricing.resolveLinePrice({
           product,
@@ -149,7 +148,7 @@ describe('price_lists — an absent owner refuses to price a cart line [integrat
         }),
       ).rejects.toThrow(/catalogAttributeRead/);
     } finally {
-      await h.em().nativeDelete(PriceListMatrixEntry, { id: entry.id });
+      await h.em().getConnection().execute(`delete from "price_lists" where "id" = ?`, [bookId]);
     }
   });
 });

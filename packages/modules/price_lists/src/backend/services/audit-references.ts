@@ -20,11 +20,11 @@ export function registerPriceListAuditReferences(
       const rows = await emFactory().find(
         PriceList,
         { id: { $in: [...ids] } },
-        { fields: ['id', 'name', 'code'] },
+        { fields: ['id', 'name'] },
       );
       return rows.map((row) => ({
         id: row.id,
-        label: row.name.length > 0 ? row.name : row.code,
+        label: row.name.length > 0 ? row.name : row.id,
         url: `/price-lists/${row.id}`,
       }));
     },

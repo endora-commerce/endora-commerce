@@ -73,6 +73,13 @@ export const SERIAL_TEST_FILES: readonly SerialTestEntry[] = [
       'CLI path end to end, with the same cold-start timing as the contract CLI files.',
   },
   {
+    pattern: 'test/integration/price_lists/fresh-install.test.ts',
+    reason:
+      'Feature 160 (T116) — takes a database of its own (a template clone) and spawns ' +
+      '`module:install --all` into it as a child process: the lifecycle CLI path end to end, ' +
+      'with the same cold-start timing as the contract CLI files.',
+  },
+  {
     pattern: 'test/integration/demo/**',
     reason:
       'Each file takes a database of its own (a template clone, or in the parity file a ' +

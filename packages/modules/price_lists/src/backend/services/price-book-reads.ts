@@ -63,9 +63,6 @@ interface BookHeaderRow {
   row_count: number | string;
 }
 
-/** The predicate of a price book among `price_lists` rows: a list of the old engine is not one. */
-export const PRICE_BOOK_SQL = `(l."application_rule" is null or l."is_system" = true)`;
-
 const HEADER_COLUMNS = `
   l."id", l."name", l."type", l."status", l."currency_code", l."audience_kind", l."priority",
   l."starts_at", l."ends_at", l."is_system", l."version", l."ever_activated",
@@ -122,7 +119,7 @@ export class PriceBookReads {
   async header(id: string, scope: PriceBookScope): Promise<BookHeaderRow> {
     const em = this.deps.emFactory();
     const rows = (await em.execute(
-      `select ${HEADER_COLUMNS} from "price_lists" l where l."id" = ? and ${PRICE_BOOK_SQL}`,
+      `select ${HEADER_COLUMNS} from "price_lists" l where l."id" = ?`,
       [id],
     )) as BookHeaderRow[];
     const row = rows[0];
@@ -147,7 +144,7 @@ export class PriceBookReads {
 
   async list(query: PriceBookListQuery, scope: PriceBookScope): Promise<{ data: PriceBookSummary[]; meta: { page: number; pageSize: number; totalCount: number } }> {
     const em = this.deps.emFactory();
-    const where: string[] = [PRICE_BOOK_SQL];
+    const where: string[] = ['true'];
     const params: unknown[] = [];
     if (query.type?.length) {
       where.push(`l."type" = any(?::text[])`);
@@ -499,7 +496,7 @@ function storedOf(r: MatrixRecord): StoredRow {
     attributeValue: r.attribute_value,
     minQuantity: Number(r.min_quantity),
     maxQuantity: r.max_quantity === null ? null : Number(r.max_quantity),
-    priceType: r.price_type === 'percent' || r.price_type === 'discount_percent' ? 'percent' : r.price_type === 'amount' ? 'amount' : 'fixed',
+    priceType: r.price_type === 'percent' ? 'percent' : r.price_type === 'amount' ? 'amount' : 'fixed',
     amount: r.amount === null ? null : String(r.amount),
     percent: r.percent === null ? null : String(r.percent),
   };

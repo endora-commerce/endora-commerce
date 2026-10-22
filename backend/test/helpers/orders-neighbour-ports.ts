@@ -147,20 +147,13 @@ export function orderServiceNeighbours(
         new PricingService(
           emFactory,
           undefined,
-          undefined,
           neighbourReadPorts(emFactory),
           new CustomerAccountReadService(emFactory, twoFactorEnrolmentsFor(emFactory, 'customer')),
-          { model: 'books', channelBridge: priceListChannelBridge() },
+          { channelBridge: priceListChannelBridge() },
         ),
         {
           resolveDisplayMode: (input) =>
-            new PriceListService(
-              emFactory,
-              undefined,
-              undefined,
-              undefined,
-              neighbourReadPorts(emFactory),
-            ).resolveDisplayMode(input),
+            new PriceListService(emFactory, undefined, neighbourReadPorts(emFactory)).resolveDisplayMode(input),
         },
         base.organizationDetails,
       ),

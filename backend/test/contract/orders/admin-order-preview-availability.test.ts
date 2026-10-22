@@ -14,15 +14,9 @@ import {
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import {
   PriceDisplayModeOverride,
-  PriceList,
-  PriceListPriceBracket,
-  PriceListProduct,
   Product,
 } from '../../helpers/package-entities.js';
-import {
-  DefaultPriceListMigrator,
-  DEFAULT_PRICE_LIST_ID,
-} from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
+import { hasBasePriceSql, removeBasePriceSql, seedBasePriceSql } from '../../helpers/price-book-sql.js';
 import {
   createMinimumProduct,
   minimumFixtureRun,
@@ -100,25 +94,9 @@ describe('Admin order preview — visibility and assortment codes (feature 145)'
 
     // Quote-only needs a resolved price whose mode is `none` — see
     // `test/integration/carts/cart-line-refusal-codes.test.ts`.
-    if (!(await em.findOne(PriceList, { id: DEFAULT_PRICE_LIST_ID }))) {
-      await new DefaultPriceListMigrator(h.em).seedDefault();
-    }
-    const listed = await em.findOne(PriceListProduct, {
-      priceListId: DEFAULT_PRICE_LIST_ID,
-      productId: QUOTE_ONLY_PRODUCT,
-    });
-    if (!listed) {
+    if (!(await hasBasePriceSql(em, QUOTE_ONLY_PRODUCT))) {
       listedHere = true;
-      em.create(PriceListProduct, { priceListId: DEFAULT_PRICE_LIST_ID, productId: QUOTE_ONLY_PRODUCT });
-      await em.flush();
-      em.create(PriceListPriceBracket, {
-        priceListId: DEFAULT_PRICE_LIST_ID,
-        productId: QUOTE_ONLY_PRODUCT,
-        currencyCode: 'PLN',
-        minQuantity: 1,
-        maxQuantity: null,
-        amount: '100.00',
-      });
+      await seedBasePriceSql(em, QUOTE_ONLY_PRODUCT, '100.00');
     }
     em.create(PriceDisplayModeOverride, {
       scope: 'product',
@@ -149,11 +127,7 @@ describe('Admin order preview — visibility and assortment codes (feature 145)'
     await em.nativeUpdate(Product, { id: SUBJECT }, { allowedOrganizationIds: [] });
     await em.nativeUpdate(Product, { id: PRICED }, { deletedAt: null });
     await em.nativeDelete(PriceDisplayModeOverride, { scope: 'product', targetId: QUOTE_ONLY_PRODUCT });
-    if (listedHere) {
-      const own = { priceListId: DEFAULT_PRICE_LIST_ID, productId: QUOTE_ONLY_PRODUCT };
-      await em.nativeDelete(PriceListPriceBracket, own);
-      await em.nativeDelete(PriceListProduct, own);
-    }
+    if (listedHere) await removeBasePriceSql(em, QUOTE_ONLY_PRODUCT);
     await teardownBackendServer(h);
   });
 

@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
 import {
-  ChevronLeft,
   Eye,
   EyeOff,
   Filter,
@@ -166,9 +164,6 @@ export function DisplayModeOverridesPage(): ReactNode {
     <div className="b2b-page b2b-page--wide">
       <div className="b2b-page-head">
         <div className="b2b-grow">
-          <Link to="/price-lists" className="b2b-page-head__back">
-            <ChevronLeft size={14} /> {t('priceLists.page.title')}
-          </Link>
           <div className="b2b-page-head__title">{t('priceLists.displayModes.title')}</div>
           <div className="b2b-page-head__sub">
             {t('priceLists.displayModes.description')}

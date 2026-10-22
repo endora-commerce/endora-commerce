@@ -657,12 +657,15 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   //
   // Two entries left it together when the `apps/<deployment>/decorations/` seam
   // was retired: the decoration file itself, and `src/composition.ts`. The last
-  // one was the dev seed, which value-constructs `DefaultPriceListMigrator`, and
+  // one was the dev seed, which value-constructed `DefaultPriceListMigrator`, and
   // that is the entry the packaging cleared — but **not** by the route the three
   // criterion-7 entries above take. A row type off `dist` would have kept the
-  // substring; what happened instead is that the module now publishes the
-  // migrator itself on `./backend`, so the seed names a bare specifier and holds
-  // the same class the platform composed. It had to: the reach is to a
+  // substring; what happened instead is that the module published the migrator
+  // itself on `./backend`, so the seed named a bare specifier and held the same
+  // class the platform composed. (Feature 160 deleted the migrator with the old
+  // price-list model; the demo's prices are `seedDemoPriceBooks` /
+  // `withdrawDemoPriceBooks` on the same door, reached from
+  // `@endora-commerce/demo-composition` by the same bare specifier.) It had to: the reach is to a
   // *service*, and the duplicate entity class it would have carried sits one hop
   // behind it, where `check:singleton-identity`'s conjunct 2 cannot see it
   // (D-160.6.1). The residue drained as a side effect of a correctness repair,

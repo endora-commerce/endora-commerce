@@ -187,8 +187,8 @@ export class PriceBookService {
       .getConnection()
       .execute(
         expectedVersion === null
-          ? `update "price_lists" set "version" = "version" + 1, "modified_at" = now() where "id" = ? returning "version"`
-          : `update "price_lists" set "version" = "version" + 1, "modified_at" = now() where "id" = ? and "version" = ? returning "version"`,
+          ? `update "price_lists" set "version" = "version" + 1, "updated_at" = now() where "id" = ? returning "version"`
+          : `update "price_lists" set "version" = "version" + 1, "updated_at" = now() where "id" = ? and "version" = ? returning "version"`,
         expectedVersion === null ? [bookId] : [bookId, expectedVersion],
         'all',
         em.getTransactionContext(),
@@ -253,21 +253,15 @@ export class PriceBookService {
       for (const code of toCreate) {
         const book = txEm.create(PriceList, {
           id: bookIds[code]!,
-          code: `base-${code.toLowerCase()}`,
           name: `Base prices ${code}`,
           currency: code,
-          isDefault: false,
           priority: 0,
           type: 'regular',
           status: 'active',
           audienceKind: 'everyone',
-          applicationRule: null,
           isSystem: true,
           everActivated: true,
-          modifiedAt: new Date(),
         });
-        // See `createBook`: a book carries no rule, and `em.create` drops the null.
-        book.applicationRule = null;
         txEm.persist(book);
       }
       await txEm.flush();
@@ -384,23 +378,16 @@ export class PriceBookService {
   ): Promise<PriceBookView> {
     const book = txEm.create(PriceList, {
       id,
-      code: `pb-${id}`,
       name: input.name,
       currency: input.currencyCode,
-      isDefault: false,
       priority: input.priority,
       type: input.type,
       status: 'draft',
       startsAt: input.startsAt ? new Date(input.startsAt) : null,
       endsAt: input.endsAt ? new Date(input.endsAt) : null,
       audienceKind: input.audience.kind,
-      applicationRule: null,
       isSystem: false,
-      modifiedAt: new Date(),
     });
-    // `em.create` drops a `null` JSON value and the column default (an old-model
-    // rule) would apply; a price book carries no rule, so it is set here.
-    book.applicationRule = null;
     txEm.persist(book);
     // No ORM relation orders the inserts, so the header goes first.
     await txEm.flush();
@@ -690,7 +677,6 @@ export class PriceBookService {
       const before = { status: row.status, everActivated: row.everActivated };
       row.status = next;
       row.everActivated = true;
-      row.modifiedAt = new Date();
       await txEm.flush();
       await this.#bumpVersion(txEm, bookId, null);
       return { result: viewOf(row, members.map(memberIdOf)), before, after: { status: next, everActivated: true } };
@@ -709,7 +695,6 @@ export class PriceBookService {
       const row = await txEm.findOneOrFail(PriceList, { id: bookId });
       const before = { status: row.status };
       row.status = 'draft';
-      row.modifiedAt = new Date();
       await txEm.flush();
       await this.#bumpVersion(txEm, bookId, null);
       return { result: undefined, before, after: { status: 'draft' } };
@@ -794,9 +779,7 @@ export class PriceBookService {
 
   async #book(em: EntityManager, bookId: string): Promise<PriceList> {
     const book = await em.findOne(PriceList, { id: bookId });
-    // A list of the old engine is not a price book: it answers as missing here.
-    // `!= null`: the ORM hydrates a SQL null as `undefined` (`forceUndefined`).
-    if (!book || (book.applicationRule != null && !book.isSystem)) notFound();
+    if (!book) notFound();
     return book!;
   }
 
@@ -964,7 +947,7 @@ function plannedOfEntity(e: PriceListMatrixEntry): StoredRow {
     attributeValue: e.attributeValue ?? null,
     minQuantity: e.minQuantity,
     maxQuantity: e.maxQuantity ?? null,
-    priceType: e.priceType === 'discount_percent' ? 'percent' : e.priceType,
+    priceType: e.priceType,
     amount: e.amount ?? null,
     percent: e.percent ?? null,
   };

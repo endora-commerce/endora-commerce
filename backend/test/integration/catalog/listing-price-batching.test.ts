@@ -9,14 +9,9 @@ import {
   SEED_PRODUCT_102_ID,
   SEED_PRODUCT_103_ID,
 } from '../../helpers/seed-catalog.js';
+import { seedBasePriceSql } from '../../helpers/price-book-sql.js';
 import { Product } from '../../helpers/package-entities.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
-import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
-import {
-  DefaultPriceListMigrator,
-  DEFAULT_PRICE_LIST_ID,
-} from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
-import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
  * A catalogue listing resolves its page **once** — its prices (issue #132
@@ -49,14 +44,6 @@ describe('catalogue listing prices its page in one resolution', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
-    await new DefaultPriceListMigrator(h.em).seedDefault();
-    const lists = new PriceListService(
-      h.em,
-      undefined,
-      undefined,
-      undefined,
-      neighbourReadPorts(h.em),
-    );
     // A three-card page cannot tell a batch from a loop. Thirty-three can.
     const em = h.em();
     const channel = await em.findOneOrFail(SalesChannel, { code: 'pl_retail' });
@@ -80,19 +67,14 @@ describe('catalogue listing prices its page in one resolution', () => {
     }
 
     const priced = [SEED_PRODUCT_101_ID, SEED_PRODUCT_102_ID, SEED_PRODUCT_103_ID, ...extra.map((p) => p.id)];
-    for (const productId of priced) {
-      await lists.addProduct(DEFAULT_PRICE_LIST_ID, productId);
-      await lists.replaceBrackets(DEFAULT_PRICE_LIST_ID, productId, {
-        PLN: [{ minQuantity: 1, maxQuantity: null, amount: '42.00' }],
-      });
-    }
+    for (const productId of priced) await seedBasePriceSql(em, productId, '42.00');
   }, 5 * 60_000);
 
   afterAll(async () => {
     await teardownBackendServer(h);
   });
 
-  it('reads the active price lists once, not once per card', async () => {
+  it('reads the applicable price books and their rows once, not once per card', async () => {
     const url = '/api/v1/catalog/products?limit=50';
     const headers = { 'x-sales-channel': 'pl_retail' };
     // Warm every lazily-built singleton so the count is the page's own work.
@@ -130,7 +112,7 @@ describe('catalogue listing prices its page in one resolution', () => {
     const reads = (table: string): number =>
       statements.filter((sql) => sql.includes(`"${table}"`)).length;
     expect(reads('price_lists')).toBe(1);
-    expect(reads('price_list_price_brackets')).toBe(1);
+    expect(reads('price_list_matrix_entries')).toBe(1);
     // Two scopes are consulted for the page — product, then category, because
     // the seeded products belong to one. Both are set reads.
     expect(reads('price_display_mode_overrides')).toBe(2);

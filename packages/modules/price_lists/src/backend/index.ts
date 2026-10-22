@@ -9,7 +9,6 @@ import type {
   CustomerAccountReadPort,
   CustomerGroupReadPort,
   OrganizationDetailsPort,
-  PriceListAdminPort,
   PriceListReadPort,
   ProductDisplayModePort,
   DictionaryReferenceRegistryPort,
@@ -35,13 +34,11 @@ import type {
   PricingGenerationPublisher,
   PricingGenerationSubscriber,
 } from './services/pricing-generation.js';
-import { PriceListReadService, toPriceListRecord } from './services/price-list-read-port.js';
+import { PriceListReadService } from './services/price-list-read-port.js';
 import type { PricingServiceContract } from './services/pricing-service.interface.js';
 import { registerPriceListCurrencyReferences } from './services/price-list-currency-reference.js';
 import { PriceDisplayModeOverride } from './entities/price-display-mode-override.entity.js';
 import { PriceListMatrixEntry } from './entities/price-list-matrix-entry.entity.js';
-import { PriceListPriceBracket } from './entities/price-list-price-bracket.entity.js';
-import { PriceListProduct } from './entities/price-list-product.entity.js';
 import { PriceList } from './entities/price-list.entity.js';
 import { PriceListAudienceMember } from './entities/price-list-audience-member.entity.js';
 import { PriceListPrecedence } from './entities/price-list-precedence.entity.js';
@@ -137,11 +134,6 @@ export interface PriceListsCradle {
   /** Feature 160 — whether this process consumes queues (the API may not). */
   readonly processRunsWorkers: boolean;
   readonly priceListsSurfaceProducer: PriceSurfaceProducer;
-  /**
-   * Feature 160 — which engine the batched entry points run (`books` since the
-   * consumer phase; `legacy` remains only until the removal phase).
-   */
-  readonly priceListsPricingModel: 'legacy' | 'books';
   readonly pricingService: PricingServiceContract;
   readonly priceListService: ReturnType<typeof priceListsModule>['handle']['priceListService'];
 }
@@ -158,9 +150,6 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction((): number => DEFAULT_PRICING_CACHE_TTL_MS)
       .singleton(),
 
-    // Feature 160 — the price-book engine is the composition's engine.
-    priceListsPricingModel: ctx.asFunction((): 'legacy' | 'books' => 'books').singleton(),
-
     priceListsSurfaceProducer: ctx
       .asFunction(({ moduleQueueRedis }: PriceListsCradle) => createPriceSurfaceProducer(moduleQueueRedis))
       .singleton(),
@@ -170,20 +159,16 @@ export function registerModule(ctx: ModuleContext): void {
         ({
           emFactory,
           redis,
-          auditLogService,
           commandBus,
           priceListsEnableStatusSweeper,
           priceListsPricingCacheTtlMs,
-          priceListsPricingModel,
           priceListsSurfaceProducer,
         }: PriceListsCradle) =>
           priceListsModule({
-            pricingModel: priceListsPricingModel,
             requestSurfaceRebuild: async () => {
               await priceListsSurfaceProducer.enqueue();
             },
             emFactory,
-            auditLogService,
             commandBus,
             enableStatusSweeper: priceListsEnableStatusSweeper,
             pricingCacheTtlMs: priceListsPricingCacheTtlMs,
@@ -264,9 +249,6 @@ export function registerModule(ctx: ModuleContext): void {
   // entity in feature 076 (D-79) — a customer group describes the customer, so
   // `customer_accounts` owns it and this module resolves it.
   //
-  // `priceListAdminPort` narrows `PriceListService` to the five methods
-  // `pim_ergonode` measurably calls during an import run.
-  //
   // `PricingServiceContract` used to be pinned to
   // `services/pricing-service.interface.ts` because it was the feature-057
   // decoration's contract gate: a deployment's `decorations/pricing-service.ts`
@@ -321,25 +303,6 @@ export function registerModule(ctx: ModuleContext): void {
     ctx.asFunction(({ emFactory }: PriceListsCradle) => new PriceListReadService(emFactory)).singleton(),
   );
 
-  ctx.di.providePort<PriceListAdminPort>(
-    'priceListAdminPort',
-    ctx
-      .asFunction((): PriceListAdminPort => {
-        const service = (): PriceListsCradle['priceListService'] =>
-          ctx.cradle<PriceListsCradle>().priceLists.handle.priceListService;
-        return {
-          getById: async (id) => toPriceListRecord(await service().getById(id)),
-          listProducts: (priceListId) => service().listProducts(priceListId),
-          addProduct: (priceListId, productId) => service().addProduct(priceListId, productId),
-          replaceBrackets: (priceListId, productId, bracketsByCurrency) =>
-            service().replaceBrackets(priceListId, productId, bracketsByCurrency),
-          summarizeBracketsForProduct: (productId) =>
-            service().summarizeBracketsForProduct(productId),
-        };
-      })
-      .singleton(),
-  );
-
   ctx.routes(async (app) => {
     await ctx.cradle<PriceListsCradle>().priceLists.plugin(app);
   });
@@ -348,7 +311,7 @@ export function registerModule(ctx: ModuleContext): void {
    * Feature 160 — the price-surface worker (`price_lists.surface`), attached with
    * `ctx.worker` so it stops with the module, and built only where the host says
    * this process consumes queues. The shared test server says neither: there a
-   * stale profile is rebuilt by the request that meets it.
+   * the harness runs the worker's pass itself (`backend/test/helpers/price-surface.ts`).
    */
   ctx.routes(async (app) => {
     const cradle = ctx.cradle<PriceListsCradle>();
@@ -356,10 +319,7 @@ export function registerModule(ctx: ModuleContext): void {
     startPriceSurfaceWorker({
       processRunsWorkers: cradle.processRunsWorkers,
       moduleQueueRedis: cradle.moduleQueueRedis,
-      rebuildStale: () =>
-        cradle.priceLists.handle.pricingEngine.usesPriceBooks
-          ? cradle.priceLists.handle.pricingEngine.priceSurface.rebuildStale()
-          : Promise.resolve(0),
+      rebuildStale: () => cradle.priceLists.handle.pricingEngine.priceSurface.rebuildStale(),
       log: ctx.log,
       attach: (worker) => ctx.worker(worker, { logger: app.log }),
     });
@@ -485,8 +445,6 @@ export function registerModule(ctx: ModuleContext): void {
 export const entities = [
   PriceDisplayModeOverride,
   PriceListMatrixEntry,
-  PriceListPriceBracket,
-  PriceListProduct,
   PriceList,
   // Feature 160 (D-287 P1) — price books.
   PriceListAudienceMember,
@@ -512,38 +470,27 @@ export const salesChannelBridges: ReadonlyArray<{
 }> = [{ entityType: 'price-list', table: 'sales_channel_price_lists', entityIdColumn: 'price_list_id' }];
 
 /**
- * The one-off migrator that creates this module's system price list and fills
- * it from the catalog, published **by name** on `./backend`.
- *
- * The host's demo composition runs it, and a host program is composed
- * against this package's `dist` while the ORM is registered from the same
- * `entities` array above — so a filesystem path into this file's source would
- * evaluate `price-list.entity.ts` a second time and the migrator would
- * `em.create` a `PriceList` class the ORM has never heard of (D-160.6.1).
- * D-168 bars an entity class from leaving by this door; a service is not an
- * entity, and `pim_ergonode`'s `ErgonodeRequestError` is the precedent for
- * publishing the binding a caller genuinely needs to hold the same copy of.
- */
-export { DefaultPriceListMigrator, DEFAULT_PRICE_LIST_ID } from './services/default-price-list-migration.js';
-
-/**
  * Feature 160 (FR-044) — the demo's prices, published **by name** on
  * `./backend` for `@endora-commerce/demo-composition`'s price-book step: base
  * prices for every demo product and the E1–E3 books. A composition step
  * because every row names another module's (feature 113 §5.1); the functions
  * write only this module's tables, over the `EntityManager` the demo runner
  * hands the composition, and use the entity classes this package's `entities`
- * array registered (D-160.6.1, as the migrator above).
+ * array registered: a host program is composed against this package's `dist`
+ * while the ORM is registered from that array, so a filesystem path into this
+ * source would evaluate the entities a second time and `em.create` a class the
+ * ORM has never heard of (D-160.6.1). D-168 bars an entity class from leaving
+ * by this door; a function is not an entity.
  */
 export { seedDemoPriceBooks, withdrawDemoPriceBooks, type DemoPriceBookRefs } from './demo/seed.js';
 export { DEMO_PRICE_BOOKS, DEMO_VECTOR_SKUS, demoBasePrice } from './demo/rows.js';
 
 /**
- * The price-list write service, published **by name** for the same reason as
- * the migrator above: two integration tests construct it directly over their
- * own `EntityManager`, in a process that already holds this package's published
- * artefact, and a second copy would `em.create` a `PriceList` the ORM never
+ * The display-mode service, published **by name** for the same reason as the
+ * demo functions above: host-side tests construct it directly over their own
+ * `EntityManager`, in a process that already holds this package's published
+ * artefact, and a second copy would `em.create` an entity the ORM never
  * registered (D-160.6.1). The container name `priceListService` stays the
- * production seam; this export exists so a host-side test holds the same class.
+ * production seam.
  */
 export { PriceListService } from './services/price-list-service.js';

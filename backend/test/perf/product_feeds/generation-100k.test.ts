@@ -1,6 +1,6 @@
 // perf-weight: heavy — seeding 110 000 products, then a 100 000-item generation the header below measures at 207 s. It has been excluded from the nightly since the job was written.
 import { setFlagsFromString } from 'node:v8';
-import { PriceList } from '../../helpers/package-entities.js';
+import { seedPriceBookSql } from '../../helpers/price-book-sql.js';
 import { runInNewContext } from 'node:vm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -150,21 +150,17 @@ describe.skipIf(!shouldRun)('product feed generation — 100k perf', () => {
       defaultCurrency: 'PLN',
       active: true,
     });
-    // Catch-all rather than `isSystem` (issue #50): the system flag marks the
-    // platform's one seeded `Default` row and is now a database singleton.
-    const priceList = em.create(PriceList, {
-      code: 'perf_feed_list',
-      name: 'Perf feed list',
-      currency: 'PLN',
-      type: 'base',
-      status: 'active',
-      applicationRule: { kind: 'all' },
-      modifiedAt: new Date(),
-    });
-    await em.persistAndFlush([small, large, priceList]);
+    await em.persistAndFlush([small, large]);
     smallChannelId = small.id;
     largeChannelId = large.id;
-    priceListId = priceList.id;
+    // Feature 160 — the feed is pinned to an everyone price book of both
+    // channels, whose rows price every product (FR-029).
+    priceListId = await seedPriceBookSql(em, {
+      name: 'Perf feed book',
+      audience: 'everyone',
+      channelIds: [smallChannelId, largeChannelId],
+      rows: [],
+    });
 
     await setChannelStorefrontUrl(h, 'perf_feed_small');
     await setChannelStorefrontUrl(h, 'perf_feed_large');
@@ -199,16 +195,10 @@ describe.skipIf(!shouldRun)('product feed generation — 100k perf', () => {
       [smallChannelId, smallCount],
     );
     await conn.execute(
-      `insert into price_list_products (price_list_id, product_id)
-       select ?, ('a0000000-0000-4000-8000-' || lpad(i::text, 12, '0'))::uuid
-       from generate_series(1, ?) as i`,
-      [priceListId, itemCount],
-    );
-    await conn.execute(
-      `insert into price_list_price_brackets
-         (price_list_id, product_id, currency_code, min_quantity, amount)
-       select ?, ('a0000000-0000-4000-8000-' || lpad(i::text, 12, '0'))::uuid,
-              'PLN', 1, 19.99
+      `insert into price_list_matrix_entries
+         (id, price_list_id, product_id, min_quantity, price_type, amount, created_at, updated_at)
+       select gen_random_uuid(), ?, ('a0000000-0000-4000-8000-' || lpad(i::text, 12, '0'))::uuid,
+              1, 'fixed', 19.99, now(), now()
        from generate_series(1, ?) as i`,
       [priceListId, itemCount],
     );
@@ -240,11 +230,7 @@ describe.skipIf(!shouldRun)('product feed generation — 100k perf', () => {
       // numbers a neighbouring benchmark reports.
       const conn = h.em().getConnection();
       const perfIds = `'a0000000-0000-4000-8000-%'`;
-      for (const table of [
-        'price_list_price_brackets',
-        'price_list_products',
-        'sales_channel_products',
-      ]) {
+      for (const table of ['price_list_matrix_entries', 'sales_channel_products']) {
         await conn.execute(`delete from ${table} where product_id::text like ${perfIds}`);
       }
       await conn.execute(`delete from products where id::text like ${perfIds}`);
@@ -266,9 +252,10 @@ describe.skipIf(!shouldRun)('product feed generation — 100k perf', () => {
         languageCode: 'en-US',
         currencyCode: 'PLN',
         pricePresentation: 'net',
-        // The named list is used verbatim (FR-020) — one indexed read per item.
-        // The anonymous resolution would drag the whole price-list rule engine
-        // into a measurement that is about this module's streaming, not that one.
+        // The named book is used verbatim (FR-020, FR-029) — its rows over the
+        // channel's catalogue price. The anonymous resolution would drag the
+        // whole buyer resolution into a measurement that is about this module's
+        // streaming, not that one.
         priceListId,
       },
     });

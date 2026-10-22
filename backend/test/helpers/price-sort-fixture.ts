@@ -212,8 +212,6 @@ export async function seedPriceSortFixture(em: EntityManager): Promise<void> {
 /** Removes `DELTA` altogether — SC-007's "the same catalogue with it deleted". */
 export async function deleteRestrictedProduct(em: EntityManager): Promise<void> {
   const conn = em.getConnection();
-  await conn.execute(`delete from price_list_price_brackets where product_id = ?`, [DELTA.id]);
-  await conn.execute(`delete from price_list_products where product_id = ?`, [DELTA.id]);
   await conn.execute(`delete from sales_channel_products where product_id = ?`, [DELTA.id]);
   await conn.execute(`delete from products where id = ?`, [DELTA.id]);
 }

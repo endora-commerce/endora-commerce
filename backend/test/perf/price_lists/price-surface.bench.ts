@@ -88,10 +88,10 @@ describe.skipIf(!shouldRun)('price surface — SC-005', () => {
     const id = randomUUID();
     const kind = input.audience === 'everyone' ? 'everyone' : 'organizations' in input.audience ? 'organizations' : 'customer_groups';
     await sql(
-      `insert into "price_lists" ("id", "code", "name", "currency_code", "is_default", "priority", "type", "status",
-                                  "application_rule", "audience_kind", "is_system", "modified_at", "created_at", "updated_at")
-       values (?, ?, ?, 'PLN', false, 0, 'regular', 'active', null, ?, false, now(), now(), now())`,
-      [id, `bench-${id}`, `bench ${id.slice(0, 8)}`, kind],
+      `insert into "price_lists" ("id", "name", "currency_code", "priority", "type", "status",
+                                  "audience_kind", "is_system", "ever_activated", "created_at", "updated_at")
+       values (?, ?, 'PLN', 0, 'regular', 'active', ?, false, true, now(), now())`,
+      [id, `bench ${id.slice(0, 8)}`, kind],
     );
     if (input.audience !== 'everyone') {
       const column = 'organizations' in input.audience ? 'organization_id' : 'customer_group_id';

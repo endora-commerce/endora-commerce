@@ -126,7 +126,9 @@ export const manifest = defineModuleManifest({
       labelKey: 'actions.openPriceLists.label',
       descriptionKey: 'actions.openPriceLists.description',
       icon: 'CircleDollarSign',
-      targetRoute: '/price-lists',
+      // Feature 160 — the display-mode page until P2's price-book editor lands
+      // (the old roster went with the old model).
+      targetRoute: '/price-lists/display-modes',
       // The code the landing `GET` enforces and the code this module's own
       // `./admin` route declaration carries — read off the route rather than
       // chosen, so the palette never advertises a 403 (issue #232).

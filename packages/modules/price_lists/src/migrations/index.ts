@@ -30,6 +30,7 @@ import { Migration20261016T131148PriceListsPriceMatrixEntries } from './20261016
 import { Migration20261021T165239PriceListsPriceBooksExpand } from './20261021T165239_price_lists_price_books_expand.js';
 import { Migration20261021T232310PriceListsPriceBooksVersion } from './20261021T232310_price_lists_price_books_version.js';
 import { Migration20261022T012134PriceListsPriceSurfaceGenerations } from './20261022T012134_price_lists_price_surface_generations.js';
+import { Migration20261022T111815PriceListsPriceBooksConversion } from './20261022T111815_price_lists_price_books_conversion.js';
 
 export const migrations = [
   Migration20260426T075235PriceListsPricingInit,
@@ -40,6 +41,7 @@ export const migrations = [
   Migration20261021T165239PriceListsPriceBooksExpand,
   Migration20261021T232310PriceListsPriceBooksVersion,
   Migration20261022T012134PriceListsPriceSurfaceGenerations,
+  Migration20261022T111815PriceListsPriceBooksConversion,
 ];
 
 export {
@@ -51,4 +53,5 @@ export {
   Migration20261021T165239PriceListsPriceBooksExpand,
   Migration20261021T232310PriceListsPriceBooksVersion,
   Migration20261022T012134PriceListsPriceSurfaceGenerations,
+  Migration20261022T111815PriceListsPriceBooksConversion,
 };

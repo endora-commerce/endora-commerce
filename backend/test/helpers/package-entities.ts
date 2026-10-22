@@ -122,8 +122,6 @@ import type { MegamenuBinding as MegamenuBindingRow } from '../../../packages/mo
 import type { Organization as OrganizationRow } from '../../../packages/modules/organizations/src/backend/entities/organization.entity.js';
 import type { OrganizationSalesRepAssignment as OrganizationSalesRepAssignmentRow } from '../../../packages/modules/organizations/src/backend/entities/organization-sales-rep-assignment.entity.js';
 import type { PriceList as PriceListRow } from '../../../packages/modules/price_lists/src/backend/entities/price-list.entity.js';
-import type { PriceListProduct as PriceListProductRow } from '../../../packages/modules/price_lists/src/backend/entities/price-list-product.entity.js';
-import type { PriceListPriceBracket as PriceListPriceBracketRow } from '../../../packages/modules/price_lists/src/backend/entities/price-list-price-bracket.entity.js';
 import type { PriceListMatrixEntry as PriceListMatrixEntryRow } from '../../../packages/modules/price_lists/src/backend/entities/price-list-matrix-entry.entity.js';
 import type { PriceDisplayModeOverride as PriceDisplayModeOverrideRow } from '../../../packages/modules/price_lists/src/backend/entities/price-display-mode-override.entity.js';
 import type { Order as OrderRow } from '../../../packages/modules/orders/src/backend/entities/order.entity.js';
@@ -991,16 +989,6 @@ export const PriceList = classNamed<PriceListRow>(
   'price_lists',
   'PriceList',
 );
-export const PriceListProduct = classNamed<PriceListProductRow>(
-  installedModuleEntities,
-  'price_lists',
-  'PriceListProduct',
-);
-export const PriceListPriceBracket = classNamed<PriceListPriceBracketRow>(
-  installedModuleEntities,
-  'price_lists',
-  'PriceListPriceBracket',
-);
 export const PriceListMatrixEntry = classNamed<PriceListMatrixEntryRow>(
   installedModuleEntities,
   'price_lists',
@@ -1033,8 +1021,6 @@ export type MegamenuBinding = MegamenuBindingRow;
 export type Organization = OrganizationRow;
 export type OrganizationSalesRepAssignment = OrganizationSalesRepAssignmentRow;
 export type PriceList = PriceListRow;
-export type PriceListProduct = PriceListProductRow;
-export type PriceListPriceBracket = PriceListPriceBracketRow;
 export type PriceListMatrixEntry = PriceListMatrixEntryRow;
 export type PriceDisplayModeOverride = PriceDisplayModeOverrideRow;
 export type CustomerAccount = CustomerAccountRow;

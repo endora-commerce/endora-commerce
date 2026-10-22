@@ -13,7 +13,8 @@ import {
   PRICING_GENERATION_CHANNEL,
   type PricingGeneration,
 } from '../../../../packages/modules/price_lists/src/backend/services/pricing-generation.js';
-import type { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
+import type { PriceBookService } from '../../../../packages/modules/price_lists/src/backend/services/price-book-service.js';
+import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 
 /**
  * The one cross-process invalidation path the platform has (feature 072, T073).
@@ -176,7 +177,7 @@ describe('cross-process pricing cache invalidation over Redis pub/sub', () => {
     }
   });
 
-  it('announces a bump after an audited price-list write commits', async () => {
+  it('announces a bump after an audited price-book write commits', async () => {
     const url = process.env['REDIS_URL'] ?? 'redis://localhost:6379';
     const listener = new Redis(url, { maxRetriesPerRequest: null });
     const received: string[] = [];
@@ -185,13 +186,22 @@ describe('cross-process pricing cache invalidation over Redis pub/sub', () => {
       listener.on('message', (channel, message) => {
         if (channel === PRICING_GENERATION_CHANNEL) received.push(message);
       });
-      const service = (h.container.cradle as unknown as { priceListService: PriceListService })
-        .priceListService;
-      await service.create({
-        name: `Cross-process bump ${Date.now()}`,
-        type: 'base',
-        applicationRule: { kind: 'criterion', type: 'currency', values: ['PLN'] },
-      });
+      const service = (h.container as unknown as { resolve<T>(name: string): T }).resolve<{
+        handle: { priceBookService: PriceBookService };
+      }>('priceLists').handle.priceBookService;
+      const channels = await h.em().getConnection().execute<Array<{ id: string }>>(
+        `select "id" from "sales_channels" where "system_default" = true`,
+      );
+      await withSystemScope('cross-process bump test', () =>
+        service.createBook({
+          name: `Cross-process bump ${Date.now()}`,
+          type: 'regular',
+          currencyCode: 'PLN',
+          channelIds: [channels[0]!.id],
+          audience: { kind: 'everyone', memberIds: [] },
+          priority: 0,
+        }),
+      );
       await settle();
       expect(received.length).toBeGreaterThanOrEqual(1);
     } finally {

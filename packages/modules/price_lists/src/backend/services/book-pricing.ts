@@ -144,10 +144,7 @@ function emptyProfile(channelId: string, currencyCode: string, precedenceVersion
   return { key: `not-offered:${channelId}:${currencyCode}`, channelId, currencyCode, precedenceVersion, vector: [], books: [] };
 }
 
-/** The old `Default` list, which is the PLN base book and holds the not-yet-converted brackets. */
-export const LEGACY_DEFAULT_LIST_ID = '00000000-0000-4000-8000-00000000d51b';
-
-/** A stable uuid-shaped id for a Default bracket read as a base row (it has no id of its own). */
+/** A stable uuid-shaped id for a row the engine synthesises (the reference row of a named book read). */
 function bracketRowId(productId: string, currencyCode: string, minQuantity: number): string {
   const hex = createHash('sha1').update(`${productId}|${currencyCode}|${minQuantity}`).digest('hex');
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
@@ -247,10 +244,6 @@ export class BookPricing {
       productIds,
       variantIds,
     );
-    // Transition (until the conversion migration): the old Default list's
-    // brackets are base rows of their currency.
-    const legacyBase = offered ? await this.#legacyDefaultBrackets(em, currencyCode, productIds, rows, books) : [];
-    rows.push(...legacyBase);
     const categoryIdsByProduct = await this.#categoryMemberships(productIds);
     // FR-016 — a variant line matches attribute rows on the product's values
     // overlaid by the variant's axis values: one read of the batch's variants.
@@ -354,8 +347,7 @@ export class BookPricing {
          from "price_lists" l
         where l."currency_code" = ?
           and (l."is_system" = true
-               or (l."application_rule" is null
-                   and l."status" in ('active', 'scheduled')
+               or (l."status" in ('active', 'scheduled')
                    and (l."starts_at" is null or l."starts_at" <= now())
                    and (l."ends_at" is null or l."ends_at" > now())
                    and l."id" in (${bridge.sql})
@@ -580,8 +572,7 @@ export class BookPricing {
           and (
             l."is_system" = true
             or (
-              l."application_rule" is null
-              and l."status" in ('active', 'scheduled')
+              l."status" in ('active', 'scheduled')
               and (l."starts_at" is null or l."starts_at" <= now())
               and (l."ends_at" is null or l."ends_at" > now())
               and l."id" in (${bridge.sql})
@@ -634,66 +625,6 @@ export class BookPricing {
       amount: r.amount === null ? null : String(r.amount),
       percent: r.percent === null ? null : String(r.percent),
     }));
-  }
-
-  /**
-   * **Transition, until the conversion migration (T117) runs.** The old
-   * `Default` list (`…d51b`) keeps its base prices as brackets in
-   * `price_list_price_brackets`, per currency. The conversion copies them into
-   * base-book rows; until it has, they *are* the base prices, so a product with
-   * no base-book row of its own in this currency is priced from its Default
-   * brackets — one statement for the batch. A base-book row, where one exists,
-   * wins. When no base book of the currency exists, the Default list stands in
-   * as that currency's base book.
-   */
-  async #legacyDefaultBrackets(
-    em: EntityManager,
-    currencyCode: string,
-    productIds: readonly string[],
-    rows: readonly BookRow[],
-    books: ResolverBook[],
-  ): Promise<BookRow[]> {
-    if (productIds.length === 0) return [];
-    const brackets = await em.execute<
-      Array<{ product_id: string; min_quantity: number; max_quantity: number | null; amount: string }>
-    >(
-      `select "product_id", "min_quantity", "max_quantity", "amount"
-         from "price_list_price_brackets"
-        where "price_list_id" = ? and "currency_code" = ? and "product_id" = any(?::uuid[])`,
-      [LEGACY_DEFAULT_LIST_ID, currencyCode, uuidArray(productIds)],
-    );
-    if (brackets.length === 0) return [];
-    let base = books.find((b) => b.isSystem);
-    if (!base) {
-      base = {
-        id: LEGACY_DEFAULT_LIST_ID,
-        name: 'Default',
-        type: 'regular',
-        isSystem: true,
-        priority: 0,
-        audience: { kind: 'everyone' },
-      };
-      books.push(base);
-    }
-    const covered = new Set(
-      rows.filter((r) => r.bookId === base.id && r.variantId === null && r.productId !== null).map((r) => r.productId!),
-    );
-    return brackets
-      .filter((b) => !covered.has(b.product_id))
-      .map((b) => ({
-        id: bracketRowId(b.product_id, currencyCode, Number(b.min_quantity)),
-        bookId: base.id,
-        variantId: null,
-        productId: b.product_id,
-        categoryId: null,
-        attributeKey: null,
-        attributeValue: null,
-        minQuantity: Number(b.min_quantity),
-        maxQuantity: b.max_quantity === null ? null : Number(b.max_quantity),
-        priceType: 'fixed' as const,
-        amount: String(b.amount),
-        percent: null,
-      }));
   }
 
   /** `(product, category)` memberships for the batch, through `catalog`'s port — one call. */
