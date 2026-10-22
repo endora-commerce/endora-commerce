@@ -46,19 +46,11 @@ export const UNDEFINED_CLASS_RENDERS: UndefinedClassRenderLedger = {
   // -- a variant that does not exist ------------------------------------
   'packages/admin-kit/src/components/PaginationFooter.tsx::b2b-field--sm':
     'renders as an unmodified `b2b-field`; the design system defines no `--sm` size',
-  'packages/modules/price_lists/src/admin/components/ApplicationRuleBuilder.tsx::b2b-field--sm':
-    'the same missing size, one screen over',
   'packages/modules/inventory/src/admin/pages/AvailabilityNotificationsPage.tsx::b2b-badge--muted':
     'renders as an unmodified `b2b-badge`; the neutral variant is `b2b-badge--neutral`',
   'packages/modules/inventory/src/admin/pages/InventoryPage.tsx::b2b-badge--muted':
     'the same missing variant',
   'packages/modules/inventory/src/admin/pages/WarehousesList.tsx::b2b-badge--muted':
-    'the same missing variant',
-  'packages/modules/price_lists/src/admin/components/LinkedPriceListsPanel.tsx::b2b-badge--muted':
-    'the same missing variant',
-  'packages/modules/price_lists/src/admin/pages/PriceListDetailPage.tsx::b2b-badge--muted':
-    'the same missing variant',
-  'packages/modules/price_lists/src/admin/pages/PriceListsPage.tsx::b2b-badge--muted':
     'the same missing variant',
   'packages/modules/product_feeds/src/admin/components/FeedLinkCard.tsx::b2b-btn--outline':
     'renders as an unmodified `b2b-btn`; the design system defines `--primary`, `--ghost` and `--danger`',

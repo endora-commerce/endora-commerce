@@ -1,10 +1,24 @@
 # Pricing — the current model, as shipped
 
-How a product price is stored and resolved **today**: tables, the resolution algorithm with its precedence and tie-breaks, where the two targeting layers (Application Rule and Price matrix) overlap, and the pain points that keep bringing pricing back. This describes the code, not the proposal — for the proposal see `decision-record.md`. When the model changes, rewrite this file in the same merge request.
+How a product price is stored and resolved **today**: the price-book model of D-287 P1 (feature 160,
+`specs/160-pricing-model-v2/`), its tables, the resolution algorithm with its precedence and
+tie-breaks, how sort and range are served, and what is still open. This describes the code, not a
+proposal — the ratified target is `decision-record.md`, and the test vectors are
+`worked-examples.md`. When the model changes, rewrite this file in the same merge request.
 
-**Verified against** `master` at `b1021c71b` on 2026-10-21, and **re-verified for the P0 read-path hardening and the #166 reorder fix** (D-287 P0, branch `fix/pricing-read-path-hardening` on `fd6255339`) on 2026-10-21. File:line citations in passages P0 did not touch are as of `b1021c71b`; re-check them before relying on one.
+**Verified against** the release branch `feat/160-pricing-model-v2` on 2026-10-22, after the
+conversion and removal phase (tasks T114–T133). The old model — the Application rule, the per-list
+product roster and brackets, the `Default` list, the product *default price* and the variant price
+override — is gone from the code and, after the conversion migration, from the database. How it
+worked is recorded in this file's history (`git log -- specs/pricing/current-model.md`); the
+file:line citations of `decision-record.md` §1 and `read-paths-and-performance.md` that name it
+point at code that no longer exists.
 
-**Section numbers.** `§N` references follow the numbering of the original analysis, which is split across this directory: §1 → `current-model.md`; §2 → `read-paths-and-performance.md` (its summary table); §3–§9, §11, §12 → `decision-record.md`; §10 → `worked-examples.md`. `read-paths §N` points into `read-paths-and-performance.md`, `peers §N` into `peer-platforms.md`. Path abbreviations: `PL/` = `packages/modules/price_lists/src/`, `CON/` = `packages/contracts/src/`, `CAT/` = `packages/modules/catalog/src/`, `SF/` = `storefront/`.
+**Section numbers.** `§N` references follow the numbering of the original analysis, which is split
+across this directory: §1 → `current-model.md`; §2 → `read-paths-and-performance.md` (its summary
+table); §3–§9, §11, §12 → `decision-record.md`; §10 → `worked-examples.md`. Path abbreviations:
+`PL/` = `packages/modules/price_lists/src/`, `CON/` = `packages/contracts/src/`, `CAT/` =
+`packages/modules/catalog/src/`, `SF/` = `storefront/`.
 
 ---
 
@@ -12,191 +26,136 @@ How a product price is stored and resolved **today**: tables, the resolution alg
 
 ### 1.1 Data model
 
-| Table / column | Owner | What it is | Evidence |
-| --- | --- | --- | --- |
-| `price_lists` | price_lists | header: `name`, `type base\|sale`, `status draft\|active\|scheduled\|expired`, `starts_at/ends_at`, `application_rule jsonb`, `is_system`, `modified_at`; **legacy** `code`, `currency` (always written `'PLN'`), `priority` (always 0, unread by the engine), `is_default` | `PL/backend/entities/price-list.entity.ts:40-81`; `PL/migrations/20260504T125655_price_lists_engine.ts:44-92`; create writes `currency: 'PLN', priority: 0` at `PL/backend/services/price-list-service.ts:395-420` |
-| `hasMatrixEntries` | — | computed `exists(...)` formula on every list read | `price-list.entity.ts:90-94` |
-| `price_list_products` | price_lists | (list, product) roster | `…engine.ts:97-112`; entity `price-list-product.entity.ts` |
-| `price_list_price_brackets` | price_lists | **the** stored price: (list, product, currency, min_qty) → max_qty, amount numeric(14,4); FK to roster; no variant column | `…engine.ts:117-138`; entity `price-list-price-bracket.entity.ts:17-45` |
-| `price_list_price_brackets_unit_amount_idx` | price_lists | partial covering `(price_list_id, currency_code, amount, product_id) where min_quantity = 1` for price sort | `PL/migrations/20260821T135907_price_lists_unit_price_amount_index.ts:37-45` (7.4 MB / 112k, 132 MB / 1.6M) |
-| `price_list_matrix_entries` (148) | price_lists | selection (product\|category\|attribute key+value) × optional `organization_id` × qty window × `fixed` (amount + `currency_code`) or `discount_percent` | `PL/migrations/20261016T131148_price_lists_price_matrix_entries.ts:26-87`; entity `price-list-matrix-entry.entity.ts:25-88` |
-| `price_display_mode_overrides` | price_lists | gross/net/both/none per org/category/product | `…engine.ts:143-156` |
-| Default system list | price_lists | id `00000000-0000-4000-8000-00000000d51b`, rule `{kind:'all'}`, DB-enforced singleton | seed `…engine.ts:167-218`; singleton `20260817T055457…:38-52`; refuses delete/status change/rule `price-list-service.ts:338-379` |
-| `products.attribute_values.defaultPrice` (`price`) | catalog | bare number, no currency, edited in the Product editor ("Default unit price — Price-list overrides take precedence at checkout") | `CAT/admin/pages/ProductEditor.tsx:267-278`; whitelisted `CAT/backend/services/catalog-admin.service.ts:114-125`; label `packages/modules/catalog/i18n/en.json:390-391` |
-| `product_variants.price_override` | catalog | numeric(12,2), written by the admin, **never read by `price_lists`** | `CAT/backend/entities/product-variant.entity.ts:29-30`; grep of `PL/` finds no reader |
-| customer group | customer_accounts | one per organization (`organizations.customer_group_id`), a customer account may override | `packages/modules/organizations/src/backend/entities/organization.entity.ts:109-113`; `packages/modules/customer_accounts/src/backend/entities/customer-account.entity.ts:144-149` |
+All tables are owned by `price_lists` unless named otherwise; the normative description is
+`specs/160-pricing-model-v2/data-model.md`.
 
-Where the **rule** sits: `ApplicationRule` = `all | criterion(type, values[]) | group(AND|OR, children)`,
-criterion types `salesChannel, customerGroup, organization, category, currency`
-(`CON/price-lists.ts:40-68`), depth ≤ 5 (`:87-90`). Evaluated by the pure
-`evaluateApplicationRule` (`CON/price-lists.ts:1193-1245`), shared with `organizations`' "effective
-price lists" panel (`packages/modules/organizations/src/backend/services/organization-effective-pricelists-service.ts:1-60`).
-A non-system list cannot be activated with `{kind:'all'}` (`price-list-service.ts:566-572`).
+| Table / column | What it is | Evidence |
+| --- | --- | --- |
+| `price_lists` | the **price-book header**: `name`, `type regular\|sale`, `status draft\|scheduled\|active\|expired`, `starts_at`/`ends_at`, `currency_code` (immutable), `audience_kind everyone\|customer_groups\|organizations` (immutable once `ever_activated`), `priority`, `is_system`, `version` (moves on every write; a write naming an older one is `409 PRICE_BOOK_STALE`) | `PL/backend/entities/price-list.entity.ts`; `PL/migrations/20261021T165239_price_lists_price_books_expand.ts`, `…_price_books_version.ts`, `…_price_books_conversion.ts` |
+| base books | one system book per currency (`is_system`, `regular`, `everyone`, always active, no channel set); the platform default currency's keeps the id `00000000-0000-4000-8000-00000000d51b` | unique `(currency_code) where is_system`; created by the conversion migration and on first use by `PriceBookService.setBasePrices` |
+| `sales_channel_price_lists` | a book's **channel set**, a registered sales-channel bridge (entity type `price-list`), read and written only through `SalesChannelMembershipService`; a binding whose channel stops offering the currency stays and is *dormant* | `PL/backend/index.ts` `salesChannelBridges`; `price-book-service.ts` `replaceChannels`, `channelSet` |
+| `price_list_audience_members` | a book's **audience set**: `organization_id` or `customer_group_id` (exactly one), FK cascade | expand migration |
+| `price_list_matrix_entries` | a book's **rows**: selection (`variant_id` ⇒ `product_id`; `product_id`; `category_id`; `attribute_key`/`attribute_value`; category ∩ attribute; or none = all), `min_quantity`/`max_quantity`, `price_type fixed\|percent\|amount` with `amount` (fixed price or signed adjustment) or `percent` (signed, −100…+1000) | `PL/backend/entities/price-list-matrix-entry.entity.ts`; CHECKs in the conversion migration |
+| `price_list_precedence` | versioned buyer-cell order; version 1 = **HY**, active; P1 has no write path (`409 PRECEDENCE_CHANGE_UNAVAILABLE`) | `PL/backend/services/precedence.ts` |
+| `price_profiles`, `price_profile_prices` | the **price surface** for sort and range (§1.3) | `PL/backend/services/price-surface.ts` |
+| `price_display_mode_overrides` | gross / net / both / none per organization, category, product | `PL/backend/services/price-list-service.ts` (display modes only) |
+| `cart_items.price_source` (carts), `order_items.price_source` (orders) | which tier priced a line: `agreed\|base\|catalogue\|buyer\|sale` | each owner's migration |
+| customer group | `organizations.customer_group_id`; a customer account may override it | `effectiveCustomerGroupId`, `PL/backend/services/customer-group-rule.ts` |
+
+**A product has no price of its own.** `catalog`'s migration
+`20261022T111811_catalog_price_fields_removed` dropped `product_variants.price_override` and
+stripped `defaultPrice`/`price` from `products.attribute_values`, unconverted (owner ruling); product
+and variant writes and the products import refuse those fields with `400 PRICE_SET_IN_PRICE_BOOKS`
+(FR-043). A product's base price is its rows in the base book of each currency; a variant's is its
+variant row there (fixed, or a percent/amount adjustment of the product's base), else the product's.
+
+**Row rules** (`PL/backend/services/price-book-rules.ts`, `price-book-batch.ts`): no two rows of
+one book with the same selection and overlapping quantity windows (`PRICE_BOOK_ROW_OVERLAP`); a
+fixed price needs a selection other than *all*; an attribute row only for an attribute flagged
+*Price list rules* (`isPriceRule`) of a choice or boolean type, not language- or channel-scoped —
+eligibility is re-read at resolution, so a row on an attribute that stops qualifying stays and does
+not price; a base book holds only product rows (fixed) and variant rows; at most 5 000 rows per
+book and per batch (`PRICE_BOOK_MAX_ROWS`). A book is **applicable** when it is `active` or
+`scheduled`, `starts_at ≤ now < ends_at` (read at resolution time, FR-047 — the 5-minute status
+sweep only moves the admin's `status`), of the request currency, bound to the request channel by a
+non-dormant binding (base books excepted; they price when the channel offers the currency) and, for
+a non-everyone book, with the buyer's organization chain or effective group in its audience.
+Activation refuses a book that would apply nowhere or to no one (`PRICE_BOOK_NOT_APPLICABLE`).
 
 ### 1.2 Resolution algorithm, exactly as shipped
 
-Inputs: product (id, `attributeValues`), quantity, organization (id, `customerGroupId`), optional
-`customerGroupId`, optional `customerAccountId` (P0), sales channel (id, defaultCurrency), optional
-currency (`PL/backend/services/pricing-service.interface.ts`, `PricingResolutionInput`).
+Inputs: product (`id`, `attributeValues`), optional variant, quantity, organization (`id`,
+`customerGroupId`), optional `customerGroupId`, optional `customerAccountId`, sales channel (`id`,
+`defaultCurrency`), optional currency (`PL/backend/services/pricing-service.interface.ts`). The
+group is one rule on every path (`effectiveCustomerGroupId`): the caller's resolved group, else the
+account's own group (when the account belongs to the organization), else the organization's.
 
-**The customer group** (`group` below) is one rule on every entry point since P0
-(`effectiveCustomerGroupId`, `PL/backend/services/customer-group-rule.ts`):
-
-```
-group = context.customerGroupId                 -- a group the caller already resolved
-     ?? account(customerAccountId).customerGroupId   -- read once per call; only when the account
-                                                 --   belongs to `organization`, else ignored
-     ?? organization.customerGroupId
-     ?? null
-```
-
-Callers name the buyer and the engine applies the rule: the catalogue listing, the product detail,
-search, the typeahead, comparisons, product links, the `resolved-price` route and the cart pass
-`customerAccountId`; quote reference prices and the admin order preview pass the group they
-resolved. The price ordering (`orderByUnitPrice`, `pricedProductIds`) applies the same rule.
+Every entry point is the batched one or a wrapper over a batch of one
+(`PL/backend/services/pricing-service.ts`): `resolveListingPrices` / `resolveListingPriceDetails`
+(quantity 1, variant products ranged over their variants — the card shows the lowest, *from*),
+`resolveLinePrices` (each line at its own quantity), `resolveEngine` / `resolveLinePrice` (one
+line). They run `BookPricing` (`book-pricing.ts`) over the **pricing profile**
+(`pricing-profile.ts`): the sorted vector of the buyer books that apply `(book, audience kind,
+chain depth)` plus channel, currency and precedence version — guests and buyers with no buyer book
+share the *everyone* profile. One statement loads the applicable books, one the rows of those books
+for the batch's products and variants, and the category memberships, attribute values and variants
+come through `catalog`'s ports once per batch; the pure resolver (`book-resolver.ts`) then prices
+each line:
 
 ```
-resolveEngine(product, qty, org, group, channel, currency)          pricing-service.ts:367-524
- 0. cache key (product, variant, qty, currency, channel, org, group) → in-process LRU 60 s
- 1. categories(product)            via catalog port                  :423-424, :337-347
-    orgChain = [org, ...ancestors] via organizations port            :427-428
- 2. ALL lists with status='active'  (no channel/currency filter)     :440
- 3. for each list: evaluateApplicationRule(rule, ctx)                 :443-455
-      matched? → partition by type (base | sale)
-      explicitOn = criterion types that contributed; orgRank = nearest chain index
- 4. matrix prefetch: entries of matched lists with hasMatrixEntries,
-      product null|this, org null|in chain                            :231-272
- 5. per partition — pickAndResolveBracket (fall-through walk)         :1356-1389
-      pickPriorityChain(remaining):                                   price-list-resolver.ts:27-57
-        level 1 explicit organization (nearest org rank wins)
-        level 2 explicit customerGroup
-        level 3 explicit category
-        level 4 explicit salesChannel
-        level 5 anything else (Default lives here)
-        tie-break: newest modifiedAt, then name                      price-list-resolver.ts:59-69
-      resolveListCandidate(list, product, qty, currency)              matrix-price-resolver.ts:231-300
-        candidates: own bracket (orgRank ∞, specificity 4)  +
-                    each entry whose selection/org/qty/currency match
-        order:  orgRank asc → specificity desc (product 4, cat∩attr 3,
-                attribute 2, category 1, all 0) → minQuantity desc →
-                amount asc → entry id                                 :117-125, :205-219
-        percent amount = reference × (100−p)/100, half-up 4 dp,
-          reference = own bracket on this list, else Default bracket  :235-239, :260-270
-        no candidate priced → fall through to next list
- 6. line = sale partition if it priced anything, else base           pricing-service.ts:88-110
- 7. display mode chain (new PriceListService per call)                :491-504
+1. BASE       the base book's variant row covering q, else the product's row     → b
+2. CATALOGUE  the best row of the channel's regular *everyone* books, ranked by
+              selection kind (variant > product > category ∩ attribute >
+              category > attribute > all); percentages off b                    → C, else b
+3. BUYER      the best row of the regular organization-set and group-set books,
+              ranked by the active precedence's rank table (12 cells
+              audience × selection; HY = contract first, blanket last);
+              percentages off C                                                → R, else C
+4. SALE       the best row of the sale books — buyer cells by the rank table,
+              then everyone rows by selection kind; percentages off C          → S
+5. CHARGE     S when S < R (R is the compare-at), else R; nothing → unpriced
 ```
 
-```
-            ┌──────────── all active lists (JSONB rules) ────────────┐
-buyer ─────▶│ evaluate rule ─▶ base partition      sale partition    │
-            │                 org>group>cat>chan>other (+modifiedAt) │
-            └──────┬───────────────────────────┬─────────────────────┘
-                   ▼ first list that prices     ▼ first list that prices
-            ┌──────────────────────┐     ┌──────────────────────┐
-            │ inside the list:     │     │ inside the list:     │
-            │ own bracket vs matrix│     │ own bracket vs matrix│
-            │ orgRank>spec>qty>amt │     │ (same)               │
-            └─────────┬────────────┘     └─────────┬────────────┘
-                      ▼                            ▼
-                  base price  ◀── replaced wholesale by ──  sale price (if any, even if higher)
-                      ▼ none
-               product.defaultPrice (listing/cart only, in the channel-default currency)
-                      ▼ none
-                   unpriced
-```
+Inside a tier the order is total: cell rank → chain depth (organization cells; nearest first, or
+ahead of the cell under the AF-N preset) → book priority (desc) → starting quantity (desc) →
+resulting amount (asc) → book id → row id. Renaming a book or editing its rows never changes which
+book wins a tie (FR-045). A row whose reference is missing or whose result would be below zero does
+not price and the next candidate is tried; zero is a price. A variant line matches attribute rows on
+the product's values overlaid by the variant's axis values. The answer carries the source tier, the
+compare-at price of a charged sale, the book and row that priced it, and — when the setting
+`pricing.show_list_price` is on and the everyone price is above the charged one — the list price.
+`POST /api/v1/admin/price-books/resolve` returns the same answer with the ranked candidates and the
+precedence version (FR-020).
 
-**Entry points.** `resolveEngine` / `resolveLinePrice` resolve one product at one quantity. Three
-batched entry points run the same algorithm over a set in "priority waves" — one bracket statement
-per fall-through level, not per product — and answer exactly what the single call answers per item:
-`resolveListingPrices` (quantity 1; the listing chain's `ListingPrice` per product),
-`resolveListingPriceDetails` (P0; the same plus `basePrice`, `salePrice` and `displayMode` from one
-resolution — `basePrice` is the base bracket, else the Product's own price when that is the listing
-answer — which the catalogue emits as `ProductSummary.resolvedPrice` for the PDP, the home cards and
-the typeahead) and `resolveLinePrices` (P0; many keyed lines, each at its own quantity, for the cart,
-the placement price check, quote reference prices and the external catalogue API). Consequence for
-the typeahead: a suggestion's `basePrice` now includes the own-price arm, which it lacked when it
-was built from `resolveEngine`. The identities are asserted in
-`backend/test/integration/price_lists/listing-prices-batch.test.ts` and `line-prices-batch.test.ts`.
+**Caching and invalidation.** Answers are cached per process keyed by the profile
+(`ProfilePricingCacheKey`), and the profile per (organization chain, group, channel, currency), both
+under a 60 s TTL (`DEFAULT_PRICING_CACHE_TTL_MS`). Every audited price-book write runs through
+`CommandBus.run` and bumps `PricingGeneration` **after** the commit: every process clears its layers
+(Redis channel `b2b:price_lists:pricing-generation`, best effort, the TTL as the degraded bound), and
+the price surface is marked stale. The status sweep bumps when it flips a book; catalogue events
+(product, category, attribute) and channel currency changes mark the surface stale too.
 
-The listing batch is the same algorithm
-batched in "priority waves"; the price sort (`orderByUnitPrice`, `:791-883`) re-expresses it as a
-merge of per-list index streams built by running `pickPriorityChain` to exhaustion
-(`PL/backend/services/price-list-candidate-vector.ts:132-157`), with category criteria enumerated
-as 2^k subsets and refused above 8 per rule (`:104-126`, `UnorderableRuleError`).
+**Display mode** is resolved independently: product → category → organization → settings
+(`pricing.default_display_mode`, `pricing.unauthenticated_display_mode`), batched per page
+(`PriceListService.resolveDisplayModes`).
 
-### 1.3 Where the two layers overlap
+**Consumers.** Catalogue listing, product page, product links, home cards, search hits and
+suggestions, comparisons, the cart read and placement (one chain, `CartLinePricing.orderablePrices`:
+agreed price → price books → refusal; the line stores `price_source`), order placement (copies the
+source), the admin order preview and external order intake (`resolveLinePrices`), quote reference
+prices (request currency), the external catalogue API and product feeds (a feed pinned to a book
+reads that book's rows over the channel's catalogue price) — every one through the batched entry
+points; `backend/test/integration/price_lists/pricing-surfaces-agree.test.ts` holds them to the same
+amount, currency and source.
 
-| Concept | Application Rule (list level) | Matrix entry (row level) | Own brackets |
-| --- | --- | --- | --- |
-| Organization | `organization` criterion, org-chain rank | `organization_id`, org-chain rank | — |
-| Customer group | `customerGroup` criterion | **absent** | — |
-| Category | `category` criterion (product-dependent) | `category_id` selection | — |
-| Attribute | **absent** | `attribute_key/value` (isPriceRule) | — |
-| Sales channel | `salesChannel` criterion | — | — |
-| Currency | `currency` criterion | `currency_code` on fixed rows | `currency_code` per bracket |
-| Product price | — | product entry **must** name an org (`CON/price-lists.ts:266-273`) | per product |
-| Quantity | — | `min/max_quantity` | brackets |
+### 1.3 Price sort and price range
 
-So "Acme pays −10% on Screws" has at least three spellings (Acme list + category entry; any list +
-category×Acme entry; category-rule list + brackets per product), and they resolve differently.
+`orderByUnitPrice` / `pricedProductIds` read the **price surface** (`price-surface.ts`,
+`specs/160-pricing-model-v2/contracts/price-surface.md`): per profile, `price_profile_prices` holds
+the quantity-1 price of each product (the lowest variant price for a variant product); the everyone
+profile holds every priced product, a buyer profile only the products whose answer differs. A page
+is one statement over the buyer profile and the everyone profile, each read at the generation its
+profile serves. The surface is built only by the `price_lists.surface` worker (BullMQ, deduplicated,
+off with the module): a write marks profiles stale and they keep serving their previous generation
+until the worker swaps the rebuilt one in; a profile never built is answered without one — live over
+a bounded restriction (≤ 5 000 products), from the everyone surface for an unrestricted buyer page,
+or `unordered` (the catalogue's default order) when nothing is built. **No request builds a
+surface**: the order may lag a change by the worker's turnaround (SC-005: ≤ 60 s), a displayed
+price never — cards are always resolved live. Measured in
+`backend/test/perf/price_lists/price-surface.bench.ts` and `read-paths-and-performance.md` §7.
 
-### 1.4 Pain points (why pricing keeps coming back)
+### 1.4 What is still open
 
-Verified in code unless marked:
-
-1. **Two base prices, no sync.** Default-list brackets are the effective base; the Product editor
-   still edits `defaultPrice`, which was copied into the Default list **once**
-   (`…engine.ts:226-301`) and never again (no subscriber in `PL/backend`). A re-priced product keeps
-   its old Default bracket; the editor's field is silently shadowed. A product created later has no
-   Default bracket and is priced from the attribute (listing only in the channel default currency,
-   `PL/backend/services/listing-price-chain.ts:49`; the cart labels it with the basket channel's
-   default currency since P0 — it was hard-coded PLN — and refuses it on a basket whose channel is
-   gone, `CartLinePricing.orderablePrices`). Price sort ignores the
-   attribute arm (unpriced tail, `CAT/backend/services/catalog-query.service.ts:949-959`).
-2. **Percentage reference ignores the attribute arm**: `defaultBrackets` is only the Default list
-   (`pricing-service.ts:278-291`), so a % entry on a product priced only by `defaultPrice` prices nothing.
-3. **`modifiedAt` decides between same-level lists**, and renaming a list bumps it
-   (`price-list-service.ts:518-545`) → renaming can change what customers pay. Matrix writes do not
-   bump it (no `modifiedAt` in `price-matrix-service.ts`), an inconsistency on top.
-4. **Sale wins even when higher.** `lineFromEngine` charges the sale bracket whenever one exists
-   (`pricing-service.ts:88-110`): an "everyone" sale at 98 overrides Acme's contract at 95.
-5. **Customer group is not a matrix coordinate**, and a product entry requires an organization, so
-   "group VIP −10% on product P" is only expressible as a fixed bracket per currency on a group-rule list.
-6. **Attribute only in the matrix, category in both**, org in both, currency in three places.
-7. **The Default list cannot carry everyone-wide rules usefully**: its own bracket (specificity 4)
-   outranks any non-org entry (≤ 3), so E1 needs a second list with a dummy non-empty rule (§10 E1).
-8. **No channel/currency on the header** → every resolution loads every active list and evaluates
-   every rule in memory, O(products × lists) (`pricing-service.ts:440,664,993`); no index can answer
-   "which lists apply to me".
-9. ~~**Customer's own group is ignored** on listings, PDP and cart~~ — fixed by P0: one rule on
-   every path (§1.2). Still not applied by the external catalogue API, which names the bound
-   organization but not the API key's customer account.
-10. **Variants have no price dimension** (#377); `price_override` exists and is dead for pricing
-    (since P0 the storefront variant picker no longer displays it).
-11. **Cache**: process-local LRU (`pricing-cache.ts`). Since P0 it is cleared after commit, on
-    every process (Redis `b2b:price_lists:pricing-generation`, best effort, TTL as the degraded
-    bound) and by a status sweep that flips a list (read-paths §2.4); the sweep still runs every
-    5 min; catalog writes (categories, attributes, `defaultPrice`) never invalidate; 5.3 % hit
-    rate at 50 organisations (read-paths, `backend/test/perf/catalog/listing-price-viewer-cost.bench.ts:24-27`)
-    because the key carries the organisation even when its prices equal everyone's.
-12. **Several resolution chains** (listing chain, cart chain, order intake probe, buyer line
-    price) — since P0 they share the customer-group rule and the batched entry points, and the cart
-    has **one** chain for the read and for placement: `GET /api/v1/cart` prices through
-    `CartLinePricing.orderablePrices` (agreed price at the agreed quantity → price list → own price
-    in the basket channel's currency → refusal; display mode `none` refused), the chain placement's
-    drift check runs, and a line it refuses reads as unavailable — #168 (read-paths §5). A
-    reorder seeds through the same chain: every line at its current price, and a line the chain
-    refuses is left out and reported in `unavailableItems` as `no_price` — #166.
-13. **PLP cards cannot show strikethrough**: `ListingPrice` carries one amount + `isSale`
-    (`CON/price-lists.ts:514-529`); only PDP/typeahead/home cards render base+sale — since P0 every
-    `ProductSummary` carries `resolvedPrice`, so PLP cards could, but `ProductGrid` does not pass it
-    yet.
-14. **Promotions stack on sale prices with no way to exclude** (no price-list criterion in
-    `packages/modules/promotions/src/backend/services/promotion-rule-evaluator.ts`, read-paths §6).
-
-Already shipped and relevant to the PO's list: **duplication exists** — `PriceListService.duplicate`
-copies rule, roster, brackets and matrix, resets to draft, names `(copy)`
-(`price-list-service.ts:622-722`). The **`isPriceRule` attribute flag exists** and is consumed by
-the matrix only (`PL/backend/services/matrix-price-resolver.ts:66-90`, filter: choice/boolean value
-types, not language- or channel-scoped).
+1. **Precedence is read-only.** Version 1 = HY is the only version; the change flow (stage, impact
+   preview, versioned rebuild) is P3.
+2. **No admin editor in P1.** The price-book editor is P2 (`specs/161-price-book-editor/`),
+   released together with P1; until then the admin API is the only writer, and the sidebar's price
+   lists entry opens the display-mode page.
+3. **Promotions stack on sale and contract prices** — the exclusion on `price_source` is P4.
+4. **The external catalogue API** names the bound organization but not the API key's customer
+   account, so a customer's own group is not applied there.
+5. **Next.js `pricing:*` cache tags are never revalidated**, and short price-sorted and search
+   pages (#235) remain, as in P0.
+6. **No in-process write port for books.** `priceListAdminPort` — through which the PIM
+   connectors' price import wrote brackets — was removed with the old model and has no replacement
+   in P1.

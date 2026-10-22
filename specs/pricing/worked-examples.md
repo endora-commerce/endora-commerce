@@ -4,6 +4,12 @@ The product owner's three target scenarios (E1–E3) and the cases that chose th
 
 **Verified against** `master` at `b1021c71b` on 2026-10-21; §10.11 re-checked for the P0 read-path hardening (branch `fix/pricing-read-path-hardening` on `fd6255339`) on 2026-10-21. File:line citations are as of `b1021c71b`; re-check them before relying on one.
 
+**The "Today" lines** under each vector record what the **pre-160** engine (the Application rule
+and the Default list) answered, as the comparison the model was decided against. Since feature 160
+the shipped engine answers the **Expected** column (`current-model.md`); the vectors are its tests
+under `backend/test/integration/price_lists/worked-examples/`, and the demo reproduces E1–E3
+(`backend/test/integration/price_lists/demo-scenarios.test.ts`).
+
 **Section numbers.** `§N` references follow the numbering of the original analysis, which is split across this directory: §1 → `current-model.md`; §2 → `read-paths-and-performance.md` (its summary table); §3–§9, §11, §12 → `decision-record.md`; §10 → `worked-examples.md`. `read-paths §N` points into `read-paths-and-performance.md`, `peers §N` into `peer-platforms.md`. Path abbreviations: `PL/` = `packages/modules/price_lists/src/`, `CON/` = `packages/contracts/src/`, `CAT/` = `packages/modules/catalog/src/`, `SF/` = `storefront/`.
 
 ---

@@ -292,4 +292,3 @@ See "Repo map" above.
 - 160-pricing-model-v2
 - 162-custom-fields-value-carry
 - 157-custom-fields-list-filters
-- 155-catalog-order-constraints

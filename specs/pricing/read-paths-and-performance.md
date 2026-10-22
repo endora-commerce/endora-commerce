@@ -4,6 +4,14 @@ Every place a price is **read** — listings, PDP, search, typeahead, cart, chec
 
 **Verified against** `master` at `b1021c71b` on 2026-10-21, and **re-verified for the P0 read-path hardening and the #166 reorder fix** (D-287 P0, branch `fix/pricing-read-path-hardening` on `fd6255339`) on 2026-10-21. File:line citations in passages P0 did not touch are as of `b1021c71b`; the passages P0 changed cite symbols rather than lines. Re-check either before relying on it.
 
+**Status after feature 160 (2026-10-22).** The price-book model of D-287 P1 is what the code does
+(`current-model.md`). §7 — the price surface and the SC-005 measurements — describes it; the rest of
+this document audits the **pre-160** read paths (the Application-rule engine, the Default-list
+brackets, the feature-086 ordering) and is kept as the baseline P1 was measured against: its
+file:line citations name code that no longer exists, and the read paths it lists now resolve through
+the batched price-book entry points (`current-model.md` §1.2). Task T147 of
+`specs/160-pricing-model-v2/` rewrites it with the final measurements.
+
 **Section numbers.** `§N` references follow the numbering of the original analysis, which is split across this directory: §1 → `current-model.md`; §2 → `read-paths-and-performance.md` (its summary table); §3–§9, §11, §12 → `decision-record.md`; §10 → `worked-examples.md`. `read-paths §N` points into `read-paths-and-performance.md`, `peers §N` into `peer-platforms.md`. Path abbreviations: `PL/` = `packages/modules/price_lists/src/`, `CON/` = `packages/contracts/src/`, `CAT/` = `packages/modules/catalog/src/`, `SF/` = `storefront/`.
 
 ---

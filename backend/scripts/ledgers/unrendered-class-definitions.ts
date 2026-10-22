@@ -28,7 +28,9 @@
  * **line by line** and `.b2b-table-wrap` sits at the end of a multi-line
  * selector list. The same undercount is why §7.4 reports the shim's 22 classes
  * as 23 in one place and 22 in another. This file's population comes from
- * `definedClasses()`, which reads preludes between brace boundaries.
+ * `definedClasses()`, which reads preludes between brace boundaries. Feature
+ * 160 made it 14: deleting the old price-list screens left `b2b-badge--info`
+ * unrendered until P2's price-book editor.
  *
  * The other 13 entries are not `b2b-*` at all and are outside D-219's headline
  * count for a reason each names: a class a third-party library renders, a class
@@ -44,6 +46,8 @@ export const UNRENDERED_CLASS_DEFINITIONS: UnrenderedClassLedger = {
   // to delete the block with the owner's agreement, in the vocabulary's own
   // merge request rather than in a stylesheet move.
   // ---------------------------------------------------------------------
+  'b2b-badge--info':
+    'rendered only by the price-list screens feature 160 deleted with the old model; P2\'s price-book editor, released together, is its next renderer',
   'b2b-badge--solid': 'a badge variant no screen renders; drains with the badge vocabulary',
   'b2b-btn--lg': 'a button size no screen renders; the tree uses the default and `--sm`',
   'b2b-locale-strip':
