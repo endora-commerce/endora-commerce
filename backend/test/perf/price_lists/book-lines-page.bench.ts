@@ -30,33 +30,44 @@ import {
  *     broad `screw` (a name word, one product in seven), all-matching `sku` (a
  *     SKU prefix every product shares), two-character `cr` and no-match `zz`.
  *
+ * Two states (`PERF_BOOK_LINES_STATE`):
+ *   - `steady` (default) — `VACUUM ANALYZE` after the seed: the state autovacuum
+ *     leaves a catalogue in once it has run after an import (it analyses a table
+ *     after 10 % + 50 rows change, so within minutes of a bulk import).
+ *   - `fresh` — no vacuum, autovacuum held off on the four tables: the state
+ *     right after a bulk import, before autovacuum's first pass.
+ * Both are asserted, so a fresh run that misses the budget fails and says so.
+ *
  * PERF_RUN=true to run.
  *
- * **Measured 2026-10-22 — one case over budget, reported; the budget stands.**
- * One developer machine (16 threads), the test Postgres (port 5441), 50 003 /
- * 300 lines, 50 iterations, load average about 1. p95 in ms, run 1 | run 2:
+ * **Measured 2026-10-22** (one developer machine, 16 threads, the test Postgres,
+ * load average about 1; p95 ms). Steady, three runs: every case ≤ 150 ms — the
+ * largest 119.0 (all-matching search, last page, 50 003 lines) and 117.8
+ * (all-matching, first page, 300 lines); pages 62.2–100.6 at 50 003 lines.
+ * Fresh, two runs: 22 of 26 cases within budget in each, over in four
+ * case-runs — middle page 152.5, two-character search first page 159.9 / 150.3,
+ * all-matching last page 156.5. Why fresh is slower: with no statistics and no
+ * visibility map the ordered walk fetches every heap tuple it passes (59 ms
+ * against 32 ms on the deepest page), and the page-rows read uses only
+ * `price_list_id` as its index condition and filters 125 003 entries (27–40 ms
+ * against 0.5 ms). Both end with autovacuum's first analyze after the import;
+ * until then an operator sees the deepest and broadest pages of a 50 000-line
+ * book answer in about 150–160 ms instead of about 120 ms. The full table per
+ * case is in `specs/161-price-book-editor/plan.md` *Measurements* and the
+ * change's report.
  *
- * | Case | 50 003-line base book | 300-line book |
- * | --- | --- | --- |
- * | first / middle / last page | 88.6 / 110.3 / 96.2 \| 76.5 / 109.8 / 83.6 | 24.9 / 30.1 / 57.0 \| 26.3 / 52.0 / 57.3 |
- * | selective `sku-0123`, first / last | 82.3 / 84.1 \| 78.2 / 87.2 | 23.5 / 33.2 \| 23.5 / 24.6 |
- * | broad `screw`, first / last | 120.4 / 97.0 \| 123.1 / 85.2 | 83.2 / 83.8 \| 50.3 / 73.8 |
- * | all-matching `sku`, first / last | 101.0 / **142.5** \| 94.7 / **157.7** | 73.7 / 76.2 \| 72.8 / 73.9 |
- * | two-character `cr`, first / last | 105.5 / 85.9 \| 106.2 / 85.7 | 52.1 / 57.6 \| 50.7 / 54.0 |
- * | no match `zz`, first / last | 74.9 / 46.2 \| 46.9 / 47.4 | 23.3 / 23.5 \| 35.6 / 24.8 |
- *
- * The over-budget case, statement by statement (30 requests, p50 / p95): the
- * search count 35.7 / 57.9 ms; the dense page 75.0 / 87.5 ms; everything else
- * under 10 ms together. `EXPLAIN ANALYZE` of the dense page: the planner does
- * **not** walk `products_admin_order_en` — it seq-scans `products`, keeps all
- * 50 000 rows and sorts them (`external merge, Disk: 2632kB`), 88 ms; the count
- * is a seq scan with the hashed membership, 42 ms.
+ * Before the Checkpoint 2b fix the planner sorted every member instead of
+ * walking the index: all-matching search, last page 142.5 / 157.7 ms; middle
+ * page 110 ms.
  */
 
 const lineCount = Number(process.env['PERF_BOOK_LINES'] ?? '50000');
 const iterations = Number(process.env['PERF_ITERATIONS'] ?? '50');
 const budget = Number(process.env['PERF_BOOK_LINES_P95_MS'] ?? '150');
 const shouldRun = process.env['PERF_RUN'] === 'true';
+/** `steady` (default): `VACUUM ANALYZE` after the seed. `fresh`: no vacuum, autovacuum held off. */
+const state = process.env['PERF_BOOK_LINES_STATE'] === 'fresh' ? 'fresh' : 'steady';
+const steady = state === 'steady';
 const PAGE_SIZE = 100;
 
 function p95(samples: number[]): number {
@@ -85,13 +96,15 @@ describe.skipIf(!shouldRun)('price-book lines — every page within 150 ms p95 a
     small = await seedEmptyBookSql(em, 'G15 bench 300 lines');
     await seedProductTiersSql(em, small, products.slice(0, 300), 2);
     for (const table of ['products', 'product_variants', 'price_list_matrix_entries', 'price_list_product_lines']) {
-      await em.getConnection().execute(`vacuum analyze "${table}"`);
+      // Steady: what autovacuum leaves a catalogue in once it has run after an
+      // import. Fresh: the state right after the import, held there.
+      await em.getConnection().execute(steady ? `vacuum analyze "${table}"` : `alter table "${table}" set (autovacuum_enabled = false)`);
     }
   }, 15 * 60_000);
 
   afterAll(async () => {
     // eslint-disable-next-line no-console
-    console.log(`[perf/book-lines-page] lines=${lineCount} iterations=${iterations} budget=${budget}ms\n${results.join('\n')}`);
+    console.log(`[perf/book-lines-page] state=${state} lines=${lineCount} iterations=${iterations} budget=${budget}ms\n${results.join('\n')}`);
     await teardownBackendServer(h);
   });
 
