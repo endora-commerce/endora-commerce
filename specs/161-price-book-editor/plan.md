@@ -171,7 +171,7 @@ No FR is unmapped (`contracts/ui-api-mapping.md`).
 | FR-036 5 000-row save | stays interactive, progress shown | — | — |
 | SC-009 1 000-row preview | < 10 s | — | — |
 | G15 100-line page, 50 000-line book — prototype, DB side (R14) | ≤ 150 ms p95 | first 35.8, middle 31.7, last 36.2; search 54.9–82.3 ms | local `postgres-test`, 16 cores |
-| G15 end to end — bench T029 | ≤ 150 ms p95, every case | — | — |
+| G15 end to end — bench T029 | ≤ 150 ms p95, every case | 25 of 26 cases ≤ 123.1 ms; **all-matching search, last page, 50 003 lines: 142.5 / 157.7 ms (two runs)** — over budget, reported (bench header) | local `postgres-test`, 16 threads |
 
 ## Complexity Tracking
 
