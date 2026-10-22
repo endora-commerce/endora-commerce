@@ -31,6 +31,8 @@ export * from './returns.js';
 export * from './price-lists.js';
 // Feature 160 (D-287 P1) — price books: header, sets, rows, explanation, precedence.
 export * from './price-books.js';
+// Feature 161 (G17) — the decimal arithmetic the resolver prices with, shared with the admin's previews.
+export * from './price-book-decimal.js';
 export * from './taxes.js';
 export * from './promotions.js';
 export * from './inventory.js';

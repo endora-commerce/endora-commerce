@@ -1,42 +1,39 @@
 import { describe, expect, it } from 'vitest';
-import {
-  applyDiscountPercent,
-  compareDecimal,
-  formatUnits,
-  parsePercentHundredths,
-  parseUnits,
-} from './matrix-decimal.js';
+import * as contracts from '@endora-commerce/contracts';
+import * as matrixDecimal from './matrix-decimal.js';
+import { applyDiscountPercent, parsePercentHundredths } from './matrix-decimal.js';
 
 /**
- * Feature 148 — the integer decimal helpers behind percentage matrix prices
- * (research R17/R18). Amounts are `numeric(14,4)`, percentages
- * `numeric(5,2)`; both are carried as integers so a computed price is exact to
- * the four digits a typed bracket is stored at, and never drifts through a
- * float.
+ * Feature 161, G17 — the decimal helpers the admin previews with live in
+ * `@endora-commerce/contracts` (`price-book-decimal.ts`, their cases moved to
+ * `packages/contracts/test/price-book-decimal.unit.test.ts`); this module
+ * re-exports them, so the server prices with the one implementation the
+ * browser previews with, not with a copy of it.
  */
-describe('parseUnits / formatUnits', () => {
-  it('parses a decimal string to integer ten-thousandths', () => {
-    expect(parseUnits('100')).toBe(1_000_000n);
-    expect(parseUnits('100.0000')).toBe(1_000_000n);
-    expect(parseUnits('0.0525')).toBe(525n);
-    expect(parseUnits('12.5')).toBe(125_000n);
-    expect(parseUnits('0')).toBe(0n);
-  });
-
-  it('refuses what is not a non-negative decimal with up to four fractional digits', () => {
-    expect(() => parseUnits('1.00001')).toThrow();
-    expect(() => parseUnits('-1')).toThrow();
-    expect(() => parseUnits('abc')).toThrow();
-    expect(() => parseUnits('')).toThrow();
-  });
-
-  it('formats ten-thousandths with exactly four fractional digits', () => {
-    expect(formatUnits(880_000n)).toBe('88.0000');
-    expect(formatUnits(350n)).toBe('0.0350');
-    expect(formatUnits(0n)).toBe('0.0000');
+describe('one decimal implementation (161 G17)', () => {
+  it('re-exports the contracts helpers, not copies of them', () => {
+    const shared = [
+      'parseUnits',
+      'formatUnits',
+      'parseSignedUnits',
+      'parseSignedPercentHundredths',
+      'applySignedPercent',
+      'applyAmountAdjustment',
+      'normaliseAmount',
+      'compareDecimal',
+    ] as const;
+    for (const name of shared) {
+      expect(typeof contracts[name], name).toBe('function');
+      expect(matrixDecimal[name], name).toBe(contracts[name]);
+    }
   });
 });
 
+/**
+ * Feature 148 — the discount helpers of the old `discount_percent` matrix
+ * price (research R17/R18), which stay in this module: they are not part of
+ * the price-book model, so G17 does not publish them.
+ */
 describe('parsePercentHundredths', () => {
   it('parses a percentage to integer hundredths', () => {
     expect(parsePercentHundredths('12')).toBe(1200n);
@@ -75,13 +72,5 @@ describe('applyDiscountPercent', () => {
     // 9 999 999 999.9999 × 0.99 — beyond a double's 15 significant digits.
     expect(applyDiscountPercent('9999999999.9999', '1')).toBe('9899999999.9999');
     expect(applyDiscountPercent('1234567890.1234', '0.01')).toBe('1234444433.3344');
-  });
-});
-
-describe('compareDecimal', () => {
-  it('orders decimal strings numerically regardless of scale', () => {
-    expect(compareDecimal('88', '88.0000')).toBe(0);
-    expect(compareDecimal('9.5', '10')).toBe(-1);
-    expect(compareDecimal('100.0001', '100')).toBe(1);
   });
 });
