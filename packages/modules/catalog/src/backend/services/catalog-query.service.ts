@@ -581,7 +581,9 @@ export class CatalogQueryService {
 
   /**
    * `ProductSummary.resolvedPrice` — base, sale and display mode from the same
-   * resolution as `price` (D-287 P0). `null` where the channel withholds prices.
+   * resolution as `price` (D-287 P0), and the list price beside a lower buyer
+   * price when the engine answered one (161 G14). `null` where the channel
+   * withholds prices. One mapping for the listing cards and the product detail.
    */
   #summaryResolvedPrice(
     resolved: Map<string, ListingPriceDetail>,
@@ -589,7 +591,12 @@ export class CatalogQueryService {
   ): ProductSummary['resolvedPrice'] {
     const detail = resolved.get(productId);
     if (detail === undefined) return null;
-    return { basePrice: detail.basePrice, salePrice: detail.salePrice, displayMode: detail.displayMode };
+    return {
+      basePrice: detail.basePrice,
+      salePrice: detail.salePrice,
+      displayMode: detail.displayMode,
+      ...(detail.listPrice ? { listPrice: { amount: detail.listPrice.amount, currency: detail.listPrice.currency } } : {}),
+    };
   }
 
   /**

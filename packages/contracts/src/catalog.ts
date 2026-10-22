@@ -247,6 +247,13 @@ export const productResolvedPriceSchema = z.object({
   basePrice: z.object({ amount: z.string(), currency: z.string().length(3) }).nullable(),
   salePrice: z.object({ amount: z.string(), currency: z.string().length(3) }).nullable(),
   displayMode: z.enum(['gross_only', 'net_only', 'both', 'none']),
+  /**
+   * Feature 161 (G14) — the catalogue price to show beside a lower buyer price
+   * ("list price / your price"). Present only while `pricing.show_list_price`
+   * is on and the channel's everyone price is above the price charged; the
+   * decision is the pricing engine's (`ListingPriceDetail.listPrice`, G9).
+   */
+  listPrice: z.object({ amount: z.string(), currency: z.string().length(3) }).optional(),
 });
 export type ProductResolvedPrice = z.infer<typeof productResolvedPriceSchema>;
 
