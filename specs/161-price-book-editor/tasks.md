@@ -22,9 +22,9 @@ moves on before the checkpoint passes; no budget or assertion is loosened to pas
 
 ## Phase 1: Setup and baseline
 
-- [ ] T001 `git pull --rebase` on `feat/161-price-book-editor` (onto `origin/feat/160-pricing-model-v2`), `pnpm run build:packages`, run `pnpm --filter admin exec vitest run test/modules/price_lists` and `pnpm --filter backend exec vitest run test/contract/price_lists`; record the green baseline in the PR description draft
-- [ ] T002 [P] Write the shared admin test fixture for price books (books of `specs/pricing/worked-examples.md` §10.1–§10.4 as API responses, a representative session scoped to Acme, a platform-admin session) in `admin/test/helpers/price-book-fixtures.ts`
-- [ ] T003 [P] Record in `specs/161-price-book-editor/checklists/residue.md` every remaining reference to the temporary landing and the old screens (`/price-lists/display-modes` as index, `open-price-lists` target, "Price display modes" descriptions, `AppShell.tsx` comments, `price-lists-zones.test.tsx` assertions; grep `price-lists-engine`, `rule-targets`, `LinkedPriceLists`, `PriceMatrix`, `BracketGrid` over `backend/test/**`, `admin/test/**`, `storefront/test/**`, `packages/**`) — consumed by T086
+- [x] T001 `git pull --rebase` on `feat/161-price-book-editor` (onto `origin/feat/160-pricing-model-v2`), `pnpm run build:packages`, run `pnpm --filter admin exec vitest run test/modules/price_lists` and `pnpm --filter backend exec vitest run test/contract/price_lists`; record the green baseline in the PR description draft
+- [x] T002 [P] Write the shared admin test fixture for price books (books of `specs/pricing/worked-examples.md` §10.1–§10.4 as API responses, a representative session scoped to Acme, a platform-admin session) in `admin/test/helpers/price-book-fixtures.ts`
+- [x] T003 [P] Record in `specs/161-price-book-editor/checklists/residue.md` every remaining reference to the temporary landing and the old screens (`/price-lists/display-modes` as index, `open-price-lists` target, "Price display modes" descriptions, `AppShell.tsx` comments, `price-lists-zones.test.tsx` assertions; grep `price-lists-engine`, `rule-targets`, `LinkedPriceLists`, `PriceMatrix`, `BracketGrid` over `backend/test/**`, `admin/test/**`, `storefront/test/**`, `packages/**`) — consumed by T086
 
 **Checkpoint 1.**
 
