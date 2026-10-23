@@ -18,6 +18,10 @@ import { adminSession } from './render-with-session';
  * loads, so a fixture that drifts from the API shape fails at import rather
  * than rendering a screen over data the server could never send.
  *
+ * Picker answers are shaped as the API sends them: category and channel names
+ * are maps keyed by language tag (`priceBookTarget*Schema`), held by
+ * `price-book-fixtures.test.ts`.
+ *
  * - §10.1: channel **CH** "B2B PL" (PLN); categories **Screws**, **Bolts**;
  *   the `color` price-rule attribute; products **P1** *Screws 0200* (red),
  *   **P2** *Screws 0300* (blue), **P3** *Bolt 10* (red); the PLN base book
@@ -45,10 +49,10 @@ export const IDS = {
 } as const;
 
 export const CATALOG = {
-  channel: { id: IDS.channel, code: 'b2b_pl', name: 'B2B PL', currencies: ['PLN'], defaultCurrency: 'PLN' },
+  channel: { id: IDS.channel, code: 'b2b_pl', name: { 'en-US': 'B2B PL', 'pl-PL': 'B2B PL' }, currencies: ['PLN'], defaultCurrency: 'PLN' },
   categories: [
-    { id: IDS.categories.screws, slug: 'screws', name: 'Screws', parentCategoryId: null, sortOrder: 0 },
-    { id: IDS.categories.bolts, slug: 'bolts', name: 'Bolts', parentCategoryId: null, sortOrder: 1 },
+    { id: IDS.categories.screws, slug: 'screws', name: { 'en-US': 'Screws', 'pl-PL': 'Wkręty' }, parentCategoryId: null, sortOrder: 0 },
+    { id: IDS.categories.bolts, slug: 'bolts', name: { 'en-US': 'Bolts', 'pl-PL': 'Śruby' }, parentCategoryId: null, sortOrder: 1 },
   ],
   attributes: [
     {
@@ -116,7 +120,8 @@ function row(spec: {
       ...NO_LABELS,
       productName: product?.name ?? null,
       productSku: product?.sku ?? null,
-      categoryPath: category?.name ?? null,
+      // The API resolves the row's category path in the admin language (G2).
+      categoryPath: category?.name['en-US'] ?? null,
       attributeLabel: spec.color ? 'Color' : null,
       attributeValueLabel: spec.color ? (spec.color === 'red' ? 'Red' : 'Blue') : null,
     },
