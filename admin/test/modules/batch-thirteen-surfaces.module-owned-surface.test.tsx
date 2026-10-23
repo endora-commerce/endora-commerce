@@ -199,23 +199,29 @@ interface Subject {
 const SUBJECTS: readonly Subject[] = [
   {
     module: 'price_lists',
-    // Feature 160 — the display-mode page is the module's one screen until
-    // P2's price-book editor; the roster and the list detail went with the
-    // old model they edited.
-    route: '/price-lists/display-modes',
+    // Feature 161 — the price-book list is the landing again; feature 160 had
+    // left the display-mode page as the module's one screen meanwhile.
+    route: '/price-lists',
     permission: 'price_lists:read',
     // The module's own write code, and the sharp near miss: `routes.ts` builds
     // one `readGate` and one `writeGate`, every screen gates its save controls
     // on the second, and a gate that treated the two as interchangeable would
-    // open all three screens and pass every case below.
+    // open the read screens to it and pass every case below. (The create flow,
+    // `/price-lists/new`, opens on this code by design — feature 161 R3.)
     nearMiss: 'price_lists:write',
     labelKey: 'nav.priceLists.label',
     specifier: '@endora-commerce/mod-price-lists/admin',
     section: 'pricing',
-    routes: ['/price-lists/display-modes'],
-    navTargets: ['/price-lists/display-modes'],
+    routes: [
+      '/price-lists',
+      '/price-lists/new',
+      '/price-lists/explain',
+      '/price-lists/display-modes',
+      '/price-lists/:id',
+    ],
+    navTargets: ['/price-lists'],
     retiredSharedKeys: ['appShell.nav.priceLists', 'appShell.palette.sub.pricingRules'],
-    zones: ['category.editor.after', 'organization.detail.after'],
+    zones: ['category.editor.after', 'organization.detail.after', 'product.editor.pricing.after'],
     surfaceDirectories: ['price_lists'],
     locked: true,
   },

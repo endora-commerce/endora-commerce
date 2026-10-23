@@ -104,21 +104,23 @@ export const manifest = defineModuleManifest({
     { code: PRICE_LIST_PERMISSIONS.WRITE, label: 'Edit price lists, brackets and display modes' },
   ],
   /**
-   * The palette advertisement for this module's landing screen (Principle
-   * XVI), arriving with feature 091's Phase 4 batch 13.
+   * The palette advertisements (Principle XVI): the landing screen since
+   * feature 091's Phase 4 batch 13, and the price-book editor's two other
+   * entry points since feature 161 (FR-029, `research.md` R3; moved from
+   * spec 160 T105, whose target screens did not exist yet).
    *
-   * It replaces a hand-written `PALETTE_ITEMS` row in
-   * `admin/src/components/AppShell.tsx` and carries that row's destination, its
-   * code and its keywords, so an operator's ⌘K answer for *cennik* is what it
-   * was. What changes is who answers: the shell's array was a copy the server
-   * was never asked about, while this declaration is resolved from the manifest
-   * against the effective enabled-set — which for a module that declares
-   * `activation.nonDeactivatable` is inert today and stops being inert the day
-   * the lock is lifted. Unlike batch 12's `quote_requests` row there was
-   * nothing here for it to duplicate: this module declared no action at all.
+   * `open-price-lists` replaced a hand-written `PALETTE_ITEMS` row in
+   * `admin/src/components/AppShell.tsx` and carries that row's code and
+   * keywords, so an operator's ⌘K answer for *cennik* is what it was. Feature
+   * 160 pointed it at the display-mode page while there was no book list;
+   * feature 161 points it back at `/price-lists`.
    *
-   * The label and the description are this module's own bundle's, the two
-   * strings the deleted row rendered out of `_i18n`'s.
+   * Each `requiredPermission` is the code its `targetRoute` opens on in this
+   * module's `./admin` declaration — read off the route rather than chosen, so
+   * the palette never advertises a screen the code cannot open (issue #232;
+   * `check:action-route-permissions`). The create flow opens on the write code,
+   * the `/new` shape of `blog` and `sales_channels`. Labels and descriptions
+   * are this module's own bundle's.
    */
   actions: [
     {
@@ -126,15 +128,33 @@ export const manifest = defineModuleManifest({
       labelKey: 'actions.openPriceLists.label',
       descriptionKey: 'actions.openPriceLists.description',
       icon: 'CircleDollarSign',
-      // Feature 160 — the display-mode page until P2's price-book editor lands
-      // (the old roster went with the old model).
-      targetRoute: '/price-lists/display-modes',
-      // The code the landing `GET` enforces and the code this module's own
-      // `./admin` route declaration carries — read off the route rather than
-      // chosen, so the palette never advertises a 403 (issue #232).
+      targetRoute: '/price-lists',
       requiredPermission: PRICE_LIST_PERMISSIONS.READ,
-      keywords: ['pricing', 'prices', 'price list', 'cennik', 'cenniki'],
+      keywords: ['pricing', 'prices', 'price list', 'price book', 'cennik', 'cenniki'],
       weight: 240,
+    },
+    {
+      id: 'new-price-book',
+      labelKey: 'actions.newPriceBook.label',
+      descriptionKey: 'actions.newPriceBook.description',
+      icon: 'PlusCircle',
+      targetRoute: '/price-lists/new',
+      requiredPermission: PRICE_LIST_PERMISSIONS.WRITE,
+      // Polish keywords are written folded: the palette folds diacritics on both
+      // sides of the match (`foldDiacritics`), and a module's sources default to
+      // English (`check:default-language-prose`).
+      keywords: ['new price book', 'create price list', 'nowy cennik', 'utworz cennik'],
+      weight: 241,
+    },
+    {
+      id: 'open-price-explainer',
+      labelKey: 'actions.openPriceExplainer.label',
+      descriptionKey: 'actions.openPriceExplainer.description',
+      icon: 'Search',
+      targetRoute: '/price-lists/explain',
+      requiredPermission: PRICE_LIST_PERMISSIONS.READ,
+      keywords: ['why this price', 'price explanation', 'explain price', 'wyjasnienie ceny', 'dlaczego ta cena'],
+      weight: 242,
     },
   ],
   settings,

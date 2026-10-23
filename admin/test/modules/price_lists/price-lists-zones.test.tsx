@@ -7,11 +7,13 @@ import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 
 /**
- * `price_lists` contributes two zones (feature 091, P7a and P7b; FR-007).
+ * `price_lists` contributes three zones (feature 091, P7a and P7b; FR-007;
+ * feature 161 T043).
  *
  * Feature 160 removed the third, `product.editor.pricing.after` with its
  * *Linked price lists* panel, along with the old model it listed; P2's
- * base-price zone takes the member back.
+ * base-price panel (feature 161, `specs/161-price-book-editor/research.md` R7)
+ * takes the member back, on the same code as the other two.
  *
  * ## The defect this replaces
  *
@@ -39,12 +41,13 @@ import { adminSession, modulePresence, withSession } from '../../helpers/render-
  * `<AdminZone>` over the real provider. A zone name, a weight or a
  * `requiredPermission` that drifts fails here.
  *
- * ## Three cases, not four, and the missing one is asserted rather than skipped
+ * ## The operator's off state is asserted missing rather than skipped
  *
- * `price_lists` declares `activation.nonDeactivatable`, so it has no off state
- * for a test to drive (`plan.md` Ruling 2). The lock is read from the manifest
- * below; the axis this module does have — the permission — takes the other
- * three.
+ * `price_lists` declares `activation.nonDeactivatable`, so an operator cannot
+ * switch it off (`plan.md` Ruling 2). The lock is read from the manifest
+ * below. The two axes this module does have are driven: the permission, and
+ * platform availability — a deployment that does not install the module
+ * (feature 161 T043).
  */
 
 const getSpy = vi.fn();
@@ -73,20 +76,28 @@ const ORGANIZATION_ID = '00000000-0000-4000-8000-0000000000a1';
 
 const REGISTRY = [{ moduleId: 'price_lists', contributions: priceLists.contributions }];
 
-const BUNDLE = passthroughBundle('core', [
-  'priceLists.displayMode.rowLabel',
-  'priceLists.displayMode.inherit',
-  'priceLists.displayMode.grossOnly',
-  'priceLists.displayMode.netOnly',
-  'priceLists.displayMode.both',
-  'priceLists.displayMode.none',
-  'priceLists.displayMode.savedSuffix',
-]);
+const PRODUCT_ID = '00000000-0000-4000-8000-000000161b01';
+
+const BUNDLE = {
+  ...passthroughBundle('core', [
+    'priceLists.displayMode.rowLabel',
+    'priceLists.displayMode.inherit',
+    'priceLists.displayMode.grossOnly',
+    'priceLists.displayMode.netOnly',
+    'priceLists.displayMode.both',
+    'priceLists.displayMode.none',
+    'priceLists.displayMode.savedSuffix',
+  ]),
+  // The base-price panel is a feature-161 screen and speaks in this module's
+  // own namespace, not in `core`.
+  ...passthroughBundle('price_lists', ['basePrices.title', 'basePrices.description']),
+};
 
 function renderZone(options: {
   readonly name: AdminZoneName;
   readonly props: Record<string, unknown>;
   readonly permissions?: readonly string[];
+  readonly present?: boolean;
 }): HTMLElement {
   const { container } = renderWithI18n(
     withSession(
@@ -101,7 +112,10 @@ function renderZone(options: {
       </MemoryRouter>,
       {
         session: adminSession({ permissions: [...(options.permissions ?? ['price_lists:read'])] }),
-        presence: modulePresence({ present: ['price_lists'] }),
+        presence:
+          options.present === false
+            ? modulePresence({ absent: ['price_lists'] })
+            : modulePresence({ present: ['price_lists'] }),
         contributions: REGISTRY,
       },
     ),
@@ -110,22 +124,27 @@ function renderZone(options: {
   return container;
 }
 
-describe('price_lists contributes the category and organization zones', () => {
+describe('price_lists contributes the category, organization and product-pricing zones', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getSpy.mockImplementation(async (url: string) => {
       if (url.includes('/display-mode-overrides/')) return { data: { mode: 'inherit' } };
+      if (url.includes('/price-books/')) return { data: { items: [] } };
       throw new Error(`unexpected url ${url}`);
     });
   });
 
-  it('declares exactly the two display-mode members, with no match on any', () => {
+  it('declares exactly the two display-mode members and the base-price member, with no match on any', () => {
     // `match` narrows the *mounts of one place* (Z13). Each of these members
     // has one host and one mount, so a `match` here could only ever be an
     // enumeration of another module's vocabulary — asserted absent so a later
     // author cannot add one quietly.
     const zones = priceLists.contributions.zones ?? [];
-    expect(zones.map((zone) => zone.zone)).toEqual(['category.editor.after', 'organization.detail.after']);
+    expect(zones.map((zone) => zone.zone)).toEqual([
+      'category.editor.after',
+      'organization.detail.after',
+      'product.editor.pricing.after',
+    ]);
     for (const zone of zones) {
       expect(zone.match, zone.zone).toBeUndefined();
       expect(zone.requiredPermission, zone.zone).toBe('price_lists:read');
@@ -207,6 +226,46 @@ describe('price_lists contributes the category and organization zones', () => {
     }
   });
 
+  it('renders the base-price panel into the product editor\'s pricing tab (161 T043)', async () => {
+    // R7: the end of the Pricing tab, after the PIM panels of
+    // `product.editor.pricing.before`. The panel's content is Phase 6's; what
+    // this proves is the member, the mount and the gate.
+    const zone = (priceLists.contributions.zones ?? []).find(
+      (z) => z.zone === 'product.editor.pricing.after',
+    );
+    expect(zone?.weight).toBe(100);
+    const container = renderZone({
+      name: 'product.editor.pricing.after',
+      props: { productId: PRODUCT_ID },
+    });
+    await waitFor(() => expect(container.textContent).toContain('basePrices.title'));
+  });
+
+  it('renders no base-price panel without price_lists:read', async () => {
+    const container = renderZone({
+      name: 'product.editor.pricing.after',
+      props: { productId: PRODUCT_ID },
+      permissions: ['catalog:write'],
+    });
+    await waitFor(() => expect(container.textContent).toBe(''));
+    expect(getSpy).not.toHaveBeenCalled();
+  });
+
+  it('renders none of its zones where the platform does not offer the module', async () => {
+    // The operator axis is locked (below); the platform axis is not — a
+    // deployment may not install `price_lists`, and then every contribution
+    // goes with it (Principle XVII). The positive control is the case above.
+    for (const [name, props] of [
+      ['category.editor.after', { categoryId: CATEGORY_ID }],
+      ['organization.detail.after', { organizationId: ORGANIZATION_ID }],
+      ['product.editor.pricing.after', { productId: PRODUCT_ID }],
+    ] as const) {
+      const container = renderZone({ name, props, present: false });
+      await waitFor(() => expect(container.textContent, name).toBe(''));
+    }
+    expect(getSpy).not.toHaveBeenCalled();
+  });
+
   it('renders neither zone without price_lists:read, and fetches no chunk', async () => {
     // Both endpoints are behind `requireAdmin('price_lists:read')`, and the
     // renderer applies the declared code before it touches `React.lazy` — so an
@@ -260,9 +319,9 @@ describe('price_lists contributes the category and organization zones', () => {
     expect(tree).not.toContain('categories.priceDisplayMode');
   });
 
-  it('has no off state to drive, and says so from its own manifest', () => {
-    // Ruling 2: the fourth case is missing because the platform refuses to have
-    // it. Read from the manifest rather than skipped, so a module that stops
+  it('has no operator off state to drive, and says so from its own manifest', () => {
+    // Ruling 2: the operator's off case is missing because the platform refuses
+    // to have it; the platform axis is driven above. Read from the manifest rather than skipped, so a module that stops
     // being locked fails here instead of quietly losing a case.
     expect(manifest.activation).toEqual(
       expect.objectContaining({ nonDeactivatable: true }),
