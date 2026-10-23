@@ -737,6 +737,73 @@ export const priceBookRowsWriteResultSchema = z.object({
 });
 export type PriceBookRowsWriteResult = z.infer<typeof priceBookRowsWriteResultSchema>;
 
+/** The answer of `GET /api/v1/admin/price-books/:id/rows` (G3): one page of rows. */
+export const priceBookRowsResponseSchema = z.object({
+  data: z.array(priceBookRowSchema),
+  meta: pageMetaSchema,
+});
+export type PriceBookRowsResponse = z.infer<typeof priceBookRowsResponseSchema>;
+
+// --- Targets: the pickers' answers (feature 161, T045) ---------------------------
+
+/**
+ * The shapes `GET /api/v1/admin/price-books/targets/*` answer — the header
+ * editor's and the grid's pickers. Every answer is `{ data: { items } }`.
+ * Written down by feature 161 so the editor's client parses them (Principle
+ * II); the routes answered these shapes since feature 160.
+ */
+const targetsOf = <T extends z.ZodTypeAny>(item: T) => z.object({ data: z.object({ items: z.array(item) }) });
+
+/** `…/targets/organizations?search=` and `?ids=` (G12), scope-filtered. */
+export const priceBookTargetOrganizationSchema = z.object({ id: uuidSchema, name: z.string(), taxId: z.string() });
+export type PriceBookTargetOrganization = z.infer<typeof priceBookTargetOrganizationSchema>;
+export const priceBookTargetOrganizationsResponseSchema = targetsOf(priceBookTargetOrganizationSchema);
+
+/** `…/targets/customer-groups`. */
+export const priceBookTargetCustomerGroupSchema = z.object({ id: uuidSchema, code: z.string(), name: z.string() });
+export type PriceBookTargetCustomerGroup = z.infer<typeof priceBookTargetCustomerGroupSchema>;
+export const priceBookTargetCustomerGroupsResponseSchema = targetsOf(priceBookTargetCustomerGroupSchema);
+
+/** `…/targets/categories`: live categories, as a flat list with their parent; `name` by language tag. */
+export const priceBookTargetCategorySchema = z.object({
+  id: uuidSchema,
+  slug: z.string(),
+  name: z.record(z.string(), z.string()),
+  parentCategoryId: uuidSchema.nullable(),
+  sortOrder: z.number().int(),
+});
+export type PriceBookTargetCategory = z.infer<typeof priceBookTargetCategorySchema>;
+export const priceBookTargetCategoriesResponseSchema = targetsOf(priceBookTargetCategorySchema);
+
+/** `…/targets/attributes`: eligible *Price list rules* attributes with their option values. */
+export const priceBookTargetAttributeSchema = z.object({
+  key: z.string(),
+  label: z.string(),
+  valueType: z.string(),
+  options: z.array(z.object({ value: z.string(), label: z.string() })),
+});
+export type PriceBookTargetAttribute = z.infer<typeof priceBookTargetAttributeSchema>;
+export const priceBookTargetAttributesResponseSchema = targetsOf(priceBookTargetAttributeSchema);
+
+/**
+ * `…/targets/sales-channels?currency=`: channels, narrowed to those offering a
+ * currency when one is asked; `name` by language tag.
+ */
+export const priceBookTargetSalesChannelSchema = z.object({
+  id: uuidSchema,
+  code: z.string(),
+  name: z.record(z.string(), z.string()),
+  currencies: z.array(CURRENCY),
+  defaultCurrency: z.string(),
+});
+export type PriceBookTargetSalesChannel = z.infer<typeof priceBookTargetSalesChannelSchema>;
+export const priceBookTargetSalesChannelsResponseSchema = targetsOf(priceBookTargetSalesChannelSchema);
+
+/** `…/targets/currencies`: every currency a channel offers, with the channels' codes. */
+export const priceBookTargetCurrencySchema = z.object({ code: CURRENCY, exposedByChannels: z.array(z.string()) });
+export type PriceBookTargetCurrency = z.infer<typeof priceBookTargetCurrencySchema>;
+export const priceBookTargetCurrenciesResponseSchema = targetsOf(priceBookTargetCurrencySchema);
+
 // --- Explanation (FR-020, FR-038) ----------------------------------------------
 
 export const PRICE_BOOK_MAX_RESOLVE_LINES = 200;

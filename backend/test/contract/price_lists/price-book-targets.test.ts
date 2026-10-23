@@ -2,6 +2,14 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { setupBackendServer, teardownBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
 import { setupPricingFixture, type PricingFixture } from '../../helpers/pricing-fixture.js';
 import { createSalesRep, priceBookApi, type ApiClient } from '../../helpers/price-book-admin.js';
+import {
+  priceBookTargetAttributesResponseSchema,
+  priceBookTargetCategoriesResponseSchema,
+  priceBookTargetCurrenciesResponseSchema,
+  priceBookTargetCustomerGroupsResponseSchema,
+  priceBookTargetOrganizationsResponseSchema,
+  priceBookTargetSalesChannelsResponseSchema,
+} from '@endora-commerce/contracts';
 
 /**
  * Feature 160 (US7, T099, FR-007, FR-003) — the pickers the price-book editor
@@ -59,6 +67,29 @@ describe('admin price-book targets (feature 160 US7)', () => {
     expect(categories.body.data.items.map((c) => c.id)).toEqual(expect.arrayContaining([f.categories.screws, f.categories.bolts]));
     const currencies = await api.get<Items<{ code: string }>>('/api/v1/admin/price-books/targets/currencies');
     expect(currencies.body.data.items.map((c) => c.code)).toEqual(expect.arrayContaining(['PLN', 'EUR']));
+  });
+
+  it('answers every picker in the shape of its contracts schema (161 T045)', async () => {
+    // The editor's API client parses each answer through these schemas, so a
+    // field renamed here and not there is a refusal in the browser — this case
+    // is what keeps the two in step (Principle II).
+    const cases = [
+      ['/api/v1/admin/price-books/targets/organizations?search=Acme', priceBookTargetOrganizationsResponseSchema],
+      [`/api/v1/admin/price-books/targets/organizations?ids=${f.orgs.Acme.id}`, priceBookTargetOrganizationsResponseSchema],
+      ['/api/v1/admin/price-books/targets/customer-groups', priceBookTargetCustomerGroupsResponseSchema],
+      ['/api/v1/admin/price-books/targets/categories', priceBookTargetCategoriesResponseSchema],
+      ['/api/v1/admin/price-books/targets/attributes', priceBookTargetAttributesResponseSchema],
+      ['/api/v1/admin/price-books/targets/sales-channels', priceBookTargetSalesChannelsResponseSchema],
+      ['/api/v1/admin/price-books/targets/sales-channels?currency=EUR', priceBookTargetSalesChannelsResponseSchema],
+      ['/api/v1/admin/price-books/targets/currencies', priceBookTargetCurrenciesResponseSchema],
+    ] as const;
+    for (const [path, schema] of cases) {
+      const res = await api.get<unknown>(path);
+      expect(res.status, `${path}: ${res.raw}`).toBe(200);
+      const parsed = schema.safeParse(res.body);
+      expect(parsed.success, `${path}: ${parsed.success ? '' : JSON.stringify(parsed.error.issues)}`).toBe(true);
+      expect((res.body as { data: { items: unknown[] } }).data.items.length, path).toBeGreaterThan(0);
+    }
   });
 
   it('offers a representative only the organizations in their scope', async () => {
