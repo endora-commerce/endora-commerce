@@ -233,7 +233,7 @@ export class PriceSurface {
         for (const book of change.books) {
           if (book.retire) await this.#retire(book.facts.map((f) => f.bookId));
           const profiles = await this.#profileRefs();
-          if (profiles.length === 0) return;
+          if (profiles.length === 0) break;
           const facts: ResolvedBookFacts[] = [];
           for (const f of book.facts) {
             facts.push({ ...f, channelIds: f.channelIds ?? (f.live && !f.isSystem ? await this.deps.bookChannels(f.bookId) : []) });
