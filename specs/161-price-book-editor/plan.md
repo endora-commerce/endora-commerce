@@ -165,13 +165,14 @@ No FR is unmapped (`contracts/ui-api-mapping.md`).
 
 | What | Target | Measured | Machine |
 | --- | --- | --- | --- |
-| SC-002 paste 50 × 3 and save | < 2 min | — | — |
-| SC-004 keystroke-to-paint, 200 × 6 | < 100 ms | — | — |
-| SC-004 focus move, 200 × 6 | < 100 ms | — | — |
-| FR-036 5 000-row save | stays interactive, progress shown | — | — |
-| SC-009 1 000-row preview | < 10 s | — | — |
+| SC-002 paste 50 × 3 and save | < 2 min | **needs a person** (a timed hand walkthrough in a browser); the scripted parts — a 150-cell paste applied as one group and saved — are covered by `price-book-grid.edit.test.tsx` and the 5 000-cell figure below | — |
+| SC-004 keystroke-to-paint, 200 × 6 | < 100 ms | **needs a person** (browser paint timing); render counts asserted instead: typing re-renders no cell, a commit two (`admin/test/kit/editable-grid.perf.test.tsx`) | — |
+| SC-004 focus move, 200 × 6 | < 100 ms | **needs a person** (browser paint timing); a move re-renders exactly the two cells it touches, a PageDown too (same test) | — |
+| FR-036 5 000-row save | stays interactive, progress shown | client: a 5 000-cell paste applied and the batch built in 73–93 ms (`book-edit-state.perf.test.ts`; was 4 269 ms before `editCells`); server: preview 205 ms, commit 1 024 ms (`backend/test/perf/price_lists/editor-import-save.bench.ts`, 2026-10-23); progress is the save's live status | local `postgres-test`, 16 threads |
+| SC-009 1 000-row preview | < 10 s | 83 ms from the file's text to the preview's answer (codec + `PUT …/rows?dryRun=true`; same bench) | local `postgres-test`, 16 threads |
 | G15 100-line page, 50 000-line book — prototype, DB side (R14) | ≤ 150 ms p95 | first 35.8, middle 31.7, last 36.2; search 54.9–82.3 ms | local `postgres-test`, 16 cores |
 | G15 end to end — bench T029, steady (VACUUM ANALYZE) | ≤ 150 ms p95, every case | 26 of 26 in each of 3 runs (largest 119.0 ms); after the page-rows lookup change, 1 run, 26 of 26 (largest 125.3 ms) | local `postgres-test`, 16 threads |
+| SC-001 configure E1–E3 within 10 minutes | 10 min | **needs a person**: the walkthrough of `quickstart.md` §3 by an operator who has not seen the editor; the configuration reaching the vectors is T064 | — |
 | G15 end to end — bench T029, fresh (no VACUUM) | reported | after the page-rows lookup change, 2 runs: over in 3 case-runs, all 50 003-line searches — broad first 151.9, all-matching last 152.6, two-character first 150.6 ms; the search count and the dense walk read every product's heap tuple until autovacuum's first pass. **Accepted by the owner on 2026-10-22**: the budget is measured in the steady state; the fresh-state overrun (~150–153 ms p95 on the broadest searches before the first autovacuum) is not a defect of this feature; follow-up issue #409 | same |
 
 ## Complexity Tracking
