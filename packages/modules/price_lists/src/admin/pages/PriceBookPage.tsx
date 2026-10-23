@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useId, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { History, RotateCcw, SearchX } from 'lucide-react';
+import { Copy, History, RotateCcw, SearchX } from 'lucide-react';
 import type { PriceBook, PriceBookAudienceKind, PriceBookTargetSalesChannel } from '@endora-commerce/contracts';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button, PageHeader, buttonVariants } from '@endora-commerce/admin-kit/ui';
+import { DuplicateDialog } from '../components/DuplicateDialog.js';
 import { PriceBookGrid } from '../components/PriceBookGrid.js';
 import { PriceBookHeaderForm } from '../components/PriceBookHeaderForm.js';
 import { errorMessage, errorStatus } from '../lib/api-errors.js';
@@ -39,6 +40,7 @@ export function PriceBookPage(): ReactNode {
   const [state, setState] = useState<BookState>({ kind: 'loading' });
   const [channels, setChannels] = useState<PriceBookTargetSalesChannel[]>([]);
   const [kinds, setKinds] = useState<readonly PriceBookAudienceKind[]>(AUDIENCE_KINDS);
+  const [duplicating, setDuplicating] = useState(false);
   const [params, setParams] = useSearchParams();
   const tab: Tab = params.get('tab') === 'prices' ? 'prices' : 'settings';
   const tabsId = useId();
@@ -139,13 +141,21 @@ export function PriceBookPage(): ReactNode {
           </span>
         }
         actions={
-          <Link
-            to={`/audit-log?objectType=price_list&objectId=${encodeURIComponent(book.id)}`}
-            className={buttonVariants({ variant: 'outline' })}
-          >
-            <History aria-hidden="true" />
-            {t('priceBooks.header.history')}
-          </Link>
+          <>
+            {hasPermission('price_lists:write') && !book.isSystem ? (
+              <Button type="button" variant="outline" onClick={(): void => setDuplicating(true)}>
+                <Copy aria-hidden="true" />
+                {t('duplicate.open')}
+              </Button>
+            ) : null}
+            <Link
+              to={`/audit-log?objectType=price_list&objectId=${encodeURIComponent(book.id)}`}
+              className={buttonVariants({ variant: 'outline' })}
+            >
+              <History aria-hidden="true" />
+              {t('priceBooks.header.history')}
+            </Link>
+          </>
         }
       />
       <div role="tablist" aria-label={t('priceBooks.book.tabs')} className="mb-4 flex gap-1 border-b">
@@ -178,6 +188,7 @@ export function PriceBookPage(): ReactNode {
           onReload={(): void => void load()}
         />
       </div>
+      {duplicating ? <DuplicateDialog book={book} channels={channels} kinds={kinds} onClose={(): void => setDuplicating(false)} /> : null}
       <div id={`${tabsId}-prices-panel`} role="tabpanel" aria-labelledby={`${tabsId}-prices-tab`} hidden={tab !== 'prices'}>
         <PriceBookGrid book={book} editable={editable} onBookChanged={(next): void => setState({ kind: 'ready', book: next })} />
       </div>
