@@ -38,7 +38,7 @@ Plus the behavioural flags and a numeric position:
 | `isVariantAxis` | `false` | Configurable-product variant picker |
 | `isRequired` | `false` | Product-save validator (only when the attribute is in the assigned Attribute Set) |
 | `isPromoRule` | `false` | Promotion Rule criterion picker |
-| `isPriceRule` | `false` | Price Lists — whether the attribute may select products in a price list's **price matrix** (the `price_lists` module). Only a single-choice, multiple-choice or yes/no attribute that is neither per-language nor per-channel qualifies. Clearing the flag deactivates the matrix entries that use the attribute — they stop affecting prices and resume when the flag is set again; it never causes a pricing error. |
+| `isPriceRule` | `false` | Price books (the `price_lists` module) — shown as **Price list rules**: whether a price book may price products by this attribute's value, on an *attribute value* line or a *category and attribute value* line. Only a single-choice, multiple-choice or yes/no attribute that is neither per-language nor per-channel qualifies. A variant matches on its own axis values, overlaid on its product's values. Clearing the flag deactivates the lines that use the attribute — they stop affecting prices, the price grid shows them as *Inactive*, and they resume when the flag is set again; it never causes a pricing error. |
 | `isVisibleOnProductPage` | `false` | PDP "Parametry produktu" tab |
 | `displayAsSlider` | `false` | Storefront sidebar — renders a range slider; only valid for `valueType ∈ ('number','price')` |
 | `filterPosition` | `0` | Storefront sidebar sort key (ascending; ties broken alphabetically by the resolved label) |
@@ -234,11 +234,15 @@ internals:
 - `buildVisibleAttributesProjection()` — internal, used by the PDP
   detail response to assemble the `visibleAttributes[]` payload.
 
-`isPriceRule` has no method of its own. A pricing consumer reads it
-through the `catalogAttributeReadPort` — `listByFlag('isPriceRule')`
-for the attributes a price rule may name, and `isPriceRule` on every
-attribute view to refuse one that may not — and the admin picker
-payload is `GET /api/v1/admin/catalog/attributes/by-flag?flag=isPriceRule`.
+`isPriceRule` has no method of its own. `price_lists` reads it through
+the `catalogAttributeReadPort` — `listByFlag('isPriceRule')` for the
+attributes a price-book line may name, and `isPriceRule` on every
+attribute view to refuse one that may not — once per pricing batch, so a
+flag change takes effect on the next resolution; an `attribute.updated.v1`
+event also clears the pricing caches and marks the price surface stale. The
+price-book editor's picker is
+`GET /api/v1/admin/price-books/targets/attributes`, which lists only the
+eligible attributes with their option values.
 
 ## See also
 

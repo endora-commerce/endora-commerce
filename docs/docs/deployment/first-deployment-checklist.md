@@ -320,8 +320,9 @@ Those two, and no others. The promotion rule builder and the PWA push-audience b
 show a group list, but each reads it through **its own** module's endpoint
 (`/api/v1/admin/promotions/rule-targets/customer-groups`,
 `/api/v1/admin/pwa/rule-targets/customer-groups`) behind that module's own read permission, so
-they are unaffected by this grant. The price-list rule builder was the exception until
-recently; it now reads its list behind `price_lists:read`, which is the subject of D3.
+they are unaffected by this grant. The price-book editor's customer-group picker is the same
+kind of case: it reads `GET /api/v1/admin/price-books/targets/customer-groups` behind
+`price_lists:read`, which is the subject of D3.
 
 The same grant can be made over the API:
 `PUT /api/v1/admin/admin-roles/<code>` with the role's full permission list including the new
@@ -335,52 +336,47 @@ grant must still get `403` — that is the other half of the proof.
 
 ### D3. Grant `price_lists:read` and `price_lists:write`
 
-**Why.** The `price_lists` module used to declare no permissions of its own: all 25 of
-its admin routes were gated by `catalog:write`. A role granted `catalog:write` so somebody could
-edit product descriptions could also create, edit and delete price lists — that is, change what
-customers pay. Nobody chose that boundary; it was the side effect of a missing declaration. The
-module now owns `price_lists:read` and `price_lists:write`
-(`packages/modules/price_lists/src/manifest.ts`), split by what each route does rather than
-mapped wholesale: reading a list, its product roster, its brackets, the display-mode overrides
-and the rule-target pickers is `:read`; anything that persists is `:write`.
+**Why.** Pricing has permissions of its own, separate from the catalogue: a role granted
+`catalog:write` so somebody can edit product descriptions must not thereby be able to change what
+customers pay. The `price_lists` module declares `price_lists:read` and `price_lists:write`
+(the `price_lists` module's manifest, `src/manifest.ts`), split by what each route does: seeing price
+books, their prices, base prices, the price explainer and *Pricing settings*, and the pickers
+behind them, is `:read`; anything that persists — books, rows, base prices, display modes, the
+list-price setting — is `:write`. The admin API is `/api/v1/admin/price-books/…`, with the
+display-mode overrides under `/api/v1/admin/pricing/display-mode-overrides`.
 
-The same change closed the last surviving legacy gate:
-`GET /api/v1/admin/pricing/rule-targets/customer-groups` answered on `catalog:write`, so a
-catalogue editor could enumerate the client's customer groups. It now answers on
-`price_lists:read`, matching its `promotions` and `pwa` twins.
-
-**Nothing grants the new codes automatically**, and — as in D2 — a compatibility gate accepting
-`catalog:write` alongside them was offered and refused, because it keeps a wrong permission
-alive past the moment it stopped being right. A role holding only `catalog:write` therefore has
-**no** pricing access at all: the sidebar entry disappears, `/price-lists` 403s, and the
-**Pricing** tab on the product editor renders its error state instead of the linked price lists
-(it reads `GET /api/v1/admin/products/:productId/price-lists`, now a `price_lists:read` route).
-The wildcard `*` role is unaffected.
+**Nothing grants the codes automatically**, and a compatibility gate accepting `catalog:write`
+alongside them was offered and refused, because it keeps a wrong permission alive past the moment
+it stopped being right. A role holding only `catalog:write` therefore has **no** pricing access at
+all: the **Price books** sidebar entry and the ⌘K actions disappear, `/price-lists` answers as
+forbidden, and the product editor's **Pricing** tab shows no base prices (the panel reads
+`GET /api/v1/admin/price-books/base-prices`, a `price_lists:read` route). The wildcard `*` role is
+unaffected.
 
 **Do (operator).** On `/admin-roles`, for every role that is not `*`, decide pricing explicitly:
 
 | A role whose holder… | needs |
 | --- | --- |
-| manages price lists, brackets, rules or display-mode overrides (`/price-lists`, `/price-lists/:id`, `/price-lists/display-modes`) | `price_lists:read` + `price_lists:write` |
-| only needs to see a quoted price explained — reads price lists, or opens the **Pricing** tab on a product | `price_lists:read` |
-| works in another module's screen that offers price-list or currency pickers — they read `GET /api/v1/admin/price-lists-engine` and `GET /api/v1/admin/pricing/rule-targets/currencies` | `price_lists:read`, on top of that module's own permissions |
+| manages price books, base prices or display modes (`/price-lists`, `/price-lists/new`, `/price-lists/:id`, `/price-lists/display-modes`, the product's *Base prices* panel) | `price_lists:read` + `price_lists:write`, and `catalog:read` to add product lines through the product browser (the role editor shows the shortfall) |
+| only needs to see a quoted price explained — reads price books, opens the price explainer or the product's *Pricing* tab | `price_lists:read` |
+| prefills agreed prices on the admin quote-request screens, which call `POST /api/v1/admin/price-books/resolve` | `price_lists:read`, on top of that module's own permissions (`rfqs:handle` declares it as required) |
 | edits catalogue content and must **not** change prices | neither — leave `catalog:write` as it is |
 
-The last row is the point of the change: after this, `catalog:write` means catalogue content and
-nothing else. Review every existing role that holds it and decide which of the first two rows,
-if either, it also belongs in.
+The last row is the point of the split: `catalog:write` means catalogue content and nothing else.
+Review every existing role that holds it and decide which of the first rows, if any, it also
+belongs in.
 
 The same grant can be made over the API:
 `PUT /api/v1/admin/admin-roles/<code>` with the role's full permission list including the new
 codes.
 
-**Verify.** Sign in as a holder of each edited role and confirm four things: the **Price lists**
-entry appears in the sidebar; `GET /api/v1/admin/price-lists-engine` returns `200` rather than
-`403`; a role granted only `price_lists:read` gets `403` from
-`POST /api/v1/admin/price-lists-engine`, so the read/write split is real; and a role holding
-`catalog:write` and neither pricing code gets `403` from `GET /api/v1/admin/price-lists-engine`
-and from `GET /api/v1/admin/pricing/rule-targets/customer-groups` — that negative case is the
-half that proves the boundary moved, not just widened.
+**Verify.** Sign in as a holder of each edited role and confirm four things: the **Price books**
+entry appears in the sidebar and `⌘K` → "price books" offers the action; `GET
+/api/v1/admin/price-books` returns `200` rather than `403`; a role granted only `price_lists:read`
+gets `403` from `POST /api/v1/admin/price-books`, so the read/write split is real; and a role
+holding `catalog:write` and neither pricing code gets `403` from `GET /api/v1/admin/price-books`
+and from `GET /api/v1/admin/price-books/targets/customer-groups` — that negative case is the half
+that proves the boundary holds.
 
 ### D4. Turn on two-factor authentication for the Admin UI
 

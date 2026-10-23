@@ -7,8 +7,8 @@ title: Organization hierarchy
 Organizations can be nested into a **tree**: a head-office organization owns
 branch organizations, which may own sub-branches. Two things flow along the
 tree — **scope** (a roll-up-enabled parent-org user or scoped sales-rep sees the
-whole subtree) and **commercial terms** (a descendant with no own price list or
-credit limit resolves the nearest ancestor's).
+whole subtree) and **commercial terms** (a descendant with no price of its own
+for a product, or no credit limit, resolves the nearest ancestor's).
 
 This is an additive layer over the flat organization model. Every organization
 starts as a **root** (no parent), and a flat installation behaves byte-for-byte
@@ -67,22 +67,28 @@ their own.
 
 A descendant with no own commercial term resolves the nearest ancestor's.
 
-### Price lists
+### Price books
 
-Price lists target organizations through their application rule (there is no
-organization foreign key). The resolver builds the org candidate set as
-`[thisOrg, …ancestors]` (nearest-first) and keeps the existing priority order
-(`organization` > `customerGroup` > `category` > `salesChannel`):
+A price book for organizations names its members on its header. A branch is
+priced by the books naming the branch itself **and** by the books naming any of
+its ancestors: the pricing engine builds the buyer's organization chain as
+`[thisOrg, parent, grandparent, …]` (nearest first) and every book naming a
+member of that chain takes part.
 
-- a list naming a **nearer** organization outranks one naming a farther
-  ancestor, so a **branch override always wins**;
-- an inherited ancestor org-named list still outranks a customer-group,
-  category, or sales-channel list;
-- a branch with no own list falls through to the nearest ancestor's org-named
-  list before dropping to the non-org priority levels.
+Within the price precedence the chain decides **inside a cell**: when the
+branch's own book and its head office's book both price a product in the same
+cell — both an *organization × product* line, say — the nearer organization
+wins, so a **branch override always wins** over the head office's price for the
+same kind of line. The cell still comes first: under the default *Contract
+first, blanket last* precedence a head office's price for the product beats the
+branch's own discount on the product's category, because *organization ×
+product* ranks above *organization × category*. A branch with no line in a cell
+inherits its head office's line there. Siblings are unaffected by each other's
+books. Customer-group books apply through the buyer's one customer group, never
+through an ancestor's.
 
-Only that branch diverges — siblings are unaffected. Resolution stays a single
-pass (no per-ancestor re-run).
+The `price_lists` module's page has the full precedence; the organization's
+detail page lists the price books that reach it, including the inherited ones.
 
 ### Credit limits
 
@@ -111,7 +117,7 @@ roll-up actor is rejected with `403` — and the change is audited
 
 ## Flat-behavior guarantee
 
-For a root organization the subtree is `{itself}`, the price-list org chain is
-`[itself]`, and the credit owner is the organization itself (or none). All
+For a root organization the subtree is `{itself}`, the pricing organization
+chain is `[itself]`, and the credit owner is the organization itself (or none). All
 scope, pricing, and credit resolution therefore collapse to the pre-feature
 single-organization behavior, byte-for-byte.

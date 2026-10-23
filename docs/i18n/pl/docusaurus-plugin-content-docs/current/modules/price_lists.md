@@ -1,492 +1,351 @@
 ---
 title: price_lists
-description: Cenniki dla klienta, grupy i domyślne, z progami ilościowymi i korektami dla kategorii
+sidebar_label: Cenniki
+description: Cenniki — ceny bazowe w każdej walucie, ceny katalogowe, ceny dla kupujących i ceny promocyjne w kanałach sprzedaży oraz reguły, które decydują, ile płaci każdy kupujący.
 ---
 
-# `price_lists`
+# Cenniki (`price_lists`)
 
-Mechanizm cen — przebudowany na pierwotnych podstawach wyznaczania cen. Obejmuje:
+Każda cena, którą kupujący widzi albo płaci — na liście produktów, na stronie produktu, w
+wyszukiwarce, w koszyku, w zamówieniu, jako cena referencyjna zapytania ofertowego, w zewnętrznym API
+katalogu i w feedzie produktowym — pochodzi z **cenników**. Ta strona wyjaśnia, czym jest cennik i jak
+platforma wybiera cenę, którą płaci kupujący. Dwie kolejne strony opisują szczegóły:
 
-- **CustomerGroup** — grupa organizacji korzystających ze wspólnego cennika.
-- **PriceList** — nazwany cennik ze statusem w cyklu życia (`draft`, `scheduled`, `active`,
-  `expired`), typem `type` (`base` albo `sale`), opcjonalnym okresem obowiązywania (`startsAt` /
-  `endsAt`) oraz regułą `applicationRule` w postaci drzewa, która decyduje, którego klienta,
-  organizacji lub kanału dotyczy cennik.
-- **PriceListProduct** — przypisanie produktu do cennika, ze złożonym kluczem głównym.
-- **PriceListPriceBracket** — wiersz ze złożonym kluczem głównym
-  `(priceListId, productId, currencyCode, minQuantity)`, zawierający cenę jednostkową w danej walucie
-  dla progu ilościowego. Luki między progami są dozwolone; mechanizm wyznaczania przechodzi wtedy do
-  cennika o następnym priorytecie.
-- **PriceListMatrixEntry** — cena w cenniku dla *wybranych* produktów (jednego produktu, kategorii,
-  wartości atrybutu, kategorii i wartości atrybutu albo wszystkich produktów), opcjonalnie dla jednej
-  organizacji, w przedziale ilości, jako stała cena jednostkowa albo rabat procentowy. Zob.
-  *Macierz cen* poniżej.
-- **PriceDisplayModeOverride** — wiersz ze złożonym kluczem głównym `(scope, targetId)`, który
-  nadpisuje łańcuch trybu wyświetlania cen na poziomie organizacji, kategorii lub produktu. Początkiem
-  łańcucha są dwa klucze ustawień (`pricing.default_display_mode`,
-  `pricing.unauthenticated_display_mode`).
+- [Edytor cenników](./price_lists/price-book-editor.md) — ekrany panelu administracyjnego krok po
+  kroku: lista cenników, tworzenie cennika, siatka cen, import i eksport CSV, duplikowanie cennika,
+  ceny bazowe w produkcie, wyjaśnienie ceny i *Ustawienia cenowe*.
+- [Ceny dla programistów](./price_lists/developer-guide.md) — model danych, algorytm wyceny, jedyna
+  dozwolona ścieżka odczytu, pamięć podręczna, powierzchnia cen stojąca za sortowaniem według ceny,
+  API administracyjne, porty używane przez inne moduły oraz to, jak wydanie przekształciło stary
+  model.
 
-Dawne tabele `PriceListItem` i `PriceListAssignment` (oraz kolumny `code` / `currency` / `priority` /
-`isDefault` w `price_lists`) są utrzymywane przez migrację `20260504T125655_price_lists_engine.ts` wyłącznie jako tymczasowa warstwa
-zgodności na czas przejścia „rozszerz → przenieś → zawęź”. Nowy kod MUSI korzystać ze schematu
-mechanizmu cen przez `@endora-commerce/contracts`.
+Modułu nie można wyłączyć na ekranie modułów: sprzedaż B2B to ceny kontraktowe, a bez tego modułu
+każdy kupujący płaciłby bez ostrzeżenia cenę bazową.
 
-## Cykl życia
+## Idea w jednym akapicie
 
-```text
-draft ──activate──▶ scheduled ──auto on startsAt──▶ active ──auto on endsAt──▶ expired
-  ▲                     │                              │                        │
-  └──── draftify ───────┴────── draftify ──────────────┴────── activate (resets) ┘
-```
+Każdy produkt ma **cenę bazową** w każdej walucie. Cennik **katalogowy** może zmienić tę cenę dla
+wszystkich w wybranych kanałach sprzedaży. Cennik **dla kupującego** daje organizacji, zbiorowi
+organizacji albo zbiorowi grup klientów ich własne ceny. Cennik **promocyjny** oferuje cenę czasową,
+która jest naliczana tylko wtedy, gdy jest niższa od ceny, jaką kupujący zapłaciłby w przeciwnym
+razie. Gdy kilka cenników wycenia ten sam produkt dla tego samego kupującego, o zwycięzcy decyduje
+stała, jawna kolejność — **kolejność cen** — a **wyjaśnienie ceny** pokazuje dla dowolnego kupującego
+i produktu, który cennik wygrał, a które przegrały.
 
-- `activate` przestawia cennik `draft` (albo `expired`) na `scheduled`, gdy ustawiono przyszłe
-  `startsAt`, a w przeciwnym razie od razu na `active`.
-- `draftify` przywraca każdy cennik niesystemowy do `draft`.
-- `PriceListStatusWorker.sweep()` wykonuje dwa przejścia zależne od czasu (`scheduled → active` w
-  chwili `startsAt`, `active → expired` w chwili `endsAt`). Na produkcji wywołuje go co 5 minut
-  powtarzalne zadanie BullMQ; w testach to samo `sweep()` jest dostępne przez
-  `POST /api/v1/admin/price-lists-engine/internal/sweep`. Przebieg, który przestawi choć jeden
-  cennik, czyści pamięć podręczną cen we wszystkich procesach (zob. *Pamięć podręczna cen*).
+## Czym jest cennik
 
-Cennik `Default` tworzony przy instalacji (`isSystem = true`) odrzuca każdą zmianę stanu, każde
-usunięcie i każdą niepustą `applicationRule`. Migracja `20260504T125655_price_lists_engine.ts` tworzy w nim też progi na podstawie
-dawnego `attributeValues.defaultPrice` każdego produktu, więc platforma zawsze ma użyteczną cenę
-ostatecznej wartości zastępczej.
+Cennik ma **nagłówek** i **wiersze**.
 
-## Reguła stosowania (drzewo)
+Nagłówek ustala:
 
-Kolumna JSONB `applicationRule` przechowuje unię rozłączną:
-
-```ts
-type ApplicationRule =
-  | { kind: 'all' }
-  | {
-      kind: 'criterion';
-      type: 'salesChannel' | 'customerGroup' | 'organization' | 'category' | 'currency';
-      values: string[];                  // UUIDs (or ISO 4217 for currency)
-    }
-  | {
-      kind: 'group';
-      op: 'AND' | 'OR';
-      children: ApplicationRule[];        // 1..20
-    };
-```
-
-Ograniczenia (egzekwowane w kreatorze reguł po stronie klienta i przez normalizację w usłudze):
-
-- Najwyżej 5 poziomów zagnieżdżonych grup.
-- Listy wartości w kryterium są pozbawiane duplikatów; kody walut — zamieniane na wielkie litery.
-- Puste grupy są odrzucane; jeśli korzeń zostaje pusty, jest zastępowany przez `{ kind: 'all' }` —
-  ale `{ kind: 'all' }` jest dozwolone tylko w systemowym cenniku `Default`. Każdy inny cennik z
-  pustą regułą jest odrzucany przy aktywacji (`400 empty_rule_on_non_default`).
-- Nieznane identyfikatory celów (kanału, grupy klientów, organizacji, kategorii) są odrzucane z
-  `400 unknown_target { type, values }`.
-
-## Wyznaczanie ceny
-
-`PricingService.resolveEngine({ product, variantId?, context })` zwraca:
-
-```ts
-{
-  base:  { listId, bracket, listName },        // never null — Default is the floor
-  sale:  { listId, bracket, listName } | null, // optional second tier
-  displayMode: 'gross_only' | 'net_only' | 'both' | 'none',
-  currencyCode: string
-}
-```
-
-Algorytm:
-
-1. Wczytaj wszystkie cenniki ze `status='active'`.
-2. Sprawdź `applicationRule` każdego cennika względem kontekstu; zachowaj pasujące i podziel je
-   według `type`.
-3. W każdej grupie przejdź **łańcuch priorytetów**:
-   - Poziom 1: jawne dopasowanie do organizacji.
-   - Poziom 2: jawne dopasowanie do grupy klientów.
-   - Poziom 3: jawne dopasowanie do kategorii.
-   - Poziom 4: jawne dopasowanie do kanału sprzedaży.
-   - Poziom 5: każdy inny pasujący cennik.
-4. Na każdym poziomie wybierz zwycięzcę przez `tieBreak()` — najpierw najnowsze `modifiedAt`, potem
-   `name` rosnąco.
-5. Znajdź cenę, jaką wybrany cennik nalicza dla `(productId, currencyCode, quantity)` — jego własny
-   próg albo jedną z pozycji macierzy cen (zob. *Macierz cen*). Jeśli cennik nie wyznacza żadnej ceny
-   (luka), przejdź do cennika o następnym priorytecie w tej samej grupie; cennik Default jest zawsze
-   na poziomie 5 grupy Base i stanowi ostateczne minimum.
-6. Niezależnie wyznacz tryb wyświetlania przez
-   `displayModeResolver(product, organization, customerKind)` w łańcuchu ustawienia → organizacja →
-   kategoria → produkt.
-
-Determinizm: te same dane wejściowe → ten sam wynik (bez zegara, bez losowości, pełny porządek przy
-remisach). Z mechanizmu korzysta storefront (`GET /api/v1/storefront/products/:id/resolved-price`)
-oraz koszyk i składanie zamówienia.
-
-**Grupa klientów** w kroku 2 jest taka sama na każdej ścieżce: własna grupa zalogowanego konta
-klienta, w przeciwnym razie grupa jego organizacji, w przeciwnym razie żadna. Wywołujący wskazuje
-kupującego — organizację oraz, dla zalogowanego klienta, konto klienta — a mechanizm stosuje tę
-regułę. Lista produktów w katalogu, strona produktu, wyszukiwanie, podpowiedzi wyszukiwania,
-porównania, powiązania produktów, endpoint ceny wyznaczonej i koszyk wskazują konto; ceny
-referencyjne zapytań ofertowych i podgląd zamówienia w panelu przekazują grupę, którą już ustaliły.
-Konto, które nie należy do wskazanej obok organizacji, jest pomijane.
-
-**Wywołania zbiorcze.** Oprócz pojedynczych `resolveEngine` / `resolveLinePrice` mechanizm wycenia
-wiele produktów naraz: `resolveListingPrices` (strona listy, ilość 1), `resolveListingPriceDetails`
-(to samo oraz podział na cenę bazową, promocyjną i tryb wyświetlania — dla strony produktu, kart na
-stronie głównej i podpowiedzi wyszukiwania) oraz `resolveLinePrices` (wiele pozycji, każda w swojej
-ilości — koszyk, sprawdzenie ceny przy składaniu zamówienia, ceny referencyjne zapytań ofertowych,
-zewnętrzne API katalogu). Każde z nich wykonuje liczbę zapytań, która nie rośnie z liczbą produktów
-ani pozycji, i dla każdego produktu lub pozycji zwraca dokładnie to, co pojedyncze wywołanie.
-
-## Macierz cen
-
-Cennik może wyznaczać cenę **wielu produktów jedną pozycją**. *Pozycja macierzy* określa:
-
-| Współrzędna | Wartości |
+| Pole | Co oznacza |
 | --- | --- |
-| Dotyczy | jeden produkt · kategoria · wartość atrybutu · kategoria **i** wartość atrybutu · wszystkie produkty |
-| Organizacja | jedna organizacja albo żadna (*wszyscy nabywcy*) |
-| Ilość | od N sztuk, opcjonalnie do M sztuk |
-| Cena | stała cena jednostkowa w jednej walucie albo rabat 0 < p ≤ 100 % (dwa miejsca po przecinku) w walucie, w której wyceniana jest pozycja |
+| **Nazwa** | Po niej rozpoznajesz cennik. Zmiana nazwy nigdy nie zmienia tego, która cena wygrywa. |
+| **Typ** | *Ceny regularne* — ceny, które płacą kupujący — albo *Ceny promocyjne*, naliczane tylko wtedy, gdy są niższe od zwykłej ceny kupującego. |
+| **Waluta** | Dokładnie jedna. Po utworzeniu cennika nigdy się nie zmienia; aby ustalić ceny w innej walucie, zduplikuj cennik. |
+| **Kanały sprzedaży** | Kanały, w których cennik obowiązuje. Każdy musi sprzedawać w walucie cennika. Kanał, który później przestaje oferować tę walutę, zostaje w cenniku jako *Nieaktywny*, a cennik przestaje w nim obowiązywać; gdy kanał znów oferuje walutę, cennik znów obowiązuje — bez żadnej zmiany w cenniku. |
+| **Dla kogo są ceny** (odbiorcy) | *Wszyscy*, zbiór *grup klientów* albo zbiór *organizacji* — jeden rodzaj na cennik, nigdy mieszanka. Rodzaj nie zmienia się, odkąd cennik był aktywny. |
+| **Harmonogram** | Opcjonalny początek i koniec. Cennik obowiązuje dokładnie od chwili początku do chwili końca. |
+| **Priorytet** | Liczba całkowita. Rozstrzyga tylko między cennikami, które wyceniają ten sam rodzaj linii dla tego samego kupującego — wygrywa wyższa liczba — i nigdy nie pozwala ogólnej linii wygrać z bardziej szczegółową. |
+| **Stan** | *Szkic*, *Zaplanowany*, *Aktywny* albo *Wygasły*. Szkic nigdy nie obowiązuje. Aktywacja zmienia stan cennika na *Aktywny*, a na *Zaplanowany*, gdy jego początek jest w przyszłości. *Przenieś do szkiców* znów wyłącza cennik z użycia. |
 
-Przykład: *Elementy złączne × Acme Sp. z o.o. × od 500 sztuk × 12 % rabatu*. Kupujący z Acme,
-zamawiając 600 elementów złącznych, płacą o 12 % mniej; przy 400 sztukach, dla innej organizacji albo
-dla produktu spoza kategorii cena się nie zmienia.
+Cennik można aktywować tylko wtedy, gdy obowiązywałby gdzieś i kogoś: potrzebuje co najmniej jednego
+kanału sprzedaży, który sprzedaje w jego walucie, a cennik grup klientów lub organizacji — co
+najmniej jednego odbiorcy.
 
-**O tym, których kupujących obsługuje cennik, nadal decyduje jego reguła stosowania** — pozycja
-wyznacza cenę tylko w cenniku, do którego kupujący już się kwalifikuje, w kanale sprzedaży
-żądania. Pozycje decydują wyłącznie o cenie *wewnątrz* tego cennika.
+Każdy **wiersz** wycenia jedną **linię** cennika dla progu ilościowego. Linia to jedno z:
 
-**Zasady, których musi przestrzegać pozycja** (inaczej zostaje odrzucona z komunikatem):
-
-- Pozycja dla produktu wymaga organizacji — bez niej jest to zwykła cena produktu w cenniku,
-  którą obsługuje już zakładka *Produkty i progi*.
-- Stała cena wymaga wyboru produktu, kategorii lub atrybutu.
-- Dwie pozycje o tym samym wyborze i organizacji nie mogą nakładać się zakresem ilości we wspólnej
-  walucie (rabat procentowy dotyczy każdej waluty) — `409 PRICE_MATRIX_ENTRY_OVERLAP` ze wskazaniem
-  kolidującej pozycji.
-- Cennik może mieć najwyżej **5 000** pozycji — `409 PRICE_MATRIX_ENTRY_LIMIT`.
-
-### Wybór według atrybutu i „Reguły cennika”
-
-Można używać tylko atrybutów oznaczonych jako **Reguły cennika** w *Katalog → Atrybuty*, i tylko
-takich, których wartością jest pojedynczy wybór, wiele wyborów albo tak/nie, i które nie są zależne
-od języka ani od kanału sprzedaży (w przeciwnym razie `400 PRICE_MATRIX_ATTRIBUTE_NOT_ELIGIBLE` z
-powodem). Wartość pojedynczego wyboru pasuje, gdy jest równa, atrybut wielokrotnego wyboru — gdy
-wartości produktu ją zawierają, atrybut tak/nie — przy *tak* albo *nie*; produkt bez wartości nie
-pasuje do żadnej. Odczytywane są własne wartości produktu, nie wariantu i nie nadpisania kanału.
-
-Wyłączenie oznaczenia atrybutu **dezaktywuje** jego pozycje: w oknie odświeżania cen przestają
-wyznaczać jakiekolwiek ceny, nigdy nie powodują błędu wyceny, zakładka *Macierz cen* pokazuje je jako
-*Nieaktywne* z powodem, a po ponownym włączeniu oznaczenia znów obowiązują.
-
-### Która pozycja wygrywa
-
-W wybranym cenniku kandydatami są jego własny próg produktu i każda pozycja, która ma zastosowanie
-(wybór, organizacja, przedział ilości, waluta). Cenę wyznacza pierwszy kandydat w tej kolejności:
-
-| Kolejność | Zasada |
+| Linia | Wycenia |
 | --- | --- |
-| 1 | Pozycja dla organizacji przed pozycją bez organizacji; własna organizacja kupującego przed bliższą organizacją nadrzędną, a ta przed dalszą |
-| 2 | Produkt, potem kategoria ∩ atrybut, potem atrybut, potem kategoria, potem wszystkie produkty (własny próg produktu w cenniku liczy się jako kandydat produktowy bez organizacji) |
-| 3 | Wyższa ilość początkowa |
-| 4 | Niższa wynikowa cena |
-| 5 | Stała kolejność wewnętrzna (identyfikator pozycji), więc wynik nigdy nie zależy od czasu |
+| **Wszystkie produkty** | każdy produkt (tylko procentem albo korektą — nigdy jedną ceną stałą dla wszystkiego) |
+| **Wartość atrybutu** | każdy produkt z tą wartością atrybutu, na przykład *color = red* |
+| **Kategoria** | każdy produkt przypisany do tej kategorii (własne przypisanie produktu; podkategorie się nie liczą) |
+| **Kategoria i wartość atrybutu** | produkty z tej kategorii, które mają tę wartość — na przykład czerwone produkty z kategorii *Screws* |
+| **Produkt** | jeden produkt i wszystkie jego warianty |
+| **Wariant** | jeden wariant produktu |
 
-Wybór kategorii korzysta z własnych przypisań produktu do kategorii, bez podkategorii — tak samo jak
-kryterium kategorii w regule stosowania.
+Linie atrybutów mogą tworzyć tylko atrybuty oznaczone jako **Reguły cennika** w *Katalog → Atrybuty*,
+i tylko takie, których wartości są pojedynczym wyborem, wielokrotnym wyborem albo tak/nie i które nie
+zależą od języka ani od kanału sprzedaży. Jeśli atrybut straci tę flagę (albo przestanie się
+kwalifikować), jego linie przestają wyceniać — siatka pokazuje je jako *Nieaktywne* z przyczyną — i
+znów wyceniają, gdy tylko atrybut znów się kwalifikuje. Wycena nigdy nie kończy się błędem z powodu
+takiej linii.
 
-### Rabaty procentowe
+Wiersz podaje cenę na jeden z trzech sposobów:
 
-Rabat jest liczony od **ceny referencyjnej**: własnego progu produktu w tym samym cenniku przy tej
-ilości, a jeśli go nie ma — progu produktu w systemowym cenniku **Default**. Wynik jest zaokrąglany
-połówkowo w górę do czterech miejsc po przecinku, z dokładnością, z jaką zapisywane są progi, w
-arytmetyce całkowitoliczbowej. Rabat bez ceny referencyjnej nie wyznacza ceny i sprawdzany jest
-następny kandydat; gdy nic w cenniku nie wyznacza ceny pozycji, wyznaczanie przechodzi do następnego
-pasującego cennika, dokładnie jak przy cenniku bez progu. Rabat 100 % oznacza celowo darmową pozycję.
+| Rodzaj | Wpisywany jako | Znaczenie |
+| --- | --- | --- |
+| **Cena stała** | `95` albo `95,50` | cena, do czterech miejsc po przecinku |
+| **Procent** | `-5%`, `+20%` | rabat albo narzut, od −100 % (pozycja za darmo) do +1000 %, do dwóch miejsc po przecinku |
+| **Korekta kwotowa** | `-3`, `+3` | kwota odejmowana albo dodawana |
 
-### Gdzie pojawiają się ceny z macierzy
+Procent albo korekta jest liczona od **ceny odniesienia**: od ceny bazowej w cenniku katalogowym, od
+ceny katalogowej w cennikach dla kupujących i promocyjnych (zob. niżej). Jeśli wynik wiersza byłby
+poniżej zera, ten wiersz nie wycenia linii i sprawdzany jest następny kandydat; wynik równy dokładnie
+zero jest poprawną ceną.
 
-Każde miejsce korzystające ze wspólnego mechanizmu wyznaczania cen — lista katalogu, strona
-produktu, wyszukiwanie, porównanie, powiązane produkty, koszyk, finalizacja zamówienia, przyjmowanie
-zamówień, ceny referencyjne zapytań ofertowych i sprawdzenie ceny w panelu administracyjnym — zwraca
-tę samą cenę z macierzy dla tego samego kupującego, produktu, ilości i kanału. Progi ilościowe na
-stronie produktu obejmują ilości początkowe pozycji, a sprawdzenie ceny wskazuje pozycję, która ją
-wyznaczyła (`matrixEntryId`).
+**Progi ilościowe.** Każdy wiersz zaczyna się od pewnej ilości („od 1”, „od 10”, „od 100”) i, jeśli
+nie ma jawnego końca, obowiązuje do miejsca, w którym zaczyna się następny próg tej linii. Dwa wiersze
+tej samej linii nie mogą na siebie nachodzić. Wiersz, który nie obejmuje zamawianej ilości, jej nie
+wycenia, a wycena przechodzi do następnego kandydata — innego progu tej samej linii albo innej linii.
 
-**Sortowanie i filtrowanie katalogu w storefroncie według ceny również uwzględnia ceny z
-macierzy.** Cennik z pozycją, która dotyczy oglądającego przy ilości 1, jest porządkowany według
-relacji wyliczanej z jego progów i pozycji, w opisanej wyżej kolejności, więc kolejność odpowiada
-cenom na kartach produktów; produkt wyceniony wyłącznie pozycją macierzy jest sortowany według tej
-ceny, a nie razem z produktami bez ceny. Cenniki bez takiej pozycji zachowują ścieżkę opartą na
-indeksie. Pomiar na 2 000 produktów (`backend/test/perf/price_lists/matrix-resolver.bench.ts`):
-pierwsza strona kosztuje ok. 3 ms bez pozycji, ok. 40 ms z rabatem na kategorię i ok. 20 ms z rabatem
-na wszystkie produkty; strona listy z 50 produktami nie kosztuje żadnego dodatkowego zapytania,
-gdy jej cenniki nie mają pozycji, i najwyżej trzy, gdy mają.
+Cennik może mieć najwyżej 5 000 wierszy. Cenniki cen bazowych nie mają tego limitu, bo przechowują
+cenę bazową każdego produktu w katalogu.
 
-**Znane ograniczenie:** plik produktowy przypięty do wskazanego cennika odczytuje wyłącznie progi
-produktów tego cennika; pozycje macierzy do niego nie trafiają. Pliki wyceniane przez mechanizm
-wyznaczania cen (anonimowo) uwzględniają pozycje bez organizacji.
+## Ceny bazowe
 
-### Zarządzanie macierzą
+Każda waluta ma dokładnie jeden **cennik cen bazowych** — na liście widoczny jako *Ceny bazowe —
+PLN*, *Ceny bazowe — EUR* i tak dalej. Obowiązuje każdego kupującego, w każdym kanale sprzedaży, który
+sprzedaje w jego walucie, i jest zawsze aktywny: nie można zmienić jego nazwy, zaplanować go, nadać
+mu priorytetu ani go usunąć.
 
-Zakładka **Macierz cen** w cenniku (`/price-lists/:id?tab=matrix`) wyświetla pozycje z filtrami
-według wyboru i organizacji, stronicowaniem oraz dodawaniem, edycją i usuwaniem dla
-`price_lists:write`; z `price_lists:read` zakładka jest tylko do odczytu. Każda zmiana jest zapisywana
-w dzienniku zdarzeń jako `price_list.matrix_entry_create|update|delete` na cenniku, z pozycją przed i
-po zmianie, i widać ją na karcie *Ostatnia aktywność* pulpitu. Przedstawiciel handlowy widzi pozycje
-bez organizacji albo wskazujące jedną z jego organizacji i nie może utworzyć pozycji dla innej
-organizacji. Duplikowanie cennika kopiuje jego macierz; usunięcie cennika usuwa ją. Trwałe usunięcie
-produktu, kategorii lub organizacji usuwa wskazujące je pozycje; usunięcie w panelu
-administracyjnym (odwracalne) je zachowuje, oznaczone jako *Usunięty element*, żeby operator mógł
-zdecydować.
+- **Cena bazowa produktu** to cena stała, opcjonalnie z progami ilościowymi, w każdej walucie, w
+  której sprzedajesz produkt. Ustawiasz ją w samym produkcie (*Katalog → Produkty*, zakładka
+  *Pricing*) albo w siatce cennika cen bazowych.
+- **Wariant** albo **dziedziczy** cenę bazową produktu, albo ma **własną cenę**, albo jest
+  **procentem** lub **kwotą** powyżej albo poniżej ceny bazowej produktu przy tej samej ilości.
 
-## Tryby wyświetlania
+Cena bazowa nigdy nie jest przeliczana między walutami: produkt z ceną bazową tylko w PLN nie ma w
+EUR żadnej ceny. **Produkt bez ceny bazowej w danej walucie, którego nie wycenia żaden inny cennik,
+nie ma w tej walucie ceny**: kupujący nie mogą dodać go do koszyka i widzą zamiast tego ścieżkę
+zapytania ofertowego. Innej ceny zastępczej nie ma — produkt nie ma własnej ceny.
 
-Cztery wartości: `gross_only`, `net_only`, `both`, `none`. Pierwsze trzy decydują o kolumnach cen we
-wszystkich miejscach storefrontu, które pokazują cenę; `none` ukrywa wszystkie elementy ceny i
-zastępuje przycisk Add-to-cart istniejącym przyciskiem zapytania ofertowego. Endpointy pozycji koszyka
-i składania zamówienia dodatkowo odrzucają pozycję z `400 CART_PRODUCT_QUOTE_ONLY`, gdy dla trójki
-`(product, organization, channel)` wyznaczony tryb to `none` — jako druga linia obrony.
+Cennik cen bazowych domyślnej waluty platformy istnieje zawsze; cennik cen bazowych innej waluty
+powstaje przy pierwszym zapisie ceny bazowej w tej walucie.
 
-## API publiczne
+## Jak wybierana jest cena, którą płaci kupujący
 
-### Endpointy mechanizmu cen (panel administracyjny)
+Cena jest zawsze wyliczana dla produktu (a jeśli jest wybrany — wariantu), ilości, kanału sprzedaży,
+waluty i kupującego. Kupujący to gość albo organizacja — razem z jej organizacjami nadrzędnymi — oraz
+**jedna grupa klientów**: własna grupa zalogowanego klienta, jeśli ją ma, a w przeciwnym razie grupa
+jego organizacji.
 
-| Metoda i ścieżka | Przeznaczenie |
+Udział biorą tylko cenniki, które są teraz aktywne, w walucie żądania, w kanale żądania (gdy ten kanał
+sprzedaje w tej walucie) i dla tego kupującego. Cena powstaje potem w czterech krokach:
+
+1. **Cena bazowa** — wiersz bazowy wariantu, jeśli wariant go ma, a w przeciwnym razie wiersz
+   produktu, w progu obejmującym ilość.
+2. **Cena katalogowa** — najlepszy wiersz cenników regularnych dla *wszystkich* w tym kanale, jeśli
+   któryś wycenia linię: linia wariantu przed linią produktu, przed linią kategorii i wartości
+   atrybutu, przed linią kategorii, przed linią wartości atrybutu, przed linią wszystkich produktów.
+   Procenty są liczone od ceny bazowej. Jeśli żaden taki wiersz nie wycenia linii, ceną katalogową
+   jest cena bazowa.
+3. **Cena kupującego** — najlepszy wiersz cenników regularnych dla organizacji i grupy klientów
+   kupującego, według opisanej niżej kolejności cen. Procenty są liczone od **ceny katalogowej**.
+   Jeśli żaden taki wiersz nie wycenia linii, ceną kupującego jest cena katalogowa.
+4. **Cena promocyjna** — najlepszy wiersz cenników promocyjnych, które dotyczą kupującego (najpierw
+   cenniki promocyjne jego organizacji i grupy, potem cenniki promocyjne dla wszystkich). Procenty są
+   liczone od ceny katalogowej. Cena promocyjna jest **naliczana tylko wtedy, gdy jest ściśle niższa
+   od ceny kupującego**; kupujący widzi wtedy swoją cenę przekreśloną. Cena promocyjna równa cenie
+   kupującego lub wyższa nie jest naliczana i nic nie jest przekreślane — klient kontraktowy nigdy nie
+   płaci więcej z powodu promocji.
+
+Ponieważ procenty dla kupujących są liczone od ceny katalogowej, rabat kontraktowy podąża za ceną
+kanału: jeśli kanał sprzedaje produkt za 120 zamiast 100, rabat kontraktowy 20 % daje 96.
+
+Procenty są zaokrąglane połówkowo w górę do czterech miejsc po przecinku; koszyk zaokrągla kwoty
+pozycji do dwóch, jak zawsze.
+
+### Kolejność cen
+
+Kupującego może wyceniać naraz kilka linii — cena jego organizacji za jeden produkt, rabat jego
+organizacji na całą kategorię, cena jego grupy klientów za ten sam produkt. Każdy kandydat należy do
+jednej z dwunastu **komórek**: dla kogo jest cennik (*organizacja* albo *grupa klientów*) × co wybiera
+linia. Kolejność cen to porządek tych dwunastu komórek; wygrywa pierwsza komórka, w której jest
+kandydat.
+
+Platforma jest dostarczana z ustawieniem **Najpierw umowa, rabat ogólny na końcu (HY)**:
+
+| # | Komórka | Przykład |
+| --- | --- | --- |
+| 1 | Organizacja × wariant | cena Acme za jeden wariant produktu Screws 0200 |
+| 2 | Organizacja × produkt | cena Acme za Screws 0200 |
+| 3 | Organizacja × kategoria i wartość atrybutu | cena Acme za czerwone produkty z kategorii Screws |
+| 4 | Organizacja × kategoria | cena Acme za wszystko z kategorii Screws |
+| 5 | Organizacja × wartość atrybutu | cena Acme za wszystko, co czerwone |
+| 6 | Grupa klientów × wariant | cena klientów VIP za jeden wariant produktu Screws 0200 |
+| 7 | Grupa klientów × produkt | cena klientów VIP za Screws 0200 |
+| 8 | Grupa klientów × kategoria i wartość atrybutu | cena klientów VIP za czerwone produkty z kategorii Screws |
+| 9 | Grupa klientów × kategoria | cena klientów VIP za wszystko z kategorii Screws |
+| 10 | Grupa klientów × wartość atrybutu | cena klientów VIP za wszystko, co czerwone |
+| 11 | Organizacja × wszystkie produkty | rabat Acme na wszystko |
+| 12 | Grupa klientów × wszystkie produkty | rabat klientów VIP na wszystko |
+
+Wynegocjowane ceny organizacji wygrywają więc z cenami jej grupy, z jednym wyjątkiem: ogólny rabat
+organizacji na wszystko nie wygrywa z konkretną ceną, którą ma jej grupa klientów — inaczej mały rabat
+ogólny sprawiałby, że ta organizacja płaci więcej niż każdy inny członek grupy. Linia kategorii
+wygrywa z linią wartości atrybutu na każdym kroku.
+
+W obrębie jednej komórki pozostałe remisy rozstrzyga kolejno:
+
+1. **Bliższa organizacja** — linia własnej organizacji kupującego przed linią jej organizacji
+   nadrzędnej, przed linią organizacji nadrzędnej wobec tamtej. Oddział bez własnej linii w danej
+   komórce dostaje linię centrali.
+2. **Priorytet** — wygrywa wyższa liczba.
+3. **Wyższa ilość początkowa** — wiersz „od 100” przed wierszem „od 10”, który również obejmuje
+   ilość.
+4. **Niższa cena.**
+5. Stały porządek wewnętrzny, dzięki któremu wynik nigdy nie zależy od czasu, od zmiany nazwy ani od
+   tego, który cennik edytowano jako ostatni.
+
+Obowiązująca kolejność jest widoczna tylko do odczytu w *Ustawieniach cenowych*. W kodzie istnieją
+trzy inne ustawienia — *Najpierw odbiorca (AF)*, *Najpierw szczegółowość (SF)* i *Najpierw odbiorca,
+najbliższa organizacja przed nadrzędnymi (AF-N)* — ale zmiana kolejności nie jest jeszcze dostępna:
+pojawi się w jednym z kolejnych wydań, z podglądem skutków zmiany.
+
+### Warianty
+
+Wariant jest wyceniany w tych samych cennikach co jego produkt. Linia wariantu wygrywa z linią jego
+produktu u tych samych odbiorców; **stała** cena produktu obowiązuje każdy wariant, chyba że wycenia
+go linia wariantu z tej samej albo lepszej komórki; **procent** na produkcie zachowuje różnice między
+jego wariantami. Linia atrybutu dopasowuje wariant po jego własnych wartościach osi (czerwony wariant
+produktu pasuje do *color = red*), nałożonych na wartości produktu.
+
+Na liście produktów produkt, którego warianty kosztują różnie, pokazuje najniższą cenę jako cenę
+**„od”**; sortowanie i filtrowanie według ceny korzystają z tej najniższej ceny. Na stronie produktu
+pokazywana jest cena wybranego wariantu, a koszyk nalicza cenę wariantu z pozycji.
+
+## Gdzie pojawiają się ceny {#where-prices-appear}
+
+Ten sam kupujący, produkt, wariant, ilość, kanał i waluta dają **tę samą cenę na każdej
+powierzchni**: na listach produktów, w wynikach i podpowiedziach wyszukiwania, na stronie produktu, w
+porównaniach, w produktach powiązanych, w koszyku i przy składaniu zamówienia, w formularzu zamówienia
+w panelu administracyjnym, w zapytaniach ofertowych, w zewnętrznym API katalogu i w feedach
+produktowych. Koszyk ponownie wycenia pozycję przy każdym dodaniu, połączeniu i zmianie ilości, a
+złożenie zamówienia odrzuca koszyk, którego zapisana cena nie jest już aktualna
+(`409 CART_PRICE_CHANGED`), więc kupujący sprawdza nową cenę przed zamówieniem.
+
+**Sortowanie i filtrowanie według ceny** podąża za cenami pokazywanymi na kartach produktów, dla
+każdego kupującego — kupujący z własnymi cenami kontraktowymi widzi listę w porządku swoich cen.
+Porządek pochodzi z cen wyliczanych przez platformę w tle: po zmianie ceny karty od razu pokazują
+nową cenę, a porządek sortowania nadąża, gdy tylko wykona się odświeżanie w tle (w pomiarach
+platformy — w ciągu minuty).
+
+**Cena katalogowa obok ceny kupującego.** Po włączeniu ustawienia *Pokazuj cenę katalogową obok ceny
+kupującego* (*Ustawienia cenowe*, domyślnie wyłączone) kupujący, którego cena jest niższa od ceny
+katalogowej, widzi obie na stronie produktu, na listach produktów, w wynikach wyszukiwania i w
+podpowiedziach — *Cena katalogowa 100,00 · Twoja cena 95,00*. Kupujący, którego cena jest równa cenie
+katalogowej lub wyższa, widzi jedną cenę. Gdy naliczana jest cena promocyjna, kupujący widzi tylko dwie
+ceny: przekreśloną cenę katalogową i cenę promocyjną jako *Twoja cena*; jego zwykła cena kontraktowa
+nie jest pokazywana jako trzecia liczba. Przy wyłączonym ustawieniu naliczona cena promocyjna
+przekreśla własną cenę kupującego. Koszyk i składanie zamówienia zawsze pokazują tylko naliczaną cenę.
+
+**Tryby prezentacji** decydują, jak ceny są pokazywane — tylko brutto, tylko netto, obie albo wcale.
+Tryb *none* ukrywa wszystkie ceny i zastępuje *Dodaj do koszyka* przyciskiem *Dodaj do zapytania
+ofertowego*; koszyk również odrzuca taki produkt (`400 CART_PRODUCT_QUOTE_ONLY`). Tryb ustawia się dla
+całej platformy (osobno dla zalogowanych i anonimowych odwiedzających) i można go nadpisać dla
+organizacji, kategorii i produktu; wygrywa najbardziej szczegółowe ustawienie. Tryby prezentacji
+ustawia się w *Ustawieniach cenowych* oraz w edytorach organizacji i kategorii.
+
+## Przykłady — sklep demonstracyjny
+
+Sklep demonstracyjny (`pnpm run cli demo reset`) zawiera trzy scenariusze, na podstawie których
+zaprojektowano model, z dokładnymi liczbami. Jego dane:
+
+- *Screws 0200* — czerwony, w kategorii *Screws*, cena bazowa 100,00 PLN;
+- *Screws 0032* — niebieski, w kategorii *Screws*, cena bazowa 50,00 PLN;
+- *Bolts 0025* — czerwony, w kategorii *Bolts*, cena bazowa 30,00 PLN;
+- organizacja *Acme B2B (demo)*, członek grupy klientów *VIP*.
+
+Trzy scenariusze są **alternatywami**: po resecie cenniki E3 są aktywne, a cenniki E1 i E2 są
+szkicami. Aby zobaczyć E1 albo E2, aktywuj cenniki tego scenariusza, a pozostałe przenieś do szkiców.
+
+**E1 — cena dla wszystkich na kategorię i wartość atrybutu.** Cennik *E1 — red screws for everyone
+(demo)*: regularny, dla wszystkich, jedna linia *Screws* ∩ *color = red*, cena stała 120.
+
+| Kupujący | Produkt | Płaci | Dlaczego |
+| --- | --- | --- | --- |
+| gość | Screws 0200 | 120,00 | linia katalogowa wycenia czerwone wkręty |
+| gość | Screws 0032 | 50,00 | niebieski: linia nie pasuje, więc cena bazowa |
+| gość | Bolts 0025 | 30,00 | czerwony, ale nie wkręt: cena bazowa |
+| Acme | Screws 0200 | 120,00 | Acme nie ma w tym scenariuszu własnego cennika |
+
+**E2 — umowa organizacji.** Cennik *E2 — Acme B2B contract (demo)*: regularny, dla organizacji
+Acme, *Screws* −10 %, *Screws 0200* −20 %.
+
+| Kupujący | Produkt | Płaci | Dlaczego |
+| --- | --- | --- | --- |
+| Acme | Screws 0200 | 80,00 | linia produktu (−20 %) wygrywa z linią kategorii (−10 %) |
+| Acme | Screws 0032 | 45,00 | linia kategorii |
+| Acme | Bolts 0025 | 30,00 | nic nie pasuje: cena bazowa |
+| inna organizacja | Screws 0200 | 100,00 | nie jest odbiorcą: cena bazowa |
+
+Gdy aktywny jest także E1, Acme płaci za Screws 0200 96,00: −20 % jest liczone od ceny katalogowej
+120, a nie od ceny bazowej.
+
+**E3 — organizacja w grupie klientów.** Cenniki *E3 — VIP customers (demo)* (dla grupy klientów VIP,
+*Screws 0200* −10 %) oraz *E3 — Acme B2B terms (demo)* (dla organizacji Acme, *Screws 0200* −5 %,
+*Screws* −15 %).
+
+| Kupujący | Produkt | Płaci | Dlaczego |
+| --- | --- | --- | --- |
+| Acme | Screws 0200 | 95,00 | *Organizacja × produkt* (−5 %) to najlepsza komórka; linia kategorii (85,00) i linia VIP (90,00) przegrywają |
+| inna organizacja z grupy VIP | Screws 0200 | 90,00 | linia VIP |
+| Acme | Screws 0032 | 42,50 | linia kategorii Acme (−15 %) |
+| oddział Acme | Screws 0200 | 95,00 | odziedziczona po centrali |
+| gość albo organizacja spoza VIP | Screws 0200 | 100,00 | cena bazowa |
+
+Wyjaśnienie ceny odpowiada na każdy wiersz tych tabel, podając zwycięski cennik, komórkę, cenę
+odniesienia i przegrane linie.
+
+## Kto może co
+
+| Uprawnienie | Daje |
 | --- | --- |
-| `GET /api/v1/admin/price-lists-engine?status=&type=&search=` | Lista cenników z opcjonalnymi filtrami |
-| `POST /api/v1/admin/price-lists-engine` | Utworzenie cennika w stanie `draft` |
-| `GET /api/v1/admin/price-lists-engine/:id` | Odczyt jednego cennika |
-| `PATCH /api/v1/admin/price-lists-engine/:id` | Zmiana nazwy, typu, dat albo applicationRule |
-| `POST /api/v1/admin/price-lists-engine/:id/activate` | Cykl życia → scheduled albo active |
-| `POST /api/v1/admin/price-lists-engine/:id/draftify` | Cykl życia → draft |
-| `POST /api/v1/admin/price-lists-engine/:id/duplicate` | Kopia (z wyzerowanymi datami i statusem) |
-| `GET /api/v1/admin/price-lists-engine/:id/products` | Lista produktów z progami w poszczególnych walutach |
-| `PUT /api/v1/admin/price-lists-engine/:id/products` | Zamiana listy produktów (różnicowo) |
-| `POST /api/v1/admin/price-lists-engine/:id/products` | Dodanie jednego produktu |
-| `POST /api/v1/admin/price-lists-engine/:id/products/bulk-add` | Dodanie do 200 produktów w jednym audytowanym zapisie — zob. *Dodawanie wielu produktów naraz* |
-| `DELETE /api/v1/admin/price-lists-engine/:id/products/:productId` | Usunięcie (razem z progami) |
-| `GET /api/v1/admin/price-lists-engine/:id/products/:productId/brackets` | Odczyt progów jednego produktu |
-| `PUT /api/v1/admin/price-lists-engine/:id/products/:productId/brackets` | Zamiana progów (`{ bracketsByCurrency }`) |
-| `POST /api/v1/admin/price-lists-engine/:id/products/:productId/brackets/copy` | Skopiowanie progów jednej waluty bez zmian do N innych |
-| `GET /api/v1/admin/price-lists-engine/:id/matrix?page=&pageSize=&selectionKind=&organizationId=&productId=&categoryId=&lang=` | Pozycje macierzy cen, z filtrami i stronicowaniem (`organizationId=none` — pozycje bez organizacji) — `price_lists:read` |
-| `GET /api/v1/admin/price-lists-engine/:id/matrix/:entryId` | Jedna pozycja — `price_lists:read` |
-| `POST /api/v1/admin/price-lists-engine/:id/matrix` | Utworzenie pozycji — `price_lists:write` |
-| `PATCH /api/v1/admin/price-lists-engine/:id/matrix/:entryId` | Zmiana pozycji; wszystkie zasady sprawdzane są na wyniku po scaleniu — `price_lists:write` |
-| `DELETE /api/v1/admin/price-lists-engine/:id/matrix/:entryId` | Usunięcie pozycji — `price_lists:write` |
-| `POST /api/v1/admin/price-lists-engine/internal/sweep` | Jeden przebieg workera, tylko na potrzeby testów |
+| `price_lists:read` | listę cenników, ustawienia i ceny każdego cennika, ceny bazowe, wyjaśnienie ceny, *Ustawienia cenowe* |
+| `price_lists:write` | tworzenie, zmienianie, aktywowanie, planowanie, duplikowanie, importowanie i usuwanie cenników; ceny bazowe; tryby prezentacji; ustawienie ceny katalogowej. Dodawanie linii produktów korzysta też z przeglądarki produktów katalogu, więc rola edytująca cenniki potrzebuje także `catalog:read` (mówi o tym edytor ról na `/admin-roles`). |
 
-### Dodawanie wielu produktów naraz
+**Handlowcy** — administratorzy, których rola ogranicza do własnych organizacji — widzą i edytują
+tylko cenniki organizacji, w których **każdy** odbiorca jest jedną z ich organizacji. Cenniki dla
+wszystkich, cenniki grup klientów i ceny bazowe są dla nich tylko do odczytu. Cennik, który wskazuje
+jakąkolwiek organizację spoza ich zakresu, dla nich nie istnieje: nie ma go na liście, a jego adres
+pokazuje tę samą stronę co cennik, którego nigdy nie utworzono. Tworząc cennik, mogą wybrać tylko
+*Organizacje*, i tylko własne.
 
-`POST /api/v1/admin/price-lists-engine/:id/products/bulk-add`, chroniony przez `price_lists:write`,
-przyjmuje `{ productIds }` — od 1 do 200 identyfikatorów produktów
-(`bulkAddPriceListProductsRequestSchema` w `@endora-commerce/contracts`) — i wyłącznie dopisuje.
-Powtórzenia są scalane, z zachowaniem pierwszego wystąpienia.
+Każda zmiana cennika — jego ustawień, kanałów, odbiorców, wierszy, aktywacji, duplikat, usunięcie — oraz
+każda zmiana cen bazowych i ustawienia ceny katalogowej jest zapisywana w dzienniku audytu z
+administratorem i stanem przed zmianą i po niej; *Zobacz historię* w cenniku otwiera jego wpisy.
 
-Przyjęte żądanie odpowiada `200 { data: { added, unchanged, failed } }`, a każdy identyfikator trafia
-do dokładnie jednej z trzech list:
+## Znane ograniczenia
 
-- **`unchanged`** — produkt już jest w cenniku; jego progi pozostają dokładnie takie, jakie były.
-- **`failed`** — `{ productId, reason: 'product_not_found' }` dla identyfikatora, którego katalog nie
-  ma jako żywego produktu (nieznany albo usunięty miękko). Produkt roboczy albo nieaktywny jest żywy
-  i zostaje dodany.
-- **`added`** — każdy pozostały produkt, w kolejności z żądania, niezależnie od statusu i typu.
+- **Kolejności cen nie można jeszcze zmienić.** Obowiązuje wyłącznie ustawienie HY; proces zmiany, z
+  podglądem skutków, pojawi się w jednym z kolejnych wydań.
+- **Promocje działają dodatkowo na ceny promocyjne i kontraktowe.** Promocja koszyka nie wie jeszcze,
+  czy pozycja jest wyceniona ceną promocyjną albo kontraktową; wykluczanie takich pozycji pojawi się w
+  jednym z kolejnych wydań.
+- **Panel cen bazowych w produkcie ma własny przycisk *Zapisz ceny***, oddzielny od zapisu edytora
+  produktu, i pyta przed opuszczeniem go z niezapisanymi zmianami. Jeden zapis dla całej strony
+  produktu to zgłoszenie #407.
+- **Lista cenników nie ma zapisanych widoków**; jej filtry są przechowywane w adresie strony, więc
+  przefiltrowaną listę można dodać do zakładek i udostępnić (zgłoszenie #408).
+- **Tuż po dużym imporcie** stronicowanie i wyszukiwanie w siatce bardzo dużego cennika (dziesiątki
+  tysięcy linii) mogą trwać nieco dłużej, dopóki baza danych nie odświeży statystyk, co robi sama
+  wkrótce potem (zgłoszenie #409).
+- **Zakładka *Variants* edytora produktu nie pokazuje wariantów produktu nieaktywnego ani produktu
+  spoza domyślnego kanału sprzedaży**, bo odczytuje je przez odczyt storefrontu (zgłoszenie #410).
+  Panel cen bazowych tego problemu nie ma: odczytuje każdy wariant.
+- **Czytniki ekranu odczytują znaczek promocji w sklepie jako „Zapytaj o ofertę”**; widoczny tekst jest
+  poprawny (zgłoszenie #411).
+- **Porządek sortowania opóźnia się względem zmiany ceny** o czas odświeżania w tle; ceny na kartach
+  nigdy się nie opóźniają. Sortowanie według ceny wymaga działających workerów platformy.
+- **Zewnętrzne API katalogu** wycenia organizację klucza API z grupą klientów tej organizacji, a nie
+  z własną grupą powiązanego konta klienta, a jego zbiorcze żądanie cen wskazuje wyłącznie SKU
+  produktów.
+- **Feedy produktowe wyceniają produkty, nie warianty**, dla ilości 1.
 
-Całe żądanie to jedno polecenie, `price_list.products_add`, które zapisuje jeden wpis w dzienniku
-audytu ze stanem po zmianie zawierającym wyłącznie liczby (`{ name, added, unchanged, failed }`) —
-a gdy nic nie zostało dodane, nie zapisuje żadnego. Wpis pojawia się na karcie **Ostatnia
-aktywność** na pulpicie jako *dodał(a) produkty do cennika*. Ponowne wysłanie tej samej treści jest więc
-bezpieczne: produkty dodane za pierwszym razem wracają jako `unchanged`, bez śladu w dzienniku.
+## Aktualizacja ze starych cenników (uwaga migracyjna)
 
-Odmowy niczego nie zapisują:
+Wydanie, które wprowadziło cenniki w obecnym kształcie, zastąpiło poprzedni model cen w jednym kroku.
+W instancji, która go używała:
 
-| Przypadek | Odpowiedź |
-| --- | --- |
-| Wywołujący nie ma `price_lists:write` | `403 FORBIDDEN` |
-| Cennik jest systemowym cennikiem Default (jego lista produktów powstaje z domyślnej ceny każdego produktu) | `403 FORBIDDEN` |
-| Cennik jest nieznany albo usunięty | `404 NOT_FOUND` |
-| Treść nie jest obiektem albo `productIds` brakuje, jest puste, ma więcej niż 200 elementów lub zawiera coś, co nie jest UUID | `400 VALIDATION_FAILED` |
-| Inne żądanie w tej samej chwili dodało ten sam nowy produkt | Może zwrócić `409 VERSION_CONFLICT`; ponowienie zgłasza produkt jako `unchanged` |
+- **Ceny bazowe zostały zachowane.** Każda cena starego cennika *Default* stała się ceną bazową w
+  swojej walucie.
+- **Wszystkich pozostałych cenników już nie ma** — razem z ich regułą stosowania, produktami i
+  przedziałami ilościowymi oraz macierzą cen. Ceny, które zawierały, utwórz ponownie jako cenniki.
+- **Nie ma już *Default unit price* produktu ani nadpisania ceny wariantu** i nie zostały one
+  przeniesione: edytor produktu nie ma tych pól, a zapisy produktów i import produktów je odrzucają
+  (`400 PRICE_SET_IN_PRICE_BOOKS`). Produkt, który miał tylko *Default unit price*, a nie miał ceny w
+  cenniku *Default*, nie ma ceny, dopóki nie wpiszesz ceny bazowej w jego zakładce *Pricing*.
 
-### Listy wyboru w kreatorze reguł (panel administracyjny)
-
-| Metoda i ścieżka | Przeznaczenie |
-| --- | --- |
-| `GET /api/v1/admin/pricing/rule-targets/sales-channels` | Kanały do kreatora reguł |
-| `GET /api/v1/admin/pricing/rule-targets/customer-groups` | Grupy klientów |
-| `GET /api/v1/admin/pricing/rule-targets/organizations?search=&limit=` | Stronicowana lista organizacji |
-| `GET /api/v1/admin/pricing/rule-targets/categories` | Pełne drzewo kategorii |
-| `GET /api/v1/admin/pricing/rule-targets/currencies` | Waluty dostępne w którymkolwiek kanale sprzedaży |
-| `GET /api/v1/admin/pricing/rule-targets/attributes?lang=` | Atrybuty, według których pozycja macierzy cen może wybierać produkty (oznaczone jako „Reguły cennika”, odpowiedniego typu), z ich wartościami |
-
-### Tryby wyświetlania (panel administracyjny)
-
-| Metoda i ścieżka | Przeznaczenie |
-| --- | --- |
-| `GET /api/v1/admin/pricing/display-mode-overrides?scope=` | Lista nadpisań |
-| `GET /api/v1/admin/pricing/display-mode-overrides/:scope/:targetId` | Odczyt jednego nadpisania |
-| `PUT /api/v1/admin/pricing/display-mode-overrides/:scope/:targetId` | Utworzenie lub aktualizacja (`{ mode }`, albo `{ mode: 'inherit' }`, aby usunąć) |
-
-### Panel powiązanych cenników (panel administracyjny)
-
-| Metoda i ścieżka | Przeznaczenie |
-| --- | --- |
-| `GET /api/v1/admin/products/:productId/price-lists` | Wszystkie cenniki, w których jest produkt, z podsumowaniem progów w poszczególnych walutach i linkiem do cennika |
-
-### Sprawdzenie ceny kupującego (panel administracyjny)
-
-| Metoda i ścieżka | Przeznaczenie |
-| --- | --- |
-| `GET /api/v1/admin/products/:id/resolved-price?organizationId=&customerAccountId=&quantity=&currency=&variantId=&salesChannelId=` | Cena, jaką dany kupujący zapłaciłby za jeden produkt, tak jak pokazują ją ekrany zapytań ofertowych w panelu administracyjnym. Chronione przez `price_lists:read` |
-
-- **`matrixEntryId`** w odpowiedzi wskazuje pozycję macierzy cen, która wyznaczyła cenę, albo `null`,
-  gdy wyznaczył ją zapisany próg.
-- **`salesChannelId`** wskazuje kanał sprzedaży, w którym wyznaczana jest cena; bez niego —
-  domyślny kanał systemowy. Nieznany albo błędny identyfikator jest odrzucany z
-  `400 VALIDATION_FAILED`, a komunikat go nie powtarza.
-- **Kupujący jest sprawdzany przed wyznaczeniem ceny.** Pytanie dotyczy organizacji
-  `organizationId`, a w jej braku — organizacji konta klienta. Organizacja lub konto klienta,
-  które nie istnieje, oraz — dla opiekuna handlowego — organizacja spoza tych, które może widzieć,
-  dostają ten sam `404`, więc endpoint nikomu nie zdradza, co istnieje. Administrator platformy
-  pomija tylko sprawdzenie opiekuna. Konto klienta, które nie należy do wskazanej organizacji,
-  dostaje `400 VALIDATION_FAILED`.
-- **Zmiana zachowania.** We wcześniejszych wersjach nieznana organizacja lub konto albo
-  organizacja spoza zakresu dostawały cenę anonimową; teraz dostają `404`. Żądanie bez organizacji
-  i bez konta nadal dostaje cenę anonimową.
-
-### Storefront (publiczne)
-
-| Metoda i ścieżka | Przeznaczenie |
-| --- | --- |
-| `GET /api/v1/storefront/products/:id/resolved-price?quantity=&currency=&variantId=` | Cena podstawowa, promocyjna i tryb wyświetlania dla klienta |
-| `GET /api/v1/storefront/pricing/display-mode/:productId` | Sam tryb wyświetlania (dla koszyka i miejsc, które wyznaczają ceny zbiorczo i osobno) |
-
-Oba odczyty w storefroncie są wyznaczane **dla oglądającego**: korzystają z sesji kupującego, gdy
-istnieje, a gdy jej nie ma, odpowiadają tak jak dla anonimowego użytkownika. Oglądającego ustala
-jedna funkcja, więc tryb wyświetlania w wyznaczonej cenie i ten z tego endpointu nie mogą się różnić
-dla tego samego wywołującego — kiedyś mogły, i zalogowany kupujący widział cenę netto na stronie
-produktu, a brutto w koszyku, gdy `pricing.default_display_mode` i
-`pricing.unauthenticated_display_mode` miały różne wartości. Odpowiedź wyznaczona dla organizacji ma
-nagłówek `Cache-Control: private, no-store`; odpowiedź anonimowa go nie ma i pozostaje tą wersją,
-którą przechowują roboty wyszukiwarek i wspólna pamięć podręczna storefrontu.
-
-### Dawne API (nadal dostępne, dopóki wszystkie miejsca odczytu nie zostaną przeniesione)
-
-| Metoda i ścieżka | Przeznaczenie |
-| --- | --- |
-| `GET / PUT / DELETE /api/v1/admin/price-lists{,/:code,/:id}` | Dawne zarządzanie cennikami w starej postaci |
-| `GET / POST / DELETE /api/v1/admin/price-lists/:id/items{,/:itemId}` | Dawne zarządzanie pozycjami |
-| `GET / POST / DELETE /api/v1/admin/price-lists/:id/assignments{,/:assignmentId}` | Dawne zarządzanie przypisaniami |
-| `GET /api/v1/admin/price-lists/preview?productSku=&quantity=&organizationId=&salesChannelCode=` | Dawny podgląd |
-
-## Uwagi o migracji (przebudowa silnika)
-
-Migracja modułu `20260504T125655_price_lists_engine.ts` przebudowuje schemat w jednej transakcji:
-
-1. Zakłada blokadę doradczą ograniczoną do transakcji (`pg_advisory_xact_lock`), aby równoległe
-   migracje wykonywały się po kolei; blokada zwalnia się wraz z końcem transakcji.
-2. Dodaje nowe kolumny w `price_lists` (`type`, `status`, `startsAt`, `endsAt`, `modifiedAt`,
-   `isSystem`, `applicationRule` JSONB).
-3. Tworzy trzy nowe tabele (`price_list_products`, `price_list_price_brackets`,
-   `price_display_mode_overrides`).
-4. Tworzy cennik `Default` ze stałym UUID `00000000-0000-4000-8000-00000000d51b`.
-5. Przechodzi przez każdy `Product`, którego `attributeValues` zawiera `defaultPrice` (albo, w razie
-   jego braku, `price`), przypisuje go do cennika `Default` i zapisuje po jednym progu dla każdej
-   waluty dostępnej w którymkolwiek kanale sprzedaży, kopiując tę samą kwotę do każdej waluty.
-
-Dawne klucze `attributeValues.defaultPrice` i `attributeValues.price` **nie** są usuwane, więc
-istniejące miejsca odczytu działają dalej, a migracja nie zapisuje żadnego pliku raportu.
-
-Migracja jest **dodatkiem** względem dawnego schematu — tabele `price_list_items` i
-`price_list_assignments` oraz kolumny `code`/`currency`/`priority`/`isDefault` w `price_lists`
-pozostają, dopóki miejsca odczytu w `cart-service`, `comparison-service`, `catalog-query`,
-`search-query` i `product-link.service` nie przejdą na nowy mechanizm. Dawne kolumny usunie kolejna
-migracja, gdy zakończy się przegląd.
-
-Ten sam backfill jest dostępny jako usługa `DefaultPriceListMigrator`
-(`src/backend/services/default-price-list-migration.ts` w tym module). Jest idempotentna, więc można
-ją bezpiecznie uruchomić ponownie, i zwraca ustrukturyzowany raport wymieniający każdy produkt,
-którego pojedyncza dawna cena została skopiowana do więcej niż jednej waluty.
-
-## Storefront
-
-- Odczyty katalogu niosą ze sobą podział ceny: każdy `ProductSummary` zwracany przez katalog (i
-  wyszukiwanie) ma `resolvedPrice` — `basePrice`, `salePrice` i `displayMode` — z tego samego
-  wyznaczenia, z którego pochodzi `price`. Strona produktu i karty produktów na stronie głównej
-  pokazują go, więc każdy produkt jest wyceniany raz na stronę; żadna z nich nie wywołuje już
-  `GET /api/v1/storefront/products/:id/resolved-price`.
-- `GET /api/v1/storefront/products/:id/resolved-price` pozostaje dostępny przez
-  `storefront/lib/api/pricing.ts` (`getResolvedPrice`) dla miejsca, które potrzebuje ceny jednego
-  produktu w innej ilości.
-- `BaseSalePriceBlock`, `PriceTag` i `ProductCard` korzystają z podziału na cenę bazową, promocyjną
-  i tryb wyświetlania; `displayMode === 'none'` ukrywa wszystkie elementy ceny i pokazuje
-  `QuoteRequestCta` (prowadzący do `AddToRfqForm`).
-- Strona produktu zamienia wiersz Add-to-cart na przycisk zapytania ofertowego, gdy tryb to `none`.
-- Wybór wariantu nie pokazuje ceny dla wariantu. Wariant kosztuje tyle, ile jego produkt — cenniki
-  nie mają jeszcze wymiaru wariantu — więc blok ceny nad wyborem wariantu jest ceną każdego wariantu.
-
-## Panel administracyjny
-
-- `/price-lists` (lista cenników) i `/price-lists/:id` (edytor z zakładkami Details / Products &
-  brackets / Application rule / Macierz cen; `?tab=matrix` otwiera macierz cen).
-- `/price-lists/display-modes` — przegląd nadpisań oraz dwa klucze ustawień `pricing.*`.
-- **Produkty i widełki** pokazuje listę produktów cennika z nazwą i SKU przy dowolnej jej długości —
-  nazwy są pobierane przez `POST /api/v1/admin/catalog/products/batch-by-id` z katalogu, po 500
-  identyfikatorów w żądaniu i najwyżej dwa żądania naraz — i otwiera edytor progów dla każdego
-  produktu z listy; produkt, którego nazwy nie udało się ustalić, pokazuje początek swojego
-  identyfikatora. **Dodaj** otwiera wspólną przeglądarkę produktów panelu administracyjnego na
-  zakładce **Wszystkie**, gdzie można zaznaczyć produkt o dowolnym statusie i typie, a produkty, które
-  już są w cenniku, mają oznaczenie *Już jest w tym cenniku*. **Dodaj N** wysyła jedno żądanie
-  dodania zbiorczego dla najwyżej 200 produktów. Gdy zostanie przyjęte, przeglądarka się zamyka,
-  lista produktów się odświeża, pierwszy dodany produkt zostaje wybrany z otwartym edytorem progów,
-  a każdy produkt, którego nie udało się dodać, jest wymieniony z powodem. Gdy żądanie zostanie
-  odrzucone albo odpowiedź się zgubi, przeglądarka zostaje otwarta z zachowanym zaznaczeniem,
-  komunikatem o błędzie i przyciskiem **Ponów**, który wysyła te same produkty jeszcze raz; komunikat
-  podaje przyczynę, jeśli odpowiedź ją zawiera — cennik Default albo brak uprawnienia (403), cennik,
-  który już nie istnieje (404), nieprawidłowe żądanie (400) albo równoczesna zmiana cennika przez
-  kogoś innego (409) — i informuje, że niczego nie zmieniono. **Dodaj** jest nieaktywne w systemowym
-  cenniku Default, a bez uprawnienia `price_lists:write` albo `catalog:read` jest nieaktywne i
-  pokazuje podpowiedź.
-- `DisplayModeOverrideRow` jest osadzony w edytorze organizacji, w formularzu edycji drzewa kategorii
-  i w panelu LinkedPriceListsPanel, który zastępuje dawny `PricingPlaceholder` w edytorze produktu.
-
-## Porty
-
-- **`buyerLinePricePort`** (`BuyerLinePricePort` w `@endora-commerce/contracts`) —
-  `resolveForBuyer({ buyer, salesChannelId, currencyCode?, lines })` zwraca dla każdej pozycji
-  cenę jednostkową netto, jaką kupujący zapłaciłby teraz w zwykłym zamówieniu w tym kanale: grupa
-  klientów konta przed grupą organizacji, przedział ilościowy, aktywna cena promocyjna.
-  `salesChannelId: null` oznacza domyślny kanał systemowy; brak `currencyCode` — domyślną walutę
-  kanału; `quantity` jest w sztukach podstawowych. Produkt, który nie istnieje, dostaje
-  `price: null` dla swojej pozycji; nieznany kanał zgłasza `400 VALIDATION_FAILED`. Klucze są
-  zwracane w tej samej kolejności, a pozycje wyznaczane w ograniczonych porcjach. To ta sama
-  implementacja, z której korzysta opisane wyżej sprawdzenie ceny kupującego, i **nie** sprawdza
-  ona uprawnień — wywołujący przekazuje kupującego, którego już autoryzował. Moduł
-  `quote_requests` korzysta z niej przy cenie referencyjnej każdej pozycji.
-
-## Pamięć podręczna cen
-
-Wyznaczone ceny są przechowywane w każdym procesie w pamięci podręcznej LRU (`PricingCache`, 60 s,
-5 000 wpisów), z kluczem: produkt, wariant, ilość, waluta, kanał sprzedaży, organizacja i
-obowiązująca grupa klientów.
-
-- **Czyszczona po zatwierdzeniu.** Każdy audytowany zapis cennika czyści ją dopiero wtedy, gdy
-  Command Bus zatwierdzi zapis — nigdy wcześniej, więc odczyt równoległy z zapisem nie przywróci
-  starej ceny na cały czas życia wpisu. Zapis, który niczego nie zmienił, niczego nie czyści.
-  Wyznaczenie, które zaczęło się przed czyszczeniem, dostaje odpowiedź, ale nie jest zapamiętywane.
-- **Czyszczona w każdym procesie.** Czyszczenie jest ogłaszane na kanale Redis
-  `b2b:price_lists:pricing-generation`; każdy proces API i workera subskrybuje go przy starcie i
-  czyści własną pamięć, gdy inny proces je ogłosi. Jeśli Redis nie dostarczy ogłoszenia, pozostałe
-  procesy nadrabiają w ciągu 60 s.
-- **Czyszczona przez przebieg statusów**, gdy aktywuje albo wygasza cennik.
-- **Nie jest czyszczona** przez zapisy katalogu (kategorie produktu albo jego własna cena): te
-  nadal docierają do zapamiętanej ceny w ciągu do 60 s.
-
-## Punkty rozszerzenia
-
-- **Przejście koszyka i składania zamówień na nowy mechanizm** — pierwotny koszyk i składanie
-  zamówień nadal odczytują `attributeValues.defaultPrice`. Następna wersja wprowadzi
-  `PricingService.resolveLinePrice()` i uzależni od niego konstruktor `cart-service`; w tej samej
-  zmianie pojawi się dodatkowe sprawdzenie `displayMode === 'none'`.
-- **Podłączenie workera statusów do BullMQ** — `PriceListStatusWorker.sweep()` jest gotowy, ale
-  rejestracja powtarzalnego zadania BullMQ (wzorem workera wygasania zapytań ofertowych) czeka na
-  kolejną zmianę.
+Co zrobiły migracje i które wywołania API zastąpiły usunięte, opisano na stronie
+[Ceny dla programistów](./price_lists/developer-guide.md#upgrading-from-the-old-model-migration-note).

@@ -66,7 +66,7 @@ platformy, a nie tego, co akurat zostało opisane.
 | [payment_methods](./payment_methods.md) | Skonfigurowane metody płatności | @endora-commerce/mod-payment-methods |
 | [payments](./payments.md) | Obsługa sterowników płatności i zdarzenia rozliczeń | @endora-commerce/mod-payments |
 | `pim_connector` | _brak strony_ | @endora-commerce/mod-pim-connector |
-| [price_lists](./price_lists.md) | Cenniki dla klienta, grupy i domyślne, z progami ilościowymi i korektami dla kategorii | @endora-commerce/mod-price-lists |
+| [Cenniki](./price_lists.md) | Cenniki — ceny bazowe w każdej walucie, ceny katalogowe, ceny dla kupujących i ceny promocyjne w kanałach sprzedaży oraz reguły, które decydują, ile płaci każdy kupujący. | @endora-commerce/mod-price-lists |
 | [Feedy produktowe](./product_feeds.md) | Feedy produktowe w formacie dostawcy dla każdego kanału sprzedaży — generowanie według harmonogramu, adresy URL z tokenem do pobierania oraz wysyłka przez SFTP/FTP/HTTP | @endora-commerce/mod-product-feeds |
 | [promotions](./promotions.md) | Rabaty na poziomie koszyka — procentowe, kwotowe i darmowa dostawa — z warunkami, które muszą być spełnione | @endora-commerce/mod-promotions |
 | [Asystent AI (Prompt Actions)](./prompt-actions.md) | Polecenia w języku naturalnym w palecie poleceń panelu administracyjnego, z jawnym podglądem i potwierdzeniem przed każdą zmianą | @endora-commerce/mod-prompt-actions |

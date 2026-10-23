@@ -385,9 +385,11 @@ const modules = [
   { type: 'doc', id: 'module-reference/pim-connector', label: 'pim_connector', key: 'pim_connector' },
   {
     type: 'category',
-    label: 'price_lists', key: 'price_lists',
+    label: 'Price books', key: 'price_lists',
     link: { type: 'doc', id: 'modules/price_lists' },
     items: [
+      'modules/price_lists/price-book-editor',
+      'modules/price_lists/developer-guide',
       'module-reference/price-lists',
     ],
   },

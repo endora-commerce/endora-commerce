@@ -32,8 +32,9 @@ normalized to the same row model and validated against the catalog:
   **1–10 000** whatever its stored value.
 
 `POST /api/v1/quick-order/build` turns the confirmed recognized rows into a
-**Cart** (`CartService`) or a **Quote Request** (`RfqService`), priced under the
-buyer's / organization's current price list. The admin twins
+**Cart** (`CartService`) or a **Quote Request** (`RfqService`), priced at the
+buyer's current prices from the price books — the basket's own pricing for a
+cart, the quote request's reference prices for a request. The admin twins
 (`/api/v1/admin/quick-order/import` + `/build`, guarded by `orders:write`)
 build on behalf of a chosen customer via `onBehalfOf`.
 

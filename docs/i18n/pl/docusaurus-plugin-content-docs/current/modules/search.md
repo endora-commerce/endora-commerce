@@ -107,13 +107,26 @@ createdAt, updatedAt). Indeksator ustawia też w Meilisearch `searchableAttribut
 `filterableAttributes` na podstawie bieżących flag `product_attributes.is_searchable` i
 `is_filterable`, a `sortableAttributes` — na podstawie `SORTABLE_ATTRIBUTES` (zobacz *Sortowanie*).
 
-**Dokument nie zawiera ceny.** Kiedyś zawierał — skopiowaną ze starego atrybutu katalogu
-`attributes.defaultPrice`, a nie z żadnego cennika — i nie była ona odczytywana w ścieżce zapytań,
-która przy uzupełnianiu wyników ustala cenę dla oglądającego na podstawie `price_lists`, więc indeks
-nie może decydować o tym, ile płaci kupujący. Ceny dla konkretnego kupującego i tak nie da się
-zindeksować: jeden indeks na kanał sprzedaży i jeden dokument na produkt oznaczają, że dodanie ceny
-do dokumentu pomnożyłoby indeks przez liczbę klientów. Stary atrybut jest nadal indeksowany pod
-`attributes.defaultPrice`, gdzie nazwa mówi, czym jest.
+**Dokument nie zawiera ceny.** Ceny należą do oglądającego: ścieżka zapytań ustala je z cenników
+(`price_lists`) przy uzupełnianiu wyników, więc indeks nigdy nie decyduje o tym, ile płaci
+kupujący. Ceny dla konkretnego kupującego i tak nie da się zindeksować: jeden indeks na kanał
+sprzedaży i jeden dokument na produkt oznaczają, że dodanie ceny do dokumentu pomnożyłoby indeks
+przez liczbę klientów.
+
+### Ceny w wynikach wyszukiwania
+
+- **Wyniki i podpowiedzi** są wyceniane dla oglądającego — jego organizacji, grupy klientów i kanału
+  sprzedaży — jednym zbiorczym wywołaniem `resolveListingPriceDetails` na stronę lub okno
+  podpowiedzi, tą samą wyceną co lista produktów w katalogu, więc wynik wyszukiwania, karta w
+  katalogu i koszyk pokazują tę samą cenę. Podpowiedzi są wyceniane w walucie żądania.
+- Produkt z wariantami pokazuje najniższą cenę wariantu jako cenę **„od”**, a naliczona cena
+  promocyjna niesie własną cenę kupującego jako cenę przekreśloną.
+- Przy włączonym ustawieniu cenników `pricing.show_list_price` wynik niesie `listPrice` obok niższej
+  ceny kupującego, tak samo jak karta w katalogu.
+- **Sortowania ani filtrowania według ceny** (`?sort=price`, `?sort=-price`, `minPrice`,
+  `maxPrice`) nigdy nie obsługuje Meilisearch: katalog kieruje taką listę do PostgreSQL, gdzie
+  wstępnie wyliczona powierzchnia cen modułu `price_lists` porządkuje ją według cen, które karty
+  pokazują temu oglądającemu.
 
 ### Sortowanie
 

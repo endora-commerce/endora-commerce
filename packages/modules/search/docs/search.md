@@ -117,15 +117,27 @@ Meilisearch's `searchableAttributes` + `filterableAttributes` from the
 live `product_attributes.is_searchable` + `is_filterable` flags, and
 its `sortableAttributes` from `SORTABLE_ATTRIBUTES` (see *Sorting*).
 
-**A document carries no price.** It used to carry one, copied from the
-legacy `attributes.defaultPrice` catalogue attribute — not any price
-list's figure — and read by nothing on the query path, which resolves
-the viewer's price from `price_lists` at hydrate time so the index
-cannot decide what a buyer pays. A per-buyer price cannot be indexed
-in any case: one index per sales channel and one document per product
-means pricing the document would multiply the corpus by the customer
-base. The legacy attribute is still indexed under
-`attributes.defaultPrice`, where its name says what it is.
+**A document carries no price.** Prices are the viewer's: the query path
+resolves them from the price books (`price_lists`) when it hydrates the hits,
+so the index can never decide what a buyer pays. A per-buyer price cannot be
+indexed in any case: one index per sales channel and one document per product
+means pricing the document would multiply the corpus by the customer base.
+
+### Prices in search results
+
+- **Hits and suggestions** are priced for the viewer — their organization,
+  customer group and sales channel — through one batched
+  `resolveListingPriceDetails` call per page or popup, the same resolution the
+  catalogue listing uses, so a search hit, a catalogue card and the basket
+  show the same price. Suggestions are priced in the request's currency.
+- A variant product shows its lowest variant price as a **"from"** price, and a
+  charged sale carries the buyer's own price as the struck-through price.
+- With the price-list setting `pricing.show_list_price` on, a hit carries
+  `listPrice` beside a lower buyer price, exactly as a catalogue card does.
+- **Sorting or filtering by price** (`?sort=price`, `?sort=-price`, `minPrice`,
+  `maxPrice`) is never answered by Meilisearch: the catalogue routes such a
+  listing to PostgreSQL, where `price_lists`' precomputed price surface orders
+  it by the prices the cards show for that viewer.
 
 ### Sorting
 

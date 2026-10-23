@@ -42,7 +42,7 @@ revision additionally pin `expectedRevisionNumber`.
 | `PATCH /api/v1/quote-requests/:id` | customer | Edit a Pending RFQ that the internal side has not yet revised — see *Customer draft edits*. |
 | `POST /api/v1/quote-requests/:id/accept-revision` | customer | Accept the seller's latest revision (also covers `Created from admin`). Needs an offer from the seller with every line priced — see *Agreed prices*. |
 | `POST /api/v1/quote-requests/:id/reject-revision` | customer | Reject the latest revision with optional reason. |
-| `POST /api/v1/quote-requests/:id/resubmit` | customer | Clone an old Quote Request into a new Pending one at the customer's current price list. |
+| `POST /api/v1/quote-requests/:id/resubmit` | customer | Clone an old Quote Request into a new Pending one at the customer's current prices. |
 | `POST /api/v1/quote-requests/:id/convert-to-order` | customer | Seed the customer's cart from an Approved RFQ at the agreed unit prices and return the checkout URL. |
 | `GET /api/v1/admin/quote-requests` | admin | List, scoped by sales-rep assignment + filterable by status / organization. |
 | `GET /api/v1/admin/quote-requests/:id` | admin | Detail with full actor identity in the event log, and per line the reference price and the customer's proposal — see *Reference price*. |
@@ -115,8 +115,11 @@ what the seller compares the customer's proposal with.
 
 - **Net, per base unit.** The price is the net unit price of one base piece —
   the unit every line quantity is counted in — whatever packaging unit the
-  customer chose. The customer's price lists, the quantity bracket and an
-  active sale price apply.
+  customer chose. It is what the price books charge this customer for the
+  line's product, variant and quantity — the base price, a catalogue price for
+  everyone on the channel, the customer's organization or customer-group price,
+  and a sale when it is lower (see the `price_lists` module's page) — in the
+  request's currency when it names one, else in the channel's default currency.
 - **Resolved on the server, for the request's owner, on the request's sales
   channel.** The owner is the customer account that raised the request and its
   organization — also when an organization administrator edits a colleague's
@@ -132,6 +135,14 @@ what the seller compares the customer's proposal with.
 - **A cart is its own reference.** A request converted from a cart stores each
   cart line's unit price as that line's reference price. It does **not** record
   it as the customer's proposal: such lines carry no proposed price.
+
+For developers: the stored reference is resolved through `price_lists`'
+`buyerLinePricePort` (`BuyerLinePricePort.resolveForBuyer` in
+`@endora-commerce/contracts`), which prices every line of a request in batches
+through the same resolution as the cart; the port performs no authority check,
+so this module passes the request's owner it has already authorised. The admin
+screens' *current price* comes from `POST /api/v1/admin/price-books/resolve`,
+gated by `price_lists:read`.
 
 The admin detail shows, per line, the reference price, the customer's proposed
 unit price, their difference as a signed amount and a percentage of the
@@ -1086,8 +1097,8 @@ Both are disabled, each with a hint, for an operator without `catalog:read`.
 Each line shows the product's name and SKU, an editable whole-number quantity,
 an editable agreed unit price and a remove action.
 
-**The agreed unit price is prefilled from the customer's price lists**, through
-`GET /api/v1/admin/products/:id/resolved-price` for the chosen customer and the
+**The agreed unit price is prefilled from the customer's current price**, through
+`POST /api/v1/admin/price-books/resolve` for the chosen customer and the
 line's quantity, with at most four requests in flight. A price is prefilled
 only once a customer with an organization is chosen — lines added before that
 are prefilled then — and an answer is applied only while it still matches the

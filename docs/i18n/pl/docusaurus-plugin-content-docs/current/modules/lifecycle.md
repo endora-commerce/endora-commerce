@@ -99,7 +99,7 @@ import { defineModuleManifest, defineModuleSettingsManifest } from '@endora-comm
 export const manifest = defineModuleManifest({
   id: 'pricing',
   name: 'Pricing',
-  description: 'Customer-group pricing with brackets and display modes.',
+  description: 'Price books and price display modes.',
   version: '1.0.0',
   dependencies: ['settings', 'sales_channels'],
   settings: defineModuleSettingsManifest({

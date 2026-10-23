@@ -325,6 +325,10 @@ groups*), and the
 `organizations.order_confirmation_emails` column (owned by `organizations`,
 read via a port). `OrderItem` snapshots the product + variant + unit price +
 tax rate at placement so historical orders survive pricing / catalog changes.
+It also copies the cart line's `price_source` — `agreed`, `base`, `catalogue`,
+`buyer` or `sale`, the price-book step (or the quote agreement) that priced the
+line — into `order_items.price_source`; the column is stored for reporting and
+for a later promotions rule, and is not part of the order API's answer.
 
 ## Events emitted
 
@@ -421,10 +425,14 @@ code — the first that applies, in this order — and shows one reason:
 | `PRODUCT_NOT_VISIBLE_TO_CUSTOMER` | *The customer cannot see this product* | The product's visibility or its allowed organizations exclude the customer's Organization: change them on the product in the catalogue, choose another customer, or remove the line. |
 | `PRODUCT_NOT_IN_SALES_CHANNEL` | *Not in this sales channel's assortment* | Choose a sales channel whose assortment holds the product, add the product to this channel's assortment, or remove the line. |
 | `QUOTE_ONLY` | *No price* | The customer's price for the product is quote-only: remove the line, or create a quote request instead. |
+| `UNPRICED` | *No price* | No price book prices the product for this customer, channel and currency — not even a base price: set a base price, remove the line, or create a quote request instead. |
 | `BELOW_MINIMUM_QUANTITY` | *Below the minimum of N pcs* | The product's total on the order is below its minimum order quantity: raise the quantity, or remove the line. |
 
 `BELOW_MINIMUM_QUANTITY` carries the `minimum` and is judged only over the
-lines that passed the four checks above it, summing each product's lines. A
+lines that passed the checks above it, summing each product's lines. The lines
+are priced from the price books exactly as the customer's basket would price
+them — one batched resolution for every line, at each line's own quantity and
+variant — so the order created is charged what the preview showed. A
 code the screen does not know is shown as *No price* as well. The other lines
 keep their prices and the summary counts only the priced ones. The preview
 checks the assortment of exactly the sales channel the request names; a

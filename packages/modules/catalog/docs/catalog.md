@@ -54,6 +54,51 @@ otherwise; every price names its currency either way. A malformed code is refuse
 | `PUT /api/v1/admin/catalog/categories/:id/content` | admin | Replace the category's page content; `null` clears it |
 | `PUT /api/v1/catalog/products/by-sku/:sku` | API key | Idempotent upsert (PIM sync) |
 
+## Prices
+
+**A product carries no price of its own.** Every price is a row of a price book of the
+`price_lists` module: the product's base price per currency, its variants' prices, and any
+catalogue, buyer or sale price. Set a product's base price on the product editor's **Pricing** tab
+— the *Base prices* panel there, and the list of the price books that price the product, are
+contributed by `price_lists` — or in the base book's grid. Variant prices are set in the same
+places, never on the variant itself. The `price_lists` module's page explains how the price a
+buyer pays is chosen.
+
+- **Listing cards, the product page and related products** show the viewer's own price — their
+  organization's and customer group's prices on the request's sales channel and currency. A product
+  whose variants cost different amounts shows its lowest price as a *from* price
+  (`ProductSummary.price` carries `variesByVariant` and `maxAmount`); a charged sale carries the
+  buyer's regular price as the compare-at price; with `pricing.show_list_price` on, a lower buyer
+  price carries the catalogue price as `listPrice`. A product nothing prices has no price and
+  follows the quote-request path.
+- **Sorting and filtering by price** — `?sort=price`, `?sort=-price`, `minPrice`, `maxPrice` on
+  `GET /api/v1/catalog/products` — order and select by the same quantity-1 price the cards show to
+  that viewer, the *from* price for a variant product. Priced products always come before unpriced
+  ones. A price ordering is always answered from PostgreSQL, never from the search index.
+- **The product detail on a non-public sales channel** omits the price.
+
+For developers: the listing paths price a whole page in one batched call —
+`resolveListingPrices`, or `resolveListingPriceDetails` where the page renders the split
+(`ProductSummary.resolvedPrice`: `basePrice`, `salePrice`, `listPrice`, `displayMode`) — through the
+`pricingService` port slices of `@endora-commerce/contracts`, passing the viewer's organization and
+customer account rather than a resolved group. A price ordering reads `ListingPriceOrderPort`
+(`orderByUnitPrice`, `pricedProductIds`) over `price_lists`' precomputed price surface and composes
+the unpriced tail itself (`catalog-query.service.ts`). The external catalogue API prices through
+`resolveLinePrices` and builds a bound organization's tier ladder from `listTierStarts`. Product,
+category and attribute writes publish the events `price_lists` subscribes to, which clear the
+pricing caches and mark the price surface stale.
+
+### Removed price fields (migration note)
+
+The release that introduced price books removed the product's *Default unit price* (the
+`defaultPrice` and `price` keys of `attributeValues`, and the editor field) and the variant price
+override (`product_variants.price_override`, and the variant editor's price field), without
+converting either. Product and variant create and update, and the products import, refuse those
+fields with `400 PRICE_SET_IN_PRICE_BOOKS` (`PRICE_FIELDS_REFUSED_ON_PRODUCTS`,
+`PRICE_FIELDS_REFUSED_ON_VARIANTS` in `@endora-commerce/contracts`), saying that prices are set in
+price books. The catalogue's migration `20261022T111811_catalog_price_fields_removed.ts` dropped the
+column and stripped the keys.
+
 ## Entities
 
 `Product`, `ProductVariant`, `Category`, `ProductAttribute`,
@@ -219,9 +264,10 @@ modules are present. The payload is sent whole; the strict schemas are
 
 ## Extension points
 
-- **Per-Sales-Channel pricing** — query service receives a SalesChannel
-  context; new gating (e.g. customer-segment-specific catalogs) is added by
-  composing into `catalog-query.service.ts`.
+- **Per-Sales-Channel listing** — the query service receives a SalesChannel
+  context, and every price it renders is resolved for that channel; new gating
+  (e.g. customer-segment-specific catalogs) is added by composing into
+  `catalog-query.service.ts`.
 - **Slug uniqueness** — the slug is unique across all Sales Channels by
   default; override the slugifier in `catalog-admin.service.ts` if locale
   collisions become a concern.

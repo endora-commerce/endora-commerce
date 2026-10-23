@@ -70,8 +70,9 @@ change historical carts, orders, or quote requests.
 
 ## Pricing & availability
 
-Pricing reuses the existing engine on the resulting base-piece quantity
-(including price-list quantity tiers) — there is no separate per-unit price.
+A line in a packaging unit is priced by the price books on the resulting
+base-piece quantity (including the books' quantity tiers) — there is no
+separate per-unit price.
 Stock availability and per-line limits are evaluated on the resulting piece
 count.
 

@@ -80,7 +80,7 @@ policy flag.
 | `POST /api/v1/cart/coupon` | Apply (or replace, or clear) the active coupon code; 422 `CART_COUPON_REJECTED` with reason on rejection |
 | `DELETE /api/v1/cart/coupon` | Alias for `POST {code: null}` |
 | `POST /api/v1/cart/convert-to-quote-request` | Cart → Quote Request; source cart becomes `completed` with `converted_to_quote_request_id` set |
-| `POST /api/v1/cart/from-quote-request/:qrId` | Quote Request → Cart; lines re-priced from the customer's current price list |
+| `POST /api/v1/cart/from-quote-request/:qrId` | Quote Request → Cart; lines re-priced at the customer's current prices |
 | `POST /api/v1/cart/from-shopping-list/:listId` | Shopping List → Cart; lines re-priced |
 
 ### Storefront (Organization Administrator)
@@ -127,20 +127,41 @@ price for the line's **current** quantity:
 - Adding a product, adding more of a product already in the cart, changing a
   line's quantity, merging an anonymous cart at login and seeding a basket from
   a past order (a reorder) all store the price for the resulting quantity — a
-  quantity-tier bracket applies to the quantity actually ordered.
-- The price comes from the price list for the buyer's organization; when no
-  list applies, from the Product's own price (the `defaultPrice` attribute).
-  A product with neither is refused with `422 CART_PRODUCT_UNPRICED`; a
-  product sold on request only with `400 CART_PRODUCT_QUOTE_ONLY`.
+  quantity tier of a price book applies to the quantity actually ordered.
+- The price comes from the price books (the `price_lists` module), for the
+  line's product **and variant**, on the basket's sales channel, for the
+  basket's buyer: the base price, a catalogue price for everyone on the channel,
+  the buyer's organization or customer-group price, and a sale when it is lower.
+  There is no other source: a line no price book prices is not orderable and is
+  refused with `422 CART_PRODUCT_UNPRICED` — the buyer can ask for a quote
+  instead. A product sold on request only is refused with
+  `400 CART_PRODUCT_QUOTE_ONLY`.
 - A line seeded from an accepted quote keeps the agreed price only while it
-  holds the agreed quantity. At any other quantity it is priced from the list,
-  and it gets the agreed price back at the agreed quantity.
+  holds the agreed quantity. At any other quantity it is priced from the price
+  books, and it gets the agreed price back at the agreed quantity.
+- Each line records **where its price came from** in `price_source`: `agreed`
+  (a quote's agreed price), `base`, `catalogue`, `buyer` or `sale` (the price-book
+  step that priced it); it is `null` on a line priced before price books existed.
+  Order placement copies it onto the order line.
+- `GET /api/v1/cart` shows every line at the price placement would charge now,
+  through the same chain, and shows a line placement would refuse as
+  unavailable.
 - At order placement the Orders module asks this module whether every stored
-  price is still current. If one is not — typically a list price changed after
+  price is still current. If one is not — typically a price book changed after
   the line was added — the placement is refused with
   `409 CART_PRICE_CHANGED` (`details.lines` names each line with its previous
   and current unit price), the cart is brought up to date, and the buyer
   reviews it before placing the order again.
+
+**For developers.** The whole chain is one function,
+`CartLinePricing.orderablePrices`
+(`src/backend/services/cart-line-pricing.ts` in this module): the agreed
+price at the agreed quantity, else the price books through one batched
+`resolveLinePrices` call for every line of the basket (with each line's
+`variantId`), else nothing. Adding, merging, changing a quantity, reading the
+cart (`CartPricingRecompute`) and the placement check all call it, so the price
+a buyer sees in the basket is the price placement charges —
+`backend/test/integration/carts/cart-read-equals-placement.test.ts` holds that.
 
 ## Settings
 
@@ -194,8 +215,8 @@ Reactivation: any buyer activity (touch, add/remove/qty/coupon) on an
   its `packagingUnitId`; a line whose unit has since been deleted is sent as
   plain pieces, with its piece quantity unchanged.
 - **Quote Request → Cart**: adds the QR's items as one batch
-  (`CartService.addItems`, see *Order minimums* below), priced through
-  `PricingService`. The QR's `desired_unit_price` is intentionally dropped — the
+  (`CartService.addItems`, see *Order minimums* below), priced from the price
+  books like any other line. The QR's `desired_unit_price` is intentionally dropped — the
   buyer's current contractual prices are the source of truth. Unavailable /
   no-price / not-purchasable lines are skipped and returned in
   `droppedLines[]` with typed reasons; a line below a product's minimum is
@@ -311,9 +332,10 @@ surfaces `couponDroppedThisRead`. Wiring into the read path is a follow-up.
 
 ## Extension points
 
-- **Re-pricing-on-read** — `CartPricingRecompute` + `CartRecomputeCache`
-  (30 s Redis TTL) exist and are tested but not yet wired into `GET
-  /api/v1/cart`; the snapshotted `unit_price` is returned today.
+- **Re-pricing-on-read** — `GET /api/v1/cart` prices every line through
+  `CartPricingRecompute`, which runs `CartLinePricing.orderablePrices`; the
+  result is kept in `CartRecomputeCache` (30 s Redis TTL), which every cart write
+  invalidates. The mutation answers return the stored `unitPrice`.
 - **Email dispatch** — submit-for-approval / approve / reject / abandonment
   e-mails are scaffolded in the service surfaces; dedicated templates are a
   follow-up.

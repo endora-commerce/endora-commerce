@@ -83,7 +83,7 @@ Add **exactly one** classification decorator to every `*.entity.ts` (the CI chec
 | `@OrgScoped()` | has an `organizationId` column |
 | `@CustomerScoped()` | has a `customerAccountId` column and no org column |
 | `@TransitivelyScoped('Parent', 'fk')` | is scoped through a parent aggregate's org (e.g. `Invoice` → `Order`) |
-| `@RuleScoped()` | targets orgs via a rule/JSONB, not a column (e.g. `price_lists.applicationRule`) |
+| `@RuleScoped()` | targets orgs as a business coordinate, not as an owning column (e.g. the price books of `price_lists`, whose audience names organizations in `price_list_audience_members`; every pricing read filters that audience to the buyer's own organization chain and group) |
 | `@GlobalEntity()` | is platform-global / config (no tenant) |
 
 `@OrgScoped` / `@CustomerScoped` attach the filter; the others are metadata only —

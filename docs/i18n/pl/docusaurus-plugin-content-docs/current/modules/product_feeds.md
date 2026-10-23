@@ -98,7 +98,7 @@ wymienia każde z nich, zamiast publikować plik z lukami.
 
 ### Zawężanie feedu do części katalogu
 
-Sekcja **Criteria** na karcie Settings to ten sam kreator reguł, którego używają promocje i cenniki.
+Sekcja **Criteria** na karcie Settings to ten sam kreator reguł, którego używają promocje.
 Pusta reguła oznacza „każdy kwalifikujący się produkt tego kanału”. Kryterium kategorii obejmuje
 całe jej poddrzewo.
 
@@ -119,6 +119,23 @@ Dwóch rzeczy reguła nigdy nie zrobi:
 
 Jeśli reguła nic nie dopasuje, generowanie kończy się stanem `empty`, a **wcześniej opublikowany
 plik jest nadal udostępniany**. Panel ostrzega o tym przed zapisem, a nie po nim.
+
+### Ceny w feedzie
+
+Feed publikuje ceny, które w jego kanale sprzedaży zobaczyłby **każdy** — feed pobiera dostawca,
+który nie jest niczyim kupującym, więc żadna cena kontraktowa organizacji ani grupy klientów nigdy do
+niego nie trafia. Każdy produkt jest wyceniany dla ilości 1, w walucie feedu, przez cenniki (moduł
+`price_lists`): jego cena bazowa albo cena z cennika katalogowego dla wszystkich w kanale, albo cena
+promocyjna, gdy jest niższa. Produkt bez ceny w walucie feedu jest pomijany z powodem
+`missing_price`. Pozycje feedu to produkty: produkt z wariantami jest publikowany w cenie samego
+produktu, a nie osobno dla każdego wariantu.
+
+Feed można zamiast tego **przypiąć do jednego cennika** (pole `priceListId` feedu). Publikuje wtedy
+własne wiersze tego cennika — ceny stałe oraz procenty i korekty liczone od ceny katalogowej kanału —
+niezależnie od odbiorców, stanu i harmonogramu cennika, a **produkt, którego cennik nie wycenia, nie
+trafia do feedu**. Cennik w innej walucie niż waluta feedu nie wycenia niczego. Liczba dopasowań w
+*Criteria* i kryterium zakresu cen korzystają z tych samych cen, które opublikuje następne
+generowanie.
 
 ### Mapowanie kategorii (Google i Meta)
 
@@ -251,7 +268,7 @@ pozycji, której dotyczą, i eksportem pełnej listy do CSV.
 
 | Powód | Znaczenie |
 | --- | --- |
-| `missing_price` | Nie znaleziono ceny dla waluty i cennika feedu. |
+| `missing_price` | Brak ceny w walucie feedu — żaden cennik nie wycenia produktu w kanale feedu albo przypięty cennik feedu go nie wycenia. |
 | `missing_image` | Produkt nie ma publicznie dostępnego zdjęcia. |
 | `private_image_asset` | Zdjęcia istnieją, ale nie są publiczne, więc nie można było opublikować stałego adresu URL. |
 | `missing_required_field` | Pole wymagane przez dostawcę okazało się puste i nie miało wartości zastępczej — pozycja została pominięta. |
@@ -454,6 +471,17 @@ których dotyczy operacja, i usuwa te ciągi znaków, zamiast zgadywać, jak wyg
 Środowisko testowe wstrzykuje adaptery, które odmawiają każdej wysyłki, z tego samego powodu, dla
 którego wstrzykuje moduł pobierania taksonomii niezdolny do pobierania: żaden test w tym
 repozytorium nie może nigdzie wysłać katalogu z cenami.
+
+### Wycena
+
+Generowanie nigdy nie czyta tabel innego modułu. Feed nieprzypięty wycenia każdą partię jednym
+wywołaniem `resolveLinePrices` portu `pricingService` modułu `price_lists`, jako gość
+(`organization: null`, `customerGroupId: null`), w kanale i walucie feedu, dla ilości 1, bez
+wariantu. Feed przypięty czyta `namedListPrices({ priceListId, currencyCode, productIds,
+salesChannelId })` — wiersze cennika na poziomie produktu, liczone od ceny katalogowej kanału;
+produktu, którego cennik nie wycenia, nie ma w odpowiedzi (`services/named-list-price-resolver.ts`).
+Żadna ze ścieżek nie przechwytuje `MODULE_DISABLED`: gdy modułu `price_lists` nie ma, generowanie
+kończy się błędem zamiast publikować ceny, których platforma nie podaje.
 
 ### Zawężenie do kanału
 
