@@ -415,6 +415,21 @@ export class PriceBookReads {
    * The labels and the order use the admin language (`en` or `pl`), so a
    * product line's label (`pickName`) is the name its key was built from.
    */
+  /**
+   * The named products that have a line in the book (161, Checkpoint 5
+   * review), from `price_list_product_lines` — one indexed probe per id on its
+   * primary key, whatever the book's size — in the order they were named.
+   */
+  async productLines(bookId: string, productIds: readonly string[], scope: PriceBookScope): Promise<string[]> {
+    await this.#visible(bookId, scope);
+    const rows = (await this.deps.emFactory().execute(
+      `select l."product_id" from "price_list_product_lines" l where l."price_list_id" = ? and l."product_id" = any(?::uuid[])`,
+      [bookId, `{${productIds.join(',')}}`],
+    )) as Array<{ product_id: string }>;
+    const present = new Set(rows.map((r) => r.product_id));
+    return productIds.filter((id) => present.has(id));
+  }
+
   async lines(
     bookId: string,
     query: PriceBookLinesQuery,

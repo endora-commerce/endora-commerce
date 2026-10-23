@@ -88,7 +88,8 @@ type Notice =
   | { readonly kind: 'refused'; readonly count: number }
   | { readonly kind: 'stale'; readonly count: number }
   | { readonly kind: 'limit'; readonly count: number }
-  | { readonly kind: 'error'; readonly message: string };
+  | { readonly kind: 'error'; readonly message: string }
+  | { readonly kind: 'existing'; readonly products: readonly { readonly name: string; readonly sku: string }[] };
 
 type Dialog =
   | { readonly kind: 'products' }
@@ -337,9 +338,25 @@ export function PriceBookGrid(props: {
     setStatus(t('grid.status.linesAdded', { count: result.added }));
   };
 
-  const addProducts = (items: readonly ProductBrowserItem[]): void => {
+  /**
+   * Products picked in the browser. A product whose line sits on a page not
+   * loaded is unknown to the browser, and adding it again would overwrite its
+   * stored price on save; so the book's membership is asked first — once, for
+   * every pick (`GET …/:id/product-lines`) — and a product already in the book
+   * is refused and offered to be opened instead.
+   */
+  const addProducts = async (items: readonly ProductBrowserItem[]): Promise<void> => {
+    let present: Set<string>;
+    try {
+      present = new Set(await api.productLines(book.id, items.map((item) => item.id)));
+    } catch (err) {
+      setNotice({ kind: 'error', message: errorMessage(err, t('grid.error.membership')) });
+      return;
+    }
+    const fresh = items.filter((item) => !present.has(item.id));
+    const existing = items.filter((item) => present.has(item.id));
     addNewLines(
-      items.map((item) => ({
+      fresh.map((item) => ({
         kind: 'product' as const,
         selection: { productId: item.id },
         labels: {
@@ -353,7 +370,17 @@ export function PriceBookGrid(props: {
         },
       })),
     );
+    setNotice(existing.length > 0 ? { kind: 'existing', products: existing.map((item) => ({ name: productDisplayName(item), sku: item.sku })) } : null);
     setDialog(null);
+  };
+
+  /** Open a line where it is: search for its identifier, from the first page. */
+  const openLine = (identifier: string): void => {
+    setSearchText(identifier);
+    setSearch(identifier);
+    setKind('');
+    setPage(1);
+    setNotice(null);
   };
 
   const addAllProductsLine = (): void => addNewLines([{ kind: 'all', selection: {}, labels: { productName: null, productSku: null, variantLabel: null, variantSku: null, categoryPath: null, attributeLabel: null, attributeValueLabel: null } }]);
@@ -587,7 +614,7 @@ export function PriceBookGrid(props: {
         </Button>
       </div>
 
-      {notice ? <GridNotice notice={notice} onReapply={reapply} onDiscard={discard} /> : null}
+      {notice ? <GridNotice notice={notice} onReapply={reapply} onDiscard={discard} onOpen={openLine} /> : null}
 
       {loadError !== null ? (
         <Alert variant="destructive">
@@ -692,7 +719,7 @@ export function PriceBookGrid(props: {
           title={t('grid.addLines.productsTitle')}
           rules={{ initialStatus: 'all' }}
           alreadyAddedIds={alreadyAddedIds}
-          onConfirm={addProducts}
+          onConfirm={(items): void => void addProducts(items)}
           onCancel={(): void => setDialog(null)}
         />
       ) : null}
@@ -764,9 +791,31 @@ function PriceKindIcon(props: { readonly price: PriceBookRowPrice }): ReactNode 
   return <Tag className="h-3 w-3 text-muted-foreground" aria-hidden="true" />;
 }
 
-function GridNotice(props: { readonly notice: Notice; readonly onReapply: () => void; readonly onDiscard: () => void }): ReactNode {
+function GridNotice(props: {
+  readonly notice: Notice;
+  readonly onReapply: () => void;
+  readonly onDiscard: () => void;
+  readonly onOpen: (identifier: string) => void;
+}): ReactNode {
   const t = useTranslation('price_lists');
   const { notice } = props;
+  if (notice.kind === 'existing') {
+    const shown = notice.products.slice(0, 5);
+    return (
+      <Alert variant="warning">
+        <AlertDescription className="space-y-2">
+          <p>{t('grid.notice.existing', { names: notice.products.map((p) => p.name).join(', ') })}</p>
+          <span className="flex flex-wrap gap-2">
+            {shown.map((product) => (
+              <Button key={product.sku} type="button" size="sm" variant="outline" onClick={(): void => props.onOpen(product.sku)}>
+                {t('grid.notice.open', { name: product.name })}
+              </Button>
+            ))}
+          </span>
+        </AlertDescription>
+      </Alert>
+    );
+  }
   if (notice.kind === 'stale') {
     return (
       <Alert variant="warning">

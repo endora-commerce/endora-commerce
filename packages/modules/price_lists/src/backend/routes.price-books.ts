@@ -9,6 +9,7 @@ import {
   priceBookCreateSchema,
   priceBookDuplicateSchema,
   priceBookLinesQuerySchema,
+  priceBookProductLinesQuerySchema,
   priceBookListQuerySchema,
   priceBookPatchRequestSchema,
   priceBookResolveRequestSchema,
@@ -481,6 +482,13 @@ export async function registerPriceBookRoutes(app: FastifyInstance, deps: PriceB
     if (!UUID.test(request.params.id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Price book not found.');
     const query = parseOr400(priceBookLinesQuerySchema, request.query);
     return deps.reads.lines(request.params.id, query, currentPriceBookScope(), labelLanguage(request));
+  });
+
+  // 161 (Checkpoint 5 review) — which picked products already have a line, in one read.
+  app.get<{ Params: { id: string } }>(`${base}/:id/product-lines`, { preHandler: readGate }, async (request) => {
+    if (!UUID.test(request.params.id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Price book not found.');
+    const { productIds } = parseOr400(priceBookProductLinesQuerySchema, request.query);
+    return { data: { productIds: await deps.reads.productLines(request.params.id, productIds, currentPriceBookScope()) } };
   });
 
   app.put<{ Params: { id: string }; Querystring: { dryRun?: string } }>(

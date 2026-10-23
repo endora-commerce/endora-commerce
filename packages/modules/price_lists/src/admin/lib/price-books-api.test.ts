@@ -390,3 +390,15 @@ describe('price-books API client — a product’s variants (FR-009)', () => {
     expect(calls).toHaveLength(1);
   });
 });
+
+describe('price-books API client — which products already have a line', () => {
+  it('asks once for every picked product, and asks nothing for none', async () => {
+    const { client, calls } = fakeClient({
+      [`GET ${B}/${BOOK_ID}/product-lines?productIds=${PRODUCT_ID}%2C${ORG_ID}`]: { data: { productIds: [PRODUCT_ID] } },
+    });
+    const api = createPriceBooksApi(client);
+    expect(await api.productLines(BOOK_ID, [PRODUCT_ID, ORG_ID])).toEqual([PRODUCT_ID]);
+    expect(await api.productLines(BOOK_ID, [])).toEqual([]);
+    expect(calls).toHaveLength(1);
+  });
+});

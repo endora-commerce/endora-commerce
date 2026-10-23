@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { priceBookSchema, type PriceBook, type PriceBookRow } from '@endora-commerce/contracts';
 import { BOOKS, PLATFORM_ADMIN } from '../../helpers/price-book-fixtures';
@@ -104,6 +104,44 @@ describe('price-book grid — paging by line', () => {
     await user.keyboard('2{Enter}');
     await user.click(screen.getByRole('button', { name: 'Save prices' }));
     expect(await screen.findByText('This book would hold 5001 price rows; a price book holds at most 5000.')).toBeInTheDocument();
+    expect(api.put).not.toHaveBeenCalled();
+  });
+});
+
+describe('price-book grid — a picked product already in the book (Checkpoint 5 review)', () => {
+  it('asks the server once, adds only the new products and opens the one already priced', async () => {
+    const user = userEvent.setup();
+    serveBook(api, {
+      book,
+      lines: linesOf(ROWS),
+      products: [
+        { id: product(60).id, sku: product(60).sku, slug: 's-060', name: { 'en-US': product(60).name }, status: 'active', type: 'simple' },
+        { id: '00000000-0000-4000-8000-000000164fff', sku: 'NEW-1', slug: 'new-1', name: { 'en-US': 'Brand new' }, status: 'active', type: 'simple' },
+      ],
+    });
+    await open();
+    // Screw 060 is on page 2, not loaded: the browser cannot know it is a line.
+    await user.click(screen.getByRole('button', { name: 'Add lines' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Products…' }));
+    const dialog = await screen.findByRole('dialog');
+    await waitFor(() => expect(within(dialog).getByRole('checkbox', { name: 'Select Screw 060' })).not.toBeDisabled());
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Select Screw 060' }));
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Select Brand new' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Add 2' }));
+    const memberships = api.get.mock.calls.map(([url]) => url as string).filter((url) => url.includes('/product-lines'));
+    expect(memberships).toHaveLength(1);
+    expect(new URLSearchParams(memberships[0]!.split('?')[1]).get('productIds')!.split(',').sort()).toEqual(
+      [product(60).id, '00000000-0000-4000-8000-000000164fff'].sort(),
+    );
+    expect(await screen.findByText('Already in this book, not added again: Screw 060.')).toBeInTheDocument();
+    const headers = lineHeaders();
+    expect(headers.filter((h) => h.includes('Brand new'))).toHaveLength(1);
+    expect(headers.some((h) => h.includes('Screw 060'))).toBe(false);
+    expect(screen.getByTestId('unsaved-count')).toHaveTextContent('Unsaved changes: 1');
+    // Its price is never overwritten; the operator is taken to it instead.
+    await user.click(screen.getByRole('button', { name: 'Open Screw 060' }));
+    await waitFor(() => expect(lineRequests(api).at(-1)!.get('search')).toBe('S-060'));
+    await waitFor(() => expect(lineHeaders().some((h) => h.includes('Screw 060'))).toBe(true));
     expect(api.put).not.toHaveBeenCalled();
   });
 });

@@ -629,6 +629,29 @@ export const priceBookLineSchema = z.object({
 });
 export type PriceBookLine = z.infer<typeof priceBookLineSchema>;
 
+/** Most products one `GET …/:id/product-lines` asks about (a product browser's pick is at most 200). */
+export const PRICE_BOOK_PRODUCT_LINES_MAX_IDS = 200;
+
+/**
+ * `GET /api/v1/admin/price-books/:id/product-lines?productIds=a,b` (feature
+ * 161, Checkpoint 5 review): which of the named products already have a line
+ * in the book — a row of the product or of one of its variants — in one read,
+ * so the grid refuses a picked product whose line sits on another page rather
+ * than overwriting its price.
+ */
+export const priceBookProductLinesQuerySchema = z.object({
+  productIds: z
+    .string()
+    .transform((raw) => [...new Set(raw.split(',').map((id) => id.trim()).filter((id) => id.length > 0))])
+    .pipe(z.array(uuidSchema).min(1).max(PRICE_BOOK_PRODUCT_LINES_MAX_IDS)),
+});
+export type PriceBookProductLinesQuery = z.infer<typeof priceBookProductLinesQuerySchema>;
+
+export const priceBookProductLinesResponseSchema = z.object({
+  data: z.object({ productIds: z.array(uuidSchema) }),
+});
+export type PriceBookProductLinesResponse = z.infer<typeof priceBookProductLinesResponseSchema>;
+
 /** The answer of `GET …/:id/lines`: general to specific, by label within a kind (FR-006). */
 export const priceBookLinesResponseSchema = z.object({
   data: z.array(priceBookLineSchema),

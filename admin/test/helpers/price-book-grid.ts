@@ -113,6 +113,11 @@ export function serveBook(api: MockApi, served: ServedBook): void {
         meta: { page, pageSize, totalLines: matching.length },
       };
     }
+    if (path === `${B}/${served.book.id}/product-lines`) {
+      const asked = (params.get('productIds') ?? '').split(',');
+      const present = new Set(served.lines.filter((l) => l.selectionKind === 'product').map((l) => l.selection.productId));
+      return { data: { productIds: asked.filter((id) => present.has(id)) } };
+    }
     if (path === B) return { data: [], meta: { page: 1, pageSize: 1, totalCount: 0, creatableAudienceKinds: ['everyone', 'customer_groups', 'organizations'] } };
     if (path === `${B}/targets/sales-channels`) return { data: { items: [CATALOG.channel] } };
     if (path === `${B}/targets/customer-groups`) return { data: { items: CATALOG.customerGroups } };

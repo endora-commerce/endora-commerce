@@ -3,6 +3,7 @@ import {
   precedenceViewSchema,
   priceBookLinesResponseSchema,
   priceBookListResponseSchema,
+  priceBookProductLinesResponseSchema,
   priceBookResolvedLineSchema,
   priceBookRowsDryRunSchema,
   priceBookRowsResponseSchema,
@@ -129,6 +130,8 @@ export interface PriceBooksApi {
   remove(id: string): Promise<void>;
   /** The grid's pages, cut by line (G15). */
   lines(id: string, filters: PriceBookLinesFilters): Promise<PriceBookLinesResponse>;
+  /** Which of `productIds` already have a line in the book (one request; ≤ 200 ids). */
+  productLines(id: string, productIds: readonly string[]): Promise<string[]>;
   /** Rows page by page — the export. */
   rows(id: string, filters: PriceBookRowsFilters): Promise<PriceBookRowsResponse>;
   /** The import preview: the same body as the write, writing nothing (G10). */
@@ -238,6 +241,14 @@ export function createPriceBooksApi(client: PriceBooksTransport): PriceBooksApi 
         ])}`,
         priceBookLinesResponseSchema,
       ),
+    productLines: async (id, productIds) => {
+      if (productIds.length === 0) return [];
+      const answer = await get(
+        `${book(id)}/product-lines${query([['productIds', productIds.join(',')]])}`,
+        priceBookProductLinesResponseSchema,
+      );
+      return answer.data.productIds;
+    },
     rows: (id, f) =>
       get(
         `${book(id)}/rows${query([
