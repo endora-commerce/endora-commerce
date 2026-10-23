@@ -227,7 +227,7 @@ describe('import — encodings (FR-039)', () => {
   });
 
   it('falls back to Windows-1250 when the bytes are not UTF-8, and says it is not sure', () => {
-    // "wkręty-łódź" in Windows-1250: ę = 0xEA, ł = 0xB3, ó = 0xF3, ź = 0x9F.
+    // The Polish letters of the path as Windows-1250 bytes: e-ogonek 0xEA, l-stroke 0xB3, o-acute 0xF3, z-acute 0x9F.
     const cp1250 = new Uint8Array([...new TextEncoder().encode('kategoria;;;wkr'), 0xea, ...new TextEncoder().encode('ty-'), 0xb3, 0xf3, 0x64, 0x9f]);
     const decoded = decodeCsv(cp1250);
     expect(decoded).toEqual({ text: 'kategoria;;;wkręty-łódź', encoding: 'windows-1250', uncertain: true });

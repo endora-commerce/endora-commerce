@@ -264,7 +264,7 @@ describe('import — the preview (FR-040, FR-041)', () => {
   it('scenario 5 — asks for the encoding when the file is not UTF-8, showing its first lines as read', async () => {
     const user = userEvent.setup();
     const ascii = (s: string): number[] => [...new TextEncoder().encode(s)];
-    // "kategoria;;;wkręty" in Windows-1250 (ę = 0xEA).
+    // A category path whose e-ogonek (U+0119) is the Windows-1250 byte 0xEA, which is not UTF-8.
     const bytes = new Uint8Array([...ascii(`${EN_HEADER}\n`), ...ascii('category;;;wkr'), 0xea, ...ascii('ty;;;1;;percent;-5,00\n')]);
     dryRun = answer({ resolved: [null], errors: [{ index: 0, field: 'key.categoryPath', code: 'PRICE_BOOK_ROW_TARGET', message: 'x' }] });
     await openPrices();
