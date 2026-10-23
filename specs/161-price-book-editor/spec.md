@@ -388,6 +388,7 @@ row; after fixing the file and confirming, the grid equals the file.
   name what is missing and link to the step that fixes it.
 - **FR-005**: Deleting a book MUST require a confirmation naming the book and its row count; base books
   MUST offer no delete, rename or schedule action.
+  *Clarification (owner, 2026-10-23): a base book's priority is not editable — base prices are their own tier and there is one base book per currency, so priority, a same-cell tie-break, never decides for it.*
 
 **Grid** (US2)
 
