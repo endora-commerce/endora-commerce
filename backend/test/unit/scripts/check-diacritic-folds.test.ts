@@ -77,6 +77,14 @@ const LEDGER_ANCHOR =
   'export const DIACRITIC_FOLDS_ALLOWED: Readonly<Record<string, LedgerEntry>> = {};';
 
 /**
+ * The fold ledger's whole declaration in the checked-in script — empty or not.
+ * Since feature 161 it holds two entries naming files a fixture tree does not
+ * have, so a copy of the script that kept them would report both stale; every
+ * fixture therefore substitutes its own ledger (`{}` unless it names one).
+ */
+const LEDGER_DECLARATION = /export const DIACRITIC_FOLDS_ALLOWED: Readonly<Record<string, LedgerEntry>> = \{(?:\};|\n[\s\S]*?\n\};)/;
+
+/**
  * The slug ledger's declaration in the checked-in script.
  *
  * The whole literal, not just its opening: it is empty since issue #260, so the
@@ -123,20 +131,21 @@ function fixtureRepository(
   mkdirSync(join(dirname(checker), 'lib'), { recursive: true });
   copyFileSync(READ_SIZE_LIB, join(dirname(checker), 'lib', 'read-size.ts'));
   symlinkSync(TYPESCRIPT, join(root, 'node_modules', 'typescript'), 'dir');
-  if (options.ledger !== undefined) {
-    // The real ledger is empty since issue #245, so the CLI can no longer be
-    // driven into a stale finding by the tree alone — and the staleness
-    // direction is half of what this check refuses. The copy's constant is
-    // substituted instead. The anchor is asserted rather than replaced
-    // best-effort: a substitution that silently matched nothing would leave a
-    // green test that proves the opposite of what it claims (issue #113).
+  if (options.ledger !== undefined || options.ledgered !== true) {
+    // The copy's fold ledger is the fixture's own (`{}` unless the case names
+    // one) — except for a `ledgered` fixture, which copies the files the real
+    // ledger names and so keeps the real ledger. Without either, the real
+    // entries name files a fixture tree does not hold and would read as stale,
+    // and the staleness direction is half of what this check refuses. The declaration is asserted rather than replaced best-effort: a
+    // substitution that silently matched nothing would leave a green test that
+    // proves the opposite of what it claims (issue #113).
     const source = readFileSync(checker, 'utf8');
-    if (!source.includes(LEDGER_ANCHOR)) {
-      throw new Error(`the ledger constant no longer reads ${LEDGER_ANCHOR}`);
+    if (!LEDGER_DECLARATION.test(source)) {
+      throw new Error(`the ledger constant no longer reads like ${LEDGER_ANCHOR}`);
     }
     writeFileSync(
       checker,
-      source.replace(LEDGER_ANCHOR, LEDGER_ANCHOR.replace('= {};', `= ${options.ledger};`)),
+      source.replace(LEDGER_DECLARATION, LEDGER_ANCHOR.replace('= {};', `= ${options.ledger ?? '{}'};`)),
       'utf8',
     );
   }
@@ -862,7 +871,13 @@ describe('check-diacritic-folds — the ledger', () => {
     // two-way ratchet reads, and a rule with no list is a rule with nowhere to
     // record the exception it will one day have. The loop below is what an
     // entry would have to satisfy, and it is kept live for that day.
-    expect(Object.keys(DIACRITIC_FOLDS_ALLOWED)).toEqual([]);
+    // Feature 161 (owner ruling, 2026-10-23) put back the two folds that build
+    // and mirror `catalog`'s stored admin keys, each with its reason; nothing
+    // else may stand here.
+    expect(Object.keys(DIACRITIC_FOLDS_ALLOWED).sort()).toEqual([
+      'packages/contracts/src/admin-name.ts',
+      'packages/modules/catalog/src/migrations/20261022T182523_catalog_admin_name_keys.ts',
+    ]);
     for (const [path, entry] of Object.entries(DIACRITIC_FOLDS_ALLOWED)) {
       expect(entry.reason.length, `${path} has no reason`).toBeGreaterThan(30);
       expect(entry.retiredBy, `${path} names no retiring condition`).toContain('#');
@@ -1104,13 +1119,14 @@ describe('check-diacritic-folds — the exit codes', () => {
     const result = repo.run();
     expect(result.status).toBe(0);
     expect(result.output).toContain('violations=0');
-    // Both ledgers are empty — the fold one since issue #245, the slug one
-    // since #260 — so nothing folds, nothing slugifies outside the generator,
-    // and nothing is excused from either. `ledgered: true` copies no file in,
-    // which is what an empty two-way ratchet looks like from the CLI.
-    expect(result.output).toContain('fold-ledger-size=0');
+    // The slug ledger is empty since #260. The fold ledger holds feature 161's
+    // two entries (owner ruling, 2026-10-23) — the SQL fold that builds
+    // `catalog`'s stored admin keys and its TypeScript mirror — and
+    // `ledgered: true` copies their files in, so their three findings are
+    // excused and nothing else folds or slugifies outside the helpers.
+    expect(result.output).toContain('fold-ledger-size=2');
     expect(result.output).toContain('slug-ledger-size=0');
-    expect(result.output).toContain('ledgered=0');
+    expect(result.output).toContain('ledgered=3');
     expect(result.output).toContain('stale=0');
   });
 

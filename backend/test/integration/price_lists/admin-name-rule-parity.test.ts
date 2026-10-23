@@ -79,4 +79,23 @@ describe('admin name rule — the grid label and the catalogue key agree (161 G1
       expect(foldAdminName(text), text).toBe(row!.key);
     }
   });
+
+  it('folds ł and Ł to l, which NFKD leaves alone, in both folds (R14: Łącznik sorts with L)', async () => {
+    // Equality alone would pass two folds that were wrong the same way: `ł`
+    // has no canonical or compatibility decomposition, so a fold that only
+    // decomposed and stripped marks would keep it, and `Łącznik` would sort
+    // after `Z`. So the expected value is written down, for each fold.
+    const EXPECTED: ReadonlyArray<readonly [string, string]> = [
+      ['Łącznik', 'lacznik'],
+      ['ŁÓDŹ', 'lodz'],
+      ['żółw', 'zolw'],
+    ];
+    for (const [text, folded] of EXPECTED) {
+      const [row] = (await h.em().getConnection().execute(`select catalog_admin_name_key(jsonb_build_object('en', ?::text), 'x', 'en') as key`, [text])) as Array<{
+        key: string;
+      }>;
+      expect(foldAdminName(text), `TypeScript fold of ${text}`).toBe(folded);
+      expect(row!.key, `SQL fold of ${text}`).toBe(folded);
+    }
+  });
 });

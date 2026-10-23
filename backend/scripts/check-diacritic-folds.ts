@@ -66,7 +66,33 @@ const REPO_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..')
  * count over both kinds would make "never raise a number" ambiguous the first
  * time one file carried one of each.
  */
-export const DIACRITIC_FOLDS_ALLOWED: Readonly<Record<string, LedgerEntry>> = {};
+export const DIACRITIC_FOLDS_ALLOWED: Readonly<Record<string, LedgerEntry>> = {
+  // Feature 161, owner ruling of 2026-10-23 (Checkpoint 8): `catalog`'s stored
+  // admin sort and search keys are generated columns built by this SQL
+  // function, and an SQL function cannot import the TypeScript helper. Its
+  // equality with the TypeScript fold below is pinned by the parity test,
+  // which also writes down the expected value of `ł`/`Ł` → `l`.
+  'packages/modules/catalog/src/migrations/20261022T182523_catalog_admin_name_keys.ts': {
+    findings: 1,
+    reason:
+      "`catalog_admin_fold` builds the generated stored columns `products.admin_name_key_<lang>`; SQL cannot import `foldDiacritics`, and its equality with `foldAdminName` is pinned by backend/test/integration/price_lists/admin-name-rule-parity.test.ts (specs/161-price-book-editor/research.md R14).",
+    retiredBy:
+      'the stored admin keys stop being SQL-generated columns (specs/161-price-book-editor/research.md#r14-g15-redesign); no issue is filed for it',
+  },
+  // The same ruling's condition — compose `foldDiacritics` *if that keeps it
+  // identical to the SQL fold* — does not hold: the shared fold maps ß→ss,
+  // æ→ae, þ→th, œ→oe, decomposes canonically rather than by compatibility, and
+  // strips spacing marks (`^`) the SQL fold keeps.
+  // `packages/contracts/src/admin-name.test.ts` pins each difference and fails
+  // the day they agree.
+  'packages/contracts/src/admin-name.ts': {
+    findings: 2,
+    reason:
+      '`foldAdminName` must equal the SQL `catalog_admin_fold` (parity test above) and `foldDiacritics` differs from it on ß, æ, þ, œ, compatibility decomposition and spacing marks — packages/contracts/src/admin-name.test.ts lists each case.',
+    retiredBy:
+      'both folds move to `foldDiacritics` semantics in one change, the SQL function and its stored columns included (specs/161-price-book-editor/research.md#r14-g15-redesign); no issue is filed for it',
+  },
+};
 
 /**
  * Slug builders outside the helper that are not (yet) violations, with the
