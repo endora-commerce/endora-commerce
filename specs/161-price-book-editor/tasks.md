@@ -124,18 +124,18 @@ to the catalogue through a sanctioned subquery seam. **The budget is unchanged.*
 
 ### Tests first
 
-- [ ] T050 [P] [US1] List tests in `AT/price-books-page.test.tsx`: filters by type, status, currency, channel, audience kind, member (G12 labels the chip), search; columns incl. *applies to no one / nowhere*; base books marked one per currency with no delete/rename/schedule; filters reflected in the URL; loading skeleton, empty state (icon, line, *New price book*), error with retry; axe (FR-001, FR-005, FR-032)
-- [ ] T051 [P] [US1] Create-flow tests in `AT/price-book-create.test.tsx`: order type → currency → channels → audience → schedule/priority; channels limited to the currency with the reason for absent ones; pickers by kind; draft created; one primary action per step; axe (FR-002, FR-033)
-- [ ] T052 [P] [US1] Header tests in `AT/price-book-header.test.tsx`: currency read-only, audience kind read-only after activation, dormant binding text, member labels, `expectedVersion` on save and the stale message, activation refusal mapped to the step by `path`, delete confirmation naming the row count; history link to `/audit-log?objectType=price_list&objectId=` (FR-003, FR-004, FR-005)
+- [x] T050 [P] [US1] List tests in `AT/price-books-page.test.tsx`: filters by type, status, currency, channel, audience kind, member (G12 labels the chip), search; columns incl. *applies to no one / nowhere*; base books marked one per currency with no delete/rename/schedule; filters reflected in the URL; loading skeleton, empty state (icon, line, *New price book*), error with retry; axe (FR-001, FR-005, FR-032)
+- [x] T051 [P] [US1] Create-flow tests in `AT/price-book-create.test.tsx`: order type → currency → channels → audience → schedule/priority; channels limited to the currency with the reason for absent ones; pickers by kind; draft created; one primary action per step; axe (FR-002, FR-033)
+- [x] T052 [P] [US1] Header tests in `AT/price-book-header.test.tsx`: currency read-only, audience kind read-only after activation, dormant binding text, member labels, `expectedVersion` on save and the stale message, activation refusal mapped to the step by `path`, delete confirmation naming the row count; history link to `/audit-log?objectType=price_list&objectId=` (FR-003, FR-004, FR-005)
 
 ### Implementation
 
-- [ ] T053 [US1] `PL/admin/pages/PriceBooksPage.tsx` (list, URL-backed filters, `ResponsiveTable`, `PaginationFooter`, organization/customer-group/sales-channel pickers)
-- [ ] T054 [US1] `PL/admin/pages/PriceBookCreatePage.tsx` (stepper with progress text, `creatableAudienceKinds`)
-- [ ] T055 [US1] `PL/admin/components/PriceBookHeaderForm.tsx` and the header tab of `PL/admin/pages/PriceBookPage.tsx` (activate/draftify/delete, `StickyFormActions`, unsaved-changes prompt)
-- [ ] T056 [US1] i18n en + pl for every US1 string in `packages/modules/price_lists/i18n/`
+- [x] T053 [US1] `PL/admin/pages/PriceBooksPage.tsx` (list, URL-backed filters, `ResponsiveTable`, `PaginationFooter`, organization/customer-group/sales-channel pickers)
+- [x] T054 [US1] `PL/admin/pages/PriceBookCreatePage.tsx` (stepper with progress text, `creatableAudienceKinds`)
+- [x] T055 [US1] `PL/admin/components/PriceBookHeaderForm.tsx` and the header tab of `PL/admin/pages/PriceBookPage.tsx` (activate/draftify/delete, `StickyFormActions`, unsaved-changes prompt)
+- [x] T056 [US1] i18n en + pl for every US1 string in `packages/modules/price_lists/i18n/`
 
-**Checkpoint 4.**
+**Checkpoint 4** — reached 2026-10-23; awaiting coordinator review.
 
 ---
 

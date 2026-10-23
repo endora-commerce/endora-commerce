@@ -59,7 +59,12 @@ vi.mock('../../../../packages/admin-shell/src/lib/prompt-actions/api', () => ({
   markPromptRequestSeen: vi.fn(),
 }));
 
-// The display-mode page reads on mount; the four new shells read nothing yet.
+// Every screen reads on mount; the book's own read answers the fixture book, so
+// its page renders the book's name as its heading.
+// (The fixture cannot be imported inside the factory: it reaches this very
+// module through the session helpers, so it is handed over after the imports.)
+const served = vi.hoisted(() => ({ book: null as { id: string } | null }));
+
 vi.mock('@endora-commerce/admin-kit/lib', async () => {
   const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
     '@endora-commerce/admin-kit/lib',
@@ -67,7 +72,9 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
   return {
     ...actual,
     apiClient: {
-      get: vi.fn(async () => ({ data: { items: [] } })),
+      get: vi.fn(async (url: string) =>
+        served.book && url === `/api/v1/admin/price-books/${served.book.id}` ? { data: served.book } : { data: { items: [] } },
+      ),
       post: vi.fn(),
       put: vi.fn(),
       patch: vi.fn(),
@@ -86,7 +93,9 @@ const { App } = await import('../../../../packages/admin-shell/src/App');
 const { contributions } = await import('@endora-commerce/mod-price-lists/admin');
 const { manifest } = await import('@endora-commerce/mod-price-lists');
 
-const BOOK_ID = '00000000-0000-4000-8000-000000161d02';
+const { BOOKS } = await import('../../helpers/price-book-fixtures');
+served.book = BOOKS.L2;
+const BOOK_ID = BOOKS.L2.id;
 
 const bundle = {
   ...passthroughBundle('core', [
@@ -101,7 +110,6 @@ const bundle = {
     'priceBooks.list.title',
     'priceBooks.create.title',
     'priceBooks.explainer.title',
-    'priceBooks.book.title',
   ]),
 };
 
@@ -147,7 +155,8 @@ const ROUTES: readonly { path: string; heading: string; code: string }[] = [
   { path: '/price-lists/new', heading: 'priceBooks.create.title', code: WRITE },
   { path: '/price-lists/explain', heading: 'priceBooks.explainer.title', code: READ },
   { path: '/price-lists/display-modes', heading: 'priceLists.displayModes.title', code: READ },
-  { path: `/price-lists/${BOOK_ID}`, heading: 'priceBooks.book.title', code: READ },
+  // The book's page is headed by the book's own name.
+  { path: `/price-lists/${BOOK_ID}`, heading: BOOKS.L2.name, code: READ },
 ];
 
 describe('price_lists — routes', () => {

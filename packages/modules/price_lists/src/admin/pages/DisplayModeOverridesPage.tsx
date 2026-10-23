@@ -10,8 +10,8 @@ import {
 } from 'lucide-react';
 import type { DisplayMode } from '@endora-commerce/contracts';
 import { ApiError, apiClient, normalize } from '@endora-commerce/admin-kit/lib';
-import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
-import { adminLanguageToLocale, pickCategoryDisplayName } from '@endora-commerce/admin-kit/components';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useLocalizedName } from '../lib/localized-name.js';
 type Scope = 'organization' | 'category' | 'product';
 
 interface DisplayModeOverrideRow {
@@ -38,23 +38,6 @@ interface ProductRow {
   sku: string;
   name: Record<string, string>;
 }
-
-/**
- * A catalogue name in the admin language, picked as every admin surface picks
- * it (`pickCategoryDisplayName`: the language's tag, then `en-US`, then any
- * non-empty one, then `fallback`). Both maps arrive keyed by language tag, so
- * rendering one as it came would put an object into the tree.
- */
-function useLocalizedName(): (name: Record<string, string> | undefined, fallback: string) => string {
-  const { language } = useTranslationContext();
-  const locale = adminLanguageToLocale(language);
-  return useCallback(
-    (name: Record<string, string> | undefined, fallback: string): string =>
-      name ? pickCategoryDisplayName(name, fallback, locale) : fallback,
-    [locale],
-  );
-}
-
 
 /**
  * Display-mode overrides + pricing settings (US7 / T087 + T088).
