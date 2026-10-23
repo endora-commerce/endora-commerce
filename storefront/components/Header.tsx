@@ -125,6 +125,8 @@ export function Header(props: {
               seeAllResultsLabel={t('search.seeAllResults')}
               unavailableLabel={t('search.unavailable')}
               requestQuoteLabel={t('product.requestQuote')}
+              listPriceLabel={t('product.listPrice')}
+              yourPriceLabel={t('product.yourPrice')}
               showKeyboardHint
               salesChannelCode={props.salesChannelCode}
             />

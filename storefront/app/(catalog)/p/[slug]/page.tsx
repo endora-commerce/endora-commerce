@@ -178,6 +178,8 @@ export default async function ProductPage({
         basePrice: variantResolved.basePrice,
         salePrice: variantResolved.salePrice,
         displayMode: variantResolved.displayMode,
+        // Feature 161 (FR-026) — the variant's own "list price / your price".
+        ...(variantResolved.listPrice ? { listPrice: variantResolved.listPrice } : {}),
       };
       const charged = variantResolved.salePrice ?? variantResolved.basePrice;
       selectedVariantPrice = charged;
@@ -326,6 +328,9 @@ export default async function ProductPage({
               <PdpPriceToggle
                 basePrice={resolved.basePrice}
                 salePrice={resolved.salePrice}
+                listPrice={resolved.listPrice ?? null}
+                listPriceLabel={t('product.listPrice')}
+                yourPriceLabel={t('product.yourPrice')}
                 locale={locale}
                 labels={{ net: 'NETTO', gross: 'BRUTTO' }}
               />

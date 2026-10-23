@@ -6,7 +6,9 @@ import userEvent from '@testing-library/user-event';
 import type { ComponentType, ReactElement, ReactNode } from 'react';
 import { TranslationProvider } from '../../../../packages/admin-shell/src/i18n/TranslationProvider';
 import type { Bundle } from '../../../../packages/admin-shell/src/i18n/types';
-import { CATALOG, IDS } from '../../helpers/price-book-fixtures';
+import { MemoryRouter } from 'react-router-dom';
+import { CATALOG, IDS, PLATFORM_ADMIN } from '../../helpers/price-book-fixtures';
+import { withSession } from '../../helpers/render-with-session';
 
 /**
  * The display-mode page names a category or a product override in the admin
@@ -58,13 +60,33 @@ function answer(url: string): unknown {
   if (url.includes('/targets/categories')) return { data: { items: CATALOG.categories } };
   if (url.includes('/admin/catalog/products')) return { data: [PRODUCT] };
   if (url.includes('/admin/settings/')) return { defaultValue: 'gross_only' };
+  // Feature 161 — the page is *Pricing settings* now, and reads the list-price
+  // setting and the precedence beside the overrides.
+  if (url.endsWith('/price-books/settings/show-list-price')) return { data: { value: false } };
+  if (url.endsWith('/price-books/precedence')) {
+    return {
+      data: {
+        version: 1,
+        preset: 'HY',
+        categoryBeforeAttribute: true,
+        depthMode: 'within_cell',
+        cells: [
+          'org.variant', 'org.product', 'org.category_attribute', 'org.category', 'org.attribute',
+          'group.variant', 'group.product', 'group.category_attribute', 'group.category', 'group.attribute',
+          'org.all', 'group.all',
+        ],
+      },
+    };
+  }
   throw new Error(`unexpected url ${url}`);
 }
 
 function mount(language: 'en' | 'pl'): void {
   const wrapper = ({ children }: { children: ReactNode }): ReactElement => (
     <TranslationProvider language={language} initialBundle={coreBundle(language)}>
-      <>{children}</>
+      {/* Feature 161 — the page's precedence section reads the address and its
+          list-price switch the session, as every admin screen may. */}
+      {withSession(<MemoryRouter>{children}</MemoryRouter>, { session: PLATFORM_ADMIN })}
     </TranslationProvider>
   );
   render(<Page />, { wrapper });

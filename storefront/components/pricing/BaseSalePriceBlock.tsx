@@ -13,6 +13,12 @@ import { DEFAULT_VAT_RATE, grossFromNet } from '../../lib/i18n/money';
  *   - `salePrice` present → Base struck-through, Sale highlighted as
  *     the new "Special Price"; the cart picks up the Sale price.
  *   - `salePrice` null → single Base price, formatted per `displayMode`.
+ *   - `listPrice` present (feature 161, FR-026) → the catalogue price above
+ *     the buyer's, labelled "List price", and the buyer's labelled "Your
+ *     price". Whether it is present is the pricing engine's decision
+ *     (`pricing.show_list_price` on and the catalogue price above the price
+ *     charged); this block only renders what it is given. The basket and the
+ *     checkout never pass it.
  *
  * The wire amount is a decimal string (`"199.00"`); we parse with
  * `parseFloat` so the caller doesn't have to round-trip through the
@@ -22,6 +28,8 @@ import { DEFAULT_VAT_RATE, grossFromNet } from '../../lib/i18n/money';
 export function BaseSalePriceBlock(props: {
   basePrice: PricingMoney | null;
   salePrice?: PricingMoney | null;
+  /** Feature 161 (G14) — the catalogue price shown beside a lower buyer price. */
+  listPrice?: PricingMoney | null;
   displayMode: DisplayMode;
   locale: string;
   /**
@@ -39,6 +47,10 @@ export function BaseSalePriceBlock(props: {
   baseLabel?: string;
   /** Optional copy for the Sale price annotation; defaults to "Special price". */
   saleLabel?: string;
+  /** Copy for the list-price annotation; defaults to "List price". */
+  listLabel?: string;
+  /** Copy for the buyer's price beside a list price; defaults to "Your price". */
+  yourPriceLabel?: string;
   /** Optional copy for the gross-tax tag. */
   grossSuffix?: string;
   /** Optional copy for the net-tax tag. */
@@ -47,12 +59,15 @@ export function BaseSalePriceBlock(props: {
   const {
     basePrice,
     salePrice = null,
+    listPrice = null,
     displayMode,
     locale,
     vatRate = DEFAULT_VAT_RATE,
     variant = 'pdp',
     baseLabel = 'before',
     saleLabel = 'Special price',
+    listLabel = 'List price',
+    yourPriceLabel = 'Your price',
     grossSuffix = 'gross',
     netSuffix = 'net',
   } = props;
@@ -78,9 +93,28 @@ export function BaseSalePriceBlock(props: {
       : 'b2b-pricing-block b2b-pricing-block--pdp';
 
   const isSale = saleNet !== null && salePrice !== null;
+  const listNet = listPrice ? parseAmount(listPrice.amount) : null;
+  const hasList = listNet !== null && listPrice !== null;
 
   return (
     <div className={blockClass} data-display-mode={displayMode}>
+      {hasList ? (
+        <div className="b2b-pricing-block__list">
+          <span className="b2b-pricing-block__label">{listLabel}</span>
+          {renderColumns({
+            displayMode,
+            net: listNet,
+            gross: grossFromNet(listNet, vatRate),
+            currency: listPrice.currency,
+            netSuffix,
+            grossSuffix,
+            fmt,
+            mainClass: 'b2b-pricing-block__amount b2b-pricing-block__amount--list',
+            altClass: 'b2b-pricing-block__amount-alt',
+          })}
+        </div>
+      ) : null}
+
       {isSale && baseNet !== null ? (
         <div className="b2b-pricing-block__base b2b-pricing-block__base--struck">
           <span className="b2b-pricing-block__label">{baseLabel}</span>
@@ -114,7 +148,22 @@ export function BaseSalePriceBlock(props: {
           })}
         </div>
       ) : (
-        baseNet !== null
+        baseNet !== null && hasList ? (
+          <div className="b2b-pricing-block__yours">
+            <span className="b2b-pricing-block__label">{yourPriceLabel}</span>
+            {renderColumns({
+              displayMode,
+              net: baseNet,
+              gross: baseGross,
+              currency: basePrice.currency,
+              netSuffix,
+              grossSuffix,
+              fmt,
+              mainClass: 'b2b-pricing-block__amount',
+              altClass: 'b2b-pricing-block__amount-alt',
+            })}
+          </div>
+        ) : baseNet !== null
           ? renderColumns({
               displayMode,
               net: baseNet,

@@ -38,6 +38,8 @@ export type MessageKey =
   | 'product.requestQuote'
   | 'product.priceFromVariants'
   | 'product.compareAtLabel'
+  | 'product.listPrice'
+  | 'product.yourPrice'
   | 'product.addToCart'
   | 'product.addToCartFailed'
   | 'product.oneClickFailed'
@@ -444,6 +446,8 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'product.requestQuote': 'Request a quote',
     'product.priceFromVariants': 'from, depending on the variant',
     'product.compareAtLabel': 'Your price',
+    'product.listPrice': 'List price',
+    'product.yourPrice': 'Your price',
     'product.addToCart': 'Add to cart',
     'product.addToCartFailed': 'Could not add the product to the cart.',
     'product.oneClickFailed': 'Could not place the order.',
@@ -828,6 +832,8 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'product.requestQuote': 'Zapytaj o oferte',
     'product.priceFromVariants': 'od, zależnie od wariantu',
     'product.compareAtLabel': 'Twoja cena',
+    'product.listPrice': 'Cena katalogowa',
+    'product.yourPrice': 'Twoja cena',
     'product.addToCart': 'Dodaj do koszyka',
     'product.addToCartFailed': 'Nie udało się dodać produktu do koszyka.',
     'product.oneClickFailed': 'Nie udało się złożyć zamówienia.',

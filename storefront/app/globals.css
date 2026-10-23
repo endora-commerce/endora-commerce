@@ -617,6 +617,11 @@
   .b2b-pricing-block__amount--struck { @apply font-normal text-subtle line-through; }
   .b2b-pricing-block__label { @apply font-mono text-[10px] uppercase tracking-[0.04em] text-subtle; }
   .b2b-pricing-block__sale { @apply flex items-baseline gap-[6px]; }
+  /* Feature 161 (FR-026) — "list price / your price": the catalogue price is
+     context, not the offer, so it sits small and muted above the buyer's. */
+  .b2b-pricing-block__list { @apply flex items-baseline gap-[6px] text-[11px] text-muted; }
+  .b2b-pricing-block__amount--list { @apply font-normal text-muted; }
+  .b2b-pricing-block__yours { @apply flex items-baseline gap-[6px]; }
   .b2b-pricing-block__badge { @apply rounded bg-[#fee2e2] px-[6px] py-[2px] font-mono text-[10px] font-semibold uppercase tracking-[0.04em] text-[#b91c1c]; }
   .b2b-pricing-block__columns { @apply flex flex-wrap items-baseline gap-1; }
   .b2b-pricing-block__amount { @apply font-mono font-semibold text-fg; }

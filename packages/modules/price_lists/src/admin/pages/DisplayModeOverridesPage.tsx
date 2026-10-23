@@ -12,6 +12,8 @@ import type { DisplayMode } from '@endora-commerce/contracts';
 import { ApiError, apiClient, normalize } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { useLocalizedName } from '../lib/localized-name.js';
+import { PrecedenceView } from '../components/PrecedenceView.js';
+import { ShowListPriceSwitch } from '../components/ShowListPriceSwitch.js';
 type Scope = 'organization' | 'category' | 'product';
 
 interface DisplayModeOverrideRow {
@@ -40,7 +42,10 @@ interface ProductRow {
 }
 
 /**
- * Display-mode overrides + pricing settings (US7 / T087 + T088).
+ * *Pricing settings* (feature 161 renamed the page from "Price display
+ * modes"): display-mode defaults and overrides (US7 / T087 + T088 of the
+ * pricing feature that introduced them), the list-price switch (feature 161,
+ * FR-026) and the precedence in force, read-only (FR-025).
  *
  * Single admin landing page with:
  *   - The two `pricing.*` settings keys at the top, edited inline.
@@ -171,7 +176,8 @@ export function DisplayModeOverridesPage(): ReactNode {
     <div className="b2b-page b2b-page--wide">
       <div className="b2b-page-head">
         <div className="b2b-grow">
-          <div className="b2b-page-head__title">{t('priceLists.displayModes.title')}</div>
+          {/* Feature 161 (FR-025): the page is *Pricing settings*. */}
+          <h1 className="b2b-page-head__title">{t('priceLists.displayModes.title')}</h1>
           <div className="b2b-page-head__sub">
             {t('priceLists.displayModes.description')}
           </div>
@@ -186,6 +192,9 @@ export function DisplayModeOverridesPage(): ReactNode {
       ) : null}
 
       <PricingSettingsCard onError={setError} onInfo={setInfo} />
+
+      {/* Feature 161 (FR-026): "list price / your price" on the storefront. */}
+      <ShowListPriceSwitch />
 
       <div className="b2b-card" style={{ marginTop: 16 }}>
         <div
@@ -306,6 +315,9 @@ export function DisplayModeOverridesPage(): ReactNode {
           )}
         </div>
       </div>
+
+      {/* Feature 161 (FR-025): the precedence in force, read-only. */}
+      <PrecedenceView />
 
       {picker ? (
         <AddOverrideDialog

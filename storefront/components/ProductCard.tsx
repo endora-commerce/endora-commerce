@@ -165,10 +165,13 @@ function renderPriceSlot(args: {
         <BaseSalePriceBlock
           basePrice={resolved.basePrice}
           salePrice={resolved.salePrice}
+          listPrice={resolved.listPrice ?? null}
           displayMode={resolved.displayMode}
           locale={locale}
           vatRate={vatRate}
           variant="card"
+          listLabel={t('product.listPrice')}
+          yourPriceLabel={t('product.yourPrice')}
         />
       </>
     );
@@ -216,6 +219,19 @@ function renderPriceSlot(args: {
       }).format(product.compareAtPrice.amount)
     : null;
 
+  // Feature 161 (FR-026) — "list price / your price". The catalogue and search
+  // listings render this card without `resolved`, so the list price is read
+  // from the summary's own resolution; it is present only when the pricing
+  // engine decided to show it (setting on, catalogue price above `price`).
+  const listPrice = product.resolvedPrice?.listPrice;
+  const listFmt = listPrice
+    ? new Intl.NumberFormat(locale, {
+        style: 'currency',
+        currency: listPrice.currency,
+        minimumFractionDigits: 2,
+      }).format(Number(listPrice.amount))
+    : null;
+
   return (
     <>
       <div className="industria-product-card__price__from">
@@ -230,7 +246,20 @@ function renderPriceSlot(args: {
           {compareAtFmt}
         </s>
       ) : null}
-      <div className="font-mono text-[16px] font-semibold tracking-[-0.01em] text-fg">{priceFmt}</div>
+      {listFmt ? (
+        <div data-testid="card-list-price" className="flex items-baseline gap-[6px] font-mono text-[11px] text-muted">
+          <span className="text-[10px] uppercase tracking-[0.04em] text-subtle">{t('product.listPrice')}</span>
+          <span>{listFmt}</span>
+        </div>
+      ) : null}
+      {listFmt ? (
+        <div className="flex items-baseline gap-[6px]">
+          <span className="font-mono text-[10px] uppercase tracking-[0.04em] text-subtle">{t('product.yourPrice')}</span>
+          <div className="font-mono text-[16px] font-semibold tracking-[-0.01em] text-fg">{priceFmt}</div>
+        </div>
+      ) : (
+        <div className="font-mono text-[16px] font-semibold tracking-[-0.01em] text-fg">{priceFmt}</div>
+      )}
       {grossFmt ? (
         <div className="font-mono text-[11px] text-muted">brutto {grossFmt}</div>
       ) : null}

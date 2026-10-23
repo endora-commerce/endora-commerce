@@ -34,9 +34,12 @@ export function PriceTag(props: {
       <BaseSalePriceBlock
         basePrice={resolved.basePrice}
         salePrice={resolved.salePrice}
+        listPrice={resolved.listPrice ?? null}
         displayMode={resolved.displayMode}
         locale={locale}
         variant={variant}
+        listLabel={t('product.listPrice')}
+        yourPriceLabel={t('product.yourPrice')}
       />
     );
   }

@@ -59,6 +59,7 @@ import { usePriceBooksApi } from '../lib/use-price-books-api.js';
 import { AddLineDialog, type AddLineMode } from './AddLineDialog.js';
 import { BulkChangeDialog } from './BulkChangeDialog.js';
 import { CellDetailDialog } from './CellDetailDialog.js';
+import { PRECEDENCE_ANCHOR } from './PrecedenceView.js';
 
 /**
  * A price book's prices (feature 161, US2 — FR-006–FR-017, FR-036, FR-037).
@@ -526,7 +527,8 @@ export function PriceBookGrid(props: {
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
         {t('grid.note')}{' '}
-        <Link to="/price-lists/display-modes#precedence" className="underline underline-offset-2">
+        {/* The precedence section of *Pricing settings* (T086a). */}
+        <Link to={`/price-lists/display-modes#${PRECEDENCE_ANCHOR}`} className="underline underline-offset-2">
           {t('grid.noteLink')}
         </Link>
       </p>

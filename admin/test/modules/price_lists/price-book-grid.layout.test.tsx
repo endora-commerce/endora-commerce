@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { priceBookSchema } from '@endora-commerce/contracts';
 import { expectNoAxeViolations } from '../../helpers/axe';
 import { BOOKS, PLATFORM_ADMIN } from '../../helpers/price-book-fixtures';
@@ -30,6 +31,18 @@ const MIXED = [
   mkRow({ color: 'red', price: { type: 'percent', percent: '5.00' } }),
   mkRow({ all: true, price: { type: 'percent', percent: '-2.00' } }),
 ];
+
+const PRECEDENCE_HY = {
+  version: 1,
+  preset: 'HY',
+  categoryBeforeAttribute: true,
+  depthMode: 'within_cell',
+  cells: [
+    'org.variant', 'org.product', 'org.category_attribute', 'org.category', 'org.attribute',
+    'group.variant', 'group.product', 'group.category_attribute', 'group.category', 'group.attribute',
+    'org.all', 'group.all',
+  ],
+};
 
 function open(book = BOOKS.L2, language: 'en' | 'pl' = 'en') {
   const served = priceBookSchema.parse({ ...book, tierStarts: [1, 10], rowCount: MIXED.length });
@@ -82,6 +95,38 @@ describe('price-book grid — layout', () => {
     await screen.findByRole('grid');
     expect(screen.getByText(/Which line wins for a buyer is decided by the price precedence/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'See the price precedence' })).toHaveAttribute('href', '/price-lists/display-modes#precedence');
+  });
+
+  it('opens the precedence section of Pricing settings, scrolled to and focused (T086a)', async () => {
+    const user = userEvent.setup();
+    open();
+    await screen.findByRole('grid');
+    const served = api.get.getMockImplementation()!;
+    api.get.mockImplementation(async (url: string) => {
+      const [path] = url.split('?');
+      if (path === '/api/v1/admin/price-books/precedence') return { data: PRECEDENCE_HY };
+      if (path === '/api/v1/admin/price-books/settings/show-list-price') return { data: { value: false } };
+      if (path === '/api/v1/admin/pricing/display-mode-overrides') return { data: { items: [] } };
+      if (path === '/api/v1/admin/catalog/products') return { data: [] };
+      if (path?.startsWith('/api/v1/admin/settings/')) return { defaultValue: 'gross_only' };
+      return served(url);
+    });
+    const scrolled = vi.fn();
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function (this: Element) {
+      scrolled(this);
+    };
+    try {
+      await user.click(screen.getByRole('link', { name: 'See the price precedence' }));
+      expect(screen.getByTestId('location')).toHaveTextContent('/price-lists/display-modes');
+      const section = await screen.findByRole('region', { name: 'Price precedence' });
+      await within(section).findByText('Contract first, blanket last (HY)');
+      expect(section.id).toBe('precedence');
+      await waitFor(() => expect(scrolled).toHaveBeenCalledWith(section));
+      expect(document.activeElement).toBe(section);
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
   });
 
   it('has no axe violations, and speaks Polish', async () => {

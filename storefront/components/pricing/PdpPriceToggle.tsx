@@ -19,6 +19,12 @@ import { BaseSalePriceBlock } from './BaseSalePriceBlock';
 export function PdpPriceToggle(props: {
   basePrice: PricingMoney | null;
   salePrice?: PricingMoney | null;
+  /** Feature 161 (FR-026) — the catalogue price beside a lower buyer price. */
+  listPrice?: PricingMoney | null;
+  /** Translated "List price" / "Your price" (strings, so the props cross the
+   *  Server → Client boundary). */
+  listPriceLabel?: string;
+  yourPriceLabel?: string;
   locale: string;
   vatRate?: number;
   labels?: { net: string; gross: string };
@@ -31,6 +37,9 @@ export function PdpPriceToggle(props: {
       <BaseSalePriceBlock
         basePrice={props.basePrice}
         salePrice={props.salePrice ?? null}
+        listPrice={props.listPrice ?? null}
+        {...(props.listPriceLabel !== undefined ? { listLabel: props.listPriceLabel } : {})}
+        {...(props.yourPriceLabel !== undefined ? { yourPriceLabel: props.yourPriceLabel } : {})}
         displayMode={mode === 'net' ? 'net_only' : 'gross_only'}
         locale={props.locale}
         {...(props.vatRate !== undefined ? { vatRate: props.vatRate } : {})}
