@@ -589,14 +589,6 @@ export const ERROR_CODES = {
    * identifiers says nothing about which one was wrong.
    */
   PRICE_LIST_NOT_FOUND: 'PRICE_LIST_NOT_FOUND',
-  /** Feature 148 — a price matrix entry that does not exist on this list, or is out of scope. */
-  PRICE_MATRIX_ENTRY_NOT_FOUND: 'PRICE_MATRIX_ENTRY_NOT_FOUND',
-  /** Feature 148 — an entry with the same coordinates and an overlapping window exists (FR-005). */
-  PRICE_MATRIX_ENTRY_OVERLAP: 'PRICE_MATRIX_ENTRY_OVERLAP',
-  /** Feature 148 — the attribute may not select prices (`details.reason`, FR-008/FR-009). */
-  PRICE_MATRIX_ATTRIBUTE_NOT_ELIGIBLE: 'PRICE_MATRIX_ATTRIBUTE_NOT_ELIGIBLE',
-  /** Feature 148 — the list already holds the maximum number of entries (FR-007). */
-  PRICE_MATRIX_ENTRY_LIMIT: 'PRICE_MATRIX_ENTRY_LIMIT',
   /** Feature 160 — a channel of a price book's set does not offer the book's currency (FR-003). */
   PRICE_BOOK_CHANNEL_CURRENCY: 'PRICE_BOOK_CHANNEL_CURRENCY',
   /** Feature 160 — an audience set names members of another kind, or that do not exist (FR-002, A4). */

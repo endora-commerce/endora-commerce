@@ -252,14 +252,6 @@ export const manifest = defineModuleManifest({
    */
   errorCodes: [
     { code: 'PRICE_LIST_NOT_FOUND' },
-    // Feature 148 — the price matrix. The noun is a matrix entry of a price
-    // list, this module's own entity (D-121 T1). Each carries a sentence in
-    // both bundles; `details` (conflicting entry, reason, limit) is for the
-    // admin UI's placement, not interpolated into the sentence.
-    { code: 'PRICE_MATRIX_ENTRY_NOT_FOUND' },
-    { code: 'PRICE_MATRIX_ENTRY_OVERLAP' },
-    { code: 'PRICE_MATRIX_ATTRIBUTE_NOT_ELIGIBLE' },
-    { code: 'PRICE_MATRIX_ENTRY_LIMIT' },
     // Feature 160 — the price-book API (`contracts/admin-price-books-api.md`).
     // Each carries a sentence in both bundles; `details` (the failing rows, the
     // current version) is for the admin UI's placement, not interpolated.

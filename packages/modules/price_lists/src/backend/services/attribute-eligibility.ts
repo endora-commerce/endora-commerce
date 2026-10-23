@@ -40,7 +40,7 @@ const ELIGIBLE_VALUE_TYPES: ReadonlySet<AttributeValueType> = new Set<AttributeV
 /**
  * Why an attribute cannot select prices right now, or `null` when it can.
  *
- * The same answer serves the write-time refusal (`PRICE_MATRIX_ATTRIBUTE_NOT_ELIGIBLE`),
+ * The same answer serves the write-time refusal (`PRICE_BOOK_ROW_TARGET`, `attribute_not_selectable`),
  * the admin DTO's `inactiveReason`, and — through {@link buildEligibleAttributes}
  * — resolution, where an ineligible attribute silently makes its entries not
  * candidates (FR-010: unflagging an attribute must never break checkout).

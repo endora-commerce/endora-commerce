@@ -284,34 +284,6 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'The noun is the attachment and the one raise site is that route; the media library\'s ' +
       'own size limit keeps its own code.',
   },
-  PRICE_MATRIX_ENTRY_NOT_FOUND: {
-    to: 'price_lists',
-    reason:
-      'Minted with the price matrix (`specs/148-price-list-matrix-rules/`), which did not exist ' +
-      'when the prefix chain was deleted: the refusal of a matrix entry that is missing, on another list or outside the caller scope. ' +
-      'The noun is a matrix entry of a price list, the module\'s own entity (D-121 T1).',
-  },
-  PRICE_MATRIX_ENTRY_OVERLAP: {
-    to: 'price_lists',
-    reason:
-      'Minted with the price matrix (`specs/148-price-list-matrix-rules/`), which did not exist ' +
-      'when the prefix chain was deleted: the refusal of an entry whose coordinates and quantity window overlap another entry. ' +
-      'The noun is a matrix entry of a price list, the module\'s own entity (D-121 T1).',
-  },
-  PRICE_MATRIX_ATTRIBUTE_NOT_ELIGIBLE: {
-    to: 'price_lists',
-    reason:
-      'Minted with the price matrix (`specs/148-price-list-matrix-rules/`), which did not exist ' +
-      'when the prefix chain was deleted: the refusal of an attribute that may not select prices (not flagged, wrong value type, per-language or per-channel). ' +
-      'The noun is a matrix entry of a price list, the module\'s own entity (D-121 T1).',
-  },
-  PRICE_MATRIX_ENTRY_LIMIT: {
-    to: 'price_lists',
-    reason:
-      'Minted with the price matrix (`specs/148-price-list-matrix-rules/`), which did not exist ' +
-      'when the prefix chain was deleted: the refusal of one entry more than a price list may hold. ' +
-      'The noun is a matrix entry of a price list, the module\'s own entity (D-121 T1).',
-  },
   PRICE_BOOK_CHANNEL_CURRENCY: {
     to: 'price_lists',
     reason:
