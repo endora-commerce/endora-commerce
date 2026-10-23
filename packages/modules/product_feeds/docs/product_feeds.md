@@ -124,11 +124,28 @@ or a sale when it is lower. A product with no price in the feed's currency is sk
 `missing_price`. Feed items are products: a product with variants is published at the product's own
 price, not per variant.
 
-A feed can instead be **pinned to one price book** (the feed's `priceListId`). It then publishes
-that book's own rows — fixed prices, and percentages or adjustments taken off the channel's
-catalogue price — whatever the book's audience, status and schedule, and **a product the book does
-not price is absent from the feed**. A book in another currency than the feed's prices nothing. The live match count of
-*Criteria* and the price-range criterion use the same prices the next run will publish.
+A feed can instead be **pinned to one price book** — the feed's `priceListId`, set through the
+admin API when the feed is created or updated (`POST /api/v1/admin/product-feeds`,
+`PATCH /api/v1/admin/product-feeds/:id`); the feed's screens show the warning below but have no
+control for it. It then publishes that book's own lines — fixed prices, and percentages or
+adjustments taken off the catalogue price the channel would charge without that book — and **a
+product the book does not price is absent from the feed**. A base price book publishes its base prices. The pinned book publishes **only
+while it applies to anyone on the feed's channel at generation time**:
+
+- it is *Active* or *Scheduled*, and the run falls between its start and end dates;
+- it is assigned to the feed's sales channel, and the channel sells in the feed's currency (a base
+  price book needs no channel);
+- it is for everyone — a book for selected organizations or customer groups never publishes, for
+  the same reason an organization's price never reaches an unpinned feed;
+- it is in the feed's currency, and it still exists.
+
+While one of these does not hold, the feed's page shows a warning naming which, and the feed
+publishes no prices from the book. **When a run finds that the pinned book does not apply, it
+withdraws the feed's published file**: the feed's link then answers as for a feed that has never
+been generated, and the provider stops receiving your prices until the book applies again and the
+next run publishes a new file. This is not a failed run, so the last good file is deliberately not
+kept. The live match count of *Criteria* and the price-range criterion use the same prices the next
+run will publish.
 
 ### Category mapping (Google and Meta)
 
@@ -251,7 +268,7 @@ export of the full list.
 
 | Reason | What it means |
 | --- | --- |
-| `missing_price` | No price in the feed's currency — no price book prices the product on the feed's channel, or the feed's pinned price book does not price it. |
+| `missing_price` | A price field the template requires resolved empty — no price book prices the product on the feed's channel in the feed's currency, or the feed's pinned price book does not price it. The item was skipped. |
 | `missing_image` | The product has no publicly reachable image. |
 | `private_image_asset` | Images exist but are not public, so no stable URL could be published. |
 | `missing_required_field` | A field the provider requires resolved empty with no fallback — the item was skipped. |
@@ -398,7 +415,8 @@ Four properties this pipeline is responsible for:
 - **An item-level problem never aborts the run.** Skips and warnings are recorded per item; only a
   configuration failure ends the run.
 - **Publication is one pointer flip after the object is complete.** A failed, empty or
-  over-threshold run never touches `published_artefact_id`.
+  over-threshold run never touches `published_artefact_id`. The one run that clears it is a pinned
+  feed's whose price book does not apply (*Pricing* below) — a withdrawal, not a failure.
 - **Overlap is refused, not queued.** The claim is a conditional `UPDATE` on
   `product_feeds.current_run_id`; the loser records `skipped(already_running)`.
 
@@ -452,8 +470,19 @@ A run never reads another module's tables. An unpinned feed prices each batch th
 `resolveLinePrices` call on `price_lists`' `pricingService` port, as a guest (`organization: null`,
 `customerGroupId: null`) on the feed's channel and currency, at quantity 1, without a variant. A
 pinned feed reads `namedListPrices({ priceListId, currencyCode, productIds, salesChannelId })` —
-the book's product-level rows over the channel's catalogue price; a product the book does not price
-is absent from the answer (`services/named-list-price-resolver.ts`). Neither path catches
+the book's rows other than variant rows, at quantity 1, over the guest catalogue price of the
+channel resolved **without the pinned book**; a product the book does not price is absent from the
+answer (`services/named-list-price-resolver.ts`). The answer is empty while the book does not
+publish: `namedListPublishability({ priceListId, currencyCode, salesChannelId })` on the same
+`FeedPricingPort` (`plugin.ts`) says whether it does, and why not — a reason of
+`pinnedPriceBookUnpublishableReasonSchema` in `@endora-commerce/contracts` (`not_found`,
+`currency_mismatch`, `not_active`, `outside_schedule`, `not_on_channel`, `audience_restricted`),
+evaluated at the call, not by `price_lists`' status sweep. `ProductFeedService` asks it for every
+pinned feed it lists and puts the reason on the admin feed row as `pinnedPriceBookWarning` (`null`
+when unpinned or publishing), which the feed page shows as a warning (`feeds.pinnedBook.<reason>`
+in the module's `i18n/`). A run that finds the pinned book unpublishable withdraws the published
+file — `published_artefact_id` is cleared, so the public URL answers `404` as for a feed never
+generated — and is not a failed run. Neither path catches
 `MODULE_DISABLED`: with `price_lists` absent the run fails rather than publishing prices the platform
 is not serving.
 

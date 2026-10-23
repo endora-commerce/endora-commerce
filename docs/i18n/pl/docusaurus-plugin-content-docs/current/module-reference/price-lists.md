@@ -40,8 +40,8 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 
 | Kod | Etykieta | Wymaga też |
 | --- | --- | --- |
-| `price_lists:read` | View price lists and pricing rules | — |
-| `price_lists:write` | Edit price lists, brackets and display modes | `catalog:read` |
+| `price_lists:read` | View price books and display modes | — |
+| `price_lists:write` | Edit price books, base prices and display modes | `catalog:read` |
 
 ## Paleta poleceń
 

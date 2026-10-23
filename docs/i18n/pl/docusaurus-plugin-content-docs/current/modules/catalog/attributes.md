@@ -217,8 +217,8 @@ inne moduły — żaden moduł nie sięga do wnętrza katalogu:
 `catalogAttributeReadPort` — `listByFlag('isPriceRule')` zwraca atrybuty, które może wskazać linia
 cennika, a pole `isPriceRule` w widoku każdego atrybutu pozwala odrzucić atrybut bez tej flagi — raz
 na każdą partię wyceny, więc zmiana flagi działa przy następnej wycenie; zdarzenie
-`attribute.updated.v1` dodatkowo czyści pamięć podręczną cen i oznacza powierzchnię cen jako
-nieaktualną. Lista wyboru w edytorze cenników korzysta z
+`attribute.updated.v1` dodatkowo czyści pamięć podręczną cen i oznacza na powierzchni cen produkty
+wybierane przez wiersze cenników z tym atrybutem. Lista wyboru w edytorze cenników korzysta z
 `GET /api/v1/admin/price-books/targets/attributes`, który zwraca tylko kwalifikujące się atrybuty z
 ich wartościami.
 

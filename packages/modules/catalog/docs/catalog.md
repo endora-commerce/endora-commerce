@@ -86,7 +86,8 @@ customer account rather than a resolved group. A price ordering reads `ListingPr
 the unpriced tail itself (`catalog-query.service.ts`). The external catalogue API prices through
 `resolveLinePrices` and builds a bound organization's tier ladder from `listTierStarts`. Product,
 category and attribute writes publish the events `price_lists` subscribes to, which clear the
-pricing caches and mark the price surface stale.
+pricing caches and mark on the price surface the products each event concerns, for the surface
+worker to refresh.
 
 ### Removed price fields (migration note)
 

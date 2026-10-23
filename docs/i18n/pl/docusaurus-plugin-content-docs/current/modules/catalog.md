@@ -84,7 +84,8 @@ klienta oglądającego, a nie wyliczoną grupę. Porządek według ceny czyta `L
 a końcówkę bez cen składa sam (`catalog-query.service.ts`). Zewnętrzne API katalogu wycenia przez
 `resolveLinePrices` i buduje drabinę progów związanej organizacji z `listTierStarts`. Zapisy
 produktów, kategorii i atrybutów publikują zdarzenia, które subskrybuje `price_lists`; czyszczą one
-pamięć podręczną cen i oznaczają powierzchnię cen jako nieaktualną.
+pamięć podręczną cen i oznaczają na powierzchni cen produkty, których dotyczy każde zdarzenie, do
+odświeżenia przez workera powierzchni.
 
 ### Usunięte pola cen (uwaga migracyjna)
 

@@ -117,16 +117,24 @@ every buyer may have their own prices — so the `price_lists` module precompute
 each product's price per group of buyers that share the same price books (a
 *pricing profile*). Every committed price change — a price book, its rows,
 channels or members, base prices, a status change by the sweep below, a product,
-category or attribute change, a change to a sales channel — marks the profiles
-stale and enqueues **one coalesced job** (a fixed job id, so a burst of writes
-costs one rebuild; three attempts with exponential backoff).
+category or attribute change, a change to a sales channel — marks what it can
+move: the products it concerns in the profiles it reaches, or whole profiles
+when it concerns every product of them (a sales-channel change, a line for all
+products or for an attribute value alone, more than 10 000 products at once). It
+then enqueues **one coalesced job** (a fixed job id, so a burst of writes costs
+one job; three attempts with exponential backoff).
 
-The consumer builds never-built profiles first, then rebuilds the stale ones, and
-swaps each new set of prices in one transaction. A request never waits for it:
-a stale profile keeps serving its previous order, and the prices on the product
-cards are always resolved live, so only the **order** of a price-sorted listing
-lags a change — by the consumer's turnaround. The job is idempotent (a rebuild
-recomputes from source), so a retry or a second worker instance is harmless.
+Each pass of the consumer builds never-built and wholly marked profiles in full
+and re-resolves only the marked products of the others, the everyone profiles
+before the buyer ones, and swaps each change in one transaction. Passes repeat
+while writes keep marking, so a change made during a pass is picked up by the
+next. A request never waits for it: a marked profile keeps serving its previous
+order, and the prices on the product cards are always resolved live, so only the
+**order** of a price-sorted listing lags a change — by the consumer's
+turnaround, about half a second for a single change in the platform's
+measurements and minutes for a change that rebuilds many profiles whole. The job
+is idempotent (a refresh recomputes from source), so a retry or a second worker
+instance is harmless.
 
 **If no worker consumes this queue** — a process tier without consumers, or no
 Redis — the profiles are never built: price-sorted listings are then ordered

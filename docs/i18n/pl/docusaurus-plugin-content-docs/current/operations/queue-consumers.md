@@ -111,16 +111,23 @@ według ceny**. Takich list nie da się uporządkować z indeksu wyszukiwania �
 własne ceny — więc moduł `price_lists` wylicza z wyprzedzeniem cenę każdego produktu dla każdej
 grupy kupujących, którzy mają te same cenniki (*profil cenowy*). Każda zatwierdzona zmiana ceny —
 cennik, jego wiersze, kanały lub odbiorcy, ceny bazowe, zmiana stanu przez opisaną niżej aktualizację
-statusów, zmiana produktu, kategorii lub atrybutu, zmiana kanału sprzedaży — oznacza profile jako
-nieaktualne i dodaje do kolejki **jedno scalone zadanie** (ze stałym identyfikatorem, więc seria
-zapisów kosztuje jedną przebudowę; trzy próby z wykładniczo rosnącym odstępem).
+statusów, zmiana produktu, kategorii lub atrybutu, zmiana kanału sprzedaży — oznacza to, co może
+przesunąć: produkty, których dotyczy, w profilach, do których sięga, albo całe profile, gdy dotyczy
+każdego ich produktu (zmiana kanału sprzedaży, linia dla wszystkich produktów albo tylko dla
+wartości atrybutu, ponad 10 000 produktów naraz). Potem dodaje do kolejki **jedno scalone zadanie**
+(ze stałym identyfikatorem, więc seria zapisów kosztuje jedno zadanie; trzy próby z wykładniczo
+rosnącym odstępem).
 
-Konsument najpierw buduje profile jeszcze nigdy niezbudowane, potem przebudowuje nieaktualne i
-podmienia każdy nowy zestaw cen w jednej transakcji. Żądanie nigdy na niego nie czeka: nieaktualny
-profil nadal podaje poprzedni porządek, a ceny na kartach produktów są zawsze wyliczane na bieżąco,
-więc po zmianie opóźnia się tylko **porządek** listy sortowanej według ceny — o czas obsługi przez
-konsumenta. Zadanie jest idempotentne (przebudowa liczy wszystko od źródła), więc ponowna próba albo
-druga instancja workera niczego nie psuje.
+Każdy przebieg konsumenta buduje w całości profile nigdy niezbudowane i oznaczone w całości, a w
+pozostałych ponownie wycenia tylko oznaczone produkty, profile dla wszystkich przed profilami
+kupujących, i podmienia każdą zmianę w jednej transakcji. Przebiegi powtarzają się, dopóki zapisy
+dodają znaczniki, więc zmianę wprowadzoną w trakcie przebiegu obsłuży następny. Żądanie nigdy na
+niego nie czeka: oznaczony profil nadal podaje poprzedni porządek, a ceny na kartach produktów są
+zawsze wyliczane na bieżąco, więc po zmianie opóźnia się tylko **porządek** listy sortowanej według
+ceny — o czas obsługi przez konsumenta, w pomiarach platformy około pół sekundy dla pojedynczej
+zmiany i kilka minut dla zmiany, która przebudowuje w całości wiele profili. Zadanie jest
+idempotentne (odświeżenie liczy wszystko od źródła), więc ponowna próba albo druga instancja workera
+niczego nie psuje.
 
 **Jeśli żaden worker nie obsługuje tej kolejki** — warstwa procesów bez konsumentów albo brak
 Redis — profile nigdy nie powstają: listy sortowane według ceny są wtedy porządkowane na podstawie

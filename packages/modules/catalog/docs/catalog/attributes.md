@@ -239,7 +239,8 @@ the `catalogAttributeReadPort` — `listByFlag('isPriceRule')` for the
 attributes a price-book line may name, and `isPriceRule` on every
 attribute view to refuse one that may not — once per pricing batch, so a
 flag change takes effect on the next resolution; an `attribute.updated.v1`
-event also clears the pricing caches and marks the price surface stale. The
+event also clears the pricing caches and marks on the price surface the
+products that price-book rows naming the attribute select. The
 price-book editor's picker is
 `GET /api/v1/admin/price-books/targets/attributes`, which lists only the
 eligible attributes with their option values.

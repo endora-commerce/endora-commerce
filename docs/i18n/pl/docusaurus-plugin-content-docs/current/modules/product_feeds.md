@@ -130,12 +130,31 @@ promocyjna, gdy jest niższa. Produkt bez ceny w walucie feedu jest pomijany z p
 `missing_price`. Pozycje feedu to produkty: produkt z wariantami jest publikowany w cenie samego
 produktu, a nie osobno dla każdego wariantu.
 
-Feed można zamiast tego **przypiąć do jednego cennika** (pole `priceListId` feedu). Publikuje wtedy
-własne wiersze tego cennika — ceny stałe oraz procenty i korekty liczone od ceny katalogowej kanału —
-niezależnie od odbiorców, stanu i harmonogramu cennika, a **produkt, którego cennik nie wycenia, nie
-trafia do feedu**. Cennik w innej walucie niż waluta feedu nie wycenia niczego. Liczba dopasowań w
-*Criteria* i kryterium zakresu cen korzystają z tych samych cen, które opublikuje następne
-generowanie.
+Feed można zamiast tego **przypiąć do jednego cennika** — pole `priceListId` feedu, ustawiane przez
+API administracyjne przy tworzeniu albo zmianie feedu (`POST /api/v1/admin/product-feeds`,
+`PATCH /api/v1/admin/product-feeds/:id`); ekrany feedu pokazują opisane niżej ostrzeżenie, ale nie
+mają do tego kontrolki. Feed publikuje wtedy własne linie tego cennika — ceny stałe oraz procenty i
+korekty liczone od ceny katalogowej, jaką kanał naliczałby bez tego cennika — a **produkt, którego
+cennik nie wycenia, nie trafia do feedu**. Cennik cen bazowych publikuje swoje ceny bazowe.
+Przypięty cennik jest publikowany **tylko wtedy, gdy w chwili generowania obowiązuje kogokolwiek w
+kanale feedu**:
+
+- ma status *Aktywny* albo *Zaplanowany*, a generowanie przypada między jego datą początku i końca;
+- jest przypisany do kanału sprzedaży feedu, a kanał sprzedaje w walucie feedu (cennik cen bazowych
+  nie potrzebuje kanału);
+- jest dla wszystkich — cennik dla wybranych organizacji albo grup klientów nigdy nie jest
+  publikowany, z tego samego powodu, dla którego cena organizacji nigdy nie trafia do feedu
+  nieprzypiętego;
+- jest w walucie feedu i nadal istnieje.
+
+Dopóki któryś z tych warunków nie jest spełniony, strona feedu pokazuje ostrzeżenie, które go
+nazywa, a feed nie publikuje żadnych cen z tego cennika. **Gdy generowanie stwierdzi, że przypięty
+cennik nie obowiązuje, wycofuje opublikowany plik feedu**: link feedu odpowiada wtedy tak jak dla
+feedu, który nigdy nie został wygenerowany, a dostawca przestaje otrzymywać Twoje ceny, dopóki
+cennik znów nie zacznie obowiązywać i następne generowanie nie opublikuje nowego pliku. Nie jest to
+generowanie zakończone błędem, więc ostatni poprawny plik celowo nie jest zachowywany. Liczba
+dopasowań w *Criteria* i kryterium zakresu cen korzystają z tych samych cen, które opublikuje
+następne generowanie.
 
 ### Mapowanie kategorii (Google i Meta)
 
@@ -268,7 +287,7 @@ pozycji, której dotyczą, i eksportem pełnej listy do CSV.
 
 | Powód | Znaczenie |
 | --- | --- |
-| `missing_price` | Brak ceny w walucie feedu — żaden cennik nie wycenia produktu w kanale feedu albo przypięty cennik feedu go nie wycenia. |
+| `missing_price` | Pole ceny wymagane przez szablon jest puste — żaden cennik nie wycenia produktu w kanale feedu w walucie feedu albo przypięty cennik feedu go nie wycenia. Pozycja została pominięta. |
 | `missing_image` | Produkt nie ma publicznie dostępnego zdjęcia. |
 | `private_image_asset` | Zdjęcia istnieją, ale nie są publiczne, więc nie można było opublikować stałego adresu URL. |
 | `missing_required_field` | Pole wymagane przez dostawcę okazało się puste i nie miało wartości zastępczej — pozycja została pominięta. |
@@ -418,7 +437,9 @@ Cztery właściwości, za które odpowiada ten potok:
 - **Problem z pojedynczą pozycją nigdy nie przerywa generowania.** Pominięcia i ostrzeżenia są
   zapisywane dla każdej pozycji; generowanie kończy tylko błąd konfiguracji.
 - **Publikacja to jedno przestawienie wskaźnika po skompletowaniu obiektu.** Generowanie zakończone
-  błędem, puste albo przekraczające próg pominięć nigdy nie zmienia `published_artefact_id`.
+  błędem, puste albo przekraczające próg pominięć nigdy nie zmienia `published_artefact_id`. Jedyne
+  generowanie, które je czyści, to generowanie feedu przypiętego, którego cennik nie obowiązuje
+  (*Wycena* niżej) — wycofanie, a nie błąd.
 - **Nakładające się generowania są odrzucane, a nie kolejkowane.** Przejęcie generowania to
   warunkowy `UPDATE` na `product_feeds.current_run_id`; przegrany zapisuje
   `skipped(already_running)`.
@@ -478,9 +499,20 @@ Generowanie nigdy nie czyta tabel innego modułu. Feed nieprzypięty wycenia ka�
 wywołaniem `resolveLinePrices` portu `pricingService` modułu `price_lists`, jako gość
 (`organization: null`, `customerGroupId: null`), w kanale i walucie feedu, dla ilości 1, bez
 wariantu. Feed przypięty czyta `namedListPrices({ priceListId, currencyCode, productIds,
-salesChannelId })` — wiersze cennika na poziomie produktu, liczone od ceny katalogowej kanału;
-produktu, którego cennik nie wycenia, nie ma w odpowiedzi (`services/named-list-price-resolver.ts`).
-Żadna ze ścieżek nie przechwytuje `MODULE_DISABLED`: gdy modułu `price_lists` nie ma, generowanie
+salesChannelId })` — wiersze cennika inne niż wiersze wariantów, przy ilości 1, liczone od ceny
+katalogowej gościa w kanale wyliczonej **bez przypiętego cennika**; produktu, którego cennik nie
+wycenia, nie ma w odpowiedzi (`services/named-list-price-resolver.ts`). Odpowiedź jest pusta, dopóki
+cennik nie jest publikowany: `namedListPublishability({ priceListId, currencyCode, salesChannelId })`
+w tym samym `FeedPricingPort` (`plugin.ts`) mówi, czy jest, a jeśli nie — dlaczego, jednym z powodów
+`pinnedPriceBookUnpublishableReasonSchema` z `@endora-commerce/contracts` (`not_found`,
+`currency_mismatch`, `not_active`, `outside_schedule`, `not_on_channel`, `audience_restricted`),
+sprawdzanym w chwili wywołania, a nie przez aktualizację statusów modułu `price_lists`.
+`ProductFeedService` pyta o to dla każdego przypiętego feedu na liście i umieszcza powód w wierszu
+feedu w panelu jako `pinnedPriceBookWarning` (`null`, gdy feed nie jest przypięty albo cennik jest
+publikowany), a strona feedu pokazuje go jako ostrzeżenie (`feeds.pinnedBook.<reason>` w katalogu
+`i18n/` modułu). Generowanie, które stwierdzi, że przypiętego cennika nie można publikować, wycofuje
+opublikowany plik — `published_artefact_id` zostaje wyczyszczone, więc publiczny URL odpowiada `404`
+tak jak dla feedu nigdy niewygenerowanego — i nie jest generowaniem zakończonym błędem. Żadna ze ścieżek nie przechwytuje `MODULE_DISABLED`: gdy modułu `price_lists` nie ma, generowanie
 kończy się błędem zamiast publikować ceny, których platforma nie podaje.
 
 ### Zawężenie do kanału

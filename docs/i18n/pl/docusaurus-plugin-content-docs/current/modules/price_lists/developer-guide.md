@@ -36,7 +36,7 @@ bieżący stan kodu (`specs/pricing/current-model.md`), każda ścieżka odczytu
 | Odczyty panelu (lista, wiersze, linie, etykiety) | `src/backend/services/price-book-reads.ts` |
 | Zakres handlowca | `src/backend/services/price-book-scope.ts` |
 | Pamięć podręczna i unieważnianie między procesami | `src/backend/services/pricing-cache.ts`, `pricing-generation.ts` |
-| Powierzchnia cen i jej worker | `src/backend/services/price-surface.ts`, `workers/price-surface-worker.ts` |
+| Powierzchnia cen i jej worker | `src/backend/services/price-surface.ts`, `workers/price-surface-worker.ts`; co oznacza zapis: `surface-change.ts` |
 | API administracyjne | `src/backend/routes.price-books.ts`; tryby prezentacji w `routes.ts` |
 | API storefrontu | `src/backend/routes.storefront.ts` |
 | Kompozycja — porty, worker, subskrypcje, powiązanie z kanałami | `src/backend/index.ts` |
@@ -56,7 +56,7 @@ rozwinięcie dawnego cennika, dlatego tabele zachowały stare nazwy.
 | `price_list_matrix_entries` | Wiersze: wybór (`variant_id` z jego `product_id`; `product_id`; `category_id`; `attribute_key` + `attribute_value`; kategoria ∩ atrybut; albo nic = wszystkie produkty), `min_quantity`, `max_quantity`, `price_type` (`fixed`, `percent`, `amount`) z `amount` (numeric 14,4) albo `percent` (numeric 7,2 ze znakiem). |
 | `price_list_product_lines` | Jeden wiersz na produkt mający wiersz w cenniku — stronicowanie siatki według linii. |
 | `price_list_precedence` | Wersjonowana kolejność: dwanaście kodów komórek, `category_before_attribute`, `depth_mode`, `state`. Wersja 1 = HY jest instalowana jako aktywna; ścieżki zapisu jeszcze nie ma. |
-| `price_profiles`, `price_profile_prices` | Powierzchnia cen (niżej). |
+| `price_profiles`, `price_profile_prices`, `price_profile_stale_products` | Powierzchnia cen i jej znaczniki odświeżenia (niżej). |
 | `price_display_mode_overrides` | Tryby prezentacji dla organizacji, kategorii i produktu. |
 | `cart_items.price_source` (`carts`), `order_items.price_source` (`orders`) | Który krok wycenił pozycję: `agreed`, `base`, `catalogue`, `buyer`, `sale`; `null` dla pozycji wycenionej przed tym wydaniem. |
 
@@ -169,8 +169,21 @@ jednym wywołaniu i tylko wtedy, gdy potrzebuje ich któryś wiersz:
 | `resolveLinePrices` | wiele pozycji, każda przy własnej ilości i wariancie (koszyk, kontrola przy składaniu zamówienia, ceny referencyjne zapytań, podgląd zamówienia w panelu, zewnętrzne przyjmowanie zamówień, feedy, zewnętrzne API katalogu) | `Map<key, PricingLineResult \| null>` — `amount`, `currency`, `priceListId`, `isSale`, `source`, `compareAt`, `bracketStartQuantity` (ilość początkowa wiersza, który wycenił pozycję), `displayMode` |
 | `resolveEngine`, `resolveLinePrice` | jeden produkt albo pozycja | nakładki na partię jednoelementową; nigdy nie wywołuj ich w pętli |
 | `orderByUnitPrice`, `pricedProductIds`, `pageDisplayMode` | sortowanie i zakres cen (`ListingPriceOrderPort`) | obsługiwane z powierzchni cen |
-| `namedListPrices` | feed przypięty do jednego cennika | własne wiersze tego cennika (na poziomie produktu), liczone od ceny katalogowej kanału, przy ilości 1; produktów, których cennik nie wycenia, nie ma w odpowiedzi |
+| `namedListPrices`, `namedListPublishability` | feed przypięty do jednego cennika | `namedListPrices`: wiersze cennika inne niż wiersze wariantów, przy ilości 1, liczone od ceny katalogowej kanału **bez przypiętego cennika**; produktów, których cennik nie wycenia, nie ma w odpowiedzi, a dopóki cennik nie jest publikowany, mapa jest pusta. `namedListPublishability`: czy jest publikowany teraz — `{ publishable: true }` albo `{ publishable: false, reason }` |
 | `listTierStarts` | drabina progów | ilości początkowe wierszy i progów bazowych, które mogą dotyczyć `(product, variant?, currency)` |
+
+**Cennik przypięty do feedu jest publikowany tylko wtedy, gdy teraz wyceniałby anonimowego
+kupującego w kanale feedu** (`BookPricing.namedBookPublishability`, `book-pricing.ts`): ma status
+`active` albo `scheduled` i `starts_at ≤ now < ends_at`, sprawdzane w chwili wywołania, a nie przez
+aktualizację statusów; jest przypisany do kanału feedu, a kanał oferuje jego walutę; jego odbiorcami
+są wszyscy. W przeciwnym razie `namedListPublishability` zwraca pierwszy niespełniony warunek, w tej
+kolejności — `not_found`, `currency_mismatch`, `not_active`, `outside_schedule`, `not_on_channel`,
+`audience_restricted` (`pinnedPriceBookUnpublishableReasonSchema` w
+`packages/contracts/src/price-lists.ts`) — a `namedListPrices` zwraca pustą mapę. Cennik cen
+bazowych nie zależy od kanału i jest zawsze aktywny: jest publikowany zawsze, gdy jego waluta jest
+walutą feedu, i zwraca swoje ceny bazowe. Dla każdego innego cennika punktem odniesienia dla jego
+procentów i korekt kwotowych jest cena katalogowa gościa wyliczona z cenników kanału **bez
+przypiętego**, więc przypięty cennik dla wszystkich nigdy nie obniża własnego wyniku.
 
 Konsumenci rozwiązują wpis kontenera `pricingService` przez jego opublikowany wycinek z
 `@endora-commerce/contracts` — `ListingPricePort`, `ListingPriceDetailPort`, `LinePricesPort`,
@@ -187,7 +200,7 @@ odmową `MODULE_DISABLED` przy wywołaniu, a nie odpowiedzią nieaktualnej insta
 | `carts` — dodanie, łączenie, zmiana ilości, odczyt, kontrola przy składaniu zamówienia | `resolveLinePrices` wewnątrz `CartLinePricing.orderablePrices` |
 | `orders` — składanie zamówienia, podgląd w panelu, zewnętrzne przyjmowanie | składanie kopiuje cenę pozycji koszyka i `price_source`; podgląd i przyjmowanie wywołują `resolveLinePrices` |
 | `quote_requests` — ceny referencyjne | `BuyerLinePricePort.resolveForBuyer` (kontener `buyerLinePricePort`) |
-| `product_feeds` | `resolveLinePrices` jako gość; `namedListPrices` dla feedu przypiętego do cennika |
+| `product_feeds` | `resolveLinePrices` jako gość; `namedListPrices` i `namedListPublishability` dla feedu przypiętego do cennika |
 | `organizations` — cenniki obowiązujące organizację | `PriceListReadPort.listForOrganization` (kontener `priceListReadPort`) |
 | `carts` — odmowa dla produktu sprzedawanego wyłącznie na zapytanie | `ProductDisplayModePort` (kontener `productDisplayModePort`) |
 
@@ -212,8 +225,9 @@ pojedyncze wywołanie zostawia je na rdzeniu. Wzorcem jest
 - **Po zatwierdzeniu, wszędzie**: każdy audytowany zapis cennika przechodzi przez `CommandBus.run`, a
   po jego zatwierdzeniu `PricingGeneration.bump()` czyści warstwy tego procesu i publikuje
   komunikat na kanale Redis `b2b:price_lists:pricing-generation`; każdy proces API i workera
-  subskrybuje go przy starcie i czyści własne warstwy. Podbicie oznacza też powierzchnię cen jako
-  nieaktualną i prosi workera o przebudowę. Publikowanie działa w miarę możliwości: gdy komunikat
+  subskrybuje go przy starcie i czyści własne warstwy. Podbicie przekazuje też powierzchni cen opis
+  tego, co zapis zmienił (`SurfaceChange`, niżej), który oznacza to, co ta zmiana może przesunąć, i
+  prosi workera o odświeżenie; podbicie bez opisu oznacza każdy profil. Publikowanie działa w miarę możliwości: gdy komunikat
   przepadnie, nieaktualność w innym procesie ogranicza TTL 60 s.
 - **Co podbija generację**: każdy zapis cennika (nagłówek, kanały, odbiorcy, wiersze, aktywacja,
   duplikat, usunięcie, ceny bazowe), aktualizacja statusów, która zmienia stan cennika, oraz zdarzenia
@@ -239,18 +253,47 @@ wstępnie wyliczoną **powierzchnię cen**.
 - Strona kupującego to **scalenie dwóch strumieni**: wiersze profilu kupującego, potem wiersze
   profilu dla wszystkich bez produktów, które ma pierwszy strumień — dwa strumienie w porządku
   indeksu niezależnie od liczby cenników.
-- **Żadne żądanie nie buduje powierzchni.** Zapis oznacza profile jako nieaktualne; nieaktualny profil
-  nadal podaje poprzednią generację, dopóki worker nie podmieni przebudowanej w jednej transakcji.
-  Profil nigdy niezbudowany jest rejestrowany, jego budowa jest zlecana, a żądanie dostaje odpowiedź
+- **Żadne żądanie nie buduje powierzchni.** Zapis oznacza to, co przesunął, a oznaczony profil nadal
+  podaje swoje wiersze, dopóki worker ich nie odświeży w jednej transakcji. Profil nigdy niezbudowany jest rejestrowany, jego budowa jest zlecana, a żądanie dostaje odpowiedź
   od razu: zawężenie do najwyżej 5 000 produktów (kategoria, wynik wyszukiwania) jest porządkowane na
   podstawie bieżącej wyceny, strona bez zawężenia — z powierzchni dla wszystkich (przybliżenie), a
   gdy nie ma żadnej powierzchni, fragment jest `unordered` i katalog podaje swój domyślny porządek.
   Ceny na kartach są zawsze wyliczane na bieżąco, więc opóźniać się może tylko porządek.
+- **Zapis oznacza tylko to, co może przesunąć**, na dwóch poziomach szczegółowości. Każdy zapisujący
+  opisuje swoją zmianę jako `SurfaceChange` (`src/backend/services/surface-change.ts`), a
+  `PricingGeneration.bump` przekazuje ją po zatwierdzeniu do `PriceSurface.markChanged`, które zapisuje
+  wszystkie znaczniki zmiany w jednej transakcji: **znacznik (profil, produkt)** — wiersz
+  `price_profile_stale_products` — dla każdego produktu, którego zmiana dotyczy, w każdym profilu,
+  do którego sięga, albo **znacznik całego profilu** (`price_profiles.stale`, `marked_at`), gdy
+  dotyczy każdego produktu profilu. Zmiana cennika, który był albo jest `active` lub `scheduled`,
+  dotyczy produktów wybieranych przez jego wiersze, w profilach, których wektor go zawiera (cennik
+  dla kupujących), w profilach jego waluty w jego kanałach przed zmianą i po niej (cennik dla
+  wszystkich) albo w każdym profilu jego waluty (cennik cen bazowych); cena bazowa i zdarzenie
+  produktu dotyczą produktu w każdym profilu (dla ceny bazowej — w zapisanych walutach); zdarzenie
+  kategorii — produktów z poddrzewa kategorii; zdarzenie atrybutu — produktów wybieranych przez
+  wiersze z tym atrybutem. Powierzchnia kupującego przechowuje tylko to, czym różni się od
+  powierzchni dla wszystkich, więc zmiana na poziomie wszystkich oznacza produkt w profilu
+  kupującego tylko wtedy, gdy jeden z cenników profilu może ten produkt wybrać albo powierzchnia
+  profilu ma dla niego wiersz — każdy inny kupujący wycenia ten produkt cennikami profilu dla
+  wszystkich i dostaje tę samą odpowiedź. Zmiana dotycząca ponad 10 000 produktów, wiersz wybierający
+  tylko po atrybucie albo wszystkie produkty, zdarzenie kanału i kolejność cen oznaczają swoje profile
+  w całości. Nowy albo zduplikowany cennik (szkic), tryb prezentacji i przełącznik ceny katalogowej
+  nie oznaczają niczego; usunięcie cennika usuwa też profile kupujących, których wektor go zawiera.
+  Gdy samo oznaczanie się nie powiedzie, każdy profil zostaje oznaczony w całości.
 - **Worker** obsługuje kolejkę BullMQ `price_lists.surface` (jedno scalone zadanie, trzy próby z
   wykładniczo rosnącym odstępem), jest podłączony przez `ctx.worker`, więc zatrzymuje się razem z
   modułem, i działa tylko w procesie, który obsługuje kolejki (`BACKEND_ROLE` nieustawione, `all`
-  albo `worker`), mającym połączenie Redis dla kolejek. Najpierw buduje profile nigdy niezbudowane,
-  potem nieaktualne (profil dla wszystkich przed profilami kupujących). Bez działającego workera
+  albo `worker`), mającym połączenie Redis dla kolejek. Każdy przebieg czyta swoją pracę jednym
+  zapytaniem: profil nigdy niezbudowany albo oznaczony w całości jest budowany w całości — następna
+  generacja obok podawanej, podmieniona w jednej transakcji — a w profilu ze znacznikami (profil,
+  produkt) ponownie wyceniane są tylko te produkty i ich wiersze w podawanej generacji są
+  zastępowane w jednej transakcji, co zmienia `price_profiles.revision`. Każdy profil dla wszystkich
+  w przebiegu jest obsługiwany przed każdym profilem kupującego, w obu grupach najpierw profile nigdy
+  niezbudowane, bo powierzchnia kupującego jest porównywana z powierzchnią dla wszystkich, jaką
+  zostawia przebieg. Przebieg usuwa tylko znaczniki, które przeczytał, według id, więc zapis, który
+  nastąpi w trakcie przebiegu, obsłuży następny; przebiegi powtarzają się, dopóki jest praca.
+  Budowa całego profilu, która zapisuje dużą część `price_profile_prices` albo zapisuje do tabeli bez
+  statystyk, wykonuje na niej `ANALYZE` we własnej transakcji. Bez działającego workera
   powierzchnia nigdy nie powstaje, a strony sortowane według ceny korzystają z opisanych wyżej
   rozwiązań zastępczych.
 
@@ -335,7 +378,7 @@ tworzyć i wskazywać tylko organizacje ze swojego zakresu. `writable` w cenniku
 
 | Metoda i ścieżka | Zwraca |
 | --- | --- |
-| `GET /api/v1/storefront/products/:id/resolved-price?quantity=&currency=&variantId=` | Dla oglądającego (organizacja i klient z sesji, w przeciwnym razie gość): `resolvedPrice { basePrice, salePrice, baseListId, saleListId, displayMode, currencyCode, quantityBracket, source, compareAt, listPrice? }`. `basePrice` to **regularna** cena oglądającego — kupującego, katalogowa albo bazowa — a `salePrice` jest ustawiona tylko wtedy, gdy naliczana jest cena promocyjna; `listPrice` — tylko przy włączonym `pricing.show_list_price`, gdy cena dla wszystkich jest wyższa od naliczanej. |
+| `GET /api/v1/storefront/products/:id/resolved-price?quantity=&currency=&variantId=` | Dla oglądającego (organizacja i klient z sesji, w przeciwnym razie gość): `resolvedPrice { basePrice, salePrice, baseListId, saleListId, displayMode, currencyCode, quantityBracket, source, compareAt, listPrice? }`. `basePrice` to **regularna** cena oglądającego — kupującego, katalogowa albo bazowa — a `salePrice` jest ustawiona tylko wtedy, gdy naliczana jest cena promocyjna; `listPrice` — tylko przy włączonym `pricing.show_list_price`, gdy cena dla wszystkich jest wyższa od naliczanej. Kwoty są tekstami dziesiętnymi (`{ amount, currency }`). Produkt, którego żaden cennik nie wycenia dla oglądającego, jest **bez ceny**: `baseListId`, `basePrice` i `quantityBracket` mają wszystkie wartość `null`, nigdy pusty identyfikator (`resolvedPriceEngineSchema` w `packages/contracts/src/price-lists.ts` wymaga, by te trzy były razem `null` albo razem ustawione). |
 | `GET /api/v1/storefront/pricing/display-mode/:productId` | Sam tryb prezentacji. |
 
 Obie są wyceniane dla oglądającego, którego wyznacza jedna funkcja. Odpowiedź wyceniona dla
@@ -428,6 +471,11 @@ Migracje, które się wykonały:
    cennika *Default* stał się stałym wierszem produktu w cenniku cen bazowych swojej waluty; każdy inny
    cennik został usunięty razem z listą produktów, przedziałami, regułą i pozycjami macierzy; stare
    tabele i kolumny zostały usunięte; typ `base` zmienił nazwę na `regular`.
+4. **`price_lists`, po konwersji**: `20261022T182527_price_lists_product_lines.ts` tworzy
+   `price_list_product_lines` i wypełnia ją na podstawie zapisanych wierszy, a
+   `20261023T152351_price_lists_price_surface_targeted_marks.ts` dodaje tabelę znaczników (profil,
+   produkt) `price_profile_stale_products` i `price_profiles.revision` na potrzeby odświeżania
+   powierzchni cen tylko tam, gdzie to potrzebne.
 
 Dla opiekunów importu cen napisanego dla usuniętego `priceListAdminPort`:
 
@@ -440,8 +488,9 @@ Dla opiekunów importu cen napisanego dla usuniętego `priceListAdminPort`:
 | `summarizeBracketsForProduct(productId)` | `booksPricingProduct(productId)` |
 
 Co to oznacza dla instancji: ceny bazowe pochodzące z cennika *Default* zostały zachowane; **żadnego
-innego cennika już nie ma** i trzeba je utworzyć ponownie jako cenniki (dane demonstracyjne odtwarza
-`pnpm run cli demo reset`); a produkt, który miał tylko *Default unit price* i nie miał przedziału w
+innego cennika już nie ma** i trzeba je utworzyć ponownie jako cenniki (w instancji z danymi sklepu
+demonstracyjnego jego cenniki przywraca `pnpm run cli demo reset`, a po nim `pnpm run cli demo seed`);
+a produkt, który miał tylko *Default unit price* i nie miał przedziału w
 cenniku *Default*, **nie ma ceny**, dopóki nie wpisze się dla niego ceny bazowej. Zapisy produktów i
 wariantów oraz import produktów odrzucają teraz `defaultPrice`, `price` i `priceOverride` z kodem
 `400 PRICE_SET_IN_PRICE_BOOKS`. Pliki changeset wydania wymieniają każde usunięte wywołanie razem z

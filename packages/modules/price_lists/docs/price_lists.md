@@ -215,8 +215,13 @@ current (`409 CART_PRICE_CHANGED`), so the buyer reviews the new price before or
 **Sorting and filtering by price** follow the prices the product cards show, for every buyer — a
 buyer with their own contract prices sees the list in the order of their own prices. The order is
 served from prices the platform precomputes in the background: after a price change the cards show
-the new price at once, and the sorted order catches up once the background refresh has run (within
-a minute in the platform's measurements).
+the new price at once, and the sorted order catches up once the background refresh has run. The
+refresh recomputes only the products a change can move, for the buyers it can reach, so a price
+book line, a base price or a product edit shows in the order within about half a second in the
+platform's measurements, even during a large product import. A change that reaches the whole
+catalogue — a line for all products or for an attribute value alone, a change to more than 10 000
+products at once, or a change to a sales channel — recomputes the order whole for every group of
+buyers it reaches, which can take minutes on a large catalogue with many contract price books.
 
 **List price beside the buyer's price.** With *Show list price beside the buyer's price* switched on
 (*Pricing settings*, off by default), a buyer whose price is below the catalogue price sees both on
@@ -236,7 +241,7 @@ organization and category editors.
 
 ## Worked examples — the demo shop
 
-The demo shop (`pnpm run cli demo reset`) carries the three scenarios the model was designed
+The demo shop (`pnpm run cli demo seed`) carries the three scenarios the model was designed
 against, with literal numbers. Its fixture:
 
 - *Screws 0200* — red, in category *Screws*, base price 100.00 PLN;
@@ -244,8 +249,8 @@ against, with literal numbers. Its fixture:
 - *Bolts 0025* — red, in category *Bolts*, base price 30.00 PLN;
 - the organization *Acme B2B (demo)*, a member of the customer group *VIP*.
 
-The three scenarios are **alternatives**: after a reset the E3 books are active and the E1 and E2
-books are drafts. To see E1 or E2, activate that scenario's books and move the others to draft.
+The three scenarios are **alternatives**: once the demo is seeded the E3 books are active and the E1
+and E2 books are drafts. To see E1 or E2, activate that scenario's books and move the others to draft.
 
 **E1 — a price for everyone on a category and attribute value.** Book *E1 — red screws for everyone
 (demo)*: regular, everyone, one line *Screws* ∩ *color = red*, fixed 120.
@@ -322,8 +327,9 @@ administrator and the state before and after; *View history* on a book opens its
   base-price panel is not affected: it reads every variant.
 - **Screen readers announce the storefront's sale badge as "Request a quote"**; the visible text is
   correct (issue #411).
-- **The sorted order lags a price change** by the background refresh; the prices on the cards never
-  lag. Price sorting needs the platform's background workers running.
+- **The sorted order lags a price change** by the background refresh — usually under a second, and
+  minutes for a change that reaches the whole catalogue (see *Where prices appear*); the prices on
+  the cards never lag. Price sorting needs the platform's background workers running.
 - **The external catalogue API** prices the API key's organization with that organization's
   customer group, not the bound customer account's own group, and its bulk pricing request names
   product SKUs only.

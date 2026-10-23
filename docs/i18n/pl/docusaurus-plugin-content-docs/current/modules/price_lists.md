@@ -218,8 +218,13 @@ złożenie zamówienia odrzuca koszyk, którego zapisana cena nie jest już aktu
 **Sortowanie i filtrowanie według ceny** podąża za cenami pokazywanymi na kartach produktów, dla
 każdego kupującego — kupujący z własnymi cenami kontraktowymi widzi listę w porządku swoich cen.
 Porządek pochodzi z cen wyliczanych przez platformę w tle: po zmianie ceny karty od razu pokazują
-nową cenę, a porządek sortowania nadąża, gdy tylko wykona się odświeżanie w tle (w pomiarach
-platformy — w ciągu minuty).
+nową cenę, a porządek sortowania nadąża, gdy tylko wykona się odświeżanie w tle. Odświeżanie
+przelicza tylko produkty, które zmiana może przesunąć, dla kupujących, do których sięga, więc linia
+cennika, cena bazowa albo edycja produktu pojawia się w porządku w ciągu około pół sekundy w
+pomiarach platformy, także w trakcie dużego importu produktów. Zmiana, która sięga całego katalogu —
+linia dla wszystkich produktów albo tylko dla wartości atrybutu, zmiana ponad 10 000 produktów naraz
+albo zmiana kanału sprzedaży — przelicza porządek w całości dla każdej grupy kupujących, do której
+sięga, co w dużym katalogu z wieloma cennikami kontraktowymi może potrwać kilka minut.
 
 **Cena katalogowa obok ceny kupującego.** Po włączeniu ustawienia *Pokazuj cenę katalogową obok ceny
 kupującego* (*Ustawienia cenowe*, domyślnie wyłączone) kupujący, którego cena jest niższa od ceny
@@ -239,7 +244,7 @@ ustawia się w *Ustawieniach cenowych* oraz w edytorach organizacji i kategorii.
 
 ## Przykłady — sklep demonstracyjny
 
-Sklep demonstracyjny (`pnpm run cli demo reset`) zawiera trzy scenariusze, na podstawie których
+Sklep demonstracyjny (`pnpm run cli demo seed`) zawiera trzy scenariusze, na podstawie których
 zaprojektowano model, z dokładnymi liczbami. Jego dane:
 
 - *Screws 0200* — czerwony, w kategorii *Screws*, cena bazowa 100,00 PLN;
@@ -247,8 +252,8 @@ zaprojektowano model, z dokładnymi liczbami. Jego dane:
 - *Bolts 0025* — czerwony, w kategorii *Bolts*, cena bazowa 30,00 PLN;
 - organizacja *Acme B2B (demo)*, członek grupy klientów *VIP*.
 
-Trzy scenariusze są **alternatywami**: po resecie cenniki E3 są aktywne, a cenniki E1 i E2 są
-szkicami. Aby zobaczyć E1 albo E2, aktywuj cenniki tego scenariusza, a pozostałe przenieś do szkiców.
+Trzy scenariusze są **alternatywami**: po wczytaniu danych demonstracyjnych cenniki E3 są aktywne,
+a cenniki E1 i E2 są szkicami. Aby zobaczyć E1 albo E2, aktywuj cenniki tego scenariusza, a pozostałe przenieś do szkiców.
 
 **E1 — cena dla wszystkich na kategorię i wartość atrybutu.** Cennik *E1 — red screws for everyone
 (demo)*: regularny, dla wszystkich, jedna linia *Screws* ∩ *color = red*, cena stała 120.
@@ -326,8 +331,9 @@ administratorem i stanem przed zmianą i po niej; *Zobacz historię* w cenniku o
   Panel cen bazowych tego problemu nie ma: odczytuje każdy wariant.
 - **Czytniki ekranu odczytują znaczek promocji w sklepie jako „Zapytaj o ofertę”**; widoczny tekst jest
   poprawny (zgłoszenie #411).
-- **Porządek sortowania opóźnia się względem zmiany ceny** o czas odświeżania w tle; ceny na kartach
-  nigdy się nie opóźniają. Sortowanie według ceny wymaga działających workerów platformy.
+- **Porządek sortowania opóźnia się względem zmiany ceny** o czas odświeżania w tle — zwykle poniżej
+  sekundy, a kilka minut przy zmianie, która sięga całego katalogu (zob. *Gdzie pojawiają się
+  ceny*); ceny na kartach nigdy się nie opóźniają. Sortowanie według ceny wymaga działających workerów platformy.
 - **Zewnętrzne API katalogu** wycenia organizację klucza API z grupą klientów tej organizacji, a nie
   z własną grupą powiązanego konta klienta, a jego zbiorcze żądanie cen wskazuje wyłącznie SKU
   produktów.

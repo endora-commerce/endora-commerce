@@ -35,7 +35,7 @@ Paths are relative to this module's package, `@endora-commerce/mod-price-lists`,
 | Admin reads (list, rows, lines, labels) | `src/backend/services/price-book-reads.ts` |
 | Sales-representative scope | `src/backend/services/price-book-scope.ts` |
 | Cache and cross-process invalidation | `src/backend/services/pricing-cache.ts`, `pricing-generation.ts` |
-| Price surface and its worker | `src/backend/services/price-surface.ts`, `workers/price-surface-worker.ts` |
+| Price surface and its worker | `src/backend/services/price-surface.ts`, `workers/price-surface-worker.ts`; what a write marks: `surface-change.ts` |
 | Admin API | `src/backend/routes.price-books.ts`; display modes in `routes.ts` |
 | Storefront API | `src/backend/routes.storefront.ts` |
 | Composition — ports, worker, subscriptions, channel bridge | `src/backend/index.ts` |
@@ -55,7 +55,7 @@ list, which is why the tables keep their old names.
 | `price_list_matrix_entries` | The rows: the selection (`variant_id` with its `product_id`; `product_id`; `category_id`; `attribute_key` + `attribute_value`; category ∩ attribute; or nothing = all products), `min_quantity`, `max_quantity`, `price_type` (`fixed`, `percent`, `amount`) with `amount` (numeric 14,4) or `percent` (signed numeric 7,2). |
 | `price_list_product_lines` | One row per product with a row in a book — the grid's paging by line. |
 | `price_list_precedence` | The versioned precedence: twelve cell codes, `category_before_attribute`, `depth_mode`, `state`. Version 1 = HY is installed active; there is no write path yet. |
-| `price_profiles`, `price_profile_prices` | The price surface (below). |
+| `price_profiles`, `price_profile_prices`, `price_profile_stale_products` | The price surface and its refresh marks (below). |
 | `price_display_mode_overrides` | Display modes per organization, category and product. |
 | `cart_items.price_source` (`carts`), `order_items.price_source` (`orders`) | Which tier priced a line: `agreed`, `base`, `catalogue`, `buyer`, `sale`; `null` for a line priced before the release. |
 
@@ -167,8 +167,21 @@ rows, and the catalogue facts (categories, variants with axis values, eligible a
 | `resolveLinePrices` | many lines, each at its own quantity and variant (cart, placement check, quote reference prices, admin order preview, external order intake, feeds, external catalogue API) | `Map<key, PricingLineResult \| null>` — `amount`, `currency`, `priceListId`, `isSale`, `source`, `compareAt`, `bracketStartQuantity` (the starting quantity of the row that priced it), `displayMode` |
 | `resolveEngine`, `resolveLinePrice` | one product or line | wrappers over a batch of one; never call them in a loop |
 | `orderByUnitPrice`, `pricedProductIds`, `pageDisplayMode` | price sort and range (`ListingPriceOrderPort`) | served from the price surface |
-| `namedListPrices` | a feed pinned to one book | that book's own rows (product-level) over the channel's catalogue price, at quantity 1; products it does not price are absent |
+| `namedListPrices`, `namedListPublishability` | a feed pinned to one book | `namedListPrices`: the book's rows that are not variant rows, at quantity 1, over the channel's catalogue price **without the pinned book**; products it does not price are absent, and the map is empty while the book does not publish. `namedListPublishability`: whether it publishes now — `{ publishable: true }` or `{ publishable: false, reason }` |
 | `listTierStarts` | a tier ladder | the starting quantities of the rows and base tiers that can apply to `(product, variant?, currency)` |
+
+**A book pinned to a feed publishes only while it would price an anonymous buyer on the feed's
+channel now** (`BookPricing.namedBookPublishability`, `book-pricing.ts`): its status is `active` or
+`scheduled` and `starts_at ≤ now < ends_at`, evaluated at the call rather than by the status sweep;
+it is bound to the feed's channel and the channel offers the currency; and its audience is
+everyone. Otherwise `namedListPublishability` answers the first condition that fails, in this
+order — `not_found`, `currency_mismatch`, `not_active`, `outside_schedule`, `not_on_channel`,
+`audience_restricted` (`pinnedPriceBookUnpublishableReasonSchema` in
+`packages/contracts/src/price-lists.ts`) — and `namedListPrices` answers an empty map. A base book
+is channel-independent and always active: it publishes whenever its currency is the feed's, and
+answers its base prices. For any other book the reference its percentages and adjustments are taken
+off is the guest's catalogue price over the channel's books **minus the pinned one**, so a pinned
+everyone book never discounts its own result.
 
 Consumers resolve the `pricingService` container entry through a published slice of it in
 `@endora-commerce/contracts` — `ListingPricePort`, `ListingPriceDetailPort`, `LinePricesPort`,
@@ -185,7 +198,7 @@ Consumers resolve the `pricingService` container entry through a published slice
 | `carts` — add, merge, quantity change, read, the placement check | `resolveLinePrices` inside `CartLinePricing.orderablePrices` |
 | `orders` — placement, admin preview, external intake | placement copies the cart line's price and `price_source`; preview and intake call `resolveLinePrices` |
 | `quote_requests` — reference prices | `BuyerLinePricePort.resolveForBuyer` (container `buyerLinePricePort`) |
-| `product_feeds` | `resolveLinePrices` as a guest; `namedListPrices` for a feed pinned to a book |
+| `product_feeds` | `resolveLinePrices` as a guest; `namedListPrices` and `namedListPublishability` for a feed pinned to a book |
 | `organizations` — the organization's effective price books | `PriceListReadPort.listForOrganization` (container `priceListReadPort`) |
 | `carts` — refusing a product sold on request only | `ProductDisplayModePort` (container `productDisplayModePort`) |
 
@@ -210,7 +223,9 @@ them on core. `backend/src/apps/example/modules/example_overlay/backend.ts` is t
 - **After commit, everywhere**: every audited price-book write runs through `CommandBus.run`, and
   once it has committed `PricingGeneration.bump()` clears this process's layers and publishes on the
   Redis channel `b2b:price_lists:pricing-generation`; every API and worker process subscribes on boot
-  and clears its own. A bump also marks the price surface stale and asks the worker for a rebuild.
+  and clears its own. A bump also hands the price surface a description of what the write changed
+  (a `SurfaceChange`, below), which marks what that change can move and asks the worker for a
+  refresh; a bump that describes nothing marks every profile.
   Publishing is best effort: when an announcement is lost, the 60 s TTL bounds another process's
   staleness.
 - **What bumps**: every price-book write (header, channels, members, rows, activation, duplicate,
@@ -235,17 +250,45 @@ too slow, so price sorting and price-range filtering read a precomputed **price 
 - A buyer's page is a **two-stream merge**: the buyer profile's rows, then the everyone profile's
   rows minus the products the first stream holds — two index-ordered streams whatever the number of
   books.
-- **No request builds a surface.** A write marks the profiles stale; a stale profile keeps serving
-  its previous generation until the worker swaps the rebuilt one in, in one transaction. A profile
-  never built is registered and its build requested, and the request is answered at once: a
-  restriction of up to 5 000 products (a category, a search result) is ordered from a live
-  resolution, an unrestricted page from the everyone surface (an approximation), and with no surface
-  at all the chunk is `unordered` and the catalogue serves its default order. Prices on cards are
-  always resolved live, so only the order can lag.
+- **No request builds a surface.** A write marks what it moved, and a marked profile keeps serving
+  its rows until the worker has refreshed them, in one transaction. A profile never built is
+  registered and its build requested, and the request is answered at once: a restriction of up to
+  5 000 products (a category, a search result) is ordered from a live resolution, an unrestricted
+  page from the everyone surface (an approximation), and with no surface at all the chunk is
+  `unordered` and the catalogue serves its default order. Prices on cards are always resolved live,
+  so only the order can lag.
+- **A write marks only what it can move**, at two granularities. Each writer describes its change
+  as a `SurfaceChange` (`src/backend/services/surface-change.ts`) and `PricingGeneration.bump`
+  hands it to `PriceSurface.markChanged` after the commit, which writes every mark of the change in
+  one transaction: a **(profile, product) mark** — a row of `price_profile_stale_products` — for
+  each product the change concerns in each profile it reaches, or a **whole-profile mark**
+  (`price_profiles.stale`, `marked_at`) when it concerns every product of the profile. A change to
+  a book that was or is `active` or `scheduled` concerns the products its rows select, in the
+  profiles whose vector holds it (a buyer book), the profiles of its currency on its channels
+  before and after (an everyone book) or every profile of its currency (a base book); a base price
+  and a product event concern the product in every profile (of the written currencies, for a base
+  price); a category event the products of the category's subtree; an attribute event the products
+  the rows naming the attribute select. A buyer surface stores only what differs from the everyone
+  surface, so a change at everyone level marks a product in a buyer profile only when one of the
+  profile's books can select the product or the profile's surface holds a row for it — any other
+  buyer resolves that product over the everyone profile's books and answers what it answers. A
+  change that concerns more than
+  10 000 products, a row that selects by attribute alone or every product, a channel event and the
+  precedence mark their profiles whole. A new or duplicated book (a draft), a display mode and the
+  list-price switch mark nothing; deleting a book also drops the buyer profiles whose vector holds
+  it. When the marking itself fails, every profile is marked whole.
 - The **worker** consumes the BullMQ queue `price_lists.surface` (one coalesced job id, three
   attempts with exponential backoff), attached with `ctx.worker` so it stops with the module, and
   runs only in a process that consumes queues (`BACKEND_ROLE` unset, `all` or `worker`) with a queue
-  Redis connection. It builds never-built profiles first, then stale ones (everyone before buyer).
+  Redis connection. Each pass reads its work in one statement: a never-built or whole-marked profile
+  is built whole — the next generation beside the served one, swapped in one transaction — and a
+  profile with (profile, product) marks has just those products re-resolved and their rows of the
+  served generation replaced in one transaction, which moves `price_profiles.revision`. Every
+  everyone profile of a pass is done before any buyer profile, never-built ones first within each,
+  because a buyer surface is compared with the everyone surface the pass leaves. A pass deletes
+  only the marks it read, by id, so a write landing during a pass is done by the next one; passes
+  repeat while one finds work. A whole build that writes a large share of `price_profile_prices`,
+  or writes into a table with no statistics, runs `ANALYZE` on it inside its own transaction.
   Without a running worker the surface is never built and price-sorted pages fall back as above.
 
 Measured with `PERF_RUN=true` in `backend/test/perf/price_lists/price-surface.bench.ts` (50 000
@@ -327,7 +370,7 @@ offer.
 
 | Method and path | Answers |
 | --- | --- |
-| `GET /api/v1/storefront/products/:id/resolved-price?quantity=&currency=&variantId=` | For the viewer (the session's organization and customer, else a guest): `resolvedPrice { basePrice, salePrice, baseListId, saleListId, displayMode, currencyCode, quantityBracket, source, compareAt, listPrice? }`. `basePrice` is the viewer's **regular** price — buyer, catalogue or base — and `salePrice` is set only when a sale is charged; `listPrice` only when `pricing.show_list_price` is on and the everyone price is above the price charged. |
+| `GET /api/v1/storefront/products/:id/resolved-price?quantity=&currency=&variantId=` | For the viewer (the session's organization and customer, else a guest): `resolvedPrice { basePrice, salePrice, baseListId, saleListId, displayMode, currencyCode, quantityBracket, source, compareAt, listPrice? }`. `basePrice` is the viewer's **regular** price — buyer, catalogue or base — and `salePrice` is set only when a sale is charged; `listPrice` only when `pricing.show_list_price` is on and the everyone price is above the price charged. Amounts are decimal strings (`{ amount, currency }`). A product no book prices for the viewer is **unpriced**: `baseListId`, `basePrice` and `quantityBracket` are all `null`, never an empty-string id (`resolvedPriceEngineSchema` in `packages/contracts/src/price-lists.ts` holds the three to null together or set together). |
 | `GET /api/v1/storefront/pricing/display-mode/:productId` | The display mode alone. |
 
 Both are resolved for the viewer and derive it through one function. A response resolved for an
@@ -415,6 +458,11 @@ The migrations that ran:
    fixed product row of its currency's base book; every other price list was deleted with its
    roster, brackets, rule and matrix entries; the old tables and columns were dropped; the type
    `base` was renamed `regular`.
+4. **`price_lists`, after the conversion**: `20261022T182527_price_lists_product_lines.ts` creates
+   `price_list_product_lines` and backfills it from the rows already stored, and
+   `20261023T152351_price_lists_price_surface_targeted_marks.ts` adds the (profile, product) marks
+   table `price_profile_stale_products` and `price_profiles.revision` for the targeted refresh of
+   the price surface.
 
 For the maintainers of a price import written against the removed `priceListAdminPort`:
 
@@ -427,8 +475,9 @@ For the maintainers of a price import written against the removed `priceListAdmi
 | `summarizeBracketsForProduct(productId)` | `booksPricingProduct(productId)` |
 
 What that means for an instance: base prices that came from the *Default* list are kept;
-**every other price list is gone** and must be recreated as price books (the demo reseeds its own
-with `pnpm run cli demo reset`); and a product that had only a *Default unit price* and no *Default*
+**every other price list is gone** and must be recreated as price books (in an instance seeded
+with the demo shop, `pnpm run cli demo reset` followed by `pnpm run cli demo seed` brings back its
+books); and a product that had only a *Default unit price* and no *Default*
 bracket has **no price** until a base price is entered for it. Product and variant writes and the
 products import now refuse `defaultPrice`, `price` and `priceOverride` with
 `400 PRICE_SET_IN_PRICE_BOOKS`. The changesets of the release list every removed call with its
