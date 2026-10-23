@@ -192,8 +192,21 @@ paths P0 left open (admin order preview, external order intake, feed generation)
    deleted, so P2 starts from an empty admin surface instead of editing screens built on the removed API.
 6. `quickstart.md` and the demo books, so P2's acceptance runs on E1–E3 data.
 
+**Verified against tests (T134, 2026-10-23)** — each item, and the test that holds it:
+
+| Item | Status | Test |
+| --- | --- | --- |
+| 1. Admin API | ✅ ready | `backend/test/contract/price_lists/price-books-api.test.ts` (books), `price-book-rows-api.test.ts` (batch upsert), `base-prices-api.test.ts` (base prices), `price-books-resolve.test.ts` (explanation with ranked candidates), `price-book-targets.test.ts` (pickers), `precedence-api.test.ts` (read-only precedence), `removed-routes.test.ts`; `backend/test/integration/price_lists/price-book-duplicate.test.ts`, `price-book-tenant-scope.test.ts`, `price-book-audit.test.ts`, `currency-reference.test.ts` (T089–T099) |
+| 2. Exported schemas and types | ✅ ready | `packages/contracts/test/price-books.unit.test.ts` — the T005 shape tests, and T135's barrel assertions per editor concern (runtime schemas and inferred types) |
+| 3. `price_lists` i18n namespace | ✅ ready | the error codes in `price-book-rows-api.test.ts` and `precedence-api.test.ts`; EN and PL sentences by `check:error-translations` and `backend/test/unit/_i18n/registered-bundles-shape.test.ts` |
+| 4. Permissions unchanged, palette actions declared | ✅ ready | `packages/modules/price_lists/src/backend/manifest-permissions.test.ts`, `backend/test/contract/price_lists/permission-gates.test.ts`, `backend/test/unit/price_lists/palette-actions.test.ts` (the actions were added by 161 with their screens, T105) |
+| 5. Old admin surface and *Default unit price* deleted | ✅ ready (P2 has since built the new surface on it) | `admin/test/modules/price_lists/price-lists-zones.test.tsx`, `admin/test/modules/catalog/ProductEditor.channels-tab.test.tsx` (no linked-lists panel), and — missing until T134 — `admin/test/modules/catalog/ProductEditor.no-own-price.test.tsx` (no *Default unit price* field, no own-price strings in catalog's EN and PL bundles) |
+| 6. Quickstart and demo books | ✅ ready | `backend/test/integration/price_lists/demo-scenarios.test.ts` (T107); `quickstart.md` run end to end on a fresh database (T136) |
+
 **Release gate**: one pull request from `feat/160-pricing-model-v2` to `master`, opened only when P2's
-acceptance scenarios and Phase 9 pass. Until then `master` keeps the old model and the old editor
+acceptance scenarios and Phase 9 pass. **P2 is feature 161, `specs/161-price-book-editor/`, branch
+`feat/161-price-book-editor`** (T137); its tip `e1758312e` is fast-forwarded into this release
+branch. Until then `master` keeps the old model and the old editor
 (`research.md` R12). The branch is rebased on `origin/master` at each phase boundary, and each rebase
 re-runs the generators.
 
