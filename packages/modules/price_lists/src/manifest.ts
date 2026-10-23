@@ -15,9 +15,9 @@ import {
  * codes of its own. Pricing is not catalogue content.
  *
  * The split is read/write rather than one code because the two authorities are
- * genuinely different: reading a price list, its brackets and the rule-target
- * pickers is what an operator needs to understand a quoted price, while editing
- * a bracket changes what a customer is charged.
+ * genuinely different: reading a price book, its rows and the price explainer
+ * is what an operator needs to understand a quoted price, while editing a row
+ * or a base price changes what a customer is charged.
  */
 export const PRICE_LIST_PERMISSIONS = {
   READ: 'price_lists:read',
@@ -74,7 +74,7 @@ export const manifest = defineModuleManifest({
   id: 'price_lists',
   name: 'Price Lists',
   description:
-    'Customer-group pricing, brackets, display modes, and rule-based engine.',
+    'Price books — base, catalogue, buyer and sale prices per currency, sales channel and audience — and price display modes.',
   version: '1.0.0',
   // `customer_accounts` since feature 076 (D-79): customer groups moved to the
   // module that owns the customer, so this module reads `customerGroupReadPort`
@@ -100,10 +100,10 @@ export const manifest = defineModuleManifest({
     'settings',
   ],
   permissions: [
-    { code: PRICE_LIST_PERMISSIONS.READ, label: 'View price lists and pricing rules' },
+    { code: PRICE_LIST_PERMISSIONS.READ, label: 'View price books and display modes' },
     {
       code: PRICE_LIST_PERMISSIONS.WRITE,
-      label: 'Edit price lists, brackets and display modes',
+      label: 'Edit price books, base prices and display modes',
       // Advisory (D-175): adding product lines uses the catalogue's product
       // browser and a product's variants come from the catalogue's admin
       // variant read, both on `catalog:read` (feature 161).

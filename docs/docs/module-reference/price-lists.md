@@ -40,8 +40,8 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 
 | Code | Label | Also needs |
 | --- | --- | --- |
-| `price_lists:read` | View price lists and pricing rules | — |
-| `price_lists:write` | Edit price lists, brackets and display modes | `catalog:read` |
+| `price_lists:read` | View price books and display modes | — |
+| `price_lists:write` | Edit price books, base prices and display modes | `catalog:read` |
 
 ## Command palette
 
