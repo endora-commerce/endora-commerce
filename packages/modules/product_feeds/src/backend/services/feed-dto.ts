@@ -120,6 +120,7 @@ export function toRunSummary(run: FeedRun): Record<string, unknown> {
     skippedCount: run.skippedCount,
     warningCount: run.warningCount,
     failureCode: run.failureCode ?? null,
+    withdrawalReason: run.withdrawalReason ?? null,
   };
 }
 

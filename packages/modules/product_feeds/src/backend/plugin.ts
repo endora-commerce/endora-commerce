@@ -303,7 +303,8 @@ export interface FeedPricingPort extends NamedListPricePort {
   /**
    * Feature 160 (FR-029, owner ruling 2026-10-23) — whether a pinned book
    * publishes prices now, and why not; while it does not, `namedListPrices`
-   * answers nothing. The admin feed row shows the reason.
+   * answers nothing. The admin feed row shows the reason, and a run withdraws
+   * the feed's published file while it does not.
    */
   namedListPublishability(input: {
     priceListId: string;
@@ -731,6 +732,10 @@ export function productFeedsModule(
     resolver: options.itemFieldResolver ?? new ItemFieldResolver(),
     settings,
     resolveNamedListPrice,
+    pinnedPriceBookPublishability: (input) => options.pricingService.namedListPublishability(input),
+    // The withdrawal moved the pointer to nothing; drop this process's cached
+    // answers for the feed's tokens now rather than at the TTL.
+    onPublicationWithdrawn: (feedId) => tokenCache.dropAllForFeed(feedId),
     resolveAnonymousPrice,
     resolveTaxRate: async ({ countryCode, productType }) => {
       const resolved = await options.taxService.taxRateFor({

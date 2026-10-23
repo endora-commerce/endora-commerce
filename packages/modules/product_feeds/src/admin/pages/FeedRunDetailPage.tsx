@@ -167,13 +167,25 @@ export function FeedRunDetailPage(): ReactNode {
         </div>
       )}
 
+      {run.status === 'withdrawn' ? (
+        // Feature 160 (FR-029), owner ruling 2026-10-23 — not a failure: the
+        // pinned price book did not apply, so the run withdrew the published
+        // file rather than keep serving prices that no longer apply.
+        <Alert variant="warning" className="mb-4" role="status">
+          <AlertDescription className="flex flex-col gap-1">
+            {run.withdrawalReason ? <span>{t(`feeds.pinnedBook.${run.withdrawalReason}`)}</span> : null}
+            <span>{t('runs.withdrawn.notice')}</span>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
       {run.status === 'empty' ? (
         <Alert className="mb-4">
           <AlertDescription>{t('runs.empty.notice')}</AlertDescription>
         </Alert>
       ) : null}
 
-      {!failed && !hasSkips && !hasWarnings ? (
+      {!failed && run.status !== 'withdrawn' && !hasSkips && !hasWarnings ? (
         <div className="b2b-empty">
           <p className="b2b-empty__title flex items-center justify-center gap-2">
             <CheckCircle2 size={16} aria-hidden="true" />

@@ -189,6 +189,7 @@ export function ProductFeedDetailPage(): ReactNode {
   ];
 
   const lastFailed = feed.lastRun?.status === 'failed';
+  const lastWithdrawn = feed.lastRun?.status === 'withdrawn';
 
   return (
     <div>
@@ -226,13 +227,17 @@ export function ProductFeedDetailPage(): ReactNode {
         </Alert>
       )}
 
-      {feed.pinnedPriceBookWarning && (
+      {(feed.pinnedPriceBookWarning || lastWithdrawn) && (
         // Feature 160 (FR-029) — a feed pinned to a price book that does not
         // apply now gets no prices from it; say so where the operator looks
-        // first, with the reason, rather than leaving a run of skipped items
-        // to explain it.
+        // first, with the reason. Owner ruling 2026-10-23: a run that found it
+        // so withdrew the published file, and the link answers as if the feed
+        // had never been generated until a run publishes again.
         <Alert variant="warning" className="mb-4" role="status">
-          <AlertDescription>{t(`feeds.pinnedBook.${feed.pinnedPriceBookWarning}`)}</AlertDescription>
+          <AlertDescription className="flex flex-col gap-1">
+            {feed.pinnedPriceBookWarning && <span>{t(`feeds.pinnedBook.${feed.pinnedPriceBookWarning}`)}</span>}
+            {lastWithdrawn && <span>{t('feeds.pinnedBook.withdrawn')}</span>}
+          </AlertDescription>
         </Alert>
       )}
 

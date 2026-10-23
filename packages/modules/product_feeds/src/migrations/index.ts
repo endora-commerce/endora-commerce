@@ -6,7 +6,7 @@
  * `src/packages/package-runtime.ts` takes `exported['migrations']` and refuses
  * the package outright when it is absent (D-168).
  *
- * **Seven classes, listed in ascending timestamp, which orders this module's
+ * **Eight classes, listed in ascending timestamp, which orders this module's
  * own migrations and nothing else** (feature 081). Where the block sits
  * relative to every other module's is decided by the manifest `dependencies`
  * graph, and packaging changes no manifest, so this move leaves the committed
@@ -31,6 +31,7 @@ import { Migration20260803T060153ProductFeedsTaxonomyRefresh } from './20260803T
 import { Migration20260804T152741ProductFeedsWidenIssueSku } from './20260804T152741_product_feeds_widen_issue_sku.js';
 import { Migration20260806T105956ProductFeedsFeedTokenSecret } from './20260806T105956_product_feeds_feed_token_secret.js';
 import { Migration20260806T125806ProductFeedsDelivery } from './20260806T125806_product_feeds_delivery.js';
+import { Migration20261023T195611ProductFeedsRunWithdrawalReason } from './20261023T195611_product_feeds_run_withdrawal_reason.js';
 
 export const migrations = [
   Migration20260802T073547ProductFeedsInit,
@@ -40,6 +41,7 @@ export const migrations = [
   Migration20260804T152741ProductFeedsWidenIssueSku,
   Migration20260806T105956ProductFeedsFeedTokenSecret,
   Migration20260806T125806ProductFeedsDelivery,
+  Migration20261023T195611ProductFeedsRunWithdrawalReason,
 ];
 
 export {
@@ -50,4 +52,5 @@ export {
   Migration20260804T152741ProductFeedsWidenIssueSku,
   Migration20260806T105956ProductFeedsFeedTokenSecret,
   Migration20260806T125806ProductFeedsDelivery,
+  Migration20261023T195611ProductFeedsRunWithdrawalReason,
 };

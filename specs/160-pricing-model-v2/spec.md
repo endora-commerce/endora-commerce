@@ -426,7 +426,14 @@ storefront.
   MUST price through the one resolution of FR-010–FR-020; no consumer may keep a fallback of its own.
 - **FR-029**: Product feeds pinned to a named book MUST read that book's rows for its channel and
   currency over the catalogue price; products the book does not price MUST be absent from the feed,
-  as today.
+  as today. A pinned book MUST publish only while it would price an anonymous buyer on the feed's
+  channel at generation time (owner ruling 2026-10-23, `research.md` R18). A generation run that
+  finds the pinned book not publishable MUST withdraw the feed's published file — the public feed
+  URL then answers exactly as for a feed that has never been generated — and MUST be recorded as a
+  `withdrawn` run naming the publishability reason, not as a failure; the next run after the book
+  applies again publishes as usual. This is not a failed run, so `product_feeds`' "the previous file
+  keeps serving" rule for failed runs (feature 067 FR-035, FR-038) does not apply to it, and a
+  genuine failure keeps that rule unchanged (owner ruling 2026-10-23).
 - **FR-030**: Cart lines and order lines MUST record the price source of their unit price.
 - **FR-031**: The product page MUST show, and the cart MUST charge, the price of the selected variant;
   no surface may show the old variant price override.

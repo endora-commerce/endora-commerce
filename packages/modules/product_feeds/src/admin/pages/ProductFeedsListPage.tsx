@@ -134,6 +134,10 @@ export function ProductFeedsListPage(): ReactNode {
                 {t(`runs.failure.${row.lastRun.failureCode}`)}
               </span>
             )}
+            {row.lastRun.status === 'withdrawn' && (
+              // Feature 160 (FR-029): why the link stopped serving a file.
+              <span className="text-xs text-muted-foreground">{t('runs.withdrawn.inline')}</span>
+            )}
           </div>
         ) : (
           <span className="text-muted-foreground">{t('feeds.table.never')}</span>

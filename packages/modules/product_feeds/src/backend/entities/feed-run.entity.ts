@@ -5,6 +5,7 @@ import type {
   FeedRunStatus,
   FeedRunTrigger,
   FeedTemplateField as FeedTemplateFieldDto,
+  PinnedPriceBookUnpublishableReason,
 } from '@endora-commerce/contracts';
 import { GlobalEntity } from '@endora-commerce/platform/tenancy';
 
@@ -97,6 +98,14 @@ export class FeedRun {
 
   @Property({ type: 'varchar', length: 48, fieldName: 'skip_reason', nullable: true })
   skipReason?: FeedRunSkipReason | null;
+
+  /**
+   * Feature 160 (FR-029), owner ruling 2026-10-23 — set on a `withdrawn` run
+   * only: why the feed's pinned price book did not apply, so the run withdrew
+   * the published file instead of producing one.
+   */
+  @Property({ type: 'varchar', length: 48, fieldName: 'withdrawal_reason', nullable: true })
+  withdrawalReason?: PinnedPriceBookUnpublishableReason | null;
 
   @Property({ type: 'uuid', fieldName: 'artefact_id', nullable: true })
   artefactId?: string | null;
