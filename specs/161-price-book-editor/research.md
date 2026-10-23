@@ -331,6 +331,13 @@ prototype assumed, and both are pinned in the code with the measurement beside t
   a `LATERAL` per id fenced with `offset 0`, so each probe is an index lookup on `(price_list_id,
   product_id)` in both states (0.66 ms); `price-book-lines-rows-plan.test.ts` holds it.
 
+**Fresh state — accepted (owner, 2026-10-22).** Before autovacuum's first pass over a freshly loaded
+catalogue, the broadest searches on the 50 003-line book run about 150–153 ms p95 end to end (bench
+T029, `plan.md` *Measurements*): the search count and the dense walk read every product's heap tuple
+while the visibility map is empty. The owner accepted this overrun: the 150 ms budget is measured in
+the **steady state**, which every case meets. The fresh-state behaviour is followed up in issue #409;
+the bench keeps reporting it.
+
 **The name rule, and how it relates to `pickName`.** Display name for admin language `L`: the
 non-empty name whose language tag's primary subtag is `L`, taking the **alphabetically first tag**
 when there are several (`en-GB` before `en-US`); else the same for English; else the first non-empty
