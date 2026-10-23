@@ -3,7 +3,8 @@
 Every place a price is **read** — listings, PDP, search, typeahead, cart, checkout, quotes, promotions — with its entry point, query shape, caching, measured cost and remaining defects. The current read paths come first; the summary and the detailed audit of the pre-160 baseline follow.
 
 **Verified against** the release branch at `e1758312e` (feature 160 with its editor, feature 161)
-on 2026-10-23 for *Current read paths*, *Still open* and §7. The detailed audit below them (§0–§6,
+on 2026-10-23 for *Current read paths*, *Still open* and §7, and re-checked at `91e8c1907` the same
+day after the targeted surface refresh and the T165/T173 measurements. The detailed audit below them (§0–§6,
 §8) describes the **pre-160** read paths — the Application-rule engine, the Default-list brackets
 and the feature-086 ordering — and is kept unchanged as the baseline the price-book model was
 measured against: its file:line citations name code that no longer exists, and every path it
@@ -25,10 +26,10 @@ books. Measurements are in §7.
 | Listing page, 50 cards (catalogue, home cards, product links) | `resolveListingPrices` / `…Details`, variants ranged | constant statements per page (≤ 15 asserted); `book-resolver.bench.ts` 50-product page p95 11.1–13.0 ms (budget 60) | `IT/price_lists/book-statement-budget.test.ts`, `listing-prices-batch.test.ts` |
 | Product page | the listing details of the product; the selected variant through `resolved-price?variantId=` | one resolution per page, one more for a selected variant | `customer-own-group-every-path.test.ts`, `storefront/test/catalog/single-price-resolution.test.tsx` |
 | Search hits and typeahead | `resolveListingPriceDetails` per page / popup; the typeahead passes the request currency (open after P0, closed by 160) | one batch | `packages/modules/search/src/backend/services/cross-module-ports.test.ts` |
-| Price-sorted and price-range page | `orderByUnitPrice` / `pricedProductIds` over the price surface — a two-stream merge | first page p95 ≤ 28.2 ms at 50 000 products (T133); a change visible in the order within 42–57 s | `IT/price_lists/price-surface-identity.test.ts`, `price-surface-refresh.test.ts`, `perf/price_lists/price-surface.bench.ts` |
+| Price-sorted and price-range page | `orderByUnitPrice` / `pricedProductIds` over the price surface — a two-stream merge | first page p95 ≤ 28.2 ms at 50 000 products (T133), ≤ 27.4 ms at 202 built profiles; a single change visible in the order after 0.20–0.49 s at 202 profiles (targeted refresh, 2026-10-23) | `IT/price_lists/price-surface-identity.test.ts`, `price-surface-refresh.test.ts`, `perf/price_lists/price-surface.bench.ts` |
 | Cart read, add, merge, quantity change, placement check | `resolveLinePrices` inside `CartLinePricing.orderablePrices`, with each line's `variantId` | one batch per basket | `IT/carts/cart-read-equals-placement.test.ts`, `IT/price_lists/line-prices-batch.test.ts` |
 | Admin order preview, external order intake | `resolveLinePrices` (one per request — the N+1 P0 left open, closed by 160) | one batch | `IT/price_lists/pricing-surfaces-agree.test.ts` |
-| Product feed generation and the criteria count | `resolveLinePrices` per batch as a guest; `namedListPrices` for a pinned book (closed by 160) | one batch per 500 items | `pricing-surfaces-agree.test.ts` |
+| Product feed generation and the criteria count | `resolveLinePrices` per batch as a guest; `namedListPrices` for a pinned book, empty while `namedListPublishability` says the book does not apply (closed by 160) | one batch per 500 items | `pricing-surfaces-agree.test.ts` |
 | Quote reference prices | `BuyerLinePricePort.resolveForBuyer`, request currency | one batch per 100-line chunk | `PL/backend/services/buyer-line-price-service.test.ts` |
 | External catalogue API (list, detail, bulk prices) | `resolveLinePrices`; the tier ladder from `listTierStarts` | one batch per call | `backend/test/contract/catalog/bulk-pricing-parity.test.ts` |
 | Admin price explainer | `POST /api/v1/admin/price-books/resolve` → `BuyerLinePriceService.resolveDetailed` | one batch, ≤ 200 lines | `backend/test/contract/price_lists/price-books-resolve.test.ts` |
@@ -44,15 +45,11 @@ books. Measurements are in §7.
 - Issues **#167** and the quote-line half of **#303** (§8).
 - The **display-mode settings write** is not on the Command Bus (pre-existing,
   `PL/backend/services/price-list-service.ts`).
-- **The price surface is rebuilt whole.** Every pricing-generation bump — a price-book write, a
-  status flip, any product, category, attribute or channel event — marks **every** profile stale
-  (`PriceSurface.markStale`), and the worker rebuilds every stale profile over the whole catalogue.
-  The SC-005 freshness figures (§7) were measured with five profiles built; the time to rebuild
-  hundreds of profiles, and how often a busy catalogue (a PIM import emitting one
-  `product.updated.v1` per product) keeps them stale, is **not measured**.
-- **SC-004 after the switch**: `catalog/listing-price-viewer-cost.bench.ts` has not been re-run on
-  the price-book engine; the listing budget is held by the statement assertion and
-  `book-resolver.bench.ts` above.
+- **A change that concerns every product of its profiles still rebuilds them whole** — a row
+  selecting by attribute alone or every product, a change to more than 10 000 products, a channel
+  event, the precedence. A full rebuild of 202 profiles took 274.7 s (§7); SC-005's 60 s is
+  measured for targeted changes only, not for this case. (Until 2026-10-23 every bump rebuilt every
+  profile; the targeted refresh of research R17 replaced that.)
 
 ## Summary of the pre-160 baseline
 
@@ -422,12 +419,12 @@ Benches (all `describe.skipIf(PERF_RUN !== 'true')`), as they stand after featur
 
 | Bench | What | Budget / latest measurement |
 | --- | --- | --- |
-| `backend/test/perf/price_lists/price-surface.bench.ts` | SC-005: price-sorted and range pages over the surface, 50 000 products, 1 000 organizations; refresh latency | p95 ≤ **150 ms** per page, a change visible ≤ **60 s**; T133 (2026-10-22): p95 ≤ 28.2 ms, refresh 47.2 s |
+| `backend/test/perf/price_lists/price-surface.bench.ts` | SC-005: price-sorted and range pages over the surface, 50 000 products, 1 000 organizations; refresh latency; since 2026-10-23 also 202 built profiles and a PIM-like import | p95 ≤ **150 ms** per page, a change visible ≤ **60 s**; 2026-10-23 (targeted refresh): page p95 ≤ 27.4 ms, write → visible 0.20–0.49 s, import probes p95 0.50 s; T133 (2026-10-22, whole rebuilds): p95 ≤ 28.2 ms, refresh 47.2 s |
 | `backend/test/perf/price_lists/book-resolver.bench.ts` | a 50-product listing page on the price-book resolver (replaced `matrix-resolver.bench.ts`) | budget **60 ms** p95; 13.0 ms (no book), 11.5 ms (100 rows), 11.1 ms (1 950 rows on other products) |
 | `backend/test/perf/price_lists/book-lines-page.bench.ts` | the admin grid's line pages, 50 003-line base book (161 G15) | budget **150 ms** p95; steady: every case ≤ 150 ms, largest 125.3 ms; fresh data before the first autovacuum: three broad-search cases 150.6–152.6 ms (accepted, issue #409) |
 | `backend/test/perf/price_lists/editor-import-save.bench.ts` | a 5 000-row import preview and commit; a 1 000-row file to preview | preview 205 ms, commit 1 024 ms; 83 ms (2026-10-23) |
 | `backend/test/perf/catalog/listing-price-cost.bench.ts` | anonymous priced page over HTTP | budget **275 ms** p95 (pre-160 measurement 77–87 ms) |
-| `backend/test/perf/catalog/listing-price-viewer-cost.bench.ts` | cold/warm, anonymous vs signed-in, statement counts | baseline below (T002); not re-run after the switch |
+| `backend/test/perf/catalog/listing-price-viewer-cost.bench.ts` | cold/warm, anonymous vs signed-in, statement counts | ceiling 60 statements (signed-in cold); T173 (2026-10-23, price-book engine): anonymous cold 20 / 101.3 ms, warm 16, p95 24.2 ms; signed-in cold 24 / 36.2 ms, warm 23, p95 25.2 ms — baselines below |
 | `backend/test/perf/catalog/listing-filtered-page.bench.ts`, `listing-card-reads-cost.bench.ts`, `carts/cart-routes.bench.ts` | adjacent | not pricing-specific |
 
 Deleted with the old model (feature 160, T126): `price_lists/resolver.bench.ts` (superseded by
@@ -481,9 +478,53 @@ branch: every page p95 ≤ 28.2 ms, a single-book change visible in the order af
 same machine: figures in the bench table above and in `specs/161-price-book-editor/plan.md`
 *Measurements*.
 
+**Targeted refresh (owner ruling 2026-10-23, research R17, T165).** The figures above (T088, T133)
+are history: they were measured while every bump rebuilt every profile. After the targeted refresh,
+same machine, idle, the default fixture, 50 iterations (run 4 of the day, after the coverage-check
+fix, T175):
+
+| Scenario | Measured | Budget |
+| --- | --- | --- |
+| first / desc / range page p95, guest | 4.1 / 3.2 / 3.8 ms | 150 ms |
+| same, group-only | 5.9 / 6.8 / 27.4 ms | 150 ms |
+| same, organization product rows | 6.7 / 6.1 / 15.0 ms | 150 ms |
+| same, organization category % | 7.7 / 6.9 / 16.8 ms | 150 ms |
+| same, organization all-products % | 6.8 / 5.6 / 6.2 ms | 150 ms |
+| worker build of the five profiles | 23.2 s (a buyer profile resolves only the products its own books select) | recorded |
+| one book change through `markStale` (every profile rebuilt) | 21.0 s | 60 s |
+| profile-miss page | 56 ms | recorded |
+| 202 built profiles (1 131 693 rows, 269 MB): their whole build | 241.3 s | recorded |
+| write → visible, everyone book row / base price through `priceBookWritePort` | 0.43 s / 0.43 s (31 profiles marked and refreshed, 171 untouched, none rebuilt whole) | 60 s |
+| write → visible, organization book row | 0.20 s (1 marked, 201 untouched) | 60 s |
+| write → visible, `product.updated.v1` | 0.49 s | 60 s |
+| PIM-like import, 3 000 products (a `product.updated.v1` and a base price each, bursts of 500), worker beside it | 436.8 s, 6.9 products/s, 206 worker passes; 29 probe writes visible after p95 0.50 s, max 0.55 s | 60 s per probe |
+| full rebuild of the 202 profiles | 274.7 s | recorded (input to P3) |
+
+Before the coverage-check fix the first page of the all-products buyer took 428 s, then 47 s as a
+scalar probe, on a `price_profile_prices` analysed while empty; the check now compares the two
+surfaces' ids in memory and a large whole build runs `ANALYZE` in its own transaction
+(`backend/test/integration/price_lists/price-surface-plans.test.ts`).
+
+**SC-004 on the price-book engine (T173, 2026-10-23, idle).**
+`catalog/listing-price-viewer-cost.bench.ts`, page of 50:
+
+| Viewer | Cold | Warm | p50 / p95 |
+| --- | --- | --- | --- |
+| anonymous | 20 statements / 101.3 ms | 16 statements | 22.6 / **24.2 ms** |
+| signed-in | 24 statements / 36.2 ms | 23 statements | 23.7 / **25.2 ms** |
+
+The bench's ceiling (60 statements for a cold signed-in page) holds. Against the old engine the
+page costs more statements and about the same time: the bench's own recorded baseline (2026-08-20)
+is cold 14 / 15 and warm 11 / 15 statements, p95 22.0 / 22.4 ms (anonymous / signed-in), and the
+T002 re-measure above cold 15 / 20 and warm 12 / 19, p95 24.8 / 29.3 ms. In the same run the admin
+lines page on a 50 000-line base book measured p95 48.1–111.8 ms over its twelve page and search
+shapes (budget 150), and the editor's 1 000-row read and preview 81 ms, a 5 000-row preview 192 ms
+and commit 974 ms.
+
 What is **not** measured (gap): catalogue scale beyond 5 000 products for the listing path; the
-time to rebuild the surface with hundreds of profiles (the bench builds five), and how often a busy
-catalogue keeps it stale; multi-replica cache behaviour; typeahead and cart/checkout with large
+write → visible time of a change that rebuilds hundreds of profiles whole (an all-products or
+attribute-only row, a channel event — a full rebuild of 202 profiles is recorded at 274.7 s, not
+asserted against SC-005); multi-replica cache behaviour; typeahead and cart/checkout with large
 baskets. (The typeahead, external-API and cart N+1 paths are batched since
 P0, with a statement-count assertion in `line-prices-batch.test.ts`.)
 

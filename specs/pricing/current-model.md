@@ -8,7 +8,9 @@ proposal — the ratified target is `decision-record.md`, and the test vectors a
 
 **Verified against** the release branch `feat/160-pricing-model-v2` on 2026-10-22, after the
 conversion and removal phase (tasks T114–T133), and re-checked at `e1758312e` on 2026-10-23 for
-the documentation rebuild (feature 160, Phase 13): §1.2's caching paragraph, §1.3 and §1.4. The old model — the Application rule, the per-list
+the documentation rebuild (feature 160, Phase 13): §1.2's caching paragraph, §1.3 and §1.4; and
+at `91e8c1907` on 2026-10-23 after the owner rulings of that day (targeted surface refresh, pinned
+feeds): §1.2's caching and consumers paragraphs, §1.3 and §1.4 item 7. The old model — the Application rule, the per-list
 product roster and brackets, the `Default` list, the product *default price* and the variant price
 override — is gone from the code and, after the conversion migration, from the database. How it
 worked is recorded in this file's history (`git log -- specs/pricing/current-model.md`); the
@@ -113,8 +115,11 @@ precedence version (FR-020).
 under a 60 s TTL (`DEFAULT_PRICING_CACHE_TTL_MS`). Every audited price-book write runs through
 `CommandBus.run` and bumps `PricingGeneration` **after** the commit: every process clears its layers
 (Redis channel `b2b:price_lists:pricing-generation`, best effort, the TTL as the degraded bound), and
-the price surface is marked stale. The status sweep bumps when it flips a book; catalogue events
-(product, category, attribute) and channel currency changes mark the surface stale too.
+the writer hands the price surface a `SurfaceChange` describing what it moved
+(`PL/backend/services/surface-change.ts`), which marks only that (§1.3). The status sweep bumps when
+it flips a book; catalogue events (product, category, attribute) and the channel events
+(`sales_channels.identity_changed`, `sales_channels.lifecycle_changed`) bump and mark too. The cache
+is still cleared whole on every bump.
 
 **Display mode** is resolved independently: product → category → organization → settings
 (`pricing.default_display_mode`, `pricing.unauthenticated_display_mode`), batched per page
@@ -125,7 +130,10 @@ suggestions, comparisons, the cart read and placement (one chain, `CartLinePrici
 agreed price → price books → refusal; the line stores `price_source`), order placement (copies the
 source), the admin order preview and external order intake (`resolveLinePrices`), quote reference
 prices (request currency), the external catalogue API and product feeds (a feed pinned to a book
-reads that book's rows over the channel's catalogue price) — every one through the batched entry
+reads that book's rows over the channel's guest catalogue price without the book, and only while
+the book applies to an anonymous buyer on the feed's channel now — `active` or `scheduled` inside
+its window, bound to the channel, audience everyone; `namedListPublishability` says why not) —
+every one through the batched entry
 points; `backend/test/integration/price_lists/pricing-surfaces-agree.test.ts` holds them to the same
 amount, currency and source.
 
@@ -137,8 +145,12 @@ the quantity-1 price of each product (the lowest variant price for a variant pro
 profile holds every priced product, a buyer profile only the products whose answer differs. A page
 is one statement over the buyer profile and the everyone profile, each read at the generation its
 profile serves. The surface is built only by the `price_lists.surface` worker (BullMQ, deduplicated,
-off with the module): a write marks profiles stale and they keep serving their previous generation
-until the worker swaps the rebuilt one in; a profile never built is answered without one — live over
+off with the module): a write marks what it can move — (profile, product) marks in
+`price_profile_stale_products`, or a whole profile `stale` when the change concerns every product
+of it — and a marked profile keeps serving its rows until the worker has re-resolved the marked
+products and replaced their rows of the served generation in one transaction, or built a
+whole-marked profile's next generation and swapped it in (`contracts/price-surface.md` §4,
+`research.md` R17); a profile never built is answered without one — live over
 a bounded restriction (≤ 5 000 products), from the everyone surface for an unrestricted buyer page,
 or `unordered` (the catalogue's default order) when nothing is built. **No request builds a
 surface**: the order may lag a change by the worker's turnaround (SC-005: ≤ 60 s), a displayed
@@ -166,9 +178,10 @@ price never — cards are always resolved live. Measured in
    `specs/160-pricing-model-v2/contracts/price-book-write-port.md`): base tiers per currency, read,
    replace, and the G1 list of books pricing a product. Rows of non-base books are written through
    the admin API only.
-7. **The price surface is rebuilt whole.** Every pricing-generation bump marks every profile stale
-   (`PriceSurface.markStale`) and the worker rebuilds every stale profile over the whole catalogue,
-   where `specs/160-pricing-model-v2/contracts/price-surface.md` §4 describes refreshes targeted to
-   the profiles and products a change touches. SC-005's freshness was measured with five profiles
-   built (`read-paths-and-performance.md` §7); the rebuild time with hundreds of profiles is not
-   measured.
+7. ~~**The price surface is rebuilt whole.**~~ **Resolved 2026-10-23** (owner ruling; research
+   R17): writers describe their change and the worker refreshes the marked (profile, product) pairs
+   in place; measured at 202 profiles in `read-paths-and-performance.md` §7. What remains: a change
+   that concerns every product of its profiles — a row selecting by attribute alone or every
+   product, a change to more than 10 000 products, a channel event, the precedence — still rebuilds
+   those profiles whole (a full rebuild of 202 profiles took 274.7 s), and SC-005's 60 s is not
+   measured for that case.

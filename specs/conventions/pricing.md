@@ -91,17 +91,24 @@ Polish.
   `category.updated.v1`, `attribute.updated.v1`, `sales_channels.identity_changed`,
   `sales_channels.lifecycle_changed`) bump `PricingGeneration`: the writer's layers are cleared once
   the write has committed, a bump is published on the Redis channel
-  `b2b:price_lists:pricing-generation`, every process clears its own on receipt, and the price
-  surface is marked stale. Publishing is best effort: when it is lost, the 60 s TTL bounds another
+  `b2b:price_lists:pricing-generation`, every process clears its own on receipt, and the writer's
+  bump hands the price surface a `SurfaceChange` saying what moved, which marks only that.
+  Publishing is best effort: when it is lost, the 60 s TTL bounds another
   replica's staleness, so a test or a design may rely on the bump for promptness but not for
   correctness. **A new fact that decides a price must bump the generation** — subscribe its event —
-  or cached answers and the price surface will disagree with it.
+  or cached answers and the price surface will disagree with it — and should describe what it
+  moved (`packages/modules/price_lists/src/backend/services/surface-change.ts`): a bump that
+  describes nothing marks every profile whole, which is correct but a full rebuild per write
+  (274.7 s at 202 profiles), and `{ kind: 'none' }` is only for a fact the surface does not store
+  (a display mode, a name).
 - **The price surface is written only by its worker.** Price sort and price range read
   `price_profiles` / `price_profile_prices` through `ListingPriceOrderPort`; no request and no admin
-  write builds a surface (owner decision 2026-10-22): a write marks it stale and the
-  `price_lists.surface` queue rebuilds it. Live paths — the cart, checkout, the product page, quote
-  requests, order intake — never read the surface. Every surface row is computed by the same batched
-  resolver the cards use; a change to the resolver is a change to the surface.
+  write builds a surface (owner decision 2026-10-22): a write marks what it can move — (profile,
+  product) pairs, or whole profiles — and the `price_lists.surface` queue refreshes the marked
+  products in place or rebuilds a whole-marked profile (owner ruling 2026-10-23,
+  `specs/160-pricing-model-v2/research.md` R17). Live paths — the cart, checkout, the product page,
+  quote requests, order intake — never read the surface. Every surface row is computed by the same
+  batched resolver the cards use; a change to the resolver is a change to the surface.
 - **Applicability is evaluated at request time.** A book applies while `active` or `scheduled`
   within `starts_at ≤ now < ends_at`; the five-minute status sweep only moves the admin's status.
   Do not make a price wait for the sweep.

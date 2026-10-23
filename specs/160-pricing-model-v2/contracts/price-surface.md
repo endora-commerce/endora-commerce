@@ -32,12 +32,17 @@ price), FR-026. The SQL is built in `unit-price-ordering.ts` (rewritten, same th
 Owner decision (2026-10-22): no request builds a surface. The order may lag a change by the worker's
 turnaround (SC-005: ≤ 60 s); a displayed price never lags, because cards are always resolved live.
 
-- **Stale profile** (a pricing write since its last build): keeps serving its previous surface. A
-  build writes the next generation of rows (`price_profile_prices.generation`) beside the served
-  one and swaps `price_profiles.serving_generation` in the same transaction, dropping the old rows;
-  readers filter on the served generation, so they see one build or the other, never a mix. A
-  write is a mark (`stale = true`, `marked_at`), not an unready state; a build clears it only if no
-  write marked the profile after the build began.
+- **Marked profile** (a pricing write since its last build or refresh): keeps serving its surface.
+  A write is a mark, not an unready state, at one of two granularities (§4): a **whole-profile
+  mark** (`stale = true`, `marked_at`) or **(profile, product) marks** (rows of
+  `price_profile_stale_products`). A whole-marked profile is rebuilt: the build writes the next
+  generation of rows (`price_profile_prices.generation`) beside the served one and swaps
+  `price_profiles.serving_generation` in the same transaction, dropping the old rows, and clears the
+  mark only if no write marked the profile after the pass read it. A profile with product marks is
+  refreshed in place: the marked products are re-resolved and their rows of the served generation
+  replaced in one transaction under the profile's advisory lock. Both move `price_profiles.revision`,
+  which keys the read path's memo of a pair of surfaces. Readers see the surface before or after
+  either swap, never a mix.
 - **Never-built profile** (no served surface): the request registers it (`state = 'building'`)
   and asks the worker for a build, then answers at once:
   - restricted to a bounded set (≤ 5 000 products: a category, a search result) — ordered from a
@@ -53,20 +58,57 @@ turnaround (SC-005: ≤ 60 s); a displayed price never lags, because cards are a
 Queue `price_lists.surface` (BullMQ), worker attached with `ctx.worker`, off when the module is off
 (Principle XVII), jobs deduplicated by key:
 
-| Trigger | Job |
-| --- | --- |
-| book create/patch/activate/draftify/delete, channel set, members | rebuild the profiles containing the book; create/retire profiles whose vector changes |
-| row batch | the profiles containing the book, for the products the rows select |
-| base prices | the everyone profiles of that currency, for the product (and every profile whose rows are percentages of it) |
-| `product.*.v1`, `category.updated.v1`, `attribute.updated.v1` | the products concerned, in every profile |
-| organization chain or group change, customer group override | profile vectors of the affected buyers (memo invalidation; rows only if a new vector appears) |
-| status flip by the sweeper / a start or end instant | the profiles containing the book |
-| precedence version (P3) | full rebuild under the new version, beside the old |
+Owner ruling 2026-10-23: the refresh is targeted per trigger. A writer describes its change as a
+`SurfaceChange` (`PL/backend/services/surface-change.ts`); after the commit
+`PricingGeneration.bump(change)` hands it to `PriceSurface.markChanged`, which writes every mark of
+the change in one transaction. Reasoning, alternatives rejected and measurements: `research.md`
+R17.
 
-A refresh writes the next generation in one transaction and swaps it in (§3). One coalesced job id
-deduplicates the queue; a worker pass builds never-built profiles first, then the stale ones
-(everyone before buyer), and repeats while a pass leaves work, so a write during a pass is not lost.
-SC-005's freshness bound (60 s) is the worker's turnaround, measured by the bench.
+| Trigger | Marked |
+| --- | --- |
+| book patch (priority, dates, audience, channel set), members, activate, draftify, status flip by the sweeper | when the book was or is `active`/`scheduled`: the products its rows select, in the profiles containing it — a buyer book's profiles; an everyone book's profiles of its currency on its channels (before ∪ after); a base book's every profile of its currency. A name-only patch marks nothing |
+| book create, duplicate | nothing: the new book is a draft |
+| book delete | as a patch, from the rows read before the delete; the buyer profiles whose vector holds the book are dropped |
+| row batch | the products the removed, replaced and written rows select, in the profiles containing the book |
+| base prices (`setBasePrices`, `priceBookWritePort`) | the product, in every profile of the written currencies |
+| `product.created/updated/archived/deleted.v1` | the product, in every profile |
+| `category.updated.v1` | the products of the category's subtree, in every profile |
+| `attribute.updated.v1` | the books with rows on the attribute, as a row change of those rows |
+| `sales_channels.identity_changed`, `lifecycle_changed` | every profile of the channel, whole; with `invalidateAll`, every profile |
+| organization chain or group change, customer group override | nothing: the profile memo is keyed by the chain and the group, so a moved buyer computes its new vector, which a request registers and the worker builds (§3) |
+| display mode, `pricing.show_list_price` | nothing: the surface holds amounts |
+| precedence version (P3) | every profile, whole |
+
+**"In every profile" is narrowed for buyer profiles, and widened against the table this section
+held before the ruling.** A buyer surface stores only the products whose answer differs from the
+everyone surface's, so when an everyone-level row moves (an everyone or base book's row, a base
+price, a product or category event) a buyer profile must be re-checked for the product whenever its
+own books can price it — fixed rows included, not only percentages: a buyer's fixed 90 equal to the
+old everyone price is stored as no row, and must become one when the everyone price moves to 100.
+So such a change marks the product in the everyone profiles, and in the buyer profiles of the same
+currency (and channels) **whose books may select the product or whose served surface holds a row
+for it**; every other buyer answers what the everyone profile answers, before and after. The
+earlier text's "the everyone profiles of that currency, for the product (and every profile whose
+rows are percentages of it)" for base prices was too narrow; this is the narrowest correct set and
+contains it.
+
+**Whole-profile marks.** A change whose selection is an attribute-only or an all-products row (it
+may select any product), a change concerning more than 10 000 products, a channel event and the
+precedence mark their profiles whole. A marking that fails marks every profile whole.
+
+**The worker.** One coalesced job id deduplicates the queue. A pass reads its work in one statement
+— never-built and whole-marked profiles, and every (profile, product) mark with its id — and does
+it: a never-built or whole-marked profile is built whole (§3); a profile with product marks has
+only those products re-resolved and replaced in place (§3). Every everyone profile of the pass is
+done before any buyer profile, never-built first within each, because a buyer surface is stored as
+its difference from the everyone surface and must be compared with the everyone surface the pass
+leaves. A whole build of a buyer profile resolves only the products its own books can select. A
+pass deletes only the marks it read, by id — a mark is only ever inserted, a second write being a
+second row — so a write during a pass is done by the next, and a writer and the worker never lock
+the same mark. Passes repeat while a pass finds work. A whole build that writes a large share of
+`price_profile_prices`, or into a table with no statistics, runs `ANALYZE` on it inside its own
+transaction. SC-005's freshness bound (60 s) is the worker's turnaround, measured by the bench
+(§5); it is unchanged by the ruling.
 
 ## 5. Measurement — `backend/test/perf/price_lists/price-surface.bench.ts`
 
@@ -79,6 +121,7 @@ organizations, 500 with books of three kinds, 20 groups). Assertions:
 | price-range page, same buyers | p95 ≤ 150 ms |
 | profile-miss page (restricted build) | recorded, not asserted; reported against the budget |
 | single-book refresh → visible in sort | p95 ≤ **60 s** (SC-005) |
+| at ≥ 200 built profiles: write → visible for an everyone row, an organization row, a base price through `priceBookWritePort`, a `product.updated.v1`; probe writes during a PIM-like import | each ≤ **60 s** (SC-005) |
 | full rebuild | recorded (input to P3's precedence flow) |
 | `price_profile_prices` rows and index size | recorded; above 10 M rows triggers the profile-factor task (`research.md` R7) |
 
