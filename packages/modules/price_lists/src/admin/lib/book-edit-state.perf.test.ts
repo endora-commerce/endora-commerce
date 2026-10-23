@@ -41,7 +41,6 @@ describe('book edit state — 5 000 rows (161 T099)', () => {
     const elapsed = performance.now() - started;
     if ('blocked' in plan) throw new Error('blocked');
     expect(plan.body.upsert).toHaveLength(5000);
-    console.info(`[perf] 5 000 edits and one batch: ${elapsed.toFixed(0)} ms`);
     expect(elapsed).toBeLessThan(1000);
   });
 
