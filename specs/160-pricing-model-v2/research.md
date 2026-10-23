@@ -359,6 +359,98 @@ admin API without its scope and version rules); a port that refuses to create a 
 (the admin base-price write creates the base book of a currency on first use, and a second rule
 would make the two writers disagree).
 
+## R17. Targeted refresh of the price surface (`contracts/price-surface.md` §4, owner ruling 2026-10-23)
+
+**Ruling.** Until 2026-10-23 `PriceSurface.markStale()` marked **every** profile stale on any
+pricing write, and every catalogue and channel event did the same, so the worker rebuilt every
+profile after every change. The owner ruled to implement §4's per-trigger table, not to amend it.
+
+**Decision — marks at two granularities.** A whole-profile mark (`price_profiles.stale`,
+`marked_at`, as before) and a (profile, product) mark, a row of `price_profile_stale_products`
+(migration `20261023T152351_price_lists_price_surface_targeted_marks`, which also adds
+`price_profiles.revision`). A writer describes its change as a `SurfaceChange`
+(`PL/backend/services/surface-change.ts`) and `PricingGeneration.bump(change)` hands it to
+`PriceSurface.markChanged` after the commit; the pricing cache is still cleared whole on every
+bump, so the live resolver's invalidation is unchanged. All marks of one change are written in one
+transaction.
+
+| Trigger | Marked, as implemented |
+| --- | --- |
+| book patch (priority, dates, audience, channel set), activate, draftify, status sweep | when the book was or is `active`/`scheduled`: the products its rows select, in the profiles containing it — for a buyer book every profile whose vector holds it; for an everyone book the profiles of its currency on its channels (before ∪ after); for a base book every profile of its currency. A name-only patch marks nothing |
+| book create, duplicate | nothing: a new book is a draft and prices nowhere |
+| book delete | as a patch, from the rows read before the delete; buyer profiles whose vector holds the book are dropped (no buyer can be given that vector again) |
+| row batch | the products the removed, replaced and written rows select, in the profiles containing the book |
+| base prices (`setBasePrices`, `priceBookWritePort`) | the product, in every profile of the written currencies |
+| `product.created/updated/archived/deleted.v1` | the product, in every profile |
+| `category.updated.v1` | the products of the category's subtree (`catalogCategoryReadPort.listProductIdsInSubtree`), in every profile |
+| `attribute.updated.v1` | the books with rows on the attribute, as a row change of those rows (category ∩ attribute rows select their category's products) |
+| `sales_channels.identity_changed`, `lifecycle_changed` | every profile of the channel, rebuilt whole; `lifecycle_changed` with `invalidateAll` (a delete that rebinds orphans) every profile |
+| organization chain, customer group, customer group override | nothing: the profile memo is keyed by the chain and the group, so a moved buyer computes its new vector, which a request registers and the worker builds (§3) |
+| display-mode override, `pricing.show_list_price` | nothing: the surface holds amounts, not how they are shown |
+| precedence version (P3) | every profile (the default of a change that names nothing) |
+
+"The products a row selects": a product or variant row its product; a category row (with or
+without an attribute) the products assigned to the category — the resolver matches a category row
+on the product's own assignments — through `catalogCategoryReadPort.listProductIdsInCategory`; an
+attribute-only or an all-products row **every** product, which rebuilds the targets whole (which
+products carry an attribute is not a question `catalog`'s ports answer without reading the
+catalogue). Above 10 000 products a change rebuilds its targets whole rather than marking each.
+
+**Where this reads wider than §4's table, and why.** §4 says a base price concerns "the everyone
+profiles of that currency, for the product (and every profile whose rows are percentages of it)",
+and a product event "the products concerned, in every profile". A buyer surface stores only the
+products whose answer **differs** from the everyone surface's, so a buyer profile must be re-checked
+for a product whenever the everyone row moves and the buyer's own books can price that product —
+fixed rows included, not only percentages: a buyer's fixed 90 equal to the old everyone price is
+stored as no row, and must become a row when the everyone price moves to 100. So an everyone-level
+change marks the everyone profiles for the product, and of the buyer profiles of the same currency
+(and channels) those **whose books may select the product or whose served surface holds a row for
+it**; any other buyer resolves the product over exactly the everyone profile's books and answers
+what it answers, before and after. That is the narrowest correct set; it contains the contract's.
+
+**Worker.** A pass reads its work in one statement — the never-built and stale profiles and every
+mark, with their ids — and does it: a never-built or stale profile is built whole (the next
+generation beside the served one, swapped in one transaction, §3); a marked one has only its marked
+products re-resolved and their rows of the served generation replaced in one transaction under the
+profile's advisory lock, moving `revision`, which keys the read path's coverage memo and its
+same-builds check in place of `serving_generation`. A reader's statement sees the surface before or
+after either kind of swap, never a mix. Every everyone profile of the pass is done before any buyer
+profile — never-built first within each — because a buyer surface is stored as its difference from
+the everyone surface and must be compared with the everyone surface this pass leaves (§4 says
+"never-built first, then the stale ones (everyone before buyer)"; ordering the buyer's never-built
+build after a pending everyone refresh is what keeps that difference right). A pass deletes only
+the marks it read, by id — a mark is only ever inserted, a second write being a second row — so a
+write landing during a pass is done by the next one, and a writer and the worker never lock the same
+mark. A whole build of a buyer profile resolves only the products its own books can select (the
+same reasoning as above), not the catalogue. Passes repeat while a pass finds work.
+
+**Rejected.** Writing a whole next generation for a targeted refresh (copying every unchanged row
+of the profile to change a few: 50 000 rows per refresh of an everyone profile, and the same per
+all-products buyer profile, per write); keying the marks by `(profile, product)` with an update of
+`marked_at` on a second write (a burst of writes and a refresh then lock the same rows in opposite
+orders and deadlock); marking every buyer profile of a currency for a product (correct, but a bulk
+import then re-resolves every product in every profile).
+
+**Measured** (2026-10-23, `backend/test/perf/price_lists/price-surface.bench.ts`, idle developer
+machine, the R7 fixture with 202 built profiles — 1 131 693 rows, 269 MB). Write → visible in the
+sort: an everyone book row 0.43 s and a base price through `priceBookWritePort` 0.43 s (31 profiles
+marked and refreshed — the everyone profile, the 20 all-products buyers and those whose books or
+rows reach the product — 171 untouched, none rebuilt whole), an organization book row 0.20 s (1
+marked, 201 untouched), a `product.updated.v1` 0.49 s. A PIM-like import of 3 000 products (a
+`product.updated.v1` and a base price each, bursts of 500) ran at 6.9 products/s with the worker
+beside it; 29 probe writes during it were visible after p95 0.50 s, max 0.55 s. SC-005's 60 s holds
+everywhere. Recorded: the whole build of the 197 new profiles 241.3 s, a full rebuild of all 202
+274.7 s (the input to P3's precedence flow). Page p95 on the five-buyer scenarios stays ≤ 27.4 ms.
+
+**Found by the measurement.** The first price-sorted page of an all-products buyer took 428 s:
+`price_profile_prices` had been analysed while empty, and the coverage check's `not exists` was
+planned as a nested-loop anti join filtering every buyer row per everyone row. A scalar probe
+still took 47 s (served from the ordering index, a range scan per probe). The coverage check now
+compares the two surfaces' product ids in memory, and a whole build that writes a large share of
+the table (or into one with no statistics) analyses it inside its own transaction;
+`backend/test/integration/price_lists/price-surface-plans.test.ts` holds both. Earlier runs hid it
+because a slower whole build left autovacuum time to analyse the table first.
+
 ## R18. A pinned feed publishes only a book that prices an anonymous buyer now (FR-029, owner ruling 2026-10-23)
 
 **Ruling.** A feed pinned to a book gets prices only while the book is active and inside its
