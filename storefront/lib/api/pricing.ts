@@ -36,7 +36,8 @@ export interface PricingMoney {
 }
 
 export interface ResolvedPrice {
-  baseListId: string;
+  /** `null` when no price book prices the product for the buyer (unpriced, FR-018). */
+  baseListId: string | null;
   basePrice: PricingMoney | null;
   saleListId: string | null;
   salePrice: PricingMoney | null;

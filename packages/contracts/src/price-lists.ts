@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { ProductResolvedPrice } from './catalog.js';
-import { isoDateTimeSchema, moneySchema, uuidSchema } from './common.js';
+import { isoDateTimeSchema, uuidSchema } from './common.js';
 import { priceSourceSchema, type PriceSource } from './price-books.js';
 
 /**
@@ -91,24 +91,45 @@ export const upsertDisplayModeOverrideRequestSchema = z.object({
 
 // --- Resolved price (storefront/cart consumer) ------------------------------
 
-export const resolvedPriceEngineSchema = z.object({
-  baseListId: uuidSchema,
-  basePrice: moneySchema,
-  saleListId: uuidSchema.nullable(),
-  salePrice: moneySchema.nullable(),
-  displayMode: displayModeSchema,
-  currencyCode: CURRENCY,
-  quantityBracket: z.object({
-    minQuantity: POSITIVE_INT,
-    maxQuantity: POSITIVE_INT.nullable(),
-  }),
-  /** Feature 160 — which tier priced the charged line; `null` when nothing did. */
-  source: priceSourceSchema.nullable().optional(),
-  /** Feature 160 — the buyer price a charged sale undercut. */
-  compareAt: z.string().nullable().optional(),
-  /** Feature 160 (G9) — the catalogue price beside a lower buyer price, when shown. */
-  listPrice: z.object({ amount: z.string(), currency: CURRENCY }).optional(),
-});
+/** A price as the resolver answers it: the amount as a decimal string, never a float. */
+const RESOLVED_MONEY = z.object({ amount: DECIMAL_STRING, currency: CURRENCY });
+
+/**
+ * `GET /api/v1/storefront/products/:id/resolved-price`. A product no price book
+ * prices for the buyer (FR-018) is **unpriced**: `baseListId`, `basePrice` and
+ * `quantityBracket` are all `null` together — never an empty-string id.
+ */
+export const resolvedPriceEngineSchema = z
+  .object({
+    baseListId: uuidSchema.nullable(),
+    basePrice: RESOLVED_MONEY.nullable(),
+    saleListId: uuidSchema.nullable(),
+    salePrice: RESOLVED_MONEY.nullable(),
+    displayMode: displayModeSchema,
+    currencyCode: CURRENCY,
+    quantityBracket: z
+      .object({
+        minQuantity: POSITIVE_INT,
+        maxQuantity: POSITIVE_INT.nullable(),
+      })
+      .nullable(),
+    /** Feature 160 — which tier priced the charged line; `null` when nothing did. */
+    source: priceSourceSchema.nullable().optional(),
+    /** Feature 160 — the buyer price a charged sale undercut. */
+    compareAt: z.string().nullable().optional(),
+    /** Feature 160 (G9) — the catalogue price beside a lower buyer price, when shown. */
+    listPrice: z.object({ amount: z.string(), currency: CURRENCY }).optional(),
+  })
+  .superRefine((value, ctx) => {
+    const priced = [value.baseListId !== null, value.basePrice !== null, value.quantityBracket !== null];
+    if (priced.some((p) => p !== priced[0])) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'baseListId, basePrice and quantityBracket are null together (unpriced) or set together (priced).',
+        path: ['baseListId'],
+      });
+    }
+  });
 export type ResolvedPriceEngine = z.infer<typeof resolvedPriceEngineSchema>;
 
 // --- Listing price (catalogue listing / search / compare / links) -----------

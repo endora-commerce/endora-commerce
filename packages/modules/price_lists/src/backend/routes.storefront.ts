@@ -188,8 +188,10 @@ export async function registerStorefrontPricingRoutes(
 
       return {
         data: {
+          // `resolvedPriceEngineSchema`: a product no book prices (FR-018) is
+          // unpriced — no book, no price, no bracket — not an empty-string id.
           resolvedPrice: {
-            baseListId: out.base.listId,
+            baseListId: out.base.bracket ? out.base.listId : null,
             basePrice: out.base.bracket
               ? { amount: out.base.bracket.amount, currency: out.currencyCode }
               : null,

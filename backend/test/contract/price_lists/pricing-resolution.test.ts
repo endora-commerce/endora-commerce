@@ -7,6 +7,7 @@ import {
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { BASE_BOOK_ID, seedBasePriceSql, seedBaseTiersSql } from '../../helpers/price-book-sql.js';
+import { resolvedPriceEngineSchema } from '@endora-commerce/contracts';
 
 /**
  * Feature 011 / US5 — Storefront resolver endpoint contract (T058).
@@ -66,6 +67,23 @@ describe('Storefront resolver endpoint (feature 011 US5)', () => {
       minQuantity: 1,
       maxQuantity: null,
     });
+    // The wire shape is the contract's.
+    expect(resolvedPriceEngineSchema.safeParse(body.data.resolvedPrice).error?.issues ?? []).toEqual([]);
+  });
+
+  it('an unpriced product answers the contract’s unpriced shape: nulls, never an empty id', async () => {
+    const channel = await h.em().findOneOrFail(SalesChannel, { systemDefault: true });
+    // The product's base price (the one row `beforeEach` seeds) goes: nothing prices it.
+    await h.em().getConnection().execute(`delete from "price_list_matrix_entries" where "product_id" = ?`, [SEED_PRODUCT_101_ID]);
+    const res = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/storefront/products/${SEED_PRODUCT_101_ID}/resolved-price?quantity=1`,
+      headers: { 'x-sales-channel': channel.code },
+    });
+    expect(res.statusCode).toBe(200);
+    const resolved = (res.json() as { data: { resolvedPrice: Record<string, unknown> } }).data.resolvedPrice;
+    expect(resolved).toMatchObject({ baseListId: null, basePrice: null, quantityBracket: null, saleListId: null, salePrice: null });
+    expect(resolvedPriceEngineSchema.safeParse(resolved).error?.issues ?? []).toEqual([]);
   });
 
   it('falls back to the system-default channel when the header is absent', async () => {
