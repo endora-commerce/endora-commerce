@@ -382,7 +382,7 @@ export function ProductEditor(): ReactNode {
   const tabs: Array<{ id: string; label: string; icon: ReactNode; show: boolean }> = [
     { id: 'details', label: 'Details', icon: <FileTextIcon size={14} />, show: true },
     { id: 'attributes', label: 'Attributes', icon: <SlidersHorizontal size={14} />, show: !isNew },
-    { id: 'pricing', label: 'Pricing', icon: <CircleDollarSign size={14} />, show: !isNew },
+    { id: 'pricing', label: t('productEditor.tab.pricing'), icon: <CircleDollarSign size={14} />, show: !isNew },
     {
       id: 'variants',
       label: 'Variants',

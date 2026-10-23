@@ -168,7 +168,7 @@
   "grid.addLine.category": "Kategoria",
   "grid.addLine.choose": "Wybierz…",
   "grid.addLine.incomplete": "Wybierz wszystkie pola, zanim dodasz linię.",
-  "grid.addLine.noAttributes": "Żaden atrybut nie może jeszcze wybierać cen. Oznacz atrybut wyboru lub tak/nie jako „Reguły cenników” w Katalog → Atrybuty.",
+  "grid.addLine.noAttributes": "Żaden atrybut nie może jeszcze wybierać cen. Oznacz atrybut wyboru lub tak/nie jako „Reguły cennika” w Katalog → Atrybuty.",
   "grid.addLine.title.attribute": "Dodaj linię wartości atrybutu",
   "grid.addLine.title.category": "Dodaj linię kategorii",
   "grid.addLine.title.category_attribute": "Dodaj linię kategorii i wartości atrybutu",

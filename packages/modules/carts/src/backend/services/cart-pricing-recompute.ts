@@ -11,13 +11,13 @@ import type { CartLineAgreement, CartLinePricing } from './cart-line-pricing.js'
  * **One chain with placement** (issue #168). Every line is priced through
  * `CartLinePricing.orderablePrices`, the chain order placement's drift check
  * runs and every add, merge and quantity change stores from: the agreed quote
- * price at the agreed quantity, then the price list at the line's quantity,
- * then the Product's own price in the basket channel's currency, and a product
- * sold on request only (display mode `none`) is refused. The read used to run
- * a second chain — a plain list price per line, with none of the three — so a
- * quote-seeded line read at the list price and was charged the agreed one, a
- * product priced by its own attribute read at its snapshot, and a product sold
- * on request only read as orderable while placement refused it. The property
+ * price at the agreed quantity, then the price books at the line's quantity and
+ * variant (feature 160 — a product has no price of its own any more, so a line
+ * no book prices is unpriced and refused), and a product sold on request only
+ * (display mode `none`) is refused. The read used to run a second chain — a
+ * plain list price per line — so a quote-seeded line read at the list price and
+ * was charged the agreed one, and a product sold on request only read as
+ * orderable while placement refused it. The property
  * is `backend/test/integration/carts/cart-read-equals-placement.test.ts`.
  *
  * A line the chain refuses answers `amount: null` with its `refusal`; the

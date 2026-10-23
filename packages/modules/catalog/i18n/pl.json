@@ -331,6 +331,7 @@
   "inventoryTab.stockMgmt.backorderGloballyDisabled": "Najpierw włącz „Zezwól na zamawianie poniżej stanu” w module Settings (Magazyn).",
   "inventoryTab.stockMgmt.backorderUnmanaged": "Nie dotyczy, gdy zarządzanie stanem jest wyłączone — dowolna ilość jest już dozwolona.",
   "productEditor.loading": "Wczytywanie…",
+  "productEditor.tab.pricing": "Ceny",
   "productEditor.scopeEditor.title": "Kontekst: Kanał sprzedaży + Język",
   "productEditor.scopeEditor.help": "Podgląd jak ten produkt jest rozstrzygany dla danej pary (kanał, język) przez resolver platformy.",
   "productEditor.scopeEditor.overridesCount": "{count} nadpis(ań|anie) zależnych od kanału.",

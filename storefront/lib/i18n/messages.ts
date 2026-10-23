@@ -829,7 +829,7 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'catalog.price.unitNote':
       'Pokazane ceny to Twoje ceny jednostkowe. Rabaty ilościowe i promocje naliczamy w koszyku.',
     'product.outOfStock': 'Brak w magazynie',
-    'product.requestQuote': 'Zapytaj o oferte',
+    'product.requestQuote': 'Zapytaj o ofertę',
     'product.priceFromVariants': 'od, zależnie od wariantu',
     'product.compareAtLabel': 'Twoja cena',
     'product.listPrice': 'Cena katalogowa',
