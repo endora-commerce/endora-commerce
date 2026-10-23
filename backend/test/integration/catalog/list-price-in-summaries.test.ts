@@ -28,7 +28,11 @@ describe('catalogue summaries carry the list price (161 G14)', () => {
   const BUYER = { b2b_session: 'stub-customer-session' };
   const CHANNEL = { 'x-sales-channel': 'pl_retail' };
   type Price = { amount: string; currency: string };
-  type Summary = { id: string; price: { amount: number } | null; resolvedPrice?: { listPrice?: Price } | null };
+  type Summary = {
+    id: string;
+    price: { amount: number } | null;
+    resolvedPrice?: { listPrice?: Price; salePrice?: Price | null; basePrice?: Price | null } | null;
+  };
 
   const listing = async (cookies?: Record<string, string>): Promise<Summary> => {
     const res = await h.app.inject({
@@ -113,6 +117,31 @@ describe('catalogue summaries carry the list price (161 G14)', () => {
       }
     } finally {
       await showListPrice(false);
+      await api.delete(`/api/v1/admin/price-books/${book.id}`);
+    }
+  });
+
+  it('D5 — on, a sale charged below the buyer price: the list price beside the sale (owner ruling 2026-10-23)', async () => {
+    const book = await buyerBook('-5');
+    const sale = await f.book({
+      name: 'G14 sale',
+      type: 'sale',
+      channels: [retail],
+      audience: 'everyone',
+      rows: [{ product: { id: SEED_PRODUCT_101_ID }, percent: '-20' }],
+    });
+    await showListPrice(true);
+    try {
+      for (const read of [listing, detail]) {
+        const summary = await read(BUYER);
+        // The sale is charged; the storefront shows it beside the struck list price.
+        expect(summary.resolvedPrice?.salePrice).toEqual({ amount: '15.9920', currency: 'PLN' });
+        expect(summary.price?.amount).toBe(15.992);
+        expect(summary.resolvedPrice?.listPrice).toEqual({ amount: '19.9900', currency: 'PLN' });
+      }
+    } finally {
+      await showListPrice(false);
+      await api.delete(`/api/v1/admin/price-books/${sale.id}`);
       await api.delete(`/api/v1/admin/price-books/${book.id}`);
     }
   });

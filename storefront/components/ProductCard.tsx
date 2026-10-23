@@ -237,7 +237,9 @@ function renderPriceSlot(args: {
       <div className="industria-product-card__price__from">
         {product.priceVariesByVariant ? t('product.priceFromVariants') : 'od / szt.'}
       </div>
-      {compareAtFmt ? (
+      {/* Owner ruling 2026-10-23: beside a list price a charged sale strikes the
+          list price, not the buyer's own — two numbers, never three. */}
+      {compareAtFmt && !listFmt ? (
         <s
           data-testid="card-compare-at"
           aria-label={t('product.compareAtLabel')}
@@ -249,7 +251,7 @@ function renderPriceSlot(args: {
       {listFmt ? (
         <div data-testid="card-list-price" className="flex items-baseline gap-[6px] font-mono text-[11px] text-muted">
           <span className="text-[10px] uppercase tracking-[0.04em] text-subtle">{t('product.listPrice')}</span>
-          <span>{listFmt}</span>
+          {compareAtFmt ? <s>{listFmt}</s> : <span>{listFmt}</span>}
         </div>
       ) : null}
       {listFmt ? (

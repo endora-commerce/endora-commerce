@@ -37,9 +37,14 @@ const VECTORS = {
   D3: { charged: '110.00', listPrice: undefined },
   // D4 — setting on, a guest pays the catalogue price: 100.00 alone.
   D4: { charged: '100.00', listPrice: undefined },
+  // D5 — setting on, a sale of 80.00 charged to Acme (owner ruling 2026-10-23): the list price
+  // 100.00 struck through and the sale labelled "Your price"; Acme's regular 95.00 is not shown.
+  D5: { charged: '95.00', sale: '80.00', listPrice: PLN('100.00') },
+  // D6 — setting off, the same sale: unchanged — Acme's 95.00 struck through, the sale beside it.
+  D6: { charged: '95.00', sale: '80.00', listPrice: undefined },
 } as const;
 
-type Vector = (typeof VECTORS)[keyof typeof VECTORS];
+type Vector = { readonly charged: string; readonly sale?: string; readonly listPrice: ReturnType<typeof PLN> | undefined };
 
 function summary(v: Vector): ProductSummary {
   return {
@@ -50,12 +55,14 @@ function summary(v: Vector): ProductSummary {
     slug: 'screws-0200',
     categorySlugs: [],
     primaryAssetUrl: null,
-    price: { amount: Number(v.charged), currency: 'PLN' },
+    price: { amount: Number(v.sale ?? v.charged), currency: 'PLN' },
+    // Feature 160 (FR-025): a charged sale strikes the buyer's own price on the card.
+    ...(v.sale ? { compareAtPrice: { amount: Number(v.charged), currency: 'PLN' } } : {}),
     stockIndicator: null,
     stockLevel: null,
     resolvedPrice: {
       basePrice: PLN(v.charged),
-      salePrice: null,
+      salePrice: v.sale ? PLN(v.sale) : null,
       displayMode: 'net_only',
       ...(v.listPrice ? { listPrice: v.listPrice } : {}),
     },
@@ -67,10 +74,25 @@ function suggestion(v: Vector): SearchSuggestItem {
   return {
     ...rest,
     basePrice: PLN(v.charged),
-    salePrice: null,
+    salePrice: v.sale ? PLN(v.sale) : null,
     priceDisplayMode: 'net_only',
     ...(v.listPrice ? { listPrice: v.listPrice } : {}),
   };
+}
+
+/**
+ * The amounts the markup strikes through: an `<s>` or `<del>` element, or an element whose
+ * class says it is struck (`…--struck`, `line-through`).
+ */
+function struck(html: string): string[] {
+  const out: string[] = [];
+  const pattern = /<(s|del|span|div)\b[^>]*>([^<]*)(?=<)/g;
+  for (const match of html.matchAll(pattern)) {
+    const [whole, tag, inner] = match;
+    const isStruck = tag === 's' || tag === 'del' || /--struck|line-through/.test(whole);
+    if (isStruck && /\d/.test(inner ?? '')) out.push(text(inner ?? ''));
+  }
+  return out;
 }
 
 /** The visible text of server-rendered markup, whitespace collapsed. */
@@ -152,6 +174,25 @@ describe('list price / your price on the storefront (FR-026, SC-007)', () => {
         expect(out).toContain('110.00');
         expect(out).not.toContain(en('product.listPrice'));
         expect(out).not.toContain(en('product.yourPrice'));
+      });
+
+      it('D5 — a sale with the list price shown: list 100.00 struck through, the sale as “Your price”, no third number', () => {
+        const html = render(VECTORS.D5, 'en-US');
+        const out = text(html);
+        expect(out).toMatch(new RegExp(`${en('product.listPrice')}\\b.*100\\.00`));
+        expect(out).toMatch(new RegExp(`${en('product.yourPrice')}\\b.*80\\.00`));
+        expect(out).not.toContain('95.00');
+        expect(out.indexOf('100.00')).toBeLessThan(out.indexOf('80.00'));
+        expect(struck(html)).toEqual([expect.stringContaining('100.00')]);
+      });
+
+      it('D6 — a sale with the setting off: unchanged, the buyer’s own price struck through beside the sale', () => {
+        const html = render(VECTORS.D6, 'en-US');
+        const out = text(html);
+        expect(out).toContain('95.00');
+        expect(out).toContain('80.00');
+        expect(out).not.toContain(en('product.listPrice'));
+        expect(struck(html)).toEqual([expect.stringContaining('95.00')]);
       });
 
       it('D4 — a guest at the catalogue price: 100.00 only', () => {

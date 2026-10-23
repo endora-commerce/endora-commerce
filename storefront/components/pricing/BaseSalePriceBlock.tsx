@@ -15,7 +15,9 @@ import { DEFAULT_VAT_RATE, grossFromNet } from '../../lib/i18n/money';
  *   - `salePrice` null → single Base price, formatted per `displayMode`.
  *   - `listPrice` present (feature 161, FR-026) → the catalogue price above
  *     the buyer's, labelled "List price", and the buyer's labelled "Your
- *     price". Whether it is present is the pricing engine's decision
+ *     price". With a sale too (owner ruling 2026-10-23): two prices only —
+ *     the list price struck through and the sale as "Your price"; the
+ *     buyer's regular price is not shown. Whether it is present is the pricing engine's decision
  *     (`pricing.show_list_price` on and the catalogue price above the price
  *     charged); this block only renders what it is given. The basket and the
  *     checkout never pass it.
@@ -109,13 +111,20 @@ export function BaseSalePriceBlock(props: {
             netSuffix,
             grossSuffix,
             fmt,
-            mainClass: 'b2b-pricing-block__amount b2b-pricing-block__amount--list',
-            altClass: 'b2b-pricing-block__amount-alt',
+            // With a sale the list price is what the sale undercuts: struck through
+            // (owner ruling 2026-10-23).
+            mainClass: isSale
+              ? 'b2b-pricing-block__amount b2b-pricing-block__amount--list b2b-pricing-block__amount--struck'
+              : 'b2b-pricing-block__amount b2b-pricing-block__amount--list',
+            altClass: isSale ? 'b2b-pricing-block__amount-alt b2b-pricing-block__amount--struck' : 'b2b-pricing-block__amount-alt',
           })}
         </div>
       ) : null}
 
-      {isSale && baseNet !== null ? (
+      {/* Owner ruling 2026-10-23: beside a list price a sale shows two prices
+          only — the list price struck through and the sale as "Your price";
+          the buyer's regular price is not a third number. */}
+      {isSale && baseNet !== null && !hasList ? (
         <div className="b2b-pricing-block__base b2b-pricing-block__base--struck">
           <span className="b2b-pricing-block__label">{baseLabel}</span>
           {renderColumns({
@@ -134,7 +143,11 @@ export function BaseSalePriceBlock(props: {
 
       {isSale ? (
         <div className="b2b-pricing-block__sale">
-          <span className="b2b-pricing-block__badge">{saleLabel}</span>
+          {hasList ? (
+            <span className="b2b-pricing-block__label">{yourPriceLabel}</span>
+          ) : (
+            <span className="b2b-pricing-block__badge">{saleLabel}</span>
+          )}
           {renderColumns({
             displayMode,
             net: saleNet!,

@@ -79,6 +79,18 @@ P3 — this feature **displays** it (Q11, FR-023 of 160); P1 and P2 ship togethe
   across pages, and a page call does not read the whole book. The 5 000-row figure is the CSV/batch
   limit, not a book size: base books hold a row per product tier and variant across the catalogue.
 
+### Session 2026-10-23
+
+- Owner ruling (list price beside a sale, FR-026): when a sale is charged and the list price is shown,
+  the storefront shows **two prices only** — the list price struck through and the sale price labelled
+  *Your price*; the buyer's regular price is not shown as a third number. This holds on every surface
+  that shows the pair (price block, listing card, product page and its net/gross switch, typeahead).
+  Without a sale, the pair is unchanged; with the setting off, a sale strikes the buyer's own price as
+  before. Vectors D5 and D6 of `worked-examples.md` §10.15.
+- Coordinator rulings (Checkpoint 11): a refused row carries a per-rule `reason` code
+  (`PRICE_BOOK_ROW_ERROR_REASONS`) that the admin translates — never the server's English message;
+  the attribute refusal is three reasons (not selectable, unknown value, not yes/no).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 — Find, create and configure a price book (Priority: P1) 🎯 MVP
@@ -283,7 +295,7 @@ whose price is lower than the catalogue price see both, everyone else sees one p
    on *Show list price beside the buyer's price*, **Then** the change is saved and audited, and the
    product page and listing cards show the pair from the next request; the basket and checkout show
    only the price charged.
-2. Vectors **D1–D4** of `worked-examples.md` §10.15.
+2. Vectors **D1–D6** of `worked-examples.md` §10.15.
 
 ---
 
@@ -497,7 +509,8 @@ row; after fixing the file and confirming, the grid equals the file.
   off, saved through an audited write; when on, the storefront MUST show the catalogue price beside the
   buyer price on the product page and listing cards — never in the basket or checkout — only when the
   catalogue price is above the buyer price, and the
-  buyer price alone otherwise (D1–D4).
+  buyer price alone otherwise (D1–D4); beside a charged sale, the list price struck through and the
+  sale as *Your price*, with no third number (D5, D6; owner ruling 2026-10-23).
 
 **Scope, access and presence** (US8, cross-cutting)
 
@@ -560,7 +573,7 @@ module. Browser-only state: unsaved edits, undo history, the book version the ed
   of the time, and no unsaved cell is lost.
 - **SC-006**: A sales representative cannot learn, through any screen, link or message, that a book
   naming an organization outside their scope exists (A3.2).
-- **SC-007**: With the setting on, vectors D1–D4 hold on the product page and listing cards; with it off, buyers see
+- **SC-007**: With the setting on, vectors D1–D5 hold on the product page and listing cards; with it off, buyers see
   one price everywhere.
 - **SC-008**: Every new string exists in English and Polish (0 missing keys).
 - **SC-009**: Importing a 1 000-row file shows its preview within 10 seconds, writes nothing before

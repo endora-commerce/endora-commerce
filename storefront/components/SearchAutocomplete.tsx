@@ -362,14 +362,23 @@ export function renderSuggestionPrice(
 
   const list = p.listPrice ? formatMoney(p.listPrice.amount, p.listPrice.currency, locale) : null;
 
+  if (sale && list) {
+    // Owner ruling 2026-10-23: the list price struck through and the sale as
+    // "Your price" — the buyer's regular price is not a third number.
+    return (
+      <span className="flex flex-col items-end leading-tight">
+        <span className="font-mono text-[11px] text-muted">
+          {labels.listPrice} <s>{list}</s>
+        </span>
+        <span className="font-mono text-[13px] font-semibold text-fg">
+          <span className="text-[10px] font-normal text-muted">{labels.yourPrice}</span> {sale}
+        </span>
+      </span>
+    );
+  }
   if (sale) {
     return (
       <span className="flex flex-col items-end leading-tight">
-        {list ? (
-          <span className="font-mono text-[11px] text-muted">
-            {labels.listPrice} {list}
-          </span>
-        ) : null}
         <span className="font-mono text-[13px] font-semibold text-fg">{sale}</span>
         {base ? (
           <span className="font-mono text-[11px] text-muted line-through">{base}</span>

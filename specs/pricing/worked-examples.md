@@ -288,3 +288,5 @@ percent +10 (off the parent's base).
 | D2 | true | Acme / P1 (E3) | list **100.00** / your price **95.00** |
 | D3 | true | Acme / P1 (U2.1, surcharge) | **110.00** only — the list price is shown only when above yours (N4) |
 | D4 | true | guest / P1 (no lists) | **100.00** only — list price equals your price |
+| D5 | true | Acme / P1 (E3) with a sale of **80.00** charged | list ~~**100.00**~~ / your price **80.00** — two prices only: Acme's regular 95.00 is not shown (owner ruling 2026-10-23) |
+| D6 | false | Acme / P1 (E3) with the same sale | ~~**95.00**~~ **80.00** — unchanged: the sale strikes the buyer's own price |
