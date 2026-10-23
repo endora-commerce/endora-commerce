@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { Circle, Layers, ListPlus, Percent, PlusCircle, RotateCcw, Save, SlidersHorizontal, Tag, TextCursorInput } from 'lucide-react';
-import type { PriceBook, PriceBookLine, PriceBookRowError, PriceBookRowPrice, PriceBookSelectionKind } from '@endora-commerce/contracts';
+import { Circle, FileSpreadsheet, Layers, ListPlus, Percent, PlusCircle, RotateCcw, Save, SlidersHorizontal, Tag, TextCursorInput } from 'lucide-react';
+import type { PriceBook, PriceBookLine, PriceBookRow, PriceBookRowError, PriceBookRowPrice, PriceBookSelectionKind } from '@endora-commerce/contracts';
 import {
   EditableGrid,
   ModalDialog,
@@ -59,6 +59,9 @@ import { usePriceBooksApi } from '../lib/use-price-books-api.js';
 import { AddLineDialog, type AddLineMode } from './AddLineDialog.js';
 import { BulkChangeDialog } from './BulkChangeDialog.js';
 import { CellDetailDialog } from './CellDetailDialog.js';
+import { ImportDialog } from './ImportDialog.js';
+import { downloadText } from '../lib/download.js';
+import { exportFiles } from '../lib/price-book-csv.js';
 import { PRECEDENCE_ANCHOR } from './PrecedenceView.js';
 
 /**
@@ -84,6 +87,8 @@ import { PRECEDENCE_ANCHOR } from './PrecedenceView.js';
 
 const PAGE_SIZES = [50, 100, 200] as const;
 const MAX_ROWS = 5000;
+/** Rows per read of an export (`GET …/rows` pages at most 1 000). */
+const EXPORT_PAGE_SIZE = 1000;
 
 type Notice =
   | { readonly kind: 'invalid'; readonly count: number }
@@ -98,7 +103,8 @@ type Dialog =
   | { readonly kind: 'line'; readonly mode: AddLineMode }
   | { readonly kind: 'bulk'; readonly cells: readonly { rowKey: string; columnKey: string }[] }
   | { readonly kind: 'detail'; readonly lineKey: string; readonly start: number }
-  | { readonly kind: 'tier' };
+  | { readonly kind: 'tier' }
+  | { readonly kind: 'import' };
 
 /** Where a percentage of this book is taken from (FR-007). */
 function referenceOf(book: PriceBook): 'base' | 'catalogue' | 'productBase' {
@@ -512,6 +518,53 @@ export function PriceBookGrid(props: {
     setDialog({ kind: 'bulk', cells: selection.cells });
   };
 
+  /**
+   * The book's rows for the current filter as CSV (FR-018, T093): read 1 000
+   * at a time, written as files of at most 5 000 rows in the admin language's
+   * decimal separator.
+   */
+  const exportRows = async (): Promise<void> => {
+    setStatus(t('grid.csv.status.exporting'));
+    try {
+      const rows: PriceBookRow[] = [];
+      for (let page = 1; ; page += 1) {
+        const answer = await api.rows(book.id, {
+          ...(kind ? { selectionKind: [kind] } : {}),
+          ...(search ? { search } : {}),
+          page,
+          pageSize: EXPORT_PAGE_SIZE,
+        });
+        rows.push(...answer.data);
+        if (answer.data.length < EXPORT_PAGE_SIZE || rows.length >= answer.meta.totalCount) break;
+      }
+      const files = exportFiles(rows, { bookName: book.name, date: new Date(), language });
+      for (const file of files) downloadText(file.name, file.content);
+      setStatus(
+        files.length === 1
+          ? t('grid.csv.status.exported', { rows: rows.length })
+          : t('grid.csv.status.exportedFiles', { rows: rows.length, files: files.length }),
+      );
+    } catch (err) {
+      setStatus('');
+      setNotice({ kind: 'error', message: errorMessage(err, t('grid.csv.error.export')) });
+    }
+  };
+
+  const imported = async (changes: number): Promise<void> => {
+    setDialog(null);
+    setStatus(t('grid.csv.status.imported', { count: changes }));
+    try {
+      const fresh = await api.get(book.id);
+      cache.current.clear();
+      setState(afterSave(stateRef.current, fresh.version));
+      gridRef.current?.clearHistory();
+      setReload((n) => n + 1);
+      props.onBookChanged(fresh);
+    } catch (err) {
+      setNotice({ kind: 'error', message: errorMessage(err, t('grid.error.load')) });
+    }
+  };
+
   const alreadyAddedIds = useMemo(
     () => [...state.lines.values()].filter((l) => l.kind === 'product' && l.selection.productId).map((l) => l.selection.productId!),
     [state.lines],
@@ -619,7 +672,24 @@ export function PriceBookGrid(props: {
           {activeProductKey && expanded.has(activeProductKey) ? t('grid.variants.hide') : t('grid.variants.show')}
         </Button>
         ) : null}
+        {/* CSV export for every reader; import only on a book the caller may
+            change, and never over unsaved edits (FR-042). */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button type="button" variant="outline">
+              <FileSpreadsheet aria-hidden="true" />
+              {t('grid.csv.menu')}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem onSelect={(): void => void exportRows()}>{t('grid.csv.export')}</DropdownMenuItem>
+            {editable && unsaved === 0 ? (
+              <DropdownMenuItem onSelect={(): void => setDialog({ kind: 'import' })}>{t('grid.csv.import')}</DropdownMenuItem>
+            ) : null}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
+      {editable && unsaved > 0 ? <p className="text-xs text-muted-foreground">{t('grid.csv.importBlocked')}</p> : null}
 
       {notice ? <GridNotice notice={notice} onReapply={reapply} onDiscard={discard} onOpen={openLine} /> : null}
 
@@ -704,6 +774,9 @@ export function PriceBookGrid(props: {
         </StickyFormActions>
       ) : null}
 
+      {dialog?.kind === 'import' ? (
+        <ImportDialog book={book} onClose={(): void => setDialog(null)} onImported={(changes): void => void imported(changes)} />
+      ) : null}
       {dialog?.kind === 'products' ? (
         <ProductBrowserDialog
           open

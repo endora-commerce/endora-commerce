@@ -147,6 +147,23 @@ export function formatPriceCell(price: PriceBookRowPrice, language: PriceCellLan
   }
 }
 
+/**
+ * A number as a spreadsheet writes it, liberal as the cell is (feature 161,
+ * T092 — the CSV codec reads its `value` column with it): the Unicode minus
+ * and its look-alikes, a currency marker, grouping spaces, a decimal comma or
+ * point (with both, the last one). `null` when it is not a number.
+ */
+export function readDecimalText(input: string): { readonly sign: '' | '+' | '-'; readonly whole: string; readonly fraction: string } | null {
+  let text = input.replace(MINUS_LOOKALIKES, '-').replace(CURRENCY_MARKER, ' ').replace(SPACES, '');
+  let sign: '' | '+' | '-' = '';
+  if (text.startsWith('+') || text.startsWith('-')) {
+    sign = text[0] as '+' | '-';
+    text = text.slice(1);
+  }
+  const number = readUnsignedDecimal(text);
+  return number === null ? null : { sign, whole: trimLeadingZeros(number.whole), fraction: number.fraction };
+}
+
 /** `whole` and `fraction` digits of an unsigned number with one decimal separator, or `null`. */
 function readUnsignedDecimal(text: string): { whole: string; fraction: string } | null {
   if (!/^[\d.,]+$/.test(text) || !/\d/.test(text)) return null;

@@ -237,7 +237,13 @@ export function mkRow(spec: {
       attributeLabel: spec.color ? 'Color' : null,
       attributeValueLabel: spec.color ? (spec.color === 'red' ? 'Red' : 'Blue') : null,
     },
-    naturalKey: {},
+    // The server's natural key (G10), as an export writes it.
+    naturalKey: {
+      ...(spec.product ? { productSku: spec.product.sku } : {}),
+      ...(spec.variant ? { variantSku: spec.variant.sku } : {}),
+      ...(category ? { categoryPath: category.slug } : {}),
+      ...(spec.color ? { attribute: { key: 'color', valueCode: spec.color } } : {}),
+    },
   });
 }
 

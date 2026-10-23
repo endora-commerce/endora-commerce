@@ -234,17 +234,17 @@ amended; one Save for the whole product page is issue #407).
 
 ### Tests first
 
-- [ ] T089 [P] [US9] Codec tests in `PL/admin/lib/price-book-csv.test.ts` (`contracts/csv-format.md`): export header in en/pl, BOM, `;`, decimal comma for Polish, a view over 5 000 rows split into numbered files of at most 5 000 rows; import of `;`/`,`, decimal comma/point, grouping space, quotes, Windows-1250 fallback, en/pl headers and kind aliases, unknown/duplicated/missing header refused, > 5 MB and > 5 000 lines refused before any request, line numbers on every local error; a 5 000-row file parses within the time recorded in the test header (FR-018, FR-038, FR-039)
-- [ ] T090 [P] [US9] Import dialog tests in `AT/price-book-import.test.tsx`: US9 scenarios 1–6 — round trip yields "no changes"; preview of changed/added/refused with line numbers; replace mode lists removed rows and their count; confirm disabled while any row is refused; nothing written before confirm; confirm sends one batch with the preview's `version`; stale refusal offers a new preview; encoding choice prompt; download of refused rows with reasons; import absent while the grid holds unsaved edits and for a read-only book; axe (FR-040–FR-042)
-- [ ] T091 [US9] Integration test in `backend/test/integration/price_lists/csv-import-roundtrip.test.ts`: an exported E3 book re-imported via `dryRun` gives an empty diff; a file with one change, one addition and one unknown SKU gives the expected diff and one error; confirmation writes exactly the diff (SC-009)
+- [x] T089 [P] [US9] Codec tests in `PL/admin/lib/price-book-csv.test.ts` (`contracts/csv-format.md`): export header in en/pl, BOM, `;`, decimal comma for Polish, a view over 5 000 rows split into numbered files of at most 5 000 rows; import of `;`/`,`, decimal comma/point, grouping space, quotes, Windows-1250 fallback, en/pl headers and kind aliases, unknown/duplicated/missing header refused, > 5 MB and > 5 000 lines refused before any request, line numbers on every local error; a 5 000-row file parses within the time recorded in the test header (FR-018, FR-038, FR-039)
+- [x] T090 [P] [US9] Import dialog tests in `AT/price-book-import.test.tsx`: US9 scenarios 1–6 — round trip yields "no changes"; preview of changed/added/refused with line numbers; replace mode lists removed rows and their count; confirm disabled while any row is refused; nothing written before confirm; confirm sends one batch with the preview's `version`; stale refusal offers a new preview; encoding choice prompt; download of refused rows with reasons; import absent while the grid holds unsaved edits and for a read-only book; axe (FR-040–FR-042)
+- [x] T091 [US9] Integration test in `backend/test/integration/price_lists/csv-import-roundtrip.test.ts`: an exported E3 book re-imported via `dryRun` gives an empty diff; a file with one change, one addition and one unknown SKU gives the expected diff and one error; confirmation writes exactly the diff (SC-009)
 
 ### Implementation
 
-- [ ] T092 [US9] `PL/admin/lib/price-book-csv.ts` (codec)
-- [ ] T093 [US9] `PL/admin/components/ImportDialog.tsx` (upload, encoding, mode, preview, refused-rows download, confirm) and the export action on `PriceBookPage` (reads `GET …/rows` 1 000 at a time for the current filter; numbered files of ≤ 5 000 rows)
-- [ ] T094 [US9] i18n en + pl for every US9 string
+- [x] T092 [US9] `PL/admin/lib/price-book-csv.ts` (codec)
+- [x] T093 [US9] `PL/admin/components/ImportDialog.tsx` (upload, encoding, mode, preview, refused-rows download, confirm) and the export action on `PriceBookPage` (reads `GET …/rows` 1 000 at a time for the current filter; numbered files of ≤ 5 000 rows) — both sit in the price grid's toolbar under *CSV file*, where the grid's filter and its unsaved edits are known (FR-042)
+- [x] T094 [US9] i18n en + pl for every US9 string
 
-**Checkpoint 11.**
+**Checkpoint 11** — reached 2026-10-23; awaiting coordinator review.
 
 ---
 

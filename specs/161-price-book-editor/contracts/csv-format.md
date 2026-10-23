@@ -16,6 +16,9 @@ One fixed format for export and import, so an exported file re-imports unchanged
   containing both `,` and `.` is read with the last one as the decimal separator.
 - **Limits**: a file over 5 MB is refused before reading; more than 5 000 data lines are refused before
   any request (`PRICE_BOOK_MAX_ROWS`).
+- **Several files**: an export of more than 5 000 rows is written as numbered files of at most 5 000
+  rows, each a complete file with its header: `<book>-<YYYY-MM-DD>-<language>-<i>-of-<n>.csv`
+  (implemented 2026-10-23, T092).
 
 ## Columns (header row required, in this order)
 
@@ -35,6 +38,9 @@ One fixed format for export and import, so an exported file re-imports unchanged
 Columns 2–6 are the natural key of P1's G10 (`priceBookNaturalKeySchema`): a line maps to one
 `PriceBookBatchRowInput` with `key` set and `selection` absent. An unknown header, a missing required
 header or a duplicated one refuses the file before parsing (FR-038). Empty trailing lines are ignored.
+Header names are read case- and space-insensitively. The one column accepted beyond the ten is a last
+`reason` / `powod` column — the one the refused-rows download adds — which is ignored, so a corrected
+refused-rows file imports as it is (implemented 2026-10-23, T092).
 
 ## Import flow
 
