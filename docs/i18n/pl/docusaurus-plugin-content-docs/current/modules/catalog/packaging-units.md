@@ -65,8 +65,8 @@ zamówień ani zapytań ofertowych.
 
 ## Ceny i dostępność
 
-Ceny wyznacza istniejący mechanizm na podstawie wynikowej liczby sztuk (łącznie z progami
-ilościowymi cennika) — nie ma osobnej ceny za jednostkę. Dostępność w magazynie i limity dla pozycji
+Pozycja w jednostce opakowania jest wyceniana z cenników na podstawie wynikowej liczby sztuk
+(łącznie z progami ilościowymi cenników) — nie ma osobnej ceny za jednostkę. Dostępność w magazynie i limity dla pozycji
 są sprawdzane dla wynikowej liczby sztuk.
 
 ## API

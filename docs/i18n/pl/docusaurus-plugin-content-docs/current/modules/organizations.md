@@ -201,12 +201,21 @@ Wstępne sprawdzenie w storefroncie:
 
 ### Cenniki obowiązujące organizację i promocje dla organizacji
 
-`OrganizationEffectivePriceListsService.listApplicable(orgId)` korzysta z istniejącego
-`application-rule-evaluator` z modułu `price_lists`, aby wyliczyć wszystkie cenniki obecnie
-obowiązujące organizację, każdy z tablicą `reasons[]` (`direct_organization_match` /
-`customer_group_match` / `sales_channel_inheritance` / `segment_rule_match`). Wynik jest dostępny pod
-`GET /api/v1/admin/organizations/:id/applicable-price-lists` i wyświetlany jako tabela tylko do
-odczytu na stronie szczegółów organizacji w panelu.
+Strona szczegółów organizacji w panelu administracyjnym pokazuje, tylko do odczytu, **cenniki, które
+obecnie obowiązują organizację**: cenniki, których odbiorcy wskazują samą organizację, cenniki
+wskazujące którąś z jej organizacji nadrzędnych (dziedziczone w hierarchii) oraz cenniki jej grupy
+klientów. Każdy ma oznaczenie, jak dociera do organizacji — `direct_organization_match`,
+`ancestor_organization_match` albo `customer_group_match` — a cenniki dla wszystkich nie są
+wymieniane. O tym, który z nich wygrywa dla danego produktu, decyduje kolejność cen modułu
+`price_lists`; odnośnik **Wyjaśnij cenę dla tej organizacji** na tej samej stronie otwiera dla niej
+wyjaśnienie ceny.
+
+Dla programistów: `OrganizationEffectivePriceListsService.listApplicable(orgId)` pyta moduł
+`price_lists` przez `PriceListReadPort.listForOrganization({ organizationChain, customerGroupId })`
+(kontener `priceListReadPort`), przekazując łańcuch organizacji od najbliższej oraz jej własną grupę
+klientów. Odpowiedź jest dostępna pod `GET /api/v1/admin/organizations/:id/applicable-price-lists`.
+Gdy modułu `price_lists` nie ma, wywołanie jest odrzucane, zamiast zwracać pustą listę. Powody
+`sales_channel_inheritance` i `segment_rule_match` nie są już zwracane.
 
 Promocje: gdy promocja jest skierowana do konkretnej organizacji (`promotions.organization_id` jest
 ustawione), platforma stosuje ją tylko wtedy, gdy organizacja koszyka ma status `active`. Sprawdzenie

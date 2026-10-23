@@ -7,7 +7,8 @@ proposal — the ratified target is `decision-record.md`, and the test vectors a
 `worked-examples.md`. When the model changes, rewrite this file in the same merge request.
 
 **Verified against** the release branch `feat/160-pricing-model-v2` on 2026-10-22, after the
-conversion and removal phase (tasks T114–T133). The old model — the Application rule, the per-list
+conversion and removal phase (tasks T114–T133), and re-checked at `e1758312e` on 2026-10-23 for
+the documentation rebuild (feature 160, Phase 13): §1.2's caching paragraph, §1.3 and §1.4. The old model — the Application rule, the per-list
 product roster and brackets, the `Default` list, the product *default price* and the variant price
 override — is gone from the code and, after the conversion migration, from the database. How it
 worked is recorded in this file's history (`git log -- specs/pricing/current-model.md`); the
@@ -165,3 +166,9 @@ price never — cards are always resolved live. Measured in
    `specs/160-pricing-model-v2/contracts/price-book-write-port.md`): base tiers per currency, read,
    replace, and the G1 list of books pricing a product. Rows of non-base books are written through
    the admin API only.
+7. **The price surface is rebuilt whole.** Every pricing-generation bump marks every profile stale
+   (`PriceSurface.markStale`) and the worker rebuilds every stale profile over the whole catalogue,
+   where `specs/160-pricing-model-v2/contracts/price-surface.md` §4 describes refreshes targeted to
+   the profiles and products a change touches. SC-005's freshness was measured with five profiles
+   built (`read-paths-and-performance.md` §7); the rebuild time with hundreds of profiles is not
+   measured.

@@ -35,6 +35,15 @@ first and only propose a glossary edit if the term genuinely does not fit.
 | sales channels          | kanały sprzedaży            | plural                                              |
 | price list              | cennik                      |                                                     |
 | price lists             | cenniki                     | plural                                              |
+| price book              | cennik                      | the D-287 model's price list; same Polish word      |
+| base price              | cena bazowa                 | a product's price in the base book of a currency    |
+| catalogue price         | cena katalogowa             | also "list price" beside the buyer's price          |
+| buyer price             | cena kupującego             |                                                     |
+| sale price              | cena promocyjna             | a sale book's price                                 |
+| price precedence        | kolejność cen               | the order of the twelve buyer cells                 |
+| price explainer         | wyjaśnienie ceny            | the admin screen                                    |
+| quantity tier           | próg ilościowy              |                                                     |
+| audience (price book)   | odbiorcy                    | who a price book's prices are for                   |
 | quote request           | zapytanie ofertowe          | the "RFQ" concept                                  |
 | quote requests          | zapytania ofertowe          | plural                                              |
 | order                   | zamówienie                  |                                                     |

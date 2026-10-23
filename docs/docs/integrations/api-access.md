@@ -37,7 +37,7 @@ creation; only its SHA-256 hash is stored.
 |---|---|---|
 | Identity | Platform credential (system context) | Acts **for one Organization** on one pinned Sales Channel via a designated service Customer Account |
 | Typical use | PIM sync, feed generation | Distributor integration: org-priced catalog, ordering |
-| Catalog reads | Channel-default prices; channel resolved from the `X-Sales-Channel` header / host / default | The Organization's effective prices, availability, and quantity price tiers; channel always the bound one |
+| Catalog reads | The channel's prices for everyone (no organization); channel resolved from the `X-Sales-Channel` header / host / default | The Organization's effective prices, availability, and quantity price tiers; channel always the bound one |
 | Bulk pricing / orders | Refused (`403 API_KEY_NOT_BOUND`) | Allowed with the matching scope |
 | Allowed scopes | `catalog:read`, `catalog:write` | `catalog:read`, `orders:read`, `orders:write` (`catalog:write` is forbidden on bound keys) |
 | Expiry | Optional `expiresAt` | Optional `expiresAt` |
@@ -50,7 +50,7 @@ See [`api_keys` module docs](../modules/api_keys.md) for the creation rules.
 
 | Scope | Unbound key | Bound key |
 |---|---|---|
-| `catalog:read` | External catalog reads (channel-default prices) + PIM attribute-set reads | External catalog reads (org prices) + bulk pricing |
+| `catalog:read` | External catalog reads (the channel's prices for everyone) + PIM attribute-set reads | External catalog reads (org prices) + bulk pricing |
 | `catalog:write` | PIM by-SKU product upsert | Not grantable (creation rule) |
 | `orders:read` | Not grantable without a binding | External order list/detail |
 | `orders:write` | Not grantable without a binding | External order placement |
@@ -84,7 +84,8 @@ Gate: `catalog:read`.
   `cursor`), filters `categorySlug`, `q`, and `changedSince` (ISO 8601).
   Served from PostgreSQL deterministically (`x-search-backend: postgres`).
 - `GET /api/v1/external/catalog/products/:idOrSlug` — detail; for bound keys
-  includes `priceTiers` (the Organization's quantity-bracket ladder).
+  includes `priceTiers` (the Organization's quantity-tier ladder: the price at
+  each quantity where one of the price books that apply to it starts a tier).
 - `GET /api/v1/external/catalog/categories` — the resolved channel's category
   tree.
 
@@ -94,7 +95,8 @@ detail URLs return `404` — indistinguishable from non-existence. Bound-caller
 items additionally carry:
 
 - `price` — the Organization's effective unit price at quantity 1, computed by
-  the same pricing engine as the cart (`null` when unresolvable);
+  the same price-book resolution as the cart (`null` when no price book prices
+  the product for it);
 - `priceUnavailable: true` — marker when the org price could not be resolved;
 - `availability` — `{ band, inStock }`.
 
@@ -118,12 +120,18 @@ POST /api/v1/external/catalog/prices
 The response preserves line order. Each line resolves to either a priced entry
 (`amount`, `currency`, `isSale`, `bracketStartQuantity`, `priceListId`) or
 `price: null` with a `reason` of `sku_not_in_assortment` or
-`price_unavailable`. Per-line misses are data, not errors — a basket always
+`price_unavailable`. `priceListId` is the price book that priced the line and
+`bracketStartQuantity` the starting quantity of its quantity tier — the field
+names predate price books and are kept for compatibility. A line names a
+product SKU; a variant SKU is not looked up and answers
+`sku_not_in_assortment`. Per-line misses are data, not errors — a basket always
 gets a total answer. More than 200 lines is a `422 VALIDATION_FAILED`.
 
 Guarantee: for any `(sku, quantity)` the returned amount equals what the cart
 and order placement would charge the bound Organization on the bound channel
-at that quantity, to the cent.
+at that quantity, to the cent. The price is resolved for the Organization and
+its customer group; the bound service customer account's own customer group, if
+it has one, is not applied here.
 
 ## Idempotent ordering
 

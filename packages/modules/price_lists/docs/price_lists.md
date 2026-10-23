@@ -1,548 +1,347 @@
 ---
 title: price_lists
-description: Customer / group / default pricing with volume tiers + per-category adjustments
+sidebar_label: Price books
+description: Price books — base prices per currency, catalogue, buyer and sale prices on sales channels, and the rules that decide what each buyer pays.
 ---
 
-# `price_lists`
+# Price books (`price_lists`)
 
-Pricing engine — a reshape on top of the original pricing foundation.
-Owns:
+Every price a buyer sees or pays — on a product list, a product page, in search, in the basket, on
+an order, in a quote request's reference price, in the external catalogue API and in a product
+feed — comes from **price books**. This page explains what a price book is and how the platform
+chooses the price a buyer pays. Two further pages go deeper:
 
-- **CustomerGroup** — addressable bucket of Organizations sharing pricing.
-- **PriceList** — a named pricing artefact with a lifecycle status
-  (`draft`, `scheduled`, `active`, `expired`), a `type` (`base` or
-  `sale`), an optional active window (`startsAt` / `endsAt`), and an
-  `applicationRule` AST that decides which customer / org / channel
-  the list applies to.
-- **PriceListProduct** — composite-PK assignment of a Product to a
-  PriceList.
-- **PriceListPriceBracket** — composite-PK row keyed
-  `(priceListId, productId, currencyCode, minQuantity)` carrying the
-  per-currency unit price for a quantity bracket. Bracket gaps are
-  allowed; the resolver falls through to the next-priority list.
-- **PriceListMatrixEntry** — a price inside a list for a *selection* of
-  products (one product, a category, an attribute value, a category and an
-  attribute value, or every product), optionally for one organization, over a
-  quantity window, at a fixed unit price or a percentage discount. See
-  *Price matrix* below.
-- **PriceDisplayModeOverride** — composite-PK row keyed
-  `(scope, targetId)` overriding the resolver's display-mode chain at
-  Organization / Category / Product scope. The chain root is two
-  Settings keys (`pricing.default_display_mode`,
-  `pricing.unauthenticated_display_mode`).
+- [The price-book editor](./price_lists/price-book-editor.md) — the admin screens, step by step:
+  the book list, creating a book, the price grid, CSV import and export, duplicating a book, base
+  prices on the product, the price explainer and *Pricing settings*.
+- [Pricing for developers](./price_lists/developer-guide.md) — the data model, the resolution
+  algorithm, the one sanctioned read path, caching, the price surface behind price sorting, the
+  admin API, the ports other modules use, and how the release converted the old model.
 
-The legacy `PriceListItem` and `PriceListAssignment` tables (and the
-`code` / `currency` / `priority` / `isDefault` columns on `price_lists`)
-are kept by migration `20260504T125655_price_lists_engine.ts` only as a
-transitional shim during the
-expand → migrate → contract rollout. Newly written code MUST consume
-the engine schema via `@endora-commerce/contracts`.
+The module cannot be switched off on the modules screen: B2B selling is contract pricing, and
+without this module every buyer would silently pay the base price.
 
-## Lifecycle
+## The idea in one paragraph
 
-```text
-draft ──activate──▶ scheduled ──auto on startsAt──▶ active ──auto on endsAt──▶ expired
-  ▲                     │                              │                        │
-  └──── draftify ───────┴────── draftify ──────────────┴────── activate (resets) ┘
-```
+Each product has a **base price** in each currency. A **catalogue** price book can change that
+price for everyone on some sales channels. A **buyer** price book gives an organization, a set of
+organizations or a set of customer groups their own prices. A **sale** price book offers a
+temporary price, which is charged only when it is lower than the price the buyer would pay
+otherwise. When several books price the same product for the same buyer, a fixed, published order —
+the **price precedence** — decides which one wins, and the **price explainer** shows, for any buyer
+and product, which book won and which lost.
 
-- `activate` flips a `draft` (or `expired`) list to `scheduled` if a
-  future `startsAt` is set, otherwise straight to `active`.
-- `draftify` returns any non-system list to `draft`.
-- `PriceListStatusWorker.sweep()` runs the two clock-driven transitions
-  (`scheduled → active` at `startsAt`, `active → expired` at `endsAt`).
-  In production it's invoked by a 5-min BullMQ repeatable job; in tests
-  the same `sweep()` is exposed via `POST /api/v1/admin/price-lists-engine/internal/sweep`.
-  A sweep that flips at least one list clears the pricing cache on every
-  process (see *Pricing cache*).
+## What a price book is
 
-The seeded `Default` list (`isSystem = true`) refuses every state
-change, every delete, and every non-empty `applicationRule`.
-Migration `20260504T125655_price_lists_engine.ts` also seeds bracket rows on it from each
-product's legacy `attributeValues.defaultPrice`, so the platform always
-has a usable terminal-fallback price.
+A price book has a **header** and **rows**.
 
-## Application Rule (AST)
+The header fixes:
 
-The `applicationRule` JSONB column stores a discriminated union:
-
-```ts
-type ApplicationRule =
-  | { kind: 'all' }
-  | {
-      kind: 'criterion';
-      type: 'salesChannel' | 'customerGroup' | 'organization' | 'category' | 'currency';
-      values: string[];                  // UUIDs (or ISO 4217 for currency)
-    }
-  | {
-      kind: 'group';
-      op: 'AND' | 'OR';
-      children: ApplicationRule[];        // 1..20
-    };
-```
-
-Constraints (enforced both client-side in the rule builder and by the
-service-layer normaliser):
-
-- Depth ≤ 5 nested groups.
-- Per-criterion value lists are deduplicated; currency codes uppercased.
-- Empty groups are dropped; if the root group ends up empty, it is
-  replaced with `{ kind: 'all' }` — but `{ kind: 'all' }` is only valid
-  on the `Default` system list. Any other list with an empty rule is
-  refused at activation time (`400 empty_rule_on_non_default`).
-- Unknown target IDs (channel / customer-group / organization /
-  category) are refused with `400 unknown_target { type, values }`.
-
-## Resolver
-
-`PricingService.resolveEngine({ product, variantId?, context })`
-returns:
-
-```ts
-{
-  base:  { listId, bracket, listName },        // never null — Default is the floor
-  sale:  { listId, bracket, listName } | null, // optional second tier
-  displayMode: 'gross_only' | 'net_only' | 'both' | 'none',
-  currencyCode: string
-}
-```
-
-Algorithm:
-
-1. Load every `status='active'` price list.
-2. Evaluate each list's `applicationRule` against the resolution
-   context; keep matchers, partition by `type`.
-3. For each partition, walk the **priority chain**:
-   - Level 1: explicit organization match.
-   - Level 2: explicit customer-group match.
-   - Level 3: explicit category match.
-   - Level 4: explicit sales-channel match.
-   - Level 5: any other matching list.
-4. Pick the winner per level via `tieBreak()` — most recent
-   `modifiedAt` first, lexicographic `name` ASC second.
-5. Look up the price the picked list charges for `(productId,
-   currencyCode, quantity)` — its own bracket, or one of its price matrix
-   entries (see *Price matrix*). If the list prices nothing (gap), fall
-   through to the next-priority list in the same partition; the Default
-   list is always at level 5 of the Base partition and serves as the
-   terminal floor.
-6. Resolve the display mode independently via
-   `displayModeResolver(product, organization, customerKind)` along
-   the chain Settings → Organization → Category → Product.
-
-Determinism: same inputs → same outputs (no clock, no randomness, total
-tie-break order). The resolver is consumed by the storefront
-(`GET /api/v1/storefront/products/:id/resolved-price`) and by the cart
-+ order-placement code paths.
-
-**The customer group** in step 2 is the same on every path: the signed-in
-customer account's own group, else its organization's group, else none. A caller
-names the buyer — the organization and, for a signed-in customer, the customer
-account — and the engine applies the rule. The catalogue listing, the product
-page, search, the typeahead, comparisons, product links, the resolved-price
-endpoint and the cart all name the account; quote reference prices and the
-admin order preview pass the group they already resolved. An account that does
-not belong to the organization it is named with is ignored.
-
-**Batched entry points.** Besides the single `resolveEngine` /
-`resolveLinePrice`, the engine prices many products at once:
-`resolveListingPrices` (a listing page, quantity 1), `resolveListingPriceDetails`
-(the same plus the base / sale / display-mode split, for the product page, the
-home page cards and the typeahead) and `resolveLinePrices` (many lines, each at
-its own quantity — the cart, the placement price check, quote reference prices,
-the external catalogue API). Each costs a number of statements that does not
-grow with the number of products or lines, and each answers exactly what the
-single call answers for every product or line.
-
-## Price matrix
-
-A price list can price **many products with one entry**. A *matrix entry*
-names:
-
-| Coordinate | Values |
+| Field | What it means |
 | --- | --- |
-| Applies to | one product · a category · an attribute value · a category **and** an attribute value · all products |
-| Organization | one organization, or none (*all buyers*) |
-| Quantity | from N units, optionally up to M units |
-| Price | a fixed unit price in one currency, or a discount of 0 < p ≤ 100 % (two decimals) in whatever currency the line is priced in |
+| **Name** | What you recognise the book by. Renaming a book never changes which price wins. |
+| **Type** | *Regular prices* — the prices buyers pay — or *Sale prices*, charged only when lower than the buyer's regular price. |
+| **Currency** | Exactly one. It never changes after the book is created; to price in another currency, duplicate the book. |
+| **Sales channels** | The channels the book applies on. Each must sell in the book's currency. A channel that later stops offering the currency stays on the book as *Inactive* and the book stops applying there; when the channel offers the currency again, the book applies again with no change to the book. |
+| **Who the prices are for** (audience) | *Everyone*, a set of *customer groups*, or a set of *organizations* — one kind per book, never a mix. The kind is fixed once the book has been active. |
+| **Schedule** | Optional start and end. A book applies from the exact start instant until the exact end instant. |
+| **Priority** | A whole number. It only decides between books that price the same kind of line for the same buyer — the higher number wins — and never lets a general line beat a more specific one. |
+| **Status** | *Draft*, *Scheduled*, *Active* or *Expired*. A draft never applies. Activating a book makes it *Active*, or *Scheduled* when its start is in the future. *Move to draft* takes it out of use again. |
 
-Example: *Fasteners × Acme Sp. z o.o. × from 500 units × 12 % off*. Acme's
-buyers ordering 600 fasteners pay 12 % less; 400 units, another organization or
-a product outside the category pay as before.
+A book can be activated only when it would apply somewhere and to someone: it needs at least one
+sales channel that sells in its currency, and a customer-group or organization book needs at least
+one member.
 
-The list's **application rule still decides which buyers the list serves** —
-an entry only prices a line on a list the buyer already qualifies for, on the
-request's sales channel. Entries only decide the price *within* that list.
+Each **row** prices one **line** of the book for a quantity tier. A line is one of:
 
-**Rules an entry must follow** (refused with a message otherwise):
-
-- A product entry needs an organization — without one it is the list's own
-  product price, which the *Products & brackets* tab already holds.
-- A fixed price needs a product, category or attribute selection.
-- Two entries with the same selection and organization may not overlap in
-  quantity in a currency they share (a percentage shares every currency) —
-  `409 PRICE_MATRIX_ENTRY_OVERLAP`, naming the conflicting entry.
-- A list holds at most **5 000** entries — `409 PRICE_MATRIX_ENTRY_LIMIT`.
-
-### Attribute selections and *Price list rules*
-
-Only attributes marked **Price list rules** on *Catalog → Attributes* may be
-used, and only those whose values are a single choice, multiple choices or
-yes/no, and that are neither per-language nor per-sales-channel
-(`400 PRICE_MATRIX_ATTRIBUTE_NOT_ELIGIBLE` with the reason otherwise). A
-single-choice value matches by equality, a multiple-choice attribute when the
-product's values include it, a yes/no attribute on *yes* or *no* — a product
-with no value matches neither. The product's own values are read, not a
-variant's and not a channel override.
-
-Clearing the flag on an attribute **deactivates** its entries: they stop
-pricing anything within the pricing refresh window, pricing never errors
-because of them, the *Price matrix* tab shows them as *Inactive* with the
-reason, and they resume when the flag is set again.
-
-### Which candidate wins
-
-On the picked list the candidates are its own product bracket and every entry
-that applies (selection, organization, quantity window, currency). The first by
-this order prices the line:
-
-| Order | Rule |
+| Line | Prices |
 | --- | --- |
-| 1 | Organization-specific before not organization-specific; the buyer's own organization before a nearer parent before a farther one |
-| 2 | Product, then category ∩ attribute, then attribute, then category, then all products (the list's own product bracket counts as a not organization-specific product candidate) |
-| 3 | The higher starting quantity |
-| 4 | The lower resulting price |
-| 5 | A fixed internal order (the entry id), so the outcome never depends on timing |
+| **All products** | every product (a percentage or an adjustment only — never one fixed price for everything) |
+| **Attribute value** | every product with that value of an attribute, for example *color = red* |
+| **Category** | every product assigned to that category (its own assignment; sub-categories are not included) |
+| **Category and attribute value** | the products of that category that have that value — for example red products in *Screws* |
+| **Product** | one product, and all its variants |
+| **Variant** | one variant of a product |
 
-Category selections use the product's own category assignments, not
-sub-categories — the meaning the application rule's category criterion has.
+Only attributes marked **Price list rules** under *Catalog → Attributes* can form attribute lines,
+and only those whose values are a single choice, multiple choices or yes/no and that are neither
+per-language nor per-sales-channel. If an attribute loses the flag (or stops qualifying), its lines
+stop pricing — the grid shows them as *Inactive* with the reason — and they price again as soon as
+it qualifies again. Pricing never fails because of such a line.
 
-### Percentages
+A row states its price in one of three ways:
 
-A percentage is taken off the **reference price**: the product's own bracket on
-the same list at that quantity, else its bracket on the system **Default**
-list. The result is rounded half-up to four decimals, the precision brackets are
-stored at, in integer arithmetic. A percentage with no reference prices
-nothing and the next candidate is tried; when nothing on the list prices the
-line, resolution continues with the next applicable list exactly as for a list
-without a bracket. A 100 % discount is a free line, deliberately.
+| Kind | Typed as | Meaning |
+| --- | --- | --- |
+| **Fixed price** | `95` or `95,50` | the price, up to four decimal places |
+| **Percentage** | `-5%`, `+20%` | a discount or a surcharge, from −100 % (a free line) to +1000 %, up to two decimal places |
+| **Amount adjustment** | `-3`, `+3` | an amount taken off or added |
 
-### Where matrix prices appear
+A percentage or an adjustment is taken off a **reference price**: the base price for a catalogue
+book, the catalogue price for buyer and sale books (see below). If a row's result would be below
+zero, that row does not price the line and the next candidate is tried; a result of exactly zero is
+a valid price.
 
-Every surface that uses the shared resolver — catalogue listing, product page,
-search, comparison, product links, cart, checkout, order intake, quote-request
-reference prices and the admin resolved-price check — returns the same matrix
-price for the same buyer, product, quantity and channel. The product page's
-quantity-tier ladder includes the entries' starting quantities, and the
-resolved-price check names the entry that produced a price (`matrixEntryId`).
+**Quantity tiers.** Each row starts at a quantity ("from 1", "from 10", "from 100") and, unless it
+has an explicit end, runs until the line's next tier starts. Two rows of the same line may not
+overlap. A row that does not cover the quantity being ordered does not price it, and resolution
+moves on to the next candidate — another tier of the same line, or another line.
 
-**Sorting and filtering the storefront catalogue by price follow matrix
-prices too.** A list carrying an entry the viewer meets at quantity 1 is
-ordered from a relation computed over its brackets and entries, by the order
-above, so the sequence matches the prices the cards show; a product priced only
-by an entry sorts by that price rather than with the unpriced products. Lists
-without such an entry keep the index-ordered path. Measured on 2 000 products
-(`backend/test/perf/price_lists/matrix-resolver.bench.ts`): a first page costs
-about 3 ms with no entry, about 40 ms with a category percentage and about 20 ms
-with an all-products percentage; a 50-product listing page costs no extra
-statement when its lists carry no entry and at most three when they do.
+A book holds at most 5 000 rows. The base books are not limited by that number, because they hold
+the base price of every product in the catalogue.
 
-**Known limitation:** a product feed pinned to a named price list reads that
-list's product brackets only; matrix entries do not reach a pinned feed. Feeds
-priced through the resolver (anonymous) do see entries that are not
-organization-specific.
+## Base prices
 
-### Managing the matrix
+Each currency has exactly one **base price book** — shown in the list as *Base prices — PLN*,
+*Base prices — EUR*, and so on. It applies to every buyer, on every sales channel that sells in its
+currency, and it is always active: it cannot be renamed, scheduled, given a priority or deleted.
 
-The **Price matrix** tab on a price list (`/price-lists/:id?tab=matrix`) lists
-entries with filters by selection and organization, paging, and add / edit /
-delete for `price_lists:write`; `price_lists:read` sees the tab read-only. Every
-change is audited as `price_list.matrix_entry_create|update|delete` on the
-list, with the entry before and after, and shows on the dashboard's *Recent
-activity* card. A sales representative sees entries that are not
-organization-specific or name one of their organizations, and cannot create one
-for another organization. Duplicating a list copies its matrix; deleting a list
-deletes it. Permanently removing a product, category or organization deletes
-the entries naming it; deleting one in the admin (recoverable) keeps them,
-marked *Deleted item*, for the operator to decide.
+- A **product's base price** is a fixed price, optionally with quantity tiers, in each currency you
+  sell it in. You set it on the product itself (*Catalog → Products*, the *Pricing* tab) or in the
+  base book's grid.
+- A **variant** either **inherits** its product's base price, or has **its own price**, or is a
+  **percentage** or an **amount** above or below the product's base price at the same quantity.
 
-## Display modes
+A base price is never converted between currencies: a product with a base price in PLN only has no
+price at all in EUR. **A product with no base price in a currency, and no other book pricing it, is
+unpriced in that currency**: buyers cannot add it to the basket and see the quote-request path
+instead. There is no other fallback — a product carries no price of its own.
 
-Four values: `gross_only`, `net_only`, `both`, `none`. The first three
-control the column layout on every storefront price-bearing surface;
-`none` hides every price element and replaces Add-to-cart with the
-existing Quote Request CTA. The cart-line and
-order-placement endpoints additionally refuse the line with
-`400 CART_PRODUCT_QUOTE_ONLY` when the resolved mode is `none` for the
-`(product, organization, channel)` tuple — defence in depth.
+The base book of the platform's default currency always exists; the base book of another currency
+is created the first time a base price is saved in it.
 
-## Public surface
+## How the price a buyer pays is chosen
 
-### Engine endpoints (admin)
+A price is always worked out for a product (and, when one is chosen, a variant), a quantity, a sales
+channel, a currency and a buyer. The buyer is a guest, or an organization — with its parent
+organizations — and **one customer group**: the signed-in customer's own group if they have one,
+otherwise their organization's group.
 
-| Verb + Path | Purpose |
+Only books that are active now, in the request's currency, on the request's channel (with that
+channel selling in the currency) and for this buyer take part. The price is then built in four
+steps:
+
+1. **Base price** — the variant's base row if it has one, otherwise the product's, at the tier that
+   covers the quantity.
+2. **Catalogue price** — the best row of the regular books for *everyone* on this channel, if any
+   prices the line: a variant line before a product line, before a category and attribute value line,
+   before a category line, before an attribute value line, before an all-products line.
+   Percentages are taken off the base price. If no such row prices the line, the catalogue price is
+   the base price.
+3. **Buyer price** — the best row of the regular books for the buyer's organizations and customer
+   group, by the price precedence below. Percentages are taken off the **catalogue price**. If no
+   such row prices the line, the buyer price is the catalogue price.
+4. **Sale** — the best row of the sale books that apply to the buyer (their own organization and
+   group sale books first, then sale books for everyone). Percentages are taken off the catalogue
+   price. The sale is **charged only when it is strictly lower than the buyer price**; the buyer
+   then sees their own price struck through. A sale equal to or above the buyer's price is not
+   charged and nothing is struck through — a contract customer never pays more because of a sale.
+
+Because buyer percentages are taken off the catalogue price, a contract discount follows a channel
+price: if the channel sells a product at 120 instead of 100, a 20 % contract discount gives 96.
+
+Percentages are rounded half-up to four decimal places; the basket rounds line amounts to two, as it
+always has.
+
+### The price precedence
+
+A buyer can be priced by several lines at once — their organization's price for one product, their
+organization's discount on a whole category, their customer group's price for the same product. Each
+candidate falls into one of twelve **cells**: who the book is for (*organization* or *customer
+group*) × what the line selects. The precedence is the order of those twelve cells; the first cell
+that has a candidate wins.
+
+The platform ships with the preset **Contract first, blanket last (HY)**:
+
+| # | Cell | Example |
+| --- | --- | --- |
+| 1 | Organization × variant | Acme's price for one variant of Screws 0200 |
+| 2 | Organization × product | Acme's price for Screws 0200 |
+| 3 | Organization × category and attribute value | Acme's price for red items in Screws |
+| 4 | Organization × category | Acme's price for everything in Screws |
+| 5 | Organization × attribute value | Acme's price for everything red |
+| 6 | Customer group × variant | VIP customers' price for one variant of Screws 0200 |
+| 7 | Customer group × product | VIP customers' price for Screws 0200 |
+| 8 | Customer group × category and attribute value | VIP customers' price for red items in Screws |
+| 9 | Customer group × category | VIP customers' price for everything in Screws |
+| 10 | Customer group × attribute value | VIP customers' price for everything red |
+| 11 | Organization × all products | Acme's discount on everything |
+| 12 | Customer group × all products | VIP customers' discount on everything |
+
+So an organization's negotiated prices win over its group's, except that an organization's blanket
+discount on everything does not override a specific price its customer group has — otherwise a
+small blanket discount would leave that organization paying more than every other member of the
+group. A category line wins over an attribute value line, in every step.
+
+Inside one cell the remaining ties are decided in this order:
+
+1. **The nearer organization** — a line of the buyer's own organization before one of its parent,
+   before one of the parent's parent. A branch with no line of its own in a cell gets its head
+   office's.
+2. **Priority** — the higher number wins.
+3. **The higher starting quantity** — a "from 100" row before a "from 10" row that also covers the
+   quantity.
+4. **The lower price.**
+5. A fixed internal order, so the answer never depends on timing, on a rename or on which book was
+   edited last.
+
+The precedence in force is shown read-only on *Pricing settings*. Three other presets exist in the
+code — *Audience first (AF)*, *Specificity first (SF)* and *Audience first, nearest organization
+first (AF-N)* — but changing the precedence is not available yet: it arrives in a later release with
+a preview of what the change would do.
+
+### Variants
+
+A variant is priced in the same books as its product. A variant line wins over its product's line in
+the same audience; a **fixed** product price applies to every variant unless a variant line of the
+same or a better cell prices it; a **percentage** on the product keeps the differences between its
+variants. An attribute line matches a variant on its own axis values (a red variant of a product
+matches *color = red*), overlaid on the product's values.
+
+On a product list, a product whose variants cost different amounts shows its lowest price as a
+**"from"** price; sorting and filtering by price use that lowest price. On the product page the
+price shown is the price of the selected variant, and the basket charges the price of the variant
+in the line.
+
+## Where prices appear
+
+The same buyer, product, variant, quantity, channel and currency get **the same price on every
+surface**: product lists, search results and suggestions, the product page, comparisons, related
+products, the basket and checkout, order placement, the admin order form, quote requests, the
+external catalogue API and product feeds. The basket re-prices a line whenever it is added, merged
+or has its quantity changed, and order placement refuses a basket whose stored price is no longer
+current (`409 CART_PRICE_CHANGED`), so the buyer reviews the new price before ordering.
+
+**Sorting and filtering by price** follow the prices the product cards show, for every buyer — a
+buyer with their own contract prices sees the list in the order of their own prices. The order is
+served from prices the platform precomputes in the background: after a price change the cards show
+the new price at once, and the sorted order catches up once the background refresh has run (within
+a minute in the platform's measurements).
+
+**List price beside the buyer's price.** With *Show list price beside the buyer's price* switched on
+(*Pricing settings*, off by default), a buyer whose price is below the catalogue price sees both on
+the product page, on product lists, in search results and in search suggestions — *List price
+100.00 · Your price 95.00*. A buyer whose price equals or exceeds the catalogue price sees one
+price. When a sale is charged, the buyer sees two prices only: the list price struck through and
+the sale price as *Your price*; their regular contract price is not shown as a third number. With
+the switch off, a charged sale strikes through the buyer's own price. The basket and checkout always
+show only the price charged.
+
+**Display modes** decide how prices are shown — gross only, net only, both, or not at all. *None*
+hides every price and replaces *Add to cart* with *Add to quote request*; the basket also refuses
+such a product (`400 CART_PRODUCT_QUOTE_ONLY`). The mode is set platform-wide (separately for
+signed-in and anonymous visitors) and can be overridden per organization, per category and per
+product; the most specific setting wins. Display modes are set on *Pricing settings* and in the
+organization and category editors.
+
+## Worked examples — the demo shop
+
+The demo shop (`pnpm run cli demo reset`) carries the three scenarios the model was designed
+against, with literal numbers. Its fixture:
+
+- *Screws 0200* — red, in category *Screws*, base price 100.00 PLN;
+- *Screws 0032* — blue, in *Screws*, base price 50.00 PLN;
+- *Bolts 0025* — red, in category *Bolts*, base price 30.00 PLN;
+- the organization *Acme B2B (demo)*, a member of the customer group *VIP*.
+
+The three scenarios are **alternatives**: after a reset the E3 books are active and the E1 and E2
+books are drafts. To see E1 or E2, activate that scenario's books and move the others to draft.
+
+**E1 — a price for everyone on a category and attribute value.** Book *E1 — red screws for everyone
+(demo)*: regular, everyone, one line *Screws* ∩ *color = red*, fixed 120.
+
+| Buyer | Product | Pays | Why |
+| --- | --- | --- | --- |
+| guest | Screws 0200 | 120.00 | the catalogue line prices red screws |
+| guest | Screws 0032 | 50.00 | blue: the line does not match, so the base price |
+| guest | Bolts 0025 | 30.00 | red, but not a screw: the base price |
+| Acme | Screws 0200 | 120.00 | Acme has no book of its own in this scenario |
+
+**E2 — an organization's contract.** Book *E2 — Acme B2B contract (demo)*: regular, for the
+organization Acme, *Screws* −10 %, *Screws 0200* −20 %.
+
+| Buyer | Product | Pays | Why |
+| --- | --- | --- | --- |
+| Acme | Screws 0200 | 80.00 | the product line (−20 %) wins over the category line (−10 %) |
+| Acme | Screws 0032 | 45.00 | the category line |
+| Acme | Bolts 0025 | 30.00 | nothing matches: the base price |
+| another organization | Screws 0200 | 100.00 | not a member: the base price |
+
+With E1 active as well, Acme pays 96.00 for Screws 0200: −20 % is taken off the catalogue price of
+120, not off the base price.
+
+**E3 — an organization within a customer group.** Books *E3 — VIP customers (demo)* (for the
+customer group VIP, *Screws 0200* −10 %) and *E3 — Acme B2B terms (demo)* (for the organization
+Acme, *Screws 0200* −5 %, *Screws* −15 %).
+
+| Buyer | Product | Pays | Why |
+| --- | --- | --- | --- |
+| Acme | Screws 0200 | 95.00 | *Organization × product* (−5 %) is the best cell; the category line (85.00) and the VIP line (90.00) lose |
+| another VIP organization | Screws 0200 | 90.00 | the VIP line |
+| Acme | Screws 0032 | 42.50 | Acme's category line (−15 %) |
+| a branch of Acme | Screws 0200 | 95.00 | inherited from its head office |
+| a guest, or an organization outside VIP | Screws 0200 | 100.00 | the base price |
+
+The price explainer answers each row of these tables with the winning book, the cell, the reference
+price and the runner-ups.
+
+## Who can do what
+
+| Permission | Grants |
 | --- | --- |
-| `GET /api/v1/admin/price-lists-engine?status=&type=&search=` | List engine-shape lists with optional filters |
-| `POST /api/v1/admin/price-lists-engine` | Create a draft list |
-| `GET /api/v1/admin/price-lists-engine/:id` | Read one list |
-| `PATCH /api/v1/admin/price-lists-engine/:id` | Update name / type / dates / applicationRule |
-| `POST /api/v1/admin/price-lists-engine/:id/activate` | Lifecycle → scheduled or active |
-| `POST /api/v1/admin/price-lists-engine/:id/draftify` | Lifecycle → draft |
-| `POST /api/v1/admin/price-lists-engine/:id/duplicate` | Clone (resets dates and status) |
-| `GET /api/v1/admin/price-lists-engine/:id/products` | List roster + per-currency brackets |
-| `PUT /api/v1/admin/price-lists-engine/:id/products` | Replace roster (delta) |
-| `POST /api/v1/admin/price-lists-engine/:id/products` | Append one product |
-| `POST /api/v1/admin/price-lists-engine/:id/products/bulk-add` | Append up to 200 products in one audited write — see *Adding many products at once* |
-| `DELETE /api/v1/admin/price-lists-engine/:id/products/:productId` | Remove (cascade brackets) |
-| `GET /api/v1/admin/price-lists-engine/:id/products/:productId/brackets` | Read brackets for one product |
-| `PUT /api/v1/admin/price-lists-engine/:id/products/:productId/brackets` | Replace brackets (`{ bracketsByCurrency }`) |
-| `POST /api/v1/admin/price-lists-engine/:id/products/:productId/brackets/copy` | Identity copy of one currency to N others |
-| `GET /api/v1/admin/price-lists-engine/:id/matrix?page=&pageSize=&selectionKind=&organizationId=&productId=&categoryId=&lang=` | Price matrix entries, filtered and paged (`organizationId=none` for not organization-specific) — `price_lists:read` |
-| `GET /api/v1/admin/price-lists-engine/:id/matrix/:entryId` | One entry — `price_lists:read` |
-| `POST /api/v1/admin/price-lists-engine/:id/matrix` | Create an entry — `price_lists:write` |
-| `PATCH /api/v1/admin/price-lists-engine/:id/matrix/:entryId` | Change an entry; every rule runs on the merged result — `price_lists:write` |
-| `DELETE /api/v1/admin/price-lists-engine/:id/matrix/:entryId` | Delete an entry — `price_lists:write` |
-| `POST /api/v1/admin/price-lists-engine/internal/sweep` | Test-only worker tick |
+| `price_lists:read` | the book list, every book's settings and prices, base prices, the price explainer, *Pricing settings* |
+| `price_lists:write` | creating, changing, activating, scheduling, duplicating, importing into and deleting books; base prices; display modes; the list-price switch. Adding product lines also uses the catalogue's product browser, so a role that edits books also needs `catalog:read` (the role editor on `/admin-roles` says so). |
 
-### Adding many products at once
+**Sales representatives** — administrators whose role limits them to their own organizations — see
+and edit only organization books whose **every** member is one of their organizations. Books for
+everyone, customer-group books and the base prices are read-only for them. A book naming any
+organization outside their scope does not exist for them: it is missing from the list, and its
+address shows the same page as a book that was never created. When they create a book, they can
+choose only *Organizations*, and only their own.
 
-`POST /api/v1/admin/price-lists-engine/:id/products/bulk-add`, gated by
-`price_lists:write`, takes `{ productIds }` — 1 to 200 product ids
-(`bulkAddPriceListProductsRequestSchema` in `@endora-commerce/contracts`) —
-and only ever appends. Duplicates are collapsed, the first occurrence kept.
+Every change to a book — its settings, channels, members, rows, activation, a duplicate, a deletion
+— and every change to base prices and to the list-price switch is written to the audit log with the
+administrator and the state before and after; *View history* on a book opens its entries.
 
-An accepted request answers `200 { data: { added, unchanged, failed } }`, each
-id in exactly one of the three:
+## Known limitations
 
-- **`unchanged`** — already on the list; its brackets are left exactly as they
-  were.
-- **`failed`** — `{ productId, reason: 'product_not_found' }`, for an id the
-  catalogue does not hold as a live product (unknown or soft-deleted). A draft
-  or inactive product is live and is added.
-- **`added`** — every other product, in request order, whatever its status or
-  type.
+- **The precedence cannot be changed yet.** The HY preset is the only one in force; the change flow,
+  with an impact preview, is a later release.
+- **Promotions apply on top of sale and contract prices.** A cart promotion does not yet know
+  whether a line is priced by a sale or a contract; excluding such lines is a later release.
+- **The base-price panel on the product has its own *Save prices* button**, separate from the
+  product editor's save, and asks before you leave it with unsaved changes. One save for the whole
+  product page is issue #407.
+- **The book list has no saved views**; its filters live in the address, so a filtered list can be
+  bookmarked and shared (issue #408).
+- **Right after a large import**, the grid of a very large book (tens of thousands of lines) can take
+  slightly longer to page and search until the database has refreshed its statistics, which it does
+  on its own shortly afterwards (issue #409).
+- **The product editor's *Variants* tab shows no variants for an inactive product or one outside the
+  default sales channel**, because it reads them through the storefront read (issue #410). The
+  base-price panel is not affected: it reads every variant.
+- **Screen readers announce the storefront's sale badge as "Request a quote"**; the visible text is
+  correct (issue #411).
+- **The sorted order lags a price change** by the background refresh; the prices on the cards never
+  lag. Price sorting needs the platform's background workers running.
+- **The external catalogue API** prices the API key's organization with that organization's
+  customer group, not the bound customer account's own group, and its bulk pricing request names
+  product SKUs only.
+- **Product feeds price products, not variants**, at quantity 1.
 
-The whole request is one Command, `price_list.products_add`, and writes one
-audit entry whose after-state holds counts only (`{ name, added, unchanged,
-failed }`) — and no entry at all when nothing was added. The entry shows on the
-home dashboard's **Recent activity** card as *added products to price list*.
-Sending the same body again is therefore safe: the products added the first
-time come back `unchanged`, silently.
+## Upgrading from the old price lists (migration note)
 
-Refusals write nothing:
+The release that introduced price books replaced the previous pricing model in one step. On an
+instance that used it:
 
-| Case | Answer |
-| --- | --- |
-| The caller lacks `price_lists:write` | `403 FORBIDDEN` |
-| The list is the system Default (its roster is seeded from each product's default price) | `403 FORBIDDEN` |
-| The list is unknown or deleted | `404 NOT_FOUND` |
-| The body is not an object, or `productIds` is missing, empty, longer than 200 or holds a non-uuid | `400 VALIDATION_FAILED` |
-| Another request added the same new product at the same moment | May answer `409 VERSION_CONFLICT`; retrying reports the product `unchanged` |
+- **Base prices are kept.** Every price of the old *Default* price list became a base price of its
+  currency.
+- **Every other price list is gone** — with its Application rule, its products and quantity brackets
+  and its price matrix. Recreate the prices it held as price books.
+- **The product's *Default unit price* and the variant price override are gone**, and were not
+  converted: the product editor no longer has those fields, and product writes and the products
+  import refuse them (`400 PRICE_SET_IN_PRICE_BOOKS`). A product that had only a *Default unit price*
+  and no *Default*-list price has no price until you enter a base price on its *Pricing* tab.
 
-### Rule-builder pickers (admin)
-
-| Verb + Path | Purpose |
-| --- | --- |
-| `GET /api/v1/admin/pricing/rule-targets/sales-channels` | Channel options for the rule builder |
-| `GET /api/v1/admin/pricing/rule-targets/customer-groups` | Customer-group options |
-| `GET /api/v1/admin/pricing/rule-targets/organizations?search=&limit=` | Paginated org options |
-| `GET /api/v1/admin/pricing/rule-targets/categories` | Full category tree |
-| `GET /api/v1/admin/pricing/rule-targets/currencies` | Currencies exposed by any sales channel |
-| `GET /api/v1/admin/pricing/rule-targets/attributes?lang=` | Attributes a price matrix entry may select on (flagged *Price list rules*, eligible type), with their option values |
-
-### Display-mode admin
-
-| Verb + Path | Purpose |
-| --- | --- |
-| `GET /api/v1/admin/pricing/display-mode-overrides?scope=` | List overrides |
-| `GET /api/v1/admin/pricing/display-mode-overrides/:scope/:targetId` | Read one |
-| `PUT /api/v1/admin/pricing/display-mode-overrides/:scope/:targetId` | Upsert (`{ mode }` or `{ mode: 'inherit' }` to delete) |
-
-### Linked price-lists panel (admin)
-
-| Verb + Path | Purpose |
-| --- | --- |
-| `GET /api/v1/admin/products/:productId/price-lists` | Lists every price list a product is part of, with per-currency bracket summary and a deep-link path |
-
-### Buyer price probe (admin)
-
-| Verb + Path | Purpose |
-| --- | --- |
-| `GET /api/v1/admin/products/:id/resolved-price?organizationId=&customerAccountId=&quantity=&currency=&variantId=&salesChannelId=` | The price a given buyer would pay for one product, as the admin quote-request screens show it. Gated by `price_lists:read` |
-
-- **`matrixEntryId`** in the answer names the price matrix entry that priced
-  the line, or `null` when a stored bracket did.
-- **`salesChannelId`** names the sales channel to resolve on; absent, the system
-  default channel. An unknown or malformed id is refused with
-  `400 VALIDATION_FAILED`, and the message does not repeat the id.
-- **The buyer is checked before anything is priced.** The organization asked
-  about is `organizationId`, else the customer account's own. An organization
-  or customer account that does not exist, and — for a sales representative —
-  one outside the organizations they may see, all answer the same `404`, so the
-  probe does not tell anybody what exists. A platform administrator skips only
-  the representative check. A customer account that is not a member of the
-  named organization is `400 VALIDATION_FAILED`.
-- **Behaviour change.** Earlier releases answered an unknown or out-of-scope
-  organization or account with the anonymous price; it is now `404`. A request naming neither an organization nor an account is still the
-  anonymous price.
-
-### Storefront (public)
-
-| Verb + Path | Purpose |
-| --- | --- |
-| `GET /api/v1/storefront/products/:id/resolved-price?quantity=&currency=&variantId=` | Per-customer Base + Sale + display mode |
-| `GET /api/v1/storefront/pricing/display-mode/:productId` | Display mode only (used by the cart, and by batch surfaces that resolve the price separately) |
-
-Both storefront reads are resolved **for the viewer**: they take the buyer's
-session when one is there and answer as the public when it is not. They also
-derive that viewer through one function, so the display mode carried inside a
-resolved price and the one this endpoint returns cannot disagree for the same
-caller — they once could, and a signed-in buyer read net on the
-product page and gross in the cart wherever `pricing.default_display_mode` and
-`pricing.unauthenticated_display_mode` were set differently. A response resolved
-for an Organization carries `Cache-Control: private, no-store`; the anonymous
-one is unstamped and stays the representation a crawler and the storefront's
-shared window hold.
-
-### Legacy (still served until every reader migrates)
-
-| Verb + Path | Purpose |
-| --- | --- |
-| `GET / PUT / DELETE /api/v1/admin/price-lists{,/:code,/:id}` | Legacy CRUD over the old shape |
-| `GET / POST / DELETE /api/v1/admin/price-lists/:id/items{,/:itemId}` | Legacy items CRUD |
-| `GET / POST / DELETE /api/v1/admin/price-lists/:id/assignments{,/:assignmentId}` | Legacy assignments CRUD |
-| `GET /api/v1/admin/price-lists/preview?productSku=&quantity=&organizationId=&salesChannelCode=` | Legacy preview |
-
-## Migration notes (engine reshape)
-
-The module's migration `20260504T125655_price_lists_engine.ts` reshapes the schema in one transaction:
-
-1. Take a transaction-scoped advisory lock (`pg_advisory_xact_lock`) so
-   concurrent migrators serialise; it is released when the transaction
-   ends.
-2. Add the new columns on `price_lists` (`type`, `status`, `startsAt`,
-   `endsAt`, `modifiedAt`, `isSystem`, `applicationRule` JSONB).
-3. Create the three new tables (`price_list_products`,
-   `price_list_price_brackets`, `price_display_mode_overrides`).
-4. Seed the `Default` list with the deterministic UUID
-   `00000000-0000-4000-8000-00000000d51b`.
-5. Walk every `Product` whose `attributeValues` carries `defaultPrice`
-   (or `price` as fallback), assign it to the `Default` list and insert
-   one bracket row per currency exposed by any sales channel, copying the
-   same amount into every currency.
-
-The legacy `attributeValues.defaultPrice` and `attributeValues.price`
-keys are **not** stripped, so existing readers keep working, and the
-migration writes no report file.
-
-The migration is **additive** to the legacy schema — the
-`price_list_items` and `price_list_assignments` tables and the
-`code`/`currency`/`priority`/`isDefault` columns on `price_lists`
-remain in place until the readers in `cart-service`, `comparison-service`,
-`catalog-query`, `search-query`, and `product-link.service` swap to the
-resolver. A follow-up migration drops the legacy columns once that
-audit lands.
-
-The same backfill is available as a service,
-`DefaultPriceListMigrator`
-(`src/backend/services/default-price-list-migration.ts` in this module).
-It is idempotent, so it is safe to re-run, and it returns a structured report
-that lists every product whose single legacy price was copied into more than
-one currency.
-
-## Storefront integration
-
-- Catalogue reads carry the price split with them: every `ProductSummary` the
-  catalogue (and search) returns has `resolvedPrice` — `basePrice`, `salePrice`
-  and `displayMode` — from the same resolution that produced `price`. The
-  product page and the home page's product cards render it, so each product is
-  priced once per page; neither calls
-  `GET /api/v1/storefront/products/:id/resolved-price` any more.
-- `GET /api/v1/storefront/products/:id/resolved-price` stays available, through
-  `storefront/lib/api/pricing.ts` (`getResolvedPrice`), for a surface that needs
-  one product at another quantity.
-- `BaseSalePriceBlock`, `PriceTag`, and `ProductCard` consume the base / sale /
-  display-mode split; `displayMode === 'none'` hides every price element and
-  surfaces the `QuoteRequestCta` (which routes through `AddToRfqForm`).
-- The PDP swaps the Add-to-cart row for the QuoteRequest CTA when the mode is
-  `none`.
-- The variant picker shows no price per variant. A variant is charged its
-  product's price — price lists have no variant dimension yet — so the price
-  block above the picker is the price of every variant.
-
-## Admin integration
-
-- `/price-lists` (engine list) and `/price-lists/:id` (editor with
-  Details / Products & brackets / Application rule / Price matrix tabs;
-  `?tab=matrix` opens the price matrix).
-- `/price-lists/display-modes` — overrides browser plus the two
-  `pricing.*` settings keys.
-- **Products & brackets** lists the roster by name and SKU for a list of
-  any size — names are resolved through the catalogue's
-  `POST /api/v1/admin/catalog/products/batch-by-id`, 500 ids per request and
-  at most two requests in flight — and opens the bracket editor for every
-  roster product; a product whose name cannot be resolved shows its id prefix.
-  **Add** opens the admin's shared product browser on the **All** tab, where
-  every status and type can be ticked and products already on the list are
-  marked *Already on this price list*. **Add N** sends one bulk-add request for
-  up to 200 products. When it is accepted the browser closes, the roster
-  reloads, the first added product is selected with its bracket editor open,
-  and any product that could not be added is named with its reason. When it is
-  refused, or the answer is lost, the browser stays open with the selection
-  kept, an error and **Retry**, which sends the same products again; the error
-  names the cause where the answer gives one — the Default list or a missing
-  permission (403), a list that no longer exists (404), an invalid request
-  (400), or someone changing the list at the same moment (409) — and says that
-  nothing was changed. **Add** is disabled on the system Default list, and
-  disabled with a hint for an operator without `price_lists:write` or without
-  `catalog:read`.
-- `DisplayModeOverrideRow` is embedded in the Organization editor,
-  the Categories tree EditForm, and the LinkedPriceListsPanel that
-  replaces the old `PricingPlaceholder` on the catalog Product editor.
-
-## Ports
-
-- **`buyerLinePricePort`** (`BuyerLinePricePort` in `@endora-commerce/contracts`)
-  — `resolveForBuyer({ buyer, salesChannelId, currencyCode?, lines })` answers,
-  for each line, the net unit price the buyer would pay on a normal order on
-  that channel, now: the account's customer group before the organization's,
-  the quantity bracket, an active sale price. `salesChannelId: null` is the
-  system default channel; `currencyCode` absent is the channel's default
-  currency; `quantity` is in base pieces. A product that does not exist answers
-  `price: null` for its line; an unknown channel throws `400 VALIDATION_FAILED`.
-  Keys are echoed in order and lines are resolved in bounded chunks. It is the
-  same implementation the buyer price probe above serves, and it carries **no**
-  authority check — the caller passes a buyer it has already authorised. The
-  `quote_requests` module uses it for every line's reference price.
-
-## Pricing cache
-
-Resolutions are cached per process in an in-memory LRU (`PricingCache`, 60 s,
-5 000 entries), keyed by product, variant, quantity, currency, sales channel,
-organization and effective customer group.
-
-- **Cleared after commit.** Every audited price-list write clears it once the
-  Command Bus has committed the write — never before, so a read racing the write
-  cannot put the old price back for a whole TTL. A write that changed nothing
-  clears nothing. A resolution that started before a clear is answered but not
-  stored.
-- **Cleared on every process.** A clear is announced on the Redis channel
-  `b2b:price_lists:pricing-generation`; every API and worker process subscribes
-  when it boots and clears its own cache when another process announces one. If
-  Redis cannot deliver the announcement, other processes catch up within the
-  60 s TTL.
-- **Cleared by the status sweep** whenever it activates or expires a list.
-- **Not cleared** by catalogue writes (a product's categories or its own
-  price): those still take up to 60 s to reach a cached price.
-
-## Extension points
-
-- **Cart-service / order-placement swap** — the foundation cart and
-  order-placement code paths still read `attributeValues.defaultPrice`.
-  The next iteration introduces `PricingService.resolveLinePrice()`
-  and swaps the cart-service constructor to depend on it; the
-  defence-in-depth check for `displayMode === 'none'` lands in the
-  same change.
-- **Status worker BullMQ wiring** — `PriceListStatusWorker.sweep()` is
-  ready but the BullMQ repeatable-job registration (mirroring the
-  RFQ expiry worker) is queued for a follow-up.
+What the migrations did, and which API calls replaced the removed ones, is in
+[Pricing for developers](./price_lists/developer-guide.md#upgrading-from-the-old-model-migration-note).

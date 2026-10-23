@@ -1,22 +1,60 @@
 # Pricing — read paths and performance
 
-Every place a price is **read** — listings, PDP, search, typeahead, cart, checkout, quotes, promotions — with its query shape, caching, measured cost and known N+1 paths. The summary table comes first; the detailed audit follows.
+Every place a price is **read** — listings, PDP, search, typeahead, cart, checkout, quotes, promotions — with its entry point, query shape, caching, measured cost and remaining defects. The current read paths come first; the summary and the detailed audit of the pre-160 baseline follow.
 
-**Verified against** `master` at `b1021c71b` on 2026-10-21, and **re-verified for the P0 read-path hardening and the #166 reorder fix** (D-287 P0, branch `fix/pricing-read-path-hardening` on `fd6255339`) on 2026-10-21. File:line citations in passages P0 did not touch are as of `b1021c71b`; the passages P0 changed cite symbols rather than lines. Re-check either before relying on it.
-
-**Status after feature 160 (2026-10-22).** The price-book model of D-287 P1 is what the code does
-(`current-model.md`). §7 — the price surface and the SC-005 measurements — describes it; the rest of
-this document audits the **pre-160** read paths (the Application-rule engine, the Default-list
-brackets, the feature-086 ordering) and is kept as the baseline P1 was measured against: its
-file:line citations name code that no longer exists, and the read paths it lists now resolve through
-the batched price-book entry points (`current-model.md` §1.2). Task T147 of
-`specs/160-pricing-model-v2/` rewrites it with the final measurements.
+**Verified against** the release branch at `e1758312e` (feature 160 with its editor, feature 161)
+on 2026-10-23 for *Current read paths*, *Still open* and §7. The detailed audit below them (§0–§6,
+§8) describes the **pre-160** read paths — the Application-rule engine, the Default-list brackets
+and the feature-086 ordering — and is kept unchanged as the baseline the price-book model was
+measured against: its file:line citations name code that no longer exists, and every path it
+lists now resolves through the batched price-book entry points (`current-model.md` §1.2).
 
 **Section numbers.** `§N` references follow the numbering of the original analysis, which is split across this directory: §1 → `current-model.md`; §2 → `read-paths-and-performance.md` (its summary table); §3–§9, §11, §12 → `decision-record.md`; §10 → `worked-examples.md`. `read-paths §N` points into `read-paths-and-performance.md`, `peers §N` into `peer-platforms.md`. Path abbreviations: `PL/` = `packages/modules/price_lists/src/`, `CON/` = `packages/contracts/src/`, `CAT/` = `packages/modules/catalog/src/`, `SF/` = `storefront/`.
 
 ---
 
-## Summary
+## Current read paths (after feature 160)
+
+Every path prices through one of the batched entry points of `PL/backend/services/pricing-service.ts`
+(`resolveListingPrices`, `resolveListingPriceDetails`, `resolveLinePrices`) or reads the price
+surface; a batch costs a constant number of statements whatever the number of products, lines or
+books. Measurements are in §7.
+
+| Path | Entry point | Cost | Held by |
+| --- | --- | --- | --- |
+| Listing page, 50 cards (catalogue, home cards, product links) | `resolveListingPrices` / `…Details`, variants ranged | constant statements per page (≤ 15 asserted); `book-resolver.bench.ts` 50-product page p95 11.1–13.0 ms (budget 60) | `IT/price_lists/book-statement-budget.test.ts`, `listing-prices-batch.test.ts` |
+| Product page | the listing details of the product; the selected variant through `resolved-price?variantId=` | one resolution per page, one more for a selected variant | `customer-own-group-every-path.test.ts`, `storefront/test/catalog/single-price-resolution.test.tsx` |
+| Search hits and typeahead | `resolveListingPriceDetails` per page / popup; the typeahead passes the request currency (open after P0, closed by 160) | one batch | `packages/modules/search/src/backend/services/cross-module-ports.test.ts` |
+| Price-sorted and price-range page | `orderByUnitPrice` / `pricedProductIds` over the price surface — a two-stream merge | first page p95 ≤ 28.2 ms at 50 000 products (T133); a change visible in the order within 42–57 s | `IT/price_lists/price-surface-identity.test.ts`, `price-surface-refresh.test.ts`, `perf/price_lists/price-surface.bench.ts` |
+| Cart read, add, merge, quantity change, placement check | `resolveLinePrices` inside `CartLinePricing.orderablePrices`, with each line's `variantId` | one batch per basket | `IT/carts/cart-read-equals-placement.test.ts`, `IT/price_lists/line-prices-batch.test.ts` |
+| Admin order preview, external order intake | `resolveLinePrices` (one per request — the N+1 P0 left open, closed by 160) | one batch | `IT/price_lists/pricing-surfaces-agree.test.ts` |
+| Product feed generation and the criteria count | `resolveLinePrices` per batch as a guest; `namedListPrices` for a pinned book (closed by 160) | one batch per 500 items | `pricing-surfaces-agree.test.ts` |
+| Quote reference prices | `BuyerLinePricePort.resolveForBuyer`, request currency | one batch per 100-line chunk | `PL/backend/services/buyer-line-price-service.test.ts` |
+| External catalogue API (list, detail, bulk prices) | `resolveLinePrices`; the tier ladder from `listTierStarts` | one batch per call | `backend/test/contract/catalog/bulk-pricing-parity.test.ts` |
+| Admin price explainer | `POST /api/v1/admin/price-books/resolve` → `BuyerLinePriceService.resolveDetailed` | one batch, ≤ 200 lines | `backend/test/contract/price_lists/price-books-resolve.test.ts` |
+| Admin price grid page | `GET /api/v1/admin/price-books/:id/lines` | p95 ≤ 125.3 ms on a 50 003-line book, steady state (161 G15) | `perf/price_lists/book-lines-page.bench.ts` |
+| CSV import preview and save | `PUT …/rows?dryRun=true`, then `PUT …/rows` | 5 000 rows: preview 205 ms, commit 1 024 ms; 1 000 rows: 83 ms file to preview | `perf/price_lists/editor-import-save.bench.ts` |
+
+## Still open
+
+- The **external catalogue API** prices the bound organization with its group; the API key's bound
+  customer account's own group is not passed.
+- **Next.js `pricing:*` cache tags** are never revalidated by the backend (§2.4).
+- **Short price-sorted and search pages** (#235, §3).
+- Issues **#167** and the quote-line half of **#303** (§8).
+- The **display-mode settings write** is not on the Command Bus (pre-existing,
+  `PL/backend/services/price-list-service.ts`).
+- **The price surface is rebuilt whole.** Every pricing-generation bump — a price-book write, a
+  status flip, any product, category, attribute or channel event — marks **every** profile stale
+  (`PriceSurface.markStale`), and the worker rebuilds every stale profile over the whole catalogue.
+  The SC-005 freshness figures (§7) were measured with five profiles built; the time to rebuild
+  hundreds of profiles, and how often a busy catalogue (a PIM import emitting one
+  `product.updated.v1` per product) keeps them stale, is **not measured**.
+- **SC-004 after the switch**: `catalog/listing-price-viewer-cost.bench.ts` has not been re-run on
+  the price-book engine; the listing budget is held by the statement assertion and
+  `book-resolver.bench.ts` above.
+
+## Summary of the pre-160 baseline
 
 | Path | Cost (cold) | Notes |
 | --- | --- | --- |
@@ -66,7 +104,7 @@ Still open after P0 (not fixed, by decision or scope):
 - Short price-sorted and search pages (#235, §3).
 - Issues #167 and the quote-line half of #303 (§8).
 
-## Detailed audit
+## Detailed audit (pre-160 baseline)
 
 Read-only audit. "Inferred" marks a conclusion drawn from code that was not executed or measured.
 
@@ -380,16 +418,22 @@ with `defaultPrice` fallback (`order-api-intake-service.ts:352-376`).
 
 ## 7. Performance tests, budgets, indexes
 
-Benches (all `describe.skipIf(PERF_RUN !== 'true')`):
+Benches (all `describe.skipIf(PERF_RUN !== 'true')`), as they stand after feature 160:
 
-| Bench | What | Budget / measured |
+| Bench | What | Budget / latest measurement |
 | --- | --- | --- |
-| `backend/test/perf/price_lists/resolver.bench.ts` | `resolveEngine`, 50 active lists, no cache | spec target p95 < 50 ms (`:24`); measured p95 8.5–11 ms; budget **35 ms** (`:39-46, 64`) |
-| `backend/test/perf/catalog/listing-price-cost.bench.ts` | anonymous priced page over HTTP | measured p95 77–87 ms; budget **275 ms** (`:28-46`) |
-| `backend/test/perf/catalog/listing-price-viewer-cost.bench.ts` | cold/warm, anon vs signed-in, statement counts | 14/15 statements cold, p95 ~22 ms (`:43-68`); corpus 120, no categories (`:70-87`) |
-| `backend/test/perf/price_lists/matrix-resolver.bench.ts` | listing + ordered page with matrix entries | listing p95 11–15 ms (budget 60), ordered 3–41 ms (budget 150) (`:37-58`) |
-| `backend/test/perf/catalog/price-sort-cost.bench.ts` | query plans of the merge, 5 000 products | plan-shape comparisons (`:17-41`) |
+| `backend/test/perf/price_lists/price-surface.bench.ts` | SC-005: price-sorted and range pages over the surface, 50 000 products, 1 000 organizations; refresh latency | p95 ≤ **150 ms** per page, a change visible ≤ **60 s**; T133 (2026-10-22): p95 ≤ 28.2 ms, refresh 47.2 s |
+| `backend/test/perf/price_lists/book-resolver.bench.ts` | a 50-product listing page on the price-book resolver (replaced `matrix-resolver.bench.ts`) | budget **60 ms** p95; 13.0 ms (no book), 11.5 ms (100 rows), 11.1 ms (1 950 rows on other products) |
+| `backend/test/perf/price_lists/book-lines-page.bench.ts` | the admin grid's line pages, 50 003-line base book (161 G15) | budget **150 ms** p95; steady: every case ≤ 150 ms, largest 125.3 ms; fresh data before the first autovacuum: three broad-search cases 150.6–152.6 ms (accepted, issue #409) |
+| `backend/test/perf/price_lists/editor-import-save.bench.ts` | a 5 000-row import preview and commit; a 1 000-row file to preview | preview 205 ms, commit 1 024 ms; 83 ms (2026-10-23) |
+| `backend/test/perf/catalog/listing-price-cost.bench.ts` | anonymous priced page over HTTP | budget **275 ms** p95 (pre-160 measurement 77–87 ms) |
+| `backend/test/perf/catalog/listing-price-viewer-cost.bench.ts` | cold/warm, anonymous vs signed-in, statement counts | baseline below (T002); not re-run after the switch |
 | `backend/test/perf/catalog/listing-filtered-page.bench.ts`, `listing-card-reads-cost.bench.ts`, `carts/cart-routes.bench.ts` | adjacent | not pricing-specific |
+
+Deleted with the old model (feature 160, T126): `price_lists/resolver.bench.ts` (superseded by
+`book-resolver.bench.ts`), `price_lists/matrix-resolver.bench.ts` (rewritten as
+`book-resolver.bench.ts`) and `catalog/price-sort-cost.bench.ts` (it measured the feature-086 SQL
+builder; the SC-005 bench measures the surface).
 
 **SC-004 baseline (feature 160, T002).** Re-measured with `PERF_RUN=true` on
 `feat/160-pricing-model-v2` before the engine switch (old model, one developer machine, local
@@ -430,10 +474,17 @@ measured 2 401.9 ms p95 before `PriceSurface` skipped the everyone stream for a 
 every product. The organization pages vary between runs (up to 110 ms p95 against 18 ms in an
 earlier run); all stay within budget, and the refresh is within its 60 s with little headroom.
 
-What is **not** measured (gap): catalogue scale beyond 5 000 products for the listing path; many
-(100s) active price lists with org-targeted rules (the resolver loads and evaluates all of them per
-request); category-rule-heavy configurations; multi-replica cache behaviour; typeahead and
-cart/checkout with large baskets. (The typeahead, external-API and cart N+1 paths are batched since
+**Final verification (feature 160, T133, 2026-10-22).** The SC-005 bench green on the release
+branch: every page p95 ≤ 28.2 ms, a single-book change visible in the order after 47.2 s.
+
+**The editor (feature 161, 2026-10-22/23).** The admin grid's line pages and the CSV import, on the
+same machine: figures in the bench table above and in `specs/161-price-book-editor/plan.md`
+*Measurements*.
+
+What is **not** measured (gap): catalogue scale beyond 5 000 products for the listing path; the
+time to rebuild the surface with hundreds of profiles (the bench builds five), and how often a busy
+catalogue keeps it stale; multi-replica cache behaviour; typeahead and cart/checkout with large
+baskets. (The typeahead, external-API and cart N+1 paths are batched since
 P0, with a statement-count assertion in `line-prices-batch.test.ts`.)
 
 Specs: the canonical tree carries only `specs/148-price-list-matrix-rules/` for pricing

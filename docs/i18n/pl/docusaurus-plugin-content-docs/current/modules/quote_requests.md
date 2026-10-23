@@ -41,7 +41,7 @@ dodatkowo wymagają podania `expectedRevisionNumber`.
 | `PATCH /api/v1/quote-requests/:id` | klient | Edycja zapytania w statusie Pending, którego strona wewnętrzna jeszcze nie zmieniła — zob. *Edycja szkicu przez klienta*. |
 | `POST /api/v1/quote-requests/:id/accept-revision` | klient | Akceptacja najnowszej wersji przygotowanej przez sprzedawcę (dotyczy też `Created from admin`). Wymaga oferty sprzedawcy z wyceną każdej pozycji — zob. *Uzgodnione ceny*. |
 | `POST /api/v1/quote-requests/:id/reject-revision` | klient | Odrzucenie najnowszej wersji z opcjonalnym powodem. |
-| `POST /api/v1/quote-requests/:id/resubmit` | klient | Skopiowanie starego zapytania do nowego, w statusie Pending, według bieżącego cennika klienta. |
+| `POST /api/v1/quote-requests/:id/resubmit` | klient | Skopiowanie starego zapytania do nowego, w statusie Pending, według bieżących cen klienta. |
 | `POST /api/v1/quote-requests/:id/convert-to-order` | klient | Wypełnienie koszyka klienta pozycjami zapytania w statusie Approved po uzgodnionych cenach jednostkowych i zwrócenie adresu procesu zamówienia. |
 | `GET /api/v1/admin/quote-requests` | administrator | Lista zawężona do przypisań opiekuna handlowego, z filtrami według statusu i organizacji. |
 | `GET /api/v1/admin/quote-requests/:id` | administrator | Szczegóły z pełną tożsamością wykonawców w dzienniku zdarzeń oraz, dla każdej pozycji, ceną referencyjną i propozycją klienta — zob. *Cena referencyjna*. |
@@ -107,7 +107,10 @@ klienta.
 
 - **Netto, za jednostkę podstawową.** To cena jednostkowa netto jednej sztuki podstawowej —
   jednostki, w której liczona jest ilość każdej pozycji — bez względu na jednostkę opakowania
-  wybraną przez klienta. Obowiązują cenniki klienta, przedział ilościowy i aktywna cena promocyjna.
+  wybraną przez klienta. To cena, którą cenniki naliczają temu klientowi za produkt, wariant i
+  ilość pozycji — cena bazowa, cena katalogowa dla wszystkich w kanale, cena organizacji lub grupy
+  klientów klienta oraz cena promocyjna, gdy jest niższa (zob. stronę modułu `price_lists`) — w
+  walucie zapytania, jeśli ją wskazuje, a w przeciwnym razie w domyślnej walucie kanału.
 - **Ustalana na serwerze, dla właściciela zapytania, w kanale sprzedaży zapytania.** Właścicielem
   jest konto klienta, które złożyło zapytanie, i jego organizacja — także wtedy, gdy administrator
   organizacji edytuje szkic współpracownika. Cena przysłana przez klienta nigdy nie jest używana:
@@ -121,6 +124,13 @@ klienta.
 - **Koszyk jest własnym punktem odniesienia.** Zapytanie utworzone z koszyka zapisuje cenę
   jednostkową każdej pozycji koszyka jako cenę referencyjną tej pozycji. **Nie** zapisuje jej jako
   propozycji klienta: takie pozycje nie mają proponowanej ceny.
+
+Dla programistów: zapisywana cena referencyjna jest ustalana przez port `buyerLinePricePort` modułu
+`price_lists` (`BuyerLinePricePort.resolveForBuyer` w `@endora-commerce/contracts`), który wycenia
+wszystkie pozycje zapytania partiami, tą samą wyceną co koszyk; port nie sprawdza uprawnień, więc ten
+moduł przekazuje właściciela zapytania, którego już autoryzował. *Bieżąca cena* na ekranach panelu
+administracyjnego pochodzi z `POST /api/v1/admin/price-books/resolve`, chronionego uprawnieniem
+`price_lists:read`.
 
 Ekran szczegółów w panelu administracyjnym pokazuje dla każdej pozycji cenę referencyjną,
 proponowaną przez klienta cenę jednostkową, różnicę między nimi jako kwotę ze znakiem i jako
@@ -984,8 +994,8 @@ Bez uprawnienia `catalog:read` obie te opcje są nieaktywne i każda pokazuje po
 Każda pozycja pokazuje nazwę i SKU produktu, edytowalną ilość (liczbę całkowitą), edytowalną
 uzgodnioną cenę jednostkową i akcję usunięcia.
 
-**Uzgodniona cena jednostkowa jest wstępnie wypełniana z cenników klienta** przez
-`GET /api/v1/admin/products/:id/resolved-price` dla wybranego klienta i ilości w pozycji, przy
+**Uzgodniona cena jednostkowa jest wstępnie wypełniana bieżącą ceną klienta** przez
+`POST /api/v1/admin/price-books/resolve` dla wybranego klienta i ilości w pozycji, przy
 najwyżej czterech żądaniach naraz. Cena jest wypełniana dopiero po wybraniu klienta z organizacją —
 pozycje dodane wcześniej są wtedy uzupełniane — a odpowiedź jest stosowana tylko wtedy, gdy nadal
 pasuje do produktu, ilości i klienta pozycji. Gdy żadna cena nie zostanie wyznaczona, pole zostaje

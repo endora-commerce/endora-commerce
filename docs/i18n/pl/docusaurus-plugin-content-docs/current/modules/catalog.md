@@ -53,6 +53,49 @@ w obu przypadkach każda cena podaje swoją walutę. Niepoprawny kod jest odrzuc
 | `PUT /api/v1/admin/catalog/categories/:id/content` | administrator | Zastąpienie treści strony kategorii; `null` ją czyści |
 | `PUT /api/v1/catalog/products/by-sku/:sku` | klucz API | Idempotentne utworzenie lub aktualizacja (synchronizacja PIM) |
 
+## Ceny
+
+**Produkt nie ma własnej ceny.** Każda cena jest wierszem cennika modułu `price_lists`: cena bazowa
+produktu w każdej walucie, ceny jego wariantów oraz każda cena katalogowa, cena kupującego i cena
+promocyjna. Cenę bazową produktu ustawia się w zakładce **Pricing** edytora produktu — panel *Ceny
+bazowe* i lista cenników ustalających cenę produktu pochodzą z modułu `price_lists` — albo w siatce
+cennika cen bazowych. Ceny wariantów ustawia się w tych samych miejscach, nigdy w samym wariancie.
+Na stronie modułu `price_lists` opisano, jak wybierana jest cena, którą płaci kupujący.
+
+- **Karty na listach, strona produktu i produkty powiązane** pokazują własną cenę oglądającego —
+  ceny jego organizacji i grupy klientów w kanale sprzedaży i walucie żądania. Produkt, którego
+  warianty kosztują różnie, pokazuje najniższą cenę jako cenę *od* (`ProductSummary.price` niesie
+  `variesByVariant` i `maxAmount`); naliczona cena promocyjna niesie zwykłą cenę kupującego jako cenę
+  porównawczą; przy włączonym `pricing.show_list_price` niższa cena kupującego niesie cenę katalogową
+  jako `listPrice`. Produkt, którego nic nie wycenia, nie ma ceny i prowadzi do zapytania ofertowego.
+- **Sortowanie i filtrowanie według ceny** — `?sort=price`, `?sort=-price`, `minPrice`, `maxPrice`
+  w `GET /api/v1/catalog/products` — porządkują i wybierają według tej samej ceny dla ilości 1, którą
+  karty pokazują temu oglądającemu, a dla produktu z wariantami według ceny *od*. Produkty z ceną
+  zawsze są przed produktami bez ceny. Porządek według ceny zawsze pochodzi z PostgreSQL, nigdy z
+  indeksu wyszukiwania.
+- **Szczegóły produktu w niepublicznym kanale sprzedaży** nie zawierają ceny.
+
+Dla programistów: ścieżki list wyceniają całą stronę jednym zbiorczym wywołaniem —
+`resolveListingPrices` albo `resolveListingPriceDetails` tam, gdzie strona pokazuje podział
+(`ProductSummary.resolvedPrice`: `basePrice`, `salePrice`, `listPrice`, `displayMode`) — przez
+wycinki portu `pricingService` z `@endora-commerce/contracts`, przekazując organizację i konto
+klienta oglądającego, a nie wyliczoną grupę. Porządek według ceny czyta `ListingPriceOrderPort`
+(`orderByUnitPrice`, `pricedProductIds`) z wstępnie wyliczonej powierzchni cen modułu `price_lists`,
+a końcówkę bez cen składa sam (`catalog-query.service.ts`). Zewnętrzne API katalogu wycenia przez
+`resolveLinePrices` i buduje drabinę progów związanej organizacji z `listTierStarts`. Zapisy
+produktów, kategorii i atrybutów publikują zdarzenia, które subskrybuje `price_lists`; czyszczą one
+pamięć podręczną cen i oznaczają powierzchnię cen jako nieaktualną.
+
+### Usunięte pola cen (uwaga migracyjna)
+
+Wydanie, które wprowadziło cenniki w obecnym kształcie, usunęło *Default unit price* produktu
+(klucze `defaultPrice` i `price` w `attributeValues` oraz pole edytora) oraz nadpisanie ceny wariantu
+(`product_variants.price_override` i pole ceny w edytorze wariantu), bez konwersji żadnego z nich.
+Tworzenie i aktualizacja produktu i wariantu oraz import produktów odrzucają te pola z kodem
+`400 PRICE_SET_IN_PRICE_BOOKS` (`PRICE_FIELDS_REFUSED_ON_PRODUCTS`, `PRICE_FIELDS_REFUSED_ON_VARIANTS`
+w `@endora-commerce/contracts`), informując, że ceny ustawia się w cennikach. Migracja katalogu
+`20261022T111811_catalog_price_fields_removed.ts` usunęła kolumnę i klucze.
+
 ## Encje
 
 `Product`, `ProductVariant`, `Category`, `ProductAttribute`, `SalesChannel`, tabele łączące
@@ -198,9 +241,9 @@ w całości; ścisłe schematy to `CATALOG_WEBHOOK_EVENT_SCHEMAS` w `@endora-com
 
 ## Punkty rozszerzenia
 
-- **Ceny w poszczególnych kanałach sprzedaży** — usługa zapytań dostaje kontekst kanału sprzedaży;
-  nowe ograniczenia (np. katalogi dla segmentów klientów) dodaje się przez kompozycję w
-  `catalog-query.service.ts`.
+- **Listy w poszczególnych kanałach sprzedaży** — usługa zapytań dostaje kontekst kanału sprzedaży,
+  a każda pokazywana cena jest wyceniana dla tego kanału; nowe ograniczenia (np. katalogi dla
+  segmentów klientów) dodaje się przez kompozycję w `catalog-query.service.ts`.
 - **Unikalność sluga** — slug jest domyślnie unikalny we wszystkich kanałach sprzedaży; jeśli kolizje
   między językami staną się problemem, nadpisz mechanizm tworzenia slugów w
   `catalog-admin.service.ts`.

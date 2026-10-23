@@ -7,8 +7,8 @@ title: Hierarchia organizacji
 Organizacje można zagnieżdżać w **drzewo**: centrala ma oddziały, a oddziały mogą mieć
 pododdziały. W drzewie przekazywane są dwie rzeczy — **zakres dostępu** (użytkownik organizacji
 nadrzędnej z włączonym wglądem w strukturę albo handlowiec z ograniczonym zakresem widzi całe
-poddrzewo) oraz **warunki handlowe** (organizacja podrzędna bez własnego cennika albo limitu
-kredytowego dziedziczy je po najbliższej organizacji nadrzędnej).
+poddrzewo) oraz **warunki handlowe** (organizacja podrzędna bez własnej ceny danego produktu albo
+bez limitu kredytowego dziedziczy je po najbliższej organizacji nadrzędnej).
 
 To warstwa dodana do płaskiego modelu organizacji. Każda organizacja zaczyna jako **korzeń** (bez
 organizacji nadrzędnej), a płaska instalacja działa bajt w bajt tak samo jak przed wprowadzeniem
@@ -65,19 +65,23 @@ nadrzędnej.
 
 ### Cenniki
 
-Cenniki wskazują organizacje regułą stosowania (bez klucza obcego do organizacji). Mechanizm
-wyznaczania cen buduje listę kandydatów jako `[thisOrg, …ancestors]` (od najbliższej) i zachowuje
-istniejącą kolejność priorytetów (`organization` > `customerGroup` > `category` > `salesChannel`):
+Cennik dla organizacji wskazuje swoich odbiorców w nagłówku. Oddział jest wyceniany przez cenniki
+wskazujące sam oddział **oraz** przez cenniki wskazujące którąkolwiek z jego organizacji nadrzędnych:
+wycena buduje łańcuch organizacji kupującego jako `[thisOrg, rodzic, dziadek, …]` (od najbliższej), a
+udział biorą wszystkie cenniki wskazujące członka tego łańcucha.
 
-- cennik wskazujący **bliższą** organizację ma pierwszeństwo przed dalszą organizacją nadrzędną, więc
-  **własny cennik oddziału zawsze wygrywa**;
-- odziedziczony cennik wskazujący organizację nadrzędną nadal ma pierwszeństwo przed cennikiem grupy
-  klientów, kategorii czy kanału sprzedaży;
-- oddział bez własnego cennika korzysta z cennika najbliższej organizacji nadrzędnej, zanim przejdzie
-  do poziomów niezwiązanych z organizacją.
+W kolejności cen łańcuch rozstrzyga **wewnątrz komórki**: gdy własny cennik oddziału i cennik
+centrali wyceniają produkt w tej samej komórce — na przykład oba linią *organizacja × produkt* —
+wygrywa bliższa organizacja, więc **cena oddziału zawsze wygrywa** z ceną centrali dla tego samego
+rodzaju linii. Komórka nadal jest pierwsza: przy domyślnej kolejności *Najpierw umowa, rabat ogólny
+na końcu* cena centrali za produkt wygrywa z własnym rabatem oddziału na kategorię tego produktu,
+bo *organizacja × produkt* stoi wyżej niż *organizacja × kategoria*. Oddział bez linii w danej
+komórce dziedziczy w niej linię centrali. Cenniki rodzeństwa nie wpływają na siebie nawzajem.
+Cenniki grup klientów obowiązują przez jedną grupę klientów kupującego, nigdy przez grupę organizacji
+nadrzędnej.
 
-Zmienia się tylko ta gałąź — organizacje siostrzane pozostają bez zmian. Wyznaczanie odbywa się w
-jednym przebiegu (bez osobnego przebiegu dla każdej organizacji nadrzędnej).
+Pełna kolejność cen jest na stronie modułu `price_lists`; strona szczegółów organizacji wymienia
+cenniki, które do niej docierają, także te dziedziczone.
 
 ### Limity kredytowe
 

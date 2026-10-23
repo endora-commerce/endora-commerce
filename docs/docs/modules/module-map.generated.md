@@ -66,7 +66,7 @@ of the platform, not of what happens to be written.
 | [payment_methods](./payment_methods.md) | Configured payment methods | @endora-commerce/mod-payment-methods |
 | [payments](./payments.md) | Payment driver dispatch + settlement events | @endora-commerce/mod-payments |
 | `pim_connector` | _no page yet_ | @endora-commerce/mod-pim-connector |
-| [price_lists](./price_lists.md) | Customer / group / default pricing with volume tiers + per-category adjustments | @endora-commerce/mod-price-lists |
+| [Price books](./price_lists.md) | Price books — base prices per currency, catalogue, buyer and sale prices on sales channels, and the rules that decide what each buyer pays. | @endora-commerce/mod-price-lists |
 | [Product Feeds](./product_feeds.md) | Provider-shaped product feeds per sales channel — scheduled generation, tokenised pull URLs and SFTP/FTP/HTTP push | @endora-commerce/mod-product-feeds |
 | [promotions](./promotions.md) | Cart-level percentage / amount / free-delivery discounts with eligibility filters | @endora-commerce/mod-promotions |
 | [Prompt Actions (AI assistant)](./prompt-actions.md) | Natural-language prompt mode for the admin command palette, with an explicit preview-and-confirm step before any change | @endora-commerce/mod-prompt-actions |

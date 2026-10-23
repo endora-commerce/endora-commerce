@@ -109,6 +109,31 @@ replayable from the admin **Webhooks → Deliveries** view. See the
 [webhooks module](../modules/webhooks.md) for the delivery contract and retry
 model.
 
+### Price surface refresh — `price_lists.surface`
+
+Keeps the prices that **price-sorted and price-filtered** product listings are
+ordered by up to date. Those listings cannot be ordered from the search index —
+every buyer may have their own prices — so the `price_lists` module precomputes
+each product's price per group of buyers that share the same price books (a
+*pricing profile*). Every committed price change — a price book, its rows,
+channels or members, base prices, a status change by the sweep below, a product,
+category or attribute change, a change to a sales channel — marks the profiles
+stale and enqueues **one coalesced job** (a fixed job id, so a burst of writes
+costs one rebuild; three attempts with exponential backoff).
+
+The consumer builds never-built profiles first, then rebuilds the stale ones, and
+swaps each new set of prices in one transaction. A request never waits for it:
+a stale profile keeps serving its previous order, and the prices on the product
+cards are always resolved live, so only the **order** of a price-sorted listing
+lags a change — by the consumer's turnaround. The job is idempotent (a rebuild
+recomputes from source), so a retry or a second worker instance is harmless.
+
+**If no worker consumes this queue** — a process tier without consumers, or no
+Redis — the profiles are never built: price-sorted listings are then ordered
+from a live resolution when they are narrowed to at most 5 000 products (a
+category, a search), and otherwise served in the catalogue's default order with
+correct prices on the cards. Run the worker wherever price sorting matters.
+
 ## Other background jobs (not yet on a shared queue)
 
 A few periodic/maintenance jobs still run as in-process timers or manual
@@ -119,7 +144,7 @@ to the same worker model; document and operate them as follows in the meantime:
 | --- | --- | --- |
 | Cart abandonment sweep | Manual / cron script | `pnpm --filter backend run cart:abandonment-sweep` |
 | Full search re-index | Manual CLI | `pnpm --filter backend run search:reindex` |
-| Price-list status sweep | In-process `setInterval` (every 5 min) | starts with the API process |
+| Price-book status sweep (moves *Scheduled* books to *Active* and *Active* ones to *Expired* for the admin's display; prices follow a book's dates at the exact instant regardless) | In-process `setInterval` (every 5 min) | starts with the API process |
 | RFQ expiry | Service method, invoked on a schedule | `RfqExpiryWorker.sweep()` |
 
 :::note

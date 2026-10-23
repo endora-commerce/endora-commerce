@@ -79,7 +79,7 @@ kontrola CI `check-entity-tenant-classification.ts` przerwie build):
 | `@OrgScoped()` | ma kolumnę `organizationId` |
 | `@CustomerScoped()` | ma kolumnę `customerAccountId`, a nie ma kolumny organizacji |
 | `@TransitivelyScoped('Parent', 'fk')` | należy do organizacji przez agregat nadrzędny (np. `Invoice` → `Order`) |
-| `@RuleScoped()` | wskazuje organizacje przez regułę lub JSONB, a nie kolumnę (np. `price_lists.applicationRule`) |
+| `@RuleScoped()` | wskazuje organizacje jako współrzędną biznesową, a nie kolumnę właściciela (np. cenniki modułu `price_lists`, których odbiorcy wskazują organizacje w `price_list_audience_members`; każdy odczyt cen zawęża tych odbiorców do łańcucha organizacji i grupy samego kupującego) |
 | `@GlobalEntity()` | jest globalna dla platformy albo jest konfiguracją (bez tenanta) |
 
 `@OrgScoped` i `@CustomerScoped` podpinają filtr; pozostałe dekoratory to wyłącznie metadane — ich

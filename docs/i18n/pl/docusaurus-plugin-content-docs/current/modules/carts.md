@@ -88,7 +88,7 @@ Brak akceptowania własnych koszyków: koszyk utworzony przez administratora org
 | `POST /api/v1/cart/coupon` | Zastosowanie (albo zamiana, albo usunięcie) aktywnego kodu kuponu; przy odrzuceniu 422 `CART_COUPON_REJECTED` z powodem |
 | `DELETE /api/v1/cart/coupon` | To samo co `POST {code: null}` |
 | `POST /api/v1/cart/convert-to-quote-request` | Koszyk → zapytanie ofertowe; koszyk źródłowy przechodzi w stan `completed` z ustawionym `converted_to_quote_request_id` |
-| `POST /api/v1/cart/from-quote-request/:qrId` | Zapytanie ofertowe → koszyk; ceny pozycji są wyznaczane ponownie według bieżącego cennika klienta |
+| `POST /api/v1/cart/from-quote-request/:qrId` | Zapytanie ofertowe → koszyk; ceny pozycji są wyznaczane ponownie według bieżących cen klienta |
 | `POST /api/v1/cart/from-shopping-list/:listId` | Lista zakupów → koszyk; ceny są wyznaczane ponownie |
 
 ### Storefront (administrator organizacji)
@@ -134,19 +134,35 @@ Pozycja koszyka jest zamawiana po zapisanej cenie `unit_price`, dlatego ta cena 
   łączenie koszyka anonimowego przy logowaniu i wypełnienie koszyka na podstawie dawnego zamówienia
   (ponowne zamówienie) zapisują cenę dla ilości wynikowej — próg ilościowy cennika dotyczy ilości,
   która jest faktycznie zamawiana.
-- Cena pochodzi z cennika organizacji kupującego, a gdy żaden cennik nie ma zastosowania — z ceny
-  własnej produktu (atrybut `defaultPrice`). Produkt bez żadnej z nich jest odrzucany z kodem
-  `422 CART_PRODUCT_UNPRICED`, a produkt sprzedawany wyłącznie na zapytanie — z kodem
-  `400 CART_PRODUCT_QUOTE_ONLY`.
+- Cena pochodzi z cenników (moduł `price_lists`) — dla produktu **i wariantu** pozycji, w kanale
+  sprzedaży koszyka, dla kupującego koszyka: cena bazowa, cena katalogowa dla wszystkich w kanale,
+  cena organizacji lub grupy klientów kupującego oraz cena promocyjna, gdy jest niższa. Innego
+  źródła nie ma: pozycji, której nie wycenia żaden cennik, nie można zamówić i jest odrzucana z
+  kodem `422 CART_PRODUCT_UNPRICED` — kupujący może zamiast tego poprosić o ofertę. Produkt
+  sprzedawany wyłącznie na zapytanie jest odrzucany z kodem `400 CART_PRODUCT_QUOTE_ONLY`.
 - Pozycja wypełniona z zaakceptowanego zapytania ofertowego zachowuje uzgodnioną cenę tylko przy
-  uzgodnionej ilości. Przy każdej innej ilości jest wyceniana z cennika, a po powrocie do uzgodnionej
-  ilości odzyskuje uzgodnioną cenę.
+  uzgodnionej ilości. Przy każdej innej ilości jest wyceniana z cenników, a po powrocie do
+  uzgodnionej ilości odzyskuje uzgodnioną cenę.
+- Każda pozycja zapisuje w `price_source`, **skąd pochodzi jej cena**: `agreed` (cena uzgodniona w
+  ofercie), `base`, `catalogue`, `buyer` albo `sale` (krok wyceny w cennikach, który ją ustalił);
+  na pozycji wycenionej przed wprowadzeniem cenników pole ma wartość `null`. Złożenie zamówienia
+  kopiuje je na pozycję zamówienia.
+- `GET /api/v1/cart` pokazuje każdą pozycję w cenie, którą teraz naliczyłoby złożenie zamówienia,
+  tym samym łańcuchem, a pozycję, którą złożenie zamówienia by odrzuciło, pokazuje jako niedostępną.
 - Przy składaniu zamówienia moduł zamówień pyta ten moduł, czy każda zapisana cena jest nadal
-  aktualna. Jeśli któraś nie jest — zwykle dlatego, że cena w cenniku zmieniła się po dodaniu
-  pozycji — złożenie zamówienia jest odrzucane z kodem
+  aktualna. Jeśli któraś nie jest — zwykle dlatego, że cennik zmienił się po dodaniu pozycji —
+  złożenie zamówienia jest odrzucane z kodem
   `409 CART_PRICE_CHANGED` (`details.lines` wymienia każdą taką pozycję z poprzednią i bieżącą ceną
   jednostkową), ceny w koszyku są aktualizowane, a kupujący sprawdza koszyk przed ponownym złożeniem
   zamówienia.
+
+**Dla programistów.** Cały łańcuch to jedna funkcja, `CartLinePricing.orderablePrices`
+(`src/backend/services/cart-line-pricing.ts` w tym module): cena uzgodniona przy
+uzgodnionej ilości, w przeciwnym razie cenniki — jednym zbiorczym wywołaniem `resolveLinePrices` dla
+wszystkich pozycji koszyka (z `variantId` każdej pozycji) — a w przeciwnym razie nic. Wywołują ją
+dodawanie, łączenie, zmiana ilości, odczyt koszyka (`CartPricingRecompute`) i kontrola przy
+składaniu zamówienia, więc cena, którą kupujący widzi w koszyku, jest ceną, którą nalicza złożenie
+zamówienia — pilnuje tego `backend/test/integration/carts/cart-read-equals-placement.test.ts`.
 
 ## Ustawienia
 
@@ -197,8 +213,8 @@ porzucenia mógł ponownie wysłać powiadomienie.
   jest wysyłana z jej `packagingUnitId`; pozycja, której jednostkę w międzyczasie usunięto, jest
   wysyłana jako zwykłe sztuki, z niezmienioną liczbą sztuk.
 - **Zapytanie ofertowe → koszyk**: dodaje pozycje zapytania jedną partią
-  (`CartService.addItems`, zob. *Minimalne ilości zamówienia* niżej), z cenami wyznaczanymi przez
-  `PricingService`. `desired_unit_price` z zapytania jest celowo pomijane — źródłem prawdy są
+  (`CartService.addItems`, zob. *Minimalne ilości zamówienia* niżej), wyceniane z cenników jak
+  każda inna pozycja. `desired_unit_price` z zapytania jest celowo pomijane — źródłem prawdy są
   bieżące ceny kontraktowe kupującego. Pozycje niedostępne, bez ceny albo niemożliwe do kupienia są
   pomijane i zwracane w `droppedLines[]` z typowanym powodem; pozycja poniżej minimum produktu jest
   pomijana z powodem `below_minimum` i swoim `minimum` (wcześniej zgłaszano ją jako
@@ -304,9 +320,10 @@ odczytu to zmiana na później.
 
 ## Punkty rozszerzenia
 
-- **Ponowne wyznaczanie cen przy odczycie** — `CartPricingRecompute` i `CartRecomputeCache` (TTL 30 s
-  w Redis) istnieją i są przetestowane, ale nie są jeszcze podłączone do `GET /api/v1/cart`; dziś
-  zwracana jest zapisana wartość `unit_price`.
+- **Ponowne wyznaczanie cen przy odczycie** — `GET /api/v1/cart` wycenia każdą pozycję przez
+  `CartPricingRecompute`, który wywołuje `CartLinePricing.orderablePrices`; wynik jest przechowywany
+  w `CartRecomputeCache` (TTL 30 s w Redis), unieważnianym przy każdym zapisie koszyka. Odpowiedzi
+  operacji zmieniających koszyk zwracają zapisaną wartość `unitPrice`.
 - **Wysyłka e-maili** — e-maile o przekazaniu do akceptacji, akceptacji, odrzuceniu i porzuceniu są
   przygotowane w usługach jako szkielet; osobne szablony to zmiana na później.
 - **Harmonogram wyszukiwania porzuconych koszyków** — worker jest tworzony w produkcyjnej kompozycji,

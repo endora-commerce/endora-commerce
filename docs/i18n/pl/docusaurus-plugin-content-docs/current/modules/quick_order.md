@@ -31,8 +31,9 @@ sprawdzane względem katalogu:
   odrzucane. Ustawienie jest ograniczane do zakresu **1–10 000** bez względu na zapisaną wartość.
 
 `POST /api/v1/quick-order/build` zamienia potwierdzone, rozpoznane wiersze w **koszyk**
-(`CartService`) albo **zapytanie ofertowe** (`RfqService`), z cenami według bieżącego cennika
-kupującego lub organizacji. Odpowiedniki w panelu administracyjnym
+(`CartService`) albo **zapytanie ofertowe** (`RfqService`), z bieżącymi cenami kupującego z
+cenników — wyceną koszyka dla koszyka i cenami referencyjnymi zapytania dla zapytania.
+Odpowiedniki w panelu administracyjnym
 (`/api/v1/admin/quick-order/import` i `/build`, chronione przez `orders:write`) budują koszyk lub
 zapytanie w imieniu wybranego klienta przez `onBehalfOf`.
 

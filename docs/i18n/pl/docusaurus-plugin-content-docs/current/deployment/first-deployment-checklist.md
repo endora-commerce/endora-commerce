@@ -319,8 +319,9 @@ Te dwie i żadne inne. Kreator reguł promocji i kreator odbiorców PWA też pok
 każdy odczytuje ją przez **własny** endpoint modułu
 (`/api/v1/admin/promotions/rule-targets/customer-groups`,
 `/api/v1/admin/pwa/rule-targets/customer-groups`), chroniony własnym uprawnieniem odczytu modułu,
-więc to przyznanie ich nie dotyczy. Kreator reguł cenników był do niedawna wyjątkiem; teraz odczytuje
-listę z uprawnieniem `price_lists:read`, o czym mówi punkt D3.
+więc to przyznanie ich nie dotyczy. Tak samo jest z listą grup klientów w edytorze cenników: odczytuje
+ją `GET /api/v1/admin/price-books/targets/customer-groups` z uprawnieniem `price_lists:read`, o czym
+mówi punkt D3.
 
 To samo można zrobić przez API: `PUT /api/v1/admin/admin-roles/<code>` z pełną listą uprawnień
 roli, łącznie z nowymi kodami.
@@ -333,52 +334,48 @@ druga połowa dowodu.
 
 ### D3. Przyznaj `price_lists:read` i `price_lists:write`
 
-**Dlaczego.** Moduł `price_lists` nie deklarował kiedyś własnych uprawnień: wszystkie 25 jego tras
-administracyjnych było chronionych przez `catalog:write`. Rola z `catalog:write`, przyznanym po to,
-by ktoś mógł edytować opisy produktów, mogła też tworzyć, edytować i usuwać cenniki — czyli zmieniać,
-ile płacą klienci. Nikt nie wybrał takiej granicy; to skutek uboczny brakującej deklaracji. Moduł ma
-teraz `price_lists:read` i `price_lists:write` (`packages/modules/price_lists/src/manifest.ts`),
-przypisane według tego, co robi każda trasa, a nie hurtowo: odczyt listy, listy produktów, progów,
-nadpisań trybu wyświetlania cen i list wyboru celów reguł to `:read`; wszystko, co zapisuje dane, to
-`:write`.
+**Dlaczego.** Ceny mają własne uprawnienia, oddzielone od katalogu: rola z `catalog:write`, nadana
+po to, by ktoś edytował opisy produktów, nie może przez to zmieniać tego, ile płacą klienci. Moduł
+`price_lists` deklaruje `price_lists:read` i `price_lists:write`
+(manifest modułu `price_lists`, `src/manifest.ts`), podzielone według tego, co robi każda trasa:
+przeglądanie cenników, ich cen, cen bazowych, wyjaśnienia ceny i *Ustawień cenowych* oraz listy
+wyboru, z których korzystają, to `:read`; wszystko, co zapisuje — cenniki, wiersze, ceny bazowe,
+tryby prezentacji, ustawienie ceny katalogowej — to `:write`. API administracyjne to
+`/api/v1/admin/price-books/…`, a nadpisania trybów prezentacji są pod
+`/api/v1/admin/pricing/display-mode-overrides`.
 
-Ta sama zmiana zamknęła ostatnie działające zabezpieczenie w starym stylu:
-`GET /api/v1/admin/pricing/rule-targets/customer-groups` odpowiadał przy `catalog:write`, więc
-redaktor katalogu mógł wyświetlić grupy klientów. Teraz odpowiada przy `price_lists:read`, tak jak
-analogiczne endpointy w `promotions` i `pwa`.
+**Nic nie przyznaje tych kodów automatycznie**, a bramka zgodności, która akceptowałaby obok nich
+`catalog:write`, została zaproponowana i odrzucona, bo utrzymywałaby złe uprawnienie dłużej, niż
+było właściwe. Rola, która ma tylko `catalog:write`, nie ma więc **żadnego** dostępu do cen: znika
+pozycja **Cenniki** na pasku bocznym i akcje w `⌘K`, `/price-lists` odpowiada jak przy braku
+uprawnień, a zakładka **Pricing** w edytorze produktu nie pokazuje cen bazowych (panel odczytuje
+`GET /api/v1/admin/price-books/base-prices`, trasę `price_lists:read`). Rola z symbolem wieloznacznym
+`*` nie jest tym objęta.
 
-**Nic nie przyznaje nowych kodów automatycznie** — i tak jak w D2 zaproponowano i odrzucono
-zabezpieczenie przejściowe, które akceptowałoby obok nich `catalog:write`, bo utrzymywałoby błędne
-uprawnienie dłużej, niż było właściwe. Rola, która ma tylko `catalog:write`, nie ma więc **żadnego**
-dostępu do cen: znika pozycja na pasku bocznym, `/price-lists` zwraca 403, a zakładka **Pricing** w
-edytorze produktu pokazuje błąd zamiast powiązanych cenników (odczytuje
-`GET /api/v1/admin/products/:productId/price-lists`, które jest teraz trasą `price_lists:read`). Rola
-z uprawnieniem wieloznacznym `*` się nie zmienia.
-
-**Do zrobienia (operator).** Na `/admin-roles`, dla każdej roli innej niż `*`, jawnie zdecyduj o
-dostępie do cen:
+**Do zrobienia (operator).** Na `/admin-roles` dla każdej roli innej niż `*` zdecyduj świadomie o
+cenach:
 
 | Rola, której użytkownik… | potrzebuje |
 | --- | --- |
-| zarządza cennikami, progami, regułami albo nadpisaniami trybu wyświetlania cen (`/price-lists`, `/price-lists/:id`, `/price-lists/display-modes`) | `price_lists:read` i `price_lists:write` |
-| musi tylko zobaczyć, skąd bierze się cena — przegląda cenniki albo otwiera zakładkę **Pricing** produktu | `price_lists:read` |
-| pracuje na ekranie innego modułu, który oferuje wybór cennika lub waluty — te listy odczytują `GET /api/v1/admin/price-lists-engine` i `GET /api/v1/admin/pricing/rule-targets/currencies` | `price_lists:read`, oprócz własnych uprawnień tamtego modułu |
+| zarządza cennikami, cenami bazowymi albo trybami prezentacji (`/price-lists`, `/price-lists/new`, `/price-lists/:id`, `/price-lists/display-modes`, panel *Ceny bazowe* produktu) | `price_lists:read` + `price_lists:write` oraz `catalog:read`, by dodawać linie produktów przez przeglądarkę produktów (edytor ról pokazuje brak) |
+| potrzebuje tylko zrozumieć cenę z oferty — przegląda cenniki, otwiera wyjaśnienie ceny albo zakładkę **Pricing** produktu | `price_lists:read` |
+| wypełnia uzgodnione ceny na ekranach zapytań ofertowych w panelu, które wywołują `POST /api/v1/admin/price-books/resolve` | `price_lists:read`, oprócz własnych uprawnień tamtego modułu (`rfqs:handle` deklaruje je jako wymagane) |
 | edytuje treści katalogu i **nie może** zmieniać cen | żadnego — zostaw `catalog:write` bez zmian |
 
-Ostatni wiersz to sens całej zmiany: od teraz `catalog:write` oznacza treści katalogu i nic więcej.
-Przejrzyj każdą istniejącą rolę z tym uprawnieniem i zdecyduj, do którego z dwóch pierwszych wierszy
-— jeśli do któregokolwiek — również należy.
+Ostatni wiersz to sens podziału: `catalog:write` oznacza treści katalogu i nic więcej. Przejrzyj
+każdą istniejącą rolę, która je ma, i zdecyduj, do których z pierwszych wierszy — jeśli do
+któregokolwiek — też należy.
 
 To samo można zrobić przez API: `PUT /api/v1/admin/admin-roles/<code>` z pełną listą uprawnień
 roli, łącznie z nowymi kodami.
 
-**Weryfikacja.** Zaloguj się jako użytkownik każdej zmienionej roli i sprawdź cztery rzeczy: na pasku
-bocznym pojawia się pozycja **Price lists**; `GET /api/v1/admin/price-lists-engine` zwraca `200`
-zamiast `403`; rola tylko z `price_lists:read` dostaje `403` z `POST /api/v1/admin/price-lists-engine`,
-więc podział na odczyt i zapis naprawdę działa; rola z `catalog:write` bez żadnego kodu dotyczącego
-cen dostaje `403` z `GET /api/v1/admin/price-lists-engine` i z
-`GET /api/v1/admin/pricing/rule-targets/customer-groups` — ten negatywny przypadek to połowa dowodu,
-że granica się przesunęła, a nie tylko poszerzyła.
+**Weryfikacja.** Zaloguj się jako użytkownik każdej zmienionej roli i sprawdź cztery rzeczy: na
+pasku bocznym pojawia się pozycja **Cenniki**, a `⌘K` → „cenniki” oferuje akcję;
+`GET /api/v1/admin/price-books` zwraca `200` zamiast `403`; rola z samym `price_lists:read` dostaje
+`403` z `POST /api/v1/admin/price-books`, więc podział na odczyt i zapis jest prawdziwy; a rola z
+`catalog:write` i bez żadnego z kodów cenowych dostaje `403` z `GET /api/v1/admin/price-books` oraz z
+`GET /api/v1/admin/price-books/targets/customer-groups` — ten negatywny przypadek to połowa dowodu,
+że granica trzyma.
 
 ### D4. Włącz uwierzytelnianie dwuskładnikowe w panelu administracyjnym
 

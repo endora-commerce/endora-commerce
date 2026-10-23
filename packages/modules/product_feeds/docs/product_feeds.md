@@ -28,7 +28,7 @@ A feed is four choices and nothing else at creation time:
 | **Language** | Which translation of names, descriptions and category paths is written. |
 | **Name** | What you will recognise it by. The public URL is derived from the feed, not the name. |
 
-Everything else — criteria, schedule, price presentation, price list, tax country — has a working
+Everything else — criteria, schedule, price presentation, price book, tax country — has a working
 default and is edited afterwards on the feed's **Settings** tab.
 
 ### Creating your first feed
@@ -93,8 +93,7 @@ fails its run naming each one, rather than publishing a file with holes.
 
 ### Narrowing a feed to part of the catalogue
 
-The **Criteria** region on the Settings tab is the same rule builder used by promotions and price
-lists. An empty rule means "every eligible product of this channel". A category criterion includes
+The **Criteria** region on the Settings tab is the same rule builder promotions use. An empty rule means "every eligible product of this channel". A category criterion includes
 the whole subtree.
 
 The panel shows a **live match count** as you edit. That number is computed from the same prices and
@@ -114,6 +113,22 @@ Two things a rule can never do:
 
 If a rule matches nothing, the run ends as `empty` and the **previously published file keeps
 serving**. The panel warns you about that before you save, not afterwards.
+
+### Prices in a feed
+
+A feed publishes the prices **anyone** would see on its sales channel — a feed is fetched by a
+provider, which is nobody's buyer, so no organization's or customer group's contract price ever
+reaches it. Each product is priced at quantity 1, in the feed's currency, by the price books
+(the `price_lists` module): its base price, or a catalogue price book for everyone on the channel,
+or a sale when it is lower. A product with no price in the feed's currency is skipped with
+`missing_price`. Feed items are products: a product with variants is published at the product's own
+price, not per variant.
+
+A feed can instead be **pinned to one price book** (the feed's `priceListId`). It then publishes
+that book's own rows — fixed prices, and percentages or adjustments taken off the channel's
+catalogue price — whatever the book's audience, status and schedule, and **a product the book does
+not price is absent from the feed**. A book in another currency than the feed's prices nothing. The live match count of
+*Criteria* and the price-range criterion use the same prices the next run will publish.
 
 ### Category mapping (Google and Meta)
 
@@ -236,7 +251,7 @@ export of the full list.
 
 | Reason | What it means |
 | --- | --- |
-| `missing_price` | No price resolved for the feed's currency and price list. |
+| `missing_price` | No price in the feed's currency — no price book prices the product on the feed's channel, or the feed's pinned price book does not price it. |
 | `missing_image` | The product has no publicly reachable image. |
 | `private_image_asset` | Images exist but are not public, so no stable URL could be published. |
 | `missing_required_field` | A field the provider requires resolved empty with no fallback — the item was skipped. |
@@ -430,6 +445,17 @@ exact secrets in play and removes those strings, rather than guessing what a pas
 
 The test harness injects adapters that refuse every send, for the same reason it injects a taxonomy
 fetcher that cannot fetch: no test in this repository may upload a priced catalogue anywhere.
+
+### Pricing
+
+A run never reads another module's tables. An unpinned feed prices each batch through one
+`resolveLinePrices` call on `price_lists`' `pricingService` port, as a guest (`organization: null`,
+`customerGroupId: null`) on the feed's channel and currency, at quantity 1, without a variant. A
+pinned feed reads `namedListPrices({ priceListId, currencyCode, productIds, salesChannelId })` —
+the book's product-level rows over the channel's catalogue price; a product the book does not price
+is absent from the answer (`services/named-list-price-resolver.ts`). Neither path catches
+`MODULE_DISABLED`: with `price_lists` absent the run fails rather than publishing prices the platform
+is not serving.
 
 ### Channel scoping
 

@@ -36,7 +36,7 @@ Do tego flagi zachowania i pozycja liczbowa:
 | `isVariantAxis` | `false` | Wybór wariantu produktu konfigurowalnego |
 | `isRequired` | `false` | Walidacja zapisu produktu (tylko gdy atrybut należy do przypisanego zestawu atrybutów) |
 | `isPromoRule` | `false` | Wybór kryteriów w regułach promocji |
-| `isPriceRule` | `false` | Cenniki — czy atrybut może wybierać produkty w **macierzy cen** cennika (moduł `price_lists`). Kwalifikuje się tylko atrybut pojedynczego wyboru, wielokrotnego wyboru albo tak/nie, niezależny od języka i od kanału sprzedaży. Wyłączenie flagi dezaktywuje pozycje macierzy, które korzystają z atrybutu — przestają wpływać na ceny i znów obowiązują po jej ponownym włączeniu; nigdy nie powoduje to błędu wyceny. |
+| `isPriceRule` | `false` | Cenniki (moduł `price_lists`) — w panelu **Reguły cennika**: czy cennik może wyceniać produkty według wartości tego atrybutu, w linii *wartości atrybutu* albo *kategorii i wartości atrybutu*. Kwalifikuje się tylko atrybut pojedynczego wyboru, wielokrotnego wyboru albo tak/nie, niezależny od języka i od kanału sprzedaży. Wariant jest dopasowywany po własnych wartościach osi, nałożonych na wartości produktu. Wyłączenie flagi dezaktywuje linie, które korzystają z atrybutu — przestają wpływać na ceny, siatka cen pokazuje je jako *Nieaktywne*, a po ponownym włączeniu flagi znów obowiązują; nigdy nie powoduje to błędu wyceny. |
 | `isVisibleOnProductPage` | `false` | Zakładka „Parametry produktu” na stronie produktu |
 | `displayAsSlider` | `false` | Panel filtrów — wyświetla suwak zakresu; tylko dla `valueType ∈ ('number','price')` |
 | `filterPosition` | `0` | Klucz sortowania w panelu filtrów (rosnąco; remisy alfabetycznie według etykiety w danym języku) |
@@ -213,11 +213,14 @@ inne moduły — żaden moduł nie sięga do wnętrza katalogu:
 - `buildVisibleAttributesProjection()` — wewnętrzna, używana przez odpowiedź ze szczegółami produktu
   do zbudowania `visibleAttributes[]`.
 
-`isPriceRule` nie ma własnej metody. Moduł wyceniający odczytuje tę flagę przez
-`catalogAttributeReadPort` — `listByFlag('isPriceRule')` zwraca atrybuty, które reguła cenowa może
-wskazać, a pole `isPriceRule` w widoku każdego atrybutu pozwala odrzucić atrybut bez tej flagi.
-Dane do listy wyboru w panelu administracyjnym zwraca
-`GET /api/v1/admin/catalog/attributes/by-flag?flag=isPriceRule`.
+`isPriceRule` nie ma własnej metody. Moduł `price_lists` odczytuje tę flagę przez
+`catalogAttributeReadPort` — `listByFlag('isPriceRule')` zwraca atrybuty, które może wskazać linia
+cennika, a pole `isPriceRule` w widoku każdego atrybutu pozwala odrzucić atrybut bez tej flagi — raz
+na każdą partię wyceny, więc zmiana flagi działa przy następnej wycenie; zdarzenie
+`attribute.updated.v1` dodatkowo czyści pamięć podręczną cen i oznacza powierzchnię cen jako
+nieaktualną. Lista wyboru w edytorze cenników korzysta z
+`GET /api/v1/admin/price-books/targets/attributes`, który zwraca tylko kwalifikujące się atrybuty z
+ich wartościami.
 
 ## Zobacz też
 

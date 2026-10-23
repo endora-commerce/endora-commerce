@@ -312,7 +312,10 @@ modułu.
 pozycji*) oraz kolumna `organizations.order_confirmation_emails` (właściciel:
 `organizations`, odczyt przez port). `OrderItem` zapisuje kopię produktu, wariantu, ceny
 jednostkowej i stawki podatku z chwili złożenia zamówienia, aby historyczne zamówienia nie zmieniały
-się po zmianach cen i katalogu.
+się po zmianach cen i katalogu. Kopiuje też `price_source` pozycji koszyka — `agreed`, `base`,
+`catalogue`, `buyer` albo `sale`, czyli krok wyceny w cennikach (albo uzgodnienie z oferty), który
+ustalił cenę — do `order_items.price_source`; kolumna jest przechowywana na potrzeby raportowania i
+przyszłej reguły promocji i nie wchodzi do odpowiedzi API zamówień.
 
 ## Emitowane zdarzenia
 
@@ -401,10 +404,13 @@ jeden kod — pierwszy pasujący, w tej kolejności — i pokazuje jeden powód:
 | `PRODUCT_NOT_VISIBLE_TO_CUSTOMER` | *Klient nie widzi tego produktu* | Widoczność produktu albo jego lista dozwolonych organizacji wyklucza organizację klienta: zmień je przy produkcie w katalogu, wybierz innego klienta albo usuń pozycję. |
 | `PRODUCT_NOT_IN_SALES_CHANNEL` | *Poza asortymentem tego kanału sprzedaży* | Wybierz kanał sprzedaży, którego asortyment zawiera produkt, dodaj produkt do asortymentu tego kanału albo usuń pozycję. |
 | `QUOTE_ONLY` | *Brak ceny* | Cena produktu dla tego klienta jest dostępna tylko w ofercie: usuń pozycję albo utwórz zapytanie ofertowe. |
+| `UNPRICED` | *Brak ceny* | Żaden cennik nie wycenia produktu dla tego klienta, kanału i waluty — nie ma nawet ceny bazowej: ustaw cenę bazową, usuń pozycję albo utwórz zapytanie ofertowe. |
 | `BELOW_MINIMUM_QUANTITY` | *Poniżej minimum N szt.* | Łączna ilość produktu w zamówieniu jest poniżej jego minimalnej ilości zamówienia: zwiększ ilość albo usuń pozycję. |
 
-`BELOW_MINIMUM_QUANTITY` niesie `minimum` i jest oceniany tylko na pozycjach, które przeszły cztery
-sprawdzenia powyżej, z sumowaniem pozycji każdego produktu. Kod, którego ekran nie zna, też jest pokazywany jako *Brak ceny*. Pozostałe pozycje zachowują
+`BELOW_MINIMUM_QUANTITY` niesie `minimum` i jest oceniany tylko na pozycjach, które przeszły
+sprawdzenia powyżej, z sumowaniem pozycji każdego produktu. Pozycje są wyceniane z cenników dokładnie
+tak, jak wyceniłby je koszyk klienta — jednym zbiorczym wywołaniem dla wszystkich pozycji, przy
+ilości i wariancie każdej z nich — więc utworzone zamówienie ma ceny pokazane w podglądzie. Kod, którego ekran nie zna, też jest pokazywany jako *Brak ceny*. Pozostałe pozycje zachowują
 ceny, a podsumowanie liczy tylko wycenione. Wycena sprawdza asortyment dokładnie tego kanału
 sprzedaży, który wskazuje żądanie; `salesChannelId`, który nie wskazuje żadnego kanału, jest
 odrzucany z `404 NOT_FOUND`, a ekran pokazuje *Nie udało się przeliczyć cen*, nie oznaczając żadnej

@@ -104,6 +104,30 @@ wykładniczo rosnącym odstępem; ostateczna porażka trafia do kolejki nieudany
 ponowić w widoku panelu **Webhooks → Deliveries**. Kontrakt wysyłki i zasady ponawiania opisuje
 moduł [webhooks](../modules/webhooks.md).
 
+### Odświeżanie powierzchni cen — `price_lists.surface`
+
+Utrzymuje aktualne ceny, według których są porządkowane listy produktów **sortowane i filtrowane
+według ceny**. Takich list nie da się uporządkować z indeksu wyszukiwania — każdy kupujący może mieć
+własne ceny — więc moduł `price_lists` wylicza z wyprzedzeniem cenę każdego produktu dla każdej
+grupy kupujących, którzy mają te same cenniki (*profil cenowy*). Każda zatwierdzona zmiana ceny —
+cennik, jego wiersze, kanały lub odbiorcy, ceny bazowe, zmiana stanu przez opisaną niżej aktualizację
+statusów, zmiana produktu, kategorii lub atrybutu, zmiana kanału sprzedaży — oznacza profile jako
+nieaktualne i dodaje do kolejki **jedno scalone zadanie** (ze stałym identyfikatorem, więc seria
+zapisów kosztuje jedną przebudowę; trzy próby z wykładniczo rosnącym odstępem).
+
+Konsument najpierw buduje profile jeszcze nigdy niezbudowane, potem przebudowuje nieaktualne i
+podmienia każdy nowy zestaw cen w jednej transakcji. Żądanie nigdy na niego nie czeka: nieaktualny
+profil nadal podaje poprzedni porządek, a ceny na kartach produktów są zawsze wyliczane na bieżąco,
+więc po zmianie opóźnia się tylko **porządek** listy sortowanej według ceny — o czas obsługi przez
+konsumenta. Zadanie jest idempotentne (przebudowa liczy wszystko od źródła), więc ponowna próba albo
+druga instancja workera niczego nie psuje.
+
+**Jeśli żaden worker nie obsługuje tej kolejki** — warstwa procesów bez konsumentów albo brak
+Redis — profile nigdy nie powstają: listy sortowane według ceny są wtedy porządkowane na podstawie
+bieżącej wyceny, gdy są zawężone do najwyżej 5 000 produktów (kategoria, wyszukiwanie), a w
+przeciwnym razie podawane w domyślnym porządku katalogu, z poprawnymi cenami na kartach. Uruchamiaj
+workera wszędzie tam, gdzie sortowanie według ceny ma znaczenie.
+
 ## Inne zadania w tle (jeszcze nie na wspólnej kolejce)
 
 Kilka zadań okresowych i porządkowych nadal działa jako timery w procesie albo skrypty uruchamiane
@@ -114,7 +138,7 @@ samego modelu workerów; do tego czasu dokumentuj je i obsługuj tak:
 | --- | --- | --- |
 | Wyszukiwanie porzuconych koszyków | Skrypt uruchamiany ręcznie lub przez cron | `pnpm --filter backend run cart:abandonment-sweep` |
 | Pełne ponowne indeksowanie wyszukiwarki | Polecenie uruchamiane ręcznie | `pnpm --filter backend run search:reindex` |
-| Aktualizacja statusów cenników | `setInterval` w procesie (co 5 min) | startuje razem z procesem API |
+| Aktualizacja statusów cenników (przenosi cenniki *Zaplanowane* do *Aktywnych*, a *Aktywne* do *Wygasłych* na potrzeby widoku w panelu; ceny i tak stosują daty cennika dokładnie w ich chwili) | `setInterval` w procesie (co 5 min) | startuje razem z procesem API |
 | Wygasanie zapytań ofertowych | Metoda usługi wywoływana według harmonogramu | `RfqExpiryWorker.sweep()` |
 
 :::note

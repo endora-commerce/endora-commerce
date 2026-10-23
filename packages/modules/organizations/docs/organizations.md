@@ -190,16 +190,26 @@ Storefront preflight:
 | --- | --- |
 | `POST /api/v1/storefront/checkout/preflight` | Returns `{ canTransact, allowedPaymentMethodIds, allowedDeliveryMethodIds, assignedWarehouseIds }` or 423 when the org cannot transact |
 
-### Applicable price lists + promotion targeting
+### Effective price books + promotion targeting
 
-`OrganizationEffectivePriceListsService.listApplicable(orgId)` reuses
-the existing `application-rule-evaluator` from the `price_lists` module
-to compute every Price List that currently applies to the Organization,
-each tagged with a `reasons[]` array
-(`direct_organization_match` / `customer_group_match` /
-`sales_channel_inheritance` / `segment_rule_match`). Surfaced at
-`GET /api/v1/admin/organizations/:id/applicable-price-lists` and
-rendered as a read-only table in the admin Organization detail page.
+The admin Organization detail page lists, read-only, the **price books that
+apply to the Organization** right now: books whose audience names the
+Organization itself, books naming one of its parent organizations (inherited
+along the hierarchy), and books for its customer group. Each is tagged with how
+it reaches the Organization — `direct_organization_match`,
+`ancestor_organization_match` or `customer_group_match` — and books for everyone
+are not listed. Which of them wins for a given product is the price precedence
+of the `price_lists` module; the **Explain a price for this organization** link
+on the same page opens the price explainer for it.
+
+For developers: `OrganizationEffectivePriceListsService.listApplicable(orgId)`
+asks `price_lists` through `PriceListReadPort.listForOrganization({
+organizationChain, customerGroupId })` (container `priceListReadPort`), passing
+the Organization's chain nearest first and its own customer group. The answer
+is surfaced at `GET /api/v1/admin/organizations/:id/applicable-price-lists`.
+With `price_lists` absent the call refuses rather than answering with an empty
+list. The reasons `sales_channel_inheritance` and `segment_rule_match` are no
+longer produced.
 
 Promotions: when a promotion targets a specific Organization
 (`promotions.organization_id` is set), the platform applies the rule
