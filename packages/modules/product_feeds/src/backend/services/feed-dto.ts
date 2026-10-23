@@ -17,6 +17,9 @@ import type { ProductFeedRow, ProductFeedService } from './product-feed.service.
  *    half the schedule interval — the honest way to accept minute granularity
  *    while telling an operator a 100k-item feed cannot regenerate every five
  *    minutes.
+ *  - `pinnedPriceBookWarning` names why the pinned price book publishes no
+ *    prices now (draft, outside its dates, not on the feed's channel, for an
+ *    audience) — feature 160, FR-029, owner ruling 2026-10-23.
  *
  * The plaintext token is never reachable from here; it exists only in the
  * create/rotate response.
@@ -68,6 +71,7 @@ export function toFeedDto(
     publishedAt: row.publishedArtefact ? row.publishedArtefact.producedAt.toISOString() : null,
     isRunning: feed.currentRunId != null,
     scheduleTooTightWarning: scheduleTooTight(feed),
+    pinnedPriceBookWarning: row.pinnedPriceBookWarning,
     version: feed.version,
     createdAt: feed.createdAt.toISOString(),
     updatedAt: feed.updatedAt.toISOString(),

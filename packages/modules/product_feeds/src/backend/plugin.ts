@@ -817,6 +817,7 @@ export function productFeedsModule(
     tokenEncryptionKey: options.tokenEncryptionKey,
     languages: options.languageService,
     priceLists: options.priceLists,
+    pinnedPriceBookPublishability: (input) => options.pricingService.namedListPublishability(input),
   });
 
   /**

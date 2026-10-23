@@ -62,6 +62,8 @@ const bundle = passthroughBundle('product_feeds', [
   'runs.table.emitted',
   'runs.table.skipped',
   'permission.needWrite',
+  'feeds.pinnedBook.not_active',
+  'feeds.pinnedBook.audience_restricted',
 ]);
 
 const { ProductFeedDetailPage } = await import(
@@ -98,6 +100,7 @@ const FEED = {
   publishedAt: null,
   isRunning: false,
   scheduleTooTightWarning: false,
+  pinnedPriceBookWarning: null,
   version: 1,
   createdAt: '2026-08-01T10:00:00.000Z',
   updatedAt: '2026-08-01T10:00:00.000Z',
@@ -174,5 +177,25 @@ describe('ProductFeedDetailPage — design-system alignment', () => {
     expect(empty?.querySelector('.b2b-empty__icon')).not.toBeNull();
     expect(empty?.closest('.rounded-lg.border.bg-card')).not.toBeNull();
     expect(document.querySelector('.border-dashed')).toBeNull();
+  });
+
+  /**
+   * Feature 160 (FR-029, owner ruling 2026-10-23) — a feed pinned to a price
+   * book that does not apply now publishes no prices from it, and the page
+   * says why, as a warning above the tabs.
+   */
+  it('warns, with the reason, when the pinned price book publishes no prices', async () => {
+    get.mockResolvedValue({ data: { ...FEED, priceListId: 'pb1', pinnedPriceBookWarning: 'not_active' } });
+    listRuns.mockResolvedValue({ data: [] });
+    await openRunsTab();
+    const warning = await screen.findByText('feeds.pinnedBook.not_active');
+    expect(warning.closest('[role="status"]')).not.toBeNull();
+  });
+
+  it('shows no pinned-book warning when the book publishes', async () => {
+    listRuns.mockResolvedValue({ data: [] });
+    await openRunsTab();
+    await waitFor(() => expect(screen.getByText('feeds.runs.empty.title')).toBeTruthy());
+    expect(screen.queryByText(/feeds\.pinnedBook\./)).toBeNull();
   });
 });

@@ -8,6 +8,7 @@ import type {
   DisplayMode,
   ListingPrice,
   ListingPriceDetail,
+  PinnedPriceBookPublishability,
 } from '@endora-commerce/contracts';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { buildEligibleAttributes, type EligibleAttribute } from './attribute-eligibility.js';
@@ -433,11 +434,63 @@ export class BookPricing {
   }
 
   /**
+   * FR-029, owner ruling 2026-10-23 — whether a book pinned to a feed on this
+   * channel and currency publishes prices now, and why not. A feed is fetched
+   * by a provider, which is nobody's buyer: the book must price an anonymous
+   * buyer on the channel now — `active` or `scheduled` inside its window
+   * (FR-047, evaluated now, not at the status sweep), bound to the channel with
+   * the channel offering the currency (the bridge's sanctioned subquery,
+   * Principle XII; a base book is channel-independent), and for everyone (an
+   * organization's or a group's prices never reach an anonymous file,
+   * Principle XI). One statement, plus the channel's currencies.
+   */
+  async namedBookPublishability(input: {
+    bookId: string;
+    salesChannelId: string;
+    currencyCode: string;
+  }): Promise<PinnedPriceBookPublishability> {
+    const em = this.deps.emFactory();
+    const bridge = this.deps.channelBridge.entityIdsInChannelSubquery(input.salesChannelId, 'price-list');
+    const [book] = await em.execute<
+      Array<{
+        currency_code: string;
+        is_system: boolean;
+        status: string;
+        in_window: boolean;
+        on_channel: boolean;
+        audience_kind: string;
+      }>
+    >(
+      `select l."currency_code", l."is_system", l."status", l."audience_kind",
+              ((l."starts_at" is null or l."starts_at" <= now()) and (l."ends_at" is null or l."ends_at" > now())) as "in_window",
+              (l."id" in (${bridge.sql})) as "on_channel"
+         from "price_lists" l where l."id" = ?`,
+      [...bridge.params, input.bookId],
+    );
+    const no = (reason: Extract<PinnedPriceBookPublishability, { publishable: false }>['reason']): PinnedPriceBookPublishability => ({
+      publishable: false,
+      reason,
+    });
+    if (!book) return no('not_found');
+    const currencyCode = input.currencyCode.toUpperCase();
+    if (book.currency_code.trim().toUpperCase() !== currencyCode) return no('currency_mismatch');
+    if (book.is_system) return { publishable: true };
+    if (book.status !== 'active' && book.status !== 'scheduled') return no('not_active');
+    if (!book.in_window) return no('outside_schedule');
+    if (!book.on_channel || !(await channelOffers(em, input.salesChannelId, currencyCode))) return no('not_on_channel');
+    if (book.audience_kind !== 'everyone') return no('audience_restricted');
+    return { publishable: true };
+  }
+
+  /**
    * FR-029 — what a feed pinned to one book reads: the book's rows at quantity 1
    * over the catalogue price of the channel and currency (what a guest's
-   * catalogue tier answers), ranked as the book's own selections rank. A
-   * product the book does not price is absent. The base book answers its base
-   * prices. Two resolutions' worth of statements for the whole batch.
+   * catalogue tier answers **without the pinned book**, so a pinned catalogue
+   * book's percentage is taken off the price it would otherwise replace, never
+   * off itself), ranked as the book's own selections rank. A product the book
+   * does not price is absent. The base book answers its base prices. Nothing at
+   * all while the book does not publish ({@link namedBookPublishability}).
+   * Two resolutions' worth of statements for the whole batch.
    */
   async namedBookPrices(input: {
     bookId: string;
@@ -447,22 +500,35 @@ export class BookPricing {
   }): Promise<Map<string, string>> {
     const out = new Map<string, string>();
     if (input.products.length === 0) return out;
+    if (!(await this.namedBookPublishability(input)).publishable) return out;
     const em = this.deps.emFactory();
     const currencyCode = input.currencyCode.toUpperCase();
     const [header] = await em.execute<Array<{ id: string; name: string; is_system: boolean; currency_code: string }>>(
       `select "id", "name", "is_system", "currency_code" from "price_lists" where "id" = ?`,
       [input.bookId],
     );
-    if (!header || header.currency_code.trim().toUpperCase() !== currencyCode) return out;
+    if (!header) return out;
+    const guestViewer: BookPricingViewer = {
+      organizationId: null,
+      customerGroupId: null,
+      signedIn: false,
+      salesChannelId: input.salesChannelId,
+      currencyCode,
+    };
+    const precedence = await this.precedence.active();
+    const guestProfile = await this.#profileOf(guestViewer, currencyCode, precedence.version);
+    const withoutBook: PricingProfile = header.is_system
+      ? guestProfile
+      : {
+          ...guestProfile,
+          key: `${guestProfile.key}:without:${header.id}`,
+          books: guestProfile.books.filter((b) => b.id !== header.id),
+        };
     const guest = await this.resolve(
       input.products.map((product) => ({ key: product.id, product, quantity: 1 })),
-      {
-        organizationId: null,
-        customerGroupId: null,
-        signedIn: false,
-        salesChannelId: input.salesChannelId,
-        currencyCode,
-      },
+      guestViewer,
+      undefined,
+      withoutBook,
     );
     if (header.is_system) {
       for (const product of input.products) {
@@ -504,7 +570,7 @@ export class BookPricing {
         { id: header.id, name: header.name, type: 'regular', isSystem: false, priority: 0, audience: { kind: 'everyone' } },
       ],
       rows: [...reference, ...rows],
-      precedence: await this.precedence.active(),
+      precedence,
       eligibleAttributes,
     });
     for (const product of input.products) {

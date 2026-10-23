@@ -17,6 +17,7 @@ import { z } from 'zod';
 import { isoDateTimeSchema, uuidSchema } from './common.js';
 import { collectionEnvelope, dataEnvelope } from './envelopes.js';
 import { listQuerySchema } from './pagination.js';
+import { pinnedPriceBookUnpublishableReasonSchema } from './price-lists.js';
 
 // ---------------------------------------------------------------------------
 // (1) Enumerations
@@ -894,6 +895,12 @@ export const productFeedSchema = z.object({
   isRunning: z.boolean(),
   /** Set when the rolling average run duration exceeds half the schedule interval. */
   scheduleTooTightWarning: z.boolean(),
+  /**
+   * Feature 160 (FR-029, owner ruling 2026-10-23) — why the pinned price book
+   * publishes no prices now; `null` for an unpinned feed and for a pinned book
+   * that publishes. A run of such a feed gets no prices from the book.
+   */
+  pinnedPriceBookWarning: pinnedPriceBookUnpublishableReasonSchema.nullable(),
   version: z.number().int().positive(),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,

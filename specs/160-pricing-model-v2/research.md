@@ -358,3 +358,44 @@ arbitrary book id and rows (the PIM writes base prices only, and a book-row port
 admin API without its scope and version rules); a port that refuses to create a missing base book
 (the admin base-price write creates the base book of a currency on first use, and a second rule
 would make the two writers disagree).
+
+## R18. A pinned feed publishes only a book that prices an anonymous buyer now (FR-029, owner ruling 2026-10-23)
+
+**Ruling.** A feed pinned to a book gets prices only while the book is active and inside its
+schedule window at generation time; otherwise it publishes no prices for it, and the admin shows a
+warning on the feed. Before the ruling `namedBookPrices` ignored the book's status, schedule,
+channel binding and audience, so a feed pinned to a draft or expired book kept publishing.
+
+**Decision — the four conditions** (`BookPricing.namedBookPublishability`, one statement plus the
+channel's currencies; `namedBookPrices` answers nothing while it says no):
+
+| Condition | Why | Reason when it fails |
+| --- | --- | --- |
+| `status ∈ {active, scheduled}` | the ruling | `not_active` |
+| `starts_at ≤ now < ends_at` | the ruling; evaluated at generation time, not at the status sweep (FR-047) | `outside_schedule` |
+| bound to the feed's channel, the channel offering the currency | FR-029 says "that book's rows **for its channel** and currency"; a book applies on a channel only through its bridge (Principle XII, FR-003, FR-011) | `not_on_channel` |
+| audience `everyone` | a feed is fetched by a provider, which is nobody's buyer (the unpinned path resolves as a guest for the same reason, `product_feeds.md` *Prices in a feed*); an organization's or a group's price reaching a file anyone with the link can read is the leak Principle XI forbids | `audience_restricted` |
+
+A base book is channel-independent and always active (D-287 §5.1): it publishes whenever its
+currency is the feed's. A book in another currency (`currency_mismatch`) or none (`not_found`)
+prices nothing. The reasons are `pinnedPriceBookUnpublishableReasonSchema` in
+`@endora-commerce/contracts`; `pricingService.namedListPublishability` answers them, and the
+admin feed row carries `pinnedPriceBookWarning` (the reason, or `null`), which the feed page shows
+as a warning in English and Polish.
+
+**Also decided — the catalogue price is the channel's without the pinned book.** Once only
+everyone books publish, a pinned book is itself one of the books a guest's catalogue tier is
+resolved over, so its percentage rows were taken off its own result (a base price of 50 and a
+pinned everyone book's −10 % gave 40.50, not 45). The reference is now the guest resolution over the channel's
+books minus the pinned one.
+
+**What a run does with no prices** is unchanged `product_feeds` behaviour: every item is skipped
+with `missing_price`, so the run ends empty or over its skip threshold, and an unpublishable run
+never moves `published_artefact_id` (FR-035, FR-038) — the previously published file keeps serving.
+Whether a feed whose pinned book stopped applying should also withdraw its published file is not
+decided here (owner question in the hand-off).
+
+**Rejected.** Publishing an audience-restricted book to a feed when the feed is "for" that
+organization: a feed has no buyer identity and no organization field, and its token is a
+capability anyone holding the link can use. Channel binding as a warning only: FR-029 names the
+channel, and a book that does not apply on the feed's channel is not the channel's price.

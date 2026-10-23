@@ -33,6 +33,32 @@ export const displayModeSchema = z.enum([
 export type DisplayMode = z.infer<typeof displayModeSchema>;
 
 /**
+ * Feature 160 (FR-029, owner ruling 2026-10-23) — why a price book pinned to a
+ * product feed publishes no prices now. A feed is fetched by a provider, which
+ * is nobody's buyer, so a pinned book publishes only while it would price an
+ * anonymous buyer on the feed's channel: `active` or `scheduled` and inside its
+ * schedule window (`outside_schedule`, else `not_active`), bound to that
+ * channel with the channel offering its currency (`not_on_channel`; a base book
+ * is channel-independent), and for everyone (`audience_restricted`). A book in
+ * another currency than the feed's (`currency_mismatch`) or one that does not
+ * exist (`not_found`) prices nothing either.
+ */
+export const pinnedPriceBookUnpublishableReasonSchema = z.enum([
+  'not_found',
+  'currency_mismatch',
+  'not_active',
+  'outside_schedule',
+  'not_on_channel',
+  'audience_restricted',
+]);
+export type PinnedPriceBookUnpublishableReason = z.infer<typeof pinnedPriceBookUnpublishableReasonSchema>;
+
+/** Whether a pinned price book publishes prices now, and why not. */
+export type PinnedPriceBookPublishability =
+  | { publishable: true }
+  | { publishable: false; reason: PinnedPriceBookUnpublishableReason };
+
+/**
  * `productResolvedPriceSchema` (in `catalog.ts`, which this file imports and so
  * cannot import back) spells the display modes out; this keeps the two lists
  * identical at compile time.

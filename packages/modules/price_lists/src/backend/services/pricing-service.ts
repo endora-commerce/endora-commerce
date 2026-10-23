@@ -10,6 +10,7 @@ import type {
   ListingPriceOrderChunk,
   ListingPriceOrderQuery,
   ListingPriceViewerContext,
+  PinnedPriceBookPublishability,
 } from '@endora-commerce/contracts';
 import type { PriceListTargetReads } from './price-list-service.js';
 import type { PricingCache, ProfilePricingCacheKey } from './pricing-cache.js';
@@ -418,7 +419,8 @@ export class PricingService implements PricingServiceContract {
   /**
    * Issue #132 / feature 160 (FR-029) — a named book's quantity-1 prices for a
    * feed pinned to it: the book's rows over the channel's catalogue price;
-   * products the book does not price are absent.
+   * products the book does not price are absent, and nothing is answered while
+   * the book does not publish ({@link namedListPublishability}).
    */
   async namedListPrices(input: {
     priceListId: string;
@@ -437,6 +439,19 @@ export class PricingService implements PricingServiceContract {
       salesChannelId: input.salesChannelId,
       currencyCode: input.currencyCode,
       products,
+    });
+  }
+
+  /** Feature 160 (FR-029, owner ruling 2026-10-23) — whether a pinned book publishes now, and why not. */
+  async namedListPublishability(input: {
+    priceListId: string;
+    currencyCode: string;
+    salesChannelId: string;
+  }): Promise<PinnedPriceBookPublishability> {
+    return this.bookPricing.namedBookPublishability({
+      bookId: input.priceListId,
+      salesChannelId: input.salesChannelId,
+      currencyCode: input.currencyCode,
     });
   }
 

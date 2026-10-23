@@ -145,10 +145,24 @@ export interface ProductFeedDto {
   publishedAt: string | null;
   isRunning: boolean;
   scheduleTooTightWarning: boolean;
+  /**
+   * Feature 160 (FR-029) — why the pinned price book publishes no prices now;
+   * `null` when the feed is not pinned or the book publishes.
+   */
+  pinnedPriceBookWarning: PinnedPriceBookWarning | null;
   version: number;
   createdAt: string;
   updatedAt: string;
 }
+
+/** Mirrors `pinnedPriceBookUnpublishableReasonSchema` in `@endora-commerce/contracts`. */
+export type PinnedPriceBookWarning =
+  | 'not_found'
+  | 'currency_mismatch'
+  | 'not_active'
+  | 'outside_schedule'
+  | 'not_on_channel'
+  | 'audience_restricted';
 
 export interface IssuedFeedToken {
   token: string;

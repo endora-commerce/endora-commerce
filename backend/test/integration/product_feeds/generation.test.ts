@@ -39,6 +39,7 @@ describe('product feed generation [integration]', () => {
   let retailChannelId: string;
   let vipChannelId: string;
   let namedListId: string;
+  let unboundListId: string;
 
   const DRAFT_ID = '00000000-0000-4000-8000-0000000f0001';
   const INACTIVE_ID = '00000000-0000-4000-8000-0000000f0002';
@@ -128,14 +129,25 @@ describe('product feed generation [integration]', () => {
       audience: 'everyone',
       rows: priced.map((productId) => ({ productId, fixed: '100.0000' })),
     });
-    // Deliberately unreachable by the anonymous resolution: it is bound to no
-    // channel. A feed that points AT this book must still use it verbatim
+    // Deliberately unreachable by the anonymous resolution: it is on the
+    // retail channel — a pinned book must be, to publish (FR-029, owner ruling
+    // 2026-10-23) — but outranked there by the default book (priority −1
+    // against 0). A feed that points AT this book must still use it verbatim
     // (FR-020), which is precisely the distinction under test.
     namedListId = await seedPriceBookSql(em, {
       name: 'Feed named book',
       audience: 'everyone',
-      channelIds: [],
+      channelIds: [retailChannelId],
       rows: priced.map((productId) => ({ productId, fixed: '55.0000' })),
+    });
+    await conn.execute(`update "price_lists" set "priority" = -1 where "id" = ?`, [namedListId]);
+    // A book a feed can be pinned to and that publishes nothing: on no channel
+    // (a state only a raw write reaches — activation refuses it).
+    unboundListId = await seedPriceBookSql(em, {
+      name: 'Feed unbound book',
+      audience: 'everyone',
+      channelIds: [],
+      rows: priced.map((productId) => ({ productId, fixed: '44.0000' })),
     });
 
     const templates = await h.app.inject({
@@ -289,6 +301,13 @@ describe('product feed generation [integration]', () => {
       const document = await readArtefact(feedId);
       expect(document).toContain('55.00 PLN');
       expect(document).not.toContain('100.00 PLN');
+    });
+
+    it('publishes no prices from a pinned book that does not apply on the feed’s channel (FR-029, owner ruling 2026-10-23)', async () => {
+      const feedId = await createFeed({ priceListId: unboundListId });
+      const run = await h.productFeeds.generation.generateNow(feedId, { trigger: 'manual' });
+      expect(run.emittedCount).toBe(0);
+      expect(run.skippedCount).toBeGreaterThan(0);
     });
 
     it('falls back to the anonymous channel resolution when no list is named', async () => {

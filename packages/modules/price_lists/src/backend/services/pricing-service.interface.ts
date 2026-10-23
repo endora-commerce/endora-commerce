@@ -15,7 +15,7 @@ import type {
   ListingPriceOrderQuery,
   ListingPriceViewerContext,
 } from '@endora-commerce/contracts';
-import type { PriceSource } from '@endora-commerce/contracts';
+import type { PinnedPriceBookPublishability, PriceSource } from '@endora-commerce/contracts';
 import type { BookExplanation } from './book-resolver.js';
 
 /**
@@ -210,7 +210,8 @@ export interface PricingServiceContract {
    * callers that use a book verbatim rather than resolving the buyer's (a
    * product feed pinned to a book — feature 067 FR-020, feature 160 FR-029):
    * the book's rows over the channel's catalogue price. Products the book does
-   * not price are absent from the map.
+   * not price are absent from the map, and the map is empty while the book does
+   * not publish (see {@link namedListPublishability}).
    *
    * It exists so that reading a named book is a port call rather than a raw
    * `select` against this module's tables from another module: the port is
@@ -224,6 +225,17 @@ export interface PricingServiceContract {
     /** Feature 160 — the feed's channel (required on price books). */
     salesChannelId?: string;
   }): Promise<Map<string, string>>;
+  /**
+   * Feature 160 (FR-029, owner ruling 2026-10-23) — whether a book pinned to a
+   * feed on this channel and currency publishes prices now, and why not: it
+   * must be `active` or `scheduled` inside its schedule window, bound to the
+   * channel (a base book is channel-independent) and for everyone.
+   */
+  namedListPublishability(input: {
+    priceListId: string;
+    currencyCode: string;
+    salesChannelId: string;
+  }): Promise<PinnedPriceBookPublishability>;
   /**
    * Feature 062, renamed by feature 160 (was `listBracketMinQuantities`) —
    * distinct starting quantities (ascending) of the rows and base tiers that

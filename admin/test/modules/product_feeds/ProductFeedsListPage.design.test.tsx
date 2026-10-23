@@ -96,6 +96,7 @@ function feed(over: Partial<ProductFeedDto> = {}): ProductFeedDto {
     publishedAt: null,
     isRunning: false,
     scheduleTooTightWarning: false,
+    pinnedPriceBookWarning: null,
     version: 1,
     createdAt: '2026-08-01T10:00:00.000Z',
     ...over,

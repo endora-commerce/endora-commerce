@@ -79,6 +79,7 @@ function feed(token: Partial<ProductFeedDto['token']> = {}): ProductFeedDto {
     publishedAt: '2026-08-01T10:00:00.000Z',
     isRunning: false,
     scheduleTooTightWarning: false,
+    pinnedPriceBookWarning: null,
     version: 1,
     createdAt: '2026-08-01T10:00:00.000Z',
     updatedAt: '2026-08-01T10:00:00.000Z',

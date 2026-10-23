@@ -13,7 +13,8 @@ overlays see. What P0 shipped (`research.md` R1) is kept unless a row below says
 | `resolveLinePrices(input)` | **kept, only line path** | each line may carry `variantId`; result `PricingLineResult` gains `source`, `compareAt?`, `explanation` (internal); `isSale` stays (= `source === 'sale'`) |
 | `resolveEngine`, `resolveLinePrice` | kept as wrappers over the batch of one | result shape follows the batch; overlays decorating them must decorate the batch too (unchanged rule) |
 | `orderByUnitPrice`, `pricedProductIds`, `pageDisplayMode` (`ListingPriceOrderPort`) | kept | served from the price surface (`price-surface.md`) |
-| `namedListPrices` | kept | FR-029: that book's rows over the catalogue price, on the feed's channel and currency; products it does not price are absent |
+| `namedListPrices` | kept | FR-029: that book's rows over the catalogue price (the channel's, without the pinned book), on the feed's channel and currency; products it does not price are absent; **nothing at all** while the book does not publish (owner ruling 2026-10-23, `research.md` R18) |
+| `namedListPublishability` | **new** | FR-029, owner ruling 2026-10-23: `{ publishable: true }` while the book is `active`/`scheduled` inside its window, bound to the feed's channel (a base book is channel-independent) and for everyone; otherwise `{ publishable: false, reason }` with `reason ∈ pinnedPriceBookUnpublishableReasonSchema` |
 | `listBracketMinQuantities` | **renamed `listTierStarts`** | distinct `min_quantity` of rows and base tiers that can apply to `(product, variant?, channel, currency)`; the ladder probe keeps calling `resolveLinePrices` |
 
 Published ports in `@endora-commerce/contracts` (`ListingPricePort`, `ListingPriceDetailPort`,

@@ -5,6 +5,8 @@ import {
   type CreateProductFeedRequest,
   type DuplicateProductFeedRequest,
   type LanguageReadPort,
+  type PinnedPriceBookPublishability,
+  type PinnedPriceBookUnpublishableReason,
   type PriceListReadPort,
   type UpdateProductFeedRequest,
 } from '@endora-commerce/contracts';
@@ -67,6 +69,17 @@ export interface ProductFeedServiceDeps {
    */
   languages: LanguageReadPort;
   priceLists: PriceListReadPort;
+  /**
+   * Feature 160 (FR-029, owner ruling 2026-10-23) — whether the price book a
+   * feed is pinned to publishes prices now, through `price_lists`'
+   * `pricingService` port (a binding dependency, so it fails closed like the
+   * two reads above). The admin row shows the reason it does not.
+   */
+  pinnedPriceBookPublishability: (input: {
+    priceListId: string;
+    currencyCode: string;
+    salesChannelId: string;
+  }) => Promise<PinnedPriceBookPublishability>;
 }
 
 /** Thrown as `400 VALIDATION_FAILED`, naming the offending field (contract §2). */
@@ -330,6 +343,16 @@ export class ProductFeedService {
     const channelById = new Map(channels.map((c) => [c.id, c]));
     const runById = new Map(runs.map((r) => [r.id, r]));
     const artefactById = new Map(artefacts.map((a) => [a.id, a]));
+    const pinnedWarning = new Map<string, PinnedPriceBookUnpublishableReason>();
+    for (const feed of feeds) {
+      if (!feed.priceListId) continue;
+      const answer = await this.deps.pinnedPriceBookPublishability({
+        priceListId: feed.priceListId,
+        currencyCode: feed.currencyCode,
+        salesChannelId: feed.salesChannelId,
+      });
+      if (!answer.publishable) pinnedWarning.set(feed.id, answer.reason);
+    }
 
     return feeds.map((feed) => {
       const lastRun = feed.lastRunId ? runById.get(feed.lastRunId) : undefined;
@@ -342,6 +365,7 @@ export class ProductFeedService {
         channelCode: channelById.get(feed.salesChannelId)?.code ?? '',
         lastRun: lastRun ?? null,
         publishedArtefact: artefact ?? null,
+        pinnedPriceBookWarning: pinnedWarning.get(feed.id) ?? null,
       };
     });
   }
@@ -353,6 +377,8 @@ export interface ProductFeedRow {
   channelCode: string;
   lastRun: FeedRun | null;
   publishedArtefact: FeedArtefact | null;
+  /** Why the pinned price book publishes no prices now; `null` when unpinned or publishing. */
+  pinnedPriceBookWarning: PinnedPriceBookUnpublishableReason | null;
 }
 
 function toWriteValues(request: CreateProductFeedRequest): FeedWriteValues {

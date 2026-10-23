@@ -226,6 +226,16 @@ export function ProductFeedDetailPage(): ReactNode {
         </Alert>
       )}
 
+      {feed.pinnedPriceBookWarning && (
+        // Feature 160 (FR-029) — a feed pinned to a price book that does not
+        // apply now gets no prices from it; say so where the operator looks
+        // first, with the reason, rather than leaving a run of skipped items
+        // to explain it.
+        <Alert variant="warning" className="mb-4" role="status">
+          <AlertDescription>{t(`feeds.pinnedBook.${feed.pinnedPriceBookWarning}`)}</AlertDescription>
+        </Alert>
+      )}
+
       <div className="b2b-tabs-scroll mb-4">
         <div className="b2b-tabs" role="tablist">
           {(['overview', 'runs', 'delivery', 'settings'] as const).map((id) => (
