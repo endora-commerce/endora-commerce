@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { manifest } from '@endora-commerce/mod-price-lists';
+import { manifest } from './manifest.js';
 
 /**
  * Feature 161 (Checkpoint 6 review) — `price_lists:write` advises
@@ -8,7 +8,7 @@ import { manifest } from '@endora-commerce/mod-price-lists';
  * catalogue's admin variant read, both gated on `catalog:read`; a role writing
  * prices without it gets a grid whose *Add lines → Products* and *Show
  * variants* are absent. That the code exists is held by the permission
- * inventory (`test/contract/admin_users/permission-inventory.test.ts`).
+ * inventory (`backend/test/contract/admin_users/permission-inventory.test.ts`).
  */
 describe('price_lists permission requirements', () => {
   it('advises catalog:read beside price_lists:write, and nothing beside price_lists:read', () => {

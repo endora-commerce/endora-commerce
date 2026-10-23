@@ -41,19 +41,22 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | Kod | Etykieta | Wymaga też |
 | --- | --- | --- |
 | `price_lists:read` | View price lists and pricing rules | — |
-| `price_lists:write` | Edit price lists, brackets and display modes | — |
+| `price_lists:write` | Edit price lists, brackets and display modes | `catalog:read` |
 
 ## Paleta poleceń
 
 | Akcja | Otwiera | Uprawnienie |
 | --- | --- | --- |
-| `open-price-lists` | `/price-lists/display-modes` | `price_lists:read` |
+| `new-price-book` | `/price-lists/new` | `price_lists:write` |
+| `open-price-explainer` | `/price-lists/explain` | `price_lists:read` |
+| `open-price-lists` | `/price-lists` | `price_lists:read` |
 
 ## Ustawienia
 
 | Kod | Nazwa | Typ |
 | --- | --- | --- |
 | `pricing.default_display_mode` | Default price display mode | `string` |
+| `pricing.show_list_price` | Show list price beside the buyer price | `boolean` |
 | `pricing.unauthenticated_display_mode` | Unauthenticated price display mode | `string` |
 
 ## Tłumaczenia
