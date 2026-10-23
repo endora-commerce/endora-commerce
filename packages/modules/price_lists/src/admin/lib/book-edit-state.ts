@@ -126,7 +126,17 @@ export interface NewLine {
 }
 
 /** Add lines not yet in the book or in the edits; a selection already there is skipped, never doubled (FR-008). */
-export function addLines(state: BookEditState, lines: readonly NewLine[]): { state: BookEditState; added: number; skipped: number } {
+export function addLines(
+  state: BookEditState,
+  lines: readonly NewLine[],
+  options: {
+    /**
+     * `false` for lines shown rather than added — a product's unpriced
+     * variants (FR-009): typing into one is a change, showing it is not.
+     */
+    readonly unsaved?: boolean;
+  } = {},
+): { state: BookEditState; added: number; skipped: number } {
   const next = new Map(state.lines);
   let added = 0;
   let skipped = 0;
@@ -151,7 +161,7 @@ export function addLines(state: BookEditState, lines: readonly NewLine[]): { sta
       inactiveReason: null,
       targetDeleted: false,
       parentKey: line.parentKey ?? null,
-      added: true,
+      added: options.unsaved ?? true,
     });
     added += 1;
   }
@@ -229,7 +239,11 @@ export function editCellDetail(
   detail: { readonly price: PriceBookRowPrice; readonly min: number; readonly max: number | null } | 'clear',
 ): BookEditState {
   if (detail === 'clear') return putEdit(state, lineKey, start, { kind: 'clear' });
-  return putEdit(state, lineKey, start, { kind: 'set', price: detail.price, window: { min: detail.min, max: detail.max } });
+  const set: CellEdit = { kind: 'set', price: detail.price, window: { min: detail.min, max: detail.max } };
+  if (detail.min === start) return putEdit(state, lineKey, start, set);
+  // A window moved to another start: the row leaves this start and is written
+  // anew at its own, where its column shows it.
+  return putEdit(putEdit(state, lineKey, start, { kind: 'clear' }), lineKey, detail.min, set);
 }
 
 export interface EffectiveRow {
@@ -321,6 +335,24 @@ export function cellView(state: BookEditState, lineKey: string, start: number): 
   };
 }
 
+/** Every tier start an edit names, ascending — columns the book does not have yet. */
+export function editedStarts(state: BookEditState): number[] {
+  return [...new Set([...state.edits.keys()].map((key) => Number(key.slice(key.lastIndexOf('@') + 1))))].sort((a, b) => a - b);
+}
+
+/**
+ * A cell's memo token for the grid (`EditableGrid` `getCellToken`): everything
+ * the cell shows — its view, and for an empty variant cell what its product
+ * line gives (FR-009). Equal tokens mean an unchanged cell, so an edit renders
+ * the cells of its line (and its variants) and no other (SC-004, FR-036).
+ */
+export function cellToken(state: BookEditState, lineKey: string, start: number): string {
+  const view = cellView(state, lineKey, start);
+  const line = state.lines.get(lineKey);
+  const parent = line?.parentKey && view.price === null && !view.inherited ? cellView(state, line.parentKey, start) : null;
+  return JSON.stringify([view, parent?.price ?? parent?.inherited?.price ?? null]);
+}
+
 /** The text a cell is edited and copied as. */
 export function cellText(state: BookEditState, lineKey: string, start: number, language: PriceCellLanguage): string {
   const view = cellView(state, lineKey, start);
@@ -406,9 +438,13 @@ export function rebase(state: BookEditState, version: number): BookEditState {
   return dropSettled({ ...state, baseVersion: version, serverErrors: new Map() });
 }
 
-/** After a save: nothing unsaved; the lines are read again by the caller. */
+/**
+ * After a save: nothing unsaved. The stored lines stay until the caller reads
+ * them again (their rows are then replaced); lines added and not stored go.
+ */
 export function afterSave(state: BookEditState, version: number): BookEditState {
-  return { ...createEditState({ version, isBase: state.isBase }) };
+  const lines = new Map([...state.lines].filter(([, line]) => !line.added));
+  return { ...createEditState({ version, isBase: state.isBase }), lines };
 }
 
 /** The book's row count once the batch is written — for the 5 000-row cap of non-base books. */

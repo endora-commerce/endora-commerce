@@ -94,7 +94,9 @@ export function currentParams(): URLSearchParams {
  * action is the kit button's default variant, whichever element carries it.
  */
 export function primaryActions(container: HTMLElement): HTMLElement[] {
+  // What a hidden tab panel holds is not in the view.
   return [...container.querySelectorAll<HTMLElement>('button, a')].filter((element) =>
+    element.closest('[hidden]') === null &&
     /(^|\s)bg-primary(\s|$)/.test(element.className) && element.className.includes('text-primary-foreground'),
   );
 }

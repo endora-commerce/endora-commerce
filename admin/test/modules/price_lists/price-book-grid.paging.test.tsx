@@ -1,0 +1,109 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { priceBookSchema, type PriceBook, type PriceBookRow } from '@endora-commerce/contracts';
+import { BOOKS, PLATFORM_ADMIN } from '../../helpers/price-book-fixtures';
+
+/**
+ * Paging by line (feature 161, T062; FR-015): pages of 50, 100 or 200 lines
+ * from `GET …/lines`, page numbers and the total line count, a product's
+ * variants on its page, search and kind sent to the server, edits kept across
+ * pages; on a non-base book a save past 5 000 rows refused before it is sent.
+ */
+
+const api = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), put: vi.fn(), patch: vi.fn(), delete: vi.fn() }));
+vi.mock('@endora-commerce/admin-kit/lib', async () => ({
+  ...(await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>('@endora-commerce/admin-kit/lib')),
+  apiClient: api,
+}));
+
+const { mountScreen } = await import('../../helpers/price-book-screen');
+const { serveBook, linesOf, mkRow, gridCell, lineHeaders, lineRequests } = await import('../../helpers/price-book-grid');
+
+const product = (i: number) => ({
+  id: `00000000-0000-4000-8000-0000001640${i.toString(16).padStart(2, '0')}`,
+  sku: `S-${String(i).padStart(3, '0')}`,
+  name: `Screw ${String(i).padStart(3, '0')}`,
+});
+
+const ROWS: PriceBookRow[] = [];
+for (let i = 1; i <= 120; i += 1) {
+  ROWS.push(mkRow({ product: product(i), price: { type: 'fixed', amount: `${i}.0000` } }));
+}
+// Product 51 — first of page 2 at 50 a page — carries two variant lines.
+ROWS.push(mkRow({ product: product(51), variant: { id: '00000000-0000-4000-8000-000000164a01', sku: 'S-051-A' }, price: { type: 'fixed', amount: '1.0000' } }));
+ROWS.push(mkRow({ product: product(51), variant: { id: '00000000-0000-4000-8000-000000164a02', sku: 'S-051-B' }, price: { type: 'fixed', amount: '2.0000' } }));
+
+let book: PriceBook;
+
+beforeEach(() => {
+  book = priceBookSchema.parse({ ...BOOKS.L2, tierStarts: [1], rowCount: ROWS.length });
+  serveBook(api, { book, lines: linesOf(ROWS) });
+});
+
+async function open(): Promise<void> {
+  mountScreen({ path: `/price-lists/${book.id}?tab=prices`, session: PLATFORM_ADMIN });
+  await screen.findByRole('grid');
+}
+
+describe('price-book grid — paging by line', () => {
+  it('pages 50 lines at a time with the total and page numbers, a product’s variants on its page', async () => {
+    const user = userEvent.setup();
+    await open();
+    expect(lineRequests(api).at(-1)!.get('pageSize')).toBe('50');
+    expect(screen.getByText('Lines 1–50 of 120')).toBeInTheDocument();
+    expect(screen.getByText('Page 1 of 3')).toBeInTheDocument();
+    expect(screen.getByRole('grid')).toHaveAttribute('aria-rowcount', '121');
+    await user.click(screen.getByRole('button', { name: 'Next page' }));
+    await waitFor(() => expect(screen.getByText('Page 2 of 3')).toBeInTheDocument());
+    expect(lineRequests(api).at(-1)!.get('page')).toBe('2');
+    const headers = lineHeaders();
+    expect(headers[0]).toContain('Screw 051');
+    expect(headers[1]).toContain('S-051-A');
+    expect(headers[2]).toContain('S-051-B');
+    await user.selectOptions(screen.getByLabelText('Lines per page'), '200');
+    await waitFor(() => expect(screen.getByText('Lines 1–120 of 120')).toBeInTheDocument());
+    expect(lineRequests(api).at(-1)!.get('page')).toBe('1');
+    expect(lineRequests(api).at(-1)!.get('pageSize')).toBe('200');
+    expect([...screen.getByLabelText('Lines per page').querySelectorAll('option')].map((o) => o.textContent)).toEqual(['50', '100', '200']);
+  });
+
+  it('sends the search and the kind to the server', async () => {
+    const user = userEvent.setup();
+    await open();
+    await user.type(screen.getByRole('searchbox', { name: 'Search lines' }), 'screw 01');
+    await waitFor(() => expect(lineRequests(api).at(-1)!.get('search')).toBe('screw 01'));
+    await user.selectOptions(screen.getByLabelText('Line kind'), 'variant');
+    await waitFor(() => expect(lineRequests(api).at(-1)!.getAll('kind')).toEqual(['variant']));
+    expect(lineRequests(api).at(-1)!.get('page')).toBe('1');
+  });
+
+  it('keeps an edit across pages and shows it again on return', async () => {
+    const user = userEvent.setup();
+    await open();
+    await user.click(gridCell('Screw 002', 1));
+    await user.keyboard('99{Enter}');
+    await user.click(screen.getByRole('button', { name: 'Next page' }));
+    await waitFor(() => expect(screen.getByText('Page 2 of 3')).toBeInTheDocument());
+    await user.click(gridCell('Screw 060', 1));
+    await user.keyboard('66{Enter}');
+    await user.click(screen.getByRole('button', { name: 'Previous page' }));
+    await waitFor(() => expect(screen.getByText('Page 1 of 3')).toBeInTheDocument());
+    expect(gridCell('Screw 002', 1)).toHaveTextContent('99.00');
+    expect(screen.getByTestId('unsaved-count')).toHaveTextContent('Unsaved changes: 2');
+  });
+
+  it('refuses before sending a save that would take a non-base book past 5 000 rows', async () => {
+    const user = userEvent.setup();
+    book = priceBookSchema.parse({ ...book, rowCount: 4999, tierStarts: [1, 10] });
+    serveBook(api, { book, lines: linesOf(ROWS) });
+    await open();
+    await user.click(gridCell('Screw 001', 10));
+    await user.keyboard('1{Enter}');
+    await user.click(gridCell('Screw 002', 10));
+    await user.keyboard('2{Enter}');
+    await user.click(screen.getByRole('button', { name: 'Save prices' }));
+    expect(await screen.findByText('This book would hold 5001 price rows; a price book holds at most 5000.')).toBeInTheDocument();
+    expect(api.put).not.toHaveBeenCalled();
+  });
+});

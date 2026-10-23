@@ -1,24 +1,29 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useId, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { History, RotateCcw, SearchX } from 'lucide-react';
 import type { PriceBook, PriceBookAudienceKind, PriceBookTargetSalesChannel } from '@endora-commerce/contracts';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button, PageHeader, buttonVariants } from '@endora-commerce/admin-kit/ui';
+import { PriceBookGrid } from '../components/PriceBookGrid.js';
 import { PriceBookHeaderForm } from '../components/PriceBookHeaderForm.js';
 import { errorMessage, errorStatus } from '../lib/api-errors.js';
 import { AUDIENCE_KINDS, statusLabel, typeLabel } from '../lib/book-labels.js';
 import { usePriceBooksApi } from '../lib/use-price-books-api.js';
 
 /**
- * One price book, `/price-lists/:id` (feature 161, US1; the address P1's audit
- * reference resolver links to). Phase 4 builds its header; the grid and the
- * import join it in later phases.
+ * One price book, `/price-lists/:id` (feature 161, US1 and US2; the address
+ * P1's audit reference resolver links to): its settings and its prices, as two
+ * tabs. The tab is in the URL (`?tab=prices`), so a link can open the prices;
+ * both panels stay mounted, so unsaved prices survive a look at the settings.
  *
  * A book the caller may not see answers exactly as an unknown one — the server
  * says `404` for both (R10, SC-006) and so does this page. The history link is
  * the audit log filtered to the book (G13).
  */
+
+const TABS = ['settings', 'prices'] as const;
+type Tab = (typeof TABS)[number];
 
 type BookState =
   | { readonly kind: 'loading' }
@@ -34,6 +39,27 @@ export function PriceBookPage(): ReactNode {
   const [state, setState] = useState<BookState>({ kind: 'loading' });
   const [channels, setChannels] = useState<PriceBookTargetSalesChannel[]>([]);
   const [kinds, setKinds] = useState<readonly PriceBookAudienceKind[]>(AUDIENCE_KINDS);
+  const [params, setParams] = useSearchParams();
+  const tab: Tab = params.get('tab') === 'prices' ? 'prices' : 'settings';
+  const tabsId = useId();
+  const selectTab = (next: Tab): void => {
+    setParams(
+      (current) => {
+        const out = new URLSearchParams(current);
+        if (next === 'settings') out.delete('tab');
+        else out.set('tab', next);
+        return out;
+      },
+      { replace: true },
+    );
+  };
+  const onTabKey = (event: KeyboardEvent<HTMLButtonElement>): void => {
+    if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+    event.preventDefault();
+    const next: Tab = tab === 'settings' ? 'prices' : 'settings';
+    selectTab(next);
+    document.getElementById(`${tabsId}-${next}-tab`)?.focus();
+  };
 
   const load = useCallback(async (): Promise<void> => {
     try {
@@ -122,14 +148,39 @@ export function PriceBookPage(): ReactNode {
           </Link>
         }
       />
-      <PriceBookHeaderForm
-        book={book}
-        channels={channels}
-        kinds={kinds}
-        editable={editable}
-        onChanged={(next): void => setState({ kind: 'ready', book: next })}
-        onReload={(): void => void load()}
-      />
+      <div role="tablist" aria-label={t('priceBooks.book.tabs')} className="mb-4 flex gap-1 border-b">
+        {TABS.map((name) => (
+          <button
+            key={name}
+            id={`${tabsId}-${name}-tab`}
+            type="button"
+            role="tab"
+            aria-selected={tab === name}
+            aria-controls={`${tabsId}-${name}-panel`}
+            tabIndex={tab === name ? 0 : -1}
+            className={`-mb-px min-h-11 border-b-2 px-4 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-9 ${
+              tab === name ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+            onClick={(): void => selectTab(name)}
+            onKeyDown={onTabKey}
+          >
+            {t(`priceBooks.book.tab.${name}`)}
+          </button>
+        ))}
+      </div>
+      <div id={`${tabsId}-settings-panel`} role="tabpanel" aria-labelledby={`${tabsId}-settings-tab`} hidden={tab !== 'settings'}>
+        <PriceBookHeaderForm
+          book={book}
+          channels={channels}
+          kinds={kinds}
+          editable={editable}
+          onChanged={(next): void => setState({ kind: 'ready', book: next })}
+          onReload={(): void => void load()}
+        />
+      </div>
+      <div id={`${tabsId}-prices-panel`} role="tabpanel" aria-labelledby={`${tabsId}-prices-tab`} hidden={tab !== 'prices'}>
+        <PriceBookGrid book={book} editable={editable} onBookChanged={(next): void => setState({ kind: 'ready', book: next })} />
+      </div>
     </>
   );
 }

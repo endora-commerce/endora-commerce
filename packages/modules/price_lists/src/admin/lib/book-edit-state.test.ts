@@ -6,10 +6,12 @@ import {
   buildSave,
   cellKey,
   cellText,
+  cellToken,
   cellView,
   createEditState,
   editCell,
   editCellDetail,
+  editedStarts,
   effectiveRows,
   invalidCount,
   rebase,
@@ -32,7 +34,6 @@ import {
  * so; a custom window set in the cell detail keeps its own end.
  */
 
-const BOOK = '00000000-0000-4000-8000-000000161d02';
 const P1 = '00000000-0000-4000-8000-000000161b01';
 const P2 = '00000000-0000-4000-8000-000000161b02';
 const V1 = '00000000-0000-4000-8000-000000161b11';
@@ -289,5 +290,50 @@ describe('server refusals and a stale book', () => {
     expect(state.baseVersion).toBe(4);
     expect(unsavedCount(state)).toBe(1);
     expect(cellView(state, P1_KEY, 1).edited).toBe(true);
+  });
+});
+
+describe('moving a window and showing placeholder lines', () => {
+  it('moves a row to another start: deletes it there and writes the window anew', () => {
+    const r1 = row(p1Sel, 1, null, { type: 'fixed', amount: '95.0000' });
+    let state = withLines(createEditState({ version: 1, isBase: false }), [line(p1Sel, [r1])]);
+    state = editCellDetail(state, P1_KEY, 1, { price: { type: 'fixed', amount: '42.0000' }, min: 25, max: 49 });
+    expect(cellView(state, P1_KEY, 1).price).toBeNull();
+    expect(cellView(state, P1_KEY, 25)).toMatchObject({ price: { type: 'fixed', amount: '42.0000' }, window: { min: 25, max: 49 }, custom: true });
+    const save = buildSave(state);
+    if ('blocked' in save) throw new Error('blocked');
+    expect(save.body).toEqual({
+      mode: 'merge',
+      upsert: [{ selection: { productId: P1 }, minQuantity: 25, maxQuantity: 49, price: { type: 'fixed', amount: '42.0000' } }],
+      delete: [r1.id],
+    });
+    expect(editedStarts(state)).toEqual([1, 25]);
+  });
+
+  it('shows lines that are not unsaved changes (a product’s unpriced variants)', () => {
+    const { state } = l2();
+    const v1 = sel({ variantId: V1, productId: P1 });
+    const shown = addLines(state, [{ selection: v1, kind: 'variant', labels: NO_LABELS, parentKey: P1_KEY }], { unsaved: false });
+    expect(shown.added).toBe(1);
+    expect(unsavedCount(shown.state)).toBe(0);
+    expect(shown.state.lines.get(selectionKeyOf(v1))?.parentKey).toBe(P1_KEY);
+  });
+});
+
+describe('cell tokens — the grid’s render bound (SC-004, FR-036)', () => {
+  it('change for the cells of the edited line only, and for its variants', () => {
+    const v1Sel = sel({ variantId: V1, productId: P1 });
+    const p1 = row(p1Sel, 1, null, { type: 'percent', percent: '-20.00' });
+    const screws = row(screwsSel, 1, null, { type: 'percent', percent: '-10.00' });
+    const before = withLines(createEditState({ version: 1, isBase: false }), [line(screwsSel, [screws]), line(p1Sel, [p1], [line(v1Sel, [])])]);
+    const after = editCell(before, P1_KEY, 10, '-25%');
+    const changed = (key: string, start: number): boolean => cellToken(before, key, start) !== cellToken(after, key, start);
+    expect([1, 10, 100].map((start) => changed(SCREWS_KEY, start))).toEqual([false, false, false]);
+    // The edited cell, the tier below it (its window ends at 9 now) and the
+    // empty cell above it (it inherits from 10 now) …
+    expect([1, 10, 100].map((start) => changed(P1_KEY, start))).toEqual([true, true, true]);
+    // … and the variant cells that show what the product line gives.
+    expect(changed(selectionKeyOf(v1Sel), 10)).toBe(true);
+    expect(changed(selectionKeyOf(v1Sel), 1)).toBe(false);
   });
 });

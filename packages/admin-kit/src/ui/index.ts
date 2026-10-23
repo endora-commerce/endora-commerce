@@ -28,6 +28,8 @@ export { Checkbox } from './checkbox.js';
 export { ColorPicker, DEFAULT_COLOR_PRESETS } from './color-picker.js';
 export { Combobox } from './combobox.js';
 export type { ComboboxOption, ComboboxProps } from './combobox.js';
+// Feature 161 — the price-book grid's *Add lines* menu, the primitive `RowActionMenu` is built on.
+export { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './dropdown-menu.js';
 export { Input } from './input.js';
 export { Label } from './label.js';
 export { MultiCombobox } from './multi-combobox.js';

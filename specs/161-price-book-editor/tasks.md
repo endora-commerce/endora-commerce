@@ -146,24 +146,24 @@ API.
 
 ### Tests first
 
-- [ ] T057 [P] [US2] Grid layout tests in `AT/price-book-grid.layout.test.tsx`: lines ordered all → attribute → category → category ∩ attribute → product → variant (under its product) and by label; one column per `tierStarts`; kind shown as text + icon; reference "of base" on catalogue books and "of catalogue price" otherwise; the note linking the precedence view (FR-006, FR-007)
-- [ ] T058 [P] [US2] Inheritance tests in `AT/price-book-grid.inherit.test.tsx`: an empty cell shows "inherits from {start}: value" from the nearest lower tier covering it; "not priced by this line at this quantity" when none; never zero (FR-037)
-- [ ] T059 [P] [US2] Editing tests in `AT/price-book-grid.edit.test.tsx`: US2 scenarios 1–5 and 11 — bulk add of 40 products through the product picker (no duplicates), category/attribute/category∩attribute pickers offering only eligible attributes, typed values, block paste with normalisation and per-cell refusal, keyboard-only flow, bulk actions as one undo step, unsaved count, one batch on save with progress and live announcement (FR-008, FR-011–FR-013)
-- [ ] T060 [P] [US2] Variant and cell-detail tests in `AT/price-book-grid.variants.test.tsx`: expand a variant product, inherited variant cells, custom window 25–49 in the detail, clear (FR-009, FR-010)
-- [ ] T061 [P] [US2] Error and conflict tests in `AT/price-book-grid.errors.test.tsx`: `errors[]` with several rows marks every failing cell; `409 PRICE_BOOK_STALE` keeps the edits, reloads and offers re-apply; leaving with unsaved changes prompts; inactive and deleted-target lines show the reason (FR-014, FR-016, SC-005)
-- [ ] T062 [P] [US2] Paging and search tests in `AT/price-book-grid.paging.test.tsx`: pages of 50/100/200 lines from `GET …/lines` with page numbers and the total line count, a product's variants on its page, search by name/SKU/category/attribute and kind filter sent to the server, edits kept across pages and re-applied when a page is revisited; on a non-base book, adding lines past 5 000 rows refused before saving (FR-015)
-- [ ] T063 [P] [US2] Edit-state reducer tests in `PL/admin/lib/book-edit-state.test.ts`: `data-model.md` §3 (cell keys, groups, undo/redo, save body, error mapping by `index`/`rowId`, stale re-apply)
-- [ ] T064 [US2] Integration test in `backend/test/integration/price_lists/editor-batch-roundtrip.test.ts`: the save bodies the reducer builds for E1, E2 and E3 are accepted by `PUT …/rows` and the resolve endpoint returns E1.1, E2.1, E3.1
+- [x] T057 [P] [US2] Grid layout tests in `AT/price-book-grid.layout.test.tsx`: lines ordered all → attribute → category → category ∩ attribute → product → variant (under its product) and by label; one column per `tierStarts`; kind shown as text + icon; reference "of base" on catalogue books and "of catalogue price" otherwise; the note linking the precedence view (FR-006, FR-007)
+- [x] T058 [P] [US2] Inheritance tests in `AT/price-book-grid.inherit.test.tsx`: an empty cell shows "inherits from {start}: value" from the nearest lower tier covering it; "not priced by this line at this quantity" when none; never zero (FR-037)
+- [x] T059 [P] [US2] Editing tests in `AT/price-book-grid.edit.test.tsx`: US2 scenarios 1–5 and 11 — bulk add of 40 products through the product picker (no duplicates), category/attribute/category∩attribute pickers offering only eligible attributes, typed values, block paste with normalisation and per-cell refusal, keyboard-only flow, bulk actions as one undo step, unsaved count, one batch on save with progress and live announcement (FR-008, FR-011–FR-013)
+- [x] T060 [P] [US2] Variant and cell-detail tests in `AT/price-book-grid.variants.test.tsx`: expand a variant product, inherited variant cells, custom window 25–49 in the detail, clear (FR-009, FR-010)
+- [x] T061 [P] [US2] Error and conflict tests in `AT/price-book-grid.errors.test.tsx`: `errors[]` with several rows marks every failing cell; `409 PRICE_BOOK_STALE` keeps the edits, reloads and offers re-apply; leaving with unsaved changes prompts; inactive and deleted-target lines show the reason (FR-014, FR-016, SC-005)
+- [x] T062 [P] [US2] Paging and search tests in `AT/price-book-grid.paging.test.tsx`: pages of 50/100/200 lines from `GET …/lines` with page numbers and the total line count, a product's variants on its page, search by name/SKU/category/attribute and kind filter sent to the server, edits kept across pages and re-applied when a page is revisited; on a non-base book, adding lines past 5 000 rows refused before saving (FR-015)
+- [x] T063 [P] [US2] Edit-state reducer tests in `PL/admin/lib/book-edit-state.test.ts`: `data-model.md` §3 (cell keys, groups, undo/redo, save body, error mapping by `index`/`rowId`, stale re-apply)
+- [x] T064 [US2] Integration test in `backend/test/integration/price_lists/editor-batch-roundtrip.test.ts`: the save bodies the reducer builds for E1, E2 and E3 are accepted by `PUT …/rows` and the resolve endpoint returns E1.1, E2.1, E3.1
 
 ### Implementation
 
-- [ ] T065 [US2] `PL/admin/lib/book-edit-state.ts` (reducer, save body, error mapping)
-- [ ] T066 [US2] `PL/admin/components/PriceBookGrid.tsx` on the admin-kit grid (lines from `GET …/lines`, columns, inherited cells, kind rendering, toolbar with add/bulk actions, server search/filter, page numbers with `PaginationFooter`, page cache keyed by version)
-- [ ] T067 [US2] `PL/admin/components/CellDetailDialog.tsx` (custom window, inherited value, clear) on admin-kit's modal dialog
-- [ ] T068 [US2] Grid tab of `PL/admin/pages/PriceBookPage.tsx` (load, save, stale flow, unsaved prompt)
-- [ ] T069 [US2] i18n en + pl for every US2 string
+- [x] T065 [US2] `PL/admin/lib/book-edit-state.ts` (reducer, save body, error mapping)
+- [x] T066 [US2] `PL/admin/components/PriceBookGrid.tsx` on the admin-kit grid (lines from `GET …/lines`, columns, inherited cells, kind rendering, toolbar with add/bulk actions, server search/filter, page numbers with `PaginationFooter`, page cache keyed by version)
+- [x] T067 [US2] `PL/admin/components/CellDetailDialog.tsx` (custom window, inherited value, clear) on admin-kit's modal dialog
+- [x] T068 [US2] Grid tab of `PL/admin/pages/PriceBookPage.tsx` (load, save, stale flow, unsaved prompt)
+- [x] T069 [US2] i18n en + pl for every US2 string
 
-**Checkpoint 5** — includes the UX-laws review of the grid (Hick: toolbar ≤ 5 primary actions; Von Restorff: one primary *Save*; Fitts: destructive *Clear* apart; Postel: liberal input).
+**Checkpoint 5** — reached 2026-10-23; awaiting coordinator review. Includes the UX-laws review of the grid (Hick: toolbar ≤ 5 primary actions; Von Restorff: one primary *Save*; Fitts: destructive *Clear* apart; Postel: liberal input).
 
 ---
 

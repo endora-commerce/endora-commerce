@@ -59,6 +59,7 @@ interface HarnessProps {
   readonly onChange?: (changes: readonly EditableGridCellChange[], reason: EditableGridChangeReason) => void;
   readonly renderSpy?: (key: string) => void;
   readonly handleRef?: { current: EditableGridHandle | null };
+  readonly tokens?: Record<string, string>;
 }
 
 function Harness(props: HarnessProps): ReactNode {
@@ -87,6 +88,7 @@ function Harness(props: HarnessProps): ReactNode {
         readOnly={props.readOnly ?? false}
         getText={(rowKey, columnKey) => texts[cellKey(rowKey, columnKey)] ?? ''}
         getError={(rowKey, columnKey) => props.errors?.[cellKey(rowKey, columnKey)]}
+        {...(props.tokens ? { getCellToken: (rowKey: string, columnKey: string) => props.tokens![cellKey(rowKey, columnKey)] ?? '' } : {})}
         renderCell={renderCell}
         onChange={(changes, reason) => {
           props.onChange?.(changes, reason);
@@ -549,5 +551,27 @@ describe('EditableGrid — render budget (SC-004 proxy, R4)', () => {
     // Committing renders the edited cell (its new text) and the cell focus
     // reaches; the caller's state change re-renders no unchanged cell.
     expect([...renders.keys()].sort()).toEqual(['bravo|q1', 'charlie|q1']);
+  });
+});
+
+describe('EditableGrid — caller tokens (161 Phase 5)', () => {
+  it('re-renders a cell whose token changed, and no other, when its text did not change', () => {
+    // A caller whose cell shows more than its text — the price grid shows what
+    // an empty cell inherits from its neighbour — says so with a token, so the
+    // memoised cell renders again exactly when that changes.
+    const renders = new Map<string, number>();
+    const renderSpy = (key: string): void => {
+      renders.set(key, (renders.get(key) ?? 0) + 1);
+    };
+    const bundle = coreBundle('en');
+    const wrapper = ({ children }: { children: ReactNode }): ReactElement => (
+      <TranslationProvider language="en" initialBundle={bundle}>
+        <>{children}</>
+      </TranslationProvider>
+    );
+    const { rerender } = render(<Harness renderSpy={renderSpy} tokens={{ 'alpha|q10': 'a' }} />, { wrapper });
+    renders.clear();
+    rerender(<Harness renderSpy={renderSpy} tokens={{ 'alpha|q10': 'b' }} />);
+    expect([...renders.keys()]).toEqual(['alpha|q10']);
   });
 });

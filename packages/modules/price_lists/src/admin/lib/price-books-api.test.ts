@@ -378,3 +378,15 @@ describe('price-books API client — the boundary', () => {
     expect(calls[0]!.path).toBe(`${B}/a%2Fb`);
   });
 });
+
+describe('price-books API client — a product’s variants (FR-009)', () => {
+  it('reads the variants the catalogue knows from the product read the product editor uses', async () => {
+    const { client, calls } = fakeClient({
+      [`GET /api/v1/catalog/products/${PRODUCT_ID}`]: {
+        data: { id: PRODUCT_ID, name: { 'en-US': 'x' }, variants: [{ id: ORG_ID, sku: 'P1-RED-L', variantAttributeValues: { color: 'red' } }] },
+      },
+    });
+    expect(await createPriceBooksApi(client).productVariants(PRODUCT_ID)).toEqual([{ id: ORG_ID, sku: 'P1-RED-L' }]);
+    expect(calls).toHaveLength(1);
+  });
+});

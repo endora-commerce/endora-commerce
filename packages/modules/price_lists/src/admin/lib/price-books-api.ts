@@ -136,6 +136,12 @@ export interface PriceBooksApi {
   /** One audited batch against the version the edits started from. */
   writeRows(id: string, batch: PriceBookRowsBatch, expectedVersion: number): Promise<PriceBookRowsWriteResult>;
   basePrices(productId: string): Promise<ProductBasePrices>;
+  /**
+   * The variants the catalogue knows for a product (FR-009), id and SKU. Read
+   * from the product read the catalogue's own product editor uses for its
+   * variants (`/api/v1/catalog/products/:id`); there is no admin variant list.
+   */
+  productVariants(productId: string): Promise<Array<{ id: string; sku: string }>>;
   writeBasePrices(productId: string, body: BasePricesWrite): Promise<ProductBasePrices>;
   resolve(body: PriceBookResolveRequest): Promise<PriceBookResolvedLine[]>;
   precedence(): Promise<PrecedenceView>;
@@ -255,6 +261,10 @@ export function createPriceBooksApi(client: PriceBooksTransport): PriceBooksApi 
       (await get(`${BASE}/settings/show-list-price`, dataOf(showListPriceWriteSchema))).value,
     setShowListPrice: async (value) =>
       (await send('PUT', `${BASE}/settings/show-list-price`, { value }, dataOf(showListPriceWriteSchema))).value,
+    productVariants: async (productId) => {
+      const answer = await get(`/api/v1/catalog/products/${encodeURIComponent(productId)}`, productVariantsAnswer);
+      return answer.data.variants.map((v) => ({ id: v.id, sku: v.sku }));
+    },
     targets: {
       currencies: async () => items(await get(`${BASE}/targets/currencies`, priceBookTargetCurrenciesResponseSchema)),
       salesChannels: async (currency) =>
@@ -284,3 +294,8 @@ export function createPriceBooksApi(client: PriceBooksTransport): PriceBooksApi 
     },
   };
 }
+
+/** The part of the catalogue's product read the grid uses: its variants' ids and SKUs. */
+const productVariantsAnswer = z.object({
+  data: z.object({ variants: z.array(z.object({ id: z.string(), sku: z.string() })).default([]) }),
+});

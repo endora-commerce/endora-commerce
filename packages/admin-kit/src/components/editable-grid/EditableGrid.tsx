@@ -124,6 +124,13 @@ export interface EditableGridProps {
   readonly getText: (rowKey: string, columnKey: string) => string;
   readonly getError?: (rowKey: string, columnKey: string) => string | undefined;
   readonly isReadOnly?: (rowKey: string, columnKey: string) => boolean;
+  /**
+   * A cell's memo token: a cell renders again when its text, error, state or
+   * this token changes. A caller whose cell shows more than its own text (what
+   * an empty cell inherits from a neighbour) puts that in the token; without
+   * one a cell renders on its text alone.
+   */
+  readonly getCellToken?: (rowKey: string, columnKey: string) => string;
   /** A cell's content when it is not being edited; defaults to its text. Keep it stable. */
   readonly renderCell?: (context: EditableGridRenderContext) => ReactNode;
   readonly onChange: (changes: readonly EditableGridCellChange[], reason: EditableGridChangeReason) => void;
@@ -666,6 +673,7 @@ export function EditableGrid(props: EditableGridProps): ReactNode {
                     rowLabel={row.label}
                     columnLabel={column.label}
                     text={props.getText(row.key, column.key)}
+                    token={props.getCellToken?.(row.key, column.key) ?? ''}
                     error={error}
                     readOnly={Boolean(readOnly || row.readOnly || props.isReadOnly?.(row.key, column.key))}
                     active={isActive}
@@ -714,6 +722,8 @@ interface GridCellProps {
   readonly rowLabel: string;
   readonly columnLabel: string;
   readonly text: string;
+  /** The caller's memo token (`getCellToken`); compared, never rendered. */
+  readonly token: string;
   readonly error: string | undefined;
   readonly readOnly: boolean;
   readonly active: boolean;
