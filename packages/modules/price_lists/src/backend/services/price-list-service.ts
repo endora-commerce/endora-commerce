@@ -9,6 +9,7 @@ import type {
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { PriceDisplayModeOverride } from '../entities/price-display-mode-override.entity.js';
+import type { SurfaceChange } from './surface-change.js';
 import { SalesChannel, Setting, SettingValue } from '@endora-commerce/platform/kernel';
 import {
   decideDisplayMode,
@@ -72,7 +73,7 @@ export class PriceListService {
      * committed (D-287 P0). Production hands in `PricingGeneration`, whose
      * `invalidateAll` also announces the bump to every other process.
      */
-    private readonly pricingCache?: { invalidateAll: () => void | Promise<void> },
+    private readonly pricingCache?: { invalidateAll: (change?: SurfaceChange) => void | Promise<void> },
     /**
      * Feature 075 Phase C — the ports behind every override-target existence
      * check. Optional in the signature; **never optional in effect**: the paths
@@ -99,8 +100,12 @@ export class PriceListService {
     return this.targetReads;
   }
 
+  /**
+   * A display mode is not on the price surface (it holds amounts, not how they
+   * are shown), so nothing there is marked; the cache is cleared as ever.
+   */
   private async invalidatePricingCache(): Promise<void> {
-    await this.pricingCache?.invalidateAll();
+    await this.pricingCache?.invalidateAll({ kind: 'none' });
   }
 
   // ---- Engine: display mode (US7) ------------------------------------

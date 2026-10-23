@@ -346,6 +346,9 @@ export async function setupPricingFixture(h: BackendServerHandle): Promise<Prici
         .em()
         .getConnection()
         .execute(`delete from "price_lists" where "is_system" = false`);
+      // A raw delete is no write the price surface hears of: tell it, as a
+      // write that says nothing about itself does (every profile stale).
+      await pricing.priceSurface.markStale();
     },
 
     async resetBase() {

@@ -17,7 +17,7 @@ import { RuleScoped } from '@endora-commerce/platform/tenancy';
   name: 'price_profiles_key_unique',
 })
 export class PriceProfile {
-  [OptionalProps]?: 'id' | 'uniformPercent' | 'builtAt' | 'servingGeneration' | 'stale' | 'markedAt';
+  [OptionalProps]?: 'id' | 'uniformPercent' | 'builtAt' | 'servingGeneration' | 'stale' | 'markedAt' | 'revision';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -58,4 +58,12 @@ export class PriceProfile {
   /** When the profile was last marked stale; a build clears `stale` only if nothing marked it after it began. */
   @Property({ type: 'datetime', nullable: true })
   markedAt: Date | null = null;
+
+  /**
+   * Moved by every build and every targeted refresh (`price_profile_stale_products`):
+   * a targeted refresh replaces rows of the served generation without moving
+   * it, so what keys a memo of the served rows is this.
+   */
+  @Property({ type: 'integer', default: 0 })
+  revision: number = 0;
 }

@@ -43,6 +43,13 @@ import {
   type PriceBookScope,
 } from './price-book-scope.js';
 import type { PriceListTargetReads } from './price-list-service.js';
+import {
+  isLiveStatus,
+  storedSelections,
+  type RowSelection,
+  type SurfaceBookFacts,
+  type SurfaceChange,
+} from './surface-change.js';
 
 /**
  * The price-book write service — feature 160 (D-287 P1,
@@ -69,8 +76,11 @@ export interface PriceBookServiceDeps {
   emFactory: () => EntityManager;
   /** Required for every write; a composition without one gets a refusal, not an unaudited write. */
   commandBus?: CommandBus;
-  /** `PricingGeneration` in a composition: bumped after every committed write. */
-  pricingGeneration: { invalidateAll(): void | Promise<void> };
+  /**
+   * `PricingGeneration` in a composition: bumped after every committed write,
+   * with what the write moved on the price surface (`contracts/price-surface.md` §4).
+   */
+  pricingGeneration: { invalidateAll(change?: SurfaceChange): void | Promise<void> };
   /** The kernel's membership accessor; every channel-set read and write refuses without it. */
   channelMembership?: Pick<
     SalesChannelMembershipPort,
@@ -157,11 +167,16 @@ export class PriceBookService {
     return this.deps.reads;
   }
 
-  /** Run one audited command, then bump the pricing generation after it committed. */
+  /**
+   * Run one audited command, then bump the pricing generation after it
+   * committed, telling the price surface what moved (`surface`, evaluated after
+   * the commit so it can read the book as it now is).
+   */
   async #command<T>(
     action: string,
     objectId: string,
     write: (em: EntityManager) => Promise<{ result: T; before: Record<string, unknown> | null; after: Record<string, unknown> | null }>,
+    surface: SurfaceChange | (() => Promise<SurfaceChange>),
   ): Promise<T> {
     if (!this.deps.commandBus) {
       throw new Error(
@@ -175,8 +190,34 @@ export class PriceBookService {
       objectId,
       run: async ({ em }) => write(em),
     });
-    await this.deps.pricingGeneration.invalidateAll();
+    let change: SurfaceChange;
+    try {
+      change = typeof surface === 'function' ? await surface() : surface;
+    } catch {
+      // The write committed; a description that cannot be read costs a whole rebuild, not a wrong surface.
+      change = { kind: 'all' };
+    }
+    await this.deps.pricingGeneration.invalidateAll(change);
     return result;
+  }
+
+  /** A book's facts for the price surface, with its channel set when known. */
+  #facts(
+    book: Pick<PriceList, 'id' | 'currency' | 'audienceKind' | 'isSystem' | 'status'>,
+    overrides: Partial<SurfaceBookFacts> = {},
+  ): SurfaceBookFacts {
+    return {
+      bookId: book.id,
+      currencyCode: book.currency,
+      audienceKind: book.audienceKind,
+      isSystem: book.isSystem,
+      live: book.isSystem || isLiveStatus(book.status),
+      ...overrides,
+    };
+  }
+
+  async #channelIds(bookId: string): Promise<string[]> {
+    return (await this.#membership().listChannelsForEntity('price-list', bookId)).map((c) => c.id).sort();
   }
 
   /**
@@ -336,7 +377,7 @@ export class PriceBookService {
         before: { productId, byCurrency: before },
         after: { productId, byCurrency: after, createdBaseBooks: toCreate, ...(keepVariantRows ? { variantRowsKept: true } : {}) },
       };
-    });
+    }, { kind: 'products', productIds: [productId], currencyCodes: currencies });
   }
 
   /**
@@ -421,7 +462,8 @@ export class PriceBookService {
         channelIds: input.channelIds,
       });
       return { result: view, before: null, after: { ...view, channelIds: [...input.channelIds] } };
-    });
+      // A new book is a draft: it prices nowhere until it is activated.
+    }, { kind: 'none' });
   }
 
   async #insertBook(
@@ -512,6 +554,29 @@ export class PriceBookService {
     const channelsBefore = patch.channelIds
       ? (await this.#membership().listChannelsForEntity('price-list', bookId)).map((c) => c.id).sort()
       : null;
+    // What moves a price: the priority, the dates, the audience, the channels — not the name.
+    const pricing =
+      (patch.priority !== undefined && patch.priority !== book.priority) ||
+      patch.startsAt !== undefined ||
+      patch.endsAt !== undefined ||
+      patch.audience !== undefined ||
+      patch.channelIds !== undefined;
+    const surface = async (): Promise<SurfaceChange> => {
+      if (!pricing) return { kind: 'none' };
+      const now = await this.#channelIds(bookId);
+      return {
+        kind: 'books',
+        books: [
+          {
+            facts: [
+              this.#facts(book, { channelIds: channelsBefore ?? now }),
+              this.#facts(book, { channelIds: now, ...(patch.audience ? { audienceKind: patch.audience.kind } : {}) }),
+            ],
+            selections: 'stored',
+          },
+        ],
+      };
+    };
 
     await this.#command('price_list.update', bookId, async (txEm) => {
       const row = await txEm.findOneOrFail(PriceList, { id: bookId });
@@ -559,7 +624,7 @@ export class PriceBookService {
       after['version'] = await this.#bumpVersion(txEm, bookId, options.expectedVersion);
       before['version'] = options.expectedVersion;
       return { result: undefined, before, after };
-    });
+    }, surface);
   }
 
   /**
@@ -583,6 +648,9 @@ export class PriceBookService {
       await this.#membership().replaceChannelsForEntity('price-list', bookId, channelIds as [string, ...string[]], { em: txEm });
       await this.#bumpVersion(txEm, bookId, null);
       return { result: undefined, before: { channelIds: before.sort() }, after: { channelIds: [...channelIds].sort() } };
+    }, {
+      kind: 'books',
+      books: [{ facts: [this.#facts(book, { channelIds: before }), this.#facts(book, { channelIds: [...channelIds] })], selections: 'stored' }],
     });
     return this.channelSet(bookId);
   }
@@ -691,6 +759,13 @@ export class PriceBookService {
 
     const toDelete = [...plan.removed.map((r) => r.id), ...plan.changed.map((c) => c.before.id)];
     const toInsert = [...plan.added, ...plan.changed.map((c) => c.after)];
+    // The products whose price the batch can move: those the removed, the
+    // replaced and the written rows select (`contracts/price-surface.md` §4).
+    const touched: RowSelection[] = [...plan.removed, ...plan.changed.map((c) => c.before), ...toInsert].map((r) => ({
+      productId: r.productId ?? null,
+      categoryId: r.categoryId ?? null,
+      attributeKey: r.attributeKey ?? null,
+    }));
     const result = await this.#command('price_list.rows_replace', bookId, async (txEm) => {
       if (toDelete.length > 0) await txEm.nativeDelete(PriceListMatrixEntry, { priceListId: bookId, id: { $in: toDelete } });
       for (const row of toInsert) txEm.persist(txEm.create(PriceListMatrixEntry, { priceListId: bookId, ...row }));
@@ -707,7 +782,7 @@ export class PriceBookService {
         before: { rows: [...plan.removed, ...plan.changed.map((c) => c.before)].map(rowState), version: book.version },
         after: { rows: toInsert.map(rowState), deleted: plan.removed.map((r) => r.id), version },
       };
-    });
+    }, { kind: 'books', books: [{ facts: [this.#facts(book)], selections: touched }] });
     const written = plan.resolved.filter((r): r is StoredRow => r !== null);
     return {
       version: result.version,
@@ -763,6 +838,9 @@ export class PriceBookService {
       await txEm.flush();
       await this.#bumpVersion(txEm, bookId, null);
       return { result: viewOf(row, members.map(memberIdOf)), before, after: { status: next, everActivated: true } };
+    }, {
+      kind: 'books',
+      books: [{ facts: [this.#facts(book), this.#facts(book, { live: isLiveStatus(next) })], selections: 'stored' }],
     });
   }
 
@@ -781,7 +859,7 @@ export class PriceBookService {
       await txEm.flush();
       await this.#bumpVersion(txEm, bookId, null);
       return { result: undefined, before, after: { status: 'draft' } };
-    });
+    }, { kind: 'books', books: [{ facts: [this.#facts(book), this.#facts(book, { live: false })], selections: 'stored' }] });
   }
 
   /** Delete a book with its rows, members and channel set; a base book is refused 403. */
@@ -794,6 +872,8 @@ export class PriceBookService {
     if (!bookWritable(scope, scopedOf(book, members))) readOnly();
     const rowCount = await em.count(PriceListMatrixEntry, { priceListId: bookId });
     const channelIds = (await this.#membership().listChannelsForEntity('price-list', bookId)).map((c) => c.id).sort();
+    // Read before the rows go: what the deleted book priced is what moves.
+    const selections = await storedSelections(em, [bookId]);
     await this.#command('price_list.delete', bookId, async (txEm) => {
       // The channel set goes with the header: `sales_channel_price_lists`
       // cascades on the book's deletion (the bridge refuses an empty set).
@@ -805,7 +885,7 @@ export class PriceBookService {
         before: { ...viewOf(book, members.map(memberIdOf)), rowCount, channelIds },
         after: null,
       };
-    });
+    }, { kind: 'books', books: [{ facts: [this.#facts(book, { channelIds })], selections, retire: true }] });
   }
 
   /**
@@ -851,7 +931,8 @@ export class PriceBookService {
         before: null,
         after: { ...view, sourceBookId: bookId, amountMultiplier: input.amountMultiplier, rowCount: rows.length, channelIds: [...input.channelIds] },
       };
-    });
+      // The copy is a draft: it prices nowhere until it is activated.
+    }, { kind: 'none' });
   }
 
   /**

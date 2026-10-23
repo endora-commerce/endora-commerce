@@ -38,9 +38,19 @@ describe('price surface — freshness and live-path isolation', () => {
     await settlePriceSurface(h);
     expect(await sql(`select distinct "state", "stale" from "price_profiles"`)).toEqual([{ state: 'ready', stale: false }]);
   }
+  /**
+   * Marked — whole (`stale`) or per product (`price_profile_stale_products`,
+   * `contracts/price-surface.md` §4) — and still serving the surface it had.
+   * Which profiles and products a trigger marks is
+   * `price-surface-targeted-refresh.test.ts`'s subject.
+   */
   async function expectStale(): Promise<void> {
-    // Stale, and still serving the surface it had.
-    expect(await sql(`select distinct "state", "stale" from "price_profiles"`)).toEqual([{ state: 'ready', stale: true }]);
+    expect(await sql(`select distinct "state" from "price_profiles"`)).toEqual([{ state: 'ready' }]);
+    const [{ n }] = (await sql<{ n: number }>(
+      `select count(*)::int as n from "price_profiles" f
+        where f."stale" or exists (select 1 from "price_profile_stale_products" m where m."profile_id" = f."id")`,
+    )) as [{ n: number }];
+    expect(n, 'profiles marked').toBeGreaterThan(0);
   }
 
   /** The surface rows a request writes while it runs: none, ever. */
@@ -213,6 +223,8 @@ describe('price surface — freshness and live-path isolation', () => {
   });
 
   it('a catalogue event and a channel change mark it stale', async () => {
+    // A book pricing on the attribute, so the attribute event concerns a product.
+    await f.book({ audience: 'everyone', rows: [{ category: f.categories.screws, attribute: ['color', 'red'], fixed: '120' }] });
     for (const [event, payload] of [
       ['category.updated.v1', { categoryId: f.categories.screws }],
       ['attribute.updated.v1', { attributeKey: 'color' }],
@@ -224,6 +236,8 @@ describe('price surface — freshness and live-path isolation', () => {
       await new Promise((resolve) => setTimeout(resolve, 200));
       await expectStale();
     }
+    await f.clearBooks();
+    await settlePriceSurface(h);
   });
 
   it('live resolution never reads the surface', async () => {

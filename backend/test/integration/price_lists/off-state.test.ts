@@ -47,8 +47,17 @@ describe('price_lists — absent, the surface subscriptions and the ports stop',
       limit: 1,
     });
     await settlePriceSurface(h);
-    expect(await sql<{ stale: boolean }>(`select distinct "stale" from "price_profiles"`)).toEqual([{ stale: false }]);
+    expect(await marked()).toEqual({ stale: 0, products: 0 });
   }
+
+  /** What is marked on the surface: whole profiles, and (profile, product) marks (`contracts/price-surface.md` §4). */
+  const marked = async () => {
+    const [row] = await sql<{ stale: number; products: number }>(
+      `select (select count(*)::int from "price_profiles" where "stale") as "stale",
+              (select count(*)::int from "price_profile_stale_products") as "products"`,
+    );
+    return row!;
+  };
 
   const emitProductUpdated = async () => {
     h.eventBus.emit('product.updated.v1' as never, {
@@ -60,17 +69,18 @@ describe('price_lists — absent, the surface subscriptions and the ports stop',
     await new Promise((resolve) => setTimeout(resolve, 200));
   };
 
-  it('on: a catalogue event marks the surface stale', async () => {
+  it('on: a catalogue event marks the product on the surface', async () => {
     await buildSurface();
     await emitProductUpdated();
-    expect(await sql<{ stale: boolean }>(`select distinct "stale" from "price_profiles"`)).toEqual([{ stale: true }]);
+    expect((await marked()).products).toBeGreaterThan(0);
+    await settlePriceSurface(h);
   });
 
   it('absent: the same event marks nothing, and the pricing port refuses', async () => {
     await buildSurface();
     registryCache.__setEnabledForTesting(ALL_IDS.filter((id) => id !== 'price_lists'));
     await emitProductUpdated();
-    expect(await sql<{ stale: boolean }>(`select distinct "stale" from "price_profiles"`)).toEqual([{ stale: false }]);
+    expect(await marked()).toEqual({ stale: 0, products: 0 });
     const order = async () =>
       (h.container as unknown as { resolve<T>(n: string): T })
         .resolve<{ orderByUnitPrice: typeof f.pricing.orderByUnitPrice }>('pricingService')

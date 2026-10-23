@@ -1,0 +1,9 @@
+---
+'@endora-commerce/mod-price-lists': minor
+---
+
+The price surface is refreshed per trigger instead of rebuilt whole (feature 160, `contracts/price-surface.md` §4, owner ruling 2026-10-23).
+
+- **Marks.** A pricing write marks, after its commit, only what it moved: a (profile, product) mark in the new table `price_profile_stale_products` (migration `20261023T152351_price_lists_price_surface_targeted_marks`, which also adds `price_profiles.revision`), or the whole profile `stale` when every product of it is concerned. A book change marks the products its rows select in the profiles containing the book; a row batch the products of its rows; a base price the product in every profile of its currency; a `product.*` event the product, a `category.updated.v1` the products of the subtree and an `attribute.updated.v1` the products its rows select; a sales-channel event every profile of the channel. A buyer profile is marked for a product only when one of its books can select it or its surface holds a row for it. Display-mode writes and a name-only book patch mark nothing; a deleted book's buyer profiles are dropped.
+- **Worker.** A pass reads its work in one statement, builds never-built and stale profiles whole and re-resolves only the marked products of the others, replacing their rows of the served generation in one transaction; everyone profiles go before buyer profiles, and a pass clears only the marks it read. A buyer profile's whole build resolves only the products its own books can select.
+- **API.** `PricingGeneration.bump(change?)` and `invalidateAll(change?)` take a `SurfaceChange` (`services/surface-change.ts`); without one every profile is marked stale, as before. `PriceSurface.markChanged(change)` is new; `markStale()` keeps marking every profile. The pricing cache is still cleared whole on every bump.

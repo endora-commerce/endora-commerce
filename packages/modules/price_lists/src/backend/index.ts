@@ -35,6 +35,7 @@ import type {
   PricingGenerationPublisher,
   PricingGenerationSubscriber,
 } from './services/pricing-generation.js';
+import type { SurfaceChange } from './services/surface-change.js';
 import { PriceListReadService } from './services/price-list-read-port.js';
 import { createPriceBookWritePort } from './services/price-book-write-port.js';
 import type { PricingServiceContract } from './services/pricing-service.interface.js';
@@ -47,6 +48,7 @@ import { PriceListAudienceMember } from './entities/price-list-audience-member.e
 import { PriceListPrecedence } from './entities/price-list-precedence.entity.js';
 import { PriceProfile } from './entities/price-profile.entity.js';
 import { PriceProfilePrice } from './entities/price-profile-price.entity.js';
+import { PriceProfileStaleProduct } from './entities/price-profile-stale-product.entity.js';
 
 /**
  * `price_lists` — the decoration proof target (feature 072, wave 3, T127).
@@ -348,23 +350,54 @@ export function registerModule(ctx: ModuleContext): void {
    * Feature 160 (research R9) — catalogue facts and channel currencies decide
    * prices (category assignments, attribute values and flags, variants, a
    * channel's currencies), so their events bump the pricing generation, which
-   * clears every process's cached prices and marks the price surface stale.
-   * `ctx.subscribe`, so nothing runs while the module is off. A product's
-   * category assignment change is a `product.updated.v1` (`changedFields:
-   * ['categoryIds']`), so no new catalogue event is needed (T080 verified).
+   * clears every process's cached prices, and mark on the price surface what
+   * they concern (`contracts/price-surface.md` §4, owner ruling 2026-10-23): a
+   * product event that product, a category event the products of its subtree,
+   * an attribute event the products the rows on that attribute select, a
+   * channel event every profile of the channel. `ctx.subscribe`, so nothing
+   * runs while the module is off. A product's category assignment change is a
+   * `product.updated.v1` (`changedFields: ['categoryIds']`), so no new
+   * catalogue event is needed (T080 verified). A payload that does not name
+   * what it concerns marks every profile — the safe direction.
    */
-  for (const event of [
-    'product.created.v1',
-    'product.updated.v1',
-    'product.archived.v1',
-    'product.deleted.v1',
-    'category.updated.v1',
-    'attribute.updated.v1',
-    'sales_channels.identity_changed',
-    'sales_channels.lifecycle_changed',
-  ] as const) {
-    ctx.subscribe(event, async () => {
-      await ctx.cradle<PriceListsCradle>().priceLists.handle.pricingGeneration.bump();
+  const text = (value: unknown): string | null => (typeof value === 'string' && value.length > 0 ? value : null);
+  type Payload = Record<string, unknown>;
+  const product = (p: Payload): SurfaceChange => {
+    const id = text(p['productId']);
+    return id ? { kind: 'products', productIds: [id] } : { kind: 'all' };
+  };
+  const channel = (p: Payload): SurfaceChange => {
+    const code = text(p['channelCode']);
+    // `invalidateAll` is a change of more than one channel (a delete rebinding
+    // orphans, the default flag moving): every profile.
+    return code && p['invalidateAll'] !== true ? { kind: 'channels', channelCodes: [code] } : { kind: 'all' };
+  };
+  const surfaceSubscriptions = [
+    ['product.created.v1', product],
+    ['product.updated.v1', product],
+    ['product.archived.v1', product],
+    ['product.deleted.v1', product],
+    [
+      'category.updated.v1',
+      (p: Payload): SurfaceChange => {
+        const id = text(p['categoryId']);
+        return id ? { kind: 'categories', categoryIds: [id] } : { kind: 'all' };
+      },
+    ],
+    [
+      'attribute.updated.v1',
+      (p: Payload): SurfaceChange => {
+        const key = text(p['attributeKey']);
+        return key ? { kind: 'attributes', attributeKeys: [key] } : { kind: 'all' };
+      },
+    ],
+    ['sales_channels.identity_changed', channel],
+    ['sales_channels.lifecycle_changed', channel],
+  ] as const;
+  for (const [event, changeOf] of surfaceSubscriptions) {
+    ctx.subscribe(event, async (payload) => {
+      const change = changeOf((payload ?? {}) as unknown as Payload);
+      await ctx.cradle<PriceListsCradle>().priceLists.handle.pricingGeneration.bump(change);
     });
   }
 
@@ -485,6 +518,8 @@ export const entities = [
   PriceProfilePrice,
   // Feature 161 (G15) — a book's product lines.
   PriceListProductLine,
+  // Feature 160 (owner ruling 2026-10-23) — the surface's (profile, product) marks.
+  PriceProfileStaleProduct,
 ];
 
 /**

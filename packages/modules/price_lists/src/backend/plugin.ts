@@ -196,9 +196,10 @@ export function priceListsModule(options: PriceListsModuleOptions): {
       },
     },
     options.pricingGenerationPublisher,
-    // Feature 160 — the writer marks the price surface stale after its commit.
-    async () => {
-      await pricingEngine?.priceSurface.markStale();
+    // Feature 160 — the writer marks what its change moved on the price
+    // surface after its commit (`contracts/price-surface.md` §4).
+    async (change) => {
+      await pricingEngine?.priceSurface.markChanged(change);
     },
   );
   const priceListService = new PriceListService(options.emFactory, pricingGeneration, options.targetReads);
@@ -226,6 +227,12 @@ export function priceListsModule(options: PriceListsModuleOptions): {
       bookCache,
       profileMemo,
       ...(options.requestSurfaceRebuild ? { requestSurfaceRebuild: options.requestSurfaceRebuild } : {}),
+      ...(options.salesChannelMembership
+        ? {
+            bookChannels: async (bookId: string) =>
+              (await options.salesChannelMembership!.listChannelsForEntity('price-list', bookId)).map((c) => c.id),
+          }
+        : {}),
       showListPrice: () => readShowListPrice(options.settingsRead),
     },
   );

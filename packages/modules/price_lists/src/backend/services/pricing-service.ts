@@ -69,6 +69,11 @@ export interface PricingServiceOptions {
   profileMemo?: PricingCache<PricingProfile, ProfileMemoKey>;
   /** Ask the `price_lists.surface` worker to rebuild stale profiles (best effort). */
   requestSurfaceRebuild?: () => Promise<void>;
+  /**
+   * A book's channel set, through the membership accessor (Principle XII) — what
+   * the surface's marking reads to find the profiles an everyone book reaches.
+   */
+  bookChannels?: (bookId: string) => Promise<readonly string[]>;
   /** `pricing.show_list_price` (G9): whether a detail carries the catalogue price beside a lower one. */
   showListPrice?: () => Promise<boolean>;
 }
@@ -117,6 +122,20 @@ export class PricingService implements PricingServiceContract {
       books: this.bookPricing,
       listProducts: () => this.#productRead().listAll(),
       productsByIds: (ids) => this.#productRead().findByIds(ids),
+      categories: {
+        listProductIdsInCategory: (id) => this.#categoryRead().listProductIdsInCategory(id),
+        listProductIdsInSubtree: (id) => this.#categoryRead().listProductIdsInSubtree(id),
+        listAssignmentsForProducts: (ids) => this.#categoryRead().listAssignmentsForProducts(ids),
+      },
+      bookChannels: async (bookId) => {
+        if (!this.options.bookChannels) {
+          throw new Error(
+            "PricingService: the price surface reads a book's channel set through the membership accessor, " +
+              'and this composition constructed the engine without it.',
+          );
+        }
+        return this.options.bookChannels(bookId);
+      },
       ...(this.options.requestSurfaceRebuild ? { requestRebuild: this.options.requestSurfaceRebuild } : {}),
     });
     return this.#surface;

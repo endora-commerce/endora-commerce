@@ -5,10 +5,27 @@ import type {
   ListingPriceOrderQuery,
   ListingPriceOrderRow,
 } from '@endora-commerce/contracts';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 import type { BookPricing, BookPricingViewer, ListingAnswer } from './book-pricing.js';
 import { compareDecimal } from './matrix-decimal.js';
 import type { PricedProductRef } from './pricing-service.interface.js';
 import type { PricingProfile } from './pricing-profile.js';
+import {
+  emptyPlan,
+  mergePlan,
+  planMarks,
+  productsOfSelections,
+  selectingBooks,
+  storedSelections,
+  targetsForBooks,
+  targetsForProducts,
+  type ChangeTargets,
+  type MarkPlan,
+  type ResolvedBookFacts,
+  type RowSelection,
+  type SurfaceChange,
+  type SurfaceProfileRef,
+} from './surface-change.js';
 
 /**
  * The price surface — feature 160, research R7, `contracts/price-surface.md`.
@@ -27,11 +44,16 @@ import type { PricingProfile } from './pricing-profile.js';
  * by construction; `price-surface-identity.test.ts` holds it.
  *
  * **Freshness — a request never waits on a build** (`contracts/price-surface.md`
- * §3). A pricing write marks every profile **stale** after its commit and asks
- * the `price_lists.surface` worker to rebuild; a stale profile keeps serving the
- * surface it had until the worker swaps the rebuilt one in (a build writes the
- * next generation of rows beside the served one and switches
- * `serving_generation` in the same transaction). Only the **order** may lag a
+ * §3). A pricing write marks, after its commit, what it moved — a (profile,
+ * product) mark per product it concerns in each profile it reaches, or a whole
+ * profile **stale** when it concerns every product of it (§4's trigger table,
+ * {@link PriceSurface.markChanged}) — and asks the `price_lists.surface` worker
+ * to refresh. A marked profile keeps serving the surface it had until the
+ * worker swaps the refreshed one in: a whole build writes the next generation
+ * of rows beside the served one and switches `serving_generation` in the same
+ * transaction, and a targeted refresh replaces the marked products' rows of the
+ * served generation in one transaction — either way a reader sees the surface
+ * before or after, never a mix. Only the **order** may lag a
  * change — by the worker's turnaround, within SC-005's 60 s — never a displayed
  * price: cards are always resolved live. A profile **never built** is
  * registered and its build asked for, and the request is answered at once: a
@@ -52,13 +74,39 @@ const LIVE_ORDER_LIMIT = 5_000;
 /** Pairs of builds whose coverage answer this process keeps. */
 const COVERAGE_MEMO_LIMIT = 10_000;
 
-/** Rebuild passes per worker job: a write that marks a profile during a pass is picked up by the next. */
-const REBUILD_PASSES = 10;
+/**
+ * Passes per worker job: a write that marks a profile during a pass is picked
+ * up by the next, so the job runs while writes keep landing (a bulk import),
+ * bounded so a job cannot run forever.
+ */
+const REBUILD_PASSES = 1_000;
 
-/** A served surface: the profile id and the generation readers see (which keys every memo of it). */
+/** Above this many products a change concerning a profile rebuilds it whole rather than marking each. */
+const PARTIAL_LIMIT = 10_000;
+
+/** Marks (and refreshed rows) written or deleted per statement. */
+const MARK_CHUNK = 5_000;
+
+/** A served surface: the profile id, the generation readers filter on, and the revision every memo of it is keyed on. */
 interface ReadySurface {
   id: string;
   generation: number;
+  revision: number;
+}
+
+/** One profile's work as a pass reads it, in one statement (a snapshot: marks committed later wait for the next pass). */
+interface DueProfile {
+  id: string;
+  channelId: string;
+  currencyCode: string;
+  precedenceVersion: number;
+  vector: PricingProfile['vector'];
+  state: 'building' | 'ready';
+  stale: boolean;
+  /** `marked_at` as text — microseconds kept, so "unchanged since the snapshot" is an equality. */
+  markedAt: string | null;
+  /** The (profile, product) marks the pass read, by id (several per product when several writes marked it). */
+  marks: Array<{ id: string; productId: string }>;
 }
 
 /** What the read path finds for a profile: a served surface, a live ordering, or nothing yet. */
@@ -71,6 +119,18 @@ export interface PriceSurfaceDeps {
   listProducts: () => Promise<PricedProductRef[]>;
   /** The given products, through the same port. */
   productsByIds: (ids: readonly string[]) => Promise<PricedProductRef[]>;
+  /**
+   * `catalog`'s category reads (Principle I: the marking asks the owner, never
+   * its tables): which products a category row selects, which products a
+   * category event concerns, and the assignments a category row is matched on.
+   */
+  categories: {
+    listProductIdsInCategory(categoryId: string): Promise<readonly string[]>;
+    listProductIdsInSubtree(categoryId: string): Promise<readonly string[]>;
+    listAssignmentsForProducts(productIds: readonly string[]): Promise<ReadonlyArray<{ productId: string; categoryId: string }>>;
+  };
+  /** A book's channel set, through the membership accessor (Principle XII). */
+  bookChannels: (bookId: string) => Promise<readonly string[]>;
   /** Ask the worker to rebuild the stale profiles; best effort. */
   requestRebuild?: () => Promise<void>;
 }
@@ -119,50 +179,272 @@ export class PriceSurface {
 
   constructor(private readonly deps: PriceSurfaceDeps) {}
 
-  /** After a committed pricing write: every profile is stale — still served — until rebuilt. */
+  /** Every profile stale — still served — until rebuilt: what a write that says nothing about itself costs. */
   async markStale(): Promise<void> {
-    await this.deps
-      .emFactory()
-      .execute(`update "price_profiles" set "stale" = true, "marked_at" = clock_timestamp()`);
-    await this.deps.requestRebuild?.().catch(() => undefined);
+    await this.markChanged({ kind: 'all' });
   }
 
   /**
-   * The worker's job: build every never-built profile, then rebuild every stale
-   * one, from its stored vector — never-built first (a request is waiting on an
-   * approximation for those), the everyone profiles before the buyer profiles
-   * that compare against them. Repeats while a pass leaves work, so a write that
-   * marks a profile during a pass is not lost to the coalesced job id. Answers
-   * how many builds ran.
+   * After a committed pricing write: mark what it moved (`contracts/price-surface.md`
+   * §4) and ask the worker for a refresh. Every mark of one change is written
+   * in one transaction, so a worker pass sees all of it or none. A marking that
+   * fails falls back to marking every profile stale — the surface may then be
+   * slow to catch up, but it is never left silently wrong.
    */
-  async rebuildStale(): Promise<number> {
-    let rebuilt = 0;
-    for (let pass = 0; pass < REBUILD_PASSES; pass += 1) {
-      const due = await this.deps.emFactory().execute<
-        Array<{
-          sales_channel_id: string;
-          currency_code: string;
-          precedence_version: number;
-          book_vector: PricingProfile['vector'];
-        }>
-      >(
-        `select "sales_channel_id", "currency_code", "precedence_version", "book_vector"
-           from "price_profiles" where "state" = 'building' or "stale"
-          order by ("state" = 'building') desc, jsonb_array_length("book_vector") asc`,
-      );
-      if (due.length === 0) break;
-      for (const row of due) {
-        const profile = await this.deps.books.profileFromVector({
-          channelId: row.sales_channel_id,
-          currencyCode: row.currency_code.trim(),
-          precedenceVersion: Number(row.precedence_version),
-          vector: row.book_vector,
-        });
-        await this.#build(profile, row.book_vector.length === 0 ? null : await this.#everyoneOf(profile));
-        rebuilt += 1;
+  async markChanged(change: SurfaceChange): Promise<void> {
+    if (change.kind === 'none') return;
+    try {
+      await this.#mark(change);
+    } catch (err) {
+      try {
+        await this.#markEvery();
+      } catch {
+        throw err;
       }
     }
-    return rebuilt;
+    await this.deps.requestRebuild?.().catch(() => undefined);
+  }
+
+  async #markEvery(where = 'true', params: unknown[] = []): Promise<void> {
+    await this.deps
+      .emFactory()
+      .execute(`update "price_profiles" set "stale" = true, "marked_at" = clock_timestamp() where ${where}`, params);
+  }
+
+  async #mark(change: Exclude<SurfaceChange, { kind: 'none' }>): Promise<void> {
+    switch (change.kind) {
+      case 'all':
+        await this.#markEvery();
+        return;
+      case 'channels': {
+        const ids = new Set(change.channelIds ?? []);
+        if (change.channelCodes && change.channelCodes.length > 0) {
+          const channels = await this.deps
+            .emFactory()
+            .find(SalesChannel, { code: { $in: [...change.channelCodes] } }, { fields: ['id'] });
+          for (const c of channels) ids.add(c.id);
+        }
+        if (ids.size === 0) return;
+        await this.#markEvery(`"sales_channel_id" = any(?::uuid[])`, [uuidArray([...ids])]);
+        return;
+      }
+      case 'books': {
+        let plan = emptyPlan();
+        for (const book of change.books) {
+          if (book.retire) await this.#retire(book.facts.map((f) => f.bookId));
+          const profiles = await this.#profileRefs();
+          if (profiles.length === 0) return;
+          const facts: ResolvedBookFacts[] = [];
+          for (const f of book.facts) {
+            facts.push({ ...f, channelIds: f.channelIds ?? (f.live && !f.isSystem ? await this.deps.bookChannels(f.bookId) : []) });
+          }
+          const targets = targetsForBooks(facts, profiles);
+          if (targets.own.length === 0 && targets.shared.length === 0) continue;
+          const selections =
+            book.selections === 'stored'
+              ? await storedSelections(this.deps.emFactory(), [...new Set(book.facts.map((f) => f.bookId))])
+              : book.selections;
+          plan = mergePlan(plan, await this.#plan(targets, await this.#productsOf(selections)));
+        }
+        await this.#write(plan);
+        return;
+      }
+      case 'products': {
+        const profiles = await this.#profileRefs();
+        await this.#write(await this.#plan(targetsForProducts(profiles, change.currencyCodes), new Set(change.productIds)));
+        return;
+      }
+      case 'categories': {
+        const products = new Set<string>();
+        for (const categoryId of change.categoryIds) {
+          for (const id of await this.deps.categories.listProductIdsInSubtree(categoryId)) products.add(id);
+        }
+        if (products.size === 0) return;
+        const profiles = await this.#profileRefs();
+        await this.#write(await this.#plan(targetsForProducts(profiles), products));
+        return;
+      }
+      case 'attributes': {
+        // The books that price on the attribute, and the products their rows on it select.
+        const rows = await this.deps.emFactory().execute<
+          Array<{ id: string; currency_code: string; audience_kind: ResolvedBookFacts['audienceKind']; is_system: boolean; status: string; product_id: string | null; category_id: string | null; attribute_key: string }>
+        >(
+          `select distinct l."id", l."currency_code", l."audience_kind", l."is_system", l."status",
+                  e."product_id", e."category_id", e."attribute_key"
+             from "price_list_matrix_entries" e join "price_lists" l on l."id" = e."price_list_id"
+            where e."attribute_key" = any(?::text[])`,
+          [`{${change.attributeKeys.map((k) => `"${k.replaceAll('"', '\\"')}"`).join(',')}}`],
+        );
+        const books = new Map<string, { facts: { bookId: string; currencyCode: string; audienceKind: ResolvedBookFacts['audienceKind']; isSystem: boolean; live: boolean }; selections: RowSelection[] }>();
+        for (const r of rows) {
+          const held = books.get(r.id) ?? {
+            facts: { bookId: r.id, currencyCode: r.currency_code, audienceKind: r.audience_kind, isSystem: r.is_system, live: r.is_system || r.status === 'active' || r.status === 'scheduled' },
+            selections: [],
+          };
+          held.selections.push({ productId: r.product_id, categoryId: r.category_id, attributeKey: r.attribute_key });
+          books.set(r.id, held);
+        }
+        if (books.size === 0) return;
+        await this.#mark({ kind: 'books', books: [...books.values()].map((b) => ({ facts: [b.facts], selections: b.selections })) });
+        return;
+      }
+    }
+  }
+
+  /** Every profile, as the marking reads it — one statement. */
+  async #profileRefs(): Promise<SurfaceProfileRef[]> {
+    const rows = await this.deps.emFactory().execute<
+      Array<{ id: string; sales_channel_id: string; currency_code: string; book_vector: PricingProfile['vector'] }>
+    >(`select "id", "sales_channel_id", "currency_code", "book_vector" from "price_profiles"`);
+    return rows.map((r) => ({
+      id: r.id,
+      channelId: r.sales_channel_id,
+      currencyCode: r.currency_code.trim().toUpperCase(),
+      bookIds: r.book_vector.map((v) => v.bookId),
+    }));
+  }
+
+  /** A deleted book's buyer profiles can never be asked for again: drop them (rows and marks cascade). */
+  async #retire(bookIds: readonly string[]): Promise<void> {
+    for (const bookId of new Set(bookIds)) {
+      await this.deps
+        .emFactory()
+        .execute(`delete from "price_profiles" where "book_vector" @> ?::jsonb`, [JSON.stringify([{ bookId }])]);
+    }
+  }
+
+  async #productsOf(selections: readonly RowSelection[]): Promise<Set<string> | 'all'> {
+    return productsOfSelections(selections, (categoryId) => this.deps.categories.listProductIdsInCategory(categoryId));
+  }
+
+  /** {@link planMarks} with its two reads: the books that may select each product, and the rows the buyer surfaces hold. */
+  async #plan(targets: ChangeTargets, products: Set<string> | 'all'): Promise<MarkPlan> {
+    const buyers = targets.shared.filter((p) => p.bookIds.length > 0);
+    const partial = products !== 'all' && products.size > 0 && products.size <= PARTIAL_LIMIT;
+    const ids = partial ? [...products] : [];
+    const em = this.deps.emFactory();
+    const selecting =
+      partial && buyers.length > 0
+        ? await selectingBooks(em, [...new Set(buyers.flatMap((p) => p.bookIds))], ids, (productIds) =>
+            this.deps.categories.listAssignmentsForProducts(productIds),
+          )
+        : { byProduct: new Map(), any: new Set<string>() };
+    const held = new Map<string, Set<string>>();
+    if (partial && buyers.length > 0) {
+      const rows = await em.execute<Array<{ profile_id: string; product_id: string }>>(
+        `select pp."profile_id", pp."product_id"
+           from "price_profile_prices" pp
+           join "price_profiles" f on f."id" = pp."profile_id" and pp."generation" = f."serving_generation"
+          where pp."profile_id" = any(?::uuid[]) and pp."product_id" = any(?::uuid[])`,
+        [uuidArray(buyers.map((p) => p.id)), uuidArray(ids)],
+      );
+      for (const r of rows) {
+        const set = held.get(r.profile_id);
+        if (set) set.add(r.product_id);
+        else held.set(r.profile_id, new Set([r.product_id]));
+      }
+    }
+    return planMarks({ targets, products, selecting, held, partialLimit: PARTIAL_LIMIT });
+  }
+
+  /** Write a plan's marks in one transaction (a pass reads all of them or none). */
+  async #write(plan: MarkPlan): Promise<void> {
+    if (plan.full.size === 0 && plan.products.size === 0) return;
+    const profileIds: string[] = [];
+    const productIds: string[] = [];
+    for (const [profileId, products] of plan.products) {
+      for (const productId of products) {
+        profileIds.push(profileId);
+        productIds.push(productId);
+      }
+    }
+    await this.deps.emFactory().transactional(async (em) => {
+      if (plan.full.size > 0) {
+        await em.execute(`update "price_profiles" set "stale" = true, "marked_at" = clock_timestamp() where "id" = any(?::uuid[])`, [
+          uuidArray([...plan.full]),
+        ]);
+      }
+      for (let start = 0; start < profileIds.length; start += MARK_CHUNK) {
+        await em.execute(
+          `insert into "price_profile_stale_products" ("profile_id", "product_id")
+           select m."profile_id", m."product_id"
+             from unnest(?::uuid[], ?::uuid[]) as m("profile_id", "product_id")
+            where exists (select 1 from "price_profiles" f where f."id" = m."profile_id")`,
+          [uuidArray(profileIds.slice(start, start + MARK_CHUNK)), uuidArray(productIds.slice(start, start + MARK_CHUNK))],
+        );
+      }
+    });
+  }
+
+  /**
+   * The worker's job (`contracts/price-surface.md` §4). Each pass reads its work
+   * in one statement — every never-built and every stale profile, every
+   * (profile, product) mark — and does it: a never-built or stale profile is
+   * built whole from its stored vector, a marked one has just the marked
+   * products re-resolved. The everyone profiles go first (never-built before
+   * marked), then the buyer profiles (never-built before marked), because a
+   * buyer surface is stored as its difference from the everyone surface and
+   * must be compared with the everyone surface this pass leaves. A pass clears
+   * only the marks it read (by id), so a write that marks a profile
+   * during a pass is done by the next; passes repeat while a pass leaves work.
+   * Answers how many profiles were built or refreshed.
+   */
+  async rebuildStale(): Promise<number> {
+    let done = 0;
+    for (let pass = 0; pass < REBUILD_PASSES; pass += 1) {
+      const due = await this.#due();
+      if (due.length === 0) break;
+      for (const item of due) {
+        const profile = await this.deps.books.profileFromVector({
+          channelId: item.channelId,
+          currencyCode: item.currencyCode,
+          precedenceVersion: item.precedenceVersion,
+          vector: item.vector,
+        });
+        const everyone = item.vector.length === 0 ? null : await this.#everyoneOf(profile);
+        if (item.state === 'building' || item.stale) await this.#build(profile, everyone, item);
+        else await this.#refresh(item, profile, everyone);
+        done += 1;
+      }
+    }
+    return done;
+  }
+
+  async #due(): Promise<DueProfile[]> {
+    const rows = await this.deps.emFactory().execute<
+      Array<{
+        id: string;
+        sales_channel_id: string;
+        currency_code: string;
+        precedence_version: number;
+        book_vector: PricingProfile['vector'];
+        state: 'building' | 'ready';
+        stale: boolean;
+        marked_at: string | null;
+        marks: Array<[string | number, string]> | null;
+      }>
+    >(
+      `select f."id", f."sales_channel_id", f."currency_code", f."precedence_version", f."book_vector",
+              f."state", f."stale", f."marked_at"::text as "marked_at",
+              (select json_agg(json_build_array(m."id"::text, m."product_id"))
+                 from "price_profile_stale_products" m where m."profile_id" = f."id") as "marks"
+         from "price_profiles" f
+        where f."state" = 'building' or f."stale"
+           or exists (select 1 from "price_profile_stale_products" m where m."profile_id" = f."id")
+        order by (jsonb_array_length(f."book_vector") > 0) asc, (f."state" = 'building') desc,
+                 jsonb_array_length(f."book_vector") asc`,
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      channelId: r.sales_channel_id,
+      currencyCode: r.currency_code.trim(),
+      precedenceVersion: Number(r.precedence_version),
+      vector: r.book_vector,
+      state: r.state,
+      stale: r.stale,
+      markedAt: r.marked_at,
+      marks: (r.marks ?? []).map(([id, productId]) => ({ id: String(id), productId })),
+    }));
   }
 
   /** {@link ListingPriceOrderPort.orderByUnitPrice} for one viewer. */
@@ -211,30 +493,33 @@ export class PriceSurface {
    */
   async #served(profile: PricingProfile, query: ListingPriceOrderQuery): Promise<SurfaceAnswer> {
     const held = await this.#profileRow(profile);
-    if (held && held.state === 'ready') return { id: held.id, generation: held.generation };
+    if (held && held.state === 'ready') return { id: held.id, generation: held.generation, revision: held.revision };
     await this.#ensureRow(profile);
     await this.deps.requestRebuild?.().catch(() => undefined);
     if (query.restrictToProductIds !== undefined && query.restrictToProductIds.length <= LIVE_ORDER_LIMIT) return 'live';
     return 'missing';
   }
 
-  async #profileRow(profile: PricingProfile): Promise<{ id: string; state: string; generation: number } | null> {
-    const [row] = await this.deps.emFactory().execute<Array<{ id: string; state: string; serving_generation: number }>>(
-      `select "id", "state", "serving_generation" from "price_profiles"
-        where "sales_channel_id" = ? and "currency_code" = ? and "precedence_version" = ? and "key_hash" = ?`,
-      [profile.channelId, profile.currencyCode, profile.precedenceVersion, profile.key],
-    );
+  async #profileRow(profile: PricingProfile): Promise<{ id: string; state: string; generation: number; revision: number } | null> {
+    const [row] = await this.deps
+      .emFactory()
+      .execute<Array<{ id: string; state: string; serving_generation: number; revision: number }>>(
+        `select "id", "state", "serving_generation", "revision" from "price_profiles"
+          where "sales_channel_id" = ? and "currency_code" = ? and "precedence_version" = ? and "key_hash" = ?`,
+        [profile.channelId, profile.currencyCode, profile.precedenceVersion, profile.key],
+      );
     if (!row) return null;
-    return { id: row.id, state: row.state, generation: Number(row.serving_generation) };
+    return { id: row.id, state: row.state, generation: Number(row.serving_generation), revision: Number(row.revision) };
   }
 
   /**
    * Whether every product of the everyone surface has a row on the buyer's —
-   * answered once per pair of builds and memoised in this process (a rebuild
-   * moves the generation, so a stale answer is never read; the page statement checks the pair).
+   * answered once per pair of builds and memoised in this process (a build or a
+   * targeted refresh moves the revision, so a stale answer is never read; the
+   * page statement checks the pair).
    */
   async #buyerCoversEveryone(buyer: ReadySurface, everyone: ReadySurface): Promise<boolean> {
-    const key = `${buyer.id}@${buyer.generation}|${everyone.id}@${everyone.generation}`;
+    const key = `${buyer.id}@${buyer.revision}|${everyone.id}@${everyone.revision}`;
     const held = this.#coverage.get(key);
     if (held !== undefined) return held;
     const [row] = await this.deps.emFactory().execute<Array<{ uncovered: boolean }>>(
@@ -272,104 +557,192 @@ export class PriceSurface {
     });
   }
 
+  /** The everyone surface a buyer profile is stored against — built first when it has none. */
+  async #everyoneServed(everyone: PricingProfile): Promise<ReadySurface> {
+    const held = await this.#profileRow(everyone);
+    if (held && held.state === 'ready') return { id: held.id, generation: held.generation, revision: held.revision };
+    const id = await this.#build(everyone, null);
+    const [row] = await this.deps
+      .emFactory()
+      .execute<Array<{ serving_generation: number; revision: number }>>(
+        `select "serving_generation", "revision" from "price_profiles" where "id" = ?`,
+        [id],
+      );
+    return { id, generation: Number(row?.serving_generation ?? 0), revision: Number(row?.revision ?? 0) };
+  }
+
+  /**
+   * The products a buyer profile can price differently from the everyone
+   * profile: those the rows of its own (buyer) books select — every other
+   * product resolves over the same books as the everyone profile and answers
+   * what it answers, so it has no row. `'all'` when a row may select anything.
+   */
+  async #buyerCandidates(profile: PricingProfile): Promise<Set<string> | 'all'> {
+    const own = profile.books.filter((b) => b.audience.kind !== 'everyone').map((b) => b.id);
+    if (own.length === 0) return new Set();
+    return this.#productsOf(await storedSelections(this.deps.emFactory(), own));
+  }
+
+  /**
+   * The surface rows of `products` for the profile, in chunks: each resolved by
+   * the batched resolver the cards use, and — for a buyer profile — only those
+   * that differ from the everyone surface's served row (sparse). A product
+   * everyone can buy and this profile cannot is not representable as a row,
+   * and cannot happen (a buyer row always has the catalogue price to fall back to).
+   */
+  async #rowsOf(
+    em: EntityManager,
+    profile: PricingProfile,
+    products: readonly PricedProductRef[],
+    everyone: ReadySurface | null,
+    write: (rows: SurfaceRow[]) => Promise<void>,
+  ): Promise<void> {
+    for (let start = 0; start < products.length; start += BUILD_CHUNK) {
+      const chunk = products.slice(start, start + BUILD_CHUNK);
+      const listed = await this.deps.books.resolveListing(chunk, builderViewer(profile), profile);
+      let rows = chunk.map((p) => rowOf(p.id, listed.get(p.id))).filter((r): r is SurfaceRow => r !== null);
+      if (everyone) {
+        const base = new Map(
+          (
+            await em.execute<
+              Array<{ product_id: string; amount: string; max_amount: string; compare_at: string | null; source_tier: SurfaceRow['sourceTier'] }>
+            >(
+              `select "product_id", "amount", "max_amount", "compare_at", "source_tier"
+                 from "price_profile_prices"
+                where "profile_id" = ? and "generation" = (select "serving_generation" from "price_profiles" where "id" = ?)
+                  and "product_id" = any(?::uuid[])`,
+              [everyone.id, everyone.id, uuidArray(chunk.map((p) => p.id))],
+            )
+          ).map((r) => [
+            r.product_id,
+            {
+              productId: r.product_id,
+              amount: String(r.amount),
+              maxAmount: String(r.max_amount),
+              compareAt: r.compare_at === null ? null : String(r.compare_at),
+              sourceTier: r.source_tier,
+            } satisfies SurfaceRow,
+          ]),
+        );
+        rows = rows.filter((r) => {
+          const held = base.get(r.productId);
+          return !held || !sameRow(held, r);
+        });
+      }
+      if (rows.length > 0) await write(rows);
+    }
+  }
+
+  async #insertRows(em: EntityManager, id: string, generation: number, rows: readonly SurfaceRow[]): Promise<void> {
+    await em.execute(
+      `insert into "price_profile_prices" ("profile_id", "generation", "product_id", "amount", "max_amount", "compare_at", "source_tier")
+       select ?, ?, * from unnest(?::uuid[], ?::numeric[], ?::numeric[], ?::numeric[], ?::varchar[])`,
+      [
+        id,
+        generation,
+        uuidArray(rows.map((r) => r.productId)),
+        `{${rows.map((r) => r.amount).join(',')}}`,
+        `{${rows.map((r) => r.maxAmount).join(',')}}`,
+        `{${rows.map((r) => (r.compareAt === null ? 'NULL' : r.compareAt)).join(',')}}`,
+        `{${rows.map((r) => r.sourceTier).join(',')}}`,
+      ],
+    );
+  }
+
+  /** Delete the marks a pass read — by id: a mark a write added since is another row, and stays. */
+  async #clearMarks(em: EntityManager, marks: DueProfile['marks']): Promise<void> {
+    for (let start = 0; start < marks.length; start += MARK_CHUNK) {
+      await em.execute(`delete from "price_profile_stale_products" where "id" = any(?::bigint[])`, [
+        `{${marks
+          .slice(start, start + MARK_CHUNK)
+          .map((m) => m.id)
+          .join(',')}}`,
+      ]);
+    }
+  }
+
   /**
    * Build a profile's next generation in one transaction, serialised per profile
    * by an advisory lock, and swap it in: the everyone profile with every priced
    * product, a buyer profile with the products whose answer differs from the
-   * everyone profile's served rows (built first when it has none). Readers keep
-   * the served generation until the commit; the old rows go in the same
-   * transaction. `stale` is cleared only when no write marked the profile after
-   * the build began. Called by the worker, never by a request. Answers the id.
+   * everyone profile's served rows (built first when it has none) — resolving
+   * only the products its own books can select. Readers keep the served
+   * generation until the commit; the old rows go in the same transaction.
+   * `stale` is cleared only when no write marked the profile after the pass
+   * read it (`due`), and the marks the pass read go with the build. Called by
+   * the worker, never by a request. Answers the id.
    */
-  async #build(profile: PricingProfile, everyone: PricingProfile | null): Promise<string> {
-    let everyoneServed: ReadySurface | null = null;
-    if (everyone) {
-      const held = await this.#profileRow(everyone);
-      if (held && held.state === 'ready') everyoneServed = { id: held.id, generation: held.generation };
-      else {
-        const id = await this.#build(everyone, null);
-        const built = await this.#profileRowById(id);
-        everyoneServed = { id, generation: built.generation };
-      }
-    }
+  async #build(profile: PricingProfile, everyone: PricingProfile | null, due?: DueProfile): Promise<string> {
+    const everyoneServed = everyone ? await this.#everyoneServed(everyone) : null;
     const id = await this.#ensureRow(profile);
-    const products = await this.deps.listProducts();
+    const candidates = everyone ? await this.#buyerCandidates(profile) : 'all';
+    const products =
+      candidates === 'all' ? await this.deps.listProducts() : candidates.size === 0 ? [] : await this.deps.productsByIds([...candidates]);
     await this.deps.emFactory().transactional(async (em) => {
       await em.execute(`select pg_advisory_xact_lock(hashtext(?))`, [`price_lists.surface:${id}`]);
-      const [current] = await em.execute<Array<{ state: string; stale: boolean; serving_generation: number; started: Date }>>(
-        `select "state", "stale", "serving_generation", clock_timestamp() as "started" from "price_profiles" where "id" = ?`,
+      const [current] = await em.execute<Array<{ state: string; stale: boolean; serving_generation: number; marked_at: string | null }>>(
+        `select "state", "stale", "serving_generation", "marked_at"::text as "marked_at" from "price_profiles" where "id" = ?`,
         [id],
       );
       // Another worker built it while this one waited for the lock.
       if (current?.state === 'ready' && !current.stale) return;
       const next = Number(current?.serving_generation ?? 0) + 1;
       await em.execute(`delete from "price_profile_prices" where "profile_id" = ? and "generation" = ?`, [id, next]);
-      for (let start = 0; start < products.length; start += BUILD_CHUNK) {
-        const chunk = products.slice(start, start + BUILD_CHUNK);
-        const listed = await this.deps.books.resolveListing(chunk, builderViewer(profile), profile);
-        let rows = chunk.map((p) => rowOf(p.id, listed.get(p.id))).filter((r): r is SurfaceRow => r !== null);
-        if (everyoneServed) {
-          const base = new Map(
-            (
-              await em.execute<Array<{ product_id: string; amount: string; max_amount: string; compare_at: string | null; source_tier: SurfaceRow['sourceTier'] }>>(
-                `select "product_id", "amount", "max_amount", "compare_at", "source_tier"
-                   from "price_profile_prices"
-                  where "profile_id" = ? and "generation" = ? and "product_id" = any(?::uuid[])`,
-                [everyoneServed.id, everyoneServed.generation, uuidArray(chunk.map((p) => p.id))],
-              )
-            ).map((r) => [
-              r.product_id,
-              {
-                productId: r.product_id,
-                amount: String(r.amount),
-                maxAmount: String(r.max_amount),
-                compareAt: r.compare_at === null ? null : String(r.compare_at),
-                sourceTier: r.source_tier,
-              } satisfies SurfaceRow,
-            ]),
-          );
-          // Sparse: only what differs from everyone's — but a product everyone
-          // can buy and this profile cannot is not representable as a row, and
-          // cannot happen (a buyer row always has the catalogue price to fall back to).
-          rows = rows.filter((r) => {
-            const held = base.get(r.productId);
-            return !held || !sameRow(held, r);
-          });
-        }
-        if (rows.length === 0) continue;
-        await em.execute(
-          `insert into "price_profile_prices" ("profile_id", "generation", "product_id", "amount", "max_amount", "compare_at", "source_tier")
-           select ?, ?, * from unnest(?::uuid[], ?::numeric[], ?::numeric[], ?::numeric[], ?::varchar[])`,
-          [
-            id,
-            next,
-            uuidArray(rows.map((r) => r.productId)),
-            `{${rows.map((r) => r.amount).join(',')}}`,
-            `{${rows.map((r) => r.maxAmount).join(',')}}`,
-            `{${rows.map((r) => (r.compareAt === null ? 'NULL' : r.compareAt)).join(',')}}`,
-            `{${rows.map((r) => r.sourceTier).join(',')}}`,
-          ],
-        );
-      }
-      // The swap: readers move to the new generation at commit.
+      await this.#rowsOf(em, profile, products, everyoneServed, (rows) => this.#insertRows(em, id, next, rows));
+      // The swap: readers move to the new generation at commit. A whole mark
+      // made after the pass read the profile (or, for a build the pass did not
+      // ask for, after this one began) keeps it stale.
+      const cutoff = due ? due.markedAt : (current?.marked_at ?? null);
       await em.execute(
         `update "price_profiles"
-            set "state" = 'ready', "serving_generation" = ?, "built_at" = now(),
-                "stale" = ("marked_at" is not null and "marked_at" > ?)
+            set "state" = 'ready', "serving_generation" = ?, "built_at" = now(), "revision" = "revision" + 1,
+                "stale" = "stale" and "marked_at" is distinct from ?::timestamptz
           where "id" = ?`,
-        [next, current?.started ?? new Date(0), id],
+        [next, cutoff, id],
       );
       await em.execute(`delete from "price_profile_prices" where "profile_id" = ? and "generation" <> ?`, [id, next]);
+      if (due) await this.#clearMarks(em, due.marks);
     });
     return id;
   }
 
-  async #profileRowById(id: string): Promise<{ generation: number }> {
-    const [row] = await this.deps.emFactory().execute<Array<{ serving_generation: number }>>(
-      `select "serving_generation" from "price_profiles" where "id" = ?`,
-      [id],
-    );
-    return { generation: Number(row?.serving_generation ?? 0) };
+  /**
+   * A targeted refresh (`contracts/price-surface.md` §4): re-resolve the marked
+   * products of a served profile and replace their rows of the served
+   * generation, in one transaction under the profile's lock — a reader's
+   * statement sees the surface before or after the refresh, never a mix — and
+   * move the revision. Clears the marks the pass read, if no write moved them.
+   */
+  async #refresh(due: DueProfile, profile: PricingProfile, everyone: PricingProfile | null): Promise<void> {
+    if (due.marks.length === 0) return;
+    const everyoneServed = everyone ? await this.#everyoneServed(everyone) : null;
+    const ids = [...new Set(due.marks.map((m) => m.productId))];
+    const products = await this.deps.productsByIds(ids);
+    await this.deps.emFactory().transactional(async (em) => {
+      await em.execute(`select pg_advisory_xact_lock(hashtext(?))`, [`price_lists.surface:${due.id}`]);
+      const [current] = await em.execute<Array<{ state: string; serving_generation: number }>>(
+        `select "state", "serving_generation" from "price_profiles" where "id" = ?`,
+        [due.id],
+      );
+      // Gone, or waiting for a whole build that will cover the marks.
+      if (!current || current.state !== 'ready') return;
+      const generation = Number(current.serving_generation);
+      const rows: SurfaceRow[] = [];
+      await this.#rowsOf(em, profile, products, everyoneServed, async (chunk) => {
+        rows.push(...chunk);
+      });
+      for (let start = 0; start < ids.length; start += MARK_CHUNK) {
+        await em.execute(
+          `delete from "price_profile_prices" where "profile_id" = ? and "generation" = ? and "product_id" = any(?::uuid[])`,
+          [due.id, generation, uuidArray(ids.slice(start, start + MARK_CHUNK))],
+        );
+      }
+      for (let start = 0; start < rows.length; start += MARK_CHUNK) {
+        await this.#insertRows(em, due.id, generation, rows.slice(start, start + MARK_CHUNK));
+      }
+      await em.execute(`update "price_profiles" set "revision" = "revision" + 1 where "id" = ?`, [due.id]);
+      await this.#clearMarks(em, due.marks);
+    });
   }
 
   /**
@@ -413,6 +786,7 @@ export class PriceSurface {
       return out.map((c) => ` and ${c}`).join('');
     };
     const served = `(select "serving_generation" from "price_profiles" where "id" = ?)`;
+    const revision = `(select "revision" from "price_profiles" where "id" = ?)`;
     const everyoneId = everyone.id;
     const buyerId = buyer?.id ?? null;
     type Hit = { s: 'b' | 'e' | 'x'; product_id: string; amount: string; source_tier: string };
@@ -435,10 +809,10 @@ export class PriceSurface {
       // coverage was answered for, which this statement checks in its own
       // snapshot. After a swap it answers `x`, and the page is read again with
       // both streams.
-      const sameBuilds = `${served} = ? and ${served} = ?`;
+      const sameBuilds = `${revision} = ? and ${revision} = ?`;
       sql += ` where ${sameBuilds} union all select 'x', null, null, null where not (${sameBuilds})`;
-      params.push(buyer.id, buyer.generation, everyone.id, everyone.generation);
-      params.push(buyer.id, buyer.generation, everyone.id, everyone.generation);
+      params.push(buyer.id, buyer.revision, everyone.id, everyone.revision);
+      params.push(buyer.id, buyer.revision, everyone.id, everyone.revision);
     } else {
       params.push(everyone.id, everyone.id);
       let where = filters('e', params);

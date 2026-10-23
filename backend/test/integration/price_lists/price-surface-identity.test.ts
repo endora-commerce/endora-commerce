@@ -190,8 +190,14 @@ describe('price surface — sort and range equal the cards, every buyer, every p
     const context: ListingPriceViewerContext = { salesChannel: { id: f.channels.CH1.id, defaultCurrency: 'PLN' } };
     await walk(context, 'asc');
     await f.book({ audience: 'everyone', rows: [{ product: f.products.P3, fixed: '1' }] });
-    const states = await sql(`select distinct "stale" from "price_profiles"`);
-    expect(states).toEqual([{ stale: true }]);
+    // The everyone profile of the channel is marked for the one product the row prices.
+    const marks = await sql(
+      `select m."product_id" from "price_profile_stale_products" m
+         join "price_profiles" p on p."id" = m."profile_id"
+        where p."sales_channel_id" = ? and jsonb_array_length(p."book_vector") = 0 and p."precedence_version" = 1`,
+      [f.channels.CH1.id],
+    );
+    expect(marks).toEqual([{ product_id: f.products.P3.id }]);
     await settlePriceSurface(h);
     const first = (await f.pricing.orderByUnitPrice({ context, direction: 'asc', after: null, limit: 1 })).rows[0];
     expect(first).toMatchObject({ productId: f.products.P3.id, amount: '1.0000' });

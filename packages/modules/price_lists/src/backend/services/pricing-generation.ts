@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { SurfaceChange } from './surface-change.js';
 
 /**
  * Redis pub/sub channel that fans a pricing change across processes (API
@@ -62,19 +63,25 @@ export class PricingGeneration {
     private readonly publisher?: PricingGenerationPublisher,
     /**
      * Feature 160 — what the **writer** does once per bump, after clearing its
-     * layer: mark the price surface stale and ask for its rebuild. Not run for
-     * another process's announcement (one writer, one marking). Best effort,
-     * like the announcement: the write has already committed.
+     * layer: mark on the price surface what the change moved and ask for its
+     * refresh (`contracts/price-surface.md` §4). Not run for another process's
+     * announcement (one writer, one marking). Best effort, like the
+     * announcement: the write has already committed.
      */
-    private readonly afterBump?: () => Promise<void>,
+    private readonly afterBump?: (change: SurfaceChange) => Promise<void>,
   ) {}
 
-  /** Clear this process's layer and announce the bump to every other process. */
-  async bump(): Promise<void> {
+  /**
+   * Clear this process's layer and announce the bump to every other process.
+   * `change` says what the price surface must refresh; a writer that says
+   * nothing gets every profile rebuilt — the safe direction. The cache is
+   * cleared whole either way.
+   */
+  async bump(change: SurfaceChange = { kind: 'all' }): Promise<void> {
     this.local.invalidateAll();
     if (this.afterBump) {
       try {
-        await this.afterBump();
+        await this.afterBump(change);
       } catch {
         // Degraded: the surface stays as it is until the next bump or rebuild.
       }
@@ -95,8 +102,8 @@ export class PricingGeneration {
    * than a property so a writer's `{ invalidateAll }` seam takes this object
    * as it is.
    */
-  invalidateAll(): Promise<void> {
-    return this.bump();
+  invalidateAll(change?: SurfaceChange): Promise<void> {
+    return this.bump(change);
   }
 
   /** Arm the cross-process subscriber. Idempotent. */
