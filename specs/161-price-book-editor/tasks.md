@@ -99,22 +99,22 @@ to the catalogue through a sanctioned subquery seam. **The budget is unchanged.*
 
 ### Tests first
 
-- [ ] T039 [P] Editable grid primitive tests in `admin/test/kit/editable-grid.test.tsx`: ARIA grid roles, one tab stop and roving focus, arrows/Home/End/PageUp/PageDown, Enter/F2/Escape/Tab, Shift+arrow selection, TSV copy and paste of blocks, fill down (Ctrl/⌘+D), Delete, undo/redo groups, `aria-invalid` + `aria-describedby` per cell, live region mounted empty and then announcing, render count (typing re-renders only the edited cell and the status region), `expectNoAxeViolations` (FR-011, FR-031, FR-036)
-- [ ] T040 [P] Price-cell parser tests in `PL/admin/lib/price-cell.test.ts`: every input of `data-model.md` §4 (decimal comma/point, spaces, `zł`/`PLN`, Unicode minus, `%` with or without space, bounds −100…1000, ≤ 4/2 decimals), fixed on *all* refused (FR-007, FR-017)
-- [ ] T041 [P] Cell-label tests in `PL/admin/lib/cell-labels.test.ts`: the twelve `PRICE_BOOK_CELL_CODES` and four sources in words, in English and Polish
-- [ ] T042 [P] Routing, navigation and palette tests in `AT/price-books-surfaces.test.tsx`: routes `/price-lists`, `/price-lists/new`, `/price-lists/explain`, `/price-lists/display-modes`, `/price-lists/:id` with their permissions; sidebar entry opens `/price-lists`; palette actions `open-price-lists` (read), `new-price-book` (write), `open-price-explainer` (read) present by permission and absent when the module is off (FR-029)
-- [ ] T043 [P] Update `AT/price-lists-zones.test.tsx`: the display-mode zones plus the new `product.editor.pricing.after` contribution, gated on `price_lists:read`, absent when the module is off
+- [x] T039 [P] Editable grid primitive tests in `admin/test/kit/editable-grid.test.tsx`: ARIA grid roles, one tab stop and roving focus, arrows/Home/End/PageUp/PageDown, Enter/F2/Escape/Tab, Shift+arrow selection, TSV copy and paste of blocks, fill down (Ctrl/⌘+D), Delete, undo/redo groups, `aria-invalid` + `aria-describedby` per cell, live region mounted empty and then announcing, render count (typing re-renders only the edited cell and the status region), `expectNoAxeViolations` (FR-011, FR-031, FR-036)
+- [x] T040 [P] Price-cell parser tests in `PL/admin/lib/price-cell.test.ts`: every input of `data-model.md` §4 (decimal comma/point, spaces, `zł`/`PLN`, Unicode minus, `%` with or without space, bounds −100…1000, ≤ 4/2 decimals), fixed on *all* refused (FR-007, FR-017)
+- [x] T041 [P] Cell-label tests in `PL/admin/lib/cell-labels.test.ts`: the twelve `PRICE_BOOK_CELL_CODES` and four sources in words, in English and Polish
+- [x] T042 [P] Routing, navigation and palette tests in `AT/price-books-surfaces.test.tsx`: routes `/price-lists`, `/price-lists/new`, `/price-lists/explain`, `/price-lists/display-modes`, `/price-lists/:id` with their permissions; sidebar entry opens `/price-lists`; palette actions `open-price-lists` (read), `new-price-book` (write), `open-price-explainer` (read) present by permission and absent when the module is off (FR-029) — the palette's filter is driven over the declared actions by `backend/test/unit/price_lists/palette-actions.test.ts` (the server resolves it); the module's off state is the platform axis (`nonDeactivatable`)
+- [x] T043 [P] Update `AT/price-lists-zones.test.tsx`: the display-mode zones plus the new `product.editor.pricing.after` contribution, gated on `price_lists:read`, absent when the module is off — platform-axis off case added for all three zones
 
 ### Implementation
 
-- [ ] T044 [P] Generic editable grid in `AK/components/editable-grid/` (component, keyboard model, selection, clipboard, history, live region), exported from `AK/components/index.ts`; generic strings in the kit's core namespace (en + pl)
-- [ ] T045 [P] API client over every endpoint of `contracts/ui-api-mapping.md` with the contracts' Zod schemas in `PL/admin/lib/price-books-api.ts`
-- [ ] T046 [P] Price-cell parser and formatter in `PL/admin/lib/price-cell.ts`; cell and source labels in `PL/admin/lib/cell-labels.ts`
-- [ ] T047 Routes, nav (back to `/price-lists`) and the zone in `PL/admin/index.ts`; empty page shells with titles
-- [ ] T048 Palette actions `open-price-lists` → `/price-lists`, `new-price-book` → `/price-lists/new`, `open-price-explainer` → `/price-lists/explain` in `PL/manifest.ts`; flat keys in `packages/modules/price_lists/i18n/en.json` and `pl.json`; run `pnpm --filter backend run check:action-route-permissions` and `pnpm --filter backend exec vitest run test/unit/_i18n/registered-bundles-shape.test.ts`
-- [ ] T049 Run `pnpm --filter backend run composer:generate`, `manifests:generate`, `pnpm install --lockfile-only`; commit the regenerated artefacts (module reference, sidebars, `admin/src/modules.generated.ts` if changed)
+- [x] T044 [P] Generic editable grid in `AK/components/editable-grid/` (component, keyboard model, selection, clipboard, history, live region), exported from `AK/components/index.ts`; generic strings in the kit's core namespace (en + pl)
+- [x] T045 [P] API client over every endpoint of `contracts/ui-api-mapping.md` with the contracts' Zod schemas in `PL/admin/lib/price-books-api.ts` — tested by `PL/admin/lib/price-books-api.test.ts`; the picker answers had no schema, so `priceBookRowsResponseSchema` and `priceBookTarget*ResponseSchema` were added to `packages/contracts/src/price-books.ts` and held by `CT/price-book-targets.test.ts`
+- [x] T046 [P] Price-cell parser and formatter in `PL/admin/lib/price-cell.ts`; cell and source labels in `PL/admin/lib/cell-labels.ts`
+- [x] T047 Routes, nav (back to `/price-lists`) and the zone in `PL/admin/index.ts`; empty page shells with titles
+- [x] T048 Palette actions `open-price-lists` → `/price-lists`, `new-price-book` → `/price-lists/new`, `open-price-explainer` → `/price-lists/explain` in `PL/manifest.ts`; flat keys in `packages/modules/price_lists/i18n/en.json` and `pl.json`; run `pnpm --filter backend run check:action-route-permissions` and `pnpm --filter backend exec vitest run test/unit/_i18n/registered-bundles-shape.test.ts`
+- [x] T049 Run `pnpm --filter backend run composer:generate`, `manifests:generate`, `pnpm install --lockfile-only`; commit the regenerated artefacts (module reference, sidebars, `admin/src/modules.generated.ts` if changed)
 
-**Checkpoint 3.**
+**Checkpoint 3** — reached 2026-10-23; awaiting coordinator review.
 
 ---
 

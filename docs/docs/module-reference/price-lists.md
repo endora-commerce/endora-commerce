@@ -47,7 +47,9 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 
 | Action | Opens | Permission |
 | --- | --- | --- |
-| `open-price-lists` | `/price-lists/display-modes` | `price_lists:read` |
+| `new-price-book` | `/price-lists/new` | `price_lists:write` |
+| `open-price-explainer` | `/price-lists/explain` | `price_lists:read` |
+| `open-price-lists` | `/price-lists` | `price_lists:read` |
 
 ## Settings
 
