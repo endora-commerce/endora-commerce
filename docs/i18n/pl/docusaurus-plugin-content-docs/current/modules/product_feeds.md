@@ -133,7 +133,7 @@ produktu, a nie osobno dla każdego wariantu.
 Feed można zamiast tego **przypiąć do jednego cennika** — pole `priceListId` feedu, ustawiane przez
 API administracyjne przy tworzeniu albo zmianie feedu (`POST /api/v1/admin/product-feeds`,
 `PATCH /api/v1/admin/product-feeds/:id`); ekrany feedu pokazują opisane niżej ostrzeżenie, ale nie
-mają do tego kontrolki. Feed publikuje wtedy własne linie tego cennika — ceny stałe oraz procenty i
+mają do tego kontrolki (zgłoszenie #414). Feed publikuje wtedy własne linie tego cennika — ceny stałe oraz procenty i
 korekty liczone od ceny katalogowej, jaką kanał naliczałby bez tego cennika — a **produkt, którego
 cennik nie wycenia, nie trafia do feedu**. Cennik cen bazowych publikuje swoje ceny bazowe.
 Przypięty cennik jest publikowany **tylko wtedy, gdy w chwili generowania obowiązuje kogokolwiek w
@@ -149,10 +149,14 @@ kanale feedu**:
 
 Dopóki któryś z tych warunków nie jest spełniony, strona feedu pokazuje ostrzeżenie, które go
 nazywa, a feed nie publikuje żadnych cen z tego cennika. **Gdy generowanie stwierdzi, że przypięty
-cennik nie obowiązuje, wycofuje opublikowany plik feedu**: link feedu odpowiada wtedy tak jak dla
-feedu, który nigdy nie został wygenerowany, a dostawca przestaje otrzymywać Twoje ceny, dopóki
-cennik znów nie zacznie obowiązywać i następne generowanie nie opublikuje nowego pliku. Nie jest to
-generowanie zakończone błędem, więc ostatni poprawny plik celowo nie jest zachowywany. Liczba
+cennik nie obowiązuje, wycofuje opublikowany plik feedu** zamiast wygenerować nowy: generowanie
+kończy się stanem *Wycofany*, z powodem na swojej stronie, a najpóźniej po minucie link feedu
+odpowiada tak jak dla feedu, który nigdy nie został wygenerowany — dopóki cennik znów nie zacznie
+obowiązywać i kolejne generowanie nie opublikuje nowego pliku. Nie jest to generowanie zakończone
+błędem — nie ma powiadomienia o błędzie, nic nie jest dostarczane — a ostatni poprawny plik celowo
+nie jest dalej udostępniany. Wycofany plik nie jest usuwany: nadal można go pobrać z generowania,
+które go utworzyło, a zwykła retencja usuwa go po następnej publikacji. Dopóki ostatnim
+generowaniem feedu jest wycofanie, strona feedu informuje, że plik został wycofany. Liczba
 dopasowań w *Criteria* i kryterium zakresu cen korzystają z tych samych cen, które opublikuje
 następne generowanie.
 
@@ -297,7 +301,8 @@ pozycji, której dotyczą, i eksportem pełnej listy do CSV.
 | `stale_provider_category_mapping` | Zmapowany węzeł nie istnieje w zainstalowanej wersji taksonomii. |
 | `zero_tax_rate_on_gross_feed` | Feed z cenami brutto nie znalazł reguły podatkowej dla swojego kraju opodatkowania. |
 
-Błędy generowania to coś innego niż problemy z pozycjami: kończą generowanie i niczego nie publikują.
+Błędy generowania to coś innego niż problemy z pozycjami: kończą generowanie i niczego nie publikują,
+a wcześniej opublikowany plik jest nadal udostępniany.
 
 | Błąd | Znaczenie |
 | --- | --- |
@@ -307,6 +312,12 @@ Błędy generowania to coś innego niż problemy z pozycjami: kończą generowan
 | `skip_threshold_exceeded` | Pominięto ponad połowę rozważonych pozycji, więc dobry plik nie został zastąpiony złym. |
 | `storage_unavailable` | Magazyn plików odrzucił plik. |
 | `worker_lost` | Worker przestał działać w trakcie generowania; blokada została zwolniona, a częściowy plik usunięty. |
+
+Generowanie może też zakończyć się stanem **wycofany** (`withdrawn`): przypięty cennik feedu nie
+obowiązywał (*Ceny w feedzie* wyżej), więc generowanie usunęło opublikowany plik zamiast utworzyć
+nowy. Nie ma ono kodu błędu; jego powodem jest powód przypiętego cennika (`not_found`,
+`currency_mismatch`, `not_active`, `outside_schedule`, `not_on_channel`, `audience_restricted`) i
+nie wywołuje ono powiadomienia.
 
 Gdy generowanie kończy się błędem, administrator dostaje powiadomienie — **raz przy przejściu w stan
 błędu**, a nie przy każdym uruchomieniu, więc feed zepsuty od doby nie zapełnia listy powiadomień.
@@ -360,7 +371,7 @@ etykietę na ekranie.
 #### Kiedy następuje dostarczenie
 
 Po generowaniu, które **zakończyło się udaną publikacją**, i tylko wtedy. Generowanie zakończone
-błędem, puste albo pominięte, bo poprzednie jeszcze trwało, niczego nie wysyła — plik, który partner
+błędem, puste, wycofane albo pominięte, bo poprzednie jeszcze trwało, niczego nie wysyła — plik, który partner
 już ma, jest nadal aktualny, a ponowne wysłanie zapowiadałoby zmianę, która nie nastąpiła.
 
 Jeśli przesyłanie się nie powiedzie, generowanie pozostaje udane, a opublikowany link nadal działa.
@@ -438,8 +449,9 @@ Cztery właściwości, za które odpowiada ten potok:
   zapisywane dla każdej pozycji; generowanie kończy tylko błąd konfiguracji.
 - **Publikacja to jedno przestawienie wskaźnika po skompletowaniu obiektu.** Generowanie zakończone
   błędem, puste albo przekraczające próg pominięć nigdy nie zmienia `published_artefact_id`. Jedyne
-  generowanie, które je czyści, to generowanie feedu przypiętego, którego cennik nie obowiązuje
-  (*Wycena* niżej) — wycofanie, a nie błąd.
+  generowanie, które je czyści, to generowanie `withdrawn` — feedu przypiętego, którego cennik nie
+  obowiązuje (*Wycena* niżej) — które ustawia wskaźnik na `null` tym samym zapytaniem co stan
+  końcowy.
 - **Nakładające się generowania są odrzucane, a nie kolejkowane.** Przejęcie generowania to
   warunkowy `UPDATE` na `product_feeds.current_run_id`; przegrany zapisuje
   `skipped(already_running)`.
@@ -510,9 +522,19 @@ sprawdzanym w chwili wywołania, a nie przez aktualizację statusów modułu `pr
 `ProductFeedService` pyta o to dla każdego przypiętego feedu na liście i umieszcza powód w wierszu
 feedu w panelu jako `pinnedPriceBookWarning` (`null`, gdy feed nie jest przypięty albo cennik jest
 publikowany), a strona feedu pokazuje go jako ostrzeżenie (`feeds.pinnedBook.<reason>` w katalogu
-`i18n/` modułu). Generowanie, które stwierdzi, że przypiętego cennika nie można publikować, wycofuje
-opublikowany plik — `published_artefact_id` zostaje wyczyszczone, więc publiczny URL odpowiada `404`
-tak jak dla feedu nigdy niewygenerowanego — i nie jest generowaniem zakończonym błędem. Żadna ze ścieżek nie przechwytuje `MODULE_DISABLED`: gdy modułu `price_lists` nie ma, generowanie
+`i18n/` modułu). Generowanie feedu przypiętego pyta `namedListPublishability` raz, po kontrolach
+konfiguracji (więc źle skonfigurowany feed nadal kończy się błędem i zachowuje ostatni poprawny
+plik) i przed przejściem katalogu. Gdy cennik nie obowiązuje, generowanie kończy się stanem
+`withdrawn` (`feedRunStatusSchema`) z powodem w `withdrawalReason` (kolumna
+`product_feed_runs.withdrawal_reason`), nie zapisuje pliku i czyści `published_artefact_id`, więc
+publiczny URL odpowiada `404` z jedyną treścią „niedostępny”, tak jak dla feedu nigdy
+niewygenerowanego. Nie wywołuje powiadomienia o błędzie ani dostarczenia. Wcześniejszy plik jest
+odłączany, a nie usuwany — jego wiersz i bajty zostają, do pobrania z jego własnego generowania,
+dopóki retencja po następnej publikacji ich nie usunie. Generowanie usuwa z pamięci podręcznej
+publiczne odpowiedzi dla feedu, które zapisał jego własny proces; pamięć podręczna jest w Redis, a
+indeks według feedu jest osobny w każdym procesie, więc wpis zapisany przez inny proces może
+udostępniać stary plik do wygaśnięcia jego TTL 60 s (`services/feed-cache-invalidator.ts`). Żadna
+ze ścieżek nie przechwytuje `MODULE_DISABLED`: gdy modułu `price_lists` nie ma, generowanie
 kończy się błędem zamiast publikować ceny, których platforma nie podaje.
 
 ### Zawężenie do kanału

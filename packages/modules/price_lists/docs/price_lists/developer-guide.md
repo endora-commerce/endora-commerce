@@ -291,6 +291,11 @@ too slow, so price sorting and price-range filtering read a precomputed **price 
   or writes into a table with no statistics, runs `ANALYZE` on it inside its own transaction.
   Without a running worker the surface is never built and price-sorted pages fall back as above.
 
+**Freshness bound (SC-005).** A targeted change is visible in the sort within 60 s; a
+catalogue-wide one — a change that marks its profiles whole: an all-products or attribute-only row
+on an everyone or base book, a `sales_channels.identity_changed` or `lifecycle_changed` event, a
+change over 10 000 products — within 300 s at 200 built profiles (owner ruling 2026-10-24; a full
+rebuild of 202 profiles measured 274.7 s). Issue #416 tracks making the whole rebuild faster.
 Measured with `PERF_RUN=true` in `backend/test/perf/price_lists/price-surface.bench.ts` (50 000
 products, 1 000 organizations): the figures are in `specs/pricing/read-paths-and-performance.md` §7.
 
@@ -456,7 +461,10 @@ The migrations that ran:
    currency used by a *Default*-list bracket plus the platform default currency (the default
    currency's keeps the id `00000000-0000-4000-8000-00000000d51b`); every *Default* bracket became a
    fixed product row of its currency's base book; every other price list was deleted with its
-   roster, brackets, rule and matrix entries; the old tables and columns were dropped; the type
+   roster, brackets, rule and matrix entries — except a list a product feed still pointed at, which
+   was retired instead: rows, channel bindings and audience removed, left inactive, renamed
+   `<old name> (removed by the 0.108.0 upgrade)` (`product_feeds` no longer holds a foreign key to
+   `price_lists`, so the book can be deleted later and the feed then reports `not_found`); the old tables and columns were dropped; the type
    `base` was renamed `regular`.
 4. **`price_lists`, after the conversion**: `20261022T182527_price_lists_product_lines.ts` creates
    `price_list_product_lines` and backfills it from the rows already stored, and

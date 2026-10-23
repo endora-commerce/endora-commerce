@@ -221,7 +221,9 @@ book line, a base price or a product edit shows in the order within about half a
 platform's measurements, even during a large product import. A change that reaches the whole
 catalogue — a line for all products or for an attribute value alone, a change to more than 10 000
 products at once, or a change to a sales channel — recomputes the order whole for every group of
-buyers it reaches, which can take minutes on a large catalogue with many contract price books.
+buyers it reaches, which takes minutes on a large catalogue with many contract price books: the
+platform's target for it is five minutes with about 200 such groups (measured: 4 min 35 s at 202),
+against one minute for any other change. Making it faster is tracked in issue #416.
 
 **List price beside the buyer's price.** With *Show list price beside the buyer's price* switched on
 (*Pricing settings*, off by default), a buyer whose price is below the catalogue price sees both on
@@ -325,15 +327,18 @@ administrator and the state before and after; *View history* on a book opens its
 - **The product editor's *Variants* tab shows no variants for an inactive product or one outside the
   default sales channel**, because it reads them through the storefront read (issue #410). The
   base-price panel is not affected: it reads every variant.
+- **The product editor's tab labels other than *Pricing* are in English** in the Polish admin
+  (issue #413).
 - **Screen readers announce the storefront's sale badge as "Request a quote"**; the visible text is
   correct (issue #411).
 - **The sorted order lags a price change** by the background refresh — usually under a second, and
-  minutes for a change that reaches the whole catalogue (see *Where prices appear*); the prices on
-  the cards never lag. Price sorting needs the platform's background workers running.
+  up to about five minutes for a change that reaches the whole catalogue (see *Where prices
+  appear*; issue #416); the prices on the cards never lag. Price sorting needs the platform's background workers running.
 - **The external catalogue API** prices the API key's organization with that organization's
   customer group, not the bound customer account's own group, and its bulk pricing request names
   product SKUs only.
-- **Product feeds price products, not variants**, at quantity 1.
+- **Product feeds price products, not variants**, at quantity 1, and a feed is pinned to a price
+  book only through the admin API — no feed screen sets it (issue #414).
 
 ## Upgrading from the old price lists (migration note)
 
@@ -343,7 +348,9 @@ instance that used it:
 - **Base prices are kept.** Every price of the old *Default* price list became a base price of its
   currency.
 - **Every other price list is gone** — with its Application rule, its products and quantity brackets
-  and its price matrix. Recreate the prices it held as price books.
+  and its price matrix. Recreate the prices it held as price books. A list a product feed was
+  pinned to is kept as an empty, inactive book named `<old name> (removed by the 0.108.0 upgrade)`,
+  which you can delete once the feed is pinned to its replacement.
 - **The product's *Default unit price* and the variant price override are gone**, and were not
   converted: the product editor no longer has those fields, and product writes and the products
   import refuse them (`400 PRICE_SET_IN_PRICE_BOOKS`). A product that had only a *Default unit price*

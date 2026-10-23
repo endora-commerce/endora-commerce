@@ -297,6 +297,12 @@ wstępnie wyliczoną **powierzchnię cen**.
   powierzchnia nigdy nie powstaje, a strony sortowane według ceny korzystają z opisanych wyżej
   rozwiązań zastępczych.
 
+**Granica aktualności (SC-005).** Zmiana punktowa jest widoczna w sortowaniu w ciągu 60 s; zmiana
+obejmująca cały katalog — taka, która oznacza swoje profile w całości: wiersz dla wszystkich
+produktów albo tylko dla atrybutu w cenniku dla wszystkich lub cenniku cen bazowych, zdarzenie
+`sales_channels.identity_changed` albo `lifecycle_changed`, zmiana ponad 10 000 produktów — w ciągu
+300 s przy 200 zbudowanych profilach (decyzja właściciela z 24.10.2026; pełna przebudowa 202
+profili zajęła 274,7 s). Przyspieszenie pełnej przebudowy opisuje zgłoszenie #416.
 Zmierzone z `PERF_RUN=true` w `backend/test/perf/price_lists/price-surface.bench.ts` (50 000
 produktów, 1 000 organizacji): wyniki są w `specs/pricing/read-paths-and-performance.md` §7.
 
@@ -469,7 +475,11 @@ Migracje, które się wykonały:
    bazowych na każdą walutę użytą w przedziale cennika *Default* oraz na domyślną walutę platformy
    (cennik domyślnej waluty zachowuje id `00000000-0000-4000-8000-00000000d51b`); każdy przedział
    cennika *Default* stał się stałym wierszem produktu w cenniku cen bazowych swojej waluty; każdy inny
-   cennik został usunięty razem z listą produktów, przedziałami, regułą i pozycjami macierzy; stare
+   cennik został usunięty razem z listą produktów, przedziałami, regułą i pozycjami macierzy — poza
+   cennikiem, na który nadal wskazywał feed produktowy: ten został wycofany z użycia (usunięto
+   wiersze, powiązania z kanałami i odbiorców, pozostawiono go nieaktywnym i nazwano
+   `<old name> (removed by the 0.108.0 upgrade)`; `product_feeds` nie ma już klucza obcego do
+   `price_lists`, więc cennik można później usunąć, a feed zgłasza wtedy `not_found`); stare
    tabele i kolumny zostały usunięte; typ `base` zmienił nazwę na `regular`.
 4. **`price_lists`, po konwersji**: `20261022T182527_price_lists_product_lines.ts` tworzy
    `price_list_product_lines` i wypełnia ją na podstawie zapisanych wierszy, a

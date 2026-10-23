@@ -224,7 +224,9 @@ cennika, cena bazowa albo edycja produktu pojawia się w porządku w ciągu oko�
 pomiarach platformy, także w trakcie dużego importu produktów. Zmiana, która sięga całego katalogu —
 linia dla wszystkich produktów albo tylko dla wartości atrybutu, zmiana ponad 10 000 produktów naraz
 albo zmiana kanału sprzedaży — przelicza porządek w całości dla każdej grupy kupujących, do której
-sięga, co w dużym katalogu z wieloma cennikami kontraktowymi może potrwać kilka minut.
+sięga, co w dużym katalogu z wieloma cennikami kontraktowymi trwa kilka minut: platforma zakłada
+dla niej pięć minut przy około 200 takich grupach (zmierzono 4 min 35 s przy 202), wobec jednej
+minuty dla każdej innej zmiany. Przyspieszenie tego opisuje zgłoszenie #416.
 
 **Cena katalogowa obok ceny kupującego.** Po włączeniu ustawienia *Pokazuj cenę katalogową obok ceny
 kupującego* (*Ustawienia cenowe*, domyślnie wyłączone) kupujący, którego cena jest niższa od ceny
@@ -329,15 +331,19 @@ administratorem i stanem przed zmianą i po niej; *Zobacz historię* w cenniku o
 - **Zakładka *Variants* edytora produktu nie pokazuje wariantów produktu nieaktywnego ani produktu
   spoza domyślnego kanału sprzedaży**, bo odczytuje je przez odczyt storefrontu (zgłoszenie #410).
   Panel cen bazowych tego problemu nie ma: odczytuje każdy wariant.
+- **Etykiety zakładek edytora produktu inne niż *Ceny* są po angielsku** w polskim panelu
+  (zgłoszenie #413).
 - **Czytniki ekranu odczytują znaczek promocji w sklepie jako „Zapytaj o ofertę”**; widoczny tekst jest
   poprawny (zgłoszenie #411).
 - **Porządek sortowania opóźnia się względem zmiany ceny** o czas odświeżania w tle — zwykle poniżej
-  sekundy, a kilka minut przy zmianie, która sięga całego katalogu (zob. *Gdzie pojawiają się
-  ceny*); ceny na kartach nigdy się nie opóźniają. Sortowanie według ceny wymaga działających workerów platformy.
+  sekundy, a do około pięciu minut przy zmianie, która sięga całego katalogu (zob. *Gdzie
+  pojawiają się ceny*; zgłoszenie #416); ceny na kartach nigdy się nie opóźniają. Sortowanie według
+  ceny wymaga działających workerów platformy.
 - **Zewnętrzne API katalogu** wycenia organizację klucza API z grupą klientów tej organizacji, a nie
   z własną grupą powiązanego konta klienta, a jego zbiorcze żądanie cen wskazuje wyłącznie SKU
   produktów.
-- **Feedy produktowe wyceniają produkty, nie warianty**, dla ilości 1.
+- **Feedy produktowe wyceniają produkty, nie warianty**, dla ilości 1, a feed przypina się do
+  cennika tylko przez API administracyjne — żaden ekran feedu tego nie ustawia (zgłoszenie #414).
 
 ## Aktualizacja ze starych cenników (uwaga migracyjna)
 
@@ -348,6 +354,9 @@ W instancji, która go używała:
   swojej walucie.
 - **Wszystkich pozostałych cenników już nie ma** — razem z ich regułą stosowania, produktami i
   przedziałami ilościowymi oraz macierzą cen. Ceny, które zawierały, utwórz ponownie jako cenniki.
+  Cennik, do którego był przypięty feed produktowy, zostaje jako pusty, nieaktywny cennik o nazwie
+  `<old name> (removed by the 0.108.0 upgrade)`, który można usunąć, gdy feed zostanie przypięty do
+  jego zamiennika.
 - **Nie ma już *Default unit price* produktu ani nadpisania ceny wariantu** i nie zostały one
   przeniesione: edytor produktu nie ma tych pól, a zapisy produktów i import produktów je odrzucają
   (`400 PRICE_SET_IN_PRICE_BOOKS`). Produkt, który miał tylko *Default unit price*, a nie miał ceny w

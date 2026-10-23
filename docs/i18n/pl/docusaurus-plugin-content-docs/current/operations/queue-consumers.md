@@ -125,7 +125,8 @@ dodają znaczniki, więc zmianę wprowadzoną w trakcie przebiegu obsłuży nast
 niego nie czeka: oznaczony profil nadal podaje poprzedni porządek, a ceny na kartach produktów są
 zawsze wyliczane na bieżąco, więc po zmianie opóźnia się tylko **porządek** listy sortowanej według
 ceny — o czas obsługi przez konsumenta, w pomiarach platformy około pół sekundy dla pojedynczej
-zmiany i kilka minut dla zmiany, która przebudowuje w całości wiele profili. Zadanie jest
+zmiany i najwyżej około pięciu minut, przy około 200 profilach, dla zmiany, która przebudowuje w
+całości wiele profili (zgłoszenie #416). Zadanie jest
 idempotentne (odświeżenie liczy wszystko od źródła), więc ponowna próba albo druga instancja workera
 niczego nie psuje.
 

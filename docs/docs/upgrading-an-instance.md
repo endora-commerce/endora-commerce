@@ -2297,12 +2297,12 @@ storefront edits are untried.
 ### After upgrading to 0.108.0 {#after-0-108-0}
 
 `pnpm run upgrade 0.108.0` moves the packages of the release from `0.107.0` and applies its
-migrations — twenty, ten of them for the new pricing model and its editor. **The release replaces how prices are
+migrations — twenty-one, eleven of them for the new pricing model and its editor. **The release replaces how prices are
 stored and resolved, in one step and with no compatibility period**: the price lists of earlier
 releases, with their Application rules, rosters and quantity brackets, become **price books**, and
 a product no longer carries a price of its own. The base prices an instance charged from the
-*Default* price list are kept; **every other price list is deleted** by the upgrade, and nothing
-converts it. Read the steps below before you run the command. This section covers the pricing
+*Default* price list are kept; **every other price list is deleted** by the upgrade — or, if a
+product feed is still pinned to it, kept empty and retired — and nothing converts it. Read the steps below before you run the command. This section covers the pricing
 change; the release's other changes are in each package's changelog. It says what to do, in order,
 and then what behaves differently for [operators](#after-0-108-0-operators),
 [API clients and integrators](#after-0-108-0-api),
@@ -2319,7 +2319,8 @@ Before the upgrade:
 1. **Write down every price list other than *Default*: its prices, who it priced and on which
    channels.** `Migration20261022T111815PriceListsPriceBooksConversion` deletes every price list
    that carries an Application rule — customer-group and organization contracts, sales, catalogue
-   lists — with its roster, brackets, rule and price-matrix entries, and drops the old tables. What
+   lists — with its roster, brackets, rule and price-matrix entries, and drops the old tables (a list
+   a product feed is pinned to is retired empty instead, step 3). What
    they priced has to be entered again as price books after the upgrade; the database backup of
    [Before you start](#before-you-start) is the only copy of the rows.
 2. **Write down the price of every product that has a *Default unit price* but no row on the
@@ -2329,12 +2330,13 @@ Before the upgrade:
    after the upgrade — the basket refuses it with `422 CART_PRODUCT_UNPRICED` — until a base price
    is entered for it. A variant's *Price override* was never charged, so dropping it changes no
    price.
-3. **Take every product feed off a price list other than *Default*.** A feed is pinned through the
-   admin API, so unpin it there: `PATCH /api/v1/admin/product-feeds/:id` with
-   `{ "priceListId": null }` for each feed whose `priceListId` names such a list. The pin is a
-   foreign key with `on delete restrict`, so the conversion cannot delete a list a feed still
-   points at, and the upgrade stops at that migration. After the upgrade, pin the feed to the price
-   book that replaces the list (step 9).
+3. **A product feed pinned to a price list other than *Default* needs nothing before the
+   upgrade.** The conversion does not delete a list a feed still points at: it retires it — its
+   rows, channel bindings and audience are removed, it is left inactive, and it is renamed
+   `<old name> (removed by the 0.108.0 upgrade)`. The feed then publishes no prices from it:
+   its page shows the warning, and its first run after the upgrade withdraws its published file.
+   Pin the feed to the price book that replaces the list (step 9); the retired book can then be
+   deleted, and a feed still pinned to a deleted book reports `not_found`.
 4. **If an integration of yours writes prices through `priceListAdminPort`** — a PIM connector's
    price import, typically — have its new version ready: the port is removed, and
    `priceBookWritePort` replaces it. A connector built against the old port cannot write prices on
@@ -2364,6 +2366,7 @@ The upgrade itself:
    | `Migration20261021T164808QuoteRequestsQuoteRequestEventCarrySkipped` | `quote_requests` | Admits the `custom-field-carry-skipped` event type |
    | `Migration20261020T131018PwaPreferencesOrganizationAttributionCheck` | `pwa` | A `CHECK` on `push_notification_preferences` |
    | `Migration20261021T165244CartsCartItemsPriceSource` | `carts` | Nullable `cart_items.price_source` |
+   | `Migration20261023T195611ProductFeedsRunWithdrawalReason` | `product_feeds` | Nullable `product_feed_runs.withdrawal_reason`, for a run that withdrew the published file |
    | `Migration20261021T165239PriceListsPriceBooksExpand` | `price_lists` | The price-book header, audience and channel sets, the evolved rows, precedence version 1, the price-surface tables |
    | `Migration20261021T232310PriceListsPriceBooksVersion` | `price_lists` | `price_lists.version` and `ever_activated` |
    | `Migration20261022T012134PriceListsPriceSurfaceGenerations` | `price_lists` | Generations of the price surface |
@@ -2373,7 +2376,8 @@ The upgrade itself:
 
    The conversion runs in one transaction: it creates one **base price book** per currency a
    *Default*-list bracket uses, plus the platform's default currency; makes every *Default* bracket
-   a fixed row of its currency's base book; deletes every other price list; and drops the old
+   a fixed row of its currency's base book; deletes every other price list, except one a feed is
+   pinned to, which it retires empty (step 3); and drops the old
    tables and columns. `Migration20261022T182523CatalogAdminNameKeys` adds four generated columns
    to `products`, and each rewrites the table under an exclusive lock — 3.5–7 s per column at
    50 000 products in the platform's measurement — which is one more reason to keep the API stopped.
@@ -2395,10 +2399,11 @@ After the upgrade, before the instance takes traffic again:
    it prices nothing until it is activated. *Why this price?* (`/price-lists/explain`) shows, for a
    buyer and a product, which line decided the price.
 9. **Pin the feeds of step 3 again** (`PATCH /api/v1/admin/product-feeds/:id` with the book's id
-   as `priceListId`), to a price book that applies to anyone on the feed's channel: *Active* or *Scheduled* within its dates, assigned to the feed's channel and for
+   as `priceListId`; no feed screen sets it yet, issue #414), to a price book that applies to anyone on the feed's channel: *Active* or *Scheduled* within its dates, assigned to the feed's channel and for
    everyone. A feed pinned to any other book publishes no prices from it — the feed's page says
-   why — and its next run withdraws the published file, so the link answers as for a feed that
-   has never been generated until the book applies again.
+   why — and its next run ends *Withdrawn* and withdraws the published file, so the link answers as
+   for a feed that has never been generated until the book applies again. A withdrawn run is not a
+   failure: it raises no notification and delivers nothing.
 
 Whenever it suits you:
 
@@ -2425,8 +2430,9 @@ Whenever it suits you:
   [Price books](./modules/price_lists.md) page, with worked examples.
 - **A price change shows in a price-sorted listing within about half a second** in the platform's
   measurements; a change that reaches the whole catalogue — a line for all products or for an
-  attribute value alone, more than 10 000 products at once, a sales-channel change — can take
-  minutes on a large catalogue with many contract books. Prices on product cards never lag.
+  attribute value alone, more than 10 000 products at once, a sales-channel change — takes up to
+  about five minutes with some 200 groups of buyers with their own books (measured 4 min 35 s at
+  202; issue #416 tracks making it faster). Prices on product cards never lag.
 - **The products import refuses a file with a price column** — `default_price`, `defaultPrice`,
   `price`, `price_override` or `priceOverride` — with `400 PRICE_SET_IN_PRICE_BOOKS`, and imports
   nothing. Prices are imported through the price books' CSV import, or by a PIM connector through
@@ -2453,8 +2459,11 @@ Whenever it suits you:
   `PRICE_MATRIX_ENTRY_OVERLAP`, `PRICE_MATRIX_ATTRIBUTE_NOT_ELIGIBLE`, `PRICE_MATRIX_ENTRY_LIMIT`);
   the price-book codes, `PRICE_BOOK_*` and `PRECEDENCE_CHANGE_UNAVAILABLE`, replace them.
 - **A product feed pinned to a price book** publishes only while the book is *Active* or
-  *Scheduled* within its dates, on the feed's channel and for everyone, and its file is withdrawn
-  while it does not. An admin feed (`GET /api/v1/admin/product-feeds`, `GET …/:id`) carries
+  *Scheduled* within its dates, on the feed's channel and for everyone. A run of a feed whose book
+  does not apply ends with the new run status `withdrawn` and `withdrawalReason` (the reason; `null`
+  on every other run), clears the published file and answers the public URL with `404`; a client
+  that switches exhaustively on the run status has one more case. The failure code
+  `price_list_unavailable`, which nothing raised, is removed. An admin feed (`GET /api/v1/admin/product-feeds`, `GET …/:id`) carries
   `pinnedPriceBookWarning`: the reason it does not publish, or `null`.
 
 #### For module and overlay authors {#after-0-108-0-authors}

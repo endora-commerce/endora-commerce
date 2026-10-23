@@ -132,7 +132,8 @@ next. A request never waits for it: a marked profile keeps serving its previous
 order, and the prices on the product cards are always resolved live, so only the
 **order** of a price-sorted listing lags a change — by the consumer's
 turnaround, about half a second for a single change in the platform's
-measurements and minutes for a change that rebuilds many profiles whole. The job
+measurements and at most about five minutes, with some 200 profiles, for a change that rebuilds
+many profiles whole (issue #416). The job
 is idempotent (a refresh recomputes from source), so a retry or a second worker
 instance is harmless.
 
