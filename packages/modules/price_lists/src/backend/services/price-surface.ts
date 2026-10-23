@@ -517,6 +517,13 @@ export class PriceSurface {
    * answered once per pair of builds and memoised in this process (a build or a
    * targeted refresh moves the revision, so a stale answer is never read; the
    * page statement checks the pair).
+   *
+   * Each everyone row is probed with a scalar `limit 1` sub-select, which the
+   * planner cannot flatten into a join: one primary-key lookup per row,
+   * whatever the statistics. Written as `not exists`, it was planned — on a
+   * table analysed while empty, as a fresh install's and the bench's are — as a
+   * nested-loop anti join filtering every buyer row per everyone row: 428 s for
+   * an all-products buyer on the SC-005 fixture (`price-surface-plans.test.ts`).
    */
   async #buyerCoversEveryone(buyer: ReadySurface, everyone: ReadySurface): Promise<boolean> {
     const key = `${buyer.id}@${buyer.revision}|${everyone.id}@${everyone.revision}`;
@@ -526,8 +533,9 @@ export class PriceSurface {
       `select exists (
          select 1 from "price_profile_prices" e
           where e."profile_id" = ? and e."generation" = ?
-            and not exists (select 1 from "price_profile_prices" b
-                             where b."profile_id" = ? and b."generation" = ? and b."product_id" = e."product_id")
+            and (select 1 from "price_profile_prices" b
+                  where b."profile_id" = ? and b."generation" = ? and b."product_id" = e."product_id"
+                  limit 1) is null
        ) as "uncovered"`,
       [everyone.id, everyone.generation, buyer.id, buyer.generation],
     );
