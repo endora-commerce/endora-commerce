@@ -2294,6 +2294,207 @@ reference storefront's history between `v0.106.0` and `0.107.0`. No instance had
 groups of files above applied to it, when this section was written; the order of the steps and the
 storefront edits are untried.
 
+### After upgrading to 0.108.0 {#after-0-108-0}
+
+`pnpm run upgrade 0.108.0` moves the packages of the release from `0.107.0` and applies its
+migrations — twenty, ten of them for the new pricing model and its editor. **The release replaces how prices are
+stored and resolved, in one step and with no compatibility period**: the price lists of earlier
+releases, with their Application rules, rosters and quantity brackets, become **price books**, and
+a product no longer carries a price of its own. The base prices an instance charged from the
+*Default* price list are kept; **every other price list is deleted** by the upgrade, and nothing
+converts it. Read the steps below before you run the command. This section covers the pricing
+change; the release's other changes are in each package's changelog. It says what to do, in order,
+and then what behaves differently for [operators](#after-0-108-0-operators),
+[API clients and integrators](#after-0-108-0-api),
+[module and overlay authors](#after-0-108-0-authors) and the owner of
+[an existing storefront](#after-0-108-0-storefront). The model itself is described on the
+[Price books](./modules/price_lists.md) page, and the full list of what was removed with its
+replacement in the developer guide's
+[migration note](./modules/price_lists/developer-guide.md#upgrading-from-the-old-model-migration-note).
+
+#### What to do, in order {#after-0-108-0-steps}
+
+Before the upgrade:
+
+1. **Write down every price list other than *Default*: its prices, who it priced and on which
+   channels.** `Migration20261022T111815PriceListsPriceBooksConversion` deletes every price list
+   that carries an Application rule — customer-group and organization contracts, sales, catalogue
+   lists — with its roster, brackets, rule and price-matrix entries, and drops the old tables. What
+   they priced has to be entered again as price books after the upgrade; the database backup of
+   [Before you start](#before-you-start) is the only copy of the rows.
+2. **Write down the price of every product that has a *Default unit price* but no row on the
+   *Default* list.** `Migration20261022T111811CatalogPriceFieldsRemoved` strips `defaultPrice` and
+   `price` from every product's attribute values and drops `product_variants.price_override`;
+   neither is converted. A product that was priced only by its *Default unit price* has **no price**
+   after the upgrade — the basket refuses it with `422 CART_PRODUCT_UNPRICED` — until a base price
+   is entered for it. A variant's *Price override* was never charged, so dropping it changes no
+   price.
+3. **Take every product feed off a price list other than *Default*.** A feed is pinned through the
+   admin API, so unpin it there: `PATCH /api/v1/admin/product-feeds/:id` with
+   `{ "priceListId": null }` for each feed whose `priceListId` names such a list. The pin is a
+   foreign key with `on delete restrict`, so the conversion cannot delete a list a feed still
+   points at, and the upgrade stops at that migration. After the upgrade, pin the feed to the price
+   book that replaces the list (step 9).
+4. **If an integration of yours writes prices through `priceListAdminPort`** — a PIM connector's
+   price import, typically — have its new version ready: the port is removed, and
+   `priceBookWritePort` replaces it. A connector built against the old port cannot write prices on
+   this release. The method-by-method mapping is in the developer guide's
+   [migration note](./modules/price_lists/developer-guide.md#upgrading-from-the-old-model-migration-note).
+
+The upgrade itself:
+
+5. **Run `pnpm run upgrade 0.108.0`.** `setup` applies the migrations module by module, in the
+   order of the modules' dependencies, and each module's own in the order of their stamps — so
+   every `catalog` migration, the removal of the price fields included, runs before the
+   conversion. Grouped by module:
+
+   | Migration | Module | What it does |
+   | --- | --- | --- |
+   | `Migration20261016T082008CatalogOrderRules` | `catalog` | `products.min_order_quantity`, `products.returnable`, `product_packaging_units.min_order_units` |
+   | `Migration20261022T111811CatalogPriceFieldsRemoved` | `catalog` | Drops `product_variants.price_override`, strips `defaultPrice` and `price` — see step 2 |
+   | `Migration20261022T182523CatalogAdminNameKeys` | `catalog` | Stored, indexed admin name and search keys on `products`, and the `pg_trgm` extension |
+   | `Migration20261019T103522CustomFieldsDefinitionListFilter` | `custom_fields` | `custom_field_definitions.list_filter`, `false` for every existing field |
+   | `Migration20261020T110920CustomFieldsDefinitionCarryTo` | `custom_fields` | `custom_field_definitions.carry_to`, empty for every existing field |
+   | `Migration20261016T082022OrdersOrderItemReturnableAtPurchase` | `orders` | Nullable `order_items.returnable_at_purchase` |
+   | `Migration20261020T172007OrdersOrderItemGroups` | `orders` | Table `order_item_groups`, `order_items.group_id` and `position` |
+   | `Migration20261021T164807OrdersOrderCommentSystemNote` | `orders` | Nullable `order_comments.system_note` |
+   | `Migration20261021T165247OrdersOrderItemsPriceSource` | `orders` | Nullable `order_items.price_source` |
+   | `Migration20261018T122118QuoteRequestsItemPackagingUnitId` | `quote_requests` | Nullable `quote_request_items.packaging_unit_id` |
+   | `Migration20261020T171341QuoteRequestsQuoteRequestItemGroups` | `quote_requests` | Table `quote_request_item_groups`, `quote_request_items.group_id` and `position` |
+   | `Migration20261021T164808QuoteRequestsQuoteRequestEventCarrySkipped` | `quote_requests` | Admits the `custom-field-carry-skipped` event type |
+   | `Migration20261020T131018PwaPreferencesOrganizationAttributionCheck` | `pwa` | A `CHECK` on `push_notification_preferences` |
+   | `Migration20261021T165244CartsCartItemsPriceSource` | `carts` | Nullable `cart_items.price_source` |
+   | `Migration20261021T165239PriceListsPriceBooksExpand` | `price_lists` | The price-book header, audience and channel sets, the evolved rows, precedence version 1, the price-surface tables |
+   | `Migration20261021T232310PriceListsPriceBooksVersion` | `price_lists` | `price_lists.version` and `ever_activated` |
+   | `Migration20261022T012134PriceListsPriceSurfaceGenerations` | `price_lists` | Generations of the price surface |
+   | `Migration20261022T111815PriceListsPriceBooksConversion` | `price_lists` | The conversion — see step 1 and below |
+   | `Migration20261022T182527PriceListsProductLines` | `price_lists` | Table `price_list_product_lines`, backfilled from the stored rows |
+   | `Migration20261023T152351PriceListsPriceSurfaceTargetedMarks` | `price_lists` | Table `price_profile_stale_products` and `price_profiles.revision`, for the targeted refresh of the price surface |
+
+   The conversion runs in one transaction: it creates one **base price book** per currency a
+   *Default*-list bracket uses, plus the platform's default currency; makes every *Default* bracket
+   a fixed row of its currency's base book; deletes every other price list; and drops the old
+   tables and columns. `Migration20261022T182523CatalogAdminNameKeys` adds four generated columns
+   to `products`, and each rewrites the table under an exclusive lock — 3.5–7 s per column at
+   50 000 products in the platform's measurement — which is one more reason to keep the API stopped.
+
+After the upgrade, before the instance takes traffic again:
+
+6. **Make sure a queue consumer runs.** Price-sorted and price-filtered listings are ordered from
+   prices the `price_lists.surface` worker precomputes; it runs in a process that consumes queues
+   (`BACKEND_ROLE` unset, `all` or `worker`) with a queue Redis connection —
+   [Queue consumers](./operations/queue-consumers.md). The upgrade builds nothing: the first
+   price-sorted request on each sales channel and currency registers what it needs and asks the
+   worker for it, and is served in the catalogue's default order — product cards correctly priced —
+   until the worker has built it. Without a consumer, price sorting never orders by price.
+7. **Check the base prices.** Open a few products' *Pricing* tab: the prices that came from the
+   *Default* list are there, per currency. Enter a base price for each product of step 2.
+8. **Recreate the price books** that replace the lists of step 1, on **Price books**
+   (`/price-lists`, or ⌘K / CTRL+K → *Price books*). A book has one currency, a set of sales
+   channels, an audience — everyone, chosen customer groups or chosen organizations — and lines;
+   it prices nothing until it is activated. *Why this price?* (`/price-lists/explain`) shows, for a
+   buyer and a product, which line decided the price.
+9. **Pin the feeds of step 3 again** (`PATCH /api/v1/admin/product-feeds/:id` with the book's id
+   as `priceListId`), to a price book that applies to anyone on the feed's channel: *Active* or *Scheduled* within its dates, assigned to the feed's channel and for
+   everyone. A feed pinned to any other book publishes no prices from it — the feed's page says
+   why — and its next run withdraws the published file, so the link answers as for a feed that
+   has never been generated until the book applies again.
+
+Whenever it suits you:
+
+10. **Give `catalog:read` to every role that holds `price_lists:write`.** Adding product lines to a
+    price book uses the catalogue's product browser, which `catalog:read` guards; the role editor on
+    *Admin roles* (`/admin-roles`) shows the shortfall for a role that lacks it, with a one-click
+    add. The two price-list permission codes are unchanged; their
+    labels now read *View price books and display modes* and *Edit price books, base prices and
+    display modes*.
+11. **In an instance seeded with the demo shop**, run `pnpm run cli demo reset` and then
+    `pnpm run cli demo seed`: the conversion removed the demo's old price lists, and the seed brings
+    back its base prices and the price books of the worked examples on the
+    [Price books](./modules/price_lists.md) page.
+
+#### For operators {#after-0-108-0-operators}
+
+- **Price lists are price books.** The sidebar entry *Price books* opens the list of books; the
+  product editor's *Default unit price* field, the variant table's *Price override* column and the
+  product's *Linked price lists* zone are gone, and a product's base prices are on its *Pricing*
+  tab. *Pricing settings* (⌘K / CTRL+K) holds the display modes, the *Show list price beside the
+  buyer's price* switch (`pricing.show_list_price`, off by default) and the precedence, read-only.
+- **How a price is decided** — the base price, a catalogue price for everyone on a channel, a
+  buyer's contract price, and a sale charged only when it is lower — is on the
+  [Price books](./modules/price_lists.md) page, with worked examples.
+- **A price change shows in a price-sorted listing within about half a second** in the platform's
+  measurements; a change that reaches the whole catalogue — a line for all products or for an
+  attribute value alone, more than 10 000 products at once, a sales-channel change — can take
+  minutes on a large catalogue with many contract books. Prices on product cards never lag.
+- **The products import refuses a file with a price column** — `default_price`, `defaultPrice`,
+  `price`, `price_override` or `priceOverride` — with `400 PRICE_SET_IN_PRICE_BOOKS`, and imports
+  nothing. Prices are imported through the price books' CSV import, or by a PIM connector through
+  `priceBookWritePort`.
+
+#### For API clients and integrators {#after-0-108-0-api}
+
+- **The old admin pricing routes are removed**: `/api/v1/admin/price-lists-engine/…`,
+  `/api/v1/admin/pricing/rule-targets/…`, `/api/v1/admin/products/:id/price-lists` and
+  `/api/v1/admin/products/:id/resolved-price`. Their replacement is `/api/v1/admin/price-books/…`:
+  `GET ?productId=` for a product's books and `POST /api/v1/admin/price-books/resolve` for a
+  resolved price with its explanation.
+- **A catalogue write that names a price is refused**: `POST`/`PATCH
+  /api/v1/admin/catalog/products[/:id]` with `attributeValues.defaultPrice` or
+  `attributeValues.price`, and a variant write with `priceOverride`, answer
+  `400 PRICE_SET_IN_PRICE_BOOKS` and write nothing. Base prices are written with
+  `PUT /api/v1/admin/price-books/base-prices/:productId`.
+- **`GET /api/v1/storefront/products/:id/resolved-price` answers an unpriced product honestly**:
+  `baseListId`, `basePrice` and `quantityBracket` are all `null`, where `baseListId` used to be an
+  empty string. Amounts are decimal strings (`{ "amount": "199.0000", "currency": "PLN" }`), as the
+  route always sent them. The answer also carries `source` (which tier priced it), `compareAt` and,
+  when the shop shows it, `listPrice`.
+- **The price-matrix error codes are gone** (`PRICE_MATRIX_ENTRY_NOT_FOUND`,
+  `PRICE_MATRIX_ENTRY_OVERLAP`, `PRICE_MATRIX_ATTRIBUTE_NOT_ELIGIBLE`, `PRICE_MATRIX_ENTRY_LIMIT`);
+  the price-book codes, `PRICE_BOOK_*` and `PRECEDENCE_CHANGE_UNAVAILABLE`, replace them.
+- **A product feed pinned to a price book** publishes only while the book is *Active* or
+  *Scheduled* within its dates, on the feed's channel and for everyone, and its file is withdrawn
+  while it does not. An admin feed (`GET /api/v1/admin/product-feeds`, `GET …/:id`) carries
+  `pinnedPriceBookWarning`: the reason it does not publish, or `null`.
+
+#### For module and overlay authors {#after-0-108-0-authors}
+
+- **`priceListAdminPort` is removed; `priceBookWritePort` replaces it** — base prices per currency,
+  addressed by product and currency rather than by a list id, written as one audited command.
+- **`@endora-commerce/contracts` drops the Application rule and the old list, bracket and matrix
+  shapes**, `ListingPrice` loses its `source: 'product'` arm, and `PriceListRecord` /
+  `PriceListReadPort` are reshaped for books. Each removal is listed with its replacement in the
+  package's changelog.
+- **An overlay that decorates `pricingService`** must decorate the batched entry points
+  (`resolveLinePrices`, `resolveListingPrices`) as well as the single calls; the cart, the placement
+  check and quote reference prices price through the batch.
+- **A module whose events decide a price** bumps `PricingGeneration` as before; `bump(change?)` now
+  takes a `SurfaceChange` saying what it moved, and a bump without one makes the price surface
+  rebuild every profile.
+- **A feed-pricing port of your own** must implement `namedListPublishability` beside
+  `namedListPrices`, which now takes the feed's `salesChannelId`.
+
+#### In an existing storefront {#after-0-108-0-storefront}
+
+The pricing routes a storefront calls keep their paths, so a storefront created by an earlier
+release keeps rendering prices. What it does not show until its files are brought over from the
+release's storefront: a selected variant's own price on the product page, a sale shown as the list
+price struck through beside *Your price*, the buyer price as compare-at on product cards, and the
+list price beside a lower buyer price. The files are `app/(catalog)/p/[slug]/page.tsx`,
+`app/page.tsx`, `components/ProductCard.tsx`, `components/PriceTag.tsx`,
+`components/VariantPicker.tsx`, `components/SearchAutocomplete.tsx`,
+`components/pricing/BaseSalePriceBlock.tsx`, `components/pricing/PdpPriceToggle.tsx`,
+`lib/api/pricing.ts` (where `ResolvedPrice.baseListId` is now `string | null`) and the pricing
+strings in `lib/i18n/messages.ts`. The variant picker of an earlier storefront showed a variant's
+*Price override*; that field is no longer sent, so the picker shows no price for a variant until
+`VariantPicker.tsx` is brought over.
+
+This section was written on 2026-10-23 against the release branch of the pricing change
+(`feat/160-pricing-model-v2`), read against its migrations, manifests, routes and the reference
+storefront's history since `v0.107.0`. No instance had been upgraded with
+`pnpm run upgrade 0.108.0` when it was written; the order of the steps and the storefront edits are
+untried.
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except

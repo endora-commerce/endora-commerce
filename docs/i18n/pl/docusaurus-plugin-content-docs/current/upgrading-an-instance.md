@@ -2391,6 +2391,214 @@ zaktualizowana z `0.106.0` poleceniem `pnpm run upgrade 0.107.0`, do żadnej ins
 utworzonym we wcześniejszym wydaniu nie wprowadzono powyższych grup plików; kolejność kroków i
 zmiany w storefroncie nie były wypróbowane.
 
+### Po aktualizacji do wydania 0.108.0 {#after-0-108-0}
+
+`pnpm run upgrade 0.108.0` przenosi pakiety wydania z `0.107.0` i wykonuje jego migracje —
+dwadzieścia, z czego dziesięć dotyczy nowego modelu cen i jego edytora. **Wydanie zastępuje sposób
+przechowywania i wyliczania cen w jednym kroku, bez okresu zgodności**: cenniki wcześniejszych
+wydań, z ich regułami stosowania (Application rule), listami produktów i przedziałami ilościowymi,
+stają się **cennikami w nowym modelu**, a produkt nie ma już własnej ceny. Ceny bazowe, które
+instancja naliczała z cennika *Default*, zostają zachowane; **każdy inny cennik aktualizacja
+usuwa** i nic go nie przenosi. Przeczytaj poniższe kroki, zanim uruchomisz polecenie. Ta sekcja
+opisuje zmianę cen; pozostałe zmiany wydania są w dziennikach zmian poszczególnych pakietów. Mówi,
+co zrobić i w jakiej kolejności, a potem — co działa inaczej dla
+[operatorów](#after-0-108-0-operators),
+[klientów API i integratorów](#after-0-108-0-api),
+[autorów modułów i modułów nakładkowych](#after-0-108-0-authors) oraz właściciela
+[istniejącego storefrontu](#after-0-108-0-storefront). Sam model opisuje strona
+[Cenniki](./modules/price_lists.md), a pełną listę tego, co usunięto, wraz z zamiennikami —
+[uwaga migracyjna](./modules/price_lists/developer-guide.md#upgrading-from-the-old-model-migration-note)
+w przewodniku dla deweloperów.
+
+#### Co zrobić i w jakiej kolejności {#after-0-108-0-steps}
+
+Przed aktualizacją:
+
+1. **Zapisz każdy cennik inny niż *Default*: jego ceny, kogo wyceniał i w których kanałach.**
+   `Migration20261022T111815PriceListsPriceBooksConversion` usuwa każdy cennik z regułą stosowania —
+   kontrakty grup klientów i organizacji, promocje, cenniki katalogowe — razem z listą produktów,
+   przedziałami, regułą i pozycjami macierzy cen, a potem usuwa stare tabele. To, co wyceniały,
+   trzeba po aktualizacji wprowadzić ponownie jako cenniki; kopia bazy danych z
+   [Zanim zaczniesz](#zanim-zaczniesz) jest jedyną kopią tych wierszy.
+2. **Zapisz cenę każdego produktu, który ma *Default unit price*, ale nie ma wiersza w cenniku
+   *Default*.** `Migration20261022T111811CatalogPriceFieldsRemoved` usuwa `defaultPrice` i `price`
+   z wartości atrybutów każdego produktu oraz kolumnę `product_variants.price_override`; żadne z nich
+   nie jest przenoszone. Produkt wyceniany tylko przez *Default unit price* po aktualizacji **nie ma
+   ceny** — koszyk odrzuca go z kodem `422 CART_PRODUCT_UNPRICED` — dopóki nie wpisze się dla niego
+   ceny bazowej. *Price override* wariantu nigdy nie był naliczany, więc jego usunięcie nie zmienia
+   żadnej ceny.
+3. **Odepnij każdy feed produktowy od cennika innego niż *Default*.** Feed przypina się przez API
+   administracyjne, więc tam go odepnij: `PATCH /api/v1/admin/product-feeds/:id` z
+   `{ "priceListId": null }` dla każdego feedu, którego `priceListId` wskazuje taki cennik.
+   Przypięcie to klucz obcy z `on delete restrict`, więc konwersja nie może usunąć cennika, na który
+   feed nadal wskazuje, i aktualizacja zatrzymuje się na tej migracji. Po aktualizacji przypnij feed
+   do cennika, który zastępuje dawny (krok 9).
+4. **Jeśli Twoja integracja zapisuje ceny przez `priceListAdminPort`** — zwykle import cen
+   konektora PIM — przygotuj jej nową wersję: port został usunięty, a zastępuje go
+   `priceBookWritePort`. Konektor zbudowany dla starego portu nie może w tym wydaniu zapisywać cen.
+   Odpowiedniki metoda po metodzie są w
+   [uwadze migracyjnej](./modules/price_lists/developer-guide.md#upgrading-from-the-old-model-migration-note)
+   przewodnika dla deweloperów.
+
+Sama aktualizacja:
+
+5. **Uruchom `pnpm run upgrade 0.108.0`.** `setup` wykonuje migracje moduł po module, w kolejności
+   zależności modułów, a migracje jednego modułu — w kolejności ich znaczników czasu; dlatego każda
+   migracja `catalog`, w tym usunięcie pól cen, wykonuje się przed konwersją. Według modułów:
+
+   | Migracja | Moduł | Co robi |
+   | --- | --- | --- |
+   | `Migration20261016T082008CatalogOrderRules` | `catalog` | `products.min_order_quantity`, `products.returnable`, `product_packaging_units.min_order_units` |
+   | `Migration20261022T111811CatalogPriceFieldsRemoved` | `catalog` | Usuwa `product_variants.price_override`, `defaultPrice` i `price` — zob. krok 2 |
+   | `Migration20261022T182523CatalogAdminNameKeys` | `catalog` | Zapisane, zindeksowane klucze nazwy i wyszukiwania w panelu na `products` oraz rozszerzenie `pg_trgm` |
+   | `Migration20261019T103522CustomFieldsDefinitionListFilter` | `custom_fields` | `custom_field_definitions.list_filter`, `false` dla każdego istniejącego pola |
+   | `Migration20261020T110920CustomFieldsDefinitionCarryTo` | `custom_fields` | `custom_field_definitions.carry_to`, puste dla każdego istniejącego pola |
+   | `Migration20261016T082022OrdersOrderItemReturnableAtPurchase` | `orders` | `order_items.returnable_at_purchase`, może być `null` |
+   | `Migration20261020T172007OrdersOrderItemGroups` | `orders` | Tabela `order_item_groups`, `order_items.group_id` i `position` |
+   | `Migration20261021T164807OrdersOrderCommentSystemNote` | `orders` | `order_comments.system_note`, może być `null` |
+   | `Migration20261021T165247OrdersOrderItemsPriceSource` | `orders` | `order_items.price_source`, może być `null` |
+   | `Migration20261018T122118QuoteRequestsItemPackagingUnitId` | `quote_requests` | `quote_request_items.packaging_unit_id`, może być `null` |
+   | `Migration20261020T171341QuoteRequestsQuoteRequestItemGroups` | `quote_requests` | Tabela `quote_request_item_groups`, `quote_request_items.group_id` i `position` |
+   | `Migration20261021T164808QuoteRequestsQuoteRequestEventCarrySkipped` | `quote_requests` | Dopuszcza typ zdarzenia `custom-field-carry-skipped` |
+   | `Migration20261020T131018PwaPreferencesOrganizationAttributionCheck` | `pwa` | Ograniczenie `CHECK` na `push_notification_preferences` |
+   | `Migration20261021T165244CartsCartItemsPriceSource` | `carts` | `cart_items.price_source`, może być `null` |
+   | `Migration20261021T165239PriceListsPriceBooksExpand` | `price_lists` | Nagłówek cennika, zbiory odbiorców i kanałów, rozszerzone wiersze, wersja kolejności 1, tabele powierzchni cen |
+   | `Migration20261021T232310PriceListsPriceBooksVersion` | `price_lists` | `price_lists.version` i `ever_activated` |
+   | `Migration20261022T012134PriceListsPriceSurfaceGenerations` | `price_lists` | Generacje powierzchni cen |
+   | `Migration20261022T111815PriceListsPriceBooksConversion` | `price_lists` | Konwersja — zob. krok 1 i niżej |
+   | `Migration20261022T182527PriceListsProductLines` | `price_lists` | Tabela `price_list_product_lines`, wypełniona na podstawie zapisanych wierszy |
+   | `Migration20261023T152351PriceListsPriceSurfaceTargetedMarks` | `price_lists` | Tabela `price_profile_stale_products` i `price_profiles.revision` do odświeżania powierzchni cen tylko tam, gdzie to potrzebne |
+
+   Konwersja wykonuje się w jednej transakcji: tworzy jeden **cennik cen bazowych** na każdą walutę
+   użytą w przedziale cennika *Default* oraz na domyślną walutę platformy; zamienia każdy przedział
+   cennika *Default* w stały wiersz cennika cen bazowych swojej waluty; usuwa każdy inny cennik;
+   usuwa stare tabele i kolumny. `Migration20261022T182523CatalogAdminNameKeys` dodaje do
+   `products` cztery kolumny generowane, a każda z nich przepisuje tabelę pod blokadą wyłączną —
+   w pomiarze platformy 3,5–7 s na kolumnę przy 50 000 produktów — co jest jeszcze jednym powodem,
+   by API pozostało zatrzymane.
+
+Po aktualizacji, zanim instancja znów przyjmie ruch:
+
+6. **Upewnij się, że działa konsument kolejek.** Listy sortowane i filtrowane według ceny są
+   porządkowane według cen, które z wyprzedzeniem wylicza worker `price_lists.surface`; działa on w
+   procesie, który obsługuje kolejki (`BACKEND_ROLE` nieustawione, `all` albo `worker`) i ma
+   połączenie Redis dla kolejek — [Konsumenci kolejek](./operations/queue-consumers.md).
+   Aktualizacja niczego nie buduje: pierwsze żądanie sortowane według ceny w każdym kanale
+   sprzedaży i walucie rejestruje to, czego potrzebuje, i zleca to workerowi, a do czasu, aż worker
+   to zbuduje, dostaje domyślny porządek katalogu — z poprawnymi cenami na kartach produktów. Bez
+   konsumenta sortowanie według ceny nigdy nie porządkuje według ceny.
+7. **Sprawdź ceny bazowe.** Otwórz zakładkę *Pricing* kilku produktów: ceny pochodzące z cennika
+   *Default* są tam, dla każdej waluty. Wpisz cenę bazową każdego produktu z kroku 2.
+8. **Utwórz ponownie cenniki**, które zastępują cenniki z kroku 1, w **Cennikach** (`/price-lists`
+   albo ⌘K / CTRL+K → *Cenniki*). Cennik ma jedną walutę, zbiór kanałów sprzedaży, odbiorców —
+   wszystkich, wybrane grupy klientów albo wybrane organizacje — i linie; niczego nie wycenia,
+   dopóki nie zostanie aktywowany. *Wyjaśnienie ceny* (`/price-lists/explain`) pokazuje dla
+   kupującego i produktu, która linia zdecydowała o cenie.
+9. **Przypnij ponownie feedy z kroku 3** (`PATCH /api/v1/admin/product-feeds/:id` z id cennika jako
+   `priceListId`) do cennika, który obowiązuje kogokolwiek w kanale feedu: *Aktywny* albo
+   *Zaplanowany* w swoich datach, przypisany do kanału feedu i dla wszystkich. Feed przypięty do
+   każdego innego cennika nie publikuje z niego żadnych cen — strona feedu mówi dlaczego — a jego
+   następne generowanie wycofuje opublikowany plik, więc link odpowiada tak jak dla feedu nigdy
+   niewygenerowanego, dopóki cennik znów nie zacznie obowiązywać.
+
+W dowolnym momencie:
+
+10. **Nadaj `catalog:read` każdej roli, która ma `price_lists:write`.** Dodawanie linii produktów do
+    cennika korzysta z przeglądarki produktów katalogu, którą chroni `catalog:read`; edytor ról w
+    *Admin roles* (`/admin-roles`) pokazuje brak dla roli, która go nie ma, z dodaniem jednym
+    kliknięciem. Oba kody uprawnień cenników się nie zmieniły; ich etykiety brzmią teraz *View price
+    books and display modes* oraz *Edit price books, base prices and display modes*.
+11. **W instancji z danymi sklepu demonstracyjnego** uruchom `pnpm run cli demo reset`, a potem
+    `pnpm run cli demo seed`: konwersja usunęła dawne cenniki wersji demonstracyjnej, a ponowne
+    wczytanie przywraca jej ceny bazowe i cenniki przykładów ze strony
+    [Cenniki](./modules/price_lists.md).
+
+#### Dla operatorów {#after-0-108-0-operators}
+
+- **Cenniki działają w nowym modelu.** Pozycja paska bocznego *Cenniki* otwiera listę cenników; pole
+  *Default unit price* w edytorze produktu, kolumna *Price override* w tabeli wariantów i strefa
+  *Linked price lists* produktu zniknęły, a ceny bazowe produktu są w jego zakładce *Pricing*.
+  *Ustawienia cenowe* (⌘K / CTRL+K) zawierają tryby prezentacji, przełącznik pokazywania ceny
+  katalogowej obok ceny kupującego (`pricing.show_list_price`, domyślnie wyłączony) i kolejność cen,
+  tylko do odczytu.
+- **Jak ustalana jest cena** — cena bazowa, cena katalogowa dla wszystkich w kanale, cena
+  kontraktowa kupującego i cena promocyjna naliczana tylko wtedy, gdy jest niższa — opisuje strona
+  [Cenniki](./modules/price_lists.md), z przykładami.
+- **Zmiana ceny pojawia się na liście sortowanej według ceny w ciągu około pół sekundy** w
+  pomiarach platformy; zmiana, która sięga całego katalogu — linia dla wszystkich produktów albo
+  tylko dla wartości atrybutu, ponad 10 000 produktów naraz, zmiana kanału sprzedaży — może w dużym
+  katalogu z wieloma cennikami kontraktowymi potrwać kilka minut. Ceny na kartach produktów nigdy
+  się nie opóźniają.
+- **Import produktów odrzuca plik z kolumną ceny** — `default_price`, `defaultPrice`, `price`,
+  `price_override` albo `priceOverride` — z kodem `400 PRICE_SET_IN_PRICE_BOOKS` i niczego nie
+  importuje. Ceny importuje się przez import CSV cenników albo konektorem PIM przez
+  `priceBookWritePort`.
+
+#### Dla klientów API i integratorów {#after-0-108-0-api}
+
+- **Dawne trasy cen w API administracyjnym zostały usunięte**: `/api/v1/admin/price-lists-engine/…`,
+  `/api/v1/admin/pricing/rule-targets/…`, `/api/v1/admin/products/:id/price-lists` i
+  `/api/v1/admin/products/:id/resolved-price`. Zastępuje je `/api/v1/admin/price-books/…`:
+  `GET ?productId=` dla cenników produktu i `POST /api/v1/admin/price-books/resolve` dla wyliczonej
+  ceny z wyjaśnieniem.
+- **Zapis katalogu, który podaje cenę, jest odrzucany**: `POST`/`PATCH
+  /api/v1/admin/catalog/products[/:id]` z `attributeValues.defaultPrice` albo
+  `attributeValues.price` oraz zapis wariantu z `priceOverride` zwracają
+  `400 PRICE_SET_IN_PRICE_BOOKS` i niczego nie zapisują. Ceny bazowe zapisuje się przez
+  `PUT /api/v1/admin/price-books/base-prices/:productId`.
+- **`GET /api/v1/storefront/products/:id/resolved-price` uczciwie opisuje produkt bez ceny**:
+  `baseListId`, `basePrice` i `quantityBracket` mają wszystkie wartość `null`, podczas gdy wcześniej
+  `baseListId` był pustym tekstem. Kwoty są tekstami dziesiętnymi
+  (`{ "amount": "199.0000", "currency": "PLN" }`), tak jak trasa zawsze je wysyłała. Odpowiedź
+  zawiera też `source` (który krok wycenił produkt), `compareAt` oraz — gdy sklep ją pokazuje —
+  `listPrice`.
+- **Kody błędów macierzy cen zniknęły** (`PRICE_MATRIX_ENTRY_NOT_FOUND`,
+  `PRICE_MATRIX_ENTRY_OVERLAP`, `PRICE_MATRIX_ATTRIBUTE_NOT_ELIGIBLE`, `PRICE_MATRIX_ENTRY_LIMIT`);
+  zastępują je kody cenników, `PRICE_BOOK_*` i `PRECEDENCE_CHANGE_UNAVAILABLE`.
+- **Feed produktowy przypięty do cennika** publikuje tylko wtedy, gdy cennik jest *Aktywny* albo
+  *Zaplanowany* w swoich datach, w kanale feedu i dla wszystkich, a w przeciwnym razie jego plik
+  jest wycofywany. Feed w API administracyjnym (`GET /api/v1/admin/product-feeds`, `GET …/:id`)
+  zawiera `pinnedPriceBookWarning`: powód, dla którego cennik nie jest publikowany, albo `null`.
+
+#### Dla autorów modułów i modułów nakładkowych {#after-0-108-0-authors}
+
+- **`priceListAdminPort` został usunięty; zastępuje go `priceBookWritePort`** — ceny bazowe dla
+  każdej waluty, wskazywane produktem i walutą zamiast id cennika, zapisywane jednym audytowanym
+  poleceniem.
+- **`@endora-commerce/contracts` nie zawiera już reguły stosowania ani dawnych kształtów cennika,
+  przedziałów i macierzy**, `ListingPrice` traci wariant `source: 'product'`, a `PriceListRecord` /
+  `PriceListReadPort` mają nowy kształt dla cenników. Każde usunięcie jest wymienione razem z
+  zamiennikiem w dzienniku zmian pakietu.
+- **Moduł nakładkowy, który dekoruje `pricingService`,** musi dekorować także zbiorcze punkty
+  wejścia (`resolveLinePrices`, `resolveListingPrices`), a nie tylko pojedyncze wywołania; koszyk,
+  kontrola przy składaniu zamówienia i ceny referencyjne zapytań wyceniają przez partię.
+- **Moduł, którego zdarzenia decydują o cenie,** podbija `PricingGeneration` jak dotąd;
+  `bump(change?)` przyjmuje teraz `SurfaceChange`, który mówi, co zmiana przesunęła, a podbicie bez
+  niego sprawia, że powierzchnia cen przebudowuje każdy profil.
+- **Własny port wyceny feedów** musi implementować `namedListPublishability` obok
+  `namedListPrices`, która przyjmuje teraz `salesChannelId` feedu.
+
+#### W istniejącym storefroncie {#after-0-108-0-storefront}
+
+Trasy cen, które wywołuje storefront, zachowują swoje ścieżki, więc storefront utworzony we
+wcześniejszym wydaniu nadal pokazuje ceny. Czego nie pokazuje, dopóki nie przeniesie się do niego
+plików ze storefrontu wydania: własnej ceny wybranego wariantu na stronie produktu, ceny promocyjnej
+pokazanej jako przekreślona cena katalogowa obok *Twojej ceny*, ceny kupującego jako ceny
+porównawczej na kartach produktów i ceny katalogowej obok niższej ceny kupującego. Te pliki to
+`app/(catalog)/p/[slug]/page.tsx`, `app/page.tsx`, `components/ProductCard.tsx`,
+`components/PriceTag.tsx`, `components/VariantPicker.tsx`, `components/SearchAutocomplete.tsx`,
+`components/pricing/BaseSalePriceBlock.tsx`, `components/pricing/PdpPriceToggle.tsx`,
+`lib/api/pricing.ts` (gdzie `ResolvedPrice.baseListId` ma teraz typ `string | null`) i teksty cen w
+`lib/i18n/messages.ts`. Selektor wariantów wcześniejszego storefrontu pokazywał *Price override*
+wariantu; to pole nie jest już wysyłane, więc selektor nie pokazuje ceny wariantu, dopóki nie
+przeniesie się `VariantPicker.tsx`.
+
+Tę sekcję napisano 23.10.2026 na podstawie gałęzi wydania zmiany cen
+(`feat/160-pricing-model-v2`), sprawdzając ją z migracjami, manifestami, trasami i historią
+wzorcowego storefrontu od `v0.107.0`. W chwili pisania żadna instancja nie została zaktualizowana
+poleceniem `pnpm run upgrade 0.108.0`; kolejność kroków i zmiany w storefroncie nie były
+wypróbowane.
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza
