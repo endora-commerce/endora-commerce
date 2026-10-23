@@ -9,6 +9,7 @@ import type {
   ListingPriceOrderChunk,
   ListingPriceOrderQuery,
   ListingPriceViewerContext,
+  PinnedPriceBookPublishability,
 } from '@endora-commerce/contracts';
 import { EventBus } from '@endora-commerce/platform/events';
 import {
@@ -103,6 +104,10 @@ class CorePricingService implements PricingServiceContract {
     return new Map();
   }
 
+  async namedListPublishability(): Promise<PinnedPriceBookPublishability> {
+    return { publishable: true };
+  }
+
   async orderByUnitPrice(): Promise<ListingPriceOrderChunk> {
     return { rows: [], exhausted: true, sourceRowsRead: 0 };
   }
@@ -170,6 +175,14 @@ class TaggingPricingService implements PricingServiceContract {
     productIds: readonly string[];
   }): Promise<Map<string, string>> {
     return this.inner.namedListPrices(input);
+  }
+
+  async namedListPublishability(input: {
+    priceListId: string;
+    currencyCode: string;
+    salesChannelId: string;
+  }): Promise<PinnedPriceBookPublishability> {
+    return this.inner.namedListPublishability(input);
   }
 
   async orderByUnitPrice(input: ListingPriceOrderQuery): Promise<ListingPriceOrderChunk> {

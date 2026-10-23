@@ -13,19 +13,8 @@
  * and fail it; swallowing that is how fail-closed turns into fail-open.
  */
 
-import type { PinnedPriceBookPublishability } from '@endora-commerce/contracts';
-
 /** The slice of the `pricingService` port a named-list read needs. */
 export interface NamedListPricePort {
-  /**
-   * Feature 160 (FR-029, owner ruling 2026-10-23) — whether the book publishes
-   * prices now; while it does not, `namedListPrices` answers nothing.
-   */
-  namedListPublishability(input: {
-    priceListId: string;
-    currencyCode: string;
-    salesChannelId: string;
-  }): Promise<PinnedPriceBookPublishability>;
   namedListPrices(input: {
     priceListId: string;
     currencyCode: string;

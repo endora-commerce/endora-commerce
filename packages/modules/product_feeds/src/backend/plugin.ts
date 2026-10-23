@@ -15,6 +15,7 @@ import {
   type CustomFieldDefinitionReadPort,
   type LanguageReadPort,
   type ObjectStoragePort,
+  type PinnedPriceBookPublishability,
   type PriceListReadPort,
   type TaxServicePort,
 } from '@endora-commerce/contracts';
@@ -299,6 +300,16 @@ function warn(message: string, detail: Record<string, unknown>): void {
  * `id` and `attributeValues`, and nothing else.
  */
 export interface FeedPricingPort extends NamedListPricePort {
+  /**
+   * Feature 160 (FR-029, owner ruling 2026-10-23) — whether a pinned book
+   * publishes prices now, and why not; while it does not, `namedListPrices`
+   * answers nothing. The admin feed row shows the reason.
+   */
+  namedListPublishability(input: {
+    priceListId: string;
+    currencyCode: string;
+    salesChannelId: string;
+  }): Promise<PinnedPriceBookPublishability>;
   /** Feature 160 — the batched entry point; a feed resolves a batch in one call. */
   resolveLinePrices(input: {
     lines: ReadonlyArray<{ key: string; product: CatalogProductRecord; variantId?: string | null; quantity: number }>;
