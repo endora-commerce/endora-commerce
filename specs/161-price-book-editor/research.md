@@ -331,7 +331,8 @@ prototype assumed, and both are pinned in the code with the measurement beside t
   `price_list_id` as its index condition on unanalysed data (the 125 003-row book estimated at 86
   rows) and filtered the whole book: 27–40 ms against 0.5 ms. The page's product rows are read through
   a `LATERAL` per id fenced with `offset 0`, so each probe is an index lookup on `(price_list_id,
-  product_id)` in both states (0.66 ms); `price-book-lines-rows-plan.test.ts` holds it.
+  product_id)` in both states (0.66 ms); `price-book-lines-rows-plan.test.ts` holds it (on a 3 000-line,
+  12 000-row book since 2026-10-23: twelve times the 1 000-row ceiling it asserts, seeded in seconds).
 
 **Fresh state — accepted (owner, 2026-10-22).** Before autovacuum's first pass over a freshly loaded
 catalogue, the broadest searches on the 50 003-line book run about 150–153 ms p95 end to end (bench

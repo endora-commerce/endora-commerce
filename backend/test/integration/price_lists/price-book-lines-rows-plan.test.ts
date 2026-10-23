@@ -14,9 +14,14 @@ import { seedBulkProductsSql, seedEmptyBookSql, seedProductTiersSql } from '../.
  * So the page's product rows are read through a `LATERAL` per id (fenced, so it
  * is not flattened into a join): each probe is an index lookup on
  * `(price_list_id, product_id)`. This test captures the statement the read
- * issues on a never-analysed 30 000-line book and runs `EXPLAIN (ANALYZE,
+ * issues on a never-analysed book and runs `EXPLAIN (ANALYZE,
  * FORMAT JSON)` on it: every scan of `price_list_matrix_entries` must have an
  * index condition naming `product_id` and read at most a few hundred rows.
+ *
+ * The book is 3 000 lines × 4 tiers (12 000 rows): twelve times the 1 000-row
+ * ceiling, so a plan that filters the book instead of probing it still fails,
+ * and seeded in seconds rather than the half-minute 30 000 lines cost. The
+ * 50 000-line scale is `backend/test/perf/price_lists/book-lines-page.bench.ts`'s.
  */
 describe('price-book lines — the page-rows read is an index lookup on unanalysed data (161 G15)', () => {
   let h: BackendServerHandle;
@@ -42,7 +47,7 @@ describe('price-book lines — the page-rows read is an index lookup on unanalys
     for (const table of ['products', 'price_list_matrix_entries', 'price_list_product_lines']) {
       await em.getConnection().execute(`alter table "${table}" set (autovacuum_enabled = false)`);
     }
-    const products = await seedBulkProductsSql(em, { count: 30_000, namePrefix: 'Rows plan', skuPrefix: 'G15R' });
+    const products = await seedBulkProductsSql(em, { count: 3_000, namePrefix: 'Rows plan', skuPrefix: 'G15R' });
     book = await seedEmptyBookSql(em, 'G15 rows plan');
     await seedProductTiersSql(em, book, products, 4);
   }, 5 * 60_000);
@@ -60,7 +65,7 @@ describe('price-book lines — the page-rows read is an index lookup on unanalys
       return original(...args);
     };
     try {
-      const res = await api.get(`/api/v1/admin/price-books/${book}/lines?lang=en&pageSize=100&page=150`);
+      const res = await api.get(`/api/v1/admin/price-books/${book}/lines?lang=en&pageSize=100&page=15`);
       expect(res.status, res.raw).toBe(200);
     } finally {
       conn.execute = original;
