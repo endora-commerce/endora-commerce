@@ -42,7 +42,8 @@ describe.skipIf(!shouldRun)('the price-book editor’s large writes (161 T107)',
   }, 5 * 60_000);
 
   afterAll(async () => {
-    console.info(`[perf] 161 editor writes:\n  ${results.join('\n  ')}`);
+    // eslint-disable-next-line no-console
+    console.log(`[perf] 161 editor writes:\n  ${results.join('\n  ')}`);
     await f.clearBooks();
     await teardownBackendServer(h);
   });

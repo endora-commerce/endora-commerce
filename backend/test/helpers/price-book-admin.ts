@@ -19,9 +19,9 @@ export interface ApiAnswer<T = unknown> {
 }
 
 export type ApiClient = {
-  [M in 'get' | 'delete']: <T = any>(url: string, cookies?: Record<string, string>) => Promise<ApiAnswer<T>>;
+  [M in 'get' | 'delete']: <T = unknown>(url: string, cookies?: Record<string, string>) => Promise<ApiAnswer<T>>;
 } & {
-  [M in 'post' | 'put' | 'patch']: <T = any>(
+  [M in 'post' | 'put' | 'patch']: <T = unknown>(
     url: string,
     payload?: unknown,
     cookies?: Record<string, string>,

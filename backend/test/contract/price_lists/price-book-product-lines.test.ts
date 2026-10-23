@@ -58,7 +58,7 @@ describe('price-book product lines (161 membership check)', () => {
   it('counts a product whose variants alone hold rows', async () => {
     const res = await api.get(`${B}/${variantOnly}/product-lines?productIds=${f.products.P5.id},${f.products.P1.id}`);
     expect(res.status, res.raw).toBe(200);
-    expect(res.body.data.productIds).toEqual([f.products.P5.id]);
+    expect(priceBookProductLinesResponseSchema.parse(res.body).data.productIds).toEqual([f.products.P5.id]);
   });
 
   it('refuses a request without ids, with too many, or with one that is not a uuid', async () => {
