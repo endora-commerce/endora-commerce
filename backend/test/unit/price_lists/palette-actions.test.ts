@@ -6,7 +6,7 @@ import { manifest } from '@endora-commerce/mod-price-lists';
 import { AdminActionsService } from '../../../../packages/modules/admin_actions/src/backend/services/admin-actions-service.js';
 
 /**
- * The price-book editor's three palette actions (feature 161, T042 and T048;
+ * The price-book editor's four palette actions (feature 161, T042 and T048;
  * FR-029, Principle XVI) through the palette's own filter.
  *
  * The admin test `admin/test/modules/price_lists/price-books-surfaces.test.tsx`
@@ -89,24 +89,30 @@ async function visible(options: {
 }
 
 describe('price_lists palette actions (161 FR-029)', () => {
-  it('declares the three actions', () => {
+  it('declares the four actions', () => {
     expect(rowsOf().map((r) => [r.action_id, r.target_route, r.required_permission])).toEqual([
       ['open-price-lists', '/price-lists', 'price_lists:read'],
       ['new-price-book', '/price-lists/new', 'price_lists:write'],
       ['open-price-explainer', '/price-lists/explain', 'price_lists:read'],
+      ['open-pricing-settings', '/price-lists/display-modes', 'price_lists:read'],
     ]);
   });
 
-  it('offers all three to an operator holding both codes', async () => {
+  it('offers all four to an operator holding both codes', async () => {
     expect(await visible({ permissions: ['price_lists:read', 'price_lists:write'] })).toEqual([
       'new-price-book',
       'open-price-explainer',
       'open-price-lists',
+      'open-pricing-settings',
     ]);
   });
 
-  it('offers a reader the list and the explainer, never the create screen', async () => {
-    expect(await visible({ permissions: ['price_lists:read'] })).toEqual(['open-price-explainer', 'open-price-lists']);
+  it('offers a reader the list, the explainer and Pricing settings, never the create screen', async () => {
+    expect(await visible({ permissions: ['price_lists:read'] })).toEqual([
+      'open-price-explainer',
+      'open-price-lists',
+      'open-pricing-settings',
+    ]);
   });
 
   it('offers nothing to an operator without the pricing codes', async () => {

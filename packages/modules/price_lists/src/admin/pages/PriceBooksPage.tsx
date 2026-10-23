@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { AlertTriangle, BookOpen, Plus, RotateCcw, X } from 'lucide-react';
+import { AlertTriangle, BookOpen, Plus, RotateCcw, Settings, X } from 'lucide-react';
 import type {
   PriceBookAudienceKind,
   PriceBookListResponse,
@@ -235,12 +235,20 @@ export function PriceBooksPage(): ReactNode {
         title={t('priceBooks.list.title')}
         description={t('priceBooks.list.description')}
         actions={
-          mayCreate ? (
-            <Link to="/price-lists/new" className={buttonVariants()}>
-              <Plus aria-hidden="true" />
-              {t('priceBooks.list.new')}
+          <>
+            {/* Principle XVI (Checkpoint 10 ruling): *Pricing settings* has no
+                sidebar entry; it is reached from here and from the palette. */}
+            <Link to="/price-lists/display-modes" className={buttonVariants({ variant: 'outline' })}>
+              <Settings aria-hidden="true" />
+              {t('priceBooks.list.pricingSettings')}
             </Link>
-          ) : undefined
+            {mayCreate ? (
+              <Link to="/price-lists/new" className={buttonVariants()}>
+                <Plus aria-hidden="true" />
+                {t('priceBooks.list.new')}
+              </Link>
+            ) : null}
+          </>
         }
       />
 

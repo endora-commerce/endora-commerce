@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Eye } from 'lucide-react';
 import type { DisplayMode } from '@endora-commerce/contracts';
-import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
+import { ApiError, apiClient, useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 type Scope = 'organization' | 'category' | 'product';
@@ -50,6 +50,9 @@ export function DisplayModeOverrideRow(props: {
 }): ReactNode {
   const t = useTranslation('core');
   const { scope, targetId, withoutIcon } = props;
+  // FR-028 (feature 161, Checkpoint 10 ruling): a reader sees the value and
+  // no control; the select is only for an operator who may write it.
+  const mayWrite = useAuth().hasPermission('price_lists:write');
   const MODE_LABEL: Record<DisplayMode | 'inherit', string> = {
     inherit: t('priceLists.displayMode.inherit'),
     gross_only: t('priceLists.displayMode.grossOnly'),
@@ -112,7 +115,7 @@ export function DisplayModeOverrideRow(props: {
       <label
         className="b2b-label"
         style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-        htmlFor={`dm-${scope}-${targetId}`}
+        {...(mayWrite ? { htmlFor: `dm-${scope}-${targetId}` } : {})}
       >
         {!withoutIcon ? <Eye size={12} /> : null}
         {t('priceLists.displayMode.rowLabel')}
@@ -122,21 +125,25 @@ export function DisplayModeOverrideRow(props: {
           </span>
         ) : null}
       </label>
-      <select
-        id={`dm-${scope}-${targetId}`}
-        className="b2b-field"
-        value={mode}
-        disabled={loading || submitting}
-        onChange={(e): void => {
-          void handleChange(e.target.value as DisplayMode | 'inherit');
-        }}
-      >
-        {(Object.keys(MODE_LABEL) as Array<DisplayMode | 'inherit'>).map((m) => (
-          <option key={m} value={m}>
-            {MODE_LABEL[m]}
-          </option>
-        ))}
-      </select>
+      {mayWrite ? (
+        <select
+          id={`dm-${scope}-${targetId}`}
+          className="b2b-field"
+          value={mode}
+          disabled={loading || submitting}
+          onChange={(e): void => {
+            void handleChange(e.target.value as DisplayMode | 'inherit');
+          }}
+        >
+          {(Object.keys(MODE_LABEL) as Array<DisplayMode | 'inherit'>).map((m) => (
+            <option key={m} value={m}>
+              {MODE_LABEL[m]}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <div style={{ fontSize: 13 }}>{loading ? '…' : MODE_LABEL[mode]}</div>
+      )}
       <div className="b2b-help" style={{ marginTop: 2 }}>
         {mode === 'inherit'
           ? 'Inherits the parent in the resolution chain (Settings → Org → Category → Product).'

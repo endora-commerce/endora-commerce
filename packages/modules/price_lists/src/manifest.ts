@@ -163,6 +163,18 @@ export const manifest = defineModuleManifest({
       keywords: ['why this price', 'price explanation', 'explain price', 'wyjasnienie ceny', 'dlaczego ta cena'],
       weight: 242,
     },
+    {
+      // Feature 161, Checkpoint 10 ruling (Principle XVI): *Pricing settings*
+      // has no sidebar entry; the palette and the list header reach it.
+      id: 'open-pricing-settings',
+      labelKey: 'actions.openPricingSettings.label',
+      descriptionKey: 'actions.openPricingSettings.description',
+      icon: 'Settings',
+      targetRoute: '/price-lists/display-modes',
+      requiredPermission: PRICE_LIST_PERMISSIONS.READ,
+      keywords: ['pricing settings', 'display mode', 'precedence', 'list price', 'ustawienia cenowe', 'kolejnosc cen', 'cena katalogowa'],
+      weight: 243,
+    },
   ],
   settings,
   // Feature 074 (Constitution XVII), test C2 — functional base, and one of the

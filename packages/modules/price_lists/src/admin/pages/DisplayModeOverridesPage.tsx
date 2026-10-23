@@ -9,7 +9,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import type { DisplayMode } from '@endora-commerce/contracts';
-import { ApiError, apiClient, normalize } from '@endora-commerce/admin-kit/lib';
+import { ApiError, apiClient, normalize, useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { useLocalizedName } from '../lib/localized-name.js';
 import { PrecedenceView } from '../components/PrecedenceView.js';
@@ -62,6 +62,10 @@ interface ProductRow {
  */
 export function DisplayModeOverridesPage(): ReactNode {
   const t = useTranslation('core');
+  const tl = useTranslation('price_lists');
+  // FR-028 (feature 161, Checkpoint 10 ruling): a reader sees every value and
+  // no control that would change one — absent, not refused by the server.
+  const mayWrite = useAuth().hasPermission('price_lists:write');
   const MODE_LABEL: Record<DisplayMode, string> = {
     gross_only: t('priceLists.displayMode.grossOnly'),
     net_only: t('priceLists.displayMode.netOnly'),
@@ -231,13 +235,15 @@ export function DisplayModeOverridesPage(): ReactNode {
               onChange={(e): void => setSearch(e.target.value)}
             />
           </div>
-          <button
-            type="button"
-            className="b2b-btn b2b-btn--primary b2b-btn--sm"
-            onClick={(): void => setPicker(true)}
-          >
-            <Filter size={12} /> {t('priceLists.displayModes.addOverride')}
-          </button>
+          {mayWrite ? (
+            <button
+              type="button"
+              className="b2b-btn b2b-btn--primary b2b-btn--sm"
+              onClick={(): void => setPicker(true)}
+            >
+              <Filter size={12} /> {t('priceLists.displayModes.addOverride')}
+            </button>
+          ) : null}
         </div>
 
         <div className="b2b-card__body b2b-card__body--flush">
@@ -264,7 +270,7 @@ export function DisplayModeOverridesPage(): ReactNode {
                   <th>{SCOPE_LABEL[scope]}</th>
                   <th>{t('priceLists.displayModes.column.mode')}</th>
                   <th>{t('priceLists.displayModes.column.updated')}</th>
-                  <th></th>
+                  {mayWrite ? <th><span className="sr-only">{tl('settings.displayModes.actions')}</span></th> : null}
                 </tr>
               </thead>
               <tbody>
@@ -277,37 +283,44 @@ export function DisplayModeOverridesPage(): ReactNode {
                       </div>
                     </td>
                     <td>
-                      <select
-                        className="b2b-field"
-                        value={row.mode}
-                        onChange={(e): void => {
-                          void handleUpsert(row.targetId, e.target.value as DisplayMode);
-                        }}
-                      >
-                        {(Object.keys(MODE_LABEL) as DisplayMode[]).map((m) => (
-                          <option key={m} value={m}>
-                            {MODE_LABEL[m]}
-                          </option>
-                        ))}
-                      </select>
+                      {mayWrite ? (
+                        <select
+                          className="b2b-field"
+                          aria-label={tl('settings.displayModes.modeFor', { name: labelFor(row) })}
+                          value={row.mode}
+                          onChange={(e): void => {
+                            void handleUpsert(row.targetId, e.target.value as DisplayMode);
+                          }}
+                        >
+                          {(Object.keys(MODE_LABEL) as DisplayMode[]).map((m) => (
+                            <option key={m} value={m}>
+                              {MODE_LABEL[m]}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span style={{ fontSize: 13 }}>{MODE_LABEL[row.mode]}</span>
+                      )}
                     </td>
                     <td>
                       <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
                         {new Date(row.updatedAt).toLocaleString()}
                       </span>
                     </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="b2b-btn b2b-btn--ghost b2b-btn--sm"
-                        style={{ color: 'hsl(8 80% 50%)' }}
-                        onClick={(): void => {
-                          void handleUpsert(row.targetId, 'inherit');
-                        }}
-                      >
-                        <Trash2 size={12} /> {t('priceLists.displayModes.remove')}
-                      </button>
-                    </td>
+                    {mayWrite ? (
+                      <td>
+                        <button
+                          type="button"
+                          className="b2b-btn b2b-btn--ghost b2b-btn--sm"
+                          style={{ color: 'hsl(8 80% 50%)' }}
+                          onClick={(): void => {
+                            void handleUpsert(row.targetId, 'inherit');
+                          }}
+                        >
+                          <Trash2 size={12} /> {t('priceLists.displayModes.remove')}
+                        </button>
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>
@@ -345,6 +358,7 @@ function PricingSettingsCard({
   onInfo: (msg: string) => void;
 }): ReactNode {
   const t = useTranslation('core');
+  const mayWrite = useAuth().hasPermission('price_lists:write');
   const MODE_LABEL: Record<DisplayMode, string> = {
     gross_only: t('priceLists.displayMode.grossOnly'),
     net_only: t('priceLists.displayMode.netOnly'),
@@ -392,67 +406,64 @@ function PricingSettingsCard({
     }
   };
 
+  const fields = [
+    { key: 'pricing.default_display_mode', id: 'pl-default-display', label: t('priceLists.displayModes.settings.defaultLabel'), value: defaultMode, set: setDefaultMode },
+    { key: 'pricing.unauthenticated_display_mode', id: 'pl-unauth-display', label: t('priceLists.displayModes.settings.unauthLabel'), value: unauthMode, set: setUnauthMode },
+  ] as const;
+
   return (
-    <div className="b2b-card" style={{ padding: 16 }}>
+    <section className="b2b-card" style={{ padding: 16 }} aria-labelledby="pl-default-modes-title">
       <div
         className="b2b-row"
         style={{ alignItems: 'center', gap: 8, marginBottom: 8 }}
       >
-        <SettingsIcon size={14} />
-        <div style={{ fontSize: 13, fontWeight: 600 }}>{t('priceLists.displayModes.settings.title')}</div>
+        <SettingsIcon size={14} aria-hidden="true" />
+        <h2 id="pl-default-modes-title" style={{ fontSize: 13, fontWeight: 600 }}>
+          {t('priceLists.displayModes.settings.title')}
+        </h2>
         <span className="b2b-help">{t('priceLists.displayModes.settings.subtitle')}</span>
       </div>
       {loading ? (
         <div className="b2b-help">{t('priceLists.loading')}</div>
       ) : (
         <div className="b2b-row" style={{ gap: 16, alignItems: 'flex-end' }}>
-          <div className="b2b-grow">
-            <label className="b2b-label" htmlFor="pl-default-display">
-              {t('priceLists.displayModes.settings.defaultLabel')}
-            </label>
-            <select
-              id="pl-default-display"
-              className="b2b-field"
-              value={defaultMode}
-              onChange={(e): void => {
-                const v = e.target.value as DisplayMode;
-                setDefaultMode(v);
-                void save('pricing.default_display_mode', v);
-              }}
-              disabled={savingKey === 'pricing.default_display_mode'}
-            >
-              {(Object.keys(MODE_LABEL) as DisplayMode[]).map((m) => (
-                <option key={m} value={m}>
-                  {MODE_LABEL[m]}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="b2b-grow">
-            <label className="b2b-label" htmlFor="pl-unauth-display">
-              {t('priceLists.displayModes.settings.unauthLabel')}
-            </label>
-            <select
-              id="pl-unauth-display"
-              className="b2b-field"
-              value={unauthMode}
-              onChange={(e): void => {
-                const v = e.target.value as DisplayMode;
-                setUnauthMode(v);
-                void save('pricing.unauthenticated_display_mode', v);
-              }}
-              disabled={savingKey === 'pricing.unauthenticated_display_mode'}
-            >
-              {(Object.keys(MODE_LABEL) as DisplayMode[]).map((m) => (
-                <option key={m} value={m}>
-                  {MODE_LABEL[m]}
-                </option>
-              ))}
-            </select>
-          </div>
+          {fields.map((field) => (
+            <div key={field.key} className="b2b-grow">
+              {/* FR-028 (Checkpoint 10 ruling): a reader sees the value, no select. */}
+              {mayWrite ? (
+                <>
+                  <label className="b2b-label" htmlFor={field.id}>
+                    {field.label}
+                  </label>
+                  <select
+                    id={field.id}
+                    className="b2b-field"
+                    value={field.value}
+                    onChange={(e): void => {
+                      const v = e.target.value as DisplayMode;
+                      field.set(v);
+                      void save(field.key, v);
+                    }}
+                    disabled={savingKey === field.key}
+                  >
+                    {(Object.keys(MODE_LABEL) as DisplayMode[]).map((m) => (
+                      <option key={m} value={m}>
+                        {MODE_LABEL[m]}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              ) : (
+                <>
+                  <div className="b2b-label">{field.label}</div>
+                  <div style={{ fontSize: 13 }}>{MODE_LABEL[field.value]}</div>
+                </>
+              )}
+            </div>
+          ))}
         </div>
       )}
-    </div>
+    </section>
   );
 }
 

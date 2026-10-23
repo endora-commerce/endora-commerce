@@ -167,6 +167,30 @@ describe('price_lists contributes the category, organization and product-pricing
     );
   });
 
+  it('shows a reader the override as a value, with no select (FR-028, Checkpoint 10 ruling)', async () => {
+    getSpy.mockImplementation(async (url: string) => {
+      if (url.includes('/display-mode-overrides/category/')) return { data: { mode: 'net_only' } };
+      return { data: { items: [] } };
+    });
+    const container = renderZone({ name: 'category.editor.after', props: { categoryId: CATEGORY_ID } });
+    await waitFor(() => expect(container.textContent).toContain('priceLists.displayMode.netOnly'));
+    expect(container.querySelector('select')).toBeNull();
+  });
+
+  it('offers the select to an operator holding price_lists:write', async () => {
+    getSpy.mockImplementation(async (url: string) => {
+      if (url.includes('/display-mode-overrides/category/')) return { data: { mode: 'net_only' } };
+      return { data: { items: [] } };
+    });
+    const container = renderZone({
+      name: 'category.editor.after',
+      props: { categoryId: CATEGORY_ID },
+      permissions: ['price_lists:read', 'price_lists:write'],
+    });
+    await waitFor(() => expect(container.querySelector('select')).not.toBeNull());
+    await waitFor(() => expect(container.querySelector('select')).toHaveValue('net_only'));
+  });
+
   it('orders itself second among the organization detail\'s four contributors', () => {
     // The weights preserve the order the operator saw when the panels were
     // scattered through `OrganizationDetail.tsx`: `sales_channels` (100), this

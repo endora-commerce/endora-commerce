@@ -15,7 +15,7 @@ import { MODULE_ADMIN_CONTRIBUTIONS } from '../../../src/modules.generated.js';
  *
  * Five routes, static segments before `:id`; the sidebar entry returns from
  * P1's temporary landing on `/price-lists/display-modes` to the book list on
- * `/price-lists`; three palette actions. Each route is driven on its own,
+ * `/price-lists`; four palette actions (the fourth, *Pricing settings*, by the Checkpoint 10 ruling). Each route is driven on its own,
  * through the real `<App/>` over the generated registry, on both axes a route
  * has: the permission code and the module's presence. A positive case comes
  * first everywhere, because an absence proves nothing until the presence has
@@ -110,6 +110,7 @@ const bundle = {
     'priceBooks.list.title',
     'priceBooks.create.title',
     'priceBooks.explainer.title',
+    'priceBooks.list.pricingSettings',
   ]),
 };
 
@@ -231,13 +232,24 @@ describe('price_lists — navigation', () => {
   });
 });
 
+describe('price_lists — Pricing settings from the list (Principle XVI)', () => {
+  it('links Pricing settings from the price-book list header, for a reader too', async () => {
+    renderAt('/price-lists', { permissions: [READ] });
+    const link = await screen.findByRole('link', { name: /priceBooks\.list\.pricingSettings/ });
+    expect(link).toHaveAttribute('href', '/price-lists/display-modes');
+  });
+});
+
 describe('price_lists — palette actions (Principle XVI)', () => {
-  it('declares the three actions on the codes their target routes open on', () => {
+  it('declares the four actions on the codes their target routes open on', () => {
     const actions = manifest.actions ?? [];
     expect(actions.map((action) => [action.id, action.targetRoute, action.requiredPermission])).toEqual([
       ['open-price-lists', '/price-lists', READ],
       ['new-price-book', '/price-lists/new', WRITE],
       ['open-price-explainer', '/price-lists/explain', READ],
+      // Coordinator ruling, Checkpoint 10 review (Principle XVI): *Pricing
+      // settings* has no sidebar entry, so the palette is how it is reached.
+      ['open-pricing-settings', '/price-lists/display-modes', READ],
     ]);
     // An action is only as reachable as the route it names (issue #232).
     for (const action of actions) {

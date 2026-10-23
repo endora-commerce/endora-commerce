@@ -103,7 +103,9 @@ exists to prevent.
 `/price-lists/:id` is also what P1's audit reference resolver already links
 (`PL/backend/services/audit-references.ts`). The sidebar entry returns to `/price-lists`. Palette
 (manifest `actions`): `open-price-lists` → `/price-lists` (read), `new-price-book` →
-`/price-lists/new` (write), `open-price-explainer` → `/price-lists/explain` (read); keys in the
+`/price-lists/new` (write), `open-price-explainer` → `/price-lists/explain` (read), `open-pricing-settings` → `/price-lists/display-modes` (read; added by
+the coordinator's Checkpoint 10 ruling, Principle XVI — the page has no sidebar entry, so the palette and
+a *Pricing settings* link in the list header reach it); keys in the
 module's flat `i18n/{en,pl}.json`; `check:action-route-permissions` and
 `test/unit/_i18n/registered-bundles-shape.test.ts` hold them
 (`specs/conventions/module-admin-surfaces.md` §Command palette).
