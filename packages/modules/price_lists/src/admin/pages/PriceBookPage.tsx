@@ -142,7 +142,9 @@ export function PriceBookPage(): ReactNode {
         }
         actions={
           <>
-            {hasPermission('price_lists:write') && !book.isSystem ? (
+            {/* A book the caller may not change offers no duplicate either
+                (A3.3, FR-027): absent, not disabled. */}
+            {editable && !book.isSystem ? (
               <Button type="button" variant="outline" onClick={(): void => setDuplicating(true)}>
                 <Copy aria-hidden="true" />
                 {t('duplicate.open')}

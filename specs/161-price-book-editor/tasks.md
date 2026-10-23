@@ -223,10 +223,10 @@ amended; one Save for the whole product page is issue #407).
 
 ## Phase 10: User Story 8 — Representative scope across every screen (P2)
 
-- [ ] T087 [P] [US8] Tests in `AT/price-books-rep-scope.test.tsx` (representative scoped to Acme): A3.1 editable; A3.2 the book of Acme and Beta absent from the list and its address showing the same not-found page as an unknown id; A3.3 group book read-only with edit, import, duplicate and delete controls absent; create offers only organizations in scope; explanation and filters offer only in-scope organizations; base-price panel read-only (FR-027, FR-028, SC-006)
-- [ ] T088 [US8] Wire `writable`, `creatableAudienceKinds` and the not-found page through every screen (`PriceBooksPage`, `PriceBookPage`, `PriceBookCreatePage`, `PriceExplainerPage`, `ProductBasePrices`)
+- [x] T087 [P] [US8] Tests in `AT/price-books-rep-scope.test.tsx` (representative scoped to Acme): A3.1 editable; A3.2 the book of Acme and Beta absent from the list and its address showing the same not-found page as an unknown id; A3.3 group book read-only with edit, import, duplicate and delete controls absent; create offers only organizations in scope; explanation and filters offer only in-scope organizations; base-price panel read-only (FR-027, FR-028, SC-006)
+- [x] T088 [US8] Wire `writable`, `creatableAudienceKinds` and the not-found page through every screen (`PriceBooksPage`, `PriceBookPage`, `PriceBookCreatePage`, `PriceExplainerPage`, `ProductBasePrices`) — already carried by Phases 4–8 except *Duplicate*, which was offered on a book the caller may not change (A3.3); it now needs `writable`
 
-**Checkpoint 10.**
+**Checkpoint 10** — reached 2026-10-23; awaiting coordinator review.
 
 ---
 
