@@ -7,6 +7,7 @@ import {
   type PriceBookNaturalKey,
   type PriceBookRow,
   type PriceBookRowError,
+  type PriceBookRowErrorReason,
   type PriceBookRowPrice,
   type PriceBookSelectionKind,
 } from '@endora-commerce/contracts';
@@ -228,17 +229,26 @@ export type CsvLineErrorCode =
   | 'tooLarge'
   | 'percentNeedsSign'
   | 'percentOutOfRange'
-  // From the server's preview.
+  // From the server's preview, one per `reason` of `PRICE_BOOK_ROW_ERROR_REASONS`.
+  | 'rowInvalid'
+  | 'selectionCombined'
+  | 'fixedOnAll'
+  | 'variantNeedsProduct'
+  | 'baseBookKind'
+  | 'baseProductFixed'
   | 'unknownProduct'
   | 'unknownVariant'
   | 'variantOfOtherProduct'
   | 'unknownCategory'
-  | 'attributeRefused'
-  | 'shape'
+  | 'attributeNotSelectable'
+  | 'attributeValueUnknown'
+  | 'attributeValueBoolean'
+  | 'rowNotInBook'
   | 'overlapsLine'
   | 'overlapsStored'
   | 'bookLimit'
-  | 'refused';
+  // A refusal from a server that names no reason: its group code, translated.
+  | 'refusedGroup';
 
 export interface CsvLineError {
   /** The file line (the header is line 1); `null` only for a refusal of the whole book. */
@@ -470,10 +480,32 @@ const SERVER_COLUMN: ReadonlyArray<readonly [RegExp, CsvColumn | null]> = [
   [/^(selection|key)/, 'kind'],
 ];
 
+/** The server's rule code as the file refusal the screen translates (Checkpoint 11 ruling 2). */
+const REASON_CODE: Record<PriceBookRowErrorReason, CsvLineErrorCode> = {
+  row_invalid: 'rowInvalid',
+  selection_combined: 'selectionCombined',
+  max_below_min: 'maxBelowMin',
+  fixed_on_all: 'fixedOnAll',
+  variant_needs_product: 'variantNeedsProduct',
+  base_book_kind: 'baseBookKind',
+  base_product_fixed: 'baseProductFixed',
+  product_unknown: 'unknownProduct',
+  variant_unknown: 'unknownVariant',
+  variant_other_product: 'variantOfOtherProduct',
+  category_unknown: 'unknownCategory',
+  attribute_not_selectable: 'attributeNotSelectable',
+  attribute_value_unknown: 'attributeValueUnknown',
+  attribute_value_boolean: 'attributeValueBoolean',
+  row_not_in_book: 'rowNotInBook',
+  rows_overlap: 'overlapsStored',
+  book_row_limit: 'bookLimit',
+};
+
 /**
  * The preview's `errors[]` as file refusals: `index` is the row's position in
- * the batch, which is `rows`' order; an overlap names the other line when it
- * is in the file (`resolved` holds the ids the batch's rows took).
+ * the batch, which is `rows`' order; the rule is the server's `reason` code,
+ * never its English `message`. An overlap names the other line when it is in
+ * the file (`resolved` holds the ids the batch's rows took).
  */
 export function serverLineErrors(
   errors: readonly PriceBookRowError[],
@@ -481,34 +513,54 @@ export function serverLineErrors(
   resolved: ReadonlyArray<{ readonly id?: string | undefined } | null>,
 ): CsvLineError[] {
   return errors.map((error): CsvLineError => {
+    if (error.reason === 'book_row_limit' || error.code === 'PRICE_BOOK_ROW_LIMIT') {
+      return { line: null, column: null, code: 'bookLimit', params: { max: PRICE_BOOK_MAX_ROWS } };
+    }
     const row = error.index === undefined ? undefined : rows[error.index];
-    if (!row) {
-      return error.code === 'PRICE_BOOK_ROW_LIMIT'
-        ? { line: null, column: null, code: 'bookLimit', params: { max: PRICE_BOOK_MAX_ROWS } }
-        : { line: null, column: null, code: 'refused', params: { message: error.message } };
+    let column = SERVER_COLUMN.find(([pattern]) => pattern.test(error.field))?.[1] ?? null;
+    if (error.reason === undefined) {
+      return { line: row?.line ?? null, column: row ? column : null, code: 'refusedGroup', params: { code: error.code } };
     }
-    const column = SERVER_COLUMN.find(([pattern]) => pattern.test(error.field))?.[1] ?? null;
+    if (!row) return { line: null, column: null, code: REASON_CODE[error.reason], params: {} };
     const key = row.input.key ?? {};
-    const at = (code: CsvLineErrorCode, params: Record<string, string | number>): CsvLineError => ({ line: row.line, column, code, params });
-    switch (error.code) {
-      case 'PRICE_BOOK_ROW_TARGET':
-        if (error.field.startsWith('key.variantSku')) return at('unknownVariant', { value: key.variantSku ?? '' });
-        if (error.field.startsWith('key.productSku')) {
-          return key.variantSku
-            ? at('variantOfOtherProduct', { variant: key.variantSku, product: key.productSku ?? '' })
-            : at('unknownProduct', { value: key.productSku ?? '' });
-        }
-        if (error.field.startsWith('key.categoryPath')) return at('unknownCategory', { value: key.categoryPath ?? '' });
-        if (error.field.startsWith('key.attribute')) return at('attributeRefused', { key: key.attribute?.key ?? '', value: key.attribute?.valueCode ?? '' });
-        return at('refused', { message: error.message });
-      case 'PRICE_BOOK_ROW_OVERLAP': {
+    const attribute = { key: key.attribute?.key ?? '', value: key.attribute?.valueCode ?? '' };
+    let params: Record<string, string | number> = {};
+    let code = REASON_CODE[error.reason];
+    switch (error.reason) {
+      case 'product_unknown':
+        params = { value: key.productSku ?? '' };
+        break;
+      case 'variant_unknown':
+        params = { value: key.variantSku ?? '' };
+        break;
+      case 'variant_other_product':
+        params = { variant: key.variantSku ?? '', product: key.productSku ?? '' };
+        break;
+      case 'category_unknown':
+        params = { value: key.categoryPath ?? '' };
+        break;
+      case 'attribute_not_selectable':
+        column = 'attribute_key';
+        params = attribute;
+        break;
+      case 'attribute_value_unknown':
+      case 'attribute_value_boolean':
+        params = attribute;
+        break;
+      case 'max_below_min':
+        params = { min: row.input.minQuantity, max: row.input.maxQuantity ?? '' };
+        break;
+      case 'rows_overlap': {
         const other = error.rowId === undefined ? -1 : resolved.findIndex((r) => r?.id === error.rowId);
-        return other >= 0 && rows[other] ? at('overlapsLine', { other: rows[other]!.line }) : at('overlapsStored', {});
+        if (other >= 0 && rows[other]) {
+          code = 'overlapsLine';
+          params = { other: rows[other]!.line };
+        }
+        break;
       }
-      case 'PRICE_BOOK_ROW_SHAPE':
-        return at('shape', { message: error.message });
-      case 'PRICE_BOOK_ROW_LIMIT':
-        return { line: null, column: null, code: 'bookLimit', params: { max: PRICE_BOOK_MAX_ROWS } };
+      default:
+        break;
     }
+    return { line: row.line, column, code, params };
   });
 }

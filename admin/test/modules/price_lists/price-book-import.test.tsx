@@ -200,7 +200,7 @@ describe('import — the preview (FR-040, FR-041)', () => {
         removed: [],
         unchangedCount: 1,
       },
-      errors: [{ index: 3, field: 'key.productSku', code: 'PRICE_BOOK_ROW_TARGET', message: 'No product has the SKU NOPE.' }],
+      errors: [{ index: 3, field: 'key.productSku', code: 'PRICE_BOOK_ROW_TARGET', reason: 'product_unknown', message: 'No product has the SKU NOPE.' }],
     });
     await openPrices();
     const dialog = await openImport(user);
@@ -232,6 +232,17 @@ describe('import — the preview (FR-040, FR-041)', () => {
     const refused = await within(dialog).findByRole('table', { name: 'Refused rows' });
     expect(within(refused).getAllByRole('row').slice(1).map((r) => r.textContent)).toEqual(['2kindUnknown kind “widget”.']);
     expect(dryRunBodies()[0]!.upsert).toHaveLength(1);
+    // Checkpoint 11 ruling: say that what the file could not read is not compared.
+    expect(within(dialog).getByText('Lines refused in the file are not compared with the book.')).toBeInTheDocument();
+  });
+
+  it('adds no such note when every line of the file was read', async () => {
+    const user = userEvent.setup();
+    await openPrices();
+    const dialog = await openImport(user);
+    await upload(user, dialog, csvFile(EXPORTED));
+    await within(dialog).findByText('No changes: the book already holds what the file says.');
+    expect(within(dialog).queryByText('Lines refused in the file are not compared with the book.')).toBeNull();
   });
 
   it('scenario 6 — downloads exactly the refused rows with a reason column', async () => {

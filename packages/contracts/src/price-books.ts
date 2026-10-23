@@ -192,21 +192,22 @@ export function priceBookRowShapeIssues(row: {
   minQuantity: number;
   maxQuantity: number | null;
   price: PriceBookRowPrice;
-}): Array<{ path: string[]; message: string }> {
-  const out: Array<{ path: string[]; message: string }> = [];
+}): Array<{ path: string[]; message: string; reason: PriceBookRowErrorReason }> {
+  const out: Array<{ path: string[]; message: string; reason: PriceBookRowErrorReason }> = [];
   const { selection } = row;
   const named = (selection.variantId ?? null) !== null || (selection.productId ?? null) !== null;
   if (named && ((selection.categoryId ?? null) !== null || (selection.attribute ?? null) !== null)) {
     out.push({
       path: ['selection'],
       message: 'A product or variant selection cannot be combined with a category or an attribute.',
+      reason: 'selection_combined',
     });
   }
   if (row.maxQuantity !== null && row.maxQuantity < row.minQuantity) {
-    out.push({ path: ['maxQuantity'], message: 'maxQuantity must be at least minQuantity.' });
+    out.push({ path: ['maxQuantity'], message: 'maxQuantity must be at least minQuantity.', reason: 'max_below_min' });
   }
   if (row.price.type === 'fixed' && priceBookSelectionKind(selection) === 'all') {
-    out.push({ path: ['price', 'type'], message: 'A fixed price needs a selection other than all products.' });
+    out.push({ path: ['price', 'type'], message: 'A fixed price needs a selection other than all products.', reason: 'fixed_on_all' });
   }
   return out;
 }
@@ -711,6 +712,36 @@ export type PriceBookRowsWrite = z.infer<typeof priceBookRowsWriteSchema>;
  * `upsert` (for an import, the file line the client maps it to); `rowId` names
  * a stored row (an overlap partner, a delete of a missing row).
  */
+/**
+ * The rule behind a refused row (feature 161, Checkpoint 11 ruling 2): one
+ * code per rule, under its group `code`, so the consumer translates it
+ * (`specs/conventions/module-i18n.md`); `priceBookRowShapeIssues` above
+ * returns the shape rules' codes.
+ */
+export const PRICE_BOOK_ROW_ERROR_REASONS = [
+  // PRICE_BOOK_ROW_SHAPE
+  'row_invalid',
+  'selection_combined',
+  'max_below_min',
+  'fixed_on_all',
+  'variant_needs_product',
+  'base_book_kind',
+  'base_product_fixed',
+  // PRICE_BOOK_ROW_TARGET
+  'product_unknown',
+  'variant_unknown',
+  'variant_other_product',
+  'category_unknown',
+  'attribute_not_selectable',
+  'attribute_value_unknown',
+  'attribute_value_boolean',
+  'row_not_in_book',
+  // PRICE_BOOK_ROW_OVERLAP, PRICE_BOOK_ROW_LIMIT
+  'rows_overlap',
+  'book_row_limit',
+] as const;
+export const priceBookRowErrorReasonSchema = z.enum(PRICE_BOOK_ROW_ERROR_REASONS);
+export type PriceBookRowErrorReason = z.infer<typeof priceBookRowErrorReasonSchema>;
 export const PRICE_BOOK_ROW_ERROR_CODES = [
   'PRICE_BOOK_ROW_SHAPE',
   'PRICE_BOOK_ROW_OVERLAP',
@@ -722,6 +753,8 @@ export const priceBookRowErrorSchema = z.object({
   rowId: uuidSchema.optional(),
   field: z.string(),
   code: z.enum(PRICE_BOOK_ROW_ERROR_CODES),
+  /** The rule the row broke (feature 161): the code a consumer translates; `message` is English, for logs. */
+  reason: priceBookRowErrorReasonSchema.optional(),
   message: z.string(),
 });
 export type PriceBookRowError = z.infer<typeof priceBookRowErrorSchema>;

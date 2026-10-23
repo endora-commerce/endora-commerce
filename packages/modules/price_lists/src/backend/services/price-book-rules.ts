@@ -3,6 +3,7 @@ import {
   priceBookSelectionKind,
   type BasePricesForCurrency,
   type BasePriceTier,
+  type PriceBookRowErrorReason,
   type PriceBookRowInput,
 } from '@endora-commerce/contracts';
 
@@ -15,6 +16,8 @@ import {
 export interface RuleIssue {
   path: string[];
   message: string;
+  /** The rule's code, where the issue reaches a row refusal (feature 161). */
+  reason?: PriceBookRowErrorReason;
 }
 
 /** A row as stored in `price_list_matrix_entries`, before it has an id. */
@@ -140,10 +143,10 @@ export function planBasePriceRows(input: {
 export function baseBookRowIssues(row: PriceBookRowInput): RuleIssue[] {
   const kind = priceBookSelectionKind(row.selection);
   if (kind !== 'product' && kind !== 'variant') {
-    return [{ path: ['selection'], message: 'A base book prices products and variants only.' }];
+    return [{ path: ['selection'], message: 'A base book prices products and variants only.', reason: 'base_book_kind' }];
   }
   if (kind === 'product' && row.price.type !== 'fixed') {
-    return [{ path: ['price', 'type'], message: "A product's base price is a fixed amount." }];
+    return [{ path: ['price', 'type'], message: "A product's base price is a fixed amount.", reason: 'base_product_fixed' }];
   }
   return [];
 }

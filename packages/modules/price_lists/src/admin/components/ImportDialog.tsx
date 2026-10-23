@@ -351,6 +351,10 @@ function PreviewView(props: {
   return (
     <div className="space-y-4">
       <p className="text-sm font-medium">{t('import.nothingWritten')}</p>
+      {/* Checkpoint 11 ruling: lines the file could not read are not sent, so in
+          replace mode their stored counterparts read as removed; Import stays
+          disabled while any line is refused, and this says why the list may. */}
+      {preview.file.errors.length > 0 ? <p className="text-sm text-muted-foreground">{t('import.notCompared')}</p> : null}
       <ul aria-label={t('import.summary')} className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
         {counts.map(([key, count]) => (
           <li key={key}>{t(`import.count.${key}`, { count })}</li>

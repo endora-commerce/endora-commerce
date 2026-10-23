@@ -224,3 +224,110 @@ describe('price-book batch planning — scoped to what the batch touches (161 G1
     ]);
   });
 });
+
+/**
+ * Feature 161, Checkpoint 11 ruling 2 — every refusal of a row carries a
+ * per-rule `reason` code beside its group `code`, so a consumer translates the
+ * rule instead of quoting the server's English `message`
+ * (`specs/conventions/module-i18n.md`: the backend returns codes, the consumer
+ * translates). The attribute refusal is three reasons, one per case.
+ */
+describe('price-book batch planning — a reason code per rule (161)', () => {
+  const reasonsOf = (upsert: unknown[], options: Parameters<typeof plan>[1] = {}) =>
+    plan(upsert, options).errors.map((e) => [e.index, e.code, e.reason]);
+  const fixed = (amount: string) => ({ type: 'fixed', amount });
+
+  it('names each shape rule', () => {
+    expect(
+      reasonsOf([
+        { selection: { productId: P1, categoryId: C1 }, minQuantity: 1, price: fixed('1') },
+        { selection: { productId: P1 }, minQuantity: 5, maxQuantity: 2, price: fixed('1') },
+        { selection: {}, minQuantity: 1, price: fixed('1') },
+        { selection: { variantId: V1 }, minQuantity: 1, price: fixed('1') },
+        { selection: { productId: P1 }, minQuantity: 0, price: fixed('1') },
+      ]),
+    ).toEqual([
+      [0, 'PRICE_BOOK_ROW_SHAPE', 'selection_combined'],
+      [1, 'PRICE_BOOK_ROW_SHAPE', 'max_below_min'],
+      [2, 'PRICE_BOOK_ROW_SHAPE', 'fixed_on_all'],
+      [3, 'PRICE_BOOK_ROW_SHAPE', 'variant_needs_product'],
+      [4, 'PRICE_BOOK_ROW_SHAPE', 'row_invalid'],
+    ]);
+  });
+
+  it('names the base book’s rules', () => {
+    expect(
+      reasonsOf(
+        [
+          { selection: { categoryId: C1 }, minQuantity: 1, price: { type: 'percent', percent: '-5.00' } },
+          { selection: { productId: P1 }, minQuantity: 1, price: { type: 'percent', percent: '-5.00' } },
+        ],
+        { base: true },
+      ),
+    ).toEqual([
+      [0, 'PRICE_BOOK_ROW_SHAPE', 'base_book_kind'],
+      [1, 'PRICE_BOOK_ROW_SHAPE', 'base_product_fixed'],
+    ]);
+  });
+
+  it('names each target that does not exist', () => {
+    expect(
+      reasonsOf([
+        { key: { productSku: 'NOPE' }, minQuantity: 1, price: fixed('1') },
+        { key: { variantSku: 'NOPE' }, minQuantity: 1, price: fixed('1') },
+        { key: { productSku: 'SKU-2', variantSku: 'VAR-1' }, minQuantity: 1, price: fixed('1') },
+        { key: { categoryPath: 'nowhere' }, minQuantity: 1, price: { type: 'percent', percent: '-5.00' } },
+        { selection: { productId: '00000000-0000-4000-8000-0000000000ff' }, minQuantity: 1, price: fixed('1') },
+        { selection: { productId: P2, variantId: V1 }, minQuantity: 1, price: fixed('1') },
+      ]),
+    ).toEqual([
+      [0, 'PRICE_BOOK_ROW_TARGET', 'product_unknown'],
+      [1, 'PRICE_BOOK_ROW_TARGET', 'variant_unknown'],
+      [2, 'PRICE_BOOK_ROW_TARGET', 'variant_other_product'],
+      [3, 'PRICE_BOOK_ROW_TARGET', 'category_unknown'],
+      [4, 'PRICE_BOOK_ROW_TARGET', 'product_unknown'],
+      [5, 'PRICE_BOOK_ROW_TARGET', 'variant_other_product'],
+    ]);
+  });
+
+  it('tells the attribute refusal’s cases apart', () => {
+    const notSelectable = { ...color, key: 'size', isPriceRule: false } as unknown as CatalogAttributeView;
+    const yesNo = { ...color, key: 'eco', valueType: 'boolean', options: [] } as unknown as CatalogAttributeView;
+    lookups.attributes.set('size', notSelectable);
+    lookups.attributes.set('eco', yesNo);
+    try {
+      expect(
+        reasonsOf([
+          { key: { attribute: { key: 'size', valueCode: 'xl' } }, minQuantity: 1, price: { type: 'percent', percent: '-5.00' } },
+          { key: { attribute: { key: 'color', valueCode: 'teal' } }, minQuantity: 1, price: { type: 'percent', percent: '-5.00' } },
+          { key: { attribute: { key: 'eco', valueCode: 'maybe' } }, minQuantity: 1, price: { type: 'percent', percent: '-5.00' } },
+          { key: { attribute: { key: 'gone', valueCode: 'x' } }, minQuantity: 1, price: { type: 'percent', percent: '-5.00' } },
+        ]),
+      ).toEqual([
+        [0, 'PRICE_BOOK_ROW_TARGET', 'attribute_not_selectable'],
+        [1, 'PRICE_BOOK_ROW_TARGET', 'attribute_value_unknown'],
+        [2, 'PRICE_BOOK_ROW_TARGET', 'attribute_value_boolean'],
+        [3, 'PRICE_BOOK_ROW_TARGET', 'attribute_not_selectable'],
+      ]);
+    } finally {
+      lookups.attributes.delete('size');
+      lookups.attributes.delete('eco');
+    }
+  });
+
+  it('names an overlap, a delete of a row not in the book and the book’s limit', () => {
+    const rows = [stored('00000000-0000-4000-8000-0000000000d1', P1, 1, 9, '10.0000')];
+    const result = plan([{ selection: { productId: P1 }, minQuantity: 5, price: fixed('9') }], {
+      rows,
+      deleteIds: ['00000000-0000-4000-8000-0000000000e1'],
+      storedRowCount: PRICE_BOOK_MAX_ROWS,
+    });
+    expect(result.errors.map((e) => [e.code, e.reason]).sort()).toEqual(
+      [
+        ['PRICE_BOOK_ROW_LIMIT', 'book_row_limit'],
+        ['PRICE_BOOK_ROW_OVERLAP', 'rows_overlap'],
+        ['PRICE_BOOK_ROW_TARGET', 'row_not_in_book'],
+      ].sort(),
+    );
+  });
+});

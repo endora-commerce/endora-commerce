@@ -72,6 +72,28 @@ describe('price-book grid — refused saves', () => {
     expect(screen.getByTestId('unsaved-count')).toHaveTextContent('Unsaved changes: 2');
   });
 
+  it('says the rule each cell broke when the server names it, in the admin language (Checkpoint 11 ruling 2)', async () => {
+    const user = userEvent.setup();
+    api.put.mockRejectedValue(
+      await apiError(400, 'PRICE_BOOK_ROW_SHAPE', 'refused', {
+        errors: [
+          { index: 0, field: 'maxQuantity', code: 'PRICE_BOOK_ROW_SHAPE', reason: 'max_below_min', message: 'English' },
+          { index: 1, field: 'minQuantity', code: 'PRICE_BOOK_ROW_OVERLAP', reason: 'rows_overlap', message: 'English' },
+        ],
+      }),
+    );
+    await open();
+    await typeInto(user, 'Screws 0200', '-30%');
+    await typeInto(user, 'Screws 0300', '40');
+    await user.click(screen.getByRole('button', { name: 'Save prices' }));
+    await screen.findByText('Some prices were refused: 2 cells. Each marked cell says why.');
+    const reasonOf = (line: string): string | null | undefined =>
+      document.getElementById(gridCell(line, 1).getAttribute('aria-describedby')!)?.textContent;
+    expect(reasonOf('Screws 0200')).toContain('The quantity range ends before it starts.');
+    expect(reasonOf('Screws 0300')).toContain('This quantity range overlaps another row of the same line.');
+    expect(reasonOf('Screws 0200')).not.toContain('English');
+  });
+
   it('refuses a stale save, reloads, keeps the edits and re-applies them against the new version', async () => {
     const user = userEvent.setup();
     api.put.mockRejectedValueOnce(await apiError(409, 'PRICE_BOOK_STALE', 'This price book changed since you opened it.'));

@@ -49,6 +49,7 @@ export function DisplayModeOverrideRow(props: {
   withoutIcon?: boolean;
 }): ReactNode {
   const t = useTranslation('core');
+  const tl = useTranslation('price_lists');
   const { scope, targetId, withoutIcon } = props;
   // FR-028 (feature 161, Checkpoint 10 ruling): a reader sees the value and
   // no control; the select is only for an operator who may write it.
@@ -81,7 +82,7 @@ export function DisplayModeOverrideRow(props: {
         if (cancelled) return;
         // 404 means "no override yet — inherits"; anything else is an error.
         if (err instanceof ApiError && err.status === 404) setMode('inherit');
-        else setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+        else setError(err instanceof ApiError ? err.envelope.error.message : tl('displayModeRow.error.load'));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -89,7 +90,7 @@ export function DisplayModeOverrideRow(props: {
     return (): void => {
       cancelled = true;
     };
-  }, [scope, targetId]);
+  }, [scope, targetId, tl]);
 
   const handleChange = async (next: DisplayMode | 'inherit'): Promise<void> => {
     setMode(next);
@@ -104,7 +105,7 @@ export function DisplayModeOverrideRow(props: {
       setSaved(true);
       setTimeout(() => setSaved(false), 1500);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Save failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : tl('displayModeRow.error.save'));
     } finally {
       setSubmitting(false);
     }
@@ -145,11 +146,12 @@ export function DisplayModeOverrideRow(props: {
         <div style={{ fontSize: 13 }}>{loading ? '…' : MODE_LABEL[mode]}</div>
       )}
       <div className="b2b-help" style={{ marginTop: 2 }}>
+        {/* Checkpoint 11 ruling 3: the module's bundle, not an English literal. */}
         {mode === 'inherit'
-          ? 'Inherits the parent in the resolution chain (Settings → Org → Category → Product).'
+          ? tl('displayModeRow.help.inherit')
           : mode === 'none'
-            ? 'Customers will not see a price; Add-to-cart is replaced by Add-to-Quote.'
-            : `Customers see prices in the “${MODE_LABEL[mode]}” format on this scope.`}
+            ? tl('displayModeRow.help.none')
+            : tl('displayModeRow.help.format', { mode: MODE_LABEL[mode] })}
       </div>
       {error ? (
         <div style={{ fontSize: 11, color: 'hsl(8 80% 40%)', marginTop: 2 }}>{error}</div>

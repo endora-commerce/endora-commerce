@@ -361,29 +361,41 @@ describe('the server’s refusals, mapped back to file lines and columns', () =>
       'variant;P2;P1-RED;;;;1;;fixed;10',
       'category;;;nowhere;;;1;;percent;-5',
       'attribute;;;;color;teal;1;;percent;-5',
+      'attribute;;;;size;xl;1;;percent;-5',
+      'attribute;;;;eco;maybe;1;;percent;-5',
       'all;;;;;;1;;fixed;10',
       'product;P1;;;;;1;;fixed;10',
       'product;P1;;;;;5;;fixed;9',
+      'product;P2;;;;;1;;fixed;10',
     ),
   );
   const ROW_A = '00000000-0000-4000-8000-00000000000a';
   const ROW_B = '00000000-0000-4000-8000-00000000000b';
   const STORED = '00000000-0000-4000-8000-00000000000c';
+  const T = 'PRICE_BOOK_ROW_TARGET' as const;
+  const S = 'PRICE_BOOK_ROW_SHAPE' as const;
 
-  it('names the line, the column and the value of each', () => {
-    const resolved = result.rows.map((_, i) => (i === 6 ? ({ id: ROW_A } as never) : i === 7 ? ({ id: ROW_B } as never) : null));
+  it('names the line, the column and the rule of each, by the server’s reason code (Checkpoint 11 ruling 2)', () => {
+    const resolved = result.rows.map((_, i) => (i === 8 ? ({ id: ROW_A } as never) : i === 9 ? ({ id: ROW_B } as never) : null));
     expect(
       serverLineErrors(
         [
-          { index: 0, field: 'key.productSku', code: 'PRICE_BOOK_ROW_TARGET', message: 'No product has the SKU NOPE.' },
-          { index: 1, field: 'key.variantSku', code: 'PRICE_BOOK_ROW_TARGET', message: 'No variant has the SKU P9-RED.' },
-          { index: 2, field: 'key.productSku', code: 'PRICE_BOOK_ROW_TARGET', message: 'Variant P1-RED does not belong to product P2.' },
-          { index: 3, field: 'key.categoryPath', code: 'PRICE_BOOK_ROW_TARGET', message: 'No category has the path nowhere.' },
-          { index: 4, field: 'key.attribute', code: 'PRICE_BOOK_ROW_TARGET', message: 'Attribute color has no value teal.' },
-          { index: 5, field: 'price', code: 'PRICE_BOOK_ROW_SHAPE', message: 'The all-products line takes no fixed price.' },
-          { index: 7, rowId: ROW_A, field: 'minQuantity', code: 'PRICE_BOOK_ROW_OVERLAP', message: 'overlaps' },
-          { index: 6, rowId: STORED, field: 'minQuantity', code: 'PRICE_BOOK_ROW_OVERLAP', message: 'overlaps' },
-          { field: 'upsert', code: 'PRICE_BOOK_ROW_LIMIT', message: 'A price book holds at most 5000 rows.' },
+          { index: 0, field: 'key.productSku', code: T, reason: 'product_unknown', message: 'English, for logs' },
+          { index: 1, field: 'key.variantSku', code: T, reason: 'variant_unknown', message: 'x' },
+          { index: 2, field: 'key.productSku', code: T, reason: 'variant_other_product', message: 'x' },
+          { index: 3, field: 'key.categoryPath', code: T, reason: 'category_unknown', message: 'x' },
+          { index: 4, field: 'key.attribute', code: T, reason: 'attribute_value_unknown', message: 'x' },
+          { index: 5, field: 'key.attribute', code: T, reason: 'attribute_not_selectable', message: 'x' },
+          { index: 6, field: 'key.attribute', code: T, reason: 'attribute_value_boolean', message: 'x' },
+          { index: 7, field: 'price.type', code: S, reason: 'fixed_on_all', message: 'x' },
+          { index: 9, rowId: ROW_A, field: 'minQuantity', code: 'PRICE_BOOK_ROW_OVERLAP', reason: 'rows_overlap', message: 'x' },
+          { index: 8, rowId: STORED, field: 'minQuantity', code: 'PRICE_BOOK_ROW_OVERLAP', reason: 'rows_overlap', message: 'x' },
+          { index: 10, field: 'selection', code: S, reason: 'base_book_kind', message: 'x' },
+          { index: 10, field: 'price.type', code: S, reason: 'base_product_fixed', message: 'x' },
+          { index: 10, field: 'selection', code: S, reason: 'selection_combined', message: 'x' },
+          { index: 10, field: 'maxQuantity', code: S, reason: 'max_below_min', message: 'x' },
+          { index: 10, field: 'price.amount', code: S, reason: 'row_invalid', message: 'x' },
+          { field: 'upsert', code: 'PRICE_BOOK_ROW_LIMIT', reason: 'book_row_limit', message: 'x' },
         ],
         result.rows,
         resolved,
@@ -393,11 +405,24 @@ describe('the server’s refusals, mapped back to file lines and columns', () =>
       { line: 3, column: 'variant_sku', code: 'unknownVariant', params: { value: 'P9-RED' } },
       { line: 4, column: 'product_sku', code: 'variantOfOtherProduct', params: { variant: 'P1-RED', product: 'P2' } },
       { line: 5, column: 'category_path', code: 'unknownCategory', params: { value: 'nowhere' } },
-      { line: 6, column: 'attribute_value', code: 'attributeRefused', params: { key: 'color', value: 'teal' } },
-      { line: 7, column: 'value', code: 'shape', params: { message: 'The all-products line takes no fixed price.' } },
-      { line: 9, column: 'min_quantity', code: 'overlapsLine', params: { other: 8 } },
-      { line: 8, column: 'min_quantity', code: 'overlapsStored', params: {} },
+      { line: 6, column: 'attribute_value', code: 'attributeValueUnknown', params: { key: 'color', value: 'teal' } },
+      { line: 7, column: 'attribute_key', code: 'attributeNotSelectable', params: { key: 'size', value: 'xl' } },
+      { line: 8, column: 'attribute_value', code: 'attributeValueBoolean', params: { key: 'eco', value: 'maybe' } },
+      { line: 9, column: 'price_kind', code: 'fixedOnAll', params: {} },
+      { line: 11, column: 'min_quantity', code: 'overlapsLine', params: { other: 10 } },
+      { line: 10, column: 'min_quantity', code: 'overlapsStored', params: {} },
+      { line: 12, column: 'kind', code: 'baseBookKind', params: {} },
+      { line: 12, column: 'price_kind', code: 'baseProductFixed', params: {} },
+      { line: 12, column: 'kind', code: 'selectionCombined', params: {} },
+      { line: 12, column: 'max_quantity', code: 'maxBelowMin', params: { min: 1, max: '' } },
+      { line: 12, column: 'value', code: 'rowInvalid', params: {} },
       { line: null, column: null, code: 'bookLimit', params: { max: PRICE_BOOK_MAX_ROWS } },
+    ]);
+  });
+
+  it('never quotes the server’s English: a refusal without a reason is named by its group code', () => {
+    expect(serverLineErrors([{ index: 0, field: 'price', code: S, message: 'English' }], result.rows, [])).toEqual([
+      { line: 2, column: 'value', code: 'refusedGroup', params: { code: S } },
     ]);
   });
 });

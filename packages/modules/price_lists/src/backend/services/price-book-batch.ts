@@ -8,6 +8,7 @@ import {
   type PriceBookDiffRow,
   type PriceBookNaturalKey,
   type PriceBookRowError,
+  type PriceBookRowErrorReason,
   type PriceBookRowInput,
   type PriceBookRowPrice,
   type PriceBookRowsDryRun,
@@ -88,7 +89,7 @@ export function parseBatchRows(upsert: readonly unknown[]): { parsed: Parsed[]; 
       const field = issue.path.join('.') || 'row';
       if (seen.has(field)) continue;
       seen.add(field);
-      errors.push({ index, field, code: 'PRICE_BOOK_ROW_SHAPE', message: issue.message });
+      errors.push({ index, field, code: 'PRICE_BOOK_ROW_SHAPE', reason: 'row_invalid', message: issue.message });
     }
   });
   return { parsed, errors };
@@ -190,8 +191,7 @@ export function planBatch(input: {
   const { lookups } = input;
 
   for (const { index, row } of input.parsed) {
-    const fail = (field: string, code: PriceBookRowError['code'], message: string) =>
-      errors.push({ index, field, code, message });
+    const fail: Fail = (field, code, reason, message) => errors.push({ index, field, code, reason, message });
     const before = errors.length;
 
     // 1. The selection, from ids or from the natural key.
@@ -206,10 +206,12 @@ export function planBatch(input: {
     };
     if (errors.length === before) {
       for (const issue of priceBookRowShapeIssues(candidate)) {
-        fail(issue.path.join('.'), 'PRICE_BOOK_ROW_SHAPE', issue.message);
+        fail(issue.path.join('.'), 'PRICE_BOOK_ROW_SHAPE', issue.reason, issue.message);
       }
       if (input.isBaseBook) {
-        for (const issue of baseBookRowIssues(candidate)) fail(issue.path.join('.'), 'PRICE_BOOK_ROW_SHAPE', issue.message);
+        for (const issue of baseBookRowIssues(candidate)) {
+          fail(issue.path.join('.'), 'PRICE_BOOK_ROW_SHAPE', issue.reason ?? 'row_invalid', issue.message);
+        }
       }
     }
     if (errors.length > before) continue;
@@ -228,7 +230,7 @@ export function planBatch(input: {
   }
 
   for (const id of input.deleteIds) {
-    if (!storedById.has(id)) errors.push({ rowId: id, field: 'delete', code: 'PRICE_BOOK_ROW_TARGET', message: `Row ${id} is not in this book.` });
+    if (!storedById.has(id)) errors.push({ rowId: id, field: 'delete', code: 'PRICE_BOOK_ROW_TARGET', reason: 'row_not_in_book', message: `Row ${id} is not in this book.` });
   }
 
   // 3. Merge or replace, then the diff.
@@ -259,7 +261,7 @@ export function planBatch(input: {
   // (G18 of 161, FR-009 of 160).
   const rowsAfter = input.mode === 'replace' ? final.length : input.storedRowCount + added.length - removed.length;
   if (!input.isBaseBook && rowsAfter > PRICE_BOOK_MAX_ROWS) {
-    errors.push({ field: 'upsert', code: 'PRICE_BOOK_ROW_LIMIT', message: `A price book holds at most ${PRICE_BOOK_MAX_ROWS} rows.` });
+    errors.push({ field: 'upsert', code: 'PRICE_BOOK_ROW_LIMIT', reason: 'book_row_limit', message: `A price book holds at most ${PRICE_BOOK_MAX_ROWS} rows.` });
   }
   const indexOf = new Map<string, number>();
   resolved.forEach((r, i) => {
@@ -275,6 +277,7 @@ export function planBatch(input: {
       rowId: other.id,
       field: 'minQuantity',
       code: 'PRICE_BOOK_ROW_OVERLAP',
+      reason: 'rows_overlap',
       message: `This row overlaps row ${other.id} of the same selection in its quantity window.`,
     });
   }
@@ -290,7 +293,7 @@ export function planBatch(input: {
   };
 }
 
-type Fail = (field: string, code: PriceBookRowError['code'], message: string) => void;
+type Fail = (field: string, code: PriceBookRowError['code'], reason: PriceBookRowErrorReason, message: string) => void;
 
 /** A row's selection, from its ids (checked against the lookups) or from its natural key. */
 function selectionOfRow(row: PriceBookBatchRowInput, lookups: BatchLookups, fail: Fail): PriceBookRowInput['selection'] {
@@ -298,15 +301,16 @@ function selectionOfRow(row: PriceBookBatchRowInput, lookups: BatchLookups, fail
     const { productId, variantId, categoryId, attribute } = row.selection;
     if (variantId) {
       const variant = lookups.variantsById.get(variantId);
-      if (!productId) fail('selection.productId', 'PRICE_BOOK_ROW_SHAPE', 'A variant row names its product.');
-      else if (!variant || variant.parentProductId !== productId) {
-        fail('selection.variantId', 'PRICE_BOOK_ROW_TARGET', 'This variant does not belong to the product.');
+      if (!productId) fail('selection.productId', 'PRICE_BOOK_ROW_SHAPE', 'variant_needs_product', 'A variant row names its product.');
+      else if (!variant) fail('selection.variantId', 'PRICE_BOOK_ROW_TARGET', 'variant_unknown', `Variant ${variantId} does not exist.`);
+      else if (variant.parentProductId !== productId) {
+        fail('selection.variantId', 'PRICE_BOOK_ROW_TARGET', 'variant_other_product', 'This variant does not belong to the product.');
       }
     } else if (productId && !lookups.productsById.has(productId)) {
-      fail('selection.productId', 'PRICE_BOOK_ROW_TARGET', `Product ${productId} does not exist.`);
+      fail('selection.productId', 'PRICE_BOOK_ROW_TARGET', 'product_unknown', `Product ${productId} does not exist.`);
     }
     if (categoryId && !lookups.categoriesById.has(categoryId)) {
-      fail('selection.categoryId', 'PRICE_BOOK_ROW_TARGET', `Category ${categoryId} does not exist.`);
+      fail('selection.categoryId', 'PRICE_BOOK_ROW_TARGET', 'category_unknown', `Category ${categoryId} does not exist.`);
     }
     if (attribute) attributeIssue(attribute.key, attribute.value, 'selection.attribute', lookups, fail);
     return row.selection;
@@ -360,46 +364,46 @@ function attributeIssue(
   value: string,
   field: string,
   lookups: BatchLookups,
-  fail: (field: string, code: PriceBookRowError['code'], message: string) => void,
+  fail: Fail,
 ): void {
   const view = lookups.attributes.get(key) ?? null;
   const reason = attributeInactiveReason(view);
   if (reason !== null) {
-    fail(field, 'PRICE_BOOK_ROW_TARGET', `Attribute ${key} cannot select prices (${reason}).`);
+    fail(field, 'PRICE_BOOK_ROW_TARGET', 'attribute_not_selectable', `Attribute ${key} cannot select prices (${reason}).`);
     return;
   }
   if (view && view.valueType !== 'boolean' && !view.options.some((o) => o.value === value)) {
-    fail(field, 'PRICE_BOOK_ROW_TARGET', `Attribute ${key} has no value ${value}.`);
+    fail(field, 'PRICE_BOOK_ROW_TARGET', 'attribute_value_unknown', `Attribute ${key} has no value ${value}.`);
   }
   if (view && view.valueType === 'boolean' && value !== 'true' && value !== 'false') {
-    fail(field, 'PRICE_BOOK_ROW_TARGET', `Attribute ${key} takes true or false.`);
+    fail(field, 'PRICE_BOOK_ROW_TARGET', 'attribute_value_boolean', `Attribute ${key} takes true or false.`);
   }
 }
 
 function selectionOfKey(
   key: PriceBookNaturalKey,
   lookups: BatchLookups,
-  fail: (field: string, code: PriceBookRowError['code'], message: string) => void,
+  fail: Fail,
 ): PriceBookRowInput['selection'] {
   const selection: PriceBookRowInput['selection'] = {};
   if (key.variantSku) {
     const variant = lookups.variantsBySku.get(key.variantSku);
-    if (!variant) fail('key.variantSku', 'PRICE_BOOK_ROW_TARGET', `No variant has the SKU ${key.variantSku}.`);
+    if (!variant) fail('key.variantSku', 'PRICE_BOOK_ROW_TARGET', 'variant_unknown', `No variant has the SKU ${key.variantSku}.`);
     else {
       selection.variantId = variant.id;
       selection.productId = variant.parentProductId;
       if (key.productSku && lookups.productsBySku.get(key.productSku)?.id !== variant.parentProductId) {
-        fail('key.productSku', 'PRICE_BOOK_ROW_TARGET', `Variant ${key.variantSku} does not belong to product ${key.productSku}.`);
+        fail('key.productSku', 'PRICE_BOOK_ROW_TARGET', 'variant_other_product', `Variant ${key.variantSku} does not belong to product ${key.productSku}.`);
       }
     }
   } else if (key.productSku) {
     const product = lookups.productsBySku.get(key.productSku);
-    if (!product) fail('key.productSku', 'PRICE_BOOK_ROW_TARGET', `No product has the SKU ${key.productSku}.`);
+    if (!product) fail('key.productSku', 'PRICE_BOOK_ROW_TARGET', 'product_unknown', `No product has the SKU ${key.productSku}.`);
     else selection.productId = product.id;
   }
   if (key.categoryPath) {
     const id = lookups.categoriesByPath.get(normaliseCategoryPath(key.categoryPath));
-    if (!id) fail('key.categoryPath', 'PRICE_BOOK_ROW_TARGET', `No category has the path ${key.categoryPath}.`);
+    if (!id) fail('key.categoryPath', 'PRICE_BOOK_ROW_TARGET', 'category_unknown', `No category has the path ${key.categoryPath}.`);
     else selection.categoryId = id;
   }
   if (key.attribute) {

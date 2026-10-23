@@ -144,10 +144,10 @@ describe('admin price-book rows (feature 160 US7)', () => {
     expect(error.code).toBe('PRICE_BOOK_ROW_SHAPE');
     const errors = error.details!.errors!;
     expect(errors.map((e) => e.index).sort()).toEqual([1, 2, 3, 4]);
-    expect(errors.find((e) => e.index === 1)).toMatchObject({ code: 'PRICE_BOOK_ROW_SHAPE', field: 'price.type' });
-    expect(errors.find((e) => e.index === 2)).toMatchObject({ code: 'PRICE_BOOK_ROW_SHAPE', field: 'maxQuantity' });
-    expect(errors.find((e) => e.index === 3)).toMatchObject({ code: 'PRICE_BOOK_ROW_SHAPE', field: 'price.percent' });
-    expect(errors.find((e) => e.index === 4)).toMatchObject({ code: 'PRICE_BOOK_ROW_TARGET', field: 'selection.productId' });
+    expect(errors.find((e) => e.index === 1)).toMatchObject({ code: 'PRICE_BOOK_ROW_SHAPE', reason: 'fixed_on_all', field: 'price.type' });
+    expect(errors.find((e) => e.index === 2)).toMatchObject({ code: 'PRICE_BOOK_ROW_SHAPE', reason: 'max_below_min', field: 'maxQuantity' });
+    expect(errors.find((e) => e.index === 3)).toMatchObject({ code: 'PRICE_BOOK_ROW_SHAPE', reason: 'row_invalid', field: 'price.percent' });
+    expect(errors.find((e) => e.index === 4)).toMatchObject({ code: 'PRICE_BOOK_ROW_TARGET', reason: 'product_unknown', field: 'selection.productId' });
     expect(await rowsOf(book.id)).toEqual([]);
     expect(await versionOf(book.id)).toBe(book.version);
   });
@@ -231,7 +231,7 @@ describe('admin price-book rows (feature 160 US7)', () => {
     expect(preview.status, preview.raw).toBe(200);
     const dry = preview.body.data;
     expect(dry.version).toBe(version);
-    expect(dry.errors).toEqual([expect.objectContaining({ index: 4, code: 'PRICE_BOOK_ROW_TARGET', field: 'key.productSku' })]);
+    expect(dry.errors).toEqual([expect.objectContaining({ index: 4, code: 'PRICE_BOOK_ROW_TARGET', reason: 'product_unknown', field: 'key.productSku' })]);
     expect(dry.resolved[0]).toMatchObject({ selection: { productId: f.products.P1.id } });
     expect(dry.resolved[4]).toBeNull();
     expect(dry.diff.changed).toEqual([

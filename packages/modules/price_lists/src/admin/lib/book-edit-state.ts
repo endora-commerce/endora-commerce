@@ -428,7 +428,8 @@ export function applySaveErrors(state: BookEditState, plan: SavePlan, errors: re
   for (const error of errors) {
     const key =
       error.index !== undefined ? plan.cells[error.index] : error.rowId !== undefined ? plan.rowCells.get(error.rowId) : undefined;
-    if (key && !serverErrors.has(key)) serverErrors.set(key, error.code);
+    // The rule when the server names it (`errors.reason.*`), else its group (`errors.*`).
+    if (key && !serverErrors.has(key)) serverErrors.set(key, error.reason ? `reason.${error.reason}` : error.code);
   }
   return { ...state, serverErrors };
 }

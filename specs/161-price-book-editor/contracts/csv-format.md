@@ -48,7 +48,9 @@ refused-rows file imports as it is (implemented 2026-10-23, T092).
    kind). Local errors are reported with the file line and never sent.
 2. `PUT /api/v1/admin/price-books/:id/rows?dryRun=true` with `{ mode, upsert: [...] }` (merge by
    default; replace on request). The answer's `errors[]` (`index` = position in `upsert`) are mapped
-   back to file lines; `diff` gives added / changed / removed / unchanged.
+   back to file lines; `diff` gives added / changed / removed / unchanged. Each error names its rule in
+   `reason` (`PRICE_BOOK_ROW_ERROR_REASONS`, coordinator ruling at Checkpoint 11), which the admin
+   translates; the English `message` is never shown.
 3. Confirm is enabled only with zero local and zero server errors (FR-041); it sends the same body
    without `dryRun` and with `expectedVersion` = the preview's `version`. `409 PRICE_BOOK_STALE`
    discards the preview and offers a new one.
