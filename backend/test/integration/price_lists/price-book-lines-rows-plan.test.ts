@@ -75,9 +75,9 @@ describe('price-book lines — the page-rows read is an index lookup on unanalys
       const cond = node['Index Cond'] ?? bitmapChildren(node).map((b) => b['Index Cond'] ?? '').join(' ');
       expect(cond, JSON.stringify(node).slice(0, 400)).toMatch(/product_id/);
     }
-    const read_ = (node: PlanNode): number => (node['Actual Rows'] ?? 0) * (node['Actual Loops'] ?? 1);
+    const rowsRead = (node: PlanNode): number => (node['Actual Rows'] ?? 0) * (node['Actual Loops'] ?? 1);
     for (const node of [...onRows, ...onRows.flatMap((n) => bitmapChildren(n))]) {
-      expect(read_(node), `${node['Node Type']} read ${read_(node)} rows`).toBeLessThanOrEqual(1000);
+      expect(rowsRead(node), `${node['Node Type']} read ${rowsRead(node)} rows`).toBeLessThanOrEqual(1000);
     }
   });
 });
