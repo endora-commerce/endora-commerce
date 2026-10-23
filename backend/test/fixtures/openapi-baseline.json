@@ -1492,6 +1492,13 @@
       }
     },
     "/api/v1/admin/catalog/products/{productId}/variants": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
       "post": {
         "responses": {
           "200": {
@@ -5087,6 +5094,24 @@
     },
     "/api/v1/admin/price-books/{id}/duplicate": {
       "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/price-books/{id}/lines": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/price-books/{id}/product-lines": {
+      "get": {
         "responses": {
           "200": {
             "description": "OK"

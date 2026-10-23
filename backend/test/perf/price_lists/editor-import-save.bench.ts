@@ -1,4 +1,4 @@
-// perf-weight: light — the pricing fixture's five products and one book of up to 5 000 rows.
+// perf-weight: fast — the pricing fixture's five products and one book of up to 5 000 rows; seconds locally.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { PriceBookRowsDryRun } from '@endora-commerce/contracts';
 import { setupBackendServer, teardownBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';

@@ -307,6 +307,8 @@ const SEED_DELTA: Readonly<Record<string, number>> = {
   //      PLN base book (203), and the six rows of the E1–E3 books; the four
   //      books, their three audience members and four channel rows.
   price_list_matrix_entries: 209,
+  // Feature 161 (G15): one membership line per product or variant line of the demo's books.
+  price_list_product_lines: 206,
   price_lists: 4,
   price_list_audience_members: 3,
   sales_channel_price_lists: 4,

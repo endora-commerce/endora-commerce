@@ -76,8 +76,9 @@ interface Subject {
 const SUBJECTS: readonly Subject[] = [
   {
     module: 'price_lists',
-    // Feature 161 adds the editor's two other entry points (FR-029).
-    actions: ['new-price-book', 'open-price-explainer', 'open-price-lists'],
+    // Feature 161 adds the editor's two other entry points (FR-029) and, by the
+    // coordinator's Checkpoint 10 ruling (Principle XVI), *Pricing settings*.
+    actions: ['new-price-book', 'open-price-explainer', 'open-price-lists', 'open-pricing-settings'],
     axis: 'platform-unavailable',
     admin: priceListsAdmin,
   },
