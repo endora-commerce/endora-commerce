@@ -380,10 +380,22 @@ describe('price-books API client — the boundary', () => {
 });
 
 describe('price-books API client — a product’s variants (FR-009)', () => {
-  it('reads the variants the catalogue knows from the product read the product editor uses', async () => {
+  it('reads every variant of the product through the catalogue’s admin variant read', async () => {
+    // Not the storefront's product read: that one hides an inactive or
+    // out-of-channel product (`backend/test/contract/catalog/admin-product-variants-read.test.ts`).
     const { client, calls } = fakeClient({
-      [`GET /api/v1/catalog/products/${PRODUCT_ID}`]: {
-        data: { id: PRODUCT_ID, name: { 'en-US': 'x' }, variants: [{ id: ORG_ID, sku: 'P1-RED-L', variantAttributeValues: { color: 'red' } }] },
+      [`GET /api/v1/admin/catalog/products/${PRODUCT_ID}/variants`]: {
+        data: [
+          {
+            id: ORG_ID,
+            parentProductId: PRODUCT_ID,
+            sku: 'P1-RED-L',
+            variantAttributeValues: { color: 'red' },
+            stockLevel: null,
+            createdAt: '2026-10-23T10:00:00.000Z',
+            updatedAt: '2026-10-23T10:00:00.000Z',
+          },
+        ],
       },
     });
     expect(await createPriceBooksApi(client).productVariants(PRODUCT_ID)).toEqual([{ id: ORG_ID, sku: 'P1-RED-L' }]);

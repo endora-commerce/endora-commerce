@@ -215,6 +215,7 @@ amended; one Save for the whole product page is issue #407).
 - [ ] T084 [US6] `PL/admin/components/PrecedenceView.tsx` in `PL/admin/pages/DisplayModeOverridesPage.tsx` (renamed *Pricing settings* in title and nav strings)
 - [ ] T085 [US7] `PL/admin/components/ShowListPriceSwitch.tsx` in the same page
 - [ ] T086 [US7] The pair in `storefront/components/pricing/BaseSalePriceBlock.tsx` and `storefront/components/PriceTag.tsx` from `resolvedPrice.listPrice` (G14); strings in `storefront/lib/i18n/messages.ts` (en + pl)
+- [ ] T086a [US6] Point the grid's precedence note (`PL/admin/components/PriceBookGrid.tsx`, *See the price precedence*, today `/price-lists/display-modes#precedence`) at the precedence view T084 adds — its section anchor on *Pricing settings* — test-first in `AT/price-book-grid.layout.test.tsx` (FR-037; coordinator, Checkpoint 5 review)
 
 **Checkpoint 9.**
 

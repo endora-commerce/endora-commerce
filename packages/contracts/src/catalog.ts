@@ -968,6 +968,24 @@ export type BulkOperationResponse = z.infer<typeof bulkOperationResponseSchema>;
  * `400 PRICE_SET_IN_PRICE_BOOKS` by the route, before this schema strips it
  * (FR-043; {@link PRICE_FIELDS_REFUSED_ON_VARIANTS}).
  */
+/**
+ * A variant as the admin reads it (`serializeAdminVariant`) — the answer of
+ * `GET /api/v1/admin/catalog/products/:productId/variants` (feature 161):
+ * every variant of the product, whatever its channels, status or audience.
+ */
+export const adminProductVariantSchema = z.object({
+  id: z.string().uuid(),
+  parentProductId: z.string().uuid(),
+  sku: z.string(),
+  variantAttributeValues: z.record(z.string(), z.unknown()),
+  stockLevel: z.number().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type AdminProductVariant = z.infer<typeof adminProductVariantSchema>;
+export const adminProductVariantsResponseSchema = z.object({ data: z.array(adminProductVariantSchema) });
+export type AdminProductVariantsResponse = z.infer<typeof adminProductVariantsResponseSchema>;
+
 export const createVariantRequestSchema = z.object({
   sku: z.string().min(1).max(255),
   variantAttributeValues: z.record(z.string(), z.unknown()),

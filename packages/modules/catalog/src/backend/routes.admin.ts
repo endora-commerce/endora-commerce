@@ -1514,6 +1514,15 @@ export async function registerCatalogAdminRoutes(
   // need an admin write surface for Variants. Foundation 001 shipped the
   // ProductVariant entity but no routes.
 
+  // Feature 161 — every variant of a product, as an admin sees it: the
+  // storefront's product read (which `ProductEditor` used for its variants)
+  // answers an inactive product 410 and an out-of-channel one 404.
+  app.get<{ Params: { productId: string } }>(
+    '/api/v1/admin/catalog/products/:productId/variants',
+    { preHandler: requireAdmin('catalog:read') },
+    async (request) => ({ data: (await adminService.listVariants(request.params.productId)).map(serializeAdminVariant) }),
+  );
+
   app.post<{ Params: { productId: string } }>(
     '/api/v1/admin/catalog/products/:productId/variants',
     {

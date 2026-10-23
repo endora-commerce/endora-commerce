@@ -601,6 +601,9 @@ export function PriceBookGrid(props: {
             {t('grid.tier.open')}
           </Button>
         ) : null}
+        {/* The catalogue's variant read needs `catalog:read`; without it the
+            book's priced variants still show, and the expansion is absent. */}
+        {hasPermission('catalog:read') ? (
         <Button
           type="button"
           variant="outline"
@@ -611,6 +614,7 @@ export function PriceBookGrid(props: {
           <Layers aria-hidden="true" />
           {activeProductKey && expanded.has(activeProductKey) ? t('grid.variants.hide') : t('grid.variants.show')}
         </Button>
+        ) : null}
       </div>
 
       {notice ? <GridNotice notice={notice} onReapply={reapply} onDiscard={discard} onOpen={openLine} /> : null}

@@ -3,7 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { priceBookSchema, type PriceBook } from '@endora-commerce/contracts';
 import { expectNoAxeViolations } from '../../helpers/axe';
-import { BOOKS, PLATFORM_ADMIN } from '../../helpers/price-book-fixtures';
+import { BOOKS, PLATFORM_ADMIN, SALES_REP_ACME } from '../../helpers/price-book-fixtures';
 
 /**
  * Variant lines and the cell detail (feature 161, T060; FR-009, FR-010): a
@@ -62,6 +62,15 @@ describe('price-book grid — variants', () => {
     await user.keyboard('70{Enter}');
     expect(gridCell('P1-RED-XL', 1)).toHaveTextContent('70.00');
     expect(screen.getByTestId('unsaved-count')).toHaveTextContent('Unsaved changes: 1');
+  });
+});
+
+describe('price-book grid — variants without catalog:read', () => {
+  it('shows the priced variants and offers no expansion, which needs the catalogue’s read', async () => {
+    mountScreen({ path: `/price-lists/${book.id}?tab=prices`, session: SALES_REP_ACME });
+    await screen.findByRole('grid');
+    expect(lineHeaders().some((h) => h.includes('P1-RED-L'))).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Show variants' })).toBeNull();
   });
 });
 

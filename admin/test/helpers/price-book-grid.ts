@@ -135,8 +135,19 @@ export function serveBook(api: MockApi, served: ServedBook): void {
         counts: { all: items.length, active: items.length, draft: 0, inactive: 0 },
       };
     }
-    const variantRead = /^\/api\/v1\/catalog\/products\/([^/]+)$/.exec(path!);
-    if (variantRead) return { data: { id: variantRead[1], variants: served.variants?.[variantRead[1]!] ?? [] } };
+    const variantRead = /^\/api\/v1\/admin\/catalog\/products\/([^/]+)\/variants$/.exec(path!);
+    if (variantRead) {
+      return {
+        data: (served.variants?.[variantRead[1]!] ?? []).map((v) => ({
+          ...v,
+          parentProductId: variantRead[1],
+          variantAttributeValues: {},
+          stockLevel: null,
+          createdAt: '2026-10-23T10:00:00.000Z',
+          updatedAt: '2026-10-23T10:00:00.000Z',
+        })),
+      };
+    }
     throw new Error(`unexpected GET ${url}`);
   });
 }

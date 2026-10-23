@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  adminProductVariantsResponseSchema,
   precedenceViewSchema,
   priceBookLinesResponseSchema,
   priceBookListResponseSchema,
@@ -140,9 +141,10 @@ export interface PriceBooksApi {
   writeRows(id: string, batch: PriceBookRowsBatch, expectedVersion: number): Promise<PriceBookRowsWriteResult>;
   basePrices(productId: string): Promise<ProductBasePrices>;
   /**
-   * The variants the catalogue knows for a product (FR-009), id and SKU. Read
-   * from the product read the catalogue's own product editor uses for its
-   * variants (`/api/v1/catalog/products/:id`); there is no admin variant list.
+   * Every variant the catalogue holds for a product (FR-009), id and SKU,
+   * through the catalogue's admin variant read (`catalog:read`) — not the
+   * storefront's product read, which hides an inactive or out-of-channel
+   * product.
    */
   productVariants(productId: string): Promise<Array<{ id: string; sku: string }>>;
   writeBasePrices(productId: string, body: BasePricesWrite): Promise<ProductBasePrices>;
@@ -273,8 +275,8 @@ export function createPriceBooksApi(client: PriceBooksTransport): PriceBooksApi 
     setShowListPrice: async (value) =>
       (await send('PUT', `${BASE}/settings/show-list-price`, { value }, dataOf(showListPriceWriteSchema))).value,
     productVariants: async (productId) => {
-      const answer = await get(`/api/v1/catalog/products/${encodeURIComponent(productId)}`, productVariantsAnswer);
-      return answer.data.variants.map((v) => ({ id: v.id, sku: v.sku }));
+      const answer = await get(`/api/v1/admin/catalog/products/${encodeURIComponent(productId)}/variants`, adminProductVariantsResponseSchema);
+      return answer.data.map((v) => ({ id: v.id, sku: v.sku }));
     },
     targets: {
       currencies: async () => items(await get(`${BASE}/targets/currencies`, priceBookTargetCurrenciesResponseSchema)),
@@ -305,8 +307,3 @@ export function createPriceBooksApi(client: PriceBooksTransport): PriceBooksApi 
     },
   };
 }
-
-/** The part of the catalogue's product read the grid uses: its variants' ids and SKUs. */
-const productVariantsAnswer = z.object({
-  data: z.object({ variants: z.array(z.object({ id: z.string(), sku: z.string() })).default([]) }),
-});

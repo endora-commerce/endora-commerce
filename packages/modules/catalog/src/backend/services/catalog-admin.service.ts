@@ -1771,6 +1771,16 @@ export class CatalogAdminService {
 
   // ===== Feature 002 (T054 backend prereq) — Variants CRUD =================
 
+  /**
+   * Every variant of a product, by SKU — the admin's view (feature 161): no
+   * channel, status or audience filter, unlike the storefront's product read.
+   * A deleted or unknown product is `404`.
+   */
+  async listVariants(parentProductId: string): Promise<ProductVariant[]> {
+    const product = await this.getProductById(parentProductId);
+    return this.emFactory().find(ProductVariant, { parentProductId: product.id }, { orderBy: { sku: 'asc' } });
+  }
+
   async createVariant(
     parentProductId: string,
     req: CreateVariantRequest,
