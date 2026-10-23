@@ -51,21 +51,21 @@ describe('price-book grid — paging by line', () => {
     const user = userEvent.setup();
     await open();
     expect(lineRequests(api).at(-1)!.get('pageSize')).toBe('50');
-    expect(screen.getByText('Lines 1–50 of 120')).toBeInTheDocument();
+    expect(screen.getByText('Showing 1–50 of 120')).toBeInTheDocument();
     expect(screen.getByText('Page 1 of 3')).toBeInTheDocument();
     expect(screen.getByRole('grid')).toHaveAttribute('aria-rowcount', '121');
-    await user.click(screen.getByRole('button', { name: 'Next page' }));
+    await user.click(screen.getByRole('button', { name: 'Next' }));
     await waitFor(() => expect(screen.getByText('Page 2 of 3')).toBeInTheDocument());
     expect(lineRequests(api).at(-1)!.get('page')).toBe('2');
     const headers = lineHeaders();
     expect(headers[0]).toContain('Screw 051');
     expect(headers[1]).toContain('S-051-A');
     expect(headers[2]).toContain('S-051-B');
-    await user.selectOptions(screen.getByLabelText('Lines per page'), '200');
-    await waitFor(() => expect(screen.getByText('Lines 1–120 of 120')).toBeInTheDocument());
+    await user.selectOptions(screen.getByLabelText('Rows per page:'), '200');
+    await waitFor(() => expect(screen.getByText('Showing 1–120 of 120')).toBeInTheDocument());
     expect(lineRequests(api).at(-1)!.get('page')).toBe('1');
     expect(lineRequests(api).at(-1)!.get('pageSize')).toBe('200');
-    expect([...screen.getByLabelText('Lines per page').querySelectorAll('option')].map((o) => o.textContent)).toEqual(['50', '100', '200']);
+    expect([...screen.getByLabelText('Rows per page:').querySelectorAll('option')].map((o) => o.textContent)).toEqual(['50', '100', '200']);
   });
 
   it('sends the search and the kind to the server', async () => {
@@ -83,11 +83,11 @@ describe('price-book grid — paging by line', () => {
     await open();
     await user.click(gridCell('Screw 002', 1));
     await user.keyboard('99{Enter}');
-    await user.click(screen.getByRole('button', { name: 'Next page' }));
+    await user.click(screen.getByRole('button', { name: 'Next' }));
     await waitFor(() => expect(screen.getByText('Page 2 of 3')).toBeInTheDocument());
     await user.click(gridCell('Screw 060', 1));
     await user.keyboard('66{Enter}');
-    await user.click(screen.getByRole('button', { name: 'Previous page' }));
+    await user.click(screen.getByRole('button', { name: 'Previous' }));
     await waitFor(() => expect(screen.getByText('Page 1 of 3')).toBeInTheDocument());
     expect(gridCell('Screw 002', 1)).toHaveTextContent('99.00');
     expect(screen.getByTestId('unsaved-count')).toHaveTextContent('Unsaved changes: 2');

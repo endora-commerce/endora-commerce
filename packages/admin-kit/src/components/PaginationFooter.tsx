@@ -3,19 +3,25 @@ import type { ReactNode } from 'react';
 import { PAGE_SIZE_OPTIONS, type PageSizeOption } from '../lib/page-size-options.js';
 import { useTranslation } from '../i18n/useTranslation.js';
 
-export interface PaginationFooterProps {
+export interface PaginationFooterProps<S extends number = PageSizeOption> {
   /** Zero-based page index. */
   page: number;
-  /** Currently chosen page size; must be one of `PAGE_SIZE_OPTIONS`. */
-  pageSize: PageSizeOption;
+  /** Currently chosen page size; one of `pageSizes`. */
+  pageSize: S;
   /** Total number of items across all pages (post-filter). */
   total: number;
   /** Called when the user picks a different page size. The list owner
    *  is responsible for resetting `page` to 0 (we don't do it here so
    *  the footer stays a pure presentational component). */
-  onPageSizeChange: (next: PageSizeOption) => void;
+  onPageSizeChange: (next: S) => void;
   onPrev: () => void;
   onNext: () => void;
+  /**
+   * The page sizes offered; the shared `PAGE_SIZE_OPTIONS` when omitted. For a
+   * list whose API pages differently (feature 161: the price-book grid's
+   * 50/100/200 lines).
+   */
+  pageSizes?: readonly S[];
 }
 
 /**
@@ -25,8 +31,9 @@ export interface PaginationFooterProps {
  * the buttons reflects page bounds; the empty-list case still renders
  * (so the footer doesn't disappear and "wiggle" the layout).
  */
-export function PaginationFooter(props: PaginationFooterProps): ReactNode {
+export function PaginationFooter<S extends number = PageSizeOption>(props: PaginationFooterProps<S>): ReactNode {
   const { page, pageSize, total, onPageSizeChange, onPrev, onNext } = props;
+  const sizes: readonly S[] = props.pageSizes ?? (PAGE_SIZE_OPTIONS as readonly number[] as readonly S[]);
   const t = useTranslation('core');
   const totalPages = total === 0 ? 1 : Math.ceil(total / pageSize);
   const safePage = Math.min(Math.max(0, page), Math.max(0, totalPages - 1));
@@ -52,14 +59,14 @@ export function PaginationFooter(props: PaginationFooterProps): ReactNode {
             className="b2b-field b2b-field--sm"
             value={pageSize}
             onChange={(e): void => {
-              const next = Number.parseInt(e.target.value, 10) as PageSizeOption;
-              if ((PAGE_SIZE_OPTIONS as readonly number[]).includes(next)) {
+              const next = Number.parseInt(e.target.value, 10) as S;
+              if (sizes.includes(next)) {
                 onPageSizeChange(next);
               }
             }}
             style={{ height: 28, padding: '0 24px 0 8px', fontSize: 12 }}
           >
-            {PAGE_SIZE_OPTIONS.map((opt) => (
+            {sizes.map((opt) => (
               <option key={opt} value={opt}>
                 {opt}
               </option>

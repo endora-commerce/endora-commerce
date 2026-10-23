@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Circle, Layers, ListPlus, Percent, PlusCircle, RotateCcw, Save, SlidersHorizontal, Tag, TextCursorInput } from 'lucide-react';
+import { Circle, Layers, ListPlus, Percent, PlusCircle, RotateCcw, Save, SlidersHorizontal, Tag, TextCursorInput } from 'lucide-react';
 import type { PriceBook, PriceBookLine, PriceBookRowError, PriceBookRowPrice, PriceBookSelectionKind } from '@endora-commerce/contracts';
 import {
   EditableGrid,
   ModalDialog,
+  PaginationFooter,
   ProductBrowserDialog,
   StickyFormActions,
   productDisplayName,
@@ -514,8 +515,6 @@ export function PriceBookGrid(props: {
   );
 
   const totalPages = Math.max(1, Math.ceil(totalLines / pageSize));
-  const first = totalLines === 0 ? 0 : (page - 1) * pageSize + 1;
-  const last = Math.min(page * pageSize, totalLines);
   const offsetOfPage = (page - 1) * pageSize;
   const addedCount = orderedKeys.length - (pageLines ? orderedKeys.filter((k) => !state.lines.get(k)?.added).length : 0);
 
@@ -663,36 +662,20 @@ export function PriceBookGrid(props: {
         </div>
       )}
 
-      <nav aria-label={t('grid.pager')} className="flex flex-wrap items-center gap-3 text-sm">
-        <span>{t('grid.pager.range', { first, last, total: totalLines })}</span>
-        <span>{t('grid.pager.page', { page, total: totalPages })}</span>
-        <Label htmlFor={`${id}-size`} className="ml-auto">
-          {t('grid.pager.size')}
-        </Label>
-        <Select
-          id={`${id}-size`}
-          className="w-24"
-          value={pageSize}
-          onChange={(event): void => {
-            setPageSize(Number(event.target.value) as (typeof PAGE_SIZES)[number]);
+      {totalLines > 0 ? (
+        <PaginationFooter
+          page={page - 1}
+          pageSize={pageSize}
+          pageSizes={PAGE_SIZES}
+          total={totalLines}
+          onPageSizeChange={(next): void => {
+            setPageSize(next);
             setPage(1);
           }}
-        >
-          {PAGE_SIZES.map((size) => (
-            <option key={size} value={size}>
-              {size}
-            </option>
-          ))}
-        </Select>
-        <Button type="button" variant="outline" size="sm" disabled={page <= 1} onClick={(): void => setPage((p) => p - 1)}>
-          <ChevronLeft aria-hidden="true" />
-          {t('grid.pager.previous')}
-        </Button>
-        <Button type="button" variant="outline" size="sm" disabled={page >= totalPages} onClick={(): void => setPage((p) => p + 1)}>
-          {t('grid.pager.next')}
-          <ChevronRight aria-hidden="true" />
-        </Button>
-      </nav>
+          onPrev={(): void => setPage((p) => Math.max(1, p - 1))}
+          onNext={(): void => setPage((p) => Math.min(totalPages, p + 1))}
+        />
+      ) : null}
 
       <p role="status" className="sr-only">
         {status}
