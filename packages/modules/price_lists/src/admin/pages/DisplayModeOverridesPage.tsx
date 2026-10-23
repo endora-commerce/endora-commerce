@@ -10,7 +10,8 @@ import {
 } from 'lucide-react';
 import type { DisplayMode } from '@endora-commerce/contracts';
 import { ApiError, apiClient, normalize } from '@endora-commerce/admin-kit/lib';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
+import { adminLanguageToLocale, pickCategoryDisplayName } from '@endora-commerce/admin-kit/components';
 type Scope = 'organization' | 'category' | 'product';
 
 interface DisplayModeOverrideRow {
@@ -25,15 +26,33 @@ interface OrganizationRow {
   name: string;
   taxId: string;
 }
+/** A category as `…/price-books/targets/categories` answers it: `name` by language tag. */
 interface CategoryRow {
   id: string;
   slug: string;
-  name: string;
+  name: Record<string, string>;
 }
+/** A product as `/api/v1/admin/catalog/products` answers it: `name` by language tag. */
 interface ProductRow {
   id: string;
   sku: string;
-  name: string;
+  name: Record<string, string>;
+}
+
+/**
+ * A catalogue name in the admin language, picked as every admin surface picks
+ * it (`pickCategoryDisplayName`: the language's tag, then `en-US`, then any
+ * non-empty one, then `fallback`). Both maps arrive keyed by language tag, so
+ * rendering one as it came would put an object into the tree.
+ */
+function useLocalizedName(): (name: Record<string, string> | undefined, fallback: string) => string {
+  const { language } = useTranslationContext();
+  const locale = adminLanguageToLocale(language);
+  return useCallback(
+    (name: Record<string, string> | undefined, fallback: string): string =>
+      name ? pickCategoryDisplayName(name, fallback, locale) : fallback,
+    [locale],
+  );
 }
 
 
@@ -76,6 +95,7 @@ export function DisplayModeOverridesPage(): ReactNode {
   const [orgs, setOrgs] = useState<Record<string, OrganizationRow>>({});
   const [cats, setCats] = useState<Record<string, CategoryRow>>({});
   const [products, setProducts] = useState<Record<string, ProductRow>>({});
+  const localizedName = useLocalizedName();
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -122,8 +142,12 @@ export function DisplayModeOverridesPage(): ReactNode {
 
   const labelFor = (row: DisplayModeOverrideRow): string => {
     if (row.scope === 'organization') return orgs[row.targetId]?.name ?? row.targetId;
-    if (row.scope === 'category') return cats[row.targetId]?.name ?? row.targetId;
-    return products[row.targetId]?.name ?? row.targetId;
+    if (row.scope === 'category') {
+      const cat = cats[row.targetId];
+      return cat ? localizedName(cat.name, cat.slug) : row.targetId;
+    }
+    const product = products[row.targetId];
+    return product ? localizedName(product.name, product.sku) : row.targetId;
   };
 
   const subtitleFor = (row: DisplayModeOverrideRow): string => {
@@ -141,7 +165,7 @@ export function DisplayModeOverridesPage(): ReactNode {
       return label.includes(q) || subtitle.includes(q) || normalize(row.targetId).includes(q);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [overrides, search, orgs, cats, products]);
+  }, [overrides, search, orgs, cats, products, localizedName]);
 
   const handleUpsert = async (
     targetId: string,
@@ -494,6 +518,7 @@ function AddOverrideDialog(props: {
     product: t('priceLists.displayModes.scope.product'),
   };
   const { scope, existing, orgs, cats, products, onClose, onPick } = props;
+  const localizedName = useLocalizedName();
   const [search, setSearch] = useState('');
   const [picked, setPicked] = useState<string | null>(null);
   const [mode, setMode] = useState<DisplayMode>('gross_only');
@@ -503,9 +528,9 @@ function AddOverrideDialog(props: {
     if (scope === 'organization') {
       for (const o of Object.values(orgs)) rows.push({ id: o.id, label: o.name, subtitle: o.taxId });
     } else if (scope === 'category') {
-      for (const c of Object.values(cats)) rows.push({ id: c.id, label: c.name, subtitle: c.slug });
+      for (const c of Object.values(cats)) rows.push({ id: c.id, label: localizedName(c.name, c.slug), subtitle: c.slug });
     } else {
-      for (const p of Object.values(products)) rows.push({ id: p.id, label: p.name, subtitle: p.sku });
+      for (const p of Object.values(products)) rows.push({ id: p.id, label: localizedName(p.name, p.sku), subtitle: p.sku });
     }
     rows.sort((a, b) => a.label.localeCompare(b.label));
     const q = normalize(search);
@@ -515,7 +540,7 @@ function AddOverrideDialog(props: {
         !existing.has(r.id) &&
         (normalize(r.label).includes(q) || normalize(r.subtitle).includes(q)),
     );
-  }, [scope, orgs, cats, products, existing, search]);
+  }, [scope, orgs, cats, products, existing, search, localizedName]);
 
   return (
     <>
