@@ -108,6 +108,9 @@ export type { ModalDialogProps } from './modal-dialog/ModalDialog.js';
 export { useViewportTier } from './hooks/useViewportTier.js';
 export type { ViewportTier } from './hooks/useViewportTier.js';
 export { MethodAvailabilityCaption, MethodAvailabilityCell, MethodNotOfferedNotice } from './payment-method-availability/MethodAvailabilityCell.js';
+// Feature 161 — the editable grid (`specs/161-price-book-editor/research.md` R4).
+export { EditableGrid } from './editable-grid/index.js';
+export type { EditableGridCellChange, EditableGridChangeReason, EditableGridColumn, EditableGridHandle, EditableGridProps, EditableGridRenderContext, EditableGridRow, EditableGridSelection } from './editable-grid/index.js';
 export { KanbanBoard } from './kanban/index.js';
 export type { KanbanBoardLabels, KanbanBoardProps, KanbanCardRenderState, KanbanColumnRenderState, KanbanColumnState, KanbanDropState } from './kanban/index.js';
 export { ReorderAnnouncer } from './reorder/ReorderAnnouncer.js';
