@@ -16,14 +16,24 @@ import { setupPricingFixture, type PricingFixture } from '../../helpers/pricing-
  * nested-loop anti join filtering every buyer row per everyone row — 428 s
  * for 50 000 × 50 000 rows, on the first page that buyer asked for.
  *
- * So each statement that matches surface rows (or marks) against another set
- * probes them with a scalar `limit 1` sub-select the planner cannot flatten
- * into a join: one index lookup per probed row. This file runs the statements
- * the read path and the marking issue against tables whose statistics say
- * "empty" and asserts, on `EXPLAIN (ANALYZE, FORMAT JSON)`, that no join over
+ * A first repair — a scalar `limit 1` probe per everyone row — still took
+ * 47 s there: with no statistics the planner served the probe from the
+ * ordering index `(profile, generation, amount, product)`, a range scan of the
+ * whole buyer surface per probe. So:
+ *
+ * - the coverage check reads each surface's product ids by itself (one index
+ *   range each) and compares them in memory — no statement joins two
+ *   surfaces' rows, so no plan can make it quadratic;
+ * - a whole build that writes a large share of `price_profile_prices` (or the
+ *   first into a table with no statistics) analyses it inside its own
+ *   transaction, so the statistics arrive with the rows they describe and the
+ *   page statements' probes are planned on them.
+ *
+ * This file runs the statements against tables whose statistics say "empty"
+ * and asserts, on `EXPLAIN (ANALYZE, FORMAT JSON)`, that no join over
  * `price_profile_prices` or `price_profile_stale_products` filters on a
- * product or profile it could have looked up, and that the rows read stay
- * proportional to the rows probed.
+ * product or profile it could have looked up, that the rows read stay
+ * proportional to the rows probed, and that a build left statistics behind.
  */
 describe('price surface — its statements probe by index on unanalysed tables', () => {
   let h: BackendServerHandle;
@@ -125,8 +135,15 @@ describe('price surface — its statements probe by index on unanalysed tables',
       )[0].n,
     );
 
-  it('the coverage check of a buyer surface holding every product', async () => {
-    const statements = await captured(/as "uncovered"/, () =>
+  it('a whole build into a table with no statistics leaves statistics behind', async () => {
+    const [{ reltuples }] = (await sql<{ reltuples: number }>(
+      `select "reltuples"::float8 as "reltuples" from "pg_class" where "relname" = 'price_profile_prices'`,
+    )) as [{ reltuples: number }];
+    expect(reltuples, 'price_profile_prices analysed by the build').toBeGreaterThan(0);
+  });
+
+  it('the coverage check of a buyer surface holding every product joins no two surfaces', async () => {
+    const statements = await captured(/"price_profile_prices"/, () =>
       f.pricing.orderByUnitPrice({
         context: { salesChannel: { id: f.channels.CH1.id, defaultCurrency: 'PLN' }, organization: f.orgs.Acme },
         direction: 'desc',
@@ -134,8 +151,13 @@ describe('price surface — its statements probe by index on unanalysed tables',
         limit: 2,
       }),
     );
-    expect(statements.length, 'the coverage check ran').toBeGreaterThan(0);
-    await expectProbes(statements[0]!, 'coverage', await everyoneRows());
+    expect(statements.length, 'the page read the surface').toBeGreaterThan(0);
+    // Every statement of the page: no join filtering surface rows, rows read in proportion.
+    for (const statement of statements) await expectProbes(statement, 'page', await everyoneRows());
+    // The coverage reads name one surface each.
+    const coverage = statements.filter((st) => /as "coverage"/.test(st.sql));
+    expect(coverage.length, 'the coverage check ran').toBe(2);
+    for (const st of coverage) expect(st.sql.match(/"price_profile_prices"/g)?.length, st.sql).toBe(1);
   });
 
   it('the marking’s read of the rows the buyer surfaces hold, and the worker’s read of its work', async () => {

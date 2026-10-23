@@ -87,6 +87,11 @@ const PARTIAL_LIMIT = 10_000;
 /** Marks (and refreshed rows) written or deleted per statement. */
 const MARK_CHUNK = 5_000;
 
+/** A whole build analyses `price_profile_prices` when it wrote at least this many rows… */
+const ANALYZE_MIN_ROWS = 1_000;
+/** …and at least this share of the rows the statistics know of (or the table has none). */
+const ANALYZE_SHARE = 0.2;
+
 /** A served surface: the profile id, the generation readers filter on, and the revision every memo of it is keyed on. */
 interface ReadySurface {
   id: string;
@@ -518,28 +523,34 @@ export class PriceSurface {
    * targeted refresh moves the revision, so a stale answer is never read; the
    * page statement checks the pair).
    *
-   * Each everyone row is probed with a scalar `limit 1` sub-select, which the
-   * planner cannot flatten into a join: one primary-key lookup per row,
-   * whatever the statistics. Written as `not exists`, it was planned — on a
-   * table analysed while empty, as a fresh install's and the bench's are — as a
-   * nested-loop anti join filtering every buyer row per everyone row: 428 s for
-   * an all-products buyer on the SC-005 fixture (`price-surface-plans.test.ts`).
+   * Each surface's product ids are read by themselves — one index range each —
+   * and compared here. Any statement matching one surface's rows against the
+   * other's is at the planner's mercy: on a table analysed while empty, as a
+   * fresh install's and the bench's are, `not exists` was planned as a
+   * nested-loop anti join filtering every buyer row per everyone row (428 s for
+   * an all-products buyer on the SC-005 fixture), and a scalar `limit 1` probe
+   * was served from the ordering index, a range scan of the buyer surface per
+   * probe (47 s) — `price-surface-plans.test.ts`.
    */
   async #buyerCoversEveryone(buyer: ReadySurface, everyone: ReadySurface): Promise<boolean> {
     const key = `${buyer.id}@${buyer.revision}|${everyone.id}@${everyone.revision}`;
     const held = this.#coverage.get(key);
     if (held !== undefined) return held;
-    const [row] = await this.deps.emFactory().execute<Array<{ uncovered: boolean }>>(
-      `select exists (
-         select 1 from "price_profile_prices" e
-          where e."profile_id" = ? and e."generation" = ?
-            and (select 1 from "price_profile_prices" b
-                  where b."profile_id" = ? and b."generation" = ? and b."product_id" = e."product_id"
-                  limit 1) is null
-       ) as "uncovered"`,
-      [everyone.id, everyone.generation, buyer.id, buyer.generation],
-    );
-    const covered = row ? !row.uncovered : false;
+    const em = this.deps.emFactory();
+    const idsOf = async (surface: ReadySurface): Promise<string[]> =>
+      (
+        await em.execute<Array<{ coverage: string }>>(
+          `select "product_id" as "coverage" from "price_profile_prices" where "profile_id" = ? and "generation" = ?`,
+          [surface.id, surface.generation],
+        )
+      ).map((r) => r.coverage);
+    const buyerIds = await idsOf(buyer);
+    const everyoneIds = await idsOf(everyone);
+    let covered = buyerIds.length >= everyoneIds.length;
+    if (covered) {
+      const held = new Set(buyerIds);
+      covered = everyoneIds.every((id) => held.has(id));
+    }
     if (this.#coverage.size >= COVERAGE_MEMO_LIMIT) this.#coverage.clear();
     this.#coverage.set(key, covered);
     return covered;
@@ -696,7 +707,12 @@ export class PriceSurface {
       if (current?.state === 'ready' && !current.stale) return;
       const next = Number(current?.serving_generation ?? 0) + 1;
       await em.execute(`delete from "price_profile_prices" where "profile_id" = ? and "generation" = ?`, [id, next]);
-      await this.#rowsOf(em, profile, products, everyoneServed, (rows) => this.#insertRows(em, id, next, rows));
+      let written = 0;
+      await this.#rowsOf(em, profile, products, everyoneServed, async (rows) => {
+        written += rows.length;
+        await this.#insertRows(em, id, next, rows);
+      });
+      await this.#analyzeIfStale(em, written);
       // The swap: readers move to the new generation at commit. A whole mark
       // made after the pass read the profile (or, for a build the pass did not
       // ask for, after this one began) keeps it stale.
@@ -712,6 +728,26 @@ export class PriceSurface {
       if (due) await this.#clearMarks(em, due.marks);
     });
     return id;
+  }
+
+  /**
+   * Statistics that arrive with the rows they describe. A build that wrote a
+   * large share of `price_profile_prices` — or wrote into a table with no
+   * statistics at all (never analysed, or analysed while empty) — analyses it
+   * inside its own transaction, before the swap commits: `ANALYZE` counts the
+   * transaction's own rows, and its statistics become visible with them. The
+   * page statements probe the surface row by row, and with statistics that say
+   * "empty" the planner served those probes from the ordering index, a range
+   * scan per probe. Steady-state builds write a small share and skip it.
+   */
+  async #analyzeIfStale(em: EntityManager, written: number): Promise<void> {
+    if (written === 0) return;
+    const [row] = await em.execute<Array<{ reltuples: number }>>(
+      `select "reltuples"::float8 as "reltuples" from "pg_class" where "oid" = '"price_profile_prices"'::regclass`,
+    );
+    const known = Number(row?.reltuples ?? -1);
+    if (known > 0 && (written < ANALYZE_MIN_ROWS || written < known * ANALYZE_SHARE)) return;
+    await em.execute(`analyze "price_profile_prices"`);
   }
 
   /**
