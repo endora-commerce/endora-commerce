@@ -165,7 +165,6 @@ export const feedRunFailureCodeSchema = z.enum([
    * symptom once per product.
    */
   'storefront_url_unconfigured',
-  'price_list_unavailable',
   'language_unavailable',
   'skip_threshold_exceeded',
   'storage_unavailable',
