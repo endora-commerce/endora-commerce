@@ -72,7 +72,8 @@ describe('CatalogProductReadService.pageProductsByAdminName (161 G15)', () => {
   it('orders the members by the English key, then SKU, with the total; non-members absent', async () => {
     const answer = await page(port, { language: 'en' });
     expect(answer.total).toBe(7);
-    // anchor, bolt (B1), bolt (B2), brick, fastener (soft-deleted, listed), g15n-e-… (no name: its SKU), łącznik → "lacznik"
+    // anchor, bolt (B1), bolt (B2), brick, fastener (soft-deleted, listed), g15n-e-… (no name: its SKU),
+    // then the Polish-only product (`lacznik` above), whose name falls back to Polish and folds to "lacznik"
     expect(answer.ids).toEqual([ids['anchor'], ids['bolt1'], ids['bolt2'], ids['brick'], ids['gone'], ids['empty'], ids['lacznik']]);
   });
 
