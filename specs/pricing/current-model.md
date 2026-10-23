@@ -153,7 +153,8 @@ whole-marked profile's next generation and swapped it in (`contracts/price-surfa
 `research.md` R17); a profile never built is answered without one — live over
 a bounded restriction (≤ 5 000 products), from the everyone surface for an unrestricted buyer page,
 or `unordered` (the catalogue's default order) when nothing is built. **No request builds a
-surface**: the order may lag a change by the worker's turnaround (SC-005: ≤ 60 s), a displayed
+surface**: the order may lag a change by the worker's turnaround (SC-005: ≤ 60 s for a targeted
+change, ≤ 300 s at 200 profiles for a catalogue-wide one), a displayed
 price never — cards are always resolved live. Measured in
 `backend/test/perf/price_lists/price-surface.bench.ts` and `read-paths-and-performance.md` §7.
 
@@ -183,5 +184,5 @@ price never — cards are always resolved live. Measured in
    in place; measured at 202 profiles in `read-paths-and-performance.md` §7. What remains: a change
    that concerns every product of its profiles — a row selecting by attribute alone or every
    product, a change to more than 10 000 products, a channel event, the precedence — still rebuilds
-   those profiles whole (a full rebuild of 202 profiles took 274.7 s), and SC-005's 60 s is not
-   measured for that case.
+   those profiles whole (a full rebuild of 202 profiles took 274.7 s). SC-005 gives that case its
+   own bound, ≤ 300 s at 200 profiles (owner ruling 2026-10-24); making it faster is issue #416.

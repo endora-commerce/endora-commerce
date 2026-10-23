@@ -472,7 +472,7 @@ and Phase 13 (`plan.md` *Release gate*).
 | SC-002 | T060 |
 | SC-003 | T061 |
 | SC-004 | T002 (baseline), T063, T069 |
-| SC-005 | T068, T088 |
+| SC-005 | T068, T088, T165; the catalogue-wide bound (≤ 300 s at 200 profiles, owner ruling 2026-10-24) has no assertion yet — the bench records only a full rebuild of every profile |
 | SC-006 | T114 |
 | SC-007 | T107 |
 | SC-008 | T093 |

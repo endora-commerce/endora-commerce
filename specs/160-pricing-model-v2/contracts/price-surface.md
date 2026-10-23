@@ -30,7 +30,8 @@ price), FR-026. The SQL is built in `unit-price-ordering.ts` (rewritten, same th
 ## 3. Profile miss and staleness — a request never waits on a build
 
 Owner decision (2026-10-22): no request builds a surface. The order may lag a change by the worker's
-turnaround (SC-005: ≤ 60 s); a displayed price never lags, because cards are always resolved live.
+turnaround (SC-005: ≤ 60 s for a targeted change, ≤ 300 s at 200 profiles for a catalogue-wide one,
+§4); a displayed price never lags, because cards are always resolved live.
 
 - **Marked profile** (a pricing write since its last build or refresh): keeps serving its surface.
   A write is a mark, not an unready state, at one of two granularities (§4): a **whole-profile
@@ -107,8 +108,11 @@ pass deletes only the marks it read, by id — a mark is only ever inserted, a s
 second row — so a write during a pass is done by the next, and a writer and the worker never lock
 the same mark. Passes repeat while a pass finds work. A whole build that writes a large share of
 `price_profile_prices`, or into a table with no statistics, runs `ANALYZE` on it inside its own
-transaction. SC-005's freshness bound (60 s) is the worker's turnaround, measured by the bench
-(§5); it is unchanged by the ruling.
+transaction. SC-005's freshness bound is the worker's turnaround, measured by the bench (§5): 60 s
+for a targeted change, unchanged by the ruling, and — owner ruling 2026-10-24 — ≤ 300 s at 200
+built profiles for a **catalogue-wide** change, one that marks its profiles whole (an all-products or
+attribute-only row on an everyone or base book, a channel identity or lifecycle event, a change over
+10 000 products). Issue #416 tracks making the whole rebuild faster.
 
 ## 5. Measurement — `backend/test/perf/price_lists/price-surface.bench.ts`
 
@@ -122,6 +126,7 @@ organizations, 500 with books of three kinds, 20 groups). Assertions:
 | profile-miss page (restricted build) | recorded, not asserted; reported against the budget |
 | single-book refresh → visible in sort | p95 ≤ **60 s** (SC-005) |
 | at ≥ 200 built profiles: write → visible for an everyone row, an organization row, a base price through `priceBookWritePort`, a `product.updated.v1`; probe writes during a PIM-like import | each ≤ **60 s** (SC-005) |
+| at ≥ 200 built profiles: a catalogue-wide change → visible in sort (whole rebuild of the profiles it reaches) | ≤ **300 s** (SC-005, owner ruling 2026-10-24); today only the full rebuild of every profile is recorded (274.7 s at 202), not asserted |
 | full rebuild | recorded (input to P3's precedence flow) |
 | `price_profile_prices` rows and index size | recorded; above 10 M rows triggers the profile-factor task (`research.md` R7) |
 

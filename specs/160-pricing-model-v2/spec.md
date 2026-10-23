@@ -97,6 +97,16 @@ most; development price books dropped and reseeded; demo books reproduce E1–E3
   base book created by the demo would be a system book that a demo reset cannot tell from the
   operator's own.
 
+### Session 2026-10-24
+
+- Q: The targeted refresh of the price surface (owner ruling 2026-10-23) still rebuilds every
+  profile a catalogue-wide change reaches, and a full rebuild of 202 profiles measured 274.7 s,
+  against SC-005's 60 s. Does the 60 s bound apply to those changes? → A: **no — 60 s applies to
+  targeted changes only; a catalogue-wide change gets its own measured bound, ≤ 300 s at 200
+  profiles** (owner ruling 2026-10-24, SC-005). Catalogue-wide: an all-products or attribute-only
+  row on an everyone or base book, a sales-channel identity or lifecycle event, a change concerning
+  more than 10 000 products. Making the whole rebuild faster is issue #416.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 — Every product and variant has a base price in each currency (Priority: P1)
@@ -555,7 +565,11 @@ storefront.
   database round trips independent of the number of price books.
 - **SC-005**: A price-sorted first page returns within the existing price-sort budget (150 ms p95) on
   a 50 000-product catalogue with 1 000 organizations of which half have their own books, and a price
-  change is reflected in sorted listings within 60 seconds.
+  change is reflected in sorted listings within 60 seconds. A **catalogue-wide** change — an
+  all-products or attribute-only row on an everyone or base book, a sales-channel identity or
+  lifecycle event, or a change concerning more than 10 000 products — is reflected within
+  **300 seconds at 200 built profiles** instead (owner ruling 2026-10-24, Clarifications Session
+  2026-10-24; issue #416 tracks making it faster).
 - **SC-006**: After installation, nothing of the old model listed in FR-042 remains, and no product or
   variant that had a price before has none afterwards in the currency it had it in.
 - **SC-007**: A freshly reset demo reproduces E3, and with only E1's or only E2's books active

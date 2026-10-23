@@ -47,8 +47,9 @@ books. Measurements are in §7.
   `PL/backend/services/price-list-service.ts`).
 - **A change that concerns every product of its profiles still rebuilds them whole** — a row
   selecting by attribute alone or every product, a change to more than 10 000 products, a channel
-  event, the precedence. A full rebuild of 202 profiles took 274.7 s (§7); SC-005's 60 s is
-  measured for targeted changes only, not for this case. (Until 2026-10-23 every bump rebuilt every
+  event, the precedence. A full rebuild of 202 profiles took 274.7 s (§7). SC-005 bounds such a
+  catalogue-wide change at ≤ 300 s at 200 profiles, beside 60 s for a targeted one (owner ruling
+  2026-10-24); speeding it up is issue #416. (Until 2026-10-23 every bump rebuilt every
   profile; the targeted refresh of research R17 replaced that.)
 
 ## Summary of the pre-160 baseline
@@ -523,8 +524,8 @@ and commit 974 ms.
 
 What is **not** measured (gap): catalogue scale beyond 5 000 products for the listing path; the
 write → visible time of a change that rebuilds hundreds of profiles whole (an all-products or
-attribute-only row, a channel event — a full rebuild of 202 profiles is recorded at 274.7 s, not
-asserted against SC-005); multi-replica cache behaviour; typeahead and cart/checkout with large
+attribute-only row, a channel event — a full rebuild of 202 profiles is recorded at 274.7 s, not yet
+asserted against SC-005's 300 s bound for catalogue-wide changes); multi-replica cache behaviour; typeahead and cart/checkout with large
 baskets. (The typeahead, external-API and cart N+1 paths are batched since
 P0, with a statement-count assertion in `line-prices-batch.test.ts`.)
 
