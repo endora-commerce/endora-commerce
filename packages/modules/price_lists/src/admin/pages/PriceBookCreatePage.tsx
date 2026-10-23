@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { RotateCcw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type {
   PriceBookAudienceKind,
@@ -72,8 +73,22 @@ export function PriceBookCreatePage(): ReactNode {
   const touched = name !== '' || currency !== null || channelIds.length > 0 || memberIds.length > 0;
   useUnsavedChangesPrompt(touched && !created);
 
+  // The currencies are the step's only choices: their loading and failure are
+  // said, with a retry (T096, FR-032).
+  const [currenciesState, setCurrenciesState] = useState<'loading' | 'ready' | 'failed'>('loading');
+  const loadCurrencies = useCallback((): void => {
+    setCurrenciesState('loading');
+    api.targets.currencies().then(
+      (answer) => {
+        setCurrencies(answer);
+        setCurrenciesState('ready');
+      },
+      () => setCurrenciesState('failed'),
+    );
+  }, [api]);
+
   useEffect(() => {
-    void api.targets.currencies().then(setCurrencies).catch(() => undefined);
+    loadCurrencies();
     void api.targets.salesChannels().then(setChannels).catch(() => undefined);
     // The kinds the caller may create are the list's `meta` (G11).
     void api
@@ -84,7 +99,7 @@ export function PriceBookCreatePage(): ReactNode {
         setKind((current) => (creatable.includes(current) ? current : (creatable[0] ?? current)));
       })
       .catch(() => undefined);
-  }, [api]);
+  }, [api, loadCurrencies]);
 
   const index = STEPS.indexOf(step);
   const go = (next: Step): void => {
@@ -204,6 +219,25 @@ export function PriceBookCreatePage(): ReactNode {
           <fieldset className="space-y-1" aria-describedby={errors['currency'] ? `${currencyName}-error` : undefined}>
             <legend className="text-sm font-medium">{t('priceBooks.field.currency')}</legend>
             <p className="text-xs text-muted-foreground">{t('priceBooks.create.currencyHelp')}</p>
+            {currenciesState === 'loading' ? (
+              <div aria-busy="true" className="space-y-2">
+                <p className="sr-only">{t('priceBooks.create.currenciesLoading')}</p>
+                {[0, 1].map((i) => (
+                  <div key={i} className="h-8 rounded bg-muted motion-safe:animate-pulse" aria-hidden="true" />
+                ))}
+              </div>
+            ) : null}
+            {currenciesState === 'failed' ? (
+              <Alert variant="destructive">
+                <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+                  <span>{t('priceBooks.create.currenciesError')}</span>
+                  <Button type="button" variant="outline" size="sm" onClick={loadCurrencies}>
+                    <RotateCcw aria-hidden="true" />
+                    {t('priceBooks.common.retry')}
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            ) : null}
             {currencies.map((c) => (
               <label key={c.code} className="flex min-h-11 items-start gap-2 text-sm sm:min-h-8">
                 <input

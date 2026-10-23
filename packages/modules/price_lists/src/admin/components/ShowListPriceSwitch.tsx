@@ -2,7 +2,7 @@ import { useEffect, useId, useState, type ReactNode } from 'react';
 import { Store } from 'lucide-react';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
-import { Card, CardContent } from '@endora-commerce/admin-kit/ui';
+import { Button, Card, CardContent } from '@endora-commerce/admin-kit/ui';
 import { usePriceBooksApi } from '../lib/use-price-books-api.js';
 
 /**
@@ -28,8 +28,10 @@ export function ShowListPriceSwitch(): ReactNode {
   const [status, setStatus] = useState('');
   const [loadFailed, setLoadFailed] = useState(false);
 
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let live = true;
+    setLoadFailed(false);
     api.showListPrice().then(
       (stored) => {
         if (live) setValue(stored);
@@ -41,7 +43,7 @@ export function ShowListPriceSwitch(): ReactNode {
     return (): void => {
       live = false;
     };
-  }, [api]);
+  }, [api, attempt]);
 
   const change = async (next: boolean): Promise<void> => {
     if (saving) return;
@@ -71,7 +73,12 @@ export function ShowListPriceSwitch(): ReactNode {
             </h2>
           </div>
           {loadFailed ? (
-            <p className="text-sm">{t('settings.listPrice.loadError')}</p>
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <span>{t('settings.listPrice.loadError')}</span>
+              <Button type="button" variant="outline" size="sm" onClick={(): void => setAttempt((n) => n + 1)}>
+                {t('priceBooks.common.retry')}
+              </Button>
+            </div>
           ) : value === null ? (
             <p className="text-sm text-muted-foreground" aria-busy="true">
               {t('settings.precedence.loading')}
