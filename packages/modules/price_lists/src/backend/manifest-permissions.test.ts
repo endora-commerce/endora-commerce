@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { manifest } from './manifest.js';
+import { manifest } from '../manifest.js';
 
 /**
  * Feature 161 (Checkpoint 6 review) — `price_lists:write` advises
