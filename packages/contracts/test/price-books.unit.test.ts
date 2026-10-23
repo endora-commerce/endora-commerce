@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
+import type { z } from 'zod';
 import {
   PRICE_BOOK_CELL_CODES,
   PRICE_BOOK_MAX_ROWS_PER_BATCH,
@@ -13,6 +14,8 @@ import {
   basePricesWriteSchema,
 } from '../src/price-books.js';
 import * as barrel from '../src/index.js';
+import type * as Barrel from '../src/index.js';
+import * as priceBooks from '../src/price-books.js';
 
 /**
  * Feature 160 (D-287 P1) — the price-book contracts: book header, audience and
@@ -260,5 +263,110 @@ describe('price books — explanation and precedence (FR-020, FR-021)', () => {
   it('is exported from the package barrel', () => {
     expect(barrel.priceBookCreateSchema).toBe(priceBookCreateSchema);
     expect(barrel.precedenceConfigSchema).toBe(precedenceConfigSchema);
+  });
+});
+
+/**
+ * Feature 160 T135 — the price-book editor (P2, `specs/161-price-book-editor/`)
+ * is typed against these shapes, so each one it reads or writes must be
+ * reachable from `@endora-commerce/contracts` itself, not only from the source
+ * file. Grouped by the editor's concern; a missing name fails here by name.
+ */
+const EDITOR_SCHEMAS = {
+  books: [
+    'priceBookSchema',
+    'priceBookSummarySchema',
+    'priceBookCreateSchema',
+    'priceBookPatchSchema',
+    'priceBookPatchRequestSchema',
+    'priceBookDuplicateSchema',
+    'priceBookListQuerySchema',
+    'priceBookListResponseSchema',
+    'priceBookAudienceSchema',
+    'priceBookChannelIdsSchema',
+    'priceBookTypeSchema',
+    'priceBookStatusSchema',
+  ],
+  rows: [
+    'priceBookRowSchema',
+    'priceBookRowInputSchema',
+    'priceBookRowPriceSchema',
+    'priceBookSelectionSchema',
+    'priceBookRowsQuerySchema',
+    'priceBookRowsResponseSchema',
+    'priceBookLinesQuerySchema',
+    'priceBookLinesResponseSchema',
+    'priceBookProductLinesQuerySchema',
+    'priceBookProductLinesResponseSchema',
+  ],
+  batch: [
+    'priceBookRowBatchSchema',
+    'priceBookBatchRowInputSchema',
+    'priceBookRowsWriteSchema',
+    'priceBookRowsWriteResultSchema',
+    'priceBookRowsDryRunSchema',
+    'priceBookRowErrorSchema',
+    'priceBookDiffRowSchema',
+  ],
+  basePrices: [
+    'basePricesWriteSchema',
+    'basePricesForCurrencySchema',
+    'basePriceTierSchema',
+    'variantBaseRowSchema',
+    'productBasePricesSchema',
+  ],
+  explanation: [
+    'priceBookResolveRequestSchema',
+    'priceBookResolvedLineSchema',
+    'priceBookExplanationSchema',
+    'priceBookExplanationCandidateSchema',
+    'priceSourceSchema',
+  ],
+  targets: [
+    'priceBookTargetOrganizationsResponseSchema',
+    'priceBookTargetCustomerGroupsResponseSchema',
+    'priceBookTargetCategoriesResponseSchema',
+    'priceBookTargetAttributesResponseSchema',
+    'priceBookTargetSalesChannelsResponseSchema',
+    'priceBookTargetCurrenciesResponseSchema',
+  ],
+  precedence: ['precedenceViewSchema', 'precedenceConfigSchema'],
+} as const;
+
+describe('price books — the editor\'s shapes are exported from the barrel (T135)', () => {
+  for (const [concern, names] of Object.entries(EDITOR_SCHEMAS)) {
+    it(`exports every ${concern} schema`, () => {
+      const missing = names.filter(
+        (name) =>
+          (barrel as Record<string, unknown>)[name] === undefined ||
+          (barrel as Record<string, unknown>)[name] !== (priceBooks as Record<string, unknown>)[name],
+      );
+      expect(missing).toEqual([]);
+    });
+  }
+
+  it('exports the inferred types the editor is typed against', () => {
+    expectTypeOf<Barrel.PriceBook>().toEqualTypeOf<z.infer<typeof priceBooks.priceBookSchema>>();
+    expectTypeOf<Barrel.PriceBookRow>().toEqualTypeOf<z.infer<typeof priceBooks.priceBookRowSchema>>();
+    expectTypeOf<Barrel.PriceBookBatchRowInput>().toEqualTypeOf<
+      z.infer<typeof priceBooks.priceBookBatchRowInputSchema>
+    >();
+    expectTypeOf<Barrel.PriceBookRowsWriteResult>().toEqualTypeOf<
+      z.infer<typeof priceBooks.priceBookRowsWriteResultSchema>
+    >();
+    expectTypeOf<Barrel.BasePricesWrite>().toEqualTypeOf<z.infer<typeof priceBooks.basePricesWriteSchema>>();
+    expectTypeOf<Barrel.ProductBasePrices>().toEqualTypeOf<
+      z.infer<typeof priceBooks.productBasePricesSchema>
+    >();
+    expectTypeOf<Barrel.PriceBookExplanation>().toEqualTypeOf<
+      z.infer<typeof priceBooks.priceBookExplanationSchema>
+    >();
+    expectTypeOf<Barrel.PriceBookResolvedLine>().toEqualTypeOf<
+      z.infer<typeof priceBooks.priceBookResolvedLineSchema>
+    >();
+    expectTypeOf<Barrel.PriceBookTargetOrganization>().toEqualTypeOf<
+      z.infer<typeof priceBooks.priceBookTargetOrganizationSchema>
+    >();
+    expectTypeOf<Barrel.PrecedenceView>().toEqualTypeOf<z.infer<typeof priceBooks.precedenceViewSchema>>();
   });
 });
