@@ -257,8 +257,8 @@ amended; one Save for the whole product page is issue #407).
 - [x] T099 [P] Grid performance: render-count assertions of T039 extended to 200 lines × 6 columns in `admin/test/kit/editable-grid.perf.test.tsx` (typing and focus moves re-render a bounded set of cells; a 5 000-row save yields to the event loop between stages) (FR-036) — the 5 000-row test found two quadratics (4.3 s): `editCells` applies a change group in one pass and the edits are grouped by line once per edit map (~90 ms); in `PL/admin/lib/book-edit-state.perf.test.ts`
 - [x] T100 [P] Off-state: extend `AT/price-books-surfaces.test.tsx` and the backend off-state suite (`backend/test/integration/price_lists/off-state.test.ts`) to the new routes, palette actions, pricing-tab zone and gap endpoints; run `pnpm --filter backend run check:off-state-coverage` (FR-029)
 - [x] T101 Residue: work through `checklists/residue.md` (T003) — `AppShell.tsx` comments, i18n descriptions, `price-lists-zones.test.tsx`; grep `backend/test/**`, `admin/test/**`, `storefront/test/**`, `packages/**` for every name listed; fix or delete each hit (tests that *spawn* or import a deleted path included)
-- [ ] T102 Re-derive the module-removal residue ledger in `backend/test/unit/kernel/module-removal.test.ts` and any ledger derived from the touched locations, in the same commit
-- [ ] T103 Regenerate: `pnpm --filter backend run composer:generate`, `manifests:generate`, `pnpm install --lockfile-only`; commit the artefacts; then `pnpm --filter backend run composer:check`, `pnpm --filter backend run manifests:check` and `pnpm --filter backend run overlay:check`
+- [x] T102 Re-derive the module-removal residue ledger in `backend/test/unit/kernel/module-removal.test.ts` and any ledger derived from the touched locations, in the same commit — re-run 2026-10-23: 8/8, nothing moved; `price_lists` still carries no residue entry
+- [x] T103 Regenerate: `pnpm --filter backend run composer:generate`, `manifests:generate`, `pnpm install --lockfile-only`; commit the artefacts; then `pnpm --filter backend run composer:check`, `pnpm --filter backend run manifests:check` and `pnpm --filter backend run overlay:check` — 2026-10-23: the generators wrote nothing new, the three checks pass, and `pnpm install --frozen-lockfile` is clean
 - [ ] T104 Changesets for the admin surfaces (`.changeset/161-price-lists-editor.md`, `.changeset/161-admin-kit-editable-grid.md`, `.changeset/161-storefront-list-price.md`); `pnpm --filter backend run check:release-intent`
 - [ ] T105 Static estate: `pnpm run check:naming`, `pnpm run check:language`, and, each with `pnpm --filter backend run`: `check:admin-surface`, `check:admin-zones`, `check:action-route-permissions`, `check:module-boundary`, `check:platform-surface`
 - [ ] T106 Full verification: `pnpm -r run typecheck`, `pnpm -r run lint`, `pnpm --filter admin run test`, `pnpm --filter storefront run test`, `pnpm --filter '!backend' run test`, `pnpm --filter backend run test` on `dev:infra:test`; report every failure with its output
@@ -270,8 +270,8 @@ amended; one Save for the whole product page is issue #407).
 
 ## Phase 13: Release-gate hand-off
 
-- [ ] T108 Update `specs/160-pricing-model-v2/plan.md` *Release gate*: P2 complete, G11–G18 built; hand the screens' list (routes, zone, palette, settings) to feature 160 Phase 13 (FR-048 / SC-010 of spec 160 — the documentation rebuild covers these screens; nothing in `docs/` is written by this feature)
-- [ ] T109 Update `specs/pricing/current-model.md` where P1 described the admin surface as "P2 pending" (working rule of `specs/conventions/pricing.md`)
+- [x] T108 Update `specs/160-pricing-model-v2/plan.md` *Release gate*: P2 complete, G11–G18 built; hand the screens' list (routes, zone, palette, settings) to feature 160 Phase 13 (FR-048 / SC-010 of spec 160 — the documentation rebuild covers these screens; nothing in `docs/` is written by this feature)
+- [x] T109 Update `specs/pricing/current-model.md` where P1 described the admin surface as "P2 pending" (working rule of `specs/conventions/pricing.md`)
 
 ## Dependencies
 

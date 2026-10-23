@@ -197,6 +197,28 @@ acceptance scenarios and Phase 9 pass. Until then `master` keeps the old model a
 (`research.md` R12). The branch is rebased on `origin/master` at each phase boundary, and each rebase
 re-runs the generators.
 
+**P2 status (2026-10-23, `specs/161-price-book-editor/`, branch `feat/161-price-book-editor`)**:
+complete through its Phase 13 hand-off. The backend gaps G11–G19 are built
+(`specs/161-price-book-editor/contracts/backend-gaps.md`; G18 scoped batch validation and the
+uncapped base books, G19 the list price on search), plus the per-rule `reason` on refused rows
+(Checkpoint 11 ruling). The admin surfaces this feature 160 Phase 13 documentation rebuild must
+cover — nothing in `docs/` was written by 161:
+
+| Surface | Where | Permission |
+| --- | --- | --- |
+| Price-book list (filters in the URL) | `/price-lists` — sidebar *Price books*, palette `open-price-lists` | `price_lists:read` |
+| Create flow (type → currency → channels → audience → schedule) | `/price-lists/new` — palette `new-price-book` | `price_lists:write` |
+| A book: *Settings* and *Prices* (the grid, cell detail, bulk change, CSV export and import with preview) | `/price-lists/:id`, `?tab=prices&search=` | `price_lists:read` (edit: `price_lists:write` and the book's `writable`) |
+| Duplicate, delete, activate, move to draft, history | the book's header | `price_lists:write` |
+| Price explainer | `/price-lists/explain` (`productId`, `variantId`, `organizationId`, `bookId`) — palette `open-price-explainer` | `price_lists:read` |
+| *Pricing settings*: display modes, *Show list price beside the buyer's price*, the precedence in force | `/price-lists/display-modes` (`#precedence`) — palette `open-pricing-settings`, the list header's link | `price_lists:read` (changes: `price_lists:write`) |
+| Base prices and the books pricing a product | `product.editor.pricing.after` zone in the product editor's *Pricing* tab | `price_lists:read` (edit: `price_lists:write`; variants need `catalog:read`) |
+| Explain a price for this organization | `organization.detail.after` zone | `price_lists:read` |
+| Storefront "list price / your price" | product page, listing cards, search, typeahead (vectors D1–D6) | setting `pricing.show_list_price` |
+
+Phase 13 (FR-048 / SC-010) now runs: the documentation rebuild covers these screens in English and
+Polish.
+
 ### Performance — how SC-005 is reached and measured
 
 - **Reached**: sort cost stops depending on the number of books. Today it is one index stream per

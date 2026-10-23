@@ -148,9 +148,12 @@ price never — cards are always resolved live. Measured in
 
 1. **Precedence is read-only.** Version 1 = HY is the only version; the change flow (stage, impact
    preview, versioned rebuild) is P3.
-2. **No admin editor in P1.** The price-book editor is P2 (`specs/161-price-book-editor/`),
-   released together with P1; until then the admin API is the only writer, and the sidebar's price
-   lists entry opens the display-mode page.
+2. **The admin editor is P2** (`specs/161-price-book-editor/`, complete 2026-10-23, released
+   together with P1): the book list, create flow, grid with CSV import and export, duplicate, the
+   explainer, *Pricing settings* (display modes, the list-price switch, the precedence read-only) and
+   the product's base-price panel. The sidebar's *Price books* entry opens the list
+   (`/price-lists`); the display-mode page is *Pricing settings*, reached from the palette and the
+   list header.
 3. **Promotions stack on sale and contract prices** — the exclusion on `price_source` is P4.
 4. **The external catalogue API** names the bound organization but not the API key's customer
    account, so a customer's own group is not applied there.
