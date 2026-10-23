@@ -48,6 +48,8 @@ import { usePriceBooksApi } from '../lib/use-price-books-api.js';
 export type ProductBasePricesProps = AdminZoneProps<'product.editor.pricing.after'>;
 
 type VariantMode = 'inherit' | 'fixed' | 'percent' | 'amount';
+/** A variant's own quantity tiers, kept as stored: edited in the price grid, never here. */
+type VariantState = VariantMode | 'tiers';
 
 interface TierDraft {
   readonly key: number;
@@ -56,14 +58,20 @@ interface TierDraft {
 }
 
 interface VariantDraft {
-  readonly mode: VariantMode;
+  readonly mode: VariantState;
   readonly value: string;
   /** The stored tiers of a fixed variant price, sent back unchanged while its value is. */
   readonly stored: readonly BasePriceTier[] | null;
 }
 
 interface CurrencyDraft {
-  /** The price from quantity 1. */
+  /**
+   * Where the lowest tier starts: 1, or the stored start when the lowest
+   * stored tier begins above 1 — shown as stored, never replaced by an empty
+   * "from 1" line (Checkpoint 6 review).
+   */
+  readonly firstStart: number;
+  /** The price of the lowest tier. */
   readonly first: string;
   readonly more: readonly TierDraft[];
   readonly variants: Readonly<Record<string, VariantDraft>>;
@@ -79,7 +87,7 @@ function draftOf(prices: ProductBasePricesAnswer, currencies: readonly string[],
   for (const code of currencies) {
     const stored = prices.byCurrency[code];
     const tiers = [...(stored?.product ?? [])].sort((a, b) => a.minQuantity - b.minQuantity);
-    const first = tiers.find((tier) => tier.minQuantity === 1);
+    const first = tiers[0];
     const variants: Record<string, VariantDraft> = {};
     for (const vid of variantIds) {
       const row = stored?.variants[vid] ?? null;
@@ -87,15 +95,18 @@ function draftOf(prices: ProductBasePricesAnswer, currencies: readonly string[],
         row === null
           ? { mode: 'inherit', value: '', stored: null }
           : row.type === 'fixed'
-            ? { mode: 'fixed', value: fixed(row.tiers[0]!.amount), stored: row.tiers }
+            ? row.tiers.length === 1 && row.tiers[0]!.minQuantity === 1 && row.tiers[0]!.maxQuantity === null
+              ? { mode: 'fixed', value: fixed(row.tiers[0]!.amount), stored: row.tiers }
+              : { mode: 'tiers', value: '', stored: row.tiers }
             : row.type === 'percent'
               ? { mode: 'percent', value: formatPriceCell({ type: 'percent', percent: row.percent }, language), stored: null }
               : { mode: 'amount', value: formatPriceCell({ type: 'amount', amount: row.amount }, language), stored: null };
     }
     out[code] = {
+      firstStart: first?.minQuantity ?? 1,
       first: first ? fixed(first.amount) : '',
       more: tiers
-        .filter((tier) => tier.minQuantity !== 1)
+        .slice(1)
         .map((tier) => ({ key: ++tierKey, start: String(tier.minQuantity), price: fixed(tier.amount) })),
       variants,
     };
@@ -105,10 +116,10 @@ function draftOf(prices: ProductBasePricesAnswer, currencies: readonly string[],
 
 /** The comparable content of a currency's draft (tier keys aside). */
 const contentOf = (draft: CurrencyDraft | undefined): string =>
-  JSON.stringify(draft ? [draft.first, draft.more.map((tier) => [tier.start, tier.price]), draft.variants] : null);
+  JSON.stringify(draft ? [draft.firstStart, draft.first, draft.more.map((tier) => [tier.start, tier.price]), draft.variants] : null);
 
 /** A typed variant value with the sign and `%` its mode implies (Postel). */
-function variantText(mode: VariantMode, value: string): string {
+function variantText(mode: VariantState, value: string): string {
   const text = value.trim().replace(/[−‒–]/g, '-');
   if (mode === 'fixed' || text === '') return text;
   const signed = /^[+-]/.test(text) ? text : `+${text}`;
@@ -221,8 +232,8 @@ export function ProductBasePrices({ productId }: ProductBasePricesProps): ReactN
     };
     const tiers: { min: number; amount: string }[] = [];
     const first = amountOf(draft.first, `${code}:first`);
-    if (first !== null) tiers.push({ min: 1, amount: first });
-    let previous = 1;
+    if (first !== null) tiers.push({ min: draft.firstStart, amount: first });
+    let previous = draft.firstStart;
     for (const tier of draft.more) {
       const start = Number(tier.start.trim());
       const startOk = tier.start.trim() !== '' && Number.isInteger(start) && start > previous;
@@ -238,6 +249,11 @@ export function ProductBasePrices({ productId }: ProductBasePricesProps): ReactN
     for (const [vid, variant] of Object.entries(draft.variants)) {
       if (variant.mode === 'inherit') {
         variants[vid] = null;
+        continue;
+      }
+      if (variant.mode === 'tiers') {
+        // Sent back exactly as stored.
+        variants[vid] = { type: 'fixed', tiers: [...variant.stored!] };
         continue;
       }
       const key = `${code}:variant:${vid}`;
@@ -396,7 +412,7 @@ function CurrencyLine(props: {
 
   // The product's price from 1 in this currency, for the variants' previews.
   const parsedBase = parsePriceCell(draft.first, { selection: { productId: code } });
-  const base = parsedBase.kind === 'price' && parsedBase.price.type === 'fixed' ? parsedBase.price.amount : null;
+  const base = draft.firstStart === 1 && parsedBase.kind === 'price' && parsedBase.price.type === 'fixed' ? parsedBase.price.amount : null;
   const money = (amount: string): string => formatPriceCell({ type: 'fixed', amount }, props.language);
   const noPrice = draft.first.trim() === '' && draft.more.length === 0 && !props.stored?.product.length;
 
@@ -406,10 +422,10 @@ function CurrencyLine(props: {
       {props.writable ? (
         <div className="space-y-2">
           <div className="grid max-w-md grid-cols-[8rem_1fr] items-start gap-2">
-            <span className="pt-2 text-sm">{t('basePrices.from', { start: 1 })}</span>
+            <span className="pt-2 text-sm">{t('basePrices.from', { start: draft.firstStart })}</span>
             <div className="space-y-1">
               <Input
-                aria-label={t('basePrices.firstPrice', { currency: code })}
+                aria-label={t('basePrices.firstPrice', { start: draft.firstStart, currency: code })}
                 inputMode="decimal"
                 value={draft.first}
                 onChange={(event): void => props.onChange({ ...draft, first: event.target.value })}
@@ -474,6 +490,9 @@ function CurrencyLine(props: {
         </ul>
       )}
       {noPrice ? <p className="text-xs text-amber-800">{t('basePrices.noPriceIn', { currency: code })}</p> : null}
+      {!noPrice && draft.firstStart > 1 ? (
+        <p className="text-xs text-amber-800">{t('basePrices.notOrderableBelow', { start: draft.firstStart, currency: code })}</p>
+      ) : null}
 
       {props.variantIds.length > 0 ? (
         <div className="space-y-2 border-t pt-3">
@@ -485,7 +504,21 @@ function CurrencyLine(props: {
             return (
               <fieldset key={vid} className="grid gap-2 sm:grid-cols-[10rem_12rem_1fr] sm:items-start" aria-label={t('basePrices.variant', { sku: name })}>
                 <span className="pt-2 text-sm">{name}</span>
-                {props.writable ? (
+                {variant.mode === 'tiers' ? (
+                  <span className="space-y-0.5 text-sm sm:col-span-2">
+                    {(variant.stored ?? []).map((tier) => (
+                      <span key={tier.minQuantity} className="block">
+                        {t('basePrices.tierText', { start: tier.minQuantity, price: money(tier.amount) })}
+                      </span>
+                    ))}
+                    <span className="block text-xs text-muted-foreground">{t('basePrices.variantTiers')}</span>
+                    {props.stored?.bookId ? (
+                      <Link to={`/price-lists/${props.stored.bookId}?tab=prices`} className="text-xs underline underline-offset-2">
+                        {t('basePrices.openBaseBook')}
+                      </Link>
+                    ) : null}
+                  </span>
+                ) : props.writable ? (
                   <>
                     <Select
                       aria-label={t('basePrices.variantMode', { sku: name })}
@@ -506,7 +539,7 @@ function CurrencyLine(props: {
                     <div className="space-y-1">
                       {variant.mode === 'inherit' ? null : (
                         <Input
-                          aria-label={t(`basePrices.value.${variant.mode}`, { sku: name })}
+                          aria-label={t(`basePrices.value.${variant.mode as VariantMode}`, { sku: name })}
                           inputMode="decimal"
                           value={variant.value}
                           onChange={(event): void =>
@@ -546,7 +579,7 @@ function VariantPreview(props: {
   let text: string | null = null;
   if (variant.mode === 'inherit') {
     text = base !== null ? t('basePrices.inherits', { price: props.money(base) }) : t('basePrices.inheritsNothing');
-  } else if (variant.mode !== 'fixed') {
+  } else if (variant.mode === 'percent' || variant.mode === 'amount') {
     const parsed = parsePriceCell(variantText(variant.mode, variant.value), { selection: { variantId: props.vid } });
     if (parsed.kind === 'price' && parsed.price.type === variant.mode) {
       if (base === null) {

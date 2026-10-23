@@ -101,7 +101,14 @@ export const manifest = defineModuleManifest({
   ],
   permissions: [
     { code: PRICE_LIST_PERMISSIONS.READ, label: 'View price lists and pricing rules' },
-    { code: PRICE_LIST_PERMISSIONS.WRITE, label: 'Edit price lists, brackets and display modes' },
+    {
+      code: PRICE_LIST_PERMISSIONS.WRITE,
+      label: 'Edit price lists, brackets and display modes',
+      // Advisory (D-175): adding product lines uses the catalogue's product
+      // browser and a product's variants come from the catalogue's admin
+      // variant read, both on `catalog:read` (feature 161).
+      requires: ['catalog:read'],
+    },
   ],
   /**
    * The palette advertisements (Principle XVI): the landing screen since

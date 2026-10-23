@@ -312,11 +312,23 @@ export class PriceBookService {
             );
           }
         }
-        await txEm.nativeDelete(PriceListMatrixEntry, replaced);
-        for (const row of rows) txEm.persist(txEm.create(PriceListMatrixEntry, { priceListId: bookId, ...row }));
+        // 161 (Checkpoint 6 review): a row the write leaves as it was keeps its
+        // id and its values — only rows that differ are deleted or inserted —
+        // so a tier nobody edited (a lowest tier from 10, a variant's own
+        // quantity tiers) is never rewritten by a change elsewhere.
+        const kept = new Set<PriceListMatrixEntry>();
+        const inserted: PlannedRow[] = [];
+        for (const row of rows) {
+          const same = old.find((entry) => !kept.has(entry) && sameBaseRow(entry, row));
+          if (same) kept.add(same);
+          else inserted.push(row);
+        }
+        const removed = old.filter((entry) => !kept.has(entry));
+        if (removed.length > 0) await txEm.nativeDelete(PriceListMatrixEntry, { id: { $in: removed.map((entry) => entry.id) } });
+        for (const row of inserted) txEm.persist(txEm.create(PriceListMatrixEntry, { priceListId: bookId, ...row }));
         await txEm.flush();
         await syncProductLines(txEm, [bookId], [productId]);
-        if (!toCreate.includes(code)) await this.#bumpVersion(txEm, bookId, null);
+        if (!toCreate.includes(code) && (removed.length > 0 || inserted.length > 0)) await this.#bumpVersion(txEm, bookId, null);
         after[code] = rows.map(rowState);
       }
       return {
@@ -1093,6 +1105,19 @@ function plannedOfEntity(e: PriceListMatrixEntry): StoredRow {
     amount: e.amount ?? null,
     percent: e.percent ?? null,
   };
+}
+
+/** A stored base row and a planned one say the same thing: selection, window, kind and value. */
+function sameBaseRow(stored: PriceListMatrixEntry, planned: PlannedRow): boolean {
+  const value = (v: string | number | null | undefined): number | null => (v === null || v === undefined ? null : Number(v));
+  return (
+    (stored.variantId ?? null) === (planned.variantId ?? null) &&
+    stored.minQuantity === planned.minQuantity &&
+    (stored.maxQuantity ?? null) === (planned.maxQuantity ?? null) &&
+    stored.priceType === planned.priceType &&
+    value(stored.amount) === value(planned.amount) &&
+    value(stored.percent) === value(planned.percent)
+  );
 }
 
 function rowState(row: PlannedRow | PriceListMatrixEntry): Record<string, unknown> {
