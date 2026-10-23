@@ -481,11 +481,47 @@ resolved over, so its percentage rows were taken off its own result (a base pric
 pinned everyone book's −10 % gave 40.50, not 45). The reference is now the guest resolution over the channel's
 books minus the pinned one.
 
-**What a run does with no prices** is unchanged `product_feeds` behaviour: every item is skipped
-with `missing_price`, so the run ends empty or over its skip threshold, and an unpublishable run
-never moves `published_artefact_id` (FR-035, FR-038) — the previously published file keeps serving.
-Whether a feed whose pinned book stopped applying should also withdraw its published file is not
-decided here (owner question in the hand-off).
+**What a run does when the book does not apply — withdraw the published file** (owner ruling
+2026-10-23, the question this section first left open). The file a pinned feed last published
+carries the book's prices, which no longer apply, so it must not keep serving. That is not a failed
+run, and FR-035/FR-038's "the previous file keeps serving" is a rule about failed runs:
+
+- **When.** `FeedGenerationService.prepare` asks `pricingService.namedListPublishability` once per
+  run of a pinned feed, after the configuration checks (template bound, channel resolvable, selection
+  compilable, storefront URL) and before the catalogue is walked. A misconfigured feed therefore
+  still fails as it did and keeps its last good file; a withdrawal costs one statement and writes no
+  artefact.
+- **What the run records.** Status `withdrawn` (new in `feedRunStatusSchema`) and
+  `withdrawalReason` (new column `product_feed_runs.withdrawal_reason`, on the run summary and
+  detail), one of the six reasons above; `failureCode` stays `null`, no failed-run notification is
+  raised, and neither retention nor delivery runs. The admin feed row keeps
+  `pinnedPriceBookWarning`, and the feed page adds that the file was withdrawn while the last run
+  is `withdrawn`.
+- **What the URL answers.** `FeedRunService.finish` moves `published_artefact_id` to `null` in the
+  same statement as the terminal status, so the public route takes the path it takes for a feed
+  never generated — `404` with the one not-available body (`isFeedPubliclyServable`). No new
+  response exists. The run also drops the process's cached public answers for the feed's tokens; a
+  cache entry another process holds lives at most its 60 s TTL, as after a publish.
+- **The withdrawn file.** Detached, not deleted: its `feed_artefacts` row and its bytes stay
+  together, still downloadable from the run that produced it, and FR-052's retention purges it
+  beyond the newest *N* after the next publish. Nothing is orphaned, and nothing about the run
+  history is destroyed by a book's dates.
+- **When the book applies again** the next run publishes as usual and moves the pointer.
+
+A switched-off `price_lists` is a presence answer, not a withdrawal: `ModuleDisabledError` reaches
+the run's caller as it does for every other gated port (Principle XVII), and an ordinary error of
+the read is a failed run (`internal_error`) that keeps the last good file. Tests:
+`IT/product_feeds/pinned-book-withdrawal.test.ts` (withdraw, the never-generated answer, publish
+again, and both genuine-failure paths keeping the file) and
+`packages/modules/product_feeds/src/backend/services/pinned-book-withdrawal.test.ts` (the branch, the presence answer, an unpinned
+feed never asking).
+
+**Rejected — keeping the last file** (the behaviour until the ruling): it served prices that no
+longer applied for as long as the book stayed off, which is the defect the ruling names. **Rejected —
+a failed run** (`skip_threshold_exceeded`, which an empty walk produced): it would keep the file by
+FR-038 and notify the operator of a failure that is a book's schedule doing what it was set to do.
+**Rejected — deleting the file**: the bytes are history an operator may want, and retention already
+owns their removal.
 
 **Rejected.** Publishing an audience-restricted book to a feed when the feed is "for" that
 organization: a feed has no buyer identity and no organization field, and its token is a

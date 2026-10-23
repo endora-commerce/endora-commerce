@@ -19,6 +19,7 @@ const bundle = passthroughBundle('product_feeds', [
   'runs.outcome.empty',
   'runs.outcome.failed',
   'runs.outcome.skipped',
+  'runs.outcome.withdrawn',
 ]);
 
 function renderBadge(status: FeedRunStatus): HTMLElement {
@@ -36,6 +37,7 @@ const ALL_STATUSES: FeedRunStatus[] = [
   'empty',
   'failed',
   'skipped',
+  'withdrawn',
 ];
 
 describe('FeedStatusBadge — design-system alignment', () => {
@@ -49,6 +51,17 @@ describe('FeedStatusBadge — design-system alignment', () => {
     expect(renderBadge('completed').className).toContain('b2b-badge--success');
     expect(renderBadge('completed_with_warnings').className).toContain('b2b-badge--warn');
     expect(renderBadge('failed').className).toContain('b2b-badge--danger');
+  });
+
+  /**
+   * Feature 160 (FR-029), owner ruling 2026-10-23 — a withdrawal is news (the
+   * feed's link stopped serving a file) but not a failure: warn, never danger.
+   */
+  it('shows a withdrawal as a warning, not a failure', () => {
+    const badge = renderBadge('withdrawn');
+    expect(badge.className).toContain('b2b-badge--warn');
+    expect(badge.className).not.toContain('b2b-badge--danger');
+    expect(badge.textContent).toContain('runs.outcome.withdrawn');
   });
 
   it('uses no raw Tailwind palette colour for any status', () => {

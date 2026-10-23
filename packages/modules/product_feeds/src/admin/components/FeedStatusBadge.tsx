@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   CircleDashed,
   Clock,
+  EyeOff,
   Loader2,
   SkipForward,
   XCircle,
@@ -27,6 +28,7 @@ const ICONS: Record<FeedRunStatus, typeof CheckCircle2> = {
   empty: CircleDashed,
   failed: XCircle,
   skipped: SkipForward,
+  withdrawn: EyeOff,
 };
 
 const LABEL_KEYS: Record<FeedRunStatus, string> = {
@@ -37,6 +39,7 @@ const LABEL_KEYS: Record<FeedRunStatus, string> = {
   empty: 'runs.outcome.empty',
   failed: 'runs.outcome.failed',
   skipped: 'runs.outcome.skipped',
+  withdrawn: 'runs.outcome.withdrawn',
 };
 
 /**
@@ -57,6 +60,8 @@ const TONES: Record<FeedRunStatus, string> = {
   empty: '',
   failed: 'b2b-badge--danger',
   skipped: '',
+  // Feature 160 (FR-029): the link stopped serving a file — news, not a failure.
+  withdrawn: 'b2b-badge--warn',
 };
 
 export function FeedStatusBadge({ status }: { status: FeedRunStatus }): ReactNode {

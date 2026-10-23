@@ -1,5 +1,10 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { FeedRunFailureCode, FeedRunStatus, FeedRunTrigger } from '@endora-commerce/contracts';
+import type {
+  FeedRunFailureCode,
+  FeedRunStatus,
+  FeedRunTrigger,
+  PinnedPriceBookUnpublishableReason,
+} from '@endora-commerce/contracts';
 import { FeedRun, type FeedRunSkipReason } from '../entities/feed-run.entity.js';
 import { FeedRunIssue } from '../entities/feed-run-issue.entity.js';
 
@@ -32,6 +37,18 @@ const PUBLISHING_STATUSES: ReadonlySet<FeedRunStatus> = new Set([
 
 export function statusPublishes(status: FeedRunStatus): boolean {
   return PUBLISHING_STATUSES.has(status);
+}
+
+/**
+ * The one status that moves the publish pointer to **nothing** — feature 160
+ * (FR-029), owner ruling 2026-10-23. A run that finds the feed's pinned price
+ * book not applying withdraws the published file, whose prices no longer
+ * apply; it is not a failed run, so FR-035/FR-038's "the previous file keeps
+ * serving" is not its rule. The withdrawn artefact is detached, not deleted:
+ * its row and bytes stay together under FR-052's retention.
+ */
+export function statusWithdraws(status: FeedRunStatus): boolean {
+  return status === 'withdrawn';
 }
 
 export interface ClaimResult {
@@ -182,7 +199,9 @@ export class FeedRunService {
    * application of this is exactly the state the reaper exists to clean up, and
    * there is no reason to ever produce it deliberately.
    *
-   * The publish pointer moves only for a publishing status (FR-035, FR-039).
+   * The publish pointer moves only for a publishing status (FR-035, FR-039),
+   * and is cleared only by a withdrawing one ({@link statusWithdraws}); every
+   * other status leaves it where it is.
    */
   async finish(input: {
     feedId: string;
@@ -191,12 +210,15 @@ export class FeedRunService {
     counters: RunCounters;
     failureCode?: FeedRunFailureCode | null;
     failureDetail?: string | null;
+    /** A `withdrawn` run's reason; null on every other run. */
+    withdrawalReason?: PinnedPriceBookUnpublishableReason | null;
     artefactId?: string | null;
     startedAtMs: number;
   }): Promise<FeedRun> {
     const em = this.emFactory();
     const durationMs = Math.max(0, Date.now() - input.startedAtMs);
     const publishes = statusPublishes(input.status) && input.artefactId != null;
+    const withdraws = statusWithdraws(input.status);
 
     await em.transactional(async (tx) => {
       const conn = tx.getConnection();
@@ -205,7 +227,7 @@ export class FeedRunService {
             set "status" = ?, "finished_at" = now(), "duration_ms" = ?,
                 "considered_count" = ?, "emitted_count" = ?, "skipped_count" = ?,
                 "warning_count" = ?, "issue_overflow" = ?, "failure_code" = ?,
-                "failure_detail" = ?, "artefact_id" = ?
+                "failure_detail" = ?, "withdrawal_reason" = ?, "artefact_id" = ?
           where "id" = ?`,
         [
           input.status,
@@ -217,6 +239,7 @@ export class FeedRunService {
           input.counters.issueOverflow,
           input.failureCode ?? null,
           input.failureDetail ?? null,
+          withdraws ? (input.withdrawalReason ?? null) : null,
           input.artefactId ?? null,
           input.runId,
         ],
@@ -232,7 +255,11 @@ export class FeedRunService {
         `update "product_feeds"
             set "current_run_id" = null,
                 "last_run_id" = ?,
-                "published_artefact_id" = case when ? then ? else "published_artefact_id" end,
+                "published_artefact_id" = case
+                  when ? then ?
+                  when ? then null
+                  else "published_artefact_id"
+                end,
                 "avg_run_duration_ms" = case
                   when "avg_run_duration_ms" is null then ?
                   else (("avg_run_duration_ms" * 3) + ?) / 4
@@ -243,6 +270,7 @@ export class FeedRunService {
           input.runId,
           publishes,
           input.artefactId ?? null,
+          withdraws,
           durationMs,
           durationMs,
           input.feedId,

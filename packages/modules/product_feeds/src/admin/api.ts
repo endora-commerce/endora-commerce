@@ -81,6 +81,11 @@ export interface FeedRunSummary {
   skippedCount: number;
   warningCount: number;
   failureCode: string | null;
+  /**
+   * Feature 160 (FR-029), owner ruling 2026-10-23 — on a `withdrawn` run, why
+   * the pinned price book did not apply; `null` on every other run.
+   */
+  withdrawalReason: PinnedPriceBookWarning | null;
 }
 
 /**

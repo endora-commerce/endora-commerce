@@ -299,6 +299,7 @@ import { Migration20260803T060153ProductFeedsTaxonomyRefresh } from '@endora-com
 import { Migration20260804T152741ProductFeedsWidenIssueSku } from '@endora-commerce/mod-product-feeds/migrations';
 import { Migration20260806T105956ProductFeedsFeedTokenSecret } from '@endora-commerce/mod-product-feeds/migrations';
 import { Migration20260806T125806ProductFeedsDelivery } from '@endora-commerce/mod-product-feeds/migrations';
+import { Migration20261023T195611ProductFeedsRunWithdrawalReason } from '@endora-commerce/mod-product-feeds/migrations';
 
 // ── promotions ──────────────────────────────────────────────────────────────
 import { Migration20260505T074605PromotionsCriteria } from '@endora-commerce/mod-promotions/migrations';
@@ -641,6 +642,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('product_feeds', Migration20260804T152741ProductFeedsWidenIssueSku),
   migration('product_feeds', Migration20260806T105956ProductFeedsFeedTokenSecret),
   migration('product_feeds', Migration20260806T125806ProductFeedsDelivery),
+  migration('product_feeds', Migration20261023T195611ProductFeedsRunWithdrawalReason),
 
   // ── promotions ──────────────────────────────────────────────────────────────
   migration('promotions', Migration20260505T074605PromotionsCriteria),

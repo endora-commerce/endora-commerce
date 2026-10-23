@@ -64,6 +64,9 @@ const bundle = passthroughBundle('product_feeds', [
   'permission.needWrite',
   'feeds.pinnedBook.not_active',
   'feeds.pinnedBook.audience_restricted',
+  'feeds.pinnedBook.withdrawn',
+  'runs.outcome.withdrawn',
+  'runs.outcome.completed',
 ]);
 
 const { ProductFeedDetailPage } = await import(
@@ -121,6 +124,7 @@ function run(): FeedRunDetail {
     warningCount: 0,
     consideredCount: 12,
     failureCode: null,
+    withdrawalReason: null,
     failureDetail: null,
     skipReason: null,
     issueOverflow: false,
@@ -190,6 +194,32 @@ describe('ProductFeedDetailPage — design-system alignment', () => {
     await openRunsTab();
     const warning = await screen.findByText('feeds.pinnedBook.not_active');
     expect(warning.closest('[role="status"]')).not.toBeNull();
+  });
+
+  /**
+   * Owner ruling 2026-10-23 — a run that found the pinned book not applying
+   * withdrew the published file; the page says so beside the reason, and says
+   * it after the book applies again too, until a run publishes.
+   */
+  it('says the file was withdrawn when the last run withdrew it', async () => {
+    const withdrawn = { ...run(), status: 'withdrawn' as const, withdrawalReason: 'not_active' as const, emittedCount: 0, consideredCount: 0 };
+    get.mockResolvedValue({
+      data: { ...FEED, priceListId: 'pb1', pinnedPriceBookWarning: 'not_active', lastRun: withdrawn },
+    });
+    listRuns.mockResolvedValue({ data: [withdrawn] });
+    await openRunsTab();
+    const notice = await screen.findByText('feeds.pinnedBook.withdrawn');
+    expect(notice.closest('[role="status"]')).not.toBeNull();
+    expect(screen.getByText('feeds.pinnedBook.not_active')).toBeTruthy();
+  });
+
+  it('keeps saying the file was withdrawn once the book applies again, until a run publishes', async () => {
+    const withdrawn = { ...run(), status: 'withdrawn' as const, withdrawalReason: 'not_active' as const };
+    get.mockResolvedValue({ data: { ...FEED, priceListId: 'pb1', lastRun: withdrawn } });
+    listRuns.mockResolvedValue({ data: [withdrawn] });
+    await openRunsTab();
+    expect(await screen.findByText('feeds.pinnedBook.withdrawn')).toBeTruthy();
+    expect(screen.queryByText('feeds.pinnedBook.not_active')).toBeNull();
   });
 
   it('shows no pinned-book warning when the book publishes', async () => {

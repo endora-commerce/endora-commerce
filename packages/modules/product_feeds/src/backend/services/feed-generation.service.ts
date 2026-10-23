@@ -8,6 +8,8 @@ import type {
   CatalogProductVariantRecord,
   FeedRunFailureCode,
   FeedRunTrigger,
+  PinnedPriceBookPublishability,
+  PinnedPriceBookUnpublishableReason,
 } from '@endora-commerce/contracts';
 import { withSystemScope } from '@endora-commerce/platform/tenancy';
 import { rethrowIfModuleDisabled, SalesChannel } from '@endora-commerce/platform/kernel';
@@ -65,6 +67,10 @@ import type { AnyFeedSerializer, FeedItemField } from './serializers/serializer.
  *  - **Publication is one pointer flip, after the object is complete**
  *    (FR-035). A failed, empty or over-threshold run never touches
  *    `published_artefact_id`, so the previously published file keeps serving.
+ *    The one run that clears it is a **withdrawal** (feature 160, FR-029,
+ *    owner ruling 2026-10-23): a feed whose pinned price book does not apply
+ *    at generation time must not keep serving a file of prices that no longer
+ *    apply, and that is not a failure.
  */
 
 /** Hydration batch. 500 keeps peak memory at O(batch × fields) with room to spare. */
@@ -94,6 +100,24 @@ export type AnonymousPriceResolver = (input: {
   salesChannel: { id: string; defaultCurrency: string };
   currencyCode: string;
 }) => Promise<Map<string, { amount: number; isSale: boolean }>>;
+
+/**
+ * Whether the price book a feed is pinned to publishes prices now, and why not
+ * — `pricingService.namedListPublishability` (feature 160, FR-029, owner ruling
+ * 2026-10-23). `price_lists` is a binding dependency, so this fails closed.
+ */
+export type PinnedPriceBookPublishabilityResolver = (input: {
+  priceListId: string;
+  currencyCode: string;
+  salesChannelId: string;
+}) => Promise<PinnedPriceBookPublishability>;
+
+/**
+ * Told after a run has withdrawn the feed's published file, so the cached
+ * public answer for its token is dropped rather than outliving the pointer by
+ * the cache's TTL. Optional, like the other post-run ports.
+ */
+export type PublicationWithdrawnPort = (feedId: string) => Promise<unknown>;
 
 /** Percentage VAT rate for a country, or null when no rule and no default matched. */
 export type TaxRateResolver = (input: {
@@ -193,6 +217,10 @@ export interface FeedGenerationDeps {
   resolver: ItemFieldResolverPort;
   settings: FeedSettingsReader;
   resolveNamedListPrice: NamedListPriceResolver;
+  /** Asked once per run of a pinned feed, before the catalogue is walked. */
+  pinnedPriceBookPublishability: PinnedPriceBookPublishabilityResolver;
+  /** After a withdrawal, never on any other branch. */
+  onPublicationWithdrawn?: PublicationWithdrawnPort;
   resolveAnonymousPrice: AnonymousPriceResolver;
   resolveTaxRate: TaxRateResolver;
   resolveAvailability: AvailabilityResolver;
@@ -443,6 +471,25 @@ export class FeedGenerationService {
       // `FeedRunReaperService` already owns exactly this case — a `running` run
       // whose heartbeat stopped.
       rethrowIfModuleDisabled(err);
+      // Feature 160 (FR-029), owner ruling 2026-10-23 — not a failure: the
+      // pinned book does not apply, so the file of its prices is withdrawn and
+      // the URL answers as for a feed never generated. No notification (the
+      // feed page carries the warning), no retention, no delivery.
+      if (err instanceof PinnedPriceBookNotApplicableError) {
+        const withdrawn = await this.deps.runs.finish({
+          feedId,
+          runId,
+          status: 'withdrawn',
+          counters,
+          withdrawalReason: err.reason,
+          artefactId: null,
+          startedAtMs,
+        });
+        // Best effort: the run is finished, and a cache that cannot be dropped
+        // expires on its own TTL.
+        await this.deps.onPublicationWithdrawn?.(feedId)?.catch(() => undefined);
+        return withdrawn;
+      }
       if (err instanceof ChannelUnavailableError) {
         failureCode = 'channel_unavailable';
         failureDetail = err.message;
@@ -530,6 +577,20 @@ export class FeedGenerationService {
       .map((f) => f.outputName);
     if (storefrontOrigin.trim() === '' && originDependentRequired.length > 0) {
       throw new StorefrontUrlUnconfiguredError(channel.code, originDependentRequired);
+    }
+
+    // Feature 160 (FR-029), owner ruling 2026-10-23 — a pinned book that does
+    // not apply now withdraws the published file. Asked after the
+    // configuration checks above, so a misconfigured feed still reports the
+    // failure it is and keeps its last good file (FR-035), and before the
+    // catalogue is walked, so a withdrawal costs one statement.
+    if (feed.priceListId) {
+      const publishability = await this.deps.pinnedPriceBookPublishability({
+        priceListId: feed.priceListId,
+        currencyCode: feed.currencyCode,
+        salesChannelId: channel.id,
+      });
+      if (!publishability.publishable) throw new PinnedPriceBookNotApplicableError(publishability.reason);
     }
 
     const languages = await this.deps.listActiveLanguages();
@@ -877,6 +938,14 @@ export class FeedGenerationService {
       return { net, gross: net, taxResolved: false };
     }
     return { net, gross: round2(net * (1 + rate / 100)), taxResolved: true };
+  }
+}
+
+/** The pinned price book does not apply now — a withdrawal, not a failure. */
+class PinnedPriceBookNotApplicableError extends Error {
+  constructor(public readonly reason: PinnedPriceBookUnpublishableReason) {
+    super(`The pinned price book does not apply now (${reason}).`);
+    this.name = 'PinnedPriceBookNotApplicableError';
   }
 }
 

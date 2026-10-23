@@ -306,8 +306,11 @@ describe('product feed generation [integration]', () => {
     it('publishes no prices from a pinned book that does not apply on the feed’s channel (FR-029, owner ruling 2026-10-23)', async () => {
       const feedId = await createFeed({ priceListId: unboundListId });
       const run = await h.productFeeds.generation.generateNow(feedId, { trigger: 'manual' });
+      // Withdrawn, not walked: `pinned-book-withdrawal.test.ts` holds the rest.
+      expect(run.status).toBe('withdrawn');
+      expect(run.withdrawalReason).toBe('not_on_channel');
       expect(run.emittedCount).toBe(0);
-      expect(run.skippedCount).toBeGreaterThan(0);
+      expect(run.artefactId ?? null).toBeNull();
     });
 
     it('falls back to the anonymous channel resolution when no list is named', async () => {

@@ -123,6 +123,15 @@ export const feedRunStatusSchema = z.enum([
   'empty',
   'failed',
   'skipped',
+  /**
+   * Feature 160 (FR-029), owner ruling 2026-10-23 — the feed's pinned price
+   * book did not apply at generation time, so the run withdrew the published
+   * file instead of producing one: the public URL answers as for a feed that
+   * has never been generated until a later run publishes. Not a failure —
+   * FR-035/FR-038's "the previous file keeps serving" does not apply to it.
+   * The run's `withdrawalReason` names why the book does not apply.
+   */
+  'withdrawn',
 ]);
 export type FeedRunStatus = z.infer<typeof feedRunStatusSchema>;
 
@@ -156,7 +165,6 @@ export const feedRunFailureCodeSchema = z.enum([
    * symptom once per product.
    */
   'storefront_url_unconfigured',
-  'price_list_unavailable',
   'language_unavailable',
   'skip_threshold_exceeded',
   'storage_unavailable',
@@ -866,6 +874,8 @@ export const productFeedRunSummarySchema = z.object({
   skippedCount: z.number().int().nonnegative(),
   warningCount: z.number().int().nonnegative(),
   failureCode: feedRunFailureCodeSchema.nullable(),
+  /** Set on a `withdrawn` run only: why the pinned price book did not apply. */
+  withdrawalReason: pinnedPriceBookUnpublishableReasonSchema.nullable(),
 });
 export type ProductFeedRunSummary = z.infer<typeof productFeedRunSummarySchema>;
 
