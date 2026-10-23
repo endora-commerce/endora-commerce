@@ -41,6 +41,7 @@ export type { GatedSurface, PermissionRequirement } from './surface-visibility.j
 export { normalize } from './text-normalization.js';
 export { usePageSizePreference } from './use-page-size-preference.js';
 export { useUnsavedChangesPrompt } from './use-unsaved-changes-prompt.js';
+export type { UnsavedChangesPromptOptions } from './use-unsaved-changes-prompt.js';
 export { cn } from './utils.js';
 export { randomUUID } from './uuid.js';
 export { readReturnTo, RETURN_TO_PARAM, withReturnTo } from './return-to.js';

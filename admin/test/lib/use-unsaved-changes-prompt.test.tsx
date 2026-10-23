@@ -73,3 +73,64 @@ describe('useUnsavedChangesPrompt', () => {
     expect(window.dispatchEvent(evt2)).toBe(true); // no longer cancelled
   });
 });
+
+/**
+ * Feature 161 (US3, FR-020) — a panel contributed into a host's tabbed screen
+ * (the product editor's Pricing tab) is unmounted when the operator switches
+ * tab, and its unsaved edits go with it. `guardTabsOutside` asks before a
+ * `role="tab"` outside the panel is activated, as a link is guarded.
+ */
+function TabHarness({ when }: { when: boolean }): ReactNode {
+  const panel = useRef<HTMLDivElement>(null);
+  useUnsavedChangesPrompt(when, undefined, { guardTabsOutside: panel });
+  return (
+    <div>
+      <div role="tablist">
+        <button type="button" role="tab" data-testid="other-tab" onClick={onTab}>
+          Other
+        </button>
+      </div>
+      <div ref={panel}>
+        <div role="tablist">
+          <button type="button" role="tab" data-testid="inner-tab" onClick={onTab}>
+            Inner
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+const onTab = vi.fn();
+
+describe('useUnsavedChangesPrompt — tabs outside a panel', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    onTab.mockReset();
+  });
+
+  it('asks before a host tab is activated, and keeps the tab when the user cancels', () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const { getByTestId } = renderWithI18n(<TabHarness when />, BUNDLE);
+    fireEvent.click(getByTestId('other-tab'));
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(onTab).not.toHaveBeenCalled();
+  });
+
+  it('lets the tab change when the user confirms, and leaves the panel’s own tabs alone', () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const { getByTestId } = renderWithI18n(<TabHarness when />, BUNDLE);
+    fireEvent.click(getByTestId('other-tab'));
+    expect(onTab).toHaveBeenCalledTimes(1);
+    fireEvent.click(getByTestId('inner-tab'));
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(onTab).toHaveBeenCalledTimes(2);
+  });
+
+  it('asks nothing while clean', () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const { getByTestId } = renderWithI18n(<TabHarness when={false} />, BUNDLE);
+    fireEvent.click(getByTestId('other-tab'));
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(onTab).toHaveBeenCalledTimes(1);
+  });
+});

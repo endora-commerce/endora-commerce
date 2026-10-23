@@ -174,17 +174,17 @@ amended; one Save for the whole product page is issue #407).
 
 ### Tests first
 
-- [ ] T070 [P] [US3] Panel tests in `AT/product-base-prices.test.tsx`: one line per currency of `targets/currencies`; tiers; variant *inherits* / fixed / ± % / ± amount with a labelled preview computed by the contracts decimal helpers (G17); "not orderable without a base price" notice; read-only when `writable` is false (controls absent); errors on fields; axe (FR-019, FR-020, FR-030)
-- [ ] T071 [P] [US3] Books-on-the-product tests in `AT/product-price-books.test.tsx`: G1 list with audience and price, links to `/price-lists/:id` and `/price-lists/explain?productId=`, empty state (FR-021)
-- [ ] T072 [P] [US3] Save tests in `AT/product-base-prices.save.test.tsx`: *Save prices* sends one `PUT …/base-prices/:productId`, shows progress, cannot be double-submitted, announces the result; the unsaved-changes prompt fires on leaving the Pricing tab and the page (FR-020)
+- [x] T070 [P] [US3] Panel tests in `AT/product-base-prices.test.tsx`: one line per currency of `targets/currencies`; tiers; variant *inherits* / fixed / ± % / ± amount with a labelled preview computed by the contracts decimal helpers (G17); "not orderable without a base price" notice; read-only when `writable` is false (controls absent); errors on fields; axe (FR-019, FR-020, FR-030)
+- [x] T071 [P] [US3] Books-on-the-product tests in `AT/product-price-books.test.tsx`: G1 list with audience and price, links to `/price-lists/:id` and `/price-lists/explain?productId=`, empty state (FR-021)
+- [x] T072 [P] [US3] Save tests in `AT/product-base-prices.save.test.tsx`: *Save prices* sends one `PUT …/base-prices/:productId`, shows progress, cannot be double-submitted, announces the result; the unsaved-changes prompt fires on leaving the Pricing tab and the page (FR-020)
 
 ### Implementation
 
-- [ ] T073 [US3] `PL/admin/zones/ProductBasePrices.tsx` (panel + books list) contributed to `product.editor.pricing.after`
-- [ ] T074 [US3] i18n en + pl for every US3 string
-- [ ] T075 [US3] The panel's *Save prices* with `use-unsaved-changes-prompt` in `PL/admin/zones/ProductBasePrices.tsx`
+- [x] T073 [US3] `PL/admin/zones/ProductBasePrices.tsx` (panel + books list) contributed to `product.editor.pricing.after`
+- [x] T074 [US3] i18n en + pl for every US3 string
+- [x] T075 [US3] The panel's *Save prices* with `use-unsaved-changes-prompt` in `PL/admin/zones/ProductBasePrices.tsx`
 
-**Checkpoint 6.**
+**Checkpoint 6** — reached 2026-10-23; awaiting coordinator review.
 
 ---
 

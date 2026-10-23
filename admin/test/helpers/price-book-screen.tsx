@@ -106,3 +106,42 @@ export async function apiError(status: number, code: string, message: string, de
   const { ApiError } = await import('@endora-commerce/admin-kit/lib');
   return new ApiError(status, { error: { code, message, ...(details === undefined ? {} : { details }) } } as never);
 }
+
+const BASE_PANEL = (contributions.zones ?? []).find((zone) => zone.zone === 'product.editor.pricing.after')!;
+const BasePanel = ((await BASE_PANEL.component()) as { default: ComponentType<{ productId: string }> }).default;
+
+/**
+ * The product editor's Pricing tab as the base-price panel meets it: the
+ * host's tab strip (a *Details* tab, the *Pricing* tab selected) and the
+ * panel mounted in the tab body, as `ProductEditor.tsx` mounts the zone.
+ */
+export function mountBasePricePanel(options: {
+  readonly productId: string;
+  readonly session: AdminMe;
+  readonly language?: 'en' | 'pl';
+  readonly onHostTab?: () => void;
+}): RenderResult {
+  const language = options.language ?? 'en';
+  const wrapper = ({ children }: { children: ReactNode }): ReactElement => (
+    <TranslationProvider language={language} initialBundle={bundles(language)}>
+      {withSession(<>{children}</>, { session: options.session, presence: modulePresence({ present: ['price_lists'] }) })}
+    </TranslationProvider>
+  );
+  return render(
+    <MemoryRouter initialEntries={[`/catalog/products/${options.productId}`]}>
+      <div role="tablist" aria-label="Product">
+        <button type="button" role="tab" aria-selected="false" onClick={options.onHostTab}>
+          Details
+        </button>
+        <button type="button" role="tab" aria-selected="true">
+          Pricing
+        </button>
+      </div>
+      <div role="tabpanel" aria-label="Pricing">
+        <BasePanel productId={options.productId} />
+      </div>
+      <LocationProbe />
+    </MemoryRouter>,
+    { wrapper },
+  );
+}
