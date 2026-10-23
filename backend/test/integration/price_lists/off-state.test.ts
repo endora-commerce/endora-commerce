@@ -84,4 +84,67 @@ describe('price_lists — absent, the surface subscriptions and the ports stop',
     await expect(order()
     ).rejects.toMatchObject({ code: 'MODULE_DISABLED' });
   });
+
+  /**
+   * Feature 161 (T100; FR-029) — the editor's endpoints, the G11–G19 gaps
+   * among them, and its four palette actions. Each is seen answering while the
+   * module is present before its absence is asserted, so an absence proves
+   * something; absent, every route answers `503 MODULE_DISABLED` naming
+   * `price_lists`, and the palette advertises none of its actions.
+   */
+  describe('the price-book editor (161)', () => {
+    const admin = { b2b_session: 'stub-admin-session' };
+    const B = '/api/v1/admin/price-books';
+    let bookId: string;
+
+    beforeAll(async () => {
+      bookId = (await f.book({ audience: 'everyone', rows: [{ product: f.products.P1, percent: '-5' }] })).id;
+    });
+
+    const routes = (): Array<{ method: 'GET' | 'PUT'; url: string; payload?: Record<string, unknown> }> => [
+      { method: 'GET', url: `${B}?page=1&pageSize=5` },
+      { method: 'GET', url: `${B}/${bookId}` },
+      { method: 'GET', url: `${B}/${bookId}/lines?page=1&pageSize=10` },
+      { method: 'GET', url: `${B}/${bookId}/product-lines?productIds=${f.products.P1.id}` },
+      { method: 'GET', url: `${B}/${bookId}/rows?page=1&pageSize=10` },
+      { method: 'PUT', url: `${B}/${bookId}/rows?dryRun=true`, payload: { mode: 'merge', upsert: [], delete: [] } },
+      { method: 'GET', url: `${B}/precedence` },
+      { method: 'GET', url: `${B}/settings/show-list-price` },
+      { method: 'GET', url: `${B}/base-prices?productId=${f.products.P1.id}` },
+      { method: 'GET', url: `${B}/targets/currencies` },
+    ];
+
+    const call = (route: ReturnType<typeof routes>[number]) =>
+      h.app.inject({ method: route.method, url: route.url, cookies: admin, ...(route.payload ? { payload: route.payload } : {}) });
+
+    const advertised = async (): Promise<string[]> => {
+      const res = await h.app.inject({ method: 'GET', url: '/api/v1/admin/admin-actions?language=en', cookies: admin });
+      expect(res.statusCode, res.body).toBe(200);
+      const body = res.json() as { data: { data: Array<{ actionId: string; moduleId: string }> } };
+      return body.data.data.filter((a) => a.moduleId === 'price_lists').map((a) => a.actionId).sort();
+    };
+
+    it('present: every editor endpoint answers, and the four palette actions are advertised', async () => {
+      for (const route of routes()) {
+        const res = await call(route);
+        expect(res.statusCode, `${route.method} ${route.url}: ${res.body}`).toBe(200);
+      }
+      expect(await advertised()).toEqual(['new-price-book', 'open-price-explainer', 'open-price-lists', 'open-pricing-settings']);
+    });
+
+    it('absent: every editor endpoint answers MODULE_DISABLED, the palette advertises none, and both come back', async () => {
+      registryCache.__setEnabledForTesting(ALL_IDS.filter((id) => id !== 'price_lists'));
+      for (const route of routes()) {
+        const res = await call(route);
+        expect(res.statusCode, `${route.method} ${route.url}`).toBe(503);
+        const body = res.json() as { error?: { code?: string; details?: { module?: string } } };
+        expect(body.error?.code).toBe('MODULE_DISABLED');
+        expect(body.error?.details?.module).toBe('price_lists');
+      }
+      expect(await advertised()).toEqual([]);
+      registryCache.__setEnabledForTesting(ALL_IDS);
+      expect((await call(routes()[0]!)).statusCode).toBe(200);
+      expect(await advertised()).toHaveLength(4);
+    });
+  });
 });

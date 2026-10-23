@@ -231,6 +231,33 @@ export function editCell(state: BookEditState, lineKey: string, start: number, t
   return putEdit(state, lineKey, start, parseFor(state, line, text));
 }
 
+/**
+ * A change group the grid hands over at once — a paste, a fill, a bulk change,
+ * an undo (feature 161, T099; FR-036): the same result as `editCell` applied
+ * one by one, in one pass. Applied one by one, each cell copied every edit so
+ * far, and a 5 000-cell paste took seconds.
+ */
+export function editCells(
+  state: BookEditState,
+  changes: ReadonlyArray<{ readonly lineKey: string; readonly start: number; readonly text: string }>,
+): BookEditState {
+  if (changes.length === 0) return state;
+  const edits = new Map(state.edits);
+  const serverErrors = new Map(state.serverErrors);
+  let touched = false;
+  for (const change of changes) {
+    const line = state.lines.get(change.lineKey);
+    if (!line) continue;
+    touched = true;
+    const key = cellKey(change.lineKey, change.start);
+    const edit = parseFor(state, line, change.text);
+    if (settled(line, change.start, edit)) edits.delete(key);
+    else edits.set(key, edit);
+    serverErrors.delete(key);
+  }
+  return touched ? { ...state, edits, serverErrors } : state;
+}
+
 /** The cell detail (FR-010): a price with its own window, or a clear. */
 export function editCellDetail(
   state: BookEditState,
@@ -261,6 +288,32 @@ export interface EffectiveRow {
 export function effectiveRows(state: BookEditState, lineKey: string): EffectiveRow[] {
   const line = state.lines.get(lineKey);
   if (!line) return [];
+  return effectiveRowsOf(line, editsByLine(state).get(lineKey) ?? []);
+}
+
+/**
+ * Every line's edits, grouped once per edit map (T099): a save reads each
+ * line's once, and a page of cells — each asking for its line's rows — does
+ * not scan every edit per cell. The edit map is replaced, never mutated, on
+ * every change, so it keys the cache.
+ */
+const editsByLineCache = new WeakMap<ReadonlyMap<string, CellEdit>, Map<string, Array<readonly [string, CellEdit]>>>();
+
+function editsByLine(state: BookEditState): Map<string, Array<readonly [string, CellEdit]>> {
+  const cached = editsByLineCache.get(state.edits);
+  if (cached) return cached;
+  const out = new Map<string, Array<readonly [string, CellEdit]>>();
+  for (const [key, edit] of state.edits) {
+    const lineKey = key.slice(0, key.lastIndexOf('@'));
+    const list = out.get(lineKey);
+    if (list) list.push([key, edit]);
+    else out.set(lineKey, [[key, edit]]);
+  }
+  editsByLineCache.set(state.edits, out);
+  return out;
+}
+
+function effectiveRowsOf(line: EditLine, lineEdits: ReadonlyArray<readonly [string, CellEdit]>): EffectiveRow[] {
   const stored = line.rows;
   const chained = (index: number): boolean => {
     const row = stored[index]!;
@@ -269,9 +322,8 @@ export function effectiveRows(state: BookEditState, lineKey: string): EffectiveR
   };
   const rows: { min: number; max: number | null; price: PriceBookRowPrice; rowId: string | undefined; start: number; custom: boolean }[] = [];
   const editedStarts = new Set<number>();
-  for (const [key, edit] of state.edits) {
+  for (const [key, edit] of lineEdits) {
     const at = key.lastIndexOf('@');
-    if (key.slice(0, at) !== lineKey) continue;
     const start = Number(key.slice(at + 1));
     editedStarts.add(start);
     const original = storedAt(line, start);
@@ -399,11 +451,12 @@ export function buildSave(state: BookEditState): SavePlan | { readonly blocked: 
   const cells: string[] = [];
   const del: string[] = [];
   const rowCells = new Map<string, string>();
-  const touched = new Set([...state.edits.keys()].map((key) => key.slice(0, key.lastIndexOf('@'))));
+  const byLine = editsByLine(state);
   for (const line of state.lines.values()) {
     for (const row of line.rows) rowCells.set(row.id, cellKey(line.key, row.minQuantity));
-    if (!touched.has(line.key)) continue;
-    const rows = effectiveRows(state, line.key);
+    const lineEdits = byLine.get(line.key);
+    if (!lineEdits) continue;
+    const rows = effectiveRowsOf(line, lineEdits);
     const kept = new Set(rows.map((row) => row.rowId).filter((id): id is string => id !== undefined));
     for (const row of rows) {
       const stored = row.rowId ? line.rows.find((r) => r.id === row.rowId) : undefined;

@@ -40,7 +40,7 @@ import {
   cellToken,
   cellView,
   createEditState,
-  editCell,
+  editCells,
   editCellDetail,
   editedStarts,
   rebase,
@@ -337,7 +337,7 @@ export function PriceBookGrid(props: {
 
   const onChange = useCallback((changes: readonly EditableGridCellChange[], _reason: EditableGridChangeReason): void => {
     setNotice((current) => (current?.kind === 'invalid' || current?.kind === 'limit' ? null : current));
-    setState((current) => changes.reduce((acc, change) => editCell(acc, change.rowKey, Number(change.columnKey), change.text), current));
+    setState((current) => editCells(current, changes.map((change) => ({ lineKey: change.rowKey, start: Number(change.columnKey), text: change.text }))));
   }, []);
 
   // ---- Actions --------------------------------------------------------------------
