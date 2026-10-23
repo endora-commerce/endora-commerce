@@ -110,6 +110,8 @@ export function PriceBookGrid(props: {
   readonly editable: boolean;
   /** The book read again after a save or a stale refusal. */
   readonly onBookChanged: (book: PriceBook) => void;
+  /** A search to open on — a link to a row names its line this way (US5). */
+  readonly initialSearch?: string;
 }): ReactNode {
   const t = useTranslation('price_lists');
   const api = usePriceBooksApi();
@@ -126,8 +128,8 @@ export function PriceBookGrid(props: {
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<(typeof PAGE_SIZES)[number]>(50);
-  const [searchText, setSearchText] = useState('');
-  const [search, setSearch] = useState('');
+  const [searchText, setSearchText] = useState(props.initialSearch ?? '');
+  const [search, setSearch] = useState(props.initialSearch?.trim() ?? '');
   const [kind, setKind] = useState<PriceBookSelectionKind | ''>('');
   const [pageLines, setPageLines] = useState<PriceBookLine[] | null>(null);
   const [totalLines, setTotalLines] = useState(0);

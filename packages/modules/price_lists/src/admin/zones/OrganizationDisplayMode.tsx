@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import type { AdminZoneProps } from '@endora-commerce/contracts';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { Card, CardContent } from '@endora-commerce/admin-kit/ui';
 import { DisplayModeOverrideRow } from '../components/DisplayModeOverrideRow.js';
 
@@ -38,8 +40,22 @@ export function OrganizationDisplayMode({
     <Card className="mb-4">
       <CardContent>
         <DisplayModeOverrideRow scope="organization" targetId={organizationId} />
+        {/* Feature 161 (FR-024): what this organization pays, and why. */}
+        <ExplainLink organizationId={organizationId} />
       </CardContent>
     </Card>
+  );
+}
+
+function ExplainLink({ organizationId }: { readonly organizationId: string }): ReactNode {
+  const t = useTranslation('price_lists');
+  return (
+    <Link
+      to={`/price-lists/explain?${new URLSearchParams({ organizationId }).toString()}`}
+      className="mt-2 inline-block text-sm underline underline-offset-2"
+    >
+      {t('explainer.entry.organization')}
+    </Link>
   );
 }
 

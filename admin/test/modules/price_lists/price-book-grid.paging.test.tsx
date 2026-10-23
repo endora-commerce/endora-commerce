@@ -145,3 +145,12 @@ describe('price-book grid — a picked product already in the book (Checkpoint 5
     expect(api.put).not.toHaveBeenCalled();
   });
 });
+
+describe('price-book grid — opened on a line (161 US5 row links)', () => {
+  it('searches what the address names, so a link can open a row where it is', async () => {
+    mountScreen({ path: `/price-lists/${book.id}?tab=prices&search=S-060`, session: PLATFORM_ADMIN });
+    await screen.findByRole('grid');
+    expect(lineRequests(api)[0]!.get('search')).toBe('S-060');
+    expect(screen.getByRole('searchbox', { name: 'Search lines' })).toHaveValue('S-060');
+  });
+});

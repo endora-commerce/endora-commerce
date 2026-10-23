@@ -190,20 +190,20 @@ amended; one Save for the whole product page is issue #407).
 
 ## Phase 7: User Story 4 — Duplicate (P2)
 
-- [ ] T076 [P] [US4] Tests in `AT/price-book-duplicate.test.tsx`: pre-filled dialog (name "(copy)", channels, currency, audience, multiplier 1); changed currency flags channels before submit; multiplier explains percentages are unchanged; opens the draft copy; source untouched (FR-022)
-- [ ] T077 [US4] `PL/admin/components/DuplicateDialog.tsx` and the header action; i18n en + pl
+- [x] T076 [P] [US4] Tests in `AT/price-book-duplicate.test.tsx`: pre-filled dialog (name "(copy)", channels, currency, audience, multiplier 1); changed currency flags channels before submit; multiplier explains percentages are unchanged; opens the draft copy; source untouched (FR-022)
+- [x] T077 [US4] `PL/admin/components/DuplicateDialog.tsx` and the header action; i18n en + pl
 
-**Checkpoint 7.**
+**Checkpoint 7** — reached 2026-10-23; awaiting coordinator review.
 
 ---
 
 ## Phase 8: User Story 5 — Explain a price (P2)
 
-- [ ] T078 [P] [US5] Tests in `AT/price-explainer.test.tsx`: channel, currency, buyer (organization, customer, guest), lines; E3.1 answer 95.00 *buyer* *organization × product* with book and row links and runner-ups by name (G16); sale shows the beaten regular price; unpriced line explains and suggests a base price; pre-fill from `productId`, `variantId`, `organizationId`, `bookId`; axe (FR-023, FR-024)
-- [ ] T079 [P] [US5] Entry-point tests in `AT/price-explainer-entry-points.test.tsx`: links from the book header, a grid cell, the product panel and the organization display-mode zone open the screen pre-filled (FR-024)
-- [ ] T080 [US5] `PL/admin/pages/PriceExplainerPage.tsx`; links in the grid, header, product panel and `PL/admin/zones/OrganizationDisplayMode.tsx`; i18n en + pl
+- [x] T078 [P] [US5] Tests in `AT/price-explainer.test.tsx`: channel, currency, buyer (organization, customer, guest), lines; E3.1 answer 95.00 *buyer* *organization × product* with book and row links and runner-ups by name (G16); sale shows the beaten regular price; unpriced line explains and suggests a base price; pre-fill from `productId`, `variantId`, `organizationId`, `bookId`; axe (FR-023, FR-024)
+- [x] T079 [P] [US5] Entry-point tests in `AT/price-explainer-entry-points.test.tsx`: links from the book header, a grid cell, the product panel and the organization display-mode zone open the screen pre-filled (FR-024)
+- [x] T080 [US5] `PL/admin/pages/PriceExplainerPage.tsx`; links in the grid, header, product panel and `PL/admin/zones/OrganizationDisplayMode.tsx`; i18n en + pl
 
-**Checkpoint 8.**
+**Checkpoint 8** — reached 2026-10-23; awaiting coordinator review.
 
 ---
 

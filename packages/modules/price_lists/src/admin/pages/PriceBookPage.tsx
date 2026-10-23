@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { Copy, History, RotateCcw, SearchX } from 'lucide-react';
+import { Copy, HelpCircle, History, RotateCcw, SearchX } from 'lucide-react';
 import type { PriceBook, PriceBookAudienceKind, PriceBookTargetSalesChannel } from '@endora-commerce/contracts';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
@@ -148,6 +148,10 @@ export function PriceBookPage(): ReactNode {
                 {t('duplicate.open')}
               </Button>
             ) : null}
+            <Link to={`/price-lists/explain?${new URLSearchParams({ bookId: book.id }).toString()}`} className={buttonVariants({ variant: 'outline' })}>
+              <HelpCircle aria-hidden="true" />
+              {t('explainer.entry.book')}
+            </Link>
             <Link
               to={`/audit-log?objectType=price_list&objectId=${encodeURIComponent(book.id)}`}
               className={buttonVariants({ variant: 'outline' })}
@@ -190,7 +194,12 @@ export function PriceBookPage(): ReactNode {
       </div>
       {duplicating ? <DuplicateDialog book={book} channels={channels} kinds={kinds} onClose={(): void => setDuplicating(false)} /> : null}
       <div id={`${tabsId}-prices-panel`} role="tabpanel" aria-labelledby={`${tabsId}-prices-tab`} hidden={tab !== 'prices'}>
-        <PriceBookGrid book={book} editable={editable} onBookChanged={(next): void => setState({ kind: 'ready', book: next })} />
+        <PriceBookGrid
+          book={book}
+          editable={editable}
+          initialSearch={params.get('search') ?? ''}
+          onBookChanged={(next): void => setState({ kind: 'ready', book: next })}
+        />
       </div>
     </>
   );
