@@ -18,7 +18,8 @@ script — the command is the backend's.
 
 On a database that held the old model, `pnpm --filter backend run migration:up` runs the one-shot
 conversion: Default-list brackets kept as base prices, every other price
-list dropped, and the catalogue's `defaultPrice` and variant price override removed without
+list dropped (one a product feed is pinned to is retired as an empty, expired book instead — the
+departure from N13, `research.md` R4), and the catalogue's `defaultPrice` and variant price override removed without
 conversion (`contracts/conversion-and-removal.md`). A hand-made product with no Default bracket has no
 price until you reseed the demo or enter a base price.
 

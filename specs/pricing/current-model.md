@@ -184,5 +184,6 @@ price never — cards are always resolved live. Measured in
    in place; measured at 202 profiles in `read-paths-and-performance.md` §7. What remains: a change
    that concerns every product of its profiles — a row selecting by attribute alone or every
    product, a change to more than 10 000 products, a channel event, the precedence — still rebuilds
-   those profiles whole (a full rebuild of 202 profiles took 274.7 s). SC-005 gives that case its
+   those profiles whole (at 201 profiles an all-products row took 275.43 s and a channel event
+   270.53 s to show). SC-005 gives that case its
    own bound, ≤ 300 s at 200 profiles (owner ruling 2026-10-24); making it faster is issue #416.

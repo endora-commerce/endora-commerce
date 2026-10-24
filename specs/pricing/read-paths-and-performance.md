@@ -47,9 +47,10 @@ books. Measurements are in §7.
   `PL/backend/services/price-list-service.ts`).
 - **A change that concerns every product of its profiles still rebuilds them whole** — a row
   selecting by attribute alone or every product, a change to more than 10 000 products, a channel
-  event, the precedence. A full rebuild of 202 profiles took 274.7 s (§7). SC-005 bounds such a
-  catalogue-wide change at ≤ 300 s at 200 profiles, beside 60 s for a targeted one (owner ruling
-  2026-10-24); speeding it up is issue #416. (Until 2026-10-23 every bump rebuilt every
+  event, the precedence. SC-005 bounds such a catalogue-wide change at ≤ 300 s at 200 profiles,
+  beside 60 s for a targeted one (owner ruling 2026-10-24), and the bench asserts it: 275.43 s for an
+  all-products row and 270.53 s for a channel event at 201 profiles (§7) — within the bound with
+  little headroom; speeding it up is issue #416. (Until 2026-10-23 every bump rebuilt every
   profile; the targeted refresh of research R17 replaced that.)
 
 ## Summary of the pre-160 baseline
@@ -420,7 +421,7 @@ Benches (all `describe.skipIf(PERF_RUN !== 'true')`), as they stand after featur
 
 | Bench | What | Budget / latest measurement |
 | --- | --- | --- |
-| `backend/test/perf/price_lists/price-surface.bench.ts` | SC-005: price-sorted and range pages over the surface, 50 000 products, 1 000 organizations; refresh latency; since 2026-10-23 also 202 built profiles and a PIM-like import | p95 ≤ **150 ms** per page, a change visible ≤ **60 s**; 2026-10-23 (targeted refresh): page p95 ≤ 27.4 ms, write → visible 0.20–0.49 s, import probes p95 0.50 s; T133 (2026-10-22, whole rebuilds): p95 ≤ 28.2 ms, refresh 47.2 s |
+| `backend/test/perf/price_lists/price-surface.bench.ts` | SC-005: price-sorted and range pages over the surface, 50 000 products, 1 000 organizations; refresh latency; since 2026-10-23 also 202 built profiles and a PIM-like import | p95 ≤ **150 ms** per page, a change visible ≤ **60 s**; 2026-10-23 (targeted refresh): page p95 ≤ 27.4 ms, write → visible 0.20–0.49 s, import probes p95 0.50 s; catalogue-wide change ≤ **300 s** at 200+ profiles (`PERF_SURFACE_CATALOGUE_WIDE_MS`), 2026-10-24: 275.43 s / 270.53 s; T133 (2026-10-22, whole rebuilds): p95 ≤ 28.2 ms, refresh 47.2 s |
 | `backend/test/perf/price_lists/book-resolver.bench.ts` | a 50-product listing page on the price-book resolver (replaced `matrix-resolver.bench.ts`) | budget **60 ms** p95; 13.0 ms (no book), 11.5 ms (100 rows), 11.1 ms (1 950 rows on other products) |
 | `backend/test/perf/price_lists/book-lines-page.bench.ts` | the admin grid's line pages, 50 003-line base book (161 G15) | budget **150 ms** p95; steady: every case ≤ 150 ms, largest 125.3 ms; fresh data before the first autovacuum: three broad-search cases 150.6–152.6 ms (accepted, issue #409) |
 | `backend/test/perf/price_lists/editor-import-save.bench.ts` | a 5 000-row import preview and commit; a 1 000-row file to preview | preview 205 ms, commit 1 024 ms; 83 ms (2026-10-23) |
@@ -506,6 +507,17 @@ scalar probe, on a `price_profile_prices` analysed while empty; the check now co
 surfaces' ids in memory and a large whole build runs `ANALYZE` in its own transaction
 (`backend/test/integration/price_lists/price-surface-plans.test.ts`).
 
+**Catalogue-wide changes (owner ruling 2026-10-24, T180).** SC-005 bounds a change that marks its
+profiles whole at ≤ 300 s at 200 built profiles; the bench asserts it (`PERF_SURFACE_CATALOGUE_WIDE_MS`,
+default 300 000). Same machine, idle, the default fixture, only the 200-profile build and the
+catalogue-wide scenario selected:
+
+| Scenario | Measured | Budget |
+| --- | --- | --- |
+| 201 profiles built (1 131 443 rows, 270 MB) | 272.8 s | recorded |
+| an all-products −30 % row on the everyone book (201 profiles marked and rebuilt whole) → visible | 275.43 s | 300 s |
+| `sales_channels.identity_changed` (201 marked and rebuilt whole) → visible | 270.53 s | 300 s |
+
 **SC-004 on the price-book engine (T173, 2026-10-23, idle).**
 `catalog/listing-price-viewer-cost.bench.ts`, page of 50:
 
@@ -522,10 +534,10 @@ lines page on a 50 000-line base book measured p95 48.1–111.8 ms over its twel
 shapes (budget 150), and the editor's 1 000-row read and preview 81 ms, a 5 000-row preview 192 ms
 and commit 974 ms.
 
-What is **not** measured (gap): catalogue scale beyond 5 000 products for the listing path; the
-write → visible time of a change that rebuilds hundreds of profiles whole (an all-products or
-attribute-only row, a channel event — a full rebuild of 202 profiles is recorded at 274.7 s, not yet
-asserted against SC-005's 300 s bound for catalogue-wide changes); multi-replica cache behaviour; typeahead and cart/checkout with large
+What is **not** measured (gap): catalogue scale beyond 5 000 products for the listing path; a
+catalogue-wide change on more than the bench's 201 profiles (it grows with the number of profiles,
+and at 201 it is within SC-005's 300 s with about 25 s to spare); an attribute-only row as a
+catalogue-wide trigger (the bench exercises an all-products row and a channel event); multi-replica cache behaviour; typeahead and cart/checkout with large
 baskets. (The typeahead, external-API and cart N+1 paths are batched since
 P0, with a statement-count assertion in `line-prices-batch.test.ts`.)
 

@@ -222,7 +222,7 @@ platform's measurements, even during a large product import. A change that reach
 catalogue — a line for all products or for an attribute value alone, a change to more than 10 000
 products at once, or a change to a sales channel — recomputes the order whole for every group of
 buyers it reaches, which takes minutes on a large catalogue with many contract price books: the
-platform's target for it is five minutes with about 200 such groups (measured: 4 min 35 s at 202),
+platform's target for it is five minutes with about 200 such groups (measured: about 4 min 35 s at 201),
 against one minute for any other change. Making it faster is tracked in issue #416.
 
 **List price beside the buyer's price.** With *Show list price beside the buyer's price* switched on
@@ -349,8 +349,10 @@ instance that used it:
   currency.
 - **Every other price list is gone** — with its Application rule, its products and quantity brackets
   and its price matrix. Recreate the prices it held as price books. A list a product feed was
-  pinned to is kept as an empty, inactive book named `<old name> (removed by the 0.108.0 upgrade)`,
-  which you can delete once the feed is pinned to its replacement.
+  pinned to is the one exception: it is kept, with its id, as an empty, expired book for everyone
+  with no sales channel, named `<old name> (removed by the 0.108.0 upgrade)` (the old name is cut so
+  the whole fits 200 characters). Delete it once no feed needs it; a feed still pinned to it then
+  warns that its price book no longer exists.
 - **The product's *Default unit price* and the variant price override are gone**, and were not
   converted: the product editor no longer has those fields, and product writes and the products
   import refuse them (`400 PRICE_SET_IN_PRICE_BOOKS`). A product that had only a *Default unit price*

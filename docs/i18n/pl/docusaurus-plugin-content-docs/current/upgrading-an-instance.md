@@ -2394,13 +2394,13 @@ zmiany w storefroncie nie były wypróbowane.
 ### Po aktualizacji do wydania 0.108.0 {#after-0-108-0}
 
 `pnpm run upgrade 0.108.0` przenosi pakiety wydania z `0.107.0` i wykonuje jego migracje —
-dwadzieścia jeden, z czego jedenaście dotyczy nowego modelu cen i jego edytora. **Wydanie zastępuje sposób
-przechowywania i wyliczania cen w jednym kroku, bez okresu zgodności**: cenniki wcześniejszych
+dwadzieścia dwie, z czego dwanaście dotyczy nowego modelu cen i jego edytora. **Wydanie zastępuje
+sposób przechowywania i wyliczania cen w jednym kroku, bez okresu zgodności**: cenniki wcześniejszych
 wydań, z ich regułami stosowania (Application rule), listami produktów i przedziałami ilościowymi,
 stają się **cennikami w nowym modelu**, a produkt nie ma już własnej ceny. Ceny bazowe, które
 instancja naliczała z cennika *Default*, zostają zachowane; **każdy inny cennik aktualizacja
-usuwa** — a jeśli przypięty jest do niego feed produktowy, zostawia go pustego i wycofanego z
-użycia — i nic go nie przenosi. Przeczytaj poniższe kroki, zanim uruchomisz polecenie. Ta sekcja
+usuwa** i nic go nie przenosi — jedynym wyjątkiem jest cennik, do którego przypięty jest feed
+produktowy: zostaje jako pusty, wygasły cennik (krok 3). Przeczytaj poniższe kroki, zanim uruchomisz polecenie. Ta sekcja
 opisuje zmianę cen; pozostałe zmiany wydania są w dziennikach zmian poszczególnych pakietów. Mówi,
 co zrobić i w jakiej kolejności, a potem — co działa inaczej dla
 [operatorów](#after-0-108-0-operators),
@@ -2418,9 +2418,10 @@ Przed aktualizacją:
 1. **Zapisz każdy cennik inny niż *Default*: jego ceny, kogo wyceniał i w których kanałach.**
    `Migration20261022T111815PriceListsPriceBooksConversion` usuwa każdy cennik z regułą stosowania —
    kontrakty grup klientów i organizacji, promocje, cenniki katalogowe — razem z listą produktów,
-   przedziałami, regułą i pozycjami macierzy cen, a potem usuwa stare tabele (cennik, do którego
-   przypięty jest feed produktowy, zostaje zamiast tego pusty i wycofany z użycia, krok 3). To, co wyceniały,
-   trzeba po aktualizacji wprowadzić ponownie jako cenniki; kopia bazy danych z
+   przedziałami, regułą i pozycjami macierzy cen, a potem usuwa stare tabele. Cennik, do którego
+   przypięty jest feed produktowy, zostaje zamiast tego wycofany z użycia (krok 3), ale jest pusty,
+   więc jego ceny i tak przepadają. To, co wyceniały, trzeba po aktualizacji wprowadzić ponownie jako
+   cenniki; kopia bazy danych z
    [Zanim zaczniesz](#zanim-zaczniesz) jest jedyną kopią tych wierszy.
 2. **Zapisz cenę każdego produktu, który ma *Default unit price*, ale nie ma wiersza w cenniku
    *Default*.** `Migration20261022T111811CatalogPriceFieldsRemoved` usuwa `defaultPrice` i `price`
@@ -2429,13 +2430,15 @@ Przed aktualizacją:
    ceny** — koszyk odrzuca go z kodem `422 CART_PRODUCT_UNPRICED` — dopóki nie wpisze się dla niego
    ceny bazowej. *Price override* wariantu nigdy nie był naliczany, więc jego usunięcie nie zmienia
    żadnej ceny.
-3. **Feed produktowy przypięty do cennika innego niż *Default* nie wymaga niczego przed
-   aktualizacją.** Konwersja nie usuwa cennika, na który feed nadal wskazuje: wycofuje go z użycia —
-   usuwa jego wiersze, powiązania z kanałami i odbiorców, zostawia go nieaktywnym i zmienia jego
-   nazwę na `<old name> (removed by the 0.108.0 upgrade)`. Feed nie publikuje wtedy z niego żadnych
-   cen: jego strona pokazuje ostrzeżenie, a pierwsze generowanie po aktualizacji wycofuje
-   opublikowany plik. Przypnij feed do cennika, który zastępuje dawny (krok 9); wycofany cennik
-   można potem usunąć, a feed nadal przypięty do usuniętego cennika zgłasza `not_found`.
+3. **Feed produktowy przypięty do cennika innego niż *Default*: nic nie trzeba robić.** Feed
+   produktowy przypięty do cennika, który aktualizacja usuwa, pozostaje przypięty do wycofanej kopii
+   tego cennika: pustego, wygasłego cennika dla wszystkich, bez kanału sprzedaży i z tym samym id, o
+   nazwie `<name> (removed by the 0.108.0 upgrade)` (dawna nazwa jest skracana tak, by całość
+   mieściła się w 200 znakach). Strona feedu ostrzega, że jego cennik nie jest aktywny, a następne
+   generowanie feedu wycofuje opublikowany plik, więc link odpowiada tak, jakby feed nigdy nie
+   został wygenerowany — dopóki nie przypniesz feedu do cennika, który obowiązuje, albo go nie
+   odepniesz (krok 9). Wycofany cennik możesz usunąć, gdy przestanie być potrzebny; feed nadal do
+   niego przypięty ostrzega wtedy, że jego cennik już nie istnieje.
 4. **Jeśli Twoja integracja zapisuje ceny przez `priceListAdminPort`** — zwykle import cen
    konektora PIM — przygotuj jej nową wersję: port został usunięty, a zastępuje go
    `priceBookWritePort`. Konektor zbudowany dla starego portu nie może w tym wydaniu zapisywać cen.
@@ -2466,6 +2469,7 @@ Sama aktualizacja:
    | `Migration20261020T131018PwaPreferencesOrganizationAttributionCheck` | `pwa` | Ograniczenie `CHECK` na `push_notification_preferences` |
    | `Migration20261021T165244CartsCartItemsPriceSource` | `carts` | `cart_items.price_source`, może być `null` |
    | `Migration20261023T195611ProductFeedsRunWithdrawalReason` | `product_feeds` | `product_feed_runs.withdrawal_reason`, może być `null` — dla generowania, które wycofało opublikowany plik |
+   | `Migration20261023T234605ProductFeedsPriceListFkDropped` | `product_feeds` | Usuwa `product_feeds_price_list_fk`, więc wycofany cennik można później usunąć; wykonuje się po konwersji |
    | `Migration20261021T165239PriceListsPriceBooksExpand` | `price_lists` | Nagłówek cennika, zbiory odbiorców i kanałów, rozszerzone wiersze, wersja kolejności 1, tabele powierzchni cen |
    | `Migration20261021T232310PriceListsPriceBooksVersion` | `price_lists` | `price_lists.version` i `ever_activated` |
    | `Migration20261022T012134PriceListsPriceSurfaceGenerations` | `price_lists` | Generacje powierzchni cen |
@@ -2476,7 +2480,8 @@ Sama aktualizacja:
    Konwersja wykonuje się w jednej transakcji: tworzy jeden **cennik cen bazowych** na każdą walutę
    użytą w przedziale cennika *Default* oraz na domyślną walutę platformy; zamienia każdy przedział
    cennika *Default* w stały wiersz cennika cen bazowych swojej waluty; usuwa każdy inny cennik
-   poza tym, do którego przypięty jest feed — ten wycofuje z użycia, pustego (krok 3);
+   poza tym, do którego odwołuje się jeszcze inna tabela — przypięty feed — który wycofuje z użycia
+   jako pusty, wygasły cennik z tym samym id (krok 3);
    usuwa stare tabele i kolumny. `Migration20261022T182523CatalogAdminNameKeys` dodaje do
    `products` cztery kolumny generowane, a każda z nich przepisuje tabelę pod blokadą wyłączną —
    w pomiarze platformy 3,5–7 s na kolumnę przy 50 000 produktów — co jest jeszcze jednym powodem,
@@ -2499,9 +2504,10 @@ Po aktualizacji, zanim instancja znów przyjmie ruch:
    wszystkich, wybrane grupy klientów albo wybrane organizacje — i linie; niczego nie wycenia,
    dopóki nie zostanie aktywowany. *Wyjaśnienie ceny* (`/price-lists/explain`) pokazuje dla
    kupującego i produktu, która linia zdecydowała o cenie.
-9. **Przypnij ponownie feedy z kroku 3** (`PATCH /api/v1/admin/product-feeds/:id` z id cennika jako
-   `priceListId`; żaden ekran feedu jeszcze tego nie ustawia, zgłoszenie #414) do cennika, który obowiązuje kogokolwiek w kanale feedu: *Aktywny* albo
-   *Zaplanowany* w swoich datach, przypisany do kanału feedu i dla wszystkich. Feed przypięty do
+9. **Przypnij ponownie feedy z kroku 3 albo je odepnij** przez API feedów produktowych
+   (`PATCH /api/v1/admin/product-feeds/:id` z `priceListId` — id cennika albo `null`); w panelu nie
+   ma jeszcze do tego kontrolki (zgłoszenie #414). Przypnij każdy do cennika, który obowiązuje
+   kogokolwiek w kanale feedu: *Aktywny* albo *Zaplanowany* w swoich datach, przypisany do kanału feedu i dla wszystkich. Feed przypięty do
    każdego innego cennika nie publikuje z niego żadnych cen — strona feedu mówi dlaczego — a jego
    następne generowanie kończy się stanem *Wycofany* i wycofuje opublikowany plik, więc link
    odpowiada tak jak dla feedu nigdy niewygenerowanego, dopóki cennik znów nie zacznie obowiązywać.
@@ -2533,8 +2539,8 @@ W dowolnym momencie:
 - **Zmiana ceny pojawia się na liście sortowanej według ceny w ciągu około pół sekundy** w
   pomiarach platformy; zmiana, która sięga całego katalogu — linia dla wszystkich produktów albo
   tylko dla wartości atrybutu, ponad 10 000 produktów naraz, zmiana kanału sprzedaży — trwa do około
-  pięciu minut przy mniej więcej 200 grupach kupujących z własnymi cennikami (zmierzono 4 min 35 s
-  przy 202; przyspieszenie opisuje zgłoszenie #416). Ceny na kartach produktów nigdy
+  pięciu minut przy mniej więcej 200 grupach kupujących z własnymi cennikami (zmierzono około 4 min 35 s
+  przy 201; przyspieszenie opisuje zgłoszenie #416). Ceny na kartach produktów nigdy
   się nie opóźniają.
 - **Import produktów odrzuca plik z kolumną ceny** — `default_price`, `defaultPrice`, `price`,
   `price_override` albo `priceOverride` — z kodem `400 PRICE_SET_IN_PRICE_BOOKS` i niczego nie

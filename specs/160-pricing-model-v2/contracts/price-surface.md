@@ -126,7 +126,7 @@ organizations, 500 with books of three kinds, 20 groups). Assertions:
 | profile-miss page (restricted build) | recorded, not asserted; reported against the budget |
 | single-book refresh → visible in sort | p95 ≤ **60 s** (SC-005) |
 | at ≥ 200 built profiles: write → visible for an everyone row, an organization row, a base price through `priceBookWritePort`, a `product.updated.v1`; probe writes during a PIM-like import | each ≤ **60 s** (SC-005) |
-| at ≥ 200 built profiles: a catalogue-wide change → visible in sort (whole rebuild of the profiles it reaches) | ≤ **300 s** (SC-005, owner ruling 2026-10-24); today only the full rebuild of every profile is recorded (274.7 s at 202), not asserted |
+| at ≥ 200 built profiles: a catalogue-wide change → visible in sort (whole rebuild of the profiles it reaches) | ≤ **300 s** (SC-005, owner ruling 2026-10-24), asserted for an all-products row on the everyone book and a `sales_channels.identity_changed` (`PERF_SURFACE_CATALOGUE_WIDE_MS`); 275.43 s and 270.53 s at 201 profiles (2026-10-24) |
 | full rebuild | recorded (input to P3's precedence flow) |
 | `price_profile_prices` rows and index size | recorded; above 10 M rows triggers the profile-factor task (`research.md` R7) |
 

@@ -294,8 +294,10 @@ too slow, so price sorting and price-range filtering read a precomputed **price 
 **Freshness bound (SC-005).** A targeted change is visible in the sort within 60 s; a
 catalogue-wide one — a change that marks its profiles whole: an all-products or attribute-only row
 on an everyone or base book, a `sales_channels.identity_changed` or `lifecycle_changed` event, a
-change over 10 000 products — within 300 s at 200 built profiles (owner ruling 2026-10-24; a full
-rebuild of 202 profiles measured 274.7 s). Issue #416 tracks making the whole rebuild faster.
+change over 10 000 products — within 300 s at 200 built profiles (owner ruling 2026-10-24). The
+bench asserts both (`PERF_SURFACE_CATALOGUE_WIDE_MS` for the second) and measured, at 201 profiles,
+275.43 s for an all-products row and 270.53 s for a channel identity event. Issue #416 tracks
+making the whole rebuild faster.
 Measured with `PERF_RUN=true` in `backend/test/perf/price_lists/price-surface.bench.ts` (50 000
 products, 1 000 organizations): the figures are in `specs/pricing/read-paths-and-performance.md` §7.
 
@@ -461,10 +463,15 @@ The migrations that ran:
    currency used by a *Default*-list bracket plus the platform default currency (the default
    currency's keeps the id `00000000-0000-4000-8000-00000000d51b`); every *Default* bracket became a
    fixed product row of its currency's base book; every other price list was deleted with its
-   roster, brackets, rule and matrix entries — except a list a product feed still pointed at, which
-   was retired instead: rows, channel bindings and audience removed, left inactive, renamed
-   `<old name> (removed by the 0.108.0 upgrade)` (`product_feeds` no longer holds a foreign key to
-   `price_lists`, so the book can be deleted later and the feed then reports `not_found`); the old tables and columns were dropped; the type
+   roster, brackets, rule and matrix entries — except a list another table still referred to (a
+   product feed pinned to it): each list is deleted in its own savepoint, and one whose delete
+   raises a foreign-key violation is **retired** instead — its rows, audience members, channel
+   bindings and product lines removed, `status = 'expired'`, `audience_kind = 'everyone'`, no dates,
+   its id kept, and its name `<old name> (removed by the 0.108.0 upgrade)`, the old name cut so the
+   whole fits 200 characters (owner decision 2026-10-24, `research.md` R4, the departure from N13).
+   `product_feeds`' migration `20261023T234605_product_feeds_price_list_fk_dropped.ts`, which runs
+   after the conversion, drops `product_feeds_price_list_fk`, so the retired book can be deleted
+   later; a feed pinned to it answers `not_active` until then and `not_found` after; the old tables and columns were dropped; the type
    `base` was renamed `regular`.
 4. **`price_lists`, after the conversion**: `20261022T182527_price_lists_product_lines.ts` creates
    `price_list_product_lines` and backfills it from the rows already stored, and

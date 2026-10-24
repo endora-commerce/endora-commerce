@@ -161,7 +161,7 @@ Each in its owner's migration; no FK; null for lines priced before the feature.
 | `price_list_products`, `price_list_price_brackets` (+ the 086 partial index) | price_lists | dropped by the conversion migration after step 3 (R4) |
 | `price_list_items`, `price_list_assignments` | price_lists | dropped |
 | `price_lists.application_rule`, `code`, `is_default`, `modified_at` | price_lists | dropped |
-| `price_list_matrix_entries.organization_id`, `currency_code` | price_lists | dropped after the non-system lists are deleted (only base rows remain, and they carry neither) |
+| `price_list_matrix_entries.organization_id`, `currency_code` | price_lists | dropped after the non-system lists are deleted (or retired empty, when another table refers to one — `research.md` R4) (only base rows remain, and they carry neither) |
 | `PriceListProduct`, `PriceListPriceBracket` entities; Application-rule evaluator; candidate vector | price_lists | code removed |
 
 **Removed by `catalog` in the same release, not converted** (`research.md` R2, owner ruling

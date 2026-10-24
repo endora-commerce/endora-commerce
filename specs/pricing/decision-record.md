@@ -691,7 +691,7 @@ converted:
 | Default list brackets | rows of the per-currency system base books (PLN keeps `…d51b`) |
 | `products.attribute_values.defaultPrice` | **not converted**; the keys are stripped by `catalog`'s migration — a product priced only by it has no price until a base price is entered or the demo is reseeded |
 | `product_variants.price_override` | **not converted**; the column is dropped by `catalog`'s migration |
-| every non-system price list, its roster, brackets and matrix entries | **dropped**. Converting Application rules (AND/OR trees, category criteria, mixed audiences) into price books is the hardest part of a behaviour-preserving migration and protects no one |
+| every non-system price list, its roster, brackets and matrix entries | **dropped**. Converting Application rules (AND/OR trees, category criteria, mixed audiences) into price books is the hardest part of a behaviour-preserving migration and protects no one. **Departure, owner decision 2026-10-24** (`specs/160-pricing-model-v2/research.md` R4): a list another table still refers to — a product feed pinned to it — is retired instead, kept as an empty, expired, channel-less book for everyone named "… (removed by the 0.108.0 upgrade)", so the upgrade needs no manual step |
 
 The demo is **reseeded**, not converted: the demo composition seeds base prices today through
 `DefaultPriceListMigrator` from the catalogue's `defaultPrice` (`packages/demo-composition/src/composition.ts:976-986`,

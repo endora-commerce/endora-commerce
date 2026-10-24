@@ -67,6 +67,7 @@ and prices E1.1–E1.4, then only E2's and prices E2.1–E2.4 (SC-007).
   (Default brackets in two currencies, a product with only `defaultPrice`, a variant override, a
   rule-based list with matrix entries) → after migration: base rows equal the Default brackets; the
   `defaultPrice`-only product and the variant have **no** price; `price_override` and the
-  `defaultPrice` keys are gone; no non-system list; old tables absent; precedence v1 = HY (SC-006).
+  `defaultPrice` keys are gone; no non-system list but the retired ones (an old list another table
+  refers to: empty, expired, no channel, renamed, §1); old tables absent; precedence v1 = HY (SC-006).
 - `db:fresh` + `module:install --all` on an empty database: green, base books for the default currency
   exist, precedence seeded.

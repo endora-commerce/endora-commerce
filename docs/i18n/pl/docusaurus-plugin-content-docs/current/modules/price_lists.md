@@ -225,7 +225,7 @@ pomiarach platformy, także w trakcie dużego importu produktów. Zmiana, która
 linia dla wszystkich produktów albo tylko dla wartości atrybutu, zmiana ponad 10 000 produktów naraz
 albo zmiana kanału sprzedaży — przelicza porządek w całości dla każdej grupy kupujących, do której
 sięga, co w dużym katalogu z wieloma cennikami kontraktowymi trwa kilka minut: platforma zakłada
-dla niej pięć minut przy około 200 takich grupach (zmierzono 4 min 35 s przy 202), wobec jednej
+dla niej pięć minut przy około 200 takich grupach (zmierzono około 4 min 35 s przy 201), wobec jednej
 minuty dla każdej innej zmiany. Przyspieszenie tego opisuje zgłoszenie #416.
 
 **Cena katalogowa obok ceny kupującego.** Po włączeniu ustawienia *Pokazuj cenę katalogową obok ceny
@@ -354,9 +354,11 @@ W instancji, która go używała:
   swojej walucie.
 - **Wszystkich pozostałych cenników już nie ma** — razem z ich regułą stosowania, produktami i
   przedziałami ilościowymi oraz macierzą cen. Ceny, które zawierały, utwórz ponownie jako cenniki.
-  Cennik, do którego był przypięty feed produktowy, zostaje jako pusty, nieaktywny cennik o nazwie
-  `<old name> (removed by the 0.108.0 upgrade)`, który można usunąć, gdy feed zostanie przypięty do
-  jego zamiennika.
+  Jedynym wyjątkiem jest cennik, do którego był przypięty feed produktowy: zostaje, z tym samym id,
+  jako pusty, wygasły cennik dla wszystkich bez kanału sprzedaży, o nazwie
+  `<old name> (removed by the 0.108.0 upgrade)` (dawna nazwa jest skracana tak, by całość mieściła
+  się w 200 znakach). Usuń go, gdy żaden feed go nie potrzebuje; feed nadal do niego przypięty
+  ostrzega wtedy, że jego cennik już nie istnieje.
 - **Nie ma już *Default unit price* produktu ani nadpisania ceny wariantu** i nie zostały one
   przeniesione: edytor produktu nie ma tych pól, a zapisy produktów i import produktów je odrzucają
   (`400 PRICE_SET_IN_PRICE_BOOKS`). Produkt, który miał tylko *Default unit price*, a nie miał ceny w
