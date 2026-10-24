@@ -3,6 +3,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Migration } from '@mikro-orm/migrations';
 import { Migration20261022T111811CatalogPriceFieldsRemoved } from '@endora-commerce/mod-catalog/migrations';
 import { Migration20261022T111815PriceListsPriceBooksConversion } from '@endora-commerce/mod-price-lists/migrations';
+import { Migration20261023T234605ProductFeedsPriceListFkDropped } from '@endora-commerce/mod-product-feeds/migrations';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
+import { seedPriceBookSql } from '../../helpers/price-book-sql.js';
+import { setChannelStorefrontUrl } from '../../helpers/seed-product-feeds.js';
+import { SEED_PRODUCT_101_ID, SEED_PRODUCT_102_ID, SEED_PRODUCT_103_ID } from '../../helpers/seed-catalog.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -27,6 +32,16 @@ import type { PricingService } from '../../../../packages/modules/price_lists/sr
  * catalogue fields are gone and **not** converted, so the product and the
  * variant they priced have no price; no old-model list is left, while the
  * price book is; the old tables and columns are absent; precedence v1 is HY.
+ *
+ * Owner decision 2026-10-24 (research R4, the departure from N13) — an
+ * instance on 0.107.0 can have a product feed pinned to an old-model list,
+ * held by `product_feeds_price_list_fk` (`on delete restrict`). The upgrade
+ * must not stop there: the conversion **retires** a list something still
+ * refers to — kept, stripped of its rows, channels and audience, `expired`
+ * and renamed — and `product_feeds`' own migration, which runs after it,
+ * drops the key. The feed then warns `not_active`, its next run withdraws the
+ * published file, and deleting the retired book later leaves the feed
+ * answering `not_found`.
  */
 describe('price_lists — the conversion (feature 160, SC-006)', () => {
   let h: BackendServerHandle;
@@ -47,7 +62,11 @@ describe('price_lists — the conversion (feature 160, SC-006)', () => {
     channel: randomUUID(),
     oldList: randomUUID(),
     book: randomUUID(),
+    pinnedList: randomUUID(),
   };
+  const ADMIN = { cookies: { b2b_session: 'stub-admin-session' } };
+  const RETIRED_SUFFIX = ' (removed by the 0.108.0 upgrade)';
+  let feed: { id: string; token: string };
 
   async function run(migration: Migration, direction: 'up' | 'down'): Promise<void> {
     await migration[direction]();
@@ -56,6 +75,18 @@ describe('price_lists — the conversion (feature 160, SC-006)', () => {
 
   const catalogMigration = () => new Migration20261022T111811CatalogPriceFieldsRemoved(h.em().getDriver(), h.em().config);
   const conversion = () => new Migration20261022T111815PriceListsPriceBooksConversion(h.em().getDriver(), h.em().config);
+  const feedKeyDropped = () => new Migration20261023T234605ProductFeedsPriceListFkDropped(h.em().getDriver(), h.em().config);
+
+  const generate = (feedId: string) => h.productFeeds.generation.generateNow(feedId, { trigger: 'manual' });
+  const publicStatus = async (token: string) =>
+    (await h.app.inject({ method: 'GET', url: `/api/v1/public/product-feeds/${token}` })).statusCode;
+  async function feedWarning(feedId: string): Promise<string | null> {
+    const res = await h.app.inject({ method: 'GET', url: `/api/v1/admin/product-feeds/${feedId}`, ...ADMIN });
+    expect(res.statusCode, res.body).toBe(200);
+    const data = (res.json() as { data: { feed?: { pinnedPriceBookWarning: string | null }; pinnedPriceBookWarning?: string | null } })
+      .data;
+    return data.feed?.pinnedPriceBookWarning ?? data.pinnedPriceBookWarning ?? null;
+  }
 
   async function product(id: string, sku: string, type: string, attributeValues: Record<string, unknown>): Promise<void> {
     await sql(
@@ -96,7 +127,42 @@ describe('price_lists — the conversion (feature 160, SC-006)', () => {
     const container = h.container as unknown as { resolve<T>(name: string): T };
     pricing = container.resolve<{ handle: { pricingEngine: PricingService } }>('priceLists').handle.pricingEngine;
 
-    // ── back to the state before the release's removal
+    // ── a feed that publishes, on 0.107.0 to be pinned to an old-model list
+    await setChannelStorefrontUrl(h, 'pl_retail');
+    const retail = await h.em().findOneOrFail(SalesChannel, { code: 'pl_retail' });
+    const feedBook = await seedPriceBookSql(h.em(), {
+      name: `Conversion feed book ${stamp}`,
+      audience: 'everyone',
+      channelIds: [retail.id],
+      rows: [SEED_PRODUCT_101_ID, SEED_PRODUCT_102_ID, SEED_PRODUCT_103_ID].map((productId) => ({ productId, fixed: '42.0000' })),
+    });
+    const templates = await h.app.inject({ method: 'GET', url: '/api/v1/admin/feed-templates', ...ADMIN });
+    const templateId = (templates.json() as { data: Array<{ id: string; systemCode: string | null }> }).data.find(
+      (t) => t.systemCode === 'google_merchant_v1',
+    )!.id;
+    const created = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/product-feeds',
+      ...ADMIN,
+      payload: {
+        name: `Conversion feed ${stamp}`,
+        slug: `conversion-feed-${stamp}`,
+        feedTemplateId: templateId,
+        salesChannelId: retail.id,
+        languageCode: 'en-US',
+        currencyCode: 'PLN',
+        pricePresentation: 'net',
+        priceListId: feedBook,
+      },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const body = created.json() as { data: { feed: { id: string }; issuedToken: { token: string } } };
+    feed = { id: body.data.feed.id, token: body.data.issuedToken.token };
+    expect(['completed', 'completed_with_warnings']).toContain((await generate(feed.id)).status);
+    expect(await publicStatus(feed.token)).toBe(200);
+
+    // ── back to the state before the release's removal, in reverse order
+    await run(feedKeyDropped(), 'down');
     await run(conversion(), 'down');
     await run(catalogMigration(), 'down');
 
@@ -185,6 +251,29 @@ describe('price_lists — the conversion (feature 160, SC-006)', () => {
       [ids.oldList, ids.org],
     );
 
+    // An old-model list a feed is pinned to, with rows, an audience and a
+    // channel: the foreign key refuses its deletion.
+    await sql(
+      `insert into "price_lists" ("id", "code", "name", "currency_code", "is_default", "priority", "type", "status",
+                                  "application_rule", "is_system", "audience_kind", "modified_at", "created_at", "updated_at")
+       values (?, ?, 'Pinned old list', 'PLN', false, 0, 'base', 'active', '{"kind":"all"}'::jsonb, false, 'organizations', now(), now(), now())`,
+      [ids.pinnedList, `pinned-${stamp}`],
+    );
+    await sql(
+      `insert into "price_list_matrix_entries" ("id", "price_list_id", "product_id", "min_quantity", "price_type", "amount", "created_at", "updated_at")
+       values (gen_random_uuid(), ?, ?, 1, 'fixed', 33, now(), now())`,
+      [ids.pinnedList, SEED_PRODUCT_101_ID],
+    );
+    await sql(`insert into "price_list_audience_members" ("id", "price_list_id", "organization_id") values (gen_random_uuid(), ?, ?)`, [
+      ids.pinnedList,
+      ids.org,
+    ]);
+    await sql(`insert into "sales_channel_price_lists" ("sales_channel_id", "price_list_id") values (?, ?)`, [
+      ids.channel,
+      ids.pinnedList,
+    ]);
+    await sql(`update "product_feeds" set "price_list_id" = ? where "id" = ?`, [ids.pinnedList, feed.id]);
+
     // A price book written through the new API before the conversion: kept.
     await sql(
       `insert into "price_lists" ("id", "code", "name", "currency_code", "is_default", "priority", "type", "status",
@@ -202,10 +291,12 @@ describe('price_lists — the conversion (feature 160, SC-006)', () => {
     // ── the release's migrations, in the order `migrate` runs them
     await run(catalogMigration(), 'up');
     await run(conversion(), 'up');
+    await run(feedKeyDropped(), 'up');
     await container.resolve<{ handle: { pricingGeneration: { bump(): Promise<void> } } }>('priceLists').handle.pricingGeneration.bump();
   }, 5 * 60_000);
 
   afterAll(async () => {
+    await sql(`delete from "product_feeds" where "id" = ?`, [feed?.id ?? '00000000-0000-4000-8000-000000000000']).catch(() => undefined);
     await sql(`delete from "price_lists" where "id" = ?`, [ids.book]).catch(() => undefined);
     await sql(`delete from "products" where "id" = any(?::uuid[])`, [`{${[ids.X, ids.W, ids.Y, ids.Z].join(',')}}`]).catch(
       () => undefined,
@@ -263,7 +354,7 @@ describe('price_lists — the conversion (feature 160, SC-006)', () => {
     expect(eur.get('X')?.amount).toBe('25.0000');
   });
 
-  it('no old-model list is left, and the price book is (N13)', async () => {
+  it('an old-model list nothing refers to is deleted; the price book stays (N13)', async () => {
     const lists = await sql<{ id: string }>(`select "id" from "price_lists" where not "is_system"`);
     expect(lists.map((l) => l.id)).toContain(ids.book);
     expect(lists.map((l) => l.id)).not.toContain(ids.oldList);
@@ -278,6 +369,46 @@ describe('price_lists — the conversion (feature 160, SC-006)', () => {
       ids.book,
     ]);
     expect(book!.n).toBe('1');
+  });
+
+  it('an old-model list a feed is pinned to is retired, not deleted, and the upgrade completes (R4)', async () => {
+    const [retired] = await sql<{ name: string; status: string; audience_kind: string; type: string; is_system: boolean }>(
+      `select "name", "status", "audience_kind", "type", "is_system" from "price_lists" where "id" = ?`,
+      [ids.pinnedList],
+    );
+    expect(retired).toEqual({
+      name: `Pinned old list${RETIRED_SUFFIX}`,
+      status: 'expired',
+      audience_kind: 'everyone',
+      type: 'regular',
+      is_system: false,
+    });
+    expect(await sql(`select 1 from "price_list_matrix_entries" where "price_list_id" = ?`, [ids.pinnedList])).toEqual([]);
+    expect(await sql(`select 1 from "price_list_audience_members" where "price_list_id" = ?`, [ids.pinnedList])).toEqual([]);
+    expect(await sql(`select 1 from "sales_channel_price_lists" where "price_list_id" = ?`, [ids.pinnedList])).toEqual([]);
+    expect(await sql(`select 1 from "price_list_product_lines" where "price_list_id" = ?`, [ids.pinnedList])).toEqual([]);
+    expect(
+      await sql(`select 1 from pg_constraint where "conname" = 'product_feeds_price_list_fk'`),
+      'product_feeds drops its key into price_lists',
+    ).toEqual([]);
+  });
+
+  it('the feed pinned to the retired list warns, and its next run withdraws the file; deleting the book leaves it not_found', async () => {
+    const [pin] = await sql<{ price_list_id: string | null }>(`select "price_list_id" from "product_feeds" where "id" = ?`, [feed.id]);
+    expect(pin!.price_list_id).toBe(ids.pinnedList);
+    expect(await feedWarning(feed.id)).toBe('not_active');
+
+    const withdrawn = await generate(feed.id);
+    expect(withdrawn.status).toBe('withdrawn');
+    expect(withdrawn.withdrawalReason).toBe('not_active');
+    expect(await publicStatus(feed.token)).toBe(404);
+
+    const deleted = await h.app.inject({ method: 'DELETE', url: `/api/v1/admin/price-books/${ids.pinnedList}`, ...ADMIN });
+    expect(deleted.statusCode, deleted.body).toBe(204);
+    expect(await feedWarning(feed.id)).toBe('not_found');
+    const again = await generate(feed.id);
+    expect(again.status).toBe('withdrawn');
+    expect(again.withdrawalReason).toBe('not_found');
   });
 
   it('the old storage is gone (FR-042)', async () => {

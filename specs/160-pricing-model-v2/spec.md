@@ -480,7 +480,10 @@ storefront.
   Default-list brackets into base-book rows of their currencies. The product *default price* and the
   variant price override MUST NOT be converted (Clarifications, Session 2026-10-21).
 - **FR-042**: Installing the feature MUST remove every non-system price list of the old model with its
-  roster, brackets, rule and matrix entries (N13), and the old model's storage: the Application rule,
+  roster, brackets, rule and matrix entries (N13) — except one another module still refers to (a
+  product feed pinned to it), which MUST be retired instead: kept as an empty, expired, channel-less
+  book for everyone, renamed, so the upgrade completes with no manual step (owner decision
+  2026-10-24, `research.md` R4) — and the old model's storage: the Application rule,
   the per-product roster and bracket tables, the legacy feature-014 tables, the matrix entries'
   organization and currency coordinates; and the catalogue module MUST remove, in the same release,
   the product *default price* (the `defaultPrice`/`price` keys and the editor field) and the variant

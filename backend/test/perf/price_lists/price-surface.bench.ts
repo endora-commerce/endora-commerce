@@ -59,6 +59,14 @@ import type { PriceBookWritePort } from '@endora-commerce/contracts';
  *     asserted ≤ 60 s for every probe;
  *   - a full rebuild of every profile — recorded (the input to P3).
  *
+ * And, since the owner ruling of 2026-10-24 (SC-005's 60 s is for targeted
+ * changes; a catalogue-wide change has ≤ 300 s at 200 profiles,
+ * `contracts/price-surface.md` §5; speeding the full rebuild up is #416):
+ *   - an all-products percentage row on the everyone book through the audited
+ *     path, and a `sales_channels.identity_changed`, each until the guest's
+ *     first page equals the live cards — asserted ≤ 300 s each
+ *     (`PERF_SURFACE_CATALOGUE_WIDE_MS`).
+ *
  * PERF_RUN=true to run.
  *
  * **Measured 2026-10-22, two runs, after the non-blocking surface** (owner
@@ -96,6 +104,14 @@ import type { PriceBookWritePort } from '@endora-commerce/contracts';
  * coverage-check fix the first page of the all-products buyer took 428 s and
  * then 47 s (`price-surface-plans.test.ts`); earlier runs hid it because a
  * slower whole build left autovacuum time to analyse the table.
+ *
+ * **Measured 2026-10-24, the catalogue-wide bound** (same machine, idle, the
+ * default fixture; only the 200-profile build and the catalogue-wide scenario
+ * selected with `-t`). 201 profiles built in 272.8 s (1 131 443 rows,
+ * 270 MB). An all-products −30 % row on the everyone book: 201 profiles
+ * marked and rebuilt whole, write → visible 275.43 s; a
+ * `sales_channels.identity_changed`: 201 marked and rebuilt whole, 270.53 s.
+ * Both within the 300 s bound, with about 25 s to spare.
  */
 
 const productCount = Number(process.env['PERF_SURFACE_PRODUCTS'] ?? '50000');
@@ -624,6 +640,90 @@ describe.skipIf(!shouldRun)('price surface — SC-005', () => {
     );
     expect(await pendingProfiles()).toBe(0);
     expect(Math.max(...freshness)).toBeLessThanOrEqual(refreshBudget);
+  }, 60 * 60_000);
+
+  // ---- Catalogue-wide changes (owner ruling 2026-10-24) ------------------------
+  //
+  // SC-005's 60 s holds for targeted changes only. A catalogue-wide change — an
+  // all-products or attribute-only row on an everyone or base book, a channel
+  // identity or lifecycle event, a change touching more than 10 000 products —
+  // has its own bound: ≤ 300 s at 200 profiles (`contracts/price-surface.md`
+  // §5). Speeding the full rebuild up is issue #416; this asserts the bound,
+  // it does not move it.
+
+  const catalogueWideBudget = Number(process.env['PERF_SURFACE_CATALOGUE_WIDE_MS'] ?? '300000');
+
+  /** The guest's first page as the sort serves it, and whether every row equals the live card price. */
+  async function guestPageMatchesLive(): Promise<{ matches: boolean; rows: Array<{ productId: string; amount: string }> }> {
+    const page = await firstOf();
+    const rows = page.rows.map((r) => ({ productId: r.productId, amount: String(r.amount) }));
+    if (rows.length === 0) return { matches: false, rows };
+    const products = await sql<{ id: string; attribute_values: Record<string, unknown> }>(
+      `select "id", "attribute_values" from "products" where "id" = any(?::uuid[])`,
+      [`{${rows.map((r) => r.productId).join(',')}}`],
+    );
+    const live = await pricing.resolveListingPrices({
+      products: products.map((p) => ({ id: p.id, attributeValues: p.attribute_values ?? {} })),
+      context: viewerOf(),
+    });
+    const matches = rows.every((r) => {
+      const price = live.get(r.productId);
+      return price !== undefined && price.source !== 'none' && Number(price.amount) === Number(r.amount);
+    });
+    return { matches, rows };
+  }
+
+  it('catalogue-wide changes on 200+ profiles: each is visible in the sort within 300 s', async () => {
+    const samples: number[] = [];
+    const [{ code: channelCode }] = (await sql<{ code: string }>(`select "code" from "sales_channels" where "id" = ?`, [
+      channel.id,
+    ])) as [{ code: string }];
+    const before = await guestPageMatchesLive();
+    expect(before.matches, 'the sort agrees with the live cards before the change').toBe(true);
+
+    // An all-products percentage on the everyone book, through the audited write path.
+    let markedByRow = 0;
+    samples.push(
+      await writeToVisible(
+        'everyone book all-products −30 % (catalogue-wide)',
+        () =>
+          system(async () => {
+            await books().replaceRows(everyoneBookId, {
+              upsert: [{ selection: {}, minQuantity: 1, maxQuantity: null, price: { type: 'percent', percent: '-30' } }],
+              delete: [],
+            });
+            markedByRow = await pendingProfiles();
+          }),
+        async () => {
+          const now = await guestPageMatchesLive();
+          if (!now.matches) return false;
+          // The change has to have moved the page, or this proves nothing.
+          return now.rows.some((r, i) => before.rows[i]?.productId !== r.productId || before.rows[i]?.amount !== r.amount);
+        },
+      ),
+    );
+    expect(markedByRow, 'an all-products everyone row marks every profile').toBeGreaterThanOrEqual(200);
+
+    // A channel identity change: every profile of the channel.
+    let markedByChannel = 0;
+    samples.push(
+      await writeToVisible(
+        'sales_channels.identity_changed (catalogue-wide)',
+        async () => {
+          await h.eventBus.run(async () => {
+            h.eventBus.emit('sales_channels.identity_changed' as never, { channelCode } as never);
+          });
+          markedByChannel = await pendingProfiles();
+        },
+        async () => (await pendingProfiles()) === 0 && (await guestPageMatchesLive()).matches,
+      ),
+    );
+    expect(markedByChannel, 'a channel identity change marks every profile of the channel').toBeGreaterThanOrEqual(200);
+
+    results.push(
+      `catalogue-wide write → visible, max over the two kinds: ${Math.max(...samples).toFixed(2)} s (budget ${catalogueWideBudget / 1000} s)`,
+    );
+    expect(Math.max(...samples) * 1000).toBeLessThanOrEqual(catalogueWideBudget);
   }, 60 * 60_000);
 
   it('a full rebuild of every profile (recorded — the input to P3’s precedence flow)', async () => {

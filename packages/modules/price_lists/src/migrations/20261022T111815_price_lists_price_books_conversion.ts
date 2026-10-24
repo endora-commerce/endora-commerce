@@ -16,7 +16,12 @@ import { Migration } from '@mikro-orm/migrations';
  *    transitional resolver charged, so nothing a buyer was charged changes.
  * 4. Every non-system list of the old model (one carrying an Application rule)
  *    is deleted with its roster, brackets, rule, matrix entries and feature-014
- *    rows (N13: development lists are dropped and reseeded, not converted).
+ *    rows (N13: development lists are dropped and reseeded, not converted) —
+ *    unless another table still refers to it (a product feed pinned to it on
+ *    0.107.0): that one is **retired**, kept as an empty, expired,
+ *    channel-less book for everyone named "… (removed by the 0.108.0
+ *    upgrade)", so the upgrade completes without a manual step (owner
+ *    decision 2026-10-24, research R4).
  *    Old-model matrix entries left on a kept list — the Default list's own
  *    category discounts and organization-scoped rows — go too. A price book
  *    written through the new API before this ran is kept.
@@ -79,7 +84,47 @@ export class Migration20261022T111815PriceListsPriceBooksConversion extends Migr
          );`);
 
     // ── 4. the old model's lists and rows
-    this.addSql(`delete from "price_lists" where "is_system" = false and "application_rule" is not null;`);
+    //    One list at a time, each in its own savepoint (a PL/pgSQL exception
+    //    block): a list another table still refers to — a product feed pinned
+    //    to it through `product_feeds_price_list_fk`, `on delete restrict` on
+    //    0.107.0 — is **retired** instead of deleted (owner decision
+    //    2026-10-24, research R4: the departure from N13). Generic on purpose:
+    //    no foreign table is named or read, only the 23503 the delete raises.
+    //    A retired list keeps its id and is an empty, expired, channel-less
+    //    book for everyone, renamed so an operator can tell it apart; a feed
+    //    pinned to it publishes nothing from it (`not_active`) and withdraws
+    //    its file, and the book can be deleted once nothing holds it.
+    //    `price_list_product_lines` does not exist yet on an upgrade (its
+    //    migration runs after this one), hence the guarded statement.
+    this.addSql(`
+      do $$
+      declare
+        r record;
+        suffix constant text := ' (removed by the 0.108.0 upgrade)';
+      begin
+        for r in select "id" from "price_lists" where "is_system" = false and "application_rule" is not null loop
+          begin
+            delete from "price_lists" where "id" = r."id";
+          exception when foreign_key_violation then
+            delete from "price_list_matrix_entries" where "price_list_id" = r."id";
+            delete from "price_list_audience_members" where "price_list_id" = r."id";
+            delete from "sales_channel_price_lists" where "price_list_id" = r."id";
+            if to_regclass('price_list_product_lines') is not null then
+              execute 'delete from "price_list_product_lines" where "price_list_id" = $1' using r."id";
+            end if;
+            update "price_lists"
+               set "name" = left("name", 200 - length(suffix)) || suffix,
+                   "status" = 'expired',
+                   "audience_kind" = 'everyone',
+                   "starts_at" = null,
+                   "ends_at" = null,
+                   "application_rule" = null,
+                   "updated_at" = now()
+             where "id" = r."id";
+          end;
+        end loop;
+      end
+      $$;`);
     this.addSql(`
       delete from "price_list_matrix_entries"
        where "organization_id" is not null or "currency_code" is not null or "price_type" = 'discount_percent';`);

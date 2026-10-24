@@ -139,6 +139,31 @@ developer would miss; the catalogue fields are not converted by owner ruling (R2
 
 **Rejected.** Converting Application rules into books: §8.1 rejects it (N13).
 
+**Amended 2026-10-24 (owner decision) — a list something still refers to is retired, not
+deleted.** Client instances run 0.107.0 (§8's "no production deployment" no longer holds), and a
+product feed there can be pinned to an old-model list through `product_feeds_price_list_fk`, which
+is `on delete restrict`. Step 4's set delete stopped on it, and because the migrator runs with
+`allOrNothing`, the whole upgrade rolled back — an instance on 0.108.0 code with a 0.107.0 schema.
+A `product_feeds` migration cannot release the key first: migrations run module by module in the
+topological order of the manifests' `dependencies` (`migration-order.ts`), and `price_lists` is a
+dependency of `product_feeds`, so every pending `price_lists` migration runs before any
+`product_feeds` one.
+
+So step 4 deletes each list in its own savepoint and, on SQLSTATE 23503, **retires** it: the list
+keeps its id, loses its rows, audience, channel bindings and dates, becomes `expired` and for
+everyone, and is renamed "… (removed by the 0.108.0 upgrade)". It is generic — no foreign table is
+named or read — so Principle I holds. `product_feeds`' migration
+`20261023T234605_product_feeds_price_list_fk_dropped` then drops the key (it runs after the
+conversion, which no longer needs it gone), so the operator can delete the retired book; the feed
+code already tolerates a dangling pin (`namedListPublishability` answers `not_found`, the next run
+withdraws the file, R18). An upgrade needs no manual step. This is the one departure from N13: a
+development list nobody refers to is still deleted.
+
+*Rejected:* `price_lists` dropping or relaxing `product_feeds`' key itself (a write to another
+module's table, Principle I); a `product_feeds` migration ordered first (impossible, above);
+splitting the conversion across both modules and a runtime purge (three moving parts for one
+row); a manual pre-upgrade unpin (the owner requires none).
+
 ## R5. Resolver — three tiers over a rank table, batched
 
 **Decision.** A pure function `resolvePrices(candidates, buyerProfile, precedence)` over rows already
