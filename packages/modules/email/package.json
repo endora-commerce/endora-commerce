@@ -59,7 +59,7 @@
     "@mikro-orm/migrations": "^6.6.13",
     "@mikro-orm/postgresql": "^6.6.13",
     "@types/node": "^22.9.0",
-    "nodemailer": "^10.0.13",
+    "nodemailer": "^10.1.4",
     "typescript": "^5.9.3",
     "vitest": "^4.1.11"
   }
