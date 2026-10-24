@@ -13,11 +13,27 @@ phase), both in this release (`research.md` R4).
 | 1 | create new tables/columns; seed precedence v1 = HY | — | own |
 | 2 | one base book per currency used by a Default bracket, plus the platform default currency (system-default channel's `default_currency`); default currency keeps `…d51b` | own, `sales_channels` (kernel) | own |
 | 3 | Default brackets → product rows of their currency's base book | own | own |
-| 4 | delete every non-system list and the Default list's matrix entries | own | own |
+| 4 | delete every non-system old-model list — each in its own savepoint; one another table still refers to is **retired** instead (below) — and the Default list's matrix entries | own | own |
 | 5 | rename `type` value `base` → `regular`; drop old tables/columns | own | own |
 
 The migration reads and writes only `price_lists`' own tables (and reads the kernel's
 `sales_channels`); `check:module-boundary` has nothing to judge across modules.
+
+**Retiring a list another table refers to** (owner decision 2026-10-24, `research.md` R4 — a
+departure from N13). On 0.107.0 a product feed can be pinned to an old-model list through
+`product_feeds_price_list_fk` (`on delete restrict`), and `price_lists` runs before `product_feeds`
+(it is in `product_feeds`' manifest `dependencies`), so no `product_feeds` migration can release the
+key first. Step 4 therefore deletes the lists one at a time in a PL/pgSQL exception block; on
+SQLSTATE 23503 (`foreign_key_violation`) the list is kept with its id and becomes an empty book:
+its matrix entries, audience members, channel bindings (`sales_channel_price_lists`, this module's
+own bridge table) and product lines (when that table exists) are deleted, and its header is set to
+`status = 'expired'`, `audience_kind = 'everyone'`, no dates, no rule, name suffixed
+" (removed by the 0.108.0 upgrade)" (cut to 200 characters). Step 5 then renames its type
+`regular`, and every new CHECK admits it. No foreign table is named or read. `product_feeds`' own
+migration of this release, `20261023T234605_product_feeds_price_list_fk_dropped`, runs after the
+conversion and drops the key, so the retired book can be deleted later; a feed pinned to it warns
+`not_active` (then `not_found` once the book is deleted), and its next run withdraws its published
+file (FR-029). `IT/price_lists/conversion.test.ts` holds both paths.
 
 ## 2. Other owners' migrations in P1
 
