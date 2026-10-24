@@ -3,6 +3,14 @@ import { randomUUID } from 'crypto';
 import type { ExternalDocumentRef, InvoiceBuyer, SellerCompanyData } from '@endora-commerce/contracts';
 import { TransitivelyScoped } from '@endora-commerce/platform/tenancy';
 
+/** One row of a stored per-rate VAT summary — two-place decimal strings, the rate a fraction. */
+export interface StoredVatSummaryRow {
+  taxRate: string;
+  netTotal: string;
+  vatAmount: string;
+  grossTotal: string;
+}
+
 /**
  * Invoice — a document issued against an order (feature 047). Immutable once
  * `status = 'ready'`; content changes only via a `correction` invoice. The
@@ -109,6 +117,14 @@ export class Invoice {
 
   @Property({ type: 'uuid', nullable: true })
   templateId?: string | null;
+
+  /**
+   * Issue #417 — the per-rate VAT summary the document was issued with, as
+   * two-place decimal strings; `null` for one issued before 0.108.0 or imported,
+   * whose summary is derived from its stored lines as it was then.
+   */
+  @Property({ type: 'json', nullable: true })
+  vatSummary?: StoredVatSummaryRow[] | null;
 
   @Property({ type: 'json', nullable: true })
   sellerSnapshot?: SellerCompanyData | null;

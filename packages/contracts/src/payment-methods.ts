@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { uuidSchema } from './common.js';
 import { ModulePresenceSchema } from './modules.js';
 import { paymentMethodKindSchema, type PaymentMethodKind } from './payments.js';
+import { twoDecimalAmount } from './money-input.js';
 
 /**
  * Payment Method adapter framework (feature 034 — Metoda Płatności).
@@ -46,7 +47,7 @@ export const paymentMethodUpsertSchema = z.object({
   name: paymentMethodNameSchema,
   kind: paymentAdapterTypeSchema,
   adapter: z.string().min(1).max(64).optional(),
-  additionalPrice: z.number().finite().nonnegative().optional(),
+  additionalPrice: twoDecimalAmount(z.number().finite().nonnegative()).optional(),
   status: z.enum(['active', 'inactive']).optional(),
   statusOnPending: z.string().min(1).max(64).optional(),
   statusOnSuccess: z.string().min(1).max(64).optional(),

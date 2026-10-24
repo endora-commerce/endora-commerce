@@ -25,6 +25,7 @@ import {
 import {
   arrangeLineGroups,
   customFieldCarrySkipReasonSchema,
+  lineAmountHalfUp,
   orderCommentSystemNoteSchema,
   type IssueInvoiceEmailOutcome,
   type LineGroup,
@@ -770,7 +771,7 @@ export function OrderDetail(): ReactNode {
                               text={sectionSummaryText(
                                 orderSectionTotals(
                                   section.items.map((it) => ({
-                                    net: it.unitPrice * it.quantity,
+                                    net: lineAmountHalfUp(it.unitPrice, it.quantity),
                                     taxRate: it.taxRate,
                                     gross: it.lineTotal,
                                   })),

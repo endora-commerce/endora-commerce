@@ -9,7 +9,7 @@ import type {
   OrderRecord,
   TransactionalEmailSender,
 } from '@endora-commerce/contracts';
-import { InvoiceService, type InvoiceAuditRecorder } from './services/invoice-service.js';
+import { InvoiceService, type CapturedPaymentsLookup, type InvoiceAuditRecorder } from './services/invoice-service.js';
 import type { LedgerNumberingLookup } from './services/vendor-number-hold.js';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { LoadAssetImage } from './pdf-components/embed-logo-images.js';
@@ -95,6 +95,8 @@ export interface InvoicesModuleOptions {
   loadAssetImage: LoadAssetImage;
   /** Mode B wait. Absent ledger degrades to today's ready path. */
   ledgerRouting?: LedgerNumberingLookup;
+  /** What was captured for an order — `null` when `payments` is absent (issue #417). */
+  capturedPayments?: CapturedPaymentsLookup;
   /**
    * `document_templates`' render port — every invoice PDF is produced through
    * it since `specs/152-compare-pdf-template/` (the download, the regenerate,
@@ -147,6 +149,7 @@ export function invoicesModule(options: InvoicesModuleOptions): {
       await emailOnReadyHolder.dispatch?.(invoiceId);
     },
     options.ledgerRouting,
+    options.capturedPayments,
   );
   // T118c — built unconditionally. The three inputs used to be optional bridge
   // members, so a composition that supplied two of the three got no dispatcher

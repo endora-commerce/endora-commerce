@@ -43,6 +43,7 @@ import {
   ensureShippingAdapterDataOnFormData,
 } from '../../../lib/checkout/shipping-adapter-data';
 import type { Metadata } from 'next';
+import { lineAmountHalfUp } from '@endora-commerce/contracts';
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -294,7 +295,7 @@ export default async function CheckoutPage({
                 </td>
                 <td className="text-right">x {it.quantity}</td>
                 <td className="text-right">
-                  {formatMoney(it.unitPrice.amount * it.quantity, it.unitPrice.currency, locale)}
+                  {formatMoney(Number(lineAmountHalfUp(it.unitPrice.amount, it.quantity)), it.unitPrice.currency, locale)}
                 </td>
               </tr>
             ))}

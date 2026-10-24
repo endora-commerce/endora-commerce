@@ -39,6 +39,7 @@ Operator włącza i wyłącza ten moduł na **/platform/modules**. Decyduje o ty
 | `settings` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `transactional_emails` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `invoice_ledger` | nie | degrades-without `invoiceLedgerRoutingPort` — Faktury są nadal wystawiane z numeracją Endory i od razu gotowe; oczekiwanie przewidziane w trybie B jest pomijane. |
+| `payments` | nie | degrades-without `paymentReadPort` — Wystawiona faktura zapisuje jako zapłaconą zapisaną sumę zamówienia, gdy zamówienie jest opłacone, a w przeciwnym razie nic. |
 
 ## Uprawnienia
 

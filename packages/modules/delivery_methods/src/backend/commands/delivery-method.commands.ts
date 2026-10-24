@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { ERROR_CODES, type DeliveryMethodUpsert } from '@endora-commerce/contracts';
+import { ERROR_CODES, roundHalfUp, type DeliveryMethodUpsert } from '@endora-commerce/contracts';
 import type { Command } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { DeliveryMethod } from '../entities/delivery-method.entity.js';
@@ -105,7 +105,7 @@ export function makeUpsertDeliveryMethodCommand(
 
       if (row) {
         row.name = body.name;
-        row.cost = body.cost.toFixed(2);
+        row.cost = roundHalfUp(body.cost);
         row.currency = body.currency;
         row.adapter = adapter;
         if (body.status !== undefined) row.status = body.status;
@@ -116,7 +116,7 @@ export function makeUpsertDeliveryMethodCommand(
           id,
           code: input.code,
           name: body.name,
-          cost: body.cost.toFixed(2),
+          cost: roundHalfUp(body.cost),
           currency: body.currency,
           adapter,
           status: body.status ?? 'active',

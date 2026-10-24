@@ -42,7 +42,8 @@ import type { RfqEventService } from './rfq-event-service.js';
 import type { RfqRevisionService } from './rfq-revision-service.js';
 import type { RfqNotificationService } from './rfq-notification-service.js';
 import { raisedOnChannelId } from './raised-on-channel.js';
-import { hasUnpricedLine, quoteIncompleteError } from './agreed-price.js';
+import { hasUnpricedLine, quoteIncompleteError, unitPriceText } from './agreed-price.js';
+import { listTotal } from './summarize.js';
 import { pairLines } from './line-carry-over.js';
 import { LINE_STORAGE_ORDER, loadArrangedQuoteLines } from './line-order.js';
 import { groupingShape, planLineGrouping, type GroupingShapeEntry, type LineGroupingPlan } from './line-grouping.js';
@@ -238,17 +239,12 @@ export class RfqAdminService {
       const rfqItems = itemsByRfq.get(rfq.id) ?? [];
       const customer = customerById.get(rfq.customerAccountId);
       const org = orgById.get(rfq.organizationId);
+      // Exact sums (issue #417), the customer list's helper.
       const totalAtAgreedPrice = rfqItems.every((it) => it.agreedUnitPrice != null)
-        ? rfqItems.reduce(
-            (sum, it) => sum + Number(it.agreedUnitPrice ?? 0) * it.quantity,
-            0,
-          )
+        ? listTotal(rfqItems.map((it) => ({ price: it.agreedUnitPrice ?? '0', quantity: it.quantity })))
         : null;
       const totalAtCustomerPrice = rfqItems.every((it) => it.desiredUnitPrice != null)
-        ? rfqItems.reduce(
-            (sum, it) => sum + Number(it.desiredUnitPrice ?? 0) * it.quantity,
-            0,
-          )
+        ? listTotal(rfqItems.map((it) => ({ price: it.desiredUnitPrice ?? '0', quantity: it.quantity })))
         : null;
       return {
         id: rfq.id,
@@ -798,7 +794,7 @@ export class RfqAdminService {
               desiredUnitPrice: row?.desiredUnitPrice ?? null,
               agreedUnitPrice:
                 lineInput.agreedUnitPrice !== undefined && lineInput.agreedUnitPrice !== null
-                  ? lineInput.agreedUnitPrice.toFixed(2)
+                  ? unitPriceText(lineInput.agreedUnitPrice)
                   : null,
               lineNote:
                 lineInput.lineNote !== undefined ? lineInput.lineNote : (row?.lineNote ?? null),
@@ -980,7 +976,7 @@ export class RfqAdminService {
           productSlug: product.slug,
           variantId: lineInput.variantId ?? null,
           quantity: lineInput.quantity,
-          agreedUnitPrice: lineInput.agreedUnitPrice.toFixed(2),
+          agreedUnitPrice: unitPriceText(lineInput.agreedUnitPrice),
           lineNote: lineInput.lineNote ?? null,
           lineCurrency: 'PLN',
           groupId: groupIds(plan.lines[index]!.group),

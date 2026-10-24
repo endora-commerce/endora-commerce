@@ -8,6 +8,8 @@
  * `number-format.ts` in the admin's language. Pure: no I/O, no locale.
  */
 
+import { decimalDifference, decimalProduct, quotientHalfUp, roundHalfUp } from '@endora-commerce/contracts';
+
 /** A reference price as the screen holds it — stored at request, or current. */
 export interface ReferenceAmount {
   amount: number;
@@ -21,9 +23,13 @@ export interface ReferenceDifference {
   percent: number | null;
 }
 
-/** Two-decimal rounding that never answers `-0`. */
-function round2(n: number): number {
-  const rounded = Math.round(n * 100) / 100;
+/**
+ * Two-decimal rounding, half-up on the decimal digits (half away from zero for
+ * a negative difference) and never `-0` (issue #417: exact, where
+ * `Math.round(n * 100) / 100` rounded the binary double).
+ */
+function round2(value: string): number {
+  const rounded = Number(roundHalfUp(value));
   return rounded === 0 ? 0 : rounded;
 }
 
@@ -40,8 +46,9 @@ export function referenceDifference(
   if (price === null || !Number.isFinite(price)) return null;
   if (reference === null || !Number.isFinite(reference.amount)) return null;
   if (reference.currency !== lineCurrency) return null;
-  const amount = round2(price - reference.amount);
+  const difference = decimalDifference(price, reference.amount);
+  const amount = round2(difference);
   const percent =
-    reference.amount === 0 ? null : round2(((price - reference.amount) / reference.amount) * 100);
+    reference.amount === 0 ? null : round2(quotientHalfUp(decimalProduct(difference, 100), reference.amount));
   return { amount, percent };
 }

@@ -18,6 +18,7 @@ import { CartAuditEntry } from '../entities/cart-audit-entry.entity.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import type { CartAuditService } from './cart-audit-service.js';
 import type { CartSnapshot, PromotionApplication } from '@endora-commerce/contracts';
+import { cartLineAmount, cartSubtotal, cartTotalAfterDiscount, cartTotalsByCart } from './cart-money.js';
 
 /** Narrow port over the promotion engine for the admin cart-detail discount. */
 export interface AdminCartPromotionPort {
@@ -244,7 +245,7 @@ export class CartAdminService {
     const products = await this.catalogProducts.findByIds(productIds);
     const productById = new Map(products.map((p) => [p.id, p]));
 
-    const subtotal = items.reduce((acc, it) => acc + Number(it.unitPrice) * it.quantity, 0);
+    const subtotal = cartSubtotal(items);
     const currency = items[0]?.currency ?? 'PLN';
 
     // Feature 045 (T043) — compute the real discount for the detail view.
@@ -277,7 +278,7 @@ export class CartAdminService {
       });
       discountTotal = application.discountTotal;
     }
-    const total = Math.max(0, Math.round((subtotal - discountTotal) * 100) / 100);
+    const total = cartTotalAfterDiscount(subtotal, discountTotal);
 
     return {
       data: {
@@ -304,7 +305,7 @@ export class CartAdminService {
             variantId: it.variantId ?? null,
             quantity: it.quantity,
             unitPrice: { amount: Number(it.unitPrice), currency: it.currency },
-            lineTotal: { amount: Number(it.unitPrice) * it.quantity, currency: it.currency },
+            lineTotal: { amount: cartLineAmount(it.unitPrice, it.quantity), currency: it.currency },
           };
         }),
         discount:
@@ -428,16 +429,8 @@ export class CartAdminService {
     em: EntityManager,
     cartIds: string[],
   ): Promise<Map<string, { count: number; total: number; currency: string }>> {
-    const result = new Map<string, { count: number; total: number; currency: string }>();
-    if (cartIds.length === 0) return result;
-    const items = await em.find(CartItem, { cartId: { $in: cartIds } });
-    for (const it of items) {
-      const prev = result.get(it.cartId) ?? { count: 0, total: 0, currency: it.currency };
-      prev.count += 1;
-      prev.total += Number(it.unitPrice) * it.quantity;
-      result.set(it.cartId, prev);
-    }
-    return result;
+    if (cartIds.length === 0) return new Map();
+    return cartTotalsByCart(await em.find(CartItem, { cartId: { $in: cartIds } }));
   }
 }
 

@@ -222,6 +222,15 @@ export class Order {
   purchaseConversionOwed: boolean = false;
 
   /**
+   * Issue #417 — the VAT method the order was placed under: `per_rate` (VAT per
+   * rate on the sum of the nets, `vatByRate`) for an order placed from 0.108.0;
+   * `null` for one placed before, whose stored totals are the rule of their day.
+   * Read wherever what the order charged matters (returns), never recomputed.
+   */
+  @Property({ type: 'string', length: 16, nullable: true })
+  vatMethod?: 'per_rate' | null = null;
+
+  /**
    * When the conversion was reported, if it ever was.
    *
    * This is what keeps the two falses apart: `owed = false` with no timestamp

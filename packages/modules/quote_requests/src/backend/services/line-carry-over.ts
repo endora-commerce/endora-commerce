@@ -11,6 +11,8 @@
  * is unit-tested on its own.
  */
 
+import { roundHalfUp } from '@endora-commerce/contracts';
+
 /** The part of a stored line the pairing reads. */
 export interface CarryOverRow {
   id: string;
@@ -177,7 +179,8 @@ export function carriedProposal(
   sent: number | undefined,
   paired: { desiredUnitPrice?: string | null } | null,
 ): string | null {
-  if (sent !== undefined) return sent.toFixed(2);
+  // Half-up on its decimal digits (issue #417): `toFixed(2)` stored 1.005 as 1.00.
+  if (sent !== undefined) return roundHalfUp(sent);
   return paired?.desiredUnitPrice ?? null;
 }
 

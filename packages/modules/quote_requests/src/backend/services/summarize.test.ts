@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { QuoteRequest } from '../entities/quote-request.entity.js';
 import type { QuoteRequestItem } from '../entities/quote-request-item.entity.js';
-import { summarize } from './summarize.js';
+import { listTotal, summarize } from './summarize.js';
 
 /**
  * Feature 146, Phase 5 (T026) — the customer list's `totalAtCustomerPrice`
@@ -67,5 +67,20 @@ describe('summarize — totalAtCustomerPrice (FR-009)', () => {
     expect(summary.taxRate).toBe(0.23);
     expect(summary.originalRequester).toEqual({ customerAccountId: 'acc-1', displayName: 'Jan' });
     expect(summary.lineCount).toBe(2);
+  });
+});
+
+describe('summarize — exact totals (#417 review)', () => {
+  it('publishes 3 × 9.05 as 27.15, not the binary 27.150000000000002', () => {
+    const s = summarize(rfq, [item(3, '9.05', { agreedUnitPrice: '9.05' })], {});
+    expect(s.totalAtCustomerPrice).toBe(27.15);
+    expect(s.totalAtAgreedPrice).toBe(27.15);
+  });
+});
+
+describe('listTotal (#417 review)', () => {
+  it('sums prices × quantities exactly — the customer and the admin list share it', () => {
+    expect(listTotal([{ price: '9.05', quantity: 3 }])).toBe(27.15);
+    expect(listTotal([{ price: '0.10', quantity: 1 }, { price: '0.20', quantity: 1 }])).toBe(0.3);
   });
 });

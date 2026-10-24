@@ -57,6 +57,20 @@ describe('ReceivePaymentHandler.reflectRefund', () => {
     await teardownBackendServer(h);
   });
 
+  it('stores a cumulative refund half-up on its decimal digits (#417)', async () => {
+    const handler = new ReceivePaymentHandler(
+      () => h.em(),
+      h.container.resolve<PaymentMethodReadPort>('paymentMethodReadPort'),
+      h.container.resolve<OrderTransitionPort>('orderTransitionPort'),
+      h.container.resolve<OrderPaymentStatusApplyPort>('orderPaymentStatusApplyPort'),
+      { warn: () => undefined },
+    );
+    await handler.reflectRefund({ paymentId, refundedAmount: 1.005, currency: 'PLN', fullyRefunded: false });
+    const p = await h.em().findOne(Payment, { id: paymentId }, { refresh: true });
+    // `(1.005).toFixed(2)` is 1.00.
+    expect(p!.refundedAmount).toBe('1.01');
+  });
+
   it('reflects a partial refund, then a full refund; idempotent and no downgrade', async () => {
     const quiet: SettlementLogger = { warn: () => undefined };
     const handler = new ReceivePaymentHandler(

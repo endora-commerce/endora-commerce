@@ -39,6 +39,7 @@ An operator switches this module on and off on **/platform/modules**. The choice
 | `settings` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `transactional_emails` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `invoice_ledger` | no | degrades-without `invoiceLedgerRoutingPort` — Issuance stays Endora-numbered and ready; mode B wait is ignored. |
+| `payments` | no | degrades-without `paymentReadPort` — An issued invoice records as paid the order's stored total when the order is paid, and nothing otherwise. |
 
 ## Permissions
 

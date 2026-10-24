@@ -3,11 +3,13 @@ import {
   ERROR_CODES,
   adjustCreditLimitRequestSchema,
   grantCreditLimitRequestSchema,
+  moneySum,
   type OrganizationDetailsPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { isOrgInScope } from '@endora-commerce/platform/tenancy';
 import type { CreditLimitService } from './services/credit-limit-service.js';
+import { availableCredit } from './services/credit-money.js';
 import type { CreditLimit } from './entities/credit-limit.entity.js';
 import type { CreditLimitReservation } from './entities/credit-limit-reservation.entity.js';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
@@ -230,13 +232,13 @@ function serializeView(
   reservations: CreditLimitReservation[],
   organizationName?: string | null,
 ): Record<string, unknown> {
-  const granted = Number(limit.grantedAmount);
-  const reservedSum = reservations.reduce((acc, r) => acc + Number(r.amount), 0);
+  // Exact decimal arithmetic (issue #417); each figure a two-place decimal read as a number.
+  const reservedSum = moneySum(reservations.map((r) => r.amount));
   return {
     organizationId: limit.organizationId,
     organizationName: organizationName ?? null,
-    grantedAmount: granted,
-    availableAmount: granted - reservedSum,
+    grantedAmount: Number(limit.grantedAmount),
+    availableAmount: Number(availableCredit(limit.grantedAmount, reservedSum)),
     currency: limit.currency,
     activeReservations: reservations.map((r) => ({
       orderId: r.orderId,

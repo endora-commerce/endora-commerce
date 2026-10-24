@@ -9,7 +9,7 @@
  * locale so the number/symbol conventions still match the money's currency.
  */
 
-import { grossAmountHalfUp } from '@endora-commerce/contracts';
+import { grossAmountHalfUp, grossFromNetHalfUp } from '@endora-commerce/contracts';
 
 /**
  * Representative BCP-47 locale per ISO-4217 currency. Keeps amounts in the
@@ -97,7 +97,9 @@ export const DEFAULT_VAT_RATE = 0.23;
  */
 export function grossFromNet(net: number, vatRate: number | null): number | null {
   if (vatRate === null || !Number.isFinite(net) || !Number.isFinite(vatRate)) return null;
-  if (net < 0 || vatRate < 0) return net * (1 + vatRate);
+  if (vatRate < 0) return net * (1 + vatRate);
+  // A negative net (a credit) rounds half away from zero on the exact product.
+  if (net < 0) return Number(grossFromNetHalfUp(net, vatRate, 'fraction'));
   return Number(grossAmountHalfUp(net, vatRate, 'fraction'));
 }
 

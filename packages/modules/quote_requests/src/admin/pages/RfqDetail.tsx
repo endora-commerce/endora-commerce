@@ -26,7 +26,7 @@ import {
   canSplitLine,
   splitLineInto,
 } from '@endora-commerce/admin-kit/components';
-import { arrangeLineGroups, roundAmountHalfUp, type LineGroup } from '@endora-commerce/contracts';
+import { arrangeLineGroups, lineAmountHalfUp, roundAmountHalfUp, type LineGroup } from '@endora-commerce/contracts';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
 import { deadlineForDays, isValidityDaysInvalid, rfqValidity } from '../validity.js';
@@ -51,6 +51,7 @@ import {
   useQuoteSplitLineLabels,
   useSectionSummaryText,
 } from '../line-groups.js';
+import { quoteTotals } from '../quote-totals.js';
 import { QuoteRequestPdfDialog, type QuoteRequestPdfMode } from '../components/QuoteRequestPdfDialog.js';
 
 /**
@@ -341,15 +342,15 @@ export function RfqDetail(): ReactNode {
 
   const displayId = rfq.businessId ?? rfq.id.slice(0, 8);
   const isTerminal = TERMINAL.includes(rfq.status);
-  const total = rfq.items.every((it) => it.agreedUnitPrice !== null)
-    ? rfq.items.reduce((s, it) => s + (it.agreedUnitPrice ?? 0) * it.quantity, 0)
-    : null;
   const currency = rfq.items[0]?.lineCurrency ?? 'PLN';
   // Quote prices are net; surface VAT + gross so the total matches the order
   // it converts into. `rfq.taxRate` is the flat rate resolved server-side.
+  // Exact decimal arithmetic (issue #417): the VAT on the net total, half-up.
   const taxRate = rfq.taxRate ?? 0;
-  const taxTotal = total !== null ? total * taxRate : null;
-  const grossTotal = total !== null && taxTotal !== null ? total + taxTotal : null;
+  const totals = quoteTotals(rfq.items, taxRate);
+  const total = totals?.net ?? null;
+  const taxTotal = totals?.tax ?? null;
+  const grossTotal = totals?.gross ?? null;
 
   // The operator's validity deadline, read once per render against the same
   // clock every branch below uses.
@@ -679,9 +680,9 @@ export function RfqDetail(): ReactNode {
                       ...section.items.map((it) => {
                       const lineTotal =
                         it.agreedUnitPrice !== null
-                          ? it.agreedUnitPrice * it.quantity
+                          ? Number(lineAmountHalfUp(it.agreedUnitPrice, it.quantity))
                           : it.desiredUnitPrice !== null
-                            ? it.desiredUnitPrice * it.quantity
+                            ? Number(lineAmountHalfUp(it.desiredUnitPrice, it.quantity))
                             : null;
                       const reference = referenceViewOf(it, currentPrices);
                       const proposal = proposalOf(it);
@@ -734,7 +735,7 @@ export function RfqDetail(): ReactNode {
                               text={summaryText(
                                 sectionTotals(
                                   section.items.map((it) => ({
-                                    net: it.agreedUnitPrice !== null ? it.agreedUnitPrice * it.quantity : null,
+                                    net: it.agreedUnitPrice !== null ? Number(lineAmountHalfUp(it.agreedUnitPrice, it.quantity)) : null,
                                     reference: referenceTotalOf(referenceViewOf(it, currentPrices), it.quantity),
                                   })),
                                   taxRate,

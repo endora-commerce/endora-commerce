@@ -140,7 +140,7 @@ describe('OrderReturnContextLine (port, contracts/returns-api.md §1)', () => {
     // Required, not optional: an optional key would widen to `| undefined`.
     expectTypeOf<OrderReturnContextLine['returnableAtPurchase']>().toEqualTypeOf<boolean | null>();
     expectTypeOf<OrderReturnContextLine>().toHaveProperty('returnableAtPurchase');
-    const base = { orderItemId: ID1, productId: ID2, name: 'Bolt', purchasedQty: 1, paidUnitAmount: 1, paidLineAmount: 1 };
+    const base = { orderItemId: ID1, productId: ID2, name: 'Bolt', purchasedQty: 1, paidUnitAmount: 1, paidLineAmount: 1, unitNetPrice: '1.00', taxRate: '0.0000' };
     // @ts-expect-error — a line without the stamp is not an OrderReturnContextLine.
     const missing: OrderReturnContextLine = base;
     const legacy: OrderReturnContextLine = { ...base, returnableAtPurchase: null };

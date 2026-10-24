@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { isoDateTimeSchema, moneySchema, uuidSchema } from './common.js';
+import { addAmountPrecisionIssue, hasAtMostTwoDecimals, twoDecimalAmount } from './money-input.js';
 
 /**
  * Promotion contracts (T129, T132 / FR-052).
@@ -178,7 +179,8 @@ export const promotionRuleSchema = promotionRuleNodeSchema.refine(
 
 const ACTION_CURRENCY = z.string().regex(/^[A-Z]{3}$/, 'ISO 4217');
 const ACTION_PERCENT = z.number().finite().min(0).max(100);
-const ACTION_AMOUNT = z.number().finite().positive();
+// A money amount an operator types: at most two decimal places (issue #417).
+const ACTION_AMOUNT = twoDecimalAmount(z.number().finite().positive());
 const ACTION_POSITIVE_INT = z.number().int().positive();
 export const promotionGiftTargetSchema = z.enum(['cheapest', 'most_expensive']);
 export type PromotionGiftTarget = z.infer<typeof promotionGiftTargetSchema>;
@@ -304,7 +306,7 @@ export const upsertPromotionRequestSchema = z
     kind: promotionKindSchema.optional(),
     value: z.number().finite().nonnegative().optional(),
     currency: z.string().regex(/^[A-Z]{3}$/).nullable().optional(),
-    minCartSubtotal: z.number().finite().nonnegative().nullable().optional(),
+    minCartSubtotal: twoDecimalAmount(z.number().finite().nonnegative()).nullable().optional(),
     validFrom: isoDateTimeSchema.nullable().optional(),
     validUntil: isoDateTimeSchema.nullable().optional(),
     organizationId: uuidSchema.nullable().optional(),
@@ -327,6 +329,10 @@ export const upsertPromotionRequestSchema = z
     salesChannelIds: z.array(uuidSchema).optional(),
   })
   .superRefine((value, ctx) => {
+    // `value` is money only for `amount_off` (a percentage otherwise): two places at most (issue #417).
+    if (value.kind === 'amount_off' && value.value !== undefined && !hasAtMostTwoDecimals(value.value)) {
+      addAmountPrecisionIssue(ctx, ['value']);
+    }
     // A promotion is driven by EITHER a feature-045 `action` OR the legacy
     // `kind` + `value` pair — exactly one source must be present.
     if (!value.action && !value.kind) {

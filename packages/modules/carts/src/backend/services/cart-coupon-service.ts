@@ -10,6 +10,7 @@ import type {
 } from '@endora-commerce/contracts';
 import type { CartApprovalService } from './cart-approval-service.js';
 import { resolveCartCustomerGroupId } from './customer-group-resolver.js';
+import { cartShortfall, cartSubtotal } from './cart-money.js';
 
 /**
  * Cart-level coupon application (feature 027 US2).
@@ -139,19 +140,16 @@ export class CartCouponService {
     }
 
     const items = await em.find(CartItem, { cartId: managedCart.id });
-    const subtotal = items.reduce(
-      (acc, it) => acc + Number(it.unitPrice) * it.quantity,
-      0,
-    );
+    const subtotal = cartSubtotal(items);
     const currency = items[0]?.currency ?? 'PLN';
 
     if (promotion.minCartSubtotal != null) {
-      const min = Number(promotion.minCartSubtotal);
-      if (min > subtotal) {
+      const shortfall = cartShortfall(subtotal, promotion.minCartSubtotal);
+      if (shortfall !== null) {
         return {
           outcome: 'dropped',
           reason: 'below_min_spend',
-          shortfall: { amount: round2(min - subtotal), currency },
+          shortfall: { amount: shortfall, currency },
         };
       }
     }
@@ -277,14 +275,10 @@ export class CartCouponService {
       return { dropped: { code, reason: 'expired' } };
     }
 
-    const subtotal = items.reduce(
-      (acc, it) => acc + Number(it.unitPrice) * it.quantity,
-      0,
-    );
+    const subtotal = cartSubtotal(items);
 
     if (promotion.minCartSubtotal != null) {
-      const min = Number(promotion.minCartSubtotal);
-      if (min > subtotal) {
+      if (cartShortfall(subtotal, promotion.minCartSubtotal) !== null) {
         await this.persistDrop(em, cart);
         return { dropped: { code, reason: 'below_min_spend' } };
       }
@@ -307,8 +301,4 @@ export class CartCouponService {
     await em.flush();
     cart.appliedPromotionCode = null;
   }
-}
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
 }

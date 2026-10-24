@@ -8,6 +8,7 @@ import {
   refineLineGrouping,
 } from './line-groups.js';
 import { customFieldCarrySkipSchema } from './custom-fields.js';
+import { twoDecimalAmount } from './money-input.js';
 
 /**
  * Quote Requests (RFQ) module contracts — feature 008 workflow rewrite.
@@ -553,7 +554,7 @@ export const createQuoteRequestLineSchema = z.object({
   productId: uuidSchema,
   variantId: uuidSchema.optional(),
   quantity: z.number().int().positive(),
-  desiredUnitPrice: z.number().finite().nonnegative().optional(),
+  desiredUnitPrice: twoDecimalAmount(z.number().finite().nonnegative()).optional(),
   lineNote: z.string().max(2000).optional(),
   /** Feature 043 — snapshot when the line was added as a packaging unit. */
   packagingUnitName: z.string().max(160).optional(),
@@ -608,7 +609,7 @@ export const adminCreateQuoteRequestLineSchema = z.object({
   productId: uuidSchema,
   variantId: uuidSchema.optional(),
   quantity: z.number().int().positive(),
-  agreedUnitPrice: z.number().finite().nonnegative(),
+  agreedUnitPrice: twoDecimalAmount(z.number().finite().nonnegative()),
   lineNote: z.string().max(2000).optional(),
   /** Feature 159 — the `groups[].key` this line belongs to; absent or `null` = ungrouped. */
   groupKey: lineGroupKeySchema.nullable().optional(),
@@ -657,7 +658,7 @@ export const adminPatchQuoteRequestLineSchema = z.object({
   productId: uuidSchema,
   variantId: uuidSchema.optional(),
   quantity: z.number().int().positive(),
-  agreedUnitPrice: z.number().finite().nonnegative().nullable().optional(),
+  agreedUnitPrice: twoDecimalAmount(z.number().finite().nonnegative()).nullable().optional(),
   lineNote: z.string().max(2000).nullable().optional(),
   /** Feature 159 — the `groups[].key` this line belongs to; `null` = ungrouped. */
   groupKey: lineGroupKeySchema.nullable().optional(),

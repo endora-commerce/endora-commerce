@@ -17,7 +17,8 @@ import { formatMoney } from '../../../../lib/i18n/money';
 import { rfqValidity, rfqValidityGate } from '../../../../lib/quote-requests/validity';
 import { RfqValidityMeta } from '../../../../components/rfq/RfqValidityMeta';
 import { RfqDetailActions } from '../../../../components/rfq/RfqDetailActions';
-import { GroupedLineRows } from '../../../../components/line-groups/GroupedLineRows';
+import { lineAmountHalfUp } from '@endora-commerce/contracts';
+import { GroupedLineRows, quoteSectionTotals } from '../../../../components/line-groups/GroupedLineRows';
 import { describeRfqDiff } from '../../../../lib/quote-requests/describe-diff';
 import type { Metadata } from 'next';
 
@@ -90,17 +91,16 @@ export default async function QuoteRequestDetailPage({
     validity,
   });
 
-  const total = rfq.items.every((it) => it.agreedUnitPrice !== null)
-    ? rfq.items.reduce((s, it) => s + (it.agreedUnitPrice ?? 0) * it.quantity, 0)
-    : rfq.items.every((it) => it.desiredUnitPrice !== null)
-      ? rfq.items.reduce((s, it) => s + (it.desiredUnitPrice ?? 0) * it.quantity, 0)
-      : null;
   const currency = rfq.items[0]?.lineCurrency ?? 'PLN';
   // Quote prices are net; surface VAT + gross. `rfq.taxRate` is the flat rate
-  // resolved server-side from the organization's VAT status + tax rules.
+  // resolved server-side from the organization's VAT status + tax rules. The
+  // section rule, for the whole quote: agreed prices on every line, else desired
+  // prices on every line, VAT on the net total — exact (issue #417).
   const taxRate = rfq.taxRate ?? 0;
-  const taxTotal = total !== null ? total * taxRate : null;
-  const grossTotal = total !== null && taxTotal !== null ? total + taxTotal : null;
+  const totals = quoteSectionTotals(rfq.items, taxRate);
+  const total = totals.net;
+  const taxTotal = totals.vat;
+  const grossTotal = totals.gross;
   const fmt = (n: number): string => formatMoney(n, currency);
 
   return (
@@ -212,9 +212,9 @@ export default async function QuoteRequestDetailPage({
               renderRow={(it) => {
                 const lineTotal =
                   it.agreedUnitPrice !== null
-                    ? it.agreedUnitPrice * it.quantity
+                    ? Number(lineAmountHalfUp(it.agreedUnitPrice, it.quantity))
                     : it.desiredUnitPrice !== null
-                      ? it.desiredUnitPrice * it.quantity
+                      ? Number(lineAmountHalfUp(it.desiredUnitPrice, it.quantity))
                       : null;
                 return (
                   <tr key={it.id}>

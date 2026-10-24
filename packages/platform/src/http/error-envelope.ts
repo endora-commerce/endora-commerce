@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { ERROR_CODES, type ErrorCode, type ErrorEnvelope, type ModuleErrorCode, type SupportedLanguage } from '@endora-commerce/contracts';
+import { ERROR_CODES, isAmountPrecisionIssue, type ErrorCode, type ErrorEnvelope, type ModuleErrorCode, type SupportedLanguage } from '@endora-commerce/contracts';
 import { ZodError, type core as zodCore } from 'zod';
 import { hasZodFastifySchemaValidationErrors } from '@fastify/type-provider-zod';
 import { OrgWriteOutOfScopeError } from '../tenancy/tenant-context.js';
@@ -224,8 +224,7 @@ export function registerErrorEnvelope(app: FastifyInstance, options: ErrorEnvelo
     if (hasZodFastifySchemaValidationErrors(error)) {
       const envelope: ErrorEnvelope = {
         error: {
-          code: ERROR_CODES.VALIDATION_FAILED,
-          message: 'Request failed validation.',
+          ...validationCode(error.validation),
           details: error.validation.map((issue) => ({
             path: issue.instancePath.replace(/^\//, '').replace(/\//g, '.'),
             issue: issue.message ?? 'invalid',
@@ -240,8 +239,7 @@ export function registerErrorEnvelope(app: FastifyInstance, options: ErrorEnvelo
     if (error instanceof ZodError) {
       const envelope: ErrorEnvelope = {
         error: {
-          code: ERROR_CODES.VALIDATION_FAILED,
-          message: 'Request failed validation.',
+          ...validationCode(error.issues),
           details: error.issues.map((issue: zodCore.$ZodIssue) => ({
             path: issue.path.map(String).join('.'),
             issue: issue.message,
@@ -523,6 +521,21 @@ async function localizeErrorEnvelope(
       message: translated,
     },
   };
+}
+
+/**
+ * The code and message a failed validation answers with. `VALIDATION_FAILED`,
+ * unless every issue is the money-precision refusal (issue #417, owner ruling
+ * of 2026-10-24): a typed amount with more than two decimal places is
+ * `AMOUNT_PRECISION_EXCEEDED`, one code for every money field, and a code the
+ * envelope translates — `VALIDATION_FAILED` is never translated (see
+ * `localizeErrorEnvelope`). A request that fails anything else as well keeps
+ * the generic code, with the precision issue listed among its details.
+ */
+function validationCode(issues: readonly unknown[]): { code: ErrorCode; message: string } {
+  return issues.length > 0 && issues.every(isAmountPrecisionIssue)
+    ? { code: ERROR_CODES.AMOUNT_PRECISION_EXCEEDED, message: 'An amount has more than two decimal places.' }
+    : { code: ERROR_CODES.VALIDATION_FAILED, message: 'Request failed validation.' };
 }
 
 /**

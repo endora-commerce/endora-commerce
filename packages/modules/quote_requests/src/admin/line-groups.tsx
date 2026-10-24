@@ -1,6 +1,7 @@
 import { useMemo, type ReactNode } from 'react';
 import type { LineGroupsEditorLabels, SplitLineDialogLabels } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
+import { compareDecimals, moneyDifference, moneySum, taxAmountHalfUp } from '@endora-commerce/contracts';
 import { useRfqNumberFormat } from './number-format.js';
 
 /**
@@ -64,7 +65,6 @@ export interface SectionTotals {
   readonly discount: number | null;
 }
 
-const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 /** `taxRate: null` — a screen that shows no VAT (the create screen): net only. */
 export function sectionTotals(lines: readonly SummaryLine[], taxRate: number | null): SectionTotals {
@@ -72,14 +72,22 @@ export function sectionTotals(lines: readonly SummaryLine[], taxRate: number | n
   if (count === 0 || lines.some((line) => line.net === null)) {
     return { count, net: null, vat: null, gross: null, discount: null };
   }
-  const net = round2(lines.reduce((sum, line) => sum + line.net!, 0));
+  // Exact decimal arithmetic (issue #417).
+  const net = moneySum(lines.map((line) => line.net!));
   // The section's VAT from its net, as the PDF computes it; the document total
   // stays authoritative (a section may differ from it by a cent).
-  const vat = taxRate === null ? null : round2(net * taxRate);
+  const vat = taxRate === null ? null : taxAmountHalfUp(net, taxRate, 'fraction');
   const everyReference = lines.every((line) => line.reference !== null);
-  const reference = everyReference ? round2(lines.reduce((sum, line) => sum + line.reference!, 0)) : null;
-  const discount = reference !== null && reference > net ? round2(reference - net) : null;
-  return { count, net, vat, gross: vat === null ? null : round2(net + vat), discount };
+  const reference = everyReference ? moneySum(lines.map((line) => line.reference!)) : null;
+  const discount =
+    reference !== null && compareDecimals(reference, net) > 0 ? Number(moneyDifference(reference, net)) : null;
+  return {
+    count,
+    net: Number(net),
+    vat: vat === null ? null : Number(vat),
+    gross: vat === null ? null : Number(moneySum([net, vat])),
+    discount,
+  };
 }
 
 /** "3 items · Net 300.00 PLN · VAT 69.00 PLN · Gross 369.00 PLN · Discount 12.00 PLN". */

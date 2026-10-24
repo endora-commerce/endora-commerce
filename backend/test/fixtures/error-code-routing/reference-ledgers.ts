@@ -90,6 +90,15 @@ import type {
  * author of one claim is two answers waiting to disagree.
  */
 export const MINTED_ERROR_CODES: MintedErrorCodes = {
+  AMOUNT_PRECISION_EXCEEDED: {
+    to: '_i18n',
+    reason:
+      'Minted by issue #417 (owner ruling of 2026-10-24) for a typed money amount with more than ' +
+      'two decimal places, which is refused rather than rounded on every money field. One code ' +
+      'for every module, so it sits in the platform block; its raiser is the error envelope, from ' +
+      'the Zod issue `money-input.ts` tags. `VALIDATION_FAILED` is not reused: the envelope never ' +
+      'translates that code, and the sentence has to tell the reader what to change.',
+  },
   ADMIN_AUTHENTICATION_THROTTLED: {
     to: 'admin_users',
     reason:
@@ -1743,6 +1752,15 @@ export const PLATFORM_OWNED_ERROR_CODES: PlatformOwnedErrorCodes = {
       'The unqualified absence, named in fifty modules plus the platform\'s 404 fallback. ' +
       'Every module that owns an entity also owns a specific `*_NOT_FOUND`; what is left ' +
       'here is the case where the noun is not known at the point of the refusal.',
+  },
+  AMOUNT_PRECISION_EXCEEDED: {
+    tier: 'T3',
+    reason:
+      'A typed money amount with more than two decimal places (issue #417, owner ruling of ' +
+      '2026-10-24), refused on every money field a person or an integration enters — delivery ' +
+      'methods, payment methods, quote requests, returns, credit limits, promotions, orders and ' +
+      'invoices. The noun is the request\'s amount, which no one module owns, and the raiser is ' +
+      'the error envelope reading the Zod issue `money-input.ts` tags.',
   },
   UNAUTHORIZED: {
     tier: 'T3',

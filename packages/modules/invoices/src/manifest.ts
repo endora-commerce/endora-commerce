@@ -199,6 +199,15 @@ export const manifest = defineModuleManifest({
       reason:
         'InvoiceService.issue holds pending only when the ledger module is present and numbering is vendor.',
     },
+    {
+      moduleId: 'payments',
+      name: 'paymentReadPort',
+      kind: 'degrades-without',
+      whenAbsent:
+        "An issued invoice records as paid the order's stored total when the order is paid, and nothing otherwise.",
+      reason:
+        'InvoiceService.issue records as paid what was captured for the order (issue #417), which the payments module knows.',
+    },
   ],
   settings: invoicesSettingsManifest,
   i18n: { bundlesDir: 'i18n' },

@@ -27,6 +27,7 @@ import {
   savedListViewSchema,
   savedListViewSortSchema,
 } from './saved-list-views.js';
+import { twoDecimalAmount } from './money-input.js';
 
 /**
  * Orders module contracts — Source of truth per Principle V.
@@ -422,7 +423,7 @@ export const adminOrderPaymentStatusTransitionSchema = z.object({
 });
 
 export const adminOrderRefundRequestSchema = z.object({
-  amount: z.number().finite().positive().optional(),
+  amount: twoDecimalAmount(z.number().finite().positive()).optional(),
 });
 
 export const adminOrderShippedRequestSchema = z.object({

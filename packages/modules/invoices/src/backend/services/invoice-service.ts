@@ -3,10 +3,13 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '@endora-commerce/platform/http';
 import {
   ERROR_CODES,
+  compareDecimals,
+  lineAmountHalfUp,
+  moneyDifference,
+  roundHalfUp,
   type InvoiceDetail,
   type InvoiceKind,
   type OrderReadPort,
-  type VatSummaryRow,
 } from '@endora-commerce/contracts';
 import { Invoice } from '../entities/invoice.entity.js';
 import { InvoiceLine } from '../entities/invoice-line.entity.js';
@@ -15,20 +18,25 @@ import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import { refuseDuplicateInvoiceNumber } from './duplicate-number-refusal.js';
 import type { InvoiceNumberGenerator } from './invoice-number-generator.js';
 import type { SellerSettingsResolver } from './seller-settings.js';
-import { buildInvoiceLines, type RawOrderLine } from './invoice-line-builder.js';
+import { buildInvoiceLines, readModelVatSummary, type RawOrderLine } from './invoice-line-builder.js';
 import {
   shouldHoldForVendorNumber,
   type LedgerNumberingLookup,
 } from './vendor-number-hold.js';
 
-function round2(n: number): number {
-  return Math.round((n + Number.EPSILON) * 100) / 100;
-}
-
 export interface IssueInvoiceOptions {
   saleDate?: string;
   paymentDueDate?: string;
   issuedBy?: string;
+}
+
+/**
+ * What was captured for an order — the sum of its paid payment attempts'
+ * amounts, as a two-place decimal — or `null` when the `payments` module is
+ * absent and nothing can say (issue #417).
+ */
+export interface CapturedPaymentsLookup {
+  capturedFor(orderId: string): Promise<string | null>;
 }
 
 /** Minimal audit-log seam (FR-035). */
@@ -79,6 +87,7 @@ export class InvoiceService {
     private readonly events?: InvoiceDomainEventEmitter,
     private readonly emailOnReady?: (invoiceId: string) => Promise<void>,
     private readonly ledgerRouting?: LedgerNumberingLookup,
+    private readonly capturedPayments?: CapturedPaymentsLookup,
   ) {}
 
   /** Issue an invoice/proforma for an order. Idempotent per (order, kind). */
@@ -101,30 +110,31 @@ export class InvoiceService {
 
     const seller = await this.sellerSettings.resolve(order.salesChannelId);
     const items = await this.orders.listItems(orderId);
-    const raw: RawOrderLine[] = items.map((it) => {
-      const netValue = Number(it.lineTotal);
-      const qty = it.quantity;
-      return {
-        name: it.productSnapshot?.name ?? 'Pozycja',
-        unit: it.packagingUnitSnapshot?.name ?? 'szt.',
-        quantity: qty,
-        unitNetPrice: Number(it.unitPrice),
-        taxRate: Number(it.taxRate),
-        netValue,
-        orderItemId: it.id,
-      };
-    });
+    // A line's net is its unit price times its quantity, exactly (issue #417).
+    // It is **not** the order line's `lineTotal`: placement stores that gross
+    // (`unitPrice × quantity × (1 + taxRate)`), and reading it as the net taxed
+    // every VAT-payer line twice — the invoice's net was the order's gross.
+    const raw: RawOrderLine[] = items.map((it) => ({
+      name: it.productSnapshot?.name ?? 'Pozycja',
+      unit: it.packagingUnitSnapshot?.name ?? 'szt.',
+      quantity: it.quantity,
+      unitNetPrice: it.unitPrice,
+      taxRate: it.taxRate,
+      netValue: lineAmountHalfUp(it.unitPrice, it.quantity),
+      orderItemId: it.id,
+    }));
 
     // Itemize the order's non-product amounts so the invoice total reconciles
     // with the order total. The order model adds delivery + payment surcharge
     // and subtracts the discount on the gross without extra VAT, so each is a
     // 0%-VAT line (the discount is a negative line).
-    const deliveryTotal = Number(order.deliveryTotal ?? 0);
-    if (deliveryTotal > 0) {
+    // The amounts are read as the decimals they are stored as (issue #417).
+    const deliveryTotal = roundHalfUp(order.deliveryTotal ?? 0);
+    if (Number(deliveryTotal) > 0) {
       raw.push({ name: 'Dostawa', unit: 'usł.', quantity: 1, unitNetPrice: deliveryTotal, taxRate: 0, netValue: deliveryTotal });
     }
-    const surcharge = Number(order.paymentMethodSnapshot?.additionalPrice ?? 0);
-    if (surcharge > 0) {
+    const surcharge = roundHalfUp(order.paymentMethodSnapshot?.additionalPrice ?? 0);
+    if (Number(surcharge) > 0) {
       raw.push({
         name: 'Dopłata za metodę płatności',
         unit: 'usł.',
@@ -134,14 +144,28 @@ export class InvoiceService {
         netValue: surcharge,
       });
     }
-    const discountTotal = Number(order.discountTotal ?? 0);
-    if (discountTotal > 0) {
-      raw.push({ name: 'Rabat', unit: 'usł.', quantity: 1, unitNetPrice: -discountTotal, taxRate: 0, netValue: -discountTotal });
+    const discountTotal = roundHalfUp(order.discountTotal ?? 0);
+    if (Number(discountTotal) > 0) {
+      const negative = `-${discountTotal}`;
+      raw.push({ name: 'Rabat', unit: 'usł.', quantity: 1, unitNetPrice: negative, taxRate: 0, netValue: negative });
     }
     const built = buildInvoiceLines(raw);
 
     const issuedAt = new Date();
-    const paidTotal = order.paymentStatus === 'paid' ? built.grossTotal : 0;
+    // What was actually paid for the order — never the invoice gross (issue
+    // #417, review of PR #423). An order placed before 0.108.0 charged its own
+    // total (40.80), and its invoice, issued now under the per-rate method, may
+    // be a cent more (40.81): the cent is shown as still due, not invented as
+    // paid. What `payments` captured; an order recorded as paid with nothing
+    // captured (a transfer an operator confirmed), or with `payments` absent, is
+    // paid its stored total.
+    const captured = (await this.capturedPayments?.capturedFor(orderId)) ?? null;
+    const paidTotal =
+      captured != null && compareDecimals(captured, 0) > 0
+        ? roundHalfUp(captured)
+        : order.paymentStatus === 'paid'
+          ? roundHalfUp(order.total)
+          : '0.00';
     const buyer = {
       name: order.billingAddress.companyName ?? order.billingAddress.recipientName,
       taxId: order.billingAddress.taxId ?? '',
@@ -173,12 +197,13 @@ export class InvoiceService {
         paymentDueDate: opts.paymentDueDate ?? null,
         paymentMethod: order.paymentMethodSnapshot?.name ?? null,
         currency: order.currency,
-        netTotal: built.netTotal.toFixed(2),
-        taxTotal: built.taxTotal.toFixed(2),
-        total: built.grossTotal.toFixed(2),
-        paidTotal: paidTotal.toFixed(2),
+        netTotal: built.netTotal,
+        taxTotal: built.taxTotal,
+        total: built.grossTotal,
+        paidTotal,
         sellerSnapshot: seller,
         buyerSnapshot: buyer,
+        vatSummary: built.storedVatSummary,
         issuedBy: opts.issuedBy ?? 'system',
         status: holdForVendor ? 'pending' : 'ready',
       });
@@ -192,10 +217,10 @@ export class InvoiceService {
           name: l.name,
           unit: l.unit,
           quantity: String(l.quantity),
-          unitNetPrice: l.unitNetPrice.toFixed(4),
-          taxRate: l.taxRate.toFixed(4),
-          netValue: l.netValue.toFixed(2),
-          grossValue: l.grossValue.toFixed(2),
+          unitNetPrice: l.stored.unitNetPrice,
+          taxRate: l.stored.taxRate,
+          netValue: l.stored.netValue,
+          grossValue: l.stored.grossValue,
           orderItemId: l.orderItemId ?? null,
         });
       }
@@ -216,7 +241,7 @@ export class InvoiceService {
             kind: invoice.kind,
             orderId,
             salesChannelId: order.salesChannelId,
-            grossTotal: built.grossTotal,
+            grossTotal: Number(built.grossTotal),
           },
         })
         .catch(() => undefined);
@@ -335,7 +360,7 @@ export class InvoiceService {
     const em = this.emFactory().fork();
     const inv = await em.findOne(Invoice, { id: invoiceId });
     if (!inv) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Invoice not found.');
-    if (Number(inv.paidTotal) >= Number(inv.total)) return;
+    if (compareDecimals(inv.paidTotal, inv.total) >= 0) return;
     // command-coverage-ignore: idempotent paidTotal projection of Infakt
     // `invoice_paid` — the webhook receipt is the claim; this is the sole-writer stamp.
     inv.paidTotal = inv.total;
@@ -368,21 +393,9 @@ export class InvoiceService {
       grossValue: Number(l.grossValue),
     }));
 
-    const byRate = new Map<number, { net: number; gross: number }>();
-    for (const l of lines) {
-      const cur = byRate.get(l.taxRate) ?? { net: 0, gross: 0 };
-      cur.net += l.netValue;
-      cur.gross += l.grossValue;
-      byRate.set(l.taxRate, cur);
-    }
-    const vatSummary: VatSummaryRow[] = [...byRate.entries()]
-      .sort((a, b) => a[0] - b[0])
-      .map(([taxRate, v]) => ({
-        taxRate,
-        netTotal: round2(v.net),
-        vatAmount: round2(v.gross - v.net),
-        grossTotal: round2(v.gross),
-      }));
+    // The summary the document was issued with, or — issued before 0.108.0 —
+    // the one derived from its stored lines as it was then (review of PR #423).
+    const vatSummary = readModelVatSummary(lineRows, inv.vatSummary);
 
     const grossTotal = Number(inv.total);
     const paidTotal = Number(inv.paidTotal);
@@ -399,11 +412,11 @@ export class InvoiceService {
       saleDate: inv.saleDate ?? null,
       paymentDueDate: inv.paymentDueDate ?? null,
       paymentMethod: inv.paymentMethod ?? null,
-      netTotal: inv.netTotal != null ? Number(inv.netTotal) : round2(grossTotal - (inv.taxTotal != null ? Number(inv.taxTotal) : 0)),
+      netTotal: Number(inv.netTotal ?? moneyDifference(inv.total, inv.taxTotal ?? '0')),
       taxTotal: inv.taxTotal != null ? Number(inv.taxTotal) : 0,
       grossTotal,
       paidTotal,
-      amountDue: round2(grossTotal - paidTotal),
+      amountDue: Number(moneyDifference(inv.total, inv.paidTotal)),
       total: grossTotal,
       originalInvoiceId: inv.originalInvoiceId ?? null,
       templateId: inv.templateId ?? null,

@@ -3,6 +3,7 @@ import { calendarDateSchema, isoDateTimeSchema } from './common.js';
 import { collectionEnvelope, dataEnvelope } from './envelopes.js';
 import { customFieldFilterSchema, customFieldValuesSchema } from './custom-fields.js';
 import type { QuoteRequestStatus } from './quote-requests.js';
+import { twoDecimalAmountString } from './money-input.js';
 
 /**
  * CRM — Sales Opportunities (`specs/143-crm-sales-opportunities/`).
@@ -115,10 +116,15 @@ const currencyCodeSchema = z
   .string()
   .regex(/^[A-Z]{3}$/, 'Currency must be an ISO 4217 code, e.g. PLN');
 
-/** A non-negative decimal held as a string, as `numeric(14,2)` money is everywhere. */
-const decimalAmountSchema = z
-  .string()
-  .regex(/^\d{1,12}(\.\d{1,2})?$/, 'Amount must be a non-negative decimal with at most two places');
+/**
+ * A non-negative decimal held as a string, as `numeric(14,2)` money is
+ * everywhere: the shape here, and more than two decimal places refused with the
+ * platform's one precision code (`money-input.ts`, issue #417).
+ */
+const decimalAmountSchema = twoDecimalAmountString(z.string(), {
+  pattern: /^\d{1,12}(\.\d+)?$/,
+  message: 'Amount must be a non-negative decimal with at most two places',
+});
 
 const isoTimestampSchema = z.string();
 

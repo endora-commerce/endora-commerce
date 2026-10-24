@@ -1,5 +1,5 @@
 import { type ActionConfigFor, type PromotionActionDefinition } from './types.js';
-import { expandUnits, round2 } from './util.js';
+import { expandUnits, unitsTotal } from './util.js';
 
 /**
  * Buy X units of a specific product, get Y of that product free. For every
@@ -15,7 +15,7 @@ export const buyXUnitsYFreeAction: PromotionActionDefinition<ActionConfigFor<'bu
     const groupSize = config.buyUnits + config.freeUnits;
     const groups = Math.floor(units.length / groupSize);
     const freeCount = groups * config.freeUnits;
-    const delta = round2(units.slice(0, freeCount).reduce((acc, u) => acc + u.price, 0));
+    const delta = unitsTotal(units.slice(0, freeCount));
     return { discountSubtotalDelta: Math.min(delta, ctx.subtotal), discountDeliveryDelta: 0 };
   },
 };

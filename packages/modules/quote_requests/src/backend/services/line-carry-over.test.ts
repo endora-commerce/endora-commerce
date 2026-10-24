@@ -244,6 +244,10 @@ describe('carriedProposal — threat model T5', () => {
     expect(carriedProposal(0, { desiredUnitPrice: '95.00' })).toBe('0.00');
   });
 
+  it('stores a typed proposal half-up on its decimal digits, not the binary 1.00 (#417)', () => {
+    expect(carriedProposal(1.005, null)).toBe('1.01');
+  });
+
   it('a new line without a proposal has none', () => {
     expect(carriedProposal(undefined, null)).toBeNull();
     expect(carriedProposal(12.5, null)).toBe('12.50');

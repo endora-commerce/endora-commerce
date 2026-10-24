@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, roundHalfUp } from '@endora-commerce/contracts';
 import type { ReturnDeliveryMethodDto } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
@@ -55,7 +55,7 @@ export class ReturnDeliveryMethodService {
     const em = this.deps.emFactory();
     const row = em.create(ReturnDeliveryMethod, {
       deliveryMethodId: input.deliveryMethodId,
-      returnCost: input.returnCost.toFixed(2),
+      returnCost: roundHalfUp(input.returnCost),
       currency: input.currency,
       isActive: input.isActive ?? true,
     });
@@ -80,7 +80,7 @@ export class ReturnDeliveryMethodService {
     const em = this.deps.emFactory();
     const row = await em.findOne(ReturnDeliveryMethod, { id });
     if (!row) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return delivery method not found.');
-    if (patch.returnCost !== undefined) row.returnCost = patch.returnCost.toFixed(2);
+    if (patch.returnCost !== undefined) row.returnCost = roundHalfUp(patch.returnCost);
     if (patch.currency !== undefined) row.currency = patch.currency;
     if (patch.isActive !== undefined) row.isActive = patch.isActive;
     this.#audit(em, 'return_delivery_method.update', 'return_delivery_method', row.id, null, {

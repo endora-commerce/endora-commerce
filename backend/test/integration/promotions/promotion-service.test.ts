@@ -72,6 +72,20 @@ describe('PromotionService.applyToCart', () => {
     expect(result.total).toBe(137);
   });
 
+  it('takes a percentage of the exact line sum (#417): 10 % of 0.01 + 2.34 is 0.24, not the binary 0.23', async () => {
+    await svc.upsert({ name: '10% off', kind: 'percentage_off', value: 10 });
+    const result = await svc.applyToCart(
+      snapshot({
+        lines: [
+          { productId: PROD_A, variantId: null, categoryIds: [], quantity: 1, unitPrice: { amount: 0.01, currency: 'PLN' } },
+          { productId: PROD_B, variantId: null, categoryIds: [], quantity: 1, unitPrice: { amount: 2.34, currency: 'PLN' } },
+        ],
+      }),
+    );
+    expect(result.subtotal).toBe(2.35);
+    expect(result.discountTotal).toBe(0.24);
+  });
+
   it('caps amount_off at the relevant line total', async () => {
     await svc.upsert({ name: '500 PLN off', kind: 'amount_off', value: 500, currency: 'PLN' });
     const result = await svc.applyToCart(snapshot());

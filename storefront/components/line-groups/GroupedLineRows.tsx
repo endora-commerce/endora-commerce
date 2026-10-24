@@ -1,5 +1,12 @@
 import { Fragment, type ReactNode } from 'react';
-import { arrangeLineGroups, type LineGroup } from '@endora-commerce/contracts';
+import {
+  arrangeLineGroups,
+  lineAmountHalfUp,
+  moneyDifference,
+  moneySum,
+  taxAmountHalfUp,
+  type LineGroup,
+} from '@endora-commerce/contracts';
 import { tForLocale, type MessageKey } from '../../lib/i18n/messages';
 import { formatMoney } from '../../lib/i18n/money';
 
@@ -33,13 +40,15 @@ export function quoteSectionTotals(
   lines: ReadonlyArray<{ quantity: number; agreedUnitPrice: number | null; desiredUnitPrice: number | null }>,
   taxRate: number,
 ): SectionTotals {
-  const sum = (pick: (line: (typeof lines)[number]) => number | null): number | null =>
-    lines.every((line) => pick(line) !== null) ? lines.reduce((s, line) => s + pick(line)! * line.quantity, 0) : null;
+  // Exact decimal arithmetic (issue #417): the VAT on the net total, half-up.
+  const sum = (pick: (line: (typeof lines)[number]) => number | null): string | null =>
+    lines.every((line) => pick(line) !== null)
+      ? moneySum(lines.map((line) => lineAmountHalfUp(pick(line)!, line.quantity)))
+      : null;
   const net = sum((line) => line.agreedUnitPrice) ?? sum((line) => line.desiredUnitPrice);
-  const round = (n: number): number => Math.round(n * 100) / 100;
   if (lines.length === 0 || net === null) return { count: lines.length, net: null, vat: null, gross: null };
-  const vat = round(net * taxRate);
-  return { count: lines.length, net: round(net), vat, gross: round(net + vat) };
+  const vat = taxAmountHalfUp(net, taxRate, 'fraction');
+  return { count: lines.length, net: Number(net), vat: Number(vat), gross: Number(moneySum([net, vat])) };
 }
 
 /**
@@ -50,11 +59,11 @@ export function quoteSectionTotals(
 export function orderSectionTotals(
   lines: ReadonlyArray<{ quantity: number; unitPrice: number; lineTotal: number }>,
 ): SectionTotals {
-  const round = (n: number): number => Math.round(n * 100) / 100;
   if (lines.length === 0) return { count: 0, net: null, vat: null, gross: null };
-  const net = round(lines.reduce((s, line) => s + line.unitPrice * line.quantity, 0));
-  const gross = round(lines.reduce((s, line) => s + line.lineTotal, 0));
-  return { count: lines.length, net, vat: round(gross - net), gross };
+  // Exact decimal arithmetic (issue #417).
+  const net = moneySum(lines.map((line) => lineAmountHalfUp(line.unitPrice, line.quantity)));
+  const gross = moneySum(lines.map((line) => line.lineTotal));
+  return { count: lines.length, net: Number(net), vat: Number(moneyDifference(gross, net)), gross: Number(gross) };
 }
 
 /**

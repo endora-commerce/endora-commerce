@@ -1,0 +1,5 @@
+---
+'@endora-commerce/mod-returns': minor
+---
+
+A return's default refunds are cumulative over the order's live cases (issue #417, review of PR #423). For each group of what the order charged — a VAT rate of an order placed under the per-rate method, a line of an order placed before it — a case refunds the group's amount for everything returned so far, this case included, minus what earlier returns already refunded in it; capped at what remains of the order's stored products total. No sequence of returns refunds more than was paid (two returns of 1 × 1.07 at 23 % refund 1.32 + 1.31 = 2.63, not 2.64), and a return that completes the order refunds exactly what it charged. Only returnable lines enter the rule; a non-returnable complaint line gets its own amount as the cap an operator may approve up to. What was paid is read from the order's stored figures (`OrderReturnContext.vatMethod`, `productsPaidTotal`, each line's stored `lineTotal`), never recomputed. `defaultRefunds` is replaced by `caseDefaultRefunds`.

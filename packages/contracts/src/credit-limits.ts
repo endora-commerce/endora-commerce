@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { isoDateTimeSchema, uuidSchema } from './common.js';
+import { twoDecimalAmount } from './money-input.js';
 
 /**
  * Credit Limit module contracts (US6) — see
@@ -35,14 +36,14 @@ export const creditLimitViewSchema = z.object({
 export type CreditLimitView = z.infer<typeof creditLimitViewSchema>;
 
 export const grantCreditLimitRequestSchema = z.object({
-  grantedAmount: z.number().finite().positive(),
+  grantedAmount: twoDecimalAmount(z.number().finite().positive()),
   currency: z.string().length(3),
   reason: z.string().max(2000).optional(),
 });
 export type GrantCreditLimitRequest = z.infer<typeof grantCreditLimitRequestSchema>;
 
 export const adjustCreditLimitRequestSchema = z.object({
-  grantedAmount: z.number().finite().nonnegative(),
+  grantedAmount: twoDecimalAmount(z.number().finite().nonnegative()),
   reason: z.string().max(2000).optional(),
   allowOverAllocation: z.boolean().optional(),
 });

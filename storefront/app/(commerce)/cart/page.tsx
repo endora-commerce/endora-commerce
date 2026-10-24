@@ -35,7 +35,7 @@ import { CartApprovalBanner } from '../../../components/CartApprovalBanner';
 import { CartPrimaryCta } from '../../../components/CartPrimaryCta';
 import { getMe } from '../../../lib/api/account';
 import { getProductDisplayMode, PRICING_UNAVAILABLE } from '../../../lib/api/pricing';
-import type { DisplayMode } from '@endora-commerce/contracts';
+import { lineAmountHalfUp, type DisplayMode } from '@endora-commerce/contracts';
 import type { Metadata } from 'next';
 import {
   cartBlocksCheckout,
@@ -387,7 +387,7 @@ function toViewModel(it: CartItem, locale: string): CartLineViewModel {
     quantity: it.quantity,
     unitPrice: it.unitPrice,
     lineTotal: it.lineTotal ?? {
-      amount: it.unitPrice.amount * it.quantity,
+      amount: Number(lineAmountHalfUp(it.unitPrice.amount, it.quantity)),
       currency: it.unitPrice.currency,
     },
     ...(it.unavailable !== undefined ? { unavailable: it.unavailable } : {}),

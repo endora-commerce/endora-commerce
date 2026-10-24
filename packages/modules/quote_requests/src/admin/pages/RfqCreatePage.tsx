@@ -33,6 +33,8 @@ import {
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { createPricePrefillQueue, type PricePrefillQueue } from '../lib/price-prefill-queue';
 import { SectionSummary, sectionTotals, useQuoteLineGroupLabels, useSectionSummaryText } from '../line-groups.js';
+import { quoteNet } from '../quote-totals.js';
+import { lineAmountHalfUp } from '@endora-commerce/contracts';
 
 /**
  * Admin "create a Quote Request on behalf of a customer" (feature 008 US4).
@@ -443,9 +445,9 @@ export function RfqCreatePage(): ReactNode {
   const parsedByKey = new Map(parsedLines.map((l) => [l.row.key, l]));
   const allLinesComplete = parsedLines.every((l) => l.quantity !== null && l.price !== null);
   const hasOrg = Boolean(customer?.organizationId);
-  const total = parsedLines.reduce(
-    (sum, l) => (l.quantity !== null && l.price !== null ? sum + l.quantity * l.price : sum),
-    0,
+  // Exact decimal arithmetic (issue #417).
+  const total = quoteNet(
+    parsedLines.flatMap((l) => (l.quantity !== null && l.price !== null ? [{ price: l.price, quantity: l.quantity }] : [])),
   );
   // Feature 159 — every group needs a name before the request can be created.
   const groupsNamed = groups.every((group) => group.name.trim() !== '');
@@ -609,7 +611,7 @@ export function RfqCreatePage(): ReactNode {
                         const parsed = parsedByKey.get(row.key);
                         return {
                           net:
-                            parsed && parsed.quantity !== null && parsed.price !== null ? parsed.quantity * parsed.price : null,
+                            parsed && parsed.quantity !== null && parsed.price !== null ? Number(lineAmountHalfUp(parsed.price, parsed.quantity)) : null,
                           reference: null,
                         };
                       }),
@@ -704,7 +706,7 @@ export function RfqCreatePage(): ReactNode {
             />
           )}
           <div className="flex justify-end pt-2 text-sm font-medium">
-            {t('rfqCreate.total')}: {total.toFixed(2)}
+            {t('rfqCreate.total')}: {total}
           </div>
         </CardContent>
       </Card>

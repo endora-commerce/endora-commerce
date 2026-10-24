@@ -145,3 +145,51 @@ describe('buy_x_units_* (product-scoped)', () => {
     expect(r.discountSubtotalDelta).toBe(15);
   });
 });
+
+/**
+ * Issue #417 — a discount is computed in exact decimal arithmetic: a
+ * percentage half-up on the exact product, and "for every X spent" on the
+ * exact quotient. On doubles, 10 % of 1.45 was 0.14 and 0.30 held two 0.10
+ * steps.
+ */
+describe('exact decimal discounts (#417)', () => {
+  it('takes 10 % of 1.45 as 0.15, not the binary 0.14', () => {
+    const r = registry.apply({ type: 'percentage_off_cart', percent: 10 }, ctx([line('p', 1.45, 1)]));
+    expect(r.discountSubtotalDelta).toBe(0.15);
+  });
+
+  it('half-ups every percentage action on the exact product', () => {
+    expect(
+      registry.apply({ type: 'buy_x_units_percent_off', productId: 'p', buyUnits: 1, percent: 10 }, ctx([line('p', 1.45, 1)]))
+        .discountSubtotalDelta,
+    ).toBe(0.15);
+    expect(
+      registry.apply({ type: 'every_nth_product_percent_off', nth: 1, percent: 10 }, ctx([line('p', 1.45, 1)]))
+        .discountSubtotalDelta,
+    ).toBe(0.15);
+  });
+
+  it('counts three 0.10 steps in 0.30, not the binary two', () => {
+    const lines = [line('p', 0.3, 1)];
+    expect(
+      registry.apply({ type: 'spend_x_amount_off', spendStep: 0.1, amount: 0.05, currency: 'PLN' }, ctx(lines))
+        .discountSubtotalDelta,
+    ).toBe(0.15);
+    expect(
+      registry.apply({ type: 'spend_x_percent_off', spendStep: 0.1, percent: 10, currency: 'PLN' }, ctx(lines))
+        .discountSubtotalDelta,
+    ).toBe(0.09);
+  });
+});
+
+describe('exact step percentages (#417 review)', () => {
+  it('takes 3 × 0.15 % of 10.00 as 0.05, not the binary 0.04', () => {
+    // 3 * 0.15 is the double 0.44999999999999996.
+    expect(3 * 0.15).toBe(0.44999999999999996);
+    const r = registry.apply(
+      { type: 'spend_x_percent_off', spendStep: 3, percent: 0.15, currency: 'PLN' },
+      ctx([line('p', 10, 1)]),
+    );
+    expect(r.discountSubtotalDelta).toBe(0.05);
+  });
+});

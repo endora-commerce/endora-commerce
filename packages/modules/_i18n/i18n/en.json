@@ -511,6 +511,7 @@
   "defaultPreferences.saved": "Preferences saved.",
   "defaultPreferences.shippingAddress": "Default shipping address",
   "defaultPreferences.title": "Default ordering preferences",
+  "errors.AMOUNT_PRECISION_EXCEEDED": "An amount may have at most two decimal places.",
   "errors.CURRENT_PASSWORD_INVALID": "The current password is incorrect.",
   "errors.EMAIL_ALREADY_REGISTERED": "Email Already Registered.",
   "errors.FORBIDDEN": "You do not have permission to perform this action.",

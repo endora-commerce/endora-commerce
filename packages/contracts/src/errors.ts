@@ -15,6 +15,9 @@ export const ERROR_CODES = {
   FORBIDDEN: 'FORBIDDEN',
   RATE_LIMITED: 'RATE_LIMITED',
   VERSION_CONFLICT: 'VERSION_CONFLICT',
+  // Issue #417 — a typed money amount with more than two decimal places
+  // (`money-input.ts`). Refused, never rounded.
+  AMOUNT_PRECISION_EXCEEDED: 'AMOUNT_PRECISION_EXCEEDED',
 
   // Catalog
   FILTER_NOT_ALLOWED: 'FILTER_NOT_ALLOWED',

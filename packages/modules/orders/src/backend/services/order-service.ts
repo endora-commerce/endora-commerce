@@ -2,7 +2,11 @@ import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
+  compareDecimals,
+  lineAmountHalfUp,
+  moneySum,
   pickLocalized,
+  roundHalfUp,
   type CartSnapshot,
   type CustomFieldCarryPort,
   type FulfilmentStrategy,
@@ -130,6 +134,7 @@ import {
   readBasketCatalogue,
 } from './placement-minimums.js';
 import { returnableAtPurchase } from './returnable-at-purchase.js';
+import { orderTotalsMoney } from './order-money.js';
 import type { InvoicePlacementApplyPort } from '@endora-commerce/mod-invoices/ports';
 import type { PaymentPlacementApplyPort } from '../../ports/index.js';
 import type { CreditLimitPort } from '@endora-commerce/mod-credit-limits/ports';
@@ -1119,8 +1124,8 @@ export class OrderService {
     productById: Map<string, { type: string }>;
     vatStatus: string;
     taxCountry: string | null;
-    deliveryCost: number;
-    paymentSurcharge: number;
+    deliveryCost: string | number;
+    paymentSurcharge: string | number;
     currency: string;
     appliedPromotionCode: string | null;
     salesChannelId: string | null;
@@ -1128,6 +1133,8 @@ export class OrderService {
     /** The buyer's effective group — see {@link resolveCustomerGroupId}. */
     customerGroupId: string | null;
   }): Promise<{
+    /** The same totals as two-place decimal strings — what placement stores (issue #417). */
+    money: ReturnType<typeof orderTotalsMoney>;
     subtotal: number;
     taxTotal: number;
     deliveryTotal: number;
@@ -1137,10 +1144,8 @@ export class OrderService {
     currency: string;
     appliedPromotionCode: string | null;
     appliedPromotions: PromotionApplication['appliedPromotions'];
-    rateForProductId: (productId: string) => number;
   }> {
     const { items, productById, currency } = input;
-    const subtotal = items.reduce((acc, it) => acc + Number(it.unitPrice) * it.quantity, 0);
 
     // Real VAT: resolve the rate per product tax class (its `type`) against the
     // billing country + org VAT status. VAT-exempt / reverse-charge orgs resolve
@@ -1172,16 +1177,6 @@ export class OrderService {
     // that cannot be mistaken for a resolved rate.
     const rateForProductId = (productId: string): number =>
       rateByType.get(productById.get(productId)?.type ?? 'simple') ?? 0;
-    const taxTotal =
-      Math.round(
-        items.reduce(
-          (acc, it) => acc + Number(it.unitPrice) * it.quantity * rateForProductId(it.productId),
-          0,
-        ) * 100,
-      ) / 100;
-
-    const deliveryTotal = input.deliveryCost;
-    const paymentSurcharge = input.paymentSurcharge;
 
     // Promotion engine — includes automatic (couponless) promotions plus the
     // cart's applied coupon. No-op when no promotion port is wired.
@@ -1200,7 +1195,7 @@ export class OrderService {
           quantity: it.quantity,
           unitPrice: { amount: Number(it.unitPrice), currency: it.currency },
         })),
-        deliveryTotal,
+        deliveryTotal: Number(roundHalfUp(input.deliveryCost)),
         promotionCode: input.appliedPromotionCode ?? null,
         salesChannelId: input.salesChannelId ?? null,
       };
@@ -1212,21 +1207,32 @@ export class OrderService {
       }
     }
 
-    const total =
-      Math.round((subtotal + taxTotal + deliveryTotal + paymentSurcharge - discountTotal) * 100) /
-      100;
+    // The one VAT method (issue #417, owner ruling of 2026-10-24): VAT per rate
+    // on the sum of the nets at that rate (`vatByRate`), rounded once per rate;
+    // the total rounded once.
+    const money = orderTotalsMoney({
+      lines: items.map((it) => ({
+        unitPrice: it.unitPrice,
+        quantity: it.quantity,
+        taxRate: rateForProductId(it.productId),
+      })),
+      deliveryTotal: input.deliveryCost,
+      paymentSurcharge: input.paymentSurcharge,
+      discountTotal,
+    });
 
     return {
-      subtotal,
-      taxTotal,
-      deliveryTotal,
-      paymentSurcharge,
-      discountTotal,
-      total,
+      money,
+      // Two-place decimals read as numbers, losslessly.
+      subtotal: Number(money.subtotal),
+      taxTotal: Number(money.taxTotal),
+      deliveryTotal: Number(money.deliveryTotal),
+      paymentSurcharge: Number(money.paymentSurcharge),
+      discountTotal: Number(money.discountTotal),
+      total: Number(money.total),
       currency,
       appliedPromotionCode,
       appliedPromotions,
-      rateForProductId,
     };
   }
 
@@ -1360,8 +1366,8 @@ export class OrderService {
       productById,
       vatStatus: org?.vatStatus ?? 'vat_payer',
       taxCountry,
-      deliveryCost: Number(deliveryMethod.cost),
-      paymentSurcharge: Number(paymentMethod.additionalPrice ?? '0'),
+      deliveryCost: deliveryMethod.cost,
+      paymentSurcharge: paymentMethod.additionalPrice ?? '0',
       currency: deliveryMethod.currency,
       appliedPromotionCode: cart.appliedPromotionCode ?? null,
       salesChannelId: cart.salesChannelId ?? null,
@@ -1740,13 +1746,13 @@ export class OrderService {
       if (this.resolveMinOrderValue) {
         const min = await this.resolveMinOrderValue(req.salesChannelId ?? null).catch(() => 0);
         if (min > 0) {
-          const cartSubtotal = items.reduce((sum, it) => sum + Number(it.unitPrice) * it.quantity, 0);
-          if (cartSubtotal < min) {
+          const cartSubtotal = moneySum(items.map((it) => lineAmountHalfUp(it.unitPrice, it.quantity)));
+          if (compareDecimals(cartSubtotal, min) < 0) {
             throw new HttpError(
               422,
               ERROR_CODES.VALIDATION_FAILED,
-              `Order total ${cartSubtotal.toFixed(2)} is below the minimum ${min.toFixed(2)} for this sales channel.`,
-              { code: 'order_below_minimum', minimum: min, subtotal: cartSubtotal },
+              `Order total ${cartSubtotal} is below the minimum ${roundHalfUp(min)} for this sales channel.`,
+              { code: 'order_below_minimum', minimum: min, subtotal: Number(cartSubtotal) },
             );
           }
         }
@@ -2015,23 +2021,19 @@ export class OrderService {
       // promotion discount) runs through one shared computation so the storefront
       // preview endpoint and order placement can never drift.
       const {
-        subtotal,
-        taxTotal,
-        deliveryTotal,
+        money,
         paymentSurcharge,
         currency,
-        discountTotal,
         total,
         appliedPromotionCode,
         appliedPromotions,
-        rateForProductId,
       } = await this.computeMonetaryTotals({
         items,
         productById,
         vatStatus: org.vatStatus ?? 'vat_payer',
         taxCountry: billing.country ?? delivery.country ?? null,
-        deliveryCost: Number(deliveryMethod.cost),
-        paymentSurcharge: Number(paymentMethod.additionalPrice ?? '0'),
+        deliveryCost: deliveryMethod.cost,
+        paymentSurcharge: paymentMethod.additionalPrice ?? '0',
         currency: deliveryMethod.currency,
         appliedPromotionCode: cart.appliedPromotionCode ?? null,
         salesChannelId: cart.salesChannelId ?? null,
@@ -2133,13 +2135,13 @@ export class OrderService {
         ...(this.resolvePendingStatus(paymentMethod.statusOnPending)
           ? { status: this.resolvePendingStatus(paymentMethod.statusOnPending)! }
           : {}),
-        subtotal: subtotal.toFixed(2),
-        taxTotal: taxTotal.toFixed(2),
-        deliveryTotal: deliveryTotal.toFixed(2),
+        subtotal: money.subtotal,
+        taxTotal: money.taxTotal,
+        deliveryTotal: money.deliveryTotal,
         // Feature 036 (US3) — coupon discount recomputed above.
-        discountTotal: discountTotal.toFixed(2),
+        discountTotal: money.discountTotal,
         ...(appliedPromotionCode ? { promotionCode: appliedPromotionCode } : {}),
-        total: total.toFixed(2),
+        total: money.total,
         currency,
         ...(req.customerNote ? { customerNote: req.customerNote } : {}),
         ...(req.shippingAdapterData
@@ -2157,6 +2159,8 @@ export class OrderService {
         // second write. The column's `false` default is the opposite answer
         // on purpose, and only for rows that predate it — see the migration.
         purchaseConversionOwed: true,
+        // Issue #417 — placed under the per-rate VAT method.
+        vatMethod: 'per_rate',
         ...(carry && carry.carried.length > 0 ? { customFieldValues: { ...carry.values } } : {}),
       });
       await tx.persistAndFlush(order);
@@ -2183,7 +2187,7 @@ export class OrderService {
             orderId: order.id,
             promotionId: ap.promotionId,
             couponId: ap.couponId ?? null,
-            amount: ap.amount.toFixed(2),
+            amount: roundHalfUp(ap.amount),
             currency,
           }),
         );
@@ -2249,6 +2253,10 @@ export class OrderService {
         const snapshotName = item.packagingUnitName
           ? `${baseName} (${item.packagingUnitName})`
           : baseName;
+        // The line's stored gross: its net plus its share of its rate's VAT under
+        // the one VAT method (issue #417), from the totals computed above, so the
+        // order's line grosses add up to its products' gross.
+        const lineMoney = money.lines[index]!;
         return tx.create(OrderItem, {
           orderId: order.id,
           productId: item.productId,
@@ -2278,12 +2286,8 @@ export class OrderService {
           // Feature 159 (I-O3) — the line's group and its place in its section.
           groupId,
           position: laidOut?.position ?? index,
-          taxRate: rateForProductId(item.productId).toFixed(4),
-          lineTotal: (
-            Number(item.unitPrice) *
-            item.quantity *
-            (1 + rateForProductId(item.productId))
-          ).toFixed(2),
+          taxRate: lineMoney.taxRate,
+          lineTotal: lineMoney.gross,
         });
       });
       await tx.persistAndFlush(orderItems);
@@ -2356,7 +2360,7 @@ export class OrderService {
       const payment = await this.neighbours.paymentPlacementApply.openForOrder(tx, {
         orderId: order.id,
         paymentMethodId: paymentMethod.id,
-        amount: total.toFixed(2),
+        amount: money.total,
         currency,
       });
 
@@ -2443,8 +2447,8 @@ export class OrderService {
               // organization's own — what `GET /me/credit-limit` already tells
               // the same buyer, and the total of the order they are placing.
               {
-                availableAmount: result.availableAmount.toFixed(2),
-                orderTotal: total.toFixed(2),
+                availableAmount: roundHalfUp(result.availableAmount),
+                orderTotal: money.total,
                 currency,
               },
             );
@@ -2502,7 +2506,7 @@ export class OrderService {
         await invoicePlacement.createProformaForOrder(tx, {
           orderId: order.id,
           currency,
-          total: total.toFixed(2),
+          total: money.total,
         });
       }
 
@@ -2571,7 +2575,7 @@ export class OrderService {
           objectId: order.id,
           stateBefore: null,
           stateAfter: {
-            total: total.toFixed(2),
+            total: money.total,
             currency,
             status: order.status,
             // Feature 159 (FR-081, research R-22) — the grouping's shape, when the order has one.

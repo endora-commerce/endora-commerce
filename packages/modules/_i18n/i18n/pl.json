@@ -511,6 +511,7 @@
   "defaultPreferences.saved": "Preferencje zapisane.",
   "defaultPreferences.shippingAddress": "Domyślny adres wysyłki",
   "defaultPreferences.title": "Domyślne preferencje zamówień",
+  "errors.AMOUNT_PRECISION_EXCEEDED": "Kwota może mieć najwyżej dwa miejsca po przecinku.",
   "errors.CURRENT_PASSWORD_INVALID": "Obecne hasło jest nieprawidłowe.",
   "errors.EMAIL_ALREADY_REGISTERED": "Błąd: email already registered.",
   "errors.FORBIDDEN": "Nie masz uprawnień do wykonania tej akcji.",

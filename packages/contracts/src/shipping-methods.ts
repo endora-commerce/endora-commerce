@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { uuidSchema } from './common.js';
 import { ModulePresenceSchema } from './modules.js';
 import type { OrderStatusOption } from './payment-methods.js';
+import { twoDecimalAmount } from './money-input.js';
 
 /**
  * Shipping Method adapter framework (feature 035 — Metoda Dostawy).
@@ -46,7 +47,7 @@ export type DeliveryMethodName = z.infer<typeof deliveryMethodNameSchema>;
 export const deliveryMethodUpsertSchema = z.object({
   code: z.string().min(1).max(64).optional(),
   name: deliveryMethodNameSchema,
-  cost: z.number().finite().nonnegative(),
+  cost: twoDecimalAmount(z.number().finite().nonnegative()),
   currency: z.string().length(3),
   adapter: z.string().min(1).max(64).optional(),
   status: z.enum(['active', 'inactive']).optional(),

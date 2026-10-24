@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { roundAmountHalfUp } from '@endora-commerce/contracts';
+import { lineAmountHalfUp, roundAmountHalfUp } from '@endora-commerce/contracts';
 import { formatMoney as formatMoneyShared } from '../../lib/i18n/money';
 import {
   clampDraftQuantity,
@@ -350,7 +350,7 @@ export function DraftLine({
   // A locked buyer's stored proposal is neither shown nor counted (FR-021).
   const effectiveUnit = effectiveUnitPrice(line, proposalsAllowed);
   const currency = line.unitPrice?.currency ?? 'PLN';
-  const lineTotal = effectiveUnit !== null ? effectiveUnit * line.quantity : null;
+  const lineTotal = effectiveUnit !== null ? Number(lineAmountHalfUp(effectiveUnit, line.quantity)) : null;
   // Feature 155 — the floor is the minimum itself, also for a line already below it: the input
   // then reads as invalid (`aria-invalid`), "−" is off and "+" or the fix lifts it to the floor.
   const floor = draftQuantityFloor(minimum);

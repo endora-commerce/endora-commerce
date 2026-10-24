@@ -18,7 +18,7 @@ import { ReturnReason } from '../entities/return-reason.entity.js';
 import { Refund } from '../entities/refund.entity.js';
 import { RETURN_STATUS_CANCELLED } from '../domain/return-status-graph.js';
 import { isWithinFreeWindow } from '../domain/free-return-window.js';
-import { defaultRefundForQuantity } from '../domain/refund-math.js';
+import { approvedAmount, caseDefaultRefunds } from '../domain/refund-math.js';
 import type { ReturnStatusGraphService } from './return-status-graph-service.js';
 import type { ReturnTransitionService } from './return-transition-service.js';
 import {
@@ -181,15 +181,37 @@ export class ReturnCaseService {
     });
     em.persist(rc);
 
-    for (const line of input.lines) {
+    // What each returned line refunds by default — cumulatively over the
+    // order's live cases (issue #417, review of PR #423): no sequence of
+    // returns refunds more than the order charged, and a complete return
+    // refunds exactly that. Read from what the order stored, never recomputed.
+    const defaults = caseDefaultRefunds({
+      vatMethod: ctx.vatMethod,
+      productsPaidTotal: ctx.productsPaidTotal,
+      orderLines: ctx.lines.map((l) => ({
+        orderItemId: l.orderItemId,
+        unitNetPrice: l.unitNetPrice,
+        taxRate: l.taxRate,
+        purchasedQty: l.purchasedQty,
+        paidLineAmount: approvedAmount(l.paidLineAmount),
+        returnable: isLineReturnable(l.returnableAtPurchase),
+      })),
+      earlier: (await this.liveCaseItems(input.orderId)).map((it) => ({
+        orderItemId: it.orderItemId,
+        quantity: it.quantity,
+        defaultRefundAmount: it.defaultRefundAmount,
+      })),
+      current: input.lines.map((line) => ({ orderItemId: line.orderItemId, quantity: line.quantity })),
+    });
+    for (const [index, line] of input.lines.entries()) {
       const ctxLine = byOrderItem.get(line.orderItemId)!;
-      const defaultRefund = defaultRefundForQuantity(ctxLine.paidUnitAmount, line.quantity);
+      const defaultRefund = defaults[index]!;
       // Owner ruling R1 (feature 155, FR-020) — a complaint may name a line that
       // was not returnable at purchase, but nothing refunds it by default: its
       // approved amount starts at 0 for the operator to set. The default refund
       // stays the amount paid, because it is the cap settlement lets the
       // operator approve up to (`exceedsCap`).
-      const approvedRefund = isLineReturnable(ctxLine.returnableAtPurchase) ? defaultRefund : 0;
+      const approvedRefund = isLineReturnable(ctxLine.returnableAtPurchase) ? defaultRefund : '0.00';
       em.persist(
         em.create(ReturnCaseItem, {
           returnCaseId: rc.id,
@@ -199,8 +221,8 @@ export class ReturnCaseService {
           quantity: line.quantity,
           reasonId: line.reasonId,
           description: line.description ?? null,
-          defaultRefundAmount: defaultRefund.toFixed(2),
-          approvedRefundAmount: approvedRefund.toFixed(2),
+          defaultRefundAmount: approvedAmount(defaultRefund),
+          approvedRefundAmount: approvedAmount(approvedRefund),
         }),
       );
     }
@@ -276,16 +298,20 @@ export class ReturnCaseService {
   // --- internals ----------------------------------------------------------
 
   private async consumedQuantities(orderId: string): Promise<Map<string, number>> {
-    const em = this.deps.emFactory();
-    const cases = await em.find(ReturnCase, { orderId });
-    const liveCaseIds = cases.filter((c) => !VOID_STATUS_CODES.has(c.statusCode)).map((c) => c.id);
     const out = new Map<string, number>();
-    if (liveCaseIds.length === 0) return out;
-    const items = await em.find(ReturnCaseItem, { returnCaseId: { $in: liveCaseIds } });
-    for (const it of items) {
+    for (const it of await this.liveCaseItems(orderId)) {
       out.set(it.orderItemId, (out.get(it.orderItemId) ?? 0) + it.quantity);
     }
     return out;
+  }
+
+  /** The lines of the order's live (non-void) cases — what was already returned and refunded. */
+  private async liveCaseItems(orderId: string): Promise<ReturnCaseItem[]> {
+    const em = this.deps.emFactory();
+    const cases = await em.find(ReturnCase, { orderId });
+    const liveCaseIds = cases.filter((c) => !VOID_STATUS_CODES.has(c.statusCode)).map((c) => c.id);
+    if (liveCaseIds.length === 0) return [];
+    return em.find(ReturnCaseItem, { returnCaseId: { $in: liveCaseIds } });
   }
 
   private async isWithinFreeWindow(

@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
+  lineAmountHalfUp,
   adminAddOrderCommentRequestSchema,
   adminCreateOrderRequestSchema,
   adminOrderPaymentStatusTransitionSchema,
@@ -45,6 +46,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import { getResolvedChannel, rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import type { Command, CommandBus } from '@endora-commerce/platform/commands';
+import { orderTotalsMoney } from './services/order-money.js';
 import type { OrderService } from './services/order-service.js';
 import { assertMethodsOfferedInChannel } from './services/method-channel-gate.js';
 import { previewBelowMinimums, previewLineAvailability } from './services/preview-line-availability.js';
@@ -909,12 +911,10 @@ export async function registerOrderRoutes(
         taxRate?: number;
         unavailable?: boolean;
       }> = [];
-      /** Each priced line with its product tax class, to receive its rate below. */
-      const pricedLines: Array<{ line: { taxRate?: number }; productType: string }> = [];
+      /** Each priced line with its product tax class (VAT resolves the way `placeOrder` resolves it). */
+      const pricedLines: Array<{ line: { quantity: number; taxRate?: number }; productType: string; unitPrice: string }> =
+        [];
       const messages: Array<{ productId: string; code: string; minimum?: number }> = [];
-      let subtotal = 0;
-      /** Net per product tax class, so VAT resolves the way `placeOrder` resolves it. */
-      const taxableByProductType = new Map<string, number>();
 
       // One product read and one channel-membership read per preview (feature
       // 145). Default lookup options, not `liveOnly`: a soft-deleted product is
@@ -1056,21 +1056,16 @@ export async function registerOrderRoutes(
           continue;
         }
         const { product, unitPrice } = entry;
-        subtotal += Number(unitPrice) * it.quantity;
-        taxableByProductType.set(
-          product.type,
-          (taxableByProductType.get(product.type) ?? 0) + Number(unitPrice) * it.quantity,
-        );
         const priced: (typeof lines)[number] = {
           productId: it.productId,
           variantId: it.variantId ?? null,
           quantity: it.quantity,
           unitPrice,
           currency: entry.currency,
-          lineTotal: Math.round(Number(unitPrice) * it.quantity * 100) / 100,
+          lineTotal: Number(lineAmountHalfUp(unitPrice, it.quantity)),
         };
         lines.push(priced);
-        pricedLines.push({ line: priced, productType: product.type });
+        pricedLines.push({ line: priced, productType: product.type, unitPrice });
       }
 
       // VAT from the same authority `placeOrder` uses, per product tax class —
@@ -1081,35 +1076,40 @@ export async function registerOrderRoutes(
       // when nobody could tell it was wrong.
       const vatStatus = organization?.vatStatus ?? 'vat_payer';
       const taxCountry = organization?.registeredAddress?.country ?? null;
-      let taxTotal = 0;
       const rateByProductType = new Map<string, number>();
-      for (const [productType, taxable] of taxableByProductType) {
+      for (const productType of new Set(pricedLines.map((p) => p.productType))) {
         const rate =
           vatStatus === 'vat_payer'
             ? await deps.resolveTaxRate({ country: taxCountry, productType, vatStatus })
             : 0;
         rateByProductType.set(productType, rate);
-        taxTotal += taxable * rate;
       }
       // Feature 159 (FR-060) — the create screen sums a group's VAT from these.
       for (const { line, productType } of pricedLines) line.taxRate = rateByProductType.get(productType) ?? 0;
-      taxTotal = Math.round(taxTotal * 100) / 100;
-      const deliveryTotal = deliveryMethod ? Number(deliveryMethod.cost) : 0;
-      const paymentSurcharge = paymentMethod ? Number(paymentMethod.additionalPrice ?? '0') : 0;
-      const discountTotal = 0;
-      const total =
-        Math.round((subtotal + taxTotal + deliveryTotal + paymentSurcharge - discountTotal) * 100) / 100;
+      // The totals placement computes, with the same function (issue #417): VAT
+      // per rate on the sum of the nets at that rate (`vatByRate`), rounded once
+      // per rate, and the total rounded once.
+      const money = orderTotalsMoney({
+        lines: pricedLines.map(({ line, productType, unitPrice }) => ({
+          unitPrice,
+          quantity: line.quantity,
+          taxRate: rateByProductType.get(productType) ?? 0,
+        })),
+        deliveryTotal: deliveryMethod ? deliveryMethod.cost : 0,
+        paymentSurcharge: paymentMethod ? (paymentMethod.additionalPrice ?? '0') : 0,
+        discountTotal: 0,
+      });
 
       return {
         data: {
           lines,
           summary: {
-            subtotal: Math.round(subtotal * 100) / 100,
-            taxTotal,
-            deliveryTotal,
-            paymentSurcharge,
-            discountTotal,
-            total,
+            subtotal: Number(money.subtotal),
+            taxTotal: Number(money.taxTotal),
+            deliveryTotal: Number(money.deliveryTotal),
+            paymentSurcharge: Number(money.paymentSurcharge),
+            discountTotal: Number(money.discountTotal),
+            total: Number(money.total),
             currency,
           },
           messages,

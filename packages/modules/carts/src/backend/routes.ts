@@ -46,6 +46,7 @@ import {
   rethrowIfModuleDisabled,
   type RequireCustomerGuard,
 } from '@endora-commerce/platform/kernel';
+import { cartLineAmount, cartSubtotal, cartTotalAfterDiscount } from './services/cart-money.js';
 
 const ANON_COOKIE = 'b2b_cart_anon';
 
@@ -737,25 +738,23 @@ function emptyMiniCart() {
  * envelope is intentionally minimal.
  */
 function serializeCartMini(cart: Cart, items: CartItem[]) {
-  let subtotal = 0;
   const currency = items[0]?.currency ?? 'PLN';
   const serializedItems = items.map((it) => {
     const unitPriceAmount = Number(it.unitPrice);
-    subtotal += unitPriceAmount * it.quantity;
     return {
       id: it.id,
       productId: it.productId,
       variantId: it.variantId ?? null,
       quantity: it.quantity,
       unitPrice: { amount: unitPriceAmount, currency: it.currency },
-      lineTotal: { amount: unitPriceAmount * it.quantity, currency: it.currency },
+      lineTotal: { amount: cartLineAmount(it.unitPrice, it.quantity), currency: it.currency },
     };
   });
   return {
     id: cart.id,
     itemCount: items.length,
     items: serializedItems,
-    subtotal: { amount: subtotal, currency },
+    subtotal: { amount: Number(cartSubtotal(items)), currency },
   };
 }
 
@@ -796,14 +795,15 @@ function serializeCart(
    */
   pricingRefusals: Map<string, RecomputeRefusal> | null = null,
 ) {
-  let subtotal = 0;
   let currency = items[0]?.currency ?? 'PLN';
+  // Each line at the price it is shown at, for the subtotal (issue #417: exact).
+  const priced: Array<{ unitPrice: number | string; quantity: number }> = [];
   const serializedItems = items.map((it) => {
     const recomputed = recomputedPrices?.get(it.id);
     const unitPriceAmount = recomputed ? recomputed.amount : Number(it.unitPrice);
     const lineCurrency = recomputed ? recomputed.currency : it.currency;
     if (currency === 'PLN' && lineCurrency !== 'PLN') currency = lineCurrency;
-    subtotal += unitPriceAmount * it.quantity;
+    priced.push({ unitPrice: recomputed ? recomputed.amount : it.unitPrice, quantity: it.quantity });
     const meta = productMeta.get(it.productId) ?? null;
     const minimum = minimumViews?.get(it.id) ?? null;
     const refusal = pricingRefusals?.get(it.id);
@@ -821,7 +821,7 @@ function serializeCart(
       variantId: it.variantId ?? null,
       quantity: it.quantity,
       unitPrice: { amount: unitPriceAmount, currency: lineCurrency },
-      lineTotal: { amount: unitPriceAmount * it.quantity, currency: lineCurrency },
+      lineTotal: { amount: cartLineAmount(recomputed ? recomputed.amount : it.unitPrice, it.quantity), currency: lineCurrency },
       unavailable: (minimum?.unavailable ?? false) || refusal !== undefined,
       // FR-037 — a line whose product record is gone, in the vocabulary the
       // storefront already renders. Issue #168 — a line placement would refuse
@@ -844,6 +844,7 @@ function serializeCart(
       displayName,
     };
   });
+  const subtotal = cartSubtotal(priced);
   return {
     id: cart.id,
     customerAccountId: cart.customerAccountId ?? null,
@@ -854,7 +855,7 @@ function serializeCart(
     approvalStatus: cart.approvalStatus,
     items: serializedItems,
     itemCount: items.length,
-    subtotal: { amount: subtotal, currency },
+    subtotal: { amount: Number(subtotal), currency },
     discount:
       application && application.discountTotal > 0
         ? { code: cart.appliedPromotionCode ?? null, amount: application.discountTotal, currency }
@@ -870,7 +871,7 @@ function serializeCart(
         }))
       : [],
     grandTotal: {
-      amount: Math.max(0, round2Cart(subtotal - (application?.discountTotal ?? 0))),
+      amount: cartTotalAfterDiscount(subtotal, application?.discountTotal ?? 0),
       currency,
     },
     primaryCta: resolvePrimaryCta(cart),
@@ -880,10 +881,6 @@ function serializeCart(
     updatedAt: cart.updatedAt.toISOString(),
     lastActivityAt: cart.lastActivityAt.toISOString(),
   };
-}
-
-function round2Cart(n: number): number {
-  return Math.round(n * 100) / 100;
 }
 
 function resolvePrimaryCta(cart: Cart) {

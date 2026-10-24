@@ -325,3 +325,25 @@ describe('feature 159 — the quote’s sections (document-sections.md §5)', ()
     expect(sampleQuoteRequestData('pl-PL').groups[0]!.name).not.toBe(sampleQuoteRequestData('en-US').groups[0]!.name);
   });
 });
+
+/**
+ * Issue #417 — the quote document's amounts in exact decimal arithmetic, under
+ * its own rule: a line's VAT on the line's net, the summary's VAT on the net
+ * total, a unit gross on the agreed unit price. On doubles, 29.50 at 23 % gave
+ * a unit gross of 36.28 and a VAT of 6.78.
+ */
+describe('quote document amounts — exact decimal (#417)', () => {
+  const amount = (value: DocumentValue): number | null => (value && value.kind === 'money' ? value.amount : null);
+
+  it('rounds a line’s VAT and gross half-up on the exact product (G1)', () => {
+    const [item] = quoteLineItems(data([line({ quantity: 1, agreedUnitPrice: 29.5, referenceUnitPrice: null })]));
+    expect(amount(item!.values.unitGrossPrice!)).toBe(36.29);
+    expect(amount(item!.values.lineVat!)).toBe(6.79);
+    expect(amount(item!.values.lineGross!)).toBe(36.29);
+  });
+
+  it('takes the summary VAT on the exact net total (T1 at 5 %)', () => {
+    const summary = quoteSummary(data([line({ quantity: 1, agreedUnitPrice: 0.7, referenceUnitPrice: null })], 0.05));
+    expect([amount(summary.netTotal!), amount(summary.vatTotal!), amount(summary.grossTotal!)]).toEqual([0.7, 0.04, 0.74]);
+  });
+});

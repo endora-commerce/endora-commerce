@@ -51,7 +51,7 @@ export const manifest = defineModuleManifest({
       'on the platform screen that holds the module switches.',
   },
   /**
-   * **The platform's error-code block — 21 codes, and this is their home** rather
+   * **The platform's error-code block — 22 codes, and this is their home** rather
    * than the residue of a migration (feature 090,
    * `specs/090-module-owned-error-codes/core-block-home.md`; D-186 §4).
    *
@@ -132,8 +132,10 @@ export const manifest = defineModuleManifest({
    * would declare sentences nothing can render. If a code arrives or leaves,
    * re-run the scan; do not adjust the number.
    *
-   * **What the bundle holds for these 21**: 16 `errors.*` keys in each language —
-   * 14 base sentences and the two token keys above. The seven codes with no
+   * **What the bundle holds for these 22**: 17 `errors.*` keys in each language —
+   * 15 base sentences and the two token keys above. (`AMOUNT_PRECISION_EXCEEDED`,
+   * issue #417, arrived after the measurement of 21 and is raised by the envelope
+   * itself rather than at a `new HttpError` site, so the raise-site count stands.) The seven codes with no
    * sentence are the six `MODULE_*` refusals an operator meets through the
    * lifecycle CLI rather than through the envelope, plus `PRICE_UNAVAILABLE`,
    * which nothing raises. All seven are on `UNTRANSLATED_ERROR_CODES` under this
@@ -155,7 +157,7 @@ export const manifest = defineModuleManifest({
     { code: 'MODULE_NOT_FOUND' },
     { code: 'MODULE_SETTING_READ_ONLY' },
 
-    // T3 — the envelope's generic vocabulary (6). Each of these is what dozens
+    // T3 — the envelope's generic vocabulary (7). Each of these is what dozens
     // of modules answer with for a condition that is about the request rather
     // than about a noun, so its sentence has to be generic and the specific case
     // is a token on it (issue #65) or an interpolated value (issue #161).
@@ -166,6 +168,10 @@ export const manifest = defineModuleManifest({
     ] },
     { code: 'INTERNAL', tokens: ['customer_account_organization_missing'] },
     { code: 'NOT_FOUND' },
+    // Issue #417 — a typed money amount with more than two decimal places, on
+    // any module's money field; the error envelope raises it from the Zod issue
+    // `money-input.ts` tags.
+    { code: 'AMOUNT_PRECISION_EXCEEDED' },
     { code: 'UNAUTHORIZED' },
     { code: 'VALIDATION_FAILED' },
     { code: 'VERSION_CONFLICT', tokens: ['organization_version_mismatch'] },

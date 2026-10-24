@@ -12,6 +12,7 @@ import {
   type PromotionCriterion,
   type PromotionRule,
 } from '@endora-commerce/contracts';
+import { linesSubtotal, percentOf, round2 } from '../actions/util.js';
 import { HttpError } from '@endora-commerce/platform/http';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
 import type { AuditPort, SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
@@ -325,12 +326,7 @@ export class PromotionService {
     const em = this.emFactory();
     const now = new Date();
 
-    const subtotal = round2(
-      snapshot.lines.reduce(
-        (acc, line) => acc + line.unitPrice.amount * line.quantity,
-        0,
-      ),
-    );
+    const subtotal = linesSubtotal(snapshot.lines);
 
     const all = await em.find(Promotion, { isActive: true });
 
@@ -532,7 +528,7 @@ export class PromotionService {
 
       let amount = 0;
       if (promotion.kind === 'percentage_off') {
-        amount = round2((lineBase * Number(promotion.value)) / 100);
+        amount = percentOf(lineBase, promotion.value ?? 0);
       } else if (promotion.kind === 'amount_off') {
         if (promotion.currency && promotion.currency !== snapshot.currency) continue;
         amount = round2(Math.min(Number(promotion.value), lineBase));
@@ -698,12 +694,14 @@ export class PromotionService {
       },
     };
 
-    return snapshot.lines.reduce((acc, line) => {
-      if (p.productId && line.productId !== p.productId) return acc;
-      if (p.categoryId && !line.categoryIds.includes(p.categoryId)) return acc;
-      if (p.criteria.length > 0 && !lineMatchesAllCriteria(p.criteria, line, ctx)) return acc;
-      return acc + line.unitPrice.amount * line.quantity;
-    }, 0);
+    // The matching lines' exact sum (issue #417): a percentage is taken of it.
+    return linesSubtotal(
+      snapshot.lines.filter((line) => {
+        if (p.productId && line.productId !== p.productId) return false;
+        if (p.categoryId && !line.categoryIds.includes(p.categoryId)) return false;
+        return p.criteria.length === 0 || lineMatchesAllCriteria(p.criteria, line, ctx);
+      }),
+    );
   }
 }
 
@@ -788,9 +786,6 @@ function validateValuesShape(
 }
 
 
-function round2(value: number): number {
-  return Math.round(value * 100) / 100;
-}
 
 export interface UpsertPromotionInput {
   code?: string | null;

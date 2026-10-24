@@ -16,6 +16,7 @@ import type { CartApprovalService } from './services/cart-approval-service.js';
 import type { CartOrganizationVisibilityService } from './services/cart-organization-visibility-service.js';
 import { HttpError } from '@endora-commerce/platform/http';
 import { getResolvedChannel, type RequireCustomerGuard } from '@endora-commerce/platform/kernel';
+import { cartSubtotal } from './services/cart-money.js';
 
 /**
  * Storefront routes scoped to an Organization Admin (feature 027 US4).
@@ -129,7 +130,7 @@ export async function registerCartsOrganizationRoutes(
         orgAdmin.organizationId,
       );
       const items = await cartService.getItems(cart.id);
-      const total = items.reduce((acc, it) => acc + Number(it.unitPrice) * it.quantity, 0);
+      const total = Number(cartSubtotal(items));
       const currency = items[0]?.currency ?? 'PLN';
       const owner = cart.customerAccountId
         ? await customerAccounts.findById(cart.customerAccountId)

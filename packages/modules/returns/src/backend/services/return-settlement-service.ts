@@ -16,7 +16,7 @@ import { ReturnCase } from '../entities/return-case.entity.js';
 import { ReturnCaseItem } from '../entities/return-case-item.entity.js';
 import { Refund } from '../entities/refund.entity.js';
 import { RETURN_STATUS_RESOLVED } from '../domain/return-status-graph.js';
-import { exceedsCap, sumApproved } from '../domain/refund-math.js';
+import { approvedAmount, exceedsCap, sumApproved } from '../domain/refund-math.js';
 import type { ReturnTransitionService } from './return-transition-service.js';
 import type { ReturnStatusGraphService } from './return-status-graph-service.js';
 
@@ -129,7 +129,7 @@ export class ReturnSettlementService {
           code: 'unknown_line',
         });
       }
-      if (exceedsCap(line.approvedRefundAmount, Number(item.defaultRefundAmount))) {
+      if (exceedsCap(line.approvedRefundAmount, item.defaultRefundAmount)) {
         throw new HttpError(
           422,
           ERROR_CODES.VALIDATION_FAILED,
@@ -137,8 +137,10 @@ export class ReturnSettlementService {
           { code: 'refund_exceeds_paid' },
         );
       }
-      approvedByItemId.set(line.returnCaseItemId, line.approvedRefundAmount);
-      perLine.push(line.approvedRefundAmount);
+      // At the two places it is stored at, half-up (issue #417).
+      const approved = Number(approvedAmount(line.approvedRefundAmount));
+      approvedByItemId.set(line.returnCaseItemId, approved);
+      perLine.push(approved);
     }
     const total = sumApproved(perLine);
 
@@ -217,7 +219,7 @@ export class ReturnSettlementService {
           resolutionType: (input.resolutionType === 'refund' ? 'refund' : 'credit') as
             | 'refund'
             | 'credit',
-          amount: total.toFixed(2),
+          amount: approvedAmount(total),
           currency: rc.currency,
           paymentMethodId: input.refundPaymentMethodId ?? null,
           settlementState: 'pending_manual' as Refund['settlementState'],
@@ -287,12 +289,12 @@ export class ReturnSettlementService {
         mutate: async (target, tx) => {
           target.resolutionType = input.resolutionType;
           target.refundPaymentMethodId = input.refundPaymentMethodId ?? null;
-          target.totalRefundAmount = total.toFixed(2);
+          target.totalRefundAmount = approvedAmount(total);
           target.resolvedAt = new Date();
 
           for (const it of await tx.find(ReturnCaseItem, { returnCaseId: id })) {
             const approved = approvedByItemId.get(it.id);
-            if (approved !== undefined) it.approvedRefundAmount = approved.toFixed(2);
+            if (approved !== undefined) it.approvedRefundAmount = approvedAmount(approved);
           }
 
           if (refundFields) {
@@ -311,7 +313,7 @@ export class ReturnSettlementService {
             objectId: rc.id,
             stateAfter: {
               resolutionType: input.resolutionType,
-              amount: total.toFixed(2),
+              amount: approvedAmount(total),
               currency: rc.currency,
               settlementState: refundFields?.settlementState ?? null,
               // Says which of the three happened — issued, not due, or never

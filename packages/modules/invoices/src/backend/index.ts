@@ -19,10 +19,20 @@ import type {
   InvoicePdfPort,
   InvoiceReadPort,
   OrderReadPort,
+  PaymentAttemptStatus,
+  PaymentReadPort,
   SettingWriteValidatorRegistryPort,
   SettingsAdminPort,
   TransactionalEmailSender,
 } from '@endora-commerce/contracts';
+import { moneySum } from '@endora-commerce/contracts';
+
+/**
+ * A payment attempt whose amount was captured: paid, or paid and since
+ * refunded in part or in full (a refund is the return's to record, not the
+ * invoice's).
+ */
+const CAPTURED: ReadonlySet<PaymentAttemptStatus> = new Set(['paid', 'partially_refunded', 'refunded']);
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { effectiveState, lazyPort } from '@endora-commerce/platform/kernel';
 import { z } from 'zod';
@@ -231,6 +241,15 @@ export function registerModule(ctx: ModuleContext): void {
           // `specs/152-compare-pdf-template/` — every invoice PDF is produced
           // by `document_templates`, which this manifest binds (owner answer N2).
           documents: lazyPort<DocumentRenderPort>(ctx, 'documentRenderPort'),
+          // Issue #417 — what was captured for an order, from `payments` when
+          // it is present (a `degrades-without` dependency of this manifest).
+          capturedPayments: {
+            capturedFor: async (orderId) => {
+              if (!effectiveState.isPresent('payments')) return null;
+              const payments = await lazyPort<PaymentReadPort>(ctx, 'paymentReadPort').listByOrderId(orderId);
+              return moneySum(payments.filter((p) => CAPTURED.has(p.status)).map((p) => p.amount));
+            },
+          },
           ledgerRouting: {
             numberingModeFor: async (salesChannelId) => {
               if (!effectiveState.isPresent('invoice_ledger')) return 'endora';

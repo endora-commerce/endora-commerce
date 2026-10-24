@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, roundHalfUp } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { Promotion } from '../entities/promotion.entity.js';
 import { PromotionCoupon } from '../entities/promotion-coupon.entity.js';
@@ -214,7 +214,7 @@ export class PromotionUsageService {
           input.ctx.organizationId ?? null,
           input.ctx.customerGroupId ?? null,
           input.ctx.salesChannelId,
-          a.amount.toFixed(2),
+          roundHalfUp(a.amount),
           input.currency,
           new Date(),
         ],

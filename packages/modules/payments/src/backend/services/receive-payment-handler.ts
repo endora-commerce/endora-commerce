@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, ORDER_STATUS_ON_HOLD, type ReceivePayment } from '@endora-commerce/contracts';
+import { ERROR_CODES, ORDER_STATUS_ON_HOLD, roundHalfUp, type ReceivePayment } from '@endora-commerce/contracts';
 import type {
   OrderTransitionOutcome,
   OrderTransitionPort,
@@ -410,7 +410,8 @@ export class ReceivePaymentHandler {
       const payment = await this.resolvePaymentForRefund(tx, input);
       if (!payment) return null;
 
-      const newRefunded = input.refundedAmount.toFixed(2);
+      // Half-up on its decimal digits (issue #417); `toFixed(2)` rounded the double.
+      const newRefunded = roundHalfUp(input.refundedAmount);
       const nextStatus: Payment['status'] = input.fullyRefunded
         ? 'refunded'
         : input.refundedAmount > 0 && payment.status !== 'refunded'

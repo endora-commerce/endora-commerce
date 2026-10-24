@@ -44,7 +44,7 @@ import type { QuoteRequestBusinessIdGenerator } from './quote-request-business-i
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { productIdsInRequestChannel } from '@endora-commerce/platform/kernel';
 import { raisedOnChannelId } from './raised-on-channel.js';
-import { hasUnpricedLine, quoteIncompleteError } from './agreed-price.js';
+import { hasUnpricedLine, quoteIncompleteError, unitPriceText } from './agreed-price.js';
 import { underRowLock } from './transition-lock.js';
 import { summarize } from './summarize.js';
 import {
@@ -473,7 +473,7 @@ export class RfqService {
         packagingUnitName: unit.packagingUnitName,
         packagingUnitBaseQuantity: unit.packagingUnitBaseQuantity,
         desiredUnitPrice:
-          lineInput.desiredUnitPrice !== undefined ? lineInput.desiredUnitPrice.toFixed(2) : null,
+          lineInput.desiredUnitPrice !== undefined ? unitPriceText(lineInput.desiredUnitPrice) : null,
         lineNote: lineInput.lineNote ?? null,
         lineCurrency: 'PLN',
         ...referenceColumns(references[index] ?? null, capturedAt),

@@ -1,4 +1,4 @@
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, roundHalfUp } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 
 /**
@@ -20,6 +20,15 @@ export function hasUnpricedLine(
   items: ReadonlyArray<{ agreedUnitPrice?: string | null }>,
 ): boolean {
   return items.some((it) => it.agreedUnitPrice == null);
+}
+
+/**
+ * A unit price an operator or a buyer typed, as the `numeric(…, 2)` column
+ * stores it: half-up on its decimal digits (issue #417). `toFixed(2)` rounded
+ * the binary double, so a typed 1.005 was stored as 1.00.
+ */
+export function unitPriceText(value: number): string {
+  return roundHalfUp(value);
 }
 
 /** The refusal the three guards answer with — one code, one sentence. */

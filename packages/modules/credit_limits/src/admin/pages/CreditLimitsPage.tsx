@@ -3,6 +3,7 @@ import { ApiError, apiClient, formatDateTime, formatMoney } from '@endora-commer
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { CurrencyPicker, OrganizationPicker } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { moneyDifference } from '@endora-commerce/contracts';
 
 interface ActiveReservation {
   orderId: string;
@@ -271,7 +272,7 @@ function ExistingLimitPanel({
           {t('creditLimits.adjust.summary', {
             granted: limit.grantedAmount.toFixed(2),
             available: limit.availableAmount.toFixed(2),
-            reserved: (limit.grantedAmount - limit.availableAmount).toFixed(2),
+            reserved: moneyDifference(limit.grantedAmount, limit.availableAmount),
             count: limit.activeReservations.length,
           })}
         </p>

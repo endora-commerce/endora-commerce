@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import {
   ERROR_CODES,
+  roundHalfUp,
   type PaymentMethodUpsert,
   type PaymentReadPort,
 } from '@endora-commerce/contracts';
@@ -89,7 +90,7 @@ export function makeUpsertPaymentMethodCommand(
         row.kind = body.kind;
         row.adapter = input.adapter;
         if (body.status !== undefined) row.status = body.status;
-        if (body.additionalPrice !== undefined) row.additionalPrice = body.additionalPrice.toFixed(2);
+        if (body.additionalPrice !== undefined) row.additionalPrice = roundHalfUp(body.additionalPrice);
         if (body.statusOnPending !== undefined) row.statusOnPending = body.statusOnPending;
         if (body.statusOnSuccess !== undefined) row.statusOnSuccess = body.statusOnSuccess;
         if (body.statusOnFailure !== undefined) row.statusOnFailure = body.statusOnFailure;
@@ -101,7 +102,7 @@ export function makeUpsertPaymentMethodCommand(
           kind: body.kind,
           adapter: input.adapter,
           status: body.status ?? 'active',
-          additionalPrice: (body.additionalPrice ?? 0).toFixed(2),
+          additionalPrice: roundHalfUp(body.additionalPrice ?? 0),
           statusOnPending: body.statusOnPending ?? 'new',
           statusOnSuccess: body.statusOnSuccess ?? 'paid',
           // Feature 085 (FR-003) — a declined payment holds the order, it does

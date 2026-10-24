@@ -1,6 +1,11 @@
-import type { QuoteRequestSummary } from '@endora-commerce/contracts';
+import { lineAmountHalfUp, moneySum, type QuoteRequestSummary } from '@endora-commerce/contracts';
 import type { QuoteRequest } from '../entities/quote-request.entity.js';
 import type { QuoteRequestItem } from '../entities/quote-request-item.entity.js';
+
+/** Prices × quantities summed exactly, as a two-place number (issue #417: 3 × 9.05 was 27.150000000000002). */
+export function listTotal(lines: ReadonlyArray<{ price: string; quantity: number }>): number {
+  return Number(moneySum(lines.map((l) => lineAmountHalfUp(l.price, l.quantity))));
+}
 
 /**
  * The customer list's row for one quote request.
@@ -19,10 +24,10 @@ export function summarize(
 ): QuoteRequestSummary {
   const totalAtCustomerPrice =
     items.length > 0 && items.every((it) => it.desiredUnitPrice != null)
-      ? items.reduce((sum, it) => sum + Number(it.desiredUnitPrice) * it.quantity, 0)
+      ? listTotal(items.map((it) => ({ price: it.desiredUnitPrice!, quantity: it.quantity })))
       : null;
   const totalAtAgreedPrice = items.every((it) => it.agreedUnitPrice != null)
-    ? items.reduce((sum, it) => sum + Number(it.agreedUnitPrice ?? 0) * it.quantity, 0)
+    ? listTotal(items.map((it) => ({ price: it.agreedUnitPrice ?? '0', quantity: it.quantity })))
     : null;
   const currency = items[0]?.lineCurrency ?? 'PLN';
   return {

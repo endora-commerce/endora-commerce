@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { Order } from '../entities/order.entity.js';
 import type { OrderReturnContext, OrderReturnContextPort } from '@endora-commerce/contracts';
 import { loadArrangedOrderLines } from './order-line-order.js';
+import { decimalSum, quotientHalfUp, roundHalfUp } from '@endora-commerce/contracts';
 
 /**
  * Orders-side implementation of `OrderReturnContextPort` (feature 046, R4).
@@ -30,34 +31,63 @@ export class OrderReturnContextProvider implements OrderReturnContextPort {
     // Feature 159 — the lines in the order's display order.
     const items = (await loadArrangedOrderLines(em, orderId)).lines;
 
-    const completing = order.status === COMPLETING_STATUS;
-    const lines = items.map((it) => {
-      const unitPaid = round2(Number(it.unitPrice) * (1 + Number(it.taxRate)));
-      return {
-        orderItemId: it.id,
-        productId: it.productId,
-        name: it.productSnapshot.name,
-        purchasedQty: it.quantity,
-        paidUnitAmount: unitPaid,
-        paidLineAmount: round2(unitPaid * it.quantity),
-        // Feature 155 (FR-016a) — the stamp placement recorded, reported as
-        // it is: `null` only on a line placed before the feature. What `null`
-        // means for a return (FR-025) is `returns`' policy, not this port's.
-        returnableAtPurchase: it.returnableAtPurchase ?? null,
-      };
-    });
-
-    return {
-      salesChannelId: order.salesChannelId,
-      customerAccountId: order.placedByCustomerAccountId,
-      organizationId: order.organizationId ?? null,
-      currency: order.currency,
-      completingStatusEnteredAt: completing ? order.updatedAt : null,
-      lines,
-    };
+    return returnContextFrom(order, items);
   }
 }
 
-function round2(n: number): number {
-  return Math.round((n + Number.EPSILON) * 100) / 100;
+/**
+ * The return context of an order from **what it stored**, never recomputed
+ * (issue #417, review of PR #423): each line's stored gross, the stored
+ * subtotal plus tax total as what the products were charged, and the VAT method
+ * the order was placed under — so a return of an order placed before 0.108.0
+ * refunds what that order actually charged.
+ */
+export function returnContextFrom(
+  order: Pick<
+    Order,
+    | 'salesChannelId'
+    | 'placedByCustomerAccountId'
+    | 'organizationId'
+    | 'currency'
+    | 'status'
+    | 'updatedAt'
+    | 'subtotal'
+    | 'taxTotal'
+  > & { vatMethod?: 'per_rate' | null | undefined },
+  items: ReadonlyArray<{
+    id: string;
+    productId: string;
+    productSnapshot: { name: string };
+    quantity: number;
+    unitPrice: string;
+    taxRate: string;
+    lineTotal: string;
+    returnableAtPurchase?: boolean | null | undefined;
+  }>,
+): OrderReturnContext {
+  const completing = order.status === COMPLETING_STATUS;
+  return {
+    salesChannelId: order.salesChannelId,
+    customerAccountId: order.placedByCustomerAccountId,
+    organizationId: order.organizationId ?? null,
+    currency: order.currency,
+    completingStatusEnteredAt: completing ? order.updatedAt : null,
+    vatMethod: order.vatMethod ?? null,
+    productsPaidTotal: roundHalfUp(decimalSum(order.subtotal, order.taxTotal)),
+    lines: items.map((it) => ({
+      orderItemId: it.id,
+      productId: it.productId,
+      name: it.productSnapshot.name,
+      purchasedQty: it.quantity,
+      // Two-place decimals read as numbers losslessly; the unit amount is informational.
+      paidUnitAmount: Number(quotientHalfUp(it.lineTotal, it.quantity || 1, 4)),
+      paidLineAmount: Number(roundHalfUp(it.lineTotal)),
+      unitNetPrice: it.unitPrice,
+      taxRate: it.taxRate,
+      // Feature 155 (FR-016a) — the stamp placement recorded, reported as
+      // it is: `null` only on a line placed before the feature. What `null`
+      // means for a return (FR-025) is `returns`' policy, not this port's.
+      returnableAtPurchase: it.returnableAtPurchase ?? null,
+    })),
+  };
 }
