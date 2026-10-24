@@ -109,7 +109,7 @@
     "echarts": "^6.1.0",
     "fastify": "^5.12.5",
     "ioredis": "^5.10.1",
-    "nodemailer": "^10.0.13",
+    "nodemailer": "^10.1.4",
     "react": "^19.2.5",
     "react-router-dom": "^7.18.2",
     "typescript": "^5.9.3",
