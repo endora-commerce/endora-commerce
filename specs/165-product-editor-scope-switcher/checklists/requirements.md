@@ -31,7 +31,7 @@
 
 ## Notes
 
-- **13 `[NEEDS CLARIFICATION]` markers remain by owner instruction**: the speckit 3-marker cap is lifted for
+- **`[NEEDS CLARIFICATION]` markers remain by owner instruction (19 after clarify round 1, 2026-10-29)**: the speckit 3-marker cap is lifted for
   this feature and the owner runs `/speckit.clarify` until they are exhausted. Each marker carries the design
   audit's recommendation. Do not run `/speckit.plan` before they are resolved.
 - **Implementation detail, accepted deliberately**: the *Current state* section and a few requirements cite

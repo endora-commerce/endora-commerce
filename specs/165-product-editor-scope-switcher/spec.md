@@ -1,9 +1,9 @@
-# Feature Specification: One scope switcher for the product editor
+# Feature Specification: Three-level product scope model and one scope switcher for the product editor
 
 **Feature Branch**: `feat/165-product-editor-scope-switcher`
 **Created**: 2026-10-29
-**Status**: Draft — open for `/speckit.clarify` (markers below are deliberate and uncapped by owner
-instruction; clarify runs until they are exhausted)
+**Status**: Draft — clarify round 1 recorded; open markers remain for the next `/speckit.clarify` round (the
+speckit 3-marker cap is lifted by owner instruction)
 **Input**: GitHub issue #523 — "one Magento-style scope switcher in the product editor header (Global →
 Sales channel → Sales channel × Language); the whole form, every tab, shows and edits the effective values
 at the chosen scope. Every scopable field gets 'Use inherited' showing the inherited value and its source;
@@ -12,48 +12,107 @@ untick = create override at the current scope, tick = remove the override (163 F
 outside Global. Flagged user attributes (`channelScoped` / `languageScoped`) editable per scope in the
 attributes section. The Scopes tab stays as the overview map; clicking a cell switches the editor scope
 (delivers 163 L7). Keep the 163 API; every write stays an audited Command; backend changes small or none."
+— **widened by clarify round 1 (2026-10-29)**: the feature also unifies the backend scope model to three
+levels, migrates existing data, adapts every reader module and maps PIM / import locales. "Keep the 163 API;
+backend changes small or none" no longer holds.
 
 **Primary evidence**: `specs/165-product-editor-scope-switcher/design-audit.md` (designer audit of
-`origin/master` at `1530b2b84`; findings F1–F15, N1–N4, open questions Q1–Q14, API gaps G1–G9). This spec
-cites the audit by those ids and does not restate its file-level evidence except where a requirement
-depends on it.
+`origin/master` at `1530b2b84`; findings F1–F15, N1–N4, questions Q1–Q14, API gaps G1–G9). The audit was
+written against 163's four-level model; its Language-level recommendations (Q1, Q4, §4.2) are **void** after
+clarify round 1.
 
-**Builds on**: `specs/163-product-data-scopes/` — the scope model, the field table (163 FR-009), the
-inheritance chain (163 FR-008), "Use inherited" (163 FR-012), the scope overview (163 FR-041, OV-1, UX-1,
-UX-3), the completeness gate (163 FR-060), auditing (163 FR-080, FR-081) and the deferred cell-to-field
-link (163 Session 2026-10-27, L7). Those requirements are referenced by id and are **not** restated; where
-this spec changes one of them it says so explicitly.
+**Builds on and amends**: `specs/163-product-data-scopes/` — **shipped on `master`** (pull request #473,
+`78b93a44d`). This feature reverses parts of it; see *Amendments to 163*. 163 requirements not listed there
+stand and are referenced by id.
 
 ## Clarifications
 
 ### Owner decisions before specification (2026-10-29)
 
 - **F1 / F2 inside 165.** The data-loss defects found by the audit — F1 (the editor keeps only `en-US` and
-  `pl-PL` for name and description; any other language is silently dropped) and F2 (a language-scoped user
-  attribute is likely rendered as `[object Object]` and a save may overwrite its translations) — are fixed
-  **inside this feature**, not as a separate issue. They get their own requirements (FR-001…FR-004) and the
-  P1 user story (US1). F2 is unverified and its requirement is written so that the plan verifies it first.
-  This settles the audit's Q14 against its own recommendation (which was a separate bug fix).
+  `pl-PL` for name and description; any other language is dropped) and F2 (a language-scoped user attribute
+  is likely rendered as `[object Object]` and a save may overwrite its translations) — are fixed inside this
+  feature, as the P1 story US1. This settles audit Q14 against its own recommendation.
 
-*(Sessions of `/speckit.clarify` append below.)*
+### Session 2026-10-29
+
+- Q: (FR-010, audit Q1) Which scope levels does the switcher offer? → A: **Three — Global → Sales channel →
+  Sales channel × Language. The Language-only (L) scope is removed from the model, not just from the
+  switcher.** Owner: "a translation of a field is simply our value in the given language × channel scope".
+  Confirmed by example: a product in channels B2B PL and Sklep PL, both Polish; typing the name "Wiertarka
+  X" at B2B PL × Polish leaves Sklep PL × Polish showing the Global "Drill X" — a translation does not cross
+  channels (Magento store-view semantics). The audit's four-level recommendation is dropped.
+- Q: What is the Global value of translatable text (name, description, alt text, attachment and
+  packaging-unit names, language-scoped attributes, URL key, SEO)? → A: **One string**, not a per-language
+  map. Translations exist only at Sales channel × Language.
+- Q: Does each field family keep its own way of scoping? → A: Owner: **"one way on the backend; complex types
+  like images, packaging or attachments keep their own models, but scopes must work the same (unless
+  something is genuinely specific and you think it should have different scopes)"**. Every scopable field
+  family supports the same scope set {Global, Channel, Channel × language} with one fallback chain
+  C×L → C → G; complex types keep their own tables and gain the same scope dimensions. Where a field may
+  genuinely need a narrower set, the spec raises it as a clarification (FR-012).
+- Q: Spec boundary — is the model change a separate feature? → A: **Everything stays in spec 165**: model
+  unification, data migration, reader-module adaptation, PIM / import mapping and the editor switcher,
+  organised as staged user stories (model and migration first, editor after). F1 / F2 stay P1.
+- Q: How is existing data migrated? → A: The **primary-language value → Global**. Every other language
+  value → a Channel × language value **for every channel of the product that offers that language**. Values
+  with no matching (channel, language) — product in no channel, or no channel offering that language — go to
+  an **archive table** and are reported by the migration; **never deleted**. Existing C and C×L override rows
+  stay. Existing Language-scoped rows (URL keys, SEO, alt text, attachment and packaging-unit translations)
+  follow the same rule.
+- Q: How do PIMs and imports, which send per-locale values, map onto the model? → A: **Explicit mapping
+  only**: per PIM connection (in `pim_connector`) and for import, a configured mapping (source locale,
+  optionally source channel) → a list of Endora (channel, language) targets. **Without a mapping, per-locale
+  values are written nowhere and the run reports a warning.** (Context given to the owner: Magento's Akeneo
+  connector maps a PIM channel to a website and derives the locale from each store view's locale setting; the
+  owner chose explicit mapping instead.) Covers the CSV import adapter
+  `packages/modules/import_export/src/backend/services/adapters/products.adapter.ts`.
+- Q: (former FR-045 / FR-047, audit Q2 / Q3 / Q7) Save model, save reach, switching with unsaved edits?
+  → A: **B — one atomic Command per save, writing every staged change of the current scope only.** One audit
+  entry, one undo per save. Switching scope with unsaved edits asks **Save / Discard / Stay**. *(The owner's
+  "B" is the owner's own label; in the audit's §4.6 table this is option C, "one orchestrating Command".)*
+- Q: (former FR-060, audit Q10) SEO in the editor? → A: **Inline** in the product editor, through a **write
+  port published by the `seo` module that joins the catalog transaction** — atomic. With `seo` off the section
+  is absent (Principle XVII). This reverses 163's "SEO tab is a link" decision (see *Amendments to 163*).
+- Q: (former FR-003) How much of F2 is P1? → A: **Stop the corruption in P1** — a save never overwrites
+  translations, and the value renders correctly, read-only. Full per-scope attribute inputs come with the
+  attributes story (US9).
+
+## Amendments to 163 (2026-10-29)
+
+163 is shipped on `master`. The following parts of `specs/163-product-data-scopes/spec.md` are **reversed or
+rewritten** by this feature from the release that ships 165; 163's text stays as the historical record:
+
+1. **FR-009** (the per-field scope table) and its confirmation **D-2** (clarify 2026-10-21) — replaced by
+   FR-011 / FR-012 here: every scopable field supports {G, C, C×L}; the Language column is gone.
+2. **FR-008** fallback chain C×L → C → L → Global — replaced by **C×L → C → G** (FR-013). 163 *Terms* "Scope"
+   and "Inheritance" lose the Language level.
+3. **OV-1** (Session 2026-10-26: no overview reset for a product's own per-language text) — moot: a product no
+   longer has "own text in a language"; every non-Global text is a C×L value with an ordinary "Use
+   inherited". 163 FR-041's "every channel" (Language) row and US4 #4 ("offers only the global and language
+   scopes") change accordingly: a product in no channel has the Global scope only.
+4. **FR-060 completeness-gate rule** "for name and required language-scoped attributes a value counts only if
+   it is set at (C, L), at C, or for L itself" — rewritten for C×L → C → G (FR-095); whether a Global value
+   satisfies the gate for a language other than the Global language is open (FR-096).
+5. **SEO as a link** — 163 Session 2026-10-26 "SEO stub" = A and UX-4 (the SEO tab is a link to `/seo`, shown
+   only with `catalog:write`) — reversed: SEO is edited inline (FR-090).
+6. **FR-070 URL-key uniqueness "per language across all channels"**, and the notion of a product's "keys in
+   language L" built on language keys — restated without a Language-level key (FR-016, open).
+7. **FR-075, FR-077, FR-078, FR-079** ("per language" / "translatable per language") — now per Channel ×
+   language; FR-075's "existing per-language SEO overrides become language-scope values" is superseded by the
+   migration of FR-020.
+8. **FR-090** (user-attribute scope flags) and **FR-091** (connector scope statements) — superseded by FR-012
+   and FR-040…FR-045.
+9. ***Out of Scope* "cell-to-field link" (L7)** — delivered (US12).
 
 ## Corrections to the issue
 
-The audit proved two statements of issue #523 inaccurate. The spec follows the audit, not the issue text:
-
 1. **SEO is not edited in the product editor today.** The issue says SEO "has its own scope selector" in the
-   editor. It does not: the product editor's SEO tab holds only a link to the `/seo` screen
-   (`packages/modules/seo/src/admin/zones/ProductSeoLink.tsx:27`), contributed by `seo` and shown only while
-   `seo` is on and the admin holds `catalog:write` — exactly as 163 decided (163 Session 2026-10-26, "SEO
-   stub" = A; UX-4). SEO's scope selectors live on the separate `/seo` screen. Bringing SEO into the editor
-   is therefore **new scope** that reverses a 163 owner decision, not a unification of an existing
-   selector; it is held open as a clarification (FR-060).
-2. **The editor holds five scope selectors, not one per tab.** Details chips, the gallery "Scope" select,
-   the gallery "Language" select, the URL keys "Add override" select, and `/seo`'s channel + locale — each
-   with independent state — plus three dialogs that show every language at once (audit §1, F9).
-
-The issue's three levels (Global → Channel → Channel × language) versus 163 FR-009's four (with
-language-only) is an open decision, not a correction (FR-010).
+   editor; the SEO tab holds only a link to `/seo`
+   (`packages/modules/seo/src/admin/zones/ProductSeoLink.tsx:27`). Inline SEO is new scope, decided by the
+   owner in Session 2026-10-29.
+2. **The editor holds five scope selectors**, not one: Details chips, gallery "Scope" select, gallery
+   "Language" select, URL keys "Add override" select, `/seo` channel + locale (audit §1, F9).
 
 ## Current state (origin/master `1530b2b84`)
 
@@ -61,687 +120,752 @@ Paths are relative to `packages/modules/catalog/src/admin/` unless they start wi
 
 | Fact | Evidence |
 | --- | --- |
-| The editor hard-codes `LOCALES = ['en-US', 'pl-PL']`; on load it copies only those two keys of `name` / `description` into page state, and on Save it trims to them | `pages/ProductEditor.tsx:59`, `:281-290`, `:344-347` |
-| The scope editor's change callbacks keep only `en-US` / `pl-PL`, although its language chips offer every language of the product's channels | `pages/ProductEditor.tsx:810-820`; `components/ProductScopeEditor.tsx:547-553` |
-| The product `PATCH` **replaces** the whole `name` / `description` map (bulk import merges) and the contract accepts any language key | `packages/modules/catalog/src/backend/services/catalog-admin.service.ts:655-656` vs `catalog-bulk-import.service.ts:221`; `packages/contracts/src/common.ts:48` (`multilingualStringSchema`) |
-| Consequence (verified by reading, stronger than the audit's F1): a product whose name exists in a third language — set by import, PIM or the API — **loses that language on any editor Save**, even if the operator never touched the name | the three rows above |
-| A language-scoped user attribute's baseline is a `{language: value}` map; the attributes tab renders a single control with `String(value)` and writes the whole `attributeValues` object back | `packages/contracts/src/product-value-resolver.ts:79-83` (`pickLang`); `components/ProductAttributesTab.tsx:19, 216, 277`; `pages/ProductEditor.tsx:354, 381` |
-| The create form offers name / description in `en-US` and `pl-PL` only | `pages/ProductEditor.tsx:990-1020` |
-| Channel and channel × language values of user attributes have no admin input at all | `components/ProductAttributesTab.tsx:154-170` |
-| The API refuses a channel-only `(C, no language)` override of `name` / `description`, while the resolver honours such a row and 163 FR-009 lists Channel = yes | `packages/contracts/src/catalog.ts:3059-3062`; `packages/modules/catalog/src/backend/services/product-overrides.service.ts:194-201`; `packages/contracts/src/product-value-resolver.ts:127-134` |
-| Clearing a C×L name override stages a write of `''` instead of removing it | `components/ProductScopeEditor.tsx:321-338` (audit F8) |
-| Name / description overrides and attribute values are editable without `catalog:write`; the header Save is always shown | audit F4 |
-| Switching tab unmounts the Details panel and discards staged override and availability drafts without a prompt | audit F5 |
-| Seven different save behaviours across the editor | audit F6 |
-| Five idioms for "inherit", one of them of opposite polarity ("Set a window for this channel") | audit F7; `packages/modules/catalog/i18n/en.json:1169, 1181` |
-| The editor remembers the last channel and language per (admin, product) in `product_editor_preferences`; `lastLanguageCode = NULL` already means "the primary admin language", so "channel, all languages" cannot be stored | `packages/modules/catalog/src/backend/entities/product-editor-preference.entity.ts` (audit G3) |
+| The editor hard-codes `LOCALES = ['en-US', 'pl-PL']`; on load it copies only those two keys of `name` / `description`, and on Save it trims to them | `pages/ProductEditor.tsx:59`, `:281-290`, `:344-347` |
+| The product `PATCH` **replaces** the whole `name` / `description` map (bulk import merges); the contract accepts any language key | `packages/modules/catalog/src/backend/services/catalog-admin.service.ts:655-656` vs `catalog-bulk-import.service.ts:221`; `packages/contracts/src/common.ts:48` |
+| Consequence (stronger than audit F1): a product whose name exists in a third language **loses it on any editor Save**, even if nobody touched the name | the two rows above |
+| A language-scoped attribute's baseline is a `{language: value}` map; the attributes tab renders it with `String(value)` and writes the whole `attributeValues` object back | `packages/contracts/src/product-value-resolver.ts:79-83`; `components/ProductAttributesTab.tsx:19, 216, 277`; `pages/ProductEditor.tsx:354, 381` |
+| Name, description and language-scoped attributes are per-language maps at Global; alt text, attachment and packaging-unit names are `{language: value}` maps; URL keys and SEO have Language-level rows | 163 FR-009; `packages/contracts/src/catalog.ts:1790, 1861` |
+| Per-locale name / description maps are read in about ten modules (crm, orders, search, seo, comparisons, returns, pwa, projects, quote_requests, admin-kit); `nameTranslations` / `altText` in about twenty catalog files plus contracts, assets_library, page-builder-admin, quote_requests and platform; value overrides in catalog (16 files) and search | coordinator measurement 2026-10-29; the plan re-measures |
+| The search index is one index per sales channel; a document carries one indexed locale | `packages/modules/search/src/backend/services/search-indexer.ts:86, 900` |
+| PIM connectors share a field-protection path grammar owned by `pim_connector` | `packages/modules/pim_connector/src/manifest.ts:6, 14` |
+| The API refuses a channel-only override of `name` / `description` though the resolver honours one | `packages/contracts/src/catalog.ts:3059-3062`; `packages/modules/catalog/src/backend/services/product-overrides.service.ts:194-201` (audit G1) |
+| Clearing a C×L name override stages a write of `''` | audit F8 |
+| Name / description overrides and attributes are editable without `catalog:write` | audit F4 |
+| Switching tab discards staged override drafts | audit F5 |
+| Seven save behaviours; five "inherit" idioms, one of opposite polarity | audit F6, F7 |
+| `product_editor_preferences` remembers channel + language per (admin, product); `lastLanguageCode = NULL` means "primary admin language" | `packages/modules/catalog/src/backend/entities/product-editor-preference.entity.ts` (audit G3) |
 | The SEO meta read is gated `catalog:write` | `packages/modules/seo/src/backend/routes.ts:349` (audit G4) |
 
 ## Terms used in this spec
 
-Scope, scoped value, override, inheritance, "use inherited", status and archived have the meanings of 163
-*Terms used in this spec*. In addition:
-
-- **G / L / C / C×L** — Global; Language (every channel); Sales channel (every language); Sales channel ×
-  language.
-- **Editor scope** — the one scope the product editor currently shows and edits, chosen in the scope
-  switcher.
-- **Scope switcher** — the single control in the editor header that sets the editor scope.
-- **Scope banner** — the persistent indication, inside the switcher area, that the editor scope is not
-  Global and that changes apply only there.
-- **Effective value at the editor scope** — the value 163 FR-008 resolves at that scope, with its
-  **source** (the scope it comes from).
-- **Global-only field** — a field 163 FR-009 keeps global (SKU, type, attribute set, categories, prices,
-  variants / grouped / bundle structure, product links, stock, warehouses, fulfilment strategy, channel
-  membership, user attributes with neither scope flag, the image set, attachment files and order,
-  packaging-unit quantities and order).
-- **Not at this level** — a scoped field the editor scope does not support (163 FR-009), e.g. status at L,
-  alt text at C.
-- **Staged change** — an edit made in the editor and not yet saved.
-- **Own text in a language** — a product's baseline value of a language-scoped field (name, description,
-  language-scoped attribute) in one language; it is not an override (163 OV-1).
+- **Scope** — one of **Global (G)**, **Sales channel (C)** — every language of that channel — and **Sales
+  channel × language (C×L)**. There is no Language-only scope. A scope is valid for a product only for
+  channels it is a member of and languages that channel offers.
+- **Global value** — the one value of a field at Global; for text, a single string (not a per-language map).
+- **Global language** — the language a Global text string is understood to be written in (FR-015).
+- **Override** — a value at C or C×L. **Translation** — a C×L value of a text field; it applies to that one
+  channel only.
+- **Inheritance** — the effective value at a scope is the nearest value along C×L → C → G, restricted to the
+  scopes the field supports.
+- **Use inherited** — removes the override at that scope; never stores an empty value (163 FR-012, kept).
+- **Archived translation** — a pre-migration value that has no scope to go to, kept in the archive (FR-022).
+  Not to be confused with an *archived product* (163 FR-019).
+- **Locale mapping** — a configured rule (source locale, optionally source channel) → list of (channel,
+  language) targets, per PIM connection and per import.
+- **Editor scope** — the scope the product editor currently shows and edits. **Scope switcher** — the one
+  control that sets it. **Scope banner** — the persistent "changes apply only to …" indication outside Global.
+  **Staged change** — an edit not yet saved.
+- **Global-only field** — a field 163 FR-009's closing paragraph keeps global: SKU, type, attribute set,
+  categories, prices, variant / grouped / bundle structure, product links, stock, warehouses, fulfilment,
+  channel membership, non-scopable attributes, the image set, attachment files and order, packaging-unit
+  quantities and order.
 
 ## User Scenarios & Testing *(mandatory)*
 
+Stories are staged: **P1** = data safety, the model and its migration, and every reader; **P2** = integrations
+and the editor; **P3** = conveniences on top. Each story is testable on its own once the stories it depends
+on (stated in its *Why this priority*) have shipped.
+
 ### User Story 1 - Saving a product never loses its text in any language (Priority: P1)
 
-An operator opens a product whose name, description or a language-scoped attribute exists in more languages
-than English and Polish (for example German, set by a PIM import), edits anything — or nothing in
-particular — and saves. Every language the product holds survives. The operator can also read and edit the
-text in every language the platform offers, not only English and Polish.
+Before anything else changes, an operator who opens a product whose name, description or language-scoped
+attribute exists in more languages than English and Polish (for example German, from a PIM) can save it
+without losing any of them. A language-scoped attribute's values display correctly — read-only where the
+editor cannot edit them yet — and a save never overwrites them.
 
-**Why this priority**: The editor silently destroys data today (F1, and probably F2). Every other story
-builds on the editor's Save; it must not lose data first.
+**Why this priority**: The editor destroys data today (F1, likely F2). This ships first, on the current
+model; after the migration (US2) the same guarantee is held by FR-004.
 
-**Independent Test**: Seed a product with name and description in `en-US`, `pl-PL` and `de-DE` and a
-language-scoped string attribute with values in those three languages; open it in the editor, change an
-unrelated field (e.g. stock mode), save; read the product back and assert all three languages of every
-field are unchanged.
+**Independent Test**: Seed name, description and a language-scoped string attribute in `en-US`, `pl-PL` and
+`de-DE`; open the product, change an unrelated field, save; assert every language value is unchanged and no
+control shows a serialised object.
 
 **Acceptance Scenarios**:
 
-1. **Given** a product with a name in `en-US`, `pl-PL` and `de-DE`, **When** the operator changes an
-   unrelated field and saves, **Then** the `de-DE` name is still there and unchanged.
-2. **Given** a platform with `de-DE` active, **When** the operator enters a German name at the German
-   language level and saves, **Then** the German name is stored and shown after reload.
-3. **Given** a product with a language-scoped string attribute holding values in three languages, **When**
-   the operator opens the attributes section, **Then** no control shows `[object Object]` or any serialised
-   map, and each language's value is reachable.
-4. **Given** the same product, **When** the operator changes the attribute's value in one language and
-   saves, **Then** only that language's value changes and the others are unchanged.
-5. **Given** a product in no channel and a platform with three active languages, **When** the operator
-   creates or edits it, **Then** name and description can be entered in all three languages.
+1. **Given** a name in `en-US`, `pl-PL` and `de-DE`, **When** the operator changes an unrelated field and
+   saves, **Then** the `de-DE` name is unchanged.
+2. **Given** a language-scoped attribute with values in three languages, **When** the attributes section
+   opens, **Then** no control shows `[object Object]` or a serialised map; each value is shown read-only with
+   its language.
+3. **Given** the same product, **When** the operator saves any change, **Then** the attribute's per-language
+   values are unchanged.
 
 ---
 
-### User Story 2 - One switcher sets the scope of the whole editor (Priority: P2)
+### User Story 2 - One three-level scope model for every field, with existing data migrated (Priority: P1)
 
-An operator chooses a scope once, in the editor header, and every tab — details, attributes, media,
-attachments, packaging units, order rules, URL keys — shows the effective value of every field at that
-scope, with where it comes from. Outside Global a persistent banner says that changes apply only to the
-chosen scope. The per-tab selectors are gone.
+Every scopable product field — name, description, scopable attributes, status, audience, window, URL key,
+SEO, gallery roles / hide / alt text, attachment name / description / hidden, packaging-unit name, minimum
+order quantity, returnable — scopes the same way: a Global value, optionally overridden per sales channel
+and per sales channel × language, resolved C×L → C → G. Existing per-language data moves into that model
+without changing what any storefront shows, and nothing is deleted.
 
-**Why this priority**: This is the issue's core request; it removes five independent selectors (F9) and the
-risk of editing one scope on one tab and another on the next.
+**Why this priority**: The owner's model; readers, PIM and the editor all depend on it.
 
-**Independent Test**: Seed overrides of name at C×L, status at C, image roles at C and alt text at L; pick
-each scope in the switcher and assert every tab shows the matching effective value and source; assert no
-other scope selector is present on any tab.
+**Independent Test**: Seed a product in B2B PL (pl) and Shop DE (de) with name `{en: "Drill X", pl:
+"Wiertarka X", de: "Bohrer X", fr: "Perceuse X"}` (primary language `en`), a Language-level URL key in pl, an
+alt text in pl and a C status override; run the migration; assert Global name = "Drill X", B2B PL × pl =
+"Wiertarka X", Shop DE × de = "Bohrer X", the `fr` value in the archive and the report, the C status override
+untouched, and the storefront answer at every valid (channel, language) identical before and after.
 
 **Acceptance Scenarios**:
 
-1. **Given** the editor at Global, **When** the operator picks channel "B2B PL" and language "Polish",
-   **Then** every tab shows effective values at B2B PL × Polish and the scope banner reads that changes
-   apply only to B2B PL × Polish.
-2. **Given** the editor at B2B PL × Polish, **When** the operator moves from Details to Media, **Then**
-   Media shows image roles and visibility for B2B PL and no own scope or language selector.
-3. **Given** the editor at any non-Global scope, **Then** the banner is visible on every tab, uses text and
-   an icon (not colour alone), and is announced to assistive technology when the scope changes.
-4. **Given** a channel that offers only some languages, **When** the operator picks that channel while a
-   language it does not offer is selected, **Then** the language falls back as defined and the fallback is
-   announced.
-5. **Given** a product that is a member of no channel, **Then** the switcher offers only the scopes valid
-   for it (163 US4 #4) and says why.
-6. **Given** the header status indicator, **When** the editor scope changes, **Then** it shows the effective
-   status at that scope and its source.
+1. **Given** the example above, **When** the migration runs, **Then** the results are exactly those of the
+   Independent Test.
+2. **Given** a product in channels B2B PL and Sklep PL, both Polish, **When** an operator sets the name
+   "Wiertarka X" at B2B PL × Polish, **Then** Sklep PL × Polish still resolves the Global "Drill X".
+3. **Given** a product in no channel with a Polish name, **When** the migration runs, **Then** the Polish name
+   is archived and reported, not deleted.
+4. **Given** any write naming a Language-only scope, **Then** it is refused with a validation error.
+5. **Given** a channel-only (C) value for any field whose scope set includes C, name included, **Then** it is
+   accepted and resolves for every language of that channel without a C×L value (resolves audit G1).
+6. **Given** the migration report, **Then** it lists per product every archived value and its reason.
 
 ---
 
-### User Story 3 - Each scoped field says whether it inherits, and "Use inherited" works one way everywhere (Priority: P3)
+### User Story 3 - Every reader shows the value of the buyer's channel and language (Priority: P1)
 
-At any scope the operator sees, for every scoped field supported there, whether the value is inherited (and
-from where) or set at this scope. Unticking "Use inherited" makes the field editable, pre-filled with the
-inherited value; saving creates the override. Ticking it on an override stages the override's removal;
-saving removes it and the field shows the inherited value again. The same control and polarity are used for
-text, select, date and list fields.
+Everything that displays, searches, snapshots or exports product text — storefront pages, search, feeds,
+sitemaps, comparisons, carts, orders, quotes, returns, documents, CRM, projects, PWA notifications, SEO,
+admin pickers — reads the effective value at the relevant (channel, language) through catalog's exported
+surface; no reader keeps reading a per-language map that no longer exists.
 
-**Why this priority**: The issue's per-field model; it also removes five inherit idioms (F7) and the
-empty-string "inherit" that breaks 163 FR-012 (F8).
+**Why this priority**: Without it the migration breaks every consumer of product text. Depends on US2.
 
-**Independent Test**: At C×L, untick "Use inherited" on name, enter a value, save, assert one override row
-and its audit entry; tick it again, save, assert the row is gone (not empty) and the field shows the
-inherited value and its source.
+**Independent Test**: For each reader module, seed a Global name and a C×L translation; read through the
+module at that (C, L) and at another channel of the same language; assert the translation and the Global
+value respectively.
 
 **Acceptance Scenarios**:
 
-1. **Given** a field inheriting from Global at C×L, **Then** its control is read-only, shows the Global
-   value and the source "Inherited from Global", and "Use inherited" is ticked.
-2. **Given** that field, **When** the operator unticks "Use inherited", **Then** the control becomes
-   editable, pre-filled with the inherited value, and receives focus.
-3. **Given** an override at the editor scope, **When** the operator ticks "Use inherited" and saves,
-   **Then** the override is removed (163 FR-012), no empty value is stored, and the field shows the
-   inherited value and its source.
-4. **Given** the operator ticks "Use inherited" and then unticks it before saving, **Then** the original
-   override value is restored and nothing is written.
-5. **Given** a select field (status, returnable, audience), **Then** it uses the same "Use inherited"
-   control as a text field and offers no "Inherit (…)" option.
-6. **Given** a screen reader user, **Then** every scoped control has an accessible name, its "Use
-   inherited" checkbox names the field it belongs to, and its source line is announced as the control's
-   description.
+1. **Given** a translation at B2B PL × Polish, **When** a buyer in Sklep PL × Polish views, searches,
+   compares, orders or requests a quote, **Then** they see the Global value.
+2. **Given** a (C, L) with no C×L and no C value, **Then** every reader shows the Global string (FR-015).
+3. **Given** a snapshot for an order or quote, **Then** it keeps the effective value at the document's
+   (channel, language) at snapshot time (163 FR-017 with the new chain).
+4. **Given** the code base after this feature, **Then** a check proves no module reads the removed
+   per-language structures.
 
 ---
 
-### User Story 4 - Fields that cannot change at this scope say why and where to go (Priority: P4)
+### User Story 4 - PIM and import write translations only where they are mapped (Priority: P2)
 
-Outside Global, global-only fields (SKU, type, attribute set, …) are shown read-only, labelled "Global
-only", with a way to jump to Global. Scoped fields that the editor scope does not support (status at
-language level, alt text at a channel) are read-only with the reason and a way to jump to a scope where they
-can be edited. Tabs that hold only global-only data show one notice instead of greying every field.
+An operator configures, per PIM connection and per import, which source locale (optionally from which source
+channel) feeds which Endora (channel, language) scopes. Synchronisation and imports write per-locale values
+to exactly those scopes; unmapped locales are written nowhere and the run reports a warning.
 
-**Why this priority**: Without it the operator either edits a value they think is scoped and changes it
-everywhere, or cannot find where a field is set.
+**Why this priority**: PIMs are the main source of translations; after the migration they would otherwise
+write nowhere. Depends on US2.
 
-**Independent Test**: At B2B PL × Polish assert SKU, type and attribute set are read-only with the "Global
-only" label and a jump to Global; assert status at Polish (L) is read-only with a reason and a jump to a
-channel scope; assert the Pricing tab shows one notice.
+**Independent Test**: Configure a connection mapping `pl_PL → [B2B PL × pl, Sklep PL × pl]`; sync a product
+with Global, `pl_PL` and `de_DE` values; assert the Polish value at both targets, nothing for German, and a run
+warning naming `de_DE`.
 
 **Acceptance Scenarios**:
 
-1. **Given** the editor at any non-Global scope, **Then** every global-only field is read-only, labelled
-   "Global only", and offers "Edit at Global".
-2. **Given** the editor at L, **Then** status is read-only with the text that status is set globally, per
-   channel or per channel × language, and offers a jump to such a scope.
-3. **Given** the editor at C, **Then** alt text, attachment names and packaging-unit names are read-only
-   with their reason and a jump to a scope that supports them.
-4. **Given** the editor at a non-Global scope, **When** the operator opens a tab whose fields are all
-   global-only (Pricing, Variants, Grouped items / Bundle slots, Related, Channels), **Then** one notice at
-   the top of the tab says the tab is global-only and offers "Edit at Global".
-5. **Given** the editor at a non-Global scope, **Then** Archive / Restore, Duplicate and Delete stay global
-   actions and say so.
+1. **Given** the mapping above, **When** a sync runs, **Then** the Polish value is written to both targets.
+2. **Given** a source locale with no mapping, **Then** its values are written nowhere and the run warns,
+   naming the locale and the number of affected products.
+3. **Given** a mapping with a source channel, **Then** only that source channel's values feed the targets.
+4. **Given** a CSV import with per-locale columns and a mapping, **Then** the same rules apply.
+5. **Given** a target the product is not valid for, **Then** that target is skipped and reported for that
+   product only.
+6. **Given** an operator-set override, **Then** a connector writing only Global values does not remove it.
 
 ---
 
-### User Story 5 - Flagged user attributes are editable per scope (Priority: P5)
+### User Story 5 - One switcher sets the scope of the whole editor (Priority: P2)
 
-An operator edits a channel-scoped user attribute at a channel scope, and a language-scoped one at a
-language or channel × language scope, in the attributes section — using the same per-field inherited state
-as every other field. Attributes with neither flag are global-only.
+The operator picks Global, a sales channel, or a sales channel × language once, in the editor header; every
+tab shows effective values at that scope with their source; outside Global a persistent banner says changes
+apply only there. The per-tab selectors are gone.
 
-**Why this priority**: 163 FR-040 requires every scoped field to be settable at every supported scope; for
-user attributes the admin offers no channel or channel × language input today (audit §1 rows 3–4), so that
-requirement is not met.
+**Why this priority**: The issue's core request (F9, F13, F15). Depends on US2.
 
-**Independent Test**: Define one channel-scoped and one language-scoped attribute; at C set the first, at L
-set the second, at C×L override the second; save; assert the values resolve on the storefront at the
-matching scopes and each write is one audited Command.
+**Independent Test**: Seed name at C×L, status at C, image roles at C and alt text at C×L; pick each scope and
+assert every tab shows the matching value and source; assert no other scope selector exists.
 
 **Acceptance Scenarios**:
 
-1. **Given** a `channelScoped` attribute, **When** the editor is at B2B PL and the operator unticks "Use
-   inherited" and enters a value, **Then** saving creates a channel override for that attribute.
-2. **Given** a `languageScoped` attribute, **When** the editor is at Polish (L), **Then** the operator edits
-   the attribute's own text in Polish (FR-020 decides whether it carries a "Use inherited" control).
-3. **Given** an attribute flagged both ways, **When** the editor is at B2B PL × Polish, **Then** a C×L
-   override can be set and removed.
-4. **Given** an attribute with neither flag, **When** the editor is at any non-Global scope, **Then** it is
-   read-only and labelled "Global only".
-5. **Given** an attribute flagged only `channelScoped`, **When** the editor is at L, **Then** it is shown as
-   not editable at this level with the reason.
+1. **Given** Global, **When** the operator picks "B2B PL" and "Polish", **Then** every tab shows values at
+   B2B PL × Polish and the banner reads that changes apply only to B2B PL × Polish.
+2. **Given** "B2B PL" with "All languages", **Then** the editor is at the Channel scope.
+3. **Given** any non-Global scope, **Then** the banner is on every tab, uses text and an icon, and is
+   announced when the scope changes.
+4. **Given** a channel change that leaves the chosen language unoffered, **Then** the language falls back to
+   "All languages" and the fallback is announced.
+5. **Given** a product in no channel, **Then** only Global is offered and the editor says why.
+6. **Given** the header status indicator, **Then** it shows the effective status at the editor scope and its
+   source.
 
 ---
 
-### User Story 6 - A read-only operator can browse every scope; staged work survives navigation (Priority: P6)
+### User Story 6 - Each scoped field says whether it inherits; "Use inherited" works one way (Priority: P2)
 
-An operator without `catalog:write` uses the switcher to read effective values at every scope, but nothing
-is editable and no Save is offered. An operator with `catalog:write` switches tabs and scopes freely without
-losing staged changes, and is warned before leaving the page with unsaved changes anywhere in the editor.
+At any scope, every scoped field supported there shows whether its value is inherited (and from where) or set
+here. Unticking "Use inherited" makes it editable, pre-filled with the inherited value; ticking it on an
+override stages the override's removal. One control, one polarity, for text, select, date and list fields.
 
-**Why this priority**: Closes a permission leak (F4, against 163 FR-042) and a silent loss of staged work
-(F5).
+**Why this priority**: The issue's per-field model; removes five idioms (F7) and the empty-string inherit
+(F8). Depends on US5.
 
-**Independent Test**: As a `catalog:read` admin, switch through all scopes and assert no editable control
-and no Save; as a `catalog:write` admin, stage a C×L name override, switch to Media and back, assert the
-draft is still there; try to leave the page and assert the unsaved-changes prompt.
+**Independent Test**: At C×L untick "Use inherited" on name, enter a value, save; assert one override and one
+audit entry; tick, save; assert the row is gone and the field shows the inherited value and source.
 
 **Acceptance Scenarios**:
 
-1. **Given** an admin without `catalog:write`, **Then** the switcher works, every control is read-only, the
-   "Use inherited" controls are replaced by the source text, and Save, Archive / Restore and Delete are not
-   offered; a line in the switcher area says the view is read-only.
-2. **Given** a staged change on one tab, **When** the operator switches to another tab and back, **Then**
-   the staged change is still there.
-3. **Given** a staged change anywhere in the editor (any tab, any scope), **When** the operator navigates
-   away from the product, **Then** the unsaved-changes prompt appears.
-4. **Given** staged changes at one scope, **When** the operator switches scope, **Then** the behaviour of
-   FR-047 applies.
+1. **Given** a field inheriting from Global at C×L, **Then** its control is read-only, shows the Global value
+   and "Inherited from Global", and "Use inherited" is ticked.
+2. **Given** that field, **When** "Use inherited" is unticked, **Then** the control is editable, pre-filled
+   and focused.
+3. **Given** an override, **When** "Use inherited" is ticked and the operator saves, **Then** the override is
+   removed and no empty value is stored.
+4. **Given** "Use inherited" ticked then unticked before saving, **Then** the original value returns and
+   nothing is written.
+5. **Given** a select field, **Then** it uses the same control and offers no "Inherit (…)" option.
+6. **Given** a screen reader, **Then** every scoped control has an accessible name, its checkbox names its
+   field, and the source line is its description.
 
 ---
 
-### User Story 7 - One Save, with a clear result (Priority: P7)
+### User Story 7 - One atomic Save of the current scope (Priority: P2)
 
-The editor has one Save. Saving writes the staged changes (FR-045 decides which), each as the audited
-Command it already is, gate-bearing status writes first, and then reports per section what was saved and
-what was not. A completeness refusal writes nothing that the refusal covers; a later failure is reported
-and leaves that section's changes staged.
+The editor has one Save. It writes every staged change of the current scope in one atomic, audited Command —
+SEO included — so a save fully applies or writes nothing, produces one audit entry, and can be undone as
+one. Switching scope with unsaved changes asks Save / Discard / Stay.
 
-**Why this priority**: Seven save behaviours today (F6) make it impossible to predict what a Save writes.
+**Why this priority**: Seven save behaviours today (F6); the owner chose atomicity. Depends on US5.
 
-**Independent Test**: Stage a C status change that the gate refuses (refuse mode) plus a C×L name override;
-save; assert no status change was written, the result states what was and was not saved, and the
-remaining staged changes are still staged.
+**Independent Test**: At B2B PL × Polish stage a name override, an alt-text override and an SEO title; save;
+assert all three written and one audit entry with every before / after; inject a failure into the SEO write
+and assert nothing was written.
 
 **Acceptance Scenarios**:
 
-1. **Given** staged changes in several sections, **When** the operator saves and all succeed, **Then** the
-   editor shows that everything was saved and no change remains staged.
-2. **Given** the completeness gate in *refuse* mode and a staged status change that turns the product on at
-   an incomplete pair, **When** the operator saves, **Then** the status change is refused with the missing
-   fields named (163 FR-060) and the operator sees which other staged changes were or were not written.
-3. **Given** the gate in *warn* mode, **When** a save turns the product on at an incomplete pair, **Then**
-   the warnings are shown in place of the plain saved message (163 G-2).
-4. **Given** one section fails after earlier ones succeeded, **Then** the result names the failed section
-   and its reason, the succeeded sections are no longer staged, and the failed section's changes remain
-   staged.
-5. **Given** a concurrent edit (`409 VERSION_CONFLICT`, 163 R2), **Then** the editor says to reload and try
-   again and nothing of that section is written.
-6. **Given** any Save, **Then** every scoped write it performs appears in the audit log with the product,
-   field, scope and before / after values (163 FR-080).
+1. **Given** staged changes at the current scope, **When** saved, **Then** all are written by one Command
+   with one audit entry and nothing remains staged.
+2. **Given** any part of the save fails (validation, gate refusal, conflict, SEO write), **Then** nothing is
+   written, the reason is shown per field, and every staged change stays staged.
+3. **Given** the gate in *warn* mode, **When** a save turns the product on at an incomplete pair, **Then** the
+   save succeeds and the warnings are shown (163 G-2).
+4. **Given** staged changes, **When** the operator switches scope, **Then** a dialog offers Save, Discard and
+   Stay; Save switches only on success; Discard drops the staged changes and switches; Stay keeps everything.
+5. **Given** a completed save, **When** it is undone as FR-074 defines, **Then** every field it wrote returns
+   to its before-state.
+6. **Given** `409 VERSION_CONFLICT`, **Then** nothing is written and the editor says to reload.
 
 ---
 
-### User Story 8 - The operator sees what is missing at the current scope (Priority: P8)
+### User Story 8 - Read-only access and fields that cannot change at this scope (Priority: P2)
 
-At the chosen scope the editor tells the operator which values the completeness gate would report missing
-there (163 FR-041 vocabulary), each linked to the field, so the product can be completed before it is
-switched on.
+Without `catalog:write` the operator browses every scope but can change nothing. Outside Global, global-only
+fields are read-only, labelled "Global only", with "Edit at Global"; scoped fields not supported at the scope
+say why and offer a jump; staged work survives tab switches, and leaving the page prompts.
 
-**Why this priority**: Prevents a refused or warned status change; reuses the overview's existing data.
+**Why this priority**: Closes F4 (permission leak, against 163 FR-042) and F5 (silent loss of drafts).
+Depends on US5.
 
-**Independent Test**: Seed a product missing a Polish URL key at B2B PL × Polish; switch there and assert the
-missing field is named and its link opens the URL-key field at that scope.
+**Independent Test**: As `catalog:read`, switch through scopes and assert no editable control and no Save; as
+`catalog:write`, at C assert SKU is read-only with "Global only"; stage a change, switch tab and back, assert
+it is still staged; try to leave and assert the prompt.
 
 **Acceptance Scenarios**:
 
-1. **Given** the editor at C×L where the gate would report name and URL key missing, **Then** the editor
-   names both, each with a link that opens the owning tab and focuses the field.
-2. **Given** the editor at C, L or Global, **Then** the missing values are summarised as FR-050 decides.
-3. **Given** a complete scope, **Then** no missing-value message is shown.
+1. **Given** no `catalog:write`, **Then** the switcher works, every control is read-only, "Use inherited" is
+   replaced by the source text, and Save, Archive / Restore, Duplicate and Delete are absent.
+2. **Given** a non-Global scope, **Then** global-only fields are read-only with "Global only" and "Edit at
+   Global"; an all-global tab shows one notice.
+3. **Given** a scoped field not supported at the editor scope (FR-012), **Then** it is read-only with the
+   reason and a jump to a scope that supports it.
+4. **Given** a staged change, **When** the operator switches tab and back, **Then** it is still staged.
+5. **Given** staged changes, **When** the operator leaves the product, **Then** the unsaved-changes prompt
+   appears.
 
 ---
 
-### User Story 9 - The scope map switches the editor scope (Priority: P9)
+### User Story 9 - Scopable user attributes per scope (Priority: P2)
 
-On the Scopes tab, the overview stays the map of every scope. Each cell, the "whole channel" column, the
-"every channel" row and the Global corner offer "Edit at <scope>", which sets the editor scope and opens
-the editor on it; each field named in a cell links to that field at that scope. The links are real links
-(keyboard, new tab, shareable). This delivers the cell-to-field link 163 deferred (L7).
+The operator edits scopable user attributes at every scope the model allows, in the attributes section, with
+the same inherited state as other fields — the full per-scope inputs deferred from US1.
 
-**Why this priority**: Closes 163's deferred L7 and makes the map actionable.
+**Why this priority**: 163 FR-040 is not met for attributes today (no C / C×L input). Depends on US6.
 
-**Independent Test**: Seed a C×L override; on the Scopes tab activate the cell's field link and assert the
-editor is at that C×L scope with that field's tab open and the field focused; open the same link in a new
-tab and assert the same result.
+**Independent Test**: Define a scopable attribute; set it at C and override at C×L; save; assert the values
+resolve on the storefront at the matching scopes and each save is one audited Command.
 
 **Acceptance Scenarios**:
 
-1. **Given** the Scopes tab, **When** the operator activates "Edit at B2B PL × Polish" on a cell, **Then**
-   the editor scope becomes B2B PL × Polish and Details opens.
-2. **Given** a cell naming "URL key" as overridden, **When** the operator activates that name, **Then** the
-   URL-key field opens at that scope.
-3. **Given** a link to the editor at a scope, **When** it is opened in a new tab or shared, **Then** the
-   editor opens at that scope (if valid for the product and the admin).
-4. **Given** the overview's existing reset and orphan-deletion actions (163 FR-041, UX-1), **Then** they keep
-   working unchanged.
+1. **Given** a scopable attribute at B2B PL, **When** "Use inherited" is unticked and a value entered,
+   **Then** saving creates a channel value.
+2. **Given** the same attribute at B2B PL × Polish, **Then** a C×L value can be set and removed.
+3. **Given** a non-scopable attribute at a non-Global scope, **Then** it is read-only with "Global only".
 
 ---
 
-### User Story 10 - SEO fields at the editor scope (Priority: P10)
+### User Story 10 - SEO fields inline at the editor scope (Priority: P2)
 
-*Conditional on FR-060.* The SEO tab shows the product's SEO title, description and OG fields at the editor
-scope with the same per-field inherited state, contributed by the `seo` module, instead of a link to
-another screen.
+The SEO tab shows SEO title, description and OG fields at the editor scope with the same inherited state,
+contributed by `seo` and saved atomically with the rest through `seo`'s write port.
 
-**Why this priority**: Completes "the whole form at a scope" but reverses a 163 owner decision and crosses
-into another module; lowest priority until clarified.
+**Why this priority**: Owner decision; completes "the whole form at a scope". Depends on US7.
 
-**Independent Test**: With `seo` on, at B2B PL × Polish set an SEO title override in the SEO tab, save,
-assert one `seo` Command audit entry and the value on the storefront page at that scope; switch `seo` off
-and assert the SEO section is absent and the editor raises no error.
+**Independent Test**: With `seo` on, at B2B PL × Polish stage an SEO title and a name override; save; assert
+both written in one transaction and in the one audit entry; inject an SEO write failure and assert neither
+was written; switch `seo` off and assert the SEO section is absent and the editor raises no error.
 
 **Acceptance Scenarios**:
 
-1. **Given** `seo` on and the editor at any scope, **Then** the SEO tab shows the effective SEO values at
-   that scope with their source.
-2. **Given** `seo` off, **Then** the SEO tab's SEO section is absent and nothing else in the editor changes
-   (Constitution XVII).
-3. **Given** a staged SEO change, **When** the operator saves, **Then** it is written by `seo`'s own
-   Command, never by a `catalog` Command.
+1. **Given** `seo` on, **Then** the SEO tab shows effective SEO values at the editor scope with their source.
+2. **Given** a staged SEO change, **When** saved, **Then** it is written through `seo`'s write port inside the
+   save's transaction.
+3. **Given** `seo` off, **Then** the SEO section is absent and nothing else changes.
+
+---
+
+### User Story 11 - What is missing at the current scope (Priority: P3)
+
+The editor names the values the completeness gate would report missing at the editor scope, each linked to
+its field.
+
+**Why this priority**: Avoids refused or warned status changes; a convenience over US5.
+
+**Independent Test**: Seed a product missing its URL key at B2B PL × Polish; switch there; assert the missing
+field is named and its link focuses it.
+
+**Acceptance Scenarios**:
+
+1. **Given** C×L with name and URL key missing, **Then** both are named, each linking to its field.
+2. **Given** C or Global, **Then** missing values are summarised as FR-097 decides.
+3. **Given** a complete scope, **Then** nothing is shown.
+
+---
+
+### User Story 12 - The scope map switches the editor scope (Priority: P3)
+
+On the Scopes tab, each cell (C×L), "whole channel" entry (C) and the Global corner offer "Edit at <scope>";
+each field named in a cell links to that field at that scope; the links are real, shareable links. Delivers
+163 L7.
+
+**Why this priority**: Makes the map actionable. Depends on US5.
+
+**Independent Test**: Activate a cell's field link; assert the editor is at that C×L with the field's tab open
+and the field focused; open it in a new tab with the same result.
+
+**Acceptance Scenarios**:
+
+1. **Given** the Scopes tab, **When** "Edit at B2B PL × Polish" is activated, **Then** the editor scope
+   becomes B2B PL × Polish.
+2. **Given** a cell naming "URL key", **When** activated, **Then** the URL-key field opens at that scope.
+3. **Given** staged changes, **When** a map link is activated, **Then** the Save / Discard / Stay dialog
+   appears first (FR-075).
+4. **Given** the overview's resets and orphan deletion, **Then** they keep working.
 
 ---
 
 ### Edge Cases
 
-- **Language not offered after a channel change** — the language selection falls back (the channel's
-  default language, or "All languages" — the plan picks one and states it) and the fallback is announced in
-  the switcher's live region.
-- **Remembered or linked scope no longer valid** (product left the channel, channel dropped the language,
-  channel deleted) — the editor opens at the nearest valid scope (Global if none) and says so; it never
-  shows an error page.
-- **Orphaned override at the editor scope** (163 FR-015) — not editable as a live value; the field says an
-  orphaned override exists and links to the Scopes tab, where it can be deleted.
-- **Archived product** — the archived notice takes precedence; the switcher still works for reading and,
-  with `catalog:write`, for editing (163 FR-019: archive is independent of scoped values).
-- **Product in no channel** — only Global and (subject to FR-010) Language scopes are offered (163 US4 #4).
-- **Channel offering one language** — the language select offers that language and, if FR-010 keeps the
-  Channel level, "All languages"; the two scopes stay distinct because they hold different overrides.
-- **Many channels** — the channel selector stays usable with a large number of member channels (searchable
-  past a threshold the plan sets).
-- **Audience override naming organizations outside the channel** — the save is not refused; the warning of
-  163 FR-030 is shown at C.
-- **Gate refusal in the middle of a multi-section Save** — see US7 #2 and FR-046.
-- **Partial Save failure** — see US7 #4.
-- **`409 VERSION_CONFLICT`** — see US7 #5.
-- **Permission lost mid-session** — a write refused with 403 is reported per section; the editor does not
-  claim it saved.
-- **PIM field protection** (`product.editor.field.after` zone contributors) — they receive the editor scope
-  and keep working when they ignore it (FR-071).
-- **A third language entered on create** — FR-001 applies to the create form too.
-- **Clearing a text override's content** — an empty override value is not a way to inherit (163 FR-012);
-  the editor refuses or ignores an empty override and points to "Use inherited" (the plan states which;
-  either way no `''` override row is written).
+- **Migration: product in no channel** — every non-primary-language value is archived and reported.
+- **Migration: a (channel, language) that already has a C×L override** — the override stays and stays
+  effective; the migrated value goes to the archive (FR-021).
+- **Migration: a language value shadowed by a C override** — under 163 a C override beat the Language value;
+  written as C×L it would now beat the C override and change the storefront (FR-021, open).
+- **Migration: product with no primary-language value** — which value becomes Global is FR-015's question.
+- **Migration: URL-key collisions** under the restated uniqueness rule (FR-016) — reported, never silently
+  dropped.
+- **A language removed from a channel after migration** — its C×L values become orphaned (163 FR-015,
+  unchanged).
+- **PIM run with no mapping at all** — Global values still sync; every per-locale value is reported unmapped.
+- **Mapping target the product is not valid for** — skipped for that product and reported.
+- **Remembered or linked editor scope no longer valid** — the editor opens at the nearest valid scope (Global
+  if none) and says so.
+- **Archived product** — the archived notice wins; the switcher still works.
+- **Gate refusal on save** — the whole save is refused; missing fields named per (C, L) pair.
+- **`seo` switched off while SEO changes are staged** — the save is refused with an explanation and nothing is
+  written; the SEO section disappears on reload.
+- **Permission lost mid-session** — a 403 refuses the whole save; nothing is claimed saved.
+- **Many channels or many languages** — the selects stay usable (searchable past a threshold).
+- **Clearing a text override's content** — an empty override is not a way to inherit; no `''` row is written.
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-#### Data integrity — fixed first (US1)
+#### Data integrity (US1)
 
-- **FR-001** *(F1)*: The product editor (create and edit) MUST NOT drop, trim or overwrite a product's name
-  or description in any language it did not change. Loading a product MUST keep every language the product
-  holds, and saving MUST send back every language unchanged unless the operator changed or cleared it. The
-  languages offered for entry MUST be derived from the platform's and the product's channels' languages
-  from one shared source, never from a hard-coded list; this applies equally to the attributes section
-  (`ProductAttributesTab.tsx:19`) and every other place the editor enumerates languages.
-- **FR-002** *(F1 regression guard)*: A test MUST seed a product with name and description in at least one
-  language other than `en-US` and `pl-PL`, perform an editor Save that does not touch them, and assert they
-  are unchanged.
-- **FR-003** *(F2 — verify first)*: The plan's **first** task for this requirement MUST verify, on a seeded
-  product with a language-scoped string user attribute holding values in at least two languages, (a) what
-  the attributes section renders today and (b) what an editor Save writes to that attribute; and (c) whether
-  the product write accepts and validates a per-language map for a language-scoped attribute (audit G8).
-  The verification result MUST be recorded in the plan before any fix is designed. Whatever it shows, after
-  this feature: the editor MUST NOT render a language-scoped attribute's baseline as a serialised object,
-  and MUST NOT replace its per-language map with a single value or drop a language it did not change.
-  [NEEDS CLARIFICATION: How much of F2 belongs to US1? (a) US1 only stops the corruption — each language's
-  value is shown and edited in place without loss, and per-scope editing of attributes arrives with US5;
-  (b) US1 delivers full per-language attribute inputs driven by the scope switcher, i.e. US5's language part
-  moves into P1. Audit: no explicit recommendation (§3 F2 points to the switcher-driven inputs of §4.4);
-  owner placed F2 in a P1 story.]
-- **FR-004**: The same no-loss rule as FR-001 MUST hold for every other translatable map the editor writes
-  (image alt text, attachment name / description, packaging-unit name): a Save MUST NOT remove a language
-  the operator did not change.
+- **FR-001** *(F1)*: Until the migration ships, the product editor (create and edit) MUST NOT drop, trim or
+  overwrite a product's name or description in any language it did not change; the languages offered MUST
+  come from one shared source, never a hard-coded list (`ProductAttributesTab.tsx:19` included).
+- **FR-002** *(F1 test)*: A regression test MUST seed name and description in a language other than `en-US`
+  and `pl-PL`, perform an editor Save that does not touch them, and assert them unchanged.
+- **FR-003** *(F2)*: The plan's first task for F2 MUST verify, on a seeded product, what the attributes
+  section renders for a language-scoped attribute and what a Save writes to it, and record the result in the
+  plan. Whatever it shows, the editor MUST render such a value correctly (read-only, per language) and MUST
+  NOT replace its per-language values or drop one it did not change. Full per-scope inputs are FR-085.
+- **FR-004**: After the migration, a save MUST NOT change any value at any scope other than the values staged
+  at the current scope.
 
-#### Scope switcher (US2)
+#### Scope model (US2)
 
-- **FR-010**: The editor header MUST hold one scope switcher, visible on every tab, which sets the editor
-  scope. [NEEDS CLARIFICATION: Which levels does the switcher offer? (a) Global → Sales channel → Sales
-  channel × language, as the issue says; (b) all four levels of 163 FR-009 including Language-only (L), via
-  two selects "Sales channel" (All channels + member channels) and "Language" (All languages + languages
-  available). Audit Q1 recommends (b): L is the translation scope 163 FR-009 gives to name, description,
-  language-scoped attributes, URL key, SEO, alt text, attachment and packaging-unit names; under (a) those
-  translations have no home in the switcher. Consequence for the answer: under (a) the Global level MUST
-  offer every language's own text inline for language-scoped fields (name, description, language-scoped
-  attributes); under (b) Global shows the primary language and L edits each language. US1 #2 and US5 #2 are
-  written for (b) and are restated if (a) is chosen.]
-- **FR-011**: The switcher MUST offer only scopes valid for the product (163 FR-014 and *Terms*): member
-  channels only, and only languages the chosen channel offers; orphaned scopes stay on the Scopes tab.
-  Under "All channels", the languages offered MUST be every language active on the platform.
-- **FR-012**: Every tab MUST show and edit values at the editor scope; the separate scope or language
-  selectors of today — Details channel / language chips, gallery "Scope" select, gallery "Language" select,
-  URL-keys "Add override" select — MUST be removed and their fields driven by the switcher.
-  [NEEDS CLARIFICATION: Rollout — (a) every per-tab selector is retired in 165; (b) Details and Attributes
-  first, other tabs in a follow-up. Audit Q13 recommends (a): a half-migrated editor keeps F9 alive and
-  doubles the mental model.] The three dialogs that show every language at once (attachment scopes,
-  packaging-unit translations) MUST either be driven by the editor scope or explicitly listed by the plan as
-  kept, with the reason.
-- **FR-013**: Outside Global the switcher area MUST show the scope banner: the sentence "Changes apply only
-  to <scope in words>", an icon and the warning treatment — never colour alone (WCAG 1.4.1). The banner's
-  text MUST be announced when the scope changes, through a live region present before its text is set
-  (WCAG 4.1.3).
-- **FR-014**: The switcher area MUST show the editor scope in words and a link to the Scopes tab.
-- **FR-015**: The header status indicator MUST show the effective status at the editor scope and its source
-  (audit Q12 (a), adopted as default).
-- **FR-016**: The switcher's selects MUST be admin-kit primitives with visible labels (Constitution IX;
-  WCAG 1.3.1, 4.1.2); no hard-coded colours; language names, not raw codes, as visible labels.
-- **FR-017**: The editor scope MUST be expressible in the editor's URL so a link opens the editor at a scope
-  (needed by US9 and for sharing). [NEEDS CLARIFICATION: What does the switcher remember when no scope is
-  in the URL? (a) the last scope per admin × product (today's `product_editor_preferences`, which cannot yet
-  express "channel, all languages" — audit G3, needs a small migration or sentinel); (b) the last scope per
-  admin across all products (164's per-admin server preferences — a contract change); (c) nothing — a
-  product opened without a URL scope starts at Global; (d) URL as source of truth, with (a) only as the seed
-  when the URL has none. Audit Q6 recommends (d) = "(c)+(a)" in its wording: deep-linkable, and a product
-  never opened starts at Global, which with the banner prevents editing a wrong scope unknowingly.]
-- **FR-018**: While a scope switch re-reads values, fields MUST keep their layout and the tab panel MUST
-  signal it is busy; the editor MUST NOT show stale values of the previous scope as if they were current.
+- **FR-010**: The scope levels MUST be exactly Global, Sales channel and Sales channel × language. A
+  Language-only scope MUST NOT exist in data, API, resolver or UI; a write naming one MUST be refused with a
+  validation error.
+- **FR-011**: Every scopable field family MUST support the scope set {G, C, C×L} through **one** resolver and
+  fallback chain, unless FR-012 narrows it. Complex types (gallery, attachments, packaging units) keep their
+  own models and gain the same scope dimensions. Name, description, status, URL key, SEO title / description
+  / OG, image alt text, attachment name and description, and packaging-unit name MUST support {G, C, C×L}.
+- **FR-012**: Fields that may need a narrower scope set — raised, not decided:
+  - **Audience and publication window** (163: G, C). [NEEDS CLARIFICATION: Keep {G, C} or allow C×L?
+    Recommendation: keep {G, C} — who may see a product and when it is published are not language decisions;
+    a C×L audience would make a buyer's access depend on the page language they choose.]
+  - **Minimum order quantity and returnable** (163: G, C). [NEEDS CLARIFICATION: Keep {G, C} or allow C×L?
+    Recommendation: keep {G, C} — a basket's language can change mid-session; order rules changing with it
+    would invalidate a valid basket by a language switch (feature 155 checks use the basket's channel).]
+  - **Gallery roles, hide image, attachment hidden** (163: roles / hide G, C; attachment hidden C only).
+    [NEEDS CLARIFICATION: Allow {G, C, C×L} for all three, with "hidden" also settable at G?
+    Recommendation: yes, uniform — language-specific images (packaging with printed text) and documents (a
+    manual only in Polish) are real cases, and uniformity is the owner's default.]
+  - **Scopable user attributes**. [NEEDS CLARIFICATION: Do the flags `channelScoped` / `languageScoped`
+    survive? (a) collapse into one "scopable" flag giving {G, C, C×L}, non-scopable = Global only; (b) keep
+    both: channel-only → {G, C}, language-only → {G, C×L}, both → {G, C, C×L}. Recommendation: (a) — under
+    the uniform model a "language-scoped" value is a C×L value anyway, and (a) removes a second scope
+    vocabulary; 163 FR-090's previewable narrowing then applies only to scopable → non-scopable.]
+- **FR-013**: The fallback chain MUST be C×L → C → G for every field (replaces 163 FR-008).
+- **FR-014**: The Global value of every translatable text field (name, description, scopable text
+  attributes, URL key, SEO fields, alt text, attachment name / description, packaging-unit name) MUST be one
+  string, not a per-language map. Translations MUST exist only as C×L values.
+- **FR-015**: [NEEDS CLARIFICATION: Which language does a Global string represent, and what does a buyer see at
+  a (C, L) with no C×L and no C value? Recommendation: the Global string is by convention written in the
+  platform's primary content language, which the editor labels at Global ("Global · English"); the storefront
+  falls back to the Global string whatever its language — as 163's resolver already falls back to the primary
+  language. For the migration, a product without a primary-language value takes the first non-empty value
+  in the resolver's existing order as Global, and that language is also written as C×L for its channels so
+  no channel's answer changes.]
+- **FR-016**: URL keys MUST stay unique so that no two products resolve to the same key at one (C, L).
+  [NEEDS CLARIFICATION: 163 FR-070 makes keys unique per language across all channels, built on Language-level
+  keys that no longer exist. Recommendation: a product's key at (C, L) is its effective key (C×L → C → G); no
+  two products MAY share an effective key at any one (C, L); a Global key MUST NOT equal any other product's
+  key at any scope (as today); redirects (163 FR-072) are kept per (C, L). The migration reports every
+  collision the rule finds rather than dropping a key.]
+- **FR-017**: A channel-only value MUST be accepted for every field whose scope set includes C, name and
+  description included (resolves audit G1).
+- **FR-018**: A write for a scope invalid for the product MUST still be refused (163 FR-014), and invalidated
+  values MUST still be retained as orphaned (163 FR-015).
 
-#### Per-field inherited state (US3)
+#### Migration (US2)
 
-- **FR-020**: Every scoped field supported at the editor scope MUST show either "inherited, from <source>"
-  or "set at this scope", and — where an override can exist at that scope — a "Use inherited" checkbox
-  whose ticked state means *inherit* (one polarity everywhere, matching 163 UX-3's vocabulary).
-  [NEEDS CLARIFICATION: At the Language level (L), name, description and language-scoped attributes hold the
-  product's **own text** in that language (not an override, 163 OV-1). (a) At L these show no "Use
-  inherited" checkbox, only "Own text in <language> · falls back to <primary language> when empty"; URL key
-  and SEO at L are real overrides and keep the checkbox; (b) treat an empty language value as "inherit the
-  primary language" behind a checkbox that clears it. Audit Q4 recommends (a): (b) re-creates the
-  empty-means-inherit pattern 163 FR-012 forbids.]
-- **FR-021**: Unticking "Use inherited" MUST make the control editable, pre-fill it with the inherited value
-  and move focus into it; saving MUST create the override at the editor scope through the field's existing
-  audited write.
-- **FR-022**: Ticking "Use inherited" on an existing override MUST stage its **removal**; saving MUST remove
-  the override (163 FR-012). The editor MUST NOT store an empty value as a way to inherit (fixes F8).
-  Unticking again before Save MUST restore the staged-away value and write nothing.
-- **FR-023**: Select-type fields (status, returnable, audience) MUST use the same "Use inherited" control;
-  "Inherit (…)" options and "Set a … for this channel" checkboxes MUST be retired (audit Q9 (a), adopted as
-  default: it follows 163 UX-3's one-vocabulary ruling).
-- **FR-024**: While inheriting, a control MUST be read-only (not disabled) so its value stays perceivable;
-  the source line MUST be the control's accessible description; every control MUST have an accessible name
-  from a visible label; every "Use inherited" checkbox MUST have an accessible name that includes the field
-  name; overridden state MUST be shown by text or icon in addition to colour (fixes F3; WCAG 1.3.1, 1.4.1,
-  2.4.6, 3.3.2, 4.1.2).
-- **FR-025**: Validation errors MUST be associated with their control (`aria-invalid` and a described-by
-  error) and named in text.
-- **FR-026**: A field whose inheritance yields no value (e.g. no Global value) MUST say so in text, not by a
-  destructive colour alone.
+- **FR-020**: A data migration MUST move every per-language value of every field in FR-014, and every existing
+  Language-scoped row (URL keys, SEO, alt text, attachment and packaging-unit translations), as follows: the
+  primary-language value → Global; every other language value → a C×L value for every channel of the product
+  that offers that language. Existing C and C×L rows MUST stay unchanged.
+- **FR-021**: The migration MUST preserve the effective value at every valid (C, L) of every product. Where a
+  migrated value lands on a (C, L) that already has a C×L override, the override MUST stay and the migrated
+  value MUST go to the archive. [NEEDS CLARIFICATION: Where 163 resolved a C override ahead of a Language
+  value (chain C×L → C → L → G), writing that language value as C×L would now beat the C override and change
+  the storefront. Recommendation: do not write it as C×L; archive it with the reason "shadowed by a channel
+  value" — every effective value is preserved and nothing is deleted.]
+- **FR-022**: Values with no matching (channel, language) — product in no channel, or no member channel
+  offering that language — and values set aside by FR-021 MUST go to an archive table with product, field,
+  language, value and reason, and MUST NOT be deleted.
+- **FR-023**: The migration MUST produce a report: per product, every archived value with its reason and every
+  URL-key collision (FR-016), plus totals.
+- **FR-024**: [NEEDS CLARIFICATION: Is the migration reversible? Recommendation: yes within the release — a
+  down migration rebuilds the per-language maps and Language rows from Global, the C×L rows the migration
+  created (marked by origin) and the archive; operator edits made after the migration are reported as not
+  reversible. Alternative: forward-only with a pre-migration backup.]
+- **FR-025**: [NEEDS CLARIFICATION: Is the archive visible in the admin? Recommendation: yes — a read-only
+  "Unplaced translations" list on the product's Scopes tab with an action to place a value at a (C, L)
+  through the normal audited save, plus the platform-wide count in the migration report; otherwise the
+  archive is reachable only through the database.]
+- **FR-026**: The migration MUST be idempotent and MUST run as ordinary module migrations, each module
+  migrating its own tables (catalog for catalog data, `seo` for SEO).
 
-#### Fields not editable at the editor scope (US4)
+#### Readers (US3)
 
-- **FR-030**: Outside Global, every global-only field MUST be shown read-only with the label "Global only"
-  and an "Edit at Global" action, and MUST NOT be hidden (audit Q8 (a), adopted as default: hiding makes the
-  form change shape per scope). A tab whose fields are all global-only MUST show one notice at its top with
-  "Edit at Global" instead of labelling each field.
-- **FR-031**: A scoped field not supported at the editor scope (163 FR-009) MUST be shown read-only with its
-  effective value, a reason naming the levels it is set at, and an action that switches to the nearest
-  scope where it can be edited.
-- **FR-032**: Archive / Restore, Duplicate and Delete MUST stay global actions and MUST NOT be presented as
-  scoped.
+- **FR-030**: Every module that reads product name, description, attribute, URL-key, SEO, alt-text,
+  attachment or packaging-unit text MUST read the effective value at (channel, language) through catalog's
+  (or `seo`'s) exported surface (Constitution I). **No reader MAY keep reading a per-language map that no
+  longer exists.** The measured population — crm, orders, search, seo, comparisons, returns, pwa, projects,
+  quote_requests, admin-kit, assets_library, page-builder-admin, platform and catalog itself — is a starting
+  list; the plan re-measures it.
+- **FR-031**: A reader with no channel (e.g. an admin list) MUST use the Global value or name the channel it
+  resolves for; it MUST NOT pick a language out of a map.
+- **FR-032**: 163 FR-017 (effective (C, L) values everywhere; snapshots keep their value) MUST hold with the
+  new chain.
+- **FR-033**: [NEEDS CLARIFICATION: Search index shape. Today one index per channel with one indexed locale per
+  document. Recommendation: keep one index per channel; a product document carries the effective text per
+  language the channel offers (C×L → C → G), so B2B PL × Polish matches "Wiertarka X" and Sklep PL × Polish
+  matches "Drill X"; alternative: one index per (channel, language). The plan measures index size either
+  way.]
+- **FR-034**: A static check or test MUST fail if any module reads the removed per-language structures after
+  the migration.
 
-#### User attributes per scope (US5)
+#### PIM and import (US4)
 
-- **FR-035**: The attributes section MUST offer, for each user attribute, editing at every scope its flags
-  allow (163 FR-009 "per attribute flags"), with the per-field inherited state of FR-020…FR-026; an
-  attribute with neither flag is global-only (FR-030).
-- **FR-036**: Channel and channel × language values of user attributes MUST be written through the existing
-  audited value-override write (163 FR-080).
+- **FR-040**: Each PIM connection (mapping owned by `pim_connector`, shared by Ergonode, Akeneo, Pimcore and
+  UnoPim) and each import MUST hold a locale mapping: (source locale, optional source channel) → list of
+  (channel, language) targets.
+- **FR-041**: A synchronisation or import MUST write a per-locale value only to its mapped targets; a value
+  with no mapping MUST be written nowhere and the run MUST report a warning naming the locale and the
+  affected products.
+- **FR-042**: A mapped target invalid for a product MUST be skipped and reported for that product only.
+- **FR-043**: The CSV product import adapter
+  (`packages/modules/import_export/src/backend/services/adapters/products.adapter.ts`) and the product export
+  MUST follow the same mapping; export MUST round-trip Global, C and C×L values.
+- **FR-044**: A connector writing only Global values MUST NOT remove operator overrides (163 FR-091's rule
+  stands).
+- **FR-045**: [NEEDS CLARIFICATION: Where is the mapping configured, and what happens to field protection?
+  Recommendation: a shared mapping editor contributed by `pim_connector` to each connection's settings
+  screen, and the same component on the import profile; existing per-locale field-protection paths are
+  re-keyed to the mapping's targets, so protecting `name.pl_PL` protects every (channel, language) it maps to;
+  the plan migrates existing protection rules and reports any it cannot map.]
 
-#### Permissions and staged work (US6)
+#### Scope switcher (US5)
 
-- **FR-040**: The editor MUST compute one write permission (`catalog:write`) and, without it, MUST render
-  every control read-only, replace "Use inherited" controls by the source text, and not offer Save,
-  Archive / Restore, Duplicate or Delete; the switcher MUST remain usable. This MUST include name /
-  description overrides and user attributes, which leak today (fixes F4; 163 FR-042). No new permission code
-  is introduced (163 FR-084).
-- **FR-041**: Staged changes MUST be held at editor level and survive tab switches and, per FR-047, scope
-  switches (fixes F5).
-- **FR-042**: The unsaved-changes prompt MUST consider every staged change on every tab and every scope.
+- **FR-050**: The editor header MUST hold one scope switcher, on every tab: a "Sales channel" select (All
+  channels + member channels) and a "Language" select (All languages + the languages the chosen channel
+  offers). All channels → Global (the Language select then shows "All languages" and is not editable); a
+  channel with All languages → C; a channel with a language → C×L.
+- **FR-051**: Only scopes valid for the product MUST be offered; orphaned scopes stay on the Scopes tab.
+- **FR-052**: Every tab MUST show and edit values at the editor scope; the Details chips, the gallery "Scope"
+  and "Language" selects, the URL-keys "Add override" select and every all-languages-at-once dialog MUST be
+  replaced by the switcher. [NEEDS CLARIFICATION: Rollout — retire every per-tab selector in 165, or Details
+  and Attributes first? Recommendation: all in 165 (audit Q13) — after the model change the old selectors
+  address a Language scope that no longer exists, so keeping them is not an option for any field family the
+  migration touches.]
+- **FR-053**: Outside Global the scope banner MUST read "Changes apply only to <scope in words>" with an icon
+  and the warning treatment, never colour alone (WCAG 1.4.1), announced through a live region present before
+  its text is set (WCAG 4.1.3).
+- **FR-054**: The switcher area MUST show the editor scope in words and a link to the Scopes tab; the header
+  status indicator MUST show the effective status at the editor scope and its source (audit Q12, adopted).
+- **FR-055**: The selects MUST be admin-kit primitives with visible labels, language names rather than codes,
+  no hard-coded colours, and searchable past a threshold the plan sets (Constitution IX; WCAG 1.3.1, 4.1.2).
+- **FR-056**: The editor scope MUST be expressible in the URL so a link opens the editor at a scope.
+  [NEEDS CLARIFICATION: What is remembered when the URL names no scope? (a) the last scope per admin × product
+  (`product_editor_preferences`); (b) per admin across products (feature 164's preferences); (c) nothing —
+  start at Global. Recommendation: the URL as the source of truth, (a) as the seed. With three levels audit G3
+  shrinks: `lastLanguageCode = NULL` with a channel can be redefined to mean "Channel scope", since its "primary
+  admin language" meaning served the removed Language level — a semantic change of an existing column, no new
+  column.]
+- **FR-057**: During a scope switch, fields MUST keep their layout, the panel MUST signal it is busy, and stale
+  values MUST NOT be shown as current.
+
+#### Per-field inherited state (US6)
+
+- **FR-060**: Every scoped field supported at the editor scope MUST show "inherited, from <source>" or "set at
+  this scope" and, outside Global, a "Use inherited" checkbox whose ticked state means inherit — one polarity
+  everywhere (163 UX-3 vocabulary).
+- **FR-061**: Unticking MUST make the control editable, pre-filled with the inherited value, and focused.
+- **FR-062**: Ticking on an existing override MUST stage its removal and the save MUST remove it (163 FR-012);
+  no empty value MAY be stored to inherit (fixes F8). Unticking before Save MUST restore the value and write
+  nothing.
+- **FR-063**: Select fields (status, returnable, audience) MUST use the same control; "Inherit (…)" options and
+  "Set a … for this channel" checkboxes MUST be retired (audit Q9, adopted).
+- **FR-064**: Inheriting controls MUST be read-only (not disabled); the source line MUST be the control's
+  accessible description; every control MUST have an accessible name from a visible label; every "Use
+  inherited" checkbox's name MUST include its field name; overridden state MUST be shown by text or icon as
+  well as colour (fixes F3; WCAG 1.3.1, 1.4.1, 2.4.6, 3.3.2, 4.1.2).
+- **FR-065**: Errors MUST be associated with their control and stated in text; a field whose chain yields no
+  value MUST say so in text.
 
 #### Save (US7)
 
-- **FR-045**: The editor MUST have exactly one Save action, in the header; every per-section Save, every
-  auto-save on toggle and every dialog Save that writes product data MUST be retired or folded into it.
-  [NEEDS CLARIFICATION: Save model — (A) one header Save that runs the existing per-endpoint audited
-  Commands in a fixed order, status-bearing writes first, stopping on a gate refusal, then reports per
-  section (not atomic across sections); (B) keep per-section Saves with a unified look; (C) one new
-  orchestrating catalog Command applying everything in one transaction (atomic, one audit entry, but cannot
-  include SEO without a write port, and is a larger backend change against the issue's "backend changes
-  small or none"). Audit Q2 recommends (A). Note that this requirement's "exactly one Save" assumes A or C.]
-  [NEEDS CLARIFICATION: Save reach — does Save write (a) the staged changes of **every** scope, listed in the
-  switcher area as "Unsaved: Global, B2B PL × Polish", or (b) only the current scope's? Audit Q3 recommends
-  (a): it matches today's per-channel drafts and avoids a forced save on every switch.]
-- **FR-046**: Under any save model, a completeness-gate refusal (163 FR-060, *refuse* mode) MUST leave every
-  write the refusal covers unwritten, MUST name the missing fields per pair, and MUST tell the operator which
-  other staged changes were and were not written. The editor MUST pre-check, before Save, the pairs a staged
-  status change would turn on, and show their gaps (audit §4.6 mitigation of the two gate-bearing writes).
-- **FR-047**: Switching scope with staged changes MUST NOT lose them. [NEEDS CLARIFICATION: (a) keep drafts
-  per scope and list unsaved scopes in the switcher area; (b) block the switch with a Save / Discard / Stay
-  dialog. Audit Q7 recommends (a) if Save reach is "every scope", otherwise (b).]
-- **FR-048**: After Save the editor MUST report per section what was saved and what was not, with the
-  reason; failed sections MUST stay staged; succeeded sections MUST NOT. A `409 VERSION_CONFLICT` MUST say to
-  reload and try again (163 R2).
-- **FR-049**: Every write a Save performs MUST stay an audited Command with one audit entry per product per
-  Command (163 FR-080), restorable from its before-state (163 FR-081). Whether the entries of one Save carry
-  a shared correlation id is decided by the plan from what the Command Bus supports; if it does not,
-  separate entries are accepted (audit G7, adopted as default).
+- **FR-070**: The editor MUST have exactly one Save, in the header; every per-section Save, auto-save on toggle
+  and dialog Save that writes product data MUST be retired.
+- **FR-071**: A save MUST write every staged change **of the current scope only**, in **one** atomic audited
+  Command, across every field family of that scope — SEO included, through `seo`'s write port (FR-091). Either
+  every change applies or none does.
+- **FR-072**: A save MUST produce exactly one audit entry carrying, for every field it wrote, the field, the
+  scope and the before / after values. (163 FR-080's "one entry per product per command" stands; what changes
+  is that one Command now spans several field families.)
+- **FR-073**: A completeness-gate refusal (*refuse* mode), a validation error, a version conflict or a failed
+  SEO write MUST refuse the whole save, write nothing, keep every staged change, and name the reason per field
+  (and per (C, L) pair for the gate).
+- **FR-074**: Owner: "one undo per save". [NEEDS CLARIFICATION: Does this mean (a) the save's audit entry holds
+  the complete before-state so the whole save is restorable as one, as 163 FR-081 provides for single writes
+  (no new UI); or (b) a one-click "Undo" of a save — which 163 *Out of Scope* excluded as "a generic one-click
+  undo of a single Command"? Recommendation: (a) now, (b) as a follow-up.]
+- **FR-075**: Switching scope with staged changes MUST ask Save / Discard / Stay: Save runs FR-071 and switches
+  only on success; Discard drops the staged changes and switches; Stay cancels the switch. The same dialog
+  MUST guard any other change of editor scope (scope-map links, US12).
+- **FR-076**: A save containing a status change MUST run the completeness gate (163 FR-060 as rewritten by
+  FR-095) before anything is written; in *warn* mode it MUST save and show the warnings.
+- **FR-077**: Bulk scoped writes stay on the existing bulk-operation path, audited per product and reversible
+  as a whole (163 FR-052, FR-081).
 
-#### Completeness at the editor scope (US8)
+#### Permissions, global-only fields, staged work (US8)
 
-- **FR-050**: The editor MUST show the values the completeness gate would report missing at the editor
-  scope, in the gate's own vocabulary (163 FR-041, FR-060), each linked to its field at that scope, as text
-  with an icon (not colour alone); with no missing values, nothing is shown. [NEEDS CLARIFICATION: How is it
-  shown at coarser scopes? (a) at C×L the missing fields; at C the union over the channel's languages; at L
-  the union over the channels offering it; at Global a count of incomplete scopes linking to the Scopes tab,
-  all inside the switcher area; (b) only at C×L, nothing elsewhere; (c) a different placement (e.g. per
-  tab). Audit §4.7 proposes (a) and needs no new API (reads the overview's `cells[].missing`).]
-- **FR-051**: After a Save that returns completeness warnings in *warn* mode, the editor MUST show them as
-  today (163 G-2), announced to assistive technology.
+- **FR-080**: One `catalog:write` check MUST govern the whole editor; without it every control is read-only,
+  "Use inherited" is replaced by the source text, and Save, Archive / Restore, Duplicate and Delete are absent;
+  the switcher stays usable. This MUST cover name / description and attributes (fixes F4; 163 FR-042). No new
+  permission code (163 FR-084).
+- **FR-081**: Outside Global every global-only field MUST be read-only, labelled "Global only", with "Edit at
+  Global", and not hidden (audit Q8, adopted); a tab whose fields are all global-only MUST show one notice
+  instead.
+- **FR-082**: A scoped field not supported at the editor scope (FR-012) MUST be read-only with its effective
+  value, a reason naming its levels, and a jump to the nearest scope that supports it.
+- **FR-083**: Staged changes MUST survive tab switches (fixes F5); the unsaved-changes prompt MUST consider
+  every staged change on every tab.
+- **FR-084**: Archive / Restore, Duplicate and Delete MUST stay global actions and say so.
 
-#### Scope map → switcher (US9; delivers 163 L7)
+#### User attributes and translation convenience (US9)
 
-- **FR-055**: On the Scopes tab, each cell (C×L), each "whole channel" entry (C), each "every channel" entry
-  (L, if FR-010 offers L) and the Global corner MUST offer "Edit at <scope>" that sets the editor scope; each
-  field named in a cell MUST link to that field at that scope. These MUST be real links (keyboard operable,
-  openable in a new tab).
-- **FR-056**: The overview's existing resets and orphan deletion (163 FR-041, UX-1) MUST keep working
-  unchanged. This amends 163 *Out of Scope* (L7): the cell-to-field link is delivered here.
+- **FR-085**: The attributes section MUST offer each scopable attribute at every scope FR-012 allows, with the
+  inherited state of FR-060…FR-065; non-scopable attributes are global-only.
+- **FR-086** *(candidate)*: [NEEDS CLARIFICATION: "Copy this value to other channels in the same language" —
+  with per-channel translations, an operator with N Polish channels retypes a Polish text N times.
+  Recommendation: offer it on every C×L text field as an explicit action that lists the target (channel,
+  language) scopes, asks for confirmation and runs as its own audited Command (it writes scopes other than
+  the current one, so it cannot be part of the current-scope save); alternative: defer to a follow-up. It is
+  a UI convenience, not a scope level.]
 
 #### SEO (US10)
 
-- **FR-060**: [NEEDS CLARIFICATION: SEO in the editor — (a) `seo` contributes an inline SEO section to the
-  product editor's SEO tab that receives the editor scope and stages into the editor's Save (reverses 163's
-  "SEO stub" = A decision; needs audit G5); (b) keep the link, opened pre-scoped to the editor scope on the
-  `/seo` screen. Audit Q10 recommends (a).] Under either option, SEO values MUST be written only by `seo`'s
-  own Commands (Constitution I, XIII), and with `seo` off the editor MUST show no SEO section and raise no
-  error (Constitution XVII).
-- **FR-061**: [NEEDS CLARIFICATION: SEO for read-only operators — today the SEO read is gated `catalog:write`
-  (audit G4), so an operator without it sees no SEO at any scope. (a) Relax the SEO read to `catalog:read`
-  (a `seo`-owned change needing security review); (b) hide SEO from read-only operators with an explanation.
-  Audit Q11 recommends (a).]
+- **FR-090**: SEO title, description and OG fields MUST be edited inline in the product editor's SEO tab at the
+  editor scope, contributed by `seo` (reverses 163 "SEO stub" = A and UX-4).
+- **FR-091**: `seo` MUST publish a write port that catalog's save Command calls inside its own transaction, so
+  SEO changes commit or roll back with the rest of the save; catalog MUST NOT write SEO tables itself
+  (Constitution I, XIII). The audit entry of FR-072 MUST include the SEO fields written.
+- **FR-092**: With `seo` off the SEO section MUST be absent, the save MUST NOT call the port, and nothing else in
+  the editor MUST change (Constitution XVII).
+- **FR-093**: [NEEDS CLARIFICATION: SEO read without `catalog:write` — gated `catalog:write` today (audit G4), so
+  a read-only operator sees no SEO. Recommendation: relax the read to `catalog:read` (a `seo`-owned change,
+  security review), consistent with FR-080's read-only browsing of every scope; alternative: hide SEO from
+  read-only operators with an explanation.]
 
-#### Channel-only name and description (163 FR-009 reconciliation)
+#### Completeness (US11)
 
-- **FR-065**: [NEEDS CLARIFICATION: 163 FR-009 lists name and description as settable at Channel (C), and
-  the resolver honours such a value, but the API refuses it (audit G1), so it has never been reachable.
-  (a) Lift the refusal for name and description so they can be set at C; (b) amend 163 FR-009 to drop the
-  Channel level for name and description and show them read-only at C with the reason (FR-031). Audit Q5
-  recommends (b): a channel-wide name across languages is rarely meaningful and (b) needs no backend change.]
+- **FR-095**: The completeness gate (163 FR-060) MUST check name, URL key and every required scopable
+  attribute at (C, L) along C×L → C → G; the Language-level clause of 163 FR-060 is removed.
+- **FR-096**: [NEEDS CLARIFICATION: Does a Global value satisfy the gate at (C, L) when L is not the Global
+  language? 163 refused cross-language fallback so a missing German name would not pass as the Polish one;
+  with a single Global string, "missing" can only mean "no C×L or C value". Recommendation: a Global value
+  satisfies the gate only where L is the Global language (FR-015); for other languages a C×L or C value is
+  required, keeping 163's intent. Alternative: any Global value satisfies the gate everywhere, which makes
+  the gate meaningless for text in non-primary languages.]
+- **FR-097**: The editor MUST name the values the gate would report missing at the editor scope, each linked to
+  its field, as text with an icon. [NEEDS CLARIFICATION: How at coarser scopes? Recommendation: at C the union
+  over the channel's languages; at Global a count of incomplete scopes linking to the Scopes tab; all in the
+  switcher area (audit §4.7), read from the overview's existing missing-values data.]
+- **FR-098**: After a *warn*-mode save the warnings MUST be shown and announced (163 G-2).
+
+#### Scope map (US12; delivers 163 L7)
+
+- **FR-100**: On the Scopes tab, each cell (C×L), each "whole channel" entry (C) and the Global corner MUST
+  offer "Edit at <scope>"; each field named in a cell MUST link to that field at that scope; these MUST be real
+  links. The overview's "every channel" (Language) row MUST be removed.
+- **FR-101**: The overview's resets and orphan deletion MUST keep working.
 
 #### Cross-cutting
 
-- **FR-070**: Every new operator-facing label, message, banner text and notice MUST exist in Polish and
-  English (163 FR-043); the editor's tab and header labels that are literal English today MUST be translated
-  as part of this feature (audit N1).
-- **FR-071**: The product editor's field zone (`product.editor.field.after`) MUST receive the editor scope
-  (channel and language) as optional props, so contributors such as PIM field protection can tell which
-  scope a field shows; contributors that ignore them MUST keep working (audit G6, adopted as default).
-- **FR-072**: The product editor's tab list MUST meet the keyboard and naming rules of the WCAG 2.2 AA floor
-  in `.claude/skills/ux-laws/SKILL.md` (audit N2).
-- **FR-073**: The product editor MUST remain reachable from the command palette (Constitution XVI; 163
-  FR-042); no new admin route or permission code is introduced.
-- **FR-074**: Effective values and their sources at a scope MUST be computed by one shared definition used by
-  both the server's resolver and the editor (163 FR-008: no second fallback chain); whether this is a
-  read endpoint or shared functions is decided below (audit G2).
-  [NEEDS CLARIFICATION: How does the editor obtain effective values and sources at one scope? (a) a new
-  read-only scoped-values endpoint returning effective value + source for every catalog field at one scope
-  (one request per switch instead of 6–8); (b) pure effective-value-and-source functions in the shared
-  contracts beside the existing resolver, no new endpoint. Audit G2 offers both (size small–medium); (b)
-  keeps the issue's "backend changes none", (a) is a small backend addition.]
+- **FR-105**: Every new operator-facing text MUST exist in Polish and English (163 FR-043); the editor's literal
+  English tab and header labels MUST be translated (audit N1).
+- **FR-106**: The field zone `product.editor.field.after` MUST receive the editor scope as optional props;
+  contributors ignoring them MUST keep working (audit G6, adopted).
+- **FR-107**: The editor's tab list MUST meet the keyboard and naming rules of the WCAG 2.2 AA floor in
+  `.claude/skills/ux-laws/SKILL.md` (audit N2).
+- **FR-108**: The product editor MUST remain reachable from the command palette (Constitution XVI).
+- **FR-109**: Effective values and their sources at a scope MUST come from the one resolver of FR-013, shared by
+  server and editor. [NEEDS CLARIFICATION: One read endpoint returning effective value + source for every
+  field at one scope (SEO through a `seo` read port), or shared pure functions over today's 6–8 reads?
+  Recommendation: one read endpoint — with backend work now in scope it is cheap, and it makes a scope switch
+  one request (audit G2).]
 
 ### Key Entities
 
-- **Editor scope** — the (channel or "all channels", language or "all languages") pair the editor shows;
-  carried in the URL; may be seeded from a remembered preference (FR-017).
-- **Product editor preference** — existing per-(admin, product) memory of the last channel and language
-  (`product_editor_preferences`); may need to express "channel, all languages" (audit G3), depending on
-  FR-017.
-- **Staged change** — an unsaved edit of one field at one scope, or the staged removal of an override; held
-  at editor level until Save or discard.
-- **Effective value with source** — the value 163 FR-008 resolves for one field at one scope and the scope
-  it comes from.
-- Product, value override, scope overview cell, completeness-gate setting — unchanged, as defined by 163.
+- **Scoped value** — a field's value at G, C or C×L; one model for every field family, complex types keeping
+  their own tables with the same scope dimensions.
+- **Global value** — for text, one string; its language is FR-015's question.
+- **Translation archive entry** — product, field, language, value, reason (no channel / shadowed /
+  collision), migration origin; never deleted (FR-022).
+- **Migration report** — per-product list of archived values and URL-key collisions, plus totals.
+- **Locale mapping** — per PIM connection or import: (source locale, optional source channel) → list of
+  (channel, language) targets.
+- **Save Command** — one atomic audited write of every staged change at one scope; one audit entry with every
+  field's before / after.
+- **SEO write port** — published by `seo`, joined to catalog's transaction.
+- **Editor scope** — G, C or C×L, carried in the URL and seeded per FR-056.
+- **Product editor preference** — existing per-(admin, product) row; the meaning of `lastLanguageCode = NULL`
+  may be redefined (FR-056).
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
-- **SC-001**: Zero data loss: for a product holding name, description and every translatable map in at
-  least three languages, an editor Save that does not touch them leaves 100% of their language values
-  unchanged.
-- **SC-002**: The editor offers exactly **one** scope selection control and exactly **one** Save action
-  for product data (down from five selectors and seven save behaviours).
-- **SC-003**: At any editor scope, 100% of scoped fields on every tab show either their inherited source or
-  "set at this scope"; 100% of global-only and not-at-this-level fields show their reason.
-- **SC-004**: "Use inherited" removes the override in 100% of cases; no Save writes an empty value as an
-  override.
-- **SC-005**: An operator sets a channel × language override of the name and a channel override of a
-  channel-scoped attribute, and saves, in under 1 minute from opening the product, without leaving the
-  editor.
-- **SC-006**: From the Scopes tab, an operator reaches the field behind any overridden cell in one action.
-- **SC-007**: An operator without the product-edit permission can view every scope and cannot stage any
-  change (0 editable controls).
-- **SC-008**: Switching scope shows the new scope's values within the responsiveness the admin already
-  achieves for a product page load (no perceptible regression), with no stale values presented as current.
-- **SC-009**: Every new and changed screen state meets WCAG 2.2 AA as set out in
-  `.claude/skills/ux-laws/SKILL.md` (automated accessibility check with zero violations on the editor at
-  Global and at a C×L scope).
-- **SC-010**: Every write performed by a Save appears in the audit log with product, field, scope, before
-  and after (100% coverage of the writes made).
+- **SC-001**: Zero data loss — after US1, an editor save that does not touch a language value leaves 100% of
+  them unchanged; after the migration, 100% of pre-migration language values are at a scope or in the
+  archive, and 0 are deleted.
+- **SC-002**: The migration changes the storefront effective value at **0** valid (channel, language) pairs,
+  compared on a full snapshot of every product's effective text before and after.
+- **SC-003**: After the migration 0 modules read a per-language product map (enforced by FR-034), and every
+  reader module of FR-030 has a test reading a C×L value and the Global fallback.
+- **SC-004**: A translation set at one channel × language changes the answer at that pair only; 0 other pairs
+  change.
+- **SC-005**: Every PIM / import run reports 100% of unmapped locale values; 0 are written without a mapping.
+- **SC-006**: The editor has exactly one scope selection control and one Save (down from five and seven).
+- **SC-007**: Every save is all-or-nothing: failure injection on each field family produces 0 partial writes.
+- **SC-008**: Every save produces exactly one audit entry containing 100% of the fields it wrote.
+- **SC-009**: "Use inherited" removes the override in 100% of cases; 0 empty overrides are stored.
+- **SC-010**: An operator without the product-edit permission views every scope with 0 editable controls.
+- **SC-011**: An operator sets a C×L name and a C attribute value and saves in under 1 minute from opening the
+  product, without leaving the editor.
+- **SC-012**: Switching scope shows the new values with no perceptible regression against a product page load,
+  and no stale values are presented as current.
+- **SC-013**: The editor at Global, C and C×L passes an automated accessibility check with 0 violations against
+  the WCAG 2.2 AA floor of `.claude/skills/ux-laws/SKILL.md`.
 
 ## Assumptions
 
-- **163's API is kept.** Every write uses an existing audited endpoint / Command unless a clarification
-  above (FR-045 option C, FR-061, FR-065 option a) chooses otherwise; backend changes are expected to be
-  small (G2 read support, G3 preference expression, G6 zone props).
-- **Adopted defaults** (low impact, from the audit's recommendations): global-only fields are shown
-  read-only, not hidden (Q8 a); select fields use the same "Use inherited" checkbox (Q9 a); the header status
-  shows the effective status at the editor scope (Q12 a); zone props gain optional scope (G6); audit entries
-  of one Save are correlated only if the Command Bus already supports it (G7); the overview needs no reset
-  for SEO, hide, alt, attachment or packaging values because its cells now link into the editor (G9).
-- **Languages offered** under "All channels" are every language active on the platform; under a channel,
-  the languages that channel offers (163 *Terms*).
-- **The completeness-gate setting** stays platform-level and is not shown on this screen (163 FR-060).
-- **No new permission code**; `catalog:write` gates every write and `catalog:read` the screen (163 FR-084).
-- **No new runtime dependency** (Constitution IV); admin-kit primitives listed in audit §4.10 are reused;
-  the multi-select `ScopePicker` is not the right primitive for a single current scope.
-- **Prototype review**: the audit advises a designer review of a clickable prototype of the switcher area's
-  warning treatment before `/speckit.tasks`.
-- **Testing**: F1 / F2 regression tests are written failing first (Constitution III); F2 is verified on a
-  seeded product before any fix (FR-003).
+- **Backend work is in scope**: model unification, the migration, reader adaptation, the PIM / import mapping,
+  the `seo` write port and the single save Command. The issue's "keep the 163 API; backend changes small or
+  none" is superseded by clarify round 1.
+- **Blast radius** (coordinator measurement, 2026-10-29; the plan re-measures): per-locale name / description
+  maps read in about ten modules (crm, orders, search, seo, comparisons, returns, pwa, projects,
+  quote_requests, admin-kit); `nameTranslations` / `altText` in about twenty catalog files plus contracts,
+  assets_library, page-builder-admin, quote_requests and platform; value overrides in catalog (16 files) and
+  search.
+- **Adopted defaults** from the audit: global-only fields read-only, not hidden (Q8); one "Use inherited"
+  control for select fields (Q9); header status at the editor scope (Q12); scope-aware zone props (G6); the
+  overview needs no resets for SEO, hide, alt, attachment or packaging values because its cells now link into
+  the editor (G9).
+- **Void audit recommendations**: Q1 (four levels), Q4 (Language-level own text), Q5 / G1 (resolved by
+  FR-017), Q14 (owner decided otherwise), §4.2's level table, §4.6's recommended option A.
+- **Primary language** means the platform's primary content language as configured today.
+- **No new permission code** (163 FR-084); **no new runtime dependency** (Constitution IV); the admin-kit
+  primitives of audit §4.10 are reused.
+- **Testing**: the F1 / F2 regression tests and the migration's effective-value-preservation test (SC-002) are
+  written failing first (Constitution III).
+- A designer review of a clickable prototype of the switcher area and the Save / Discard / Stay dialog is
+  advisable before `/speckit.tasks`.
 
 ## Findings against 163 recorded by this specification
 
-These are spec-versus-code inconsistencies in 163 that this feature resolves; they are listed so the 163
-record is not read as fully delivered:
+Code-versus-spec defects in shipped 163, resolved here:
 
-- 163 FR-040 ("for every scoped field, a way to set it at each supported scope") is **not met** for user
-  attributes at C and C×L (no admin input) and for name / description at C (API refusal) — resolved by US5
-  and FR-065.
-- 163 FR-042 (read-only without the product-edit permission) is **not met** for name / description
-  overrides and user attributes (F4) — resolved by FR-040.
-- 163 FR-012 ("storing an empty value MUST NOT be the way to inherit") is **violated** by the C×L name
-  clear (F8) — resolved by FR-022.
-- 163 UX-3 (one "Use inherited" vocabulary) is **not met**: the channel window and audience checkboxes read
-  "Set a … for this channel" with the opposite polarity (F7) — resolved by FR-023.
-- 163 FR-009 Channel = yes for name / description is **unreachable** (G1) — FR-065.
+- 163 FR-040 not met for user attributes at C / C×L (no admin input) and for name / description at C (API
+  refusal) — US9, FR-017.
+- 163 FR-042 not met for name / description overrides and attributes (F4) — FR-080.
+- 163 FR-012 violated by the C×L name clear writing `''` (F8) — FR-062.
+- 163 UX-3 not met: the channel window / audience checkboxes use the opposite polarity (F7) — FR-063.
 
 ## Out of Scope
 
-- Bulk editing of scoped fields other than status (163 FR-050 stays).
-- A new scope level, a "store view" entity or any change to the fallback chain (163 FR-008).
+- A Language-only scope, a "store view" entity, or any fallback other than C×L → C → G.
+- Bulk editing of scoped fields other than status (163 FR-050 stands).
 - Making any global-only field scoped.
-- A generic one-click undo of a single Command (163 FR-081).
-- Changes to the storefront's resolution of scoped values.
+- A one-click undo of a save, unless FR-074 decides (b).
 - Moving the completeness-gate setting onto the product editor.
 - Per-deployment overlays (Constitution XV).
 
 ## Constitution constraints
 
-- **I** — `catalog` owns the editor and the product's scoped data; SEO is written only by `seo`'s Commands;
-  an inline SEO section, if chosen (FR-060), is a `seo` zone contribution, not a `catalog` import.
-- **III** — F1 and F2 regression tests are written failing first; every FR traces to a test.
-- **IX** — admin-kit primitives (`Select`, `Label`, `Checkbox`, `Badge`, `Alert`, `Button`, combobox,
-  `StickyFormActions`, `useUnsavedChangesPrompt`, `ScopedDialogParts`) before anything new.
-- **XI** — scoped product data stays platform-global (163 FR-083); no tenant semantics change.
-- **XIII** — every write a Save performs stays an audited Command, one entry per product per Command.
-- **XVI** — the product editor stays in the command palette; editor-scope links are plain, shareable URLs.
-- **XVII** — `seo` off removes its SEO section and nothing else breaks; `catalog` off removes the editor.
-- **WCAG 2.2 AA** — the floor in `.claude/skills/ux-laws/SKILL.md` (FR-013, FR-016, FR-024, FR-025, FR-072).
+- **I** — catalog owns product data and the save Command; SEO is written only through `seo`'s published write
+  port; every reader module reads through catalog's (or `seo`'s) exported surface, never another module's
+  tables; each module migrates its own tables.
+- **III** — failing tests first for F1 / F2, the migration invariant (SC-002) and every reader (SC-003).
+- **IX** — admin-kit primitives before anything new.
+- **XI** — scoped product data stays platform-global (163 FR-083).
+- **XIII** — one save = one audited Command; bulk writes stay audited per product and reversible.
+- **XVI** — the product editor stays in the command palette; scope links are plain URLs.
+- **XVII** — `seo` off removes its SEO section and its port call, and nothing else breaks; PIM locale mappings
+  belong to `pim_connector` and disappear with it.
+- **WCAG 2.2 AA** — the floor in `.claude/skills/ux-laws/SKILL.md` (FR-053, FR-055, FR-064, FR-065, FR-107).
