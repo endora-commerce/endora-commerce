@@ -102,7 +102,7 @@
  * count kept, because "how much had it printed before it died" is part of the
  * diagnosis.
  */
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { constants } from 'node:os';
 
 import {
@@ -234,12 +234,81 @@ export function spawnCheck(
   });
 }
 
+export interface SpawnCheckSyncOptions {
+  readonly cwd?: string;
+  readonly env?: NodeJS.ProcessEnv;
+}
+
+/**
+ * {@link spawnCheck}, for a caller that has to stay synchronous — the check
+ * fixtures under `test/helpers/*-fixture.ts`, whose `run()` a test calls
+ * between two edits of the tree it staged (issue #80).
+ *
+ * Two deliberate differences from the asynchronous one, both so a fixture
+ * moved onto it hands its test the output it always did:
+ *
+ *  - **stdout, then stderr**, not interleaved: `spawnSync` returns the two
+ *    pipes apart, and the fixtures always concatenated them in that order.
+ *  - **Not capped at {@link OUTPUT_CAP}.** A check prints its read line last,
+ *    and a fixture's assertions read it; `spawnSync`'s own `maxBuffer` bounds
+ *    each pipe instead. Exceeding it is an error `spawnSync` reports and a
+ *    `SIGTERM` it delivers itself, so an error is classified ahead of the
+ *    signal and reported in `spawnSync`'s own words rather than as a kill from
+ *    outside.
+ */
+export function spawnCheckSync(
+  command: string,
+  argv: readonly string[],
+  options: SpawnCheckSyncOptions = {},
+): SpawnedCheck {
+  const oomBaseline: CgroupMemory | null = readCgroupMemory();
+  const result = spawnSync(command, [...argv], {
+    cwd: options.cwd,
+    env: options.env,
+    encoding: 'utf8',
+  });
+  const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+  return {
+    output,
+    bytes: Buffer.byteLength(output),
+    oom: oomVerdict(oomBaseline, readCgroupMemory()),
+    termination: terminationOf(result.error?.message ?? null, result.status, result.signal),
+  };
+}
+
+/** What a check fixture hands its test: the exit status and what was printed. */
+export interface CheckVerdict {
+  readonly status: number;
+  readonly output: string;
+}
+
+/**
+ * The child's own verdict, or an error carrying {@link terminationReport} when
+ * it reached none.
+ *
+ * A fixture's test asserts over a status and an output, and a killed child has
+ * neither in any sense worth asserting: before issue #80 one arrived as
+ * `status: null` (or a relayed `137`) and failed whatever content assertion came
+ * first, with no word about the kill. Throwing puts the report where the reader
+ * looks — the failure message — and no fixture's test ever expects a kill.
+ */
+export function verdictOf(script: string, seen: SpawnedCheck): CheckVerdict {
+  if (seen.termination.kind === 'exit') {
+    return { status: seen.termination.code, output: seen.output };
+  }
+  throw new Error(terminationReport(script, seen));
+}
+
 /**
  * The `close` event's answers, classified. Order matters: an unspawnable
  * command reports a code too, and a directly signalled child is the one reading
  * the kernel gave us rather than one a convention inferred.
+ *
+ * Exported for the one caller that spawns asynchronously and keeps its own
+ * pipes (`moved-module-tree-fixture.ts`, whose prefetched results must equal
+ * what its synchronous `run` would have returned).
  */
-function terminationOf(
+export function terminationOf(
   unspawned: string | null,
   code: number | null,
   signal: NodeJS.Signals | null,

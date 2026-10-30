@@ -1,10 +1,10 @@
-import { spawnSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { CHECK_LIB_ROOT } from './check-lib-root.js';
+import { spawnCheckSync, verdictOf } from './check-process.js';
 
 /**
  * A synthetic repository with a copy of `check-nul-bytes` inside it.
@@ -57,10 +57,9 @@ export function createNulBytesFixture(): NulBytesFixture {
       mkdirSync(dirname(full), { recursive: true });
       writeFileSync(full, content);
     },
-    run: () => {
-      const result = spawnSync(TSX, [checker], { encoding: 'utf8' });
-      return { status: result.status, output: `${result.stdout ?? ''}${result.stderr ?? ''}` };
-    },
+    // A child that reached no verdict of its own — killed, or never started —
+    // throws with the report that says so (issue #80).
+    run: () => verdictOf('check-nul-bytes.ts', spawnCheckSync(TSX, [checker])),
     cleanup: () => rmSync(root, { recursive: true, force: true }),
   };
 }
