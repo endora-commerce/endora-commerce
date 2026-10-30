@@ -57,7 +57,7 @@ function disabledCount(html: string): number {
 describe('a deadline still ahead', () => {
   it('leaves Accept pressable and says nothing about validity', () => {
     const html = render({ status: 'Pending', awaiting: true, expiresAt: FUTURE });
-    expect(html).toContain('Akceptuj wersję');
+    expect(html).toContain('Accept revision');
     expect(disabledCount(html)).toBe(0);
     expect(html).not.toContain('rfq-validity-notice');
     expect(html).not.toContain('validity period has ended');
@@ -65,7 +65,7 @@ describe('a deadline still ahead', () => {
 
   it('leaves Place order pressable on an approved quote', () => {
     const html = render({ status: 'Approved', awaiting: false, expiresAt: FUTURE });
-    expect(html).toContain('Złóż zamówienie z tej oferty');
+    expect(html).toContain('Place order from this quote');
     expect(disabledCount(html)).toBe(0);
     expect(html).not.toContain('rfq-validity-notice');
   });
@@ -82,14 +82,14 @@ describe('a deadline that has passed', () => {
     expect(html).toContain('validity period has ended');
     // The control is disabled, never removed: a buyer who cannot find the
     // button they used yesterday learns nothing from its absence.
-    expect(html).toContain('Akceptuj wersję');
+    expect(html).toContain('Accept revision');
   });
 
   it('leaves Reject pressable on the same lapsed offer', () => {
     // !1137 gates accept and nothing else here: refusing the decline would
     // leave the buyer no way to clear a row they have been told is dead.
     const html = render({ status: 'Pending', awaiting: true, expiresAt: PAST });
-    expect(html).toContain('Odrzuć');
+    expect(html).toContain('>Reject<');
     expect(disabledCount(html)).toBe(1);
   });
 
@@ -139,5 +139,39 @@ describe('a status the deadline decides nothing for', () => {
     expect(disabledCount(html)).toBe(0);
     expect(html).not.toContain('rfq-validity-notice');
     expect(html).toContain('class="btn btn--outline">Submit again</button>');
+  });
+});
+
+/**
+ * Issue #85: the four controls on this row were Polish literals, so a shop
+ * running in English offered its buyer `Akceptuj wersję` beside an English
+ * validity sentence. Every visible word is now a catalogue key, asserted from
+ * the server-rendered markup in both languages the catalogue carries.
+ */
+describe('the action row speaks the page language', () => {
+  const POLISH = /[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/;
+
+  it('renders every control in English for an English shop, with no Polish left', () => {
+    const awaiting = render({ status: 'Pending', awaiting: true, expiresAt: FUTURE });
+    expect(awaiting).toContain('>Accept revision<');
+    expect(awaiting).toContain('>Reject<');
+    expect(awaiting).toContain('placeholder="Reason for rejection (optional)"');
+    expect(awaiting).not.toMatch(POLISH);
+
+    const approved = render({ status: 'Approved', awaiting: false, expiresAt: FUTURE });
+    expect(approved).toContain('>Place order from this quote<');
+    expect(approved).not.toMatch(POLISH);
+  });
+
+  it('renders every control in Polish for a Polish shop', () => {
+    const awaiting = render({ status: 'Pending', awaiting: true, expiresAt: FUTURE, locale: 'pl-PL' });
+    expect(awaiting).toContain('>Akceptuj wersję<');
+    expect(awaiting).toContain('>Odrzuć<');
+    expect(awaiting).toContain('placeholder="Powód odrzucenia (opcjonalny)"');
+    expect(awaiting).not.toContain('Accept revision');
+
+    const approved = render({ status: 'Approved', awaiting: false, expiresAt: FUTURE, locale: 'pl-PL' });
+    expect(approved).toContain('>Złóż zamówienie z tej oferty<');
+    expect(approved).not.toContain('Place order from this quote');
   });
 });

@@ -10451,7 +10451,7 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/scripts/i18n-hardcoded-strings.test.ts',
     vacuousGuard: 'exit-2',
-    // Walks the admin SPA.
+    // Walks the admin SPA, and since issue #85 the storefront.
     readSize: 'reported',
     residueGuard: 'not-a-module-walk',
     red: {
@@ -10468,6 +10468,19 @@ const CHECKS: readonly CheckEntry[] = [
             'export const A = () => <input placeholder="Search orders" />;\n',
             '/repo/admin/src/a.tsx',
           ).filter((f) => f.kind === 'jsx-attr').length,
+      ),
+      // Issue #85's storefront shape: a Polish literal outside JSX text and
+      // outside a per-language structure. The fixture carries the catalogue's
+      // shape beside it, so a predicate that flagged every diacritic — or none —
+      // reads as something other than exactly 1.
+      'polish-literal': top(
+        () =>
+          hardcodedAnalyze(
+            "export const M = { 'en-US': { a: 'Reject' }, 'pl-PL': { a: 'Odrzuć' } };\n" +
+              "export const label = 'Złóż zamówienie';\n",
+            '/repo/storefront/lib/a.ts',
+            { polishLiterals: true },
+          ).filter((f) => f.kind === 'polish-literal').length,
       ),
       // The `module-admin` floor, counted as a refusal rather than a finding —
       // `bundlePairingReadRefusals`' shape. It refuses two ways and both are
@@ -11937,8 +11950,9 @@ describe('every red proof enters at the top of the analysis', () => {
       'backend/scripts/check-transaction-context.ts': 5,
       // Two finding kinds, plus the `module-admin` floor's refusal — the third
       // root family's only independent author, added when feature 091's drain
-      // made 357 of this walk's 422 files corroborated by nothing.
-      'backend/scripts/i18n-hardcoded-strings.ts': 3,
+      // made 357 of this walk's 422 files corroborated by nothing — plus the
+      // storefront's `polish-literal` shape (issue #85).
+      'backend/scripts/i18n-hardcoded-strings.ts': 4,
       // Four rules, the fifth (migration class scope) that reads the
       // filesystem, and issue #244's short listing — the shape every one of
       // this script's other floors is green on. Plus feature 080's three for

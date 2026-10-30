@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { updateAnalyticsConsent } from '../../lib/analytics/gtag';
 import { broadcastConsent } from '../../lib/analytics/consent';
+import { tForLocale } from '../../lib/i18n/messages';
 import {
   shouldPromptConsent,
   type ConsentRequiringPlatform,
@@ -25,12 +26,16 @@ const STORAGE_KEY = 'ga-consent';
 export function ConsentBanner({
   platforms,
   message,
+  locale,
 }: {
   /** Every tracking integration resolved for the channel, enabled or not. */
   platforms: ReadonlyArray<ConsentRequiringPlatform>;
   /** Banner text — supplied from the `cookieconsent.message` CMS block. */
   message?: ReactNode;
+  /** The page language — the banner's own chrome is keyed (issue #85). */
+  locale: string;
 }): ReactNode {
+  const t = tForLocale(locale);
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -60,17 +65,17 @@ export function ConsentBanner({
     <div
       hidden={!open}
       role="dialog"
-      aria-label="Zgoda na pliki cookie"
+      aria-label={t('consent.dialogLabel')}
       className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-surface p-4 shadow-lg"
     >
       <div className="mx-auto flex max-w-[1100px] flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="text-[13px] text-muted [&_a]:underline">{message}</div>
         <div className="flex shrink-0 gap-2">
           <button type="button" className="btn btn--outline btn--sm" onClick={() => decide(false)}>
-            Odrzuć
+            {t('consent.decline')}
           </button>
           <button type="button" className="btn btn--primary btn--sm" onClick={() => decide(true)}>
-            Akceptuję
+            {t('consent.accept')}
           </button>
         </div>
       </div>

@@ -11,23 +11,51 @@ import { tForLocale } from '../i18n/messages';
  * N-32) — *Other items* for an ungrouped one.
  */
 export function describeRfqDiff(d: RfqDiffEntry, locale: string): string {
+  const t = tForLocale(locale);
   const line = (entry: { productName: string; groupName?: string | null }): string =>
     entry.groupName === undefined
       ? entry.productName
-      : `${entry.productName} (${entry.groupName ?? tForLocale(locale)('lineGroups.otherItems')})`;
+      : `${entry.productName} (${entry.groupName ?? t('lineGroups.otherItems')})`;
+  const price = (value: number | null): string =>
+    value !== null ? unitPriceDisplayText(value) : '\u2014';
   switch (d.kind) {
     case 'header_note':
-      return `Uwagi: „${d.before ?? '—'}” → „${d.after ?? '—'}”`;
+      return fill(t('quoteRequest.diff.headerNote'), {
+        before: d.before ?? '\u2014',
+        after: d.after ?? '\u2014',
+      });
     case 'line_added':
-      return `Dodano: ${line(d)} × ${d.quantity}${d.agreedUnitPrice !== null ? ` po ${unitPriceDisplayText(d.agreedUnitPrice)}` : ''}`;
+      return d.agreedUnitPrice !== null
+        ? fill(t('quoteRequest.diff.lineAddedAt'), {
+            line: line(d),
+            quantity: String(d.quantity),
+            price: unitPriceDisplayText(d.agreedUnitPrice),
+          })
+        : fill(t('quoteRequest.diff.lineAdded'), { line: line(d), quantity: String(d.quantity) });
     case 'line_removed':
-      return `Usunięto: ${line(d)}`;
+      return fill(t('quoteRequest.diff.lineRemoved'), { line: line(d) });
     case 'line_quantity':
-      return `${line(d)}: ilość ${d.before} → ${d.after}`;
+      return fill(t('quoteRequest.diff.lineQuantity'), {
+        line: line(d),
+        before: String(d.before),
+        after: String(d.after),
+      });
     case 'line_agreed_unit_price':
       // Unit prices, at their significant places up to four (owner ruling of 2026-10-25).
-      return `${line(d)}: cena ${d.before !== null ? unitPriceDisplayText(d.before) : '—'} → ${d.after !== null ? unitPriceDisplayText(d.after) : '—'}`;
+      return fill(t('quoteRequest.diff.linePrice'), {
+        line: line(d),
+        before: price(d.before),
+        after: price(d.after),
+      });
     case 'grouping':
-      return tForLocale(locale)('quoteRequest.diff.grouping');
+      return t('quoteRequest.diff.grouping');
   }
+}
+
+/**
+ * `{name}` → its value, in one pass and through a function, so a product name
+ * carrying `$&` or `{line}` is inserted verbatim rather than read as a pattern.
+ */
+function fill(template: string, values: Readonly<Record<string, string>>): string {
+  return template.replace(/\{(\w+)\}/g, (match, name: string) => values[name] ?? match);
 }

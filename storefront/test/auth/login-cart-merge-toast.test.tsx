@@ -31,7 +31,7 @@ vi.mock('../../lib/session', () => ({
   }),
 }));
 
-let currentLocale = 'pl';
+let currentLocale = 'pl-PL';
 vi.mock('../../lib/server-context', () => ({
   getServerContext: vi.fn(async () => ({ locale: currentLocale })),
 }));
@@ -48,7 +48,7 @@ async function render(): Promise<string> {
 describe('CartMergeToast', () => {
   beforeEach(() => {
     cookieStore.flash = null;
-    currentLocale = 'pl';
+    currentLocale = 'pl-PL';
   });
 
   afterEach(() => {
@@ -72,14 +72,14 @@ describe('CartMergeToast', () => {
 
   it('renders the adopted (EN) copy when the locale is English', async () => {
     cookieStore.flash = 'adopted';
-    currentLocale = 'en';
+    currentLocale = 'en-US';
     const html = await render();
     expect(html).toContain('attached the basket');
   });
 
   it('renders the merged (EN) copy when the locale is English', async () => {
     cookieStore.flash = 'merged';
-    currentLocale = 'en';
+    currentLocale = 'en-US';
     const html = await render();
     expect(html).toContain('added the items');
   });
@@ -90,6 +90,17 @@ describe('CartMergeToast', () => {
     expect(firstPass).toContain('cart-merge-toast');
     const secondPass = await render();
     expect(secondPass).toBe('');
+  });
+
+  // Issue #85: the copy is read from the storefront catalogue rather than
+  // chosen by a `startsWith('pl')` beside two inline sentences, so a locale
+  // the catalogue does not carry gets the catalogue's English fallback.
+  it('falls back to English for a locale the catalogue does not carry', async () => {
+    cookieStore.flash = 'merged';
+    currentLocale = 'de-DE';
+    const html = await render();
+    expect(html).toContain('added the items');
+    expect(html).not.toMatch(/[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/);
   });
 
   it('renders nothing when no flash cookie was set', async () => {

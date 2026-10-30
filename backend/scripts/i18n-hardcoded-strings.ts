@@ -159,6 +159,115 @@ export function defaultRoots(): readonly string[] {
   return adminScanRoots().map((root) => root.dir);
 }
 
+const STOREFRONT_MEMBER = 'storefront';
+
+/**
+ * The storefront application's directory, or `null` for a workspace with none
+ * (issue #85).
+ *
+ * The storefront renders to buyers and carried literals no check counted: 92 of
+ * its `.ts`/`.tsx` files held Polish on the day this root was added, among them
+ * the quote-request actions and the cookie-consent banner, which a shop running
+ * in English showed in Polish. It is the workspace member named `storefront` —
+ * `check-rsc-discipline.ts`' precedent, and the name `pnpm --filter storefront`
+ * already depends on — so a renamed application drops the `storefront` source
+ * token from the read line rather than silently narrowing the walk.
+ */
+export function storefrontScanRoot(): string | null {
+  const members = workspaceMembers(REPO_ROOT, nodeWorkspaceFs());
+  return members.find((member) => member.name === STOREFRONT_MEMBER)?.dir ?? null;
+}
+
+/**
+ * Directories under the storefront that render nothing: its test harness, its
+ * build scripts (`.mjs`, so outside the extension filter anyway) and its static
+ * assets.
+ */
+const STOREFRONT_SKIPPED_DIRS = new Set(['test', 'scripts', 'public']);
+
+/**
+ * The storefront's sources: `.ts` **and** `.tsx`, unlike the admin walk.
+ *
+ * The admin walk is JSX-only because the admin's literals were JSX; the
+ * storefront's are not — `cart/page.tsx` builds its whole label table as an
+ * object of Polish strings handed to a component, and
+ * `quote-requests/describe-diff.ts` composes Polish sentences in a template. A
+ * walk that opened `.tsx` alone would read the first and miss the second.
+ * Tests and declaration files are skipped: a test's expected Polish sentence
+ * is the assertion that the catalogue rendered, not a literal the buyer sees.
+ */
+export function collectStorefrontFiles(root: string, out: string[]): void {
+  const walk = (dir: string, topLevel: boolean): void => {
+    for (const entry of readdirSync(dir)) {
+      if (entry === 'node_modules' || entry.startsWith('.')) continue;
+      const full = join(dir, entry);
+      const st = statSync(full);
+      if (st.isDirectory()) {
+        if (topLevel && STOREFRONT_SKIPPED_DIRS.has(entry)) continue;
+        walk(full, false);
+      } else if (st.isFile() && isStorefrontSource(entry)) {
+        out.push(full);
+      }
+    }
+  };
+  walk(root, true);
+}
+
+function isStorefrontSource(name: string): boolean {
+  if (!name.endsWith('.ts') && !name.endsWith('.tsx')) return false;
+  if (name.endsWith('.d.ts')) return false;
+  return !/\.(test|spec)\.tsx?$/.test(name);
+}
+
+/** The whole default population, walked and analysed — what `main` and the companion test share. */
+export interface DefaultTreeScan {
+  /** Every file the walk opened, admin roots first. */
+  readonly files: readonly string[];
+  readonly findings: readonly Finding[];
+  /** The admin roots, as {@link adminScanRoots} declares them. */
+  readonly adminRoots: readonly AdminScanRoot[];
+  /** Files opened under each admin root, in the order of `adminRoots`. */
+  readonly perAdminRoot: readonly number[];
+  /** The storefront directory, or `null` where the workspace has none. */
+  readonly storefront: string | null;
+  /** Files opened under the storefront. */
+  readonly storefrontFiles: number;
+}
+
+/**
+ * Walk and analyse the default population (issue #85).
+ *
+ * One call, exported, because the companion test asks the same question as the
+ * CLI and has twice been caught asking a similar one instead (see its last
+ * case). The storefront is analysed with {@link AnalyzeOptions.polishLiterals};
+ * the admin roots are not, so their two shapes and their ledger are unchanged.
+ */
+export function scanDefaultTree(): DefaultTreeScan {
+  const adminRoots = adminScanRoots();
+  const files: string[] = [];
+  const findings: Finding[] = [];
+  const perAdminRoot: number[] = [];
+  for (const root of adminRoots) {
+    const before = files.length;
+    if (existsSync(root.dir)) collectTsxFiles(root.dir, files);
+    perAdminRoot.push(files.length - before);
+  }
+  for (const file of files) walkFile(file, findings);
+
+  const storefront = storefrontScanRoot();
+  const storefrontFiles: string[] = [];
+  if (storefront !== null) collectStorefrontFiles(storefront, storefrontFiles);
+  for (const file of storefrontFiles) walkFile(file, findings, { polishLiterals: true });
+  return {
+    files: [...files, ...storefrontFiles],
+    findings,
+    adminRoots,
+    perAdminRoot,
+    storefront,
+    storefrontFiles: storefrontFiles.length,
+  };
+}
+
 /**
  * How many of the admin layers the generated registry names this walk opened as
  * a root (feature 091 fallout; `contracts/admin-registry.md` R13b).
@@ -236,6 +345,16 @@ export function moduleAdminFloorRefusal(
  *      (title, aria-label, placeholder, alt) and whose value is a string
  *      literal, e.g. `<input placeholder="Search…" />`.
  *
+ * The storefront (issue #85) is walked as well, over `.ts` and `.tsx`, and with
+ * a third shape:
+ *   3. A string or template literal anywhere in the source that contains a
+ *      Polish diacritic, outside a per-language structure (an object literal
+ *      with two or more locale-keyed properties — the message catalogue's
+ *      shape). The storefront's literals were Polish, and most of them were
+ *      not JSX text but label tables and composed sentences.
+ *   Its bound is declared: Polish carrying no diacritic is invisible to it,
+ *   and an English literal outside JSX is not a finding.
+ *
  * False-positive controls:
  *   - Ignore strings made entirely of code-style characters: identifiers
  *     with dots or underscores, paths, regex shapes, UUID/hex.
@@ -275,7 +394,78 @@ export interface Finding {
   line: number;
   column: number;
   text: string;
-  kind: 'jsx-text' | 'jsx-attr';
+  kind: 'jsx-text' | 'jsx-attr' | 'polish-literal';
+}
+
+/** What {@link analyzeSource} asks beyond the two JSX shapes. */
+export interface AnalyzeOptions {
+  /**
+   * Also flag a Polish string or template literal outside JSX text (issue #85).
+   * On for the storefront, off for the admin roots, whose ledger was measured
+   * over the two JSX shapes.
+   */
+  readonly polishLiterals?: boolean;
+}
+
+const POLISH_DIACRITIC = /[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/;
+
+/** A property key that names a language or a locale: `pl`, `en`, `pl-PL`, `en_US`. */
+const LOCALE_KEY = /^[a-z]{2,3}(?:[-_][A-Za-z]{2,4})?$/;
+
+function propertyKeyText(name: ts.PropertyName): string | null {
+  if (ts.isIdentifier(name) || ts.isStringLiteral(name)) return name.text;
+  return null;
+}
+
+/**
+ * Whether `node` sits under a property of a per-language structure: an object
+ * literal at least two of whose properties are keyed by a locale. One short key
+ * alone (`{ id: '…' }`) is not a language map, so it does not exempt.
+ */
+function insidePerLanguageStructure(node: ts.Node): boolean {
+  let p: ts.Node | undefined = node.parent;
+  while (p) {
+    if (ts.isPropertyAssignment(p) && ts.isObjectLiteralExpression(p.parent)) {
+      const key = propertyKeyText(p.name);
+      if (key !== null && LOCALE_KEY.test(key)) {
+        const localeKeyed = p.parent.properties.filter((prop) => {
+          if (!ts.isPropertyAssignment(prop)) return false;
+          const k = propertyKeyText(prop.name);
+          return k !== null && LOCALE_KEY.test(k);
+        }).length;
+        if (localeKeyed >= 2) return true;
+      }
+    }
+    p = p.parent;
+  }
+  return false;
+}
+
+/** A literal that is not a value the program renders — an import path, a type. */
+function isNonValueLiteral(node: ts.Node): boolean {
+  const parent = node.parent;
+  if (!parent) return false;
+  return (
+    ts.isLiteralTypeNode(parent) ||
+    ts.isImportDeclaration(parent) ||
+    ts.isExportDeclaration(parent) ||
+    ts.isExternalModuleReference(parent)
+  );
+}
+
+/** A `title`/`aria-label`/… attribute value — already reported as `jsx-attr`. */
+function isUserVisibleAttributeValue(node: ts.Node): boolean {
+  const parent = node.parent;
+  return (
+    parent !== undefined &&
+    ts.isJsxAttribute(parent) &&
+    ts.isIdentifier(parent.name) &&
+    USER_VISIBLE_ATTRS.has(parent.name.text)
+  );
+}
+
+function templateText(node: ts.TemplateExpression): string {
+  return [node.head.text, ...node.templateSpans.map((span) => span.literal.text)].join('${…}');
 }
 
 function isLikelyCodeIdentifier(s: string): boolean {
@@ -287,8 +477,8 @@ function isLikelyCodeIdentifier(s: string): boolean {
   return false;
 }
 
-function walkFile(filePath: string, findings: Finding[]): void {
-  findings.push(...analyzeSource(readFileSync(filePath, 'utf8'), filePath));
+function walkFile(filePath: string, findings: Finding[], options: AnalyzeOptions = {}): void {
+  findings.push(...analyzeSource(readFileSync(filePath, 'utf8'), filePath, options));
 }
 
 /**
@@ -298,9 +488,24 @@ function walkFile(filePath: string, findings: Finding[]): void {
  * with whatever `admin/src` currently holds — the walk used to be reachable only
  * through `main`, which meant the analysis had no test at all (issue #113).
  */
-export function analyzeSource(source: string, filePath: string): Finding[] {
+export function analyzeSource(
+  source: string,
+  filePath: string,
+  options: AnalyzeOptions = {},
+): Finding[] {
   const findings: Finding[] = [];
-  const sf = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  // A `.ts` file is parsed as TypeScript: read as TSX, a generic arrow
+  // (`<T,>(x: T) => x`) or a type assertion would be misparsed as JSX.
+  const kind = filePath.endsWith('.ts') ? ts.ScriptKind.TS : ts.ScriptKind.TSX;
+  const sf = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true, kind);
+
+  function polishLiteral(node: ts.Node, text: string): void {
+    if (!POLISH_DIACRITIC.test(text)) return;
+    if (isNonValueLiteral(node) || isUserVisibleAttributeValue(node)) return;
+    if (insidePerLanguageStructure(node)) return;
+    const { line, character } = sf.getLineAndCharacterOfPosition(node.getStart(sf));
+    findings.push({ filePath, line: line + 1, column: character + 1, text, kind: 'polish-literal' });
+  }
 
   function isInsideCodeElement(node: ts.Node): boolean {
     let p: ts.Node | undefined = node.parent;
@@ -343,6 +548,15 @@ export function analyzeSource(source: string, filePath: string): Finding[] {
             kind: 'jsx-attr',
           });
         }
+      }
+    }
+    if (options.polishLiterals) {
+      if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+        polishLiteral(node, node.text);
+      } else if (ts.isTemplateExpression(node)) {
+        // One finding per template, not one per static part: the sentence is
+        // the unit a translator keys.
+        polishLiteral(node, templateText(node));
       }
     }
     ts.forEachChild(node, visit);
@@ -543,6 +757,116 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   'packages/modules/organizations/src/admin/panels/RestrictionsPanel.tsx': 1,
 };
 
+/**
+ * The storefront's standing debt (issue #85), the same per-file two-way ratchet
+ * as {@link HARDCODED_STRINGS_BASELINE} and judged in the same run.
+ *
+ * Kept as its own constant rather than merged into the admin's because the two
+ * are counted by different rules — the storefront's entries include the
+ * `polish-literal` shape the admin's were never measured against — and because
+ * it is drained by a different stream of work, one storefront component per
+ * merge request. Keys are repository-relative and every one starts with
+ * `storefront/`; the companion test holds both halves of that.
+ *
+ * Measured when the root was added (2026-10-30, on `master` at e7da5e453):
+ * **547 findings across 90 files** of the 469 the storefront walk opens — 387
+ * JSX text nodes, 26 user-visible attributes and 123 Polish literals outside
+ * JSX, before the first slices (the quote-request action row, the consent
+ * banner, the cart-merge toast, the organization moderation banner and the
+ * quote-request comparison sentences) were keyed in the same merge request.
+ * What stands below is what those slices left.
+ *
+ * It is meant to reach `{}`. Never raise a number: key the string into both
+ * locales of `storefront/lib/i18n/messages.ts` instead.
+ */
+export const STOREFRONT_HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
+  'storefront/app/(account)/account/page.tsx': 3,
+  'storefront/app/(account)/account/password/page.tsx': 5,
+  'storefront/app/(account)/addresses/page.tsx': 13,
+  'storefront/app/(account)/layout.tsx': 6,
+  'storefront/app/(account)/newsletter/page.tsx': 4,
+  'storefront/app/(account)/orders/[id]/page.tsx': 17,
+  'storefront/app/(account)/orders/page.tsx': 2,
+  'storefront/app/(account)/organization/addresses/page.tsx': 7,
+  'storefront/app/(account)/organization/carts/page.tsx': 7,
+  'storefront/app/(account)/organization/members/page.tsx': 6,
+  'storefront/app/(account)/organization/page.tsx': 3,
+  'storefront/app/(account)/organization/settings/cart-approval/page.tsx': 7,
+  'storefront/app/(account)/preferences/page.tsx': 12,
+  'storefront/app/(account)/quote-requests/[id]/page.tsx': 25,
+  'storefront/app/(account)/quote-requests/page.tsx': 7,
+  'storefront/app/(account)/returns/[id]/page.tsx': 6,
+  'storefront/app/(account)/returns/page.tsx': 3,
+  'storefront/app/(account)/shopping-lists/[id]/page.tsx': 15,
+  'storefront/app/(account)/shopping-lists/page.tsx': 8,
+  'storefront/app/(auth)/invitations/[token]/accept/page.tsx': 9,
+  'storefront/app/(auth)/login/page.tsx': 7,
+  'storefront/app/(auth)/login/setup/page.tsx': 5,
+  'storefront/app/(auth)/password-reset/confirm/page.tsx': 9,
+  'storefront/app/(auth)/password-reset/request/page.tsx': 9,
+  'storefront/app/(auth)/register-customer/page.tsx': 10,
+  'storefront/app/(auth)/register/page.tsx': 17,
+  'storefront/app/(auth)/verify/page.tsx': 9,
+  'storefront/app/(catalog)/c/[slug]/page.tsx': 3,
+  'storefront/app/(catalog)/catalog/page.tsx': 3,
+  'storefront/app/(catalog)/p/[slug]/page.tsx': 4,
+  'storefront/app/(commerce)/cart/page.tsx': 42,
+  'storefront/app/(commerce)/checkout/page.tsx': 7,
+  'storefront/app/account/organization-security/page.tsx': 5,
+  'storefront/app/account/security/page.tsx': 17,
+  'storefront/app/blog/_components/BlogCategoryPage.tsx': 1,
+  'storefront/app/blog/_components/BlogIndexPage.tsx': 2,
+  'storefront/app/blog/_components/BlogTagPage.tsx': 1,
+  'storefront/app/blog/_components/Pagination.tsx': 2,
+  'storefront/app/blog/_components/RelatedPostsStrip.tsx': 1,
+  'storefront/app/blog/_components/RelatedProductsStrip.tsx': 1,
+  'storefront/app/compare/page.tsx': 3,
+  'storefront/app/compare/share/[token]/page.tsx': 4,
+  'storefront/app/kontakt/page.tsx': 4,
+  'storefront/app/newsletter/unsubscribe/page.tsx': 4,
+  'storefront/app/not-found.tsx': 17,
+  'storefront/app/offline/page.tsx': 2,
+  'storefront/app/page.tsx': 36,
+  'storefront/components/AddToShoppingListButton.tsx': 4,
+  'storefront/components/CartAddedPopup.tsx': 2,
+  'storefront/components/CatalogToolbar.tsx': 10,
+  'storefront/components/CompareModeSwitcher.tsx': 1,
+  'storefront/components/CompareToggle.tsx': 2,
+  'storefront/components/ComparisonTable.tsx': 11,
+  'storefront/components/CreditLimitWidget.tsx': 4,
+  'storefront/components/FilterPanel.tsx': 4,
+  'storefront/components/Footer.tsx': 21,
+  'storefront/components/GallerySwitcher.tsx': 5,
+  'storefront/components/Header.tsx': 7,
+  'storefront/components/HeaderPreferenceSwitchers.tsx': 1,
+  'storefront/components/ImpersonationBanner.tsx': 4,
+  'storefront/components/MfaCodeForm.tsx': 3,
+  'storefront/components/ProductCard.tsx': 3,
+  'storefront/components/ProductRow.tsx': 3,
+  'storefront/components/PwaRegister.tsx': 1,
+  'storefront/components/SharedComparisonTable.tsx': 9,
+  'storefront/components/analytics/CookieConsentMessage.tsx': 1,
+  'storefront/components/analytics/GoogleTagManager.tsx': 1,
+  'storefront/components/checkout/CheckoutHeader.tsx': 2,
+  'storefront/components/checkout/PaymentMethods.tsx': 1,
+  'storefront/components/contact/ContactForm.tsx': 7,
+  'storefront/components/mobile/MobileSearchOverlay.tsx': 1,
+  'storefront/components/mobile/PdpStickyBuyBar.tsx': 1,
+  'storefront/components/newsletter/NewsletterConsent.tsx': 2,
+  'storefront/components/newsletter/NewsletterSignup.tsx': 1,
+  'storefront/components/orders/OrderItemRows.tsx': 1,
+  'storefront/components/pricing/PdpPriceToggle.tsx': 1,
+  'storefront/components/pricing/QuoteRequestCta.tsx': 1,
+  'storefront/components/pwa/InstallPrompt.tsx': 2,
+  'storefront/components/pwa/PushOptIn.tsx': 4,
+  'storefront/components/rfq/RfqDraftView.tsx': 13,
+  'storefront/components/shopping-lists/ClearListButton.tsx': 3,
+  'storefront/components/shopping-lists/DeleteShoppingListButton.tsx': 2,
+  'storefront/lib/dictionary/pickers/CountryPicker.tsx': 1,
+  'storefront/lib/dictionary/pickers/CurrencyPicker.tsx': 1,
+  'storefront/lib/dictionary/pickers/LanguagePicker.tsx': 1,
+};
+
 /** One file's measured count against its baseline. */
 export interface BaselineDrift {
   /** Path relative to `admin/src`. */
@@ -614,31 +938,50 @@ async function main(): Promise<void> {
   // The default root is resolved against the repository, not the working
   // directory. `admin/src` was relative to `process.cwd()`, and the documented
   // invocation runs with `backend/` as the cwd, where no such directory exists.
-  const declared = positional.length > 0 ? null : adminScanRoots();
-  const roots = declared === null ? positional : declared.map((root) => root.dir);
-  // The baseline is measured over the whole of `admin/src`, so it can only judge
-  // a run that scanned the whole of `admin/src`. Given a path, every file the
-  // ledger names but the walk never opened would read as drained — so an
-  // explicit path means "report everything", the mode used while draining one
-  // screen. `--strict` says the same thing about the full scan.
+  // The baseline is measured over the whole default population, so it can only
+  // judge a run that scanned all of it. Given a path, every file the ledger
+  // names but the walk never opened would read as drained — so an explicit path
+  // means "report everything", the mode used while draining one screen.
+  // `--strict` says the same thing about the full scan.
   const strict = argv.includes('--strict') || positional.length > 0;
 
-  const files: string[] = [];
-  // Per root, so the `sources=` token below can say which declared root
-  // contributed nothing rather than only how many files the walk opened in
-  // total.
-  const perRoot: number[] = [];
-  for (const r of roots) {
-    const before = files.length;
-    try {
-      const st = statSync(r);
-      if (st.isDirectory()) collectTsxFiles(r, files);
-      else if (r.endsWith('.tsx')) files.push(r);
-    } catch {
-      process.stderr.write(`[i18n:hardcoded] path not found: ${r}\n`);
+  let scan: DefaultTreeScan | null = null;
+  let files: readonly string[];
+  let findings: readonly Finding[];
+  let roots: readonly string[];
+  if (positional.length === 0) {
+    scan = scanDefaultTree();
+    files = scan.files;
+    findings = scan.findings;
+    roots = [...scan.adminRoots.map((root) => root.dir), ...(scan.storefront ? [scan.storefront] : [])];
+  } else {
+    // The draining mode: each path is walked the way its family is — a path
+    // inside the storefront reads `.ts` too and asks the Polish-literal
+    // question, any other path is an admin path.
+    const storefront = storefrontScanRoot();
+    const inStorefront = (path: string): boolean =>
+      storefront !== null && !relative(storefront, resolve(path)).startsWith('..');
+    const collected: string[] = [];
+    const found: Finding[] = [];
+    for (const r of positional) {
+      const sf = inStorefront(r);
+      const here: string[] = [];
+      try {
+        const st = statSync(r);
+        if (st.isDirectory()) (sf ? collectStorefrontFiles : collectTsxFiles)(r, here);
+        else if (sf ? isStorefrontSource(r) : r.endsWith('.tsx')) here.push(r);
+      } catch {
+        process.stderr.write(`[i18n:hardcoded] path not found: ${r}\n`);
+      }
+      for (const f of here) walkFile(f, found, { polishLiterals: sf });
+      collected.push(...here);
     }
-    perRoot.push(files.length - before);
+    files = collected;
+    findings = found;
+    roots = positional;
   }
+  const declared = scan === null ? null : scan.adminRoots;
+  const perRoot = scan === null ? [] : scan.perAdminRoot;
 
   if (files.length === 0) {
     // `admin/src` is resolved against the current directory, so running this
@@ -646,13 +989,10 @@ async function main(): Promise<void> {
     // all and still printed a 0-finding summary and exit 0. "Nothing to report"
     // and "nothing was read" must not share an exit code (issue #113).
     process.stderr.write(
-      `[i18n:hardcoded] no .tsx file under ${roots.join(', ')} — refusing to report a vacuous pass\n`,
+      `[i18n:hardcoded] no source file under ${roots.join(', ')} — refusing to report a vacuous pass\n`,
     );
     process.exit(2);
   }
-
-  const findings: Finding[] = [];
-  for (const f of files) walkFile(f, findings);
 
   // The module-admin floor. It is resolved here rather than inside
   // `adminScanRoots` because it is deliberately **not** part of the population:
@@ -728,6 +1068,14 @@ async function main(): Promise<void> {
                     ),
                   },
                 ]),
+            // The storefront (issue #85): the workspace's own member list says
+            // whether there is one, and the walk says whether it opened a file
+            // in it. A storefront whose sources moved out from under the walk
+            // reads `storefront:0/1` and exits 2 rather than draining its
+            // ledger. Omitted where the workspace has no storefront member.
+            ...(scan === null || scan.storefront === null
+              ? []
+              : [{ source: 'storefront', expected: 1, covered: scan.storefrontFiles > 0 ? 1 : 0 }]),
           ],
   });
 
@@ -748,20 +1096,25 @@ async function main(): Promise<void> {
   }
 
   const counts = countByFile(findings, REPO_ROOT);
-  const { regressions, drained } = compareToBaseline(counts);
+  const { regressions, drained } = compareToBaseline(counts, {
+    ...HARDCODED_STRINGS_BASELINE,
+    ...STOREFRONT_HARDCODED_STRINGS_BASELINE,
+  });
 
   if (argv.includes('--list')) for (const f of findings) print(f);
 
   process.stdout.write(
     `[i18n:hardcoded] findings=${findings.length} files=${files.length} ` +
-      `ledger-size=${Object.keys(HARDCODED_STRINGS_BASELINE).length} ` +
+      `ledger-size=${Object.keys(HARDCODED_STRINGS_BASELINE).length}` +
+      `+${Object.keys(STOREFRONT_HARDCODED_STRINGS_BASELINE).length} ` +
       `regressions=${regressions.length} drained=${drained.length}\n`,
   );
 
   if (regressions.length > 0) {
     process.stderr.write(
       '\nThese files carry a hard-coded user-visible string the baseline does not\n' +
-        'account for. Wrap it in `t(...)` and ship the key in en.json AND pl.json\n' +
+        'account for. Wrap it in `t(...)` and ship the key in en.json AND pl.json —\n' +
+        "for the storefront, in both locales of `storefront/lib/i18n/messages.ts`\n" +
         '(Principle VIII) — do not raise the number:\n',
     );
     for (const d of regressions) {

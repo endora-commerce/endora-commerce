@@ -317,14 +317,14 @@ export const UNTRANSLATED_ERROR_CODES: ReadonlySet<string> = new Set([
   // carried a placeholder and arrives with prose in this module's own bundle.
   // This one is unraised, so its placeholder was deleted rather than rewritten.
   'ADDRESS_IN_USE',
-  // api_keys (2) — MR 5. Neither ever had a sentence, and both were listed under
-  // `_i18n` above until that batch. `API_KEY_OUT_OF_SCOPE` was the third, and
-  // the first entry in this ledger whose code had a live raise site: it was
-  // held back because the raise names the scope the key is missing and passed
-  // no `details` for a placeholder to be filled from. Issue #86 gave the raise
-  // `details.requiredScope` and the bundle a sentence that interpolates it, so
-  // it left this list.
-  'API_KEY_CHANNEL_MISMATCH', 'API_KEY_NOT_BOUND',
+  // api_keys (0) — MR 5 put three codes here. `API_KEY_OUT_OF_SCOPE` left
+  // first: it was held back because the raise names the scope the key is
+  // missing and passed no `details` for a placeholder to be filled from, and
+  // issue #86 gave the raise `details.requiredScope` and the bundle a sentence
+  // that interpolates it. `API_KEY_CHANNEL_MISMATCH` and `API_KEY_NOT_BOUND`
+  // followed under the same issue: their raises write a fixed sentence and
+  // carry no value, so the bundle sentence is that sentence in both languages,
+  // with no placeholder to go unfilled.
   // catalog (12) — seven from Phase 3, five re-homed from `_i18n` by D-129's
   // sweep, MR 4 (Tier B). The five had no sentence in either language before
   // the move and none after, so what moved is which module owes it. The batch's
