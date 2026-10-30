@@ -70,6 +70,14 @@ exclusion takes the tests out of the only program `typecheck` builds, and `vites
 so a type error in a test is reported by nothing. A module package with a UI layer has the same
 split one level down: `tsconfig.ui.json` holds the `jsx`/`DOM` options and is the UI type-check,
 and `tsconfig.ui.build.json` extends it with the test exclusion and nothing else.
+`tsconfig.ui.json` sets `types: []` so a screen that reaches for `process` does not compile, and
+a `/// <reference types="node" />` in **one** of its files applies to the whole program — eleven
+admin tests that read files or set `TZ` switched that refusal off for every screen in five
+packages (issue #566). So a package whose UI tests need Node adds a third program,
+`tsconfig.ui.test.json`: it extends `tsconfig.ui.json`, adds `types: ["node"]` and includes the
+UI tests, which `tsconfig.ui.json` then excludes. `manifests:generate` appends it to `typecheck`
+because the file exists, and refuses it in a package with no UI layer;
+`test/unit/packages/ui-layer-ambient-types.test.ts` refuses the directive in any UI-layer file.
 `test/unit/harness/workspace-resolution.test.ts` holds every workspace member to the type-check
 half.
 

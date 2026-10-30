@@ -48,7 +48,7 @@
   },
   "scripts": {
     "build": "node ../../../scripts/clean-package-dist.mjs --src src --out dist && tsc -p tsconfig.build.json && tsc -p tsconfig.ui.build.json",
-    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.ui.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.ui.json --noEmit && tsc -p tsconfig.ui.test.json --noEmit",
     "lint": "eslint src",
     "test": "vitest run"
   },

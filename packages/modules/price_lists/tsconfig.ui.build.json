@@ -6,10 +6,10 @@
   //
   // Every compiler option — `jsx`, the `DOM` lib, `rootDir`, `paths` — is
   // `tsconfig.ui.json`'s and is inherited, never restated: two declarations of
-  // that pair would be two answers waiting to disagree. `tsconfig.ui.json`
-  // keeps the tests in its program because it is also the UI layer's
-  // type-check, and a test it excluded would be read by no `tsc` invocation
-  // (issue #81).
+  // that pair would be two answers waiting to disagree. In this package
+  // `tsconfig.ui.json` already leaves the tests to `tsconfig.ui.test.json`
+  // (issue #566); the exclusion is restated so the emit's guarantee does not
+  // rest on that.
   "extends": "./tsconfig.ui.json",
   "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/**/*.spec.ts", "src/**/*.spec.tsx"]
 }

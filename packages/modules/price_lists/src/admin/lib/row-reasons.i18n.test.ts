@@ -1,5 +1,3 @@
-/// <reference types="node" />
-// The test runs in Node; the admin layer it tests is compiled without Node types.
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
