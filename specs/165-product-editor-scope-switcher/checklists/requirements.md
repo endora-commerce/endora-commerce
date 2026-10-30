@@ -31,11 +31,11 @@
 
 ## Notes
 
-- **`[NEEDS CLARIFICATION]` markers: 0 after clarify round 3 (2026-10-30)** — 19 remained after round 1; round 2
-  resolved them and left one (FR-045 field protection), which round 3 resolved as FR-046. FR-001 and
-  FR-021…FR-025 are kept as "Removed (round …)" so citations stay stable. Follow-up questions raised by the
-  round-3 answers (empty overrides in PIM / CSV, which PIM locale feeds Global, which fields are required) are
-  pending with the owner; do not run `/speckit.plan` before they are answered or explicitly deferred.
+- **`[NEEDS CLARIFICATION]` markers: 0 after clarify round 4 (2026-10-30)** — 19 remained after round 1; round 2
+  resolved them and left one (FR-045 field protection), which round 3 resolved as FR-046. Round 4 added
+  FR-047 and FR-110…FR-115 (one write encoding). FR-001 and FR-021…FR-025 are kept as "Removed (round …)" so
+  citations stay stable. Follow-up questions raised by the round-4 answers are pending with the owner; do not
+  run `/speckit.plan` before they are answered or explicitly deferred.
 - **Dependencies**: per-connector locale-mapping screens are an external dependency (PIM connectors live outside
   this repository; FR-045, *Assumptions*). The plan carries a security review of FR-093.
 - **Implementation detail, accepted deliberately**: the *Current state* section and a few requirements cite
