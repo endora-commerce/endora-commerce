@@ -231,9 +231,11 @@
  */
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import ts from 'typescript';
 
 import { moduleIdOf } from '../lib/module-population.js';
 import {
+  parseBarrel,
   resolutionCandidates,
   resolveHostSpecifier,
   resolveRelative,
@@ -1115,4 +1117,392 @@ export function remedyOf(finding: PlatformSurfaceFinding): string {
         'test kit, never through `composeModules`'
       );
   }
+}
+
+// ---------------------------------------------------------------------------
+// A name the platform publishes and a dependency of it exports too (issue #84)
+// ---------------------------------------------------------------------------
+
+/**
+ * The two ways a shared name fails.
+ *
+ * `shared-name-collision` — the platform publishes a name a workspace package it
+ * depends on exports too, and the platform's name is **not** that package's
+ * declaration: it is declared in the platform, taken from a third party, or a
+ * different dependency name re-exported under this one. Both packages are
+ * public, so a consumer importing "the same" name from each gets two
+ * declarations, and `published-surface.test.ts`' `NOT_PUBLISHED`, keyed by name
+ * alone, stops being sound.
+ *
+ * `shared-name-unresolved` — the name is shared and the follower could not tell
+ * which declaration the platform's is. It is a violation and never ledgerable:
+ * a shared name this check did not read is the green that means "not looking".
+ */
+export type SharedNameFindingKind = 'shared-name-collision' | 'shared-name-unresolved';
+
+export interface SharedNameFinding {
+  readonly kind: SharedNameFindingKind;
+  /** The exported name both packages carry. */
+  readonly name: string;
+  /** The barrel that publishes it. */
+  readonly barrel: string;
+  /**
+   * The platform file that declares it, or — for a name taken from a third
+   * party — the specifier it is taken from. `null` when the follower lost it.
+   */
+  readonly platformDeclaration: string | null;
+  /** The dependency package that exports the same name. */
+  readonly dependency: string;
+  /** The dependency's own files declaring the name. */
+  readonly dependencyDeclarations: readonly string[];
+}
+
+export interface SharedNameInput {
+  /** The platform's published barrels, as keys {@link SharedNameInput.platformSource} reads. */
+  readonly barrels: readonly string[];
+  /**
+   * Platform source text by key, or `undefined` for a key that names no file.
+   * A reader rather than a map because the follower opens only the files a
+   * shared name leads through — and every file it opens is counted.
+   */
+  readonly platformSource: (key: string) => string | undefined;
+  /**
+   * The workspace packages the platform depends on: package name → its public
+   * modules' source text by key. Only names a module **declares** are that
+   * package's own; a re-export inside it adds no declaration.
+   */
+  readonly dependencies: ReadonlyMap<string, ReadonlyMap<string, string>>;
+}
+
+/** A shared name the repository has decided to keep, with the reason. */
+export interface LedgeredSharedName {
+  readonly reason: string;
+}
+
+export interface SharedNameScan {
+  readonly findings: readonly SharedNameFinding[];
+  /** Published platform names some dependency also exports — the `sites` of this signal. */
+  readonly sharedNames: number;
+  /** Of those, the ones that resolve to the dependency's own declaration. */
+  readonly sameDeclaration: number;
+  /** Platform files the follower opened, the barrels included. */
+  readonly platformFilesOpened: number;
+}
+
+export interface SharedNameResult extends SharedNameScan {
+  readonly violations: readonly SharedNameFinding[];
+  readonly ledgered: readonly SharedNameFinding[];
+  /** Ledger keys that describe no collision on this tree. */
+  readonly staleKeys: readonly string[];
+}
+
+/** Where a published name's declaration is, as far as the follower got. */
+type NameOrigin =
+  | { readonly kind: 'platform'; readonly file: string }
+  | { readonly kind: 'package'; readonly specifier: string; readonly importedName: string }
+  | { readonly kind: 'lost' };
+
+/** Names a statement declares and exports in place, or `[]`. */
+function declaredExportNames(node: ts.Node): string[] {
+  const modifiers = ts.canHaveModifiers(node) ? (ts.getModifiers(node) ?? []) : [];
+  if (!modifiers.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)) return [];
+  if (ts.isVariableStatement(node)) {
+    return node.declarationList.declarations.flatMap((declaration) =>
+      ts.isIdentifier(declaration.name) ? [declaration.name.text] : [],
+    );
+  }
+  if (
+    (ts.isFunctionDeclaration(node) ||
+      ts.isClassDeclaration(node) ||
+      ts.isEnumDeclaration(node) ||
+      ts.isInterfaceDeclaration(node) ||
+      ts.isTypeAliasDeclaration(node) ||
+      ts.isModuleDeclaration(node)) &&
+    node.name !== undefined &&
+    ts.isIdentifier(node.name)
+  ) {
+    return [node.name.text];
+  }
+  return [];
+}
+
+/** A non-exported top-level declaration of `name`, which `export { name }` publishes. */
+function declaresLocally(sf: ts.SourceFile, name: string): boolean {
+  return sf.statements.some((node) => {
+    if (ts.isVariableStatement(node)) {
+      return node.declarationList.declarations.some(
+        (declaration) => ts.isIdentifier(declaration.name) && declaration.name.text === name,
+      );
+    }
+    return (
+      (ts.isFunctionDeclaration(node) ||
+        ts.isClassDeclaration(node) ||
+        ts.isEnumDeclaration(node) ||
+        ts.isInterfaceDeclaration(node) ||
+        ts.isTypeAliasDeclaration(node)) &&
+      node.name?.text === name
+    );
+  });
+}
+
+/** The import binding `name` in `sf` came from, or `null`. */
+function importBindingOf(
+  sf: ts.SourceFile,
+  name: string,
+): { readonly specifier: string; readonly importedName: string } | null {
+  for (const node of sf.statements) {
+    if (!ts.isImportDeclaration(node) || !ts.isStringLiteral(node.moduleSpecifier)) continue;
+    const bindings = node.importClause?.namedBindings;
+    if (bindings === undefined || !ts.isNamedImports(bindings)) continue;
+    for (const element of bindings.elements) {
+      if (element.name.text !== name) continue;
+      return {
+        specifier: node.moduleSpecifier.text,
+        importedName: element.propertyName?.text ?? element.name.text,
+      };
+    }
+  }
+  return null;
+}
+
+/**
+ * The names each dependency package declares, with the files declaring them.
+ *
+ * Exported for the refusal and the host's read line: a package whose public
+ * modules declare nothing is a walk that read nothing.
+ */
+export function dependencyDeclarations(
+  dependencies: SharedNameInput['dependencies'],
+): ReadonlyMap<string, ReadonlyMap<string, readonly string[]>> {
+  const out = new Map<string, Map<string, string[]>>();
+  for (const [pkg, sources] of dependencies) {
+    const names = new Map<string, string[]>();
+    for (const [key, source] of sources) {
+      const sf = ts.createSourceFile(key, source, ts.ScriptTarget.Latest, true);
+      const declared = new Set<string>();
+      for (const node of sf.statements) {
+        for (const name of declaredExportNames(node)) declared.add(name);
+        // `export { local }` / `export { local as alias }` with no `from`
+        // publishes a binding this file declares; one it imported is a
+        // re-export and adds no declaration.
+        if (
+          ts.isExportDeclaration(node) &&
+          node.moduleSpecifier === undefined &&
+          node.exportClause !== undefined &&
+          ts.isNamedExports(node.exportClause)
+        ) {
+          for (const element of node.exportClause.elements) {
+            const local = element.propertyName?.text ?? element.name.text;
+            if (declaresLocally(sf, local)) declared.add(element.name.text);
+          }
+        }
+      }
+      for (const name of declared) names.set(name, [...(names.get(name) ?? []), key]);
+    }
+    out.set(pkg, names);
+  }
+  return out;
+}
+
+/** Is `specifier` the package `pkg`, or one of its subpaths — on a segment boundary. */
+function namesPackage(specifier: string, pkg: string): boolean {
+  return specifier === pkg || specifier.startsWith(`${pkg}/`);
+}
+
+/**
+ * Every published platform name some dependency package also exports, and
+ * whether the platform's is that package's own declaration.
+ *
+ * Only shared names are followed, so the cost is the overlap and not the
+ * surface. The follower handles the shapes the platform writes — a declaration
+ * in place, `export { x } from`, `export *` from a relative file, and
+ * `import { x } from …; export { x }` — and anything else it reaches is
+ * `shared-name-unresolved` rather than a pass.
+ */
+export function scanSharedNames(input: SharedNameInput): SharedNameScan {
+  const declarations = dependencyDeclarations(input.dependencies);
+  const parsed = new Map<string, ts.SourceFile | null>();
+  const open = (key: string): ts.SourceFile | null => {
+    if (parsed.has(key)) return parsed.get(key) ?? null;
+    const source = input.platformSource(key);
+    const sf =
+      source === undefined ? null : ts.createSourceFile(key, source, ts.ScriptTarget.Latest, true);
+    parsed.set(key, sf);
+    return sf;
+  };
+  const resolveIn = (fromKey: string, specifier: string): string | null => {
+    const joined = resolveRelative(fromKey, specifier);
+    if (joined === null) return null;
+    return resolutionCandidates(joined).find((candidate) => open(candidate) !== null) ?? null;
+  };
+
+  const followSpecifier = (
+    fromKey: string,
+    specifier: string,
+    importedName: string,
+    seen: Set<string>,
+  ): NameOrigin => {
+    if (!specifier.startsWith('.')) return { kind: 'package', specifier, importedName };
+    const target = resolveIn(fromKey, specifier);
+    return target === null ? { kind: 'lost' } : originOf(importedName, target, seen);
+  };
+
+  function originOf(name: string, key: string, seen: Set<string>): NameOrigin {
+    const visit = `${key}#${name}`;
+    if (seen.has(visit)) return { kind: 'lost' };
+    seen.add(visit);
+    const sf = open(key);
+    if (sf === null) return { kind: 'lost' };
+    const stars: string[] = [];
+    for (const node of sf.statements) {
+      if (declaredExportNames(node).includes(name)) return { kind: 'platform', file: key };
+      if (!ts.isExportDeclaration(node)) continue;
+      const specifier =
+        node.moduleSpecifier !== undefined && ts.isStringLiteral(node.moduleSpecifier)
+          ? node.moduleSpecifier.text
+          : null;
+      if (node.exportClause === undefined) {
+        if (specifier !== null) stars.push(specifier);
+        continue;
+      }
+      if (!ts.isNamedExports(node.exportClause)) continue;
+      for (const element of node.exportClause.elements) {
+        if (element.name.text !== name) continue;
+        const local = element.propertyName?.text ?? element.name.text;
+        if (specifier !== null) return followSpecifier(key, specifier, local, seen);
+        const binding = importBindingOf(sf, local);
+        if (binding !== null) {
+          return followSpecifier(key, binding.specifier, binding.importedName, seen);
+        }
+        return declaresLocally(sf, local) ? { kind: 'platform', file: key } : { kind: 'lost' };
+      }
+    }
+    for (const specifier of stars) {
+      if (!specifier.startsWith('.')) {
+        for (const [pkg, names] of declarations) {
+          if (namesPackage(specifier, pkg) && names.has(name)) {
+            return { kind: 'package', specifier, importedName: name };
+          }
+        }
+        continue;
+      }
+      const target = resolveIn(key, specifier);
+      if (target === null) continue;
+      const origin = originOf(name, target, seen);
+      if (origin.kind !== 'lost') return origin;
+    }
+    return { kind: 'lost' };
+  }
+
+  const findings: SharedNameFinding[] = [];
+  let sharedNames = 0;
+  let sameDeclaration = 0;
+  for (const barrel of input.barrels) {
+    const sf = open(barrel);
+    if (sf === null) continue;
+    // The barrel parse both consumers of the published surface read, so "what
+    // this barrel publishes" has one answer here as well.
+    const names = new Set(parseBarrel(sf.text, barrel).published.map((symbol) => symbol.name));
+    for (const name of [...names].sort()) {
+      for (const [pkg, declared] of declarations) {
+        const files = declared.get(name);
+        if (files === undefined) continue;
+        sharedNames += 1;
+        const origin = originOf(name, barrel, new Set());
+        if (
+          origin.kind === 'package' &&
+          namesPackage(origin.specifier, pkg) &&
+          origin.importedName === name
+        ) {
+          sameDeclaration += 1;
+          continue;
+        }
+        findings.push({
+          kind: origin.kind === 'lost' ? 'shared-name-unresolved' : 'shared-name-collision',
+          name,
+          barrel,
+          platformDeclaration:
+            origin.kind === 'platform'
+              ? origin.file
+              : origin.kind === 'package'
+                ? `${origin.specifier}#${origin.importedName}`
+                : null,
+          dependency: pkg,
+          dependencyDeclarations: [...files].sort(),
+        });
+      }
+    }
+  }
+  const platformFilesOpened = [...parsed.values()].filter((sf) => sf !== null).length;
+  return { findings, sharedNames, sameDeclaration, platformFilesOpened };
+}
+
+/**
+ * {@link scanSharedNames} against a ledger keyed by the shared name, in both
+ * directions: an unledgered collision is a violation and a key describing no
+ * collision is stale. An unresolved name is a violation whatever the ledger
+ * says.
+ */
+export function checkSharedNames(
+  input: SharedNameInput,
+  ledger: Readonly<Record<string, LedgeredSharedName>>,
+): SharedNameResult {
+  const scan = scanSharedNames(input);
+  const violations: SharedNameFinding[] = [];
+  const ledgered: SharedNameFinding[] = [];
+  for (const finding of scan.findings) {
+    if (finding.kind === 'shared-name-collision' && ledger[finding.name] !== undefined) {
+      ledgered.push(finding);
+    } else {
+      violations.push(finding);
+    }
+  }
+  const held = new Set(ledgered.map((finding) => finding.name));
+  const staleKeys = Object.keys(ledger).filter((name) => !held.has(name));
+  return { ...scan, violations, ledgered, staleKeys };
+}
+
+/**
+ * Exit 2 for a shared-name run that read nothing to compare against: no
+ * dependency package at all, or one whose public modules declare no name. Both
+ * make every shared-name question answer "disjoint", which is the green that
+ * means "not looking" (issue #113).
+ */
+export function sharedNameRefusal(input: {
+  readonly dependencies: SharedNameInput['dependencies'];
+}): string | null {
+  if (input.dependencies.size === 0) {
+    return (
+      'no workspace package the platform depends on was found — there is nothing to ' +
+      'compare the published names against, and a disjointness over one side is vacuous'
+    );
+  }
+  const declarations = dependencyDeclarations(input.dependencies);
+  const empty = [...declarations].filter(([, names]) => names.size === 0).map(([pkg]) => pkg);
+  if (empty.length > 0) {
+    return (
+      `${empty.join(', ')} — a workspace package the platform depends on whose public ` +
+      'modules declared no exported name. Every shared-name question would answer ' +
+      '"disjoint"; refusing to report on it'
+    );
+  }
+  return null;
+}
+
+/** The remedy sentence for a shared-name finding. */
+export function sharedNameRemedyOf(finding: SharedNameFinding): string {
+  if (finding.kind === 'shared-name-unresolved') {
+    return (
+      `\`${finding.name}\` is exported by ${finding.dependency} ` +
+      `(${finding.dependencyDeclarations.join(', ')}) and published by ${finding.barrel}, ` +
+      'whose declaration this check could not follow — make the re-export one it can read'
+    );
+  }
+  return (
+    `\`${finding.name}\` is published by ${finding.barrel} out of ` +
+    `${finding.platformDeclaration ?? '?'} and exported by ${finding.dependency} out of ` +
+    `${finding.dependencyDeclarations.join(', ')} — two declarations under one name. ` +
+    'Re-export the dependency\'s declaration, or rename one of them; renaming a published ' +
+    'export is a maintainer decision, so until then ledger it'
+  );
 }
