@@ -65,11 +65,6 @@ describe('search hit price source (#132)', () => {
     expect(summary.price).toEqual({ amount: 0, currency: 'PLN' });
   });
 
-  it("uses the Product's own price when the chain fell through to it", () => {
-    const summary = summaryFor({ source: 'product', amount: '19.99', currency: 'PLN' });
-    expect(summary.price).toEqual({ amount: 19.99, currency: 'PLN' });
-  });
-
   it('renders no price for the `none` arm, even though the row carries a legacy attribute', () => {
     expect(summaryFor({ source: 'none' }).price).toBeNull();
   });

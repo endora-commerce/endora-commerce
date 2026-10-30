@@ -24,7 +24,9 @@ function lookup(live: string[]) {
   const catalogProducts = {
     findBySkus: vi.fn(async () => [rec('p-on', 'ON'), rec('p-off', 'OFF')]),
   } as unknown as CatalogProductReadPort;
-  return { filterAvailable, subject: new CatalogPortLookup(catalogProducts, { filterAvailable }) };
+  // `effectiveOrderRules` is the port's other half; SKU lookup never reads it.
+  const effectiveOrderRules = vi.fn();
+  return { filterAvailable, subject: new CatalogPortLookup(catalogProducts, { filterAvailable, effectiveOrderRules }) };
 }
 
 beforeEach(() => {

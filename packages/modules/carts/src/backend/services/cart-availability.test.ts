@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ProductAudience } from '@endora-commerce/contracts';
+import type { ProductAudience, ProductAvailabilityScope } from '@endora-commerce/contracts';
 
 const channelState: { current: { id: string; languages: string[]; defaultLanguage: string } | null } = {
   current: null,
@@ -43,7 +43,9 @@ describe('basketScopeLanguage', () => {
 describe('availableRecords', () => {
   const records = [{ id: 'on' }, { id: 'off' }, { id: 'window-closed' }];
   const port = (live: string[]) => ({
-    filterAvailable: vi.fn(async (ids: readonly string[]) => new Set(ids.filter((id) => live.includes(id)))),
+    filterAvailable: vi.fn(async (ids: readonly string[], _scope?: ProductAvailabilityScope) =>
+      new Set(ids.filter((id) => live.includes(id))),
+    ),
   });
 
   it('drops every record the port does not return, whatever the reason, and keeps order', async () => {

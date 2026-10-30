@@ -24,7 +24,7 @@ const OTHER = '22222222-2222-4222-8222-222222222222';
  * `>=`, `IS EMPTY`, `EXISTS`, `NOT EXISTS`, `AND`, `OR`, parentheses — so the
  * filter can be checked against the rule without a search engine.
  */
-function matches(filter: string, doc: Record<string, unknown>): boolean {
+function matches(filter: string, doc: object): boolean {
   const tokens = filter.match(/\(|\)|"[^"]*"|[^\s()]+/g) ?? [];
   let i = 0;
   const peek = () => tokens[i];
@@ -39,7 +39,7 @@ function matches(filter: string, doc: Record<string, unknown>): boolean {
     }
     const field = next();
     const op = next();
-    const actual = doc[field];
+    const actual = (doc as Record<string, unknown>)[field];
     if (op === 'IS') {
       next(); // EMPTY
       return Array.isArray(actual) && actual.length === 0;
