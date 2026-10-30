@@ -304,6 +304,44 @@ export interface AdminRolePort {
     expect(ledgered.nameFindings).toEqual([]);
     expect(ledgered.staleLedgerEntries).toEqual([]);
   });
+
+  it('treats a documented name the platform registers as registered (issue #91)', () => {
+    // No module registers it — the kernel does — so before #91 this was a
+    // finding no edit to the doc block could clear.
+    const noModuleRegistration = new Map([['modules/blog/backend.ts', 'const x = 1;']]);
+    const result = checkPortShape({
+      ...named('salesChannelResolutionPort', noModuleRegistration),
+      platformOwnedNames: new Set(['salesChannelResolutionPort']),
+    });
+    expect(result.nameFindings).toEqual([]);
+    expect(result.staleLedgerEntries).toEqual([]);
+
+    // The same doc without the platform fact is still the unregistered finding.
+    const withoutPlatform = checkPortShape(named('salesChannelResolutionPort', noModuleRegistration));
+    expect(withoutPlatform.nameFindings.map((f) => f.kind)).toEqual(['container-name-unregistered']);
+  });
+
+  it('still reports the unregistered name beside a platform-owned one', () => {
+    const result = checkPortShape({
+      ...named('salesChannelResolutionPort', new Map([['modules/blog/backend.ts', 'const x = 1;']])),
+      contracts: new Map([
+        [
+          'contracts/admin-roles.ts',
+          `
+/**
+ * Container name: \`salesChannelResolutionPort\`.
+ * Container name: \`nobodyRegistersThis\`.
+ */
+export interface AdminRolePort {
+  list(): Promise<AdminRoleRecord[]>;
+}
+`,
+        ],
+      ]),
+      platformOwnedNames: new Set(['salesChannelResolutionPort']),
+    });
+    expect(result.nameFindings.map((f) => f.documented)).toEqual(['nobodyRegistersThis']);
+  });
 });
 
 describe('check:port-shape — what the name signal leaves alone', () => {

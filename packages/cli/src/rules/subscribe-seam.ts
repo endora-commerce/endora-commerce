@@ -372,10 +372,33 @@ function insideSeamCall(node: ts.Node, seams: ReadonlySet<string>): boolean {
 
 /** True when `node`'s value is itself returned — a factory hands it to its caller. */
 function isHandedToCaller(node: ts.Node): boolean {
+  // The outermost expression whose value is still the call's own (issue #90):
+  // `() => cond ? createXWorker() : null` returns the worker as surely as
+  // `() => createXWorker()` does, so the arrow body is compared against that.
+  let value: ts.Node = node;
   for (let cursor: ts.Node | undefined = node.parent; cursor; cursor = cursor.parent) {
     if (ts.isReturnStatement(cursor)) return true;
-    if (ts.isArrowFunction(cursor) && cursor.body === node) return true;
+    if (ts.isArrowFunction(cursor) && cursor.body === value) return true;
     if (ts.isFunctionLike(cursor)) return false;
+    if (passesValueThrough(cursor, value)) value = cursor;
+  }
+  return false;
+}
+
+/**
+ * Does `wrapper` evaluate to `inner`'s value unchanged? A conditional only for
+ * its two arms: its condition picks a branch and is not what it yields.
+ */
+function passesValueThrough(wrapper: ts.Node, inner: ts.Node): boolean {
+  if (ts.isConditionalExpression(wrapper)) {
+    return wrapper.whenTrue === inner || wrapper.whenFalse === inner;
+  }
+  if (
+    ts.isParenthesizedExpression(wrapper) ||
+    ts.isAsExpression(wrapper) ||
+    ts.isNonNullExpression(wrapper)
+  ) {
+    return wrapper.expression === inner;
   }
   return false;
 }
