@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { tForLocale } from '../lib/i18n/messages';
 import { readAndClearCartMergeFlash } from '../lib/session';
 import { getServerContext } from '../lib/server-context';
 
@@ -22,7 +23,9 @@ export async function CartMergeToast(): Promise<ReactNode> {
   if (outcome === null) return null;
 
   const { locale } = await getServerContext();
-  const message = pickToastCopy(locale, outcome);
+  const message = tForLocale(locale)(
+    outcome === 'adopted' ? 'cart.merge.adopted' : 'cart.merge.merged',
+  );
 
   return (
     <div
@@ -35,21 +38,4 @@ export async function CartMergeToast(): Promise<ReactNode> {
       <span>{message}</span>
     </div>
   );
-}
-
-/**
- * Two-language inline copy. Wider i18n integration (admin dictionary
- * keys, custom-language fallback) is deferred until a story drives it;
- * meanwhile keeping the copy here avoids touching the dictionary build.
- */
-function pickToastCopy(locale: string, outcome: 'adopted' | 'merged'): string {
-  const isPolish = locale.toLowerCase().startsWith('pl');
-  if (outcome === 'adopted') {
-    return isPolish
-      ? 'Twoje produkty z koszyka sprzed logowania zostały dodane do Twojego konta.'
-      : "We've attached the basket you started before signing in to your account.";
-  }
-  return isPolish
-    ? 'Dodaliśmy do Twojego koszyka produkty, które wybrałeś przed zalogowaniem.'
-    : "We've added the items you picked before signing in to your existing cart.";
 }

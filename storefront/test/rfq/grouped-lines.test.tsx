@@ -3,7 +3,7 @@ import { renderToString } from 'react-dom/server';
 import type { ReactNode } from 'react';
 import { GroupedLineRows, quoteSectionTotals } from '../../components/line-groups/GroupedLineRows';
 import { describeRfqDiff } from '../../lib/quote-requests/describe-diff';
-import type { RfqItem } from '../../lib/api/rfq';
+import type { RfqDiffEntry, RfqItem } from '../../lib/api/rfq';
 import { formatMoney } from '../../lib/i18n/money';
 
 /**
@@ -148,7 +148,7 @@ describe('GroupedLineRows', () => {
     const entry = { kind: 'line_quantity', productId: 'p', productName: 'Bolt', before: 5, after: 3 } as const;
     expect(describeRfqDiff({ ...entry, groupName: 'Hall A' }, 'pl-PL')).toBe('Bolt (Hall A): ilość 5 → 3');
     expect(describeRfqDiff({ ...entry, groupName: null }, 'pl-PL')).toBe('Bolt (Pozostałe pozycje): ilość 5 → 3');
-    expect(describeRfqDiff({ ...entry, groupName: null }, 'en-US')).toBe('Bolt (Other items): ilość 5 → 3');
+    expect(describeRfqDiff({ ...entry, groupName: null }, 'en-US')).toBe('Bolt (Other items): quantity 5 → 3');
     expect(
       describeRfqDiff(
         { kind: 'line_added', productId: 'p', productName: 'Bolt', groupName: 'Hall B', quantity: 2, agreedUnitPrice: null },
@@ -157,5 +157,65 @@ describe('GroupedLineRows', () => {
     ).toBe('Dodano: Bolt (Hall B) × 2');
     // A product on one line is named as before.
     expect(describeRfqDiff(entry, 'pl-PL')).toBe('Bolt: ilość 5 → 3');
+  });
+});
+
+/**
+ * Issue #85: the comparison's line and note sentences were Polish templates, so
+ * an English shop read `Bolt (Other items): ilość 5 → 3` — the group name
+ * translated and the sentence around it not. Every kind is a catalogue key now,
+ * asserted in both languages with the values filled.
+ */
+describe('describeRfqDiff speaks the page language', () => {
+  const cases = [
+    {
+      entry: { kind: 'header_note', before: 'old', after: null },
+      en: 'Notes: “old” → “—”',
+      pl: 'Uwagi: „old” → „—”',
+    },
+    {
+      entry: { kind: 'line_added', productId: 'p', productName: 'Bolt', quantity: 2, agreedUnitPrice: null },
+      en: 'Added: Bolt × 2',
+      pl: 'Dodano: Bolt × 2',
+    },
+    {
+      entry: { kind: 'line_removed', productId: 'p', productName: 'Bolt' },
+      en: 'Removed: Bolt',
+      pl: 'Usunięto: Bolt',
+    },
+    {
+      entry: { kind: 'line_quantity', productId: 'p', productName: 'Bolt', before: 5, after: 3 },
+      en: 'Bolt: quantity 5 → 3',
+      pl: 'Bolt: ilość 5 → 3',
+    },
+    {
+      entry: { kind: 'line_agreed_unit_price', productId: 'p', productName: 'Bolt', before: null, after: null },
+      en: 'Bolt: price — → —',
+      pl: 'Bolt: cena — → —',
+    },
+  ] as const;
+
+  for (const { entry, en, pl } of cases) {
+    it(`describes ${entry.kind} in English and in Polish`, () => {
+      expect(describeRfqDiff(entry as RfqDiffEntry, 'en-US')).toBe(en);
+      expect(describeRfqDiff(entry as RfqDiffEntry, 'pl-PL')).toBe(pl);
+    });
+  }
+
+  it('names the agreed price in the line-added sentence in both languages', () => {
+    const entry: RfqDiffEntry = {
+      kind: 'line_added',
+      productId: 'p',
+      productName: 'Bolt',
+      quantity: 2,
+      agreedUnitPrice: 1.5,
+    };
+    expect(describeRfqDiff(entry, 'en-US')).toMatch(/^Added: Bolt × 2 at \S/);
+    expect(describeRfqDiff(entry, 'pl-PL')).toMatch(/^Dodano: Bolt × 2 po \S/);
+  });
+
+  it('keeps a product name that looks like a replacement pattern verbatim', () => {
+    const entry = { kind: 'line_removed', productId: 'p', productName: "Bolt $& {line} $'" } as const;
+    expect(describeRfqDiff(entry, 'en-US')).toBe("Removed: Bolt $& {line} $'");
   });
 });

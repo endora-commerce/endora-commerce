@@ -191,6 +191,7 @@ export default async function CartPage({
       <OrganizationModerationBanner
         status={me?.organization?.status}
         message={me?.organization?.moderationMessage ?? null}
+        locale={locale}
       />
 
       {/* Feature 027 — approval-state banner (US4). */}

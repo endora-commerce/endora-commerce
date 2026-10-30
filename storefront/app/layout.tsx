@@ -378,6 +378,7 @@ export default async function RootLayout({
       <ConsentBanner
         platforms={[gaConfig, linkedInConfig, metaConfig, gtmConfig]}
         message={<CookieConsentMessage ctx={ctx} />}
+        locale={locale}
       />
       </BlockRenderScope>
     </LocalePathProvider>

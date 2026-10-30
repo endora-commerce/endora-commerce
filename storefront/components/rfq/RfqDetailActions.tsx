@@ -76,7 +76,7 @@ export function RfqDetailActions({
                 disabled={gate.acceptBlocked}
                 aria-describedby={gate.acceptBlocked ? NOTICE_ID : undefined}
               >
-                Akceptuj wersję
+                {t('quoteRequests.actions.acceptRevision')}
               </button>
             </form>
             {/*
@@ -91,7 +91,7 @@ export function RfqDetailActions({
               <input
                 type="text"
                 name="reason"
-                placeholder="Powód odrzucenia (opcjonalny)"
+                placeholder={t('quoteRequests.actions.rejectReasonPlaceholder')}
                 style={{
                   border: '1px solid var(--line)',
                   borderRadius: 'var(--r-sm)',
@@ -100,7 +100,7 @@ export function RfqDetailActions({
                 }}
               />
               <button type="submit" className="btn btn--outline">
-                Odrzuć
+                {t('quoteRequests.actions.reject')}
               </button>
             </form>
           </>
@@ -115,7 +115,7 @@ export function RfqDetailActions({
               disabled={gate.convertBlocked}
               aria-describedby={gate.convertBlocked ? NOTICE_ID : undefined}
             >
-              Złóż zamówienie z tej oferty
+              {t('quoteRequests.actions.placeOrder')}
             </button>
           </form>
         ) : null}
