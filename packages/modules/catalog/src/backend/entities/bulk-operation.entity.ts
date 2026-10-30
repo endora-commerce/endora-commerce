@@ -48,7 +48,14 @@ export interface BulkOperationLogEntry {
   /** ISO-8601 timestamp of the event. */
   ts: string;
   level: 'info' | 'warn' | 'error';
+  /** The finished English sentence, for a reader that cannot resolve `messageKey`. */
   message: string;
+  /**
+   * The sentence as a key in `catalog`'s bundle and the params that fill it,
+   * translated by whoever reads the trail (issue #95). Absent on entries
+   * written before it existed.
+   */
+  messageKey?: { key: string; params?: Record<string, string | number> };
 }
 
 @GlobalEntity()
