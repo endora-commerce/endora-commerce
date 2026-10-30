@@ -6,6 +6,7 @@ import { AppLanguageContext } from '@endora-commerce/admin-kit/i18n';
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { renderWithI18n } from '../helpers/render-with-i18n';
+import { shippedCoreBundle } from '../helpers/core-bundle';
 import { adminSession } from '../helpers/render-with-session';
 
 /**
@@ -59,10 +60,10 @@ const { AuthProvider } = await import('@endora-commerce/admin-kit/lib');
  * provider; `SalesChannelPicker` additionally reads the admin language, which is
  * a context with no fallback — `useAppLanguage` throws rather than defaulting.
  */
-function withLanguage(ui: ReactElement): ReactElement {
+function withLanguage(ui: ReactElement, language: 'en' | 'pl' = 'en'): ReactElement {
   const node = ((): ReactNode => ui)();
   return (
-    <AppLanguageContext.Provider value={{ language: 'en', setLanguage: (): void => {} }}>
+    <AppLanguageContext.Provider value={{ language, setLanguage: (): void => {} }}>
       <>{node}</>
     </AppLanguageContext.Provider>
   );
@@ -102,6 +103,65 @@ describe('SalesChannelPicker', () => {
     await user.click(screen.getByRole('combobox'));
     await waitFor(() => {
       expect(screen.getByText('Web store')).toBeDefined();
+    });
+  });
+
+  it('labels the channels in the admin language (#562)', async () => {
+    // Channel names are keyed by locale (`pl-PL`), the admin language by its
+    // short code (`pl`); indexing one by the other matched nothing, so a Polish
+    // admin saw every channel under its English name.
+    getSpy.mockResolvedValue({
+      items: [
+        { id: 'ch-1', code: 'web', name: { 'en-US': 'Web store', 'pl-PL': 'Sklep' }, active: true },
+        { id: 'ch-2', code: 'b2b', name: { 'en-US': 'Wholesale' }, active: true },
+      ],
+      page: 1,
+      pageSize: 200,
+      total: 2,
+    });
+
+    renderWithI18n(withLanguage(<SalesChannelPicker value={null} onChange={vi.fn()} />, 'pl'));
+    await userEvent.setup().click(screen.getByRole('combobox'));
+    const options = await screen.findAllByRole('option');
+    expect(options.map((o) => o.textContent)).toEqual(['Sklepweb', 'Wholesaleb2b']);
+  });
+
+  it('speaks Polish to a Polish admin, and an inactive channel says so', async () => {
+    getSpy.mockResolvedValue({
+      items: [{ id: 'ch-3', code: 'old', name: { 'pl-PL': 'Stary sklep' }, active: false }],
+      page: 1,
+      pageSize: 200,
+      total: 1,
+    });
+    renderWithI18n(
+      withLanguage(<SalesChannelPicker value={null} onChange={vi.fn()} />, 'pl'),
+      shippedCoreBundle('pl'),
+      { language: 'pl' },
+    );
+
+    const input = screen.getByRole('combobox', { name: 'Wybierz kanał sprzedaży' });
+    expect(input.getAttribute('placeholder')).toBe('Wybierz kanał sprzedaży…');
+    await userEvent.setup().click(input);
+    const [option] = await screen.findAllByRole('option');
+    expect(option!.textContent).toBe('Stary sklepold · nieaktywny');
+  });
+
+  it('shows a failed load even when the caller passes an empty message', async () => {
+    getSpy.mockRejectedValue(new TypeError('Failed to fetch'));
+    renderWithI18n(
+      withLanguage(
+        <SalesChannelPicker value={null} onChange={vi.fn()} emptyMessage="Create a channel first." />,
+        'pl',
+      ),
+      shippedCoreBundle('pl'),
+      { language: 'pl' },
+    );
+
+    await userEvent.setup().click(screen.getByRole('combobox', { name: 'Wybierz kanał sprzedaży' }));
+    await waitFor(() => {
+      expect(screen.getByRole('listbox').textContent).toBe(
+        'Nie udało się wczytać kanałów sprzedaży.',
+      );
     });
   });
 

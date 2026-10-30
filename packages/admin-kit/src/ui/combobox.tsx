@@ -27,6 +27,14 @@ import { normalize } from '../lib/text-normalization.js';
  *
  * Build is dependency-free (no Radix popover) so it composes anywhere
  * the rest of the shadcn-style components do.
+ *
+ * **Its status is spoken, not only shown** (issue #563, WCAG 2.2 SC 4.1.3).
+ * The loading, empty and error rows sit inside the open listbox, whose text a
+ * screen reader does not announce when it changes. A polite live region carries
+ * the same status — the loading message, the empty message (which is where a
+ * picker puts its failure), or how many options are listed. It is mounted from
+ * the first render and stays empty while the list is closed, because a live
+ * region that arrives already holding its message is not reliably announced.
  */
 
 export interface ComboboxOption<T = string> {
@@ -41,7 +49,9 @@ export interface ComboboxProps<T = string> {
   value: T | null;
   onChange: (value: T | null) => void;
   placeholder?: string;
+  /** Shown, and announced, when the list is empty. Defaults to the kit's "No results." */
   emptyMessage?: string;
+  /** Shown, and announced, while `loading` with nothing to list. Defaults to "Loading…". */
   loadingMessage?: string;
   disabled?: boolean;
   loading?: boolean;
@@ -101,8 +111,8 @@ function ComboboxInner<T>(
     value,
     onChange,
     placeholder,
-    emptyMessage = 'No results.',
-    loadingMessage = 'Loading…',
+    emptyMessage,
+    loadingMessage,
     disabled = false,
     loading = false,
     clearable = true,
@@ -124,6 +134,8 @@ function ComboboxInner<T>(
   const inputId = id ?? `combobox-${reactId}`;
   const listboxId = `${inputId}-listbox`;
   const t = useTranslation('core');
+  const resolvedEmptyMessage = emptyMessage ?? t('common.combobox.noResults');
+  const resolvedLoadingMessage = loadingMessage ?? t('common.combobox.loading');
 
   const selectedOption = useMemo(
     () => options.find((opt) => sameValue(opt.value, value)) ?? null,
@@ -263,6 +275,17 @@ function ComboboxInner<T>(
 
   const showClear = clearable && !disabled && (selectedOption !== null || query.length > 0);
 
+  // The one status the open list is in, for the live region below. Empty while
+  // closed: nothing is on screen to describe, and clearing it is what lets the
+  // next opening be announced again.
+  const statusMessage = !open
+    ? ''
+    : loading && filtered.length === 0
+      ? resolvedLoadingMessage
+      : filtered.length === 0
+        ? resolvedEmptyMessage
+        : t('common.combobox.resultCount', { count: filtered.length });
+
   return (
     <div ref={containerRef} className={cn('relative w-full', className)}>
       <div className="relative">
@@ -338,6 +361,10 @@ function ComboboxInner<T>(
         </div>
       </div>
 
+      <span role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+        {statusMessage}
+      </span>
+
       {open ? (
         <ul
           ref={listboxRef}
@@ -349,11 +376,11 @@ function ComboboxInner<T>(
         >
           {loading && filtered.length === 0 ? (
             <li className="px-2 py-1.5 text-muted-foreground" aria-disabled="true">
-              {loadingMessage}
+              {resolvedLoadingMessage}
             </li>
           ) : filtered.length === 0 ? (
             <li className="px-2 py-1.5 text-muted-foreground" aria-disabled="true">
-              {emptyMessage}
+              {resolvedEmptyMessage}
             </li>
           ) : (
             filtered.map((opt, idx) => {

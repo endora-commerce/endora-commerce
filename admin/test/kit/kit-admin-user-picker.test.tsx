@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { ReactElement } from 'react';
 import { renderWithI18n } from '../helpers/render-with-i18n';
+import { shippedCoreBundle } from '../helpers/core-bundle';
 
 /**
  * Issue #89 — `AdminUserPicker` has a test.
@@ -37,6 +39,11 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
 const { AdminUserPicker } = await import('@endora-commerce/admin-kit/components');
 const { ApiError } = await import('@endora-commerce/admin-kit/lib');
 
+/** Renders with the shipped `core` bundle, so the assertions name real copy (#561). */
+function renderPicker(ui: ReactElement, language: 'en' | 'pl' = 'en'): ReturnType<typeof renderWithI18n> {
+  return renderWithI18n(ui, shippedCoreBundle(language), { language });
+}
+
 afterEach(() => {
   getSpy.mockReset();
 });
@@ -53,7 +60,7 @@ describe('AdminUserPicker', () => {
   it('shows a loading row while the search is in flight', async () => {
     let resolve: (v: unknown) => void = () => {};
     getSpy.mockReturnValue(new Promise((r) => (resolve = r)));
-    renderWithI18n(<AdminUserPicker value={null} onChange={vi.fn()} />);
+    renderPicker(<AdminUserPicker value={null} onChange={vi.fn()} />);
 
     await search('ada');
     await waitFor(() => expect(getSpy).toHaveBeenCalledTimes(1));
@@ -65,7 +72,7 @@ describe('AdminUserPicker', () => {
 
   it('asks for one debounced, trimmed page and says when nothing matches', async () => {
     getSpy.mockResolvedValue({ data: [] });
-    renderWithI18n(<AdminUserPicker value={null} onChange={vi.fn()} />);
+    renderPicker(<AdminUserPicker value={null} onChange={vi.fn()} />);
 
     await search('  zed ');
     await waitFor(() => {
@@ -81,7 +88,7 @@ describe('AdminUserPicker', () => {
   it('lists the matches by name, falling back to the e-mail, and commits the id', async () => {
     getSpy.mockResolvedValue({ data: [ADA, NAMELESS] });
     const onChange = vi.fn();
-    renderWithI18n(<AdminUserPicker value={null} onChange={onChange} />);
+    renderPicker(<AdminUserPicker value={null} onChange={onChange} />);
 
     await search('a');
     const options = await screen.findAllByRole('option');
@@ -98,7 +105,7 @@ describe('AdminUserPicker', () => {
     getSpy.mockRejectedValue(
       new ApiError(500, { error: { code: 'INTERNAL', message: 'Admin users are unavailable.' } }),
     );
-    renderWithI18n(<AdminUserPicker value={null} onChange={vi.fn()} />);
+    renderPicker(<AdminUserPicker value={null} onChange={vi.fn()} />);
 
     await search('ada');
     await waitFor(() => {
@@ -109,7 +116,7 @@ describe('AdminUserPicker', () => {
 
   it('falls back to a generic message for a failure that is not an API error', async () => {
     getSpy.mockRejectedValue(new TypeError('Failed to fetch'));
-    renderWithI18n(<AdminUserPicker value={null} onChange={vi.fn()} />);
+    renderPicker(<AdminUserPicker value={null} onChange={vi.fn()} />);
 
     await search('ada');
     await waitFor(() => {
@@ -121,7 +128,7 @@ describe('AdminUserPicker', () => {
     getSpy.mockRejectedValue(
       new ApiError(500, { error: { code: 'INTERNAL', message: 'Admin users are unavailable.' } }),
     );
-    renderWithI18n(
+    renderPicker(
       <AdminUserPicker value={null} onChange={vi.fn()} emptyMessage="Nobody by that name." />,
     );
 
@@ -130,5 +137,52 @@ describe('AdminUserPicker', () => {
       expect(screen.getByRole('listbox').textContent).toContain('Admin users are unavailable.');
     });
     expect(screen.getByRole('listbox').textContent).not.toContain('Nobody by that name.');
+  });
+
+  it('asks for a search term before any search has answered, instead of claiming no match', async () => {
+    // Opening the picker asks for the first page after the debounce; until an
+    // answer arrives nothing has been searched, so "no matching admin users"
+    // would be false (#563).
+    getSpy.mockReturnValue(new Promise(() => {}));
+    renderPicker(<AdminUserPicker value={null} onChange={vi.fn()} emptyMessage="Nobody by that name." />);
+
+    await userEvent.setup().click(screen.getByRole('combobox', { name: 'Select admin user' }));
+    const listbox = screen.getByRole('listbox');
+    expect(listbox.textContent).toBe('Type a name or e-mail address to search.');
+    expect(listbox.textContent).not.toContain('No matching admin users.');
+    expect(screen.getByRole('status').textContent).toBe('Type a name or e-mail address to search.');
+  });
+
+  it('announces a failed search through the live region', async () => {
+    getSpy.mockRejectedValue(new TypeError('Failed to fetch'));
+    renderPicker(<AdminUserPicker value={null} onChange={vi.fn()} />);
+
+    await search('ada');
+    await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Search failed.'));
+  });
+
+  it('speaks Polish to a Polish admin', async () => {
+    getSpy.mockResolvedValue({ data: [] });
+    renderPicker(<AdminUserPicker value={null} onChange={vi.fn()} />, 'pl');
+
+    const input = screen.getByRole('combobox', { name: 'Wybierz administratora' });
+    expect(input.getAttribute('placeholder')).toBe(
+      'Szukaj administratorów po imieniu, nazwisku lub adresie e-mail…',
+    );
+    const user = userEvent.setup();
+    await user.click(input);
+    expect(screen.getByRole('listbox').textContent).toBe(
+      'Wpisz imię, nazwisko lub adres e-mail, aby wyszukać.',
+    );
+    await user.type(input, 'zed');
+    await waitFor(() => {
+      expect(screen.getByRole('listbox').textContent).toBe('Brak pasujących administratorów.');
+    });
+
+    getSpy.mockRejectedValue(new TypeError('Failed to fetch'));
+    await user.type(input, 'x');
+    await waitFor(() => {
+      expect(screen.getByRole('listbox').textContent).toBe('Wyszukiwanie nie powiodło się.');
+    });
   });
 });
