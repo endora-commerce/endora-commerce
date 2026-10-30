@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   documentTemplateContentSchema,
@@ -98,12 +99,26 @@ function ksefBlock(opts: { reject?: boolean } = {}): InvoicePdfBlockRegistration
   };
 }
 
+/** `adminI18nService.translate` over this module's real bundles, as production wires it (issue #95). */
+const bundles: Record<string, Record<string, string>> = Object.fromEntries(
+  ['en', 'pl'].map((language) => [
+    language,
+    JSON.parse(readFileSync(new URL(`../../../i18n/${language}.json`, import.meta.url), 'utf8')) as Record<string, string>,
+  ]),
+);
+const translate = async (key: string, language: string): Promise<string> =>
+  bundles[language]?.[key] ?? bundles['en']?.[key] ?? `invoices.${key}`;
+
 function setup(contributors: { block: InvoicePdfBlockRegistration; present: boolean }[] = []) {
   const presence = new Map(contributors.map((c) => [c.block.moduleId, c.present]));
   const registry = new InvoicePdfBlockRegistry((id) => presence.get(id) ?? true);
   for (const c of contributors) registry.register(c.block);
   const loadAssetImage = vi.fn(async (id: string) => (id === ASSET ? { bytes: PNG, mimeType: 'image/png' } : null));
-  return { type: createInvoiceDocumentType({ contributed: registry, loadAssetImage }), loadAssetImage, presence };
+  return {
+    type: createInvoiceDocumentType({ contributed: registry, loadAssetImage, translate }),
+    loadAssetImage,
+    presence,
+  };
 }
 
 const text = (v: unknown) => JSON.stringify(v);
