@@ -42,6 +42,9 @@
   restore UI; "Restore this save" a named follow-up), new FR-094 (`/seo` product mode becomes a link), and the
   prototype gate in *Assumptions*. Still 0 `[NEEDS CLARIFICATION]` markers. `plan.md`, `tasks.md` and
   `contracts/` are the architect's to update.
+- **Round 7 (2026-10-30, from security / schema review)**: FR-016's uniqueness space changed to one product per
+  key per channel across its languages (DB-enforced); new FR-118 (CSV formula-injection prefix); two security
+  notes in *Assumptions*. Still 0 `[NEEDS CLARIFICATION]` markers.
 - **Left to the plan** (no user-visible behaviour at stake): which existing `import_export` permission gates
   managing import profiles (no new permission code, 163 FR-084), profile writes through the Command Bus
   (Constitution XIII), command-palette reachability of the profile screen (XVI), and how

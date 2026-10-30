@@ -99,7 +99,8 @@ Answers given by the owner on 2026-10-29 / 2026-10-30.
   Global value is in the **primary content language** and is labelled as such in the switcher (e.g. "Global
   (en-US)"). The storefront falls back **C×L → C → Global even when Global is in another language**.
 - Q: (FR-016) URL-key uniqueness without Language-level keys? → A: A URL key is **unique per effective
-  (Channel, Language)**; a **Global key must not equal another product's key**.
+  (Channel, Language)**; a **Global key must not equal another product's key**. *(The per-(C, L) space is
+  superseded by round 7: unique per channel across all its languages.)*
 - Q: (FR-020…FR-025, migration, reversibility, archive) → A: **There is no live data.** Only dev / demo / seed
   databases hold 163-model data. The schema migration MUST run cleanly on existing dev databases but **need not
   preserve data**; seeds and fixtures are rewritten to the new model. Therefore **dropped**: FR-021 (shadowed
@@ -247,6 +248,19 @@ plus one process decision.
 - Process: a **designer builds a clickable prototype** of the editor (switcher, "Use value from …" checkbox,
   inheritance markers) **before the editor UI stream**; the **owner reviews it before that stream starts**;
   backend streams may start in parallel.
+
+### Session 2026-10-30 (round 7, from security/schema review)
+
+Owner decisions on 2026-10-30 arising from the pre-build security and schema reviews.
+
+- Q: (FR-016) In which space is a URL key unique? → A: **Changed from round 2.** A key text may belong to
+  **only one product in a whole channel, across all its languages**, orphaned keys included. The **same
+  product** may use the same key at several languages of that channel. Rationale: enforceable in the database
+  (an exclusion constraint), with no cross-level race. The round-2 answer ("unique per effective (C, L)") is
+  superseded.
+- Q: Is the CSV export protected against formula injection? → A: **Yes.** Export prefixes `'` to text cells
+  starting with `=`, `+`, `-`, `@`, tab or CR; import strips that prefix; a literal leading apostrophe is
+  escaped so export → re-import stays a no-op (FR-114 holds); strictly numeric columns are untouched.
 
 ## Amendments to 163 (2026-10-29, extended 2026-10-30)
 
@@ -705,8 +719,9 @@ and the field focused; open it in a new tab with the same result.
 - **Migration edge cases removed (round 2: no live data)** — product in no channel, an existing C×L override,
   a Language value shadowed by a C override, a product with no primary-language value, and URL-key
   collisions found by the migration no longer apply: existing data need not be preserved (FR-020).
-- **A URL key that would collide** at some effective (C, L), or a Global key equal to another product's key —
-  the write is refused, as under 163 FR-070 (FR-016).
+- **A URL key already used by another product anywhere in the channel** (any language, orphaned keys
+  included), or a Global key equal to another product's key — the write is refused, as under 163 FR-070
+  (FR-016, round 7). The same product reusing its key in another language of the channel is accepted.
 - **A Global value written in another language than L** (e.g. English at a Polish (C, L)) — the buyer sees
   the Global value (FR-015), and the completeness gate counts it as present (FR-096).
 - **An orphaned URL key** — keeps reserving its key; another product is refused it, so re-adding the first
@@ -794,9 +809,11 @@ and the field focused; open it in a new tab with the same result.
   "Global", with no language suffix; a Global value carries no language. At a (C, L) with no C×L and no C
   value every reader, the storefront included, MUST fall back to the Global value **whatever language it is
   written in** (chain C×L → C → G, FR-013).
-- **FR-016** *(round 2)*: A product's URL key at (C, L) is its effective key (C×L → C → G). No two products MAY
-  share an effective URL key at any one (Channel, Language), and a product's Global key MUST NOT equal another
-  product's key. Enforcement is unchanged from 163 FR-070: uniqueness is checked when a key is written, and a
+- **FR-016** *(round 2; uniqueness space changed round 7)*: A product's URL key at (C, L) is its effective key
+  (C×L → C → G). A key text MUST belong to **at most one product in a whole channel, across all of that
+  channel's languages**, orphaned keys included; the same product MAY use the same key at several languages of
+  that channel. A product's Global key MUST NOT equal another product's key. The rule MUST be enforced by the
+  database (round 7: an exclusion constraint, so no cross-level race). Enforcement is unchanged from 163 FR-070: uniqueness is checked when a key is written, and a
   write that would break it is refused naming the product that holds the key. An **orphaned** URL key (163
   FR-015) MUST keep reserving its key, so re-adding its product to the channel never causes a collision
   (round 3). Redirects (163 FR-072) MUST be keyed per (Channel, Language) (round 3).
@@ -1054,6 +1071,10 @@ therefore a schema change, not a data-preserving move.
   row / field error reported in the import report, and a validation error in the API.
 - **FR-114**: Export MUST write `INHERIT` for an inherited value and `NULL` for a deliberately empty one, so that
   export followed by re-import of the unchanged file writes nothing.
+- **FR-118** *(round 7)*: CSV export MUST protect against formula injection: a text cell starting with `=`,
+  `+`, `-`, `@`, a tab or a carriage return MUST be prefixed with `'`; import MUST strip that prefix; a literal
+  leading apostrophe MUST be escaped so export → re-import stays a no-op (FR-114). Strictly numeric columns MUST
+  NOT be prefixed. The prefix composes with the FR-112 token escapes.
 - **FR-115**: The API documentation (contracts in `packages/contracts/` and the engineer docs) MUST state the
   encoding explicitly, noting that it differs from JSON Merge Patch and from Magento's conventions. The owner
   rejected `""` = inherit, a Magento-style `__EMPTY__VALUE__`-only token and a per-profile "empty cell means"
@@ -1160,6 +1181,9 @@ therefore a schema change, not a data-preserving move.
 - **Testing**: the F1 / F2 regression tests (against the new model), the schema migration's clean-run test (SC-002 as rewritten) and
   the resolver's C×L → C → G tests are written failing first (Constitution III).
 - **Security review**: the plan carries a security review of relaxing the SEO read to `catalog:read` (FR-093).
+- **Security review notes (round 7, no owner change)**: import profiles are platform-global, and any admin with
+  `catalog:write` may edit any profile (FR-048). To soften the in-place change of `null`'s meaning (FR-116),
+  the import dry-run / report shows, per column, the counts of `NULL` and `INHERIT` cells before apply.
 - **Prototype gate** (owner, round 6): a designer builds a clickable prototype of the editor — the scope
   switcher, the "Use value from <parent scope>" checkbox and the inheritance markers — before the editor UI
   stream; the owner reviews it **before that stream starts**. Backend streams may start in parallel.
