@@ -57,35 +57,6 @@ function issue(
   return { severity, reason, outputName, detail };
 }
 
-/**
- * Walks the language chain: the feed's language, then its configured
- * fallbacks, then the platform default (which is the last entry the caller puts
- * in `languageFallbacks`). Any substitution is a run warning (FR-040).
- */
-function pickLocalized(
-  map: Readonly<Record<string, string>>,
-  context: FeedResolutionContext,
-): { value: string; substituted: boolean } {
-  const direct = map[context.languageCode];
-  if (typeof direct === 'string' && direct.trim() !== '') {
-    return { value: direct, substituted: false };
-  }
-  for (const code of context.languageFallbacks) {
-    const candidate = map[code];
-    if (typeof candidate === 'string' && candidate.trim() !== '') {
-      return { value: candidate, substituted: true };
-    }
-  }
-  // Last resort: any populated translation is better than skipping the item on
-  // a field the operator did not mark required.
-  for (const candidate of Object.values(map)) {
-    if (typeof candidate === 'string' && candidate.trim() !== '') {
-      return { value: candidate, substituted: true };
-    }
-  }
-  return { value: '', substituted: false };
-}
-
 /** Renders an arbitrary attribute / custom-field value as a feed string. */
 function stringifyValue(value: unknown): string {
   if (value === null || value === undefined) return '';
@@ -197,21 +168,9 @@ function resolveSource(
       return { value: item.productType, issues: [] };
     case 'name':
     case 'description': {
-      const map = field.sourceKind === 'name' ? item.name : item.description;
-      const picked = pickLocalized(map, context);
-      return {
-        value: picked.value,
-        issues: picked.substituted
-          ? [
-              issue(
-                'warning',
-                'missing_translation',
-                field.outputName,
-                `No ${context.languageCode} value; used a fallback language.`,
-              ),
-            ]
-          : [],
-      };
+      // 168-shim: one string per item now (FR-014); the per-language pick moves to S2's reader.
+      const text = field.sourceKind === 'name' ? item.name : item.description;
+      return { value: text ?? '', issues: [] };
     }
     case 'brand': {
       const key = field.sourceKey ?? DEFAULT_BRAND_KEY;

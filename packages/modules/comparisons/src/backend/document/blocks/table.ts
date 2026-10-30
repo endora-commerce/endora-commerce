@@ -65,7 +65,7 @@ export const comparisonTableBlock: ComparisonBlockRenderer = {
       if (bool(props, 'showImages', true) && image) {
         stack.push({ image, fit: [imageSize, imageSize], alignment: 'center', margin: [0, 0, 0, 4] });
       }
-      if (bool(props, 'showName', true)) stack.push({ text: localisedIn(product.name, language), bold: true });
+      if (bool(props, 'showName', true)) stack.push({ text: product.name, bold: true }); // 168-shim: the summary name is the effective string
       if (bool(props, 'showSku', false)) stack.push({ text: product.sku, color: '#475569' });
       if (bool(props, 'showPrice', true)) {
         stack.push({ text: product.price ? money(product.price.amount, product.price.currency, language) : emptyValue });

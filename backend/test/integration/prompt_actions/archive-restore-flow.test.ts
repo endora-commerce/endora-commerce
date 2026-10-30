@@ -44,8 +44,8 @@ describe('163 P-1 — assistant Archive / Restore [integration]', () => {
         slug: `arch-p1-${suffix.toLowerCase()}-${RUN}`,
         type: 'simple',
         status,
-        name: { en: `Archivable ${suffix} ${RUN}` },
-        description: { en: 'P-1 fixture' },
+        name: `Archivable ${suffix} ${RUN}`,
+        description: 'P-1 fixture',
         visibility: 'public',
       });
     activeId = make('A', 'active').id;

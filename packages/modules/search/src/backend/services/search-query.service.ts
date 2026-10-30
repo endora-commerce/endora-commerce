@@ -6,7 +6,7 @@ import {
   listingPriceChannelContext,
   resolveScopeLanguage,
   listingPriceMoney,
-  overrideLanguages,
+  scopeLanguageOf,
   type CatalogAttributeReadPort,
   type CatalogProductAvailabilityPort,
   type CatalogProductUrlKeyReadPort,
@@ -673,15 +673,12 @@ export function searchHitSummary(
     sku: product.sku,
     type: product.type,
     name:
+      // 168-shim: the chain at the request's (C, L); S2's `texts.<L>` rewrite replaces it.
       effectiveSystemText(
         overrides,
         'name',
-        {
-          channelId: channel.id,
-          languages: overrideLanguages(preferredLanguage, channel.defaultLanguage),
-        },
+        { channelId: channel.id, languageCode: scopeLanguageOf(channel, preferredLanguage) },
         product.name,
-        pickLang(product.name, preferredLanguage, channel),
       ) || hit.name,
     slug: inChannel.slug ?? product.slug,
     categorySlugs: hit.categorySlugs,
@@ -710,21 +707,3 @@ export function searchHitSummary(
   };
 }
 
-function pickLang(
-  blob: Record<string, string>,
-  preferred: string | undefined,
-  channel: ResolvedSearchChannel,
-): string {
-  const candidates = [
-    preferred,
-    channel?.defaultLanguage,
-    'en-US',
-    'en',
-  ].filter((v): v is string => typeof v === 'string');
-  for (const lang of candidates) {
-    const hit = blob[lang];
-    if (hit) return hit;
-  }
-  const anyKey = Object.keys(blob)[0];
-  return anyKey ? (blob[anyKey] ?? '') : '';
-}

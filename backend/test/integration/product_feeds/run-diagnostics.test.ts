@@ -56,8 +56,8 @@ describe('feed run diagnostics [integration]', () => {
       type: 'simple',
       status: 'active',
       visibility: 'public',
-      name: { 'en-US': 'No price at all', 'pl-PL': 'Bez ceny' },
-      description: { 'en-US': 'x', 'pl-PL': 'x' },
+      name: 'No price at all',
+      description: 'x',
     });
     em.create(Product, {
       id: NO_TRANSLATION_ID,
@@ -67,8 +67,8 @@ describe('feed run diagnostics [integration]', () => {
       status: 'active',
       visibility: 'public',
       // English only: a `pl` feed has to walk the fallback chain for this one.
-      name: { 'en-US': 'English only' },
-      description: { 'en-US': 'English only' },
+      name: 'English only',
+      description: 'English only',
     });
     await em.flush();
 

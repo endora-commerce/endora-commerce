@@ -38,10 +38,6 @@ export interface InventoryPromptToolsDeps {
 
 const RESULT_LIMIT = 20;
 
-function label(name: Record<string, string>): string {
-  return name['en'] ?? Object.values(name)[0] ?? '(unnamed)';
-}
-
 export function inventoryPromptTools(deps: InventoryPromptToolsDeps): PromptActionTool[] {
   const warehouseService = new WarehouseService(deps.emFactory);
   const stockLevelService = new StockLevelService(
@@ -97,10 +93,10 @@ export function inventoryPromptTools(deps: InventoryPromptToolsDeps): PromptActi
       });
       const current = level?.onHand ?? 0;
       return {
-        headline: `Set stock of "${label(product.name)}" in warehouse "${warehouse.name}" to ${params.quantity}`,
+        headline: `Set stock of "${(product.name || product.sku) /* 168-shim: Global name */}" in warehouse "${warehouse.name}" to ${params.quantity}`,
         current: { onHand: current },
         affectedCount: 1,
-        sample: [{ id: product.id, label: label(product.name) }],
+        sample: [{ id: product.id, label: (product.name || product.sku) /* 168-shim: Global name */ }],
       };
     },
     execute: async (params, ctx: ToolContext) => {

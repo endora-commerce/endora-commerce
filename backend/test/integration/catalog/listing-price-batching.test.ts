@@ -55,8 +55,8 @@ describe('catalogue listing prices its page in one resolution', () => {
         slug: `batchpage-${stamp}-${idx}`,
         type: 'simple',
         status: 'active',
-        name: { 'en-US': `Batch page product ${idx}` },
-        description: { 'en-US': 'Fixture for the listing batching guard.' },
+        name: `Batch page product ${idx}`,
+        description: 'Fixture for the listing batching guard.',
         visibility: 'public',
         attributeValues: {},
       });

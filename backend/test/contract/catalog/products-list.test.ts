@@ -82,7 +82,7 @@ describe('GET /api/v1/catalog/products — the derived summary (feature 163)', (
         slug: sku.toLowerCase().replace(/_/g, '-'),
         type: 'simple',
         status: 'active',
-        name: { 'en-US': `Summary ${key}` },
+        name: `Summary ${key}`,
         description: { ...description },
         visibility: 'public',
         allowedOrganizationIds: [],

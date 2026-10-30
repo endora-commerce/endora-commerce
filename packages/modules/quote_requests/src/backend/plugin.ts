@@ -106,7 +106,7 @@ export interface QuoteRequestsModuleOptions {
    */
   channelMembership: SalesChannelMembershipPort;
   /** Feature 163 — `catalog`'s availability answer for every quote-line seam. */
-  catalogAvailability: Pick<CatalogProductAvailabilityPort, 'filterAvailable' | 'effectiveNames' | 'effectiveOrderRules'>;
+  catalogAvailability: Pick<CatalogProductAvailabilityPort, 'filterAvailable' | 'effectiveTexts' | 'effectiveOrderRules'>;
   customerAccounts: CustomerAccountReadPort;
   organizations: OrganizationDetailsPort;
   adminUsers: AdminUserReadPort;

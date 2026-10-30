@@ -6,7 +6,6 @@ import {
   lineAmountHalfUp,
   moneySum,
   organizationCompanyTaxId,
-  pickLocalized,
   resolveScopeLanguage,
   roundHalfUp,
   type CartSnapshot,
@@ -2145,7 +2144,7 @@ export class OrderService {
               fulfilmentStrategy: p.fulfilmentStrategy ?? null,
               fulfilmentStrategyWarehouseOrder: p.fulfilmentStrategyWarehouseOrder ?? null,
               sku: p.sku,
-              name: this.anyValue(p.name),
+              name: p.name, // 168-shim: Global name
             },
           ]),
         );
@@ -2490,7 +2489,8 @@ export class OrderService {
         // Feature 043 — when the line was ordered as a packaging unit, append
         // the unit name to the snapshot name so every order-derived document
         // shows it, and keep a structured snapshot for programmatic use.
-        const baseName = product ? this.anyValue(product.name) : '';
+        // 168-shim: the Global name; the snapshot at the order's (C, L) is S2's (`effectiveTexts`, T05x).
+        const baseName = product ? product.name : '';
         const snapshotName = item.packagingUnitName
           ? `${baseName} (${item.packagingUnitName})`
           : baseName;
@@ -3048,12 +3048,13 @@ export class OrderService {
    * when the record is gone.
    */
   #productName(
-    productById: ReadonlyMap<string, { name: Record<string, string> }>,
+    productById: ReadonlyMap<string, { name: string }>,
     productId: string,
-    language: string | undefined,
+    _language: string | undefined,
   ): string {
     const product = productById.get(productId);
-    return (product ? pickLocalized(product.name, language) : '') || productId;
+    // 168-shim: the Global name; the effective name at the order's (C, L) is S2's (`effectiveTexts`).
+    return (product ? product.name : '') || productId;
   }
 
   private anyValue(blob: Record<string, string>): string {

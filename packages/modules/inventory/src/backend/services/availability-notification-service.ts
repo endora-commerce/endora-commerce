@@ -364,7 +364,7 @@ export class AvailabilityNotificationService {
       items: rows.map((r) => {
         const p = productById.get(r.productId);
         const productName = p
-          ? p.name['en-US'] ?? Object.values(p.name)[0] ?? p.sku
+          ? p.name || p.sku /* 168-shim: Global name */
           : '—';
         const email =
           r.email ??
@@ -415,7 +415,7 @@ export class AvailabilityNotificationService {
 
     const product = await this.catalogProducts.findById(input.productId);
     const productName = product
-      ? product.name['en-US'] ?? Object.values(product.name)[0] ?? product.sku
+      ? product.name || product.sku /* 168-shim: Global name */
       : 'product';
     const customerIds = Array.from(
       new Set(rows.map((r) => r.customerAccountId).filter((id): id is string => typeof id === 'string')),

@@ -1,4 +1,4 @@
-import { pickLocalized, type CatalogProductRecord } from '@endora-commerce/contracts';
+import { type CatalogProductRecord } from '@endora-commerce/contracts';
 
 /** What a basket line shows of its product. */
 export interface ProductMeta {
@@ -22,7 +22,7 @@ export interface ProductMeta {
  */
 export function productMetaOf(
   products: readonly CatalogProductRecord[],
-  preferredLanguage: string | undefined,
+  _preferredLanguage: string | undefined,
   /** The ids available at the basket's (channel, language) to this buyer now. */
   available: ReadonlySet<string>,
   /** The effective names at the basket's (channel, language), where known. */
@@ -36,7 +36,7 @@ export function productMetaOf(
   const meta = new Map<string, ProductMeta>();
   for (const p of products) {
     meta.set(p.id, {
-      name: effectiveNames.get(p.id) || pickLocalized(p.name, preferredLanguage),
+      name: effectiveNames.get(p.id) || p.name, // 168-shim: Global text
       slug: available.has(p.id) ? (effectiveKeys.get(p.id) ?? p.slug) : null,
       sku: p.sku,
     });

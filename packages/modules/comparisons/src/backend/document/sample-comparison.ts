@@ -12,7 +12,7 @@ export function sampleComparisonData(_language: string): ComparisonDocumentData 
   const product = (n: number, over: Partial<ComparisonDocumentData['view']['products'][number]> = {}) => ({
     id: `00000000-0000-4000-8000-00000000c0${n}0`,
     sku: `SAMPLE-${n}00`,
-    name: { 'en-US': `Sample product ${n}`, 'pl-PL': `Przykładowy produkt ${n}` },
+    name: `Sample product ${n}`,
     slug: `sample-product-${n}`,
     type: 'simple' as const,
     primaryAssetUrl: null,

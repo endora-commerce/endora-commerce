@@ -44,7 +44,7 @@ describe('products — generated admin name and search keys (161 G15)', () => {
         type: 'simple',
         status: 'active',
         name,
-        description: { 'en-US': '' },
+        description: '',
         visibility: 'public',
         attributeValues: {},
       });
@@ -129,15 +129,15 @@ describe('products — generated admin name and search keys (161 G15)', () => {
       slug: `g15k-orm-${stamp.toLowerCase()}`,
       type: 'simple',
       status: 'active',
-      name: { 'en-US': 'Rivet' },
-      description: { 'en-US': '' },
+      name: 'Rivet',
+      description: '',
       visibility: 'public',
       attributeValues: {},
       ...({ adminNameKeyEn: 'zzz' } as Record<string, unknown>),
     });
     await em.persistAndFlush(p);
     expect((await keysOf(p.id)).admin_name_key_en).toBe('rivet');
-    p.name = { 'en-US': 'Washer' };
+    p.name = 'Washer';
     await em.flush();
     expect((await keysOf(p.id)).admin_name_key_en).toBe('washer');
   });

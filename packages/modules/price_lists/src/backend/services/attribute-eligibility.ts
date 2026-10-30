@@ -46,12 +46,13 @@ const ELIGIBLE_VALUE_TYPES: ReadonlySet<AttributeValueType> = new Set<AttributeV
  * candidates (FR-010: unflagging an attribute must never break checkout).
  */
 export function attributeInactiveReason(
-  view: Pick<CatalogAttributeView, 'isPriceRule' | 'languageScoped' | 'channelScoped' | 'valueType'> | null,
+  view: Pick<CatalogAttributeView, 'isPriceRule' | 'scopeLevels' | 'valueType'> | null,
 ): AttributeInactiveReason | null {
   if (!view) return 'attribute_not_found';
   if (!view.isPriceRule) return 'attribute_not_flagged';
-  if (view.languageScoped) return 'attribute_language_scoped';
-  if (view.channelScoped) return 'attribute_channel_scoped';
+  // Feature 168 (R15) — the derived scope set replaces the two 163 flags.
+  if (view.scopeLevels.includes('CL')) return 'attribute_language_scoped';
+  if (view.scopeLevels.includes('C')) return 'attribute_channel_scoped';
   if (!ELIGIBLE_VALUE_TYPES.has(view.valueType)) return 'attribute_value_type';
   return null;
 }

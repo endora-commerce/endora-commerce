@@ -3,10 +3,8 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ANONYMOUS_PRODUCT_AUDIENCE,
   ERROR_CODES,
-  effectivePackagingUnitName,
   isOrderMinimumEligibleType,
   minimumRefusal,
-  pickLocalized,
   type CartBatchLineInput,
   type CartBatchLineOutcome,
   type CartMergeOutcome,
@@ -658,7 +656,7 @@ export class CartService {
           belowMinimumOutcome(
             index,
             rejection,
-            outcomeNames.get(resolved.product.id) ?? pickLocalized(resolved.product.name, options.language),
+            outcomeNames.get(resolved.product.id) ?? resolved.product.name, // 168-shim: Global text
           ),
         );
         continue;
@@ -815,7 +813,7 @@ export class CartService {
     const names = new Map(
       resolvedLines.map(({ resolved }) => [
         resolved.product.id,
-        effective.get(resolved.product.id) ?? pickLocalized(resolved.product.name, options.language),
+        effective.get(resolved.product.id) ?? resolved.product.name, // 168-shim: Global text
       ]),
     );
     const refusal = minimumRefusal(violations, names, 'index');
@@ -835,10 +833,11 @@ export class CartService {
     const named = resolvedLines.find(({ input }) => input.salesChannelId)?.input.salesChannelId;
     if (resolvedLines.length === 0) return new Map();
     const channelId = named ?? this.#basketChannelOf(actor);
-    return this.availability.effectiveNames(
+    const texts = await this.availability.effectiveTexts(
       [...new Set(resolvedLines.map(({ resolved }) => resolved.product.id))],
       { channelId, languageCode: named ? null : basketScopeLanguage(channelId, actor.languageTag) },
     );
+    return new Map([...texts].map(([id, text]) => [id, text.name]));
   }
 
   /**
@@ -1051,7 +1050,10 @@ export class CartService {
       packagingUnit && input.salesChannelId
         ? await this.#channelDefaultLanguage(input.salesChannelId)
         : scopeLanguage;
-    const packagingUnitName = packagingUnit ? effectivePackagingUnitName(packagingUnit, unitLanguage) : null;
+    // 168-shim: the Global unit name; S2 resolves it at the line's (C, L) with
+    // `effectivePackagingUnitNames` (`contracts/readers.md` §1).
+    void unitLanguage;
+    const packagingUnitName = packagingUnit ? packagingUnit.name : null;
     return { product, packagingUnit, packagingUnitName, effectiveQuantity };
   }
 

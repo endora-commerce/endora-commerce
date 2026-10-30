@@ -102,9 +102,9 @@ const duplicateFeedBodySchema = duplicateProductFeedRequestSchema.extend({
  * recognise what a rule selected, so any localized value beats an empty string;
  * the SKU is the last resort because it always identifies the row.
  */
-function pickProductName(name: Record<string, string>, sku: string): string {
-  const values = Object.values(name).filter((value) => value.trim() !== '');
-  return name['en-US']?.trim() || values[0] || sku;
+function pickProductName(name: string, sku: string): string {
+  // 168-shim: the Global name (`contracts/readers.md` §1, admin preview = G).
+  return name.trim() || sku;
 }
 
 // Re-exported for `routes.public.ts`, which has imported it from here since

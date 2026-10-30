@@ -140,7 +140,7 @@ export interface RfqAdminServiceDeps {
    * Feature 163 (FR-018) — `catalog`'s availability answer, asked about an
    * operator's lines only to warn: `createOnBehalf` accepts them either way.
    */
-  catalogAvailability: Pick<CatalogProductAvailabilityPort, 'filterAvailable' | 'effectiveNames'>;
+  catalogAvailability: Pick<CatalogProductAvailabilityPort, 'filterAvailable' | 'effectiveTexts'>;
   /**
    * Feature 163 (security review M1) — the kernel's membership port: the channels an
    * Organization is assigned to, which an operator's on-behalf request may be raised on —
@@ -803,7 +803,7 @@ export class RfqAdminService {
             em.create(QuoteRequestItem, {
               quoteRequestId: rfq.id,
               productId: product.id,
-              productName: row?.productName ?? lineNames.get(product.id) ?? anyLocaleValue(product.name),
+              productName: row?.productName ?? lineNames.get(product.id) ?? product.name /* 168-shim: Global name */,
               productSlug: product.slug,
               variantId,
               variantLabel:
@@ -1073,7 +1073,7 @@ export class RfqAdminService {
         em.create(QuoteRequestItem, {
           quoteRequestId: rfq.id,
           productId: product.id,
-          productName: lineNames.get(product.id) ?? anyLocaleValue(product.name),
+          productName: lineNames.get(product.id) ?? product.name /* 168-shim: Global name */,
           productSlug: product.slug,
           variantId: lineInput.variantId ?? null,
           quantity: lineInput.quantity,
@@ -1196,11 +1196,6 @@ function toHistoryRevision(revision: {
 
 function unique(values: ReadonlyArray<string | null | undefined>): string[] {
   return [...new Set(values.filter((value): value is string => typeof value === 'string' && value.length > 0))];
-}
-
-function anyLocaleValue(blob: Record<string, string>): string {
-  const k = Object.keys(blob)[0];
-  return k ? (blob[k] ?? '') : '';
 }
 
 function customerDisplayName(c: CustomerAccountRecord): string {

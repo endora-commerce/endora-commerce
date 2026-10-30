@@ -1,4 +1,4 @@
-import { ERROR_CODES, effectivePackagingUnitName, type TranslationMap } from '@endora-commerce/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 
 /**
@@ -24,8 +24,6 @@ export interface PackagingUnitCandidate {
   productId: string;
   name: string;
   baseQuantity: number;
-  /** Feature 163 (FR-079) — the unit's name per language; a snapshot reads it, a name match never does. */
-  nameTranslations?: TranslationMap | null;
 }
 
 /** What a line stores: the catalogue's unit, or plain pieces (all `null`). */
@@ -85,7 +83,7 @@ const PLAIN_PIECES: ResolvedPackaging = {
 export function resolveLinePackaging(
   lines: readonly PackagingReferenceLine[],
   units: readonly PackagingUnitCandidate[],
-  scopeLanguage?: string | null,
+  _scopeLanguage?: string | null,
 ): { lines: ResolvedPackaging[]; mismatches: PackagingMismatch[] } {
   const unitsById = new Map(units.map((unit) => [unit.id, unit]));
   const resolved: ResolvedPackaging[] = [];
@@ -93,7 +91,8 @@ export function resolveLinePackaging(
 
   const fromUnit = (unit: PackagingUnitCandidate): ResolvedPackaging => ({
     packagingUnitId: unit.id,
-    packagingUnitName: effectivePackagingUnitName(unit, scopeLanguage),
+    // 168-shim: the Global unit name; S2 snapshots it at (C, L) with `effectivePackagingUnitNames`.
+    packagingUnitName: unit.name,
     packagingUnitBaseQuantity: unit.baseQuantity,
   });
 

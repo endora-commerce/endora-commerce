@@ -39,7 +39,7 @@ describe('CatalogProductReadService.pageProductsByAdminName (161 G15)', () => {
         type: 'simple',
         status: 'active',
         name,
-        description: { 'en-US': '' },
+        description: '',
         visibility: 'public',
         attributeValues: {},
         ...extra,

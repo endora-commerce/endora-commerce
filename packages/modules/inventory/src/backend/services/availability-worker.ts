@@ -79,7 +79,7 @@ export class AvailabilityWorker {
       customerIds.length > 0 ? await this.customerAccounts.findByIds(customerIds) : [];
     const emailById = new Map(customers.map((c) => [c.id, c.email]));
 
-    const productName = product.name['en-US'] ?? Object.values(product.name)[0] ?? product.sku;
+    const productName = product.name || product.sku /* 168-shim: Global name */;
     const now = new Date();
 
     for (const sub of subscriptions) {

@@ -196,7 +196,7 @@ function buildHeaderRow(
     if (dataUri) {
       stack.push({ image: dataUri, fit: [120, 120], alignment: 'center' });
     }
-    stack.push({ text: localised(p.name), style: 'productName', alignment: 'center' });
+    stack.push({ text: p.name, style: 'productName', alignment: 'center' }); // 168-shim: effective string
     stack.push({
       // A unit price: its significant places, up to four (owner ruling of 2026-10-25).
       text: p.price ? `${unitPriceDisplayText(p.price.amount)} ${p.price.currency}` : '—',

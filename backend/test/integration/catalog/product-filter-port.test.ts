@@ -347,7 +347,7 @@ async function seedProducts(em: EntityManager): Promise<Record<string, string>> 
       slug: 'filter-active',
       status: 'active',
       visibility: 'public',
-      name: { 'en-US': 'Active' },
+      name: 'Active',
       attributeValues: { colour: 'teal' },
     }),
     second: em.create(Product, {
@@ -356,7 +356,7 @@ async function seedProducts(em: EntityManager): Promise<Record<string, string>> 
       slug: 'filter-second',
       status: 'active',
       visibility: 'public',
-      name: { 'en-US': 'Second' },
+      name: 'Second',
       attributeValues: { colour: 'ochre' },
     }),
     off: em.create(Product, {
@@ -365,7 +365,7 @@ async function seedProducts(em: EntityManager): Promise<Record<string, string>> 
       slug: 'filter-off',
       status: 'inactive',
       visibility: 'public',
-      name: { 'en-US': 'Off' },
+      name: 'Off',
     }),
     private: em.create(Product, {
       ...base,
@@ -373,7 +373,7 @@ async function seedProducts(em: EntityManager): Promise<Record<string, string>> 
       slug: 'filter-private',
       status: 'active',
       visibility: 'logged_in_only',
-      name: { 'en-US': 'Private' },
+      name: 'Private',
     }),
     archived: em.create(Product, {
       ...base,
@@ -381,7 +381,7 @@ async function seedProducts(em: EntityManager): Promise<Record<string, string>> 
       slug: 'filter-archived',
       status: 'active',
       visibility: 'public',
-      name: { 'en-US': 'Archived' },
+      name: 'Archived',
       archivedAt: new Date(),
     }),
     deleted: em.create(Product, {
@@ -390,7 +390,7 @@ async function seedProducts(em: EntityManager): Promise<Record<string, string>> 
       slug: 'filter-deleted',
       status: 'active',
       visibility: 'public',
-      name: { 'en-US': 'Deleted' },
+      name: 'Deleted',
       deletedAt: new Date(),
     }),
   };
@@ -412,14 +412,14 @@ async function seedSkus(
   const rows = skus.map((sku, index) =>
     em.create(Product, {
       type: 'simple' as const,
-      description: {},
+      description: null,
       attributeSetId: SET_ID,
       attributeValues: attributeValues[sku] ?? {},
       sku,
       slug: `literal-fixture-${index}`,
       status: 'active',
       visibility: 'public',
-      name: { 'en-US': sku },
+      name: sku,
     }),
   );
   await em.persistAndFlush(rows);
@@ -454,7 +454,7 @@ async function seedAudienceMatrix(em: EntityManager): Promise<AudienceMatrixRow[
   const rows = combinations.map((combination, index) =>
     em.create(Product, {
       type: 'simple' as const,
-      description: {},
+      description: null,
       attributeSetId: SET_ID,
       attributeValues: {},
       sku: `AUDIENCE-${combination.visibility.toUpperCase()}-${
@@ -464,7 +464,7 @@ async function seedAudienceMatrix(em: EntityManager): Promise<AudienceMatrixRow[
       status: 'active',
       visibility: combination.visibility,
       allowedOrganizationIds: combination.allowedOrganizationIds,
-      name: { 'en-US': `Audience ${index}` },
+      name: `Audience ${index}`,
     }),
   );
   await em.persistAndFlush(rows);

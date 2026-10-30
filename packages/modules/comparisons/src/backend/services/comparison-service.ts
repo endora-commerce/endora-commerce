@@ -13,9 +13,9 @@ import {
   isOrderMinimumEligibleType,
   isProductVisibleTo,
   scopeLanguageOf,
-  channelOverrideFor,
+  effectiveScopedValue,
   effectiveSystemText,
-  overrideLanguages,
+  type ScopeLevel,
   type OverrideRow,
   type ComparisonOwnerView,
   type ComparisonDisplayMode,
@@ -210,10 +210,11 @@ export class ComparisonService {
     products: readonly CatalogProductRecord[],
     channelId: string,
     languageCode: string | null,
-    channelDefaultLanguage: string | undefined,
-    attributeDefs: ReadonlyArray<{ key: string; channelScoped?: boolean; languageScoped?: boolean }>,
-  ): Promise<{ names: Map<string, Record<string, string>>; values: Map<string, Record<string, unknown>> }> {
-    const names = new Map<string, Record<string, string>>();
+    _channelDefaultLanguage: string | undefined,
+    attributeDefs: ReadonlyArray<{ key: string; scopeLevels?: readonly ScopeLevel[] }>,
+  ): Promise<{ names: Map<string, string>; values: Map<string, Record<string, unknown>> }> {
+    // Feature 168 — the chain at (C, L): C×L → C → Global (`contracts/readers.md` §1).
+    const names = new Map<string, string>();
     const values = new Map<string, Record<string, unknown>>();
     if (products.length === 0 || languageCode === null) return { names, values };
     const rows = await this.catalogProducts.listValueOverridesByProductIds(
@@ -227,27 +228,14 @@ export class ComparisonService {
       list.push({ attributeKey: row.attributeKey, channelId: row.channelId, languageCode: row.languageCode, value: row.value });
       byProduct.set(row.productId, list);
     }
-    const ctx = { channelId, languages: overrideLanguages(languageCode, channelDefaultLanguage) };
+    const ctx = { channelId, languageCode };
     for (const product of products) {
       const overrides = byProduct.get(product.id);
       if (!overrides) continue;
-      const baseline = product.name ?? {};
-      const pick = [languageCode, channelDefaultLanguage, 'en-US', 'en']
-        .filter((l): l is string => typeof l === 'string')
-        .map((l) => baseline[l])
-        .find((v) => typeof v === 'string' && v.length > 0);
-      const name = effectiveSystemText(overrides, 'name', ctx, baseline, pick ?? Object.values(baseline)[0] ?? '');
-      names.set(product.id, { ...baseline, [languageCode]: name });
+      names.set(product.id, effectiveSystemText(overrides, 'name', ctx, product.name) ?? product.name);
       const out: Record<string, unknown> = { ...product.attributeValues };
       for (const def of attributeDefs) {
-        const v = channelOverrideFor(
-          overrides,
-          def.key,
-          { channelScoped: def.channelScoped === true, languageScoped: def.languageScoped === true },
-          ctx,
-          product.attributeValues[def.key],
-        );
-        if (v !== undefined) out[def.key] = v;
+        out[def.key] = effectiveScopedValue(overrides, def.key, def.scopeLevels ?? ['G'], ctx, product.attributeValues[def.key]);
       }
       values.set(product.id, out);
     }
@@ -762,7 +750,7 @@ export class ComparisonService {
           // the column by (`DELETE /me/products/:productId`).
           id: reader === 'owner' ? row.productId : randomUUID(),
           sku: '',
-          name: { en: '(removed product)' },
+          name: '(removed product)',
           slug: '',
           type: 'simple' as const,
           primaryAssetUrl: null,

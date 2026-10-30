@@ -90,7 +90,7 @@ export class LowStockAlertService {
       if (threshold === null) continue;
       const cumulative = Number(row.on_hand ?? 0);
       if (cumulative > threshold) continue;
-      const productName = p.name['en-US'] ?? Object.values(p.name)[0] ?? p.sku;
+      const productName = p.name || p.sku /* 168-shim: Global name */;
       result.push({
         productId: p.id,
         productSku: p.sku,
@@ -138,7 +138,7 @@ export class LowStockAlertService {
   ): Promise<void> {
     const recipient = await this.resolveRecipient();
     if (!recipient) return;
-    const productName = product.name['en-US'] ?? Object.values(product.name)[0] ?? product.sku;
+    const productName = product.name || product.sku /* 168-shim: Global name */;
     const messageId = `inventory.low-stock:${product.id}:${Date.now()}`;
     const meta = { productId: product.id, cumulativeOnHand: cumulative, threshold };
     if (this.templateEmail) {

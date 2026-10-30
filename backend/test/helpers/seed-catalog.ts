@@ -166,11 +166,8 @@ export async function seedUs1Catalog(em: EntityManager): Promise<void> {
     slug: 'example-simple-product',
     type: 'simple',
     status: 'active',
-    name: { 'en-US': 'Example simple product', 'pl-PL': 'Przykładowy produkt prosty' },
-    description: {
-      'en-US': 'Reference product used across US1 contract and integration tests.',
-      'pl-PL': 'Produkt referencyjny używany w testach US1.',
-    },
+    name: 'Example simple product',
+    description: 'Reference product used across US1 contract and integration tests.',
     visibility: 'public',
     attributeValues: {
       color: 'red',
@@ -184,11 +181,8 @@ export async function seedUs1Catalog(em: EntityManager): Promise<void> {
     slug: 'example-blue-product',
     type: 'simple',
     status: 'active',
-    name: { 'en-US': 'Example blue product', 'pl-PL': 'Przykładowy produkt niebieski' },
-    description: {
-      'en-US': 'Another product used to test filter facets and search.',
-      'pl-PL': 'Produkt do testów filtrów i wyszukiwarki.',
-    },
+    name: 'Example blue product',
+    description: 'Another product used to test filter facets and search.',
     visibility: 'public',
     attributeValues: {
       color: 'blue',
@@ -201,11 +195,8 @@ export async function seedUs1Catalog(em: EntityManager): Promise<void> {
     slug: 'example-large-product',
     type: 'simple',
     status: 'active',
-    name: { 'en-US': 'Example large product', 'pl-PL': 'Przykładowy duży produkt' },
-    description: {
-      'en-US': 'Large-category product — category filter integration test coverage.',
-      'pl-PL': 'Produkt przypisany do dużych widżetów.',
-    },
+    name: 'Example large product',
+    description: 'Large-category product — category filter integration test coverage.',
     visibility: 'public',
     attributeValues: { color: 'green', material: 'plastic' },
   });

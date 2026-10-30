@@ -86,12 +86,6 @@ function adminUrl(token: RecordReferenceToken): string | null {
 }
 
 /** A Product's name in the reader's language, then any name of that language, then any name, then its SKU. */
-function productLabel(name: Record<string, string>, sku: string, language: string): string {
-  const base = language.split('-')[0] ?? language;
-  const sameLanguage = Object.keys(name).find((locale) => locale === base || locale.startsWith(`${base}-`));
-  return name[language] || (sameLanguage ? name[sameLanguage] : undefined) || Object.values(name).find(Boolean) || sku;
-}
-
 function isActive(person: { status: string; deletedAt: Date | null }): boolean {
   return person.status === 'active' && person.deletedAt === null;
 }
@@ -167,7 +161,7 @@ export class ProjectReferenceService {
         : Promise.resolve(new Map()),
       projectIds.length > 0 ? this.deps.projects.findVisibleMany(projectIds) : Promise.resolve([]),
     ]);
-    const [products, orders, people, quoteRequests, tasks, language] = await Promise.all([
+    const [products, orders, people, quoteRequests, tasks, _language] = await Promise.all([
       mayReadProducts ? this.deps.products.findByIds(productIds, { liveOnly: true }) : Promise.resolve([]),
       mayReadOrders ? this.deps.orders.findByIds(orderIds) : Promise.resolve([]),
       personIds.length > 0 ? this.deps.adminUsers.findByIds(personIds) : Promise.resolve([]),
@@ -181,7 +175,7 @@ export class ProjectReferenceService {
     const labels = new Map<string, string>();
     const orderFacts = new Map<string, RecordReferenceOrder>();
     for (const product of products)
-      labels.set(`product:${product.id}`, productLabel(product.name, product.sku, language));
+      labels.set(`product:${product.id}`, product.name /* 168-shim: Global text */);
     for (const order of orders) {
       labels.set(`order:${order.id}`, order.businessId);
       orderFacts.set(order.id, {

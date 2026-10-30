@@ -4,7 +4,6 @@ import {
   type CustomFieldValuePort,
   ERROR_CODES,
   isProductVisibleTo,
-  pickLocalized,
   type ProductAudience,
   type QuoteRequest as RfqDto,
   type QuoteRequestSummary,
@@ -166,7 +165,7 @@ export interface RfqServiceDeps {
    * product here, now" (FR-004, FR-018): membership, effective status at
    * (channel, L), window and effective audience.
    */
-  catalogAvailability: Pick<CatalogProductAvailabilityPort, 'filterAvailable' | 'effectiveNames' | 'effectiveOrderRules'>;
+  catalogAvailability: Pick<CatalogProductAvailabilityPort, 'filterAvailable' | 'effectiveTexts' | 'effectiveOrderRules'>;
   customerAccounts: CustomerAccountReadPort;
   adminUsers: AdminUserReadPort;
   carts: CartWritePort;
@@ -281,10 +280,11 @@ export class RfqService {
     languageTag: string | null | undefined,
   ): Promise<Map<string, string>> {
     if (channelId === null || products.length === 0) return new Map();
-    return this.deps.catalogAvailability.effectiveNames(
+    const texts = await this.deps.catalogAvailability.effectiveTexts(
       products.map((p) => p.id),
       { channelId, languageCode: languageTag === null ? null : raisedInScopeLanguage(languageTag, channelId) },
     );
+    return new Map([...texts].map(([id, text]) => [id, text.name]));
   }
 
   /**
@@ -595,7 +595,7 @@ export class RfqService {
       // unit's, beside its id; a line naming no unit stores plain pieces.
       // Feature 163 (FR-017 d, N2) — the name is the one the buyer saw: the
       // effective name at the request's (channel, language).
-      const baseName = lineNames.get(product.id) ?? anyLocaleValue(product.name);
+      const baseName = lineNames.get(product.id) ?? product.name /* 168-shim: Global name */;
       const productName = unit.packagingUnitName ? `${baseName} (${unit.packagingUnitName})` : baseName;
       const item = em.create(QuoteRequestItem, {
         quoteRequestId: rfq.id,
@@ -784,7 +784,7 @@ export class RfqService {
         // FR-035 — packaging stored with the name suffix `createForCustomer`
         // writes; feature 155 (FR-026) — the catalogue unit's, beside its id;
         // feature 163 — the effective name at the request's (channel, language).
-        const baseName = lineNames.get(product.id) ?? anyLocaleValue(product.name);
+        const baseName = lineNames.get(product.id) ?? product.name /* 168-shim: Global name */;
         return {
           quoteRequestId: rfq.id,
           productId: product.id,
@@ -1612,18 +1612,13 @@ export class RfqService {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function anyLocaleValue(blob: Record<string, string>): string {
-  const k = Object.keys(blob)[0];
-  return k ? (blob[k] ?? '') : '';
-}
-
 /**
  * Feature 155 (D3/D4) — the names a refusal gives its products: in `language`,
  * the language the envelope translates the refusal's sentence into.
  */
-function productNames(products: Iterable<CatalogProductRecord>, language: string | undefined): Map<string, string> {
+function productNames(products: Iterable<CatalogProductRecord>, _language: string | undefined): Map<string, string> {
   const out = new Map<string, string>();
-  for (const product of products) out.set(product.id, pickLocalized(product.name, language));
+  for (const product of products) out.set(product.id, product.name); // 168-shim: Global text
   return out;
 }
 

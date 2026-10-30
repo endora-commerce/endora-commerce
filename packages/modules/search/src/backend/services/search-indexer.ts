@@ -2,9 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { Meilisearch, type Index } from 'meilisearch';
 import {
   effectiveSystemText,
-  overrideLanguages,
   resolveAttribute,
-  SYSTEM_ATTRIBUTE_SCOPES,
   type CatalogAttributeReadPort,
   type CatalogCategoryReadPort,
   type CatalogProductReadPort,
@@ -920,8 +918,10 @@ function buildDocument(
   // Name / Description through the four-step fallback chain so
   // per-(channel, language) overrides are visible in search. When not
   // supplied (legacy callers), fall back to plain locale-pick.
-  let name = pickLocale(product.name, locale);
-  let description = pickLocale(product.description, locale);
+  // 168-shim: the per-language index shape (`texts.<L>`, `contracts/search-index.md`) is S2's (T063+).
+  void locale;
+  let name = product.name;
+  let description = product.description ?? '';
   if (resolverInputs) {
     const overrideRows: OverrideRow[] = resolverInputs.overrides.map((o) => ({
       attributeKey: o.attributeKey,
@@ -932,20 +932,19 @@ function buildDocument(
     const ctx: ResolverContext = {
       channelId: resolverInputs.channelId,
       languageCode: resolverInputs.languageCode,
-      primaryLanguage: resolverInputs.languageCode,
     };
     const resolvedName = resolveAttribute({
       attributeKey: 'name',
       baseline: product.name,
       overrides: overrideRows,
-      scope: SYSTEM_ATTRIBUTE_SCOPES.name!,
+      levels: ['G', 'C', 'CL'],
       ctx,
     });
     const resolvedDesc = resolveAttribute({
       attributeKey: 'description',
       baseline: product.description,
       overrides: overrideRows,
-      scope: SYSTEM_ATTRIBUTE_SCOPES.description!,
+      levels: ['G', 'C', 'CL'],
       ctx,
     });
     if (typeof resolvedName.value === 'string' && resolvedName.value.length > 0) {
@@ -1029,31 +1028,16 @@ function localizedNamesOf(
   resolverInputs: { overrides: CatalogProductValueOverrideRecord[]; channelId: string; languageCode: string } | undefined,
 ): Record<string, string> {
   const out: Record<string, string> = {};
-  const channelDefault = resolverInputs?.languageCode;
   const rows: OverrideRow[] = (resolverInputs?.overrides ?? [])
     .filter((o) => o.channelId === resolverInputs?.channelId)
     .map((o) => ({ attributeKey: o.attributeKey, channelId: o.channelId, languageCode: o.languageCode ?? null, value: o.value }));
+  // 168-shim: the chain at (C, L) per live language; S2 replaces `localizedNames` with `texts`.
   for (const language of liveLanguages) {
-    const pick =
-      [language, channelDefault, 'en-US', 'en']
-        .filter((l): l is string => typeof l === 'string')
-        .map((l) => product.name[l])
-        .find((v) => typeof v === 'string' && v.length > 0) ?? Object.values(product.name)[0] ?? '';
     out[language] = resolverInputs
-      ? effectiveSystemText(
-          rows,
-          'name',
-          { channelId: resolverInputs.channelId, languages: overrideLanguages(language, channelDefault) },
-          product.name,
-          pick,
-        )
-      : pick;
+      ? (effectiveSystemText(rows, 'name', { channelId: resolverInputs.channelId, languageCode: language }, product.name) ??
+        '')
+      : product.name;
   }
   return out;
 }
 
-function pickLocale(value: Record<string, string>, locale: string): string {
-  return (
-    value[locale] ?? value[FALLBACK_LOCALE] ?? Object.values(value)[0] ?? ''
-  );
-}

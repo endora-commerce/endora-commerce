@@ -119,6 +119,10 @@ import { Migration20261022T182523CatalogAdminNameKeys } from '@endora-commerce/m
 import { Migration20261025T222634CatalogProductStatusDropDraft } from '@endora-commerce/mod-catalog/migrations';
 import { Migration20261026T033453CatalogProductMediaScopes } from '@endora-commerce/mod-catalog/migrations';
 import { Migration20261026T084533CatalogAttachmentPackagingTranslations } from '@endora-commerce/mod-catalog/migrations';
+import { Migration20261030T113855CatalogScopeModelTexts } from '@endora-commerce/mod-catalog/migrations';
+import { Migration20261030T113859CatalogScopeModelOrderRules } from '@endora-commerce/mod-catalog/migrations';
+import { Migration20261030T113904CatalogScopeModelUrlKeys } from '@endora-commerce/mod-catalog/migrations';
+import { Migration20261030T113908CatalogScopeModelMedia } from '@endora-commerce/mod-catalog/migrations';
 import { Migration20261104T121504CatalogProductContentValues } from '@endora-commerce/mod-catalog/migrations';
 
 // ── cms ─────────────────────────────────────────────────────────────────────
@@ -220,6 +224,9 @@ import { Migration20261102T111501FormsInit } from '@endora-commerce/mod-forms/mi
 
 // ── google_analytics ────────────────────────────────────────────────────────
 import { Migration20260715T171116GoogleAnalyticsInit } from '@endora-commerce/mod-google-analytics/migrations';
+
+// ── import_export ───────────────────────────────────────────────────────────
+import { Migration20261103T154219ImportExportImportProfiles } from '@endora-commerce/mod-import-export/migrations';
 
 // ── inventory ───────────────────────────────────────────────────────────────
 import { Migration20260503T182812InventoryWorkflow } from '@endora-commerce/mod-inventory/migrations';
@@ -395,6 +402,7 @@ import { Migration20260501T123145SearchPhraseRecordsInit } from '@endora-commerc
 // ── seo ─────────────────────────────────────────────────────────────────────
 import { Migration20260425T154404SeoInit } from '@endora-commerce/mod-seo/migrations';
 import { Migration20261025T215911SeoMetaOverrideChannelScope } from '@endora-commerce/mod-seo/migrations';
+import { Migration20261103T171312SeoProductMetaThreeLevels } from '@endora-commerce/mod-seo/migrations';
 
 // ── shipments ───────────────────────────────────────────────────────────────
 import { Migration20260817T194652ShipmentsOrderFk } from '@endora-commerce/mod-shipments/migrations';
@@ -516,6 +524,10 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('catalog', Migration20261025T222634CatalogProductStatusDropDraft),
   migration('catalog', Migration20261026T033453CatalogProductMediaScopes),
   migration('catalog', Migration20261026T084533CatalogAttachmentPackagingTranslations),
+  migration('catalog', Migration20261030T113855CatalogScopeModelTexts),
+  migration('catalog', Migration20261030T113859CatalogScopeModelOrderRules),
+  migration('catalog', Migration20261030T113904CatalogScopeModelUrlKeys),
+  migration('catalog', Migration20261030T113908CatalogScopeModelMedia),
   migration('catalog', Migration20261104T121504CatalogProductContentValues),
 
   // ── cms ─────────────────────────────────────────────────────────────────────
@@ -617,6 +629,9 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── google_analytics ────────────────────────────────────────────────────────
   migration('google_analytics', Migration20260715T171116GoogleAnalyticsInit),
+
+  // ── import_export ───────────────────────────────────────────────────────────
+  migration('import_export', Migration20261103T154219ImportExportImportProfiles),
 
   // ── inventory ───────────────────────────────────────────────────────────────
   migration('inventory', Migration20260503T182812InventoryWorkflow),
@@ -792,6 +807,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   // ── seo ─────────────────────────────────────────────────────────────────────
   migration('seo', Migration20260425T154404SeoInit),
   migration('seo', Migration20261025T215911SeoMetaOverrideChannelScope),
+  migration('seo', Migration20261103T171312SeoProductMetaThreeLevels),
 
   // ── shipments ───────────────────────────────────────────────────────────────
   migration('shipments', Migration20260817T194652ShipmentsOrderFk),

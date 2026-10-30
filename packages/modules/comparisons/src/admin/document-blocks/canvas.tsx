@@ -86,7 +86,7 @@ function Table(props: Props): ReactElement {
           <th style={cell}>{str(props['attributeColumnLabel'])}</th>
           {products.map((product) => (
             <th key={product.id} style={cell}>
-              {flag(props['showName'], true) ? <div>{pick(product.name, language)}</div> : null}
+              {flag(props['showName'], true) ? <div>{product.name /* 168-shim: Global text */}</div> : null}
               {flag(props['showSku'], false) ? <div style={note}>{product.sku}</div> : null}
               {flag(props['showPrice'], true) ? (
                 <div>{product.price ? `${unitPriceDisplayText(product.price.amount)} ${product.price.currency}` : empty}</div>

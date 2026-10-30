@@ -101,8 +101,8 @@ describe('CartPricingRecompute — resolver call counts & write-back', () => {
       slug: `t021-${randomUUID().slice(0, 8)}`,
       type: 'simple',
       visibility: 'public',
-      name: { en: 'T021 fixture' },
-      description: { en: 'T021 fixture' },
+      name: 'T021 fixture',
+      description: 'T021 fixture',
     });
     await em.persistAndFlush(product);
     seedProductId = product.id;

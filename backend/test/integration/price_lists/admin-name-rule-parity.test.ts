@@ -42,7 +42,7 @@ describe('admin name rule — the grid label and the catalogue key agree (161 G1
         type: 'simple',
         status: 'active',
         name,
-        description: { 'en-US': '' },
+        description: '',
         visibility: 'public',
         attributeValues: {},
       }),

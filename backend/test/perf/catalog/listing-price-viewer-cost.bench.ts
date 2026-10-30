@@ -125,8 +125,8 @@ describe.skipIf(!shouldRun)('priced catalogue listing — anonymous vs signed-in
         slug: `vpriced-${idx}`,
         type: 'simple',
         status: 'active',
-        name: { 'en-US': `Viewer-priced product ${idx}` },
-        description: { 'en-US': `Synthetic product ${idx}.` },
+        name: `Viewer-priced product ${idx}`,
+        description: `Synthetic product ${idx}.`,
         visibility: 'public',
         attributeValues: {},
       });

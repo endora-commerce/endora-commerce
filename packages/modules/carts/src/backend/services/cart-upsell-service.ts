@@ -164,10 +164,7 @@ export class CartUpsellService {
    * "best-effort" rendering pattern.
    */
   private localizedName(product: CatalogProductRecord): string {
-    if (!product.name || typeof product.name !== 'object') return product.id;
-    const en = product.name['en-US'] ?? product.name['en'];
-    if (typeof en === 'string' && en.length > 0) return en;
-    const first = Object.values(product.name).find((v) => typeof v === 'string' && v.length > 0);
-    return (first as string) ?? product.id;
+    // 168-shim: the Global name (`contracts/readers.md` §1).
+    return product.name || product.id;
   }
 }
