@@ -43,7 +43,8 @@ export type ComparisonRowClass = z.infer<typeof comparisonRowClassSchema>;
 export const comparisonProductSummarySchema = z.object({
   id: uuidSchema,
   sku: z.string(),
-  name: multilingualStringSchema,
+  /** Feature 168 (`contracts/readers.md` §2) — the name effective at the comparison's (channel, language). */
+  name: z.string(),
   slug: z.string(),
   type: z.enum(['simple', 'configurable', 'grouped', 'bundle', 'virtual']),
   /**

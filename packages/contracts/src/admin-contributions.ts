@@ -27,6 +27,9 @@
  * the `AdminRouteDeclaration` interface.
  */
 import { z } from 'zod';
+import type { ScopeRef } from './product-scope-model.js';
+import type { ScopedValuesData } from './product-scoped-values.js';
+import type { ScopedWriteOp } from './scoped-write-encoding.js';
 
 import { KnownIconNameSchema } from './admin-actions.js';
 import { blockNameRe } from './cms.js';
@@ -268,16 +271,14 @@ export const AdminZoneNameSchema = z.enum([
    */
   'product.editor.channels',
   /**
-   * The end of the product editor's SEO tab, below `catalog`'s own URL keys.
+   * The product editor's SEO section at the editor scope (feature 168, FR-090…FR-092,
+   * `contracts/editor-ui.md` §5). Replaces 163's `product.editor.seo.after`.
    *
-   * Mounted **once** per editor. Props: {@link ProductEditorZoneProps}.
-   *
-   * Feature 163 (owner decision "SEO stub = A"): `seo` contributes the link to its
-   * meta editor here, so `catalog` never names `seo` — gating its own link on
-   * `{ module: 'seo' }` was the `foreign-module-id` coupling this place retires.
-   * The product id travels so a contribution can address the product itself.
+   * Mounted **once** per editor. Props: {@link ProductEditorSeoZoneProps}. `seo` contributes
+   * its fields here, staged into catalog's one Save; `catalog` renders the SEO tab only when the
+   * zone has a contributor, so with `seo` off there is no tab, no request and no error.
    */
-  'product.editor.seo.after',
+  'product.editor.seo',
   /**
    * Below the sales-channel editor's identity form.
    *
@@ -593,6 +594,26 @@ export interface ProductEditorZoneProps {
 }
 
 /**
+ * The product editor's SEO zone (feature 168, `contracts/editor-ui.md` §5): the editor scope,
+ * the SEO block of the scoped-values read, and the staging callback into catalog's one Save.
+ */
+export interface ProductEditorSeoZoneProps {
+  readonly productId: string;
+  readonly scope: ScopeRef;
+  /** "Global", "<channel>" or "<channel> · <language>", already translated. */
+  readonly scopeLabel: string;
+  /** The scope one level up, already translated; `null` at Global. */
+  readonly parentScopeLabel: string | null;
+  readonly view: ScopedValuesData['seo'];
+  /** The staged SEO cells, keyed by field (`title`, `description`, …). */
+  readonly staged: ReadonlyMap<string, ScopedWriteOp<string>>;
+  onStage(field: string, op: ScopedWriteOp<string> | undefined): void;
+  readonly readOnly: boolean;
+  /** Field → translated error message from the last save. */
+  readonly errors: Readonly<Record<string, string>>;
+}
+
+/**
  * A zone mounted once on the delivery-methods list, carrying nothing.
  *
  * Empty **by measurement, not by omission**: the host renders one card per
@@ -859,8 +880,13 @@ export interface ProductEditorFieldZoneProps {
    */
   readonly fieldPath: string;
   /**
+   * Feature 168 (FR-106) — the editor scope the field is shown at. Optional: a contributor
+   * that ignores it keeps working.
+   */
+  readonly scope?: ScopeRef;
+  /**
    * The locales this field is edited in, or `null` for a field that is not
-   * language-scoped.
+   * language-scoped. Feature 168: the host passes `null` (protection is whole-field, FR-046).
    *
    * The host passes the set; a contributor that wants one control per locale
    * fans out over it. That is what collapses the two `LOCALES.map(...)` loops
@@ -903,7 +929,7 @@ export interface AdminZonePropsMap extends Record<AdminZoneName, object> {
   // places in one editor that both carry a product id carry the same shape.
   'product.editor.pricing.after': ProductEditorZoneProps;
   'product.editor.channels': ProductEditorZoneProps;
-  'product.editor.seo.after': ProductEditorZoneProps;
+  'product.editor.seo': ProductEditorSeoZoneProps;
   'sales_channel.editor.after': SalesChannelEditorZoneProps;
   'organization.detail.after': OrganizationDetailZoneProps;
   'customer.detail.after': CustomerDetailZoneProps;

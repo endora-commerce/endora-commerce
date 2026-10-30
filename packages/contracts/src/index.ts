@@ -239,6 +239,12 @@ export * from './product-value-resolver.js';
 export * from './storefront-value-overrides.js';
 export * from './product-scopes.js';
 export * from './product-url-keys.js';
+// Feature 168 — the three-level scope model, the one write encoding, the editor's scoped values
+// and the PIM locale mapping (`specs/168-product-editor-scope-switcher/`).
+export * from './product-scope-model.js';
+export * from './scoped-write-encoding.js';
+export * from './product-scoped-values.js';
+export * from './pim-locale-mapping.js';
 // Feature 167 — the storefront language path prefix (`specs/167-storefront-locale-path/`).
 export * from './storefront-language-path.js';
 export * from './mfa.js';

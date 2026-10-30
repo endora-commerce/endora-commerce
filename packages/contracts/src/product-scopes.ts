@@ -8,7 +8,9 @@ import {
 } from './common.js';
 import { isProductVisibleTo, productStatusSchema, type ProductAudience } from './catalog.js';
 import { ORDER_MINIMUM_MAX } from './order-minimums.js';
-import type { ProductUrlKeyWrite, UrlKeyWriteOutcome } from './product-url-keys.js';
+import type { UrlKeyWriteOutcome } from './product-url-keys.js';
+import { scopeFromRequest, type FieldPath, type ScopeRef } from './product-scope-model.js';
+import { scopedWrite, toScopedWriteOp, type ScopedWriteOp } from './scoped-write-encoding.js';
 
 /**
  * Feature 163 (`specs/163-product-data-scopes/`) — product data scopes per sales
@@ -49,7 +51,10 @@ export interface AudienceRule {
   allowedOrganizationIds: string[];
 }
 
-/** A `product_channel_scopes` row. Every `null` inherits the global value. */
+/**
+ * A `product_channel_scopes` row. Every `null` inherits the global value, except the
+ * minimum order quantity, whose override is the flag (feature 168, data-model §4).
+ */
 export interface ProductChannelScopeRecord {
   productId: string;
   channelId: string;
@@ -59,7 +64,12 @@ export interface ProductChannelScopeRecord {
   window: PublicationWindow | null;
   /** `null` = inherit the whole global rule. */
   audience: AudienceRule | null;
-  /** `null` = inherit; `1` = no minimum in this channel. */
+  /**
+   * Feature 168 (data-model §4) — whether the channel overrides the global minimum. When
+   * it does, {@link minOrderQuantity} `null` = **no minimum in this channel**.
+   */
+  minOrderQuantityOverridden: boolean;
+  /** Meaningful only when {@link minOrderQuantityOverridden}; `null` = no minimum here. */
   minOrderQuantity: number | null;
   /** `null` = inherit. */
   returnable: boolean | null;
@@ -147,10 +157,10 @@ export function effectiveAudience(
 /** Minimum order quantity and the returnable flag in a channel (FR-100). */
 export function effectiveOrderRules(
   global: Pick<ProductGlobalScopeFields, 'minOrderQuantity' | 'returnable'>,
-  channelRow: Pick<ProductChannelScopeRecord, 'minOrderQuantity' | 'returnable'> | undefined,
+  channelRow: Pick<ProductChannelScopeRecord, 'minOrderQuantity' | 'minOrderQuantityOverridden' | 'returnable'> | undefined,
 ): { minOrderQuantity: number | null; returnable: boolean } {
   return {
-    minOrderQuantity: channelRow?.minOrderQuantity ?? global.minOrderQuantity,
+    minOrderQuantity: channelRow?.minOrderQuantityOverridden ? channelRow.minOrderQuantity : global.minOrderQuantity,
     returnable: channelRow?.returnable ?? global.returnable,
   };
 }
@@ -271,15 +281,7 @@ export function resolveScopeLanguage(channel: ScopeChannel, requestedTag: string
   return sameBase ?? channel.defaultLanguage;
 }
 
-export {
-  applyTranslationPatch,
-  effectivePackagingUnitName,
-  sameLanguage,
-  translationAt,
-  translationMapPatchSchema,
-  TRANSLATION_MAP_MAX_LANGUAGES,
-  type TranslationMap,
-} from './scoped-translations.js';
+export { sameLanguage } from './product-scope-model.js';
 
 /**
  * A channel record as the scope rule reads it. The default language is always
@@ -366,14 +368,24 @@ export interface CatalogProductAvailabilityPort {
     channelId: string,
   ): Promise<Map<string, ChannelAvailability>>;
   /**
-   * FR-017 — the effective name per id at (channel, language): #384's walk over
-   * the channel's overrides, else the storefront's baseline pick. `languageCode`
-   * `null` = the channel's default language (an operator, N2).
+   * Feature 168 (FR-030, `contracts/readers.md` §2) — the effective name and description
+   * per id at (channel, language) along C×L → C → G; an empty description override
+   * answers `null`. `languageCode` `null` = the channel's default language (an
+   * operator, N2). Applies no availability: an id not found is absent.
    */
-  effectiveNames(
+  effectiveTexts(
     productIds: readonly string[],
     scope: { channelId: string; languageCode: string | null },
-  ): Promise<Map<string, string>>;
+  ): Promise<Map<string, EffectiveProductTexts>>;
+  /**
+   * Feature 168 — the effective packaging-unit name per unit id at (channel, language);
+   * `null` = an empty override (nothing shown). Basket and quote snapshots take it at
+   * the line's scope and never re-resolve it.
+   */
+  effectivePackagingUnitNames(
+    unitIds: readonly string[],
+    scope: { channelId: string; languageCode: string | null },
+  ): Promise<Map<string, string | null>>;
   /**
    * FR-100 — the effective minimum order quantity and returnable flag in the channel.
    *
@@ -388,37 +400,117 @@ export interface CatalogProductAvailabilityPort {
   ): Promise<Map<string, { minOrderQuantity: number | null; returnable: boolean }>>;
 }
 
-/** What an integration writes through {@link CatalogProductScopeWritePort}; only named scopes are touched. */
-export interface ProductScopeWriteInput {
-  /** `languageCode: null` = the channel row; `value: null` = use inherited. */
-  status?: Array<{ channelId: string; languageCode: string | null; value: ProductScopeStatus | null }>;
-  /** `channelId: null` = the global window; `value: null` on a channel = use inherited. */
-  window?: Array<{ channelId: string | null; value: PublicationWindow | null }>;
-  /** `value: null` = use inherited. */
-  audience?: Array<{ channelId: string; value: AudienceRule | null }>;
-  /** Each field: absent = untouched, `null` = use inherited. */
-  orderRules?: Array<{ channelId: string; minOrderQuantity?: number | null; returnable?: boolean | null }>;
-  urlKeys?: ProductUrlKeyWrite[];
+/** {@link CatalogProductAvailabilityPort.effectiveTexts}' answer for one product. */
+export interface EffectiveProductTexts {
+  name: string;
+  /** `null` = no description at this scope (none anywhere, or an empty override). */
+  description: string | null;
 }
 
-export interface ProductScopeWriteResult {
-  /** One outcome per entry of `urlKeys`, in order. */
+/** One cell of a connector or import write: one field at one scope (`pim-locale-mapping.md` §4). */
+export interface ProductScopedWriteCell {
+  scope: ScopeRef;
+  field: FieldPath;
+  op: ScopedWriteOp<unknown>;
+}
+
+/**
+ * Feature 168 — what an integration writes through {@link CatalogProductScopeWritePort} (v2):
+ * only the named (field, scope) cells are touched (FR-044), so writing Global values removes
+ * no operator override.
+ */
+export interface ProductScopedWriteInput {
+  cells: ProductScopedWriteCell[];
+}
+
+/** The most cells one call of the scope write port carries (R13a). */
+export const PRODUCT_SCOPED_WRITE_CELLS_MAX = 2000;
+
+/**
+ * The field paths of data-model §9, as a grammar: a family, a subject uuid where the family has
+ * one, an attribute key. Global-only fields are not paths.
+ */
+export const fieldPathSchema = z
+  .string()
+  .max(128)
+  .regex(
+    /^(name|description|status|window|audience|minOrderQuantity|returnable|urlKey|seo:(title|description|ogTitle|ogDescription|ogImageUrl)|attribute:[a-z0-9_]{1,64}|gallery:[0-9a-f-]{36}:(altText|hidden)|galleryRole:(base_image|small_image|thumbnail)|attachment:[0-9a-f-]{36}:(name|description|hidden)|packagingUnit:[0-9a-f-]{36}:name)$/,
+    'field path',
+  )
+  .transform((path) => path as FieldPath);
+
+/** A scope as a request names it (`scoped-values-api.md` §1): neither → G, channel → C, both → C×L. */
+export const scopeRequestSchema = z
+  .object({
+    channelId: uuidSchema.optional(),
+    languageCode: z.string().max(16).regex(/^[a-z]{2,3}(-[a-z]{2})?$/i, 'BCP-47 language tag').optional(),
+  })
+  .strict();
+
+/** The wire form of {@link ProductScopedWriteInput}: `value` in the write encoding. */
+export const productScopedWriteInputSchema = z
+  .object({
+    cells: z
+      .array(
+        z
+          .object({
+            scope: scopeRequestSchema,
+            field: fieldPathSchema,
+            value: scopedWrite(z.unknown().refine((value) => value !== undefined)),
+          })
+          .strict(),
+      )
+      .max(PRODUCT_SCOPED_WRITE_CELLS_MAX),
+  })
+  .strict()
+  .superRefine((input, ctx) => {
+    const seen = new Set<string>();
+    input.cells.forEach((cell, index) => {
+      if (!scopeFromRequest(cell.scope).ok) {
+        ctx.addIssue({ code: 'custom', path: ['cells', index, 'scope'], message: 'A language needs a channel.' });
+      }
+      const key = `${cell.field}@${cell.scope.channelId ?? ''}/${cell.scope.languageCode?.toLowerCase() ?? ''}`;
+      if (seen.has(key)) ctx.addIssue({ code: 'custom', path: ['cells', index], message: 'Duplicate (field, scope) cell.' });
+      seen.add(key);
+    });
+  })
+  .transform((input) => ({
+    cells: input.cells.map((cell) => {
+      const resolved = scopeFromRequest(cell.scope);
+      return {
+        scope: resolved.ok ? resolved.scope : ({ level: 'global' } as ScopeRef),
+        field: cell.field,
+        op: toScopedWriteOp(cell.value),
+      };
+    }),
+  }));
+
+export interface ProductScopedWriteResult {
+  /** Cells written. */
+  applied: number;
+  /** Cells refused, each with its code (`SCOPED_VALUE_INVALID` reason, `FIELD_NOT_AT_SCOPE`, `SCOPE_INVALID`, …). */
+  refused: Array<{ scope: ScopeRef; field: FieldPath; code: string }>;
+  /** One outcome per `urlKey` cell, in order. */
   urlKeys: UrlKeyWriteOutcome[];
 }
 
 /**
- * Container name: `catalogProductScopeWritePort`. Owner: `catalog` (R17).
+ * Container name: `catalogProductScopeWritePort`. Owner: `catalog` (R17, feature 168 v2).
  *
- * Scoped writes for imports and connectors. Writes only the scopes named, so writing
- * global values removes no operator override (FR-091); never runs the completeness
- * gate (A-6); never takes over a redirect (FR-093).
+ * Scoped writes for imports and connectors: one Command per product, per-cell tolerant (the
+ * refused cells are reported, the rest applied), the same `validateScopedWrite` refusals as
+ * the editor, never the completeness gate (A-6), never a redirect takeover (FR-093).
+ * Allowlist (R13a, plan decision Q6): `name`, `description`, `attribute:<key>`,
+ * `gallery:<id>:altText`, `attachment:<id>:name|description`, `packagingUnit:<id>:name`,
+ * `urlKey`, `status`, `window`; every other family is refused `not_supported`.
+ * `options.source` is a registered connector module id.
  */
 export interface CatalogProductScopeWritePort {
   applyScopes(
     productId: string,
-    input: ProductScopeWriteInput,
+    input: ProductScopedWriteInput,
     options: { source: string },
-  ): Promise<ProductScopeWriteResult>;
+  ): Promise<ProductScopedWriteResult>;
 }
 
 // --- 4. Admin shapes (admin-scopes-api.md) -----------------------------------------
@@ -488,6 +580,8 @@ export const productScopesSchema = z.object({
           nonMemberOrganizationIds: z.array(uuidSchema),
         })
         .nullable(),
+      /** Feature 168 — whether the channel overrides the minimum; then `minOrderQuantity` `null` = none here. */
+      minOrderQuantityOverridden: z.boolean(),
       minOrderQuantity: z.number().int().nullable(),
       returnable: z.boolean().nullable(),
       languageStatuses: z.array(
@@ -511,26 +605,27 @@ export const productScopesResponseSchema = z.object({ data: productScopesSchema 
 export type ProductScopesResponse = z.infer<typeof productScopesResponseSchema>;
 
 /**
- * §2 — `PATCH /api/v1/admin/catalog/products/:id/scopes`. An absent key leaves the
- * value untouched; `null` = use inherited (deletes the override, FR-012). A window
- * whose `from` is not before its `until` passes the schema and is refused by the
- * service with `VALIDATION_FAILED`, `details.field = 'window'`.
+ * §2 — `PATCH /api/v1/admin/catalog/products/:id/scopes`, in the one write encoding
+ * (feature 168, `contracts/write-encoding.md` §5, FR-116): absent or `""` = no change,
+ * `{ inherit: true }` = use inherited (deletes the override), `null` = the empty override
+ * where the field takes one — `minOrderQuantity: null` = no minimum in this channel,
+ * `window: null` = an open window override; `status`, `audience` and `returnable` refuse
+ * `null` (`SCOPED_VALUE_INVALID`, `not_emptyable`, from the service). A window whose
+ * `from` is not before its `until` is refused with `VALIDATION_FAILED`,
+ * `details.field = 'window'`.
  */
 export const patchProductScopesRequestSchema = z.object({
   channels: z
     .array(
       z.object({
         channelId: uuidSchema,
-        status: productScopeStatusSchema.nullable().optional(),
-        window: z
-          .object({ from: isoDateTimeSchema.nullable(), until: isoDateTimeSchema.nullable() })
-          .nullable()
-          .optional(),
-        audience: audienceRuleSchema.nullable().optional(),
-        minOrderQuantity: orderMinimumSchema.nullable().optional(),
-        returnable: z.boolean().nullable().optional(),
+        status: scopedWrite(productScopeStatusSchema),
+        window: scopedWrite(z.object({ from: isoDateTimeSchema.nullable(), until: isoDateTimeSchema.nullable() }).strict()),
+        audience: scopedWrite(audienceRuleSchema.strict()),
+        minOrderQuantity: scopedWrite(orderMinimumSchema),
+        returnable: scopedWrite(z.boolean()),
         languageStatuses: z
-          .array(z.object({ languageCode: languageCodeSchema, status: productScopeStatusSchema.nullable() }))
+          .array(z.object({ languageCode: languageCodeSchema, status: scopedWrite(productScopeStatusSchema) }))
           .max(SCOPE_LANGUAGE_STATUSES_MAX)
           .optional(),
       }),
@@ -576,7 +671,8 @@ export const scopeIncompleteDetailsSchema = z.object({
 });
 export type ScopeIncompleteDetails = z.infer<typeof scopeIncompleteDetailsSchema>;
 
-export const scopeLevelSchema = z.enum(['channel_language', 'channel', 'language']);
+/** Feature 168 (FR-010) — there is no Language scope: an override sits at C or C×L. */
+export const scopeLevelSchema = z.enum(['channel_language', 'channel']);
 
 /** §3 — `GET /api/v1/admin/catalog/products/:id/scope-overview`. */
 export const scopeOverviewResponseSchema = z.object({
@@ -605,7 +701,6 @@ export const scopeOverviewResponseSchema = z.object({
       }),
     ),
     channelRows: z.array(z.object({ channelId: uuidSchema, overriddenFields: z.array(z.string()) })),
-    languageColumns: z.array(z.object({ languageCode: z.string(), overriddenFields: z.array(z.string()) })),
     orphans: z.array(
       z.object({
         field: z.string(),

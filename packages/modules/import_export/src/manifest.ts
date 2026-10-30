@@ -138,6 +138,12 @@ export const manifest = defineModuleManifest({
   },
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
+  /** Feature 168 (`contracts/error-codes.md`) — the import profile refusals this module mints. */
+  errorCodes: [
+    { code: 'IMPORT_PROFILE_NAME_TAKEN' },
+    { code: 'IMPORT_PROFILE_NOT_FOUND' },
+    { code: 'IMPORT_PROFILE_REQUIRED' },
+  ],
   actions: [
     {
       id: 'import-products',

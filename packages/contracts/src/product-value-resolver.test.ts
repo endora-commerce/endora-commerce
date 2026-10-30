@@ -1,194 +1,107 @@
 import { describe, expect, it } from 'vitest';
-import { resolveAttribute } from './product-value-resolver.js';
-import type {
-  AttributeScope,
-  OverrideRow,
-  ResolverContext,
+import {
+  overrideToScopedRow,
+  resolveAll,
+  resolveAttribute,
+  scopeOfContext,
+  type OverrideRow,
+  type ResolverContext,
 } from './product-value-resolver.js';
-
-const KEY = 'attr';
-
-const scope = (channelScoped: boolean, languageScoped: boolean): AttributeScope => ({
-  channelScoped,
-  languageScoped,
-});
-
-const ctx = (
-  channelId: string | null,
-  languageCode: string | null,
-  primaryLanguage = 'pl',
-): ResolverContext => ({ channelId, languageCode, primaryLanguage });
-
-const row = (
-  channelId: string,
-  languageCode: string | null,
-  v: unknown,
-  attributeKey = KEY,
-): OverrideRow => ({ attributeKey, channelId, languageCode, value: { v } });
+import type { ScopeLevel } from './product-scope-model.js';
 
 /**
- * Matrix from specs/023-product-scope-editor/contracts/resolver.contract.md §5.
- * Every row exercises one combination of (attribute scope, ctx, baseline,
- * overrides) and asserts the resolver returns the expected (value, source).
+ * Feature 022, rewritten by feature 168 (R1) — the override-table adapter over `resolveScoped`.
+ * The chain itself is tested in `product-scope-model.test.ts`; this file holds the adapter: row
+ * shape, `{ v: null }` as the empty override, key filtering, and the context → scope mapping.
  */
-describe('resolveAttribute — 12-row contract matrix', () => {
-  it('row 1: global-only attribute, no ctx, scalar baseline', () => {
-    const result = resolveAttribute({
-      attributeKey: KEY,
-      baseline: 'X',
-      overrides: [],
-      scope: scope(false, false),
-      ctx: ctx(null, null),
+
+const KEY = 'attr';
+const ALL: readonly ScopeLevel[] = ['G', 'C', 'CL'];
+const GC: readonly ScopeLevel[] = ['G', 'C'];
+
+const ctx = (channelId: string | null, languageCode: string | null): ResolverContext => ({ channelId, languageCode });
+const row = (channelId: string, languageCode: string | null, v: unknown, attributeKey = KEY): OverrideRow => ({
+  attributeKey,
+  channelId,
+  languageCode,
+  value: { v },
+});
+
+describe('resolveAttribute (adapter)', () => {
+  it('Global context reads the baseline only', () => {
+    expect(resolveAttribute({ attributeKey: KEY, baseline: 'X', overrides: [row('c1', null, 'C')], levels: ALL, ctx: ctx(null, null) })).toEqual({
+      value: 'X',
+      source: 'set',
     });
-    expect(result).toEqual({ value: 'X', source: 'global' });
   });
 
-  it('row 2: language-scoped, pl ctx, direct hit', () => {
-    const result = resolveAttribute({
-      attributeKey: KEY,
-      baseline: { pl: 'Polski', en: 'English' },
-      overrides: [],
-      scope: scope(false, true),
-      ctx: ctx(null, 'pl'),
+  it('C×L hit, then channel, then Global', () => {
+    const overrides = [row('c1', 'pl', 'PL'), row('c1', null, 'C')];
+    expect(resolveAttribute({ attributeKey: KEY, baseline: 'G', overrides, levels: ALL, ctx: ctx('c1', 'pl') }).source).toBe('set');
+    expect(resolveAttribute({ attributeKey: KEY, baseline: 'G', overrides, levels: ALL, ctx: ctx('c1', 'de') })).toEqual({
+      value: 'C',
+      source: 'inherited_channel',
     });
-    expect(result).toEqual({ value: 'Polski', source: 'global+language' });
+    expect(resolveAttribute({ attributeKey: KEY, baseline: 'G', overrides: [], levels: ALL, ctx: ctx('c1', 'de') })).toEqual({
+      value: 'G',
+      source: 'inherited_global',
+    });
   });
 
-  it('row 3: language-scoped, de ctx, falls back to primary then any', () => {
-    const result = resolveAttribute({
-      attributeKey: KEY,
-      baseline: { pl: 'Polski' },
-      overrides: [],
-      scope: scope(false, true),
-      ctx: ctx(null, 'de'),
-    });
-    expect(result).toEqual({ value: 'Polski', source: 'global' });
+  it('{ v: null } is an empty override, never skipped (fixes F-a)', () => {
+    expect(
+      resolveAttribute({ attributeKey: KEY, baseline: 'G', overrides: [row('c1', 'pl', null)], levels: ALL, ctx: ctx('c1', 'pl') }),
+    ).toEqual({ value: null, source: 'set_empty' });
+    expect(
+      resolveAttribute({ attributeKey: KEY, baseline: 'G', overrides: [row('c1', 'pl', '')], levels: ALL, ctx: ctx('c1', 'pl') }),
+    ).toEqual({ value: '', source: 'set' });
   });
 
-  it('row 4: channel-only, hit', () => {
-    const result = resolveAttribute({
-      attributeKey: KEY,
-      baseline: 'baseline',
-      overrides: [row('c1', null, 'override')],
-      scope: scope(true, false),
-      ctx: ctx('c1', null),
-    });
-    expect(result).toEqual({ value: 'override', source: 'channel' });
+  it('an orphaned C×L row of a {G,C} attribute is ignored', () => {
+    expect(
+      resolveAttribute({ attributeKey: KEY, baseline: 5, overrides: [row('c1', 'pl', 9)], levels: GC, ctx: ctx('c1', 'pl') }),
+    ).toEqual({ value: 5, source: 'inherited_global' });
   });
 
-  it('row 5: channel-only, no override, falls back to baseline', () => {
-    const result = resolveAttribute({
-      attributeKey: KEY,
-      baseline: 'baseline',
-      overrides: [],
-      scope: scope(true, false),
-      ctx: ctx('c1', null),
-    });
-    expect(result).toEqual({ value: 'baseline', source: 'global' });
+  it('only rows of the attribute key count', () => {
+    expect(
+      resolveAttribute({ attributeKey: KEY, baseline: 'G', overrides: [row('c1', null, 'other', 'other')], levels: ALL, ctx: ctx('c1', null) }),
+    ).toEqual({ value: 'G', source: 'inherited_global' });
   });
 
-  it('row 6: channel+language, channel+lang hit', () => {
-    const result = resolveAttribute({
-      attributeKey: KEY,
-      baseline: { pl: 'P', en: 'E' },
-      overrides: [row('c1', 'en', 'CL-en')],
-      scope: scope(true, true),
-      ctx: ctx('c1', 'en'),
+  it('no baseline and no row is absent', () => {
+    expect(resolveAttribute({ attributeKey: KEY, baseline: undefined, overrides: [], levels: ALL, ctx: ctx('c1', 'pl') })).toEqual({
+      value: null,
+      source: 'absent',
     });
-    expect(result).toEqual({ value: 'CL-en', source: 'channel+language' });
-  });
-
-  it('row 7: channel+language, only channel-only override exists', () => {
-    const result = resolveAttribute({
-      attributeKey: KEY,
-      baseline: { pl: 'P', en: 'E' },
-      overrides: [row('c1', null, 'C-only')],
-      scope: scope(true, true),
-      ctx: ctx('c1', 'en'),
-    });
-    expect(result).toEqual({ value: 'C-only', source: 'channel' });
-  });
-
-  it('row 8: channel+language, falls back to global+language', () => {
-    const result = resolveAttribute({
-      attributeKey: KEY,
-      baseline: { pl: 'P', en: 'E' },
-      overrides: [],
-      scope: scope(true, true),
-      ctx: ctx('c1', 'en'),
-    });
-    expect(result).toEqual({ value: 'E', source: 'global+language' });
-  });
-
-  it('row 9: channel+language, de ctx missing → primary language fallback', () => {
-    const result = resolveAttribute({
-      attributeKey: KEY,
-      baseline: { pl: 'P' },
-      overrides: [],
-      scope: scope(true, true),
-      ctx: ctx('c1', 'de'),
-    });
-    expect(result).toEqual({ value: 'P', source: 'global' });
-  });
-
-  it('row 10: channel+language, no channel ctx → falls through to baseline', () => {
-    const result = resolveAttribute({
-      attributeKey: KEY,
-      baseline: { pl: 'P' },
-      overrides: [row('c1', 'en', 'CL-en')],
-      scope: scope(true, true),
-      ctx: ctx(null, null),
-    });
-    expect(result).toEqual({ value: 'P', source: 'global' });
-  });
-
-  it('row 11: channel+language, empty baseline & no overrides → absent', () => {
-    const result = resolveAttribute({
-      attributeKey: KEY,
-      baseline: {},
-      overrides: [],
-      scope: scope(true, true),
-      ctx: ctx('c1', 'en'),
-    });
-    expect(result).toEqual({ value: null, source: 'absent' });
-  });
-
-  it('row 12: orphan override is ignored when scope is global-only', () => {
-    const result = resolveAttribute({
-      attributeKey: KEY,
-      baseline: 'X',
-      overrides: [row('c1', 'en', 'orphan')],
-      scope: scope(false, false),
-      ctx: ctx('c1', 'en'),
-    });
-    expect(result).toEqual({ value: 'X', source: 'global' });
   });
 });
 
-describe('resolveAttribute — additional edge cases', () => {
-  it('empty string baseline is treated as absent for language-scoped attrs', () => {
-    const result = resolveAttribute({
-      attributeKey: KEY,
-      baseline: { pl: '', en: 'English' },
-      overrides: [],
-      scope: scope(false, true),
-      ctx: ctx(null, 'pl', 'pl'),
-    });
-    expect(result.value).toBe('English');
-    expect(result.source).toBe('global');
+describe('scopeOfContext / overrideToScopedRow', () => {
+  it('maps a context to a scope', () => {
+    expect(scopeOfContext(ctx(null, null))).toEqual({ level: 'global' });
+    expect(scopeOfContext(ctx(null, 'pl'))).toEqual({ level: 'global' });
+    expect(scopeOfContext(ctx('c1', null))).toEqual({ level: 'channel', channelId: 'c1' });
+    expect(scopeOfContext(ctx('c1', 'pl'))).toEqual({ level: 'channel_language', channelId: 'c1', languageCode: 'pl' });
   });
 
-  it('only returns matching attributeKey from the overrides bag', () => {
-    const result = resolveAttribute({
-      attributeKey: KEY,
-      baseline: 'baseline',
-      overrides: [
-        row('c1', null, 'wrong-key', 'other_attr'),
-        row('c1', null, 'correct'),
+  it('wraps a row value', () => {
+    expect(overrideToScopedRow(row('c1', null, 3)).value).toEqual({ kind: 'value', value: 3 });
+    expect(overrideToScopedRow(row('c1', null, null)).value).toEqual({ kind: 'empty' });
+  });
+});
+
+describe('resolveAll', () => {
+  it('resolves each definition with its own levels', () => {
+    const result = resolveAll(
+      [
+        { attributeKey: 'name', levels: ALL, baseline: 'Drill' },
+        { attributeKey: 'size', levels: GC, baseline: 3 },
       ],
-      scope: scope(true, false),
-      ctx: ctx('c1', null),
-    });
-    expect(result.value).toBe('correct');
+      [row('c1', 'pl', 'Wiertarka', 'name'), row('c1', 'pl', 9, 'size')],
+      ctx('c1', 'pl'),
+    );
+    expect(result.values).toEqual({ name: 'Wiertarka', size: 3 });
+    expect(result.sources).toEqual({ name: 'set', size: 'inherited_global' });
   });
 });

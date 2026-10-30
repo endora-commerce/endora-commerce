@@ -24,16 +24,24 @@ const C = '00000000-0000-4000-8000-0000000000c1';
 const ORG = '00000000-0000-4000-8000-0000000000e1';
 
 describe('patchProductScopesRequestSchema', () => {
-  it('keeps absent apart from null (absent = untouched, null = use inherited)', () => {
+  it('168 write encoding: absent = untouched, {inherit:true} = use inherited, null = empty', () => {
     const parsed = patchProductScopesRequestSchema.parse({
-      channels: [{ channelId: C, status: null, minOrderQuantity: 5 }],
+      channels: [{ channelId: C, status: { inherit: true }, minOrderQuantity: null, returnable: '' }],
     });
     const [row] = parsed.channels;
     expect(row).toBeDefined();
-    expect(row!.status).toBeNull();
-    expect('window' in row!).toBe(false);
-    expect('audience' in row!).toBe(false);
-    expect(row!.minOrderQuantity).toBe(5);
+    expect(row!.status).toEqual({ inherit: true });
+    expect(row!.window).toBeUndefined();
+    expect(row!.audience).toBeUndefined();
+    expect(row!.returnable).toBeUndefined();
+    expect(row!.minOrderQuantity).toBeNull();
+  });
+
+  it('refuses {inherit:false} and unknown keys inside a window', () => {
+    expect(patchProductScopesRequestSchema.safeParse({ channels: [{ channelId: C, status: { inherit: false } }] }).success).toBe(false);
+    expect(
+      patchProductScopesRequestSchema.safeParse({ channels: [{ channelId: C, window: { from: null, until: null, x: 1 } }] }).success,
+    ).toBe(false);
   });
 
   it('accepts every scoped field', () => {
@@ -48,7 +56,7 @@ describe('patchProductScopesRequestSchema', () => {
           returnable: false,
           languageStatuses: [
             { languageCode: 'de-DE', status: 'inactive' },
-            { languageCode: 'pl-PL', status: null },
+            { languageCode: 'pl-PL', status: { inherit: true } },
           ],
         },
       ],
@@ -162,6 +170,7 @@ describe('productScopesResponseSchema', () => {
             status: 'inactive',
             window: null,
             audience: { visibility: 'organization_restricted', allowedOrganizationIds: [ORG], nonMemberOrganizationIds: [ORG] },
+            minOrderQuantityOverridden: true,
             minOrderQuantity: null,
             returnable: null,
             languageStatuses: [{ languageCode: 'fr-FR', status: 'active', orphaned: true }],
@@ -259,7 +268,6 @@ describe('scopeOverviewResponseSchema', () => {
         languages: ['pl-PL', 'de-DE'],
         cells: [cell],
         channelRows: [{ channelId: C, overriddenFields: ['status'] }],
-        languageColumns: [{ languageCode: 'de-DE', overriddenFields: [] }],
         orphans: [{ field: 'status', channelId: C, languageCode: 'fr-FR', reason: 'language_not_offered' }],
       },
     };

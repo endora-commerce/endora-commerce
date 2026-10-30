@@ -58,6 +58,7 @@ function channelRow(over: Partial<ProductChannelScopeRecord> = {}): ProductChann
     status: null,
     window: null,
     audience: null,
+    minOrderQuantityOverridden: false,
     minOrderQuantity: null,
     returnable: null,
     ...over,
@@ -264,7 +265,22 @@ describe('isProductEffectivelyAvailable — data-model §4', () => {
   });
 });
 
-describe('effectiveOrderRules — c ?? global (FR-100)', () => {
+describe('effectiveOrderRules — c ?? global (FR-100; 168 data-model §4)', () => {
+  it('168: an overridden channel minimum of null is "no minimum in this channel"', () => {
+    expect(
+      effectiveOrderRules(
+        global({ minOrderQuantity: 5, returnable: false }),
+        channelRow({ minOrderQuantityOverridden: true, minOrderQuantity: null }),
+      ),
+    ).toEqual({ minOrderQuantity: null, returnable: false });
+  });
+
+  it('168: a channel value without the flag does not override', () => {
+    expect(
+      effectiveOrderRules(global({ minOrderQuantity: 5, returnable: false }), channelRow({ minOrderQuantity: 9 })),
+    ).toEqual({ minOrderQuantity: 5, returnable: false });
+  });
+
   it('inherits both values without a row', () => {
     expect(effectiveOrderRules(global({ minOrderQuantity: 5, returnable: false }), undefined)).toEqual({
       minOrderQuantity: 5,
@@ -274,8 +290,11 @@ describe('effectiveOrderRules — c ?? global (FR-100)', () => {
 
   it('a channel row overrides each value independently', () => {
     expect(
-      effectiveOrderRules(global({ minOrderQuantity: 5, returnable: false }), channelRow({ minOrderQuantity: 1 })),
-    ).toEqual({ minOrderQuantity: 1, returnable: false });
+      effectiveOrderRules(
+        global({ minOrderQuantity: 5, returnable: false }),
+        channelRow({ minOrderQuantityOverridden: true, minOrderQuantity: 2 }),
+      ),
+    ).toEqual({ minOrderQuantity: 2, returnable: false });
     expect(
       effectiveOrderRules(global({ minOrderQuantity: 5, returnable: false }), channelRow({ returnable: true })),
     ).toEqual({ minOrderQuantity: 5, returnable: true });

@@ -67,49 +67,62 @@ describe('productSlugSchema', () => {
   });
 });
 
-describe('putProductUrlKeysRequestSchema', () => {
-  it('accepts null as "use inherited" and a takeover confirmation', () => {
+describe('putProductUrlKeysRequestSchema (168: Channel and Channel × language keys)', () => {
+  it('accepts a Channel key, a Channel × language key, {inherit:true} and a takeover confirmation', () => {
     const parsed = putProductUrlKeysRequestSchema.safeParse({
       globalKey: 'drill',
-      languageKeys: [{ languageCode: 'de-DE', key: null }],
-      channelKeys: [{ channelId: C, languageCode: 'de-DE', key: 'bohrer' }],
-      confirmTakeover: [{ languageCode: null, key: 'drill' }],
+      channelKeys: [
+        { channelId: C, key: 'drill-b2b' },
+        { channelId: C, languageCode: 'de-DE', key: 'bohrer' },
+        { channelId: C, languageCode: 'pl-PL', key: { inherit: true } },
+      ],
+      confirmTakeover: ['drill'],
     });
     expect(parsed.success).toBe(true);
   });
 
-  it('refuses a key outside the slug grammar', () => {
-    expect(putProductUrlKeysRequestSchema.safeParse({ languageKeys: [{ languageCode: 'de-DE', key: 'Bohrer' }] }).success).toBe(
-      false,
-    );
+  it('refuses null (the URL key is required), a Language-only key and a key outside the grammar', () => {
+    expect(putProductUrlKeysRequestSchema.safeParse({ channelKeys: [{ channelId: C, key: null }] }).success).toBe(false);
+    expect(putProductUrlKeysRequestSchema.safeParse({ languageKeys: [{ languageCode: 'de-DE', key: 'bohrer' }] }).success).toBe(false);
+    expect(putProductUrlKeysRequestSchema.safeParse({ channelKeys: [{ channelId: C, key: 'Bohrer' }] }).success).toBe(false);
   });
 
-  // Phase 16 review — every list in the body is bounded, as the scopes PATCH's are.
-  const many = (count: number, at: (index: number) => object): object[] => Array.from({ length: count }, (_, index) => at(index));
-  it.each([
-    ['languageKeys', (index: number) => ({ languageCode: 'de', key: `k-${index}` })],
-    ['channelKeys', (index: number) => ({ channelId: C, languageCode: 'de', key: `k-${index}` })],
-    ['confirmTakeover', (index: number) => ({ languageCode: null, key: `k-${index}` })],
-  ] as const)('caps %s at 64 entries', (field, at) => {
-    expect(putProductUrlKeysRequestSchema.safeParse({ [field]: many(64, at) }).success).toBe(true);
-    expect(putProductUrlKeysRequestSchema.safeParse({ [field]: many(65, at) }).success).toBe(false);
+  it.each(['//host', '/\\host', '..', 'a%2fb', 'a:b', 'a b', 'ŻÓŁW'])('refuses the key %s', (key) => {
+    expect(putProductUrlKeysRequestSchema.safeParse({ channelKeys: [{ channelId: C, key }] }).success).toBe(false);
+  });
+
+  it('caps channelKeys at 64 and confirmTakeover at 20 (R21)', () => {
+    const keys = (count: number) => Array.from({ length: count }, (_, index) => ({ channelId: C, key: `k-${index}` }));
+    expect(putProductUrlKeysRequestSchema.safeParse({ channelKeys: keys(64) }).success).toBe(true);
+    expect(putProductUrlKeysRequestSchema.safeParse({ channelKeys: keys(65) }).success).toBe(false);
+    const takeovers = (count: number) => Array.from({ length: count }, (_, index) => `k-${index}`);
+    expect(putProductUrlKeysRequestSchema.safeParse({ confirmTakeover: takeovers(20) }).success).toBe(true);
+    expect(putProductUrlKeysRequestSchema.safeParse({ confirmTakeover: takeovers(21) }).success).toBe(false);
   });
 });
 
 describe('productUrlKeysResponseSchema', () => {
-  it('parses with and without redirects (omitted while seo is off, Q-C)', () => {
+  it('parses with and without redirects (omitted while seo is off, Q-C); redirects carry (channel, language)', () => {
     const data = {
       globalKey: 'drill',
-      languageKeys: [{ languageCode: 'de-DE', key: 'bohrer' }],
-      channelKeys: [{ channelId: C, languageCode: 'de-DE', key: 'bohrer-b2b', orphaned: false }],
+      channelKeys: [
+        { channelId: C, languageCode: null, key: 'drill-b2b', orphaned: false },
+        { channelId: C, languageCode: 'de-DE', key: 'bohrer-b2b', orphaned: false },
+      ],
       effective: [{ channelId: C, languageCode: 'de-DE', key: 'bohrer-b2b', source: 'channel_language', url: '/de/p/bohrer-b2b' }],
     };
     expect(productUrlKeysResponseSchema.safeParse({ data }).success).toBe(true);
     expect(
       productUrlKeysResponseSchema.safeParse({
-        data: { ...data, redirects: [{ id: R, languageCode: null, key: 'old-drill', createdAt: '2026-10-22T10:00:00.000Z' }] },
+        data: {
+          ...data,
+          redirects: [{ id: R, channelId: C, languageCode: 'de-DE', key: 'old-drill', createdAt: '2026-10-22T10:00:00.000Z' }],
+        },
       }).success,
     ).toBe(true);
+    expect(
+      productUrlKeysResponseSchema.safeParse({ data: { ...data, effective: [{ ...data.effective[0], source: 'language' }] } }).success,
+    ).toBe(false);
   });
 });
 
@@ -142,7 +155,7 @@ describe('error details and the import outcome', () => {
   it('URL_KEY_TAKEN names the holder', () => {
     expect(
       urlKeyTakenDetailsSchema.safeParse({
-        conflicts: [{ languageCode: 'de-DE', key: 'bohrer', heldByProductId: Q, heldByProductName: 'Bohrer' }],
+        conflicts: [{ channelId: C, languageCode: 'de-DE', key: 'bohrer', heldByProductId: Q, heldByProductName: 'Bohrer' }],
       }).success,
     ).toBe(true);
   });
@@ -150,7 +163,7 @@ describe('error details and the import outcome', () => {
   it('URL_KEY_REDIRECT_TAKEOVER_REQUIRED names the losing product', () => {
     expect(
       urlKeyRedirectTakeoverRequiredDetailsSchema.safeParse({
-        takeovers: [{ languageCode: null, key: 'old', losingProductId: Q, losingProductName: 'Old drill' }],
+        takeovers: [{ channelId: C, languageCode: null, key: 'old', losingProductId: Q, losingProductName: 'Old drill' }],
       }).success,
     ).toBe(true);
   });
@@ -160,7 +173,13 @@ describe('error details and the import outcome', () => {
     expect(
       urlKeyWriteOutcomeSchema.safeParse({
         written: false,
-        issue: { languageCode: 'de-DE', channelId: null, key: 'bohrer', heldByProductId: Q, kind: 'redirect' },
+        issue: { languageCode: 'de-DE', channelId: C, key: 'bohrer', heldByProductId: Q, kind: 'redirect' },
+      }).success,
+    ).toBe(true);
+    expect(
+      urlKeyWriteOutcomeSchema.safeParse({
+        written: false,
+        issue: { languageCode: null, channelId: C, key: 'bohrer', heldByProductId: null, kind: 'limit_reached' },
       }).success,
     ).toBe(true);
   });

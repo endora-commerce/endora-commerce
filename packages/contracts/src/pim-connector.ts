@@ -33,13 +33,17 @@ export const pimImportCountsSchema = z.object({
 });
 export type PimImportCounts = z.infer<typeof pimImportCountsSchema>;
 
-/** Canonical field-protection path grammar (shared across PIM connectors). */
+/**
+ * Canonical field-protection path grammar (shared across PIM connectors). Feature 168
+ * (`contracts/pim-locale-mapping.md` §3, FR-046): whole-field paths only — protection removes
+ * every scope of a field, so a path carries no locale or channel segment.
+ */
 export const pimFieldPathSchema = z
   .string()
   .min(1)
   .max(256)
   .regex(
-    /^(attribute\.[a-z][a-z0-9_]*(\.[a-z]{2}(_[A-Z]{2})?)?(\.[0-9a-f-]{36}(\.[a-z]{2}(_[A-Z]{2})?)?)?|seo\.(metaTitle|metaDescription|metaKeywords)(\.[a-z]{2}(_[A-Z]{2})?)?|gallery\.\d+|attachment\.[0-9a-f-]{36}|price\.[0-9a-f-]{36}\.[A-Z]{3}|category\.[0-9a-f-]{36}|name(\.[a-z]{2}(_[A-Z]{2})?)?|description(\.[a-z]{2}(_[A-Z]{2})?)?)$/,
+    /^(attribute\.[a-z][a-z0-9_]*|seo\.(metaTitle|metaDescription|metaKeywords)|gallery\.\d+|attachment\.[0-9a-f-]{36}|price\.[0-9a-f-]{36}\.[A-Z]{3}|category\.[0-9a-f-]{36}|name|description)$/,
   );
 export type PimFieldPath = z.infer<typeof pimFieldPathSchema>;
 
