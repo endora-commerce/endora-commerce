@@ -363,5 +363,7 @@ describe('a manifest cannot produce an unmet peer in a project that only install
       }
     }
     expect(found).toEqual([]);
-  });
+    // Parses every source and test file of every published package; on CI it
+    // has run past the 30 s default (31.8 s on the runs of #548 and #549).
+  }, 120_000);
 });
