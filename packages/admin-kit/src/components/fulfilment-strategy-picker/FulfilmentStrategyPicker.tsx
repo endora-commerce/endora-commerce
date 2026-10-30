@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { ArrowDown, ArrowUp, X } from 'lucide-react';
-import type { FulfilmentStrategy } from '@endora-commerce/contracts';
+import { fulfilmentStrategySchema, type FulfilmentStrategy } from '@endora-commerce/contracts';
 import { Button } from '../../ui/button.js';
 import { Label } from '../../ui/label.js';
 import { Select } from '../../ui/select.js';
@@ -54,13 +54,6 @@ export interface FulfilmentStrategyPickerProps {
   idPrefix?: string;
 }
 
-const STRATEGIES: FulfilmentStrategy[] = [
-  'any',
-  'default_first',
-  'lowest_stock_first',
-  'highest_stock_first',
-  'defined_order',
-];
 
 export function FulfilmentStrategyPicker({
   value,
@@ -101,7 +94,9 @@ export function FulfilmentStrategyPicker({
           onChange={(e): void => setStrategy(e.target.value)}
         >
           {allowInherit ? <option value="">{t('fulfilment.inherit')}</option> : null}
-          {STRATEGIES.map((s) => (
+          {/* Derived from the contract (#98): a strategy added there is offered
+              here without a second edit; its copy is `fulfilment.strategy.<id>`. */}
+          {fulfilmentStrategySchema.options.map((s) => (
             <option key={s} value={s}>
               {t(`fulfilment.strategy.${s}`)}
             </option>
