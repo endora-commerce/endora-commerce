@@ -2237,11 +2237,17 @@ export function renderManifest(input: RenderInput): string {
   // not `ADMIN_LAYER_DIRECTORY`, so a package that publishes a component and
   // contributes no screen — which is what an installed extension package
   // reaching D-191's exit looks like — still gets its build step.
-  const uiBuild = input.layers.layers.some((layer) =>
+  //
+  // The emit names `tsconfig.ui.build.json`, which extends `tsconfig.ui.json`
+  // and adds nothing but the test exclusion (issue #81): `tsconfig.ui.json` is
+  // also the UI layer's type-check, and a test it excluded would be read by no
+  // `tsc` invocation, while a test the emit compiled would put an `import` of
+  // `vitest` into `dist`. No compiler option is restated, so the `jsx`/`lib`
+  // pair is still declared once.
+  const hasUiLayer = input.layers.layers.some((layer) =>
     UI_LAYER_DIRECTORIES.includes(layer.directory),
-  )
-    ? ' && tsc -p tsconfig.ui.json'
-    : '';
+  );
+  const uiBuild = hasUiLayer ? ' && tsc -p tsconfig.ui.build.json' : '';
   // `tsc` deletes nothing, so without a clean the output of a deleted source
   // outlives it in a git-ignored `dist` every runtime reads (issue #443). It
   // runs once, first: the UI compile writes into the same directory. The
@@ -2256,11 +2262,12 @@ export function renderManifest(input: RenderInput): string {
         emitFlags) + uiBuild;
   const scripts: Record<string, string> = {
     build,
-    // The UI program is type-checked by the same configuration that emits it,
-    // with `--noEmit` on top: a second type-check-only config would be a third
-    // place the `jsx`/`lib` pair is declared, and two declarations of a
-    // compiler guarantee are two answers waiting to disagree.
-    typecheck: uiBuild === '' ? 'tsc -p tsconfig.json' : 'tsc -p tsconfig.json && tsc -p tsconfig.ui.json --noEmit',
+    // The UI program is type-checked by the configuration its emit extends,
+    // with `--noEmit` on top: a second config restating the compiler options
+    // would be a third place the `jsx`/`lib` pair is declared, and two
+    // declarations of a compiler guarantee are two answers waiting to disagree.
+    // The type-check reads the co-located tests; the emit excludes them.
+    typecheck: hasUiLayer ? 'tsc -p tsconfig.json && tsc -p tsconfig.ui.json --noEmit' : 'tsc -p tsconfig.json',
     lint: input.layers.hasTests ? 'eslint src test' : 'eslint src',
   };
   // Bare `vitest run`, never `--passWithNoTests` (feature 089, Phase 1). The

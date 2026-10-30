@@ -47,10 +47,11 @@ export interface EmittedFile {
 export function emitModuleFiles(spec: ModuleScaffoldSpec, depth: number): readonly EmittedFile[] {
   const files: EmittedFile[] = [
     { path: 'tsconfig.json', content: typecheckConfig(spec, depth) },
-    { path: 'tsconfig.build.json', content: buildConfig() },
+    { path: 'tsconfig.build.json', content: buildConfig(spec) },
   ];
   if (spec.layers.admin !== null) {
     files.push({ path: 'tsconfig.ui.json', content: uiConfig() });
+    files.push({ path: 'tsconfig.ui.build.json', content: uiBuildConfig() });
   }
   files.push(
     { path: 'vitest.config.ts', content: vitestConfig(spec, depth) },
@@ -129,13 +130,24 @@ export function portNameOf(spec: ModuleScaffoldSpec): string {
   return `${camelOf(spec.id)}ReadPort`;
 }
 
-// --- the two build configurations, a constant of the layout ----------------
+// --- the build configurations, a constant of the layout --------------------
+
+/** Co-located test files: in every type-check program, in no emit (issue #81). */
+const TEST_PATTERNS = ['src/**/*.test.ts', 'src/**/*.spec.ts'] as const;
+const UI_TEST_PATTERNS = [
+  'src/**/*.test.ts',
+  'src/**/*.test.tsx',
+  'src/**/*.spec.ts',
+  'src/**/*.spec.tsx',
+] as const;
+
+function patternList(patterns: readonly string[]): string {
+  return `[${patterns.map((pattern) => `"${pattern}"`).join(', ')}]`;
+}
 
 function typecheckConfig(spec: ModuleScaffoldSpec, depth: number): string {
   const hasAdmin = spec.layers.admin !== null;
-  const excluded = hasAdmin
-    ? ['src/admin/**/*', 'src/**/*.test.ts', 'src/**/*.spec.ts']
-    : ['src/**/*.test.ts', 'src/**/*.spec.ts'];
+  const excluded = hasAdmin ? ['src/admin/**/*'] : [];
   const adminExclusionComment = hasAdmin
     ? `
   //
@@ -169,18 +181,25 @@ function typecheckConfig(spec: ModuleScaffoldSpec, depth: number): string {
     "types": ["node"]
   },
   "include": ["src/**/*"],
-  // A co-located test must not be compiled into \`dist\`: it imports \`vitest\`, a
-  // devDependency, which is an unresolvable specifier in every consumer's
-  // install. That is this exclusion's whole job, and it is an *emit* concern —
-  // \`tsconfig.build.json\` extends this file, which is how it gets there. It
-  // does not stop those tests running: \`vitest\` reads its own \`include\` and
-  // transpiles what it collects.${adminExclusionComment}
-  "exclude": [${excluded.map((pattern) => `"${pattern}"`).join(', ')}]
+  // Co-located tests (\`src/**/*.test.ts\`) are **in** this program on purpose:
+  // this is the type-check half, and a test excluded here is a test no \`tsc\`
+  // invocation reads — \`vitest\` strips types, so nothing else would report a
+  // type error in one. Keeping them out of \`dist\`, where a compiled test would
+  // import \`vitest\`, an unresolvable specifier in every consumer's install, is
+  // an *emit* concern and lives in \`tsconfig.build.json\`.${adminExclusionComment}
+  "exclude": ${patternList(excluded)}
 }
 `;
 }
 
-function buildConfig(): string {
+function buildConfig(spec: ModuleScaffoldSpec): string {
+  const hasAdmin = spec.layers.admin !== null;
+  const excluded = [...(hasAdmin ? ['src/admin/**/*'] : []), ...TEST_PATTERNS];
+  const restated = hasAdmin
+    ? `
+  // \`exclude\` replaces the inherited list rather than extending it, so the
+  // admin layer \`tsconfig.json\` keeps out of this program is restated.`
+    : '';
   return `{
   // Emit configuration — the only configuration in this package allowed to
   // write files, and the declaration the platform's composer reads to learn
@@ -205,7 +224,13 @@ function buildConfig(): string {
     // A compile that failed must ship nothing. Without this a diagnostic is not
     // a stop — the artefacts are written before the exit code is.
     "noEmitOnError": true
-  }
+  },
+  // Test files are excluded from the emit and from nothing else. A compiled
+  // \`*.test.js\` under \`dist\` imports \`vitest\`, a devDependency, so it would be
+  // an unresolvable specifier in every consumer's install. The exclusion lives
+  // here rather than in \`tsconfig.json\` because that file is the type-check
+  // half, and a test excluded there is a test no \`tsc\` invocation reads.${restated}
+  "exclude": ${patternList(excluded)}
 }
 `;
 }
@@ -245,12 +270,29 @@ function uiConfig(): string {
   },
   "include": ["src/admin/**/*"],
   // The inherited \`exclude\` names \`src/admin/**/*\` — that is what keeps the
-  // backend program off this layer — so it has to be **replaced** here rather
-  // than inherited, or \`tsc\` reports TS18003 over the one directory this
-  // program exists to compile. The test patterns are kept for the sibling
-  // config's reason: a co-located test compiled into \`dist\` imports \`vitest\`,
-  // an unresolvable specifier in every consumer's install.
-  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/**/*.spec.ts", "src/**/*.spec.tsx"]
+  // backend program off this layer — so it is **replaced** here, with nothing,
+  // rather than inherited, or \`tsc\` reports TS18003 over the one directory
+  // this program exists to compile. Co-located tests stay in the program: this
+  // file is also the UI layer's type-check (\`tsc -p tsconfig.ui.json --noEmit\`),
+  // and a test excluded here is read by no \`tsc\` invocation. The emit runs
+  // \`tsconfig.ui.build.json\`, which extends this file and excludes them.
+  "exclude": []
+}
+`;
+}
+
+function uiBuildConfig(): string {
+  return `{
+  // Emit configuration for this package's admin layer, and nothing but the one
+  // thing that separates an emit from the type-check: test files are excluded.
+  // A compiled \`*.test.js\` under \`dist\` imports \`vitest\`, a devDependency, so
+  // it would be an unresolvable specifier in every consumer's install.
+  //
+  // Every compiler option — \`jsx\`, the \`DOM\` lib, \`rootDir\`, \`paths\` — is
+  // \`tsconfig.ui.json\`'s and is inherited, never restated: two declarations of
+  // that pair would be two answers waiting to disagree.
+  "extends": "./tsconfig.ui.json",
+  "exclude": ${patternList(UI_TEST_PATTERNS)}
 }
 `;
 }

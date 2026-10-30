@@ -76,6 +76,7 @@ describe('the file set', () => {
       'test/unit/manifest.test.ts',
       'tsconfig.build.json',
       'tsconfig.json',
+      'tsconfig.ui.build.json',
       'tsconfig.ui.json',
       'vitest.config.ts',
     ]);
@@ -91,6 +92,7 @@ describe('the file set', () => {
     expect(minimal.some((path) => path.startsWith('src/backend/entities/'))).toBe(false);
     expect(minimal.some((path) => path.startsWith('src/admin/'))).toBe(false);
     expect(minimal).not.toContain('tsconfig.ui.json');
+    expect(minimal).not.toContain('tsconfig.ui.build.json');
   });
 });
 
@@ -449,7 +451,27 @@ describe('the two build configurations', () => {
     expect(build).toContain('"noEmitOnError": true');
   });
 
-  it('keeps test files out of the emit', () => {
-    expect(files.get('tsconfig.json')).toContain('*.test.ts');
+  it('keeps test files out of the emit and in the type-check (issue #81)', () => {
+    // A test excluded from `tsconfig.json` is read by no `tsc` invocation, and
+    // `vitest` strips types; a test compiled into `dist` imports `vitest`.
+    for (const spec of [FULL, HEADLESS]) {
+      const tree = emit(spec);
+      expect(tree.get('tsconfig.json')).not.toMatch(/"exclude": \[[^\]]*\.test\.ts/);
+      expect(tree.get('tsconfig.build.json')).toMatch(/"exclude": \[[^\]]*"src\/\*\*\/\*\.test\.ts"/);
+    }
+    // `exclude` is replaced, not merged, so the emit restates the admin layer.
+    expect(files.get('tsconfig.build.json')).toMatch(/"exclude": \[[^\]]*"src\/admin\/\*\*\/\*"/);
+    expect(emit(HEADLESS).get('tsconfig.build.json')).not.toContain('src/admin');
+  });
+
+  it('type-checks the UI tests and emits the UI layer without them', () => {
+    const ui = files.get('tsconfig.ui.json')!;
+    const uiBuild = files.get('tsconfig.ui.build.json')!;
+
+    expect(ui).toContain('"exclude": []');
+    expect(uiBuild).toContain('"extends": "./tsconfig.ui.json"');
+    expect(uiBuild).toMatch(/"exclude": \[[^\]]*"src\/\*\*\/\*\.test\.tsx"/);
+    // Nothing but the exclusion: the `jsx`/`lib` pair is declared once.
+    expect(uiBuild).not.toContain('"compilerOptions"');
   });
 });

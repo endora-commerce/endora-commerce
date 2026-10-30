@@ -64,7 +64,7 @@ pnpm run build:packages                  # FIRST, after any install and after ed
 pnpm -r run typecheck                    # or: pnpm --filter <app> run typecheck
 pnpm -r run lint
 pnpm --filter backend run test:unit:fast # FAST: test/unit minus its service-dependent
-                                         # files, plus the co-located src unit tests —
+                                         # files, plus backend/src's co-located tests —
                                          # no Postgres, no Redis, no Meilisearch
 pnpm --filter backend exec vitest run <path>   # targeted run — prefer this while iterating
 pnpm --filter backend run test           # COMPLETE: unit + contract + integration, needs

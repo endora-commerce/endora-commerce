@@ -23,5 +23,11 @@
     // A compile that failed must ship nothing (feature 080, R11). Without this a
     // diagnostic is not a stop — the artefacts are written before the exit code is.
     "noEmitOnError": true
-  }
+  },
+  // Test files are excluded from the emit and from nothing else. A compiled
+  // `*.test.js` under `dist` imports `vitest`, a devDependency, so it would be an
+  // unresolvable specifier in every consumer's install. The exclusion lives here
+  // rather than in `tsconfig.json` because that file is the type-check half, and
+  // a test excluded there is a test no `tsc` invocation reads (issue #81).
+  "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts"]
 }

@@ -23,10 +23,11 @@
     "types": ["node"]
   },
   "include": ["src/**/*"],
-  // A co-located test would be compiled into `dist` and would import `vitest`,
-  // a devDependency — an unresolvable specifier in every consumer's install.
-  // The package's co-located unit tests (`src/**/*.test.ts`, run by its own
-  // `vitest.config.ts`) import `vitest`, a devDependency no consumer installs,
-  // so they stay out of the emitted program.
-  "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts"]
+  // Co-located tests (`src/**/*.test.ts`) are **in** this program on purpose:
+  // this is the type-check half, and a test excluded here is a test no `tsc`
+  // invocation reads — `vitest` strips types, so nothing else would report a
+  // type error in one (issue #81). Keeping them out of `dist`, where a compiled
+  // test would import `vitest`, an unresolvable specifier in every consumer's
+  // install, is an *emit* concern and lives in `tsconfig.build.json`.
+  "exclude": []
 }
