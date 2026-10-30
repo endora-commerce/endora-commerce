@@ -57,6 +57,9 @@ export function emitModuleFiles(spec: ModuleScaffoldSpec, depth: number): readon
     { path: 'vitest.config.ts', content: vitestConfig(spec, depth) },
     { path: 'src/manifest.ts', content: moduleManifest(spec) },
     { path: 'src/backend/index.ts', content: backendIndex(spec) },
+    // Not \`src/manifest.test.ts\`: the manifest generator refuses any sibling
+    // of the root manifest, which is reachable through no subpath.
+    { path: 'src/backend/manifest.test.ts', content: manifestTest(spec) },
     { path: `src/backend/services/${slugOf(spec.id)}.service.ts`, content: service(spec) },
   );
   if (spec.permissions.length > 0) {
@@ -75,14 +78,11 @@ export function emitModuleFiles(spec: ModuleScaffoldSpec, depth: number): readon
   }
   if (spec.layers.admin !== null) {
     files.push({ path: 'src/admin/index.ts', content: adminIndex(spec) });
+    files.push({ path: 'src/admin/index.test.ts', content: adminTest(spec) });
     files.push({ path: `src/admin/pages/${pageComponentOf(spec)}.tsx`, content: adminPage(spec) });
   }
   files.push({ path: 'i18n/en.json', content: bundle(spec) });
   files.push({ path: 'i18n/pl.json', content: bundle(spec) });
-  files.push({ path: 'test/unit/manifest.test.ts', content: manifestTest(spec) });
-  if (spec.layers.admin !== null) {
-    files.push({ path: 'test/unit/admin-contributions.test.ts', content: adminTest(spec) });
-  }
   return files;
 }
 
@@ -320,9 +320,9 @@ export default mergeConfig(
     test: {
       name: ${quote(`mod-${slugOf(spec.id)}`)},
       environment: 'node',
-      // Both roots the layout contract allows: co-located beside the source,
-      // and the package-owned \`test/unit/\` tree.
-      include: ['src/**/*.test.ts', 'test/**/*.test.ts'],
+      // Tests sit beside their subjects; a module package has no \`test/\`
+      // directory, and a test outside \`src/\` is in no type-check program.
+      include: ['src/**/*.test.ts'],
     },
   }),
 );
@@ -1267,7 +1267,7 @@ function adminPage(spec: ModuleScaffoldSpec): string {
   return lines.join('\n');
 }
 
-// --- test/unit/admin-contributions.test.ts ---------------------------------
+// --- src/admin/index.test.ts ----------------------------------------------
 
 /**
  * What an admin contribution can be wrong about without anything else noticing.
@@ -1280,7 +1280,9 @@ function adminPage(spec: ModuleScaffoldSpec): string {
  * of them.
  */
 function adminTest(spec: ModuleScaffoldSpec): string {
-  return `import { describe, expect, it } from 'vitest';
+  return `/// <reference types="node" />
+// The test runs in Node; the admin layer it tests is compiled without Node types.
+import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -1288,8 +1290,8 @@ import {
   AdminNavDeclarationSchema,
   AdminRouteDeclarationSchema,
 } from '@endora-commerce/contracts';
-import * as adminLayer from '../../src/admin/index.js';
-import { manifest } from '../../src/manifest.js';
+import * as adminLayer from './index.js';
+import { manifest } from '../manifest.js';
 
 const packageDir = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 
@@ -1413,14 +1415,14 @@ function bundle(spec: ModuleScaffoldSpec): string {
   return flatJson(bundleEntries(spec));
 }
 
-// --- test/unit/manifest.test.ts --------------------------------------------
+// --- src/backend/manifest.test.ts -----------------------------------------
 
 function manifestTest(spec: ModuleScaffoldSpec): string {
   return `import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { basename, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { manifest } from '../../src/manifest.js';
+import { manifest } from '../manifest.js';
 
 /**
  * What a module manifest can be wrong about without anything else noticing.
