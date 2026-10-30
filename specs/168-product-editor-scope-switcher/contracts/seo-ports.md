@@ -10,7 +10,7 @@ export interface SeoProductMetaPort {
   /** Storefront: effective values at (C, L) along C×L → C → G, then the caller's derived fallback. */
   resolveForProduct(input: { productId; channelId; languageCode; fallback: SeoProductMetaValues }):
     Promise<SeoProductMetaValues & { sources: Record<SeoProductMetaField, ScopedSource | 'derived'> }>;
-  /** Admin: each field's ScopedFieldView at one scope (G, C or C×L). */
+  /** Admin: each field's ScopedFieldView at one scope (G, C or C×L); an invalid scope → 422 SCOPE_INVALID, never an empty view. */
   readScoped(productId: string, scope: ScopeRef): Promise<Record<SeoProductMetaField, ScopedFieldView<string>>>;
   /** Overview: every scope holding a product row (no Language-only scope any more). */
   listScopesForProduct(productId: string):
@@ -38,6 +38,7 @@ export interface SeoProductMetaWritePort<EM = unknown> {
   applyWithin(em: EM, input: { productId; scope: ScopeRef;
                                changes: Partial<Record<SeoProductMetaField, ScopedWriteOp<string>>> }):
     Promise<{ before: Record<string, unknown>; after: Record<string, unknown> }>;
+  // ogImageUrl: http(s) only at write (no javascript:, data:); re-checked and escaped at render (R21)
 }
 ```
 
@@ -71,7 +72,7 @@ Command only when `changes.seo` is non-empty — never into a singleton, never w
 | --- | --- | --- |
 | `GET /api/v1/admin/seo/meta/product/:entityId` | `catalog:read` | **new** static route (FR-093); query `channelId?`, `languageCode?` (no locale-only) |
 | `GET /api/v1/admin/seo/meta/:entityType/:entityId` | `catalog:write` | unchanged for `category` / `cms_page`; `product` is answered by the static route first |
-| `PUT` / `DELETE /api/v1/admin/seo/meta/:entityType/:entityId` | `catalog:write` | for `product`: three-level address, `''` / `null` per write encoding; still seo's own `seo_meta_override.*` Commands (not used by the editor) |
+| `PUT` / `DELETE /api/v1/admin/seo/meta/:entityType/:entityId` | `catalog:write` | `entityType = 'product'` **refused** `422 VALIDATION_FAILED` (R21): product SEO is written only through catalog's save (one audit path; FR-094); `category` / `cms_page` unchanged |
 
 `requireAdmin` literals stay resolvable; the permission inventory test proves `catalog:read` is enforced on the
 new route.

@@ -58,13 +58,26 @@ export function validateScopedWrite(
 Encode: empty → `NULL`; inherit → `INHERIT`; text matching `^\\*(NULL|INHERIT)$` → one `\` prepended; other text
 verbatim. `decode(encode(x)) = x` for every text `x` (property test).
 
+## 3a. Formula-injection guard (FR-118, owner round 7)
+
+Applies to **text columns** only (never to columns whose field is numeric, boolean or date).
+
+| Direction | Rule |
+| --- | --- |
+| Export | after §3's token escape: a text starting with `'` gets one more leading `'`; a text starting with `=`, `+`, `-`, `@`, TAB or CR gets one leading `'` |
+| Import | after §3's whole-cell token check (tokens are matched on the raw cell): a cell starting with `'` loses exactly one leading `'`; then §3's backslash rule |
+
+Examples: `=1+1` → `'=1+1` → `=1+1`; `'quoted` → `''quoted` → `'quoted`; `-5` in a text column → `'-5` → `-5`;
+`-5` in a numeric column → `-5`; `NULL` text → `\NULL`; cell `'NULL` → text `NULL` (not the token). Round trip
+`decode(encode(x)) = x` holds for every text (property test extended).
+
 ## 4. Shared case table (SC-014)
 
 `packages/contracts/src/scoped-write-encoding.cases.ts` exports `SCOPED_WRITE_CASES: Array<{ name; json?: unknown;
 csv?: string; field: 'name' | 'description' | 'status' | 'minOrderQuantity' | 'attribute:multi'; level; expect:
 ScopedWriteOp | 'no_change' | ScopedWriteRefusal }>`, covering every row of §1 and §3 plus the refusals (`NULL` on
 name, on status, on a boolean; `INHERIT` at Global; `NULL` on minimum order quantity = no minimum; `NULL` on a
-multiselect = nothing selected). Imported by:
+multiselect = nothing selected), and every row of §3a (FR-118). Imported by:
 
 1. `packages/contracts/src/scoped-write-encoding.test.ts` (pure),
 2. `backend/test/contract/catalog/scoped-values-encoding.test.ts` (the save API) [PG],

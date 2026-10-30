@@ -33,7 +33,9 @@ plugin's boot check, and until then queried without `attributesToSearchOn` (pre-
 
 `attributesToSearchOn = ['texts.<L>.name', 'texts.<L>.description', 'texts.<L>.attributes', 'texts.<L>.options',
 'sku', ...searchableNonTextAttributes.map(k => 'attributes.' + k)]` with `L = searchScopeLanguage(channel,
-preferredLanguage)` (163). Hit display text: `texts.<L>.name` (and description where shown). A Polish shopper's
+preferredLanguage)` (163) — channel and language from the resolved request channel; `L` is validated against the
+channel's languages **before** it is interpolated into a field path (R21); audience and visibility stay
+server-side filters; a product inactive at (C, L) is absent (tested). Hit display text: `texts.<L>.name` (and description where shown). A Polish shopper's
 query never reads `texts.en-US.*` (US3, FR-033): test `backend/test/integration/search/language-restricted-match.test.ts`.
 
 ## 4. Measurement

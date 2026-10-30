@@ -22,8 +22,12 @@ import, FR-042); the admin warns on a target whose channel no longer exists. Rou
 
 ## 2. Import
 
-`POST /api/v1/admin/import/products?profileId=<uuid>` — `profileId` required for products (`422
-IMPORT_PROFILE_REQUIRED`); other entities unchanged.
+`POST /api/v1/admin/import/products?profileId=<uuid>[&dryRun=true]` — gated `catalog:write`; `profileId` required for
+products (`422 IMPORT_PROFILE_REQUIRED`); a profile whose `entity` is not `products` → `422 VALIDATION_FAILED`;
+the profile is **snapshotted** at run start. `dryRun=true` parses, plans and validates, writes nothing, and
+returns the report. Caps: 10 MiB file, 50 000 rows, 500 columns. Each product row applies in its own transaction
+(per-product atomicity); retries are idempotent. Other entities unchanged. Profiles are platform-global; any
+`catalog:write` admin may edit any profile.
 
 ### 2.1 Column grammar (header row)
 
@@ -35,11 +39,13 @@ IMPORT_PROFILE_REQUIRED`); other entities unchanged.
 | `<field>@<channel code>/<language>` | the C×L scope (only for fields whose set has CL) |
 | `<field>[<locale>]`, `<field>[<locale>\|<source channel>]` | a source-locale value, mapped by the profile (`pim-locale-mapping.md` §2); the profile's `sourceLanguageForGlobal` locale writes Global |
 
-Unknown channel code or a language the channel does not offer in a **header** → file error (no row imported).
+One anchored header grammar (R14) — channel and source-channel codes `^[A-Za-z0-9_.-]{1,100}$`; a header
+matching nothing, two headers equal after normalisation, an unknown channel code or a language the channel does
+not offer → file error (no row imported).
 
 ### 2.2 Cells
 
-Decoded with `decodeCsvScopedCell` (`write-encoding.md`): empty = no change, `NULL` = empty, `INHERIT` = inherit,
+Decoded with `decodeCsvScopedCell` (`write-encoding.md`, including the §3a formula guard on text columns): empty = no change, `NULL` = empty, `INHERIT` = inherit,
 `\`-escaped text. Refusals (`required_empty`, `not_emptyable`, `inherit_at_global`) are field errors in the report;
 the row's other fields apply. A scope column and a mapped locale column landing on the same (field, scope) in one
 row → row error `IMPORT_CELL_CONFLICT`. A mapped target the product is not valid for → reported for that row
@@ -48,7 +54,8 @@ SC-005). Protection does not exist for CSV (it is a PIM-connector concept, FR-04
 
 ### 2.3 Report additions
 
-`BulkImportReport` gains `warnings: Array<{ kind: 'unmapped_locale'; locale; sourceChannel; products: number }>`
+`BulkImportReport` gains `cellCounts: Array<{ column; null: number; inherit: number }>` (shown before "Apply"
+after a dry run — spec round 7, softening FR-116), `warnings: Array<{ kind: 'unmapped_locale'; locale; sourceChannel; products: number }>`
 and per-row `fieldErrors: Array<{ column; code }>`.
 
 ## 3. Export
@@ -56,7 +63,7 @@ and per-row `fieldErrors: Array<{ column; code }>`.
 `GET /api/v1/admin/export/products.csv` writes `sku`, every Global column, and one `<field>@<channel>` /
 `<field>@<channel>/<language>` column per (field, scope) where **any** exported product holds an own value; a
 product without an own value there gets `INHERIT` in that column; a deliberately empty value `NULL`; text that
-equals a token is escaped. Export uses no profile (FR-043, owner round 6). Export → re-import of the unchanged file (with any profile)
+equals a token is escaped; text cells get the formula guard (FR-118); numeric columns are untouched. Export uses no profile (FR-043, owner round 6). Export → re-import of the unchanged file (with any profile)
 writes nothing (FR-114; test `backend/test/integration/import_export/products-csv-roundtrip.test.ts`).
 
 ## 4. Admin
@@ -64,7 +71,8 @@ writes nothing (FR-114; test `backend/test/integration/import_export/products-cs
 The `/import-export` page gains an **Import profiles** section (list, create / edit dialog with the mapping table
 — source locale, source channel, target channel × language multi-select from the channels API — and the source
 language for Global; delete with confirmation) and a profile `Select` in the products import step, required.
-Shown only with `catalog:write`. i18n keys under `importProfiles.*` in `import_export/i18n/{en,pl}.json`. The
+Shown only with `catalog:write`. The import step runs the dry run first and shows the per-column `NULL` /
+`INHERIT` counts and the warnings before "Apply". i18n keys under `importProfiles.*` in `import_export/i18n/{en,pl}.json`. The
 `open-import-export-center` action gains keywords `profile`, `profil`, `mapping`, `mapowanie`; no new route, so
 `palette-coverage.test.ts` needs no new action or exemption.
 

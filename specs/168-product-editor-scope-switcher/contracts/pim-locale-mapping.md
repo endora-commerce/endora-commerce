@@ -78,6 +78,14 @@ export interface CatalogProductScopeWritePort {
 }
 ```
 
+**Allowlist (R13a).** Accepted fields: `name`, `description`, `attribute:<key>` (attributes of the product's
+set, validated by value type and scope set), `gallery:<itemId>:altText`, `attachment:<id>:name|description`,
+`packagingUnit:<id>:name`, `urlKey` (163 FR-093), `status`, `window` (163 capabilities, kept pending the
+owner — see R13a). Refused `not_supported`: `audience`, `product.*`, `seo:*`, `galleryRole:*`, `*:hidden`,
+`minOrderQuantity`, `returnable`. Subject ids bound to `productId` (R21). `options.source` must be a registered
+connector module id (`^[a-z][a-z0-9_]{1,63}$`, present in the registry). At most 2 000 cells per call; duplicate
+(field, scope) cells refused. At most 1 000 new URL keys reserved per run.
+
 One Command `product.scoped_values.import` per product (one audit entry, `source` in the audit meta), the same
 `validateScopedWrite` refusals (reported per cell, the rest applied — an import is per-cell tolerant, unlike the
 editor save), no completeness gate (163 A-6), no takeover (163 FR-093), version bumped. SEO cells are not

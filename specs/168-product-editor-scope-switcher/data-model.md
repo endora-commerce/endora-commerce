@@ -21,6 +21,10 @@ none has a data-restoring `down`.
 | Source | `set` · `set_empty` · `inherited_channel` · `inherited_global` · `absent` (FR-109) |
 | Write op | absent (no change) · `set(value)` · `empty` · `inherit` (FR-110, R3) |
 
+`language_code` is stored in the **channel's own spelling** (BCP-47 as in `sales_channels.languages`, e.g.
+`pl-PL`), resolved at the write boundary by `resolveScopeLanguage` (163 R7); requests match case-insensitively.
+Readers detect an empty override with `value ? 'v' and jsonb_typeof(value->'v') = 'null'`, never `->>` (R22).
+
 Fallback: `effective(f, C, L) = row(f, C, L) ?? row(f, C, null) ?? global(f)`, restricted to the field's scope
 set; a row present with `empty` is the answer. Valid scopes for a product: G; (C) for every member channel; (C, L)
 for every member channel C and every L in C's languages (163 FR-014, `toScopeChannel`). Rows at other scopes are
@@ -35,13 +39,34 @@ for every member channel C and every L in C's languages (163 FR-014, `toScopeCha
 | `attribute_values` | jsonb; a language-scoped attribute held a `{lang: value}` map | jsonb `{ key: scalar \| array }` — Global values only, never a language map |
 | `admin_name_key_en`, `admin_name_key_pl`, `admin_search_key_en`, `admin_search_key_pl` | generated from the name map per admin language | **dropped** with `catalog_admin_display_name(jsonb, …)` and `catalog_admin_name_key(jsonb, …)` |
 | `admin_name_key`, `admin_search_key` | — | generated stored `text collate "C"`: `catalog_admin_fold(coalesce(nullif(name,''), sku))` and `… || ' ' || lower(sku)`; indexes `products_admin_order` (btree `(admin_name_key, sku, id) include (admin_search_key)`) and `products_admin_search_trgm` (GIN trigram) |
-| `updated_at` | ORM `onUpdate` | also the **version** (R7): bumped by every scoped write of the product, compare-and-set by the save and copy Commands |
+| `scope_version` | — | **new** `bigint not null default 0` — the Save's version (R7): incremented as the first statement of every Save-overwritable write, compare-and-set by the save and copy Commands; immediate actions never touch it; exposed as an opaque string |
 
 Conversion (dev databases only; a convenience with no product meaning — Global has no language, round 3): `name = coalesce(nullif(name->>'en-US',''), first non-empty value in key order,
 sku)`; `description` likewise, `null` when none; a language-map attribute value collapses the same way. Other
-languages are dropped (FR-020). Order inside the migration: drop indexes → drop generated columns → drop
-functions → convert types → recreate one function pair over `text` → add generated columns → recreate indexes.
-`catalog_admin_fold(text)` is kept.
+languages are dropped (FR-020). The jsonb key order the helper reads is a dev-only convenience.
+
+**Statement order of `scope_model_texts` (R22; backfill before every constraint):**
+
+1. Collapse language-map `attribute_values` for attributes whose `product_attributes.language_scoped` is true
+   (the same pick as the name), **before** the flags are dropped.
+2. Drop the `products_admin_order_<lang>` / `products_admin_search_<lang>_trgm` indexes → the four generated
+   columns → `catalog_admin_name_key(jsonb, …)` and `catalog_admin_display_name(jsonb, …)`.
+3. Convert `name` / `description`, guarded by `information_schema.columns.data_type = 'jsonb'`: add `name_g text`
+   → create the temporary helper `catalog_first_text(jsonb)` → `update products set name_g = coalesce(nullif(
+   name->>'en-US',''), catalog_first_text(name), sku) where jsonb_typeof(name) = 'object'` (and `name::text`
+   otherwise) → `set not null` → drop `name` → rename `name_g` to `name`; `description` the same, nullable; drop
+   the helper. (`ALTER … TYPE … USING` cannot hold the subquery.)
+4. Recreate `catalog_admin_name_key(text, text)` over text, the two generated columns and their two indexes
+   (`catalog_admin_fold(text)` is kept).
+5. `product_attributes`: add `scopable` = `channel_scoped or language_scoped`, then drop the two flags.
+6. `product_value_overrides`: wrap rows whose `value` lacks `v` (`value = jsonb_build_object('v', value)`), then
+   CHECK `value ? 'v'`; keep the non-partial `product_value_overrides_product_attr_idx`.
+7. Add `products.scope_version`.
+8. `delete from product_editor_preferences`, then CHECK `last_channel_id is not null or last_language_code is
+   null`.
+
+Raw SQL reading `name` to re-check after the type change: `effective-value.sql.ts`,
+`catalog-admin-search.service.ts`, `gallery-scopes.ts`, `attachment-packaging-scopes.ts`, `catalog-query.service.ts`.
 
 `products.status`, `visibility`, `allowed_organization_ids`, `publish_from`, `publish_until`, `min_order_quantity`,
 `returnable`, `slug` keep their meaning as the Global values (163 §3).
@@ -87,7 +112,8 @@ Conversion: none needed beyond the CHECK; existing rows are already C or C×L.
 | --- | --- |
 | `min_order_quantity_overridden` | **new** `boolean not null default false` — the C row overrides the Global minimum |
 | `min_order_quantity` | meaningful only when overridden; `null` = **no minimum in this channel** (round 5); else 1…1 000 000 |
-| CHECK | `min_order_quantity_overridden or min_order_quantity is null`; old `1`-means-none rows converted to `overridden = true, value = null` |
+| CHECK | `min_order_quantity_overridden or min_order_quantity is null`, added **after** the backfill |
+| Backfill (in order) | add the flag `default false` → `update product_channel_scopes set min_order_quantity_overridden = true, min_order_quantity = case when min_order_quantity = 1 then null else min_order_quantity end where min_order_quantity is not null` → add the CHECK |
 
 Row deletion invariant (163 FR-012): a row whose every field inherits (`status null`, `window_overridden false`,
 `visibility null`, `min_order_quantity_overridden false`, `returnable null`) is deleted.
@@ -105,8 +131,17 @@ Row deletion invariant (163 FR-012): a row whose every field inherits (`status n
 | `key` | varchar(160) | no | `productSlugSchema` grammar |
 | `created_at`, `updated_at` | timestamptz | no | |
 
-Partial uniques: `(product_id, sales_channel_id) where language_code is null`;
-`(product_id, sales_channel_id, language_code) where language_code is not null`. Index `(key)`.
+Constraints and indexes (R12, spec round 7):
+
+- `create extension if not exists btree_gist;`
+- **exclusion constraint** `product_url_keys_one_product_per_channel_key`:
+  `exclude using gist (sales_channel_id with =, key with =, product_id with <>)` — a key text belongs to one
+  product per channel across all languages, orphans included; the same product may repeat it;
+- partial uniques `(sales_channel_id, key) where language_code is null`,
+  `(sales_channel_id, language_code, key) where language_code is not null`,
+  `(product_id, sales_channel_id) where language_code is null`,
+  `(product_id, sales_channel_id, language_code) where language_code is not null`;
+- index `(product_id)` (cascades, per-product reads) and `(key)` (the Global-key check).
 
 `product_url_redirects` (recreated)
 
@@ -119,7 +154,8 @@ Partial uniques: `(product_id, sales_channel_id) where language_code is null`;
 | `key` | varchar(160) | no | the former key |
 | `created_at` | timestamptz | no | |
 
-Unique `(sales_channel_id, language_code, key)`. Write rules and resolution order: `contracts/url-keys.md`.
+Unique `(sales_channel_id, language_code, key)`; index `(product_id)`; at most 50 rows per (product, channel)
+(service-enforced, R12). Write rules and resolution order: `contracts/url-keys.md`.
 Conversion: every 163 language key (`sales_channel_id null`) and every redirect is dropped (FR-020).
 
 ## 6. Gallery (catalog) — `scope_model_media` (replaces 163 §7)
@@ -138,14 +174,21 @@ Conversion: every 163 language key (`sales_channel_id null`) and every redirect 
 not null` FK cascade, `language_code varchar(16) null`, `field varchar(16) not null` CHECK in (`alt_text`,
 `hidden`), `value jsonb not null` CHECK `value ? 'v'`, timestamps. Partial uniques
 `(gallery_item_id, field, sales_channel_id) where language_code is null` and
-`(gallery_item_id, field, sales_channel_id, language_code) where language_code is not null`; index
-`(product_id)`. `hidden` values are `{"v": true|false}` (no empty); `alt_text` `{"v": "<text>"|null}`.
+`(gallery_item_id, field, sales_channel_id, language_code) where language_code is not null`; indexes
+`(gallery_item_id)` and `(product_id)`. **Composite FK** `(gallery_item_id, product_id)` →
+`gallery_items (id, product_id)` on delete cascade (needs `unique (id, product_id)` on `gallery_items`), so an
+override cannot point at another product's image. Type CHECKs: `field <> 'hidden' or jsonb_typeof(value->'v') =
+'boolean'`; `field <> 'alt_text' or jsonb_typeof(value->'v') in ('string','null')`. `hidden` values are
+`{"v": true|false}` (no empty); `alt_text` `{"v": "<text>"|null}`.
 
 §6b `gallery_role_scope_overrides`: `id uuid pk`, `product_id uuid not null` FK cascade, `sales_channel_id uuid not
 null` FK cascade, `language_code varchar(16) null`, `label varchar(16) not null` (`base_image` / `small_image` /
 `thumbnail`), `gallery_item_id uuid null` FK `gallery_items` on delete cascade — **`null` = empty override: no
-image holds the role at this scope**. Partial uniques `(product_id, label, sales_channel_id) where language_code is
-null` and `(product_id, label, sales_channel_id, language_code) where language_code is not null`.
+image holds the role at this scope**. The holder FK is **composite and nullable**: `(gallery_item_id,
+product_id)` → `gallery_items (id, product_id)` `match simple on delete cascade` — cascade, not `set null`,
+because a removed holder must make the role inherit again rather than silently become "no image". Partial uniques
+`(product_id, label, sales_channel_id) where language_code is null` and `(product_id, label, sales_channel_id,
+language_code) where language_code is not null`; indexes `(product_id)`, `(gallery_item_id)`.
 
 Effective at (C, L): an item is shown unless its effective `hidden` is true; role R = effective holder of R; a
 holder that is effectively hidden at (C, L) resolves to none (163 rule kept). Alt at (C, L) = effective alt; when it
@@ -159,10 +202,17 @@ is `absent` the asset's alt text in L applies (derived fallback); an **empty** a
 | `product_attachments.hidden` | **new** `boolean not null default false` — hidden at Global (round 2: attachment hidden gains G) |
 | `product_attachments.name_translations`, `.description_translations` | **dropped** |
 | `product_attachment_channel_hidden` | **dropped** |
-| `product_attachment_scope_overrides` | **new**: as §6a with `attachment_id` FK `product_attachments` cascade and `field` in (`name`, `description`, `hidden`) |
+| `product_attachments` | add `unique (id, product_id)` (target of the composite FK) |
+| `product_attachment_scope_overrides` | **new**: as §6a — **carries `product_id`** — with composite FK `(attachment_id, product_id)` → `product_attachments (id, product_id)` cascade, `field` in (`name`, `description`, `hidden`), type CHECKs (`hidden` boolean, text fields string or null), indexes `(attachment_id)`, `(product_id)` |
 | `product_packaging_units.name` | unchanged — the Global name (unique per product) |
 | `product_packaging_units.name_translations` | **dropped** |
-| `product_packaging_unit_scope_overrides` | **new**: as §6a with `packaging_unit_id` FK `product_packaging_units` cascade and `field` = `name` |
+| `product_packaging_units` | add `unique (id, product_id)` |
+| `product_packaging_unit_scope_overrides` | **new**: as §6a — **carries `product_id`** — with composite FK `(packaging_unit_id, product_id)` → `product_packaging_units (id, product_id)` cascade, `field` = `name`, type CHECK string or null, indexes `(packaging_unit_id)`, `(product_id)` |
+
+`gallery_items` also gains `unique (id, product_id)` (§6). Statement order of `scope_model_media`: new Global
+columns with defaults → `unique (id, product_id)` on the three subject tables → create the four override tables
+with their constraints → drop the 163 channel tables and the `*_translations` columns → `alt_text` jsonb → text by
+add / update / drop / rename (as §1).
 
 Snapshots (`cart_items.packaging_unit_name`, `quote_request_items.packaging_unit_name`, order lines) take the
 effective name at the document's (C, L) through `effectivePackagingUnitNames` (163 N2 rule, new chain) and are
@@ -172,10 +222,12 @@ never re-resolved.
 
 | Change | Detail |
 | --- | --- |
+| order (R22) | delete → drop the old CHECK → add the new CHECK → Global partial unique → plain index |
 | delete | rows with `entity_type = 'product' and sales_channel_id is null and locale is not null` (Language scope, FR-010) |
 | CHECK `seo_meta_overrides_scope` | replaced by: `entity_type = 'product' and (locale is null or sales_channel_id is not null)` **or** `entity_type <> 'product' and (locale is not null or sales_channel_id is not null)` |
 | partial unique | add `(entity_type, entity_id) where sales_channel_id is null and locale is null` (one Global product row) |
-| column semantics (product rows) | `NULL` = inherit (at G: no value); `''` = deliberately empty (R9) |
+| index | plain `(entity_type, entity_id)` (the partial uniques do not serve unqualified lookups) |
+| column semantics (product rows) | `NULL` = inherit (at G: no value); `''` = deliberately empty (R9); an empty override makes the storefront use the derived value (round 6) |
 
 Category and CMS-page rows are unchanged (FR-117).
 
@@ -213,20 +265,22 @@ Every field not listed is global-only (spec *Terms*). `inherit` at G is refused 
 | set | set | Channel × language |
 | `null` | set | invalid — refused by the PUT route |
 
-Emptied by `scope_model_texts` (the old `null` language meant "primary admin language").
+Emptied by `scope_model_texts` (the old `null` language meant "primary admin language"), then CHECK
+`last_channel_id is not null or last_language_code is null`. A write is UI state, not a Command (R8).
 
 ## 11. `import_profiles` (import_export) — migration `import_profiles` (R14)
 
 | Column | Type | Null | Meaning |
 | --- | --- | --- | --- |
 | `id` | uuid | no | PK |
-| `name` | varchar(120) | no | unique (`lower(name)`) |
+| `name` | varchar(120) | no | unique index on `lower(name)`, raw SQL in the migration (no `@Unique` in the entity) |
 | `entity` | varchar(32) | no | `'products'` (CHECK) — the only entity with a mapping in 168 |
 | `source_language_for_global` | varchar(16) | yes | the source locale written to Global (FR-047); `null` = none |
 | `locale_mapping` | jsonb | no | `pimLocaleMappingEntriesSchema` — `[{ sourceLocale, sourceChannel, targets: [{ channelId, languageCode }] }]` |
 | `created_at`, `updated_at` | timestamptz | no | |
 
-No FK on target channel ids (a deleted channel makes a target invalid, reported per row at import — FR-042).
+Migration class `Migration<STAMP>ImportExportImportProfiles`. At most 100 mapping entries × 16 targets
+(schema-enforced). No FK on target channel ids (a deleted channel makes a target invalid, reported per row at import — FR-042).
 Commands `import_profile.create` / `.update` / `.delete`, before / after = the row projection.
 
 ## 12. Search document (search) — no migration; reindex (replaces 163 §11 text fields)
@@ -241,7 +295,7 @@ filterable fields of 163 unchanged.
 
 | Transition | Effect |
 | --- | --- |
-| Immediate action (structural op, price-book row, membership, stock) | its own audited Command; **does not bump `products.updated_at`**; staged editor changes are untouched (R7) |
+| Immediate action (structural op, price-book row, membership, stock) | its own audited Command; **does not bump `products.scope_version`**; staged editor changes are untouched (R7) |
 | Save at scope S | one Command; for each staged (field, S): `set` → upsert own value; `empty` → upsert empty row (refused for required / select / boolean); `inherit` → delete own row (refused at G); version bumped; one audit entry; one `product.updated.v1` with `changedFields` |
 | Copy to channels | one Command; upsert the source's own value (or empty) at each (C_target, L); one audit entry |
 | Product leaves a channel / channel drops a language | rows retained and ignored, listed as orphaned; orphaned URL keys keep reserving (FR-016, FR-018) |

@@ -27,7 +27,7 @@ type ScopedFieldView<T> = {
 
 type ScopedValuesResponse = { data: {
   scope: ScopeRef;
-  version: string;                               // products.updated_at, ISO (R7)
+  version: string;                               // products.scope_version, opaque (R7)
   validScopes: { channels: Array<{ channelId; name; languages: Array<{ code; name }> }> }; // FR-051
   product: {                                     // global-only fields, always the Global value (FR-081)
     sku; type; attributeSetId; categoryIds; archivedAt; slugGlobal; manageStock; backorderEnabled;
@@ -102,18 +102,25 @@ type SaveScopedValuesRequest = {
 };
 ```
 
-`ScopedWrite<T>` = `T | null | { inherit: true }`, absent or `""` = no change (`write-encoding.md`). Limits: at most
-500 changed cells per request (`VALIDATION_FAILED` beyond — a guard, not a product limit).
+`ScopedWrite<T>` = `T | null | { inherit: true }`, absent or `""` = no change (`write-encoding.md`).
+
+**Bounds (R21).** Every object is `.strict()`; record keys match `^[0-9a-f-]{36}$` (uuids) or
+`^[a-z0-9_]{1,64}$` (attribute keys) and are parsed into a `Map`; name ≤ 255, description ≤ 20 000, text attribute
+≤ 4 000, URL key `productSlugSchema` after NFC + lower-case, audience list ≤ 500, ≤ 500 changed cells; route
+`bodyLimit` 1 MiB (`…/copy`: 64 KiB). `confirmTakeover` ≤ 20 keys, honoured only here and on `PUT …/url-keys`.
+Audit cells over 4 KiB are stored `{ truncated: true, length, sha256 }`; side effects (redirects inserted / deleted,
+takeovers, orphan rows removed) are listed in before / after.
 
 **Processing — one Command `product.scoped_values.save`, `objectType: 'product'`, `objectId: :id`:**
 
 | Step | Failure | Effect |
 | --- | --- | --- |
+| 0. **First statement in the transaction**: `update products set scope_version = scope_version + 1 where id = :id and scope_version = :version` (R7; the row lock is held, so the capture below cannot race) | `409 VERSION_CONFLICT` | nothing written |
 | 1. Parse; resolve scope (§1) | `400` / `422 VALIDATION_FAILED`, `422 SCOPE_INVALID` | nothing written |
 | 2. Every changed field supported at the scope's level (data-model §9) | `422 FIELD_NOT_AT_SCOPE` `{ fields: [{ field, levels }] }` | nothing written |
 | 3. `validateScopedWrite` per cell (required / select / boolean refuse `empty`; `inherit` at G refused; value schemas, lengths) | `422 SCOPED_VALUE_INVALID` `{ fields: [{ field, reason: 'required_empty' \| 'not_emptyable' \| 'inherit_at_global' \| 'subject_not_found' \| 'invalid' }] }` | nothing written |
+| 3a. Subject binding (R21): every gallery item, role target, attachment and packaging-unit id belongs to `:id`; organisation ids exist; attribute keys belong to the product's attribute set | `422 SCOPED_VALUE_INVALID` `subject_not_found` / `invalid` (no distinction between unknown and another product's) | nothing written |
 | 4. `capture`: before-state of every touched cell, SEO cells via `seoProductMetaWritePort.readWithin(em, …)` | — | — |
-| 5. Compare-and-set the version: `date_trunc('milliseconds', updated_at) = :version`, new value a JavaScript `Date` > `:version` (research R7 — never SQL `now()`) | `409 VERSION_CONFLICT` | nothing written |
 | 6. Completeness gate, when a change turns a (C, L) on (163 M3 rule; FR-076) | refuse mode: `422 SCOPE_INCOMPLETE` (163 shape) | nothing written |
 | 7. Catalog writes in order: product row → scope rows → value overrides → family overrides → URL key (advisory locks; `409 URL_KEY_TAKEN` / `URL_KEY_REDIRECT_TAKEOVER_REQUIRED`) | any error | transaction rolled back |
 | 8. `seoProductMetaWritePort.applyWithin(em, …)` iff `changes.seo` non-empty — resolved here, so a switched-off `seo` answers `503 MODULE_DISABLED` | any error | rolled back |
@@ -147,6 +154,9 @@ type CopyScopedValueResponse = { data: {
   version: string;
 } };
 ```
+
+Rules (R21): `toChannelIds` deduplicated; all-or-nothing; `dryRun` writes nothing; `field` limited to {G,C,CL}
+text fields — `urlKey` and non-text fields refused `not_supported`; version step 0 as §3.
 
 Command `product.scoped_values.copy_to_channels`: copies the source's **own** value (`set` or `empty`) to
 `(target, languageCode)` for each target; refused per field when the source has no own value

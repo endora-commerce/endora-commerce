@@ -216,41 +216,29 @@ target. Copying `empty` to a required field is refused (round 4).
 (possibly inherited) value* — "copy this value" on an inheriting field would silently freeze an inherited value
 into N overrides; offering it only on an own value avoids the surprise.
 
-## R7 — Optimistic concurrency token
+## R7 — Optimistic concurrency token (revised after the schema review, 2026-10-30)
 
-**Decision.** `products.updated_at` (ISO string, millisecond precision) is the product's **version**. The read
-endpoint returns it; the save and copy Commands compare-and-set it. **Precision is part of the contract**: the
-column is `timestamptz` (microseconds, `core_foundation_init`), while the ORM and the API speak JavaScript `Date`
-(milliseconds) — a CAS written with SQL `now()` would store microseconds that the next ISO round-trip cannot
-match, and every second save would answer a spurious 409. So both sides are millisecond-truncated:
-`update products set updated_at = :next where id = :id and date_trunc('milliseconds', updated_at) = :version`,
-where `:next` is a JavaScript `Date` (never `now()`), strictly greater than `:version` (bumped by 1 ms when the
-clock has not moved) → 0 rows → `409 VERSION_CONFLICT`. Every bump below uses the same helper
-(`bumpProductVersion(em, productId, expected?)` in catalog).
+**Decision.** A dedicated column **`products.scope_version bigint not null default 0`** (added by
+`scope_model_texts`) is the product's version for the Save. The read endpoint returns it as an **opaque string**.
+The save and copy Commands run, as their **first statement** inside the Command's transaction,
+`update products set scope_version = scope_version + 1 where id = :id and scope_version = :version` — 0 rows →
+`409 VERSION_CONFLICT`, nothing written; the row lock this takes is held until commit, so the audit before-state
+captured afterwards cannot race a concurrent writer (security note: lock before capture).
 
-**What bumps, and what does not (round 6 consistency rule).** The token versions exactly what the Save
-overwrites: the product row's own fields and every scoped value (save, copy, PATCH scopes, URL-key writes, bulk
-scoped status, overview resets, the connector port, CSV import). **Immediate actions do not bump it** — catalog's
-structural Commands (variants, bundle slots, grouped items, links, gallery / attachment / packaging add, remove,
-reorder, asset replace, base quantity, default flag) write their own tables and must not touch
-`products.updated_at` (no dirty `Product` entity in their unit of work); price-book rows, channel membership and
-stock live in other modules' tables and cannot touch it. So staged edits survive the editor's own immediate
-actions and another admin's structural changes alike. A staged cell whose **subject** an immediate action
-deleted is refused `SCOPED_VALUE_INVALID` reason `subject_not_found` (the editor drops such cells first, with a
-notice); a scope an immediate membership change made invalid is refused `SCOPE_INVALID` with the staged changes
-kept (FR-073). Rejected: the editor adopting a token returned by its own immediate actions — another admin's
-unrelated structural change would still 409 the Save, and modules that cannot write `products` would have to
-return a catalog version.
-Every catalog write that changes a scoped value of the product — save, copy, bulk scoped status, overview resets,
-the scope write port (connectors), CSV import — bumps `products.updated_at` in its transaction, so the token
-covers the whole scoped model.
+**What bumps it.** Exactly the writes the Save can overwrite: the product row's own fields and every scoped value
+— the save, copy, `PATCH …/scopes`, URL-key writes, bulk scoped status, overview resets, the connector port and the
+CSV import — each through one helper, `bumpScopeVersion(em, productId, expected?)`. **Immediate actions never
+touch it** (structural operations, price-book rows, channel membership, stock), so staged edits survive them
+(spec round 6). A staged cell whose subject an immediate action removed is refused `SCOPED_VALUE_INVALID` reason
+`subject_not_found`; a scope made invalid by a membership change is refused `SCOPE_INVALID` with the staged
+changes kept (FR-073).
 
-**Rationale.** The column exists and is already touched by product-row writes; adding a `version int` column
-buys nothing a timestamp at millisecond precision does not, given writes to one product are serialised by the
-compare-and-set itself.
-
-**Rejected.** *A `version integer` column* — a migration and an entity change for the same guarantee. *No token*
-— US7 #6 / FR-073 name `409 VERSION_CONFLICT` explicitly.
+**Rejected.** *`products.updated_at` (the first version of this decision).* The column is `timestamptz`
+(microseconds) while the API speaks milliseconds, ORM `onUpdate` fires for any flush of a dirty `Product` —
+including an inventory or structural writer that happens to load one — and two saves inside one millisecond need
+a manual bump. Each of those is a spurious or a missed 409; a counter has none of them. *The editor adopting a
+token returned by its own immediate actions* — another admin's unrelated structural change would still 409, and
+modules that cannot write `products` would have to return a catalog version.
 
 ## R8 — `product_editor_preferences` encoding (FR-056)
 
@@ -382,19 +370,49 @@ the number is measured by the Polish-phase measurement task in `tasks.md` (perf:
 **Rejected.** *One index per (channel, language)* — the owner chose one index per channel. *Keep top-level
 `name` searchable* — matches the Global English string for a Polish shopper (F-k), against FR-033.
 
-## R12 — URL keys and redirects in the three-level model (FR-016)
+## R12 — URL keys and redirects in the three-level model (FR-016, changed by spec round 7)
 
 **Decision.** `products.slug` = Global key; `product_url_keys(product_id, sales_channel_id NOT NULL,
 language_code NULL, key)` = C (language null) and C×L keys; `product_url_redirects(product_id, sales_channel_id
-NOT NULL, language_code NOT NULL, key)`, unique `(sales_channel_id, language_code, key)`. Effective key at (C, L):
-C×L row → C row → slug. Uniqueness: for every (C, L) that **either** product could be addressed at — member
-channels and orphaned rows alike (orphans keep reserving, round 3) — two products' effective keys differ; a
-Global key equals no other product's key at any scope or as a redirect. Writes take per-key advisory locks
-(unchanged idiom). Redirects are inserted per (C, L) whose effective key changed, never chained. The full write
-rule table replaces 163 data-model §5: `contracts/url-keys.md`.
+NOT NULL, language_code NOT NULL, key)`. Effective key at (C, L): C×L row → C row → slug.
 
-**Rejected.** *Keep 163's language keys* — the Language scope is gone (FR-010). *Global-only redirects* — the
-owner keyed redirects per (C, L) (round 3).
+**Uniqueness space (owner round 7).** A key text belongs to **at most one product per channel, across all of the
+channel's languages**, orphans included; the same product may reuse it across languages. Enforced in the database
+by an **exclusion constraint** on `product_url_keys`:
+`exclude using gist (sales_channel_id with =, key with =, product_id with <>)` (extension `btree_gist`, created by
+the migration with `create extension if not exists`; trusted on PostgreSQL 16, `docker-compose.yml:30`). The
+constraint covers row-vs-row; two cross-table cases stay in code under the key lock: a **Global slug** (no row)
+that is another product's effective key in a channel where it has no row, and **redirects** (another product's
+redirect at any language of the channel → takeover required; the redirect table's unique
+`(sales_channel_id, language_code, key)` stays). A Global key must equal no other product's slug, row key or
+redirect anywhere — checked as one indexed query.
+
+**Concurrency (schema review).** Every key writer — product create, slug PATCH, the save, `PUT …/url-keys`, bulk
+edit, CSV import, the connector port, overview reset — goes through **one helper**,
+`UrlKeyService.lockAndCheck(em, writes)`, which takes `pg_advisory_xact_lock(hashtextextended('catalog.url-key:'
+|| key, 0))` for every key in the set, sorted, with a statement timeout: the new key, the outgoing key `k0`, the
+key that becomes effective after an `inherit`, and the slug fallback. A G write and a C×L write of the same key
+therefore serialise. The exclusion constraint is the backstop: a residual violation maps to `409 URL_KEY_TAKEN`,
+never a 500. An ownership test (T149) fails when a module writes `product_url_keys` or `products.slug` outside the
+helper.
+
+**Grammar (security review).** One schema, `productSlugSchema` (`^[a-z0-9]+(?:-[a-z0-9]+)*$`, max 160), applied
+after NFC normalisation and lower-casing, for G, C, C×L, CSV, the connector port and `PUT …/url-keys`. Storefront
+redirects are built only by `productPath()` (relative path, each segment through `encodeURIComponent`). Negative
+tests: `//host`, `/\host`, `..`, `%2f`, `:`, whitespace, upper case, non-ASCII. **No reserved-word list**: keys are
+served under the `/p/` prefix, so a key cannot shadow another storefront route (disagreement with the review's
+suggestion, recorded in the report).
+
+**Redirect growth (security review).** At most **50 redirects per product per channel** (the oldest is dropped
+when a write would exceed it, and the drop is in the audit after-state); a redirect is never chained (stores the
+product); an import or connector run reserves at most 1 000 new keys (the rest reported `limit_reached`).
+
+**Takeover** (`confirmTakeover`) is accepted only on `catalog:write` routes from an interactive operator (the save
+and `PUT …/url-keys`); the connector port and the CSV import never take over (163 FR-093). The losing product's
+deleted redirects are listed in the save's audit before-state.
+
+**Rejected.** *Uniqueness per effective (C, L) (round 2)* — superseded by the owner (round 7); it needed a
+cross-level check no constraint can express. *A reserved-word list* — see above.
 
 ## R13 — PIM locale mapping contract and protection (FR-040…FR-047)
 
@@ -420,6 +438,20 @@ owner keyed redirects per (C, L) (round 3).
 
 **Rejected.** *A shared mapping editor contributed by `pim_connector`* — rejected by the owner (round 2).
 *Per-scope protection paths* — rejected by the owner (round 3).
+
+## R13a — Connector port allowlist (security review)
+
+**Decision.** `catalogProductScopeWritePort` v2 accepts only these field families: `name`, `description`,
+`attribute:<key>` (scopable or Global attributes of the product's attribute set, validated by value type),
+`gallery:<itemId>:altText`, `attachment:<id>:name|description`, `packagingUnit:<id>:name`, `urlKey` (163 FR-093:
+connectors write keys, never take over), `status` and `window` (163 `ProductScopeWriteInput` allowed both; a PIM
+publishes products). **Refused `not_supported`:** `audience` (organisation ids are a customer-data decision, not
+PIM data), `product.*` global-only fields (SKU, type, download URL, stock, fulfilment), `seo:*`, roles, hidden
+flags, minimum order quantity and returnable. `options.source` must be a registered connector module id
+(`^[a-z][a-z0-9_]{1,63}$` and present in the module registry). At most **2 000 cells per call**; duplicate
+(field, scope) cells in one call are refused. **Disagreement recorded:** the review asked to refuse status,
+window and URL key; refusing them would withdraw 163 capabilities connectors rely on, which is a behaviour change
+the owner has not made — kept, pending the coordinator / owner.
 
 ## R14 — Import profiles (FR-048) and the CSV grammar
 
@@ -449,12 +481,98 @@ owner keyed redirects per (C, L) (round 3).
   Export writes Global and scope columns (never locale columns) with the R3 encoding, so export → re-import of the
   unchanged file is a no-op (FR-114) — the profile's mapping is not needed to re-import an export.
 - The activation setting's description is rewritten: switching off keeps profiles.
+- **Platform-global** profiles: any `catalog:write` admin may edit any profile (spec round 7 note). An import
+  **snapshots** the profile at run start (later edits do not affect a running import) and refuses a profile whose
+  `entity` is not `products`. Profile size: at most 100 entries × 16 targets.
+- **Dry run and NULL / INHERIT counts (spec round 7 note, softening FR-116).** `POST /api/v1/admin/import/products?
+  profileId=&dryRun=true` parses, plans and validates without writing and returns the report; every report (dry run
+  or real) carries, per column, the count of `NULL` and `INHERIT` cells. The admin import step runs the dry run
+  first and shows the counts before "Apply".
+- **Header grammar (security review).** One anchored grammar: `^(?<field>[a-z][a-zA-Z0-9_:]*)(@(?<channel>
+  [A-Za-z0-9_.-]{1,100})(/(?<lang>[a-z]{2,3}(-[A-Za-z]{2})?))?|\[(?<locale>[a-z]{2,3}([_-][A-Za-z]{2})?)(\|(?<src>
+  [A-Za-z0-9_.-]{1,100}))?\])?$`; a header matching nothing, or two headers equal after normalisation, is a file
+  error. Caps: 10 MiB file, 50 000 rows, 500 columns. Each product row applies in its own transaction (per-product
+  atomicity); a retried import is idempotent because cells are set-or-inherit, not increments.
+- **Formula-injection guard (FR-118, owner round 7)** — `contracts/write-encoding.md` §3a.
 
 **Export (FR-043, owner round 6).** The export uses no import profile: Global plus per-scope columns in the
 grammar above (the spec's `sklep_pl:pl` is illustrative; FR-043 leaves the naming to the plan), exact on re-import.
 
 **Rejected.** *A per-profile permission code* — no new code (FR-084 of 163). *Profiles in the Settings store* —
 FR-048 names a table owned by `import_export`. *Hand-written audit* — XIII.
+
+## R21 — Input bounds and subject binding (security review, blocking before C1)
+
+**Decision.**
+
+- **Subject binding.** Every id in a save or copy body — gallery item, role target item, attachment, packaging
+  unit — must belong to the product in the path; an id of another product, or of no product, is the same
+  `422 SCOPED_VALUE_INVALID` reason `subject_not_found` (no existence oracle). `allowedOrganizationIds` must exist
+  (checked through `organizations`' published read port, already used by 163's audience names); an unknown id is
+  `invalid` with no distinction between "unknown" and "elsewhere". An attribute key must be an attribute of the
+  product's attribute set; its scope and value are validated by the attribute's value type and scope set.
+- **Shape bounds.** Every object in `changes` is `.strict()`; record keys are validated by regex (uuid, or
+  `^[a-z0-9_]{1,64}$` for attribute keys) and parsed into a `Map` (never assigned onto a plain object — prototype
+  pollution); limits: name 255, description 20 000, a text attribute 4 000, SEO lengths of `seo-ports.md` §2,
+  audience list ≤ 500 organisations, ≤ 500 changed cells per request, route `bodyLimit` 1 MiB for
+  `PUT …/scoped-values` and 64 KiB for `…/copy`.
+- **Audit size.** A cell's before / after over 4 KiB is stored as `{ truncated: true, length, sha256 }`; the
+  re-application guarantee (FR-074) is for values within the bound — longer descriptions are re-applied from the
+  `sha256`-matched current or a restore of the source (stated in the docs).
+- **Audit side effects.** Redirects inserted or deleted, takeovers and orphan rows removed by a save are listed in
+  its before / after, so re-applying the before-state can restore them.
+- **Copy.** `toChannelIds` deduplicated; all-or-nothing; `dryRun` reads only; only {G,C,CL} text fields
+  (name, description, text attributes, alt text, attachment name / description, packaging name) — `urlKey`
+  refused `not_supported` (it would bypass the per-channel uniqueness decision of the operator). No per-admin rate
+  limit: the route is `catalog:write` and one Command per call; a limiter would be new infrastructure (IV) —
+  disagreement with the review's note, recorded in the report.
+- **SEO.** `readScoped` validates the scope (`422 SCOPE_INVALID`, never an empty view); `ogImageUrl` must be
+  `http:` / `https:` at write (and is re-checked when rendered, escaped in the meta output); the generic
+  `PUT` / `DELETE /api/v1/admin/seo/meta/:entityType/:entityId` refuse `entityType = 'product'`
+  (`422 VALIDATION_FAILED`) — product SEO is written only through catalog's save (one audit path; FR-094 removed
+  the `/seo` product mode); a route-order regression test proves the static product GET wins.
+- **Storefront search.** Channel and language come from the resolved request channel; the language is validated
+  against the channel's languages before `texts.<L>` is interpolated; audience / visibility stay server-side
+  filters; a product inactive at (C, L) is absent (test).
+
+## R22 — Migration mechanics (schema review, blocking before C1)
+
+**Decision.** The four catalog migrations have strictly increasing timestamps in the order texts → order rules →
+URL keys → media. General rule: **backfill or delete before every CHECK, constraint or NOT NULL.** Per migration
+the exact statement order is fixed in `data-model.md` §1–§8; the notable points:
+
+- `ALTER … TYPE text USING …` cannot contain a subquery (`jsonb_each_text`), so `name` / `description` convert by
+  **add `name_g text` → update with `coalesce(nullif(name->>'en-US',''), catalog_first_text(name), sku)` → set not
+  null → drop `name` → rename** (a temporary SQL helper `catalog_first_text(jsonb)` holds the subquery and is
+  dropped after), guarded by `information_schema.columns.data_type = 'jsonb'` and `jsonb_typeof(name) = 'object'`
+  so a re-run is a no-op. The jsonb key order the helper depends on is a dev-only convenience (A3).
+- Language-map `attribute_values` are collapsed using `product_attributes.language_scoped` **before** the flags are
+  dropped, and `scopable` is computed from the old flags before they go.
+- `product_value_overrides`: rows whose `value` is not `{v: …}` are wrapped (`{"v": value}`) before the CHECK.
+- MOQ: add the flag default false → `update … set min_order_quantity_overridden = true, min_order_quantity = case
+  when min_order_quantity = 1 then null else min_order_quantity end where min_order_quantity is not null` → CHECK.
+- **Override value guard rails.** Readers test `value ? 'v'` and `jsonb_typeof(value->'v') = 'null'` for empty,
+  never `->>` (which folds `null` and `""`). Per-field type CHECKs on the new override tables (`hidden` →
+  `jsonb_typeof(value->'v') = 'boolean'`; text fields → `in ('string','null')`). The SQL-vs-TS parity test has rows
+  for empty, absent and empty-string.
+- **Cross-product integrity.** `unique (id, product_id)` on `gallery_items`, `product_attachments` and
+  `product_packaging_units`; each override table references its subject with a **composite** FK
+  `(subject_id, product_id)` so an override can never point at another product's subject; the role holder FK is
+  composite and nullable (`MATCH SIMPLE`), `on delete cascade` (not `set null`: a removed holder makes the role
+  inherit again, never silently "no image").
+- **Indexes for unqualified lookups and cascades** (partial uniques do not serve them): listed per table in
+  `data-model.md`.
+- `seo`: delete locale-only product rows → drop the old scope CHECK → add the new CHECK → the Global partial unique
+  → a plain `(entity_type, entity_id)` index.
+- `import_export`'s first migration: `./migrations` export modelled on `packages/modules/seo/package.json:29`,
+  `src/migrations/index.ts`, class `Migration<STAMP>ImportExportImportProfiles`, the case-insensitive name unique
+  as raw SQL (`create unique index … (lower(name))`), no `@Unique` in the entity.
+- `language_code` is stored in the channel's own spelling (BCP-47, e.g. `pl-PL`), resolved at the write boundary
+  (`resolveScopeLanguage`, 163 R7); no CHECK.
+- Editor preferences: emptied, then CHECK `last_channel_id is not null or last_language_code is null`.
+
+**Follow-up (not 168):** `seo_meta_overrides` rows of a deleted product stay (polymorphic, no FK) — listed with
+R20's follow-ups.
 
 ## R15 — User attribute flag (FR-012)
 

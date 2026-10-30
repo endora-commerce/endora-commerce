@@ -29,7 +29,7 @@ Technical approach (research R1–R20):
   by one shared case table (SC-014). 163's `null` = inherit changes in place (FR-116).
 - **One read endpoint, one save Command, one copy Command (R4–R6).** `GET|PUT …/products/:id/scoped-values`,
   `POST …/scoped-values/copy`; the save is one `CommandBus.run` with one audit entry carrying every cell's
-  before / after, a version compare-and-set on `products.updated_at` (R7), the completeness gate before any write,
+  before / after, a version compare-and-set on the new `products.scope_version` counter (R7), the completeness gate before any write,
   and `seoProductMetaWritePort.applyWithin(em, …)` for SEO (R9).
 - **Readers through catalog's ports (R10).** `CatalogProductRecord.name` becomes the Global string, and
   `effectiveTexts` / `effectivePackagingUnitNames` give (C, L) values; the type change is the compile-time
@@ -37,7 +37,9 @@ Technical approach (research R1–R20):
   (`contracts/readers.md`).
 - **Search (R11).** One index per channel; a document carries `texts.<L>` for every channel language; the query
   searches only the shopper's language.
-- **URL keys (R12).** C and C×L keys, uniqueness per effective (C, L), orphans reserving, redirects per (C, L).
+- **URL keys (R12).** C and C×L keys; a key text belongs to one product per channel across all languages
+  (owner round 7), enforced by an exclusion constraint (`btree_gist`) plus code checks for the slug and
+  redirects under one locking helper; orphans reserving; redirects per (C, L), capped.
 - **PIM and CSV (R13, R14).** `pim-locale-mapping.ts` (owned by `pim_connector`) with a pure planner and a
   whole-field protection filter; the path grammar shrinks; `catalogProductScopeWritePort` v2; a new
   `import_profiles` table in `import_export` (its first), gated `catalog:write`, written by Commands.
@@ -128,7 +130,7 @@ FR-070, FR-074, new FR-094, US7, US10, SC-008):
 after C1. Task **T143** is the gate; every S3 task (US1's admin test T027 included) waits for it.
 
 **Staged edits versus immediate actions (consistency issue raised by the product owner).** Decided in research
-R7: **immediate actions do not bump the version token.** `products.updated_at` versions only what the Save
+R7: **immediate actions do not bump the version token.** `products.scope_version` versions only what the Save
 writes — the product row's own fields and every scoped value — so an immediate action taken from the editor
 (or by anyone else) never makes the next Save answer 409. Staged edits survive immediate actions (spec *Edge
 Cases*); staged cells whose subject an immediate action removed (an image, attachment or packaging unit) are
@@ -138,6 +140,21 @@ and T146 (admin). Rejected: *the editor adopts a token returned by its own immed
 409 after another admin's unrelated structural change, every immediate-action route in four modules (including
 `price_lists`, `sales_channels`, `inventory`, which cannot write `products`) would have to return a catalog
 version, and the token would stop meaning "the values this Save overwrites changed".
+
+## Pre-build reviews (security threat model, schema review — 2026-10-30)
+
+Applied before checkpoint C1: research **R7** (version token is now `products.scope_version bigint`), **R12**
+(owner round 7: one product per key per channel, exclusion constraint, one locking helper for every key writer,
+grammar, redirect caps, takeover only interactive), **R13a** (connector port allowlist, caps, registered
+`source`), **R14** (profile snapshot, dry run with per-column `NULL` / `INHERIT` counts, anchored header grammar,
+file caps, per-product atomicity), **R21** (subject binding, strict bounded bodies, audit size and side effects,
+copy rules, SEO scheme checks and the generic route refusing product writes, storefront search language
+validation), **R22** (migration statement order, override guard rails, composite FKs, indexes), and FR-118's
+formula-injection guard (`contracts/write-encoding.md` §3a). Owner kept FR-116 in place (no v2).
+
+Not applied, with reasons (for the coordinator): refusing `status`, `window` and `urlKey` on the connector port
+(163 capabilities; owner decision needed, R13a); a reserved-word list for URL keys (keys live under `/p/`, R12); a
+per-admin rate limit on copy (new infrastructure for a `catalog:write` single-Command route, R21).
 
 **Visible consequences already decided by the spec, for the owner to notice at acceptance:** admin lists and
 pickers show the product's Global name whatever the admin UI language (FR-031; the feature-161 per-language admin
@@ -317,7 +334,9 @@ connector migration note (mapping, grammar, port v2), and the named follow-ups o
 | --- | --- | --- |
 | New admin-kit primitive `ScopedField` (Principle IX: reuse before adding) | Two modules (catalog, seo) render the same inherited-state control, and FR-060…FR-065 demand one polarity and one accessible pattern everywhere | Keeping it in catalog's admin forces `seo` to import catalog internals (Principle I); copying it into `seo` forks the control the spec wants unified |
 
-**No new runtime, dev or workspace dependency.** `axe-core` for SC-013 is already an `admin` devDependency
+| PostgreSQL extension `btree_gist` (created by `scope_model_url_keys`) | Owner round 7 requires the URL-key rule to be enforced by the database; an exclusion constraint mixing `=` on uuid / text with `<>` on uuid needs `btree_gist` | Code-only checks under advisory locks — the cross-level race the owner wanted removed; a trigger — more code, same extension-free guarantee only with explicit locking |
+
+**No new runtime, dev or workspace dependency** (an extension shipped with PostgreSQL is not a package). `axe-core` for SC-013 is already an `admin` devDependency
 (feature 147).
 
 ## Handoff summary (for `endora-commerce-dev`)
@@ -332,12 +351,16 @@ R9, `data-model.md` §0 and §9, `contracts/scoped-values-api.md`, `contracts/wr
   `validateScopedWrite`; the shared case table is imported, never copied.
 - The save is **one** `CommandBus.run`; SEO goes through `seoProductMetaWritePort.applyWithin(em, …)` resolved with
   `lazyPort` inside the Command, never a nested Command, never a bare `catch`.
-- Bump `products.updated_at` in every scoped write; compare-and-set it in save and copy.
+- Bump `products.scope_version` (one helper) in every Save-overwritable write, as the first statement of save and
+  copy (compare-and-set); immediate actions never touch it.
+- Every key writer goes through `UrlKeyService.lockAndCheck`; every subject id in a body is bound to the product
+  in the path; every `changes` object is `.strict()` with bounded keys and lengths (R21); migrations follow R22's
+  backfill-before-constraint order.
 - Readers resolve through `effectiveTexts` / `effectivePackagingUnitNames` at the document's (C, L), or use the
   Global string where there is no channel. No `pick*` over a product map survives, and no `168-shim`.
 - Each module migrates its own tables; do not edit 163's migrations; regenerate and commit
   `composer:generate` / `manifests:generate` / lockfile in the same commit as a migration.
 - Owner decisions of round 6 are binding: SEO empty → derived value, alt empty → `alt=""`; immediate actions are
-  not staged and **never bump `products.updated_at`**; export uses no profile; no restore UI; `/seo` links products
+  not staged and **never bump `products.scope_version`**; export uses no profile; no restore UI; `/seo` links products
   to the editor. S3 starts only after the prototype gate T143.
 - Commits `git commit -s`, no AI trailer; English only; do not push without the coordinator.
