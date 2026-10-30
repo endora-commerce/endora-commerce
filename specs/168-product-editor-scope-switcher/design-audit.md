@@ -1,6 +1,6 @@
 # Design audit — one scope switcher for the product editor (issue #523)
 
-Input for `/speckit.specify` of `specs/165-product-editor-scope-switcher/`. Static reading of
+Input for `/speckit.specify` of `specs/168-product-editor-scope-switcher/`. Static reading of
 `origin/master` at `1530b2b84`, against `.claude/skills/ux-laws/SKILL.md` and
 `specs/163-product-data-scopes/` (FR-008…FR-015, FR-040…FR-043, FR-060, FR-075…FR-080, FR-100, L7).
 No code was run. Paths below are relative to `packages/modules/catalog/src/admin/` unless they start
@@ -71,7 +71,7 @@ operator or breaks consistency. **Nice** = polish.
 
 ### Must fix
 
-| # | Where | What is wrong | Law / criterion | Fix in 165 |
+| # | Where | What is wrong | Law / criterion | Fix in 168 |
 |---|---|---|---|---|
 | F1 | `pages/ProductEditor.tsx:59, 810-820`; `ProductScopeEditor.tsx:547-553, 593` | The language chips come from the channels' languages (`languagesUnion`), but the parent's `onBaselineNameChange` / `…DescriptionChange` keep only `en-US` and `pl-PL`, and Save trims to `LOCALES` (`:344-347`). A name typed at Global × `de-DE` is **silently dropped**. Same hard-coded list in `ProductAttributesTab.tsx:19`. | Peak-End (silent loss), Tesler (derive languages, don't hard-code) | Derive the language list from scope-context / platform languages everywhere; one source. |
 | F2 | `ProductAttributesTab.tsx:216, 277` | A language-scoped attribute's `{lang: value}` baseline is rendered with `String(value)`; editing would write a string over the map. Channel overrides of attributes have no input at all. | Mental Model; FR-040 not met for user attributes | Per-scope attribute inputs driven by the switcher (§4.4). |
@@ -205,7 +205,7 @@ Save for that reason (`ProductScopeControls.tsx:36-42`); (c) SEO is another modu
 | B. Per-section Saves (today, unified look) | Keep each section's own Save | Nothing new | Fails F6; contradicts "whole form at a scope" |
 | C. One orchestrating Command `product.scoped_values.save` | New catalog endpoint applying everything in one transaction | Atomic, one audit entry | Cannot include SEO (other module) without a write port; larger backend; one huge audit before/after is harder to read and to re-apply (FR-081) |
 
-**Recommendation: A** for 165, with the order above and a per-section result list after Save
+**Recommendation: A** for 168, with the order above and a per-section result list after Save
 (Peak-End: say exactly what was and was not saved). Write a correlation id on the audit entries of
 one Save if the CommandBus allows it (G7) so the history reads as one action. C only if the owner
 wants atomicity enough to fund a SEO write port.
@@ -287,9 +287,9 @@ still works), `seo` module off (SEO section absent, no error), read-only.
     from read-only operators with an explanation. **Recommend (a)** (owned by `seo`; security review).
 12. **Status pill in the header.** (a) effective status at the current scope with source; (b) global
     only. **Recommend (a)**.
-13. **Rollout.** (a) retire every per-tab selector in 165; (b) Details + Attributes first, other tabs
+13. **Rollout.** (a) retire every per-tab selector in 168; (b) Details + Attributes first, other tabs
     later. **Recommend (a)** — a half-migrated editor keeps F9 alive and doubles the mental model.
-14. **Fix F1/F2 (data loss, language list) inside 165 or as an immediate bug fix.** **Recommend a
+14. **Fix F1/F2 (data loss, language list) inside 168 or as an immediate bug fix.** **Recommend a
     separate bug fix now** — they lose data today, independent of the switcher.
 
 ---
@@ -317,4 +317,4 @@ still works), `seo` module off (SEO section absent, no error), read-only.
 - No wireframe; the model in §4 is textual. A designer review of a clickable prototype of the scope
   bar's warning treatment is advisable before tasks.
 - Q1–Q14 are owner decisions; Q5, Q10 and Q11 cross into `seo` and the 163 spec (FR-009 amendment).
-- F1/F2 are live data-loss risks today; whether they wait for 165 is Q14.
+- F1/F2 are live data-loss risks today; whether they wait for 168 is Q14.

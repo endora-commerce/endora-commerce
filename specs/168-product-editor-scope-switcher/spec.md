@@ -1,6 +1,6 @@
 # Feature Specification: Three-level product scope model and one scope switcher for the product editor
 
-**Feature Branch**: `feat/165-product-editor-scope-switcher`
+**Feature Branch**: `feat/168-product-editor-scope-switcher`
 **Created**: 2026-10-29
 **Status**: Draft — clarify rounds 1–5 recorded; no `[NEEDS CLARIFICATION]` marker remains in the
 requirements; clarify is exhausted after round 5 — the remaining open points are plan decisions (the speckit 3-marker cap is
@@ -18,7 +18,7 @@ levels, migrates existing data, adapts every reader module and maps PIM / import
 backend changes small or none" no longer holds. **Narrowed by clarify round 2 (2026-10-30)**: no live data
 holds the 163 model, so the migration is a schema change that need not preserve data (FR-020).
 
-**Primary evidence**: `specs/165-product-editor-scope-switcher/design-audit.md` (designer audit of
+**Primary evidence**: `specs/168-product-editor-scope-switcher/design-audit.md` (designer audit of
 `origin/master` at `1530b2b84`; findings F1–F15, N1–N4, questions Q1–Q14, API gaps G1–G9). The audit was
 written against 163's four-level model; its Language-level recommendations (Q1, Q4, §4.2) are **void** after
 clarify round 1.
@@ -31,7 +31,7 @@ stand and are referenced by id.
 
 ### Owner decisions before specification (2026-10-29)
 
-- **F1 / F2 inside 165.** The data-loss defects found by the audit — F1 (the editor keeps only `en-US` and
+- **F1 / F2 inside 168.** The data-loss defects found by the audit — F1 (the editor keeps only `en-US` and
   `pl-PL` for name and description; any other language is dropped) and F2 (a language-scoped user attribute
   is likely rendered as `[object Object]` and a save may overwrite its translations) — are fixed inside this
   feature, as the P1 story US1. This settles audit Q14 against its own recommendation. *(Refined by Session
@@ -55,7 +55,7 @@ stand and are referenced by id.
   family supports the same scope set {Global, Channel, Channel × language} with one fallback chain
   C×L → C → G; complex types keep their own tables and gain the same scope dimensions. Where a field may
   genuinely need a narrower set, the spec raises it as a clarification (FR-012).
-- Q: Spec boundary — is the model change a separate feature? → A: **Everything stays in spec 165**: model
+- Q: Spec boundary — is the model change a separate feature? → A: **Everything stays in spec 168**: model
   unification, data migration, reader-module adaptation, PIM / import mapping and the editor switcher,
   organised as staged user stories (model and migration first, editor after). F1 / F2 stay P1.
 - Q: How is existing data migrated? → A: The **primary-language value → Global**. Every other language
@@ -113,13 +113,13 @@ Answers given by the owner on 2026-10-29 / 2026-10-30.
   recommendation** (which was: Global satisfies the gate only where L is the Global language).
 - Q: (FR-045) Where is the PIM locale mapping configured? → A: **In every connector separately**, against the
   recommendation (a shared mapping editor contributed by `pim_connector`). The connectors live outside this
-  repository; 165 defines the mapping **contract** in `pim_connector` plus the CSV import mapping (the
+  repository; 168 defines the mapping **contract** in `pim_connector` plus the CSV import mapping (the
   `import_export` products adapter). Per-connector configuration screens are an external dependency.
-- Q: (FR-086) "Copy this value to other channels in the same language"? → A: **Yes, in 165**, as one audited
+- Q: (FR-086) "Copy this value to other channels in the same language"? → A: **Yes, in 168**, as one audited
   Command.
 - Q: (FR-093) SEO read without `catalog:write`? → A: **Relax the SEO read to `catalog:read`**; the plan MUST
   include a security review of that change.
-- Q: (FR-052) Rollout of the per-tab selectors? → A: **Retire every per-tab scope selector in 165.**
+- Q: (FR-052) Rollout of the per-tab selectors? → A: **Retire every per-tab scope selector in 168.**
 - Q: (FR-056) What is remembered when the URL names no scope? → A: The **scope lives in the URL**; with no URL
   parameter the editor **restores the last scope from `product_editor_preferences`** (per admin × product).
 - Q: (FR-074) What does "one undo per save" mean? → A: **(a)** — the existing audit-log undo restores the whole
@@ -140,7 +140,7 @@ Answers given by the owner on 2026-10-30 to the follow-up questions raised by ro
 
 - Q: (FR-045) What do per-locale field-protection paths protect under the per-connector mapping? → A:
   Protection is a **manual operator toggle** ("do not overwrite from PIM"); by default **nothing is protected**
-  and the PIM overwrites everything it maps. Under 165 protection applies to the **whole field across all
+  and the PIM overwrites everything it maps. Under 168 protection applies to the **whole field across all
   scopes** — "name" protected means no scope of name is overwritten by an import. Per-locale and per-channel
   protection paths (`name.pl_PL`, `attribute.<key>.<channel>.<locale>`, `seo.*.<locale>`) are **retired** and
   the `pim_connector` path grammar shrinks accordingly (no live data to migrate). The owner **rejected
@@ -208,10 +208,10 @@ object.
 Answers given by the owner on 2026-10-30 to the follow-up questions raised by round 4.
 
 - Q: How is the change of `null` from "inherit" to "empty" versioned? → A: **In place**, in the release that
-  ships 165, noted in the release notes and the changeset — no v2, no refusal period. Rationale: no live data;
-  165 already reshapes the 163 API; FR-115 documents the encoding.
+  ships 168, noted in the release notes and the changeset — no v2, no refusal period. Rationale: no live data;
+  168 already reshapes the 163 API; FR-115 documents the encoding.
 - Q: Does the write encoding reach inheritance that is not a product scope? → A: **Scoped product values only
-  in 165.** Every other `null = inherit` field in the contracts (e.g. per-product stock mode,
+  in 168.** Every other `null = inherit` field in the contracts (e.g. per-product stock mode,
   `catalog.ts:2112`) is a **named follow-up** listed in this spec, accepting that `null` temporarily has two
   meanings across contracts.
 - Q: Where are a CSV import's locale mapping and source language for Global stored? → A: In a **new saved
@@ -224,7 +224,7 @@ Answers given by the owner on 2026-10-30 to the follow-up questions raised by ro
 ## Amendments to 163 (2026-10-29, extended 2026-10-30)
 
 163 is shipped on `master`. The following parts of `specs/163-product-data-scopes/spec.md` are **reversed or
-rewritten** by this feature from the release that ships 165; 163's text stays as the historical record:
+rewritten** by this feature from the release that ships 168; 163's text stays as the historical record:
 
 1. **FR-009** (the per-field scope table) and its confirmation **D-2** (clarify 2026-10-21) — replaced by
    FR-011 / FR-012 here: the Language column is gone; audience, publication window, minimum order quantity
@@ -814,7 +814,7 @@ therefore a schema change, not a data-preserving move.
   operator overrides there included (round 3).
 - **FR-045** *(round 2)*: The PIM locale mapping MUST be configured **in every connector separately** (the owner
   chose this against the recommendation of one shared mapping editor contributed by `pim_connector`). The
-  connectors live outside this repository; 165 delivers the mapping **contract** in `pim_connector` and the CSV
+  connectors live outside this repository; 168 delivers the mapping **contract** in `pim_connector` and the CSV
   import mapping in the `import_export` products adapter. Each connector's configuration screen is an
   external dependency (see *Assumptions*).
 - **FR-046** *(round 3)*: Field protection MUST be a manual operator toggle ("do not overwrite from PIM") per
@@ -840,7 +840,7 @@ therefore a schema change, not a data-preserving move.
 - **FR-051**: Only scopes valid for the product MUST be offered; orphaned scopes stay on the Scopes tab.
 - **FR-052**: Every tab MUST show and edit values at the editor scope; the Details chips, the gallery "Scope"
   and "Language" selects, the URL-keys "Add override" select and every all-languages-at-once dialog MUST be
-  replaced by the switcher. Every per-tab scope selector MUST be retired in 165 (round 2; audit Q13).
+  replaced by the switcher. Every per-tab scope selector MUST be retired in 168 (round 2; audit Q13).
 - **FR-053**: Outside Global the scope banner MUST read "Changes apply only to <scope in words>" with an icon
   and the warning treatment, never colour alone (WCAG 1.4.1), announced through a live region present before
   its text is set (WCAG 4.1.3).
@@ -923,7 +923,7 @@ therefore a schema change, not a data-preserving move.
 
 - **FR-085**: The attributes section MUST offer each scopable attribute at every scope FR-012 allows, with the
   inherited state of FR-060…FR-065; non-scopable attributes are global-only.
-- **FR-086** *(round 2)*: The editor MUST offer "Copy this value to other channels in the same language" in 165,
+- **FR-086** *(round 2)*: The editor MUST offer "Copy this value to other channels in the same language" in 168,
   run as **one audited Command** — with per-channel translations, an operator with N Polish channels would
   otherwise retype a Polish text N times. Because it writes scopes other than the editor scope, it is its own
   Command, separate from the current-scope save of FR-071 (FR-004 governs the save, not this action). It is a
@@ -988,7 +988,7 @@ therefore a schema change, not a data-preserving move.
   import, CSV export and the editor — MUST use one encoding: field absent, empty CSV cell or `""` = **no
   change**; `NULL` (JSON `null`) = **deliberately empty value** (empty override, FR-013); `INHERIT` (JSON
   `{"inherit": true}`) = **remove the own value and use the value from the scope above**.
-- **FR-111**: The encoding MUST be evolvable additively: a new token MAY be added; after 165 ships, the meaning
+- **FR-111**: The encoding MUST be evolvable additively: a new token MAY be added; after 168 ships, the meaning
   of an existing encoding MUST NOT change without a breaking, versioned contract change (Constitution II).
 - **FR-112**: In CSV a token MUST be the whole cell in exact uppercase; anything else (e.g. `null`, `No NULL
   here`) is ordinary text. A leading backslash MUST escape a literal: `\NULL` → the text "NULL", `\INHERIT` →
@@ -1002,10 +1002,10 @@ therefore a schema change, not a data-preserving move.
   rejected `""` = inherit, a Magento-style `__EMPTY__VALUE__`-only token and a per-profile "empty cell means"
   option.
 - **FR-116** *(round 5)*: The change of `null` (and of an empty CSV cell) from "use inherited" under 163 to the
-  FR-110 meanings MUST ship **in place** in the release that ships 165 — no versioned v2 contract and no
+  FR-110 meanings MUST ship **in place** in the release that ships 168 — no versioned v2 contract and no
   refusal period — and MUST be stated in the release notes and the changeset.
 - **FR-117** *(round 5)*: FR-110…FR-116 apply to **scoped product values only**. Other contract fields where
-  `null` means "inherit" keep that meaning in 165 and are named follow-ups (*Out of Scope*); `null` therefore
+  `null` means "inherit" keep that meaning in 168 and are named follow-ups (*Out of Scope*); `null` therefore
   temporarily has two meanings across the contracts.
 
 ### Key Entities
@@ -1071,9 +1071,9 @@ therefore a schema change, not a data-preserving move.
 - **No live data** (owner, round 2): no production installation holds 163-model data; only dev, demo and seed
   databases do. The migration need not preserve data, and seeds and fixtures are rewritten (FR-020).
 - **External dependency — PIM connectors** (owner, round 2): the connectors (Ergonode, Akeneo, Pimcore,
-  UnoPim) live outside this repository. 165 delivers the locale-mapping contract in `pim_connector` and the
+  UnoPim) live outside this repository. 168 delivers the locale-mapping contract in `pim_connector` and the
   CSV import mapping; each connector's own mapping configuration screen is built in that connector's
-  repository and is not delivered by 165 (FR-045); the same holds for its source language for Global (FR-047,
+  repository and is not delivered by 168 (FR-045); the same holds for its source language for Global (FR-047,
   round 4). Until a connector ships its screen, its per-locale values are unmapped and written nowhere, with a
   warning (FR-041), and only its non-localizable values reach Global.
 - **Write-encoding change** (round 4): today's contracts use `null` or an empty CSV cell to mean "use
