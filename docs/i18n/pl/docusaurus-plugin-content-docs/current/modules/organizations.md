@@ -147,6 +147,9 @@ statusu (np. zatwierdzenie już aktywnej organizacji) zwraca `422 VALIDATION_FAI
 
 Po stronie klienta: storefront dostaje przetłumaczony komunikat „dlaczego nie możesz składać
 zamówień” w polach `organization.canTransact` i `organization.moderationMessage` z `GET /api/v1/me`.
+Ten komunikat, podobnie jak `reason` w odpowiedzi 423 ze wstępnej weryfikacji checkoutu, jest
+napisany w języku, w którym udzielana jest odpowiedź (`Accept-Language` storefrontu, a w jego braku
+domyślny język kanału sprzedaży), na podstawie kluczy `moderation.*` z bundla tego modułu.
 Strony koszyka i checkoutu wyświetlają nad formularzem `<OrganizationModerationBanner>`, gdy
 `canTransact === false`.
 
@@ -157,6 +160,11 @@ każdej nowej rejestracji organizacji `OrgRegistrationNotifier` zapisuje jedno p
 wszystkich (`audience='all_admins'`, `kind='organization.registered'`) i wysyła po jednym e-mailu na
 każdy adres z ustawienia `organizations.notifications.new_registration_recipients`. Panel odpytuje
 `GET /api/v1/admin/notifications` co 30 s.
+
+Wpis w dzwonku zawiera tekst angielski oraz klucze `notifications.newRegistration.*` z bundla tego
+modułu, więc każdy administrator czyta go we własnym języku. E-mail korzysta z szablonu
+`new_org_registration`, jeśli taki jest zdefiniowany; w przeciwnym razie moduł składa go sam, z tego
+samego bundla, w języku domyślnego systemowego kanału sprzedaży.
 
 | Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
