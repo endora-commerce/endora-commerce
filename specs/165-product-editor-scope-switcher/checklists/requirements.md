@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain
+- [x] No [NEEDS CLARIFICATION] markers remain
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -31,9 +31,13 @@
 
 ## Notes
 
-- **`[NEEDS CLARIFICATION]` markers remain by owner instruction (19 after clarify round 1, 2026-10-29)**: the speckit 3-marker cap is lifted for
-  this feature and the owner runs `/speckit.clarify` until they are exhausted. Each marker carries the design
-  audit's recommendation. Do not run `/speckit.plan` before they are resolved.
+- **`[NEEDS CLARIFICATION]` markers: 0 after clarify round 2 (2026-10-30)** — 19 remained after round 1; round 2
+  resolved every one (*Clarifications → Session 2026-10-30*). FR-021…FR-025 are kept as "Removed (round 2: no
+  live data)" so citations stay stable. Follow-up questions raised by the round-2 answers (FR-045 field
+  protection among them) are pending with the owner; do not run `/speckit.plan` before the owner has answered
+  or explicitly deferred them.
+- **Dependencies**: per-connector locale-mapping screens are an external dependency (PIM connectors live outside
+  this repository; FR-045, *Assumptions*). The plan carries a security review of FR-093.
 - **Implementation detail, accepted deliberately**: the *Current state* section and a few requirements cite
   file paths, endpoints and the `product_editor_preferences` table. This is evidence for a brownfield
   correction (F1, F2, F4, F5, F8, G1–G8), following the precedent of `specs/163-product-data-scopes/spec.md`;
@@ -41,5 +45,5 @@
   owner instruction.
 - **Stakeholder readability**: user stories and success criteria are written for an operator / product
   owner; FR wording assumes familiarity with 163's scope vocabulary, defined in *Terms used in this spec*.
-- SC-008 is relative ("no perceptible regression against a product page load") because no baseline was
+- SC-012 is relative ("no perceptible regression against a product page load") because no baseline was
   measured; the plan should record one.
