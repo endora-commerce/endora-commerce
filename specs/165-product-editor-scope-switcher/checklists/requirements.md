@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [x] No [NEEDS CLARIFICATION] markers remain
+- [ ] No [NEEDS CLARIFICATION] markers remain
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -31,11 +31,11 @@
 
 ## Notes
 
-- **`[NEEDS CLARIFICATION]` markers: 0 after clarify round 2 (2026-10-30)** — 19 remained after round 1; round 2
-  resolved every one (*Clarifications → Session 2026-10-30*). FR-021…FR-025 are kept as "Removed (round 2: no
-  live data)" so citations stay stable. Follow-up questions raised by the round-2 answers (FR-045 field
-  protection among them) are pending with the owner; do not run `/speckit.plan` before the owner has answered
-  or explicitly deferred them.
+- **`[NEEDS CLARIFICATION]` markers: 1 after clarify round 2 (2026-10-30)** — 19 remained after round 1; round 2
+  resolved every one of them (*Clarifications → Session 2026-10-30*) and its FR-045 answer left one new marker
+  (FR-045, field-protection paths under per-connector mapping). FR-021…FR-025 are kept as "Removed (round 2:
+  no live data)" so citations stay stable. Further follow-up questions raised by the round-2 answers are
+  pending with the owner; do not run `/speckit.plan` before they are answered or explicitly deferred.
 - **Dependencies**: per-connector locale-mapping screens are an external dependency (PIM connectors live outside
   this repository; FR-045, *Assumptions*). The plan carries a security review of FR-093.
 - **Implementation detail, accepted deliberately**: the *Current state* section and a few requirements cite

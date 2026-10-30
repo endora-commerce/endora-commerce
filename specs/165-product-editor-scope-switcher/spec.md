@@ -2,8 +2,8 @@
 
 **Feature Branch**: `feat/165-product-editor-scope-switcher`
 **Created**: 2026-10-29
-**Status**: Draft — clarify rounds 1 and 2 recorded; no `[NEEDS CLARIFICATION]` marker remains in the
-requirements; follow-up questions raised by round 2 are pending with the owner (the speckit 3-marker cap is
+**Status**: Draft — clarify rounds 1 and 2 recorded; one `[NEEDS CLARIFICATION]` marker remains (FR-045,
+field protection) and further follow-up questions raised by round 2 are pending with the owner (the speckit 3-marker cap is
 lifted by owner instruction)
 **Input**: GitHub issue #523 — "one Magento-style scope switcher in the product editor header (Global →
 Sales channel → Sales channel × Language); the whole form, every tab, shows and edits the effective values
@@ -529,7 +529,7 @@ and the field focused; open it in a new tab with the same result.
   a Language value shadowed by a C override, a product with no primary-language value, and URL-key
   collisions found by the migration no longer apply: existing data need not be preserved (FR-020).
 - **A URL key that would collide** at some effective (C, L), or a Global key equal to another product's key —
-  the write is refused (FR-016).
+  the write is refused, as under 163 FR-070 (FR-016).
 - **A Global value in English at a Polish (C, L)** — the buyer sees the English Global value (FR-015), and the
   completeness gate counts it as present (FR-096).
 - **A language removed from a channel after migration** — its C×L values become orphaned (163 FR-015,
@@ -592,7 +592,8 @@ and the field focused; open it in a new tab with the same result.
   when L is not the Global language** (chain C×L → C → G, FR-013).
 - **FR-016** *(round 2)*: A product's URL key at (C, L) is its effective key (C×L → C → G). No two products MAY
   share an effective URL key at any one (Channel, Language), and a product's Global key MUST NOT equal another
-  product's key. A write that would break either rule MUST be refused.
+  product's key. Enforcement is unchanged from 163 FR-070: uniqueness is checked when a key is written, and a
+  write that would break it is refused naming the product that holds the key.
 - **FR-017**: A channel-only value MUST be accepted for every field whose scope set includes C, name and
   description included (resolves audit G1).
 - **FR-018**: A write for a scope invalid for the product MUST still be refused (163 FR-014), and invalidated
@@ -654,8 +655,11 @@ therefore a schema change, not a data-preserving move.
   chose this against the recommendation of one shared mapping editor contributed by `pim_connector`). The
   connectors live outside this repository; 165 delivers the mapping **contract** in `pim_connector` and the CSV
   import mapping in the `import_export` products adapter. Each connector's configuration screen is an
-  external dependency (see *Assumptions*). What happens to existing per-locale field-protection paths under
-  the mapping is not yet decided (open follow-up question, round 2).
+  external dependency (see *Assumptions*). [NEEDS CLARIFICATION: What do existing per-locale field-protection
+  paths (`pim_connector` grammar, e.g. `name.pl_PL`) protect under the per-connector mapping — every (C, L)
+  target the locale maps to, nothing (per-locale protection dropped; no live data to keep), or whatever each
+  connector decides? Raised after round 2; the round-2 FR-045 answer covered only where the mapping is
+  configured.]
 
 #### Scope switcher (US5)
 
