@@ -386,7 +386,7 @@ F1 / F2 regression tests run against the new model, FR-004 carries the guarantee
 release.
 
 **Why this priority**: The editor destroys data today (F1, likely F2); the tests prove the new model and editor
-do not. Depends on US2 and US5.
+do not. Depends on US2, US5, US6, US7 and US9 (the tests turn green only once all have landed).
 
 **Independent Test**: Seed name, description and a scopable text attribute at C×L values in `en-US`, `pl-PL`
 and `de-DE`; open the product at another scope, change an unrelated field, save; assert every C×L value is
@@ -727,7 +727,9 @@ and the field focused; open it in a new tab with the same result.
 - **Image alt text saved empty** — the storefront renders `alt=""` (decorative), not the asset library's alt
   text (FR-013).
 - **Staged scoped edits plus an immediate action** — the immediate action applies at once; the staged edits stay
-  staged for the next Save (FR-070).
+  staged for the next Save (FR-070). Staged changes of a subject the action removed (e.g. the alt text of a
+  deleted image) are dropped with an announced notice, and a save still naming such a subject is refused
+  (plan R7; derived, not an owner decision).
 - **Mapping target the product is not valid for** — skipped for that product and reported.
 - **Remembered or linked editor scope no longer valid** — the editor opens at the nearest valid scope (Global
   if none) and says so.
@@ -854,7 +856,8 @@ therefore a schema change, not a data-preserving move.
 - **FR-043** *(round 6)*: The CSV product import adapter
   (`packages/modules/import_export/src/backend/services/adapters/products.adapter.ts`) MUST follow the locale
   mapping of the chosen import profile (FR-048). The product **export MUST NOT use an import profile**: it writes
-  Global plus per-scope columns (e.g. `sklep_pl:pl`), using the write encoding of FR-110…FR-115, and importing
+  Global plus per-scope columns (one column per field and (channel, language) scope — the owner's example
+  `sklep_pl:pl`; the plan's naming is `name@<channel code>/<language>`), using the write encoding of FR-110…FR-115, and importing
   that layout MUST reproduce Global, C and C×L values exactly. The column naming is a plan decision.
 - **FR-044**: A connector writing only Global values MUST NOT remove operator overrides (163 FR-091's rule
   stands). Unless a field is protected (FR-046), a sync or import overwrites every scope its mapping targets,
@@ -1150,6 +1153,10 @@ therefore a schema change, not a data-preserving move.
 - **No new permission code** (163 FR-084); **no new runtime dependency** (Constitution IV); the admin-kit
   primitives of audit §4.10 are reused.
 - **One release** (round 3): every story ships together; there is no interim fix to the old model.
+- **Visible consequence of FR-014 / FR-031, for acceptance**: admin lists, pickers and admin product search show
+  and sort by the product's Global name whatever the admin's UI language; the per-admin-language name keys
+  (`admin_name_key_en/pl`, `admin_search_key_en/pl`, generated from today's name map) collapse to one (plan,
+  research F-c).
 - **Testing**: the F1 / F2 regression tests (against the new model), the schema migration's clean-run test (SC-002 as rewritten) and
   the resolver's C×L → C → G tests are written failing first (Constitution III).
 - **Security review**: the plan carries a security review of relaxing the SEO read to `catalog:read` (FR-093).
@@ -1201,8 +1208,13 @@ Code-versus-spec defects in shipped 163, resolved here:
   (SC-003).
 - **IX** — admin-kit primitives before anything new.
 - **XI** — scoped product data stays platform-global (163 FR-083).
-- **XIII** — one save = one audited Command; bulk writes stay audited per product and reversible.
+- **XIII** — one save = one audited Command; "copy to other channels" (FR-086), connector / CSV scoped writes
+  and import-profile changes (FR-048) are audited Commands too; immediate actions keep their own audited
+  Commands (FR-070); bulk writes stay audited per product and reversible. No operator-facing undo is added
+  (FR-074; reversibility is opt-in under XIII).
 - **XVI** — the product editor stays in the command palette; scope links are plain URLs.
 - **XVII** — `seo` off removes its SEO section and its port calls (read and write), and nothing else breaks;
-  the PIM locale-mapping contract belongs to `pim_connector` and disappears with it.
+  `pim_connector` is non-deactivatable (`packages/modules/pim_connector/src/manifest.ts:18`), so the PIM
+  locale-mapping contract it owns is always present; `import_export` off refuses the import-profile routes and
+  hides their section, keeping the profiles for re-activation.
 - **WCAG 2.2 AA** — the floor in `.claude/skills/ux-laws/SKILL.md` (FR-053, FR-055, FR-064, FR-065, FR-107).
