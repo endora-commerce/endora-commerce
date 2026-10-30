@@ -116,50 +116,6 @@ export const entries: Readonly<Record<string, string>> = {
     'the backend *can* resolve the reader\'s language, not whether it does. Reading *does ' +
     'not* for *cannot* would make the rule circular and ratify whatever the code already ' +
     'happens to do.',
-  'packages/modules/organizations/src/backend/services/org-registration-notifier.ts:4dd6d635a3cd':
-    '`Oczekuje na weryfikację` — The in-code fallback tier is Polish while this module\'s ' +
-    'own bundle carries both languages — the register entry *`org-registration-notifier`\'s ' +
-    'in-code fallback tier is Polish*.\n\n' +
-    'It is reached only when the bundle fails to resolve, which is exactly the state a non- ' +
-    'Polish deployment lands in after the boot reconciler logs and skips a malformed bundle ' +
-    'and reports nothing else. So the harm is confined to a bundle-failure path and the ' +
-    'site is still in the wrong language on the deployment that would read it.\n\n' +
-    'English in the code, Polish in `i18n/pl.json`. Mechanical, and it is ' +
-    '`specs/093-backend-delivered-prose/` Phase 4\'s `organizations` merge request, which ' +
-    'was already sequenced last for this reason.',
-  'packages/modules/organizations/src/backend/services/org-registration-notifier.ts:5b873a8090eb':
-    '`Oczekuje na weryfikację.` — The in-code fallback tier is Polish while this module\'s ' +
-    'own bundle carries both languages — the register entry *`org-registration-notifier`\'s ' +
-    'in-code fallback tier is Polish*.\n\n' +
-    'It is reached only when the bundle fails to resolve, which is exactly the state a non- ' +
-    'Polish deployment lands in after the boot reconciler logs and skips a malformed bundle ' +
-    'and reports nothing else. So the harm is confined to a bundle-failure path and the ' +
-    'site is still in the wrong language on the deployment that would read it.\n\n' +
-    'English in the code, Polish in `i18n/pl.json`. Mechanical, and it is ' +
-    '`specs/093-backend-delivered-prose/` Phase 4\'s `organizations` merge request, which ' +
-    'was already sequenced last for this reason.',
-  'packages/modules/organizations/src/backend/services/org-registration-notifier.ts:959157e5faa6':
-    '`Zarejestrowała się nowa Organizacja na platformie B2B.` — The in-code fallback tier ' +
-    'is Polish while this module\'s own bundle carries both languages — the register entry ' +
-    '*`org-registration-notifier`\'s in-code fallback tier is Polish*.\n\n' +
-    'It is reached only when the bundle fails to resolve, which is exactly the state a non- ' +
-    'Polish deployment lands in after the boot reconciler logs and skips a malformed bundle ' +
-    'and reports nothing else. So the harm is confined to a bundle-failure path and the ' +
-    'site is still in the wrong language on the deployment that would read it.\n\n' +
-    'English in the code, Polish in `i18n/pl.json`. Mechanical, and it is ' +
-    '`specs/093-backend-delivered-prose/` Phase 4\'s `organizations` merge request, which ' +
-    'was already sequenced last for this reason.',
-  'packages/modules/organizations/src/backend/services/org-registration-notifier.ts:da286bd53ab8':
-    '`Otwórz w Panelu Administracyjnym: /organizations/…` — The in-code fallback tier is ' +
-    'Polish while this module\'s own bundle carries both languages — the register entry ' +
-    '*`org-registration-notifier`\'s in-code fallback tier is Polish*.\n\n' +
-    'It is reached only when the bundle fails to resolve, which is exactly the state a non- ' +
-    'Polish deployment lands in after the boot reconciler logs and skips a malformed bundle ' +
-    'and reports nothing else. So the harm is confined to a bundle-failure path and the ' +
-    'site is still in the wrong language on the deployment that would read it.\n\n' +
-    'English in the code, Polish in `i18n/pl.json`. Mechanical, and it is ' +
-    '`specs/093-backend-delivered-prose/` Phase 4\'s `organizations` merge request, which ' +
-    'was already sequenced last for this reason.',
   'packages/modules/organizations/src/manifest.ts:4dd6d635a3cd':
     '`Oczekuje na weryfikację` — A Polish `sampleValue` in a manifest\'s template-variable ' +
     'picker — the example an operator reads to learn what the variable renders.\n\n' +

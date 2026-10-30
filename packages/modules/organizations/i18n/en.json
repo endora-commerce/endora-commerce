@@ -54,5 +54,11 @@
   "create.status.pending_verification": "Pending verification",
   "create.submit": "Create organization",
   "create.cancel": "Cancel",
-  "create.error": "The organization could not be created."
+  "create.error": "The organization could not be created.",
+  "notifications.newRegistration.title": "New organization: {name}",
+  "notifications.newRegistration.body.pending": "Awaiting verification.",
+  "notifications.newRegistration.body.active": "Registered automatically.",
+  "notifications.newRegistration.status.pending": "Awaiting verification",
+  "notifications.newRegistration.status.active": "Active",
+  "notifications.newRegistration.email.body": "A new organization has registered on the B2B platform.\n\n  Name:    {name}\n  Tax ID:  {taxId}\n  Status:  {status}\n\nOpen in the admin panel: {linkPath}"
 }

@@ -54,5 +54,11 @@
   "create.status.pending_verification": "Oczekuje na weryfikację",
   "create.submit": "Utwórz organizację",
   "create.cancel": "Anuluj",
-  "create.error": "Nie udało się utworzyć organizacji."
+  "create.error": "Nie udało się utworzyć organizacji.",
+  "notifications.newRegistration.title": "Nowa Organizacja: {name}",
+  "notifications.newRegistration.body.pending": "Oczekuje na weryfikację.",
+  "notifications.newRegistration.body.active": "Zarejestrowana automatycznie.",
+  "notifications.newRegistration.status.pending": "Oczekuje na weryfikację",
+  "notifications.newRegistration.status.active": "Aktywna",
+  "notifications.newRegistration.email.body": "Zarejestrowała się nowa Organizacja na platformie B2B.\n\n  Nazwa:   {name}\n  NIP/VAT: {taxId}\n  Status:  {status}\n\nOtwórz w Panelu Administracyjnym: {linkPath}"
 }

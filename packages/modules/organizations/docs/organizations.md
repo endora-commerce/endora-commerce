@@ -147,6 +147,12 @@ in the `organizations.notifications.new_registration_recipients`
 setting. The bell polls every 30 s via
 `GET /api/v1/admin/notifications`.
 
+The bell entry carries English text and the `notifications.newRegistration.*`
+keys of this module's bundle, so each administrator reads it in their own
+language. The e-mail goes through the `new_org_registration` template when
+one is defined; otherwise the module composes it itself, in the language of
+the system-default sales channel, from the same bundle.
+
 | Verb + Path | Purpose |
 | --- | --- |
 | `GET /api/v1/admin/notifications` | Paged feed, per-admin `isRead` resolution |

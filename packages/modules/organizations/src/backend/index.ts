@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
-import type { ChannelMemberEntityType } from '@endora-commerce/contracts';
+import { supportedLanguageOf, type ChannelMemberEntityType } from '@endora-commerce/contracts';
 import type {
   AddressServicePort,
   AdminI18nTranslatePort,
@@ -71,6 +71,7 @@ import {
   type SalesRepAssignmentPort,
 } from './services/sales-rep-assignment-service.js';
 import { OrgRegistrationNotifier } from './services/org-registration-notifier.js';
+import type { OrganizationsTranslate } from './services/organizations-prose.js';
 import { makeSetCartApprovalPolicyCommand } from './commands/set-cart-approval-policy.command.js';
 import { Organization } from './entities/organization.entity.js';
 import { ViesClient } from './integrations/vies-client.js';
@@ -306,6 +307,15 @@ export function registerModule(ctx: ModuleContext): void {
   });
 
   const cradle = (): OrganizationsCradle => ctx.cradle<OrganizationsCradle>();
+  // This module's bundle, for the prose its backend composes in a language it
+  // can resolve (issues #94, #95). Resolved per call, so the gate stays live.
+  const organizationsTranslate: OrganizationsTranslate = (key, language, params) =>
+    lazyPort<AdminI18nTranslatePort>(ctx, 'adminI18nService').translate(
+      'organizations',
+      key,
+      language,
+      params,
+    );
 
   /**
    * All three `organizations.*` settings are **platform-wide**: whether a new
@@ -430,6 +440,13 @@ export function registerModule(ctx: ModuleContext): void {
                 [],
               ),
             templateEmail: lazyPort<TemplateEmailPort>(ctx, 'templateEmailPort'),
+            // Issue #94 — the fallback e-mail is written in the language the
+            // template path sends in: the system-default channel's.
+            translate: organizationsTranslate,
+            resolveLanguage: async () =>
+              supportedLanguageOf(
+                (await cradle().salesChannelResolutionPort.getSystemDefault()).defaultLanguage,
+              ),
           }),
       )
       .singleton(),
