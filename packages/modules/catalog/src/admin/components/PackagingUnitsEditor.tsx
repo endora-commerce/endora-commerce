@@ -387,7 +387,8 @@ function PackagingUnitTranslationsDialog({
   const t = useTranslation('catalog');
   const fieldId = useId();
   const errorId = `${fieldId}-error`;
-  const saved = unit.nameTranslations ?? {};
+  // 168-shim: the per-language name map is gone (FR-014); S3 replaces this editor with `ScopedField`.
+  const saved: TranslationMap = {};
   const [names, setNames] = useState<TranslationMap>({ ...saved });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

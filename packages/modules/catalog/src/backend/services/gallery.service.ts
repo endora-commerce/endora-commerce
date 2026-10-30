@@ -17,27 +17,17 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 
 import {
   ERROR_CODES,
-  applyTranslationPatch,
   type AssetReadPort,
   type CatalogGalleryBatchItem,
-  type GalleryChannelRoles,
   type GalleryItem as GalleryItemDto,
   type GalleryLabel,
   type CreateGalleryItemRequest,
-  type PutGalleryChannelRolesRequest,
   type UpdateGalleryItemRequest,
 } from '@endora-commerce/contracts';
 
 import { HttpError } from '@endora-commerce/platform/http';
 import type { Command, CommandBus } from '@endora-commerce/platform/commands';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
-import {
-  loadChannelRoles,
-  loadHiddenChannelsByItem,
-  writeGalleryChannelRole,
-  writeGalleryHiddenChannels,
-} from './gallery-scopes.js';
-import { assertProductChannelMembers } from './attachment-packaging-scopes.js';
 import { requireLinkableAsset } from './linkable-asset.js';
 import { Product } from '../entities/product.entity.js';
 import { GalleryItem } from '../entities/gallery-item.entity.js';
@@ -68,10 +58,11 @@ export class GalleryService {
      */
     private readonly assets?: AssetReadPort,
     /**
-     * Feature 163 (FR-014) — which channels the product is a member of: an image may be
-     * hidden, or a role given, only in one of them. Removing an override never asks.
+     * Feature 163 (FR-014) — which channels the product is a member of. Unused since feature 168
+     * retired the per-channel media writes on this route; kept so the composition root's
+     * signature does not move before T041 rewrites the service.
      */
-    private readonly membership?: Pick<SalesChannelMembershipPort, 'listChannelsForEntity'>,
+    _membership?: Pick<SalesChannelMembershipPort, 'listChannelsForEntity'>,
   ) {}
 
   #requireAssets(): AssetReadPort {
@@ -113,66 +104,8 @@ export class GalleryService {
     return this.#fetchAllForProduct(em, productId);
   }
 
-  /**
-   * Feature 163 (FR-076) — `GET …/gallery/channel-roles`: every channel holding a role
-   * override for the product, sorted by channel id; a role without one is `null`.
-   */
-  async listChannelRoles(productId: string): Promise<GalleryChannelRoles[]> {
-    const em = this.emFactory();
-    await this.#assertProductExists(em, productId);
-    const byChannel = await loadChannelRoles(em, productId);
-    return [...byChannel].map(([channelId, roles]) => channelRolesDto(channelId, roles));
-  }
-
-  /**
-   * Feature 163 (FR-076, `contracts/seo-media-attachments.md` §2) — `PUT
-   * …/gallery/channel-roles`: the Command `product.media.update`. A role named with an
-   * item moves to it in the channel (the item must be the product's, the channel one
-   * the product is a member of); `null` returns the role to the global holder (always
-   * allowed, FR-015); an absent role is untouched. One audit entry with the channel's
-   * three roles before and after; `product.updated.v1` `['media']` after commit; a
-   * request that changes nothing writes and announces nothing.
-   */
-  async putChannelRoles(productId: string, req: PutGalleryChannelRolesRequest): Promise<GalleryChannelRoles> {
-    const channelId = req.channelId;
-    const requested = ROLE_KEYS.flatMap(([key, label]): Array<[GalleryLabel, string | null]> => {
-      const itemId = req.roles[key];
-      return itemId === undefined ? [] : [[label, itemId]];
-    });
-    await this.#runMediaCommand(productId, async (em) => {
-      const current = (await loadChannelRoles(em, productId)).get(channelId) ?? new Map<GalleryLabel, string>();
-      const before = channelRolesDto(channelId, current);
-      const next = new Map(current);
-      for (const [label, itemId] of requested) {
-        if (itemId === null) next.delete(label);
-        else next.set(label, itemId);
-      }
-      const after = channelRolesDto(channelId, next);
-      if (sameRoles(before.roles, after.roles)) return null;
-
-      const named = requested.flatMap(([, itemId]) => (itemId === null ? [] : [itemId]));
-      if (named.length > 0) {
-        await this.#assertMembers(productId, [channelId]);
-        const owned = await em.find(GalleryItem, { id: { $in: named }, productId });
-        const ownedIds = new Set(owned.map((item) => item.id));
-        const foreign = named.find((itemId) => !ownedIds.has(itemId));
-        if (foreign !== undefined) {
-          throw new HttpError(
-            404,
-            ERROR_CODES.GALLERY_ITEM_NOT_FOUND,
-            `Gallery item ${foreign} not found under Product ${productId}.`,
-          );
-        }
-      }
-      for (const [label, itemId] of requested) {
-        if ((current.get(label) ?? null) === itemId) continue;
-        await writeGalleryChannelRole(em, productId, channelId, label, itemId);
-      }
-      return { before, after };
-    });
-    const roles = (await loadChannelRoles(this.emFactory(), productId)).get(channelId) ?? new Map();
-    return channelRolesDto(channelId, roles);
-  }
+  // Feature 168 (`contracts/scoped-values-api.md` §6) — 163's `GET` / `PUT …/gallery/channel-roles`
+  // are retired: a role at C or C×L is the scoped field `galleryRole:<label>` of the save Command.
 
   /**
    * Feature 075 / D-87 — the batch half of {@link list}, for the callers that
@@ -357,7 +290,7 @@ export class GalleryService {
     req: UpdateGalleryItemRequest,
     options: GalleryServiceOptions,
   ): Promise<GalleryItemDto> {
-    if (req.altText !== undefined || req.hiddenInChannels !== undefined || req.labels !== undefined) {
+    if (req.labels !== undefined) {
       await this.#updateScoped(productId, itemId, req, options);
     } else {
       await this.#updatePosition(productId, itemId, req);
@@ -393,25 +326,13 @@ export class GalleryService {
           `Gallery item ${itemId} not found under Product ${productId}.`,
         );
       }
-      const hiddenBefore = (await loadHiddenChannelsByItem(em, [itemId])).get(itemId) ?? [];
       const labelsBefore = (await em.find(GalleryItemLabel, { galleryItemId: itemId })).map((l) => l.label);
       const labelsAfter = requestedLabels ?? labelsBefore;
-      const before = itemProjection(item, hiddenBefore, labelsBefore);
-      const hiddenAfter =
-        req.hiddenInChannels === undefined ? hiddenBefore : [...new Set(req.hiddenInChannels)].sort();
-      const added = hiddenAfter.filter((channelId) => !hiddenBefore.includes(channelId));
-      if (added.length > 0) await this.#assertMembers(productId, added);
+      const before = itemProjection(item, labelsBefore);
 
       if (req.position !== undefined) item.position = req.position;
-      if (req.altText !== undefined) item.altText = applyTranslationPatch(item.altText, req.altText);
-      const after = itemProjection(item, hiddenAfter, labelsAfter);
+      const after = itemProjection(item, labelsAfter);
       if (JSON.stringify(before) === JSON.stringify(after)) return null;
-      // Re-sending `before` through the PATCH restores the item exactly (FR-081): a
-      // language the write added reads `''` there, which removes it again.
-      withRemovals(before, after);
-      if (req.hiddenInChannels !== undefined) {
-        await writeGalleryHiddenChannels(em, productId, itemId, hiddenAfter);
-      }
       if (requestedLabels !== undefined && JSON.stringify(before['labels']) !== JSON.stringify(after['labels'])) {
         await em.execute(`delete from gallery_item_labels where gallery_item_id = ?`, [itemId]);
         if (requestedLabels.length > 0) {
@@ -541,11 +462,6 @@ export class GalleryService {
     });
   }
 
-  /** FR-014 — every channel in `channelIds` is one the product is a member of, else `422 SCOPE_INVALID`. */
-  async #assertMembers(productId: string, channelIds: readonly string[]): Promise<void> {
-    await assertProductChannelMembers(this.membership, productId, channelIds);
-  }
-
   async #assertProductExists(em: EntityManager, productId: string): Promise<void> {
     const product = await em.findOne(Product, { id: productId });
     if (!product) {
@@ -658,86 +574,38 @@ export class GalleryService {
     );
     if (items.length === 0) return [];
     const labels = await em.find(GalleryItemLabel, { productId });
-    const hidden = await loadHiddenChannelsByItem(em, items.map((i) => i.id));
     const labelsByItem = new Map<string, GalleryLabel[]>();
     for (const l of labels) {
       const existing = labelsByItem.get(l.galleryItemId) ?? [];
       existing.push(l.label);
       labelsByItem.set(l.galleryItemId, existing);
     }
-    return items.map((i) => this.#toDto(i, labelsByItem.get(i.id) ?? [], hidden.get(i.id) ?? []));
+    return items.map((i) => this.#toDto(i, labelsByItem.get(i.id) ?? []));
   }
 
   async #fetchOne(em: EntityManager, itemId: string): Promise<GalleryItemDto | null> {
     const item = await em.findOne(GalleryItem, { id: itemId });
     if (!item) return null;
     const labels = await em.find(GalleryItemLabel, { galleryItemId: itemId });
-    const hidden = (await loadHiddenChannelsByItem(em, [itemId])).get(itemId) ?? [];
-    return this.#toDto(item, labels.map((l) => l.label), hidden);
+    return this.#toDto(item, labels.map((l) => l.label));
   }
 
-  #toDto(item: GalleryItem, labels: GalleryLabel[], hiddenInChannels: readonly string[]): GalleryItemDto {
+  #toDto(item: GalleryItem, labels: GalleryLabel[]): GalleryItemDto {
     return {
       id: item.id,
       productId: item.productId,
       assetId: item.assetId,
       position: item.position,
       labels: [...labels].sort(),
-      altText: { ...(item.altText ?? {}) },
-      hiddenInChannels: [...hiddenInChannels],
+      altText: item.altText,
+      hidden: item.hidden,
       createdAt: item.createdAt.toISOString(),
       updatedAt: item.updatedAt.toISOString(),
     };
   }
 }
 
-/** The API key of each gallery role, beside the stored label it names (Principle VI: camelCase keys). */
-const ROLE_KEYS: ReadonlyArray<readonly [keyof GalleryChannelRoles['roles'], GalleryLabel]> = [
-  ['baseImage', 'base_image'],
-  ['smallImage', 'small_image'],
-  ['thumbnail', 'thumbnail'],
-];
-
-function channelRolesDto(channelId: string, roles: ReadonlyMap<GalleryLabel, string>): GalleryChannelRoles {
-  return {
-    channelId,
-    roles: {
-      baseImage: roles.get('base_image') ?? null,
-      smallImage: roles.get('small_image') ?? null,
-      thumbnail: roles.get('thumbnail') ?? null,
-    },
-  };
-}
-
-function sameRoles(a: GalleryChannelRoles['roles'], b: GalleryChannelRoles['roles']): boolean {
-  return ROLE_KEYS.every(([key]) => a[key] === b[key]);
-}
-
-/** The audit projection of one item's scoped media write (FR-080): enough to restore it by re-sending. */
-function itemProjection(
-  item: GalleryItem,
-  hiddenInChannels: readonly string[],
-  labels: readonly GalleryLabel[],
-): Record<string, unknown> {
-  const altText = Object.fromEntries(
-    Object.entries(item.altText ?? {}).sort(([a], [b]) => a.localeCompare(b)),
-  );
-  return {
-    itemId: item.id,
-    position: item.position,
-    altText,
-    hiddenInChannels: [...hiddenInChannels].sort(),
-    labels: [...labels].sort(),
-  };
-}
-
-/**
- * Each side's `altText` names every language the other side names, `''` where it has
- * none — so either projection, sent as a PATCH body, puts the item back as it was.
- */
-function withRemovals(before: Record<string, unknown>, after: Record<string, unknown>): void {
-  const b = before['altText'] as Record<string, string>;
-  const a = after['altText'] as Record<string, string>;
-  for (const code of Object.keys(a)) if (!(code in b)) b[code] = '';
-  for (const code of Object.keys(b)) if (!(code in a)) a[code] = '';
+/** The audit projection of one item's media write (FR-080): enough to restore it by re-sending. */
+function itemProjection(item: GalleryItem, labels: readonly GalleryLabel[]): Record<string, unknown> {
+  return { itemId: item.id, position: item.position, labels: [...labels].sort() };
 }

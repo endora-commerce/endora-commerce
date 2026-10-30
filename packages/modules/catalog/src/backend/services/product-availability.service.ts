@@ -7,8 +7,11 @@ import {
   effectiveWindow,
   isOn,
   isProductEffectivelyAvailable,
-  overrideLanguages,
+  resolveScopeLanguage,
+  resolveScoped,
+  sameLanguage,
   type CatalogProductAvailabilityPort,
+  type EffectiveProductTexts,
   type ChannelAvailability,
   type ProductAudience,
   type ProductAvailabilityScope,
@@ -87,6 +90,7 @@ function toChannelRecord(row: ProductChannelScope): ProductChannelScopeRecord {
       row.visibility !== null && row.visibility !== undefined
         ? { visibility: row.visibility, allowedOrganizationIds: row.allowedOrganizationIds ?? [] }
         : null,
+    minOrderQuantityOverridden: row.minOrderQuantityOverridden,
     minOrderQuantity: row.minOrderQuantity ?? null,
     returnable: row.returnable ?? null,
   };
@@ -207,15 +211,6 @@ const SCOPED_PRODUCT_FIELDS = [
   'returnable',
 ] as const;
 
-/** The baseline name pick of the storefront reads: L → channel default → `en-US` → `en` → first key. */
-function pickName(blob: Record<string, string>, languages: readonly string[]): string {
-  for (const language of languages) {
-    const hit = blob[language];
-    if (hit) return hit;
-  }
-  const first = Object.keys(blob)[0];
-  return first ? (blob[first] ?? '') : '';
-}
 
 export class ProductAvailabilityService implements CatalogProductAvailabilityPort {
   constructor(
@@ -298,36 +293,83 @@ export class ProductAvailabilityService implements CatalogProductAvailabilityPor
     return out;
   }
 
-  async effectiveNames(
+  /**
+   * Feature 168 (`contracts/readers.md` §2) — the effective name and description at (C, L) along
+   * C×L → C → Global. `languageCode` `null` = the channel's default language (an operator, N2). An
+   * unknown channel answers the Global texts.
+   */
+  async effectiveTexts(
     productIds: readonly string[],
     scope: { channelId: string; languageCode: string | null },
-  ): Promise<Map<string, string>> {
-    const out = new Map<string, string>();
+  ): Promise<Map<string, EffectiveProductTexts>> {
+    const out = new Map<string, EffectiveProductTexts>();
     const ids = [...new Set(productIds)];
     if (ids.length === 0) return out;
     const channel = await this.scopeChannel(scope.channelId);
     const em = this.emFactory();
     const products = await inIdChunks(ids, (chunk) =>
-      em.find(Product, { id: { $in: chunk } }, { fields: ['id', 'name'] }),
+      em.find(Product, { id: { $in: chunk } }, { fields: ['id', 'name', 'description'] }),
     );
-    const languages = overrideLanguages(scope.languageCode ?? undefined, channel?.defaultLanguage);
-    const overrides = channel
-      ? await loadChannelOverridesByProduct(em, ids, channel.id)
-      : new Map();
+    const overrides = channel ? await loadChannelOverridesByProduct(em, ids, channel.id) : new Map();
+    const ctx = channel
+      ? { channelId: channel.id, languageCode: resolveScopeLanguage(channel, scope.languageCode) }
+      : null;
     for (const product of products) {
-      const baseline = product.name ?? {};
-      out.set(
-        product.id,
-        channel
-          ? effectiveSystemText(
-              overrides.get(product.id),
-              'name',
-              { channelId: channel.id, languages },
-              baseline,
-              pickName(baseline, languages),
-            )
-          : pickName(baseline, languages),
-      );
+      const rows = overrides.get(product.id);
+      out.set(product.id, {
+        name: ctx ? (effectiveSystemText(rows, 'name', ctx, product.name) ?? '') : product.name,
+        description: ctx ? effectiveSystemText(rows, 'description', ctx, product.description) : product.description,
+      });
+    }
+    return out;
+  }
+
+  /**
+   * Feature 168 — the effective packaging-unit name per unit id at (C, L); `null` = an empty
+   * override (nothing shown). An id no unit has is absent.
+   */
+  async effectivePackagingUnitNames(
+    unitIds: readonly string[],
+    scope: { channelId: string; languageCode: string | null },
+  ): Promise<Map<string, string | null>> {
+    const out = new Map<string, string | null>();
+    const ids = [...new Set(unitIds)];
+    if (ids.length === 0) return out;
+    const channel = await this.scopeChannel(scope.channelId);
+    const em = this.emFactory();
+    const units = await em.execute<Array<{ id: string; name: string }>>(
+      `select id::text as id, name from product_packaging_units where id = any(?::uuid[])`,
+      [uuidArrayLiteral(ids)],
+    );
+    const rows = channel
+      ? await em.execute<Array<{ packaging_unit_id: string; language_code: string | null; value: { v: unknown } }>>(
+          `select packaging_unit_id::text as packaging_unit_id, language_code, value
+             from product_packaging_unit_scope_overrides
+            where packaging_unit_id = any(?::uuid[]) and sales_channel_id = ? and field = 'name'`,
+          [uuidArrayLiteral(ids), channel.id],
+        )
+      : [];
+    const languageCode = channel ? resolveScopeLanguage(channel, scope.languageCode) : null;
+    for (const unit of units) {
+      if (!channel || languageCode === null) {
+        out.set(unit.id, unit.name);
+        continue;
+      }
+      const resolved = resolveScoped<string>({
+        global: unit.name,
+        rows: rows
+          .filter((row) => row.packaging_unit_id === unit.id)
+          .filter((row) => row.language_code === null || sameLanguage(row.language_code, languageCode))
+          .map((row) => ({
+            channelId: channel.id,
+            languageCode: row.language_code,
+            value:
+              typeof row.value?.v === 'string' ? { kind: 'value' as const, value: row.value.v } : { kind: 'empty' as const },
+          })),
+        scope: { level: 'channel_language', channelId: channel.id, languageCode },
+        levels: ['G', 'C', 'CL'],
+      });
+      out.set(unit.id, resolved.value);
     }
     return out;
   }

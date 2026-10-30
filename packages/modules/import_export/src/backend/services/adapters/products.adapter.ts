@@ -9,7 +9,8 @@ import {
   type BulkImportRowError,
   type CatalogProductRecord,
   type ProductImportRow,
-  type ScopedStatusCell,
+  type ProductScopedWriteCell,
+  decodeCsvScopedCell,
 } from '@endora-commerce/contracts';
 import type { ImportExportAdapter, ImportExportPorts } from '../adapter.js';
 
@@ -70,8 +71,9 @@ function exportRowOf(p: CatalogProductRecord): string[] {
     p.type,
     p.status,
     p.visibility,
-    p.name['en-US'] ?? '',
-    p.description['en-US'] ?? '',
+    // 168-shim: the Global texts in the legacy columns; T081 / T087 replace the file grammar.
+    p.name,
+    p.description ?? '',
   ];
 }
 
@@ -159,34 +161,45 @@ export function productsAdapter(ports: ImportExportPorts): ImportExportAdapter {
           row.visibility = parsed.data;
         }
 
+        // 168-shim: the legacy columns write the Global name and description; the profile-mapped
+        // grammar of `contracts/import-profiles-and-csv.md` is T081 / T087's.
+        const cells: ProductScopedWriteCell[] = [];
         const nameEn = record['name_en'];
-        if (nameEn !== undefined && nameEn !== '') row.name = { 'en-US': nameEn };
+        if (nameEn !== undefined && nameEn !== '') {
+          cells.push({ scope: { level: 'global' }, field: 'name', op: { op: 'set', value: nameEn } });
+        }
         const descEn = record['description_en'];
-        if (descEn !== undefined && descEn !== '') row.description = { 'en-US': descEn };
+        if (descEn !== undefined && descEn !== '') {
+          cells.push({ scope: { level: 'global' }, field: 'description', op: { op: 'set', value: descEn } });
+        }
 
-        // Feature 163 (FR-092) — `status@<channel code>[/<language>]` cells. An empty
-        // cell is "use inherited"; a scope the file has no column for is untouched.
-        // The value is read against the contract's own status list.
-        const scopedStatus: ScopedStatusCell[] = [];
+        // Feature 163 (FR-092), in the 168 write encoding (FR-116): `status@<channel code>[/<language>]`
+        // cells — empty = no change, `INHERIT` = inherit, `NULL` refused by catalog. 168-shim: the
+        // channel travels as its code in `channelId` until T081 resolves codes to ids here.
         let scopedInvalid = false;
         for (const [column, raw] of Object.entries(record)) {
           const scope = parseScopedStatusColumn(column);
           if (scope === null) continue;
-          const value = raw.trim();
-          if (value === '') {
-            scopedStatus.push({ ...scope, status: null });
+          const cell = decodeCsvScopedCell(raw.trim(), { column: 'value' });
+          if (cell.kind === 'no_change') continue;
+          const at =
+            scope.languageCode === null
+              ? ({ level: 'channel', channelId: scope.channelCode } as const)
+              : ({ level: 'channel_language', channelId: scope.channelCode, languageCode: scope.languageCode } as const);
+          if (cell.kind !== 'text') {
+            cells.push({ scope: at, field: 'status', op: { op: cell.kind } });
             continue;
           }
-          const parsed = productScopeStatusSchema.safeParse(value);
+          const parsed = productScopeStatusSchema.safeParse(cell.text);
           if (!parsed.success) {
-            errors.push({ index, reason: `invalid ${column.trim()}: ${value}` });
+            errors.push({ index, reason: `invalid ${column.trim()}: ${cell.text}` });
             scopedInvalid = true;
             break;
           }
-          scopedStatus.push({ ...scope, status: parsed.data });
+          cells.push({ scope: at, field: 'status', op: { op: 'set', value: parsed.data } });
         }
         if (scopedInvalid) continue;
-        if (scopedStatus.length > 0) row.scopedStatus = scopedStatus;
+        if (cells.length > 0) row.cells = cells;
 
         // The `type` field is intentionally not editable post-create — see the
         // FIELD_IMMUTABLE error code in catalog. Operators changing a product's

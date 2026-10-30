@@ -281,8 +281,7 @@ export function createAttributeCommand(
         isPriceRule: req.isPriceRule ?? false,
         filterPosition: req.filterPosition ?? 0,
         isVisibleOnProductPage: req.isVisibleOnProductPage ?? false,
-        channelScoped: req.channelScoped ?? false,
-        languageScoped,
+        scopable: req.scopable ?? false,
         massEditable: req.massEditable ?? false,
         quickSearchable: req.quickSearchable ?? false,
       });
@@ -351,8 +350,7 @@ export function updateAttributeCommand(
       if (req.isVisibleOnProductPage !== undefined) {
         ext.isVisibleOnProductPage = req.isVisibleOnProductPage;
       }
-      if (req.channelScoped !== undefined) ext.channelScoped = req.channelScoped;
-      if (req.languageScoped !== undefined) ext.languageScoped = req.languageScoped;
+      if (req.scopable !== undefined) ext.scopable = req.scopable;
       if (req.massEditable !== undefined) ext.massEditable = req.massEditable;
       if (req.quickSearchable !== undefined) ext.quickSearchable = req.quickSearchable;
 

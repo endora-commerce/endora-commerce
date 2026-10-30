@@ -102,7 +102,9 @@ export const contributions: AdminContributions = {
     // Feature 163 (owner decision "SEO stub = A") — the product editor's SEO tab links
     // to this module's meta editor. `catalog` hosts the place and never names `seo`;
     // the code is the SEO screen's own, so the link never leads to a page it refuses.
-    zoneComponent('product.editor.seo.after', () => import('./zones/ProductSeoLink.js'), {
+    // 168-shim: the link moves to the new `product.editor.seo` zone until T125 replaces it with
+    // `ProductSeoSection`.
+    zoneComponent('product.editor.seo', () => import('./zones/ProductSeoLink.js'), {
       requiredPermission: SEO_PERMISSION,
     }),
   ],

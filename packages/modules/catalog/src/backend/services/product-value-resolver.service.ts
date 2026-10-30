@@ -3,12 +3,12 @@ import {
   resolveAttribute,
   resolveAll,
   type AttributeDef,
-  type AttributeScope,
   type OverrideRow,
   type Resolved,
   type ResolveAllResult,
   type LanguageReadPort,
   type ResolverContext,
+  type ScopeLevel,
 } from '@endora-commerce/contracts';
 
 import type { Product } from '../entities/product.entity.js';
@@ -89,8 +89,8 @@ export class ProductValueResolverService {
     channelId: string | null,
     languageCode: string | null,
   ): Promise<ResolverContext> {
-    const primaryLanguage = await this.getPrimaryAdminLanguage();
-    return { channelId, languageCode, primaryLanguage };
+    // Feature 168 — no primary language any more: the Global value is one value (FR-014).
+    return { channelId, languageCode };
   }
 
   /**
@@ -135,7 +135,7 @@ export class ProductValueResolverService {
         sysKey === 'name' ? product.name : sysKey === 'description' ? product.description : null;
       defs.push({
         attributeKey: sysKey,
-        scope: SYSTEM_ATTRIBUTE_SCOPES[sysKey]!,
+        levels: ['G', 'C', 'CL'],
         baseline,
       });
     }
@@ -143,12 +143,9 @@ export class ProductValueResolverService {
     // User-defined attributes — baseline is product.attributeValues[key].
     for (const key of userAttrKeys) {
       const row = userAttrByKey.get(key);
-      const scope: AttributeScope = row
-        ? { channelScoped: row.channelScoped, languageScoped: row.languageScoped }
-        : { channelScoped: false, languageScoped: false };
       defs.push({
         attributeKey: key,
-        scope,
+        levels: row ? row.scopeLevels : ['G'],
         baseline: (product.attributeValues as Record<string, unknown>)[key],
       });
     }
@@ -164,7 +161,7 @@ export class ProductValueResolverService {
     baseline: unknown;
     overrides: readonly OverrideRow[];
     attributeKey: string;
-    scope: AttributeScope;
+    levels: readonly ScopeLevel[];
     ctx: ResolverContext;
   }): Resolved {
     return resolveAttribute(args);

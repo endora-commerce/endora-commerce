@@ -1130,7 +1130,21 @@ export function ProductEditor(): ReactNode {
 
           {activeTab === 'seo' && id ? <ProductUrlKeysPanel productId={id} /> : null}
           {activeTab === 'seo' && id ? (
-            <AdminZone name="product.editor.seo.after" props={{ productId: id }} />
+            // 168-shim: interim props until S3 mounts the SEO section at the editor scope (T125).
+            <AdminZone
+              name="product.editor.seo"
+              props={{
+                productId: id,
+                scope: { level: 'global' },
+                scopeLabel: '',
+                parentScopeLabel: null,
+                view: null,
+                staged: new Map(),
+                onStage: () => undefined,
+                readOnly: true,
+                errors: {},
+              }}
+            />
           ) : null}
         </div>
       </div>

@@ -1,5 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, toScopeChannel } from '@endora-commerce/contracts';
+import { ERROR_CODES, resolveScoped, toScopeChannel } from '@endora-commerce/contracts';
+import type { ScopeRef, ScopedFieldView, ScopedRow } from '@endora-commerce/contracts';
 import type {
   CatalogCategoryReadPort,
   CatalogCategoryRecord,
@@ -103,12 +104,14 @@ function scopeChain(
   const chain: Array<{ row: SeoMetaOverride; source: Exclude<SeoProductMetaSource, 'derived'> }> = [];
   if (channelId !== null) {
     const cxl = rows.find((r) => r.salesChannelId === channelId && sameLanguage(r.locale ?? null, languageCode));
-    if (cxl) chain.push({ row: cxl, source: 'channel_language' });
+    if (cxl) chain.push({ row: cxl, source: 'set' });
     const c = rows.find((r) => r.salesChannelId === channelId && (r.locale ?? null) === null);
-    if (c) chain.push({ row: c, source: 'channel' });
+    if (c) chain.push({ row: c, source: 'inherited_channel' });
   }
-  const l = rows.find((r) => (r.salesChannelId ?? null) === null && sameLanguage(r.locale ?? null, languageCode));
-  if (l) chain.push({ row: l, source: 'language' });
+  // Feature 168 (FR-010) — the Global row, never a Language-only one. 168-shim: the empty override
+  // (`''`) → derived value rule of round 6 is T121's.
+  const g = rows.find((r) => (r.salesChannelId ?? null) === null && (r.locale ?? null) === null);
+  if (g) chain.push({ row: g, source: 'inherited_global' });
   return chain;
 }
 
@@ -235,9 +238,40 @@ export class MetaTagResolverService implements SeoProductMetaPort {
     return walkSeoScopes(rows, input.channelId, input.languageCode, input.fallback);
   }
 
+  /**
+   * Feature 168 (`contracts/seo-ports.md` §1) — each field's view at one scope.
+   * 168-shim: no scope validation (`422 SCOPE_INVALID`) yet — T121's.
+   */
+  async readScoped(productId: string, scope: ScopeRef): Promise<Record<SeoProductMetaField, ScopedFieldView<string>>> {
+    const rows = await this.emFactory().find(SeoMetaOverride, { entityType: 'product', entityId: productId });
+    const global = rows.find((r) => (r.salesChannelId ?? null) === null && (r.locale ?? null) === null);
+    const out = {} as Record<SeoProductMetaField, ScopedFieldView<string>>;
+    for (const field of FIELDS) {
+      const scoped: ScopedRow<string>[] = rows.flatMap((r) => {
+        const value = r[field];
+        if (r.salesChannelId == null || value == null) return [];
+        return [
+          {
+            channelId: r.salesChannelId,
+            languageCode: r.locale ?? null,
+            value: value === '' ? { kind: 'empty' as const } : { kind: 'value' as const, value },
+          },
+        ];
+      });
+      const resolved = resolveScoped<string>({
+        global: global?.[field] || null,
+        rows: scoped,
+        scope,
+        levels: ['G', 'C', 'CL'],
+      });
+      out[field] = { ...resolved, levels: ['G', 'C', 'CL'], supportedHere: true, required: false };
+    }
+    return out;
+  }
+
   async listScopesForProduct(
     productId: string,
-  ): Promise<Array<{ channelId: string | null; locale: string | null; fields: SeoProductMetaField[] }>> {
+  ): Promise<Array<{ channelId: string | null; languageCode: string | null; fields: SeoProductMetaField[] }>> {
     const rows = await this.emFactory().find(
       SeoMetaOverride,
       { entityType: 'product', entityId: productId },
@@ -245,7 +279,7 @@ export class MetaTagResolverService implements SeoProductMetaPort {
     );
     return rows.map((row) => ({
       channelId: row.salesChannelId ?? null,
-      locale: row.locale ?? null,
+      languageCode: row.locale ?? null,
       fields: FIELDS.filter((field) => row[field] != null),
     }));
   }
@@ -317,8 +351,9 @@ export function buildRuleMeta(
   locale: string,
 ): { title: string; description: string; openGraph: ResolvedMeta['openGraph'] } {
   if (entityType === 'product' && source.product) {
-    const name = pickLocale(source.product.name, locale);
-    const description = pickLocale(source.product.description, locale);
+    // 168-shim: the Global texts; the derived fallback at (C, L) through `effectiveTexts` is T121's.
+    const name = source.product.name;
+    const description = source.product.description ?? '';
     return {
       title: trim(name, TITLE_MAX),
       description: trim(description, DESCRIPTION_MAX),

@@ -36,7 +36,6 @@ import {
   PAGE_BUILDER_CONTENT_MAX_BYTES,
   updateCategoryRequestSchema,
   updateGalleryItemRequestSchema,
-  putGalleryChannelRolesRequestSchema,
   updateProductRequestSchema,
   updateVariantRequestSchema,
   createProductSavedViewRequestSchema,
@@ -1475,24 +1474,8 @@ export async function registerCatalogAdminRoutes(
       },
     );
 
-    // Feature 163 (FR-076) — a channel's own holders of the gallery roles.
-    app.get<{ Params: { productId: string } }>(
-      '/api/v1/admin/catalog/products/:productId/gallery/channel-roles',
-      { preHandler: requireAdmin('catalog:read') },
-      async (request) => ({ data: await gallery.listChannelRoles(request.params.productId) }),
-    );
-
-    app.put<{ Params: { productId: string } }>(
-      '/api/v1/admin/catalog/products/:productId/gallery/channel-roles',
-      {
-        preHandler: requireAdmin('catalog:write'),
-        schema: { body: putGalleryChannelRolesRequestSchema },
-      },
-      async (request) => {
-        const body = putGalleryChannelRolesRequestSchema.parse(request.body);
-        return { data: await gallery.putChannelRoles(request.params.productId, body) };
-      },
-    );
+    // Feature 168 (`contracts/scoped-values-api.md` §6) — 163's `GET` / `PUT …/gallery/channel-roles`
+    // are retired; gallery roles at C and C×L are scoped fields of `PUT …/scoped-values`.
 
     app.delete<{ Params: { productId: string; itemId: string } }>(
       '/api/v1/admin/catalog/products/:productId/gallery/:itemId',
@@ -2149,9 +2132,9 @@ function serializeAdminAttribute(
     // Feature 061 (additive) — id of the backing product-host Custom Field
     // definition (adminAttributeResponseSchema.customFieldDefinitionId).
     customFieldDefinitionId: a.customFieldDefinitionId,
-    // Feature 023 / 163 (T095b) — the scope flags the attribute editor shows and edits.
-    channelScoped: a.channelScoped,
-    languageScoped: a.languageScoped,
+    // Feature 168 (R15) — the scope flag the attribute editor edits and the levels it derives.
+    scopable: a.scopable,
+    scopeLevels: [...a.scopeLevels],
     createdAt: a.createdAt.toISOString(),
     updatedAt: a.updatedAt.toISOString(),
   };

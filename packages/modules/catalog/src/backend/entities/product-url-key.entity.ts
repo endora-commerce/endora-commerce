@@ -2,28 +2,23 @@ import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
 import { GlobalEntity } from '@endora-commerce/platform/tenancy';
 
 /**
- * ProductUrlKey — feature 163 (`specs/163-product-data-scopes/` data-model.md §5,
- * research R11).
+ * ProductUrlKey — feature 163, rewritten by feature 168
+ * (`specs/168-product-editor-scope-switcher/data-model.md` §5, `contracts/url-keys.md`).
  *
- * A product's URL key in one language (`salesChannelId` null — the language key,
- * for every channel) or at one sales channel × language (the override). The global
- * key stays `products.slug`. A key is unique per language across every channel,
- * counting the global key wherever the product has no language key — a rule no
- * index can express, so `UrlKeyService` enforces it under a per-key advisory lock;
- * the partial uniques here only stop a product holding two keys at one scope.
+ * A product's URL key at one sales channel (`languageCode` `null` — the Channel key) or at one
+ * sales channel × language. The Global key stays `products.slug`. A key text belongs to at most
+ * one product per channel across all the channel's languages, orphans included — the exclusion
+ * constraint `product_url_keys_one_product_per_channel_key` holds it in the database; the slug
+ * and redirect sides are `UrlKeyService.lockAndCheck`'s, the one writer (T149). Constraints are
+ * raw SQL in the migration: no `@Unique` here.
  *
- * An override whose channel the product left, or whose language the channel
- * dropped, stays and keeps reserving its key (FR-015, FR-070). Platform-global like
- * `products` (FR-083).
- *
- * A soft-deleted product's rows stop reserving their keys (another product may take
- * them), while its `products.slug` stays taken; a future un-delete must therefore
- * re-check every key it would bring back.
+ * A row whose channel the product left, or whose language the channel dropped, stays and keeps
+ * reserving its key (FR-016, FR-018). Platform-global like `products`.
  */
 @GlobalEntity()
 @Entity({ tableName: 'product_url_keys' })
 export class ProductUrlKey {
-  [OptionalProps]?: 'createdAt' | 'updatedAt' | 'salesChannelId';
+  [OptionalProps]?: 'createdAt' | 'updatedAt' | 'languageCode';
 
   @PrimaryKey({ type: 'uuid' })
   id!: string;
@@ -31,12 +26,12 @@ export class ProductUrlKey {
   @Property({ type: 'uuid' })
   productId!: string;
 
-  @Property({ type: 'string', length: 16 })
-  languageCode!: string;
+  @Property({ type: 'uuid', fieldName: 'sales_channel_id' })
+  salesChannelId!: string;
 
-  /** `null` = the language key; else the channel × language override. */
-  @Property({ type: 'uuid', fieldName: 'sales_channel_id', nullable: true })
-  salesChannelId: string | null = null;
+  /** `null` = the Channel key; else the Channel × language key, in the channel's spelling. */
+  @Property({ type: 'string', length: 16, nullable: true })
+  languageCode: string | null = null;
 
   @Property({ type: 'string', length: 160 })
   key!: string;

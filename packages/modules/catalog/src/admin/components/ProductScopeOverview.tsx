@@ -210,8 +210,8 @@ export function ProductScopeOverview({ productId }: ProductScopeOverviewProps): 
     );
   }
 
-  const languageColumnOf = (code: string): string[] =>
-    overview.languageColumns.find((c) => c.languageCode === code)?.overriddenFields ?? [];
+  // 168-shim: the Language row is gone (FR-010, FR-100); T132 removes it from this view.
+  const languageColumnOf = (_code: string): string[] => [];
 
   /** A language's own values, with their resets — rendered in a body cell, never a header (D11). */
   const languageValues = (code: string): ReactNode => {

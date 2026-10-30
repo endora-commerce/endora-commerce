@@ -51,9 +51,12 @@ export function effectiveGallery<T extends { id: string; labels: readonly Galler
 }
 
 /**
- * The overrides of `productIds` in `channelId`, one statement for the whole page. A
- * product with none is absent from the map. `channelId` `null` (a read that names no
- * channel) answers an empty map.
+ * Feature 168 (data-model §6) — the role holders and hidden items of a page's products at one
+ * channel, read from `gallery_role_scope_overrides` and `gallery_item_scope_overrides`.
+ *
+ * 168-shim: the **Channel** rows only, and a Global-hidden item is not yet dropped; the full
+ * C×L → C → G chain (Global `hidden`, Channel × language rows, an empty role override meaning
+ * "no image") is T041's rewrite on the scoped store adapters.
  */
 export async function loadGalleryChannelOverrides(
   em: EntityManager,
@@ -77,12 +80,14 @@ export async function loadGalleryChannelOverrides(
     Array<{ product_id: string; gallery_item_id: string; label: GalleryLabel | null }>
   >(
     `select product_id::text as product_id, gallery_item_id::text as gallery_item_id, label
-       from gallery_item_channel_labels
-      where sales_channel_id = ? and product_id = any(?::uuid[])
+       from gallery_role_scope_overrides
+      where sales_channel_id = ? and language_code is null and gallery_item_id is not null
+        and product_id = any(?::uuid[])
      union all
      select product_id::text, gallery_item_id::text, null
-       from gallery_item_channel_hidden
-      where sales_channel_id = ? and product_id = any(?::uuid[])`,
+       from gallery_item_scope_overrides
+      where sales_channel_id = ? and language_code is null and field = 'hidden'
+        and value -> 'v' = 'true'::jsonb and product_id = any(?::uuid[])`,
     [channelId, uuidArrayLiteral(ids), channelId, uuidArrayLiteral(ids)],
   );
   for (const row of rows) {
@@ -92,124 +97,23 @@ export async function loadGalleryChannelOverrides(
   return out;
 }
 
-// --- Writes: one per bridge-row kind ----------------------------------------------
-//
-// The scope-row writers of `product-scopes.service.ts` (`writeChannelScopeRow`,
-// `writeLanguageScopeRow`) own `product_channel_scopes` and
-// `product_channel_language_scopes`. A gallery override is a row of its own tables
-// (data-model §7: the role holder keyed by (product, channel, role), the hidden item
-// by (item, channel)), so it has its own single writer here — each run on the
-// caller's `em`, inside the caller's audited Command, and nowhere else.
-
-/** The role `label` of `productId` in `channelId` held by `itemId`; `null` deletes the override (use inherited). */
-export async function writeGalleryChannelRole(
-  em: EntityManager,
-  productId: string,
-  channelId: string,
-  label: GalleryLabel,
-  itemId: string | null,
-): Promise<void> {
-  if (itemId === null) {
-    await em.execute(
-      `delete from gallery_item_channel_labels where product_id = ? and sales_channel_id = ? and label = ?`,
-      [productId, channelId, label],
-    );
-    return;
-  }
-  await em.execute(
-    `insert into gallery_item_channel_labels (product_id, sales_channel_id, label, gallery_item_id)
-     values (?, ?, ?, ?)
-     on conflict (product_id, sales_channel_id, label) do update set gallery_item_id = excluded.gallery_item_id`,
-    [productId, channelId, label, itemId],
-  );
-}
-
-/** `itemId` hidden in exactly `channelIds` (the set replaces the stored one). */
-export async function writeGalleryHiddenChannels(
-  em: EntityManager,
-  productId: string,
-  itemId: string,
-  channelIds: readonly string[],
-): Promise<void> {
-  const ids = [...new Set(channelIds)];
-  await em.execute(
-    `delete from gallery_item_channel_hidden
-      where gallery_item_id = ? and not (sales_channel_id = any(?::uuid[]))`,
-    [itemId, uuidArrayLiteral(ids)],
-  );
-  if (ids.length === 0) return;
-  await em.execute(
-    `insert into gallery_item_channel_hidden (gallery_item_id, sales_channel_id, product_id)
-     select ?, channel_id, ? from unnest(?::uuid[]) as channel_id
-     on conflict (gallery_item_id, sales_channel_id) do nothing`,
-    [itemId, productId, uuidArrayLiteral(ids)],
-  );
-}
-
-/** The channels `itemIds` are hidden in, per item, sorted. */
-export async function loadHiddenChannelsByItem(
-  em: EntityManager,
-  itemIds: readonly string[],
-): Promise<Map<string, string[]>> {
-  const out = new Map<string, string[]>();
-  if (itemIds.length === 0) return out;
-  const rows = await em.execute<Array<{ gallery_item_id: string; sales_channel_id: string }>>(
-    `select gallery_item_id::text as gallery_item_id, sales_channel_id::text as sales_channel_id
-       from gallery_item_channel_hidden
-      where gallery_item_id = any(?::uuid[])
-      order by gallery_item_id, sales_channel_id`,
-    [uuidArrayLiteral([...new Set(itemIds)])],
-  );
-  for (const row of rows) {
-    const list = out.get(row.gallery_item_id) ?? [];
-    list.push(row.sales_channel_id);
-    out.set(row.gallery_item_id, list);
-  }
-  return out;
-}
-
-/** Every channel role override of `productId`, keyed by channel. */
-export async function loadChannelRoles(
-  em: EntityManager,
-  productId: string,
-): Promise<Map<string, Map<GalleryLabel, string>>> {
-  const rows = await em.execute<Array<{ sales_channel_id: string; label: GalleryLabel; gallery_item_id: string }>>(
-    `select sales_channel_id::text as sales_channel_id, label, gallery_item_id::text as gallery_item_id
-       from gallery_item_channel_labels
-      where product_id = ?
-      order by sales_channel_id, label`,
-    [productId],
-  );
-  const out = new Map<string, Map<GalleryLabel, string>>();
-  for (const row of rows) {
-    const roles = out.get(row.sales_channel_id) ?? new Map<GalleryLabel, string>();
-    roles.set(row.label, row.gallery_item_id);
-    out.set(row.sales_channel_id, roles);
-  }
-  return out;
-}
-
 /**
- * The scope overview's gallery fields of `productId` (T134b): `media:roles` and
- * `media:hidden` per channel holding such an override, `media:altText` per language
- * any item has an alt text in.
+ * The scope overview's media rows (163 T118c, feature 168 data-model §6): every (field, channel,
+ * language) at which the product's gallery holds an override.
  */
 export async function loadMediaScopedFields(
   em: EntityManager,
   productId: string,
 ): Promise<Array<{ field: string; channelId: string | null; languageCode: string | null }>> {
   const rows = await em.execute<Array<{ field: string; channel_id: string | null; language_code: string | null }>>(
-    `select distinct 'media:roles' as field, sales_channel_id::text as channel_id, null::text as language_code
-       from gallery_item_channel_labels where product_id = ?
+    `select distinct 'media:roles' as field, sales_channel_id::text as channel_id, language_code
+       from gallery_role_scope_overrides where product_id = ?
      union
-     select distinct 'media:hidden', sales_channel_id::text, null
-       from gallery_item_channel_hidden where product_id = ?
-     union
-     select distinct 'media:altText', null, alt.key
-       from gallery_items gi, jsonb_each_text(gi.alt_text) as alt
-      where gi.product_id = ? and btrim(alt.value) <> ''
+     select distinct case field when 'hidden' then 'media:hidden' else 'media:altText' end,
+            sales_channel_id::text, language_code
+       from gallery_item_scope_overrides where product_id = ?
      order by 1, 2, 3`,
-    [productId, productId, productId],
+    [productId, productId],
   );
   return rows.map((row) => ({ field: row.field, channelId: row.channel_id, languageCode: row.language_code }));
 }

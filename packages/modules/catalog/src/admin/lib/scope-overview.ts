@@ -1,7 +1,6 @@
 import type {
   PatchProductScopesRequest,
   ProductValueOverrideDelete,
-  PutGalleryChannelRolesRequest,
   PutProductUrlKeysRequest,
   ScopeMissingValue,
   ScopeOverviewResponse,
@@ -46,7 +45,7 @@ export type ScopeFieldRequest =
   | { kind: 'scopes'; body: PatchProductScopesRequest }
   | { kind: 'valueOverrides'; body: { upserts: []; deletes: ProductValueOverrideDelete[] } }
   | { kind: 'urlKeys'; body: PutProductUrlKeysRequest }
-  | { kind: 'galleryRoles'; body: PutGalleryChannelRolesRequest };
+  | { kind: 'galleryRoles'; body: { channelId: string; roles: Record<string, string | null> } };
 
 /** Every role of one channel back to the global holder. */
 function clearGalleryRoles(channelId: string): ScopeFieldRequest {
@@ -68,12 +67,12 @@ export function resetRequestFor(input: {
   const { field, level, channelId, languageCode } = input;
   if (isChannelField(field)) {
     if (level === 'channel') {
-      return { kind: 'scopes', body: { channels: [{ channelId, [field]: null }] } };
+      return { kind: 'scopes', body: { channels: [{ channelId, [field]: { inherit: true } }] } };
     }
     if (level === 'channel_language' && field === 'status') {
       return {
         kind: 'scopes',
-        body: { channels: [{ channelId, languageStatuses: [{ languageCode, status: null }] }] },
+        body: { channels: [{ channelId, languageStatuses: [{ languageCode, status: { inherit: true } }] }] },
       };
     }
     return null;
@@ -94,9 +93,10 @@ export function resetRequestFor(input: {
     // A URL key has no channel-wide value: a channel row never holds one (C-7).
     if (level === 'channel') return null;
     if (level === 'channel_language') {
-      return { kind: 'urlKeys', body: { channelKeys: [{ channelId, languageCode, key: null }] } };
+      return { kind: 'urlKeys', body: { channelKeys: [{ channelId, languageCode, key: { inherit: true } }] } };
     }
-    return { kind: 'urlKeys', body: { languageKeys: [{ languageCode, key: null }] } };
+    // 168-shim: there is no Language key any more (FR-010); T132 drops this branch.
+    return null;
   }
   return null;
 }
@@ -121,10 +121,10 @@ export function orphanDeleteRequest(orphan: ScopeOverviewOrphan): ScopeFieldRequ
     if (field === 'status' && languageCode !== null) {
       return {
         kind: 'scopes',
-        body: { channels: [{ channelId, languageStatuses: [{ languageCode, status: null }] }] },
+        body: { channels: [{ channelId, languageStatuses: [{ languageCode, status: { inherit: true } }] }] },
       };
     }
-    return { kind: 'scopes', body: { channels: [{ channelId, [field]: null }] } };
+    return { kind: 'scopes', body: { channels: [{ channelId, [field]: { inherit: true } }] } };
   }
   const attributeKey = overrideAttributeKey(field);
   if (attributeKey !== null) {
@@ -132,9 +132,8 @@ export function orphanDeleteRequest(orphan: ScopeOverviewOrphan): ScopeFieldRequ
     return { kind: 'valueOverrides', body: { upserts: [], deletes: [{ attributeKey, channelId, languageCode }] } };
   }
   if (field === 'media:roles' && channelId !== null) return clearGalleryRoles(channelId);
-  if (field === 'urlKey' && languageCode !== null) {
-    if (channelId === null) return { kind: 'urlKeys', body: { languageKeys: [{ languageCode, key: null }] } };
-    return { kind: 'urlKeys', body: { channelKeys: [{ channelId, languageCode, key: null }] } };
+  if (field === 'urlKey' && channelId !== null) {
+    return { kind: 'urlKeys', body: { channelKeys: [{ channelId, languageCode, key: { inherit: true } }] } };
   }
   return null;
 }

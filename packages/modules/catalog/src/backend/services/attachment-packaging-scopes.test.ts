@@ -3,32 +3,12 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   assertProductChannelMembers,
   loadAttachmentPackagingScopedFields,
-  mirrorTranslationRemovals,
 } from './attachment-packaging-scopes.js';
 
 /**
- * Feature 163 (FR-078, FR-079, FR-080, FR-081; data-model §8) — the pieces of the
- * attachment and packaging-unit scope writes that need no database.
+ * Feature 163 (FR-078, FR-079, FR-080, FR-081; data-model §8), moved to the 168 override tables —
+ * the pieces of the attachment and packaging-unit scope reads that need no database.
  */
-describe('mirrorTranslationRemovals', () => {
-  it('names every language either side names, "" where a side has none, so re-sending either restores it', () => {
-    const before: Record<string, unknown> = { nameTranslations: { 'pl-PL': 'Karton' }, other: 1 };
-    const after: Record<string, unknown> = { nameTranslations: { 'de-DE': 'Kiste' }, other: 2 };
-    mirrorTranslationRemovals(before, after, ['nameTranslations']);
-    expect(before['nameTranslations']).toEqual({ 'pl-PL': 'Karton', 'de-DE': '' });
-    expect(after['nameTranslations']).toEqual({ 'de-DE': 'Kiste', 'pl-PL': '' });
-    expect(before['other']).toBe(1);
-  });
-
-  it('leaves both sides alone where they name the same languages', () => {
-    const before: Record<string, unknown> = { nameTranslations: { pl: 'a' }, descriptionTranslations: {} };
-    const after: Record<string, unknown> = { nameTranslations: { pl: 'b' }, descriptionTranslations: {} };
-    mirrorTranslationRemovals(before, after, ['nameTranslations', 'descriptionTranslations']);
-    expect(before).toEqual({ nameTranslations: { pl: 'a' }, descriptionTranslations: {} });
-    expect(after).toEqual({ nameTranslations: { pl: 'b' }, descriptionTranslations: {} });
-  });
-});
-
 describe('assertProductChannelMembers', () => {
   const membership = {
     listChannelsForEntity: vi.fn(async () => [{ id: 'b2b' }, { id: 'b2c' }]),
@@ -58,28 +38,28 @@ describe('assertProductChannelMembers', () => {
 });
 
 describe('loadAttachmentPackagingScopedFields', () => {
-  it('reads the four overview fields of one product in one statement (T139b)', async () => {
+  it('reads the overview fields of one product in one statement from the 168 override tables', async () => {
     const statements: string[] = [];
     const em = {
       execute: async (sql: string) => {
         statements.push(sql);
         return [
           { field: 'attachments:hidden', channel_id: 'b2c', language_code: null },
-          { field: 'attachments:name', channel_id: null, language_code: 'pl-PL' },
-          { field: 'packagingUnits:name', channel_id: null, language_code: 'de-DE' },
+          { field: 'attachments:name', channel_id: 'b2c', language_code: 'pl-PL' },
+          { field: 'packagingUnits:name', channel_id: 'b2c', language_code: 'de-DE' },
         ];
       },
     } as unknown as EntityManager;
     const fields = await loadAttachmentPackagingScopedFields(em, 'p1');
     expect(statements).toHaveLength(1);
-    for (const table of ['product_attachment_channel_hidden', 'product_attachments', 'product_packaging_units']) {
+    for (const table of ['product_attachment_scope_overrides', 'product_packaging_unit_scope_overrides']) {
       expect(statements[0]).toContain(table);
     }
-    expect(statements[0]).toContain("'attachments:description'");
+    expect(statements[0]).not.toContain('_translations');
     expect(fields).toEqual([
       { field: 'attachments:hidden', channelId: 'b2c', languageCode: null },
-      { field: 'attachments:name', channelId: null, languageCode: 'pl-PL' },
-      { field: 'packagingUnits:name', channelId: null, languageCode: 'de-DE' },
+      { field: 'attachments:name', channelId: 'b2c', languageCode: 'pl-PL' },
+      { field: 'packagingUnits:name', channelId: 'b2c', languageCode: 'de-DE' },
     ]);
   });
 });

@@ -4,11 +4,13 @@ import {
   type CatalogProductScopeWritePort,
   type CatalogProductWritePort,
   type CatalogPromoAttributePort,
+  fromScopedWriteOp,
   type PatchProductScopesRequest,
-  type ProductScopeWriteInput,
+  type ProductScopedWriteInput,
+  type ProductScopedWriteResult,
 } from '@endora-commerce/contracts';
 import type { ProductScopesService } from './product-scopes.service.js';
-import type { UrlKeyService } from './url-key.service.js';
+import type { ProductUrlKeyWrite, UrlKeyService } from './url-key.service.js';
 import type { CatalogAdminService } from './catalog-admin.service.js';
 import type { CatalogQueryService } from './catalog-query.service.js';
 import type { CategoryAdminService } from './category-admin.service.js';
@@ -111,22 +113,32 @@ export function createCatalogProductScopeWritePort(
 ): CatalogProductScopeWritePort {
   return {
     async applyScopes(productId, input, options) {
-      const request = toScopesPatch(input);
+      // 168-shim: port v2 (`contracts/pim-locale-mapping.md` §4) on the 163 writers — `status` and
+      // `window` through the scopes PATCH, `urlKey` at C×L through the URL-key import mode; every
+      // other cell is refused `not_supported` until T083 lands the allowlist on the save service.
+      const { request, urlKeys, refused } = toScopesPatch(input);
       if (request.channels.length > 0 || request.global !== undefined) {
         // The write alone (checkpoint C code review, N2): an integration reads nothing
         // back, and passes no completeness mode — it is never gated (A-6).
         await getScopes().writeStatus(productId, request);
       }
-      const urlKeys = input.urlKeys?.length ? await getUrlKeys().importKeys(productId, input.urlKeys, options.source) : [];
-      return { urlKeys };
+      const outcomes = urlKeys.length ? await getUrlKeys().importKeys(productId, urlKeys, options.source) : [];
+      const result: ProductScopedWriteResult = {
+        applied: input.cells.length - refused.length,
+        refused,
+        urlKeys: outcomes,
+      };
+      return result;
     },
   };
 }
 
-const isoOrNull = (value: Date | null): string | null => (value === null ? null : value.toISOString());
-
-/** The input as the scopes PATCH body: one entry per channel named, only the keys named. */
-export function toScopesPatch(input: ProductScopeWriteInput): PatchProductScopesRequest {
+/** 168-shim — the v2 cells the 163 writers can take, and the refused rest. */
+export function toScopesPatch(input: ProductScopedWriteInput): {
+  request: PatchProductScopesRequest;
+  urlKeys: ProductUrlKeyWrite[];
+  refused: ProductScopedWriteResult['refused'];
+} {
   const channels = new Map<string, PatchProductScopesRequest['channels'][number]>();
   const entry = (channelId: string): PatchProductScopesRequest['channels'][number] => {
     let found = channels.get(channelId);
@@ -137,36 +149,40 @@ export function toScopesPatch(input: ProductScopeWriteInput): PatchProductScopes
     return found;
   };
   let global: PatchProductScopesRequest['global'];
-  for (const status of input.status ?? []) {
-    const target = entry(status.channelId);
-    if (status.languageCode === null) {
-      target.status = status.value;
+  const urlKeys: ProductUrlKeyWrite[] = [];
+  const refused: ProductScopedWriteResult['refused'] = [];
+  for (const cell of input.cells) {
+    const { scope, op } = cell;
+    if (cell.field === 'status' && scope.level !== 'global') {
+      const target = entry(scope.channelId);
+      if (scope.level === 'channel') target.status = fromScopedWriteOp(op) as never;
+      else {
+        target.languageStatuses = [
+          ...(target.languageStatuses ?? []),
+          { languageCode: scope.languageCode, status: fromScopedWriteOp(op) as never },
+        ];
+      }
+    } else if (cell.field === 'window' && scope.level === 'global' && op.op !== 'inherit') {
+      const value = op.op === 'set' ? (op.value as { from: string | null; until: string | null }) : { from: null, until: null };
+      global = { publishFrom: value.from, publishUntil: value.until };
+    } else if (cell.field === 'window' && scope.level === 'channel') {
+      entry(scope.channelId).window = fromScopedWriteOp(op) as never;
+    } else if (cell.field === 'urlKey' && scope.level === 'channel_language' && op.op !== 'empty') {
+      urlKeys.push({
+        channelId: scope.channelId,
+        languageCode: scope.languageCode,
+        key: op.op === 'set' ? String(op.value) : null,
+      });
     } else {
-      target.languageStatuses = [
-        ...(target.languageStatuses ?? []),
-        { languageCode: status.languageCode, status: status.value },
-      ];
+      refused.push({ scope, field: cell.field, code: 'not_supported' });
     }
   }
-  for (const window of input.window ?? []) {
-    if (window.channelId === null) {
-      // The global window is a pair; "use inherited" has no meaning there, so `null` opens both ends.
-      global = { publishFrom: isoOrNull(window.value?.from ?? null), publishUntil: isoOrNull(window.value?.until ?? null) };
-    } else {
-      entry(window.channelId).window =
-        window.value === null ? null : { from: isoOrNull(window.value.from), until: isoOrNull(window.value.until) };
-    }
-  }
-  for (const audience of input.audience ?? []) {
-    entry(audience.channelId).audience = audience.value;
-  }
-  for (const rules of input.orderRules ?? []) {
-    const target = entry(rules.channelId);
-    if (rules.minOrderQuantity !== undefined) target.minOrderQuantity = rules.minOrderQuantity;
-    if (rules.returnable !== undefined) target.returnable = rules.returnable;
-  }
-  return patchProductScopesRequestSchema.parse({
-    channels: [...channels.values()],
-    ...(global !== undefined ? { global } : {}),
-  });
+  return {
+    request: patchProductScopesRequestSchema.parse({
+      channels: [...channels.values()],
+      ...(global !== undefined ? { global } : {}),
+    }),
+    urlKeys,
+    refused,
+  };
 }

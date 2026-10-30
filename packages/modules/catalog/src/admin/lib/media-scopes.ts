@@ -1,4 +1,11 @@
-import type { GalleryChannelRoles } from '@endora-commerce/contracts';
+/**
+ * 168-shim — 163's channel-roles shape, kept for this editor until S3 rewrites the gallery on the
+ * scoped-values save (`galleryRole:<label>`); the backend route it called is retired.
+ */
+export interface GalleryChannelRoles {
+  channelId: string;
+  roles: { baseImage: string | null; smallImage: string | null; thumbnail: string | null };
+}
 import type { ScopeContext } from '../components/ProductScopeEditor.js';
 
 /**

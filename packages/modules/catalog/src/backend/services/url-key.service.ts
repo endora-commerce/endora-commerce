@@ -3,8 +3,6 @@ import { randomUUID } from 'crypto';
 import {
   ERROR_CODES,
   productPath,
-  putProductUrlKeysRequestSchema,
-  type ProductUrlKeyWrite,
   type ProductUrlKeysResponse,
   type PutProductUrlKeysRequest,
   type UrlKeyWriteOutcome,
@@ -50,6 +48,49 @@ import { ProductUrlRedirect } from '../entities/product-url-redirect.entity.js';
  */
 
 const LOCK_PREFIX = 'catalog.url-key:';
+
+// --- 168-shim: the 163 planner's own shapes ------------------------------------------
+//
+// Feature 168 replaced the language keys with Channel and Channel × language keys
+// (`specs/168-product-editor-scope-switcher/contracts/url-keys.md`). Until T039 rewrites this
+// planner on that model (one helper, `lockAndCheck`, the exclusion constraint), the 163 planner
+// runs on its own request shape: Channel × language keys only, no language keys. A Channel key
+// (`languageCode` absent) is refused `422 VALIDATION_FAILED` here, and redirects are written per
+// (channel, language) of the product's member channels.
+
+/** 168-shim — the 163 planner's request: Channel × language keys, `key: null` = inherit. */
+export interface LegacyUrlKeysRequest {
+  globalKey?: string;
+  languageKeys?: Array<{ languageCode: string; key: string | null }>;
+  channelKeys?: Array<{ channelId: string; languageCode: string; key: string | null }>;
+  confirmTakeover?: Array<{ languageCode: string | null; key: string }>;
+}
+
+/** 168-shim — a key written by an integration: `channelId: null` = a language key (refused). */
+export interface ProductUrlKeyWrite {
+  languageCode: string;
+  channelId: string | null;
+  /** `null` = use inherited. */
+  key: string | null;
+}
+
+/** 168-shim — the 168 PUT body as the 163 planner reads it. */
+export function legacyRequestOf(request: PutProductUrlKeysRequest): LegacyUrlKeysRequest {
+  const channelKeys = (request.channelKeys ?? []).map((entry) => {
+    if (entry.languageCode == null) {
+      throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'Channel keys without a language arrive with T039.', {
+        field: 'channelKeys',
+        channelId: entry.channelId,
+      });
+    }
+    return { channelId: entry.channelId, languageCode: entry.languageCode, key: typeof entry.key === 'string' ? entry.key : null };
+  });
+  return {
+    ...(request.globalKey !== undefined ? { globalKey: request.globalKey } : {}),
+    ...(channelKeys.length > 0 ? { channelKeys } : {}),
+    ...(request.confirmTakeover ? { confirmTakeover: request.confirmTakeover.map((key) => ({ languageCode: null, key })) } : {}),
+  };
+}
 
 // --- Pure planner ------------------------------------------------------------------
 
@@ -143,7 +184,7 @@ const lower = (value: string): string => value.toLowerCase();
 export function urlKeysToLock(
   slug: string,
   ownKeys: readonly UrlKeyRow[],
-  request: PutProductUrlKeysRequest,
+  request: LegacyUrlKeysRequest,
 ): string[] {
   const keys = new Set<string>([slug]);
   if (request.globalKey !== undefined) keys.add(request.globalKey);
@@ -185,7 +226,7 @@ export function otherProductSlugs(
   }));
 }
 
-function collectScopeOps(state: UrlKeyWriteState, request: PutProductUrlKeysRequest): ScopeOp[] {
+function collectScopeOps(state: UrlKeyWriteState, request: LegacyUrlKeysRequest): ScopeOp[] {
   const ops: ScopeOp[] = [];
   const seen = new Set<string>();
   const spelling = (requested: string, offered: readonly string[] | undefined, channelId: string | null): string =>
@@ -256,7 +297,7 @@ function collectScopeOps(state: UrlKeyWriteState, request: PutProductUrlKeysRequ
  * `URL_KEY_REDIRECT_TAKEOVER_REQUIRED` (every unconfirmed losing product), so an
  * operator is never asked to confirm a write that would be refused anyway.
  */
-export function planUrlKeyWrite(state: UrlKeyWriteState, request: PutProductUrlKeysRequest): UrlKeyWritePlan {
+export function planUrlKeyWrite(state: UrlKeyWriteState, request: LegacyUrlKeysRequest): UrlKeyWritePlan {
   const ops = collectScopeOps(state, request);
   const newSlug = request.globalKey ?? state.slug;
   const slugChanged = newSlug !== state.slug;
@@ -277,8 +318,9 @@ export function planUrlKeyWrite(state: UrlKeyWriteState, request: PutProductUrlK
     ownRowKeyIn(languageCode, key) || (key === newSlug && !hasLanguageKey(languageCode));
 
   const name = (productId: string): string => state.productNames.get(productId) ?? productId;
-  const confirmed = (languageCode: string | null, key: string): boolean =>
-    (request.confirmTakeover ?? []).some((entry) => entry.key === key && sameLanguage(entry.languageCode, languageCode));
+  // 168-shim: `confirmTakeover` names keys only (R21), so a confirmation covers every language.
+  const confirmed = (_languageCode: string | null, key: string): boolean =>
+    (request.confirmTakeover ?? []).some((entry) => entry.key === key);
 
   /** Other products holding `key` as a current key in `languageCode` (`null` = in any language). */
   const otherCurrent = (languageCode: string | null, key: string): Array<{ productId: string; languageCode: string | null }> => {
@@ -315,6 +357,7 @@ export function planUrlKeyWrite(state: UrlKeyWriteState, request: PutProductUrlK
   const claim = (languageCode: string | null, key: string): void => {
     for (const holder of otherCurrent(languageCode, key)) {
       conflicts.set(`${holder.languageCode ?? '*'}|${key}|${holder.productId}`, {
+        channelId: null,
         languageCode: holder.languageCode,
         key,
         heldByProductId: holder.productId,
@@ -326,6 +369,7 @@ export function planUrlKeyWrite(state: UrlKeyWriteState, request: PutProductUrlK
         taken.set(row.id, row);
       } else {
         takeovers.set(row.id, {
+          channelId: null,
           languageCode: row.languageCode,
           key,
           losingProductId: row.productId,
@@ -517,12 +561,12 @@ function assertProductIdShape(productId: string): void {
 }
 
 function displayName(product: Pick<Product, 'name' | 'sku'>): string {
-  const name = product.name ?? {};
-  return name['en-US'] || Object.values(name).find((value) => typeof value === 'string' && value.trim() !== '') || product.sku;
+  return product.name?.trim() ? product.name : product.sku;
 }
 
+/** 168-shim: a Channel key row (no language) is not a row the 163 planner can read; none is written yet. */
 function toKeyRow(row: ProductUrlKey): UrlKeyRow {
-  return { productId: row.productId, languageCode: row.languageCode, channelId: row.salesChannelId ?? null, key: row.key };
+  return { productId: row.productId, languageCode: row.languageCode ?? '', channelId: row.salesChannelId, key: row.key };
 }
 
 function toRedirectRow(row: ProductUrlRedirect): UrlRedirectRow {
@@ -572,17 +616,17 @@ function takenIssue(
 }
 
 /** An integration's keys as the PUT body the planner reads. */
-export function importRequest(entries: readonly ProductUrlKeyWrite[]): PutProductUrlKeysRequest {
+export function importRequest(entries: readonly ProductUrlKeyWrite[]): LegacyUrlKeysRequest {
   const languageKeys = entries
     .filter((entry) => entry.channelId === null)
     .map((entry) => ({ languageCode: entry.languageCode, key: entry.key }));
   const channelKeys = entries
     .filter((entry): entry is ProductUrlKeyWrite & { channelId: string } => entry.channelId !== null)
     .map((entry) => ({ channelId: entry.channelId, languageCode: entry.languageCode, key: entry.key }));
-  return putProductUrlKeysRequestSchema.parse({
+  return {
     ...(languageKeys.length > 0 ? { languageKeys } : {}),
     ...(channelKeys.length > 0 ? { channelKeys } : {}),
-  });
+  };
 }
 
 /**
@@ -635,24 +679,22 @@ export class UrlKeyService {
       em.find(ProductUrlRedirect, { productId }),
     ]);
     const memberById = new Map(members.map((channel) => [channel.id, channel]));
-    const languageKeys = keyRows
-      .filter((row) => row.salesChannelId == null)
-      .sort((a, b) => a.languageCode.localeCompare(b.languageCode));
-    const channelKeys = keyRows
-      .filter((row) => row.salesChannelId != null)
-      .sort((a, b) => a.salesChannelId!.localeCompare(b.salesChannelId!) || a.languageCode.localeCompare(b.languageCode));
+    const channelKeys = [...keyRows].sort(
+      (a, b) =>
+        a.salesChannelId.localeCompare(b.salesChannelId) || (a.languageCode ?? '').localeCompare(b.languageCode ?? ''),
+    );
 
     const effective: ProductUrlKeysResponse['data']['effective'] = [];
     for (const channel of [...members].sort((a, b) => a.code.localeCompare(b.code))) {
       for (const languageCode of toScopeChannel(channel).languages) {
-        const channelKey = channelKeys.find(
-          (row) => row.salesChannelId === channel.id && sameLanguage(row.languageCode, languageCode),
+        const clKey = channelKeys.find(
+          (row) => row.salesChannelId === channel.id && row.languageCode !== null && sameLanguage(row.languageCode, languageCode),
         );
-        const languageKey = languageKeys.find((row) => sameLanguage(row.languageCode, languageCode));
-        const [key, source] = channelKey
-          ? [channelKey.key, 'channel_language' as const]
-          : languageKey
-            ? [languageKey.key, 'language' as const]
+        const cKey = channelKeys.find((row) => row.salesChannelId === channel.id && row.languageCode === null);
+        const [key, source] = clKey
+          ? [clKey.key, 'channel_language' as const]
+          : cKey
+            ? [cKey.key, 'channel' as const]
             : [product.slug, 'global' as const];
         effective.push({
           channelId: channel.id,
@@ -669,14 +711,16 @@ export class UrlKeyService {
     const listRedirects = this.seoPresent();
     return {
       globalKey: product.slug,
-      languageKeys: languageKeys.map((row) => ({ languageCode: row.languageCode, key: row.key })),
       channelKeys: channelKeys.map((row) => {
-        const channel = memberById.get(row.salesChannelId!);
+        const channel = memberById.get(row.salesChannelId);
         return {
-          channelId: row.salesChannelId!,
+          channelId: row.salesChannelId,
           languageCode: row.languageCode,
           key: row.key,
-          orphaned: !channel || !toScopeChannel(channel).languages.some((code) => sameLanguage(code, row.languageCode)),
+          orphaned:
+            !channel ||
+            (row.languageCode !== null &&
+              !toScopeChannel(channel).languages.some((code) => sameLanguage(code, row.languageCode))),
         };
       }),
       effective,
@@ -686,7 +730,8 @@ export class UrlKeyService {
               .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.key.localeCompare(b.key))
               .map((row) => ({
                 id: row.id,
-                languageCode: row.languageCode ?? null,
+                channelId: row.salesChannelId,
+                languageCode: row.languageCode,
                 key: row.key,
                 createdAt: row.createdAt.toISOString(),
               })),
@@ -789,32 +834,42 @@ export class UrlKeyService {
     product: Product,
     ownKeyEntities: readonly ProductUrlKey[],
     plan: UrlKeyWritePlan,
+    memberChannels: ReadonlyMap<string, readonly string[]>,
   ): Promise<UrlRedirectAuditRow[]> {
     if (plan.deleteRedirects.length > 0) {
       await em.nativeDelete(ProductUrlRedirect, { id: { $in: plan.deleteRedirects.map((row) => row.id) } });
     }
     for (const { languageCode, channelId, next } of plan.keyRows) {
       const row = ownKeyEntities.find(
-        (entity) => (entity.salesChannelId ?? null) === channelId && sameLanguage(entity.languageCode, languageCode),
+        (entity) => entity.salesChannelId === channelId && sameLanguage(entity.languageCode, languageCode),
       );
       if (next === null) {
         if (row) em.remove(row);
       } else if (row) {
         row.key = next;
-      } else {
+      } else if (channelId !== null) {
         em.persist(
           em.create(ProductUrlKey, { id: randomUUID(), productId, languageCode, salesChannelId: channelId, key: next }),
         );
       }
     }
     if (plan.slug !== null) product.slug = plan.slug;
-    const inserted = plan.insertRedirects.map((row) => ({ id: randomUUID(), productId, ...row }));
+    // 168-shim: a redirect answers at one (channel, language) now — the planner's language (or
+    // every language, for a former Global key) at each member channel offering it.
+    const inserted = plan.insertRedirects.flatMap((row) =>
+      [...memberChannels].flatMap(([salesChannelId, languages]) =>
+        languages
+          .filter((code) => row.languageCode === null || sameLanguage(code, row.languageCode))
+          .map((languageCode) => ({ id: randomUUID(), productId, salesChannelId, languageCode, key: row.key })),
+      ),
+    );
     for (const row of inserted) em.persist(em.create(ProductUrlRedirect, row));
     await em.flush();
     return inserted;
   }
 
-  #updateCommand(productId: string, request: PutProductUrlKeysRequest): Command<{ changed: boolean }> {
+  #updateCommand(productId: string, body: PutProductUrlKeysRequest): Command<{ changed: boolean }> {
+    const request = legacyRequestOf(body);
     return {
       action: 'product.url_keys.update',
       objectType: 'product',
@@ -825,7 +880,7 @@ export class UrlKeyService {
         );
         const plan = planUrlKeyWrite(state, request);
         if (!plan.changed) return { result: { changed: false }, skipAudit: true };
-        const inserted = await this.#applyPlan(em, productId, product, ownKeyEntities, plan);
+        const inserted = await this.#applyPlan(em, productId, product, ownKeyEntities, plan, state.memberChannels);
         return {
           result: { changed: true },
           before: plan.before,
@@ -874,7 +929,7 @@ export class UrlKeyService {
         if (accepted.length === 0) return { result: outcomes, skipAudit: true };
         const plan = planUrlKeyWrite(state, importRequest(accepted));
         if (!plan.changed) return { result: outcomes, skipAudit: true };
-        const inserted = await this.#applyPlan(em, productId, product, ownKeyEntities, plan);
+        const inserted = await this.#applyPlan(em, productId, product, ownKeyEntities, plan, state.memberChannels);
         changed = true;
         return {
           result: outcomes,

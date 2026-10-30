@@ -94,8 +94,10 @@ export function urlKeyErrorMessage(err: unknown, t: Translate): string | null {
  */
 export interface UrlKeysDraft {
   globalKey: string;
+  /** 168-shim: always empty — there is no Language key any more (FR-010); S3 rewrites this panel. */
   languageKeys: Record<string, string>;
-  channelKeys: Array<{ channelId: string; languageCode: string; key: string }>;
+  /** `languageCode` `null` = the Channel key. */
+  channelKeys: Array<{ channelId: string; languageCode: string | null; key: string }>;
 }
 
 /** Postel: a pasted key is trimmed and lower-cased before it is compared or sent. */
@@ -114,22 +116,17 @@ export function urlKeysChanges(saved: ProductUrlKeys, draft: UrlKeysDraft): PutP
   const globalKey = normalizeUrlKey(draft.globalKey);
   if (globalKey !== '' && globalKey !== saved.globalKey) body.globalKey = globalKey;
 
-  const savedLanguage = new Map(saved.languageKeys.map((k) => [k.languageCode, k.key]));
-  const languages = [...savedLanguage.keys(), ...Object.keys(draft.languageKeys).filter((l) => !savedLanguage.has(l))];
-  const languageKeys: NonNullable<PutProductUrlKeysRequest['languageKeys']> = [];
-  for (const languageCode of languages) {
-    const next = normalizeUrlKey(draft.languageKeys[languageCode] ?? '') || null;
-    if (next !== (savedLanguage.get(languageCode) ?? null)) languageKeys.push({ languageCode, key: next });
-  }
-  if (languageKeys.length > 0) body.languageKeys = languageKeys;
-
-  const scopeOf = (k: { channelId: string; languageCode: string }): string => `${k.channelId}|${k.languageCode}`;
+  const scopeOf = (k: { channelId: string; languageCode: string | null }): string =>
+    `${k.channelId}|${k.languageCode ?? ''}`;
   const savedChannel = new Map(saved.channelKeys.map((k) => [scopeOf(k), k]));
   const draftChannel = new Map(draft.channelKeys.map((k) => [scopeOf(k), k]));
   const channelKeys: NonNullable<PutProductUrlKeysRequest['channelKeys']> = [];
   for (const [scope, row] of savedChannel) {
     const next = normalizeUrlKey(draftChannel.get(scope)?.key ?? '') || null;
-    if (next !== row.key) channelKeys.push({ channelId: row.channelId, languageCode: row.languageCode, key: next });
+    // The write encoding (FR-116): a removed key inherits — `{ inherit: true }`, never `null`.
+    if (next !== row.key) {
+      channelKeys.push({ channelId: row.channelId, languageCode: row.languageCode, key: next ?? { inherit: true } });
+    }
   }
   for (const [scope, row] of draftChannel) {
     if (savedChannel.has(scope)) continue;

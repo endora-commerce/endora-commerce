@@ -45,8 +45,7 @@ export class ProductAttribute {
     | 'isPriceRule'
     | 'filterPosition'
     | 'isVisibleOnProductPage'
-    | 'channelScoped'
-    | 'languageScoped'
+    | 'scopable'
     | 'massEditable'
     | 'quickSearchable';
 
@@ -110,18 +109,12 @@ export class ProductAttribute {
   isVisibleOnProductPage: boolean = false;
 
   /**
-   * Feature 023 — when `true`, the attribute MAY carry per-Sales-Channel
-   * overrides (stored in `product_value_overrides`).
+   * Feature 168 (FR-012, R15) — the attribute may carry Channel overrides and, for a text
+   * (`string`) attribute, Channel × language overrides, in `product_value_overrides`. Its Global
+   * value in `products.attribute_values` is one value, never a language map.
    */
   @Property({ type: 'boolean' })
-  channelScoped: boolean = false;
-
-  /**
-   * Feature 023 — when `true`, the attribute's value is keyed by language at
-   * every slot (`Record<lang, value>` in `products.attribute_values`).
-   */
-  @Property({ type: 'boolean' })
-  languageScoped: boolean = false;
+  scopable: boolean = false;
 
   /** Feature 022 — surfaces the attribute in the Products Bulk Edit dialog. */
   @Property({ type: 'boolean' })

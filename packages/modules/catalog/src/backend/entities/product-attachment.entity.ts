@@ -18,8 +18,7 @@ export class ProductAttachment {
     | 'id'
     | 'description'
     | 'position'
-    | 'nameTranslations'
-    | 'descriptionTranslations'
+    | 'hidden'
     | 'createdAt'
     | 'updatedAt';
 
@@ -47,15 +46,11 @@ export class ProductAttachment {
   position: number = 0;
 
   /**
-   * Feature 163 (FR-078, R16) — the name per language, `{ "<lang>": "<text>" }`; a
-   * language absent here shows `name`.
+   * Feature 168 (data-model §7) — hidden at Global. Channel and Channel × language values of the
+   * name, description and hidden flag live in `product_attachment_scope_overrides`.
    */
-  @Property({ type: 'json' })
-  nameTranslations: Record<string, string> = {};
-
-  /** Feature 163 (FR-078, R16) — the description per language; a language absent here shows `description`. */
-  @Property({ type: 'json' })
-  descriptionTranslations: Record<string, string> = {};
+  @Property({ type: 'boolean' })
+  hidden: boolean = false;
 
   @Property({ type: 'datetime', onCreate: () => new Date() })
   createdAt: Date = new Date();

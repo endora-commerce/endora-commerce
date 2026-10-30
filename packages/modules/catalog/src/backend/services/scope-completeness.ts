@@ -3,12 +3,12 @@ import { z } from 'zod';
 import {
   ERROR_CODES,
   SCOPE_COMPLETENESS_GATE_MODES,
-  getAttributeScope,
   isNonEmpty,
   pairsTurningOn,
+  resolveAttribute,
   toScopeChannel,
-  type AttributeScope,
   type OverrideRow,
+  type ScopeLevel,
   type ScopeChannel,
   type ScopeCompletenessGateMode,
   type ScopeMissingValue,
@@ -46,17 +46,18 @@ export const SCOPE_COMPLETENESS_GATE_SETTING = 'catalog.scope_completeness_gate'
 
 /** Everything {@link checkCompleteness} reads about one product. */
 export interface CompletenessFacts {
-  /** The baseline name per language. */
-  name: Readonly<Record<string, string>>;
+  /** Feature 168 — the Global name, one string. */
+  name: string;
   /** The global URL key (`products.slug`). */
   slug: string;
   attributeValues: Readonly<Record<string, unknown>>;
-  /** The required, language-scoped user attributes of the product's attribute set, by key. */
-  requiredLanguageAttributes: readonly string[];
-  /** The user-defined attributes' current scope flags, by key. */
-  attributeScopes: ReadonlyMap<string, AttributeScope>;
+  /** The required user attributes of the product's attribute set, by key (R16). */
+  requiredAttributes: readonly string[];
+  /** The user-defined attributes' scope sets, by key (`attributeScopeSet`). */
+  attributeLevels: ReadonlyMap<string, readonly ScopeLevel[]>;
   valueOverrides: readonly OverrideRow[];
-  urlKeys: ReadonlyArray<{ languageCode: string; salesChannelId: string | null | undefined }>;
+  /** `languageCode` `null` = a Channel key. */
+  urlKeys: ReadonlyArray<{ languageCode: string | null; salesChannelId: string }>;
 }
 
 /** A failing pair: a (channel, language) the write turns on, and what it lacks there. */
@@ -72,26 +73,28 @@ function hasValue(value: unknown): boolean {
   return isNonEmpty(value);
 }
 
-/** The value of a per-language baseline in `languageCode` itself — no fallback. */
-function inLanguage(baseline: unknown, languageCode: string): unknown {
-  if (baseline === null || typeof baseline !== 'object' || Array.isArray(baseline)) return undefined;
-  for (const [code, value] of Object.entries(baseline as Record<string, unknown>)) {
-    if (sameLanguage(code, languageCode)) return value;
-  }
-  return undefined;
-}
+const TEXT_LEVELS: readonly ScopeLevel[] = ['G', 'C', 'CL'];
 
-/** A value override at (C, L) or at C that the attribute's scope still lets the resolver read. */
-function overriddenAt(facts: CompletenessFacts, attributeKey: string, channelId: string, languageCode: string): boolean {
-  const scope = getAttributeScope(attributeKey, facts.attributeScopes.get(attributeKey) ?? null);
-  if (!scope.channelScoped) return false;
-  return facts.valueOverrides.some(
-    (row) =>
-      row.attributeKey === attributeKey &&
-      row.channelId === channelId &&
-      (row.languageCode === null || (scope.languageScoped && sameLanguage(row.languageCode, languageCode))) &&
-      hasValue(row.value.v),
-  );
+/**
+ * Feature 168 (R16, FR-095, FR-096) — the field's effective value at (C, L) along C×L → C → G,
+ * restricted to its scope set: a Global value satisfies every (C, L); an empty override at C×L
+ * or C does not.
+ */
+function effectiveAt(
+  facts: CompletenessFacts,
+  attributeKey: string,
+  levels: readonly ScopeLevel[],
+  baseline: unknown,
+  channelId: string,
+  languageCode: string,
+): unknown {
+  return resolveAttribute({
+    attributeKey,
+    baseline,
+    overrides: facts.valueOverrides,
+    levels,
+    ctx: { channelId, languageCode },
+  }).value;
 }
 
 /**
@@ -101,18 +104,17 @@ function overriddenAt(facts: CompletenessFacts, attributeKey: string, channelId:
  */
 export function checkCompleteness(facts: CompletenessFacts, channelId: string, languageCode: string): ScopeMissingValue[] {
   const missing: ScopeMissingValue[] = [];
-  if (!hasValue(inLanguage(facts.name, languageCode)) && !overriddenAt(facts, 'name', channelId, languageCode)) {
-    missing.push('name');
-  }
+  if (!hasValue(effectiveAt(facts, 'name', TEXT_LEVELS, facts.name, channelId, languageCode))) missing.push('name');
   const keyed =
     hasValue(facts.slug) ||
     facts.urlKeys.some(
-      (key) => sameLanguage(key.languageCode, languageCode) && (key.salesChannelId == null || key.salesChannelId === channelId),
+      (key) =>
+        key.salesChannelId === channelId && (key.languageCode === null || sameLanguage(key.languageCode, languageCode)),
     );
   if (!keyed) missing.push('urlKey');
-  for (const key of [...facts.requiredLanguageAttributes].sort()) {
-    if (hasValue(inLanguage(facts.attributeValues[key], languageCode))) continue;
-    if (overriddenAt(facts, key, channelId, languageCode)) continue;
+  for (const key of [...facts.requiredAttributes].sort()) {
+    const levels = facts.attributeLevels.get(key) ?? ['G'];
+    if (hasValue(effectiveAt(facts, key, levels, facts.attributeValues[key], channelId, languageCode))) continue;
     missing.push(`attribute:${key}`);
   }
   return missing;
@@ -150,12 +152,12 @@ export function completenessOutcome(mode: ScopeCompletenessGateMode, failures: r
 }
 
 /** The required, language-scoped user attributes among an attribute set's definitions. */
-export function requiredLanguageAttributeKeys(
-  views: ReadonlyArray<{ key: string; customFieldDefinitionId: string; isRequired: boolean; languageScoped: boolean }>,
+export function requiredAttributeKeys(
+  views: ReadonlyArray<{ key: string; customFieldDefinitionId: string; isRequired: boolean }>,
   setDefinitionIds: ReadonlySet<string>,
 ): string[] {
   return views
-    .filter((view) => view.isRequired && view.languageScoped && setDefinitionIds.has(view.customFieldDefinitionId))
+    .filter((view) => view.isRequired && setDefinitionIds.has(view.customFieldDefinitionId))
     .map((view) => view.key)
     .sort();
 }
@@ -205,20 +207,18 @@ export class ScopeCompletenessGate {
       attributeSetDefinitionIds(em, product.attributeSetId),
     ]);
     return {
-      name: product.name ?? {},
+      name: product.name ?? '',
       slug: product.slug ?? '',
       attributeValues: product.attributeValues ?? {},
-      requiredLanguageAttributes: requiredLanguageAttributeKeys(views, setDefinitions),
-      attributeScopes: new Map(
-        views.map((view) => [view.key, { channelScoped: view.channelScoped, languageScoped: view.languageScoped }]),
-      ),
+      requiredAttributes: requiredAttributeKeys(views, setDefinitions),
+      attributeLevels: new Map(views.map((view) => [view.key, view.scopeLevels])),
       valueOverrides: overrides.map((row) => ({
         attributeKey: row.attributeKey,
         channelId: row.channelId,
         languageCode: row.languageCode ?? null,
         value: row.value,
       })),
-      urlKeys: urlKeys.map((row) => ({ languageCode: row.languageCode, salesChannelId: row.salesChannelId ?? null })),
+      urlKeys: urlKeys.map((row) => ({ languageCode: row.languageCode, salesChannelId: row.salesChannelId })),
     };
   }
 

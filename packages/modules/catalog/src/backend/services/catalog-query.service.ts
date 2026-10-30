@@ -27,7 +27,6 @@ import {
   effectiveAttributeValues,
   effectiveSystemText,
   loadChannelOverridesByProduct,
-  overrideLanguages,
   type StorefrontOverrideContext,
 } from './storefront-value-overrides.js';
 import {
@@ -69,8 +68,7 @@ import {
   listingPriceChannelContext,
   resolveScopeLanguage,
   listingPriceMoney,
-  translationAt,
-  effectivePackagingUnitName,
+  scopeLanguageOf,
   type AssetReadPort,
   type AssetRecord,
   type CategoryNode,
@@ -94,6 +92,7 @@ import {
   type ProductSummary,
   type ProductVariant as VariantDto,
   type SeoProductMetaValues,
+  type ScopeLevel,
 } from '@endora-commerce/contracts';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -1317,10 +1316,8 @@ export class CatalogQueryService {
       });
     }
     if (params.q) conditions.push(await this.#textSearchCondition(params.q, ctx, effective));
-    const scopeOf = new Map(
-      attributeViews.map((a) => [a.key, { channelScoped: a.channelScoped, languageScoped: a.languageScoped }]),
-    );
-    const notScoped = { channelScoped: false, languageScoped: false };
+    const scopeOf = new Map(attributeViews.map((a) => [a.key, a.scopeLevels]));
+    const notScoped: readonly ScopeLevel[] = ['G'];
     const attributeFilters = Object.entries(params.attributeFilters ?? {});
     for (const [key, values] of attributeFilters) {
       conditions.push(
@@ -1369,7 +1366,7 @@ export class CatalogQueryService {
     const like = `%${q}%`;
     const name = this.#effectiveNameExpr(ctx);
     const attributes = searchable.map((a) =>
-      effectiveAttributeSql(a.key, { channelScoped: a.channelScoped, languageScoped: a.languageScoped }, effective),
+      effectiveAttributeSql(a.key, a.scopeLevels, effective),
     );
     return {
       sql: (alias) =>
@@ -2206,9 +2203,10 @@ export class CatalogQueryService {
     // FR-077 (R15) — the product's own alt text at the scope language, else the
     // asset's alt text through the existing pick.
     const scopeLanguage = this.#availabilityScope(ctx).languageCode;
+    // 168-shim: the Global alt text only; the C×L → C chain and the empty override (`alt=""`) are T035 / T061.
+    void scopeLanguage;
     const altTextOf = (item: GalleryItem, asset: AssetRecord): string | null =>
-      translationAt(item.altText, scopeLanguage) ??
-      (asset.altText ? this.pickLang(asset.altText, ctx.preferredLanguage, channel) : null);
+      item.altText ?? (asset.altText ? this.pickLang(asset.altText, ctx.preferredLanguage, channel) : null);
 
     // Attachments + their types, eager-loaded in two queries.
     // Feature 163 (FR-078, R16) — an attachment hidden in the request's channel is
@@ -2241,8 +2239,7 @@ export class CatalogQueryService {
       'description',
       overrideCtx,
       product.description,
-      this.pickLang(product.description, ctx.preferredLanguage, channel),
-    );
+    ) ?? '';
     // The summary's name went through the same resolution.
     const nameText = summary.name;
 
@@ -2257,13 +2254,7 @@ export class CatalogQueryService {
       product.attributeValues ?? {},
       overrides,
       overrideCtx,
-      async () =>
-        new Map(
-          (await listAttributeViews()).map((a) => [
-            a.key,
-            { channelScoped: a.channelScoped, languageScoped: a.languageScoped },
-          ]),
-        ),
+      async () => new Map((await listAttributeViews()).map((a) => [a.key, a.scopeLevels])),
     );
 
     // Feature 012 / FR-030 — "Parametry produktu" tab projection.
@@ -2387,9 +2378,9 @@ export class CatalogQueryService {
           {
             id: row.id,
             position: row.position,
-            // Feature 163 (FR-078) — the text at the scope language, else the global one.
-            name: translationAt(row.nameTranslations, scopeLanguage) ?? row.name,
-            description: translationAt(row.descriptionTranslations, scopeLanguage) ?? row.description ?? null,
+            // 168-shim: the Global text; the attachment chain at (C, L) is T041's.
+            name: row.name,
+            description: row.description ?? null,
             type: { id: t.id, code: t.code, name: t.name },
             asset: {
               id: a.id,
@@ -2513,8 +2504,8 @@ export class CatalogQueryService {
       if (packagingUnits.length > 0) {
         detail.packagingUnits = packagingUnits.map((u) => ({
           id: u.id,
-          // Feature 163 (FR-079) — the name at the scope language, else the global name.
-          name: effectivePackagingUnitName(u, scopeLanguage),
+          // 168-shim: the Global name; the packaging chain at (C, L) is T041's.
+          name: u.name,
           baseQuantity: u.baseQuantity,
           position: u.position,
           isDefault: u.isDefault,
@@ -2590,8 +2581,7 @@ export class CatalogQueryService {
           'name',
           overrideCtx,
           p.name,
-          this.pickLang(p.name, ctx.preferredLanguage, channel),
-        ),
+        ) ?? '',
         primaryAssetUrl: assetUrlByProduct.get(p.id) ?? null,
         price,
       });
@@ -2792,9 +2782,7 @@ export class CatalogQueryService {
     // Feature 163 (FR-017 b) — counts over the effective values a card shows at
     // (channel, language): #384's walk over this channel's override rows.
     const effective = this.#overrideContext(channel, ctx.preferredLanguage);
-    const scopeOf = new Map(
-      attrs.map((a) => [a.key, { channelScoped: a.channelScoped, languageScoped: a.languageScoped }]),
-    );
+    const scopeOf = new Map(attrs.map((a) => [a.key, a.scopeLevels]));
     const overrides = await loadChannelOverridesByProduct(em, visible.map((p) => p.id), channel.id);
     const valuesOf = new Map<string, Record<string, unknown>>();
     for (const p of visible) {
@@ -3170,13 +3158,7 @@ export class CatalogQueryService {
    */
   #effectiveNameExpr(ctx: CatalogQueryContext): SqlExpression {
     const channel = ctx.resolvedChannel;
-    return effectiveTextSql(
-      'name',
-      this.#overrideContext(channel, ctx.preferredLanguage),
-      [ctx.preferredLanguage, channel.defaultLanguage, 'en-US', 'en'].filter(
-        (v): v is string => typeof v === 'string',
-      ),
-    );
+    return effectiveTextSql('name', this.#overrideContext(channel, ctx.preferredLanguage));
   }
 
   /**
@@ -3343,8 +3325,7 @@ export class CatalogQueryService {
       'name',
       this.#overrideContext(channel, preferredLanguage),
       product.name,
-      this.pickLang(product.name, preferredLanguage, channel),
-    );
+    ) ?? '';
 
     // Feature 163 (R-16) — the card's summary, from the description this row
     // already holds, through the same override and language pick as the PDP's.
@@ -3353,8 +3334,7 @@ export class CatalogQueryService {
       'description',
       this.#overrideContext(channel, preferredLanguage),
       product.description,
-      this.pickLang(product.description, preferredLanguage, channel),
-    );
+    ) ?? '';
 
     return {
       id: product.id,
@@ -3412,10 +3392,8 @@ export class CatalogQueryService {
     channel: CatalogResolvedChannel,
     preferredLanguage: string | undefined,
   ): StorefrontOverrideContext {
-    return {
-      channelId: channel.id,
-      languages: overrideLanguages(preferredLanguage, channel.defaultLanguage),
-    };
+    // Feature 168 — the chain runs at the request's resolved (C, L): C×L → C → Global.
+    return { channelId: channel.id, languageCode: scopeLanguageOf(channel, preferredLanguage) };
   }
 
   private pickLang(

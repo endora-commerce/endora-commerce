@@ -436,8 +436,6 @@ export function toCatalogPackagingUnitRecord(
     createdAt: unit.createdAt,
     updatedAt: unit.updatedAt,
     minOrderUnits: unit.minOrderUnits ?? null,
-    // Feature 163 (FR-079) — the basket and quote-request snapshots take the name in the line's language.
-    nameTranslations: { ...(unit.nameTranslations ?? {}) },
   };
 }
 

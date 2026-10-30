@@ -22,7 +22,6 @@ import { loadEffectiveKeys } from './url-key-resolution.service.js';
 import {
   effectiveSystemText,
   loadChannelOverridesByProduct,
-  overrideLanguages,
 } from './storefront-value-overrides.js';
 interface StorefrontContext {
   /**
@@ -113,12 +112,6 @@ export interface StorefrontLinkSummary {
     primaryAssetUrl: string | null;
     price: { amount: number; currency: string } | null;
   };
-}
-
-function pickLang(blob: Record<string, string>, preferred?: string): string {
-  if (preferred && blob[preferred]) return blob[preferred];
-  const fallback = blob['en-US'] ?? blob['en'] ?? Object.values(blob)[0] ?? '';
-  return fallback;
 }
 
 export class ProductLinkService {
@@ -437,25 +430,15 @@ export class ProductLinkService {
     );
     // Feature 163 (R28) — a tile links to the target's effective key at (C, L).
     const effectiveKeys = await loadEffectiveKeys(em, visibleTargets, { id: channel.id, languages: [scopeLanguage] });
-    const overrideCtx = {
-      channelId: channel.id,
-      // The tile's own `pickLang` has no channel-default leg, so neither has
-      // the walk: an override answers only for the language the tile shows.
-      languages: overrideLanguages(ctx.preferredLanguage, undefined),
-    };
+    // Feature 168 — the tile's name at the request's (C, L): C×L → C → Global.
+    const overrideCtx = { channelId: channel.id, languageCode: scopeLanguage };
 
     const out: StorefrontLinkSummary[] = [];
     for (const link of rows) {
       if (!visibleIds.has(link.targetProductId)) continue;
       const target = byId.get(link.targetProductId);
       if (!target) continue;
-      const name = effectiveSystemText(
-        overridesByProduct.get(target.id),
-        'name',
-        overrideCtx,
-        target.name,
-        pickLang(target.name, ctx.preferredLanguage),
-      );
+      const name = effectiveSystemText(overridesByProduct.get(target.id), 'name', overrideCtx, target.name) ?? '';
       const resolved = resolvedPrices.get(target.id);
       const price = resolved === undefined ? null : listingPriceMoney(resolved);
       out.push({

@@ -98,9 +98,10 @@ export interface SeoMetaScopeEditorProps {
 type Translate = (key: string, params?: Record<string, string>) => string;
 
 function sourceLabel(source: SeoProductMetaSource, t: Translate): string {
-  if (source === 'channel_language') return t('metaScope.source.channelLanguage');
-  if (source === 'channel') return t('metaScope.source.channel');
-  if (source === 'language') return t('metaScope.source.language');
+  // 168-shim: the 168 source vocabulary on 163's labels; T126 replaces the product mode with a link.
+  if (source === 'set') return t('metaScope.source.channelLanguage');
+  if (source === 'inherited_channel') return t('metaScope.source.channel');
+  if (source === 'inherited_global') return t('metaScope.source.language');
   return t('metaScope.source.derived');
 }
 

@@ -10,6 +10,7 @@ import {
   type CategoryImportRow,
   type ProductImportRow,
   type ProductStatus,
+  type ScopeRef,
   type ScopedStatusExport,
   sameLanguage,
 } from '@endora-commerce/contracts';
@@ -242,9 +243,15 @@ export class CatalogBulkImportService implements CatalogBulkImportPort {
           if (!product) continue;
           if (row.status !== undefined) product.status = row.status;
           if (row.visibility !== undefined) product.visibility = row.visibility;
-          if (row.name !== undefined) product.name = { ...product.name, ...row.name };
-          if (row.description !== undefined) {
-            product.description = { ...product.description, ...row.description };
+          // 168-shim: the Global name and description cells only; every other scoped cell, and the
+          // per-cell refusals of the write encoding, are T083 / T084's (after US2's save service).
+          for (const cell of row.cells ?? []) {
+            if (cell.scope.level !== 'global') continue;
+            if (cell.field === 'name' && cell.op.op === 'set') product.name = String(cell.op.value);
+            if (cell.field === 'description') {
+              if (cell.op.op === 'set') product.description = String(cell.op.value);
+              else if (cell.op.op === 'empty') product.description = null;
+            }
           }
         }
         const scopedChanged = await scoped.apply();
@@ -285,44 +292,66 @@ export class CatalogBulkImportService implements CatalogBulkImportPort {
     bySku: ReadonlyMap<string, Product>,
     errors: BulkImportRowError[],
   ): Promise<{ apply: () => Promise<string[]> } | null> {
-    const cells = rows.flatMap((row, index) => (row.scopedStatus ?? []).map((cell) => ({ index, row, cell })));
+    // 168-shim: the status cells at Channel / Channel × language (`ProductImportRow.cells`), as 163's
+    // scoped-status columns were; `NULL` is refused (a status takes no empty value), `INHERIT` removes.
+    const cells = rows.flatMap((row, index) =>
+      (row.cells ?? [])
+        .filter((cell) => cell.field === 'status' && cell.scope.level !== 'global')
+        .map((cell) => ({ index, row, cell })),
+    );
     if (cells.length === 0) return { apply: async () => [] };
     if (!this.salesChannelMembership) {
       throw new Error('CatalogBulkImportService: scoped status needs the channel-membership accessor.');
     }
-    const codes = [...new Set(cells.map(({ cell }) => cell.channelCode))];
-    const channels = await em.find(SalesChannel, { code: { $in: codes } });
-    const byCode = new Map(channels.map((channel) => [channel.code, toScopeChannel(channel)]));
+    const channelIdOf = (scope: ScopeRef): string => (scope.level === 'global' ? '' : scope.channelId);
+    const channelIds = [...new Set(cells.map(({ cell }) => channelIdOf(cell.scope)))];
+    // 168-shim: a products file still names channels by code (in `channelId`) until T081.
+    const isUuid = (value: string): boolean => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+    const channels = await em.find(SalesChannel, {
+      $or: [{ id: { $in: channelIds.filter(isUuid) } }, { code: { $in: channelIds.filter((id) => !isUuid(id)) } }],
+    });
+    const byId = new Map<string, ReturnType<typeof toScopeChannel>>();
+    for (const channel of channels) {
+      byId.set(channel.id, toScopeChannel(channel));
+      byId.set(channel.code, toScopeChannel(channel));
+    }
     const productIds = [...new Set(cells.map(({ row }) => bySku.get(row.sku)!.id))];
     const members = new Map<string, Set<string>>();
-    for (const channel of byCode.values()) {
+    for (const channel of byId.values()) {
       members.set(channel.id, new Set(await this.salesChannelMembership.filterEntityIdsInChannel(channel.id, 'product', productIds)));
     }
 
     const writes: Array<{ productId: string; channelId: string; languageCode: string | null; status: ProductStatus | null }> = [];
     for (const { index, row, cell } of cells) {
       const product = bySku.get(row.sku)!;
-      const channel = byCode.get(cell.channelCode);
-      const column = scopedStatusColumn(cell.channelCode, cell.languageCode);
+      const channelId = channelIdOf(cell.scope);
+      const requestedLanguage = cell.scope.level === 'channel_language' ? cell.scope.languageCode : null;
+      const channel = byId.get(channelId);
+      const column = `status@${channelId}${requestedLanguage === null ? '' : `/${requestedLanguage}`}`;
       if (!channel) {
-        errors.push({ index, reason: `${column}: unknown sales channel ${cell.channelCode}` });
+        errors.push({ index, reason: `${column}: unknown sales channel` });
         continue;
       }
+      if (cell.op.op === 'empty') {
+        errors.push({ index, reason: `${column}: not_emptyable` });
+        continue;
+      }
+      const status = cell.op.op === 'set' ? (cell.op.value as ProductStatus) : null;
       const languageCode =
-        cell.languageCode === null
+        requestedLanguage === null
           ? null
-          : (channel.languages.find((code) => sameLanguage(code, cell.languageCode)) ?? cell.languageCode);
-      if (cell.status !== null) {
+          : (channel.languages.find((code) => sameLanguage(code, requestedLanguage)) ?? requestedLanguage);
+      if (status !== null) {
         if (!members.get(channel.id)?.has(product.id)) {
-          errors.push({ index, reason: `${column}: the product is not in sales channel ${cell.channelCode}` });
+          errors.push({ index, reason: `${column}: the product is not in the sales channel` });
           continue;
         }
         if (languageCode !== null && !channel.languages.includes(languageCode)) {
-          errors.push({ index, reason: `${column}: sales channel ${cell.channelCode} does not offer ${cell.languageCode}` });
+          errors.push({ index, reason: `${column}: the sales channel does not offer ${requestedLanguage}` });
           continue;
         }
       }
-      writes.push({ productId: product.id, channelId: channel.id, languageCode, status: cell.status });
+      writes.push({ productId: product.id, channelId: channel.id, languageCode, status });
     }
     if (errors.length > 0) return null;
 

@@ -11,7 +11,8 @@ import {
   type ReactNode,
 } from 'react';
 import { GripVertical } from 'lucide-react';
-import { GALLERY_ALT_TEXT_MAX, type AssetSummary, type AssetDetail, type GalleryChannelRoles, type GalleryItem } from '@endora-commerce/contracts';
+import { GALLERY_ALT_TEXT_MAX, type AssetSummary, type AssetDetail, type GalleryItem } from '@endora-commerce/contracts';
+import type { GalleryChannelRoles } from '../lib/media-scopes.js';
 import { ApiError, apiClient, toAbsoluteAssetUrl, useAuth } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Card, Checkbox, CardContent, CardHeader, CardTitle, Input, Label, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { AssetPicker, ModalDialog, TouchReorderButtons } from '@endora-commerce/admin-kit/components';
@@ -192,8 +193,10 @@ export const GallerySection = forwardRef<GallerySectionHandle, GallerySectionPro
             assetId: g.assetId,
             position: g.position,
             labels: g.labels as GalleryLabel[],
-            altText: { ...(g.altText ?? {}) },
-            hiddenInChannels: [...(g.hiddenInChannels ?? [])].sort(),
+            // 168-shim: the Global alt text is one string now and the channel lists are gone; S3
+            // moves the gallery's scoped fields to `ScopedField` on the scoped-values save.
+            altText: {},
+            hiddenInChannels: [],
             ...(asset ? { asset: { url: asset.url, kind: asset.kind } } : {}),
           };
         });

@@ -71,9 +71,10 @@ import { BulkOperation } from './entities/bulk-operation.entity.js';
 import { BundleSlotOption } from './entities/bundle-slot-option.entity.js';
 import { BundleSlot } from './entities/bundle-slot.entity.js';
 import { Category } from './entities/category.entity.js';
-import { GalleryItemChannelHidden } from './entities/gallery-item-channel-hidden.entity.js';
-import { ProductAttachmentChannelHidden } from './entities/product-attachment-channel-hidden.entity.js';
-import { GalleryItemChannelLabel } from './entities/gallery-item-channel-label.entity.js';
+import { GalleryItemScopeOverride } from './entities/gallery-item-scope-override.entity.js';
+import { GalleryRoleScopeOverride } from './entities/gallery-role-scope-override.entity.js';
+import { ProductAttachmentScopeOverride } from './entities/product-attachment-scope-override.entity.js';
+import { ProductPackagingUnitScopeOverride } from './entities/product-packaging-unit-scope-override.entity.js';
 import { GalleryItemLabel } from './entities/gallery-item-label.entity.js';
 import { GalleryItem } from './entities/gallery-item.entity.js';
 import { GroupedItem } from './entities/grouped-item.entity.js';
@@ -1438,13 +1439,13 @@ export const entities = [
   BundleSlotOption,
   BundleSlot,
   Category,
-  GalleryItemChannelHidden,
-  GalleryItemChannelLabel,
   GalleryItemLabel,
+  GalleryItemScopeOverride,
   GalleryItem,
+  GalleryRoleScopeOverride,
   GroupedItem,
   ProductAttachment,
-  ProductAttachmentChannelHidden,
+  ProductAttachmentScopeOverride,
   ProductAttribute,
   ProductChannelLanguageScope,
   ProductChannelScope,
@@ -1453,6 +1454,7 @@ export const entities = [
   ProductLink,
   ProductListSavedView,
   ProductPackagingUnit,
+  ProductPackagingUnitScopeOverride,
   ProductUrlKey,
   ProductUrlRedirect,
   ProductValueOverride,

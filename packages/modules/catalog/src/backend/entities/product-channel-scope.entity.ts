@@ -28,6 +28,7 @@ export class ProductChannelScope {
     | 'publishUntil'
     | 'visibility'
     | 'allowedOrganizationIds'
+    | 'minOrderQuantityOverridden'
     | 'minOrderQuantity'
     | 'returnable'
     | 'createdAt'
@@ -63,7 +64,14 @@ export class ProductChannelScope {
   @Property({ type: 'json', nullable: true })
   allowedOrganizationIds?: string[] | null;
 
-  /** FR-100 — `null` = inherit; 1…1 000 000, `1` = no minimum in this channel. */
+  /**
+   * Feature 168 (data-model §4) — whether this channel overrides the Global minimum order
+   * quantity. CHECK `min_order_quantity_overridden or min_order_quantity is null`.
+   */
+  @Property({ type: 'boolean' })
+  minOrderQuantityOverridden: boolean = false;
+
+  /** Meaningful only when overridden: 1…1 000 000, or `null` = no minimum in this channel. */
   @Property({ type: 'integer', nullable: true })
   minOrderQuantity?: number | null;
 

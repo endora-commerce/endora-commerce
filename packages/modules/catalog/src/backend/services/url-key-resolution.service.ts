@@ -54,7 +54,7 @@ export async function loadEffectiveKeys(
   const rows = await inIdChunks(ids, (chunk) =>
     em.find(
       ProductUrlKey,
-      { productId: { $in: chunk }, $or: [{ salesChannelId: null }, { salesChannelId: channel.id }] },
+      { productId: { $in: chunk }, salesChannelId: channel.id },
       { fields: ['productId', 'languageCode', 'salesChannelId', 'key'] },
     ),
   );
@@ -68,11 +68,13 @@ export async function loadEffectiveKeys(
     const own = rowsByProduct.get(product.id) ?? [];
     const keys = new Map<string, string>();
     for (const languageCode of channel.languages) {
-      const channelKey = own.find(
-        (row) => row.salesChannelId === channel.id && sameLanguage(row.languageCode, languageCode),
+      // Feature 168 (`contracts/url-keys.md` §1) — the C×L key, else the Channel key, else the slug.
+      // 168-shim: the rest of this file (current holder, redirect target) is T039's rewrite.
+      const clKey = own.find(
+        (row) => row.languageCode !== null && sameLanguage(row.languageCode, languageCode),
       );
-      const languageKey = own.find((row) => row.salesChannelId == null && sameLanguage(row.languageCode, languageCode));
-      keys.set(languageCode, channelKey?.key ?? languageKey?.key ?? product.slug);
+      const cKey = own.find((row) => row.languageCode === null);
+      keys.set(languageCode, clKey?.key ?? cKey?.key ?? product.slug);
     }
     out.set(product.id, keys);
   }

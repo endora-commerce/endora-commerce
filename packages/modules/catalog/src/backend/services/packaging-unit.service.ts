@@ -15,7 +15,6 @@ import { UniqueConstraintViolationException } from '@mikro-orm/core';
 
 import {
   ERROR_CODES,
-  applyTranslationPatch,
   isValidOrderMinimum,
   type CreatePackagingUnitRequest,
   type PackagingUnitDto,
@@ -25,7 +24,6 @@ import {
 
 import { HttpError } from '@endora-commerce/platform/http';
 import type { Command, CommandBus } from '@endora-commerce/platform/commands';
-import { mirrorTranslationRemovals, sortedTranslations } from './attachment-packaging-scopes.js';
 import { Product } from '../entities/product.entity.js';
 import { ProductPackagingUnit } from '../entities/product-packaging-unit.entity.js';
 
@@ -124,7 +122,6 @@ export class PackagingUnitService {
         isDefault: req.isDefault ?? false,
         minOrderUnits: req.minOrderUnits ?? null,
         // Feature 163 (FR-079) — the name per language.
-        nameTranslations: applyTranslationPatch({}, req.nameTranslations ?? {}),
       });
       try {
         await em.flush();
@@ -151,16 +148,11 @@ export class PackagingUnitService {
       if (req.position !== undefined) u.position = req.position;
       if (req.isDefault !== undefined) u.isDefault = req.isDefault;
       if (req.minOrderUnits !== undefined) u.minOrderUnits = req.minOrderUnits;
-      // Feature 163 (FR-079) — the named languages set, `''` removes one.
-      if (req.nameTranslations !== undefined) {
-        u.nameTranslations = applyTranslationPatch(u.nameTranslations, req.nameTranslations);
-      }
       const after = unitProjection(u);
       // A request that changes nothing writes and announces nothing (FR-080).
       if (JSON.stringify(before) === JSON.stringify(after) && req.position === undefined) {
         return { result: u, before, after, unchanged: true };
       }
-      mirrorTranslationRemovals(before, after, ['nameTranslations']);
       try {
         await em.flush();
       } catch (err) {
@@ -294,7 +286,6 @@ export class PackagingUnitService {
       id: u.id,
       productId: u.productId,
       name: u.name,
-      nameTranslations: { ...(u.nameTranslations ?? {}) },
       baseQuantity: u.baseQuantity,
       position: u.position,
       isDefault: u.isDefault,
@@ -314,7 +305,6 @@ function unitProjection(u: ProductPackagingUnit): Record<string, unknown> {
   return {
     productId: u.productId,
     name: u.name,
-    nameTranslations: sortedTranslations(u.nameTranslations),
     baseQuantity: u.baseQuantity,
     isDefault: u.isDefault,
     minOrderUnits: u.minOrderUnits ?? null,

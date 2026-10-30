@@ -42,7 +42,7 @@ type Takeover = UrlKeyRedirectTakeoverRequiredDetails['takeovers'][number];
 function draftOf(keys: ProductUrlKeys): UrlKeysDraft {
   return {
     globalKey: keys.globalKey,
-    languageKeys: Object.fromEntries(keys.languageKeys.map((k) => [k.languageCode, k.key])),
+    languageKeys: {},
     channelKeys: keys.channelKeys.map((k) => ({ channelId: k.channelId, languageCode: k.languageCode, key: k.key })),
   };
 }
@@ -51,15 +51,15 @@ function draftOf(keys: ProductUrlKeys): UrlKeysDraft {
 function invalidKeys(body: NonNullable<ReturnType<typeof urlKeysChanges>>): string[] {
   const written = [
     ...(body.globalKey !== undefined ? [body.globalKey] : []),
-    ...(body.languageKeys ?? []).map((k) => k.key),
     ...(body.channelKeys ?? []).map((k) => k.key),
   ];
-  return written.filter((k): k is string => k !== null && !productSlugSchema.safeParse(k).success);
+  return written.filter((k): k is string => typeof k === 'string' && !productSlugSchema.safeParse(k).success);
 }
 
 function sourceLabel(source: ProductUrlKeys['effective'][number]['source'], t: Translate): string {
   if (source === 'channel_language') return t('productEditor.urlKeys.source.channelLanguage');
-  if (source === 'language') return t('productEditor.urlKeys.source.language');
+  // 168-shim: a Channel key reuses the language label until S3 rewrites the panel.
+  if (source === 'channel') return t('productEditor.urlKeys.source.language');
   return t('productEditor.urlKeys.source.global');
 }
 
@@ -124,7 +124,7 @@ export function ProductUrlKeysPanel({ productId }: ProductUrlKeysPanelProps): Re
 
   const languages = useMemo(() => {
     if (!saved) return [];
-    return [...new Set([...(context?.languagesUnion ?? []), ...saved.languageKeys.map((k) => k.languageCode)])].sort();
+    return [...new Set([...(context?.languagesUnion ?? [])])].sort();
   }, [saved, context]);
 
   const orphaned = useMemo(
@@ -164,7 +164,7 @@ export function ProductUrlKeysPanel({ productId }: ProductUrlKeysPanelProps): Re
         const next = await putProductUrlKeys(productId, {
           ...body,
           ...(confirmTakeover
-            ? { confirmTakeover: confirmTakeover.map((k) => ({ languageCode: k.languageCode, key: k.key })) }
+            ? { confirmTakeover: confirmTakeover.map((k) => k.key) }
             : {}),
         });
         setTakeovers(null);
@@ -352,7 +352,10 @@ export function ProductUrlKeysPanel({ productId }: ProductUrlKeysPanelProps): Re
         {draft.channelKeys.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t('productEditor.urlKeys.channelsEmpty')}</p>
         ) : null}
-        {draft.channelKeys.map((row) => {
+        {/* 168-shim: Channel keys (no language) are not listed until S3 rewrites this panel. */}
+        {draft.channelKeys
+          .flatMap((row) => (row.languageCode === null ? [] : [{ ...row, languageCode: row.languageCode }]))
+          .map((row) => {
           const scope = scopeLabel(row.channelId, row.languageCode);
           const isOrphan = orphaned.has(`${row.channelId}|${row.languageCode}`);
           return (

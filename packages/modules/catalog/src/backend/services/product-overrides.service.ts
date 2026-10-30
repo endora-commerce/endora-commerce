@@ -183,20 +183,13 @@ export class ProductOverridesService {
         );
       }
       const scope = getAttributeScope(e.attributeKey, attrRow ?? null);
-      if (!deleting && !scope.channelScoped) {
+      // 168-shim: this 163 route is retired by the scoped-values save (US2); it keeps working on the flag.
+      if (!deleting && !scope.scopable) {
         throw new HttpError(
           422,
           ERROR_CODES.VALIDATION_FAILED,
           'attribute_not_channel_scoped',
           [{ path: `${pathPrefix}.attributeKey`, issue: e.attributeKey }],
-        );
-      }
-      if (scope.languageScoped && e.languageCode === null) {
-        throw new HttpError(
-          422,
-          ERROR_CODES.VALIDATION_FAILED,
-          'attribute_missing_language',
-          [{ path: `${pathPrefix}.languageCode`, issue: 'null' }],
         );
       }
       if (!deleting && !assignedChannelIds.has(e.channelId)) {

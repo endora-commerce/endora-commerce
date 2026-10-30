@@ -1,8 +1,10 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
+  attributeScopeSet,
   type AttributeScope,
   type AttributeScopeChangePreviewResponse,
+  type ScopeLevel,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { CatalogAttributeReadService } from './catalog-attribute-read.service.js';
@@ -34,13 +36,13 @@ export interface OrphanedSlots {
   channelLanguage: boolean;
 }
 
-/** The resolver's test (`resolveAttribute` steps 1–2), per slot. */
-function readable(scope: AttributeScope): OrphanedSlots {
-  return { channel: scope.channelScoped, channelLanguage: scope.channelScoped && scope.languageScoped };
+/** The slots the resolver reads for an attribute's scope set (feature 168, `attributeScopeSet`). */
+function readable(levels: readonly ScopeLevel[]): OrphanedSlots {
+  return { channel: levels.includes('C'), channelLanguage: levels.includes('CL') };
 }
 
 /** The slots readable under `current` and not under `next`. */
-export function slotsOrphanedByScopeChange(current: AttributeScope, next: AttributeScope): OrphanedSlots {
+export function slotsOrphanedByScopeChange(current: readonly ScopeLevel[], next: readonly ScopeLevel[]): OrphanedSlots {
   const before = readable(current);
   const after = readable(next);
   return {
@@ -49,19 +51,13 @@ export function slotsOrphanedByScopeChange(current: AttributeScope, next: Attrib
   };
 }
 
-function parseFlag(raw: unknown, field: 'channelScoped' | 'languageScoped', current: boolean): boolean {
-  if (raw === undefined) return current;
-  if (raw === 'true') return true;
-  if (raw === 'false') return false;
-  throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, `"${field}" must be "true" or "false".`, { field });
-}
-
-/** The requested flags: `"true"` / `"false"`; an absent one keeps the attribute's current flag. */
+/** The requested flag: `"true"` / `"false"`; absent keeps the attribute's current flag. */
 export function parseScopeChangeQuery(query: Record<string, unknown>, current: AttributeScope): AttributeScope {
-  return {
-    channelScoped: parseFlag(query['channelScoped'], 'channelScoped', current.channelScoped),
-    languageScoped: parseFlag(query['languageScoped'], 'languageScoped', current.languageScoped),
-  };
+  const raw = query['scopable'];
+  if (raw === undefined) return current;
+  if (raw === 'true') return { scopable: true };
+  if (raw === 'false') return { scopable: false };
+  throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, '"scopable" must be "true" or "false".', { field: 'scopable' });
 }
 
 export class AttributeScopePreviewService {
@@ -75,8 +71,13 @@ export class AttributeScopePreviewService {
     // has no preview, so they answer as an unknown attribute does.
     const attribute = await this.attributeRead.getByIdOrKey(idOrKey);
     if (!attribute) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Attribute "${idOrKey}" not found.`);
-    const current = { channelScoped: attribute.channelScoped, languageScoped: attribute.languageScoped };
-    const slots = slotsOrphanedByScopeChange(current, parseScopeChangeQuery(query, current));
+    // 168-shim: the value-type half of the preview (text → non-text orphans C×L rows) is T113's.
+    const current: AttributeScope = { scopable: attribute.scopable };
+    const next = parseScopeChangeQuery(query, current);
+    const slots = slotsOrphanedByScopeChange(
+      attributeScopeSet({ scopable: current.scopable, valueType: attribute.valueType }),
+      attributeScopeSet({ scopable: next.scopable, valueType: attribute.valueType }),
+    );
     if (!slots.channel && !slots.channelLanguage) return { orphanedOverrides: 0, byChannel: [] };
 
     const slotCondition =

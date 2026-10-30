@@ -159,6 +159,7 @@ export function registerModule(ctx: ModuleContext): void {
     ctx
       .asFunction(({ seoMetaResolver }: SeoCradle): SeoProductMetaPort => ({
         resolveForProduct: (input) => seoMetaResolver.resolveForProduct(input),
+        readScoped: (productId, scope) => seoMetaResolver.readScoped(productId, scope),
         listScopesForProduct: (productId) => seoMetaResolver.listScopesForProduct(productId),
       }))
       .singleton(),

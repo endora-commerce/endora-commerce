@@ -1,6 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
-  overrideLanguages,
   resolveScopeLanguage,
   type CatalogAttributeReadPort,
   type CatalogQuickSearchField,
@@ -131,11 +130,7 @@ export class CatalogQuickSearchService implements CatalogQuickSearchPort {
     // `{ organizationId, authenticated: true }`.
     const languageCode = resolveScopeLanguage(channel, params.languageCode);
     // FR-017 a — the Name the storefront shows at (C, L), matched and returned.
-    const effectiveName = effectiveTextSql(
-      'name',
-      { channelId: channel.id, languages: overrideLanguages(languageCode, channel.defaultLanguage) },
-      [languageCode, channel.defaultLanguage, 'en-US', 'en'],
-    );
+    const effectiveName = effectiveTextSql('name', { channelId: channel.id, languageCode });
     const available = availabilityCondition(
       {
         channelId: channel.id,
@@ -152,7 +147,7 @@ export class CatalogQuickSearchService implements CatalogQuickSearchPort {
         id: string;
         sku: string;
         slug: string;
-        name: Record<string, string>;
+        name: string;
         effective_name: string;
         status: string;
         attribute_values: Record<string, unknown>;
@@ -192,8 +187,8 @@ export class CatalogQuickSearchService implements CatalogQuickSearchPort {
       productId: row.id,
       sku: row.sku,
       slug: keys.get(row.id)?.get(languageCode) ?? row.slug,
-      name: row.name,
-      effectiveName: row.effective_name,
+      // Feature 168 — the name effective at (C, L) (`contracts/readers.md` §2).
+      name: row.effective_name,
       status: row.status as CatalogQuickSearchHit['status'],
       matchedOn: matchedOnFor(row, lowered, quickKeys),
     }));
@@ -213,7 +208,7 @@ export class CatalogQuickSearchService implements CatalogQuickSearchPort {
 function matchedOnFor(
   row: {
     sku: string;
-    name: Record<string, string>;
+    name: string;
     effective_name: string;
     attribute_values: Record<string, unknown>;
   },
@@ -224,7 +219,7 @@ function matchedOnFor(
   if (row.sku.toLowerCase().includes(lowered)) matched.push('sku');
   if (
     row.effective_name.toLowerCase().includes(lowered) ||
-    Object.values(row.name).some((n) => String(n).toLowerCase().includes(lowered))
+    row.name.toLowerCase().includes(lowered)
   ) {
     matched.push('name');
   }

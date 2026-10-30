@@ -92,9 +92,10 @@ export function AttachmentsSection({ productId }: { productId: string }): ReactN
             name: a.name,
             description: a.description,
             position: a.position,
-            nameTranslations: { ...(a.nameTranslations ?? {}) },
-            descriptionTranslations: { ...(a.descriptionTranslations ?? {}) },
-            hiddenInChannels: [...(a.hiddenInChannels ?? [])].sort(),
+            // 168-shim: 163's per-scope maps are gone from the DTO; S3 moves these to `ScopedField`.
+            nameTranslations: {},
+            descriptionTranslations: {},
+            hiddenInChannels: [],
             ...(asset ? { asset: { url: asset.url, filename: asset.filename, mimeType: asset.mimeType } } : {}),
           };
         }),
