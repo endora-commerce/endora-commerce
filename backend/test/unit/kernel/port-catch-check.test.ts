@@ -1143,3 +1143,174 @@ describe('findPortCatches — an alias carries only the gates visible where it i
     );
   });
 });
+
+/**
+ * A property name is not a binding (issue #100).
+ *
+ * `{ value: lazyPort(…) }` made every bare identifier `value` in the module read
+ * as the port, so an unrelated local of that spelling became a site. The value is
+ * now followed through the expression that reads the property instead — a
+ * property access, a call through a property that holds a carrying closure, a
+ * destructuring, a class's own method returning one — and each of those shapes is
+ * pinned below with a local **spelled differently** from the property, which is
+ * what proves the analysis follows the value rather than the spelling.
+ */
+describe('findPortCatches — a property is reached through the expression that reads it (#100)', () => {
+  const PROMOTIONS = [
+    'modules/promotions/backend.ts',
+    'export function registerModule(ctx: ModuleContext): void {\n' +
+      "  ctx.di.providePort('promotionService', ctx.asFunction(() => x).singleton());\n}",
+  ] as const;
+
+  const EMAILS = [
+    'modules/transactional_emails/backend.ts',
+    'export function registerModule(ctx: ModuleContext): void {\n' +
+      "  ctx.di.providePort('transactionalEmailSenderAccessor', ctx.asFunction(() => () => s).singleton());\n}",
+  ] as const;
+
+  const sitesOf = (sources: Map<string, string>): string[] =>
+    findPortCatches({ sources }).map((entry) => `${entry.file}:${entry.port}`);
+
+  it('does not read an unrelated local as the port because it shares a property`s name', () => {
+    const found = sitesOf(
+      new Map([
+        PROMOTIONS,
+        [
+          'modules/carts/backend.ts',
+          "import { lazyPort } from '../../kernel/index.js';\n" +
+            "const deps = { value: lazyPort<Promo>(ctx, 'promotionService') };",
+        ],
+        [
+          // The control: the property, read where it is reached.
+          'modules/carts/services/cart-pricing.ts',
+          'export class CartPricing {\n' +
+            '  async price(): Promise<number> {\n' +
+            '    try { return await this.deps.value.applyToCart({}); } catch { return 0; }\n' +
+            '  }\n}',
+        ],
+        [
+          // Three unrelated bindings of the same spelling: a call result, an
+          // identifier, a parameter. None of them is the property.
+          'modules/carts/services/engine.ts',
+          'export function fromCall(make: () => Engine): number {\n' +
+            '  const value = make();\n' +
+            '  try { value.apply(); } catch { return 0; }\n' +
+            '  return 1;\n}\n' +
+            'export function fromIdentifier(engine: Engine): number {\n' +
+            '  const value = engine;\n' +
+            '  try { value.apply(); } catch { return 0; }\n' +
+            '  return 1;\n}\n' +
+            'export function fromParameter(value: Engine): number {\n' +
+            '  try { value.apply(); } catch { return 0; }\n' +
+            '  return 1;\n}',
+        ],
+      ]),
+    );
+    expect(found).toEqual(['modules/carts/services/cart-pricing.ts:value']);
+  });
+
+  /**
+   * `crm`, `projects`, `quote_requests` and `tasks`: the deps object holds a
+   * closure over the gated accessor, and the factory calls it before its `try`.
+   */
+  const accessorTree = (service: string): Map<string, string> =>
+    new Map([
+      EMAILS,
+      [
+        'modules/crm/backend.ts',
+        "import { createReminderEmail } from './services/reminder-email.js';\n" +
+          'export function registerModule(ctx: ModuleContext): void {\n' +
+          '  const email = createReminderEmail({\n' +
+          '    sender: () => ctx.cradle<Cradle>().transactionalEmailSenderAccessor(),\n' +
+          '    log: (message: string) => ctx.log.warn(message),\n' +
+          '  });\n}',
+      ],
+      ['modules/crm/services/reminder-email.ts', service],
+    ]);
+
+  const reminderEmail = (binding: string, local: string): string =>
+    'export function createReminderEmail(deps: Deps) {\n' +
+    '  return {\n' +
+    '    async send(input: Input): Promise<boolean> {\n' +
+    `      ${binding}\n` +
+    `      if (!${local}) return false;\n` +
+    `      try { await ${local}.send(input); return true; } catch { return false; }\n` +
+    '    },\n' +
+    '  };\n}';
+
+  it('follows a call through a property that holds a closure over the port', () => {
+    const findings = findPortCatches({
+      sources: accessorTree(reminderEmail('const mailer = deps.sender();', 'mailer')),
+    });
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatchObject({
+      file: 'modules/crm/services/reminder-email.ts',
+      port: 'mailer',
+      handled: false,
+      gates: ['transactionalEmailSenderAccessor'],
+    });
+  });
+
+  it('follows the same call when the local shares the property`s spelling, as the tree writes it', () => {
+    expect(
+      sitesOf(accessorTree(reminderEmail('const sender = deps.sender();', 'sender'))),
+    ).toEqual(['modules/crm/services/reminder-email.ts:sender']);
+  });
+
+  it('does not read a call through a property that holds no port as one', () => {
+    expect(sitesOf(accessorTree(reminderEmail('const mailer = deps.log();', 'mailer')))).toEqual(
+      [],
+    );
+  });
+
+  const destructuringTree = (service: string): Map<string, string> =>
+    new Map([
+      PROMOTIONS,
+      [
+        'modules/carts/backend.ts',
+        "import { lazyPort } from '../../kernel/index.js';\n" +
+          "const deps = { promotion: lazyPort<Promo>(ctx, 'promotionService'), log: console };",
+      ],
+      ['modules/carts/services/cart-pricing.ts', service],
+    ]);
+
+  it('follows a destructured property, renamed', () => {
+    expect(
+      sitesOf(
+        destructuringTree(
+          'export class CartPricing {\n' +
+            '  async price(): Promise<number> {\n' +
+            '    const { promotion: promo, log } = this.deps;\n' +
+            '    try { return await promo.applyToCart({}); } catch { log.warn(); return 0; }\n' +
+            '  }\n}',
+        ),
+      ),
+    ).toEqual(['modules/carts/services/cart-pricing.ts:promo']);
+  });
+
+  it('follows a destructured parameter', () => {
+    expect(
+      sitesOf(
+        destructuringTree(
+          'export async function price({ promotion }: Deps): Promise<number> {\n' +
+            '  try { return await promotion.applyToCart({}); } catch { return 0; }\n}',
+        ),
+      ),
+    ).toEqual(['modules/carts/services/cart-pricing.ts:promotion']);
+  });
+
+  it('follows a class`s own method that returns the property', () => {
+    expect(
+      sitesOf(
+        destructuringTree(
+          'export class CartPricing {\n' +
+            '  #promotions(): Promo { return this.deps.promotion; }\n' +
+            '  async price(): Promise<number> {\n' +
+            '    const discounts = this.#promotions();\n' +
+            '    try { return await discounts.applyToCart({}); } catch { return 0; }\n' +
+            '  }\n}',
+        ),
+      ),
+    ).toEqual(['modules/carts/services/cart-pricing.ts:discounts']);
+  });
+});
