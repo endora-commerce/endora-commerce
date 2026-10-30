@@ -28,7 +28,17 @@ const TOPIC_CODE_RE = /^[a-z0-9_-]{1,64}$/;
 /** The most topics one sign-up carries; the block offers at most 12. */
 const MAX_TOPICS = 12;
 
-type SignupError = 'consent' | 'email' | 'topics' | 'unavailable';
+/** Feature 169 (FR-026): an attribute's key, as the newsletter's custom fields name them. */
+const ATTRIBUTE_KEY_RE = /^[a-z][a-z0-9_]{0,63}$/;
+/** The most attributes one sign-up carries (the block offers at most 10). */
+const MAX_ATTRIBUTES = 10;
+/** The longest text value the newsletter keeps. */
+const ATTRIBUTE_TEXT_MAX = 500;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const ATTRIBUTE_TYPES = ['text', 'number', 'boolean', 'date'] as const;
+type AttributeType = (typeof ATTRIBUTE_TYPES)[number];
+
+type SignupError = 'consent' | 'email' | 'topics' | 'fields' | 'unavailable';
 type SignupOutcome = { status: 'pending' | 'active' } | { error: SignupError };
 
 /** The `email` rule the backend applies, so a refusal here is the one the backend would give. */
@@ -54,6 +64,46 @@ function safeReturnTo(raw: string): URL {
 function field(form: FormData, name: string): string {
   const value = form.get(name);
   return typeof value === 'string' ? value : '';
+}
+
+/**
+ * Feature 169 (US7, FR-026, data-model §4) — the sign-up's subscriber
+ * attributes. The block posts one hidden `attrSpec` per attribute,
+ * `<key>|<type>|<0|1 required>`, and the value as `attr.<key>`. Each value is
+ * coerced by its type — a ticked box (`on`) is `true`, an unticked one
+ * `false`; a number when finite; a date when `YYYY-MM-DD`; a text trimmed, at
+ * most 500 characters — and anything else counts as not given. A required
+ * attribute not given is `missing`. The newsletter module checks the types
+ * again against its own field definitions and keeps only what matches.
+ */
+function attributesOf(form: FormData): { values: Record<string, string | number | boolean>; missing: boolean } {
+  const values: Record<string, string | number | boolean> = {};
+  let missing = false;
+  const seen = new Set<string>();
+  const specs = form.getAll('attrSpec').filter((spec): spec is string => typeof spec === 'string');
+  for (const spec of specs.slice(0, MAX_ATTRIBUTES)) {
+    const [key = '', type = '', required = ''] = spec.split('|');
+    if (!ATTRIBUTE_KEY_RE.test(key) || !(ATTRIBUTE_TYPES as readonly string[]).includes(type) || seen.has(key)) continue;
+    seen.add(key);
+    const value = coerceAttribute(type as AttributeType, field(form, `attr.${key}`));
+    if (value === undefined || (type === 'boolean' && value === false)) {
+      if (required === '1') missing = true;
+    }
+    if (value !== undefined) values[key] = value;
+  }
+  return { values, missing };
+}
+
+function coerceAttribute(type: AttributeType, raw: string): string | number | boolean | undefined {
+  if (type === 'boolean') return raw === 'on';
+  const value = raw.trim();
+  if (value === '') return undefined;
+  if (type === 'number') {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : undefined;
+  }
+  if (type === 'date') return DATE_RE.test(value) ? value : undefined;
+  return value.length <= ATTRIBUTE_TEXT_MAX ? value : undefined;
 }
 
 function redirectTo(returnTo: URL, anchor: string | null, outcome: SignupOutcome): Response {
@@ -112,6 +162,8 @@ export async function POST(request: Request): Promise<Response> {
     ),
   ].slice(0, MAX_TOPICS);
   if (field(form, 'topicsRequired') === 'on' && topics.length === 0) return answer({ error: 'topics' });
+  const attributes = attributesOf(form);
+  if (attributes.missing) return answer({ error: 'fields' });
 
   const channelCode = request.headers.get(SALES_CHANNEL_REQUEST_HEADER) || 'default';
   try {
@@ -119,6 +171,7 @@ export async function POST(request: Request): Promise<Response> {
       email: email.data,
       channelCode,
       ...(topics.length > 0 ? { tags: topics } : {}),
+      ...(Object.keys(attributes.values).length > 0 ? { customFields: attributes.values } : {}),
       source: 'cms-block',
     });
     return answer({ status: result.status });

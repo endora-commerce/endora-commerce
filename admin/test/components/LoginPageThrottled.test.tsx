@@ -32,10 +32,12 @@ vi.mock('../../../packages/admin-kit/src/lib/api-client', async (importOriginal)
 }));
 // The screen's `useAuth` and the provider below have to be one module, or the
 // screen reads a context nobody provides.
-vi.mock(
-  '../../../packages/admin-shell/src/lib/auth',
-  async () => await import('../../../packages/admin-kit/src/lib/auth'),
-);
+// The shell names the session through the kit's barrel; this file drives the kit's
+// source `AuthProvider`, so the barrel's two auth bindings are that same module.
+vi.mock('@endora-commerce/admin-kit/lib', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@endora-commerce/admin-kit/lib')>()),
+  ...(await import('../../../packages/admin-kit/src/lib/auth')),
+}));
 
 const { ApiError } = await import('../../../packages/admin-kit/src/lib/api-client');
 const { AuthProvider, useAuth } = await import('../../../packages/admin-kit/src/lib/auth');

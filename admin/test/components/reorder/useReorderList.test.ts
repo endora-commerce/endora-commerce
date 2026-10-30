@@ -3,7 +3,7 @@ import { act, renderHook } from '@testing-library/react';
 import {
   useReorderList,
   type ReorderLabels,
-} from '../../../../packages/admin-shell/src/components/reorder/useReorderList';
+} from '@endora-commerce/admin-kit/components';
 
 /**
  * Feature 067 / T081 — the shared reorder primitive (FR-069, SC-014).

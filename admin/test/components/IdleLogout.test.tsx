@@ -14,30 +14,29 @@ import { act, render } from '@testing-library/react';
 
 const logoutSpy = vi.fn();
 let sessionIdleLogoutMinutes: number | null | undefined;
-vi.mock('../../../packages/admin-shell/src/lib/auth', () => ({
-  useAuth: (): {
-    status: string;
-    me: { idleLogoutMinutes?: number | null };
-    logout: () => void;
-  } => ({
-    status: 'authenticated',
-    // `undefined` leaves the key off, which is what an older backend sends.
-    me: sessionIdleLogoutMinutes === undefined ? {} : { idleLogoutMinutes: sessionIdleLogoutMinutes },
-    logout: logoutSpy,
-  }),
-}));
-
-// The transport, replaced so that any request the component makes is seen. It
-// must make none: the settings endpoint is the read this component gave up.
+// The session and the transport live in one kit barrel, so one factory
+// replaces both. The transport is replaced so that any request the component
+// makes is seen. It must make none: the settings endpoint is the read this
+// component gave up.
 const requestSpy = vi.fn();
-vi.mock('../../../packages/admin-shell/src/lib/api-client', async () => {
-  const actual = await vi.importActual<typeof import('../../../packages/admin-shell/src/lib/api-client')>('../../../packages/admin-shell/src/lib/api-client');
+vi.mock('@endora-commerce/admin-kit/lib', async () => {
+  const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>('@endora-commerce/admin-kit/lib');
   const seen = (...args: unknown[]): Promise<never> => {
     requestSpy(...args);
     return Promise.reject(new Error('IdleLogout must not call the API'));
   };
   return {
     ...actual,
+    useAuth: (): {
+      status: string;
+      me: { idleLogoutMinutes?: number | null };
+      logout: () => void;
+    } => ({
+      status: 'authenticated',
+      // `undefined` leaves the key off, which is what an older backend sends.
+      me: sessionIdleLogoutMinutes === undefined ? {} : { idleLogoutMinutes: sessionIdleLogoutMinutes },
+      logout: logoutSpy,
+    }),
     apiClient: { ...actual.apiClient, get: seen, post: seen, put: seen, patch: seen, delete: seen },
   };
 });

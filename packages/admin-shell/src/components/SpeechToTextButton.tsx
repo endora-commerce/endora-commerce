@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { Mic, MicOff } from 'lucide-react';
-import { cn } from '../lib/utils.js';
+import { cn } from '@endora-commerce/admin-kit/lib';
 import { useSpeechToText } from './hooks/useSpeechToText.js';
 
 /**

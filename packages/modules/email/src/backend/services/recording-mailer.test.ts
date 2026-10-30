@@ -130,4 +130,25 @@ describe('email — the delivery record (D-59)', () => {
     const mailer = new RecordingMailer(transport({ status: 'sent' }), new StubRecorder(null));
     await expect(mailer.send(MESSAGE)).resolves.toEqual({ status: 'sent' });
   });
+
+  // Feature 169 (T093): the Reply-To reaches the transport and never the record.
+  it('passes the Reply-To through to the transport and keeps it out of the record', async () => {
+    const recorder = new StubRecorder();
+    const handed: MailerSendInput[] = [];
+    const mailer = new RecordingMailer(
+      {
+        async send(input: MailerSendInput): Promise<MailerSendOutcome> {
+          handed.push(input);
+          return { status: 'sent' };
+        },
+      },
+      recorder,
+    );
+
+    await mailer.send({ ...MESSAGE, replyTo: 'shopper@example.com' });
+
+    expect(handed[0]?.replyTo).toBe('shopper@example.com');
+    expect(JSON.stringify(recorder.rows[0])).not.toContain('shopper@example.com');
+    expect(recorder.rows[0]).not.toHaveProperty('replyTo');
+  });
 });

@@ -112,13 +112,13 @@ function generationFor(options: {
       },
       delete: async () => undefined,
     },
-    notifyFailedRun: async (input) => {
+    notifyFailedRun: async (input: unknown) => {
       notified.push(input);
     },
-    onPublicationWithdrawn: async (feedId) => {
+    onPublicationWithdrawn: async (feedId: string) => {
       withdrawn.push(feedId);
     },
-    pinnedPriceBookPublishability: async (input) => {
+    pinnedPriceBookPublishability: async (input: unknown) => {
       asked.push(input);
       return options.publishability();
     },

@@ -417,6 +417,7 @@ import {
   registeredMigrations,
 } from './lib/migration-registry.js';
 import { namedSpecifiers, type SpecifierKind } from './lib/specifiers.js';
+import { resolutionCandidates } from './lib/platform-surface.js';
 import {
   declaredTableNames,
   sqlTableAccesses,
@@ -2132,6 +2133,12 @@ export function vacuousReason(input: {
    */
   readonly migrationRegistryMissing?: readonly string[];
   /**
+   * Admin-layer files the generated admin registry implies and the module walk
+   * did not open (issue #88) — {@link adminRegistryLayersWalked}' shortfall, as
+   * a refusal that names them. Omitted is a caller with no admin layout.
+   */
+  readonly adminRegistryMissing?: readonly string[];
+  /**
    * Whether **no** manifest declared a dependency at all (contract §6.3).
    *
    * An empty closure makes R1 fire on every cross-module access there is, so the
@@ -2263,6 +2270,17 @@ export function vacuousReason(input: {
       'disagreeing is a walk that came back short; refusing to report a vacuous pass'
     );
   }
+  if (input.adminRegistryMissing !== undefined && input.adminRegistryMissing.length > 0) {
+    const named = input.adminRegistryMissing.slice(0, 8).join(', ');
+    const rest = input.adminRegistryMissing.length - 8;
+    return (
+      `${input.adminRegistryMissing.length} admin-layer files the generated admin registry ` +
+      `implies were not opened by the module walk (${named}${rest > 0 ? `, and ${rest} more` : ''}) ` +
+      '— the registry names every module package\'s `./admin` layer, so a walk that skipped ' +
+      'them (a changed extension list, a moved directory) would judge none of their reaches; ' +
+      'refusing to report a vacuous pass'
+    );
+  }
   if (input.declaresNoDependency === true) {
     return (
       'no manifest declared a dependency — an empty closure makes R1 fire on every ' +
@@ -2392,6 +2410,88 @@ export async function loadLedgerShards(directory: string): Promise<LedgerShard[]
     shards.push({ moduleId, entries: entries as Readonly<Record<string, LedgerEntry>>, source });
   }
   return shards;
+}
+
+/** What {@link adminRegistryLayersWalked} reads, every input entering as text or a key. */
+export interface AdminRegistryFloorInput {
+  /** The generated admin registry's source text, or `null` when it is not on disk. */
+  readonly registry: string | null;
+  /** The registry's own repository-relative key, for the sentence a missing one gets. */
+  readonly registryKey: string;
+  /** A module package's npm name → its repository-relative directory, or `null`. */
+  readonly packageDirectoryOf: (packageName: string) => string | null;
+  /** A repository-relative file's text, or `null` when there is no such file. */
+  readonly readText: (repoRelativeKey: string) => string | null;
+  /** The repository-relative keys the module walk opened. */
+  readonly walked: ReadonlySet<string>;
+}
+
+/** The registry floor's reconciliation, plus what it found missing by name. */
+export interface AdminRegistryFloor {
+  readonly expected: number;
+  readonly covered: number;
+  readonly missing: readonly string[];
+}
+
+/** The npm name a bare specifier names, scope included, and the subpath after it. */
+function splitBareSpecifier(specifier: string): { readonly name: string; readonly subpath: string } {
+  const segments = specifier.split('/');
+  const width = specifier.startsWith('@') ? 2 : 1;
+  return { name: segments.slice(0, width).join('/'), subpath: segments.slice(width).join('/') };
+}
+
+/**
+ * The module packages' admin layers the generated registry names, against what
+ * the module walk opened of them (issue #88).
+ *
+ * The registry is written by `composer:generate`, not by this walk, so it can
+ * say "these layers exist" independently of the walk reading them. Each value
+ * import of a `<package>/admin` specifier expects that package's
+ * `src/admin/index.ts` **and** every file the index names by relative path —
+ * the screens it lazily imports are `.tsx`, which is the half the index alone
+ * could not stand for: drop `'.tsx'` from {@link collectModuleFiles} and every
+ * index is still opened. A layer this function cannot place — a package with
+ * no module directory, an index that is not there, a relative specifier naming
+ * no file — is **missing**, never skipped, and so is a registry that is not on
+ * disk while the admin layout resolved.
+ */
+export function adminRegistryLayersWalked(input: AdminRegistryFloorInput): AdminRegistryFloor {
+  if (input.registry === null) {
+    return { expected: 1, covered: 0, missing: [`${input.registryKey} (not on disk)`] };
+  }
+  const expected = new Set<string>();
+  const unplaced: string[] = [];
+  for (const named of namedSpecifiers(input.registry, input.registryKey)) {
+    if (named.kind !== 'value-import') continue;
+    const specifier = named.text;
+    if (specifier.startsWith('.')) continue;
+    const { name, subpath } = splitBareSpecifier(specifier);
+    if (subpath !== 'admin') continue;
+    const directory = input.packageDirectoryOf(name);
+    const index = directory === null ? null : `${directory}/src/admin/index.ts`;
+    const source = index === null ? null : input.readText(index);
+    if (index === null || source === null) {
+      unplaced.push(`${specifier} (no module package holds its src/admin/index.ts)`);
+      continue;
+    }
+    expected.add(index);
+    for (const { text: relativeSpecifier } of namedSpecifiers(source, index)) {
+      if (!relativeSpecifier.startsWith('.')) continue;
+      const joined = posixNormalize(posixJoin(posixDirname(index), relativeSpecifier));
+      const target = resolutionCandidates(joined).find((candidate) => input.readText(candidate) !== null);
+      if (target === undefined) {
+        unplaced.push(`${index} → ${relativeSpecifier} (resolves to no file)`);
+        continue;
+      }
+      expected.add(target);
+    }
+  }
+  const missing = [...expected].filter((key) => !input.walked.has(key)).sort();
+  return {
+    expected: expected.size + unplaced.length,
+    covered: expected.size - missing.length,
+    missing: [...unplaced, ...missing],
+  };
 }
 
 /**
@@ -3116,6 +3216,31 @@ async function main(): Promise<void> {
     return;
   }
   const migrations = migrationRegistryCoverage(registered, result.migrationClasses);
+  // Issue #88: the module packages' admin layers, as the generated admin
+  // registry names them, against what the module walk opened. Asked only
+  // where the admin layout resolved — a workspace with no frontend has no
+  // registry to read, and `vacuousReason` already refuses a frontend whose
+  // layout did not resolve.
+  const moduleFileKeys = new Set(files.map((file) => layout.keyOf(file)));
+  const adminRegistry =
+    admin === null
+      ? null
+      : adminRegistryLayersWalked({
+          registry: existsSync(join(layout.repoRoot, admin.generatedRegistryFile))
+            ? readFileSync(join(layout.repoRoot, admin.generatedRegistryFile), 'utf8')
+            : null,
+          registryKey: admin.generatedRegistryFile,
+          packageDirectoryOf: (name) => {
+            const moduleId = layout.modulePackageNames.get(name);
+            const directory = moduleId === undefined ? null : layout.moduleDirectoryOf(moduleId);
+            return directory === null ? null : layout.keyOf(directory);
+          },
+          readText: (key) => {
+            const absolute = join(layout.repoRoot, key);
+            return existsSync(absolute) ? readFileSync(absolute, 'utf8') : null;
+          },
+          walked: moduleFileKeys,
+        });
 
   const vacuous = vacuousReason({
     moduleFiles: files,
@@ -3131,10 +3256,11 @@ async function main(): Promise<void> {
     adminSurfacesRefusal: await layout.adminSurfacesRefusal(),
     ledgerKeys: shards.flatMap((shard) => Object.keys(shard.entries)),
     fileExists: (path) => existsSync(join(layout.repoRoot, path)),
-    moduleFileKeys: new Set(files.map((file) => layout.keyOf(file))),
+    moduleFileKeys,
     adminHostFiles,
     migrationFiles: result.migrationFiles,
     migrationRegistryMissing: migrations.missing,
+    ...(adminRegistry === null ? {} : { adminRegistryMissing: adminRegistry.missing }),
     declaresNoDependency: declaresNoDependency(declaredDependencies),
     migrationLedgerDirectoriesExist:
       existsSync(MIGRATION_REFERENCE_LEDGER_ROOT) && existsSync(MIGRATION_WRITE_LEDGER_ROOT),
@@ -3273,6 +3399,17 @@ async function main(): Promise<void> {
     if (host.expected > 0) {
       coverages.push({ source: 'admin-host', expected: host.expected, covered: host.covered });
     }
+  }
+  // Issue #88 — the module packages' admin layers, reconciled against the
+  // generated admin registry: an author `composer:generate` writes and this
+  // walk cannot influence. Unlike the two admin tokens above it does not drain,
+  // because the layers are where the admin surfaces now live.
+  if (adminRegistry !== null) {
+    coverages.push({
+      source: 'admin-registry',
+      expected: adminRegistry.expected,
+      covered: adminRegistry.covered,
+    });
   }
   reportReadSize({
     prefix: '[module-boundary]',

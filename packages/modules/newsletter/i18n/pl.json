@@ -75,5 +75,16 @@
   "blocks.signup.fields.messages.fields.email.label": "Nieprawidłowy adres e-mail",
   "blocks.signup.fields.messages.fields.topics.label": "Nie wybrano tematu",
   "blocks.signup.fields.messages.fields.unavailable.label": "Zapis niedostępny",
-  "blocks.signup.fields.buttonIcon.label": "Ikona przycisku"
+  "blocks.signup.fields.buttonIcon.label": "Ikona przycisku",
+  "blocks.signup.fields.attributes.label": "Atrybuty subskrybenta",
+  "blocks.signup.fields.attributes.fields.key.label": "Pole niestandardowe",
+  "blocks.signup.fields.attributes.fields.type.label": "Typ",
+  "blocks.signup.fields.attributes.fields.type.options.text": "Tekst",
+  "blocks.signup.fields.attributes.fields.type.options.number": "Liczba",
+  "blocks.signup.fields.attributes.fields.type.options.boolean": "Tak / nie",
+  "blocks.signup.fields.attributes.fields.type.options.date": "Data",
+  "blocks.signup.fields.attributes.fields.label.label": "Etykieta",
+  "blocks.signup.fields.attributes.fields.placeholder.label": "Podpowiedź w polu",
+  "blocks.signup.fields.attributes.fields.required.label": "Wymagane",
+  "blocks.signup.fields.messages.fields.fields.label": "Brak wymaganego pola"
 }

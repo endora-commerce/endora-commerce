@@ -198,7 +198,7 @@ describe('AdminSearchService.search', () => {
   });
 
   it('defaults the limit to the setting and clamps it to 25', async () => {
-    const search = vi.fn(async () => ({ hits: [], hasMore: false }));
+    const search = vi.fn(async (_input: unknown) => ({ hits: [], hasMore: false }));
     const { service } = build([fakeProvider({ search })], { snapshot: settings({ resultsPerEntity: 7 }) });
     const first = await service.search({ ...request, q: 'acme' });
     expect(search.mock.calls[0]?.[0]).toMatchObject({ limit: 7 });
@@ -209,7 +209,7 @@ describe('AdminSearchService.search', () => {
   });
 
   it('does not call a type disabled by configuration, and passes the resolved fields', async () => {
-    const orders = vi.fn(async () => ({ hits: [], hasMore: false }));
+    const orders = vi.fn(async (_input: unknown) => ({ hits: [], hasMore: false }));
     const crm = vi.fn(async () => ({ hits: [], hasMore: false }));
     const { service } = build(
       [

@@ -13,6 +13,7 @@ import { CategoryGrid } from './components/CategoryGrid.js';
 import { CategoryList } from './components/CategoryList.js';
 import { Column } from './components/Column.js';
 import { ContactFormEmbed } from './components/ContactFormEmbed.js';
+import { ContactForm } from './components/ContactForm.js';
 import { ContentSlider } from './components/ContentSlider.js';
 import { CtaCard } from './components/CtaCard.js';
 import { DownloadTile } from './components/DownloadTile.js';
@@ -31,6 +32,7 @@ import { Map } from './components/Map.js';
 import { MediaText } from './components/MediaText.js';
 import { MissingComponentPlaceholder } from './components/MissingComponentPlaceholder.js';
 import { NewsletterSignup } from './components/NewsletterSignup.js';
+import { PageNavigation } from './components/PageNavigation.js';
 import { Signup as NewsletterSignupBlock } from './components/NewsletterSignupForm.js';
 import { ProductCard } from './components/ProductCard.js';
 import { ProductGrid } from './components/ProductGrid.js';
@@ -62,6 +64,8 @@ export * from './components/CategoryGrid.js';
 export * from './components/CategoryList.js';
 export * from './components/Column.js';
 export * from './components/ContactFormEmbed.js';
+// Feature 169 — the contact form that e-mails the shop.
+export * from './components/ContactForm.js';
 export * from './components/ContentSlider.js';
 export * from './components/CtaCard.js';
 export * from './components/DownloadTile.js';
@@ -83,6 +87,8 @@ export * from './components/MediaText.js';
 export * from './components/MissingComponentPlaceholder.js';
 export * from './components/NewsletterSignup.js';
 export * from './components/NewsletterSignupForm.js';
+export * from './components/PageNavigation.js';
+export * from './components/page-navigation-spy.js';
 export * from './components/ProductCard.js';
 export * from './components/ProductGrid.js';
 export * from './components/ProductSlider.js';
@@ -427,6 +433,12 @@ export const defaultPageBuilderConfig: Config = {
       contexts: ['cms'],
       responsiveFields: ['margin', 'padding', 'border'],
     }),
+    // Feature 169 (`specs/169-page-builder-contact-form/` data-model §3).
+    'cms.ContactForm': definePageBuilderComponent({
+      ...(ContactForm as unknown as ComponentConfig),
+      contexts: ['cms'],
+      responsiveFields: ['margin', 'padding', 'border'],
+    }),
     'cms.Video': definePageBuilderComponent({
       ...(Video as unknown as ComponentConfig),
       contexts: ['cms'],
@@ -547,6 +559,12 @@ export const defaultPageBuilderConfig: Config = {
       ...(Tabs as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['tabSize', 'panelGap', 'panelGapPx', 'margin', 'padding', 'border', 'align'],
+    }),
+    // Feature 169 (US5): links to sections of the same page, with a scroll spy.
+    'cms.PageNavigation': definePageBuilderComponent({
+      ...(PageNavigation as unknown as ComponentConfig),
+      contexts: ['cms'],
+      responsiveFields: ['align', 'margin', 'padding', 'border'],
     }),
     'cms.Accordion': definePageBuilderComponent({
       ...(Accordion as unknown as ComponentConfig),

@@ -222,6 +222,7 @@ export default async function CheckoutPage({
       <OrganizationModerationBanner
         status={me?.organization?.status}
         message={me?.organization?.moderationMessage ?? null}
+        locale={locale}
       />
       {params.error ? <p className="b2b-auth__error">{params.error}</p> : null}
       <BelowMinimumSummary id={BELOW_MINIMUM_SUMMARY_ID} rows={belowMinimumRows} locale={locale} />

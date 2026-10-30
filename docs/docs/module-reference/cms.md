@@ -29,8 +29,10 @@ An operator switches this module on and off on **/platform/modules**. The choice
 
 | Module | Binding | What it means |
 | --- | --- | --- |
+| `_i18n` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `assets_library` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `auth` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
+| `email` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `languages` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `sales_channels` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `settings` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
@@ -52,6 +54,7 @@ An operator switches this module on and off on **/platform/modules**. The choice
 | `new-page` | `/cms/pages/new` | `cms.write` |
 | `open-blocks` | `/cms/blocks` | `cms.read` |
 | `open-cms-brand` | `/cms/brand` | `cms.read` |
+| `open-contact-form-settings` | `/settings` | `settings:read` |
 | `open-hooks` | `/cms/hooks` | `cms.read` |
 | `open-page-builder-translation-settings` | `/settings` | `settings:read` |
 | `open-pages` | `/cms/pages` | `cms.read` |
@@ -61,6 +64,7 @@ An operator switches this module on and off on **/platform/modules**. The choice
 
 | Code | Name | Type |
 | --- | --- | --- |
+| `cms.contact_form_recipients` | Contact form recipients | `string_list` |
 | `cms.default_share_image_asset_id` | Default sharing image | `string` |
 | `cms.enabled` | CMS enabled | `boolean` |
 | `cms.page_builder.breakpoint.desktop_min` | Desktop breakpoint (min-width px) | `number` |

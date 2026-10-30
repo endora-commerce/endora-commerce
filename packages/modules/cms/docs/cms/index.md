@@ -99,6 +99,11 @@ present:
 | `newsletter.Signup` | `newsletter` | **New.** Subscribes through the newsletter module, with optional topics and a required consent checkbox; works without JavaScript. |
 | `catalog.ProductGrid`, `catalog.ProductSlider` | `catalog` | **Reshaped.** A header, a card variant (including a `showcase` card with a short summary), a "more" link label and a footer button; the slider takes the carousel options. |
 
+**An empty listing shows nothing.** A product grid, product slider, category grid,
+category list or latest posts block that finds nothing to show (no product in its
+category, no post yet) leaves no trace on the storefront: no box, no heading, no
+sentence. In the editor its preview still says why it is empty.
+
 ### Content saved before a block changed shape
 
 A reshaped block keeps every option it had: the option-parity test
@@ -675,7 +680,10 @@ type** (on by default). **Image on hover** is the default **Faint tint** or
 **Full image with a dark gradient**, the text turning white over it. **Link
 look** is the default **Text label** or a 48 px **Round icon button** at the
 bottom end, ringed in the text colour; its label is still read by screen
-readers. The whole tile stays one download link, and tiles in a carousel row
+readers. With the round icon button, **Icon button size** is **Small** (48 px,
+as before), **Medium** (72 px) or **Large** (112 px), and **Icon button style**
+is **Outline** (the ring, as before) or **Filled**: a disc in the text colour
+with the icon in the card's background colour. The whole tile stays one download link, and tiles in a carousel row
 keep equal heights.
 
 **Carousel image**: a **Read-more label** (for example "Read more") shown over
@@ -911,8 +919,11 @@ carousel):
   unset, those start at the text's left edge).
 - **Keep the arrows when all slides fit** (under **Controls**): when every
   slide is already on screen the arrows stay, both disabled, and the dots are
-  hidden; off, the controls disappear as before. A disabled arrow takes the
-  **Disabled arrow look**, offered for this case on a looping carousel too.
+  hidden; off, the controls disappear as before. Kept arrows are not dimmed:
+  they rest on the colour scheme's background with its border and muted text
+  colour, so they stay readable on a light, muted or dark Section and over a
+  slide. A chosen **Disabled arrow look** — **Light outline** or **Color** — is
+  used instead, and is offered for this case on a looping carousel too.
 
 **Media and text**: **Text size** for every row's text, *per breakpoint*, with
 a **Text line height** for a Custom size; **Space between the heading and the
@@ -1115,8 +1126,11 @@ desktop. A breakpoint without its own value takes the one below it.
   stays below the summary, to edit, and an arrow before the summary marks the passage.
 - **Accordion look.** An **Accordion** block has an **Icon** — **Plus and minus** (the default)
   or a **Chevron** that turns when its item opens, placed at the end of the title's line —,
-  **Items** — **Plain** or **Boxed** (each item in a bordered box, its title and panel inset
-  from the edge; left unset, the **Style** decides as before: *Bordered* is boxed) —,
+  **Items** — **Plain**, **Boxed** (each item in a bordered box, its title and panel inset
+  from the edge; left unset, the **Style** decides as before: *Bordered* is boxed) or
+  **Filled** (each title on a softly tinted bar taken from the colour scheme — a faint dark
+  tint on the light schemes, a faint light one on the dark scheme — with its panel inset
+  below it, items 8 px apart and no dividers) —,
   **Dividers** for plain items — **None**, **Between items**, or **Above, between and below**
   (left unset, the **Style** draws its usual line under each item) — and a **Title padding**
   above and below each title on the **Responsive** tab: a spacing size or a **Custom** px value
@@ -1134,7 +1148,7 @@ desktop. A breakpoint without its own value takes the one below it.
   and its open panel, and **Space between items** the space from one item to the next; each is
   a spacing size or a **Custom (px)** value per breakpoint. A breakpoint left unset keeps the
   usual spacing: no space above a panel (12 px under a title line), none between plain items,
-  8 px between boxed ones. **Space below the open panel** sets the space under an open
+  8 px between boxed or filled ones. **Space below the open panel** sets the space under an open
   panel's content (12 px when unset), and **Space after an open item** the space from an open
   item to the next title, used instead of **Space between items** while the item is open (a
   breakpoint left unset uses the space between items); both are a spacing size or a

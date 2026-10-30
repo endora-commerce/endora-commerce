@@ -266,3 +266,223 @@ describe('newsletter.Signup (T075)', () => {
     expect(serverDom({ ...PROPS, layout: 'inline' }).querySelector('.cmsc-pb-signup--inline')).not.toBeNull();
   });
 });
+
+/**
+ * `specs/169-page-builder-contact-form/` US7, FR-025, data-model §4,
+ * contracts/blocks.md §5 (T176, T177) — subscriber attributes: up to 10 of
+ * the newsletter's custom fields, rendered after the e-mail field and before
+ * the topics, by type (boolean → checkbox; number, date, text → that input),
+ * each with a hidden `attrSpec` the storefront handler reads. With no
+ * attributes the markup is today's, byte for byte.
+ */
+const STORED = {
+  ...PROPS,
+  topicsLegend: 'Topics',
+  topicsRequired: true,
+  emailLabel: 'E-mail address',
+  layout: 'inline',
+  messages: { pending: 'Check your inbox.', active: 'Subscribed.' },
+};
+
+const ATTRIBUTES = [
+  { key: 'vip', type: 'boolean', label: 'I am a trade customer' },
+  { key: 'age', type: 'number', fieldLabel: 'Age', placeholder: 'Your age', required: true },
+  { key: 'born', type: 'date' },
+  { key: 'company', type: 'text', label: 'Company', fieldLabel: 'Company name' },
+];
+
+function attributeInput(host: HTMLElement, key: string): HTMLInputElement | null {
+  return host.querySelector<HTMLInputElement>(`input[name="attr.${key}"]`);
+}
+
+function labelOf(host: HTMLElement, input: HTMLInputElement | null): string | undefined {
+  return input ? host.querySelector(`label[for="${input.id}"]`)?.textContent ?? undefined : undefined;
+}
+
+describe('newsletter.Signup subscriber attributes (feature 169, T176)', () => {
+  it('without attributes, a stored block renders the markup of before', () => {
+    const html = (props: Record<string, unknown>, location?: CmsRenderLocation): string => renderToString(page(props, location));
+    // Recorded from the block as it was before feature 169 (base 09d48c47f).
+    expect(html(STORED, { path: '/landing', query: {} })).toMatchSnapshot();
+    expect(html({ ...STORED, attributes: [] }, { path: '/landing', query: {} })).toBe(html(STORED, { path: '/landing', query: {} }));
+  });
+
+  it('renders each attribute by its type, after the e-mail field and before the topics', () => {
+    const host = serverDom({ ...PROPS, attributes: ATTRIBUTES });
+    const vip = attributeInput(host, 'vip');
+    expect(vip?.type).toBe('checkbox');
+    expect(vip?.value).toBe('on');
+    expect(attributeInput(host, 'age')?.type).toBe('number');
+    expect(attributeInput(host, 'born')?.type).toBe('date');
+    const company = attributeInput(host, 'company');
+    expect(company?.type).toBe('text');
+    expect(company?.getAttribute('maxlength')).toBe('500');
+    const inputs = [...form(host).querySelectorAll('input:not([type="hidden"])')];
+    const at = (input: Element | null): number => inputs.indexOf(input!);
+    expect(at(emailInput(host))).toBeLessThan(at(vip));
+    expect(at(company)).toBeLessThan(at(host.querySelector('input[name="topics"]')));
+  });
+
+  it('labels an attribute with its label, else the field’s own label, else its key', () => {
+    const host = serverDom({ ...PROPS, attributes: ATTRIBUTES });
+    expect(labelOf(host, attributeInput(host, 'vip'))).toBe('I am a trade customer');
+    expect(labelOf(host, attributeInput(host, 'company'))).toBe('Company');
+    expect(labelOf(host, attributeInput(host, 'age'))).toContain('Age');
+    expect(labelOf(host, attributeInput(host, 'born'))).toBe('born');
+    expect(attributeInput(host, 'age')?.getAttribute('placeholder')).toBe('Your age');
+    // A box has no placeholder.
+    expect(attributeInput(host, 'vip')?.hasAttribute('placeholder')).toBe(false);
+  });
+
+  it('marks a required attribute required, with a visible marker', () => {
+    const host = serverDom({ ...PROPS, attributes: ATTRIBUTES });
+    const age = attributeInput(host, 'age')!;
+    expect(age.required).toBe(true);
+    expect(host.querySelector(`label[for="${age.id}"] .cmsc-pb-signup__required`)).not.toBeNull();
+    expect(attributeInput(host, 'company')!.required).toBe(false);
+  });
+
+  it('describes every attribute in a hidden attrSpec the handler reads', () => {
+    const host = serverDom({ ...PROPS, attributes: ATTRIBUTES });
+    const specs = [...host.querySelectorAll<HTMLInputElement>('input[type="hidden"][name="attrSpec"]')].map((input) => input.value);
+    expect(specs).toEqual(['vip|boolean|0', 'age|number|1', 'born|date|0', 'company|text|0']);
+  });
+
+  it('skips an attribute with an invalid key or type, and offers at most 10', () => {
+    const host = serverDom({
+      ...PROPS,
+      attributes: [{ key: 'Bad Key', type: 'text' }, { key: 'colour', type: 'color' }, {}, { key: 'ok', type: 'text' }],
+    });
+    expect([...host.querySelectorAll<HTMLInputElement>('input[name="attrSpec"]')].map((input) => input.value)).toEqual(['ok|text|0']);
+    const many = serverDom({ ...PROPS, attributes: Array.from({ length: 12 }, (_, i) => ({ key: `f${i}`, type: 'text' })) });
+    expect(many.querySelectorAll('input[name="attrSpec"]')).toHaveLength(10);
+  });
+
+  it('with JavaScript, a required attribute left empty is refused with the fields message, before posting', async () => {
+    const host = clientDom({ ...PROPS, attributes: ATTRIBUTES, messages: { fields: 'Fill in the marked fields.' } });
+    type(emailInput(host), 'buyer@example.com');
+    act(() => consentInput(host).click());
+    await submit(host);
+    expect(fetchMock).not.toHaveBeenCalled();
+    const age = attributeInput(host, 'age')!;
+    expect(age.getAttribute('aria-invalid')).toBe('true');
+    expect(host.querySelector(`[id="${age.getAttribute('aria-describedby')}"]`)?.textContent).toBe('Fill in the marked fields.');
+    expect(emailInput(host).value).toBe('buyer@example.com');
+  });
+
+  it('a required box must be ticked', async () => {
+    const host = clientDom({ ...PROPS, attributes: [{ key: 'vip', type: 'boolean', required: true }] });
+    type(emailInput(host), 'buyer@example.com');
+    act(() => consentInput(host).click());
+    await submit(host);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(attributeInput(host, 'vip')!.getAttribute('aria-invalid')).toBe('true');
+  });
+
+  it('posts the attributes with the form once they are filled in', async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ status: 'pending' }), { status: 200 }));
+    const host = clientDom({ ...PROPS, attributes: ATTRIBUTES });
+    type(emailInput(host), 'buyer@example.com');
+    type(attributeInput(host, 'age')!, '42');
+    act(() => consentInput(host).click());
+    await submit(host);
+    const body = (fetchMock.mock.calls[0] as [string, RequestInit])[1].body as FormData;
+    expect(body.get('attr.age')).toBe('42');
+    expect(body.getAll('attrSpec')).toHaveLength(4);
+  });
+
+  it('the fields message: the block’s own, else the page language’s, else English', () => {
+    const location = { path: '/landing', query: { newsletter: 'error', reason: 'fields' } };
+    const message = (host: HTMLElement): string | undefined =>
+      host.querySelector('.cmsc-pb-signup__attributes .cmsc-pb-signup__error')?.textContent ?? undefined;
+    expect(message(serverDom({ ...PROPS, attributes: ATTRIBUTES, messages: { fields: 'Own text.' } }, location))).toBe('Own text.');
+    const translated = document.createElement('div');
+    translated.innerHTML = renderToString(
+      <CmsRenderProvider embeds={{ blocks: {}, templates: {} }} location={location} newsletterSignupText={{ fields: 'Uzupełnij pola.' }}>
+        <Render
+          config={config}
+          data={{ root: { props: {} }, content: [{ type: 'newsletter.Signup', props: { ...defaults, id: 's', ...PROPS, attributes: ATTRIBUTES } }] as Data['content'] }}
+        />
+      </CmsRenderProvider>,
+    );
+    expect(message(translated)).toBe('Uzupełnij pola.');
+    expect(message(serverDom({ ...PROPS, attributes: ATTRIBUTES }, location))).toBe('Please fill in the required fields.');
+  });
+
+  it('keeps today’s defaults: a new block carries no attributes and no fields message', () => {
+    expect(defaults).not.toHaveProperty('attributes');
+    expect(defaults['messages']).not.toHaveProperty('fields');
+  });
+});
+
+type FieldShape = {
+  type: string;
+  max?: number;
+  options?: Array<{ value: string }>;
+  arrayFields?: Record<string, FieldShape>;
+  objectFields?: Record<string, FieldShape>;
+  getItemSummary?: (item: Record<string, unknown>, index?: number) => string;
+};
+
+describe('newsletter.Signup attribute fields (feature 169, T177)', () => {
+  const block = config.components['newsletter.Signup']!;
+  const fields = block.fields as unknown as Record<string, FieldShape>;
+
+  async function resolved(props: Record<string, unknown>): Promise<Record<string, FieldShape>> {
+    return (await block.resolveFields!({ props: { id: 'x', ...defaults, ...props } } as never, {
+      changed: {},
+      fields: block.fields,
+      lastFields: block.fields,
+      lastData: null,
+      metadata: {},
+      appState: {},
+      parent: null,
+    } as never)) as unknown as Record<string, FieldShape>;
+  }
+
+  it('declares the attributes as an array of at most 10, after the topics and before the consent', () => {
+    const attributes = fields['attributes']!;
+    expect(attributes.type).toBe('array');
+    expect(attributes.max).toBe(10);
+    const keys = Object.keys(fields);
+    expect(keys.indexOf('attributes')).toBeGreaterThan(keys.indexOf('topicsRequired'));
+    expect(keys.indexOf('attributes')).toBeLessThan(keys.indexOf('consentLabel'));
+  });
+
+  it('the package’s own item fields: the key as text and the type as a select, then label, placeholder and a required switch', () => {
+    const item = fields['attributes']!.arrayFields!;
+    expect(Object.keys(item)).toEqual(['key', 'type', 'label', 'placeholder', 'required']);
+    expect(item['key']!.type).toBe('text');
+    expect(item['type']!.type).toBe('select');
+    expect(item['type']!.options!.map((option) => option.value)).toEqual(['text', 'number', 'boolean', 'date']);
+    expect(item['label']!.type).toBe('text');
+    expect(item['required']!.type).toBe('custom');
+  });
+
+  it('names an item by its label, else the field’s label, else its key', () => {
+    const summary = fields['attributes']!.getItemSummary!;
+    expect(summary({ key: 'company', label: 'Company' })).toBe('Company');
+    expect(summary({ key: 'company', fieldLabel: 'Company name' })).toBe('Company name');
+    expect(summary({ key: 'company' })).toBe('company');
+    expect(summary({})).toBe('Attribute');
+  });
+
+  it('hides the placeholder of a box', async () => {
+    const placeholder = fields['attributes']!.arrayFields!['placeholder']!;
+    expect(placeholder.type).toBe('custom');
+    const { attributePlaceholderApplies } = await import('./NewsletterSignupForm.js');
+    expect(attributePlaceholderApplies({ attributes: [{ type: 'boolean' }, { type: 'text' }] }, 'attributes[0].placeholder')).toBe(false);
+    expect(attributePlaceholderApplies({ attributes: [{ type: 'boolean' }, { type: 'text' }] }, 'attributes[1].placeholder')).toBe(true);
+    expect(attributePlaceholderApplies({ attributes: [{}] }, 'attributes[0].placeholder')).toBe(true);
+  });
+
+  it('shows the fields message only with attributes, the same field objects each time', async () => {
+    const without = await resolved({ attributes: [] });
+    expect(Object.keys(without['messages']!.objectFields!)).not.toContain('fields');
+    const withAttributes = await resolved({ attributes: [{ key: 'vip', type: 'boolean' }] });
+    expect(Object.keys(withAttributes['messages']!.objectFields!)).toContain('fields');
+    expect((await resolved({ attributes: [{ key: 'vip', type: 'boolean' }] }))['messages']).toBe(withAttributes['messages']);
+    expect((await resolved({}))['messages']).toBe(without['messages']);
+    expect(withAttributes['attributes']).toBe(fields['attributes']);
+  });
+});

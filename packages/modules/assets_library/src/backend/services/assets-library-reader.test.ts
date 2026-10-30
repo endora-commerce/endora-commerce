@@ -133,7 +133,7 @@ describe('AssetsLibraryService.moveMany — a hidden id is skipped like a missin
 describe('AssetsLibraryService.setPermalink — a hidden holder is not named (R-11)', () => {
   const commandBus = {
     run: async ({ run }: { run: (ctx: { em: unknown }) => Promise<{ result: Asset }> }) => (await run({ em: emRef })).result,
-  } as unknown as AssetsLibraryServiceDeps['commandBus'];
+  } as unknown as NonNullable<AssetsLibraryServiceDeps['commandBus']>;
   let emRef: ReturnType<typeof fakeEm>;
 
   it.each([

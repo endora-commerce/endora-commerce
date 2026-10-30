@@ -8,8 +8,8 @@ import { manifest as blogManifest } from '@endora-commerce/mod-blog';
 import { manifest as catalogManifest } from '@endora-commerce/mod-catalog';
 import { manifest as cmsManifest } from '@endora-commerce/mod-cms';
 import { manifest as newsletterManifest } from '@endora-commerce/mod-newsletter';
-import { TranslationProvider } from '../../../../packages/admin-shell/src/i18n/TranslationProvider';
-import type { Bundle } from '../../../../packages/admin-shell/src/i18n/types';
+import { TranslationProvider } from '@endora-commerce/admin-kit/i18n';
+import type { Bundle } from '@endora-commerce/admin-kit/i18n';
 import { PageBuilderEditor } from '../../../../packages/modules/cms/src/admin/components/PageBuilderEditor';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 

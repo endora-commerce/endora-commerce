@@ -75,5 +75,16 @@
   "blocks.signup.fields.messages.fields.email.label": "Invalid email address",
   "blocks.signup.fields.messages.fields.topics.label": "No topic chosen",
   "blocks.signup.fields.messages.fields.unavailable.label": "Sign-up unavailable",
-  "blocks.signup.fields.buttonIcon.label": "Button icon"
+  "blocks.signup.fields.buttonIcon.label": "Button icon",
+  "blocks.signup.fields.attributes.label": "Subscriber attributes",
+  "blocks.signup.fields.attributes.fields.key.label": "Custom field",
+  "blocks.signup.fields.attributes.fields.type.label": "Type",
+  "blocks.signup.fields.attributes.fields.type.options.text": "Text",
+  "blocks.signup.fields.attributes.fields.type.options.number": "Number",
+  "blocks.signup.fields.attributes.fields.type.options.boolean": "Yes / no",
+  "blocks.signup.fields.attributes.fields.type.options.date": "Date",
+  "blocks.signup.fields.attributes.fields.label.label": "Label",
+  "blocks.signup.fields.attributes.fields.placeholder.label": "Placeholder",
+  "blocks.signup.fields.attributes.fields.required.label": "Required",
+  "blocks.signup.fields.messages.fields.fields.label": "Required field missing"
 }

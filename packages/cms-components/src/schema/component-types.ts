@@ -767,6 +767,10 @@ export interface DownloadTileProps extends HideOnProps {
   linkLook?: 'label' | 'icon';
   /** R22I (T382): with the icon look, the button's glyph from the icon catalog; unset or unknown, today's (a download, an arrow for a link). */
   iconButtonIcon?: string;
+  /** Feature 169 (US4): with the icon look, the button's size preset — S today's 48 px, M 72 px, L 112 px; unset is today's. */
+  iconButtonSize?: 's' | 'm' | 'l';
+  /** Feature 169 (US4): with the icon look, today's outline ring or a filled disc with the glyph in the card's background. */
+  iconButtonStyle?: 'outline' | 'filled';
   /** R20E (T303): `link` links the tile to `link` (a page, product, category, URL…) instead of a file; unset is a file. */
   linkTo?: 'file' | 'link';
   /** R20E (T303): the tile's link with `linkTo: 'link'`. */
@@ -814,6 +818,31 @@ export interface TabsProps extends HideOnProps, BoxStyleProps {
   barOverflow?: 'wrap' | 'scroll';
   /** T163: the tab size per breakpoint; unset reads `tabStyle.size` (T132), else today's medium. */
   tabSize?: TabSize | ResponsiveProp<TabSize>;
+}
+
+/** Feature 169 (US5): one link of `cms.PageNavigation`. */
+export interface PageNavigationItem {
+  /** The link text. Translatable; empty or over 80 characters: the item is not rendered. */
+  label?: string;
+  /** A same-page element id (`SECTION_ANCHOR_RE`), stored without `#`; outside the grammar: not rendered. */
+  anchor?: string;
+}
+
+/** Feature 169 (US5): the page navigation's two looks. */
+export type PageNavigationLook = 'pill' | 'underline';
+
+/** Feature 169 (US5, `specs/169-page-builder-contact-form/` data-model §2): links to sections of the same page. */
+export interface PageNavigationProps extends HideOnProps, BoxStyleProps {
+  /** At most 20 rendered; an invalid item is skipped, not the block. */
+  items?: PageNavigationItem[];
+  /** The nav's accessible name. Translatable. Unset: the render context's text, else "On this page". */
+  label?: string;
+  /** Unset: `pill`. */
+  look?: PageNavigationLook;
+  /** Unset: false. */
+  sticky?: boolean;
+  /** Unset: `start`. Per breakpoint. */
+  align?: BlockAlign | ResponsiveProp<BlockAlign>;
 }
 
 /** Feature 163, T132/T163: a tab's size — small, medium (today) or large. */
@@ -896,7 +925,8 @@ export type AccordionIcon = 'plus' | 'chevron';
 export type AccordionDividerPosition = 'item' | 'title';
 export type AccordionIconSize = 's' | 'm' | 'l' | 'custom';
 export type AccordionDividers = 'none' | 'between' | 'all';
-export type AccordionItemStyle = 'plain' | 'boxed';
+/** Feature 169 (US3): `filled` draws each title bar on the scheme's surface tint. */
+export type AccordionItemStyle = 'plain' | 'boxed' | 'filled';
 
 export type ProductSource = 'manual' | 'category' | 'query';
 
@@ -1827,6 +1857,25 @@ export interface NewsletterSignupTopic {
   tagCode?: string;
 }
 
+/**
+ * Feature 169 (US7, FR-025, data-model §4): one subscriber attribute of
+ * `newsletter.Signup` — a newsletter custom field shown in the form.
+ */
+export interface NewsletterSignupAttribute {
+  /** A newsletter custom field key (`^[a-z][a-z0-9_]*$`, ≤ 64), picked in the editor. */
+  key?: string;
+  /** Snapshot of the field's type at pick time (types are immutable in the newsletter module). */
+  type?: 'text' | 'number' | 'boolean' | 'date';
+  /** Translatable. Unset: the field's own label as picked (`fieldLabel`), else the key. */
+  label?: string;
+  /** Snapshot of the field's own label, the fallback for `label`. */
+  fieldLabel?: string;
+  /** Translatable; ignored for a boolean. */
+  placeholder?: string;
+  /** A boolean must be ticked; any other must be filled in. Unset: false. */
+  required?: boolean;
+}
+
 /** The messages `newsletter.Signup` shows for each outcome of a sign-up. */
 export interface NewsletterSignupMessages {
   pending?: string;
@@ -1835,6 +1884,8 @@ export interface NewsletterSignupMessages {
   email?: string;
   topics?: string;
   unavailable?: string;
+  /** Feature 169: a required attribute left empty. Unset: the page language's text, else English. */
+  fields?: string;
 }
 
 /**
@@ -1857,6 +1908,8 @@ export interface NewsletterSignupFormProps extends HideOnProps {
   consentLabel?: InlineRichText | string;
   layout?: 'inline' | 'boxed';
   messages?: NewsletterSignupMessages;
+  /** Feature 169 (FR-025): 0–10 subscriber attributes, after the e-mail field and before the topics. */
+  attributes?: NewsletterSignupAttribute[];
   /** R19B (T252): the button beside the field (unset, today's) or inside it. */
   buttonPlacement?: 'beside' | 'inside';
   /** R19B (T252): with the button inside, the field's box rounded (unset) or a pill. */
@@ -1879,4 +1932,72 @@ export interface ContactFormEmbedProps extends HideOnProps, BoxStyleProps {
   embedUrl?: string;
   mailto?: string;
   heightPx?: number;
+}
+
+// ── cms.ContactForm (feature 169, `specs/169-page-builder-contact-form/` data-model §3) ──
+
+/** The fields the server knows, in render order. */
+export type ContactFormFieldKey = 'name' | 'email' | 'phone' | 'company' | 'subject' | 'choice' | 'message';
+
+/** One field's settings. Every one optional; unset reads as the defaults below. */
+export interface ContactFormFieldConfig {
+  /** Ignored for `email` and `message` (always shown). Unset: shown for `name`, hidden for the rest. */
+  show?: boolean;
+  /** Translatable. Unset: the page language's default label. */
+  label?: string;
+  /** Translatable. Unset: none (the label, when labels are hidden). */
+  placeholder?: string;
+  /** Ignored for `email` and `message` (always required). Unset: false. */
+  required?: boolean;
+  /** With two columns. Unset: `half`, `full` for the message. */
+  span?: 'half' | 'full';
+}
+
+/** The select: its options are sent as their labels. */
+export interface ContactFormChoiceConfig extends ContactFormFieldConfig {
+  /** 1–30 options. Translatable. */
+  options?: Array<{ label?: string }>;
+}
+
+export interface ContactFormConsentConfig {
+  /** Inline rich text that may hold a link. Translatable. Unset: the page language's plain default. */
+  label?: InlineRichText | string;
+}
+
+export interface ContactFormMessages {
+  /** Translatable. Unset: the page language's defaults. */
+  success?: string;
+  /** A refused submission. */
+  error?: string;
+  /** Not configured, rate limited or the server is down. */
+  unavailable?: string;
+}
+
+export interface ContactFormProps extends HideOnProps, BoxStyleProps {
+  fields?: {
+    name?: ContactFormFieldConfig;
+    email?: ContactFormFieldConfig;
+    phone?: ContactFormFieldConfig;
+    company?: ContactFormFieldConfig;
+    subject?: ContactFormFieldConfig;
+    choice?: ContactFormChoiceConfig;
+    message?: ContactFormFieldConfig;
+  };
+  /** Always shown and required. */
+  privacyConsent?: ContactFormConsentConfig;
+  /** Hidden unless `show`; never required. */
+  marketingConsent?: ContactFormConsentConfig & { show?: boolean };
+  /** Unset: 1. */
+  columns?: 1 | 2;
+  /** Unset: `boxed`. */
+  fieldLook?: 'boxed' | 'underline' | 'pill';
+  /** Unset: `above`. `hidden` keeps the label for assistive technology. */
+  labelPosition?: 'above' | 'hidden';
+  /** The submit button's look: a `ButtonSpec` without a link. Unset label: the page language's. */
+  button?: Partial<Omit<ButtonSpec, 'link'>>;
+  /** Unset: `start`; `stretch` is a full-width button. */
+  buttonAlign?: 'start' | 'center' | 'end' | 'stretch';
+  messages?: ContactFormMessages;
+  /** The form's accessible name. Translatable. Unset: the page language's. */
+  formLabel?: string;
 }

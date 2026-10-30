@@ -77,9 +77,12 @@ import {
 } from '../../../scripts/check-entry-scope.js';
 import {
   findPlaceholderSentences,
+  findUnraisedCodes,
   findUnreachableSentences,
   findUntranslatedErrorCodes,
+  findUntranslatedTokens,
   nonDeclaringModules,
+  readRaiseSites,
   reconcileEnumeration,
   type TranslationInput,
 } from '../../../scripts/check-error-translations.js';
@@ -279,6 +282,7 @@ import {
 import {
   adminHostFilesWalked,
   adminPopulationLost,
+  adminRegistryLayersWalked,
   analyzeSource as moduleBoundaryAnalyze,
   checkModuleBoundary,
   findCrossModuleSql,
@@ -329,7 +333,9 @@ import {
   applicationReachRefusal,
   checkApplicationReaches,
   checkPlatformSurface,
+  checkSharedNames,
   platformSurfaceRefusal,
+  sharedNameRefusal,
   type ApplicationReachInput,
   type PlatformSurfaceFindingKind,
   type PlatformSurfaceInput,
@@ -627,6 +633,27 @@ function platformSurfaceInput(sources: Record<string, string>): PlatformSurfaceI
   };
 }
 
+/**
+ * Issue #84's input: one platform barrel (the text under test), the file it may
+ * re-export from, and a contracts module declaring the same name.
+ */
+function sharedNameInput(barrel: string) {
+  const platform: Record<string, string> = {
+    'packages/platform/src/kernel/index.ts': barrel,
+    'packages/platform/src/kernel/logger.ts': 'export interface Logger { info(m: string): void }',
+  };
+  return {
+    barrels: ['packages/platform/src/kernel/index.ts'],
+    platformSource: (key: string) => platform[key],
+    dependencies: new Map([
+      [
+        '@endora-commerce/contracts',
+        new Map([['packages/contracts/src/modules.ts', 'export interface Logger { info(m: string): void }']]),
+      ],
+    ]),
+  };
+}
+
 /** Findings of exactly one kind, so no signal goes blind behind another's red. */
 function platformSurfaceFindings(
   sources: Record<string, string>,
@@ -759,11 +786,16 @@ const READS_DATABASE_URL = "const url = process.env['DATABASE_URL'];\n";
  * finding. Both members are built from one map, so the proof cannot describe a
  * tree where P1's reader and P2's walk disagree.
  */
-function errorSentenceTree(bundles: Record<string, Record<string, string>>): TranslationInput {
+function errorSentenceTree(
+  bundles: Record<string, Record<string, string>>,
+  source = "throw new HttpError(404, ERROR_CODES.BLOG_POST_NOT_FOUND, 'No such post.');",
+): TranslationInput {
   return {
     keys: { BLOG_POST_NOT_FOUND: { moduleId: 'cms', key: 'errors.BLOG_POST_NOT_FOUND' } },
     collisions: [],
     enumeratedCodes: ['BLOG_POST_NOT_FOUND'],
+    declaredTokens: {},
+    listSources: () => [{ path: 'blog/src/backend/service.ts', text: source }],
     readBundle: (moduleId, language) => bundles[`${moduleId}.${language}`] ?? {},
     listBundleKeys: () =>
       Object.entries(bundles).flatMap(([slot, bundle]) => {
@@ -5965,6 +5997,45 @@ const CHECKS: readonly CheckEntry[] = [
             errorSentenceTree({ 'blog.en': { 'errors.COUPON_EXPIRED': 'It expired.' } }),
           ).filter((f) => f.kind === 'no-code').length,
       ),
+      // Issue #83, slice 1: a key under `errors.` the grammar cannot parse.
+      // Every predicate used to `continue` past it, so a sentence filed under a
+      // mis-cased code was neither accepted nor reported.
+      'sentence-key-malformed': top(
+        () =>
+          findUnreachableSentences(
+            errorSentenceTree({ 'cms.en': { 'errors.blogPostNotFound': 'No such post.' } }),
+          ).filter((f) => f.kind === 'malformed-key').length,
+      ),
+      // Issue #83, slice 2 (P6): a token a code is raised with, with no
+      // `errors.<CODE>.<token>` sentence. The fixture enters as source text, so
+      // the raise-site read is inside the proof rather than handed to it.
+      'token-untranslated': top(() => {
+        const tree = errorSentenceTree(
+          {
+            'cms.en': { 'errors.BLOG_POST_NOT_FOUND': 'No such post.' },
+            'cms.pl': { 'errors.BLOG_POST_NOT_FOUND': 'Nie ma takiego wpisu.' },
+          },
+          "throw new HttpError(404, ERROR_CODES.BLOG_POST_NOT_FOUND, 'Gone.', { code: 'archived' });",
+        );
+        return findUntranslatedTokens(
+          tree,
+          readRaiseSites(tree.listSources(), new Set(Object.keys(tree.keys))),
+        ).filter((f) => f.token === 'archived').length;
+      }),
+      // Issue #83, slice 3 (P7): a declared code no source file names.
+      'code-unraised': top(() => {
+        const tree = errorSentenceTree(
+          {
+            'cms.en': { 'errors.BLOG_POST_NOT_FOUND': 'No such post.' },
+            'cms.pl': { 'errors.BLOG_POST_NOT_FOUND': 'Nie ma takiego wpisu.' },
+          },
+          '// BLOG_POST_NOT_FOUND is only mentioned in this comment.\nexport {};',
+        );
+        return findUnraisedCodes(
+          tree,
+          readRaiseSites(tree.listSources(), new Set(Object.keys(tree.keys))),
+        ).length;
+      }),
       // P5 (issue #441): a translation that is not a sentence in its own
       // language. P1 counts any string as translated, which is how 137 Polish
       // `Błąd: <code, lowercased>.` placeholders read as finished work. One
@@ -7248,6 +7319,40 @@ const CHECKS: readonly CheckEntry[] = [
           ? 1
           : 0,
       ),
+      // Issue #88. The module walk's `.tsx` files had no floor of their own:
+      // with `'.tsx'` dropped from `collectModuleFiles`, every token held and the
+      // run was red only through three ledger entries going stale. The author
+      // here is the generated admin registry, entering as source text with the
+      // index it names, and the proof is the probe itself — a walk that opened
+      // the index and not the screen it lazily imports — paired with the walk
+      // that opened both.
+      'short-admin-registry-walk-refuses': top(() => {
+        const files: Record<string, string> = {
+          'packages/modules/blog/src/admin/index.ts':
+            "export const contributions = { component: () => import('./pages/BlogPage.js') };",
+          'packages/modules/blog/src/admin/pages/BlogPage.tsx': 'export default 1;',
+        };
+        const walked = (keys: readonly string[]) =>
+          adminRegistryLayersWalked({
+            registry: "import { contributions } from '@endora-commerce/mod-blog/admin';",
+            registryKey: 'admin/src/modules.generated.ts',
+            packageDirectoryOf: () => 'packages/modules/blog',
+            readText: (key) => files[key] ?? null,
+            walked: new Set(keys),
+          });
+        const short = walked(['packages/modules/blog/src/admin/index.ts']);
+        const read = {
+          moduleFiles: ['modules/orders/a.ts'],
+          registeredModules: ['orders'],
+          ledgerDirectoryExists: true,
+          entityTables: 220,
+          migrationTables: 241,
+        };
+        return moduleBoundaryVacuous({ ...read, adminRegistryMissing: short.missing }) !== null &&
+          walked(Object.keys(files)).missing.length === 0
+          ? 1
+          : 0;
+      }),
     },
   },
   {
@@ -8009,6 +8114,34 @@ const CHECKS: readonly CheckEntry[] = [
         }) === null
           ? 0
           : 1,
+      ),
+      // Issue #84 — a published name a dependency of the platform exports too
+      // must be that dependency's own declaration. Each fixture enters as
+      // source text for both packages, so the follower deciding which
+      // declaration a barrel name is runs every time.
+      'shared-name-collision': top(
+        () =>
+          checkSharedNames(sharedNameInput("export type { Logger } from './logger.js';"), {})
+            .violations.filter((finding) => finding.kind === 'shared-name-collision').length,
+      ),
+      'shared-name-unresolved': top(
+        () =>
+          checkSharedNames(sharedNameInput("export type { Logger } from './gone.js';"), {
+            Logger: { reason: 'an unread name is never ledgerable' },
+          }).violations.filter((finding) => finding.kind === 'shared-name-unresolved').length,
+      ),
+      'stale-shared-name-key': top(
+        () =>
+          checkSharedNames(
+            sharedNameInput("export type { Logger } from '@endora-commerce/contracts';"),
+            { Logger: { reason: 'it is the same declaration now' } },
+          ).staleKeys.length,
+      ),
+      'no-dependency-to-compare': top(() =>
+        sharedNameRefusal({ dependencies: new Map() }) !== null &&
+        sharedNameRefusal({ dependencies: sharedNameInput('').dependencies }) === null
+          ? 1
+          : 0,
       ),
     },
   },
@@ -10451,7 +10584,7 @@ const CHECKS: readonly CheckEntry[] = [
     job: 'quality',
     companionTest: 'backend/test/unit/scripts/i18n-hardcoded-strings.test.ts',
     vacuousGuard: 'exit-2',
-    // Walks the admin SPA.
+    // Walks the admin SPA, and since issue #85 the storefront.
     readSize: 'reported',
     residueGuard: 'not-a-module-walk',
     red: {
@@ -10468,6 +10601,19 @@ const CHECKS: readonly CheckEntry[] = [
             'export const A = () => <input placeholder="Search orders" />;\n',
             '/repo/admin/src/a.tsx',
           ).filter((f) => f.kind === 'jsx-attr').length,
+      ),
+      // Issue #85's storefront shape: a Polish literal outside JSX text and
+      // outside a per-language structure. The fixture carries the catalogue's
+      // shape beside it, so a predicate that flagged every diacritic — or none —
+      // reads as something other than exactly 1.
+      'polish-literal': top(
+        () =>
+          hardcodedAnalyze(
+            "export const M = { 'en-US': { a: 'Reject' }, 'pl-PL': { a: 'Odrzuć' } };\n" +
+              "export const label = 'Złóż zamówienie';\n",
+            '/repo/storefront/lib/a.ts',
+            { polishLiterals: true },
+          ).filter((f) => f.kind === 'polish-literal').length,
       ),
       // The `module-admin` floor, counted as a refusal rather than a finding —
       // `bundlePairingReadRefusals`' shape. It refuses two ways and both are
@@ -11634,7 +11780,11 @@ describe('every red proof enters at the top of the analysis', () => {
       // neither could go red for what a translation says.
       // Plus issue #486's one: `placeholder` in the reference language, whose
       // Title-Case shape the case-insensitive non-English rule never reaches.
-      'backend/scripts/check-error-translations.ts': 12,
+      // Plus issue #83's three: P2's `malformed-key`, P6's untranslated token
+      // and P7's unraised code. Each reads something the other predicates
+      // never open — a key the grammar refuses, a raise's `details.code`, the
+      // source tree — so none of the twelve above could go red for them.
+      'backend/scripts/check-error-translations.ts': 15,
       // Three shapes the read reaches the fallback through, four fabrications
       // the fallback performs; the two axes are independent, so the count is
       // their union rather than their product. Plus issue #275's five: three
@@ -11696,7 +11846,8 @@ describe('every red proof enters at the top of the analysis', () => {
       // apart, and the four refusals. `declared-write-still-fails` is the one to
       // read: if it goes green on an R1-only implementation, R2 was folded into
       // R1 and the clause R1 cannot state was lost.
-      'backend/scripts/check-module-boundary.ts': 74,
+      // Plus issue #88's admin-registry floor (`short-admin-registry-walk-refuses`).
+      'backend/scripts/check-module-boundary.ts': 75,
       // Seven findings, both stale directions of the ledgers that carry one, and
       // the discrimination `undocumented-module` turns on: `docs: false` is a
       // decision and an absent declaration is not, one field apart, and
@@ -11803,7 +11954,12 @@ describe('every red proof enters at the top of the analysis', () => {
       // empty canonical-target map reports every relative reach as reaching
       // nothing, and an application walk that opened no file reports no reach
       // at all, while the module half keeps printing a healthy `files=`.
-      'backend/scripts/check-platform-surface.ts': 14,
+      //
+      // Plus issue #84's four: a published name a platform dependency declares
+      // differently, one the follower could not trace (never ledgerable), the
+      // shared-name ledger's stale direction, and the refusal of a run with no
+      // dependency to compare against.
+      'backend/scripts/check-platform-surface.ts': 18,
       // Plus D-171.1's two: the condition consumer-side declaration is
       // licensed against, and the discrimination that keeps it from firing on
       // the correct case. The second is a proof of its own because a signal
@@ -11937,8 +12093,9 @@ describe('every red proof enters at the top of the analysis', () => {
       'backend/scripts/check-transaction-context.ts': 5,
       // Two finding kinds, plus the `module-admin` floor's refusal — the third
       // root family's only independent author, added when feature 091's drain
-      // made 357 of this walk's 422 files corroborated by nothing.
-      'backend/scripts/i18n-hardcoded-strings.ts': 3,
+      // made 357 of this walk's 422 files corroborated by nothing — plus the
+      // storefront's `polish-literal` shape (issue #85).
+      'backend/scripts/i18n-hardcoded-strings.ts': 4,
       // Four rules, the fifth (migration class scope) that reads the
       // filesystem, and issue #244's short listing — the shape every one of
       // this script's other floors is green on. Plus feature 080's three for
@@ -12556,6 +12713,14 @@ describe('the endora check estate holds every rule this inventory names', () => 
 
     expect(signals.includes('application-host-reach')).toBe(
       typeof rulePlatformSurface.scanApplicationReaches === 'function',
+    );
+  });
+
+  it('declares the shared-name half vacuous exactly while the analysis has one (issue #84)', () => {
+    const platformSurface = ESTATE.filter((row) => row.id === 'check:platform-surface');
+    const signals = platformSurface.flatMap((row) => row.partial ?? []).map((one) => one.signal);
+    expect(signals.includes('shared-published-name')).toBe(
+      typeof rulePlatformSurface.scanSharedNames === 'function',
     );
   });
 

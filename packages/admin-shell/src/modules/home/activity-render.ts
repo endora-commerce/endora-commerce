@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { resolveIcon } from '../../lib/admin-actions/icon-map.js';
+import { resolveIcon } from '@endora-commerce/admin-kit/lib';
 
 /**
  * Feature 024, rewritten by feature 080's T042j (D-163.1).

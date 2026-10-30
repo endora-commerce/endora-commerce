@@ -2,7 +2,7 @@ import type {
   FederatedSignInOptionsResponse,
   StorefrontModulePresenceResponse,
 } from '@endora-commerce/contracts';
-import { apiClient } from '../api-client.js';
+import { apiClient } from '@endora-commerce/admin-kit/lib';
 import type { FederatedProvider } from './resolve.js';
 
 /**

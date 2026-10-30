@@ -75,7 +75,7 @@ describe('ChallengeStore', () => {
       salesChannelId: null,
     });
     const taken = await Promise.all(Array.from({ length: 30 }, () => store.takeAttempt(id)));
-    expect(taken.filter((remaining) => remaining >= 0)).toHaveLength(5);
+    expect(taken.filter((remaining) => remaining !== null && remaining >= 0)).toHaveLength(5);
   });
 
   it('answers null, not "none left", for a challenge that is no longer there', async () => {

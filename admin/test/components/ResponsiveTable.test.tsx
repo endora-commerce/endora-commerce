@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { ResponsiveTable, type ResponsiveColumn } from '../../../packages/admin-shell/src/components/ResponsiveTable';
+import { ResponsiveTable, type ResponsiveColumn } from '@endora-commerce/admin-kit/components';
 import { setMobileViewport } from '../setup';
 
 interface Row {

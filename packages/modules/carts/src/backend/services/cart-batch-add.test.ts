@@ -10,6 +10,7 @@ import {
   type CatalogProductReadPort,
   type CatalogProductRecord,
   type LinePricePort,
+  type LinePricesPort,
   type OrganizationDetailsPort,
   type ProductDisplayModePort,
 } from '@endora-commerce/contracts';
@@ -99,7 +100,11 @@ const UNITS: CatalogPackagingUnitRecord[] = [
     nameTranslations: { 'pl-PL': 'Paleta' },
     baseQuantity: 64,
     minOrderUnits: 2,
-  } as CatalogPackagingUnitRecord,
+    position: 0,
+    isDefault: false,
+    createdAt: new Date(0),
+    updatedAt: new Date(0),
+  },
 ];
 
 // ── the rig ─────────────────────────────────────────────────────────────────
@@ -120,6 +125,8 @@ interface Rig {
     listPackagingUnitsByProductIds: ReturnType<typeof vi.fn>;
   };
   audits: unknown[];
+  availability: CatalogProductAvailabilityPort;
+  channelReads: { getById: ReturnType<typeof vi.fn> };
 }
 
 function rig(

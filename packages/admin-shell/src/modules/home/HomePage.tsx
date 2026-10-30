@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { CircleDollarSign, FileText, Plus, Upload, type LucideIcon } from 'lucide-react';
-import { ApiError, apiClient } from '../../lib/api-client.js';
-import { useAuth } from '../../lib/auth.js';
-import { useSurfaceVisibility, type GatedSurface } from '../../lib/surface-visibility.js';
-import { useTranslation } from '../../i18n/useTranslation.js';
+import {
+  ApiError,
+  apiClient,
+  useAuth,
+  useSurfaceVisibility,
+  type GatedSurface,
+} from '@endora-commerce/admin-kit/lib';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { RecentActivityCard } from './RecentActivityCard.js';
 
 /**

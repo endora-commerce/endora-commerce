@@ -30,7 +30,11 @@ it never collides with an external ESP (MailerLite, GetResponse, …).
   `newsletter.confirm_ttl_hours`.
 - **Tags & custom fields** — operator-defined; tags drive campaign targeting and
   automation triggers, custom fields enrich subscribers (set via API, Admin UI,
-  or signup) and feed automation criteria.
+  or signup) and feed automation criteria. A custom-field value is stored only
+  when its key is a defined field **and** the value matches the field's type
+  (yes/no → `true`/`false`, number → a finite number, date → an existing
+  `YYYY-MM-DD` date, text → at most 500 characters; `null` clears the value);
+  anything else is dropped without refusing the request.
 - **Campaign** — a one-off send to `all` / a manual `group` / a `tag` / a
   `tag_list`. Authored in the shared email Page Builder (same palette as
   transactional emails) with subject + Puck content tree + variables; previewed
@@ -132,13 +136,14 @@ any CMS page:
 | --- | --- |
 | Heading, text | An optional heading (with its level) and rich text above the form. |
 | E-mail label, placeholder, button label | The form's own texts. |
-| Topics | Up to 12 checkboxes, each a label and a newsletter **tag code**; the ticked ones are added to the subscriber as tags. **Topics required** asks for at least one. A topic whose tag code is not a valid code is not offered. |
+| Topics | Up to 12 checkboxes, each a label and a newsletter **tag**; the ticked ones are added to the subscriber as tags. In the admin the tag is chosen from the list of existing newsletter tags by name, and the block stores its code. A stored code the list does not hold stays selected; without the list (no `newsletter:read` permission, the module off) the code is typed as text. **Topics required** asks for at least one. A topic whose tag code is not a valid code is not offered. |
+| Subscriber attributes | Up to 10 of the newsletter's **custom fields**, shown after the e-mail field and before the topics. In the admin each is chosen from the existing custom fields, which also records its type and label. A yes/no field is a checkbox; a text, number or date field is the matching input (a text takes at most 500 characters). Each has an optional **label** (else the field's own label), a **placeholder** (not for a yes/no field) and a **Required** switch: a required checkbox must be ticked, any other required field filled in. |
 | Consent label | The text of the consent checkbox, which is always shown and always required. It is inline rich text, so it can link to the privacy policy. |
 | Layout | Inline (field and button on one line) or boxed. |
 | Button placement, field shape | **Beside the field** (default) or **Inside the field**: the e-mail field and the button share one box, **Rounded** (default) or a **Pill**. |
 | Topic columns | The topics as a grid of 1–4 columns; left empty, they flow in one wrapping row. |
 | Hide the email label | Hides the e-mail field's label visually; it stays the field's label, so screen readers still read it. Use a placeholder so sighted visitors know what to type. |
-| Messages | The texts shown after a sign-up: pending confirmation, subscribed, and the refusals (consent missing, invalid e-mail, no topic chosen, service unavailable). |
+| Messages | The texts shown after a sign-up: pending confirmation, subscribed, and the refusals (consent missing, invalid e-mail, no topic chosen, service unavailable, and — with subscriber attributes — a required field missing, which reads the shop's own translated text when left empty). |
 
 Every text is translatable with the Page Builder's **Translate** action. At
 the top level of a page the block also carries the section settings (anchor,
@@ -154,11 +159,16 @@ JavaScript. The handler:
   keeps at most 12 topic codes matching `^[a-z0-9_-]{1,64}$` and drops the
   rest, and accepts only a same-origin path as `returnTo` (anything else
   returns to `/`);
+- reads the subscriber attributes the block describes (at most 10), turns each
+  value into its type — a ticked box is `true`, an unticked one `false`, a
+  number when it is one, a date when it is `YYYY-MM-DD`, a text trimmed to at
+  most 500 characters — and refuses the sign-up with `reason=fields` when a
+  required one is missing;
 - subscribes through the existing `POST /api/v1/newsletter/subscribe` in the
-  request's sales channel, with the ticked topics as `tags` and
-  `source: 'cms-block'`;
+  request's sales channel, with the ticked topics as `tags`, the attributes as
+  `customFields` and `source: 'cms-block'`;
 - without JavaScript, redirects (`303`) back to the page with
-  `?newsletter=pending|active|error&reason=consent|email|topics|unavailable`
+  `?newsletter=pending|active|error&reason=consent|email|topics|fields|unavailable`
   and the section's anchor as the fragment, where the block shows the
   matching message;
 - with JavaScript, the block posts with `Accept: application/json` and gets
@@ -169,7 +179,16 @@ Whether the answer is `pending` or `active` follows the channel's opt-in mode.
 The subscription is recorded as any other: `consentAt` is set, the
 `newsletter_subscribe` audit entry carries `source: 'cms-block'`, so these
 sign-ups can be told apart from the others, and a topic code that matches no
-existing tag is ignored — no tag is created from the storefront.
+existing tag is ignored — no tag is created from the storefront. The module
+checks each attribute value again against its own custom-field definitions and
+keeps only the values whose type matches (see *Tags & custom fields*).
+
+**A row of topic checkboxes.** To offer topics as a row of checkboxes — for
+example in a page footer — create the tags first (**Newsletter → Tags & Fields**), then
+in the block add one topic per tag, give it the visitor-facing label and pick
+its tag. Leave **Topic columns** empty for one wrapping row, or set 2–4 for a
+grid; switch on **Topics required** if a sign-up without a topic should be
+refused.
 
 While the module is switched off, the block is not offered in the palette, a
 stored one renders nothing, and the handler answers `404`.

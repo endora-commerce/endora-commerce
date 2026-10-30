@@ -49,6 +49,7 @@ import {
   applicationReachRefusal,
   checkApplicationReaches,
   checkPlatformSurface,
+  checkSharedNames,
   collectPlatformSurfaceSources as walk,
   hostDependentCoverage,
   hostReachCoverage,
@@ -57,8 +58,11 @@ import {
   platformSurfaceRefusal,
   remedyOf,
   resolveTarget,
+  sharedNameRefusal,
+  sharedNameRemedyOf,
   type LedgeredHostReach,
   type LedgeredReach,
+  type LedgeredSharedName,
   type ModulePackageDeclaration,
 } from '@endora-commerce/cli/rules/platform-surface.js';
 
@@ -72,6 +76,7 @@ import {
 import { requireModuleLayout } from './lib/module-roots.js';
 import { platformSubpathsAt } from './lib/platform-root.js';
 import { reportReadSize } from './lib/read-size.js';
+import { nodeWorkspaceFs, workspaceMembers } from './lib/workspace-packages.js';
 
 export * from '@endora-commerce/cli/rules/platform-surface.js';
 
@@ -558,6 +563,30 @@ export const RELATIVE_HOST_REACHES: Readonly<Record<string, LedgeredHostReach>> 
   },
 };
 
+/**
+ * Names the platform publishes that a workspace package it depends on exports
+ * too, as a **different** declaration (issue #84), keyed by the name.
+ *
+ * Both packages are public, so a consumer importing the name from each gets two
+ * declarations, and `published-surface.test.ts`' `NOT_PUBLISHED` — keyed by name
+ * alone — stops being sound for it. Renaming a published export is a maintainer
+ * decision, so a live collision is held here with its reason rather than renamed
+ * by the change that found it. Two-way: an unledgered collision fails the build
+ * and a key describing none fails it too. A name the check could not follow is
+ * never ledgerable.
+ */
+export const SHARED_PUBLISHED_NAMES: Readonly<Record<string, LedgeredSharedName>> = {
+  AuditLogEntry: {
+    reason:
+      '`@endora-commerce/platform/kernel` publishes `AuditLogEntry` as the MikroORM entity ' +
+      'class of an `audit_logs` row (`kernel/audit/audit-log-entry.entity.ts`), and ' +
+      '`@endora-commerce/contracts` exports `AuditLogEntry` as the API shape inferred from ' +
+      '`auditLogEntrySchema` (`admin.ts`). Two different things under one name, found by the ' +
+      'signal that introduced this ledger (issue #84). Renaming either is a breaking change to ' +
+      'a published export and is a maintainer decision, so it is held here rather than renamed.',
+  },
+};
+
 async function main(): Promise<void> {
   const listMode = process.argv.includes('--list');
   const prefix = '[platform-surface]';
@@ -770,6 +799,52 @@ async function main(): Promise<void> {
   }
   const hostDependents = hostDependentCoverage(declarations, result.hostReachModules);
 
+  // Issue #84 — a name the platform publishes and a workspace package it
+  // depends on exports too. The packages compared are the platform manifest's
+  // own `workspace:` dependencies, so the population is the platform's
+  // statement about itself and no package name is written here (D-100). A
+  // dependency's public modules are its `src` sources: its `exports` map
+  // publishes every one of them (`./*`), and a test file is in none.
+  const members = workspaceMembers(layout.repoRoot, nodeWorkspaceFs());
+  const platformManifest = members.find((member) => member.name === hostName)?.manifest ?? {};
+  const platformDependencies = Object.entries(
+    (platformManifest.dependencies ?? {}) as Record<string, unknown>,
+  )
+    .filter(([, range]) => typeof range === 'string' && range.startsWith('workspace:'))
+    .map(([name]) => name)
+    .sort();
+  const dependencySources = new Map<string, Map<string, string>>();
+  for (const name of platformDependencies) {
+    const member = members.find((candidate) => candidate.name === name);
+    const sourcesOf = new Map<string, string>();
+    if (member !== undefined) {
+      for (const file of walk(join(member.dir, 'src'))) {
+        if (file.endsWith('.tsx')) continue;
+        sourcesOf.set(repoKeyOf(file), readFileSync(file, 'utf8'));
+      }
+    }
+    dependencySources.set(name, sourcesOf);
+  }
+  const sharedRefusal = sharedNameRefusal({ dependencies: dependencySources });
+  if (sharedRefusal !== null) {
+    console.error(`${prefix} ${sharedRefusal}`);
+    process.exit(2);
+  }
+  const shared = checkSharedNames(
+    {
+      barrels: PUBLISHED_SUBPATHS.map((subpath) => repoKeyOf(join(platformRoot, barrelKeyOf(subpath)))),
+      platformSource: (key) => {
+        const absolute = join(layout.repoRoot, key);
+        return key.startsWith(`${repoKeyOf(platformRoot)}/`) && existsSync(absolute)
+          ? readFileSync(absolute, 'utf8')
+          : undefined;
+      },
+      dependencies: dependencySources,
+    },
+    SHARED_PUBLISHED_NAMES,
+  );
+  const dependencyFiles = [...dependencySources.values()].reduce((sum, map) => sum + map.size, 0);
+
   if (listMode) {
     for (const finding of applicationReaches.findings) {
       const tag = RELATIVE_HOST_REACHES[keyOf(finding)] === undefined ? 'HOST    ' : 'LEDGERED';
@@ -807,8 +882,8 @@ async function main(): Promise<void> {
   );
   reportReadSize({
     prefix,
-    files: sources.size + applicationSources.size,
-    sites: result.reaches + applicationReaches.reaches,
+    files: sources.size + applicationSources.size + dependencyFiles + shared.platformFilesOpened,
+    sites: result.reaches + applicationReaches.reaches + shared.sharedNames,
     coverage: [
       coverage,
       {
@@ -818,6 +893,14 @@ async function main(): Promise<void> {
       },
       ...(hostDependents === null ? [] : [hostDependents]),
       ...(hostReaches === null ? [] : [hostReaches]),
+      // Issue #84: the dependencies the platform manifest declares, against the
+      // ones whose public modules this run read a declaration out of. Two
+      // authors — the manifest and the walk.
+      {
+        source: 'platform-dependencies',
+        expected: platformDependencies.length,
+        covered: [...dependencySources.values()].filter((map) => map.size > 0).length,
+      },
     ],
   });
   console.log(
@@ -832,6 +915,12 @@ async function main(): Promise<void> {
       `ledgered=${applicationReaches.ledgered.length} ` +
       `ledger-size=${Object.keys(RELATIVE_HOST_REACHES).length} ` +
       `stale=${applicationReaches.staleKeys.length}`,
+  );
+  console.log(
+    `${prefix} published names a platform dependency exports too=${shared.sharedNames} ` +
+      `same-declaration=${shared.sameDeclaration} violations=${shared.violations.length} ` +
+      `ledgered=${shared.ledgered.length} ` +
+      `ledger-size=${Object.keys(SHARED_PUBLISHED_NAMES).length} stale=${shared.staleKeys.length}`,
   );
 
   if (result.violations.length > 0) {
@@ -877,7 +966,24 @@ async function main(): Promise<void> {
     for (const key of applicationReaches.staleKeys) console.error(`  - ${key}`);
   }
 
+  if (shared.violations.length > 0) {
+    console.error(
+      '\nThe platform publishes a name a package it depends on exports as a different\n' +
+        'declaration (issue #84). Both packages are public, so a consumer importing the\n' +
+        'name from each gets two declarations.\n',
+    );
+    for (const finding of shared.violations) {
+      console.error(`  - ${sharedNameRemedyOf(finding)}  (${finding.kind})`);
+    }
+  }
+  if (shared.staleKeys.length > 0) {
+    console.error('\nStale SHARED_PUBLISHED_NAMES keys (no longer a collision — delete them):');
+    for (const key of shared.staleKeys) console.error(`  - ${key}`);
+  }
+
   const failed =
+    shared.violations.length > 0 ||
+    shared.staleKeys.length > 0 ||
     result.violations.length > 0 ||
     result.staleKeys.length > 0 ||
     result.staleSymbols.length > 0 ||

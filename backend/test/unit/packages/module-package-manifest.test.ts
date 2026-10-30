@@ -2142,7 +2142,19 @@ describe('module package manifests are generated (feature 080, T041)', () => {
       )['build']!;
       expect(build.startsWith('node ../../../scripts/clean-package-dist.mjs --src src --out dist && ')).toBe(true);
       expect(build.split('clean-package-dist.mjs')).toHaveLength(2);
-      expect(build).toContain('tsc -p tsconfig.ui.json');
+      expect(build).toContain('tsc -p tsconfig.ui.build.json');
+    });
+
+    it('emits the UI layer without its tests and type-checks it with them (issue #81)', () => {
+      // `tsconfig.ui.json` is the UI program's type-check, so a test it excluded
+      // would be read by no `tsc` invocation; `tsconfig.ui.build.json` extends it
+      // and adds the exclusion, so the emit still ships no `vitest` import.
+      const scripts = manifestOf(widgets({ ...BACKEND_ONLY, 'src/admin/index.ts': 'export {};\n' }))[
+        'scripts'
+      ] as Record<string, string>;
+      expect(scripts['build']).toMatch(/&& tsc -p tsconfig\.ui\.build\.json$/);
+      expect(scripts['build']).not.toMatch(/tsc -p tsconfig\.ui\.json(?!\S)/);
+      expect(scripts['typecheck']).toBe('tsc -p tsconfig.json && tsc -p tsconfig.ui.json --noEmit');
     });
   });
 

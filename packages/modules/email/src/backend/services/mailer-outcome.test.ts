@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ConsoleMailer, InMemoryMailer } from './mailer.js';
 
 /**
@@ -40,5 +40,18 @@ describe('email — the transport reports what it did with a message (D-59)', ()
       status: 'suppressed',
       reason: 'duplicate_message_id',
     });
+  });
+
+  // Feature 169 (T093): the Reply-To is logged beside the recipient.
+  it('logs the Reply-To beside the recipient when one is given', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    try {
+      await new ConsoleMailer().send({ ...message, messageId: 'cms-contact:1', replyTo: 'shopper@example.com' });
+      const line = JSON.parse(String(log.mock.calls[0]?.[0])) as Record<string, unknown>;
+      expect(line['to']).toBe('buyer@example.com');
+      expect(line['replyTo']).toBe('shopper@example.com');
+    } finally {
+      log.mockRestore();
+    }
   });
 });

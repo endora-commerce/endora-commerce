@@ -64,7 +64,7 @@ function candidate(over: Partial<SelectionCandidate> = {}): SelectionCandidate {
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-02T00:00:00.000Z'),
     inStock: true,
-    price: 100,
+    price: '100',
     ...over,
   };
 }
@@ -222,8 +222,8 @@ describe('selection rule compiler [unit]', () => {
         context(),
       );
       expect(compiled.needsPrice).toBe(true);
-      expect(compiled.evaluate!(candidate({ price: 100 }))).toBe(true);
-      expect(compiled.evaluate!(candidate({ price: 400 }))).toBe(false);
+      expect(compiled.evaluate!(candidate({ price: '100' }))).toBe(true);
+      expect(compiled.evaluate!(candidate({ price: '400' }))).toBe(false);
     });
 
     it('treats an unresolvable stock or price as a non-match, never as a match', () => {
@@ -331,8 +331,8 @@ describe('selection rule compiler [unit]', () => {
         },
         context(),
       );
-      expect(compiled.evaluate!(candidate({ id: 'p-3', price: 1 }))).toBe(true);
-      expect(compiled.evaluate!(candidate({ id: 'p-1', price: 1 }))).toBe(false);
+      expect(compiled.evaluate!(candidate({ id: 'p-3', price: '1' }))).toBe(true);
+      expect(compiled.evaluate!(candidate({ id: 'p-1', price: '1' }))).toBe(false);
     });
   });
 

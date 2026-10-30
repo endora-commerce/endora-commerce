@@ -1,7 +1,7 @@
 import { useCallback, useState, type ReactNode } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
-import { Button } from '../../components/ui/button.js';
-import { ApiError } from '../../lib/api-client.js';
+import { Button } from '@endora-commerce/admin-kit/ui';
+import { ApiError } from '@endora-commerce/admin-kit/lib';
 import { setRecentActivityVisibility } from './api.js';
 
 /**

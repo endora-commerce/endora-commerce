@@ -22,7 +22,8 @@ import { AdminRoot } from '../../../packages/admin-shell/src/AdminRoot';
  * the published shell regained the defect.
  */
 
-vi.mock('../../../packages/admin-shell/src/lib/auth', () => ({
+vi.mock('@endora-commerce/admin-kit/lib', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@endora-commerce/admin-kit/lib')>()),
   AuthProvider: ({ children }: { children: ReactNode }): ReactNode => children,
 }));
 

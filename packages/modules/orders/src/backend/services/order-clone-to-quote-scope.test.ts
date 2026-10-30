@@ -18,7 +18,7 @@ const B2C = '00000000-0000-4000-8000-0000000000d1';
 const CTX = { customerAccountId: 'cust-1', organizationId: 'org-1' };
 
 function rig() {
-  const createForCustomer = vi.fn(async () => ({ id: 'rfq-1' }));
+  const createForCustomer = vi.fn(async (_ctx: unknown, _request: unknown, _options: unknown) => ({ id: 'rfq-1' }));
   const service = new OrderCloneToQuoteService(
     () => ({ findOne: async () => ({ id: 'order-1' }) }) as never,
     () => ({ createForCustomer }) as never,

@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { useTranslation } from '../../i18n/useTranslation.js';
-import { useTranslationContext } from '../../i18n/TranslationProvider.js';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import {
   useRecentActivity,
   type RecentActivityItem,

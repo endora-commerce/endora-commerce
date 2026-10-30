@@ -14,6 +14,17 @@ were translated. Never raise a number to make the build pass — add the key. Ru
 `pnpm --filter backend run i18n:hardcoded -- --strict` to see the whole remaining debt, or pass one
 path while draining a screen.
 
+**The storefront is in the same run since issue #85**, with its own ledger,
+`STOREFRONT_HARDCODED_STRINGS_BASELINE`, ratcheted the same two ways. Its walk is the `storefront`
+workspace member's `.ts` **and** `.tsx` sources (tests, `test/`, `scripts/` and `public/` excepted),
+and it asks one question more than the admin walk: a string or template literal carrying a Polish
+diacritic, anywhere in the source, outside a per-language structure — an object literal with two or
+more locale-keyed properties, which is the shape of `storefront/lib/i18n/messages.ts`. The admin walk
+does not ask it, so its ledger is unchanged. The bound is declared rather than discovered: Polish
+with no diacritic (`Uwagi`, `cena`) and an English literal outside JSX are both invisible to it. A
+storefront string is keyed into **both** locales of `messages.ts`, where the total inner `Record`
+makes a missing Polish entry a `tsc` error.
+
 **Read those first two clauses as a rule and an instrument, not as a rule and its enforcement** —
 the semicolon has been doing work it cannot do. The rule is every user-facing string; the
 instrument is `.tsx` files under three admin roots, judging JSX (`collectTsxFiles` pushes a path

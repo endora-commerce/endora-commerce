@@ -80,6 +80,8 @@ import { withAdminHeroFields } from './HeroFields.js';
 import { SECTION_BLOCKS_WITH_ADMIN_FIELDS, withAdminSectionBlockFields } from './SectionBlockFields.js';
 import { CAROUSEL_BLOCKS_WITH_ADMIN_FIELDS, withAdminCarouselFields } from './CarouselFields.js';
 import { LISTING_BLOCKS_WITH_ADMIN_FIELDS, withAdminListingFields } from './ListingFields.js';
+import { PAGE_NAVIGATION_BLOCKS_WITH_ADMIN_FIELDS, withAdminPageNavigationFields } from './PageNavigationFields.js';
+import { NEWSLETTER_SIGNUP_FIELDS_BLOCK, withAdminNewsletterSignupFields } from './NewsletterSignupFields.js';
 import { buildViewports } from './build-viewports.js';
 import {
   applyRowLayoutPreset,
@@ -312,6 +314,18 @@ function mergeConfig(
   for (const name of LISTING_BLOCKS_WITH_ADMIN_FIELDS) {
     const cfg = bundled[name];
     if (cfg) bundled[name] = withAdminListingFields(name, cfg);
+  }
+
+  // Feature 169, T058 — a page navigation's links pick their anchors from the page's sections.
+  for (const name of PAGE_NAVIGATION_BLOCKS_WITH_ADMIN_FIELDS) {
+    const cfg = bundled[name];
+    if (cfg) bundled[name] = withAdminPageNavigationFields(name, cfg);
+  }
+
+  // Feature 169 (US7) — `newsletter.Signup`'s topic tag and attribute custom field from the newsletter's lists.
+  for (const name of [NEWSLETTER_SIGNUP_FIELDS_BLOCK]) {
+    const cfg = bundled[name];
+    if (cfg) bundled[name] = withAdminNewsletterSignupFields(cfg);
   }
 
   const productCard = bundled['catalog.ProductCard'];

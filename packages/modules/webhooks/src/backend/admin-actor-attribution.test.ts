@@ -62,6 +62,7 @@ describe('POST /api/v1/admin/webhooks — the acting admin', () => {
       requireAdmin: () => async () => {},
       resolveAdminUserId: (request) =>
         (request as unknown as { actor: { adminUserId: string } }).actor.adminUserId,
+      eventTypes: () => [],
     };
     await registerWebhooksAdminRoutes(app, deps);
     await app.ready();

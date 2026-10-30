@@ -67,6 +67,32 @@
  *          English entries of the same 137 codes had that shape when it
  *          landed; every one was written as a sentence in the same change.
  *
+ * Three more landed with issue #83, each a shape every predicate above passed
+ * unjudged:
+ *
+ *   **P2's `malformed-key`** — a key under `errors.` that the key grammar cannot
+ *          parse (`errors.configMissing`, `errors.reason.x`). Every predicate
+ *          used to `continue` past it, so it was neither accepted nor reported,
+ *          and the envelope composes nothing it could match. No ledger, on P2's
+ *          terms. The one family on the tree when it landed was `price_lists`'
+ *          grid reasons, read by that module's admin rather than the envelope;
+ *          they moved to `grid.reason.*` in the same change.
+ *   **P6** every token a code is **raised** with has a sentence in both
+ *          languages. The envelope reads `errors.<CODE>.<token>` for a raise
+ *          that carries `details.code` and never falls back to the base key, so
+ *          P1 counting the base key said nothing about it. The token set is the
+ *          literal tokens a static read of `new HttpError(…)` sites finds plus
+ *          the manifest's declared `tokens`; a raise whose token the read
+ *          cannot spell is counted (`tokenSitesUnresolved`) and not judged.
+ *          Three tokens rendered the thrower's English when it landed, and all
+ *          three were written. No ledger: every repair is a sentence.
+ *   **P7** a declared code something in the source tree names. The read counts
+ *          any string literal or property name that is the code, outside its
+ *          declaration and the contracts vocabularies, so a finding is a code
+ *          nothing can possibly raise. Ledgered by `UNRAISED_ERROR_CODES`,
+ *          two-way, may only shrink; what to do with each entry is a separate,
+ *          maintainer-level question.
+ *
  * P1 alone cannot see a sentence written in a bundle the table does not name,
  * and that is where issue #229's five defects lived: `carts` had finished
  * wording for two codes routed to `core`, and three more codes were shadowed by
@@ -137,9 +163,10 @@
  * reconciliation stopped iterating the enumeration, which is this population's
  * #215.
  */
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { basename, join, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import ts from 'typescript';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import {
   buildErrorTranslationTargets,
@@ -155,7 +182,12 @@ import {
   refuseVacuousModulePopulation,
 } from './lib/module-population.js';
 import { reportReadSize } from './lib/read-size.js';
-import { requireModuleLayout, resolveModuleLayout } from './lib/module-roots.js';
+import { nodeWorkspaceFs, workspaceMembers } from './lib/workspace-packages.js';
+import {
+  PRUNED_DIRECTORIES,
+  requireModuleLayout,
+  resolveModuleLayout,
+} from './lib/module-roots.js';
 
 /**
  * Every module's own directory, by id (feature 080, T040a).
@@ -317,14 +349,14 @@ export const UNTRANSLATED_ERROR_CODES: ReadonlySet<string> = new Set([
   // carried a placeholder and arrives with prose in this module's own bundle.
   // This one is unraised, so its placeholder was deleted rather than rewritten.
   'ADDRESS_IN_USE',
-  // api_keys (2) — MR 5. Neither ever had a sentence, and both were listed under
-  // `_i18n` above until that batch. `API_KEY_OUT_OF_SCOPE` was the third, and
-  // the first entry in this ledger whose code had a live raise site: it was
-  // held back because the raise names the scope the key is missing and passed
-  // no `details` for a placeholder to be filled from. Issue #86 gave the raise
-  // `details.requiredScope` and the bundle a sentence that interpolates it, so
-  // it left this list.
-  'API_KEY_CHANNEL_MISMATCH', 'API_KEY_NOT_BOUND',
+  // api_keys (0) — MR 5 put three codes here. `API_KEY_OUT_OF_SCOPE` left
+  // first: it was held back because the raise names the scope the key is
+  // missing and passed no `details` for a placeholder to be filled from, and
+  // issue #86 gave the raise `details.requiredScope` and the bundle a sentence
+  // that interpolates it. `API_KEY_CHANNEL_MISMATCH` and `API_KEY_NOT_BOUND`
+  // followed under the same issue: their raises write a fixed sentence and
+  // carry no value, so the bundle sentence is that sentence in both languages,
+  // with no placeholder to go unfilled.
   // catalog (12) — seven from Phase 3, five re-homed from `_i18n` by D-129's
   // sweep, MR 4 (Tier B). The five had no sentence in either language before
   // the move and none after, so what moved is which module owes it. The batch's
@@ -400,6 +432,65 @@ export const UNTRANSLATED_ERROR_CODES: ReadonlySet<string> = new Set([
   'TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE',
 ]);
 
+/**
+ * Declared codes nothing in the source tree names (P7, issue #83), measured
+ * when the predicate landed: 34 codes across 18 modules. Grouped by declaring
+ * module, so a module can drain its own block.
+ *
+ * **A ledger of facts, not of verdicts.** Each entry is a code a module
+ * declares, `ERROR_CODES` enumerates and — for most of them — a bundle
+ * translates, while no source file outside its declaration spells it. Whether
+ * each one should be raised somewhere, or leave the vocabulary with its
+ * sentences, is a maintainer's decision per code and is deliberately not taken
+ * here; several of them are already on {@link UNTRANSLATED_ERROR_CODES} on the
+ * same ground ("nothing in the tree raises it").
+ *
+ * Two-way, like that ledger: a new declared code nobody raises fails, and an
+ * entry the tree has since started naming fails too, so the list can only
+ * shrink. Do not add to it to make a build pass — raise the code, or drop it.
+ */
+export const UNRAISED_ERROR_CODES: ReadonlySet<string> = new Set([
+  // _i18n (1)
+  'TERMS_VERSION_STALE',
+  // addresses (1) — also on UNTRANSLATED_ERROR_CODES, on this ground.
+  'ADDRESS_IN_USE',
+  // assets_library (1)
+  'ASSET_STORAGE_MISCONFIGURED',
+  // blog (5)
+  'BLOG_ASSET_KIND_MISMATCH', 'BLOG_CATEGORY_NO_CHANNEL', 'BLOG_POST_NO_CHANNEL',
+  'BLOG_POST_NO_LANGUAGE', 'BLOG_SLUG_INVALID',
+  // catalog (3)
+  'FIELD_IMMUTABLE', 'VARIANT_AXIS_MISSING', 'VARIANT_COMBINATION_EXISTS',
+  // cms (1)
+  'CMS_SCHEMA_UPGRADE_FAILED',
+  // credit_limits (1) — also on UNTRANSLATED_ERROR_CODES, on this ground.
+  'ACTIVE_RESERVATIONS_EXIST',
+  // dictionaries (2)
+  'DICTIONARY_CODE_IMMUTABLE', 'DICTIONARY_TRANSLATION_LANGUAGE_INACTIVE',
+  // inventory (4)
+  'STOCK_IMPORT_INVALID_FILE', 'STOCK_LEVEL_NOT_FOUND', 'THRESHOLDS_INVALID',
+  'WAREHOUSE_INVALID_CODE',
+  // invoice_ledger (1)
+  'INVOICE_LEDGER_CREDENTIALS_MISSING',
+  // megamenu (1)
+  'MEGAMENU_REFERENCED',
+  // mfa (2) — also on UNTRANSLATED_ERROR_CODES, on this ground.
+  'TWO_FACTOR_REQUIRED', 'TWO_FACTOR_REQUIRED_BY_ROLE',
+  // newsletter (1) — also on UNTRANSLATED_ERROR_CODES, on this ground.
+  'ALREADY_SUBSCRIBED',
+  // price_lists (1) — also on UNTRANSLATED_ERROR_CODES, whose note names
+  // `pim_ergonode` as its raiser; that module has since left the repository.
+  'PRICE_LIST_NOT_FOUND',
+  // promotions (1) — also on UNTRANSLATED_ERROR_CODES, on this ground.
+  'PROMOTION_INVALID',
+  // quote_requests (3)
+  'RFQ_ALREADY_CLAIMED', 'RFQ_NOT_ACCEPTED', 'RFQ_NOT_NEW',
+  // sales_channels (3)
+  'SALES_CHANNEL_ATTRIBUTION_IMMUTABLE', 'UNKNOWN_CURRENCY_CODE', 'UNKNOWN_LANGUAGE_CODE',
+  // settings (2)
+  'SETTING_BREAKING_CHANGE_REJECTED', 'SETTING_CODE_CONFLICT',
+]);
+
 export interface Finding {
   readonly code: string;
   readonly moduleId: string;
@@ -453,6 +544,17 @@ export interface TranslationInput {
    * it does not name.
    */
   readonly listBundleKeys: () => Iterable<BundleKey>;
+  /**
+   * P6: the refusal tokens each code's declaring manifest names, keyed by code
+   * (`errorCodes[].tokens`). Contested codes are absent, as they are from
+   * {@link TranslationInput.keys}.
+   */
+  readonly declaredTokens: Readonly<Record<string, readonly string[]>>;
+  /**
+   * P6 and P7: every source file the raise walk reads, as text — the top of the
+   * analysis, so a proof hands it source and never a pre-read raise site.
+   */
+  readonly listSources: () => Iterable<SourceFile>;
 }
 
 /** Which way the enumeration and the declarations disagree (P3, FR-031). */
@@ -473,14 +575,26 @@ export interface BundleKey {
   readonly key: string;
 }
 
-/** Why a written sentence is not the sentence anything reads. */
-export type SentenceFindingKind = 'unreachable' | 'duplicate' | 'no-code';
+/**
+ * Why a written sentence is not the sentence anything reads.
+ *
+ * `malformed-key` is issue #83's first slice: a key under `errors.` that
+ * {@link ERROR_KEY} cannot parse. Every predicate used to `continue` past it,
+ * so a sentence filed under a mis-cased code (`errors.configMissing`) was
+ * neither accepted nor reported — and the envelope composes only
+ * `errors.<CODE>` or `errors.<CODE>.<token>`, so nothing it renders reads one.
+ */
+export type SentenceFindingKind = 'unreachable' | 'duplicate' | 'no-code' | 'malformed-key';
 
 export interface SentenceFinding extends BundleKey {
-  /** The base code, with any `.<token>` suffix resolved away. */
+  /**
+   * The base code, with any `.<token>` suffix resolved away — or, for
+   * `malformed-key`, everything after `errors.`, since there is no code to
+   * resolve.
+   */
   readonly code: string;
   readonly kind: SentenceFindingKind;
-  /** The directory the routing map points at, or `null` for `no-code`. */
+  /** The directory the routing map points at, or `null` for `no-code` and `malformed-key`. */
   readonly routedModuleId: string | null;
   readonly repair: string;
 }
@@ -602,7 +716,82 @@ export function diskBundleKeyWalker(
 export async function treeTranslationInput(): Promise<TranslationInput> {
   const layout = await resolveModuleLayout();
   const declarations = await loadManifestErrorCodes(layout.manifestIndexPath);
-  return translationInputFor(declarations, layout.moduleDirectories);
+  return translationInputFor(declarations, layout.moduleDirectories, raiseWalkRoots(layout));
+}
+
+/**
+ * Where the raise walk looks (P6, P7): the application's source tree, the
+ * platform package's and every module package's — `layout.sourceRoots`, the
+ * derivation every other whole-tree check reads (feature 080, T040a) — plus the
+ * sources of the package that publishes the vocabulary.
+ *
+ * The last one is not a formality. `@endora-commerce/contracts` builds some
+ * refusals itself — `order-minimums.ts` composes the
+ * `PRODUCT_BELOW_MINIMUM_QUANTITY` envelope `carts` and `quote_requests` throw —
+ * so a walk without it reports those codes as raised by nobody. It is found by
+ * the name the check already imports `ERROR_CODES` from, never by a path.
+ */
+export function raiseWalkRoots(layout: {
+  readonly sourceRoots: readonly string[];
+  readonly repoRoot: string;
+}): string[] {
+  const vocabulary = workspaceMembers(layout.repoRoot, nodeWorkspaceFs()).find(
+    (member) => member.name === VOCABULARY_PACKAGE,
+  );
+  return vocabulary === undefined
+    ? [...layout.sourceRoots]
+    : [...layout.sourceRoots, join(vocabulary.dir, 'src')];
+}
+
+/** The package `ERROR_CODES` is imported from, above. */
+const VOCABULARY_PACKAGE = '@endora-commerce/contracts';
+
+/**
+ * What a raise can never sit in, so the walk does not open it.
+ *
+ * - a test (`*.test.ts`, `*.spec.ts`): a test names a code to assert on it;
+ * - a declaration file;
+ * - a module's `manifest.ts`, which is where a code is **declared** — counting
+ *   that spelling would make every declared code its own raise site;
+ * - a module's `src/admin/` tree, which is the operator's UI — it reads a code
+ *   off a response and raises none.
+ */
+function isRaiseCandidate(path: string): boolean {
+  const name = basename(path);
+  if (!/\.tsx?$/.test(name) || name.endsWith('.d.ts')) return false;
+  if (/\.(test|spec)\.tsx?$/.test(name)) return false;
+  if (name === 'manifest.ts') return false;
+  return !path.split(sep).join('/').includes('/src/admin/');
+}
+
+function sourceFilesUnder(dir: string, out: string[]): void {
+  let names: string[];
+  try {
+    names = readdirSync(dir);
+  } catch {
+    return;
+  }
+  for (const name of names.sort()) {
+    if (PRUNED_DIRECTORIES.includes(name)) continue;
+    const full = join(dir, name);
+    if (statSync(full).isDirectory()) sourceFilesUnder(full, out);
+    else if (isRaiseCandidate(full)) out.push(full);
+  }
+}
+
+/** The default {@link TranslationInput.listSources}: every raise candidate under `roots`. */
+export function diskSourceWalker(roots: readonly string[]): TranslationInput['listSources'] {
+  // Memoised: the CLI asks once for the population floor and once for the
+  // analysis, and both have to be the same walk.
+  let files: readonly SourceFile[] | null = null;
+  return (): Iterable<SourceFile> => {
+    if (files === null) {
+      const found: string[] = [];
+      for (const root of roots) sourceFilesUnder(root, found);
+      files = [...new Set(found)].sort().map((path) => ({ path, text: readFileSync(path, 'utf8') }));
+    }
+    return files;
+  };
 }
 
 /**
@@ -616,6 +805,7 @@ export async function treeTranslationInput(): Promise<TranslationInput> {
 export function translationInputFor(
   declarations: readonly ManifestErrorCodeDeclaration[],
   directories: ModuleDirectories,
+  sourceRoots: readonly string[],
   enumeratedCodes: readonly string[] = Object.values(ERROR_CODES),
 ): TranslationInput {
   const { targets, collisions } = buildErrorTranslationTargets(declarations);
@@ -625,7 +815,28 @@ export function translationInputFor(
     enumeratedCodes,
     readBundle: diskBundleReader(directories),
     listBundleKeys: diskBundleKeyWalker(directories),
+    declaredTokens: declaredTokensOf(declarations, targets),
+    listSources: diskSourceWalker(sourceRoots),
   };
+}
+
+/**
+ * `errorCodes[].tokens`, keyed by code, for the codes the routing resolved.
+ * A contested code has no route, so the declaration it would be read against
+ * is ambiguous — P4 reports it and P6 does not guess.
+ */
+export function declaredTokensOf(
+  declarations: readonly ManifestErrorCodeDeclaration[],
+  targets: Readonly<Record<string, ErrorTranslationTarget>>,
+): Record<string, readonly string[]> {
+  const tokens: Record<string, readonly string[]> = {};
+  for (const declaration of declarations) {
+    for (const code of declaration.manifest.errorCodes ?? []) {
+      if (targets[code.code]?.moduleId !== declaration.manifest.id) continue;
+      if (code.tokens !== undefined && code.tokens.length > 0) tokens[code.code] = [...code.tokens];
+    }
+  }
+  return tokens;
 }
 
 /**
@@ -727,7 +938,23 @@ export function findUnreachableSentences(
   const findings: SentenceFinding[] = [];
   for (const written of input.listBundleKeys()) {
     const match = ERROR_KEY.exec(written.key);
-    if (!match) continue;
+    if (!match) {
+      // Issue #83, slice 1. P5 below still skips the key — it has no code to
+      // compare a value against — so this is the one place it is judged, and
+      // it is judged here because the question is P2's: is this sentence one
+      // anything reads?
+      findings.push({
+        ...written,
+        code: written.key.slice('errors.'.length),
+        kind: 'malformed-key',
+        routedModuleId: null,
+        repair:
+          'the envelope reads only errors.<CODE> and errors.<CODE>.<token> (CODE in ' +
+          'SCREAMING_SNAKE_CASE, token in snake_case), so nothing renders this key — re-file ' +
+          'it under the code it means, or move a sentence the admin reads out of errors.*',
+      });
+      continue;
+    }
     const code = match[1] as string;
     const target = input.keys[code];
     if (!target) {
@@ -902,6 +1129,322 @@ export function findPlaceholderSentences(
   );
 }
 
+// ---------------------------------------------------------------------------
+// P6 and P7 — the raise sites (issue #83, slices 2 and 3)
+// ---------------------------------------------------------------------------
+
+/** One source file the raise walk opened. */
+export interface SourceFile {
+  readonly path: string;
+  readonly text: string;
+}
+
+/** A place a code is named, as `<path>:<line>`. */
+export interface RaiseSite {
+  readonly code: string;
+  readonly site: string;
+}
+
+/** A `new HttpError(…)` whose `details.code` is a literal token. */
+export interface TokenedRaise extends RaiseSite {
+  readonly token: string;
+}
+
+/**
+ * A `new HttpError(…)` whose `details` may carry a token the static read
+ * cannot spell — a variable, a parameter, a spread. Counted and printed, never
+ * a finding: the token set such a raise draws from is what a manifest's
+ * `tokens` declaration states, and P6 reads that declaration as well.
+ */
+export interface UnresolvedTokenRaise extends RaiseSite {
+  readonly expression: string;
+}
+
+/** What the raise walk read (P6 and P7). */
+export interface RaiseRead {
+  /** Source files opened. */
+  readonly files: number;
+  /**
+   * Every place a declared code is **named** in source, by code — a string
+   * literal that is exactly the code, or a property access whose name is it
+   * (`ERROR_CODES.X`). Comments are not nodes, so they never count.
+   */
+  readonly references: ReadonlyMap<string, readonly string[]>;
+  readonly tokened: readonly TokenedRaise[];
+  readonly unresolvedTokens: readonly UnresolvedTokenRaise[];
+}
+
+/** Whether `text` contains a word that is one of `codes` — a cheap superset of what the parse finds. */
+function spellsAnyOf(text: string, codes: ReadonlySet<string>): boolean {
+  for (const [word] of text.matchAll(/[A-Z][A-Z0-9_]*/g)) {
+    if (codes.has(word)) return true;
+  }
+  return false;
+}
+
+/** The code a node spells, or `null` — a string literal, or the name of a property access. */
+function codeSpelledBy(node: ts.Node): string | null {
+  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return node.text;
+  if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.name)) return node.name.text;
+  return null;
+}
+
+function unwrapped(node: ts.Expression): ts.Expression {
+  let current = node;
+  while (
+    ts.isParenthesizedExpression(current) ||
+    ts.isAsExpression(current) ||
+    ts.isSatisfiesExpression(current) ||
+    ts.isTypeAssertionExpression(current)
+  ) {
+    current = current.expression;
+  }
+  return current;
+}
+
+type TokenRead =
+  | { readonly kind: 'none' }
+  | { readonly kind: 'literal'; readonly tokens: readonly string[] }
+  | { readonly kind: 'unresolved'; readonly expression: string };
+
+/** The literal token(s) an expression evaluates to, or why it cannot be read. */
+function literalTokens(expression: ts.Expression, source: ts.SourceFile): TokenRead {
+  const node = unwrapped(expression);
+  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+    return { kind: 'literal', tokens: [node.text] };
+  }
+  if (ts.isConditionalExpression(node)) {
+    const whenTrue = literalTokens(node.whenTrue, source);
+    const whenFalse = literalTokens(node.whenFalse, source);
+    if (whenTrue.kind === 'literal' && whenFalse.kind === 'literal') {
+      return { kind: 'literal', tokens: [...whenTrue.tokens, ...whenFalse.tokens] };
+    }
+  }
+  return { kind: 'unresolved', expression: node.getText(source) };
+}
+
+/**
+ * The token a raise's `details` argument carries — the same discrimination the
+ * envelope's `refusalToken` makes at runtime, made over syntax: the Zod-style
+ * array and an absent argument carry none, an object literal carries its
+ * `code` member, and anything else is a value the read cannot see into.
+ */
+function tokenOfDetails(details: ts.Expression | undefined, source: ts.SourceFile): TokenRead {
+  if (details === undefined) return { kind: 'none' };
+  const node = unwrapped(details);
+  if (ts.isIdentifier(node) && node.text === 'undefined') return { kind: 'none' };
+  if (ts.isArrayLiteralExpression(node)) return { kind: 'none' };
+  if (!ts.isObjectLiteralExpression(node)) {
+    return { kind: 'unresolved', expression: node.getText(source) };
+  }
+  let read: TokenRead = { kind: 'none' };
+  for (const property of node.properties) {
+    // Later members win, as they do at runtime, so the walk keeps the last.
+    if (ts.isSpreadAssignment(property)) {
+      read = { kind: 'unresolved', expression: property.getText(source) };
+      continue;
+    }
+    const name = property.name;
+    const named =
+      name !== undefined &&
+      (ts.isIdentifier(name) || ts.isStringLiteral(name)) &&
+      name.text === 'code';
+    if (!named) continue;
+    if (ts.isPropertyAssignment(property)) read = literalTokens(property.initializer, source);
+    else read = { kind: 'unresolved', expression: property.getText(source) };
+  }
+  return read;
+}
+
+/**
+ * The static read of raise sites (issue #83).
+ *
+ * Two questions over one parse of every source file:
+ *
+ * - **Which declared codes are named at all** (P7). A reference is any string
+ *   literal that is exactly the code or any property access whose name is it —
+ *   deliberately wider than "a raise": a comparison, a mapping table and a
+ *   `readonly code = 'X'` field all count. That makes P7's finding an
+ *   under-report and never a false one: a code it names is spelled by nothing
+ *   the walk opened outside its declaration, so nothing in the tree can raise
+ *   it.
+ * - **Which tokens each code is raised with** (P6). A raise is
+ *   `new HttpError(status, <code>, message, details)` — the platform's one
+ *   error constructor — with the code spelled as above, and the token is
+ *   `details.code` read the way {@link tokenOfDetails} reads it.
+ */
+export function readRaiseSites(sources: Iterable<SourceFile>, codes: ReadonlySet<string>): RaiseRead {
+  let files = 0;
+  const references = new Map<string, string[]>();
+  const tokened: TokenedRaise[] = [];
+  const unresolvedTokens: UnresolvedTokenRaise[] = [];
+  for (const file of sources) {
+    files += 1;
+    // Both questions need a declared code spelled in the file's text, so a file
+    // that spells none cannot answer either and is not parsed. Most of the tree
+    // is such a file, and parsing it is most of what a whole-tree read costs.
+    if (!spellsAnyOf(file.text, codes)) continue;
+    const source = ts.createSourceFile(
+      file.path,
+      file.text,
+      ts.ScriptTarget.Latest,
+      false,
+      file.path.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+    );
+    const siteOf = (node: ts.Node): string =>
+      `${file.path}:${source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1}`;
+    const visit = (node: ts.Node): void => {
+      // A vocabulary is a declaration, like a manifest's `errorCodes`: the
+      // statement that spells every code once is not a place any of them is
+      // raised. `ERROR_CODES` and the per-module `<X>_ERROR_CODES` lists the
+      // contracts package publishes beside it are skipped whole; a raise that
+      // reads one of them (`ERROR_CODES.X`) is still a reference.
+      if (
+        ts.isVariableDeclaration(node) &&
+        ts.isIdentifier(node.name) &&
+        /^(?:[A-Z][A-Z0-9_]*_)?ERROR_CODES$/.test(node.name.text)
+      ) {
+        return;
+      }
+      const spelled = codeSpelledBy(node);
+      if (spelled !== null && codes.has(spelled)) {
+        const sites = references.get(spelled);
+        if (sites) sites.push(siteOf(node));
+        else references.set(spelled, [siteOf(node)]);
+      }
+      if (
+        ts.isNewExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        node.expression.text === 'HttpError' &&
+        node.arguments !== undefined &&
+        node.arguments.length >= 2
+      ) {
+        const code = codeSpelledBy(unwrapped(node.arguments[1]!));
+        if (code !== null && codes.has(code)) {
+          const read = tokenOfDetails(node.arguments[3], source);
+          const site = siteOf(node);
+          if (read.kind === 'literal') {
+            for (const token of read.tokens) tokened.push({ code, token, site });
+          } else if (read.kind === 'unresolved') {
+            unresolvedTokens.push({ code, site, expression: read.expression });
+          }
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+  }
+  return { files, references, tokened, unresolvedTokens };
+}
+
+/**
+ * Codes the envelope never translates, so a token on them keys no sentence.
+ *
+ * One member, and it is the envelope's own early return in
+ * `localizeErrorEnvelope` (`packages/platform/src/http/error-envelope.ts`):
+ * `VALIDATION_FAILED`'s `details.code` values are machine discriminators on the
+ * wire, which `_i18n`'s manifest says in terms when it declines to declare
+ * them. If the envelope ever translates another code's tokens away, the
+ * exclusion is that code too — and nothing else belongs here.
+ */
+const TOKENS_NEVER_TRANSLATED: ReadonlySet<string> = new Set([ERROR_CODES.VALIDATION_FAILED]);
+
+/** A refusal token with no sentence in a shipped language (P6). */
+export interface TokenFinding {
+  readonly code: string;
+  readonly token: string;
+  /** The module whose bundle the envelope reads the token key from. */
+  readonly moduleId: string;
+  readonly key: string;
+  readonly missingIn: readonly string[];
+  /** The raise sites that pass the token literally; empty when only the manifest names it. */
+  readonly raisedAt: readonly string[];
+  /** Whether the declaring manifest names the token in `tokens`. */
+  readonly declared: boolean;
+}
+
+/**
+ * P6 — every token a code is raised with has a sentence in both languages
+ * (issue #83, slice 2).
+ *
+ * The envelope composes **one** key: `errors.<CODE>.<token>` when the raise
+ * carries a token and `errors.<CODE>` when it does not, and it never re-asks
+ * (D-190). So P1 counting the base key as "translated" says nothing about a
+ * tokened raise, whose operator is answered with the thrower's own English —
+ * in Polish as well — the moment the token key is absent.
+ *
+ * The token set is the union of two authors: the literal tokens the raise walk
+ * found, and the tokens the declaring manifest names. The second is what covers
+ * a raise whose token is a variable (`{ rule, code: rule }`), which the read
+ * cannot spell and only counts.
+ */
+export function findUntranslatedTokens(
+  input: Pick<TranslationInput, 'keys' | 'readBundle' | 'declaredTokens'>,
+  raises: Pick<RaiseRead, 'tokened'>,
+): TokenFinding[] {
+  const tokens = new Map<string, Map<string, { raisedAt: string[]; declared: boolean }>>();
+  const entry = (code: string, token: string): { raisedAt: string[]; declared: boolean } => {
+    let byToken = tokens.get(code);
+    if (!byToken) {
+      byToken = new Map();
+      tokens.set(code, byToken);
+    }
+    let found = byToken.get(token);
+    if (!found) {
+      found = { raisedAt: [], declared: false };
+      byToken.set(token, found);
+    }
+    return found;
+  };
+  for (const [code, declared] of Object.entries(input.declaredTokens)) {
+    for (const token of declared) entry(code, token).declared = true;
+  }
+  for (const raise of raises.tokened) entry(raise.code, raise.token).raisedAt.push(raise.site);
+
+  const findings: TokenFinding[] = [];
+  for (const [code, byToken] of tokens) {
+    if (TOKENS_NEVER_TRANSLATED.has(code)) continue;
+    // A code no module routes is P3's or P4's finding, and the envelope reads
+    // no bundle for it at all.
+    const target = input.keys[code];
+    if (!target) continue;
+    for (const [token, found] of byToken) {
+      const key = `${target.key}.${token}`;
+      const missingIn = LANGUAGES.filter(
+        (language) => typeof input.readBundle(target.moduleId, language)[key] !== 'string',
+      );
+      if (missingIn.length === 0) continue;
+      findings.push({
+        code,
+        token,
+        moduleId: target.moduleId,
+        key,
+        missingIn,
+        raisedAt: [...found.raisedAt].sort(),
+        declared: found.declared,
+      });
+    }
+  }
+  return findings.sort((a, b) => a.code.localeCompare(b.code) || a.token.localeCompare(b.token));
+}
+
+/**
+ * P7 — a declared code nothing in the tree names (issue #83, slice 3).
+ *
+ * Over the declared codes, contested ones included: a code two modules declare
+ * is P4's finding, and whether anything raises it is a separate question.
+ */
+export function findUnraisedCodes(
+  input: Pick<TranslationInput, 'keys' | 'collisions'>,
+  raises: Pick<RaiseRead, 'references'>,
+): string[] {
+  const declared = new Set([
+    ...Object.keys(input.keys),
+    ...input.collisions.map((collision) => collision.code),
+  ]);
+  return [...declared].filter((code) => (raises.references.get(code)?.length ?? 0) === 0).sort();
+}
+
 export interface AnalysisResult {
   /** P1 findings, ledgered and not. */
   readonly findings: readonly Finding[];
@@ -917,6 +1460,15 @@ export interface AnalysisResult {
   readonly placeholders: readonly PlaceholderFinding[];
   /** What the bundle walk actually read, so a vacuous pass has a name. */
   readonly keysWalked: readonly BundleKey[];
+  /** P6 findings — a token a code is raised with that has no sentence. No ledger. */
+  readonly tokens: readonly TokenFinding[];
+  /** P7 findings — declared codes nothing names, ledgered and not. */
+  readonly unraised: readonly string[];
+  readonly unraisedUnledgered: readonly string[];
+  /** `UNRAISED_ERROR_CODES` entries a raise site now names. */
+  readonly unraisedStale: readonly string[];
+  /** What the raise walk read (P6, P7), so its vacuous pass has a name too. */
+  readonly raises: RaiseRead;
   /**
    * Enumerated codes this run **accounted for** — declared, or reported as
    * `undeclared-enum-member`.
@@ -932,13 +1484,14 @@ export interface AnalysisResult {
 }
 
 /**
- * Both predicates, the ledger arithmetic and the exit code — one function, so
+ * Every predicate, the ledger arithmetic and the exit code — one function, so
  * the companion test can drive the whole decision from an injected tree instead
  * of re-deriving half of it (issue #130).
  */
 export function analyseErrorTranslations(
   input: TranslationInput,
   ledger: ReadonlySet<string> = UNTRANSLATED_ERROR_CODES,
+  unraisedLedger: ReadonlySet<string> = UNRAISED_ERROR_CODES,
 ): AnalysisResult {
   const findings = findUntranslatedErrorCodes(input);
   const unledgered = findings.filter((f) => !ledger.has(f.code));
@@ -949,6 +1502,15 @@ export function analyseErrorTranslations(
   const reconciliations = reconcileEnumeration(input);
   const collisions = input.collisions;
   const placeholders = findPlaceholderSentences(input);
+  const raises = readRaiseSites(
+    input.listSources(),
+    new Set([...Object.keys(input.keys), ...input.collisions.map((collision) => collision.code)]),
+  );
+  const tokens = findUntranslatedTokens(input, raises);
+  const unraised = findUnraisedCodes(input, raises);
+  const unraisedUnledgered = unraised.filter((code) => !unraisedLedger.has(code));
+  const unraisedFound = new Set(unraised);
+  const unraisedStale = [...unraisedLedger].filter((code) => !unraisedFound.has(code)).sort();
   const total = Object.keys(input.keys).length;
   const declaredCodes = total + collisions.length;
   // The `sources=error-codes:` half of the read line, as two real counts rather
@@ -968,13 +1530,15 @@ export function analyseErrorTranslations(
     reconciliations.filter((finding) => finding.kind === 'undeclared-enum-member').length;
   const empty = {
     findings, unledgered, stale, sentences, reconciliations, collisions, placeholders,
-    keysWalked, enumeratedCodesAccountedFor,
+    keysWalked, enumeratedCodesAccountedFor, tokens, unraised, unraisedUnledgered,
+    unraisedStale, raises,
   };
 
-  // Three vacuity guards, independent on purpose (§2.3). The declarations, the
-  // enumeration and the bundles are three different reads: any one can come
-  // back empty while the others are full, and a single guard over one of them
-  // lets the others report a clean tree while looking at nothing (issue #113).
+  // Four vacuity guards, independent on purpose (§2.3). The declarations, the
+  // enumeration, the bundles and the sources are four different reads: any one
+  // can come back empty while the others are full, and a single guard over one
+  // of them lets the others report a clean tree while looking at nothing
+  // (issue #113).
   //
   // The first counts a **contested** code as declared. "No manifest declares
   // anything" is the state this guard exists for; a platform whose every
@@ -1003,6 +1567,19 @@ export function analyseErrorTranslations(
         'refusing to report a vacuous pass',
     };
   }
+  // The raise walk (issue #83). A walk that opened nothing would report no
+  // untranslated token, and one that opened files but named no declared code
+  // at all would turn every code into an `unraised` finding — loud, and wrong
+  // for the reason the bundle floor's header gives: it sends an author to
+  // delete codes that are raised somewhere the walk did not look.
+  if (raises.files === 0 || raises.references.size === 0) {
+    return {
+      ...empty, exitCode: 2,
+      summary:
+        `[error-translations] the raise walk ${raises.files === 0 ? 'opened no source file' : 'named no declared code in any source file'} — ` +
+        'refusing to report a vacuous pass',
+    };
+  }
 
   const byKind = (kind: SentenceFindingKind): number =>
     sentences.filter((f) => f.kind === kind).length;
@@ -1018,7 +1595,10 @@ export function analyseErrorTranslations(
       sentences.length > 0 ||
       reconciliations.length > 0 ||
       collisions.length > 0 ||
-      placeholders.length > 0
+      placeholders.length > 0 ||
+      tokens.length > 0 ||
+      unraisedUnledgered.length > 0 ||
+      unraisedStale.length > 0
         ? 1
         : 0,
     summary:
@@ -1027,11 +1607,16 @@ export function analyseErrorTranslations(
       `ledger-size=${ledger.size} stale=${stale.length} ` +
       `written=${keysWalked.length} unreachable=${byKind('unreachable')} ` +
       `duplicate=${byKind('duplicate')} noCode=${byKind('no-code')} ` +
+      `malformedKey=${byKind('malformed-key')} ` +
       `undeclaredEnumMember=${byReconciliation('undeclared-enum-member')} ` +
       `undeclaredInEnum=${byReconciliation('undeclared-in-enum')} ` +
       `collision=${collisions.length} ` +
       `placeholder=${byPlaceholder('placeholder')} ` +
-      `sameAsEnglish=${byPlaceholder('same-as-english')}`,
+      `sameAsEnglish=${byPlaceholder('same-as-english')} ` +
+      `tokenUntranslated=${tokens.length} ` +
+      `tokenSitesUnresolved=${raises.unresolvedTokens.length} ` +
+      `unraised=${unraisedUnledgered.length} unraisedLedgered=${unraised.length - unraisedUnledgered.length} ` +
+      `unraisedLedgerSize=${unraisedLedger.size} unraisedStale=${unraisedStale.length}`,
   };
 }
 
@@ -1078,7 +1663,8 @@ async function main(): Promise<void> {
     );
     process.exit(2);
   }
-  const input = translationInputFor(declarations, layout.moduleDirectories);
+  const sourceRoots = raiseWalkRoots(layout);
+  const input = translationInputFor(declarations, layout.moduleDirectories, sourceRoots);
   // The floor's exclusion is "modules that declare no code", so an empty
   // routing map excludes **everything** and switches the floor off — a check
   // reporting on a residue while looking like a normal run. So the declaration
@@ -1096,24 +1682,46 @@ async function main(): Promise<void> {
     moduleIdOf: layout.moduleIdOfPath,
   });
 
+  // The raise walk's floor (issue #83), the same derivation over the source
+  // files: every module that declares a code has to have contributed one, or a
+  // module whose sources moved where the walk does not look would turn each of
+  // its codes into an `unraised` finding — the residue the bundle floor exists
+  // to refuse, one population over.
+  const sourceFiles = [...input.listSources()].map((source) => source.path);
+  const raiseCoverage = await refuseVacuousModulePopulation({
+    prefix: '[error-translations] (raise walk)',
+    manifestIndexPath: layout.manifestIndexPath,
+    files: sourceFiles,
+    excluded: nonDeclaringModules(input.keys, registered),
+    moduleIdOf: layout.moduleIdOfPath,
+  });
+
   const result = analyseErrorTranslations(input);
   if (result.exitCode === 2) {
     console.error(result.summary);
     process.exit(2);
   }
-  // What was read, beside what was found (issue #244). `sites` is the union of
-  // the predicates' units — the declared codes P1 and P3 judge and the written
-  // `errors.*` keys P2 walks — because either population can empty while the
-  // other is full, which is the reason the vacuity guards above are independent
-  // in the first place. `sources` carries both reconciliations: the floor this
-  // run just enforced (the declaring modules, out of the registered set) and the
-  // platform's own enumeration against those declarations.
+  // What was read, beside what was found (issue #244). `files` is both walks'
+  // openings — the bundles and the raise walk's sources. `sites` is the union
+  // of the predicates' units — the declared codes P1 and P3 judge, the written
+  // `errors.*` keys P2 walks, and the places a declared code is named that P6
+  // and P7 read — because any of those populations can empty while the others
+  // are full, which is the reason the vacuity guards above are independent in
+  // the first place. `sources` carries every reconciliation: the two floors
+  // this run just enforced (the declaring modules, out of the registered set,
+  // against each walk) and the platform's own enumeration against the
+  // declarations.
+  const referenceSites = [...result.raises.references.values()].reduce(
+    (sum, sites) => sum + sites.length,
+    0,
+  );
   reportReadSize({
     prefix: '[error-translations]',
-    files: files.length,
-    sites: Object.keys(input.keys).length + result.keysWalked.length,
+    files: files.length + result.raises.files,
+    sites: Object.keys(input.keys).length + result.keysWalked.length + referenceSites,
     coverage: [
       coverage,
+      { source: 'raise-walk', expected: raiseCoverage.expected, covered: raiseCoverage.covered },
       {
         source: 'error-codes',
         expected: input.enumeratedCodes.length,
@@ -1143,8 +1751,9 @@ async function main(): Promise<void> {
 
   if (result.sentences.length > 0) {
     console.error(
-      '\nThese sentences are written where the routing map does not look, so ' +
-        'nothing reads them. There is no ledger for this — every repair is a ' +
+      '\nThese sentences are written where the routing map does not look, or under a ' +
+        'key the envelope cannot compose, so nothing reads them. There is no ledger for ' +
+        'this — every repair is a ' +
         'JSON line moved or deleted, plus at most one declaration line:',
     );
     for (const f of result.sentences) {
@@ -1191,6 +1800,40 @@ async function main(): Promise<void> {
           `${JSON.stringify(f.value)} — ${f.repair}`,
       );
     }
+  }
+
+  if (result.tokens.length > 0) {
+    console.error(
+      '\nThese refusal tokens have no sentence. The envelope looks up ' +
+        'errors.<CODE>.<token> for a raise that carries one and never falls back to ' +
+        'errors.<CODE>, so the operator reads the thrower\'s own English in every ' +
+        'language. There is no ledger — every repair is a sentence written in both bundles:',
+    );
+    for (const f of result.tokens) {
+      const where =
+        f.raisedAt.length > 0 ? `raised at ${f.raisedAt.join(', ')}` : 'declared in the manifest only';
+      console.error(
+        `  - ${f.key} → ${f.moduleId} (missing in: ${f.missingIn.join(', ')}; ${where})`,
+      );
+    }
+  }
+
+  if (result.unraisedUnledgered.length > 0) {
+    console.error(
+      '\nThese codes are declared and nothing in the source tree names them — no raise ' +
+        'site, no comparison, no mapping. Raise the code where its condition is ' +
+        'detected, or drop the declaration (and its ERROR_CODES member and sentences). ' +
+        'Do not add it to UNRAISED_ERROR_CODES to make a build pass:',
+    );
+    for (const code of result.unraisedUnledgered) console.error(`  - ${code}`);
+  }
+
+  if (result.unraisedStale.length > 0) {
+    console.error(
+      '\nThese are in UNRAISED_ERROR_CODES but the source tree now names them. Delete ' +
+        'them from the ledger — it may only shrink:',
+    );
+    for (const code of result.unraisedStale) console.error(`  - ${code}`);
   }
 
   if (result.exitCode !== 0) process.exit(result.exitCode);

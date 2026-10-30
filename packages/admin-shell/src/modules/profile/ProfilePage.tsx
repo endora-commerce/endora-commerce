@@ -1,10 +1,11 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { ApiError, apiClient } from '../../lib/api-client.js';
-import { useAuth } from '../../lib/auth.js';
-import { useAppLanguage } from '../../i18n/app-language-context.js';
-import { setPreferredLanguage } from '../../i18n/language-storage.js';
-import { useTranslation } from '../../i18n/useTranslation.js';
-import type { SupportedAdminLanguage } from '../../i18n/types.js';
+import { ApiError, apiClient, useAuth } from '@endora-commerce/admin-kit/lib';
+import {
+  useAppLanguage,
+  setPreferredLanguage,
+  useTranslation,
+} from '@endora-commerce/admin-kit/i18n';
+import type { SupportedAdminLanguage } from '@endora-commerce/admin-kit/i18n';
 
 /**
  * ProfilePage — feature 010 admin polish.

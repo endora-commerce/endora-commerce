@@ -1036,22 +1036,12 @@ export function ledgerClassOf(member: WorkspaceMember): string {
  * one entry with one retiring condition rather than a roster that churns every
  * time a module gains or loses a test.
  *
- * It is expected to empty. Never add an entry to make a run pass: every state
+ * It is empty: its last entry, the module packages' co-located tests, was
+ * drained by issue #81. Never add an entry to make a run pass: every state
  * it can record is a set of test files no `tsc` invocation reads, which is the
  * defect this whole `describe` exists for.
  */
-const TESTS_OUTSIDE_THE_TYPE_CHECK_PROGRAM: Readonly<Record<string, string>> = {
-  'endora.type=module':
-    'A module package keeps its unit tests co-located under `src/`, and every module ' +
-    '`tsconfig.json` excludes `src/**/*.test.ts` so that a compiled `*.test.js` cannot reach ' +
-    '`dist` and import `vitest` — an unresolvable specifier in every consumer install. The ' +
-    'exclusion is written in the **type-check** half, so those tests are read by no `tsc` ' +
-    'invocation at all. Ruling A of `specs/084-small-f4-package-layout/` lets a module ' +
-    'package own its unit tests and T045 defers the split, which is why the state exists; ' +
-    'the repair is the one `packages/contracts`, `packages/cli` and `packages/test-kit` took ' +
-    'on 2026-09-07 — move the exclusion into `tsconfig.build.json`, where only the emit reads ' +
-    'it, and let `tsconfig.ui.json` do the same. Delete this entry when it lands.',
-};
+const TESTS_OUTSIDE_THE_TYPE_CHECK_PROGRAM: Readonly<Record<string, string>> = {};
 
 /**
  * Members whose own test files are in no program `pnpm -r run typecheck` builds.

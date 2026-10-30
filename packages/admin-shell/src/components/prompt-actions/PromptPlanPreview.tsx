@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { PromptActionPlan } from '@endora-commerce/contracts';
-import { Button } from '../ui/button.js';
-import { useTranslation } from '../../i18n/useTranslation.js';
+import { Button } from '@endora-commerce/admin-kit/ui';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 /**
  * Confirmable plan card (feature 043, US1/US2 — FR-004).

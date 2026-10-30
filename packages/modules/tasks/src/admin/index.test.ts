@@ -1,3 +1,5 @@
+/// <reference types="node" />
+// The test runs in Node; the admin layer it tests is compiled without Node types.
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { manifest } from '../manifest.js';
@@ -54,9 +56,9 @@ describe('tasks admin contributions', () => {
 
   it('gates every route and nav row on a code its manifest declares', () => {
     const declared = new Set((manifest.permissions ?? []).map((permission) => permission.code));
-    for (const route of contributions.routes ?? []) expect(declared.has(route.requiredPermission ?? '')).toBe(true);
-    for (const row of contributions.nav ?? []) expect(declared.has(row.requiredPermission ?? '')).toBe(true);
-    for (const zone of contributions.zones ?? []) expect(declared.has(zone.requiredPermission ?? '')).toBe(true);
+    for (const route of contributions.routes ?? []) for (const code of [route.requiredPermission ?? ''].flat()) expect(declared.has(code)).toBe(true);
+    for (const row of contributions.nav ?? []) for (const code of [row.requiredPermission ?? ''].flat()) expect(declared.has(code)).toBe(true);
+    for (const zone of contributions.zones ?? []) for (const code of [zone.requiredPermission ?? ''].flat()) expect(declared.has(code)).toBe(true);
   });
 
   it('contributes the Tasks panel to an Order, a Quote Request and an Opportunity (165 US6)', () => {

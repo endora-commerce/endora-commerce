@@ -37,6 +37,7 @@ Everything below is a **peer** dependency, so the application resolves exactly o
 
 **Third-party**
 
+- `@fastify/rate-limit` ^10
 - `@mikro-orm/core` ^6
 - `@mikro-orm/migrations` ^6
 - `@mikro-orm/postgresql` ^6

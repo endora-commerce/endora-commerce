@@ -1,5 +1,5 @@
 import type { PlatformInfo } from '@endora-commerce/contracts';
-import { apiClient } from '../api-client.js';
+import { apiClient } from '@endora-commerce/admin-kit/lib';
 
 /**
  * Which Endora Commerce release the API is — the version of the

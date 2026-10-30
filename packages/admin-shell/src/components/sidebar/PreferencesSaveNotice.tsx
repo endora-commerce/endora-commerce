@@ -1,8 +1,7 @@
 import type { ReactNode } from 'react';
 import { useAdminPreferencesStatus } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription } from '../ui/alert.js';
-import { Button } from '../ui/button.js';
-import { useTranslation } from '../../i18n/useTranslation.js';
+import { Alert, AlertDescription, Button } from '@endora-commerce/admin-kit/ui';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 /**
  * Feature 164, FR-017 — a layout change could not be saved.

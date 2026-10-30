@@ -111,4 +111,28 @@ describe('SmtpMailer — a real SMTP send', () => {
     expect(message.data).toMatch(/Content-Type: application\/pdf; name=invoice-FV_1_2026\.pdf/);
     expect(message.data.replace(/\r\n/g, '')).toContain(pdf.toString('base64'));
   });
+
+  // Feature 169 (T093): the contact form's Reply-To is the shopper's address.
+  it('hands a Reply-To over as the Reply-To header, and none when it is absent', async () => {
+    const mailer = new SmtpMailer(`smtp://127.0.0.1:${sink.port}`);
+    const before = sink.received.length;
+
+    await mailer.send({
+      messageId: '<cms-contact.1@endora.test>',
+      to: 'shop@example.com',
+      subject: 'Contact form',
+      text: 'A message',
+      replyTo: 'shopper@example.com',
+    });
+    await mailer.send({
+      messageId: '<cms-contact.2@endora.test>',
+      to: 'shop@example.com',
+      subject: 'Contact form',
+      text: 'A message',
+    });
+
+    const [withReplyTo, without] = sink.received.slice(before);
+    expect(withReplyTo?.data).toMatch(/^Reply-To: shopper@example\.com$/m);
+    expect(without?.data).not.toMatch(/^Reply-To:/m);
+  });
 });

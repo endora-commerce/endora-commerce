@@ -366,6 +366,26 @@ export function createLinkField(options?: LinkFieldOptions): CustomField<LinkVal
   };
 }
 
+/**
+ * Feature 169 (`specs/169-page-builder-contact-form/` FR-014): the link field's
+ * anchor control as a Puck field of its own, holding a bare anchor (no `#`) —
+ * the sections of the canvas as it is now, or free text normalised to the
+ * anchor grammar when it loses focus. `cms.PageNavigation`'s links use it.
+ * Create it once, at module level: a field recreated per render loses focus.
+ */
+export function createAnchorField(label?: string): CustomField<string | undefined> {
+  const fallbackLabel = label ?? 'Anchor';
+  return {
+    type: 'custom',
+    label: fallbackLabel,
+    render: ({ value, onChange, readOnly, field }): ReactElement => (
+      <FieldLabel label={field.label ?? fallbackLabel} el="div" {...(readOnly === true ? { readOnly: true } : {})}>
+        <AnchorControl value={value ?? ''} readOnly={readOnly} onChange={onChange} />
+      </FieldLabel>
+    ),
+  };
+}
+
 // ── Compatibility: the slug-only link target of today's Button and Hero ──
 
 function LegacyLinkSlugControl({

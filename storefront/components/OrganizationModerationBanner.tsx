@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { OrganizationLifecycleStatus } from '../lib/api/account';
+import { tForLocale, type MessageKey } from '../lib/i18n/messages';
 
 /**
  * Storefront banner shown on cart + checkout pages when the customer's
@@ -7,7 +8,8 @@ import type { OrganizationLifecycleStatus } from '../lib/api/account';
  *
  * Receives the localized `message` directly from `GET /api/v1/me`. The
  * server is the source of truth for the user-facing wording so wording
- * changes don't require redeploying the storefront.
+ * changes don't require redeploying the storefront. The title above it is
+ * the storefront's own chrome and comes from the catalogue (issue #85).
  *
  * Renders `null` when the org is active or absent. Cart/checkout pages
  * can `<OrganizationModerationBanner ... />` unconditionally.
@@ -15,6 +17,8 @@ import type { OrganizationLifecycleStatus } from '../lib/api/account';
 export interface OrganizationModerationBannerProps {
   status: OrganizationLifecycleStatus | string | undefined;
   message: string | null | undefined;
+  /** The page language, for the title. */
+  locale: string;
 }
 
 export function OrganizationModerationBanner(
@@ -37,7 +41,7 @@ export function OrganizationModerationBanner(
         color: palette.text,
       }}
     >
-      <strong className="mb-1 block">{palette.title}</strong>
+      <strong className="mb-1 block">{tForLocale(props.locale)(palette.title)}</strong>
       <span>{props.message}</span>
     </div>
   );
@@ -47,7 +51,7 @@ function paletteFor(status: string): {
   background: string;
   border: string;
   text: string;
-  title: string;
+  title: MessageKey;
 } {
   switch (status) {
     case 'pending_verification':
@@ -55,28 +59,28 @@ function paletteFor(status: string): {
         background: '#fef3c7',
         border: '#fcd34d',
         text: '#7c4a03',
-        title: 'Twoja Organizacja oczekuje na weryfikację',
+        title: 'organization.moderation.pendingVerification',
       };
     case 'blocked':
       return {
         background: '#fee2e2',
         border: '#fca5a5',
         text: '#7f1d1d',
-        title: 'Składanie Zamówień jest wstrzymane',
+        title: 'organization.moderation.blocked',
       };
     case 'rejected':
       return {
         background: '#e5e7eb',
         border: '#9ca3af',
         text: '#374151',
-        title: 'Rejestracja Twojej Organizacji została odrzucona',
+        title: 'organization.moderation.rejected',
       };
     default:
       return {
         background: '#fef3c7',
         border: '#fcd34d',
         text: '#7c4a03',
-        title: 'Składanie Zamówień obecnie niedostępne',
+        title: 'organization.moderation.unavailable',
       };
   }
 }

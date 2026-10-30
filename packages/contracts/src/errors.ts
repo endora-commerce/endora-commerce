@@ -422,6 +422,9 @@ export const ERROR_CODES = {
   CMS_DUPLICATE_ANCHOR: 'CMS_DUPLICATE_ANCHOR',
   CMS_RESERVED_ANCHOR: 'CMS_RESERVED_ANCHOR',
   CMS_PAGE_PARENT_CYCLE: 'CMS_PAGE_PARENT_CYCLE',
+  // Feature 169 — the contact form on a sales channel with no recipients configured
+  // (`specs/169-page-builder-contact-form/` data-model §3.2). HTTP 409.
+  CMS_CONTACT_FORM_UNAVAILABLE: 'CMS_CONTACT_FORM_UNAVAILABLE',
 
   // Megamenu (feature 015)
   MEGAMENU_NOT_FOUND: 'MEGAMENU_NOT_FOUND',

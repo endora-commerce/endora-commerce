@@ -161,6 +161,17 @@ function factsFor(path: string, reader: SourceReader, seen: Set<string>): Module
     return factsFor(target, reader, seen);
   };
 
+  /**
+   * A name taken from a file inherits that file's unknowns only when the file
+   * did not resolve the name itself (issue #101). A name it did resolve is
+   * known, whatever else the file re-exports from where this cannot follow; a
+   * name it did not may have come from exactly there, so its entity-ness stays
+   * unknown rather than false.
+   */
+  const inheritUnresolvableFor = (name: string, target: ModuleFacts): void => {
+    if (!target.exports.has(name)) facts.unresolvable.push(...target.unresolvable);
+  };
+
   for (const statement of source.statements) {
     // `export class X` / `export const x`
     const modifiers = ts.canHaveModifiers(statement) ? ts.getModifiers(statement) : undefined;
@@ -199,7 +210,7 @@ function factsFor(path: string, reader: SourceReader, seen: Set<string>): Module
       if (specifier !== null) {
         const target = factsOfTarget(specifier);
         if (target === null) continue;
-        facts.unresolvable.push(...target.unresolvable);
+        inheritUnresolvableFor(local, target);
         facts.exports.set(exposed, target.exports.get(local) === true);
         continue;
       }
@@ -216,7 +227,7 @@ function factsFor(path: string, reader: SourceReader, seen: Set<string>): Module
       }
       const target = factsOfTarget(origin.from);
       if (target === null) continue;
-      facts.unresolvable.push(...target.unresolvable);
+      inheritUnresolvableFor(origin.imported, target);
       facts.exports.set(exposed, target.exports.get(origin.imported) === true);
     }
   }

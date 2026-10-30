@@ -5,7 +5,7 @@ import {
   type AdminSearchResponse,
   type SupportedAdminLanguage,
 } from '@endora-commerce/contracts';
-import { apiClient } from '../api-client.js';
+import { apiClient } from '@endora-commerce/admin-kit/lib';
 
 /**
  * The admin global search endpoints (`specs/150-admin-global-search/`), as the

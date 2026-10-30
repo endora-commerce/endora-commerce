@@ -63,6 +63,16 @@ output beside that sibling's source** — 432 untracked files in `packages/contr
 sets **`noEmitOnError: true`**, because `dist/` is git-ignored: a compile that failed would
 otherwise ship its artefacts and leave nothing for anybody to notice.
 
+**Test files are excluded from the emit configuration and from nothing else** (issue #81). A
+compiled `*.test.js` in `dist` imports `vitest`, which no consumer installs, so
+`tsconfig.build.json` excludes the test patterns; written in `tsconfig.json` instead, the same
+exclusion takes the tests out of the only program `typecheck` builds, and `vitest` strips types,
+so a type error in a test is reported by nothing. A module package with a UI layer has the same
+split one level down: `tsconfig.ui.json` holds the `jsx`/`DOM` options and is the UI type-check,
+and `tsconfig.ui.build.json` extends it with the test exclusion and nothing else.
+`test/unit/harness/workspace-resolution.test.ts` holds every workspace member to the type-check
+half.
+
 The same git-ignored `dist` is why **every build starts by deleting it**
 (`scripts/clean-package-dist.mjs --src <rootDir> --out <outDir>`, issue #443). `tsc` writes and
 never deletes, so before that step the compiled output of a deleted source survived every later

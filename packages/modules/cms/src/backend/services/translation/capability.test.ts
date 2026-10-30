@@ -56,7 +56,7 @@ describe('resolveTranslationConfig', () => {
   it.each([
     ['no reference', { settings: { 'cms.page_builder.translation.llm_credentials': '' } }],
     ['a dangling reference', { resolveError: new Error('no such configuration') }],
-    ['a non-ok resolution', { resolved: { status: 'not_found' } as Partial<ResolveResult> }],
+    ['a non-ok resolution', { resolved: { status: 'not_configured' } as Partial<ResolveResult> }],
     ['an unknown provider', { resolved: { providerCode: 'mistral_native' } }],
     ['a blank model', { resolved: { values: { apiKey: 'k', model: '  ' } } }],
     ['a blank key', { resolved: { values: { apiKey: '', model: 'm' } } }],

@@ -212,6 +212,8 @@ export {
 // (`specs/163-page-builder-marketing-pages/` data-model §2–3).
 export * from './page-builder-props.js';
 export * from './cms-brand.js';
+// Feature 169 — the contact form's submission (`specs/169-page-builder-contact-form/`).
+export * from './cms-contact-form.js';
 export * from './shopping-lists.js';
 export * from './quick-order.js';
 export * from './settings.js';

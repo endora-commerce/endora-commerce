@@ -15,14 +15,19 @@ import {
 } from '@endora-commerce/contracts';
 import { CMS_PAGE_BUILDER_SETTING_CODES, CMS_SETTING_CODES } from '../manifest.js';
 import type {
+  AdminI18nTranslatePort,
   CmsBlockReadPort,
   CmsPageReadPort,
   CredentialsPort,
+  EmailMailerPort,
   SettingWriteValidatorRegistryPort,
 } from '@endora-commerce/contracts';
 import type { FetchLike } from '@endora-commerce/llm-client';
 import { resolveTranslationConfig } from './services/translation/capability.js';
 import { createMaxSourceCharactersValidator } from './services/translation/max-source-characters-validator.js';
+import { ContactFormService } from './services/contact-form/contact-form.service.js';
+import { createContactFormRecipientsValidator } from './services/contact-form/recipients-validator.js';
+import { registerCmsContactFormRoute } from './routes.storefront.js';
 import { CmsBlockReadService } from './services/cms-block-read-port.js';
 import { CmsBlockSeedService } from './services/cms-block-seed-port.js';
 import { storefrontTagsFor } from './services/cms-content-invalidator.js';
@@ -182,6 +187,8 @@ export interface CmsCradle {
    * real provider (research R19, the `promptActionsLlmFetch` pattern).
    */
   readonly cmsTranslationLlmFetch: FetchLike | undefined;
+  /** Feature 169 — the contact form's submission, behind `POST /api/v1/storefront/cms/contact-form`. */
+  readonly cmsContactFormService: ContactFormService;
 }
 
 const breakpointSchema = z.number().int().positive();
@@ -200,6 +207,9 @@ const shareImageSettingSchema = z.string();
  * one entry at a time, in the module that reads it.
  */
 const reservedSegmentsSchema = z.array(z.unknown());
+
+/** `cms.contact_form_recipients` — the write validator keeps it a list of addresses. */
+const contactFormRecipientsSchema = z.array(z.string());
 
 /** The translation settings are judged by `resolveTranslationConfig`, value by value. */
 const anySettingSchema = z.unknown();
@@ -281,6 +291,31 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
 
     cmsTranslationLlmFetch: ctx.asFunction((): FetchLike | undefined => undefined).singleton(),
+
+    /**
+     * Feature 169 (research R-6, R-8) — the contact form. The mailer and the translator are
+     * `email`'s and `_i18n`'s registrations, both in this module's `dependencies` and both
+     * non-deactivatable, reached through `lazyPort` proxies that resolve per call. The
+     * recipients are read per request for the request's channel (Principle XII); the manifest
+     * declares `[]`, so an unset value answers without an error.
+     */
+    cmsContactFormService: ctx
+      .asFunction(
+        () =>
+          new ContactFormService({
+            mailer: lazyPort<EmailMailerPort>(ctx, 'emailMailer'),
+            translator: lazyPort<AdminI18nTranslatePort>(ctx, 'adminI18nService'),
+            readRecipients: (salesChannelId) =>
+              ctx
+                .cradle<CmsCradle>()
+                .settingsReadPort.get(
+                  CMS_SETTING_CODES.CONTACT_FORM_RECIPIENTS,
+                  salesChannelId,
+                  contactFormRecipientsSchema,
+                ),
+          }),
+      )
+      .singleton(),
 
     cms: ctx
       .asFunction(({ emFactory, commandBus, redis, resolvedModuleRegistry }: CmsCradle) => {
@@ -562,6 +597,11 @@ export function registerModule(ctx: ModuleContext): void {
     lazyPort<SettingWriteValidatorRegistryPort>(ctx, 'settingWriteValidatorRegistry').register(
       createMaxSourceCharactersValidator(),
     );
+    // Feature 169 (T097) — the contact form's recipients are 0–10 addresses, in the same
+    // unprobed contribution hook.
+    lazyPort<SettingWriteValidatorRegistryPort>(ctx, 'settingWriteValidatorRegistry').register(
+      createContactFormRecipientsValidator(),
+    );
   });
 
   ctx.onBoot(async () => {
@@ -629,6 +669,9 @@ export function registerModule(ctx: ModuleContext): void {
     // it up here; until then a failed revalidation has nowhere to be logged.
     cradle.cmsStorefrontRevalidator.setLogger(app.log);
     await cradle.cms.plugin(app);
+    // Feature 169 — the contact form's public endpoint, gated with the rest of this module's
+    // routes (`cms` off → 503 `MODULE_DISABLED`).
+    await registerCmsContactFormRoute(app, { contactForm: () => ctx.cradle<CmsCradle>().cmsContactFormService });
   });
 
   /**

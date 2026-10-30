@@ -74,6 +74,63 @@ function ownerColumns(owner: ResolvedSubscriberOwner): {
       };
 }
 
+type CustomFieldValue = string | number | boolean | null;
+
+/** The longest text a `text` custom field keeps (feature 169, research R-11). */
+export const NEWSLETTER_CUSTOM_FIELD_TEXT_MAX = 500;
+
+const ISO_DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** A calendar date written `YYYY-MM-DD` that exists (no 13th month, no 30 February). */
+function isIsoDate(value: string): boolean {
+  const match = ISO_DATE_RE.exec(value);
+  if (!match) return false;
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
+/** Whether `value` is one a field of `type` holds; `null` (clearing it) fits every type. */
+function fitsCustomFieldType(type: NewsletterCustomField['type'], value: CustomFieldValue): boolean {
+  if (value === null) return true;
+  switch (type) {
+    case 'boolean':
+      return typeof value === 'boolean';
+    case 'number':
+      return typeof value === 'number' && Number.isFinite(value);
+    case 'date':
+      return typeof value === 'string' && isIsoDate(value);
+    case 'text':
+      return typeof value === 'string' && value.length <= NEWSLETTER_CUSTOM_FIELD_TEXT_MAX;
+    default:
+      return false;
+  }
+}
+
+/**
+ * `specs/169-page-builder-contact-form/` FR-026, research R-11 — the custom
+ * fields a subscriber ends up with: `current`, plus each `incoming` value whose
+ * key is a defined field **and** whose value matches that field's type
+ * (`boolean`, a finite `number`, a `YYYY-MM-DD` date that exists, a text of at
+ * most 500 characters; `null` clears). Anything else is dropped rather than
+ * refused, so none of the callers sharing this merge — the public subscribe,
+ * the admin create and the self subscribe — gets a new 400. Before 169 only the
+ * key was checked.
+ */
+export function mergeTypedCustomFields(
+  defined: ReadonlyArray<Pick<NewsletterCustomField, 'key' | 'type'>>,
+  current: Readonly<Record<string, CustomFieldValue>>,
+  incoming: Readonly<Record<string, CustomFieldValue>>,
+): Record<string, CustomFieldValue> {
+  const types = new Map(defined.map((field) => [field.key, field.type]));
+  const merged = { ...current };
+  for (const [key, value] of Object.entries(incoming)) {
+    const type = types.get(key);
+    if (type && fitsCustomFieldType(type, value)) merged[key] = value;
+  }
+  return merged;
+}
+
 export interface SubscriberServiceDeps {
   emFactory: () => EntityManager;
   optIn: NewsletterOptInService;
@@ -336,12 +393,7 @@ export class NewsletterSubscriberService {
   ): Promise<void> {
     if (!incoming || Object.keys(incoming).length === 0) return;
     const defined = await em.find(NewsletterCustomField, {});
-    const allowed = new Set(defined.map((f) => f.key));
-    const merged = { ...subscriber.customFields };
-    for (const [k, v] of Object.entries(incoming)) {
-      if (allowed.has(k)) merged[k] = v;
-    }
-    subscriber.customFields = merged;
+    subscriber.customFields = mergeTypedCustomFields(defined, subscriber.customFields, incoming);
   }
 
   private async mergeTags(em: EntityManager, subscriberId: string, codes?: string[]): Promise<void> {

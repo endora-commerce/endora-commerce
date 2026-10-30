@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { resolve } from '../../../packages/admin-shell/src/i18n/resolver';
-import type { Bundle } from '../../../packages/admin-shell/src/i18n/types';
+import { resolve } from '@endora-commerce/admin-kit/i18n';
+import type { Bundle } from '@endora-commerce/admin-kit/i18n';
 
 /**
  * T021 / T051 / FR-013 — admin-side resolver fallback chain.

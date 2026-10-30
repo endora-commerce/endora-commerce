@@ -3,7 +3,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
-import { ApiError } from '../../../../packages/admin-shell/src/lib/api-client';
+import { ApiError } from '@endora-commerce/admin-kit/lib';
 
 function fakeApiError(status: number): ApiError {
   return new ApiError(status, { error: { code: 'INTERNAL', message: 'test' } });
@@ -18,8 +18,8 @@ function fakeApiError(status: number): ApiError {
 
 const getSpy = vi.fn();
 
-vi.mock('../../../../packages/admin-shell/src/lib/api-client', async () => {
-  const actual = await vi.importActual('../../../../packages/admin-shell/src/lib/api-client');
+vi.mock('@endora-commerce/admin-kit/lib', async () => {
+  const actual = await vi.importActual('@endora-commerce/admin-kit/lib');
   return {
     ...(actual as Record<string, unknown>),
     apiClient: {

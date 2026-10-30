@@ -52,6 +52,11 @@ export const CMS_SETTING_CODES = {
    * `*_asset_id` suffix gives the generic Settings screen its asset picker.
    */
   DEFAULT_SHARE_IMAGE_ASSET_ID: 'cms.default_share_image_asset_id',
+  /**
+   * Feature 169 (data-model §3.1) — who receives the messages of the `cms.ContactForm`
+   * block, per sales channel. Read by the server per request; never in page data.
+   */
+  CONTACT_FORM_RECIPIENTS: 'cms.contact_form_recipients',
 } as const;
 
 const settings = defineModuleSettingsManifest({
@@ -59,6 +64,8 @@ const settings = defineModuleSettingsManifest({
   groups: [
     { code: 'cms', name: 'CMS' },
     { code: 'cms_page_builder', name: 'Page Builder' },
+    // Feature 169 — the contact form's recipients.
+    { code: 'cms_contact_form', name: 'Contact form' },
   ],
   settings: [
     {
@@ -151,6 +158,17 @@ const settings = defineModuleSettingsManifest({
       valueType: 'string',
       defaultValue: '',
     },
+    // Feature 169 (research R-8). Read per request for the request's channel; not `secret`
+    // — an address is not a credential, and the operator has to read it back.
+    {
+      code: CMS_SETTING_CODES.CONTACT_FORM_RECIPIENTS,
+      name: 'Contact form recipients',
+      description:
+        'The e-mail addresses that receive the messages sent with the Contact form block on this sales channel — at most 10. Leave empty and the form answers that it is unavailable. Can be overridden per sales channel. Never shown on the storefront.',
+      groupCode: 'cms_contact_form',
+      valueType: 'string_list',
+      defaultValue: [],
+    },
   ],
 });
 
@@ -219,7 +237,10 @@ export const manifest = defineModuleManifest({
   // contributes its "which languages do pages carry" descriptor to (feature 077,
   // D-87). `languages` used to ask the question itself, with a jsonb
   // containment test against `cms_pages` — this module's table.
-  dependencies: ['assets_library', 'languages', 'sales_channels', 'auth', 'settings'],
+  // Feature 169 (research R-6): `email` owns `emailMailer`, the transport the contact form
+  // sends through, and `_i18n` owns `adminI18nService`, which writes that e-mail in the
+  // channel's language. Both are non-deactivatable, so neither edge costs the operator a switch.
+  dependencies: ['assets_library', 'languages', 'sales_channels', 'auth', 'settings', 'email', '_i18n'],
   nonBindingDependencies: [
     {
       moduleId: 'credentials',
@@ -316,6 +337,8 @@ export const manifest = defineModuleManifest({
       code: 'CMS_TRANSLATION_PROVIDER_FAILED',
       tokens: ['credentials_rejected', 'rate_limited', 'unavailable', 'timeout', 'malformed'],
     },
+    // Feature 169 (data-model §3.2) — the contact form on a channel with no recipients.
+    { code: 'CMS_CONTACT_FORM_UNAVAILABLE' },
   ],
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
@@ -428,6 +451,28 @@ export const manifest = defineModuleManifest({
         'motyw',
       ],
       weight: 136,
+    },
+    // Feature 169 (FR-023) — the recipients are edited on the generic Settings screen, which
+    // has no per-group address, so the entry opens it under the code it is gated by.
+    {
+      id: 'open-contact-form-settings',
+      labelKey: 'actions.openContactFormSettings.label',
+      descriptionKey: 'actions.openContactFormSettings.description',
+      icon: 'Inbox',
+      targetRoute: '/settings',
+      requiredPermission: 'settings:read',
+      keywords: [
+        'contact',
+        'form',
+        'recipients',
+        'e-mail',
+        'enquiries',
+        'kontakt',
+        'formularz',
+        'odbiorcy',
+        'zapytania',
+      ],
+      weight: 137,
     },
   ],
   // Feature 073 — the operator's activation control. A platform without a CMS
@@ -1110,6 +1155,18 @@ export const manifest = defineModuleManifest({
       weight: 30,
     },
     {
+      // Feature 169 (US5): links to sections of the same page; the anchors are ids, not prose.
+      name: 'cms.PageNavigation',
+      translatable: [{ path: 'label' }, { path: 'items[].label' }],
+      labelKey: 'blocks.pageNavigation.label',
+      descriptionKey: 'blocks.pageNavigation.description',
+      category: 'interactive',
+      contexts: ['cms'],
+      fields: {},
+      responsiveFields: ['align', 'margin', 'padding', 'border'],
+      weight: 35,
+    },
+    {
       name: 'cms.Accordion',
       // Feature 163 (R-13): as `cms.Tabs` — blocks in `items[].panel`, stored HTML in `items[].content`.
       translatable: [{ path: 'items[].title' }, { path: 'items[].content', format: 'html' }],
@@ -1240,6 +1297,42 @@ export const manifest = defineModuleManifest({
       fields: {},
       responsiveFields: ['margin', 'padding', 'border'],
       weight: 20,
+    },
+    // Feature 169 (data-model §3) — a form with a fixed field set that e-mails the shop.
+    // Its text is translated per field; the recipients are a setting, never a prop.
+    {
+      name: 'cms.ContactForm',
+      translatable: [
+        { path: 'fields.name.label' },
+        { path: 'fields.name.placeholder' },
+        { path: 'fields.email.label' },
+        { path: 'fields.email.placeholder' },
+        { path: 'fields.phone.label' },
+        { path: 'fields.phone.placeholder' },
+        { path: 'fields.company.label' },
+        { path: 'fields.company.placeholder' },
+        { path: 'fields.subject.label' },
+        { path: 'fields.subject.placeholder' },
+        { path: 'fields.choice.label' },
+        { path: 'fields.choice.placeholder' },
+        { path: 'fields.message.label' },
+        { path: 'fields.message.placeholder' },
+        { path: 'fields.choice.options[].label' },
+        { path: 'privacyConsent.label', format: 'tiptap' },
+        { path: 'marketingConsent.label', format: 'tiptap' },
+        { path: 'button.label' },
+        { path: 'messages.success' },
+        { path: 'messages.error' },
+        { path: 'messages.unavailable' },
+        { path: 'formLabel' },
+      ],
+      labelKey: 'blocks.contactForm.label',
+      descriptionKey: 'blocks.contactForm.description',
+      category: 'forms',
+      contexts: ['cms'],
+      fields: {},
+      responsiveFields: ['margin', 'padding', 'border'],
+      weight: 30,
     },
     {
       name: 'cms.RawHtml',

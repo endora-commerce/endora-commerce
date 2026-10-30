@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -11,6 +11,10 @@ import {
   compareToBaseline,
   countByFile,
   HARDCODED_STRINGS_BASELINE,
+  collectStorefrontFiles,
+  scanDefaultTree,
+  storefrontScanRoot,
+  STOREFRONT_HARDCODED_STRINGS_BASELINE,
   type Finding,
 } from '../../../scripts/i18n-hardcoded-strings.js';
 
@@ -66,6 +70,98 @@ describe('analyzeSource — the shapes it claims to flag', () => {
   it('reports the line and column, so a finding points at the string', () => {
     const source = ['export const A = () => (', '  <p>Nothing here yet</p>', ');', ''].join('\n');
     expect(analyzeSource(source, FILE)[0]).toMatchObject({ line: 2, column: 6 });
+  });
+});
+
+describe('analyzeSource — the storefront\'s Polish literals (issue #85)', () => {
+  const SF = '/repo/storefront/components/rfq/RfqDetailActions.tsx';
+  const SF_TS = '/repo/storefront/lib/quote-requests/describe-diff.ts';
+  const polish = { polishLiterals: true } as const;
+
+  it('flags a Polish string literal outside JSX — the shape the JSX rule cannot see', () => {
+    const findings = analyzeSource("export const labels = { reject: 'Odrzuć' };\n", SF_TS, polish);
+    expect(findings).toEqual([
+      expect.objectContaining({ kind: 'polish-literal', text: 'Odrzuć', line: 1 }),
+    ]);
+  });
+
+  it('flags a template whose static text is Polish once, not once per part', () => {
+    const source = 'export const f = (a: number, b: number) => `${a}: ilość ${b} → ${a}`;\n';
+    expect(analyzeSource(source, SF_TS, polish).map((f) => f.kind)).toEqual(['polish-literal']);
+  });
+
+  it('flags a Polish value of an attribute nobody reads out loud', () => {
+    const source = 'export const A = () => <Field label="Ilość" />;\n';
+    expect(analyzeSource(source, SF, polish).map((f) => f.kind)).toEqual(['polish-literal']);
+  });
+
+  it('counts a Polish user-visible attribute once, as the attribute', () => {
+    const source = 'export const A = () => <input placeholder="Powód odrzucenia" />;\n';
+    expect(analyzeSource(source, SF, polish).map((f) => f.kind)).toEqual(['jsx-attr']);
+  });
+
+  it('ignores the Polish half of a per-language structure — that is the catalogue', () => {
+    const source = [
+      'export const MESSAGES = {',
+      "  'en-US': { 'rfq.reject': 'Reject' },",
+      "  'pl-PL': { 'rfq.reject': 'Odrzuć' },",
+      '};',
+      "export const short = { en: 'Reject', pl: 'Odrzuć' };",
+      '',
+    ].join('\n');
+    expect(analyzeSource(source, SF_TS, polish)).toEqual([]);
+  });
+
+  it('does not exempt a lone property that merely has a short name', () => {
+    expect(
+      analyzeSource("export const x = { id: 'Zamówienie' };\n", SF_TS, polish).map((f) => f.kind),
+    ).toEqual(['polish-literal']);
+  });
+
+  it('ignores an English literal and a Polish comment — neither is this rule\'s subject', () => {
+    const source = "// Odrzuć — cited in a comment\nexport const label = 'Reject';\n";
+    expect(analyzeSource(source, SF_TS, polish)).toEqual([]);
+  });
+
+  it('parses a .ts file as TypeScript, so a generic arrow is not misread as JSX', () => {
+    const source = "export const id = <T,>(x: T): T => x;\nexport const m = 'Usunięto';\n";
+    expect(analyzeSource(source, SF_TS, polish).map((f) => f.kind)).toEqual(['polish-literal']);
+  });
+
+  it('is off unless asked for, so the admin roots keep the two shapes they had', () => {
+    expect(analyzeSource("export const x = 'Odrzuć';\n", FILE)).toEqual([]);
+  });
+});
+
+describe('the storefront root (issue #85)', () => {
+  it('is the workspace member, and its walk opens .ts and .tsx sources but no test', () => {
+    const root = storefrontScanRoot();
+    expect(root, 'no workspace member is the storefront').not.toBeNull();
+    const files: string[] = [];
+    collectStorefrontFiles(root!, files);
+    expect(files.some((f) => f.endsWith('.tsx'))).toBe(true);
+    expect(files.some((f) => f.endsWith('.ts') && !f.endsWith('.d.ts'))).toBe(true);
+    expect(files.filter((f) => /\.(test|spec)\.tsx?$/.test(f) || f.endsWith('.d.ts'))).toEqual([]);
+    expect(files.filter((f) => f.split(/[\\/]/).includes('test'))).toEqual([]);
+  });
+
+  it('opens every file STOREFRONT_HARDCODED_STRINGS_BASELINE names', () => {
+    const repoRoot = fileURLToPath(new URL('../../../../', import.meta.url));
+    const { files } = scanDefaultTree();
+    const walked = new Set(files.map((f) => relative(repoRoot, f).split('\\').join('/')));
+    expect(Object.keys(STOREFRONT_HARDCODED_STRINGS_BASELINE).filter((e) => !walked.has(e))).toEqual(
+      [],
+    );
+  });
+
+  it('keys every storefront entry under the storefront, and no admin entry there', () => {
+    const outside = Object.keys(STOREFRONT_HARDCODED_STRINGS_BASELINE).filter(
+      (key) => !key.startsWith('storefront/'),
+    );
+    const inside = Object.keys(HARDCODED_STRINGS_BASELINE).filter((key) =>
+      key.startsWith('storefront/'),
+    );
+    expect({ outside, inside }).toEqual({ outside: [], inside: [] });
   });
 });
 
@@ -232,11 +328,17 @@ describe('the tree itself (what CI asserts)', () => {
     // So the derivation is shared rather than mirrored. A batch that adds a
     // fourth root family now moves both answers at once, which is the only way
     // a ratchet over relocations can stay honest about relocations.
+    //
+    // Issue #85 added the storefront as a fourth family, and that is why the
+    // walk and the analysis are one exported call now rather than a loop
+    // repeated here: the storefront reads `.ts` too and asks one more question
+    // of it, and a copy of the loop would have kept asking the old two.
     const repoRoot = fileURLToPath(new URL('../../../../', import.meta.url));
-    const files: string[] = [];
-    for (const root of defaultRoots()) collectTsxFiles(root, files);
-    const findings = files.flatMap((f) => analyzeSource(readFileSync(f, 'utf8'), f));
-    const verdict = compareToBaseline(countByFile(findings, repoRoot), HARDCODED_STRINGS_BASELINE);
+    const { findings } = scanDefaultTree();
+    const verdict = compareToBaseline(countByFile(findings, repoRoot), {
+      ...HARDCODED_STRINGS_BASELINE,
+      ...STOREFRONT_HARDCODED_STRINGS_BASELINE,
+    });
     expect(verdict.regressions).toEqual([]);
     expect(verdict.drained).toEqual([]);
   });

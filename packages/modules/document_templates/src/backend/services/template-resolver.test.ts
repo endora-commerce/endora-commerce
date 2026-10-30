@@ -54,7 +54,7 @@ const resolve = (rows: TemplateRow[], input: { channel: string | null; language?
     }),
   };
 };
-const markers = (candidates: { tree: unknown }[]) =>
+const markers = (candidates: readonly { tree: unknown }[]) =>
   candidates.map((c) => ((c.tree as { content: { props: { marker: string } }[] }).content[0]!.props.marker));
 
 describe('TemplateResolver — default resolution (FR-031)', () => {

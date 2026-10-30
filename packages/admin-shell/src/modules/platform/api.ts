@@ -3,7 +3,7 @@ import type {
   RecentActivityVisibilityList,
   RecentActivityVisibilityResponse,
 } from '@endora-commerce/contracts';
-import { apiClient } from '../../lib/api-client.js';
+import { apiClient } from '@endora-commerce/admin-kit/lib';
 
 /**
  * The platform axis, as the lifecycle orchestrator sees it — registered vs

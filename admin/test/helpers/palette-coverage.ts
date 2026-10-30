@@ -26,6 +26,18 @@
  *    entry is top-level by definition, and "sidebar-only is not enough";
  *  - **any other** static route must be covered or carry an exemption, with a
  *    reason, saying why it is not a top-level screen.
+ *
+ * And one rule per module rather than per destination (issue #82): a module
+ * that contributes an admin **page** — any route, or any sidebar entry —
+ * declares at least one palette action **of its own**. Coverage alone cannot
+ * see a module whose screens are advertised only by another module's actions,
+ * or whose pages are all parameterised; both leave the module without a
+ * palette presence of its own, and removing the other module would leave its
+ * screens unreachable from ⌘K. A module contributing only zones has no page
+ * and is not asked. There is no exemption: when the rule landed every module
+ * complied, and the precedent of the sidebar ledger (issue #516) is that a
+ * shrink-only ledger with nothing in it is removed with its code path rather
+ * than kept as an invitation.
  */
 
 /** The parts of a contributed route the rule reads. */
@@ -60,6 +72,7 @@ export type PaletteCoverageFindingKind =
   | 'uncovered-landing'
   | 'uncovered-sidebar-entry'
   | 'uncovered-destination'
+  | 'module-without-action'
   | 'stale-exemption'
   | 'entry-without-reason';
 
@@ -87,6 +100,7 @@ export function paletteCoverageFindings(input: {
 }): PaletteCoverageFinding[] {
   const findings: PaletteCoverageFinding[] = [];
   const covered = new Set(input.actions.map((action) => action.targetRoute));
+  const modulesWithActions = new Set(input.actions.map((action) => action.moduleId));
   const usedExemptions = new Set<string>();
   const key = (moduleId: string, path: string): string => `${moduleId} ${path}`;
 
@@ -118,6 +132,11 @@ export function paletteCoverageFindings(input: {
         path,
       });
     }
+
+    const firstPage = surface.routes[0]?.path ?? surface.nav[0]?.to;
+    if (firstPage !== undefined && !modulesWithActions.has(surface.moduleId)) {
+      findings.push({ kind: 'module-without-action', moduleId: surface.moduleId, path: firstPage });
+    }
   }
 
   for (const [moduleId, entries] of Object.entries(input.exemptions)) {
@@ -144,6 +163,8 @@ export function describeFinding(finding: PaletteCoverageFinding): string {
       return `${moduleId}: sidebar entry ${path} has no palette action (no exemption possible)`;
     case 'uncovered-destination':
       return `${moduleId}: ${path} has no palette action — declare one, or exempt it with a reason`;
+    case 'module-without-action':
+      return `${moduleId}: contributes admin pages (${path} first) but declares no palette action of its own (no exemption possible)`;
     case 'stale-exemption':
       return `${moduleId}: exemption for ${path} no longer matches an uncovered non-sidebar route — delete it`;
     case 'entry-without-reason':

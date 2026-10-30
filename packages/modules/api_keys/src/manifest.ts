@@ -131,9 +131,11 @@ export const manifest = defineModuleManifest({
    * this module is off. `test/integration/_lifecycle/non-binding-degradation.integration.test.ts`
    * asserts it with a bound key and a mismatching `x-sales-channel` header.
    *
-   * **Two of the three have no sentence.** `API_KEY_CHANNEL_MISMATCH` and
-   * `API_KEY_NOT_BOUND` never had one and stay on `UNTRANSLATED_ERROR_CODES`,
-   * under this module instead of under `_i18n`.
+   * **`API_KEY_CHANNEL_MISMATCH` and `API_KEY_NOT_BOUND` had no sentence**
+   * until issue #86, and stood on `UNTRANSLATED_ERROR_CODES` under this module.
+   * Every raise of either writes a fixed English sentence and passes no
+   * `details`, so the bundle carries that sentence and its Polish twin, with no
+   * placeholder for the envelope to find unfilled and fall back to English on.
    *
    * `API_KEY_OUT_OF_SCOPE` was the third until issue #86, and the reason it was
    * ledgered is the reason it no longer is. It carried a placeholder —

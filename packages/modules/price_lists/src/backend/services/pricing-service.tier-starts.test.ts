@@ -19,8 +19,7 @@ describe('PricingService.listTierStarts (price books)', () => {
         return rows;
       },
     } as unknown as EntityManager;
-    const service = new PricingService(() => em, undefined, undefined, undefined, undefined, {
-      model: 'books',
+    const service = new PricingService(() => em, undefined, undefined, undefined, {
       channelBridge: { entityIdsInChannelSubquery: () => ({ sql: 'select 1', params: [] }) },
     });
     return { service, calls };

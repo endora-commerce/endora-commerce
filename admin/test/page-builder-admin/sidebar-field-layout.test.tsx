@@ -3,8 +3,8 @@ import { StrictMode, useState, type ComponentType, type ReactElement } from 'rea
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { TranslationProvider } from '../../../packages/admin-shell/src/i18n/TranslationProvider';
-import type { Bundle } from '../../../packages/admin-shell/src/i18n/types';
+import { TranslationProvider } from '@endora-commerce/admin-kit/i18n';
+import type { Bundle } from '@endora-commerce/admin-kit/i18n';
 import type { Data } from '@puckeditor/core';
 import { apiClient } from '@endora-commerce/admin-kit/lib';
 import {

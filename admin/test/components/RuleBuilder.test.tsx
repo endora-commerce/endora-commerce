@@ -6,7 +6,7 @@ import {
   RuleBuilder,
   type RuleBuilderBuiltinField,
   type StructuralRule,
-} from '../../../packages/admin-shell/src/components/rule-builder/RuleBuilder';
+} from '@endora-commerce/admin-kit/components';
 
 describe('RuleBuilder', () => {
   it('converts the match-all node into a condition on "Add condition"', async () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_BRAND_TOKENS, type CmsBrandTokens, type ModuleManifest } from '@endora-commerce/contracts';
-import { contextAdmits } from '@endora-commerce/page-builder-core';
+import { contextAdmits } from '@endora-commerce/page-builder-core/context-admits';
 import { PageBuilderRegistry } from './page-builder-registry.js';
 
 /**

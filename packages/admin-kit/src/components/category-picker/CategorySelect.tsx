@@ -1,15 +1,19 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ApiError, apiClient } from '../../lib/api-client.js';
+import { ApiError, apiClient } from '../../lib/index.js';
 import { useAppLanguage } from '../../i18n/app-language-context.js';
 import { Combobox, type ComboboxOption } from '../../ui/combobox.js';
+import {
+  adminLanguageToLocale,
+  pickCategoryDisplayName,
+} from '../category-tree-picker/category-tree-utils.js';
 
 /**
  * Single-select catalog-category picker.
  *
  * `GET /api/v1/admin/catalog/categories` returns the full tree flat (no
  * pagination), so the list is fetched once on mount and the <Combobox>
- * filters client-side. Labels are locale-aware (admin UI language, then
- * `en-US`, then any value, then slug). The committed value is the
+ * filters client-side. Labels are locale-aware (the admin UI language's
+ * locale, then `en-US`, then any value, then slug). The committed value is the
  * category UUID.
  *
  * For multi-select category audiences use <CategoryTreePicker>; this is
@@ -65,12 +69,17 @@ export function CategorySelect(props: CategorySelectProps): ReactNode {
   }, []);
 
   const options = useMemo<ComboboxOption<string>[]>(() => {
-    const labelFor = (c: AdminCategory): string =>
-      c.name[language] ?? c.name['en-US'] ?? Object.values(c.name)[0] ?? c.slug;
-    return categories.map((c) => ({ value: c.id, label: labelFor(c), description: c.slug }));
+    // Names are keyed by locale (`pl-PL`), the admin language by its short
+    // code (`pl`): map one to the other rather than index by the wrong key.
+    const locale = adminLanguageToLocale(language);
+    return categories.map((c) => ({
+      value: c.id,
+      label: pickCategoryDisplayName(c.name, c.slug, locale),
+      description: c.slug,
+    }));
   }, [categories, language]);
 
-  const emptyMessage = props.emptyMessage ?? error ?? 'No categories.';
+  const emptyMessage = error ?? props.emptyMessage ?? 'No categories.';
 
   return (
     <Combobox<string>

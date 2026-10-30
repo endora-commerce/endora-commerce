@@ -11,6 +11,9 @@ import { BlockData } from './BlockData';
 import { Hook } from './Hook';
 import { PageBuilderRender } from './PageBuilderRender';
 import { cmsCarouselLabels } from '../lib/page-builder/carousel-labels';
+import { pageNavigationText } from '../lib/page-builder/page-navigation-text';
+import { newsletterSignupText } from '../lib/page-builder/newsletter-signup-text';
+import { cmsContactFormText } from '../lib/page-builder/contact-form-text';
 import { publicApiBaseUrl } from '../lib/env.mjs';
 
 const mediaBaseUrl = publicApiBaseUrl().replace(
@@ -64,7 +67,10 @@ export function CmsPageRenderer({
       assets={assets}
       mediaBaseUrl={mediaBaseUrl}
       {...(location ? { location } : {})}
+      newsletterSignupText={newsletterSignupText(page.language)}
       carouselLabels={cmsCarouselLabels(page.language)}
+      pageNavigationText={pageNavigationText(page.language)}
+      contactFormText={cmsContactFormText(page.language)}
     >
       <Hook code="cms.page.top" />
       <BlockData

@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { customFieldCarrySkipReasonSchema } from '@endora-commerce/contracts';
 import { passthroughBundle } from '../../helpers/render-with-i18n';
-import { TranslationProvider } from '../../../../packages/admin-shell/src/i18n/TranslationProvider';
+import { TranslationProvider } from '@endora-commerce/admin-kit/i18n';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 import ordersEn from '../../../../packages/modules/orders/i18n/en.json';
 import ordersPl from '../../../../packages/modules/orders/i18n/pl.json';

@@ -82,8 +82,10 @@ describe('cms manifest — command palette', () => {
       ...NAVIGATION_ENTRIES.map((e) => e.id),
       // Feature 151 — the translation settings entry.
       'open-page-builder-translation-settings',
-      // Feature 163 — the brand screen closes the list.
+      // Feature 163 — the brand screen.
       'open-cms-brand',
+      // Feature 169 (T096, deliberately changed) — the contact form's recipients close the list.
+      'open-contact-form-settings',
     ]);
   });
 
@@ -222,5 +224,86 @@ describe('cms manifest — Page Builder translation', () => {
     for (const language of LANGUAGES) {
       expect(bundle(language)['actions.openPageBuilderTranslationSettings.label']).toMatch(/\S/);
     }
+  });
+});
+
+/** Feature 169 — the contact form's manifest surface (`specs/169-page-builder-contact-form/` T096). */
+describe('cms manifest — contact form', () => {
+  const settings = manifest.settings?.settings ?? [];
+
+  it('declares the recipients setting per channel in its own group, empty by default and not secret', () => {
+    expect(settings.find((s) => s.code === 'cms.contact_form_recipients')).toMatchObject({
+      groupCode: 'cms_contact_form',
+      valueType: 'string_list',
+      defaultValue: [],
+    });
+    expect(settings.find((s) => s.code === 'cms.contact_form_recipients')).not.toHaveProperty('secret', true);
+    expect(manifest.settings?.groups).toContainEqual({ code: 'cms_contact_form', name: 'Contact form' });
+    for (const language of LANGUAGES) {
+      const messages = bundle(language);
+      expect(messages['settingGroups.cms_contact_form.name'], language).toMatch(/\S/);
+      expect(messages['settingLabels.cms.contact_form_recipients.name'], language).toMatch(/\S/);
+      expect(messages['settingLabels.cms.contact_form_recipients.description'], language).toMatch(/\S/);
+    }
+  });
+
+  it('declares the unavailable error code, translated in both languages', () => {
+    expect(manifest.errorCodes).toContainEqual({ code: 'CMS_CONTACT_FORM_UNAVAILABLE' });
+    for (const language of LANGUAGES) expect(bundle(language)['errors.CMS_CONTACT_FORM_UNAVAILABLE']).toMatch(/\S/);
+  });
+
+  it('depends on the mailer and the translator, both non-deactivatable', () => {
+    expect(manifest.dependencies).toEqual(expect.arrayContaining(['email', '_i18n']));
+    expect(manifest.dependencies).not.toContain('newsletter');
+  });
+
+  it('offers a palette entry to the Settings screen, findable in English and Polish', () => {
+    const action = (manifest.actions ?? []).find((a) => a.id === 'open-contact-form-settings');
+    expect(action).toMatchObject({
+      targetRoute: '/settings',
+      requiredPermission: 'settings:read',
+      icon: 'Inbox',
+      labelKey: 'actions.openContactFormSettings.label',
+      descriptionKey: 'actions.openContactFormSettings.description',
+      weight: 137,
+    });
+    expect(action!.keywords).toEqual(expect.arrayContaining(['contact', 'form', 'recipients', 'kontakt', 'formularz']));
+    for (const language of LANGUAGES) {
+      expect(bundle(language)['actions.openContactFormSettings.label']).toMatch(/\S/);
+      expect(bundle(language)['actions.openContactFormSettings.description']).toMatch(/\S/);
+    }
+  });
+
+  it('declares the cms.ContactForm block in the forms section with its translatable text', () => {
+    const block = (manifest.blocks ?? []).find((b) => b.name === 'cms.ContactForm');
+    expect(block).toMatchObject({
+      category: 'forms',
+      contexts: ['cms'],
+      labelKey: 'blocks.contactForm.label',
+      descriptionKey: 'blocks.contactForm.description',
+      responsiveFields: ['margin', 'padding', 'border'],
+    });
+    const paths = (block?.translatable ?? []).map((entry) => entry.path);
+    for (const key of ['name', 'email', 'phone', 'company', 'subject', 'choice', 'message']) {
+      expect(paths).toContain(`fields.${key}.label`);
+      expect(paths).toContain(`fields.${key}.placeholder`);
+    }
+    expect(paths).toEqual(
+      expect.arrayContaining([
+        'fields.choice.options[].label',
+        'button.label',
+        'messages.success',
+        'messages.error',
+        'messages.unavailable',
+        'formLabel',
+      ]),
+    );
+    expect(block?.translatable).toEqual(
+      expect.arrayContaining([
+        { path: 'privacyConsent.label', format: 'tiptap' },
+        { path: 'marketingConsent.label', format: 'tiptap' },
+      ]),
+    );
+    for (const language of LANGUAGES) expect(bundle(language)['blocks.contactForm.label']).toMatch(/\S/);
   });
 });

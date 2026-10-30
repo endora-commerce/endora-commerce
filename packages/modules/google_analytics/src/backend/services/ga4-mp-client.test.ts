@@ -11,7 +11,7 @@ const event = {
 
 describe('Ga4MpClient', () => {
   it('POSTs to the GA4 MP default endpoint with measurement_id + api_secret', async () => {
-    const fetchFn = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) => new Response(null, { status: 204 }));
+    const fetchFn = vi.fn(async (_url: Parameters<typeof fetch>[0], _init?: RequestInit) => new Response(null, { status: 204 }));
     await new Ga4MpClient({ fetchFn: fetchFn as unknown as typeof fetch }).send(dest, event);
     expect(fetchFn).toHaveBeenCalledOnce();
     const [url, init] = fetchFn.mock.calls[0]!;
@@ -24,7 +24,7 @@ describe('Ga4MpClient', () => {
   });
 
   it('uses a server-side GTM endpoint override when provided', async () => {
-    const fetchFn = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) => new Response(null, { status: 200 }));
+    const fetchFn = vi.fn(async (_url: Parameters<typeof fetch>[0], _init?: RequestInit) => new Response(null, { status: 200 }));
     await new Ga4MpClient({ fetchFn: fetchFn as unknown as typeof fetch }).send(
       { ...dest, endpoint: 'https://sgtm.example.com/g/collect' },
       event,
@@ -33,7 +33,7 @@ describe('Ga4MpClient', () => {
   });
 
   it('throws on a non-2xx response so BullMQ retries (FR-024)', async () => {
-    const fetchFn = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) => new Response('nope', { status: 500 }));
+    const fetchFn = vi.fn(async (_url: Parameters<typeof fetch>[0], _init?: RequestInit) => new Response('nope', { status: 500 }));
     await expect(
       new Ga4MpClient({ fetchFn: fetchFn as unknown as typeof fetch }).send(dest, event),
     ).rejects.toThrow(/500/);

@@ -299,8 +299,47 @@ describe('findWorkerFactories / findWorkerSites — the queue-consumer spellings
     expect(checkWorkerSeam({ sources }, {}).sites).toHaveLength(0);
   });
 
+  // Issue #90: an arrow whose body *is* the call was the only shape recognised as
+  // handing the worker to its caller. A conditional, parentheses, `as` and `!`
+  // pass the value through unchanged, so each is the same hand-off.
+  it.each([
+    ['a conditional', 'cond ? createPushDeliveryWorker(r, p) : null'],
+    ['parentheses', '(createPushDeliveryWorker(r, p))'],
+    ['an `as` assertion', 'createPushDeliveryWorker(r, p) as Worker'],
+    ['a non-null assertion', 'createPushDeliveryWorker(r, p)!'],
+    ['nested wrappers', '(cond ? (createPushDeliveryWorker(r, p) as Worker) : undefined)!'],
+  ])('accepts a factory call an arrow returns through %s', (_label, body) => {
+    const result = checkWorkerSeam(
+      { sources: workerTree(`export const makeWorker = () => ${body};`) },
+      {},
+    );
+    expect(result.violations).toHaveLength(0);
+  });
+
+  it('reads an arrow that returns `new Worker` through a conditional as a factory', () => {
+    const sources = new Map([
+      [
+        'modules/pwa/services/push-delivery-queue.ts',
+        "import { Worker } from 'bullmq';\n" +
+          'export const createPushDeliveryWorker = (redis: Redis | null) =>\n' +
+          '  redis ? new Worker(QUEUE, handler, { connection: redis }) : null;',
+      ],
+    ]);
+    expect([...findWorkerFactories({ sources })]).toEqual(['createPushDeliveryWorker']);
+    expect(checkWorkerSeam({ sources }, {}).violations).toHaveLength(0);
+  });
+
+  it('still reports a call that is only the condition of the returned conditional', () => {
+    // The call's value picks the branch; it is not what the arrow returns.
+    const result = checkWorkerSeam(
+      { sources: workerTree('export const probe = () => (createPushDeliveryWorker(r, p) ? 1 : 0);') },
+      {},
+    );
+    expect(result.violations.map((v) => v.spelling)).toEqual(['createPushDeliveryWorker']);
+  });
+
   it('is a two-way ratchet: ledgered passes, and a stale entry fails', () => {
-    const ungated = workerTree('createPushDeliveryWorker(options.redis, processor);');
+    const ungated =workerTree('createPushDeliveryWorker(options.redis, processor);');
     const key = 'modules/pwa/plugin.ts:createPushDeliveryWorker';
     expect(checkWorkerSeam({ sources: ungated }, { [key]: 'a reason' }).violations).toHaveLength(0);
 

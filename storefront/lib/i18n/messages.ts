@@ -413,8 +413,38 @@ export type MessageKey =
   | 'quoteRequests.validity.convertBlocked'
   // The remedy both of those sentences name. Keyed because a sentence telling
   // the buyer to press a button has to be readable in the same language as the
-  // button; the rest of this screen's copy is Polish-only and stays so.
+  // button.
   | 'quoteRequests.resubmit'
+  // Issue #85: the rest of the buyer's action row on the quote-request detail,
+  // which was Polish whatever the shop's language.
+  | 'quoteRequests.actions.acceptRevision'
+  | 'quoteRequests.actions.reject'
+  | 'quoteRequests.actions.rejectReasonPlaceholder'
+  | 'quoteRequests.actions.placeOrder'
+  // Issue #85: the cookie-consent banner's own chrome. The sentence inside it
+  // is the operator's `cookieconsent.message` CMS block, not a key.
+  | 'consent.dialogLabel'
+  | 'consent.decline'
+  | 'consent.accept'
+  // Issue #85: the post-login cart-merge toast, which carried its two
+  // sentences inline and picked one with `startsWith('pl')`.
+  | 'cart.merge.adopted'
+  | 'cart.merge.merged'
+  // Issue #85: the title above the organization moderation message on cart and
+  // checkout. The message under it is `GET /me`'s, already localized.
+  | 'organization.moderation.pendingVerification'
+  | 'organization.moderation.blocked'
+  | 'organization.moderation.rejected'
+  | 'organization.moderation.unavailable'
+  // Issue #85: the quote-request comparison's sentences, which were Polish
+  // templates around a group name that was already keyed. `{line}` is the
+  // product (and its group), the rest are the values the entry carries.
+  | 'quoteRequest.diff.headerNote'
+  | 'quoteRequest.diff.lineAdded'
+  | 'quoteRequest.diff.lineAddedAt'
+  | 'quoteRequest.diff.lineRemoved'
+  | 'quoteRequest.diff.lineQuantity'
+  | 'quoteRequest.diff.linePrice'
   // The service-unavailable notice. It is served at `503` by the reachability
   // gate in `middleware.ts` when the backend cannot be reached, which is also
   // the one screen in this storefront whose copy has to be resolvable with the
@@ -438,7 +468,30 @@ export type MessageKey =
   | 'cms.carousel.play'
   | 'cms.carousel.filter'
   | 'cms.carousel.filterAll'
-  | 'cms.carousel.filterCount';
+  | 'cms.carousel.filterCount'
+  // Feature 169 (US5): the page navigation's accessible name when the block sets none.
+  | 'cms.pageNavigation.label'
+  // Feature 169 (US7): `newsletter.Signup`'s message for a required attribute left empty.
+  | 'newsletter.signup.fields'
+  // Feature 169 (data-model §5.4): the default words of the `cms.ContactForm` block.
+  | 'cms.contactForm.label'
+  | 'cms.contactForm.field.name'
+  | 'cms.contactForm.field.email'
+  | 'cms.contactForm.field.phone'
+  | 'cms.contactForm.field.company'
+  | 'cms.contactForm.field.subject'
+  | 'cms.contactForm.field.choice'
+  | 'cms.contactForm.field.message'
+  | 'cms.contactForm.choicePlaceholder'
+  | 'cms.contactForm.privacyConsent'
+  | 'cms.contactForm.marketingConsent'
+  | 'cms.contactForm.submit'
+  | 'cms.contactForm.message.success'
+  | 'cms.contactForm.message.error'
+  | 'cms.contactForm.message.unavailable'
+  | 'cms.contactForm.required'
+  | 'cms.contactForm.fieldRequired'
+  | 'cms.contactForm.fieldEmail';
 
 export const MESSAGES: Record<string, Record<MessageKey, string>> = {
   'en-US': {
@@ -828,6 +881,25 @@ export const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'quoteRequests.validity.convertBlocked':
       'The quote you accepted is no longer valid, so it can no longer be turned into an order. Once a quote has been approved its deadline can no longer be moved \u2014 submit the request again to get a current quote.',
     'quoteRequests.resubmit': 'Submit again',
+    'quoteRequests.actions.acceptRevision': 'Accept revision',
+    'quoteRequests.actions.reject': 'Reject',
+    'quoteRequests.actions.rejectReasonPlaceholder': 'Reason for rejection (optional)',
+    'quoteRequests.actions.placeOrder': 'Place order from this quote',
+    'consent.dialogLabel': 'Cookie consent',
+    'consent.decline': 'Decline',
+    'consent.accept': 'Accept',
+    'cart.merge.adopted': "We've attached the basket you started before signing in to your account.",
+    'cart.merge.merged': "We've added the items you picked before signing in to your existing cart.",
+    'organization.moderation.pendingVerification': 'Your organization is awaiting verification',
+    'organization.moderation.blocked': 'Ordering is suspended',
+    'organization.moderation.rejected': 'Your organization\u2019s registration was rejected',
+    'organization.moderation.unavailable': 'Ordering is currently unavailable',
+    'quoteRequest.diff.headerNote': 'Notes: \u201c{before}\u201d \u2192 \u201c{after}\u201d',
+    'quoteRequest.diff.lineAdded': 'Added: {line} \u00d7 {quantity}',
+    'quoteRequest.diff.lineAddedAt': 'Added: {line} \u00d7 {quantity} at {price}',
+    'quoteRequest.diff.lineRemoved': 'Removed: {line}',
+    'quoteRequest.diff.lineQuantity': '{line}: quantity {before} \u2192 {after}',
+    'quoteRequest.diff.linePrice': '{line}: price {before} \u2192 {after}',
     'serviceUnavailable.documentTitle': 'Service unavailable',
     'serviceUnavailable.status': 'Temporary outage',
     'serviceUnavailable.heading': 'The shop is temporarily unavailable.',
@@ -848,6 +920,26 @@ export const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'cms.carousel.filter': 'Filter',
     'cms.carousel.filterAll': 'All',
     'cms.carousel.filterCount': '{n} of {m} shown',
+    'cms.pageNavigation.label': 'On this page',
+    'newsletter.signup.fields': 'Please fill in the required fields.',
+    'cms.contactForm.label': 'Contact form',
+    'cms.contactForm.field.name': 'Name',
+    'cms.contactForm.field.email': 'E-mail',
+    'cms.contactForm.field.phone': 'Phone',
+    'cms.contactForm.field.company': 'Company',
+    'cms.contactForm.field.subject': 'Subject',
+    'cms.contactForm.field.choice': 'Choose',
+    'cms.contactForm.field.message': 'Message',
+    'cms.contactForm.choicePlaceholder': 'Choose…',
+    'cms.contactForm.privacyConsent': 'I agree to the processing of my data to answer this message.',
+    'cms.contactForm.marketingConsent': 'I would like to receive news and offers by e-mail.',
+    'cms.contactForm.submit': 'Send',
+    'cms.contactForm.message.success': 'Thank you. Your message has been sent.',
+    'cms.contactForm.message.error': 'Please check the highlighted fields and try again.',
+    'cms.contactForm.message.unavailable': 'The message could not be sent right now. Please try again later.',
+    'cms.contactForm.required': '(required)',
+    'cms.contactForm.fieldRequired': 'This field is required.',
+    'cms.contactForm.fieldEmail': 'Enter a valid e-mail address.',
   },
   'pl-PL': {
     'a11y.skipToContent': 'Przejdź do treści',
@@ -1236,6 +1328,25 @@ export const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'quoteRequests.validity.convertBlocked':
       'Zaakceptowana oferta straciła ważność, więc nie można już złożyć z niej zamówienia. Terminu zatwierdzonej oferty nie da się już przesunąć — złóż zapytanie ponownie, aby otrzymać aktualną ofertę.',
     'quoteRequests.resubmit': 'Złóż ponownie',
+    'quoteRequests.actions.acceptRevision': 'Akceptuj wersję',
+    'quoteRequests.actions.reject': 'Odrzuć',
+    'quoteRequests.actions.rejectReasonPlaceholder': 'Powód odrzucenia (opcjonalny)',
+    'quoteRequests.actions.placeOrder': 'Złóż zamówienie z tej oferty',
+    'consent.dialogLabel': 'Zgoda na pliki cookie',
+    'consent.decline': 'Odrzuć',
+    'consent.accept': 'Akceptuję',
+    'cart.merge.adopted': 'Twoje produkty z koszyka sprzed logowania zostały dodane do Twojego konta.',
+    'cart.merge.merged': 'Dodaliśmy do Twojego koszyka produkty, które wybrałeś przed zalogowaniem.',
+    'organization.moderation.pendingVerification': 'Twoja Organizacja oczekuje na weryfikację',
+    'organization.moderation.blocked': 'Składanie Zamówień jest wstrzymane',
+    'organization.moderation.rejected': 'Rejestracja Twojej Organizacji została odrzucona',
+    'organization.moderation.unavailable': 'Składanie Zamówień obecnie niedostępne',
+    'quoteRequest.diff.headerNote': 'Uwagi: \u201e{before}\u201d \u2192 \u201e{after}\u201d',
+    'quoteRequest.diff.lineAdded': 'Dodano: {line} \u00d7 {quantity}',
+    'quoteRequest.diff.lineAddedAt': 'Dodano: {line} \u00d7 {quantity} po {price}',
+    'quoteRequest.diff.lineRemoved': 'Usunięto: {line}',
+    'quoteRequest.diff.lineQuantity': '{line}: ilość {before} \u2192 {after}',
+    'quoteRequest.diff.linePrice': '{line}: cena {before} \u2192 {after}',
     'serviceUnavailable.documentTitle': 'Serwis niedostępny',
     'serviceUnavailable.status': 'Chwilowa przerwa',
     'serviceUnavailable.heading': 'Serwis jest chwilowo niedostępny.',
@@ -1256,6 +1367,26 @@ export const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'cms.carousel.filter': 'Filtruj',
     'cms.carousel.filterAll': 'Wszystkie',
     'cms.carousel.filterCount': 'Pokazano {n} z {m}',
+    'cms.pageNavigation.label': 'Na tej stronie',
+    'newsletter.signup.fields': 'Uzupełnij wymagane pola.',
+    'cms.contactForm.label': 'Formularz kontaktowy',
+    'cms.contactForm.field.name': 'Imię i nazwisko',
+    'cms.contactForm.field.email': 'E-mail',
+    'cms.contactForm.field.phone': 'Telefon',
+    'cms.contactForm.field.company': 'Firma',
+    'cms.contactForm.field.subject': 'Temat',
+    'cms.contactForm.field.choice': 'Wybierz',
+    'cms.contactForm.field.message': 'Wiadomość',
+    'cms.contactForm.choicePlaceholder': 'Wybierz…',
+    'cms.contactForm.privacyConsent': 'Wyrażam zgodę na przetwarzanie moich danych w celu odpowiedzi na tę wiadomość.',
+    'cms.contactForm.marketingConsent': 'Chcę otrzymywać e-mailem nowości i oferty.',
+    'cms.contactForm.submit': 'Wyślij',
+    'cms.contactForm.message.success': 'Dziękujemy. Twoja wiadomość została wysłana.',
+    'cms.contactForm.message.error': 'Sprawdź zaznaczone pola i spróbuj ponownie.',
+    'cms.contactForm.message.unavailable': 'Nie udało się teraz wysłać wiadomości. Spróbuj ponownie później.',
+    'cms.contactForm.required': '(wymagane)',
+    'cms.contactForm.fieldRequired': 'To pole jest wymagane.',
+    'cms.contactForm.fieldEmail': 'Wpisz poprawny adres e-mail.',
   },
 };
 

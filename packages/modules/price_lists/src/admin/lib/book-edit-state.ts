@@ -66,7 +66,7 @@ export interface BookEditState {
   readonly isBase: boolean;
   readonly lines: ReadonlyMap<string, EditLine>;
   readonly edits: ReadonlyMap<string, CellEdit>;
-  /** The server's refusal code per cell, from the last save (G6). */
+  /** The bundle key of the server's refusal per cell, from the last save (G6). */
   readonly serverErrors: ReadonlyMap<string, string>;
 }
 
@@ -363,7 +363,7 @@ export interface CellView {
   readonly invalid: { readonly text: string; readonly reason: CellRefusal } | undefined;
   /** For an empty cell: the nearest lower tier whose window covers this start (FR-037). */
   readonly inherited: { readonly from: number; readonly price: PriceBookRowPrice } | null;
-  /** The server's refusal code for this cell after the last save. */
+  /** The bundle key of the server's refusal for this cell after the last save. */
   readonly error: string | undefined;
 }
 
@@ -481,8 +481,13 @@ export function applySaveErrors(state: BookEditState, plan: SavePlan, errors: re
   for (const error of errors) {
     const key =
       error.index !== undefined ? plan.cells[error.index] : error.rowId !== undefined ? plan.rowCells.get(error.rowId) : undefined;
-    // The rule when the server names it (`errors.reason.*`), else its group (`errors.*`).
-    if (key && !serverErrors.has(key)) serverErrors.set(key, error.reason ? `reason.${error.reason}` : error.code);
+    // The rule when the server names it (`grid.reason.*`), else its group's envelope
+    // sentence (`errors.<CODE>`). The rule is not filed under `errors.`: that
+    // namespace is the envelope's, and `check:error-translations` refuses a key
+    // in it that names no code (issue #83).
+    if (key && !serverErrors.has(key)) {
+      serverErrors.set(key, error.reason ? `grid.reason.${error.reason}` : `errors.${error.code}`);
+    }
   }
   return { ...state, serverErrors };
 }

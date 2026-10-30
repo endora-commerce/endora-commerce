@@ -44,6 +44,7 @@ describe('product feed price ports carry decimal strings', () => {
         pricePresentation,
         taxCountry: 'PL',
         storefrontOrigin: 'https://shop.example.com',
+        channelUrl: { languages: ['pl-PL'], defaultLanguage: 'pl-PL', prefixDefaultLanguage: false },
         salesChannelId: 'channel-1',
         priceListId: 'book',
       },

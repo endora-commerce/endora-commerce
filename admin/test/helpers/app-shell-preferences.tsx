@@ -8,8 +8,8 @@ import {
   type AdminModulePresenceResponse,
   type AdminPreferences,
 } from '@endora-commerce/contracts';
-import { TranslationProvider } from '../../../packages/admin-shell/src/i18n/TranslationProvider';
-import type { Bundle } from '../../../packages/admin-shell/src/i18n/types';
+import { TranslationProvider } from '@endora-commerce/admin-kit/i18n';
+import type { Bundle } from '@endora-commerce/admin-kit/i18n';
 import type { AdminContributions } from '@endora-commerce/admin-kit/contributions';
 import { MODULE_ADMIN_CONTRIBUTIONS } from '../../src/modules.generated.js';
 import {

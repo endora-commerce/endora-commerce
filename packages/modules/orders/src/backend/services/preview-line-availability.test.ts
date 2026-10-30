@@ -75,9 +75,9 @@ describe('previewLineAvailability', () => {
  * passed steps 1–4 only, the product's total across its lines (D1).
  */
 describe('previewBelowMinimums', () => {
-  const A = { id: '00000000-0000-4000-8000-00000000b001', type: 'simple', minOrderQuantity: 10 };
-  const B = { id: '00000000-0000-4000-8000-00000000b002', type: 'simple', minOrderQuantity: null };
-  const BUNDLE = { id: '00000000-0000-4000-8000-00000000b003', type: 'bundle', minOrderQuantity: 10 };
+  const A = { id: '00000000-0000-4000-8000-00000000b001', type: 'simple' as const, minOrderQuantity: 10 };
+  const B = { id: '00000000-0000-4000-8000-00000000b002', type: 'simple' as const, minOrderQuantity: null };
+  const BUNDLE = { id: '00000000-0000-4000-8000-00000000b003', type: 'bundle' as const, minOrderQuantity: 10 };
 
   it('marks every line of a product whose total is below its minimum, with the minimum', () => {
     const below = previewBelowMinimums([

@@ -95,7 +95,7 @@ export function AdminUserPicker(props: AdminUserPickerProps): ReactNode {
   }, [props.value, cache]);
 
   const emptyMessage =
-    props.emptyMessage ?? error ?? (searching ? 'Searching…' : 'No matching admin users.');
+    error ?? props.emptyMessage ?? (searching ? 'Searching…' : 'No matching admin users.');
 
   return (
     <Combobox<string>

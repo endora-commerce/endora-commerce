@@ -41,15 +41,25 @@ export { ManifestIndexUnreadableError };
 export interface ManifestErrorCodeDeclaration {
   readonly manifest: {
     readonly id: string;
-    readonly errorCodes?: readonly { readonly code: string }[] | undefined;
+    readonly errorCodes?: readonly DeclaredErrorCode[] | undefined;
   };
   readonly filePath: string;
+}
+
+/**
+ * One declared code, with the refusal tokens its raises carry when the module
+ * names them (issue #83: `check:error-translations` asks every one of them for
+ * an `errors.<CODE>.<token>` sentence).
+ */
+export interface DeclaredErrorCode {
+  readonly code: string;
+  readonly tokens?: readonly string[] | undefined;
 }
 
 interface IndexEntry {
   readonly id: string;
   readonly manifestPath?: string;
-  readonly manifest: { readonly errorCodes?: readonly { readonly code: string }[] };
+  readonly manifest: { readonly errorCodes?: readonly DeclaredErrorCode[] };
 }
 
 /**

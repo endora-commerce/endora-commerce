@@ -1798,6 +1798,19 @@
   opacity: 0.4;
   cursor: default;
 }
+/*
+ * Feature 169 (US1): arrows kept because every slide fits are disabled for good;
+ * dimmed, a light ring vanished on a light or muted section. They rest at full
+ * opacity in the scheme's background, border and muted text (today's literals
+ * outside a scheme). An explicit disabled look below still wins.
+ */
+.cmsc-pb-carousel--arrows-kept .cmsc-pb-carousel__arrow:disabled {
+  opacity: 1;
+  cursor: default;
+  background: var(--cmsb-bg, #fff);
+  border-color: var(--cmsb-border, #d9e0e7);
+  color: var(--cmsb-fg-muted, #64748b);
+}
 .cmsc-pb-carousel--arrow-off-light .cmsc-pb-carousel__arrow:disabled,
 .cmsc-pb-carousel--arrow-off-color .cmsc-pb-carousel__arrow:disabled {
   opacity: 1;
@@ -2692,6 +2705,166 @@
   font-weight: 600;
 }
 
+/* ── Contact form (feature 169, `specs/169-page-builder-contact-form/` contracts/blocks.md §4) ──
+ * Three field looks from the section's colour scheme (each token with today's literal as its
+ * fallback), one or two columns from the tablet breakpoint up, the label above or visually
+ * hidden, and the submit button through `cmsc-btn`. No px option and no colour of its own. */
+.cmsc-pb-contact-form {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  color: var(--cmsb-fg, #15202b);
+}
+.cmsc-pb-contact-form__fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px 20px;
+}
+.cmsc-pb-contact-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.cmsc-pb-contact-form__field--full {
+  grid-column: 1 / -1;
+}
+.cmsc-pb-contact-form__label {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.cmsc-pb-contact-form__req {
+  margin-left: 2px;
+  color: var(--cmsb-fg-muted, #64748b);
+}
+.cmsc-pb-contact-form__control {
+  width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 10px 14px;
+  border: 1px solid var(--cmsb-border, #d9e0e7);
+  border-radius: 8px;
+  background: var(--cmsb-bg, #fff);
+  color: var(--cmsb-fg, #15202b);
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1.4;
+}
+textarea.cmsc-pb-contact-form__control {
+  min-height: 140px;
+  resize: vertical;
+}
+.cmsc-pb-contact-form__control::placeholder {
+  color: var(--cmsb-fg-muted, #64748b);
+  opacity: 1;
+}
+.cmsc-pb-contact-form__check input:focus-visible,
+.cmsc-pb-contact-form__control:focus-visible {
+  outline: 2px solid var(--cmsb-color-primary, #1261a6);
+  outline-offset: 2px;
+}
+.cmsc-pb-contact-form__control[aria-invalid='true'],
+.cmsc-pb-contact-form__check input[aria-invalid='true'] {
+  border-color: #b91c1c;
+  outline: 2px solid #b91c1c;
+  outline-offset: 1px;
+}
+.cmsc-pb-contact-form--look-underline .cmsc-pb-contact-form__control {
+  border-width: 0 0 1px;
+  border-radius: 0;
+  padding-right: 0;
+  padding-left: 0;
+  background: transparent;
+}
+.cmsc-pb-contact-form--look-pill .cmsc-pb-contact-form__control {
+  border-radius: 999px;
+  padding-right: 20px;
+  padding-left: 20px;
+}
+.cmsc-pb-contact-form--look-pill textarea.cmsc-pb-contact-form__control {
+  border-radius: 16px;
+}
+.cmsc-pb-contact-form__consents {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cmsc-pb-contact-form__check {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px;
+}
+.cmsc-pb-contact-form__check input {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  accent-color: var(--cmsb-color-primary, #1261a6);
+}
+.cmsc-pb-contact-form__check label {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+.cmsc-pb-contact-form__check label a {
+  color: inherit;
+  text-decoration: underline;
+}
+.cmsc-pb-contact-form__error {
+  flex-basis: 100%;
+  margin: 0;
+  color: #b91c1c;
+  font-size: 0.875rem;
+}
+.cmsc-pb-contact-form__actions {
+  display: flex;
+}
+.cmsc-pb-contact-form__actions--center {
+  justify-content: center;
+}
+.cmsc-pb-contact-form__actions--end {
+  justify-content: flex-end;
+}
+.cmsc-pb-contact-form__actions--stretch .cmsc-btn {
+  width: 100%;
+}
+.cmsc-pb-contact-form__outcome {
+  margin: 0;
+  font-weight: 600;
+}
+.cmsc-pb-contact-form__outcome:empty {
+  display: none;
+}
+.cmsc-pb-contact-form__outcome--error {
+  color: #b91c1c;
+}
+.cmsc-pb-contact-form__hp {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+.cmsc-pb-contact-form__notes {
+  margin-top: 12px;
+}
+.cmsc-pb-contact-form__note {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 0.8125rem;
+}
+.cmsc-pb-contact-form__note--warning {
+  color: #b45309;
+}
+@media (min-width: 768px) {
+  .cmsc-pb-contact-form--cols-2 .cmsc-pb-contact-form__fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .cmsc-pb-slide {
   min-height: 0;
   overflow: hidden;
@@ -3116,6 +3289,142 @@
   .cmsc-pb-tabs--hover .cmsc-pb-tabs__tab { transition: none; }
 }
 
+/* ── Page navigation ──────────────────────────────────────────────── */
+/*
+ * Feature 169 (US5, FR-010–FR-013): `cms.PageNavigation`, links to sections of
+ * the same page. One list that scrolls sideways inside the block on a narrow
+ * screen (never the page), aligned per breakpoint; the `pill` look is one
+ * rounded track whose active item is filled (the primary colour, or inside a
+ * colour scheme the scheme's own text colour), the `underline` look a rule under
+ * the bar and under the active link. Scheme tokens only, today's greys as
+ * fallbacks.
+ */
+.cmsc-pb-page-nav {
+  display: flex;
+  min-width: 0;
+}
+.cmsc-pb-page-nav__list {
+  position: relative;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  box-sizing: border-box;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: 4px;
+  scrollbar-width: thin;
+}
+.cmsc-pb-page-nav__list > li {
+  flex-shrink: 0;
+  scroll-snap-align: start;
+}
+.cmsc-pb-page-nav__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  box-sizing: border-box;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-decoration: none;
+  color: var(--cmsb-fg-muted, #64748b);
+  border: 0 solid transparent;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.cmsc-pb-page-nav__link:hover {
+  color: var(--cmsb-fg, #0f172a);
+}
+.cmsc-pb-page-nav__link:focus-visible {
+  outline: 2px solid var(--cmsb-color-primary, #1261a6);
+  outline-offset: 2px;
+}
+/* Pill: one rounded track; the active item is filled. */
+.cmsc-pb-page-nav--pill .cmsc-pb-page-nav__list {
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--cmsc-surface-tint, var(--cmsb-n-100, #f1f5f9));
+}
+.cmsc-pb-page-nav--pill .cmsc-pb-page-nav__link {
+  border-radius: 999px;
+  /* The muted grey on the tinted track falls under 4.5:1; the scheme's text colour does not. */
+  color: var(--cmsb-fg, #0f172a);
+}
+.cmsc-pb-page-nav--pill .cmsc-pb-page-nav__link--active {
+  background: var(--cmsb-color-primary, #1261a6);
+  color: var(--cmsb-color-on-primary, #fff);
+}
+/* Inside a colour scheme the active pill inverts the scheme, so it reads on a dark Section too. */
+[data-cmsb-scheme] .cmsc-pb-page-nav--pill .cmsc-pb-page-nav__link--active {
+  background: var(--cmsb-fg, #0f172a);
+  color: var(--cmsb-bg, #fff);
+}
+/* Underline: a rule under the bar, a thicker one under the active link. */
+.cmsc-pb-page-nav--underline .cmsc-pb-page-nav__list {
+  gap: 8px;
+  border-bottom: 1px solid var(--cmsb-border, #e2e8f0);
+}
+.cmsc-pb-page-nav--underline .cmsc-pb-page-nav__link {
+  padding-inline: 12px;
+  border-bottom-width: 2px;
+  margin-bottom: -1px;
+}
+.cmsc-pb-page-nav--underline .cmsc-pb-page-nav__link--active {
+  color: var(--cmsb-fg, #0f172a);
+  border-bottom-color: currentColor;
+}
+/* Alignment per breakpoint: the phone's class, then the tablet's and the desktop's where they differ. */
+.cmsc-pb-page-nav--align-center .cmsc-pb-page-nav__list { margin-inline: auto; }
+.cmsc-pb-page-nav--align-end .cmsc-pb-page-nav__list { margin-inline: auto 0; }
+@media (min-width: 768px) {
+  .cmsc-pb-page-nav--align-md-start .cmsc-pb-page-nav__list { margin-inline: 0 auto; }
+  .cmsc-pb-page-nav--align-md-center .cmsc-pb-page-nav__list { margin-inline: auto; }
+  .cmsc-pb-page-nav--align-md-end .cmsc-pb-page-nav__list { margin-inline: auto 0; }
+}
+@media (min-width: 1024px) {
+  .cmsc-pb-page-nav--align-lg-start .cmsc-pb-page-nav__list { margin-inline: 0 auto; }
+  .cmsc-pb-page-nav--align-lg-center .cmsc-pb-page-nav__list { margin-inline: auto; }
+  .cmsc-pb-page-nav--align-lg-end .cmsc-pb-page-nav__list { margin-inline: auto 0; }
+}
+/*
+ * Sticky: the block's own wrapper (the "Hide on" box, else the spacing box)
+ * sticks below the storefront header, on the scheme's background so the
+ * content scrolling under it does not show through. A sticky element sticks
+ * inside its parent: placed directly on the page it stays for the whole page,
+ * inside a Section, a tab or a slide only while that container is in view.
+ */
+.cmsc-pb-hide-on:has(> .cmsc-pb-page-nav-box--sticky),
+.cmsc-pb-page-nav-box--sticky {
+  position: sticky;
+  top: var(--cmsb-header-offset, 0px);
+  z-index: 20;
+  background: var(--cmsb-bg, #fff);
+}
+/* A followed link scrolls smoothly, unless the reader prefers reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  :root:has(.cmsc-pb-page-nav) { scroll-behavior: smooth; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cmsc-pb-page-nav__link { transition: none; }
+}
+/* A jumped-to target clears the header and the sticky bar (its height is written by the block's script). */
+:root:has(.cmsc-pb-page-nav--sticky) :is(.cmsc-section, [id]) {
+  scroll-margin-top: calc(var(--cmsb-header-offset, 0px) + var(--cmsc-page-nav-h, 0px));
+}
+/* The editor's notes: no valid link yet, or an anchor nothing on the canvas carries. */
+.cmsc-pb-page-nav__note {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--cmsb-fg-muted, #64748b);
+}
+
 /* ── Accordion ────────────────────────────────────────────────────── */
 .cmsc-pb-accordion__item {
   border-bottom: 1px solid var(--cmsb-n-200, #e2e8f0);
@@ -3206,6 +3515,27 @@
 .cmsc-pb-accordion--boxed > .cmsc-pb-accordion__item > .cmsc-pb-accordion__trigger,
 .cmsc-pb-accordion--boxed > .cmsc-pb-accordion__item > .cmsc-pb-accordion__heading > .cmsc-pb-accordion__trigger,
 .cmsc-pb-accordion--boxed > .cmsc-pb-accordion__item > .cmsc-pb-accordion__panel {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+/*
+ * Feature 169 (US3): filled items — no line, each title bar on the scheme's
+ * surface tint (today's light neutral outside a scheme), the panel inset as boxed.
+ */
+.cmsc-pb-accordion--filled > .cmsc-pb-accordion__item {
+  border: none;
+  border-radius: 0;
+  margin-bottom: 8px;
+}
+.cmsc-pb-accordion--filled > .cmsc-pb-accordion__item > .cmsc-pb-accordion__trigger,
+.cmsc-pb-accordion--filled > .cmsc-pb-accordion__item > .cmsc-pb-accordion__heading > .cmsc-pb-accordion__trigger {
+  background: var(--cmsc-surface-tint, var(--cmsb-n-100, #f1f5f9));
+  border-radius: 8px;
+  padding-left: 16px;
+  padding-right: 16px;
+}
+.cmsc-pb-accordion--filled > .cmsc-pb-accordion__item > .cmsc-pb-accordion__panel {
+  padding-top: 12px;
   padding-left: 16px;
   padding-right: 16px;
 }
@@ -6149,8 +6479,24 @@ ul.cmsc-list--none {
   width: 40%;
   height: 40%;
 }
+/*
+ * Feature 169 (US4): the icon button's size presets (S is today's 48 px) and a
+ * filled disc in the text colour, its glyph in the card's background.
+ */
+.cmsc-pb-download-tile--icon-s .cmsc-pb-download-tile__icon-button { width: 48px; height: 48px; }
+.cmsc-pb-download-tile--icon-m .cmsc-pb-download-tile__icon-button { width: 72px; height: 72px; }
+.cmsc-pb-download-tile--icon-l .cmsc-pb-download-tile__icon-button { width: 112px; height: 112px; }
+.cmsc-pb-download-tile--icon-filled .cmsc-pb-download-tile__icon-button {
+  background: currentColor;
+}
+.cmsc-pb-download-tile--icon-filled .cmsc-pb-download-tile__icon { color: var(--pb-dl-bg, var(--cmsb-bg, #fff)); }
 .cmsc-pb-download-tile--icon-link:is(:hover, :focus-visible) .cmsc-pb-download-tile__icon-button {
   background-color: rgb(127 127 127 / 20%);
+}
+/* Feature 169 (US4): a filled disc stays filled on hover, a shade lighter. */
+.cmsc-pb-download-tile--icon-filled:is(:hover, :focus-visible) .cmsc-pb-download-tile__icon-button {
+  background-color: currentColor;
+  opacity: 0.85;
 }
 @media (prefers-reduced-motion: reduce) {
   .cmsc-pb-download-tile__hover {
@@ -6696,6 +7042,21 @@ ul.cmsc-list--none {
 .cmsc-pb-signup__topics--columns {
   display: grid;
   grid-template-columns: repeat(var(--pb-topic-cols, 2), minmax(0, 1fr));
+}
+/*
+ * Feature 169 (US7): the subscriber attributes, one per row — an input reuses the
+ * e-mail field's look, a box the topics' — and the marker of a required one.
+ */
+.cmsc-pb-signup__attributes {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cmsc-pb-signup__attribute.cmsc-pb-signup__field {
+  flex: 0 0 auto;
+}
+.cmsc-pb-signup__required {
+  color: #b91c1c;
 }
 
 /* cms.NewsletterSignup's optional consent checkbox (feature 163, T076). */

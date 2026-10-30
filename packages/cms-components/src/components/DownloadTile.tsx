@@ -143,6 +143,9 @@ function DownloadTileBody({
     hasHover && props.hoverImageLook === 'full' ? 'cmsc-pb-download-tile--hover-full' : '',
     props.cardBorder === false ? 'cmsc-pb-download-tile--no-border' : '',
     iconLink ? 'cmsc-pb-download-tile--icon-link' : '',
+    // Feature 169 (US4): the icon button's size and style presets; unset or outline, today's.
+    iconLink && ICON_BUTTON_SIZES.has(props.iconButtonSize as string) ? `cmsc-pb-download-tile--icon-${props.iconButtonSize as string}` : '',
+    iconLink && props.iconButtonStyle === 'filled' ? 'cmsc-pb-download-tile--icon-filled' : '',
     pageLink ? 'cmsc-pb-download-tile--page-link' : '',
   ]
     .filter(Boolean)
@@ -205,6 +208,9 @@ const DownloadTileRender: PuckComponent<DownloadTileProps> = (props) => {
   );
 };
 
+/** Feature 169 (US4): the icon button's size presets. */
+const ICON_BUTTON_SIZES: ReadonlySet<string> = new Set(['s', 'm', 'l']);
+
 const DOWNLOAD_TILE_FIELDS = {
   // R20E (T303): a file (today's) or a page, product, category or URL through the shared link.
   linkTo: {
@@ -241,6 +247,24 @@ const DOWNLOAD_TILE_FIELDS = {
   },
   // R22I (T382): the icon button's glyph from the catalog; empty keeps today's (a download, or an arrow for a link).
   iconButtonIcon: createIconPickerField('Icon button icon'),
+  // Feature 169 (US4): the icon button's size and style, presets only (R23: no px, no colour).
+  iconButtonSize: {
+    type: 'select' as const,
+    label: 'Icon button size',
+    options: [
+      { label: 'Small', value: 's' },
+      { label: 'Medium', value: 'm' },
+      { label: 'Large', value: 'l' },
+    ],
+  },
+  iconButtonStyle: {
+    type: 'select' as const,
+    label: 'Icon button style',
+    options: [
+      { label: 'Outline', value: 'outline' },
+      { label: 'Filled', value: 'filled' },
+    ],
+  },
   showType: createToggleField({ label: 'Show the file type', defaultValue: true }),
   // R19B (T247): the card's look; unset is today's light, bordered 8 px card.
   scheme: {
@@ -275,7 +299,7 @@ const DOWNLOAD_TILE_FIELDS = {
 };
 
 /** R19B (T248): the icon button's settings with the icon look; the hover look with a hover image. */
-const ICON_BUTTON_KEYS = new Set(['iconButtonIcon']);
+const ICON_BUTTON_KEYS = new Set(['iconButtonIcon', 'iconButtonSize', 'iconButtonStyle']);
 
 /** Whether a size (one or per breakpoint) is Custom somewhere. */
 function usesCustomSize(value: unknown): boolean {

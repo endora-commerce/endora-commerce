@@ -97,7 +97,7 @@ async function buildApp(): Promise<{ app: FastifyInstance; created: AuthCreateSe
     auditLogService: { record: async () => undefined } as unknown as MfaPublicDeps['auditLogService'],
     adminAuthenticationThrottle: { issueKnownDevice: async () => null },
     customerAuthenticationThrottle: { issueKnownDevice: async () => null },
-    customerChannelAccess: { permits: async () => true, assertAccountMayUse: async () => undefined },
+    customerChannelAccess: { assertAccountMayUse: async () => undefined },
   });
   await app.ready();
   return { app, created };

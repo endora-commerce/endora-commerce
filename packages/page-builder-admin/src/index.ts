@@ -101,6 +101,8 @@ export {
   LinkFieldControl,
   createButtonLinkSlugField,
   createLinkField,
+  // Feature 169: the in-page anchor picker as a field of its own (`cms.PageNavigation`).
+  createAnchorField,
 } from './chrome/LinkField.js';
 export type { LinkFieldControlProps, LinkFieldOptions } from './chrome/LinkField.js';
 export { DEFAULT_BUTTON_SPEC, createButtonListField, createButtonSpecField } from './chrome/ButtonListField.js';
@@ -110,3 +112,12 @@ export type { ResponsiveImageControlProps, ResponsiveRatioControlProps } from '.
 export { listPageBuilderLinkPages } from './chrome/cms-page-builder-api.js';
 // Feature 163, R17 (T220): a post listing's blog category, picked from the blog's categories.
 export { BlogCategoryFieldControl, createBlogCategorySlugField, flattenBlogCategories } from './chrome/BlogCategoryPicker.js';
+// Feature 169 (US7): `newsletter.Signup`'s topic tag and subscriber attribute, picked from the newsletter's lists.
+export {
+  NewsletterCustomFieldControl,
+  NewsletterTagCodeControl,
+  createNewsletterCustomFieldField,
+  createNewsletterTagCodeField,
+  withNewsletterAttributePick,
+} from './chrome/NewsletterPickers.js';
+export type { NewsletterAttributePick } from './chrome/NewsletterPickers.js';

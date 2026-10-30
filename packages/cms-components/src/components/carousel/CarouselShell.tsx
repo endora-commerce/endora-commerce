@@ -899,6 +899,8 @@ export function CarouselShell({
     ...(grid ? [] : alignClasses(controlsAlign, editorPreview ? (previewTier ?? 'desktop') : null)),
     !grid && controlsAlignTo === 'slide' ? 'cmsc-pb-carousel--ctl-to-slide' : '',
     offLook !== 'dim' ? `cmsc-pb-carousel--arrow-off-${offLook}` : '',
+    // Feature 169 (US1): arrows kept, disabled, because every slide fits get a legible resting look.
+    keptOff ? 'cmsc-pb-carousel--arrows-kept' : '',
     ...(grid ? [] : arrowsOff.map((tier) => `cmsc-pb-carousel--arrows-off-${TIER_CLASS[tier]}`)),
     ...(grid ? [] : dotsOff.map((tier) => `cmsc-pb-carousel--dots-off-${TIER_CLASS[tier]}`)),
     editorPreview ? 'cmsc-pb-carousel--editor-preview' : '',

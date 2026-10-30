@@ -1,5 +1,4 @@
-import { apiBaseUrl } from '@endora-commerce/admin-kit/lib';
-import { apiClient } from '../../lib/api-client.js';
+import { apiBaseUrl, apiClient } from '@endora-commerce/admin-kit/lib';
 
 /**
  * The API description, as the Admin UI reads it.

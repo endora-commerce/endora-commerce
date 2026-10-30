@@ -175,7 +175,7 @@ describe('163 P-1 — assistant tools to archive and restore products', () => {
     const h = harness([product(A), product(B)]);
     vi.mocked(h.commandBus.run)
       .mockRejectedValueOnce(new Error('connection to db-internal:5432 refused for user catalog_rw'))
-      .mockRejectedValueOnce(new HttpError(409, 'CONFLICT', 'Product is locked.'));
+      .mockRejectedValueOnce(new HttpError(409, 'VERSION_CONFLICT', 'Product is locked.'));
     const result = (await h.tool('catalog.archive_product').execute({ productIds: [A, B] }, toolCtx)) as {
       summary: { failures: Array<{ id: string; reason: string }> };
     };

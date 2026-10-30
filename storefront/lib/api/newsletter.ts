@@ -51,6 +51,8 @@ export async function subscribeNewsletter(input: {
   email: string;
   channelCode: string;
   tags?: string[];
+  /** Feature 169 (FR-026): the sign-up's subscriber attributes; the newsletter keeps the type-correct ones. */
+  customFields?: Record<string, string | number | boolean>;
   source?: string;
 }): Promise<NewsletterSubscribeResponse> {
   const res = await apiMutate<NewsletterSubscribeResponse>({

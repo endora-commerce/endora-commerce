@@ -1,5 +1,5 @@
-import { readFileSync } from 'node:fs';
-import { constants } from 'node:os';
+import { readFileSync, realpathSync } from 'node:fs';
+import { constants, tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
@@ -9,7 +9,9 @@ import {
   reachedItsOwnVerdict,
   relayedSignalOf,
   spawnCheck,
+  spawnCheckSync,
   terminationReport,
+  verdictOf,
   type SpawnedCheck,
 } from '../../helpers/check-process.js';
 
@@ -297,6 +299,63 @@ describe('a command that never starts', () => {
     expect(report).toContain('could not be spawned at all');
     expect(report).not.toContain('killed by');
     expect(report).not.toContain('printed no read line');
+  });
+});
+
+describe('a synchronous spawn, which is how the check fixtures run their child (issue #80)', () => {
+  // The fixtures under `test/helpers/*-fixture.ts` hand their test a
+  // `{ status, output }` and nothing else, so a killed child used to arrive as an
+  // ordinary failed assertion about its output. `spawnCheckSync` keeps the same
+  // four-way termination `spawnCheck` keeps, and `verdictOf` refuses to turn a
+  // termination that is not a verdict into one.
+
+  it('reads the signal of a child killed directly', () => {
+    const seen = spawnCheckSync(process.execPath, ['-e', "process.kill(process.pid, 'SIGKILL');"]);
+
+    expect(seen.termination).toEqual({ kind: 'signal', signal: 'SIGKILL' });
+    expect(() => verdictOf('a-check.ts', seen)).toThrow('a-check.ts was killed by SIGKILL');
+  });
+
+  it('reads the relay of a child killed behind a surviving wrapper', () => {
+    const seen = spawnCheckSync('sh', [
+      '-c',
+      `"$0" -e "$1"; exit $?`,
+      process.execPath,
+      'process.kill(process.pid, 9)',
+    ]);
+
+    expect(seen.termination).toEqual({ kind: 'relayed-signal', code: 137, signal: 'SIGKILL' });
+    expect(() => verdictOf('a-check.ts', seen)).toThrow(/its own child was killed by SIGKILL/);
+  });
+
+  it('reports a command that never started rather than a null status', () => {
+    const seen = spawnCheckSync('a-command-that-does-not-exist', []);
+
+    expect(seen.termination.kind).toBe('unspawned');
+    expect(() => verdictOf('a-check.ts', seen)).toThrow('could not be spawned at all');
+  });
+
+  it('hands a verdict through unchanged, stdout before stderr, whatever its colour', () => {
+    const seen = spawnCheckSync(process.execPath, [
+      '-e',
+      "process.stderr.write('err\\n'); process.stdout.write('out\\n'); process.exit(1);",
+    ]);
+
+    expect(verdictOf('a-check.ts', seen)).toEqual({ status: 1, output: 'out\nerr\n' });
+    expect(seen.bytes).toBe(Buffer.byteLength('out\nerr\n'));
+  });
+
+  it('passes the working directory and the environment to the child', () => {
+    const seen = spawnCheckSync(
+      process.execPath,
+      ['-e', 'process.stdout.write(`${process.cwd()}|${process.env.CHECK_PROCESS_PROBE}`)'],
+      { cwd: tmpdir(), env: { ...process.env, CHECK_PROCESS_PROBE: 'seen' } },
+    );
+
+    expect(verdictOf('a-check.ts', seen)).toEqual({
+      status: 0,
+      output: `${realpathSync(tmpdir())}|seen`,
+    });
   });
 });
 

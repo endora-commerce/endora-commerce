@@ -7,7 +7,7 @@ import type { CustomFieldListFilterField, SavedListView } from '@endora-commerce
 import { renderWithI18n } from '../../helpers/render-with-i18n';
 import { expectNoAxeViolations } from '../../helpers/axe';
 import { installOffsetParentShim } from '../../helpers/layout-shim';
-import { TranslationProvider } from '../../../../packages/admin-shell/src/i18n/TranslationProvider';
+import { TranslationProvider } from '@endora-commerce/admin-kit/i18n';
 import en from '../../../../packages/modules/_i18n/i18n/en.json';
 import pl from '../../../../packages/modules/_i18n/i18n/pl.json';
 

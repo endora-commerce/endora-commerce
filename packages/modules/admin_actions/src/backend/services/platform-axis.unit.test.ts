@@ -81,6 +81,9 @@ const i18n: AdminI18nTranslatePort = {
 };
 const permissions: PermissionReadPort = {
   listPermissions: async () => ['*'],
+  resolveRole: async () => {
+    throw new Error('admin_actions reads permissions, never a role');
+  },
 };
 
 async function visibleModuleIds(service: AdminActionsService): Promise<string[]> {

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdminUserRecord } from '@endora-commerce/contracts';
+import type { CrmNotification } from './crm-notifier.js';
 
 /**
  * Who may be mentioned and who is told (User Story 18), against stub ports —
@@ -71,7 +72,7 @@ const PEOPLE: AdminUserRecord[] = [
 ];
 
 function build() {
-  const notify = vi.fn(async () => 'recorded' as const);
+  const notify = vi.fn(async (_notification: CrmNotification) => 'recorded' as const);
   const listPermissions = vi.fn(async (id: string) =>
     PEOPLE.find((person) => person.id === id)?.adminRoleId === CRM_ROLE ? ['crm:read'] : ['orders:read'],
   );

@@ -266,7 +266,7 @@ export function PriceBookGrid(props: {
     (rowKey: string, columnKey: string): string | undefined => {
       const view = cellView(stateRef.current, rowKey, Number(columnKey));
       if (view.invalid) return refusalText(t, view.invalid.reason);
-      if (view.error) return t(`errors.${view.error}`);
+      if (view.error) return t(view.error);
       return undefined;
     },
     [t],

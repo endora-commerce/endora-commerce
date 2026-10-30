@@ -95,4 +95,27 @@ describe('ButtonView', () => {
     expect(html).toContain('--cmsc-btn-c:#1d4ed8');
     expect(html).toContain('--cmsc-btn-on:var(--cmsb-color-on-primary, #ffffff)');
   });
+
+  // Feature 169 (T109): a form's submit button — the same look, a `<button type="submit">`.
+  it('renders a submit button with the classes of the link rendering, and no link', () => {
+    const asLink = renderToString(<ButtonView button={spec({ style: 'dark', fill: 'outline', size: 'large' })} />);
+    const asSubmit = renderToString(
+      <ButtonView button={spec({ style: 'dark', fill: 'outline', size: 'large' })} type="submit" />,
+    );
+    expect(asSubmit).toMatch(/^<button type="submit"/);
+    expect(asSubmit).not.toContain('href=');
+    expect(classesOf(asSubmit)).toEqual(classesOf(asLink));
+    expect(asSubmit).toContain('Contact us');
+  });
+
+  it('marks a busy submit button disabled', () => {
+    const html = renderToString(<ButtonView button={spec()} type="submit" disabled />);
+    expect(html).toContain('disabled=""');
+    expect(html).toContain('aria-busy="true"');
+  });
+
+  it('keeps every existing rendering when no type is given', () => {
+    expect(renderToString(<ButtonView button={spec()} />)).toMatch(/^<a href=/);
+    expect(renderToString(<ButtonView button={spec({ link: { kind: 'url', href: '' } })} />)).toMatch(/^<span /);
+  });
 });

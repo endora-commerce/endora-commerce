@@ -119,3 +119,59 @@ describe('cms.DownloadTile linking to a page or URL (T303)', () => {
     expect(page).not.toContain('fileAssetId');
   });
 });
+
+/**
+ * `specs/169-page-builder-contact-form/` US4, FR-008, FR-009 (T013, T014) — the
+ * round icon button's size preset (S today's 48 px, M 72 px, L 112 px) and its
+ * style (today's outline, or a filled disc with the glyph in the card's
+ * background). No px, no colour (R23); both shown with the icon look only.
+ */
+describe('cms.DownloadTile icon button size and style (feature 169, T013, T014)', () => {
+  // Whole class tokens: `--icon-l` is a prefix of today's `--icon-link`.
+  const tileClass = (props: Record<string, unknown>): string[] => [...host({ linkLook: 'icon', ...props }).querySelector('a')!.classList];
+
+  it('a size and the filled style are classes on the tile', () => {
+    expect(tileClass({ iconButtonSize: 'l' })).toContain('cmsc-pb-download-tile--icon-l');
+    expect(tileClass({ iconButtonSize: 'm' })).toContain('cmsc-pb-download-tile--icon-m');
+    expect(tileClass({ iconButtonStyle: 'filled' })).toContain('cmsc-pb-download-tile--icon-filled');
+  });
+
+  it('unset, outline or an unknown value add nothing: a stored tile renders byte-identically', () => {
+    const today = html({ linkLook: 'icon' });
+    for (const props of [{ iconButtonStyle: 'outline' }, { iconButtonStyle: 'nope' }, { iconButtonSize: 'xl' }, { iconButtonSize: 48 }]) {
+      expect(html({ linkLook: 'icon', ...props }), JSON.stringify(props)).toBe(today);
+    }
+    // With the text label the options do not apply.
+    expect(html({ iconButtonSize: 'l', iconButtonStyle: 'filled' })).toBe(html());
+  });
+
+  it('both fields are shown with the icon look only, right after the icon, as the cached field objects', async () => {
+    const shown = await keys({ linkLook: 'icon' });
+    const at = shown.indexOf('iconButtonIcon');
+    expect(shown.slice(at, at + 3)).toEqual(['iconButtonIcon', 'iconButtonSize', 'iconButtonStyle']);
+    expect(await keys({ linkLook: 'label' })).not.toContain('iconButtonSize');
+    expect(await keys({})).not.toContain('iconButtonStyle');
+    const fields = block.fields as Record<string, { type?: string; options?: Array<{ label: string; value: unknown }> }>;
+    expect(fields['iconButtonSize']?.options?.map((option) => option.value)).toEqual(['s', 'm', 'l']);
+    expect(fields['iconButtonStyle']?.options?.map((option) => option.value)).toEqual(['outline', 'filled']);
+    const resolved = (await block.resolveFields!(
+      { props: { ...defaults, ...BASE, linkLook: 'icon' } } as never,
+      { fields: block.fields, lastFields: block.fields, changed: {}, lastData: null, metadata: {}, appState: {}, parent: null } as never,
+    )) as Record<string, unknown>;
+    expect(resolved['iconButtonSize']).toBe(fields['iconButtonSize']);
+    expect(resolved['iconButtonStyle']).toBe(fields['iconButtonStyle']);
+    for (const key of ['iconButtonSize', 'iconButtonStyle']) expect(defaults, key).not.toHaveProperty(key);
+  });
+
+  it('the stylesheet: 48, 72 and 112 px discs; filled is the text colour with the glyph in the card background', () => {
+    const css = sheet();
+    expect(css).toContain('.cmsc-pb-download-tile--icon-s .cmsc-pb-download-tile__icon-button { width: 48px; height: 48px; }');
+    expect(css).toContain('.cmsc-pb-download-tile--icon-m .cmsc-pb-download-tile__icon-button { width: 72px; height: 72px; }');
+    expect(css).toContain('.cmsc-pb-download-tile--icon-l .cmsc-pb-download-tile__icon-button { width: 112px; height: 112px; }');
+    const filled = /\.cmsc-pb-download-tile--icon-filled \.cmsc-pb-download-tile__icon-button \{([^}]*)\}/.exec(css)?.[1] ?? '';
+    expect(filled).toContain('background: currentColor;');
+    expect(css).toContain('.cmsc-pb-download-tile--icon-filled .cmsc-pb-download-tile__icon { color: var(--pb-dl-bg, var(--cmsb-bg, #fff)); }');
+    // After the base icon button rules, which they override.
+    expect(css.indexOf('.cmsc-pb-download-tile--icon-l .cmsc-pb-download-tile__icon-button')).toBeGreaterThan(css.indexOf('.cmsc-pb-download-tile__icon {'));
+  });
+});

@@ -43,7 +43,7 @@ function build(mayReadOrders = false) {
       total: '1234.50',
       currency: 'PLN',
       placedAt: new Date('2026-10-01T09:30:00.000Z'),
-      billingAddress: { recipientName: 'Jan Kowalski', companyName: 'Acme sp. z o.o.' },
+      billingAddress: { recipientName: 'Jan Kowalski', companyName: 'Acme sp. z o.o.' as string | null },
       deliveryAddress: { recipientName: 'Magazyn' },
     })),
   );
@@ -53,11 +53,14 @@ function build(mayReadOrders = false) {
     adminUsers: { findByIds: findAdmins, findById: vi.fn(async () => null) } as never,
     quoteRequests: { isPresent: () => false, findRecord: vi.fn(async () => null) },
     tasks: { isPresent: () => false, findByIds: vi.fn(async () => []) },
+    opportunities: { findByIds: vi.fn(async () => []) },
+    projects: { isPresent: () => false, findByIds: vi.fn(async () => []) },
     mayRead: {
       orders: async () => mayReadOrders,
       products: async () => false,
       quoteRequests: async () => false,
       tasks: async () => false,
+      projects: async () => false,
     },
   });
   return { service, findAdmins, findOrders };
@@ -160,11 +163,14 @@ describe('ReferenceService — a Quote Request and a Task (specs/163-projects-an
       adminUsers: { findByIds: vi.fn(async () => []), findById: vi.fn(async () => null) } as never,
       quoteRequests: { isPresent: () => options.present, findRecord: find },
       tasks: { isPresent: () => options.present, findByIds: findTasks },
+      opportunities: { findByIds: vi.fn(async () => []) },
+      projects: { isPresent: () => false, findByIds: vi.fn(async () => []) },
       mayRead: {
         orders: async () => false,
         products: async () => false,
         quoteRequests: mayReadQuoteRequests,
         tasks: mayReadTasks,
+        projects: async () => false,
       },
     });
     return { service, find, findTasks, mayReadQuoteRequests, mayReadTasks };

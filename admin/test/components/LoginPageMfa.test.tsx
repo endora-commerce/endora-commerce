@@ -12,7 +12,8 @@ const loginSpy = vi.fn(async () => {});
 
 let mfaChallengeId: string | null = 'chal-1';
 
-vi.mock('../../../packages/admin-shell/src/lib/auth', () => ({
+vi.mock('@endora-commerce/admin-kit/lib', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@endora-commerce/admin-kit/lib')>()),
   useAuth: () => ({
     login: loginSpy,
     verifyMfa: verifyMfaSpy,

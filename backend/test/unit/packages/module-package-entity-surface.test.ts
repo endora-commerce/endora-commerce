@@ -312,6 +312,45 @@ describe('D-168 — the shapes the analysis refuses', () => {
     ]);
   });
 
+  describe('charges a named re-export only with what it asked for (issue #101)', () => {
+    // `mixed.ts` publishes one name this analysis resolves and, beside it, a
+    // bare re-export it cannot follow. A barrel naming the resolved one has a
+    // known surface; only a name the file does not resolve inherits the unknown.
+    const MIXED = { 'mixed.ts': `export const helper = 1;\nexport * from '@somebody/else';\n` };
+
+    it('does not inherit an unrelated unresolvable through `export { a } from`', () => {
+      const barrel = writePackage(
+        'named-known',
+        `export { helper } from './mixed.js';\nexport const entities = [];\n`,
+        MIXED,
+      );
+
+      expect(readBackendSurface(barrel).unresolvable).toEqual([]);
+    });
+
+    it('does not inherit it through an imported binding exported by name either', () => {
+      const barrel = writePackage(
+        'imported-known',
+        `import { helper } from './mixed.js';\nexport { helper };\nexport const entities = [];\n`,
+        MIXED,
+      );
+
+      expect(readBackendSurface(barrel).unresolvable).toEqual([]);
+    });
+
+    it('still inherits it when the name it asks for is not among the resolved exports', () => {
+      // The other direction of the discrimination: `unknown` may have come from
+      // the bare specifier, so whether it is an entity is unknown, not false.
+      const barrel = writePackage(
+        'named-unknown',
+        `export { unknown } from './mixed.js';\nexport const entities = [];\n`,
+        MIXED,
+      );
+
+      expect(readBackendSurface(barrel).unresolvable).toEqual(['@somebody/else']);
+    });
+  });
+
   it('follows a named re-export chain, so one hop does not hide the class', () => {
     // `export { Widget } from './x.js'` two files deep — the same edge as
     // `export *`, spelled the way an author reaches for when told to stop

@@ -5,8 +5,7 @@ import { apiClient } from '@endora-commerce/admin-kit/lib';
 import { setMobileViewport } from '../setup';
 import { adminSession, everyDeclaredModule, modulePresence } from '../helpers/render-with-session';
 import { MODULE_ADMIN_CONTRIBUTIONS } from '../../src/modules.generated.js';
-import { TranslationProvider } from '../../../packages/admin-shell/src/i18n/TranslationProvider';
-import { useTranslation } from '../../../packages/admin-shell/src/i18n/useTranslation';
+import { TranslationProvider, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import {
   pinnedSection,
   realBundle,

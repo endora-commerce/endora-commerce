@@ -132,4 +132,48 @@ describe('Newsletter storefront routes (feature 048)', () => {
     const invalid = await h.app.inject({ method: 'GET', url: '/api/v1/newsletter/confirm?token=bad' });
     expect(new URL(invalid.headers.location as string).pathname).toBe('/newsletter/confirm');
   });
+
+  // Feature 169 (US7, FR-026, T173) — a public sign-up with subscriber attributes
+  // keeps only the values whose type matches the field; the others are dropped,
+  // never refused (the admin create and the self subscribe share the merge).
+  it('stores only the type-correct custom-field values of a public sign-up', async () => {
+    const connection = h.em().getConnection();
+    const fields = [
+      ['c169_age', 'number'],
+      ['c169_vip', 'boolean'],
+      ['c169_born', 'date'],
+      ['c169_company', 'text'],
+    ] as const;
+    for (const [key, type] of fields) {
+      await connection.execute(
+        `insert into newsletter_custom_fields (id, key, label, type, created_at, updated_at)
+         values (gen_random_uuid(), ?, ?, ?, now(), now()) on conflict (key) do nothing`,
+        [key, key, type],
+      );
+    }
+    const email = `attributes-${Date.now()}@example.com`;
+    const res = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/newsletter/subscribe',
+      payload: {
+        email,
+        channelCode: 'default',
+        customFields: {
+          c169_age: 'abc',
+          c169_vip: true,
+          c169_born: '2026-13-40',
+          c169_company: 'Acme',
+          c169_unknown: 'dropped',
+        },
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    const [row] = (await connection.execute(
+      `select custom_fields from newsletter_subscribers where email = ?`,
+      [email],
+    )) as Array<{ custom_fields: Record<string, unknown> | string }>;
+    if (!row) throw new Error('the subscribe call stored no subscriber');
+    const stored = typeof row.custom_fields === 'string' ? JSON.parse(row.custom_fields) : row.custom_fields;
+    expect(stored).toEqual({ c169_vip: true, c169_company: 'Acme' });
+  });
 });

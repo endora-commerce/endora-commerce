@@ -109,7 +109,7 @@ function customerRecord(id: string, firstName: string, lastName: string, email: 
     email,
     firstName,
     lastName,
-    role: 'admin',
+    role: 'organization_admin',
     emailVerifiedAt: null,
     twoFactorEnabled: true,
     lastLoginAt: new Date(),

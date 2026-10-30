@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { ShieldAlert } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from './ui/alert.js';
-import { useTranslation } from '../i18n/useTranslation.js';
+import { Alert, AlertDescription, AlertTitle } from '@endora-commerce/admin-kit/ui';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 /**
  * Tells a signed-in administrator that the account holds no role (issue #140).

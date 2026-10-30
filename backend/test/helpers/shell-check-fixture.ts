@@ -13,6 +13,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { spawnCheckSync, verdictOf } from './check-process.js';
+
 /**
  * A synthetic repository for the two toolchain-free checks
  * (`scripts/check-naming.sh`, `scripts/check-language.sh`).
@@ -353,19 +355,21 @@ exec ${real} "$@"
       );
       chmodSync(shim, 0o755);
     },
-    run: (script, args = [], env = {}) => {
-      const result = spawnSync('bash', [join(root, 'scripts', script), ...args], {
-        encoding: 'utf8',
-        env: {
-          ...process.env,
-          PATH: `${binDir}:${process.env['PATH'] ?? ''}`,
-          FAKE_GIT_FILE_LIST: join(root, 'lists/sources.txt'),
-          FAKE_GIT_DOCS_LIST: join(root, 'lists/docs.txt'),
-          ...env,
-        },
-      });
-      return { status: result.status, output: `${result.stdout ?? ''}${result.stderr ?? ''}` };
-    },
+    // A child that reached no verdict of its own — killed, or never started —
+    // throws with the report that says so (issue #80).
+    run: (script, args = [], env = {}) =>
+      verdictOf(
+        script,
+        spawnCheckSync('bash', [join(root, 'scripts', script), ...args], {
+          env: {
+            ...process.env,
+            PATH: `${binDir}:${process.env['PATH'] ?? ''}`,
+            FAKE_GIT_FILE_LIST: join(root, 'lists/sources.txt'),
+            FAKE_GIT_DOCS_LIST: join(root, 'lists/docs.txt'),
+            ...env,
+          },
+        }),
+      ),
     cleanup: () => rmSync(root, { recursive: true, force: true }),
   };
 }

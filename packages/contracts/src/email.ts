@@ -115,6 +115,11 @@ export interface EmailMailerSendInput {
   /** Optional binary attachments (feature 047 invoices — PDF delivery). */
   attachments?: EmailAttachment[];
   /**
+   * Feature 169 — the Reply-To address (the contact form's submitter); absent: none. Not
+   * written to the delivery record, which keeps the recipient, the kind and the subject only.
+   */
+  replyTo?: string;
+  /**
    * What this message is — the transactional-email code, or a legacy in-code
    * builder's own name for it (D-59). Absent, the delivery record falls back to
    * `meta.kind`, which every in-code builder in the tree already carries.

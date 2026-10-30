@@ -93,6 +93,13 @@ export interface ButtonViewProps {
   button: ButtonSpec;
   className?: string;
   look?: ButtonViewLook;
+  /**
+   * Feature 169 — `'submit'` renders a form's `<button type="submit">` with the same classes,
+   * and the spec's link is not read. Absent: today's link (or box, with no link).
+   */
+  type?: 'submit';
+  /** With `type: 'submit'`: the form is being sent (`disabled`, `aria-busy`). */
+  disabled?: boolean;
 }
 
 /**
@@ -102,7 +109,7 @@ export interface ButtonViewProps {
  * round button whose accessible name is the label. A link that resolves to
  * nothing renders the same box with no link.
  */
-export function ButtonView({ button, className, look: blockLook }: ButtonViewProps): ReactNode {
+export function ButtonView({ button, className, look: blockLook, type, disabled }: ButtonViewProps): ReactNode {
   const look = mergedLook(button, blockLook);
   const assets = useCmsRenderAssets();
   const mediaBaseUrl = useCmsRenderMediaBaseUrl();
@@ -144,6 +151,13 @@ export function ButtonView({ button, className, look: blockLook }: ButtonViewPro
     ...(iconOnly ? { 'aria-label': button.label } : {}),
   };
 
+  if (type === 'submit') {
+    return (
+      <button type="submit" {...common} {...(disabled ? { disabled: true, 'aria-busy': true } : {})}>
+        {content}
+      </button>
+    );
+  }
   if (!link) return <span {...common}>{content}</span>;
   return (
     <a

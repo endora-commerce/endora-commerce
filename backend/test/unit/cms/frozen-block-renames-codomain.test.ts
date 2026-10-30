@@ -101,6 +101,8 @@ describe('FROZEN_BLOCK_RENAMES — the codomain', () => {
     ['cms.LinkList', 'specs/163-page-builder-marketing-pages/'],
     ['blog.LatestPosts', 'specs/163-page-builder-marketing-pages/'],
     ['newsletter.Signup', 'specs/163-page-builder-marketing-pages/'],
+    ['cms.PageNavigation', 'specs/169-page-builder-contact-form/'],
+    ['cms.ContactForm', 'specs/169-page-builder-contact-form/'],
   ]);
   const declared = new Set([...everyDeclared].filter((name) => !BORN_NAMESPACED.has(name)));
 

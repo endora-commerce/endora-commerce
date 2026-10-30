@@ -33,13 +33,16 @@ const asset = (kind: AssetStoredKind, label: string | null = 'Hero'): AssetRecor
 
 const detail = (url: string): AssetDetail => ({ url }) as AssetDetail;
 
+/** The menu reads one asset by id; visibility of a list is not what these cases test. */
+const everyAssetVisible = async (ids: readonly string[]): Promise<ReadonlySet<string>> => new Set(ids);
+
 describe('resolveMenuAsset (T118c)', () => {
   it('takes the kind and label from the record and the URL from the library', async () => {
     // Two ports for one asset, and this is why: `AssetRecord` carries the stored
     // kind and no resolved URL, `AssetDetail` carries the URL and no kind.
     const resolved = await resolveMenuAsset(
       {
-        assets: { findById: async () => asset('image', 'Hero image') },
+        assets: { findById: async () => asset('image', 'Hero image'), visibleToCaller: everyAssetVisible },
         assetLibrary: { getAsset: async () => detail('https://cdn.example.com/hero.png') },
       },
       'a1',
@@ -58,7 +61,7 @@ describe('resolveMenuAsset (T118c)', () => {
     let urlAsked = 0;
     const resolved = await resolveMenuAsset(
       {
-        assets: { findById: async () => asset('pdf') },
+        assets: { findById: async () => asset('pdf'), visibleToCaller: everyAssetVisible },
         assetLibrary: {
           getAsset: async () => {
             urlAsked += 1;
@@ -77,7 +80,7 @@ describe('resolveMenuAsset (T118c)', () => {
     let urlAsked = 0;
     const resolved = await resolveMenuAsset(
       {
-        assets: { findById: async () => null },
+        assets: { findById: async () => null, visibleToCaller: everyAssetVisible },
         assetLibrary: {
           getAsset: async () => {
             urlAsked += 1;
@@ -100,7 +103,7 @@ describe('resolveMenuAsset (T118c)', () => {
     await expect(
       resolveMenuAsset(
         {
-          assets: { findById: async () => asset('image') },
+          assets: { findById: async () => asset('image'), visibleToCaller: everyAssetVisible },
           assetLibrary: {
             getAsset: async () => {
               throw new ModuleDisabledError('assets_library');
