@@ -37,7 +37,7 @@ for every member channel C and every L in C's languages (163 FR-014, `toScopeCha
 | `admin_name_key`, `admin_search_key` | — | generated stored `text collate "C"`: `catalog_admin_fold(coalesce(nullif(name,''), sku))` and `… || ' ' || lower(sku)`; indexes `products_admin_order` (btree `(admin_name_key, sku, id) include (admin_search_key)`) and `products_admin_search_trgm` (GIN trigram) |
 | `updated_at` | ORM `onUpdate` | also the **version** (R7): bumped by every scoped write of the product, compare-and-set by the save and copy Commands |
 
-Conversion (dev databases only): `name = coalesce(nullif(name->>'en-US',''), first non-empty value in key order,
+Conversion (dev databases only; a convenience with no product meaning — Global has no language, round 3): `name = coalesce(nullif(name->>'en-US',''), first non-empty value in key order,
 sku)`; `description` likewise, `null` when none; a language-map attribute value collapses the same way. Other
 languages are dropped (FR-020). Order inside the migration: drop indexes → drop generated columns → drop
 functions → convert types → recreate one function pair over `text` → add generated columns → recreate indexes.

@@ -79,6 +79,6 @@ multiselect = nothing selected). Imported by:
 | `patchProductScopesRequestSchema` channel fields `null` = inherit | `scopedWrite(...)`; `status: null` refused, `minOrderQuantity: null` = no minimum, `window: null` = open window override |
 | `ProductScopeWriteInput` (connector port) `value: null` = inherit | replaced by v2 input (`pim-locale-mapping.md` §4) |
 | `ScopedStatusCell.status: null` (empty CSV cell = inherit) | CSV codec: empty = no change, `INHERIT` = inherit, `NULL` refused |
-| gallery role `null` = use inherited (`catalog.ts:1683`) | `galleryRole` `ScopedWrite<uuid>`: `null` = no image holds the role, `{inherit:true}` = inherit |
+| gallery role `null` = use inherited (`catalog.ts:1683`) | `galleryRole` `ScopedWrite<uuid>`: `null` = no image holds the role, `{inherit:true}` = inherit. A gallery role is an **image pointer**, not a single select under FR-062: it is optional, so `null` (empty override — no image holds the role at this scope) is allowed (`data-model.md` §6b, §9) |
 | `putProductUrlKeysRequestSchema` `key: null` = inherit | `{inherit:true}` = inherit; `null` refused (required) |
 | `minOrderQuantity` at C: `null` = inherit, `1` = no minimum | `null` = no minimum, `{inherit:true}` = inherit |

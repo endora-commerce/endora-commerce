@@ -259,7 +259,7 @@ compare-and-set itself.
 meaning is retired; the catalog texts migration empties the table (no live data, and old rows would be misread).
 The PUT route validates the language is offered by the channel and the channel is a member (it validates only the
 channel today). The URL (`?channel=&language=&tab=&field=`) is the source of truth; the preference only seeds a
-URL that names no scope. A preference write is a UI preference, not a domain write: it stays outside the Command
+URL that names no scope. A preference write is UI state, not a domain write, so Principle XIII does not require a Command: it stays outside the Command
 Bus, as today.
 
 **Rejected.** *A `level` column* (audit G3 option) — a migration to encode what the two nullable columns already
@@ -504,7 +504,7 @@ load on the same machine.
 
 | Owner | `--name` | Content |
 | --- | --- | --- |
-| catalog | `scope_model_texts` | drop the four admin-key generated columns and their functions; `name` / `description` jsonb → text (Global = `en-US` value, else first non-empty, else SKU — keeps dev databases usable); recreate one `admin_name_key` / `admin_search_key` pair over the text name; `product_attributes.scopable` replaces the two flags; `product_value_overrides` CHECK `value ? 'v'`; `attribute_values` language maps collapsed to a scalar; `product_editor_preferences` emptied |
+| catalog | `scope_model_texts` | drop the four admin-key generated columns and their functions; `name` / `description` jsonb → text (Global = `en-US` value, else first non-empty, else SKU — a dev-data convenience that only keeps dev databases usable; it carries no product meaning, since Global has no language and there is no "primary language" concept, round 3); recreate one `admin_name_key` / `admin_search_key` pair over the text name; `product_attributes.scopable` replaces the two flags; `product_value_overrides` CHECK `value ? 'v'`; `attribute_values` language maps collapsed to a scalar; `product_editor_preferences` emptied |
 | catalog | `scope_model_order_rules` | `product_channel_scopes.min_order_quantity_overridden`; 163 `1`-means-none rows converted; CHECK rewritten |
 | catalog | `scope_model_url_keys` | `product_url_keys` and `product_url_redirects` recreated in the R12 shape (language keys and redirects dropped) |
 | catalog | `scope_model_media` | `gallery_items.alt_text` jsonb → text, `gallery_items.hidden`, `product_attachments.hidden`; drop `*_translations` and the three 163 channel tables; create the four `*_scope_overrides` tables |

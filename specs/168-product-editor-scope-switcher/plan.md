@@ -142,7 +142,7 @@ version, and the token would stop meaning "the values this Save overwrites chang
 **Visible consequences already decided by the spec, for the owner to notice at acceptance:** admin lists and
 pickers show the product's Global name whatever the admin UI language (FR-031; the feature-161 per-language admin
 name keys collapse to one); category, attribute-label, option-label, attribute-set, bundle-slot and
-attachment-type names stay per-language maps (not product values, FR-117); the search index grows roughly with the
+attachment-type names stay per-language maps (FR-014 makes only product fields one Global string); the search index grows roughly with the
 number of channel languages (R11) and needs one reindex on upgrade.
 
 ## Requirement → test (abridged; every FR maps to a task in `tasks.md` *Traceability*)
