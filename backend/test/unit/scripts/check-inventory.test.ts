@@ -77,9 +77,12 @@ import {
 } from '../../../scripts/check-entry-scope.js';
 import {
   findPlaceholderSentences,
+  findUnraisedCodes,
   findUnreachableSentences,
   findUntranslatedErrorCodes,
+  findUntranslatedTokens,
   nonDeclaringModules,
+  readRaiseSites,
   reconcileEnumeration,
   type TranslationInput,
 } from '../../../scripts/check-error-translations.js';
@@ -759,11 +762,16 @@ const READS_DATABASE_URL = "const url = process.env['DATABASE_URL'];\n";
  * finding. Both members are built from one map, so the proof cannot describe a
  * tree where P1's reader and P2's walk disagree.
  */
-function errorSentenceTree(bundles: Record<string, Record<string, string>>): TranslationInput {
+function errorSentenceTree(
+  bundles: Record<string, Record<string, string>>,
+  source = "throw new HttpError(404, ERROR_CODES.BLOG_POST_NOT_FOUND, 'No such post.');",
+): TranslationInput {
   return {
     keys: { BLOG_POST_NOT_FOUND: { moduleId: 'cms', key: 'errors.BLOG_POST_NOT_FOUND' } },
     collisions: [],
     enumeratedCodes: ['BLOG_POST_NOT_FOUND'],
+    declaredTokens: {},
+    listSources: () => [{ path: 'blog/src/backend/service.ts', text: source }],
     readBundle: (moduleId, language) => bundles[`${moduleId}.${language}`] ?? {},
     listBundleKeys: () =>
       Object.entries(bundles).flatMap(([slot, bundle]) => {
@@ -5965,6 +5973,45 @@ const CHECKS: readonly CheckEntry[] = [
             errorSentenceTree({ 'blog.en': { 'errors.COUPON_EXPIRED': 'It expired.' } }),
           ).filter((f) => f.kind === 'no-code').length,
       ),
+      // Issue #83, slice 1: a key under `errors.` the grammar cannot parse.
+      // Every predicate used to `continue` past it, so a sentence filed under a
+      // mis-cased code was neither accepted nor reported.
+      'sentence-key-malformed': top(
+        () =>
+          findUnreachableSentences(
+            errorSentenceTree({ 'cms.en': { 'errors.blogPostNotFound': 'No such post.' } }),
+          ).filter((f) => f.kind === 'malformed-key').length,
+      ),
+      // Issue #83, slice 2 (P6): a token a code is raised with, with no
+      // `errors.<CODE>.<token>` sentence. The fixture enters as source text, so
+      // the raise-site read is inside the proof rather than handed to it.
+      'token-untranslated': top(() => {
+        const tree = errorSentenceTree(
+          {
+            'cms.en': { 'errors.BLOG_POST_NOT_FOUND': 'No such post.' },
+            'cms.pl': { 'errors.BLOG_POST_NOT_FOUND': 'Nie ma takiego wpisu.' },
+          },
+          "throw new HttpError(404, ERROR_CODES.BLOG_POST_NOT_FOUND, 'Gone.', { code: 'archived' });",
+        );
+        return findUntranslatedTokens(
+          tree,
+          readRaiseSites(tree.listSources(), new Set(Object.keys(tree.keys))),
+        ).filter((f) => f.token === 'archived').length;
+      }),
+      // Issue #83, slice 3 (P7): a declared code no source file names.
+      'code-unraised': top(() => {
+        const tree = errorSentenceTree(
+          {
+            'cms.en': { 'errors.BLOG_POST_NOT_FOUND': 'No such post.' },
+            'cms.pl': { 'errors.BLOG_POST_NOT_FOUND': 'Nie ma takiego wpisu.' },
+          },
+          '// BLOG_POST_NOT_FOUND is only mentioned in this comment.\nexport {};',
+        );
+        return findUnraisedCodes(
+          tree,
+          readRaiseSites(tree.listSources(), new Set(Object.keys(tree.keys))),
+        ).length;
+      }),
       // P5 (issue #441): a translation that is not a sentence in its own
       // language. P1 counts any string as translated, which is how 137 Polish
       // `Błąd: <code, lowercased>.` placeholders read as finished work. One
@@ -11634,7 +11681,11 @@ describe('every red proof enters at the top of the analysis', () => {
       // neither could go red for what a translation says.
       // Plus issue #486's one: `placeholder` in the reference language, whose
       // Title-Case shape the case-insensitive non-English rule never reaches.
-      'backend/scripts/check-error-translations.ts': 12,
+      // Plus issue #83's three: P2's `malformed-key`, P6's untranslated token
+      // and P7's unraised code. Each reads something the other predicates
+      // never open — a key the grammar refuses, a raise's `details.code`, the
+      // source tree — so none of the twelve above could go red for them.
+      'backend/scripts/check-error-translations.ts': 15,
       // Three shapes the read reaches the fallback through, four fabrications
       // the fallback performs; the two axes are independent, so the count is
       // their union rather than their product. Plus issue #275's five: three

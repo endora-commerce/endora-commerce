@@ -120,10 +120,12 @@ export const manifest = defineModuleManifest({
    * the reason the numbers survived it. Measured over the 21 by balanced-paren
    * extraction of every `new HttpError(...)` call's own arguments: **794 raise
    * sites, four of the codes carrying a `details.code`**. Three of the four
-   * declare their tokens here — five tokens in total, of which **two have a
-   * sentence in both languages** (`FORBIDDEN.organization_cannot_transact`,
-   * `.customer_outside_assignment_scope`) and three do not, each of those three
-   * being a Phase 4 finding rather than a silent absence. The fourth is
+   * declare their tokens here — five tokens in total, of which two had a
+   * sentence in both languages (`FORBIDDEN.organization_cannot_transact`,
+   * `.customer_outside_assignment_scope`) and three did not. Nothing reported
+   * the three until issue #83 gave `check:error-translations` a predicate that
+   * reads raise sites and declared tokens (P6); all five have a sentence now.
+   * The fourth is
    * `VALIDATION_FAILED`, which declares **none** although 19 distinct tokens are
    * passed at its raise sites: `localizeErrorEnvelope` returns before translating
    * that code (`packages/platform/src/http/error-envelope.ts`), so its
@@ -132,8 +134,9 @@ export const manifest = defineModuleManifest({
    * would declare sentences nothing can render. If a code arrives or leaves,
    * re-run the scan; do not adjust the number.
    *
-   * **What the bundle holds for these 22**: 17 `errors.*` keys in each language —
-   * 15 base sentences and the two token keys above. (`AMOUNT_PRECISION_EXCEEDED`,
+   * **What the bundle holds for these 23** (re-counted for issue #83): 21
+   * `errors.*` keys in each language — 16 base sentences and the five token
+   * keys above. (`AMOUNT_PRECISION_EXCEEDED`,
    * issue #417, and its unit-price sibling `UNIT_PRICE_PRECISION_EXCEEDED`
    * (owner ruling of 2026-10-25) arrived after the measurement of 21 and are
    * raised by the envelope itself rather than at a `new HttpError` site, so the
