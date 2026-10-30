@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { LoginPage } from '../../../packages/admin-shell/src/components/LoginPage';
 
-vi.mock('../../../packages/admin-shell/src/lib/auth', () => ({
+vi.mock('@endora-commerce/admin-kit/lib', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@endora-commerce/admin-kit/lib')>()),
   useAuth: () => ({
     login: vi.fn(),
     lastLoginError: null,

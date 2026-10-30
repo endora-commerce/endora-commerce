@@ -2,12 +2,15 @@ import { useCallback, useId, useMemo, type ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 import { ChevronDown, GripVertical } from 'lucide-react';
 import { ADMIN_PINNED_GROUP_KEY } from '@endora-commerce/contracts';
-import { cn } from '../../lib/utils.js';
-import { useTranslation } from '../../i18n/useTranslation.js';
+import { cn } from '@endora-commerce/admin-kit/lib';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import type { ResolvedPin } from '../../lib/pinned-entries.js';
-import { useReorderList, type ReorderLabels } from '../reorder/useReorderList.js';
-import { ReorderAnnouncer } from '../reorder/ReorderAnnouncer.js';
-import { TouchReorderButtons } from '../TouchReorderButtons.js';
+import {
+  useReorderList,
+  type ReorderLabels,
+  ReorderAnnouncer,
+  TouchReorderButtons,
+} from '@endora-commerce/admin-kit/components';
 import type { NavItem, NavSection } from './nav-types.js';
 import { PinToggleButton } from './PinToggleButton.js';
 

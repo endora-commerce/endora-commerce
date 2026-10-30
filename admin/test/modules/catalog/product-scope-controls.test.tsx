@@ -4,7 +4,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event';
 import { ApiError } from '@endora-commerce/admin-kit/lib';
 import type { ProductScopes } from '@endora-commerce/contracts';
-import { TranslationProvider } from '../../../../packages/admin-shell/src/i18n/TranslationProvider';
+import { TranslationProvider } from '@endora-commerce/admin-kit/i18n';
 import catalogEn from '../../../../packages/modules/catalog/i18n/en.json';
 import catalogPl from '../../../../packages/modules/catalog/i18n/pl.json';
 import { adminSession, withSession } from '../../helpers/render-with-session';

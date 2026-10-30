@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Pin, PinOff } from 'lucide-react';
-import { cn } from '../../lib/utils.js';
-import { useTranslation } from '../../i18n/useTranslation.js';
+import { cn } from '@endora-commerce/admin-kit/lib';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 export interface PinToggleButtonProps {
   /** The sidebar entry's own label, in the admin's language. */

@@ -32,7 +32,7 @@ import { StrictMode, type ReactNode } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 
 import { App } from './App.js';
-import { AuthProvider } from './lib/auth.js';
+import { AuthProvider } from '@endora-commerce/admin-kit/lib';
 import type { AdminRegistryEntry } from './lib/module-registry/index.js';
 
 export interface AdminRootProps {

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Loader2, Sparkles } from 'lucide-react';
 import type { PromptActionRequestDto, ResultOperation } from '@endora-commerce/contracts';
-import { Button } from '../ui/button.js';
-import { useTranslation } from '../../i18n/useTranslation.js';
+import { Button } from '@endora-commerce/admin-kit/ui';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { markPromptRequestSeen } from '../../lib/prompt-actions/api.js';
 import { usePromptRequest } from '../../lib/prompt-actions/usePromptRequest.js';
 import { PromptPlanPreview } from './PromptPlanPreview.js';

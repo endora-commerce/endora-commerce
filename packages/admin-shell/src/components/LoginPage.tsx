@@ -1,11 +1,19 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { LogIn, ShieldAlert } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from './ui/alert.js';
-import { Button } from './ui/button.js';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card.js';
-import { Input } from './ui/input.js';
-import { Label } from './ui/label.js';
-import { useAuth } from '../lib/auth.js';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Input,
+  Label,
+} from '@endora-commerce/admin-kit/ui';
+import { useAuth } from '@endora-commerce/admin-kit/lib';
 import { ADMIN_ACCOUNT_HELP_URL, loginCopy } from '../i18n/preauth-login-copy.js';
 import { FederatedSignIn } from './FederatedSignIn.js';
 

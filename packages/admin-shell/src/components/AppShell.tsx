@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useFocusTrap } from './hooks/useFocusTrap.js';
+import { useFocusTrap, useViewportTier } from '@endora-commerce/admin-kit/components';
 import { BrandLogo } from './BrandLogo.js';
 import { VersionBadge } from './VersionBadge.js';
 import { AdminFeedback } from './AdminFeedback.js';
@@ -22,10 +22,17 @@ import {
   Sparkles,
   type LucideIcon,
 } from 'lucide-react';
-import { useAuth } from '../lib/auth.js';
-import { cn } from '../lib/utils.js';
-import { useTranslation } from '../i18n/useTranslation.js';
-import { useTranslationContext } from '../i18n/TranslationProvider.js';
+import {
+  useAuth,
+  cn,
+  useModulePresence,
+  useSurfaceVisibility,
+  type GatedSurface,
+  type PermissionRequirement,
+  resolveIcon,
+  useAdminPreference,
+} from '@endora-commerce/admin-kit/lib';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import {
   registryNavFor,
   useAdminRegistry,
@@ -33,22 +40,14 @@ import {
 } from '../lib/module-registry/index.js';
 import { LanguagePicker } from './LanguagePicker.js';
 import { RoleRequiredNotice } from './RoleRequiredNotice.js';
-import { useViewportTier } from './hooks/useViewportTier.js';
 import { NotificationBell } from './notifications/index.js';
 import { useAdminActions } from '../lib/admin-actions/useAdminActions.js';
 import { matchesSearchTerms, searchTerms } from '../lib/palette-match.js';
-import { useModulePresence } from '../lib/module-presence/index.js';
 import { usePlatformVersion } from '../lib/platform-info/usePlatformVersion.js';
-import {
-  useSurfaceVisibility,
-  type GatedSurface,
-  type PermissionRequirement,
-} from '../lib/surface-visibility.js';
-import { resolveIcon } from '../lib/admin-actions/icon-map.js';
 import { getPromptCapability, listUnseenPromptRequests } from '../lib/prompt-actions/api.js';
 import { PromptModePanel } from './prompt-actions/PromptModePanel.js';
 import { useGlobalSearch } from '../lib/global-search/useGlobalSearch.js';
-import { Badge } from './ui/badge.js';
+import { Badge } from '@endora-commerce/admin-kit/ui';
 import { SpeechToTextButton } from './SpeechToTextButton.js';
 import type { PromptActionRequestDto } from '@endora-commerce/contracts';
 
@@ -57,7 +56,6 @@ import { PinnedSection } from './sidebar/PinnedSection.js';
 import { PinToggleButton } from './sidebar/PinToggleButton.js';
 import { PreferencesSaveNotice } from './sidebar/PreferencesSaveNotice.js';
 import { usePinActions, type PinOutcome } from './sidebar/use-pin-actions.js';
-import { useAdminPreference } from '@endora-commerce/admin-kit/lib';
 import {
   reorderVisiblePins,
   resolvePinsFrom,

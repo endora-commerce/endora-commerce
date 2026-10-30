@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Download, ExternalLink } from 'lucide-react';
-import { ApiError } from '../../lib/api-client.js';
-import { Alert, AlertDescription } from '../../components/ui/alert.js';
-import { Button } from '../../components/ui/button.js';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card.js';
-import { PageHeader } from '../../components/ui/page-header.js';
-import { useTranslation } from '../../i18n/useTranslation.js';
+import { ApiError } from '@endora-commerce/admin-kit/lib';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  PageHeader,
+} from '@endora-commerce/admin-kit/ui';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import {
   API_DESCRIPTION_SCOPE,
   apiReferenceUrl,

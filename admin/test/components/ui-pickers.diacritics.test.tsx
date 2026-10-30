@@ -1,8 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, within } from '@testing-library/react';
 import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
-import { Combobox } from '../../../packages/admin-shell/src/components/ui/combobox';
-import { MultiSelect } from '../../../packages/admin-shell/src/components/ui/multi-select';
+import { Combobox, MultiSelect } from '@endora-commerce/admin-kit/ui';
 
 /**
  * Issue #236 — the same folding rule, written a third and a fourth time.

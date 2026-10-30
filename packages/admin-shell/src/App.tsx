@@ -4,25 +4,27 @@ import { Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/AppShell.js';
 import { LoginPage } from './components/LoginPage.js';
 import { IdleLogout } from './components/IdleLogout.js';
-import { useAuth } from './lib/auth.js';
-import { TranslationProvider } from './i18n/TranslationProvider.js';
-import { useTranslation } from './i18n/useTranslation.js';
+import {
+  useAuth,
+  ModulePresenceProvider,
+  useSurfaceVisibility,
+  type GatedSurface,
+  type PermissionRequirement,
+} from '@endora-commerce/admin-kit/lib';
+import {
+  TranslationProvider,
+  useTranslation,
+  AppLanguageContext,
+} from '@endora-commerce/admin-kit/i18n';
 import { appBootstrapCopy } from './i18n/preauth-login-copy.js';
 import { AdminActionsProvider } from './lib/admin-actions/AdminActionsProvider.js';
-import { ModulePresenceProvider } from './lib/module-presence/index.js';
-import { AppLanguageContext } from './i18n/app-language-context.js';
 import { AdminContributionsProvider } from '@endora-commerce/admin-kit/zones';
 import {
   AdminRegistryProvider,
   registryRoutes,
   type AdminRegistryEntry,
 } from './lib/module-registry/index.js';
-import {
-  useSurfaceVisibility,
-  type GatedSurface,
-  type PermissionRequirement,
-} from './lib/surface-visibility.js';
-import type { SupportedAdminLanguage } from './i18n/types.js';
+import type { SupportedAdminLanguage } from '@endora-commerce/admin-kit/i18n';
 import { HomePage } from './modules/home/HomePage.js';
 import { ModulesPage as PlatformModulesPage } from './modules/platform/ModulesPage.js';
 import { ApiDescriptionPage } from './modules/platform/ApiDescriptionPage.js';

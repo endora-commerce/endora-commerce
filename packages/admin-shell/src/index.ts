@@ -49,6 +49,6 @@ export type { AdminRootProps } from './AdminRoot.js';
 export { App } from './App.js';
 export type { AppProps } from './App.js';
 export { registerAdminServiceWorker } from './registerSw.js';
-export { AuthProvider } from './lib/auth.js';
-export type { AdminMe, AuthProviderProps } from './lib/auth.js';
+export { AuthProvider } from '@endora-commerce/admin-kit/lib';
+export type { AdminMe, AuthProviderProps } from '@endora-commerce/admin-kit/lib';
 export type { AdminRegistryEntry } from './lib/module-registry/index.js';

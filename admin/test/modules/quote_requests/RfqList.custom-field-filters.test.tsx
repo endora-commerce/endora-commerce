@@ -6,7 +6,7 @@ import { MemoryRouter, useLocation } from 'react-router-dom';
 import type { CustomFieldListFilterField, SavedListView } from '@endora-commerce/contracts';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
 import { expectNoAxeViolations } from '../../helpers/axe';
-import { TranslationProvider } from '../../../../packages/admin-shell/src/i18n/TranslationProvider';
+import { TranslationProvider } from '@endora-commerce/admin-kit/i18n';
 import pl from '../../../../packages/modules/_i18n/i18n/pl.json';
 import { installOffsetParentShim } from '../../helpers/layout-shim';
 import en from '../../../../packages/modules/_i18n/i18n/en.json';

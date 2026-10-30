@@ -31,6 +31,10 @@ The implementations **moved**; `admin/src` keeps a one-line re-export shim at ea
 unchanged and every binding has exactly one home — the shape feature 080 used for the
 platform relocation.
 
+Those shims later moved into `@endora-commerce/admin-shell` with the rest of the host, and
+issue #97 removed the last of them: the shell names `@endora-commerce/admin-kit/*` directly,
+and a test that replaces a kit binding mocks that same specifier.
+
 `admin-kit-surface.md` R4 originally said the kit would be a **façade** over `admin/src`
 with nothing moving. It cannot be built, and both halves of the reason were measured on a
 two-file probe:
@@ -47,12 +51,13 @@ which is what `check:singleton-identity` refuses on the backend and for which th
 frontend instrument at all.
 
 So the property that has to hold is *one copy*, and it is asserted by reference equality
-rather than by structure: `admin/test/kit/admin-kit-identity.test.ts` compares the binding
+rather than by structure: `admin/test/kit/admin-kit-identity.test.ts` compared the binding
 reached through a shim with the binding reached through the barrel using `toBe`, for a
 function, a component, the API-client singleton, the `ApiError` class (`instanceof`) and a
-React context. A second `createContext()` passes every structural comparison and is a
-`null` context at runtime with no type error; that is the failure this file exists to make
-impossible.
+React context, until the shims were removed (issue #97); it still compares the kit's
+page-size options with the contracts array. A second `createContext()` passes every
+structural comparison and is a `null` context at runtime with no type error; that is the
+failure the comparison existed to make impossible.
 
 ## What is still not published, and why
 
@@ -117,7 +122,7 @@ data-fetching components, which is `specs/deferred-defects.md`'s entry from !121
 `PAGE_SIZE_OPTIONS` was the one binding Phase 1b split out of a module that stayed behind:
 the **constant** was design-system and the **preference** was application state, because the
 hook reads the signed-in admin's id. That id is `useAuth`'s, which is published now, so the
-split has nothing left to separate — both halves are here and the shim forwards both.
+split has nothing left to separate — both halves are here.
 
 ## How a kit component gets its data
 

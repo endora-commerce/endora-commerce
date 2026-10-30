@@ -1,4 +1,4 @@
-import { apiClient } from '../api-client.js';
+import { apiClient } from '@endora-commerce/admin-kit/lib';
 import type { GetAdminActionsResponse, SupportedAdminLanguage } from '@endora-commerce/contracts';
 
 /**

@@ -1,6 +1,5 @@
-import { interpolate } from '../../i18n/interpolate.js';
-import { resolve } from '../../i18n/resolver.js';
-import type { Bundle, SupportedAdminLanguage } from '../../i18n/types.js';
+import { interpolate, resolve } from '@endora-commerce/admin-kit/i18n';
+import type { Bundle, SupportedAdminLanguage } from '@endora-commerce/admin-kit/i18n';
 
 /**
  * A translatable sentence as the feed delivers it — `AdminNotificationMessage`

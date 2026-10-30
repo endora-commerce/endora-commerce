@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactElement, ReactNode } from 'react';
-import { TranslationProvider } from '../../../packages/admin-shell/src/i18n/TranslationProvider';
+import { TranslationProvider } from '@endora-commerce/admin-kit/i18n';
 import { PaginationFooter } from '@endora-commerce/admin-kit/components';
 
 /**

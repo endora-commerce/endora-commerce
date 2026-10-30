@@ -27,8 +27,8 @@ const getSpy = vi.fn(async (_path: string) => ({ data: [], items: [], counts: {}
 
 
 
-vi.mock('../../../../packages/admin-shell/src/lib/api-client', async () => {
-  const actual = await vi.importActual('../../../../packages/admin-shell/src/lib/api-client');
+vi.mock('@endora-commerce/admin-kit/lib', async () => {
+  const actual = await vi.importActual('@endora-commerce/admin-kit/lib');
   return {
     ...(actual as Record<string, unknown>),
     apiClient: {

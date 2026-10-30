@@ -8,16 +8,17 @@ import {
   adminFeedbackPhoneSchema,
 } from '@endora-commerce/contracts';
 import { ModalDialog } from '@endora-commerce/admin-kit/components';
-import { ApiError } from '@endora-commerce/admin-kit/lib';
-import { useAuth } from '../lib/auth.js';
+import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
 import { sendAdminFeedback } from '../lib/admin-feedback/api.js';
-import { useTranslationContext } from '../i18n/TranslationProvider.js';
-import { useTranslation } from '../i18n/useTranslation.js';
-import { Alert, AlertDescription } from './ui/alert.js';
-import { Button } from './ui/button.js';
-import { Input } from './ui/input.js';
-import { Label } from './ui/label.js';
-import { Textarea } from './ui/textarea.js';
+import { useTranslationContext, useTranslation } from '@endora-commerce/admin-kit/i18n';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Input,
+  Label,
+  Textarea,
+} from '@endora-commerce/admin-kit/ui';
 
 /** Where an administrator can write when the form cannot send. */
 const SUPPORT_EMAIL = 'support@endora.software';

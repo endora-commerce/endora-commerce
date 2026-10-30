@@ -10,7 +10,7 @@ import {
   settingGroupNameKey,
   settingNameKey,
 } from '../../../../packages/modules/settings/src/admin/components/setting-label';
-import type { Bundle } from '../../../../packages/admin-shell/src/i18n/types';
+import type { Bundle } from '@endora-commerce/admin-kit/i18n';
 
 /**
  * A setting's name and description, written in the owning module's own bundle,

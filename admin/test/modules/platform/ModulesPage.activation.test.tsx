@@ -3,7 +3,7 @@ import { screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import type { ModuleListItem, ModulePresence } from '@endora-commerce/contracts';
-import { ApiError } from '../../../../packages/admin-shell/src/lib/api-client';
+import { ApiError } from '@endora-commerce/admin-kit/lib';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
 
 /**
@@ -18,10 +18,15 @@ import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18
 
 let listed: ModuleListItem[] = [];
 let presence: ModulePresence[] = [];
-const setModuleActivation = vi.fn(async () => ({}));
-const refresh = vi.fn(async () => {});
+// Hoisted: `ApiError` is imported statically from the mocked barrel, so the
+// factory runs before this file's own top-level statements do.
+const { setModuleActivation, refresh } = vi.hoisted(() => ({
+  setModuleActivation: vi.fn(async () => ({})),
+  refresh: vi.fn(async () => {}),
+}));
 
-vi.mock('../../../../packages/admin-shell/src/lib/module-presence', () => ({
+vi.mock('@endora-commerce/admin-kit/lib', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@endora-commerce/admin-kit/lib')>()),
   useModulePresence: () => ({
     modules: presence,
     isPresent: (id: string) => presence.find((m) => m.id === id)?.present ?? false,

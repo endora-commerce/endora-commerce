@@ -15,7 +15,8 @@ import { AdminRoot, routerBasename } from '../../../packages/admin-shell/src/Adm
  * renders points at `/…` — the storefront's side of the same host.
  */
 
-vi.mock('../../../packages/admin-shell/src/lib/auth', () => ({
+vi.mock('@endora-commerce/admin-kit/lib', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@endora-commerce/admin-kit/lib')>()),
   AuthProvider: ({ children }: { children: ReactNode }): ReactNode => children,
 }));
 

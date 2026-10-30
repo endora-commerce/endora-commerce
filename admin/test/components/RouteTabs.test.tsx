@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { RouteTabs } from '../../../packages/admin-shell/src/components/ui/route-tabs';
+import { RouteTabs } from '@endora-commerce/admin-kit/ui';
 import { renderWithI18n } from '../helpers/render-with-i18n';
 
 /**

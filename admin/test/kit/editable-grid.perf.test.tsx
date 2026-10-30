@@ -4,8 +4,11 @@ import { join, resolve } from 'node:path';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useCallback, useState, type ReactElement, type ReactNode } from 'react';
-import { TranslationProvider } from '../../../packages/admin-shell/src/i18n/TranslationProvider';
-import { EditableGrid, type EditableGridRenderContext } from '@endora-commerce/admin-kit/components';
+import { TranslationProvider } from '@endora-commerce/admin-kit/i18n';
+import {
+  EditableGrid,
+  type EditableGridRenderContext,
+} from '@endora-commerce/admin-kit/components';
 
 /**
  * The editable grid at the price grid's largest page (feature 161, T099;

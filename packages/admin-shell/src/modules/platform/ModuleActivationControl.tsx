@@ -1,9 +1,8 @@
 import { useCallback, useState, type ReactNode } from 'react';
 import { Power, PowerOff } from 'lucide-react';
 import type { ModulePresence } from '@endora-commerce/contracts';
-import { Button } from '../../components/ui/button.js';
-import { ApiError } from '../../lib/api-client.js';
-import { setModuleActivation, useModulePresence } from '../../lib/module-presence/index.js';
+import { Button } from '@endora-commerce/admin-kit/ui';
+import { ApiError, setModuleActivation, useModulePresence } from '@endora-commerce/admin-kit/lib';
 
 /**
  * A module's one activation control — Constitution XVII, relocated by D-36.

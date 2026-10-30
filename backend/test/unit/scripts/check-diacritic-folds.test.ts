@@ -1196,6 +1196,10 @@ describe('check-diacritic-folds — the tree it guards', () => {
   // file that folds — and `AppShell.tsx` stays listed, held to importing that
   // file, so the chain from the dialog to the shared helper is proven link by
   // link rather than assumed.
+  //
+  // The sixth is issue #97: the shell's re-export shims over the kit are gone,
+  // so `palette-match.ts` names the kit's `lib` barrel, which is where
+  // `text-normalization.ts` is published, instead of the shim beside it.
   const repaired: readonly (readonly [string, string])[] = [
     [
       'packages/admin-shell/src/components/AppShell.tsx',
@@ -1203,7 +1207,7 @@ describe('check-diacritic-folds — the tree it guards', () => {
     ],
     [
       'packages/admin-shell/src/lib/palette-match.ts',
-      "from './text-normalization.js'",
+      "from '@endora-commerce/admin-kit/lib'",
     ],
     ['packages/admin-kit/src/ui/combobox.tsx', "from '../lib/text-normalization.js'"],
     ['packages/admin-kit/src/ui/multi-select.tsx', "from '../lib/text-normalization.js'"],

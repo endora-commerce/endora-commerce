@@ -1,5 +1,5 @@
-import { Badge } from './ui/badge.js';
-import { useTranslation } from '../i18n/useTranslation.js';
+import { Badge } from '@endora-commerce/admin-kit/ui';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 /**
  * The release number, in its own sidebar section under the logo.

@@ -5,7 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { setMobileViewport } from '../setup';
 import { renderWithI18n } from '../helpers/render-with-i18n';
 import { withLocalStorage } from '../helpers/with-local-storage';
-import type { Bundle } from '../../../packages/admin-shell/src/i18n/types';
+import type { Bundle } from '@endora-commerce/admin-kit/i18n';
 import {
   adminSession,
   everyDeclaredModule,

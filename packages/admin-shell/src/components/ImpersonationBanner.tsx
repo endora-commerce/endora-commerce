@@ -1,8 +1,7 @@
 import type { ReactNode } from 'react';
 import { ShieldAlert } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from './ui/alert.js';
-import { Button } from './ui/button.js';
-import { useTranslation } from '../i18n/useTranslation.js';
+import { Alert, AlertDescription, AlertTitle, Button } from '@endora-commerce/admin-kit/ui';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 /**
  * Admin-side impersonation banner (T194). Presentational primitive: render

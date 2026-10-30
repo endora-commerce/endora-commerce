@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { ApiError } from '../../../../packages/admin-shell/src/lib/api-client';
+import { ApiError } from '@endora-commerce/admin-kit/lib';
 import { passthroughBundle } from '../../helpers/render-with-i18n';
 import {
   adminSession,

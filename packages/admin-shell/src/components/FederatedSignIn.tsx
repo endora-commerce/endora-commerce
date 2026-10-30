@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
-import { Button } from './ui/button.js';
-import { Separator } from './ui/separator.js';
+import { Button, Separator } from '@endora-commerce/admin-kit/ui';
 import { loginCopy } from '../i18n/preauth-login-copy.js';
 import {
   useFederatedSignIn,
