@@ -92,6 +92,7 @@ describe('CmsBlockService — every write is a Command', () => {
     const block = await h.service.create({
       name: 'Footer note',
       code: 'footer-note',
+      active: true,
       salesChannelIds: [CHANNEL_ID],
       languages: ['en-US'],
     });

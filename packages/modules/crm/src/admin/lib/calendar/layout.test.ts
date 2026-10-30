@@ -1,3 +1,5 @@
+/// <reference types="node" />
+// The test runs in Node; the admin layer it tests is compiled without Node types.
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { CalendarEntry } from './date-math.js';
 import {

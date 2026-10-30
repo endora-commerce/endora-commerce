@@ -151,7 +151,7 @@ describe('crmNotificationText', () => {
     expect(cut.endsWith('…')).toBe(true);
     expect(longest.title.startsWith(cut.slice(0, -1))).toBe(true);
     // The params are what the Admin UI words the entry from: the name is whole there.
-    expect(longest.titleMessage.params['name']).toHaveLength(200);
+    expect(longest.titleMessage.params?.['name']).toHaveLength(200);
   });
 
   it('translates: the Polish sentence is not the English one', () => {

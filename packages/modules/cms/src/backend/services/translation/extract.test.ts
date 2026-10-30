@@ -194,7 +194,7 @@ describe('inject', () => {
     expect(inject(data, extraction, new Map([[id, 'Hi there']])).untranslated).toBe(1);
     expect(inject(data, extraction, new Map([[id, 'Hi <0>{{customer.firstName}}</0>']])).untranslated).toBe(1);
     expect(
-      (inject(data, extraction, new Map([[id, 'Hi {{customer.firstName}} &lt;3']])).data.content[0] as { props: { text: string } }).props.text,
+      ((inject(data, extraction, new Map([[id, 'Hi {{customer.firstName}} &lt;3']])).data as { content: unknown[] }).content[0] as { props: { text: string } }).props.text,
     ).toBe('Hi {{customer.firstName}} <3');
   });
 });
@@ -230,7 +230,7 @@ describe('an inline icon in a heading (feature 163, T163)', () => {
     const id = extraction.segments[0]!.id;
     const out = inject(data, extraction, new Map([[id, '<0/> New ideas']]));
     expect(out.untranslated).toBe(0);
-    expect((out.data.content[0] as { props: { title: { content: Array<{ content: unknown[] }> } } }).props.title.content[0]!.content).toEqual([
+    expect(((out.data as { content: unknown[] }).content[0] as { props: { title: { content: Array<{ content: unknown[] }> } } }).props.title.content[0]!.content).toEqual([
       ICON,
       { type: 'text', text: ' New ideas' },
     ]);

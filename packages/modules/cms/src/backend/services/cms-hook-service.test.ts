@@ -99,6 +99,7 @@ describe('CmsHookService — every write is a Command', () => {
     const hook = await h.service.create({
       name: 'Homepage top',
       code: 'homepage.top',
+      active: true,
       salesChannelIds: [CHANNEL_ID],
     });
 

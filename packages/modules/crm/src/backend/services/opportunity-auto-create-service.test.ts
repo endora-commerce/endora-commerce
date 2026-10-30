@@ -133,10 +133,10 @@ describe('OpportunityAutoCreateService — a placed Order', () => {
     expect(await subject.onOrderCreated(ORDER_ID)).toBe('deferred');
     await subject.idle();
     // A bounded wait: a little over two seconds in all, then no more reads.
-    const waited = (deps.sleep.mock.calls as unknown as number[][]).reduce((sum, [ms = 0]) => sum + ms, 0);
+    const waited = (vi.mocked(deps.sleep).mock.calls as unknown as number[][]).reduce((sum, [ms = 0]) => sum + ms, 0);
     expect(waited).toBeGreaterThan(1000);
     expect(waited).toBeLessThan(5000);
-    expect(findById).toHaveBeenCalledTimes(deps.sleep.mock.calls.length + 1);
+    expect(findById).toHaveBeenCalledTimes(vi.mocked(deps.sleep).mock.calls.length + 1);
     expect(deps.createForDocument).not.toHaveBeenCalled();
   });
 

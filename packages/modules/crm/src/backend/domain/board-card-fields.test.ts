@@ -20,8 +20,11 @@ const definition = (key: string, valueType: 'text' | 'select', options: string[]
       labelDefault: 'Label',
       valueType,
       required: false,
+      audience: 'internal',
       sortOrder: 0,
       config: {},
+      listFilter: false,
+      carryTo: [],
       createdAt: new Date(0),
       updatedAt: new Date(0),
     },
@@ -108,7 +111,7 @@ describe('board card fields (User Story 19)', () => {
     // text 1, number 2, boolean 1, date 2, select 1, multiselect 1.
     expect(conditions).toHaveLength(8);
     for (const condition of conditions) {
-      const fragment = (condition as { id: { $in: { sql: string; params: unknown[] } } }).id.$in;
+      const fragment = (condition as unknown as { id: { $in: { sql: string; params: unknown[] } } }).id.$in;
       expect(fragment.sql).not.toContain(hostile);
       expect(fragment.params).toContain(hostile);
       // As many placeholders as bound values: nothing rides in the text.
