@@ -14651,7 +14651,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/136-pre-publication-scan` merged with `origin/master` at `655a22edc`: files 387 -> 389 (origin/master reads 389).** Resolved wholly to master, then re-measured on a pristine pair (fresh worktree, `build:packages`, `git clean -fX docs/docs/modules`): master already read past the record from merges that did not re-record; this branch's own share is its two files, `backend/scripts/pre-publication-scan.ts` and its test.
     // **T069 (`comarch_xl` leaves), after merging `origin/master` at !1841: files 389 -> 384.** The record was resolved wholly to `master` and re-measured on a pristine detached worktree of the merge commit `8c875cb4a`, after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the tree is this branch's E5 and `comarch_xl`'s departure (package, 34 host test files and their support file, three Polish pages, E1 baseline) over `master`. Not computed from a delta.
     // **T069 (`ksef` and `infakt` leave): 384 -> 375.** Agrees on `origin/master` (d6808271f, after `comarch_xl` left) and moves with the branch: E5, the two packages, their host tests, their Polish pages, the E9 drain and T140/T142; measured on the pristine pair.
-    files: 509,
+    // **Issue #85 (`debt/storefront-i18n-85-86`): files 509 -> 978.** The walk gains the
+    // storefront — the `storefront` workspace member's `.ts` and `.tsx` sources, tests,
+    // `test/`, `scripts/` and `public/` excepted — which is 359 files, the same number
+    // `git ls-files storefront` gives under that filter. The other 110 are drift this
+    // entry carried from merges that did not re-record it: `origin/master` at e7da5e453,
+    // measured in the same fresh worktree with that commit's script, reads 619. So
+    // 619 + 359 = 978, measured rather than computed.
+    files: 978,
     sites: null,
     // `admin-ui` is the workspace manifests' own answer to "how many packages
     // ship a tree of admin UI", reconciled against how many of them the walk
@@ -14670,7 +14677,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `scripts/lib/module-admin-layers.ts`. Adding it moved `files` by nothing
     // and `sources` by one token; measured red by taking one layer off disk,
     // where it reads `module-admin:54/55` and exits 2.
-    sources: ['admin-ui', 'module-admin'],
+    // `storefront` is the workspace's own member list reconciled against the walk:
+    // `1/1` when the storefront member exists and the walk opened a file in it, so a
+    // storefront whose sources moved out from under the walk reads `0/1` and exits 2
+    // rather than draining `STOREFRONT_HARDCODED_STRINGS_BASELINE` (issue #85).
+    sources: ['admin-ui', 'module-admin', 'storefront'],
   },
   'scripts/check-naming.sh': {
     prefix: '[naming]',
