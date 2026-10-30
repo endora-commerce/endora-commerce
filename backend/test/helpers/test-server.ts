@@ -370,6 +370,25 @@ export interface BackendServerOptions {
    * nobody wrote one.
    */
   deployment?: string;
+  /**
+   * Issue #87 — resolve the anonymous actor the way the composed application
+   * resolves a request with no customer: `customerContextResolver`,
+   * `customerAccountIdResolver` and the RFQ resolver built on the first refuse
+   * with the composed resolver's 401 instead of answering the shared test
+   * customer.
+   *
+   * **Off by default, and the default is the harness's documented divergence**
+   * (see `customerResolver` at the bottom of this file): a great many route
+   * tests inject no cookie and rely on being the test customer, and turning it
+   * on everywhere would move them all at once. A test whose subject is what an
+   * anonymous request gets — a guest branch reached through the resolver
+   * throwing, as the storefront notify-when-available route's is — sets it.
+   *
+   * Only the anonymous actor changes. An admin or API-key actor reaching a
+   * customer resolver keeps the substitution, which is a separate divergence
+   * and not this option's.
+   */
+  anonymousAsComposed?: boolean;
 }
 
 export interface BackendServerHandle {
@@ -2122,13 +2141,17 @@ export async function setupBackendServer(
         // each resolved actor onto both properties, which is why the surviving
         // implementation answers correctly here without reading `testActor`.
         // Feature 072 (wave 2) — mirrors `composition.ts`.
-        customerContextResolver: customerResolver,
+        customerContextResolver: (req: FastifyRequest) => customerResolver(req, options),
         // Feature 072 (wave 3) — how this composition names the calling customer as
         // an id. The four payment gateways read it; before their conversion this
         // harness composed none of them, which `harness-parity` recorded as an
         // accepted divergence.
-        customerAccountIdResolver: (req: FastifyRequest) =>
-          req.testActor?.kind === 'customer' ? req.testActor.customerAccountId : TEST_CUSTOMER_ID,
+        customerAccountIdResolver: (req: FastifyRequest) => {
+          refuseAnonymousAsComposed(req, options);
+          return req.testActor?.kind === 'customer'
+            ? req.testActor.customerAccountId
+            : TEST_CUSTOMER_ID;
+        },
         // Feature 072 (wave 2) — mirrors `composition.ts`, reading this harness's
         // own actor property. The ad modules resolve one name instead of each
         // taking its own identically-shaped `resolveAuditContext` option.
@@ -2441,7 +2464,7 @@ export async function setupBackendServer(
       // rolls up over.
       composedModules.contribute({
         rfqCustomerContextResolver: async (request: FastifyRequest) => {
-          const ctx = customerResolver(request);
+          const ctx = customerResolver(request, options);
           const account = await identityPorts().customerAccountReadPort.findById(
             ctx.customerAccountId,
           );
@@ -2938,11 +2961,30 @@ export async function setupBackendServer(
   };
 }
 
-function customerResolver(request: FastifyRequest): {
+/**
+ * Issue #87 — the composed resolver's refusal, for the anonymous actor of a
+ * harness built with {@link BackendServerOptions.anonymousAsComposed}. The
+ * status, code and message are `compose-app.ts`' own, so a test asserting the
+ * refusal asserts what production answers.
+ */
+function refuseAnonymousAsComposed(
+  request: FastifyRequest,
+  options: Pick<BackendServerOptions, 'anonymousAsComposed'>,
+): void {
+  if (options.anonymousAsComposed === true && request.testActor?.kind === 'anonymous') {
+    throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+  }
+}
+
+function customerResolver(
+  request: FastifyRequest,
+  options: Pick<BackendServerOptions, 'anonymousAsComposed'>,
+): {
   customerAccountId: string;
   organizationId: string;
   impersonatorAdminUserId?: string | null;
 } {
+  refuseAnonymousAsComposed(request, options);
   if (request.testActor?.kind !== 'customer') {
     return { customerAccountId: TEST_CUSTOMER_ID, organizationId: TEST_ORGANIZATION_ID };
   }

@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import {
   cpSync,
   existsSync,
@@ -24,7 +24,9 @@ import {
   nodeWorkspaceFs,
   workspaceMembers,
 } from '../../scripts/lib/workspace-packages.js';
+import { oomVerdict, readCgroupMemory } from '../oom-evidence.js';
 import { mapBounded, spawnConcurrency } from './bounded-pool.js';
+import { spawnCheckSync, terminationOf, verdictOf } from './check-process.js';
 
 /**
  * A backend whose module tree has moved, with the residue left behind — the
@@ -436,8 +438,14 @@ export interface MovedModuleTreeFixture {
 /**
  * The spawn half of a fixture, shared by both trees: one way to run a check,
  * synchronously or side by side, and the results a prefetch kept.
+ *
+ * Both ways read how the child ended (issue #80): one killed by a signal, or by
+ * one its `tsx` launcher relayed, or one that never started, throws — or
+ * rejects the prefetch — with `check-process.ts`' report instead of returning
+ * a status and an output that say nothing about it. Exported so that proof can
+ * enter here rather than through a whole fixture tree.
  */
-function checkRunner(
+export function checkRunner(
   backend: string,
 ): Pick<MovedModuleTreeFixture, 'run' | 'prefetch'> {
   const kept = new Map<string, CheckResult>();
@@ -447,27 +455,43 @@ function checkRunner(
     join(backend, 'scripts', script),
     ...args,
   ];
+  // Its own pipes rather than `spawnCheck`'s, so a prefetched result is exactly
+  // what `run` would have returned: stdout then stderr, uncapped.
   const spawnAsync = (script: string, args: readonly string[]): Promise<CheckResult> =>
     new Promise<CheckResult>((resolve, reject) => {
+      const oomBaseline = readCgroupMemory();
       const child = spawn(TSX, argvOf(script, args), { cwd: backend });
       let stdout = '';
       let stderr = '';
+      let unspawned: string | null = null;
       child.stdout.setEncoding('utf8');
       child.stderr.setEncoding('utf8');
       child.stdout.on('data', (chunk: string) => (stdout += chunk));
       child.stderr.on('data', (chunk: string) => (stderr += chunk));
-      child.on('error', reject);
-      child.on('close', (status) => resolve({ status, output: `${stdout}${stderr}` }));
+      child.on('error', (error: Error) => {
+        unspawned = error.message;
+      });
+      child.on('close', (code: number | null, signal: NodeJS.Signals | null) => {
+        const output = `${stdout}${stderr}`;
+        try {
+          resolve(
+            verdictOf(script, {
+              output,
+              bytes: Buffer.byteLength(output),
+              oom: oomVerdict(oomBaseline, readCgroupMemory()),
+              termination: terminationOf(unspawned, code, signal),
+            }),
+          );
+        } catch (error) {
+          reject(error as Error);
+        }
+      });
     });
   return {
     run: (script, args = []) => {
       const hit = kept.get(keyOf(script, args));
       if (hit !== undefined) return hit;
-      const result = spawnSync(TSX, argvOf(script, args), {
-        encoding: 'utf8',
-        cwd: backend,
-      });
-      return { status: result.status, output: `${result.stdout ?? ''}${result.stderr ?? ''}` };
+      return verdictOf(script, spawnCheckSync(TSX, argvOf(script, args), { cwd: backend }));
     },
     prefetch: async (requests, concurrency = spawnConcurrency()) => {
       const distinct = new Map<string, { script: string; args: readonly string[] }>();
@@ -524,11 +548,10 @@ export function runCheckInThisCheckout(
   script: string,
   args: readonly string[] = [],
 ): { status: number | null; output: string } {
-  const result = spawnSync(TSX, [join(BACKEND_ROOT, 'scripts', script), ...args], {
-    encoding: 'utf8',
-    cwd: BACKEND_ROOT,
-  });
-  return { status: result.status, output: `${result.stdout ?? ''}${result.stderr ?? ''}` };
+  return verdictOf(
+    script,
+    spawnCheckSync(TSX, [join(BACKEND_ROOT, 'scripts', script), ...args], { cwd: BACKEND_ROOT }),
+  );
 }
 
 /**
