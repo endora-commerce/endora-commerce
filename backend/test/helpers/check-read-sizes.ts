@@ -5536,7 +5536,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_ergonode` leaves): 118 -> 116.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
     // **T069 (`comarch_xl` leaves), after merging `origin/master` at !1841: files 116 -> 114.** The record was resolved wholly to `master` and re-measured on a pristine detached worktree of the merge commit `8c875cb4a`, after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the tree is this branch's E5 and `comarch_xl`'s departure (package, 34 host test files and their support file, three Polish pages, E1 baseline) over `master`. Not computed from a delta.
     // **T069 (`ksef` and `infakt` leave): 114 -> 110.** Agrees on `origin/master` (d6808271f, after `comarch_xl` left) and moves with the branch: E5, the two packages, their host tests, their Polish pages, the E9 drain and T140/T142; measured on the pristine pair.
-    files: 118,
+    // **Issue #83 (`debt/error-translations-83`): files 118 -> 2472.** The check gains a raise walk (P6, P7): every raise-candidate source file under `layout.sourceRoots` and the contracts package's `src`, beside the bundles it already opened. Measured on a fresh detached worktree of the branch commit after `setup-worktree.sh` and `build:packages`, `git status --porcelain` empty; not computed from a delta.
+    files: 2472,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 867 -> 883.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -5555,7 +5556,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_ergonode` leaves): 826 -> 813.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
     // **T069 (`comarch_xl` leaves), after merging `origin/master` at !1841: sites 813 -> 783.** The record was resolved wholly to `master` and re-measured on a pristine detached worktree of the merge commit `8c875cb4a`, after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the tree is this branch's E5 and `comarch_xl`'s departure (package, 34 host test files and their support file, three Polish pages, E1 baseline) over `master`. Not computed from a delta.
     // **T069 (`ksef` and `infakt` leave): 783 -> 768.** Agrees on `origin/master` (d6808271f, after `comarch_xl` left) and moves with the branch: E5, the two packages, their host tests, their Polish pages, the E9 drain and T140/T142; measured on the pristine pair.
-    sites: 1127,
+    // **Issue #83: sites 1127 -> 2952.** The places a declared code is named in source — the raise walk's unit — join the declared codes and the written `errors.*` keys; measured on the same pristine worktree.
+    sites: 2952,
     // Feature 080's T010, and feature 090's Phase 4 for the second entry.
     // `manifest-index` expects the module directories that declare a code:
     // every id the generated index registers, less the ones whose manifest
@@ -5574,7 +5576,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the manifests, which is P3's population. Neither is the filesystem walk
     // being reconciled, and an enumerated code nobody declares is a *finding*
     // that names the code rather than a short walk.
-    sources: ['manifest-index', 'error-codes'],
+    //
+    // `raise-walk` (issue #83) is the same manifest-index floor asked of the
+    // raise walk's source files: every module that declares a code has to have
+    // contributed one, or its codes would read as raised by nobody.
+    sources: ['manifest-index', 'raise-walk', 'error-codes'],
   },
   'backend/scripts/check-fixture-substitution.ts': {
     prefix: '[fixture-substitution]',
