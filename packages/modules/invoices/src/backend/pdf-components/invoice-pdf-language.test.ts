@@ -7,7 +7,7 @@ import { createInvoiceDocumentType } from '../document/invoice-document-type.js'
 import { INVOICES_PROSE_EN, invoicesProseTable } from '../invoices-prose.js';
 import { GENERIC_INVOICE_TEMPLATE_CONTENT } from '../seeds/generic-invoice-template.js';
 import { sampleInvoiceDetail } from './sample.js';
-import { INVOICE_PDF_LABEL_KEYS } from './sections.js';
+import { INVOICE_PDF_LABEL_KEYS, type InvoicePdfLabels } from './sections.js';
 import { INVOICE_COMPONENT_NAMES, renderOwnBlock } from './tree-mapper.js';
 
 /**
@@ -56,7 +56,7 @@ const seed = (
   GENERIC_INVOICE_TEMPLATE_CONTENT.languages as Record<string, { content: SeedNode[] }>
 )['pl-PL']!.content;
 
-function renderAll(labels: Awaited<ReturnType<typeof invoicesProseTable>>): Record<string, unknown> {
+function renderAll(labels: InvoicePdfLabels): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const kind of ['invoice', 'proforma', 'correction', 'wz'] as const) {
     out[`header.${kind}`] = renderOwnBlock('invoices.InvoiceHeader', {}, { ...invoice, kind }, 'pl', { labels });
