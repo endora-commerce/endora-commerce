@@ -2,8 +2,8 @@
 
 **Feature Branch**: `feat/168-product-editor-scope-switcher`
 **Created**: 2026-10-29
-**Status**: Draft — clarify rounds 1–5 recorded; no `[NEEDS CLARIFICATION]` marker remains in the
-requirements; clarify is exhausted after round 5 — the remaining open points are plan decisions (the speckit 3-marker cap is
+**Status**: Draft — clarify rounds 1–5 and round 6 (from the plan) recorded; no `[NEEDS CLARIFICATION]` marker remains in the
+requirements; the five owner questions raised by `plan.md` are answered (round 6) (the speckit 3-marker cap is
 lifted by owner instruction)
 **Input**: GitHub issue #523 — "one Magento-style scope switcher in the product editor header (Global →
 Sales channel → Sales channel × Language); the whole form, every tab, shows and edits the effective values
@@ -122,7 +122,7 @@ Answers given by the owner on 2026-10-29 / 2026-10-30.
 - Q: (FR-052) Rollout of the per-tab selectors? → A: **Retire every per-tab scope selector in 168.**
 - Q: (FR-056) What is remembered when the URL names no scope? → A: The **scope lives in the URL**; with no URL
   parameter the editor **restores the last scope from `product_editor_preferences`** (per admin × product).
-- Q: (FR-074) What does "one undo per save" mean? → A: **(a)** — the existing audit-log undo restores the whole
+- Q: (FR-074; corrected by round 6) What does "one undo per save" mean? → A: **(a)** — the existing audit-log undo restores the whole
   save; **no Undo button** in the editor.
 - Q: (FR-097) Completeness display at coarser scopes? → A: **C×L**: per-field markers; **Channel**: a list of
   the fields missing across its languages; **Global**: "N incomplete scopes" with a link to the Scopes tab.
@@ -221,6 +221,33 @@ Answers given by the owner on 2026-10-30 to the follow-up questions raised by ro
 - Q: Multiselect: is an empty list allowed? → A: **`NULL` is allowed on a multiselect and means "nothing
   selected"** (no extra token). A plain select and a boolean still refuse `NULL`.
 
+### Session 2026-10-30 (round 6, from plan)
+
+Answers given by the owner on 2026-10-30 to the five questions raised in `plan.md` (*Questions for the owner*),
+plus one process decision.
+
+- Q: (plan Q1) What does a deliberately empty override show for a field that has a derived value? → A: The
+  **five SEO fields** (meta title, description, etc.) saved empty → the storefront uses the **derived value**
+  (e.g. the title from the product name), as today when absent. **Image alt text** saved empty → literally
+  **`alt=""`** (decorative image), **not** the asset library's own alt text.
+- Q: (plan Q2, FR-070) Which product writes join the one Save? → A: The Save covers **the product row and every
+  scoped field**. **Structural operations** — adding / removing / reordering variants, bundle slots, links,
+  images, attachments, packaging units — plus **price-book rows, channel membership and warehouse stock** stay
+  **immediate, individually audited actions**, labelled **"applies immediately"** in the editor.
+- Q: (plan Q3, FR-043) Does the product export use the import profile? → A: **No.** The product CSV export writes
+  **Global + per-scope columns** (e.g. `sklep_pl:pl`) and does not use an import profile, so re-importing an
+  export through that layout is exact.
+- Q: (plan Q4, FR-074) Is an operator-facing "Restore this save" expected? → A: **Correction of an earlier
+  assumption**: the existing audit-log undo exists **only for bulk operations**, not for single Commands. The
+  save's audit entry holds the **complete before-state, re-appliable through the API**; **no restore UI in
+  168**; a **"Restore this save"** action on the audit entry is a **named follow-up**. (Round 2's "the existing
+  audit-log undo restores the whole save" rested on that wrong assumption and is superseded.)
+- Q: (plan Q5) Does the `/seo` screen keep editing product metadata? → A: `/seo` **keeps categories and CMS
+  pages**; its **product mode is replaced by a link to the product editor's SEO tab** (one editing place).
+- Process: a **designer builds a clickable prototype** of the editor (switcher, "Use value from …" checkbox,
+  inheritance markers) **before the editor UI stream**; the **owner reviews it before that stream starts**;
+  backend streams may start in parallel.
+
 ## Amendments to 163 (2026-10-29, extended 2026-10-30)
 
 163 is shipped on `master`. The following parts of `specs/163-product-data-scopes/spec.md` are **reversed or
@@ -242,7 +269,8 @@ rewritten** by this feature from the release that ships 168; 163's text stays as
    every (C, L), whatever language it is written in, so an untranslated product may be published.
 5. **SEO as a link** — 163 Session 2026-10-26 "SEO stub" = A and UX-4 (the SEO tab is a link to `/seo`, shown
    only with `catalog:write`) — reversed: SEO is edited inline (FR-090), and its read is relaxed to
-   `catalog:read` (FR-093, round 2).
+   `catalog:read` (FR-093, round 2). The `/seo` screen's product mode is replaced by a link to the editor's SEO
+   tab; categories and CMS pages stay on `/seo` (FR-094, round 6).
 6. **FR-070 URL-key uniqueness "per language across all channels"**, and the notion of a product's "keys in
    language L" built on language keys — restated as uniqueness per effective (C, L) (FR-016, round 2).
 7. **FR-075, FR-077, FR-078, FR-079** ("per language" / "translatable per language") — now per Channel ×
@@ -314,8 +342,11 @@ Paths are relative to `packages/modules/catalog/src/admin/` unless they start wi
   at C and the channel at C×L. Earlier text of this spec and of 163 calls the same checkbox "Use value from <parent scope>".
 - **Empty override** — an override deliberately set to no value (`NULL`); the field shows nothing at that
   scope (for a date: no limit; for an optional number: no value, e.g. no minimum order quantity; for a
-  multiselect: nothing selected). Refused for required fields and for single selects and booleans (FR-062).
-  Distinct from *no override*, which inherits.
+  multiselect: nothing selected; for an SEO field: the derived value, e.g. the title from the product name; for
+  image alt text: `alt=""`, a decorative image). Refused for required fields and for single selects and
+  booleans (FR-062). Distinct from *no override*, which inherits.
+- **Immediate action** — a structural or cross-module product write that is not staged: it applies at once as
+  its own audited Command and is labelled "applies immediately" (FR-070).
 - **Write encoding** — the one way every write path says "no change" (absent / empty / `""`), "empty"
   (`NULL` / `null`) and "inherit" (`INHERIT` / `{"inherit": true}`) (FR-110…FR-115).
 - **Source language for Global** — per PIM connection and per CSV import profile, the source locale whose
@@ -529,8 +560,9 @@ audit entry; tick, save; assert the row is gone and the field shows the inherite
 ### User Story 7 - One atomic Save of the current scope (Priority: P2)
 
 The editor has one Save. It writes every staged change of the current scope in one atomic, audited Command —
-SEO included — so a save fully applies or writes nothing, produces one audit entry, and can be undone as
-one. Switching scope with unsaved changes asks Save / Discard / Stay.
+SEO included — so a save fully applies or writes nothing and produces one audit entry whose complete
+before-state can be re-applied through the API (FR-074). Structural operations, price-book rows, channel
+membership and warehouse stock are not staged: they apply immediately, each as its own audited action. Switching scope with unsaved changes asks Save / Discard / Stay.
 
 **Why this priority**: Seven save behaviours today (F6); the owner chose atomicity. Depends on US5.
 
@@ -548,9 +580,12 @@ and assert nothing was written.
    save succeeds and the warnings are shown (163 G-2).
 4. **Given** staged changes, **When** the operator switches scope, **Then** a dialog offers Save, Discard and
    Stay; Save switches only on success; Discard drops the staged changes and switches; Stay keeps everything.
-5. **Given** a completed save, **When** it is undone as FR-074 defines, **Then** every field it wrote returns
-   to its before-state.
+5. **Given** a completed save, **When** its audit entry's before-state is re-applied through the API (FR-074),
+   **Then** every field it wrote returns to its before-state.
 6. **Given** `409 VERSION_CONFLICT`, **Then** nothing is written and the editor says to reload.
+7. **Given** the operator adds an image or a variant, changes a price-book row, channel membership or
+   warehouse stock, **Then** the change applies immediately as its own audited action, the control is labelled
+   "applies immediately", and it is neither staged nor part of the next Save.
 
 ---
 
@@ -617,6 +652,10 @@ was written; switch `seo` off and assert the SEO section is absent and the edito
 2. **Given** a staged SEO change, **When** saved, **Then** it is written through `seo`'s write port inside the
    save's transaction.
 3. **Given** `seo` off, **Then** the SEO section is absent and nothing else changes.
+4. **Given** the SEO title saved empty at B2B PL × Polish, **Then** the storefront page title at that scope is the
+   derived one (from the effective product name), as when no SEO title exists (FR-013).
+5. **Given** the `/seo` screen, **Then** categories and CMS pages are edited there, and a product offers a link
+   to the product editor's SEO tab instead of a product editing mode (FR-094).
 
 ---
 
@@ -683,7 +722,12 @@ and the field focused; open it in a new tab with the same result.
   `INHERIT` are tokens; `\NULL` imports the text "NULL" (FR-112).
 - **`NULL` on name or a select, `INHERIT` at Global** — a field error in the import report or an API validation
   error; the rest follows FR-113.
-- **Export then re-import unchanged** — writes nothing (FR-114).
+- **Export then re-import unchanged** — writes nothing (FR-114); the export uses its own Global + per-scope
+  column layout, never an import profile (FR-043).
+- **Image alt text saved empty** — the storefront renders `alt=""` (decorative), not the asset library's alt
+  text (FR-013).
+- **Staged scoped edits plus an immediate action** — the immediate action applies at once; the staged edits stay
+  staged for the next Save (FR-070).
 - **Mapping target the product is not valid for** — skipped for that product and reported.
 - **Remembered or linked editor scope no longer valid** — the editor opens at the nearest valid scope (Global
   if none) and says so.
@@ -738,7 +782,9 @@ and the field focused; open it in a new tab with the same result.
 - **FR-013**: The fallback chain MUST be C×L → C → G for every field (replaces 163 FR-008). The model and the
   resolver MUST distinguish **no override** (the scope inherits) from an **empty override** (round 3): an
   empty override is the effective value at its scope and stops the fallback, so readers show nothing for that
-  field there.
+  field there — except (round 6): an empty override of one of the **five SEO fields** makes the storefront use
+  the field's **derived value** (e.g. the title from the product name), as when no SEO value exists; an empty
+  **image alt text** renders literally `alt=""` (decorative image), never the asset library's own alt text.
 - **FR-014**: The Global value of every translatable text field (name, description, scopable text
   attributes, URL key, SEO fields, alt text, attachment name / description, packaging-unit name) MUST be one
   string, not a per-language map. Translations MUST exist only as C×L values.
@@ -805,10 +851,11 @@ therefore a schema change, not a data-preserving move.
   with no mapping MUST be written nowhere and the run MUST report a warning naming the locale and the
   affected products.
 - **FR-042**: A mapped target invalid for a product MUST be skipped and reported for that product only.
-- **FR-043**: The CSV product import adapter
-  (`packages/modules/import_export/src/backend/services/adapters/products.adapter.ts`) and the product export
-  MUST follow the same mapping; export MUST round-trip Global, C and C×L values using the write encoding of
-  FR-110…FR-115.
+- **FR-043** *(round 6)*: The CSV product import adapter
+  (`packages/modules/import_export/src/backend/services/adapters/products.adapter.ts`) MUST follow the locale
+  mapping of the chosen import profile (FR-048). The product **export MUST NOT use an import profile**: it writes
+  Global plus per-scope columns (e.g. `sklep_pl:pl`), using the write encoding of FR-110…FR-115, and importing
+  that layout MUST reproduce Global, C and C×L values exactly. The column naming is a plan decision.
 - **FR-044**: A connector writing only Global values MUST NOT remove operator overrides (163 FR-091's rule
   stands). Unless a field is protected (FR-046), a sync or import overwrites every scope its mapping targets,
   operator overrides there included (round 3).
@@ -882,8 +929,12 @@ therefore a schema change, not a data-preserving move.
 
 #### Save (US7)
 
-- **FR-070**: The editor MUST have exactly one Save, in the header; every per-section Save, auto-save on toggle
-  and dialog Save that writes product data MUST be retired.
+- **FR-070** *(round 6)*: The editor MUST have exactly one Save, in the header, covering **the product row and
+  every scoped field**; every per-section Save, auto-save on toggle and dialog Save that writes those MUST be
+  retired. **Structural operations** — adding / removing / reordering variants, bundle slots, links, images,
+  attachments and packaging units — and **price-book rows, channel membership and warehouse stock** MUST stay
+  **immediate, individually audited actions**, not staged and not part of the Save, each labelled **"applies
+  immediately"** in the editor.
 - **FR-071**: A save MUST write every staged change **of the current scope only**, in **one** atomic audited
   Command, across every field family of that scope — SEO included, through `seo`'s write port (FR-091). Either
   every change applies or none does.
@@ -893,9 +944,10 @@ therefore a schema change, not a data-preserving move.
 - **FR-073**: A completeness-gate refusal (*refuse* mode), a validation error, a version conflict or a failed
   SEO write MUST refuse the whole save, write nothing, keep every staged change, and name the reason per field
   (and per (C, L) pair for the gate).
-- **FR-074** *(round 2)*: Owner: "one undo per save" means option (a): the save's audit entry MUST hold the
-  complete before-state so the **existing audit-log undo** restores the whole save as one (163 FR-081). The
-  editor MUST NOT gain an Undo button.
+- **FR-074** *(round 2, corrected round 6)*: The save's audit entry MUST hold the **complete before-state**,
+  re-appliable through the API (163 FR-081). No audit-log undo exists for single Commands today (only bulk
+  operations have one), so 168 ships **no restore UI**; the editor MUST NOT gain an Undo button. A "Restore this
+  save" action on the audit entry is a named follow-up (*Out of Scope*).
 - **FR-075**: Switching scope with staged changes MUST ask Save / Discard / Stay: Save runs FR-071 and switches
   only on success; Discard drops the staged changes and switches; Stay cancels the switch. The same dialog
   MUST guard any other change of editor scope (scope-map links, US12).
@@ -943,6 +995,8 @@ therefore a schema change, not a data-preserving move.
 - **FR-093** *(round 2)*: The SEO read used by the editor, gated `catalog:write` today (audit G4), MUST be
   relaxed to `catalog:read` (a `seo`-owned change), so a read-only operator sees SEO at every scope, consistent
   with FR-080. The plan MUST include a security review of this relaxation.
+- **FR-094** *(round 6)*: The `/seo` screen MUST keep editing categories and CMS pages; its **product mode MUST be
+  replaced by a link to the product editor's SEO tab**, so product SEO has one editing place.
 
 #### Completeness (US11)
 
@@ -1026,6 +1080,8 @@ therefore a schema change, not a data-preserving move.
 - **Write encoding** — no change / `NULL` / `INHERIT`, shared by every write path (FR-110).
 - **Scopable flag** — the one flag on a user-attribute definition that replaces `channelScoped` /
   `languageScoped` (FR-012).
+- **Immediate action** — a structural, price-book, channel-membership or stock write from the editor, applied
+  at once as its own audited Command (FR-070).
 - **Save Command** — one atomic audited write of every staged change at one scope; one audit entry with every
   field's before / after.
 - **SEO write port** — published by `seo`, joined to catalog's transaction.
@@ -1052,7 +1108,8 @@ therefore a schema change, not a data-preserving move.
   the API, the CSV import and the `pim_connector` contract.
 - **SC-006**: The editor has exactly one scope selection control and one Save (down from five and seven).
 - **SC-007**: Every save is all-or-nothing: failure injection on each field family produces 0 partial writes.
-- **SC-008**: Every save produces exactly one audit entry containing 100% of the fields it wrote.
+- **SC-008**: Every save produces exactly one audit entry containing 100% of the fields it wrote, and
+  re-applying its before-state through the API restores 100% of them (FR-074).
 - **SC-009**: Ticking "Use value from <parent scope>" removes the override in 100% of cases; 0 empty overrides
   are stored except those deliberately saved on optional fields, and 0 on required fields.
 - **SC-010**: An operator without the product-edit permission views every scope with 0 editable controls.
@@ -1096,8 +1153,9 @@ therefore a schema change, not a data-preserving move.
 - **Testing**: the F1 / F2 regression tests (against the new model), the schema migration's clean-run test (SC-002 as rewritten) and
   the resolver's C×L → C → G tests are written failing first (Constitution III).
 - **Security review**: the plan carries a security review of relaxing the SEO read to `catalog:read` (FR-093).
-- A designer review of a clickable prototype of the switcher area and the Save / Discard / Stay dialog is
-  advisable before `/speckit.tasks`.
+- **Prototype gate** (owner, round 6): a designer builds a clickable prototype of the editor — the scope
+  switcher, the "Use value from <parent scope>" checkbox and the inheritance markers — before the editor UI
+  stream; the owner reviews it **before that stream starts**. Backend streams may start in parallel.
 
 ## Findings against 163 recorded by this specification
 
@@ -1115,6 +1173,11 @@ Code-versus-spec defects in shipped 163, resolved here:
 - Bulk editing of scoped fields other than status (163 FR-050 stands).
 - Making any global-only field scoped.
 - A one-click undo of a save, or any Undo button in the editor (FR-074, round 2).
+- **Named follow-up — "Restore this save"**: an action on a save's audit entry that re-applies its
+  before-state (FR-074, round 6). 168 ships the before-state and its API re-application only.
+- Staging structural operations, price-book rows, channel membership or warehouse stock into the one Save
+  (FR-070, round 6).
+- A product editing mode on the `/seo` screen (FR-094, round 6).
 - Preserving existing 163-model data through the migration: the archive, the migration report and a down
   migration (FR-021…FR-025, removed round 2: no live data).
 - Each PIM connector's own locale-mapping configuration screen (external dependency, FR-045).

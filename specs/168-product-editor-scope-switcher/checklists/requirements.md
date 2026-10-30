@@ -36,6 +36,12 @@
   FR-048 (saved import profile), FR-116 (in-place change of `null`) and FR-117 (scoped product values only,
   named follow-ups in *Out of Scope*). FR-001 and FR-021…FR-025 are kept as "Removed (round …)" so citations
   stay stable. Ready for `/speckit.plan`.
+- **Round 6 (2026-10-30, from `plan.md`)**: the five owner questions of the plan are answered and written into
+  the spec — FR-013 (SEO empty → derived value; alt text empty → `alt=""`), FR-043 (export without an import
+  profile), FR-070 (Save scope; immediate actions), FR-074 (before-state re-appliable through the API; no
+  restore UI; "Restore this save" a named follow-up), new FR-094 (`/seo` product mode becomes a link), and the
+  prototype gate in *Assumptions*. Still 0 `[NEEDS CLARIFICATION]` markers. `plan.md`, `tasks.md` and
+  `contracts/` are the architect's to update.
 - **Left to the plan** (no user-visible behaviour at stake): which existing `import_export` permission gates
   managing import profiles (no new permission code, 163 FR-084), profile writes through the Command Bus
   (Constitution XIII), command-palette reachability of the profile screen (XVI), and how
