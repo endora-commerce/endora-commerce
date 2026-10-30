@@ -450,8 +450,8 @@ PIM data), `product.*` global-only fields (SKU, type, download URL, stock, fulfi
 flags, minimum order quantity and returnable. `options.source` must be a registered connector module id
 (`^[a-z][a-z0-9_]{1,63}$` and present in the module registry). At most **2 000 cells per call**; duplicate
 (field, scope) cells in one call are refused. **Disagreement recorded:** the review asked to refuse status,
-window and URL key; refusing them would withdraw 163 capabilities connectors rely on, which is a behaviour change
-the owner has not made — kept, pending the coordinator / owner.
+window and URL key; refusing them would withdraw 163 capabilities connectors rely on — the owner confirmed keeping
+them on 2026-10-30 (plan decision Q6).
 
 ## R14 — Import profiles (FR-048) and the CSV grammar
 

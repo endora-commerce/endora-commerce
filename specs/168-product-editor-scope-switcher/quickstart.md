@@ -86,8 +86,8 @@ Recorded by the measurement tasks in `tasks.md` (Polish phase):
 
 | Measure | Before | After |
 | --- | --- | --- |
-| Search index bytes per channel, perf fixture, 1 language | _to record_ | _to record_ |
-| Search index bytes per channel, perf fixture, 3 languages | _to record_ | _to record_ |
-| Search p95 query latency, 3 languages | _to record_ | _to record_ |
-| Editor scope switch: requests / p95 server time (SC-012) | 6–8 requests | 1 request, _to record_ |
-| Storefront listing p95 with C×L overrides on 20% of products (163 SC-004 bench) | _to record_ | _to record_ |
+| Search index bytes per channel, perf fixture, 1 language | not measured at T003 (no search fixture in `backend/test/perf/`); T139 measures it on base `4b670e6a4` | _to record_ |
+| Search index bytes per channel, perf fixture, 3 languages | as above | _to record_ |
+| Search p95 query latency, 3 languages | as above | _to record_ |
+| Editor scope switch: requests / p95 server time (SC-012) | 6–8 requests; p95 not measured at T003 (needs the dev stack) — T139 on base `4b670e6a4` | 1 request, _to record_ |
+| Storefront listing p95 with C×L overrides on 20% of products (163 SC-004 bench) | medians, corpus 20 000, 7 repeats, local test Postgres, 2026-10-30: default 1st page unscoped 145.3 / scoped 135.4 ms; default 2nd page 146.8 / 148.7 ms; `sort=name` 1st 256.5 / 261.5 ms; `sort=name` 2nd 364.7 / 390.2 ms (×1.070); free text 284.1 / 283.7 ms | _to record_ |

@@ -6,6 +6,23 @@
 a failing test (marked **RED**) in the same phase, and every FR is traced to a test (*Traceability* below).
 **One release** (spec round 3): phases are build order, not ship order.
 
+## Phase 1 findings (2026-10-30, S1)
+
+- **T001 — id and drift.** `specs/168-*` is absent on `origin/master` (4b670e6a4, merge of #547). The branch's
+  merge base **is** `origin/master`'s tip: `git log $(git merge-base HEAD origin/master)..origin/master` is empty,
+  so there is no upstream drift in `catalog`, `seo`, `search`, `import_export`, `pim_connector` or the named
+  contracts files since the plan was written. 166 and 167 are ancestors of the base.
+- **T002 — baseline.** `bash scripts/setup-worktree.sh` + `pnpm run build:packages` (5 m 39 s). Green, run one at a
+  time: `backend/test/contract/catalog/product-scopes-api.test.ts` 19/19,
+  `backend/test/contract/catalog/scope-completeness-gate.test.ts` 17/17,
+  `admin/test/modules/catalog/product-scope-*` 4 files 69/69; `pnpm --filter @endora-commerce/mod-catalog run
+  typecheck` green. `pnpm -r run typecheck` is outside the builder's resource budget; the fork CI run on the
+  branch tip is the whole-tree gate.
+- **T003 — Before column.** The listing bench is recorded in `quickstart.md`. The search-index and editor
+  scope-switch rows were **not measured**: `backend/test/perf/` holds no search-index fixture (nothing under it
+  reaches Meilisearch) and the editor measurement needs the full dev stack. Both are reproducible later from the
+  fixed base `4b670e6a4`, so T139 measures Before and After in one run on the same host.
+
 ## Format
 
 `- [ ] T### [P?] [US#?] (S#) Description with file path`
@@ -35,9 +52,9 @@ suite is CI's. Every migration task regenerates and commits `composer:generate`,
 
 **Purpose**: a clean, measured starting point.
 
-- [ ] T001 (S1) Confirm `specs/168-*` is still free on `origin/master` and diff `origin/master` against the plan's base for upstream drift in `packages/modules/{catalog,seo,search,import_export,pim_connector}/src`, `packages/contracts/src/{catalog,product-scopes,product-value-resolver,seo,pim-*}.ts`; record findings at the top of this file
-- [ ] T002 (S1) Stand the worktree up (`bash scripts/setup-worktree.sh && pnpm run build:packages`), run `pnpm -r run typecheck` and the 163 scope suites (`backend/test/contract/catalog/product-scopes-api.test.ts`, `…/scope-completeness-gate.test.ts`, `admin/test/modules/catalog/product-scope-*.test.tsx`) to record a green baseline
-- [ ] T003 [P] (S1) Record the "Before" column of `specs/168-product-editor-scope-switcher/quickstart.md` § *Measurements*: editor scope-switch request count and p95 server time on the dev stack; search index bytes per channel and p95 query latency on the 163 perf fixture (`backend/test/perf/`), 1 and 3 languages; `backend/test/perf/catalog/listing-scoped-availability.bench.ts`
+- [x] T001 (S1) Confirm `specs/168-*` is still free on `origin/master` and diff `origin/master` against the plan's base for upstream drift in `packages/modules/{catalog,seo,search,import_export,pim_connector}/src`, `packages/contracts/src/{catalog,product-scopes,product-value-resolver,seo,pim-*}.ts`; record findings at the top of this file
+- [x] T002 (S1) Stand the worktree up (`bash scripts/setup-worktree.sh && pnpm run build:packages`), run `pnpm -r run typecheck` and the 163 scope suites (`backend/test/contract/catalog/product-scopes-api.test.ts`, `…/scope-completeness-gate.test.ts`, `admin/test/modules/catalog/product-scope-*.test.tsx`) to record a green baseline
+- [x] T003 [P] (S1) Record the "Before" column of `specs/168-product-editor-scope-switcher/quickstart.md` § *Measurements*: editor scope-switch request count and p95 server time on the dev stack; search index bytes per channel and p95 query latency on the 163 perf fixture (`backend/test/perf/`), 1 and 3 languages; `backend/test/perf/catalog/listing-scoped-availability.bench.ts`
 
 ---
 

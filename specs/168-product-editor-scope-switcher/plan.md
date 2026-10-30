@@ -123,6 +123,7 @@ FR-070, FR-074, new FR-094, US7, US10, SC-008):
 | Q3 | The product export uses **no import profile**: Global + per-scope columns, exact on re-import (FR-043; column grammar of `contracts/import-profiles-and-csv.md` §2.1 — the spec's `sklep_pl:pl` is an illustration, the plan keeps `name@<channel code>/<language>`) | T081, T087 |
 | Q4 | The audit entry holds the **complete before-state, re-appliable through the API**; **no restore UI** in 168; "Restore this save" is a named follow-up | T103 (re-application test), T142 (follow-up text) |
 | Q5 | `/seo` keeps categories and CMS pages; its **product mode is replaced by a link** to the editor's SEO tab (FR-094) | T126, tested T148 |
+| Q6 | (owner confirmation 2026-10-30, resolving the security review's request in R13a) The connector port **keeps `status`, the publication window and the URL key writable**, as in 163, with the same validation and gate as the editor; `audience`, `product.*`, SEO, gallery roles, hidden flags, minimum order quantity and returnable stay refused `not_supported`. The other two review notes stand as recorded: no reserved-word list for URL keys (keys live under `/p/`, R12) and no copy rate limit (R21) | `contracts/pim-locale-mapping.md` §4; T083 |
 
 **Process decision — prototype gate.** A designer builds a clickable prototype of the editor (scope switcher,
 "Use value from <parent scope>" checkbox, inheritance markers, plus the Save / Discard / Stay dialog and the
@@ -153,7 +154,7 @@ validation), **R22** (migration statement order, override guard rails, composite
 formula-injection guard (`contracts/write-encoding.md` §3a). Owner kept FR-116 in place (no v2).
 
 Not applied, with reasons (for the coordinator): refusing `status`, `window` and `urlKey` on the connector port
-(163 capabilities; owner decision needed, R13a); a reserved-word list for URL keys (keys live under `/p/`, R12); a
+(163 capabilities; the owner confirmed keeping them on 2026-10-30, decision Q6 above, R13a); a reserved-word list for URL keys (keys live under `/p/`, R12); a
 per-admin rate limit on copy (new infrastructure for a `catalog:write` single-Command route, R21).
 
 **Visible consequences already decided by the spec, for the owner to notice at acceptance:** admin lists and
