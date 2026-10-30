@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ApiError, apiClient } from '../../lib/api-client.js';
+import { ApiError, apiClient } from '../../lib/index.js';
 import { Combobox, type ComboboxOption } from '../../ui/combobox.js';
 
 /**
@@ -123,7 +123,7 @@ export function CustomerPicker(props: CustomerPickerProps): ReactNode {
   }, [props.value, cache]);
 
   const emptyMessage =
-    props.emptyMessage ?? error ?? (searching ? 'Searching…' : 'No matching customers.');
+    error ?? props.emptyMessage ?? (searching ? 'Searching…' : 'No matching customers.');
 
   return (
     <Combobox<string>

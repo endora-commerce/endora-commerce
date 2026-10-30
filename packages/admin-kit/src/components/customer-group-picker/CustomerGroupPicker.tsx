@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ApiError, apiClient } from '../../lib/api-client.js';
+import { ApiError, apiClient } from '../../lib/index.js';
 import { Combobox, type ComboboxOption } from '../../ui/combobox.js';
 
 /**
@@ -59,7 +59,7 @@ export function CustomerGroupPicker(props: CustomerGroupPickerProps): ReactNode 
     [groups],
   );
 
-  const emptyMessage = props.emptyMessage ?? error ?? 'No customer groups.';
+  const emptyMessage = error ?? props.emptyMessage ?? 'No customer groups.';
 
   return (
     <Combobox<string>
