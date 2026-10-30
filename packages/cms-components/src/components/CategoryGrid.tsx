@@ -41,7 +41,7 @@ function CategoryGridBody({
   props: CategoryGridProps & { puck?: { isEditing?: boolean } };
   tier: BreakpointTier;
   editing: boolean;
-}): React.ReactElement {
+}): React.ReactElement | null {
   // Feature 167 — internal links take the page language's prefix.
   const localizePath = useCmsRenderLocalizePath();
   const {
@@ -73,6 +73,9 @@ function CategoryGridBody({
   // R17 (T219): equal heights per breakpoint; a stored boolean is every breakpoint's.
   const equalHeights = resolveResponsive<boolean>(equalItemHeight as boolean | ResponsiveProp<boolean>, tier, true);
 
+  // Feature 169 (FR-003): shoppers see nothing of an empty listing; the editor explains why it is empty.
+  if (!isLoading && items.length === 0 && !editing) return null;
+
   return (
     <BoxStyled {...box} {...(editing ? { previewTier: tier } : {})}>
       {isLoading ? (
@@ -83,7 +86,7 @@ function CategoryGridBody({
         />
       ) : items.length === 0 ? (
         <p className="cmsc-pb-product-grid__empty">
-          {editing ? 'No categories to preview — configure the selection in the sidebar.' : 'No categories found'}
+          No categories to preview — configure the selection in the sidebar.
         </p>
       ) : (
         <ul

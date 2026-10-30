@@ -135,6 +135,26 @@ describe('cms off-state (Constitution XVII)', () => {
     }
   });
 
+  // Feature 169 (T062) — `cms.PageNavigation` is declared by `cms`: while the
+  // module is off, on either axis, no descriptor offers it (the descriptor
+  // route itself is the module's and answers 503), and it is back with it.
+  it('offers cms.PageNavigation only while cms is on', async () => {
+    const names = async (): Promise<string[]> => {
+      const res = await h.app.inject({ method: 'GET', url: '/api/v1/admin/cms/page-builder/config', cookies: admin });
+      expect(res.statusCode, res.body).toBe(200);
+      return (res.json() as { data: { components: Array<{ name: string }> } }).data.components.map((c) => c.name);
+    };
+    expect(await names()).toContain('cms.PageNavigation');
+    for (const axis of ['deactivated', 'platform-unavailable'] as const) {
+      await withModuleOff('cms', axis, async () => {
+        const res = await h.app.inject({ method: 'GET', url: '/api/v1/admin/cms/page-builder/config', cookies: admin });
+        expect(res.statusCode, `${axis}: ${res.body}`).toBe(503);
+        expect(res.body).not.toContain('cms.PageNavigation');
+      });
+      expect(await names(), axis).toContain('cms.PageNavigation');
+    }
+  });
+
   async function expectCmsAbsent(): Promise<void> {
     await expectModuleAbsent(h, 'cms', {
       routes: [
@@ -162,6 +182,14 @@ describe('cms off-state (Constitution XVII)', () => {
           payload: { scope: { kind: 'all' }, tokens: null, expectedVersion: 0 },
         },
         { url: '/api/v1/storefront/cms/brand-tokens', headers: channel },
+        // Feature 169 (T104) — the contact form's public endpoint goes with the module. The
+        // honeypot is filled, so the restored probe answers `sent` and sends nothing.
+        {
+          method: 'POST',
+          url: '/api/v1/storefront/cms/contact-form',
+          headers: channel,
+          payload: { email: 'probe@example.com', message: 'probe', privacyConsent: true, website: 'probe' },
+        },
       ],
       adminPresence: { cookies: admin },
       settingWrite: {

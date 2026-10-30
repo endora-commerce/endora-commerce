@@ -46,13 +46,16 @@ const CategoryListRender: PuckComponent<CategoryListProps> = (props) => {
 
   const listClass = `cmsc-pb-category-list cmsc-pb-category-list--${layout}`;
 
+  // Feature 169 (FR-003): shoppers see nothing of an empty listing; the editor explains why it is empty.
+  if (!isLoading && items.length === 0 && !editing) return <></>;
+
   return (
     <BoxStyled {...box} {...(editing ? { previewTier: 'desktop' } : {})}>
       {isLoading ? (
         <CategoryListSkeleton count={estimateCategoryListSkeletonCount(selectionMode, categorySlugs)} />
       ) : items.length === 0 ? (
         <p className="cmsc-pb-product-grid__empty">
-          {editing ? 'No categories to preview — configure the selection in the sidebar.' : 'No categories found'}
+          No categories to preview — configure the selection in the sidebar.
         </p>
       ) : (
         <ul className={listClass}>

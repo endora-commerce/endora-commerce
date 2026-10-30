@@ -45,6 +45,7 @@ export class ConsoleMailer implements Mailer {
       JSON.stringify({
         msg: 'console-mailer',
         to: input.to,
+        ...(input.replyTo ? { replyTo: input.replyTo } : {}),
         subject: input.subject,
         body: input.text,
         meta: input.meta,

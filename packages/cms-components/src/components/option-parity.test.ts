@@ -2807,7 +2807,7 @@ describe('option parity — R12 resting tile colours, the accordion\'s title col
       for (const key of R12_ACCORDION_BEFORE.fields) expectCounterpart(fields, key, `Accordion ${key} (${position})`);
       for (const key of R12_ACCORDION_BEFORE.items) expectCounterpart(fields, `items.${key}`, `Accordion items.${key} (${position})`);
       for (const key of ['allowMultiple', 'iconPosition', 'variant', 'titleLevel', 'icon', 'itemStyle', 'dividers'] as const) {
-        expect(optionValues(fields[key]), `${key} (${position})`).toEqual([...R12_ACCORDION_BEFORE[key]]);
+        expect(optionValues(fields[key]), `${key} (${position})`).toEqual([...R12_ACCORDION_BEFORE[key], ...accordionOptionsAddedLater(key)]);
       }
       for (const key of ['titleColor', 'dividerPosition', 'iconSize', 'iconSizePx']) expectCounterpart(fields, key, `Accordion ${key} (${position})`);
       // Under the item first: an unset value is today's line.
@@ -2876,7 +2876,7 @@ describe('option parity — R13 resting tile colours per breakpoint, the accordi
       for (const key of R13_ACCORDION_BEFORE.fields) expectCounterpart(fields, key, `Accordion ${key} (${position})`);
       for (const key of R13_ACCORDION_BEFORE.items) expectCounterpart(fields, `items.${key}`, `Accordion items.${key} (${position})`);
       for (const key of ['allowMultiple', 'iconPosition', 'variant', 'titleLevel', 'icon', 'iconSize', 'itemStyle', 'dividers', 'dividerPosition', 'titlePadding'] as const) {
-        expect(optionValues(fields[key]), `${key} (${position})`).toEqual([...R13_ACCORDION_BEFORE[key]]);
+        expect(optionValues(fields[key]), `${key} (${position})`).toEqual([...R13_ACCORDION_BEFORE[key], ...accordionOptionsAddedLater(key)]);
       }
       for (const key of ['panelGap', 'panelGapPx', 'itemGap', 'itemGapPx', 'titleWeight']) expectCounterpart(fields, key, `Accordion ${key} (${position})`);
       for (const key of ['panelGap', 'panelGapPx', 'itemGap', 'itemGapPx']) {
@@ -2939,7 +2939,7 @@ describe('option parity — R14 the accordion\'s title weight per breakpoint, pa
         'allowMultiple', 'iconPosition', 'variant', 'titleLevel', 'titleWeight', 'icon', 'iconSize', 'itemStyle', 'dividers', 'dividerPosition',
         'titlePadding', 'panelGap', 'itemGap',
       ] as const) {
-        expect(optionValues(fields[key]), `${key} (${position})`).toEqual([...R14_ACCORDION_BEFORE[key]]);
+        expect(optionValues(fields[key]), `${key} (${position})`).toEqual([...R14_ACCORDION_BEFORE[key], ...accordionOptionsAddedLater(key)]);
       }
       expect((fields['titleWeight'] as { metadata?: unknown }).metadata, `titleWeight (${position})`).toEqual(PB_RESPONSIVE_METADATA);
       for (const key of ['panelPaddingBottom', 'panelPaddingBottomPx', 'openItemGap', 'openItemGapPx']) {
@@ -3071,5 +3071,42 @@ describe('option parity — R15 the post card\'s look and the header button\'s p
     for (const key of ['cardBackground', 'imageRatio', 'chipStyle', 'readMoreIcon', 'headerButtonPlacement']) expectCounterpart(grid, key, `LatestPosts ${key} (grid)`);
     const defaults = (block.defaultProps ?? {}) as Record<string, unknown>;
     for (const key of Object.keys(R15_LATEST_POSTS_ADDED)) expect(defaults, key).not.toHaveProperty(key);
+  });
+});
+
+// ── Feature 169: the accordion's filled items, the download tile's icon presets (T011, T015) ──
+
+/**
+ * `specs/169-page-builder-contact-form/` T011 — option values added to the accordion after the
+ * R12–R14 baselines above, **appended last**: each earlier baseline still holds in order, followed
+ * by exactly these.
+ */
+const F169_ACCORDION_ADDED: Partial<Record<string, readonly string[]>> = { itemStyle: ['filled'] };
+
+function accordionOptionsAddedLater(key: string): string[] {
+  return [...(F169_ACCORDION_ADDED[key] ?? [])];
+}
+
+describe('option parity — feature 169 accordion filled items and download tile icon presets (T011, T015)', () => {
+  it('cms.Accordion keeps plain and boxed and adds filled last; the field set is unchanged', async () => {
+    const block = (await import('./Accordion.js')).Accordion as unknown as ComponentConfig;
+    for (const position of ['top', 'nested'] as const) {
+      const fields = await fieldsAt(block, position);
+      expect(optionValues(fields['itemStyle']), position).toEqual(['plain', 'boxed', 'filled']);
+    }
+    expect((block.defaultProps ?? {}) as Record<string, unknown>).not.toHaveProperty('itemStyle');
+  });
+
+  it('cms.DownloadTile keeps every field and adds the icon size and style after the icon button icon, none in defaultProps', async () => {
+    const block = (await import('./DownloadTile.js')).DownloadTile as unknown as ComponentConfig;
+    const fields = await fieldsAt(block, 'top', { linkLook: 'icon' });
+    const keys = Object.keys(fields);
+    expect(keys.indexOf('iconButtonSize')).toBe(keys.indexOf('iconButtonIcon') + 1);
+    expect(keys.indexOf('iconButtonStyle')).toBe(keys.indexOf('iconButtonIcon') + 2);
+    expect(optionValues(fields['iconButtonSize'])).toEqual(['s', 'm', 'l']);
+    expect(optionValues(fields['iconButtonStyle'])).toEqual(['outline', 'filled']);
+    for (const key of ['linkLook', 'iconButtonIcon', 'showType', 'scheme']) expectCounterpart(fields, key, `DownloadTile ${key}`);
+    const defaults = (block.defaultProps ?? {}) as Record<string, unknown>;
+    for (const key of ['iconButtonSize', 'iconButtonStyle']) expect(defaults, key).not.toHaveProperty(key);
   });
 });

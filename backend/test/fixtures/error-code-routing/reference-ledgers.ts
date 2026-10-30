@@ -784,6 +784,13 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'the owner is `carts`, as for `CART_EMPTY`; the one raise site is `orders`\' `placeOrder`, ' +
       'after `carts` has brought the cart up to date.',
   },
+  CMS_CONTACT_FORM_UNAVAILABLE: {
+    to: 'cms',
+    reason:
+      'Minted by feature 169 (`specs/169-page-builder-contact-form/`) for the 409 a contact-form ' +
+      'submission meets on a sales channel with no recipients configured. The noun is the ' +
+      'Page Builder contact form, which `cms` owns along with the rest of the `CMS_*` family.',
+  },
   CMS_DUPLICATE_ANCHOR: {
     to: 'cms',
     reason:

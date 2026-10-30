@@ -151,6 +151,82 @@ describe('POST /newsletter/subscribe', () => {
     expect(await json.json()).toEqual({ error: 'unavailable' });
   });
 
+  // Feature 169 (US7, FR-026, T174): subscriber attributes, described by one
+  // `attrSpec` per attribute (`<key>|<type>|<0|1>`) and posted as `attr.<key>`.
+  describe('subscriber attributes (feature 169)', () => {
+    it('coerces each attribute by its type and passes them as customFields', async () => {
+      await post({
+        ...VALID,
+        attrSpec: ['vip|boolean|0', 'newsletter_ok|boolean|0', 'age|number|0', 'born|date|0', 'company|text|0'],
+        'attr.vip': 'on',
+        'attr.age': '42',
+        'attr.born': '1990-02-28',
+        'attr.company': '  Acme  ',
+      });
+      expect(subscribeNewsletter.mock.calls[0]?.[0]).toMatchObject({
+        customFields: { vip: true, newsletter_ok: false, age: 42, born: '1990-02-28', company: 'Acme' },
+      });
+    });
+
+    it('drops a value its type does not accept, and an empty one', async () => {
+      await post({
+        ...VALID,
+        attrSpec: ['age|number|0', 'born|date|0', 'company|text|0', 'city|text|0'],
+        'attr.age': 'abc',
+        'attr.born': 'tomorrow',
+        'attr.company': 'x'.repeat(501),
+        'attr.city': '   ',
+      });
+      expect(subscribeNewsletter.mock.calls[0]?.[0]).not.toHaveProperty('customFields');
+    });
+
+    it('ignores a spec with an invalid key or type', async () => {
+      await post({
+        ...VALID,
+        attrSpec: ['Bad Key|text|0', 'colour|color|0', 'ok|text|0'],
+        'attr.Bad Key': 'x',
+        'attr.colour': 'red',
+        'attr.ok': 'yes',
+      });
+      expect(subscribeNewsletter.mock.calls[0]?.[0]).toMatchObject({ customFields: { ok: 'yes' } });
+    });
+
+    it('reads at most 10 specs', async () => {
+      const keys = Array.from({ length: 12 }, (_, i) => `f${i}`);
+      const fields: Record<string, string | string[]> = { ...VALID, attrSpec: keys.map((key) => `${key}|text|0`) };
+      for (const key of keys) fields[`attr.${key}`] = key;
+      await post(fields);
+      const customFields = (subscribeNewsletter.mock.calls[0]?.[0] as { customFields: Record<string, unknown> }).customFields;
+      expect(Object.keys(customFields)).toEqual(keys.slice(0, 10));
+    });
+
+    it('refuses a missing required attribute with reason=fields, as a redirect and as JSON', async () => {
+      const fields = { ...VALID, attrSpec: ['company|text|1', 'vip|boolean|1'], 'attr.company': 'Acme' };
+      const res = await post(fields);
+      expect(res.status).toBe(303);
+      expect(res.headers.get('location')).toBe('/landing?newsletter=error&reason=fields#signup');
+      const json = await post({ ...fields, 'attr.vip': 'on', 'attr.company': ' ' }, { json: true });
+      expect(json.status).toBe(400);
+      expect(await json.json()).toEqual({ error: 'fields' });
+      expect(subscribeNewsletter).not.toHaveBeenCalled();
+    });
+
+    it('accepts a required attribute that is filled in', async () => {
+      await post({ ...VALID, attrSpec: ['vip|boolean|1'], 'attr.vip': 'on' });
+      expect(subscribeNewsletter.mock.calls[0]?.[0]).toMatchObject({ customFields: { vip: true } });
+    });
+
+    it('without attributes, sends the request body of before', async () => {
+      await post({ ...VALID, topics: ['offers'] });
+      expect(subscribeNewsletter.mock.calls[0]?.[0]).toEqual({
+        email: 'buyer@example.com',
+        channelCode: 'default',
+        tags: ['offers'],
+        source: 'cms-block',
+      });
+    });
+  });
+
   it('answers 404 while the newsletter module is absent, and subscribes nobody', async () => {
     present.mockImplementation((id: string) => id !== 'newsletter');
     const res = await post(VALID);

@@ -3,6 +3,7 @@ import type { ComponentConfig, Config, Data, Field, Fields } from '@puckeditor/c
 import { apiClient } from '@endora-commerce/admin-kit/lib';
 import type { CmsPageBuilderDescriptor } from '@endora-commerce/contracts';
 import { PAGE_BUILDER_SHARED_FIELD_KEYS, sharedFieldLabel } from '@endora-commerce/page-builder-core';
+import { defaultPageBuilderConfig } from '@endora-commerce/cms-components';
 import { buildPageBuilderEditorConfig } from '../../../../packages/modules/cms/src/admin/components/PageBuilderEditor';
 import {
   editorDescriptor,
@@ -59,6 +60,8 @@ const NEW_AND_RESHAPED: ReadonlyArray<readonly [string, string]> = [
   ['cms.Stats', 'cms'],
   ['cms.Testimonial', 'cms'],
   ['cms.Tabs', 'cms'],
+  // Feature 169 (T061): the page navigation.
+  ['cms.PageNavigation', 'cms'],
   ['cms.Accordion', 'cms'],
   ['cms.ContentSlider', 'cms'],
   ['cms.NewsletterSignup', 'cms'],
@@ -346,6 +349,23 @@ describe('field labels of every block, in Polish (T094, R17 T203)', () => {
     expect(first?.['level']?.label).toBe(PL['cms']?.['blocks.heading.fields.level.label']);
     expect(first?.['text']).toBe(second?.['text']);
   });
+
+  // Feature 169 (T016): the accordion's Filled items and the download tile's icon size and style.
+  it('feature 169: the accordion\'s Filled option and the download tile\'s icon button size and style read Polish', () => {
+    const accordion = (config.components['cms.Accordion'] as ComponentConfig).fields ?? {};
+    const itemStyle = accordion['itemStyle'] as { options?: Array<{ label: string; value: unknown }> };
+    expect(itemStyle.options?.find((option) => option.value === 'filled')?.label).toBe(PL['cms']?.['blocks.accordion.fields.itemStyle.options.filled']);
+    const tile = (config.components['cms.DownloadTile'] as ComponentConfig).fields ?? {};
+    for (const key of ['iconButtonSize', 'iconButtonStyle']) {
+      const field = tile[key] as { label?: string; options?: Array<{ label: string; value: unknown }> } | undefined;
+      expect(field?.label, key).toBe(PL['cms']?.[`blocks.downloadTile.fields.${key}.label`]);
+      for (const option of field?.options ?? []) {
+        expect(option.label, `${key}.${String(option.value)}`).toBe(PL['cms']?.[`blocks.downloadTile.fields.${key}.options.${String(option.value)}`]);
+        expect(option.label).not.toBe(EN['cms']?.[`blocks.downloadTile.fields.${key}.options.${String(option.value)}`]);
+      }
+    }
+    expect(PL['cms']?.['blocks.accordion.fields.itemStyle.options.filled']).not.toBe(EN['cms']?.['blocks.accordion.fields.itemStyle.options.filled']);
+  });
 });
 
 /**
@@ -379,5 +399,95 @@ describe('the editor shows them (T094)', () => {
     expect(polish).toBeDefined();
     expect(polish).not.toBe(EN[owner]?.[key]);
     expect(fieldsPanel()?.textContent ?? '').toContain(polish);
+  });
+});
+
+/**
+ * Feature 169 (US7, T185) — `newsletter.Signup`'s subscriber attributes and the
+ * message shown only with them, in Polish from `newsletter`'s bundle, for the
+ * admin's pickers and for the package's own item fields alike.
+ */
+describe('newsletter.Signup attribute fields in Polish (feature 169, T185)', () => {
+  async function resolvedWithAttributes(config: Config): Promise<Fields> {
+    const block = config.components['newsletter.Signup'] as ComponentConfig;
+    return (await block.resolveFields!(
+      { props: { id: 'pb169-signup', ...(block.defaultProps ?? {}), attributes: [{ key: 'vip', type: 'boolean' }] } } as never,
+      {
+        changed: {},
+        fields: block.fields ?? {},
+        lastFields: block.fields ?? {},
+        lastData: null,
+        metadata: {},
+        appState: {} as never,
+        parent: { type: 'root', props: { id: 'root' } } as never,
+      },
+    )) as Fields;
+  }
+
+  it('the attributes, their item fields and the fields message resolve from newsletter\'s bundle', async () => {
+    const raw = await resolvedWithAttributes(editorConfig({}));
+    const shown = await resolvedWithAttributes(editorConfig(PL));
+    const findings: Finding[] = [];
+    walk(raw, shown, stemOf('newsletter.Signup'), PL['newsletter'] ?? {}, PL['core'] ?? {}, findings);
+    expect(findings).toEqual([]);
+    const attributes = shown['attributes'] as { label?: string; arrayFields?: Record<string, Field> };
+    expect(attributes.label).toBe(PL['newsletter']?.['blocks.signup.fields.attributes.label']);
+    expect(attributes.arrayFields?.['key']?.label).toBe(PL['newsletter']?.['blocks.signup.fields.attributes.fields.key.label']);
+    const messages = shown['messages'] as { objectFields?: Record<string, Field> };
+    expect(messages.objectFields?.['fields']?.label).toBe(PL['newsletter']?.['blocks.signup.fields.messages.fields.fields.label']);
+  });
+
+  it('the package\'s own type select (the editors without the admin\'s picker) reads Polish too', () => {
+    const own = (defaultPageBuilderConfig.components['newsletter.Signup'] as ComponentConfig).fields as unknown as Record<
+      string,
+      { arrayFields?: Record<string, { options?: Array<{ value: string }> }> }
+    >;
+    const options = own['attributes']?.arrayFields?.['type']?.options ?? [];
+    expect(options.length).toBe(4);
+    for (const option of options) {
+      expect(PL['newsletter']?.[`blocks.signup.fields.attributes.fields.type.options.${option.value}`], option.value).toBeTruthy();
+      expect(EN['newsletter']?.[`blocks.signup.fields.attributes.fields.type.options.${option.value}`], option.value).toBeTruthy();
+    }
+  });
+});
+
+/**
+ * Feature 169 (T114) — `cms.ContactForm` with every one of its settings shown: each field
+ * group open, two columns (the spans), the select's options and the marketing consent's label.
+ * The walk above reads the block with its defaults, where most of them are hidden.
+ */
+describe('cms.ContactForm field labels with every setting shown (feature 169, T114)', () => {
+  const SHOWN = {
+    columns: 2,
+    fields: {
+      name: { show: true },
+      phone: { show: true },
+      company: { show: true },
+      subject: { show: true },
+      choice: { show: true, options: [{ label: 'A' }] },
+    },
+    marketingConsent: { show: true },
+  };
+
+  async function resolved(config: Config): Promise<Fields> {
+    const block = config.components['cms.ContactForm'] as ComponentConfig;
+    return (await block.resolveFields!(
+      { props: { id: 'pb169-contact', ...(block.defaultProps ?? {}), ...SHOWN } } as never,
+      {
+        changed: {},
+        fields: block.fields ?? {},
+        lastFields: block.fields ?? {},
+        lastData: null,
+        metadata: {},
+        appState: {} as never,
+        parent: { type: 'root', props: { id: 'root' } } as never,
+      },
+    )) as Fields;
+  }
+
+  it('resolves every label and option from cms\'s bundle or the shared one, in Polish', async () => {
+    const findings: Finding[] = [];
+    walk(await resolved(editorConfig({})), await resolved(editorConfig(PL)), stemOf('cms.ContactForm'), PL['cms'] ?? {}, PL['core'] ?? {}, findings);
+    expect(findings).toEqual([]);
   });
 });

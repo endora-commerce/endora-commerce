@@ -29,7 +29,11 @@ wyłączać**, aby nie kolidował z zewnętrzną usługą e-mail marketingu (Mai
   ważności; niepotwierdzeni subskrybenci `pending` wygasają po `newsletter.confirm_ttl_hours`.
 - **Tagi i pola niestandardowe** — definiuje je operator; tagi decydują o odbiorcach kampanii i
   uruchamiają automatyzacje, a pola niestandardowe uzupełniają dane subskrybentów (ustawiane przez
-  API, panel administracyjny lub formularz zapisu) i służą jako kryteria automatyzacji.
+  API, panel administracyjny lub formularz zapisu) i służą jako kryteria automatyzacji. Wartość
+  pola niestandardowego jest zapisywana tylko wtedy, gdy jej klucz jest zdefiniowanym polem **i**
+  wartość pasuje do typu pola (tak/nie → `true`/`false`, liczba → skończona liczba, data →
+  istniejąca data `YYYY-MM-DD`, tekst → najwyżej 500 znaków; `null` czyści wartość); każda inna
+  wartość jest pomijana, a żądanie nie jest odrzucane.
 - **Kampania** — jednorazowa wysyłka do odbiorców `all` / ręcznie wybranej grupy `group` / `tag` /
   `tag_list`. Tworzona we wspólnym edytorze e-maili Page Builder (ta sama paleta bloków co e-maile
   transakcyjne): temat, drzewo treści Puck i zmienne; podgląd na przykładowych danych; wysyłka od
@@ -129,13 +133,14 @@ umieścić formularz zapisu na dowolnej stronie CMS:
 | --- | --- |
 | Nagłówek, tekst | Opcjonalny nagłówek (z poziomem) i tekst sformatowany nad formularzem. |
 | Etykieta pola e-mail, tekst zastępczy, etykieta przycisku | Własne teksty formularza. |
-| Tematy | Do 12 pól wyboru, każde z etykietą i **kodem tagu** newslettera; zaznaczone trafiają do subskrybenta jako tagi. **Topics required** wymaga zaznaczenia co najmniej jednego. Temat z nieprawidłowym kodem tagu nie jest pokazywany. |
+| Tematy | Do 12 pól wyboru, każde z etykietą i **tagiem** newslettera; zaznaczone trafiają do subskrybenta jako tagi. W panelu administracyjnym tag wybiera się po nazwie z listy istniejących tagów newslettera, a blok zapisuje jego kod. Zapisany kod, którego nie ma na liście, pozostaje wybrany; bez listy (brak uprawnienia `newsletter:read`, wyłączony moduł) kod wpisuje się jako tekst. **Topics required** wymaga zaznaczenia co najmniej jednego. Temat z nieprawidłowym kodem tagu nie jest pokazywany. |
+| Atrybuty subskrybenta | Do 10 **pól niestandardowych** newslettera, pokazywanych po polu e-mail, a przed tematami. W panelu administracyjnym każde wybiera się spośród istniejących pól niestandardowych, co zapisuje też jego typ i etykietę. Pole tak/nie jest polem wyboru; pole tekstowe, liczbowe lub daty — odpowiednim polem do wpisania (tekst ma najwyżej 500 znaków). Każde ma opcjonalną **etykietę** (inaczej etykietę samego pola), **podpowiedź w polu** (nie dla pola tak/nie) i przełącznik **Wymagane**: wymagane pole wyboru trzeba zaznaczyć, każde inne wymagane pole — wypełnić. |
 | Etykieta zgody | Tekst pola zgody, które jest zawsze pokazywane i zawsze wymagane. To tekst sformatowany w jednej linii, więc może zawierać link do polityki prywatności. |
 | Układ | W linii (pole i przycisk obok siebie) albo w ramce. |
 | Położenie przycisku, kształt pola | **Obok pola** (domyślnie) albo **Wewnątrz pola**: pole e-mail i przycisk mają wspólną ramkę, **Zaokrągloną** (domyślnie) albo w kształcie **Pigułki**. |
 | Kolumny tematów | Tematy w siatce 1–4 kolumn; pozostawione puste, układają się w jednym zawijanym rzędzie. |
 | Ukryj etykietę pola e-mail | Ukrywa wizualnie etykietę pola e-mail; pozostaje ona etykietą pola, więc czytniki ekranu nadal ją odczytują. Użyj tekstu zastępczego, aby widzący odwiedzający wiedzieli, co wpisać. |
-| Komunikaty | Teksty pokazywane po zapisie: oczekiwanie na potwierdzenie, zapisano oraz odmowy (brak zgody, nieprawidłowy e-mail, nie wybrano tematu, usługa niedostępna). |
+| Komunikaty | Teksty pokazywane po zapisie: oczekiwanie na potwierdzenie, zapisano oraz odmowy (brak zgody, nieprawidłowy e-mail, nie wybrano tematu, usługa niedostępna oraz — przy atrybutach subskrybenta — brak wymaganego pola, który pozostawiony pusty korzysta z przetłumaczonego tekstu sklepu). |
 
 Każdy tekst można przetłumaczyć akcją **Przetłumacz** w Page Builderze. Na
 najwyższym poziomie strony blok ma też ustawienia sekcji (kotwicę, schemat
@@ -151,11 +156,16 @@ Handler:
   zachowuje najwyżej 12 kodów tematów zgodnych z `^[a-z0-9_-]{1,64}$` i pomija
   pozostałe, a jako `returnTo` przyjmuje tylko ścieżkę w tym samym źródle
   (wszystko inne wraca na `/`);
+- odczytuje atrybuty subskrybenta opisane przez blok (najwyżej 10), zamienia
+  każdą wartość na jej typ — zaznaczone pole wyboru to `true`, niezaznaczone
+  `false`, liczba, gdy jest liczbą, data, gdy ma postać `YYYY-MM-DD`, tekst
+  przycięty, najwyżej 500 znaków — i odrzuca zapis z `reason=fields`, gdy brakuje
+  wymaganego;
 - zapisuje przez istniejący `POST /api/v1/newsletter/subscribe` w kanale
-  sprzedaży żądania, z zaznaczonymi tematami jako `tags` i
-  `source: 'cms-block'`;
+  sprzedaży żądania, z zaznaczonymi tematami jako `tags`, atrybutami jako
+  `customFields` i `source: 'cms-block'`;
 - bez JavaScriptu przekierowuje (`303`) z powrotem na stronę z
-  `?newsletter=pending|active|error&reason=consent|email|topics|unavailable`
+  `?newsletter=pending|active|error&reason=consent|email|topics|fields|unavailable`
   i kotwicą sekcji jako fragmentem, a blok pokazuje odpowiedni komunikat;
 - z JavaScriptem blok wysyła formularz z `Accept: application/json` i dostaje
   `{status: 'pending' | 'active'}` (200) albo `{error: …}` (400); komunikat
@@ -165,7 +175,17 @@ To, czy odpowiedzią jest `pending` czy `active`, zależy od trybu potwierdzania
 zapisu w kanale. Subskrypcja jest zapisywana jak każda inna: ustawiane jest
 `consentAt`, wpis audytu `newsletter_subscribe` zawiera `source: 'cms-block'`,
 więc te zapisy można odróżnić od pozostałych, a kod tematu, który nie pasuje do
-żadnego istniejącego tagu, jest pomijany — storefront nie tworzy tagów.
+żadnego istniejącego tagu, jest pomijany — storefront nie tworzy tagów. Moduł
+ponownie sprawdza każdą wartość atrybutu względem własnych definicji pól
+niestandardowych i zachowuje tylko wartości o pasującym typie (zob. *Tagi i pola
+niestandardowe*).
+
+**Rząd pól wyboru z tematami.** Aby pokazać tematy jako rząd pól wyboru — na
+przykład w stopce strony — najpierw utwórz tagi (**Newsletter → Tagi i pola**), a potem
+w bloku dodaj po jednym temacie na tag, nadaj mu etykietę widoczną dla
+odwiedzających i wybierz jego tag. Pozostaw **Kolumny tematów** puste, aby
+tematy układały się w jednym zawijanym rzędzie, albo ustaw 2–4, aby utworzyć
+siatkę; włącz **Topics required**, jeśli zapis bez tematu ma być odrzucany.
 
 Gdy moduł jest wyłączony, blok nie jest oferowany w palecie, zapisany blok nic
 nie wyświetla, a handler odpowiada `404`.

@@ -468,7 +468,30 @@ export type MessageKey =
   | 'cms.carousel.play'
   | 'cms.carousel.filter'
   | 'cms.carousel.filterAll'
-  | 'cms.carousel.filterCount';
+  | 'cms.carousel.filterCount'
+  // Feature 169 (US5): the page navigation's accessible name when the block sets none.
+  | 'cms.pageNavigation.label'
+  // Feature 169 (US7): `newsletter.Signup`'s message for a required attribute left empty.
+  | 'newsletter.signup.fields'
+  // Feature 169 (data-model §5.4): the default words of the `cms.ContactForm` block.
+  | 'cms.contactForm.label'
+  | 'cms.contactForm.field.name'
+  | 'cms.contactForm.field.email'
+  | 'cms.contactForm.field.phone'
+  | 'cms.contactForm.field.company'
+  | 'cms.contactForm.field.subject'
+  | 'cms.contactForm.field.choice'
+  | 'cms.contactForm.field.message'
+  | 'cms.contactForm.choicePlaceholder'
+  | 'cms.contactForm.privacyConsent'
+  | 'cms.contactForm.marketingConsent'
+  | 'cms.contactForm.submit'
+  | 'cms.contactForm.message.success'
+  | 'cms.contactForm.message.error'
+  | 'cms.contactForm.message.unavailable'
+  | 'cms.contactForm.required'
+  | 'cms.contactForm.fieldRequired'
+  | 'cms.contactForm.fieldEmail';
 
 export const MESSAGES: Record<string, Record<MessageKey, string>> = {
   'en-US': {
@@ -897,6 +920,26 @@ export const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'cms.carousel.filter': 'Filter',
     'cms.carousel.filterAll': 'All',
     'cms.carousel.filterCount': '{n} of {m} shown',
+    'cms.pageNavigation.label': 'On this page',
+    'newsletter.signup.fields': 'Please fill in the required fields.',
+    'cms.contactForm.label': 'Contact form',
+    'cms.contactForm.field.name': 'Name',
+    'cms.contactForm.field.email': 'E-mail',
+    'cms.contactForm.field.phone': 'Phone',
+    'cms.contactForm.field.company': 'Company',
+    'cms.contactForm.field.subject': 'Subject',
+    'cms.contactForm.field.choice': 'Choose',
+    'cms.contactForm.field.message': 'Message',
+    'cms.contactForm.choicePlaceholder': 'Choose…',
+    'cms.contactForm.privacyConsent': 'I agree to the processing of my data to answer this message.',
+    'cms.contactForm.marketingConsent': 'I would like to receive news and offers by e-mail.',
+    'cms.contactForm.submit': 'Send',
+    'cms.contactForm.message.success': 'Thank you. Your message has been sent.',
+    'cms.contactForm.message.error': 'Please check the highlighted fields and try again.',
+    'cms.contactForm.message.unavailable': 'The message could not be sent right now. Please try again later.',
+    'cms.contactForm.required': '(required)',
+    'cms.contactForm.fieldRequired': 'This field is required.',
+    'cms.contactForm.fieldEmail': 'Enter a valid e-mail address.',
   },
   'pl-PL': {
     'a11y.skipToContent': 'Przejdź do treści',
@@ -1324,6 +1367,26 @@ export const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'cms.carousel.filter': 'Filtruj',
     'cms.carousel.filterAll': 'Wszystkie',
     'cms.carousel.filterCount': 'Pokazano {n} z {m}',
+    'cms.pageNavigation.label': 'Na tej stronie',
+    'newsletter.signup.fields': 'Uzupełnij wymagane pola.',
+    'cms.contactForm.label': 'Formularz kontaktowy',
+    'cms.contactForm.field.name': 'Imię i nazwisko',
+    'cms.contactForm.field.email': 'E-mail',
+    'cms.contactForm.field.phone': 'Telefon',
+    'cms.contactForm.field.company': 'Firma',
+    'cms.contactForm.field.subject': 'Temat',
+    'cms.contactForm.field.choice': 'Wybierz',
+    'cms.contactForm.field.message': 'Wiadomość',
+    'cms.contactForm.choicePlaceholder': 'Wybierz…',
+    'cms.contactForm.privacyConsent': 'Wyrażam zgodę na przetwarzanie moich danych w celu odpowiedzi na tę wiadomość.',
+    'cms.contactForm.marketingConsent': 'Chcę otrzymywać e-mailem nowości i oferty.',
+    'cms.contactForm.submit': 'Wyślij',
+    'cms.contactForm.message.success': 'Dziękujemy. Twoja wiadomość została wysłana.',
+    'cms.contactForm.message.error': 'Sprawdź zaznaczone pola i spróbuj ponownie.',
+    'cms.contactForm.message.unavailable': 'Nie udało się teraz wysłać wiadomości. Spróbuj ponownie później.',
+    'cms.contactForm.required': '(wymagane)',
+    'cms.contactForm.fieldRequired': 'To pole jest wymagane.',
+    'cms.contactForm.fieldEmail': 'Wpisz poprawny adres e-mail.',
   },
 };
 

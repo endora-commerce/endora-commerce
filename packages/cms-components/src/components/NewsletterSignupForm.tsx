@@ -1,9 +1,17 @@
 'use client';
 
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
-import type { ComponentConfig, Fields, PuckComponent } from '@puckeditor/core';
-import { plainTextToInlineRichText, withHideOn, type InlineRichText, createToggleField } from '@endora-commerce/page-builder-core';
+import { FieldLabel, type ComponentConfig, type Fields, type PuckComponent } from '@puckeditor/core';
+import {
+  PB_FIELD_INPUT_CLASS,
+  plainTextToInlineRichText,
+  withHideOn,
+  type InlineRichText,
+  createToggleField,
+} from '@endora-commerce/page-builder-core';
+import { usePageBuilderPuck } from '@endora-commerce/page-builder-core/editor/use-page-builder-puck';
 import type {
+  NewsletterSignupAttribute,
   NewsletterSignupFormProps,
   NewsletterSignupMessages,
   NewsletterSignupTopic,
@@ -14,7 +22,12 @@ import { levelField } from '../fields/section-block-fields.js';
 import { useSectionAnchor } from './Section.js';
 import { InlineRich } from './InlineRich.js';
 import { useBlockDomId } from './block-dom-id.js';
-import { useCmsRenderLocalizePath, useCmsRenderLocation, type CmsRenderLocation } from './render-context.js';
+import {
+  useCmsRenderLocalizePath,
+  useCmsRenderLocation,
+  useCmsRenderNewsletterSignupText,
+  type CmsRenderLocation,
+} from './render-context.js';
 import { BlockHeading, plainTextToDoc, RichBody } from './section-parts.js';
 import { createIconPickerField } from './IconPickerField.js';
 import { resolveCmsIcon } from './icon-catalog.js';
@@ -47,10 +60,23 @@ const TOPIC_CODE_RE = /^[a-z0-9_-]{1,64}$/;
 /** A deliberately loose check: the handler applies the backend's own rule. */
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-type SignupError = 'consent' | 'email' | 'topics' | 'unavailable';
+/** Feature 169 (FR-025): most subscriber attributes one sign-up offers (contracts/blocks.md §5). */
+export const NEWSLETTER_SIGNUP_MAX_ATTRIBUTES = 10;
+
+/** A newsletter custom field key; an attribute naming anything else is skipped. */
+const ATTRIBUTE_KEY_RE = /^[a-z][a-z0-9_]{0,63}$/;
+
+/** The custom field types an attribute renders, in the editor's order. */
+const ATTRIBUTE_TYPES = ['text', 'number', 'boolean', 'date'] as const;
+type AttributeType = (typeof ATTRIBUTE_TYPES)[number];
+
+/** The longest text value the newsletter keeps (feature 169, research R-11). */
+const ATTRIBUTE_TEXT_MAX = 500;
+
+type SignupError = 'consent' | 'email' | 'topics' | 'fields' | 'unavailable';
 type Outcome = { status: 'pending' | 'active' } | { error: SignupError } | null;
 
-const ERRORS: readonly SignupError[] = ['consent', 'email', 'topics', 'unavailable'];
+const ERRORS: readonly SignupError[] = ['consent', 'email', 'topics', 'fields', 'unavailable'];
 
 /** The outcome the handler put on the URL, if any. */
 function outcomeFromQuery(query: CmsRenderLocation['query'] | undefined): Outcome {
@@ -79,7 +105,42 @@ function validTopics(topics: NewsletterSignupTopic[] | undefined): Array<{ label
     .slice(0, NEWSLETTER_SIGNUP_MAX_TOPICS);
 }
 
-const DEFAULT_MESSAGES: Required<NewsletterSignupMessages> = {
+interface ValidAttribute {
+  key: string;
+  type: AttributeType;
+  label: string;
+  placeholder: string | undefined;
+  required: boolean;
+}
+
+/** Feature 169: the attributes the form shows — a valid key and type each, at most 10. */
+function validAttributes(attributes: NewsletterSignupAttribute[] | undefined): ValidAttribute[] {
+  if (!Array.isArray(attributes)) return [];
+  const seen = new Set<string>();
+  const valid: ValidAttribute[] = [];
+  for (const attribute of attributes) {
+    if (valid.length === NEWSLETTER_SIGNUP_MAX_ATTRIBUTES) break;
+    const key = attribute?.key;
+    const type = attribute?.type;
+    if (typeof key !== 'string' || !ATTRIBUTE_KEY_RE.test(key) || seen.has(key)) continue;
+    if (!(ATTRIBUTE_TYPES as readonly unknown[]).includes(type)) continue;
+    seen.add(key);
+    const text = (value: unknown): string | undefined => (typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined);
+    valid.push({
+      key,
+      type: type as AttributeType,
+      label: text(attribute.label) ?? text(attribute.fieldLabel) ?? key,
+      placeholder: type === 'boolean' ? undefined : text(attribute.placeholder),
+      required: attribute.required === true,
+    });
+  }
+  return valid;
+}
+
+/** Feature 169: the `fields` message when neither the block nor the page language has one. */
+const DEFAULT_FIELDS_MESSAGE = 'Please fill in the required fields.';
+
+const DEFAULT_MESSAGES: Required<Omit<NewsletterSignupMessages, 'fields'>> = {
   pending: 'Almost done: check your inbox and confirm your subscription.',
   active: 'Thank you, you are subscribed.',
   consent: 'Please accept the consent to subscribe.',
@@ -88,7 +149,7 @@ const DEFAULT_MESSAGES: Required<NewsletterSignupMessages> = {
   unavailable: 'The sign-up is not available right now. Please try again later.',
 };
 
-function message(messages: NewsletterSignupMessages | undefined, key: keyof NewsletterSignupMessages): string {
+function message(messages: NewsletterSignupMessages | undefined, key: Exclude<keyof NewsletterSignupMessages, 'fields'>): string {
   const value = messages?.[key];
   return typeof value === 'string' && value.trim() !== '' ? value : DEFAULT_MESSAGES[key];
 }
@@ -128,6 +189,9 @@ function SignupBody({ props, editing }: { props: NewsletterSignupFormProps; edit
   const [busy, setBusy] = useState(false);
   const emailRef = useRef<HTMLInputElement>(null);
   const consentRef = useRef<HTMLInputElement>(null);
+  // Feature 169: the required attributes the last submit found empty.
+  const [missing, setMissing] = useState<readonly string[]>([]);
+  const signupText = useCmsRenderNewsletterSignupText();
   // The block's id, not `useId()` alone: the same on the server and on hydration (T149).
   const baseId = useBlockDomId('pb-signup', (props as { id?: unknown }).id);
   const ids = {
@@ -136,6 +200,7 @@ function SignupBody({ props, editing }: { props: NewsletterSignupFormProps; edit
     consent: `${baseId}-consent`,
     consentError: `${baseId}-consent-error`,
     topicsError: `${baseId}-topics-error`,
+    fieldsError: `${baseId}-fields-error`,
   };
 
   useEffect(() => {
@@ -147,6 +212,7 @@ function SignupBody({ props, editing }: { props: NewsletterSignupFormProps; edit
   }, [location]);
 
   const topics = validTopics(props.topics);
+  const attributes = validAttributes(props.attributes);
   // Back to the enclosing `cms.Section`, when it has an anchor.
   const anchor = useSectionAnchor();
   const error = outcome && 'error' in outcome ? outcome.error : null;
@@ -189,6 +255,20 @@ function SignupBody({ props, editing }: { props: NewsletterSignupFormProps; edit
       setOutcome({ error: 'topics' });
       return;
     }
+    // Feature 169: a required attribute — a box ticked, any other filled in.
+    const empty = attributes
+      .filter((attribute) => attribute.required)
+      .filter((attribute) => {
+        const value = body.get(`attr.${attribute.key}`);
+        return attribute.type === 'boolean' ? value !== 'on' : typeof value !== 'string' || value.trim() === '';
+      })
+      .map((attribute) => attribute.key);
+    setMissing(empty);
+    if (empty.length > 0) {
+      setOutcome({ error: 'fields' });
+      form.querySelector<HTMLInputElement>(`[name="attr.${empty[0]}"]`)?.focus();
+      return;
+    }
     setBusy(true);
     try {
       const res = await fetch(subscribePath, {
@@ -206,7 +286,14 @@ function SignupBody({ props, editing }: { props: NewsletterSignupFormProps; edit
     }
   }
 
-  const errorText = (key: SignupError) => message(props.messages, key);
+  const errorText = (key: Exclude<SignupError, 'fields'>) => message(props.messages, key);
+  const fieldsText = (): string => {
+    const own = props.messages?.fields;
+    if (typeof own === 'string' && own.trim() !== '') return own;
+    const translated = signupText?.fields;
+    return typeof translated === 'string' && translated.trim() !== '' ? translated : DEFAULT_FIELDS_MESSAGE;
+  };
+  const attributeInvalid = (key: string): boolean => error === 'fields' && missing.includes(key);
 
   const emailInput = (
     <input
@@ -271,6 +358,60 @@ function SignupBody({ props, editing }: { props: NewsletterSignupFormProps; edit
           </div>
           {inside ? null : submitButton}
         </div>
+        {attributes.length > 0 ? (
+          <div className="cmsc-pb-signup__attributes">
+            {attributes.map((attribute, index) => {
+              const id = `${baseId}-attr-${index}`;
+              const invalid = attributeInvalid(attribute.key);
+              const label = (
+                <label className={attribute.type === 'boolean' ? undefined : 'cmsc-pb-signup__label'} htmlFor={id}>
+                  {attribute.label}
+                  {attribute.required ? (
+                    <span className="cmsc-pb-signup__required" aria-hidden="true">
+                      {' *'}
+                    </span>
+                  ) : null}
+                </label>
+              );
+              const common = {
+                id,
+                name: `attr.${attribute.key}`,
+                ...(attribute.required ? { required: true } : {}),
+                ...(invalid ? { 'aria-invalid': true, 'aria-describedby': ids.fieldsError } : {}),
+              };
+              return (
+                <div
+                  key={`${attribute.key}-${index}`}
+                  className={attribute.type === 'boolean' ? 'cmsc-pb-signup__check cmsc-pb-signup__attribute' : 'cmsc-pb-signup__field cmsc-pb-signup__attribute'}
+                >
+                  <input type="hidden" name="attrSpec" value={`${attribute.key}|${attribute.type}|${attribute.required ? 1 : 0}`} />
+                  {attribute.type === 'boolean' ? (
+                    <>
+                      <input {...common} type="checkbox" value="on" />
+                      {label}
+                    </>
+                  ) : (
+                    <>
+                      {label}
+                      <input
+                        {...common}
+                        className="cmsc-pb-signup__input"
+                        type={attribute.type}
+                        {...(attribute.type === 'text' ? { maxLength: ATTRIBUTE_TEXT_MAX } : {})}
+                        {...(attribute.placeholder ? { placeholder: attribute.placeholder } : {})}
+                      />
+                    </>
+                  )}
+                </div>
+              );
+            })}
+            {error === 'fields' ? (
+              <p id={ids.fieldsError} className="cmsc-pb-signup__error">
+                {fieldsText()}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
         {topics.length > 0 ? (
           <fieldset
             className={['cmsc-pb-signup__topics', ...(columns ? ['cmsc-pb-signup__topics--columns'] : [])].join(' ')}
@@ -330,6 +471,81 @@ const SignupPublishedRender: PuckComponent<NewsletterSignupFormProps> = (props) 
   <SignupBody props={props as unknown as NewsletterSignupFormProps} editing={false} />
 );
 
+/**
+ * Feature 169 (contracts/blocks.md §5): whether an attribute's placeholder
+ * applies — every type but a box. `name` is the placeholder's field path in the
+ * block's props (`attributes[2].placeholder`), as Puck hands it to the field.
+ */
+export function attributePlaceholderApplies(props: unknown, name: string): boolean {
+  const match = /^([A-Za-z_][\w]*)\[(\d+)\]\.placeholder$/.exec(name);
+  if (!match) return true;
+  const list = (props as Record<string, unknown> | null | undefined)?.[match[1]!];
+  const item = Array.isArray(list) ? (list[Number(match[2])] as NewsletterSignupAttribute | undefined) : undefined;
+  return item?.type !== 'boolean';
+}
+
+function AttributePlaceholderControl({
+  name,
+  value,
+  onChange,
+  readOnly,
+  label,
+  id,
+}: {
+  name: string;
+  value: string | undefined;
+  onChange: (value: string) => void;
+  readOnly: boolean | undefined;
+  label: string;
+  id: string | undefined;
+}): ReactNode {
+  // The item's type is a sibling prop, which a field of an array item is not handed: read from the selected block.
+  const applies = usePageBuilderPuck((state) => attributePlaceholderApplies(state.selectedItem?.props, name));
+  if (!applies) return null;
+  return (
+    <FieldLabel label={label} {...(readOnly === true ? { readOnly: true } : {})}>
+      <input
+        {...(id !== undefined ? { id } : {})}
+        type="text"
+        className={PB_FIELD_INPUT_CLASS}
+        readOnly={readOnly === true}
+        value={value ?? ''}
+        onChange={(event): void => onChange(event.target.value)}
+      />
+    </FieldLabel>
+  );
+}
+
+/** Feature 169: an attribute's placeholder, shown for every type but a box. */
+const ATTRIBUTE_PLACEHOLDER_FIELD = {
+  type: 'custom' as const,
+  label: 'Placeholder',
+  render: ({
+    name,
+    value,
+    onChange,
+    readOnly,
+    field,
+    id,
+  }: {
+    name: string;
+    value: string | undefined;
+    onChange: (value: string) => void;
+    readOnly?: boolean;
+    field: { label?: string };
+    id?: string;
+  }) => (
+    <AttributePlaceholderControl
+      name={name}
+      value={value}
+      onChange={onChange}
+      readOnly={readOnly}
+      label={field.label ?? 'Placeholder'}
+      id={id}
+    />
+  ),
+};
+
 const SIGNUP_FIELDS = {
   heading: createInlineRichTextField({ label: 'Heading' }),
   headingLevel: levelField('Heading level'),
@@ -350,6 +566,32 @@ const SIGNUP_FIELDS = {
     getItemSummary: (item: NewsletterSignupTopic) => item?.label || 'Topic',
   },
   topicsRequired: createToggleField({ label: 'A topic must be chosen', defaultValue: false }),
+  // Feature 169 (FR-025): subscriber attributes, the newsletter's custom fields. The admin picks the key and
+  // type from the existing fields; here they are typed.
+  attributes: {
+    type: 'array' as const,
+    label: 'Subscriber attributes',
+    max: NEWSLETTER_SIGNUP_MAX_ATTRIBUTES,
+    arrayFields: {
+      key: { type: 'text' as const, label: 'Custom field' },
+      type: {
+        type: 'select' as const,
+        label: 'Type',
+        options: [
+          { label: 'Text', value: 'text' },
+          { label: 'Number', value: 'number' },
+          { label: 'Yes / no', value: 'boolean' },
+          { label: 'Date', value: 'date' },
+        ],
+      },
+      label: { type: 'text' as const, label: 'Label' },
+      placeholder: ATTRIBUTE_PLACEHOLDER_FIELD,
+      required: createToggleField({ label: 'Required' }),
+    },
+    defaultItemProps: { key: '', type: 'text' },
+    getItemSummary: (item: NewsletterSignupAttribute) =>
+      item?.label?.trim() || item?.fieldLabel?.trim() || item?.key?.trim() || 'Attribute',
+  },
   consentLabel: createInlineRichTextField({ label: 'Consent label' }),
   layout: {
     type: 'radio' as const,
@@ -390,9 +632,29 @@ const SIGNUP_FIELDS = {
       email: { type: 'text' as const, label: 'Invalid email address' },
       topics: { type: 'text' as const, label: 'No topic chosen' },
       unavailable: { type: 'textarea' as const, label: 'Sign-up unavailable' },
+      // Feature 169: shown only with attributes (`resolveFields`).
+      fields: { type: 'text' as const, label: 'Required field missing' },
     },
   },
 };
+
+type MessagesField = { type: 'object'; objectFields: Record<string, unknown> };
+
+// Per host `messages` field (the block's own, or the admin's translated copy): the same copy without `fields`.
+const messagesWithoutFields = new WeakMap<object, MessagesField>();
+
+/** The `messages` field without its `fields` message, the same object for the same host field (focus is kept). */
+function withoutFieldsMessage(field: unknown): unknown {
+  const host = field as MessagesField | undefined;
+  if (!host || host.type !== 'object' || !host.objectFields || !('fields' in host.objectFields)) return field;
+  let copy = messagesWithoutFields.get(host);
+  if (!copy) {
+    const { fields: _fields, ...rest } = host.objectFields;
+    copy = { ...host, objectFields: rest };
+    messagesWithoutFields.set(host, copy);
+  }
+  return copy;
+}
 
 const signupConfig: ComponentConfig<{ props: NewsletterSignupFormProps }> = {
   label: 'Newsletter sign-up',
@@ -418,6 +680,11 @@ const signupConfig: ComponentConfig<{ props: NewsletterSignupFormProps }> = {
     for (const [key, field] of Object.entries((params?.fields as Record<string, unknown> | undefined) ?? SIGNUP_FIELDS)) {
       if (key === 'fieldShape' && props.buttonPlacement !== 'inside') continue;
       if (key === 'topicsColumns' && (props.topics ?? []).length === 0) continue;
+      // Feature 169: the "required field missing" message only with attributes.
+      if (key === 'messages' && !(Array.isArray(props.attributes) && props.attributes.length > 0)) {
+        fields[key] = withoutFieldsMessage(field);
+        continue;
+      }
       fields[key] = field;
     }
     return fields as unknown as Fields<NewsletterSignupFormProps>;

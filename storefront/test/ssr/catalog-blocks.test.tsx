@@ -230,16 +230,20 @@ describe('a catalogue block given no data', () => {
     expect(renderWithoutData(documentOf(BLOCKS.card))).toContain('Loading product');
   });
 
-  it('renders its empty state, not a skeleton, when the server resolved nothing for it', () => {
+  it('renders nothing for an empty listing, not a skeleton, when the server resolved nothing for it', () => {
     const html = renderWith(
       documentOf(BLOCKS.heading, BLOCKS.grid, BLOCKS.slider, BLOCKS.card, BLOCKS.categoryList, BLOCKS.categoryGrid),
       {},
     );
 
     expect(html).toContain('Everything for the workshop.');
-    expect(html).toContain('No products found');
+    // Feature 169 (FR-003, T008): an empty listing contributes no element — no box, no English sentence.
+    expect(html).not.toContain('No products found');
+    expect(html).not.toContain('No categories found');
+    expect(html).not.toContain('cmsc-pb-product-grid');
+    expect(html).not.toContain('aria-roledescription="carousel"');
+    expect(html).not.toContain('cmsc-pb-category-');
     expect(html).toContain('Product unavailable');
-    expect(html).toContain('No categories found');
     expect(html).not.toContain('cmsc-pb-skel-');
     expect(html).not.toContain('Loading product');
   });
@@ -329,8 +333,12 @@ describe('a catalogue read that fails', () => {
 
     expect(html).toContain('Everything for the workshop.');
     expect(html).toContain('Cordless Drill 18V');
-    expect(html).toContain('No products found');
-    expect(html).toContain('No categories found');
+    // Feature 169 (FR-003, T008): the failed slider and category list contribute no element.
+    expect(html).not.toContain('No products found');
+    expect(html).not.toContain('No categories found');
+    expect(html).not.toContain('cmsc-pb-product-grid__empty');
+    expect(html).not.toContain('aria-roledescription="carousel"');
+    expect(html).not.toContain('cmsc-pb-category-list');
     expect(html).not.toContain('cmsc-pb-skel-');
   });
 

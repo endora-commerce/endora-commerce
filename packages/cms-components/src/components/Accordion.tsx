@@ -39,7 +39,7 @@ import { lineHeightCss } from './tier-vars.js';
  * keep one item open at a time.
  *
  * T175 (R11): the look — `icon` (today's plus/minus, or a chevron that turns),
- * `dividers` between plain items, `itemStyle` (plain or boxed; unset follows
+ * `dividers` between plain items, `itemStyle` (plain, boxed or filled; unset follows
  * `variant`, whose `bordered` is boxed) and the title's `titlePadding` per
  * breakpoint. Unset, each writes nothing. Once mounted the root carries
  * `data-animate`, and the stylesheet animates a panel's open and close —
@@ -96,12 +96,17 @@ function isBoxed(props: Pick<AccordionProps, 'itemStyle' | 'variant'>): boolean 
   return props.variant === 'bordered';
 }
 
+/** Feature 169 (US3): items that carry no divider of their own — boxed, or filled title bars. */
+function hasNoDividers(props: Pick<AccordionProps, 'itemStyle' | 'variant'>): boolean {
+  return isBoxed(props) || props.itemStyle === 'filled';
+}
+
 /** The look classes T175 adds to the root (none when unset). */
 function lookClasses(props: AccordionProps): string[] {
   const classes: string[] = [];
   if (isChevron(props.icon)) classes.push('cmsc-pb-accordion--chevron');
-  if (props.itemStyle === 'boxed' || props.itemStyle === 'plain') classes.push(`cmsc-pb-accordion--${props.itemStyle}`);
-  if (!isBoxed(props) && DIVIDERS.includes(props.dividers as AccordionDividers)) classes.push(`cmsc-pb-accordion--dividers-${props.dividers}`);
+  if (props.itemStyle === 'boxed' || props.itemStyle === 'plain' || props.itemStyle === 'filled') classes.push(`cmsc-pb-accordion--${props.itemStyle}`);
+  if (!hasNoDividers(props) && DIVIDERS.includes(props.dividers as AccordionDividers)) classes.push(`cmsc-pb-accordion--dividers-${props.dividers}`);
   return classes;
 }
 
@@ -115,7 +120,7 @@ function isChevron(icon: unknown): boolean {
 
 /** Whether the items carry a line of their own (the one `dividerPosition` may move under the title). */
 function hasItemLines(props: AccordionProps): boolean {
-  if (isBoxed(props)) return false;
+  if (hasNoDividers(props)) return false;
   if (DIVIDERS.includes(props.dividers as AccordionDividers)) return props.dividers !== 'none';
   return props.itemStyle === 'plain' || props.variant !== 'flush';
 }
@@ -293,10 +298,10 @@ const AccordionRender: PuckComponent<AccordionProps> = (props) => {
   // T182: the space above an open panel and between items per breakpoint; a tier left unset reads today's.
   const panelGapped = hasGap(panelGap);
   const panelGapVars = panelGapped
-    ? gapVars('cmsc-acc-panel-gap', panelGap as AccordionProps['panelGap'], panelGapPx, r12.classes.includes('cmsc-pb-accordion--divider-title') ? 12 : 0, tier)
+    ? gapVars('cmsc-acc-panel-gap', panelGap as AccordionProps['panelGap'], panelGapPx, r12.classes.includes('cmsc-pb-accordion--divider-title') || props.itemStyle === 'filled' ? 12 : 0, tier)
     : null;
   const itemGapped = hasGap(itemGap);
-  const todaysItemGapPx = isBoxed(props as unknown as AccordionProps) ? 8 : 0;
+  const todaysItemGapPx = hasNoDividers(props as unknown as AccordionProps) ? 8 : 0;
   const itemGapVars = itemGapped
     ? gapVars('cmsc-acc-item-gap', itemGap as AccordionProps['itemGap'], itemGapPx, todaysItemGapPx, tier)
     : null;
@@ -516,6 +521,7 @@ const ACCORDION_FIELDS = {
     options: [
       { label: 'Plain', value: 'plain' },
       { label: 'Boxed', value: 'boxed' },
+      { label: 'Filled', value: 'filled' },
     ],
   },
   dividers: {
@@ -576,7 +582,7 @@ const accordionConfig: ComponentConfig<AccordionProps> = {
       if (key === 'itemGapPx' && !usesCustom(props.itemGap)) continue;
       if (key === 'panelPaddingBottomPx' && !usesCustom(props.panelPaddingBottom)) continue;
       if (key === 'openItemGapPx' && !usesCustom(props.openItemGap)) continue;
-      if ((key === 'dividers' || key === 'dividerPosition') && isBoxed(props)) continue;
+      if ((key === 'dividers' || key === 'dividerPosition') && hasNoDividers(props)) continue;
       // R17 (T218): the divider position only where the items carry a line it could move.
       if (key === 'dividerPosition' && !hasItemLines(props)) continue;
       if (key === 'iconSizePx' && props.iconSize !== 'custom') continue;

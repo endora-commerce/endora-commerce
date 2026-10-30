@@ -345,6 +345,18 @@ const FIXTURES: Record<string, { props: Record<string, unknown>; expected: strin
     },
     expected: [P('tab'), P('tab panel')],
   },
+  // Feature 169 (T056): the nav's name and the link labels are prose; the anchors are ids, the look is options.
+  'cms.PageNavigation': {
+    props: {
+      ...box,
+      label: P('nav name'),
+      items: [{ label: P('link'), anchor: X('anchor') }],
+      look: X('look'),
+      sticky: true,
+      align: { base: X('align') },
+    },
+    expected: [P('nav name'), P('link')],
+  },
   'cms.Accordion': {
     props: {
       ...box,
@@ -392,6 +404,43 @@ const FIXTURES: Record<string, { props: Record<string, unknown>; expected: strin
   'cms.ContactFormEmbed': {
     props: { ...box, heading: P('heading'), description: P('description'), embedUrl: X('url'), mailto: X('mail') },
     expected: [P('heading'), P('description')],
+  },
+  // Feature 169 (T096): field labels, placeholders and the select's options, both consents
+  // (tiptap), the button's label, the messages and the form's name are prose; the switches,
+  // spans, looks and the button's style are not.
+  'cms.ContactForm': {
+    props: {
+      ...box,
+      fields: {
+        name: { show: true, label: P('name.label'), placeholder: P('name.placeholder'), required: true, span: X('span') },
+        email: { show: true, label: P('email.label'), placeholder: P('email.placeholder'), required: true, span: X('span') },
+        phone: { show: true, label: P('phone.label'), placeholder: P('phone.placeholder'), required: true, span: X('span') },
+        company: { show: true, label: P('company.label'), placeholder: P('company.placeholder'), required: true, span: X('span') },
+        subject: { show: true, label: P('subject.label'), placeholder: P('subject.placeholder'), required: true, span: X('span') },
+        choice: { show: true, label: P('choice.label'), placeholder: P('choice.placeholder'), required: true, span: X('span'), options: [{ label: P("option") }] },
+        message: { show: true, label: P('message.label'), placeholder: P('message.placeholder'), required: true, span: X('span') },
+      },
+      privacyConsent: { label: tiptap(P('privacy')) },
+      marketingConsent: { show: true, label: tiptap(P('marketing')) },
+      columns: 2,
+      fieldLook: X('look'),
+      labelPosition: X('labels'),
+      button: { label: P('button'), style: X('style'), icon: X('icon') },
+      buttonAlign: X('align'),
+      messages: { success: P('success'), error: P('error'), unavailable: P('unavailable') },
+      formLabel: P('form'),
+    },
+    expected: [
+      P('name.label'), P('name.placeholder'), P('email.label'), P('email.placeholder'), P('phone.label'), P('phone.placeholder'), P('company.label'), P('company.placeholder'), P('subject.label'), P('subject.placeholder'), P('choice.label'), P('choice.placeholder'), P('message.label'), P('message.placeholder'),
+      P('option'),
+      P('privacy'),
+      P('marketing'),
+      P('button'),
+      P('success'),
+      P('error'),
+      P('unavailable'),
+      P('form'),
+    ],
   },
   'cms.RawHtml': { props: { ...box, html: X('html') }, expected: [] },
   'cms.RawJs': { props: { ...box, script: X('script') }, expected: [] },

@@ -63,6 +63,9 @@ export class RecordingMailer implements Mailer {
 /**
  * What the row keeps about the message itself.
  *
+ * Feature 169: `replyTo` is passed to the transport untouched and deliberately not kept here —
+ * it is a shopper's address on a contact-form message, and the record holds nothing they typed.
+ *
  * `kind` falls back to `meta.kind` because that convention predates this record
  * — ten in-code builders already write it — so the fallback covers them without
  * ten edits, and `unspecified` is reserved for a sender that names itself

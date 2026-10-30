@@ -320,7 +320,8 @@ describe('cms.Accordion look (T175)', () => {
     const fields = accordion.fields as FieldMap;
     expect(fields['icon']?.options?.map((option) => option.value)).toEqual(['plus', 'chevron']);
     expect(fields['dividers']?.options?.map((option) => option.value)).toEqual(['none', 'between', 'all']);
-    expect(fields['itemStyle']?.options?.map((option) => option.value)).toEqual(['plain', 'boxed']);
+    // Feature 169 (T009): a third item style, `filled`, joins plain and boxed.
+    expect(fields['itemStyle']?.options?.map((option) => option.value)).toEqual(['plain', 'boxed', 'filled']);
     expect(fields['titlePadding']?.options?.map((option) => option.value)).toContain('custom');
     expect(fields['titlePadding']?.metadata).toBeDefined();
     for (const key of ['icon', 'dividers', 'itemStyle', 'titlePadding', 'titlePaddingPx']) expect(defaults[key], key).toBeUndefined();
@@ -641,5 +642,65 @@ describe('cms.Accordion title weight per breakpoint, panel bottom space and open
     expect(unset).not.toContain('openItemGapPx');
     expect(Object.keys(await resolveWith({ panelPaddingBottom: { desktop: 'custom' } }))).toContain('panelPaddingBottomPx');
     expect(Object.keys(await resolveWith({ openItemGap: 'custom' }))).toContain('openItemGapPx');
+  });
+});
+
+describe('cms.Accordion filled item style (feature 169, T009, T010)', () => {
+  type FieldMap = Record<string, { type?: string; options?: Array<{ value: unknown; label?: string }> }>;
+  const SHEET = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../styles/cms-components.css'), 'utf8').replace(/\s+/g, ' ');
+  const rootOf = (host: HTMLElement): HTMLElement => host.querySelector<HTMLElement>('.cmsc-pb-accordion')!;
+  const accordion = config.components['cms.Accordion']!;
+  const fields = accordion.fields as FieldMap;
+  const resolveWith = async (props: Record<string, unknown>) =>
+    (await accordion.resolveFields!(
+      { props: { ...defaults, id: 'acc', ...props } } as never,
+      { parent: null, fields, lastFields: fields, changed: {}, lastData: null, metadata: {}, appState: {} } as never,
+    )) as FieldMap;
+
+  it('filled: the root class, and no dividers class even with dividers stored', () => {
+    const root = rootOf(serverDom(accordionNode('acc-filled', { itemStyle: 'filled', dividers: 'all', dividerPosition: 'title' })));
+    expect(root.classList).toContain('cmsc-pb-accordion--filled');
+    expect(root.className).not.toContain('dividers');
+    expect(root.className).not.toContain('divider-title');
+  });
+
+  it('unset, plain and boxed keep today’s markup', () => {
+    const root = rootOf(serverDom(accordionNode('acc-unset')));
+    expect(root.className).toBe('cmsc-pb-accordion cmsc-pb-accordion--default cmsc-pb-accordion--icon-end');
+    expect(rootOf(serverDom(accordionNode('acc-p', { itemStyle: 'plain' }))).className).toBe(
+      'cmsc-pb-accordion cmsc-pb-accordion--default cmsc-pb-accordion--icon-end cmsc-pb-accordion--plain',
+    );
+    expect(rootOf(serverDom(accordionNode('acc-b', { itemStyle: 'boxed' }))).className).toBe(
+      'cmsc-pb-accordion cmsc-pb-accordion--default cmsc-pb-accordion--icon-end cmsc-pb-accordion--boxed',
+    );
+  });
+
+  it('the field offers Filled; the dividers and their position are hidden for it, the field objects stay the cached ones', async () => {
+    expect(fields['itemStyle']?.options?.find((option) => option.value === 'filled')?.label).toBe('Filled');
+    const shown = await resolveWith({ itemStyle: 'filled' });
+    expect(Object.keys(shown)).not.toContain('dividers');
+    expect(Object.keys(shown)).not.toContain('dividerPosition');
+    expect(shown['itemStyle']).toBe(fields['itemStyle']);
+    expect(Object.keys(await resolveWith({ itemStyle: 'plain' }))).toContain('dividers');
+  });
+
+  it('a filled item gap keeps 8 px where a tier is unset, as boxed', () => {
+    const filled = rootOf(serverDom(accordionNode('acc-fg', { itemStyle: 'filled', itemGap: { desktop: 'custom' }, itemGapPx: { desktop: 16 } })));
+    expect(filled.getAttribute('style')).toContain('--cmsc-acc-item-gap:8px;--cmsc-acc-item-gap-md:8px;--cmsc-acc-item-gap-lg:16px');
+  });
+
+  it('the stylesheet fills the title bar with the scheme’s surface tint, today’s neutral outside a scheme', () => {
+    const trigger =
+      /\.cmsc-pb-accordion--filled > \.cmsc-pb-accordion__item > \.cmsc-pb-accordion__trigger, \.cmsc-pb-accordion--filled > \.cmsc-pb-accordion__item > \.cmsc-pb-accordion__heading > \.cmsc-pb-accordion__trigger \{([^}]*)\}/.exec(
+        SHEET,
+      )?.[1] ?? '';
+    expect(trigger).toContain('background: var(--cmsc-surface-tint, var(--cmsb-n-100, #f1f5f9));');
+    expect(trigger).toContain('border-radius: 8px;');
+    expect(trigger).toContain('padding-left: 16px;');
+    const item = /\.cmsc-pb-accordion--filled > \.cmsc-pb-accordion__item \{([^}]*)\}/.exec(SHEET)?.[1] ?? '';
+    expect(item).toContain('border: none;');
+    expect(item).toContain('margin-bottom: 8px;');
+    // After the boxed rules it sits beside.
+    expect(SHEET.indexOf('.cmsc-pb-accordion--filled > .cmsc-pb-accordion__item {')).toBeGreaterThan(SHEET.indexOf('.cmsc-pb-accordion--boxed > .cmsc-pb-accordion__item {'));
   });
 });

@@ -107,6 +107,12 @@ obecny:
 | `newsletter.Signup` | `newsletter` | **Nowy.** Zapisuje przez moduł newslettera, z opcjonalnymi tematami i wymaganym polem zgody; działa bez JavaScriptu. |
 | `catalog.ProductGrid`, `catalog.ProductSlider` | `catalog` | **Przebudowane.** Nagłówek, wariant karty (w tym karta `showcase` z krótkim opisem), etykieta linku „więcej” i przycisk pod produktami; slider przejmuje opcje karuzeli. |
 
+**Pusta lista niczego nie pokazuje.** Siatka produktów, slider produktów, siatka
+kategorii, lista kategorii albo blok najnowszych wpisów, który nie ma nic do pokazania
+(żadnego produktu w kategorii, jeszcze żadnego wpisu), nie zostawia w storefroncie
+śladu: ani pola, ani nagłówka, ani zdania. W edytorze podgląd nadal mówi, dlaczego
+jest pusty.
+
 ### Treść zapisana przed zmianą kształtu bloku
 
 Przebudowany blok zachowuje wszystkie swoje opcje: test zgodności opcji
@@ -708,7 +714,10 @@ włączone). **Obraz po najechaniu** to domyślny **Delikatny odcień** albo **C
 obraz z ciemnym gradientem**, na którym tekst staje się biały. **Wygląd
 odnośnika** to domyślna **Etykieta tekstowa** albo 48-pikselowy **Okrągły
 przycisk z ikoną** w prawym dolnym rogu, obramowany kolorem tekstu; etykietę
-nadal odczytują czytniki ekranu. Cały kafelek pozostaje jednym odnośnikiem do
+nadal odczytują czytniki ekranu. Przy okrągłym przycisku **Rozmiar przycisku z
+ikoną** to **Mały** (48 px, jak dotąd), **Średni** (72 px) albo **Duży** (112 px),
+a **Styl przycisku z ikoną** to **Kontur** (obwódka, jak dotąd) albo
+**Wypełniony**: koło w kolorze tekstu z ikoną w kolorze tła karty. Cały kafelek pozostaje jednym odnośnikiem do
 pobrania, a kafelki w jednym rzędzie karuzeli mają równą wysokość.
 
 **Obraz karuzeli**: **Etykieta „Więcej”** (np. „Czytaj więcej”) pokazywana na
@@ -959,9 +968,12 @@ wpisów):
   mediami i tekstem (bez wyboru zaczyna się ono przy lewej krawędzi tekstu).
 - **Zostaw strzałki, gdy mieszczą się wszystkie slajdy** (w **Sterowaniu**):
   gdy wszystkie slajdy są już na ekranie, strzałki zostają, obie nieaktywne, a
-  kropki są ukryte; wyłączone — sterowanie znika jak dotąd. Nieaktywna
-  strzałka przyjmuje **Wygląd nieaktywnej strzałki**, dostępny w tym przypadku
-  również w zapętlonej karuzeli.
+  kropki są ukryte; wyłączone — sterowanie znika jak dotąd. Zostawione
+  strzałki nie są przygaszone: leżą na tle schematu kolorów, z jego obramowaniem
+  i stonowanym kolorem tekstu, więc pozostają czytelne w jasnej, stonowanej i
+  ciemnej sekcji oraz na slajdzie. Wybrany **Wygląd nieaktywnej strzałki** —
+  **Jasny obrys** albo **Kolor** — ma pierwszeństwo i jest dostępny w tym
+  przypadku również w zapętlonej karuzeli.
 
 **Media i tekst**: **Rozmiar tekstu** dla tekstu każdego wiersza, *dla
 każdego progu*, z **Wysokością linii tekstu** przy rozmiarze własnym; **Odstęp
@@ -1180,9 +1192,12 @@ komputerze. Próg bez własnej wartości przyjmuje wartość progu niższego.
   podsumowaniem oznacza taki fragment.
 - **Wygląd akordeonu.** Blok **Akordeon** ma opcję **Ikona** — **Plus i minus** (domyślnie)
   albo **Strzałka (szewron)**, która obraca się po otwarciu elementu i stoi na końcu wiersza
-  tytułu —, **Elementy** — **Zwykłe** albo **W ramkach** (każdy element w obramowanym polu, z
+  tytułu —, **Elementy** — **Zwykłe**, **W ramkach** (każdy element w obramowanym polu, z
   tytułem i panelem odsuniętymi od krawędzi; bez ustawienia decyduje, jak dotąd, **Styl**:
-  *Z obramowaniem* oznacza ramki) —, **Linie podziału** dla zwykłych elementów — **Brak**,
+  *Z obramowaniem* oznacza ramki) albo **Wypełnione** (każdy tytuł na delikatnie
+  zabarwionym pasku wziętym ze schematu kolorów — lekko ciemnym w jasnych schematach,
+  lekko jasnym w ciemnym — z panelem odsuniętym pod nim, elementami co 8 px i bez linii
+  podziału) —, **Linie podziału** dla zwykłych elementów — **Brak**,
   **Między elementami** albo **Nad, między i pod elementami** (bez ustawienia **Styl** rysuje
   swoją zwykłą linię pod każdym elementem) — oraz **Odstęp nad i pod tytułem** na karcie
   **Responsive**: rozmiar odstępu albo wartość **Własny (px)** dla każdego progu (12 px bez
@@ -1200,7 +1215,7 @@ komputerze. Próg bez własnej wartości przyjmuje wartość progu niższego.
   pod tytułem) a otwartym panelem, a **Odstęp między elementami** — odstęp od jednego elementu
   do następnego; każdy to rozmiar odstępu albo wartość **Własny (px)** dla każdego progu. Próg
   bez ustawienia zachowuje zwykłe odstępy: brak odstępu nad panelem (12 px pod linią tytułu),
-  brak odstępu między zwykłymi elementami, 8 px między elementami w ramkach. **Odstęp pod
+  brak odstępu między zwykłymi elementami, 8 px między elementami w ramkach lub wypełnionymi. **Odstęp pod
   rozwiniętym panelem** ustawia odstęp pod treścią otwartego panelu (bez ustawienia 12 px), a
   **Odstęp po rozwiniętym elemencie** — odstęp od otwartego elementu do następnego tytułu,
   używany zamiast **Odstępu między elementami**, dopóki element jest otwarty (próg bez

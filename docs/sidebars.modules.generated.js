@@ -154,6 +154,8 @@ const modules = [
     items: [
       'modules/cms/brand',
       'modules/cms/extending-page-builder',
+      'modules/cms/page-navigation',
+      'modules/cms/contact-form',
       'module-reference/cms',
     ],
   },

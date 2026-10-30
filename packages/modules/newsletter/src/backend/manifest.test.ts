@@ -46,3 +46,46 @@ describe('newsletter manifest — engagement tracking switches', () => {
     expect(manifest.activation).toEqual({ settingCode: 'newsletter.enabled', default: true });
   });
 });
+
+/**
+ * `specs/169-page-builder-contact-form/` US7, data-model §4 (T184) — the
+ * prose `newsletter.Signup` gained with its subscriber attributes is
+ * translatable with the rest of the block: an attribute's label and
+ * placeholder, and the message for a required attribute left empty. The key,
+ * the type and the snapshotted field label are data, not prose.
+ */
+describe('newsletter.Signup translatable paths (T184)', () => {
+  const block = manifest.blocks?.find((entry) => entry.name === 'newsletter.Signup');
+  const paths = (block?.translatable ?? []).map((entry) => entry.path);
+
+  it('declares the attributes’ label and placeholder and the fields message', () => {
+    expect(paths).toEqual(expect.arrayContaining(['attributes[].label', 'attributes[].placeholder', 'messages.fields']));
+  });
+
+  it('keeps every path it declared before', () => {
+    expect(paths).toEqual(
+      expect.arrayContaining([
+        'heading',
+        'text',
+        'emailLabel',
+        'placeholder',
+        'buttonLabel',
+        'topicsLegend',
+        'topics[].label',
+        'consentLabel',
+        'messages.pending',
+        'messages.active',
+        'messages.consent',
+        'messages.email',
+        'messages.topics',
+        'messages.unavailable',
+      ]),
+    );
+  });
+
+  it('declares no data path as prose', () => {
+    for (const path of ['attributes[].key', 'attributes[].type', 'attributes[].fieldLabel', 'topics[].tagCode']) {
+      expect(paths).not.toContain(path);
+    }
+  });
+});

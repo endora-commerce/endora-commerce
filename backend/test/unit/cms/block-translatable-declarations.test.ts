@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { BlockDefinition } from '@endora-commerce/contracts';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
@@ -40,5 +41,34 @@ describe('CMS-context block translatable declarations', () => {
         .map((entry) => `${block.name}:${entry.path}`),
     );
     expect(offending).toEqual([]);
+  });
+});
+
+/**
+ * Feature 169, T056 — a block the shared renderer package registers is declared
+ * by a module's manifest. An undeclared bundled block is in no descriptor, so
+ * the editor never offers it and nothing translates it; this makes that a test
+ * failure on the day a renderer lands without its declaration.
+ *
+ * The registrations are read off the package's source (`'<module>.<Name>':
+ * definePageBuilderComponent(`), not imported: the renderers are React and
+ * Puck, which this suite does not load.
+ */
+describe('every block the shared renderers register is declared', () => {
+  const source = readFileSync(
+    new URL('../../../../packages/cms-components/src/index.ts', `file://${import.meta.dirname}/`),
+    'utf8',
+  );
+  const bundled = [...source.matchAll(/^\s+'([a-z_]+\.[A-Za-z]+)': definePageBuilderComponent\(/gm)].map((match) => match[1]!);
+  const declared = new Set(
+    REGISTERED_MANIFESTS.flatMap((entry) => ((entry.manifest.blocks ?? []) as BlockDefinition[]).map((block) => block.name)),
+  );
+
+  it('reads a population', () => {
+    expect(bundled.length).toBeGreaterThan(30);
+  });
+
+  it('declares each one', () => {
+    expect(bundled.filter((name) => !declared.has(name))).toEqual([]);
   });
 });

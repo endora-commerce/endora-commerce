@@ -21,6 +21,8 @@ export class SmtpMailer implements Mailer {
     await this.transport.sendMail({
       from: process.env['SMTP_FROM'] ?? process.env['MAIL_FROM'] ?? 'noreply@localhost',
       to: input.to,
+      // Feature 169 — the contact form's submitter, so a reply reaches them.
+      ...(input.replyTo ? { replyTo: input.replyTo } : {}),
       subject: input.subject,
       text: input.text,
       // Send a multipart alternative when an HTML body is provided (feature 047).

@@ -2426,5 +2426,14 @@
   "pageBuilder.assetPicker.selectVideo": "Wybierz wideo",
   "pageBuilder.assetPicker.selectFile": "Wybierz plik",
   "pageBuilder.blogCategory.all": "Wszystkie kategorie",
-  "pageBuilder.blogCategory.slugPlaceholder": "Slug kategorii"
+  "pageBuilder.blogCategory.slugPlaceholder": "Slug kategorii",
+  "pageBuilder.newsletterTag.choose": "Wybierz tag",
+  "pageBuilder.newsletterTag.codePlaceholder": "Kod tagu",
+  "pageBuilder.newsletterField.choose": "Wybierz pole niestandardowe",
+  "pageBuilder.newsletterField.keyPlaceholder": "Klucz pola niestandardowego",
+  "pageBuilder.newsletterField.type": "Typ",
+  "pageBuilder.newsletterField.types.text": "Tekst",
+  "pageBuilder.newsletterField.types.number": "Liczba",
+  "pageBuilder.newsletterField.types.boolean": "Tak / nie",
+  "pageBuilder.newsletterField.types.date": "Data"
 }

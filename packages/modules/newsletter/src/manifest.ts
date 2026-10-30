@@ -199,6 +199,10 @@ export const manifest = defineModuleManifest({
         { path: 'messages.email' },
         { path: 'messages.topics' },
         { path: 'messages.unavailable' },
+        // Feature 169 (US7): the subscriber attributes' prose and the message for a required one left empty.
+        { path: 'attributes[].label' },
+        { path: 'attributes[].placeholder' },
+        { path: 'messages.fields' },
       ],
       labelKey: 'blocks.signup.label',
       descriptionKey: 'blocks.signup.description',
