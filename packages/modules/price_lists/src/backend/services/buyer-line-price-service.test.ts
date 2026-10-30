@@ -81,9 +81,11 @@ function harness(options: {
         return out;
       },
     },
-    catalogProductRead: { findByIds },
-    customerAccountRead: { findById: findCustomer },
-    organizationDetails: { findById: findOrganization },
+    // Partial records: the service reads the ids, the attribute values, the
+    // organisation and the customer group off them, and nothing else.
+    catalogProductRead: { findByIds } as unknown as BuyerLinePriceServiceDeps['catalogProductRead'],
+    customerAccountRead: { findById: findCustomer } as unknown as BuyerLinePriceServiceDeps['customerAccountRead'],
+    organizationDetails: { findById: findOrganization } as unknown as BuyerLinePriceServiceDeps['organizationDetails'],
     salesChannels: { findById: findChannel, findSystemDefault: findDefaultChannel },
   };
   return {

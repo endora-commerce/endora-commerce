@@ -38,13 +38,10 @@ describe('CatalogOrgPriceDecorator — display mode `none` withholds the amount 
       pricingService: {
         resolveLinePrice: async () => null,
         listTierStarts: async () => [10],
-        resolveLinePrices: async ({ lines }) =>
+        resolveLinePrices: async ({ lines }: { lines: readonly { key: string; product: { id: string } }[] }) =>
           new Map(lines.map((l) => [l.key, line(l.product.id)] as const)),
       } as never,
       organizations: { findById: async (id: string) => ({ id, customerGroupId: null }) } as never,
-      channelMembership: {
-        filterEntityIdsInChannel: async (_channel: string, _type: string, ids: readonly string[]) => [...ids],
-      } as never,
       // Feature 163 (W5) — every product is available here: this suite is about display modes.
       availability: { filterAvailable: async (ids: readonly string[]) => new Set(ids) } as never,
     });
@@ -78,7 +75,7 @@ describe('CatalogOrgPriceDecorator — display mode `none` withholds the amount 
         { sku: 'QUOTE-1', quantity: 5 },
         { sku: 'PRICED-1', quantity: 5 },
       ],
-      { organizationId: 'org', salesChannel: CHANNEL },
+      { organizationId: 'org', salesChannel: CHANNEL, audience: { organizationId: 'org', authenticated: true } },
     );
     expect(out[0]).toEqual({ sku: 'QUOTE-1', quantity: 5, price: null, reason: 'price_unavailable' });
     expect(out[1]).toMatchObject({ sku: 'PRICED-1', price: { amount: '50.0000', currency: 'PLN' } });

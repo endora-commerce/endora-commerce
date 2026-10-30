@@ -6,13 +6,15 @@
  * individual self-registration is.
  */
 import { describe, expect, it, vi } from 'vitest';
-import type { SalesChannelAccessPort } from '@endora-commerce/platform/kernel';
+import type { SalesChannelAccessPort, SalesChannelResolutionPort } from '@endora-commerce/platform/kernel';
 import { createCustomerChannelAccess } from './customer-channel-access.js';
 
 type Decision = Awaited<ReturnType<SalesChannelAccessPort['decide']>>;
+/** The channel as the resolution port answers it; the rule reads `anonymousAccess` alone. */
+type Channel = NonNullable<Awaited<ReturnType<SalesChannelResolutionPort['getById']>>>;
 
-const OPEN = { id: 'ch-open', code: 'open', anonymousAccess: true };
-const CLOSED = { id: 'ch-closed', code: 'closed', anonymousAccess: false };
+const OPEN = { id: 'ch-open', code: 'open', anonymousAccess: true } as Channel;
+const CLOSED = { id: 'ch-closed', code: 'closed', anonymousAccess: false } as Channel;
 
 function build() {
   const decide = vi.fn(

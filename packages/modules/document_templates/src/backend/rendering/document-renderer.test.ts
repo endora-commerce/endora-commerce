@@ -19,7 +19,10 @@ import { DocumentRenderer } from './document-renderer.js';
  */
 
 const A = '00000000-0000-4000-8000-00000000000a';
-const tree = (content: unknown[], rootProps: Record<string, unknown> = {}) => ({ root: { props: rootProps }, content });
+const tree = (content: { type: string; props: Record<string, unknown> }[], rootProps: Record<string, unknown> = {}) => ({
+  root: { props: rootProps },
+  content,
+});
 const node = (type: string, props: Record<string, unknown> = {}) => ({ type, props });
 
 interface Data {

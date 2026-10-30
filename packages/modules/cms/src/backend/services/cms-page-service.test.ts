@@ -93,6 +93,7 @@ describe('CmsPageService — every write is a Command', () => {
     const page = await h.service.create({
       name: 'About us',
       slug: 'about-us',
+      active: true,
       salesChannelIds: [CHANNEL_ID],
       languages: ['en-US'],
     });

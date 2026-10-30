@@ -16,7 +16,7 @@ import type { SearchIndexer } from './search-indexer.js';
  * `backend/test/integration/search/created-product-indexed.test.ts`.
  */
 
-function harness(upsert: () => Promise<string[]> = async () => ['default']) {
+function harness(upsert: (...args: unknown[]) => Promise<string[]> = async () => ['default']) {
   const upsertProduct = vi.fn(upsert);
   const onError = vi.fn();
   const subscriber = new SearchEventSubscriber({

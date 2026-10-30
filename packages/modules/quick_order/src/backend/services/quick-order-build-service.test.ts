@@ -15,7 +15,7 @@ import { QuickOrderBuildService, type QuickOrderBuildLineInput } from './quick-o
  * target only, and refuses an oversized request before any port call.
  */
 
-const BUYER = { customerAccountId: 'cust-1', organizationId: 'org-1' };
+const BUYER = { customerAccountId: 'cust-1', organizationId: 'org-1', salesChannelId: 'channel-1' };
 const A = '00000000-0000-4000-8000-0000000000a1';
 const D = '00000000-0000-4000-8000-0000000000d1';
 const RED = '00000000-0000-4000-8000-0000000000e1';
@@ -137,8 +137,10 @@ describe('QuickOrderBuildService — target quote_request', () => {
     await service.build(BUYER, { target: 'quote_request', items: ITEMS }, { actor: 'operator' });
     expect(addItems).not.toHaveBeenCalled();
     expect(createForCustomer).toHaveBeenCalledTimes(1);
+    // The RFQ context carries the buyer's identity, not the build's channel.
+    const { salesChannelId: _channel, ...identity } = BUYER;
     expect(createForCustomer).toHaveBeenCalledWith(
-      { ...BUYER, isOrgAdmin: false },
+      { ...identity, isOrgAdmin: false },
       {
         items: [
           { productId: A, variantId: RED, quantity: 5 },

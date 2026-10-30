@@ -94,11 +94,11 @@ describe('AdapterRegistry', () => {
     // Behaviour rather than identity: the resolver is built per call now,
     // because D-223 gave it the deployment's origin to rebase onto. A legacy
     // row whose `storage_url` is a full URL is still served verbatim.
-    expect(a.resolveUrl({ locator: '/uploads/legacy.png', visibility: 'public' }).url).toBe(
+    expect((await a.resolveUrl({ locator: '/uploads/legacy.png', visibility: 'public' })).url).toBe(
       `${API_ORIGIN}/uploads/legacy.png`,
     );
     expect(
-      a.resolveUrl({ locator: 'https://old.example.test/legacy.png', visibility: 'public' }).url,
+      (await a.resolveUrl({ locator: 'https://old.example.test/legacy.png', visibility: 'public' })).url,
     ).toBe('https://old.example.test/legacy.png');
   });
 

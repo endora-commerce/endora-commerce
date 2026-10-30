@@ -167,6 +167,7 @@ describe('search — the catalog and organizations reads go through ports', () =
       // `upsertProduct` returns before it asks anyone else anything.
       categories: notReached('catalogCategoryReadPort'),
       channelMembership: notReached('salesChannelMembershipPort'),
+      availability: notReached('catalogProductAvailabilityPort'),
     });
     // The port answers "no such product", so the method returns before it
     // reaches Meilisearch — which is exactly the reach this case needs, since

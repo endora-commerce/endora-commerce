@@ -96,6 +96,9 @@ describe('admin_actions — the cross-module demand is two ports and a registry 
     // class, which also assigns and revokes roles.
     const permissions: PermissionReadPort = {
       listPermissions: async () => ['catalog:read'],
+      resolveRole: async () => {
+        throw new Error('admin_actions reads permissions, never a role');
+      },
     };
 
     const service = new AdminActionsService({
@@ -143,6 +146,9 @@ describe('admin_actions — the cross-module demand is two ports and a registry 
     };
     const permissions: PermissionReadPort = {
       listPermissions: async () => ['*'],
+      resolveRole: async () => {
+        throw new Error('admin_actions reads permissions, never a role');
+      },
     };
 
     const service = new AdminActionsService({
@@ -211,7 +217,12 @@ describe('admin_actions — the cross-module demand is two ports and a registry 
       emFactory: em,
       registry,
       i18nService: { translate: async (m, k) => `${m}/${k}` },
-      permissionService: { listPermissions: async () => [] },
+      permissionService: {
+        listPermissions: async () => [],
+        resolveRole: async () => {
+          throw new Error('admin_actions reads permissions, never a role');
+        },
+      },
       requireAdmin: () => async () => undefined,
       resolveAdminContext: () => ({ adminUserId: 'admin-1' }),
       presence: { isPlatformAvailable: () => true, isActivated: () => true, version: () => 0 },

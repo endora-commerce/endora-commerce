@@ -1,0 +1,15 @@
+{
+  // Emit configuration for this package's UI layer, and nothing but the one
+  // thing that separates an emit from the type-check: test files are excluded.
+  // A compiled `*.test.js` under `dist` imports `vitest`, a devDependency, so it
+  // would be an unresolvable specifier in every consumer's install.
+  //
+  // Every compiler option — `jsx`, the `DOM` lib, `rootDir`, `paths` — is
+  // `tsconfig.ui.json`'s and is inherited, never restated: two declarations of
+  // that pair would be two answers waiting to disagree. `tsconfig.ui.json`
+  // keeps the tests in its program because it is also the UI layer's
+  // type-check, and a test it excluded would be read by no `tsc` invocation
+  // (issue #81).
+  "extends": "./tsconfig.ui.json",
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/**/*.spec.ts", "src/**/*.spec.tsx"]
+}

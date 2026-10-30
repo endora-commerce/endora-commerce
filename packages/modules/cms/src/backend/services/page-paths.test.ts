@@ -208,6 +208,7 @@ describe('pageStorefrontLinks', () => {
   const named = (id: string, name: string, translations: Record<string, { name?: string; slug?: string }> = {}) => ({
     id,
     name,
+    slug: id,
     description: null,
     languages: ['pl-PL', 'en-US'],
     translations,

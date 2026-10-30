@@ -26,7 +26,7 @@ async function appWith(actor: Actor, calls: IngestInput[]): Promise<FastifyInsta
   const instance = Fastify();
   instance.setValidatorCompiler(validatorCompiler);
   await instance.register(rateLimit, { global: false });
-  instance.decorateRequest('actor', null as unknown as Actor);
+  instance.decorateRequest('actor', null as never);
   instance.addHook('onRequest', async (request) => {
     request.actor = actor;
   });

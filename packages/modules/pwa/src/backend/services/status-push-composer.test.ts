@@ -7,12 +7,15 @@ import {
   type PushPreferences,
   type QuoteRequestRecord,
 } from '@endora-commerce/contracts';
-import type { CachedChannel } from '@endora-commerce/platform/kernel';
+import type { SalesChannelResolutionPort } from '@endora-commerce/platform/kernel';
 import type { CreateMessageInput } from './push-message-service.js';
 import {
   createStatusPushComposer,
   type StatusPushComposerDeps,
 } from './status-push-composer.js';
+
+/** The channel as the kernel's resolution port answers it (the cache's own type is not published). */
+type CachedChannel = NonNullable<Awaited<ReturnType<SalesChannelResolutionPort['getById']>>>;
 
 /**
  * `specs/149-pwa-order-status-push/` T010 / T028 — the status push composer
@@ -31,6 +34,7 @@ function channel(overrides: Partial<CachedChannel>): CachedChannel {
     name: { en: 'Default' },
     active: true,
     anonymousAccess: true,
+    prefixDefaultLanguage: false,
     systemDefault: true,
     defaultLanguage: 'en-US',
     defaultCurrency: 'PLN',
@@ -193,7 +197,8 @@ describe('status push composer — order status', () => {
   });
 
   it('skips a guest order and an order nobody can read', async () => {
-    const guest = harness({ order: order({ placedByCustomerAccountId: null }) });
+    // `OrderRecord` has no guest order; the composer guards against one anyway.
+    const guest = harness({ order: order({ placedByCustomerAccountId: null as unknown as string }) });
     expect(await createStatusPushComposer(guest.deps).order(ORDER_EVENT)).toBe('skipped:no_subject');
     const missing = harness({ order: null });
     expect(await createStatusPushComposer(missing.deps).order(ORDER_EVENT)).toBe(

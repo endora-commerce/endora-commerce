@@ -23,6 +23,9 @@ const color = {
   options: [{ value: 'red' }, { value: 'blue' }],
 } as unknown as CatalogAttributeView;
 
+/** Mutable here so one case can add attributes and take them back out. */
+const attributes = new Map<string, CatalogAttributeView | null>([['color', color]]);
+
 const lookups: BatchLookups = {
   productsById: new Map([
     [P1, { id: P1, sku: 'SKU-1' }],
@@ -36,7 +39,7 @@ const lookups: BatchLookups = {
   variantsBySku: new Map([['VAR-1', { id: V1, parentProductId: P1, sku: 'VAR-1' }]]),
   categoriesById: new Map([[C1, { id: C1 }]]),
   categoriesByPath: new Map([['tools/screws', C1]]),
-  attributes: new Map([['color', color]]),
+  attributes,
 };
 
 const stored = (id: string, productId: string, min: number, max: number | null, amount: string): StoredRow => ({
@@ -293,8 +296,8 @@ describe('price-book batch planning — a reason code per rule (161)', () => {
   it('tells the attribute refusal’s cases apart', () => {
     const notSelectable = { ...color, key: 'size', isPriceRule: false } as unknown as CatalogAttributeView;
     const yesNo = { ...color, key: 'eco', valueType: 'boolean', options: [] } as unknown as CatalogAttributeView;
-    lookups.attributes.set('size', notSelectable);
-    lookups.attributes.set('eco', yesNo);
+    attributes.set('size', notSelectable);
+    attributes.set('eco', yesNo);
     try {
       expect(
         reasonsOf([
@@ -310,8 +313,8 @@ describe('price-book batch planning — a reason code per rule (161)', () => {
         [3, 'PRICE_BOOK_ROW_TARGET', 'attribute_not_selectable'],
       ]);
     } finally {
-      lookups.attributes.delete('size');
-      lookups.attributes.delete('eco');
+      attributes.delete('size');
+      attributes.delete('eco');
     }
   });
 
