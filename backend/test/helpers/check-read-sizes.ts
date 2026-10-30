@@ -10906,7 +10906,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T069 (`comarch_xl` leaves), after merging `origin/master` at !1841: sites 125 -> 124.** The record was resolved wholly to `master` and re-measured on a pristine detached worktree of the merge commit `8c875cb4a`, after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the tree is this branch's E5 and `comarch_xl`'s departure (package, 34 host test files and their support file, three Polish pages, E1 baseline) over `master`. Not computed from a delta.
     // **T069 (`ksef` and `infakt` leave): 124 -> 119.** Agrees on `origin/master` (d6808271f, after `comarch_xl` left) and moves with the branch: E5, the two packages, their host tests, their Polish pages, the E9 drain and T140/T142; measured on the pristine pair.
     // **Issue #100 (`port-catches` reads a deps key as a property, not a binding): sites 163 -> 215.** Measured on a fresh detached worktree of the commit; the narrative is in the commit message.
-    sites: 215,
+    // **Issue #100 ruling (the `projects` pin, `PORT_CATCH_PINS`): sites 215 -> 216.** The pinned `.catch` rejoins the population; re-measured on a fresh detached worktree of the commit.
+    sites: 216,
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 2138 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
