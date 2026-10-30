@@ -431,11 +431,9 @@ export const UNTRANSLATED_ERROR_CODES: ReadonlySet<string> = new Set([
   'PROMPT_PLAN_EXPIRED', 'PROMPT_REQUEST_INVALID_STATE', 'PROMPT_REQUEST_IN_FLIGHT',
   // settings (1)
   'SETTING_SECRET_KEY_MISSING',
-  // transactional_emails (1) — MR 3. Draining this one is not a plain sentence:
-  // every raise carries a `details.code`, so the envelope looks up
-  // `errors.TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE.<email code>` and a base key
-  // would never render. See the code's own note in that module's manifest.
-  'TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE',
+  // transactional_emails — `TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE` left this
+  // list with issue #569: its raise carries the e-mail as `details.emailCode`
+  // rather than as a token, so the base sentence written then is the one read.
 ]);
 
 /**
@@ -500,7 +498,8 @@ export const UNRAISED_ERROR_CODES: ReadonlySet<string> = new Set([
 /**
  * Codes raised with a computed `details.code` whose token set **cannot** be
  * declared (P6's `token-undeclared`, issue #83), measured when the predicate
- * landed: three codes. Two-way like the ledgers above — a new such code fails,
+ * landed: three codes, all three since repaired at their raises (issue
+ * #569). Two-way like the ledgers above — a new such code fails,
  * and an entry whose raise has since been given a declarable token set fails
  * too — and it may only shrink.
  *
@@ -513,19 +512,12 @@ export const UNRAISED_ERROR_CODES: ReadonlySet<string> = new Set([
  * not in the manifest, which is why each entry is ledgered here instead of
  * declared.
  */
-export const UNDECLARABLE_TOKEN_ERROR_CODES: ReadonlySet<string> = new Set([
-  // _i18n (1) — `orders`' minimum-order-value validator passes the setting's
-  // code, `orders.min_order_value`, as `details.code`. The set is one value,
-  // but a dotted value is outside the token grammar, so no declaration can
-  // name it and no `errors.AMOUNT_PRECISION_EXCEEDED.<token>` key can hold it.
-  'AMOUNT_PRECISION_EXCEEDED',
-  // tasks (1) — `priorityUnknown(code)` passes the priority code the caller
-  // sent (`{ code }`): an operator-configured, open set.
-  'TASK_PRIORITY_UNKNOWN',
-  // transactional_emails (1) — the raise passes the email's registry code,
-  // an open set every module that registers an email extends; the module's
-  // manifest note on the code says so in full.
-  'TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE',
+export const UNDECLARABLE_TOKEN_ERROR_CODES: ReadonlySet<string> = new Set<string>([
+  // Empty since issue #569. The three entries it landed with —
+  // `AMOUNT_PRECISION_EXCEEDED` (`orders`' minimum-order-value validator),
+  // `TASK_PRIORITY_UNKNOWN` and `TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE` — were
+  // repaired at their raises, which now carry the value as `details.setting`,
+  // `details.priorityCode` and `details.emailCode` and no `details.code`.
 ]);
 
 export interface Finding {
