@@ -3,13 +3,18 @@ import {
   analyseErrorTranslations,
   declaringBundleDirectories,
   findPlaceholderSentences,
+  findUnraisedCodes,
   findUnreachableSentences,
   findUntranslatedErrorCodes,
+  findUntranslatedTokens,
   nonDeclaringModules,
+  readRaiseSites,
   reconcileEnumeration,
   treeTranslationInput,
+  UNRAISED_ERROR_CODES,
   UNTRANSLATED_ERROR_CODES,
   type ErrorTranslationTarget,
+  type SourceFile,
   type TranslationInput,
 } from '../../../scripts/check-error-translations.js';
 import { ERROR_CODES } from '@endora-commerce/contracts';
@@ -37,6 +42,39 @@ function input(bundles: Record<string, Record<string, unknown>>): TranslationInp
   return fixture(KEYS, bundles);
 }
 
+/** A source file raising each code once, the way the platform does, with no token. */
+function raising(codes: readonly string[]): SourceFile {
+  return {
+    path: 'fixture/raises.ts',
+    text: codes
+      .map((code) => `throw new HttpError(400, ERROR_CODES.${code}, 'Refused.');`)
+      .join('\n'),
+  };
+}
+
+/**
+ * The whole analysis over the real tree, once per file: it parses every source
+ * file the raise walk opens, and the tree cases below only read its result.
+ */
+let treeAnalysis: Promise<ReturnType<typeof analyseErrorTranslations>> | undefined;
+function analysedTree(): Promise<ReturnType<typeof analyseErrorTranslations>> {
+  treeAnalysis ??= treeTranslationInput().then((tree) => analyseErrorTranslations(tree));
+  return treeAnalysis;
+}
+
+/**
+ * The analysis over a fixture, with **both** ledgers empty unless a case passes
+ * one: a fixture never holds the real tree's codes, so the real ledgers would
+ * read wholly stale over it.
+ */
+function analyse(
+  tree: TranslationInput,
+  ledger: ReadonlySet<string> = new Set(),
+  unraisedLedger: ReadonlySet<string> = new Set(),
+): ReturnType<typeof analyseErrorTranslations> {
+  return analyseErrorTranslations(tree, ledger, unraisedLedger);
+}
+
 /**
  * A whole tree, as the predicates read it: a routing map, the codes the platform
  * enumerates, the contested codes, and every bundle on disk keyed
@@ -59,12 +97,23 @@ function input(bundles: Record<string, Record<string, unknown>>): TranslationInp
 function fixture(
   keys: Readonly<Record<string, ErrorTranslationTarget>>,
   bundles: Record<string, Record<string, unknown>>,
-  extra: Partial<Pick<TranslationInput, 'collisions' | 'enumeratedCodes'>> = {},
+  extra: Partial<Pick<TranslationInput, 'collisions' | 'enumeratedCodes' | 'declaredTokens'>> & {
+    readonly sources?: readonly SourceFile[];
+  } = {},
 ): TranslationInput {
+  const collisions = extra.collisions ?? [];
   return {
     keys,
-    collisions: extra.collisions ?? [],
+    collisions,
     enumeratedCodes: extra.enumeratedCodes ?? Object.keys(keys),
+    declaredTokens: extra.declaredTokens ?? {},
+    // Every declared code raised once, with no token, unless the case is about
+    // the raise sites — so a fixture that says nothing about P6 or P7 gets a
+    // tree where neither has anything to report.
+    listSources: () =>
+      extra.sources ?? [
+        raising([...Object.keys(keys), ...collisions.map((collision) => collision.code)]),
+      ],
     readBundle: (moduleId, language) => bundles[`${moduleId}.${language}`] ?? {},
     listBundleKeys: () =>
       Object.entries(bundles).flatMap(([slot, bundle]) => {
@@ -300,6 +349,68 @@ describe('findUnreachableSentences — a sentence written where nothing reads it
     expect(findings.map((f) => f.language).sort()).toEqual(['en', 'pl']);
   });
 
+  /**
+   * Issue #83, slice 1. A key under `errors.` that the grammar cannot parse was
+   * skipped by every predicate — `if (!match) continue;` — so a sentence filed
+   * under a mis-cased code was neither accepted nor reported. The envelope only
+   * ever composes `errors.<CODE>` or `errors.<CODE>.<token>`, so such a key is
+   * read by nothing it renders.
+   */
+  it('malformed-key — a mis-cased code is a finding, not a skipped line', () => {
+    const findings = findUnreachableSentences(
+      fixture(ROUTED_TO_A, {
+        'a.en': { 'errors.X_REFUSED': 'Refused.', 'errors.configMissing': 'Configuration is missing.' },
+      }),
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatchObject({
+      kind: 'malformed-key',
+      moduleId: 'a',
+      language: 'en',
+      key: 'errors.configMissing',
+      routedModuleId: null,
+    });
+  });
+
+  it('malformed-key — each shape the grammar refuses, in the language it is written in', () => {
+    const findings = findUnreachableSentences(
+      fixture(ROUTED_TO_A, {
+        'a.en': {
+          'errors.X_REFUSED': 'Refused.',
+          // a token that is not snake_case
+          'errors.X_REFUSED.tooLate': 'Too late.',
+          // a namespace nested under `errors.` that names no code
+          'errors.reason.too_late': 'Too late.',
+          // a code in the wrong case
+          'errors.x_refused': 'Refused.',
+          // nothing after the dot
+          'errors.': 'Refused.',
+        },
+        'a.pl': { 'errors.x_refused': 'Odmowa.' },
+      }),
+    );
+    expect(findings.map((f) => `${f.kind} ${f.language} ${f.key}`)).toEqual([
+      'malformed-key en errors.',
+      'malformed-key en errors.reason.too_late',
+      'malformed-key en errors.x_refused',
+      'malformed-key pl errors.x_refused',
+      'malformed-key en errors.X_REFUSED.tooLate',
+    ]);
+  });
+
+  it('exits 1 on a malformed key, and the summary counts it', () => {
+    const result = analyse(
+      fixture(ROUTED_TO_A, {
+        'a.en': { 'errors.X_REFUSED': 'Refused.', 'errors.configMissing': 'x' },
+        'a.pl': { 'errors.X_REFUSED': 'Odmowa.' },
+      }),
+      new Set(),
+    );
+    expect(result.sentences.map((f) => f.kind)).toEqual(['malformed-key']);
+    expect(result.exitCode).toBe(1);
+    expect(result.summary).toContain('malformedKey=1');
+  });
+
   it('ignores a bundle key that is not an error sentence', () => {
     expect(
       findUnreachableSentences(
@@ -320,13 +431,13 @@ describe('the three vacuity guards, which are independent', () => {
     // reads, so any one can come back empty while the others are full. A single
     // guard over one of them lets the others report a clean tree while looking
     // at nothing (issue #113).
-    const result = analyseErrorTranslations(fixture(KEYS_ONLY, {}), new Set(['X_REFUSED']));
+    const result = analyse(fixture(KEYS_ONLY, {}), new Set(['X_REFUSED']));
     expect(result.exitCode).toBe(2);
     expect(result.summary).toMatch(/vacuous/);
   });
 
   it('exits 2 when no manifest declares a code, even with bundles on disk', () => {
-    const result = analyseErrorTranslations(
+    const result = analyse(
       fixture({}, { 'a.en': { 'errors.X_REFUSED': 'Refused.' } }, { enumeratedCodes: ['X_REFUSED'] }),
       new Set(),
     );
@@ -338,7 +449,7 @@ describe('the three vacuity guards, which are independent', () => {
     // "Nobody declares anything" is the state the guard above exists for. A
     // platform whose every declaration collided has declarations, and reporting
     // it as an empty read would hide the collision behind a refusal.
-    const result = analyseErrorTranslations(
+    const result = analyse(
       fixture(
         {},
         { 'a.en': { 'errors.X_REFUSED': 'Refused.' }, 'a.pl': { 'errors.X_REFUSED': 'Odmowa.' } },
@@ -363,7 +474,7 @@ describe('the three vacuity guards, which are independent', () => {
   });
 
   it('exits 2 when ERROR_CODES enumerates nothing, so P3 compares against nothing', () => {
-    const result = analyseErrorTranslations(
+    const result = analyse(
       fixture(
         KEYS_ONLY,
         { 'a.en': { 'errors.X_REFUSED': 'Refused.' }, 'a.pl': { 'errors.X_REFUSED': 'Odmowa.' } },
@@ -376,7 +487,7 @@ describe('the three vacuity guards, which are independent', () => {
   });
 
   it('exits 1 on a P2 finding, which has no ledger to absorb it', () => {
-    const result = analyseErrorTranslations(
+    const result = analyse(
       fixture(KEYS_ONLY, {
         'a.en': { 'errors.X_REFUSED': 'Refused.' },
         'a.pl': { 'errors.X_REFUSED': 'Odmowa.' },
@@ -389,7 +500,7 @@ describe('the three vacuity guards, which are independent', () => {
   });
 
   it('exits 0 on a tree where both predicates are satisfied', () => {
-    const result = analyseErrorTranslations(
+    const result = analyse(
       fixture(KEYS_ONLY, {
         'a.en': { 'errors.X_REFUSED': 'Refused.' },
         'a.pl': { 'errors.X_REFUSED': 'Odmowa.' },
@@ -413,9 +524,9 @@ describe('the tree itself, under P2', () => {
     // the same reason a clean tree does. Since feature 080's T040a the walk is
     // over the module directories the layout resolves, so this also covers a
     // module whose bundle has moved into a package with it.
-    const walked = [...analyseErrorTranslations(await treeTranslationInput()).keysWalked];
+    const walked = [...(await analysedTree()).keysWalked];
     expect(walked.length).toBeGreaterThan(100);
-  });
+  }, 120_000);
 });
 
 /**
@@ -573,7 +684,7 @@ describe('findPlaceholderSentences — a translation that is not a sentence', ()
   });
 
   it('exits 1 on a P5 finding, and the summary counts it by kind', () => {
-    const result = analyseErrorTranslations(
+    const result = analyse(
       fixture(ROUTED_TO_A, {
         'a.en': { 'errors.X_REFUSED': 'The request was refused.' },
         'a.pl': { 'errors.X_REFUSED': 'Błąd: x refused.' },
@@ -840,4 +951,288 @@ describe('the enumeration and the declarations, reconciled both ways', () => {
       }),
     ).toEqual([]);
   });
+});
+
+/**
+ * P6 (issue #83, slice 2) — **every token a code is raised with has a sentence
+ * in both languages**.
+ *
+ * The envelope composes one key per raise: `errors.<CODE>.<token>` when the
+ * raise carries a `details.code`, `errors.<CODE>` when it does not, and it
+ * never falls back from the first to the second (D-190). P1 asks only at the
+ * base key, so a token added at a raise site without its sentence rendered the
+ * thrower's English in every language while the check stayed green.
+ *
+ * Every proof enters at the top: source text and bundles in, findings out.
+ */
+describe('findUntranslatedTokens — a refusal token with no sentence', () => {
+  const ROUTED_TO_A = { X_REFUSED: { moduleId: 'a', key: 'errors.X_REFUSED' } } as const;
+  const BASE = {
+    'a.en': { 'errors.X_REFUSED': 'Refused.' },
+    'a.pl': { 'errors.X_REFUSED': 'Odmowa.' },
+  };
+  const source = (text: string): SourceFile => ({ path: 'a/src/backend/service.ts', text });
+
+  it('token-untranslated — a literal token at a raise site, in neither bundle', () => {
+    const tree = fixture(ROUTED_TO_A, BASE, {
+      sources: [
+        source(
+          "throw new HttpError(409, ERROR_CODES.X_REFUSED, 'Too late.', { code: 'too_late' });",
+        ),
+      ],
+    });
+    const findings = findUntranslatedTokens(tree, readRaiseSites(tree.listSources(), new Set(['X_REFUSED'])));
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatchObject({
+      code: 'X_REFUSED',
+      token: 'too_late',
+      moduleId: 'a',
+      key: 'errors.X_REFUSED.too_late',
+      missingIn: ['en', 'pl'],
+      raisedAt: ['a/src/backend/service.ts:1'],
+      declared: false,
+    });
+  });
+
+  it('token-untranslated — written in one language only', () => {
+    const tree = fixture(
+      ROUTED_TO_A,
+      { ...BASE, 'a.en': { ...BASE['a.en'], 'errors.X_REFUSED.too_late': 'It is too late for that.' } },
+      {
+        sources: [
+          source("throw new HttpError(409, 'X_REFUSED', 'Too late.', { code: 'too_late', at: 1 });"),
+        ],
+      },
+    );
+    const findings = findUntranslatedTokens(tree, readRaiseSites(tree.listSources(), new Set(['X_REFUSED'])));
+    expect(findings.map((f) => `${f.key} ${f.missingIn.join(',')}`)).toEqual([
+      'errors.X_REFUSED.too_late pl',
+    ]);
+  });
+
+  it('token-untranslated — a token only the manifest declares, for a raise the read cannot spell', () => {
+    const tree = fixture(ROUTED_TO_A, BASE, {
+      declaredTokens: { X_REFUSED: ['too_late'] },
+      sources: [
+        source(
+          'function refuse(rule: string) {\n' +
+            "  return new HttpError(422, ERROR_CODES.X_REFUSED, 'Refused.', { rule, code: rule });\n" +
+            '}',
+        ),
+      ],
+    });
+    const raises = readRaiseSites(tree.listSources(), new Set(['X_REFUSED']));
+    expect(raises.unresolvedTokens.map((r) => `${r.code} ${r.site}`)).toEqual([
+      'X_REFUSED a/src/backend/service.ts:2',
+    ]);
+    const findings = findUntranslatedTokens(tree, raises);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatchObject({ token: 'too_late', raisedAt: [], declared: true });
+  });
+
+  it('token-untranslated — both branches of a conditional token', () => {
+    const tree = fixture(ROUTED_TO_A, BASE, {
+      sources: [
+        source(
+          "throw new HttpError(409, ERROR_CODES.X_REFUSED, 'm', { code: late ? 'too_late' : 'too_early' });",
+        ),
+      ],
+    });
+    const findings = findUntranslatedTokens(tree, readRaiseSites(tree.listSources(), new Set(['X_REFUSED'])));
+    expect(findings.map((f) => f.token)).toEqual(['too_early', 'too_late']);
+  });
+
+  /**
+   * The discrimination fixtures. A predicate that reported every raise, every
+   * `code:` property or every token of every code would pass the proofs above.
+   */
+  it('says nothing about a token that has its sentence in both bundles', () => {
+    const tree = fixture(
+      ROUTED_TO_A,
+      {
+        'a.en': { ...BASE['a.en'], 'errors.X_REFUSED.too_late': 'It is too late for that.' },
+        'a.pl': { ...BASE['a.pl'], 'errors.X_REFUSED.too_late': 'Na to jest już za późno.' },
+      },
+      {
+        declaredTokens: { X_REFUSED: ['too_late'] },
+        sources: [
+          source("throw new HttpError(409, ERROR_CODES.X_REFUSED, 'm', { code: 'too_late' });"),
+        ],
+      },
+    );
+    expect(
+      findUntranslatedTokens(tree, readRaiseSites(tree.listSources(), new Set(['X_REFUSED']))),
+    ).toEqual([]);
+  });
+
+  it('says nothing about a raise with no token, a Zod-style array, or a `code` that is not in details', () => {
+    const tree = fixture(ROUTED_TO_A, BASE, {
+      sources: [
+        source(
+          [
+            "throw new HttpError(409, ERROR_CODES.X_REFUSED, 'm');",
+            "throw new HttpError(409, ERROR_CODES.X_REFUSED, 'm', [{ path: 'a', issue: 'b' }]);",
+            "throw new HttpError(409, ERROR_CODES.X_REFUSED, 'm', { reason: 'too_late' });",
+            "const row = { code: 'too_late' };",
+          ].join('\n'),
+        ),
+      ],
+    });
+    expect(
+      findUntranslatedTokens(tree, readRaiseSites(tree.listSources(), new Set(['X_REFUSED']))),
+    ).toEqual([]);
+  });
+
+  it('says nothing about a VALIDATION_FAILED token — the envelope never translates that code', () => {
+    const tree = fixture(
+      { VALIDATION_FAILED: { moduleId: 'a', key: 'errors.VALIDATION_FAILED' } },
+      { 'a.en': { 'errors.VALIDATION_FAILED': 'Invalid.' }, 'a.pl': { 'errors.VALIDATION_FAILED': 'Błąd.' } },
+      {
+        sources: [
+          source("throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, 'sku_in_use', { code: 'sku_in_use' });"),
+        ],
+      },
+    );
+    expect(
+      findUntranslatedTokens(tree, readRaiseSites(tree.listSources(), new Set(['VALIDATION_FAILED']))),
+    ).toEqual([]);
+  });
+
+  it('says nothing about a token on a code no module routes — that is P3 s finding', () => {
+    const tree = fixture(ROUTED_TO_A, BASE, {
+      sources: [source("throw new HttpError(409, 'Y_REFUSED', 'm', { code: 'too_late' });")],
+    });
+    expect(
+      findUntranslatedTokens(tree, readRaiseSites(tree.listSources(), new Set(['X_REFUSED', 'Y_REFUSED']))),
+    ).toEqual([]);
+  });
+
+  it('exits 1 on a P6 finding, and the summary counts it', () => {
+    const result = analyse(
+      fixture(ROUTED_TO_A, BASE, {
+        sources: [
+          source("throw new HttpError(409, ERROR_CODES.X_REFUSED, 'm', { code: 'too_late' });"),
+        ],
+      }),
+    );
+    expect(result.tokens.map((f) => f.key)).toEqual(['errors.X_REFUSED.too_late']);
+    expect(result.exitCode).toBe(1);
+    expect(result.summary).toContain('tokenUntranslated=1');
+  });
+});
+
+/**
+ * P7 (issue #83, slice 3) — **a declared code something names**.
+ *
+ * A code can be enumerated, declared and translated in both languages while no
+ * source file spells it. The read is deliberately wide — any string literal or
+ * property name that is the code counts — so a finding is a code that nothing
+ * outside its declaration can possibly raise.
+ */
+describe('findUnraisedCodes — a declared code nothing names', () => {
+  const ROUTED = {
+    X_REFUSED: { moduleId: 'a', key: 'errors.X_REFUSED' },
+    Y_REFUSED: { moduleId: 'a', key: 'errors.Y_REFUSED' },
+  } as const;
+  const BUNDLES = {
+    'a.en': { 'errors.X_REFUSED': 'Refused.', 'errors.Y_REFUSED': 'Refused too.' },
+    'a.pl': { 'errors.X_REFUSED': 'Odmowa.', 'errors.Y_REFUSED': 'Też odmowa.' },
+  };
+  const codes = new Set(['X_REFUSED', 'Y_REFUSED']);
+
+  it('unraised — a declared, translated code no source file names', () => {
+    const tree = fixture(ROUTED, BUNDLES, { sources: [raising(['X_REFUSED'])] });
+    expect(findUnraisedCodes(tree, readRaiseSites(tree.listSources(), codes))).toEqual(['Y_REFUSED']);
+  });
+
+  it('unraised — a code named only in a comment is still named by nothing', () => {
+    const tree = fixture(ROUTED, BUNDLES, {
+      sources: [
+        raising(['X_REFUSED']),
+        { path: 'a/src/backend/notes.ts', text: '// Y_REFUSED is raised elsewhere.\n/** `Y_REFUSED` */\nexport {};' },
+      ],
+    });
+    expect(findUnraisedCodes(tree, readRaiseSites(tree.listSources(), codes))).toEqual(['Y_REFUSED']);
+  });
+
+  it('counts every spelling a raise can take — a literal, ERROR_CODES.X, a class field', () => {
+    const tree = fixture(ROUTED, BUNDLES, {
+      sources: [
+        { path: 'a.ts', text: "throw new HttpError(409, 'X_REFUSED', 'm');" },
+        { path: 'b.ts', text: "class Refusal extends Error { readonly code = 'Y_REFUSED' as const; }" },
+      ],
+    });
+    expect(findUnraisedCodes(tree, readRaiseSites(tree.listSources(), codes))).toEqual([]);
+  });
+
+  it('unraised — a code spelled only in a vocabulary, which declares it and raises nothing', () => {
+    // `ERROR_CODES` and the contracts package's `<X>_ERROR_CODES` lists spell
+    // every code once; counting that spelling would make every code its own
+    // raise site, the way counting a manifest's `errorCodes` would.
+    const tree = fixture(ROUTED, BUNDLES, {
+      sources: [
+        raising(['X_REFUSED']),
+        {
+          path: 'contracts/src/errors.ts',
+          text:
+            "export const ERROR_CODES = { X_REFUSED: 'X_REFUSED', Y_REFUSED: 'Y_REFUSED' } as const;\n" +
+            "export const BLOG_ERROR_CODES = ['Y_REFUSED'] as const;",
+        },
+      ],
+    });
+    expect(findUnraisedCodes(tree, readRaiseSites(tree.listSources(), codes))).toEqual(['Y_REFUSED']);
+  });
+
+  it('exits 1 on an unledgered unraised code, and on a ledger entry the tree now names', () => {
+    const unraised = analyse(fixture(ROUTED, BUNDLES, { sources: [raising(['X_REFUSED'])] }));
+    expect(unraised.unraisedUnledgered).toEqual(['Y_REFUSED']);
+    expect(unraised.exitCode).toBe(1);
+    expect(unraised.summary).toContain('unraised=1');
+
+    const ledgered = analyse(
+      fixture(ROUTED, BUNDLES, { sources: [raising(['X_REFUSED'])] }),
+      new Set(),
+      new Set(['Y_REFUSED']),
+    );
+    expect(ledgered.exitCode).toBe(0);
+    expect(ledgered.summary).toContain('unraised=0 unraisedLedgered=1');
+
+    const stale = analyse(fixture(ROUTED, BUNDLES), new Set(), new Set(['Y_REFUSED']));
+    expect(stale.unraisedStale).toEqual(['Y_REFUSED']);
+    expect(stale.exitCode).toBe(1);
+  });
+
+  it('exits 2 when the raise walk opened nothing, or named no declared code at all', () => {
+    const empty = analyse(fixture(ROUTED, BUNDLES, { sources: [] }));
+    expect(empty.exitCode).toBe(2);
+    expect(empty.summary).toMatch(/raise walk opened no source file/);
+
+    const blind = analyse(
+      fixture(ROUTED, BUNDLES, { sources: [{ path: 'a.ts', text: 'export const x = 1;' }] }),
+    );
+    expect(blind.exitCode).toBe(2);
+    expect(blind.summary).toMatch(/raise walk named no declared code/);
+  });
+
+  it('names a real code in every ledger entry', () => {
+    for (const code of UNRAISED_ERROR_CODES) {
+      expect(code, `${code} is not a code name`).toMatch(/^[A-Z][A-Z0-9_]+$/);
+    }
+  });
+});
+
+describe('the tree itself, under P6 and P7', () => {
+  it('ships a sentence for every token a code is raised with', async () => {
+    const result = await analysedTree();
+    expect(result.tokens.map((f) => `${f.key} → ${f.moduleId} (${f.missingIn.join(', ')})`)).toEqual([]);
+  }, 120_000);
+
+  it('raises every declared code that is not ledgered, and the ledger is not stale', async () => {
+    const result = await analysedTree();
+    expect(result.unraisedUnledgered).toEqual([]);
+    expect(result.unraisedStale).toEqual([]);
+    // The walk read a real tree while doing so.
+    expect(result.raises.files).toBeGreaterThan(100);
+    expect(result.raises.references.size).toBeGreaterThan(100);
+  }, 120_000);
 });

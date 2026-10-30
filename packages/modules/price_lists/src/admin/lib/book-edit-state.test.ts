@@ -271,13 +271,13 @@ describe('server refusals and a stale book', () => {
       { index: 1, field: 'price', code: 'PRICE_BOOK_ROW_SHAPE', message: 'bad' },
       { rowId: screws.id, field: 'minQuantity', code: 'PRICE_BOOK_ROW_OVERLAP', message: 'overlap' },
     ]);
-    expect(cellView(state, P1_KEY, 10).error).toBe('PRICE_BOOK_ROW_SHAPE');
-    expect(cellView(state, SCREWS_KEY, 1).error).toBe('PRICE_BOOK_ROW_OVERLAP');
+    expect(cellView(state, P1_KEY, 10).error).toBe('errors.PRICE_BOOK_ROW_SHAPE');
+    expect(cellView(state, SCREWS_KEY, 1).error).toBe('errors.PRICE_BOOK_ROW_OVERLAP');
     // The rule, when the server names it, is kept rather than its group (Checkpoint 11 ruling 2).
     const ruled = applySaveErrors(state, save, [
       { index: 1, field: 'price.type', code: 'PRICE_BOOK_ROW_SHAPE', reason: 'fixed_on_all', message: 'English' },
     ]);
-    expect(cellView(ruled, P1_KEY, 10).error).toBe('reason.fixed_on_all');
+    expect(cellView(ruled, P1_KEY, 10).error).toBe('grid.reason.fixed_on_all');
     // The edits stay for correction.
     expect(unsavedCount(state)).toBe(2);
     // Editing a marked cell clears its mark.
