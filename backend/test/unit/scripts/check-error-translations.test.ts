@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   analyseErrorTranslations,
+  declaredTokensOf,
   declaringBundleDirectories,
   findPlaceholderSentences,
   findUnraisedCodes,
+  findUndeclaredTokenRaises,
   findUnreachableSentences,
   findUntranslatedErrorCodes,
   findUntranslatedTokens,
@@ -11,6 +13,7 @@ import {
   readRaiseSites,
   reconcileEnumeration,
   treeTranslationInput,
+  UNDECLARABLE_TOKEN_ERROR_CODES,
   UNRAISED_ERROR_CODES,
   UNTRANSLATED_ERROR_CODES,
   type ErrorTranslationTarget,
@@ -63,7 +66,7 @@ function analysedTree(): Promise<ReturnType<typeof analyseErrorTranslations>> {
 }
 
 /**
- * The analysis over a fixture, with **both** ledgers empty unless a case passes
+ * The analysis over a fixture, with **every** ledger empty unless a case passes
  * one: a fixture never holds the real tree's codes, so the real ledgers would
  * read wholly stale over it.
  */
@@ -71,8 +74,9 @@ function analyse(
   tree: TranslationInput,
   ledger: ReadonlySet<string> = new Set(),
   unraisedLedger: ReadonlySet<string> = new Set(),
+  undeclarableLedger: ReadonlySet<string> = new Set(),
 ): ReturnType<typeof analyseErrorTranslations> {
-  return analyseErrorTranslations(tree, ledger, unraisedLedger);
+  return analyseErrorTranslations(tree, ledger, unraisedLedger, undeclarableLedger);
 }
 
 /**
@@ -1122,6 +1126,207 @@ describe('findUntranslatedTokens — a refusal token with no sentence', () => {
 });
 
 /**
+ * P6's other half (issue #83, the maintainer's ruling of 2026-10-30): **a code
+ * raised with a computed token declares its tokens**.
+ *
+ * A raise whose `details.code` the static read cannot spell — a variable, a
+ * details object built elsewhere, a spread — draws its token from a set only
+ * the manifest's `tokens` can state. Slice 2 counted such a raise and judged
+ * nothing; a code with no declaration then had no token set to check its
+ * bundle against, so a new token added behind the variable rendered the
+ * thrower's English with the check green.
+ */
+describe('findUndeclaredTokenRaises — a computed token with no declared set', () => {
+  const ROUTED_TO_A = { X_REFUSED: { moduleId: 'a', key: 'errors.X_REFUSED' } } as const;
+  const BASE = {
+    'a.en': { 'errors.X_REFUSED': 'Refused.' },
+    'a.pl': { 'errors.X_REFUSED': 'Odmowa.' },
+  };
+  const COMPUTED =
+    'function refuse(rule: string) {\n' +
+    "  return new HttpError(422, ERROR_CODES.X_REFUSED, 'Refused.', { rule, code: rule });\n" +
+    '}\n' +
+    "export const again = (details: object) => new HttpError(422, 'X_REFUSED', 'm', details);";
+  const source = (text: string): SourceFile => ({ path: 'a/src/backend/service.ts', text });
+
+  it('token-undeclared — a computed token on a code whose manifest names no tokens', () => {
+    const tree = fixture(ROUTED_TO_A, BASE, { sources: [source(COMPUTED)] });
+    const findings = findUndeclaredTokenRaises(
+      tree,
+      readRaiseSites(tree.listSources(), new Set(['X_REFUSED'])),
+    );
+    expect(findings).toEqual([
+      {
+        code: 'X_REFUSED',
+        moduleId: 'a',
+        sites: ['a/src/backend/service.ts:2', 'a/src/backend/service.ts:4'],
+      },
+    ]);
+  });
+
+  it('with tokens declared, the per-token bundle check applies instead', () => {
+    const tree = fixture(ROUTED_TO_A, BASE, {
+      declaredTokens: { X_REFUSED: ['too_late'] },
+      sources: [source(COMPUTED)],
+    });
+    const raises = readRaiseSites(tree.listSources(), new Set(['X_REFUSED']));
+    expect(findUndeclaredTokenRaises(tree, raises)).toEqual([]);
+    expect(findUntranslatedTokens(tree, raises).map((f) => f.key)).toEqual([
+      'errors.X_REFUSED.too_late',
+    ]);
+  });
+
+  it('says nothing about a literal token, a tokenless raise, VALIDATION_FAILED or an unrouted code', () => {
+    const tree = fixture(
+      { ...ROUTED_TO_A, VALIDATION_FAILED: { moduleId: 'a', key: 'errors.VALIDATION_FAILED' } },
+      BASE,
+      {
+        sources: [
+          source(
+            [
+              "throw new HttpError(409, ERROR_CODES.X_REFUSED, 'm', { code: 'too_late' });",
+              "throw new HttpError(409, ERROR_CODES.X_REFUSED, 'm');",
+              "throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, 'm', { code: reason });",
+              "throw new HttpError(409, 'Y_REFUSED', 'm', { code: reason });",
+            ].join('\n'),
+          ),
+        ],
+      },
+    );
+    const raises = readRaiseSites(
+      tree.listSources(),
+      new Set(['X_REFUSED', 'VALIDATION_FAILED', 'Y_REFUSED']),
+    );
+    expect(raises.unresolvedTokens).toHaveLength(2);
+    expect(findUndeclaredTokenRaises(tree, raises)).toEqual([]);
+  });
+
+  it('with tokens: [] declared, a computed details that never carries a code passes', () => {
+    const tree = fixture(ROUTED_TO_A, BASE, {
+      declaredTokens: { X_REFUSED: [] },
+      sources: [
+        source(
+          'function refuse(message: string, details?: Record<string, unknown>) {\n' +
+            "  return new HttpError(409, ERROR_CODES.X_REFUSED, message, details);\n" +
+            '}',
+        ),
+      ],
+    });
+    const raises = readRaiseSites(tree.listSources(), new Set(['X_REFUSED']));
+    expect(raises.unresolvedTokens).toHaveLength(1);
+    expect(findUndeclaredTokenRaises(tree, raises)).toEqual([]);
+    expect(findUntranslatedTokens(tree, raises)).toEqual([]);
+  });
+
+  it('keeps an empty tokens declaration — it is a statement, not an absence', () => {
+    const declared = declaredTokensOf(
+      [
+        {
+          filePath: 'a/src/manifest.ts',
+          manifest: {
+            id: 'a',
+            errorCodes: [{ code: 'X_REFUSED', tokens: [] }, { code: 'Y_REFUSED' }],
+          },
+        },
+      ],
+      {
+        X_REFUSED: { moduleId: 'a', key: 'errors.X_REFUSED' },
+        Y_REFUSED: { moduleId: 'a', key: 'errors.Y_REFUSED' },
+      },
+    );
+    expect(declared).toEqual({ X_REFUSED: [] });
+  });
+
+  /**
+   * The ruling makes every unresolved raise owe a declaration, so a shape the
+   * read can decide must be decided rather than sent to the manifest.
+   */
+  it('sees through the shapes that decide themselves — .map(), a conditional, a spread, a local const', () => {
+    const tree = fixture(ROUTED_TO_A, BASE, {
+      sources: [
+        source(
+          [
+            "throw new HttpError(409, ERROR_CODES.X_REFUSED, 'm', rows.map((r) => ({ path: r, issue: 'x' })));",
+            "throw new HttpError(409, ERROR_CODES.X_REFUSED, 'm', id ? { id } : undefined);",
+            "throw new HttpError(409, ERROR_CODES.X_REFUSED, 'm', { a, ...(lang ? { lang } : {}) });",
+            "throw new HttpError(409, ERROR_CODES.X_REFUSED, 'm', { a, ...(none ? { code: 'too_late' } : {}) });",
+            'function f() {',
+            "  const details = [...rows.map((r) => ({ path: 'slug', issue: r }))];",
+            "  throw new HttpError(409, ERROR_CODES.X_REFUSED, 'm', details);",
+            '}',
+          ].join('\n'),
+        ),
+      ],
+    });
+    const raises = readRaiseSites(tree.listSources(), new Set(['X_REFUSED']));
+    expect(raises.unresolvedTokens).toEqual([]);
+    expect(raises.tokened.map((r) => r.token)).toEqual(['too_late']);
+  });
+
+  it('does not follow a const a parameter shadows, nor a spread of a value it cannot see', () => {
+    const tree = fixture(ROUTED_TO_A, BASE, {
+      sources: [
+        source(
+          [
+            'const details = [];',
+            'function f(details: object) {',
+            "  throw new HttpError(409, ERROR_CODES.X_REFUSED, 'm', details);",
+            '}',
+            "throw new HttpError(409, ERROR_CODES.X_REFUSED, 'm', { ...err.details });",
+          ].join('\n'),
+        ),
+      ],
+    });
+    const raises = readRaiseSites(tree.listSources(), new Set(['X_REFUSED']));
+    expect(raises.unresolvedTokens.map((r) => r.expression)).toEqual(['details', '...err.details']);
+  });
+
+  it('exits 1 on a token-undeclared finding, and the summary counts it', () => {
+    const result = analyse(fixture(ROUTED_TO_A, BASE, { sources: [source(COMPUTED)] }));
+    expect(result.undeclaredTokens.map((f) => f.code)).toEqual(['X_REFUSED']);
+    expect(result.exitCode).toBe(1);
+    expect(result.summary).toContain('tokenUndeclared=1');
+
+    const declared = analyse(
+      fixture(
+        ROUTED_TO_A,
+        {
+          'a.en': { ...BASE['a.en'], 'errors.X_REFUSED.too_late': 'It is too late for that.' },
+          'a.pl': { ...BASE['a.pl'], 'errors.X_REFUSED.too_late': 'Na to jest już za późno.' },
+        },
+        { declaredTokens: { X_REFUSED: ['too_late'] }, sources: [source(COMPUTED)] },
+      ),
+    );
+    expect(declared.exitCode).toBe(0);
+    expect(declared.summary).toContain('tokenUndeclared=0');
+  });
+
+  it('a code whose token set cannot be declared is ledgered, two-way', () => {
+    const tree = (): TranslationInput => fixture(ROUTED_TO_A, BASE, { sources: [source(COMPUTED)] });
+    const ledgered = analyse(tree(), new Set(), new Set(), new Set(['X_REFUSED']));
+    expect(ledgered.undeclaredTokensUnledgered).toEqual([]);
+    expect(ledgered.exitCode).toBe(0);
+    expect(ledgered.summary).toContain('tokenUndeclared=0 tokenUndeclaredLedgered=1 tokenUndeclaredStale=0');
+
+    // The entry goes stale once the code declares its tokens.
+    const stale = analyse(
+      fixture(ROUTED_TO_A, BASE, { declaredTokens: { X_REFUSED: [] }, sources: [source(COMPUTED)] }),
+      new Set(),
+      new Set(),
+      new Set(['X_REFUSED']),
+    );
+    expect(stale.undeclaredTokensStale).toEqual(['X_REFUSED']);
+    expect(stale.exitCode).toBe(1);
+  });
+
+  it('names a real code in every ledger entry', () => {
+    for (const code of UNDECLARABLE_TOKEN_ERROR_CODES) {
+      expect(code, `${code} is not a code name`).toMatch(/^[A-Z][A-Z0-9_]+$/);
+    }
+  });
+});
+
+/**
  * P7 (issue #83, slice 3) — **a declared code something names**.
  *
  * A code can be enumerated, declared and translated in both languages while no
@@ -1225,6 +1430,14 @@ describe('the tree itself, under P6 and P7', () => {
   it('ships a sentence for every token a code is raised with', async () => {
     const result = await analysedTree();
     expect(result.tokens.map((f) => `${f.key} → ${f.moduleId} (${f.missingIn.join(', ')})`)).toEqual([]);
+  }, 120_000);
+
+  it('declares the token set of every code raised with a computed token', async () => {
+    const result = await analysedTree();
+    expect(
+      result.undeclaredTokensUnledgered.map((f) => `${f.code} → ${f.moduleId} (${f.sites.join(', ')})`),
+    ).toEqual([]);
+    expect(result.undeclaredTokensStale).toEqual([]);
   }, 120_000);
 
   it('raises every declared code that is not ledgered, and the ledger is not stale', async () => {

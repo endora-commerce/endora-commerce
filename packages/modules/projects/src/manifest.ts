@@ -298,7 +298,10 @@ export const manifest = defineModuleManifest({
     { code: 'PROJECT_ORGANIZATION_OUT_OF_SCOPE' },
     { code: 'PROJECT_STAGE_CURRENT' },
     { code: 'PROJECT_STAGE_LAST' },
-    { code: 'PROJECT_MOVE_NOT_PERMITTED' },
+    // Raised through `notPermitted(message, details?)`, whose callers pass
+    // `fromStageId` and `toStageId` or nothing — never a `code`, so no refusal
+    // token (`check:error-translations`, issue #83).
+    { code: 'PROJECT_MOVE_NOT_PERMITTED', tokens: [] },
     { code: 'PROJECT_CHANGED' },
     { code: 'PROJECT_GUARD_REFUSED' },
     { code: 'PROJECT_COMPLETION_NOT_PERMITTED' },

@@ -776,6 +776,11 @@ export const errorCodeTokenRe = /^[a-z][a-z0-9_]*$/;
  * does not know the token set cannot tell `errors.CART_COUPON_REJECTED.expired`
  * from a key whose tail is not a code at all — which is a finding. Fourteen keys
  * in `invoices` and `carts` have this shape today.
+ *
+ * A code raised with a `details.code` the static read cannot spell — a
+ * variable, a details object handed down, a spread — **must** declare its
+ * `tokens` (issue #83). **`tokens: []` is a declaration**, not an absence: it
+ * states that such a raise's `details` never carries a `code`.
  */
 export const ModuleErrorCodeDeclarationSchema = z.object({
   code: z.string().regex(errorCodeRe),
