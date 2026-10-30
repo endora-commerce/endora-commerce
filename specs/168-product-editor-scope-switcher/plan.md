@@ -104,53 +104,40 @@ answer (163); `seo` off must not break the editor (XVII); one release (round 3)
   `language null` → C, both → C×L, table emptied once (R8).
 - **FR-109's "set here, empty"** is `source: 'set_empty'`; "absent" (no value anywhere) is a fourth state the
   editor renders as "No value at any scope" (FR-065).
-- **FR-074 "existing audit-log undo".** No single-Command undo exists (research F-l); the plan delivers 163
-  FR-081's "complete, re-applicable before-state" and no UI — see Q4.
-- **FR-070 "every per-section Save … that writes product data".** Read as the product row and every scoped
-  family; collection editors of global-only lists keep their own audited actions — see Q2.
-- **FR-043 export "follows the same mapping".** Read as one grammar and encoding; export writes scope columns and
-  uses no profile — see Q3.
+- **FR-074, FR-070, FR-043** — decided by the owner in round 6 (table below).
 - **SC-012 baseline.** Measured by a Polish-phase task, not assumed.
 - **The URL key is "required"** (FR-062 lists it) at every scope, so `NULL` is refused for it everywhere; inheriting
   is always `INHERIT`.
 
-## Questions for the owner (not decided here)
+## Owner decisions from the plan's questions (spec Session 2026-10-30, round 6)
 
-Each changes user-visible behaviour and is not answered by the spec. The design accommodates either answer;
-tasks name where the answer lands.
+The five questions this plan raised were answered on 2026-10-30 and written into the spec (FR-013, FR-043,
+FR-070, FR-074, new FR-094, US7, US10, SC-008):
 
-- **Q1 — What does a deliberately empty override show for a field that has a derived default beyond Global?**
-  Example: Global SEO title "Drill X – best drill"; at B2B PL × Polish the operator saves the SEO title empty. And:
-  an image's alt text saved empty at Sklep PL × Polish while the asset's own Polish alt text is "Wiertarka".
-  *(a)* Empty = use the derived default: the page title becomes the one derived from the effective name
-  ("Wiertarka X"), the alt text becomes the asset's "Wiertarka" — the empty override only stops inheriting the
-  Global / channel value. *(b)* Empty = literally nothing: no meta description / OG tags, `alt=""` (decorative
-  image); the `<title>` still falls back to the name because a page must have one. **Recommendation: (a) for the
-  five SEO fields, (b) for alt text** — an empty SEO value has no meaning on a page, while `alt=""` is a real
-  accessibility statement (the image is decorative). Lands in: the storefront PDP metadata task and the gallery
-  serialiser task (US3).
-- **Q2 — Which product writes join the one Save (FR-070)?** Example: an operator at Global edits the name, adds a
-  variant and changes a price-book row on the Pricing tab. *(a)* The Save covers the product row and every scoped
-  family; adding / removing / reordering variants, bundle slots, grouped items, links, images, attachments,
-  packaging units, price-book rows (`price_lists`), channel membership (`sales_channels`) and warehouse stock
-  (`inventory`) stay immediate audited actions, each labelled "applies immediately". *(b)* All of them are staged
-  and written by the one Save — which needs write ports joining the transaction from `price_lists`,
-  `sales_channels` and `inventory` and a staged model for every collection. **Recommendation: (a)** — those are
-  global-only collections (FR-081) with their own Commands, and (b) roughly doubles US7. Lands in: US7 UI tasks.
-- **Q3 — Does the product export use the import profile (FR-043)?** Example: a profile maps `pl_PL → [B2B PL ×
-  pl, Sklep PL × pl]` and the two scopes hold different Polish names. *(a)* Export writes Global and per-scope
-  columns (`name@B2B-PL/pl`), no profile; re-import of an export is exact. *(b)* Export through a chosen profile
-  writes `name[pl_PL]` columns — and must pick one of the two different values, so re-import overwrites the other.
-  **Recommendation: (a).** Lands in: the export task (US4).
-- **Q4 — Is an operator-facing "Restore this save" expected (FR-074)?** No audit-log undo exists for single
-  Commands today; only bulk operations have one. *(a)* As 163 FR-081: the audit entry holds a complete
-  before-state that re-applies through the save API; no UI in 168. *(b)* Add a "Restore this save" action on the
-  audit-log entry of `product.scoped_values.save`, a reversible Command with a per-field conflict report
-  (Constitution XIII's undo rules). **Recommendation: (a) in 168, (b) as a follow-up issue.** Lands in: US7.
-- **Q5 — Does the `/seo` screen keep editing product metadata?** With SEO inline in the editor (FR-090), `/seo`'s
-  product mode would be a second three-level scope UI for the same rows. *(a)* `/seo` keeps categories and CMS
-  pages and, for a product, links to the editor's SEO tab. *(b)* `/seo` keeps a product mode, rewritten to the
-  three levels. **Recommendation: (a).** Lands in: US10.
+| # | Decision | Where it lands |
+| --- | --- | --- |
+| Q1 | An empty override of one of the **five SEO fields** → the storefront uses the **derived value** (title from the effective name, description from the effective description), as when no SEO value exists. An empty **image alt text** → literally `alt=""` (decorative), never the asset library's alt text | `seoProductMetaPort.resolveForProduct` (T121, tested T119, T057); storefront PDP (T075, tested T061) |
+| Q2 | The Save covers the **product row and every scoped field**. Structural operations (variants, bundle slots, links, images, attachments, packaging units: add / remove / reorder), **price-book rows, channel membership and warehouse stock** stay **immediate, individually audited actions**, labelled "applies immediately" | US7 (T107, T146, T147); version-token rule R7 (T144, T145) |
+| Q3 | The product export uses **no import profile**: Global + per-scope columns, exact on re-import (FR-043; column grammar of `contracts/import-profiles-and-csv.md` §2.1 — the spec's `sklep_pl:pl` is an illustration, the plan keeps `name@<channel code>/<language>`) | T081, T087 |
+| Q4 | The audit entry holds the **complete before-state, re-appliable through the API**; **no restore UI** in 168; "Restore this save" is a named follow-up | T103 (re-application test), T142 (follow-up text) |
+| Q5 | `/seo` keeps categories and CMS pages; its **product mode is replaced by a link** to the editor's SEO tab (FR-094) | T126, tested T148 |
+
+**Process decision — prototype gate.** A designer builds a clickable prototype of the editor (scope switcher,
+"Use value from <parent scope>" checkbox, inheritance markers, plus the Save / Discard / Stay dialog and the
+"applies immediately" labels), and the owner reviews it **before stream S3 starts**. S1 and S2 start in parallel
+after C1. Task **T143** is the gate; every S3 task (US1's admin test T027 included) waits for it.
+
+**Staged edits versus immediate actions (consistency issue raised by the product owner).** Decided in research
+R7: **immediate actions do not bump the version token.** `products.updated_at` versions only what the Save
+writes — the product row's own fields and every scoped value — so an immediate action taken from the editor
+(or by anyone else) never makes the next Save answer 409. Staged edits survive immediate actions (spec *Edge
+Cases*); staged cells whose subject an immediate action removed (an image, attachment or packaging unit) are
+dropped by the editor with a notice, and refused by the server as `SCOPED_VALUE_INVALID` reason
+`subject_not_found` if sent. Tests: T144 (backend: every immediate action, then a Save with the old version → 200)
+and T146 (admin). Rejected: *the editor adopts a token returned by its own immediate actions* — it would still
+409 after another admin's unrelated structural change, every immediate-action route in four modules (including
+`price_lists`, `sales_channels`, `inventory`, which cannot write `products`) would have to return a catalog
+version, and the token would stop meaning "the values this Save overwrites changed".
 
 **Visible consequences already decided by the spec, for the owner to notice at acceptance:** admin lists and
 pickers show the product's Global name whatever the admin UI language (FR-031; the feature-161 per-language admin
@@ -176,6 +163,8 @@ number of channel languages (R11) and needs one reindex on upgrade.
 | FR-070…FR-076, SC-007, SC-008 | `backend/test/contract/catalog/scoped-values-save.test.ts`, `…-save-atomicity.test.ts` [PG]; `admin/test/modules/catalog/product-editor-save.test.tsx` |
 | FR-080…FR-084, SC-010 | `admin/test/modules/catalog/product-editor-read-only.test.tsx`; `backend/test/contract/catalog/scoped-values-permissions.test.ts` [PG] |
 | FR-085, FR-086 | `admin/test/modules/catalog/product-editor-attributes-scoped.test.tsx`; `backend/test/contract/catalog/scoped-values-copy.test.ts` [PG] |
+| FR-094 | `admin/test/modules/seo/seo-screen-product-link.test.tsx` |
+| FR-070 immediate actions vs version | `backend/test/contract/catalog/scoped-values-version-immediate-actions.test.ts` [PG]; `admin/test/modules/catalog/product-editor-immediate-actions.test.tsx` |
 | FR-090…FR-093 | `backend/test/contract/seo/product-meta-write-port.test.ts`, `…/seo/product-meta-read-relaxed.test.ts`, `…/catalog/scoped-values-seo-off.test.ts` [PG]; `admin/test/modules/seo/product-seo-section.test.tsx` |
 | FR-095…FR-098 | `packages/modules/catalog/src/backend/services/scope-completeness.test.ts`; `backend/test/contract/catalog/scoped-values-completeness.test.ts` [PG] |
 | FR-100, FR-101 | `admin/test/modules/catalog/product-scope-overview-links.test.tsx` |
@@ -248,7 +237,7 @@ packages/modules/{carts,comparisons,crm,inventory,orders,price_lists,product_fee
                   audit_logs}/  reader swaps (contracts/readers.md §1)
 packages/admin-kit/src/components/{scoped-field/ (new), product-browser/}
 packages/page-builder-admin/src/{chrome/CatalogPickers.tsx,email/EmailEditorPane.tsx}
-storefront/                  verify + PDP metadata / alt per Q1
+storefront/                  verify + PDP alt `alt=""` for an empty override (round 6)
 backend/test/{unit,contract,integration,perf}/…, admin/test/modules/{catalog,seo,import_export}/…
 docs/docs/…, docs/i18n/pl/…, docs/translation-cache/pl/…
 .changeset/*.md
@@ -281,7 +270,7 @@ artefacts together (AGENTS.md *traps*). Each is idempotent and has a clean-run t
   - **S2 integrations and readers** — `seo` (backend + migration), `search`, `pim_connector`, `import_export`
     (backend + admin section), every reader module of `contracts/readers.md`, `admin-kit` product-browser,
     `page-builder-admin`, storefront.
-  - **S3 editor** — catalog admin (`src/admin/**`, catalog `i18n` UI keys — S1 hands its error-code keys over at
+  - **S3 editor** (starts after the prototype gate T143) — catalog admin (`src/admin/**`, catalog `i18n` UI keys — S1 hands its error-code keys over at
     the Phase 2 checkpoint, after which S3 owns the two bundles), admin-kit `ScopedField`, `seo`'s
     `ProductSeoSection` (UI only), admin tests. Builds against the Phase 2 contracts with the API mocked, then
     integrates when S1's read / save endpoints land (checkpoint C2).
@@ -308,9 +297,10 @@ artefacts together (AGENTS.md *traps*). Each is idempotent and has a clean-run t
 6. **External connectors** must adopt the v2 scope write port, the mapping contract and the shrunk path grammar;
    until they do, their per-locale values are written nowhere (FR-041, spec *Assumptions*). Release note.
 7. **Admin UX scale.** The editor rewrite touches ~15 components; a11y regressions are caught by the axe test at
-   three scopes (SC-013); a designer review of the switcher area and the Save / Discard / Stay dialog is advisable
-   before US5's UI tasks (spec *Assumptions*).
-8. **Owner questions Q1–Q5** change the scope of a handful of tasks; none blocks Phase 1–2 or US2–US4.
+   three scopes (SC-013). The prototype gate (T143) may change S3's component breakdown; S3's tasks name files
+   and behaviour, not layout, so a reviewed prototype changes layout inside the same tasks.
+8. **Prototype gate latency.** S3 cannot start until the owner has reviewed the prototype; S1 and S2 are not
+   blocked, and S3's first integration point (C2) needs S1's endpoints anyway.
 
 ## Compatibility and release
 
@@ -347,6 +337,7 @@ R9, `data-model.md` §0 and §9, `contracts/scoped-values-api.md`, `contracts/wr
   Global string where there is no channel. No `pick*` over a product map survives, and no `168-shim`.
 - Each module migrates its own tables; do not edit 163's migrations; regenerate and commit
   `composer:generate` / `manifests:generate` / lockfile in the same commit as a migration.
-- Owner questions Q1–Q5 are open: build the recommended option only where a task says so, and keep the seam
-  (`source: 'set_empty'` reaches every consumer) so the other answer is a local change.
+- Owner decisions of round 6 are binding: SEO empty → derived value, alt empty → `alt=""`; immediate actions are
+  not staged and **never bump `products.updated_at`**; export uses no profile; no restore UI; `/seo` links products
+  to the editor. S3 starts only after the prototype gate T143.
 - Commits `git commit -s`, no AI trailer; English only; do not push without the coordinator.

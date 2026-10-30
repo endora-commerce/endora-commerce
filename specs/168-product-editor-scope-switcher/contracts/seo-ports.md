@@ -61,8 +61,9 @@ Command only when `changes.seo` is non-empty — never into a singleton, never w
 - The catalog editor renders the SEO tab only when the zone has a contributor; `seo` off → no tab, no request,
   no error.
 - `seo`'s own `/seo` screen (`SeoMetaScopeEditor.tsx`) keeps editing category and CMS-page metadata; its product
-  mode switches to the three-level scope (no Language-only option) or links to the product editor's SEO tab —
-  decided: **links** (one place to edit product SEO).
+  mode is **replaced by a link** to the product editor's SEO tab (FR-094, owner round 6).
+- **Empty values on the storefront (owner round 6):** `resolveForProduct` returns the caller's derived fallback for
+  a field whose effective source is `set_empty`, as for `absent`.
 
 ## 4. Routes
 

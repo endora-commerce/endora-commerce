@@ -40,7 +40,7 @@ record (FR-031: a reader with no channel).
 | shopping_lists, promotions, tasks, projects | `catalogProductReadPort` consumers | record consumers | verify (compile) | — |
 | admin-kit | `components/product-browser/product-line.ts:17`, `ProductBrowserDialog.tsx:112` | `name['en-US']`, `name['pl-PL']` | Global string | G |
 | page-builder-admin | `src/chrome/CatalogPickers.tsx`, `src/email/EmailEditorPane.tsx` | `pickName(name map \| string)` | string only | G |
-| storefront | PDP alt / attachments / packaging (`app/(catalog)/p/[slug]/page.tsx`, `lib/api/catalog.ts`) | already receives resolved strings | verify; empty-override rendering per owner Q1 | (C, L) |
+| storefront | PDP alt / attachments / packaging (`app/(catalog)/p/[slug]/page.tsx`, `lib/api/catalog.ts`) | already receives resolved strings | verify; an empty alt override renders `alt=""` (round 6) | (C, L) |
 | catalog | ~26 files (services, admin, `effective-value.sql.ts`, `storefront-value-overrides.ts`, `catalog-query.service.ts`, …) | maps, `pickLang`, four-level resolver | rewritten in US2 / US3 | — |
 
 **Not readers (corrections to the spec's starting list).** `returns`, `pwa`: no product text map (snapshots /

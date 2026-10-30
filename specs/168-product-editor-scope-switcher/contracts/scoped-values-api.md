@@ -111,7 +111,7 @@ type SaveScopedValuesRequest = {
 | --- | --- | --- |
 | 1. Parse; resolve scope (§1) | `400` / `422 VALIDATION_FAILED`, `422 SCOPE_INVALID` | nothing written |
 | 2. Every changed field supported at the scope's level (data-model §9) | `422 FIELD_NOT_AT_SCOPE` `{ fields: [{ field, levels }] }` | nothing written |
-| 3. `validateScopedWrite` per cell (required / select / boolean refuse `empty`; `inherit` at G refused; value schemas, lengths) | `422 SCOPED_VALUE_INVALID` `{ fields: [{ field, reason: 'required_empty' \| 'not_emptyable' \| 'inherit_at_global' \| 'invalid' }] }` | nothing written |
+| 3. `validateScopedWrite` per cell (required / select / boolean refuse `empty`; `inherit` at G refused; value schemas, lengths) | `422 SCOPED_VALUE_INVALID` `{ fields: [{ field, reason: 'required_empty' \| 'not_emptyable' \| 'inherit_at_global' \| 'subject_not_found' \| 'invalid' }] }` | nothing written |
 | 4. `capture`: before-state of every touched cell, SEO cells via `seoProductMetaWritePort.readWithin(em, …)` | — | — |
 | 5. Compare-and-set the version: `date_trunc('milliseconds', updated_at) = :version`, new value a JavaScript `Date` > `:version` (research R7 — never SQL `now()`) | `409 VERSION_CONFLICT` | nothing written |
 | 6. Completeness gate, when a change turns a (C, L) on (163 M3 rule; FR-076) | refuse mode: `422 SCOPE_INCOMPLETE` (163 shape) | nothing written |
@@ -124,7 +124,12 @@ type SaveScopedValuesRequest = {
 
 **Undo (FR-074).** The audit `before` is a complete, valid `changes` body for the same scope (each cell's prior
 `set` / `empty` / `inherit`); re-applying it through this route restores the save as one. No editor Undo button.
-Whether an operator-facing "restore this save" action is expected is owner question Q4.
+No restore UI in 168 (owner round 6); "Restore this save" on the audit entry is a named follow-up.
+
+**Version and immediate actions (R7).** Only the Save, copy and other scoped-value / product-row writes bump the
+version. Immediate actions (structural operations, price-book rows, channel membership, stock) never do, so a
+Save sent with the version read before them succeeds. A changed cell whose subject no longer exists (a gallery
+item, attachment or packaging unit removed meanwhile) → `422 SCOPED_VALUE_INVALID` reason `subject_not_found`.
 
 ## 4. `POST /api/v1/admin/catalog/products/:id/scoped-values/copy` — `catalog:write` (FR-086)
 

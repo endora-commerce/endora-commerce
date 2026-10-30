@@ -56,7 +56,7 @@ and per-row `fieldErrors: Array<{ column; code }>`.
 `GET /api/v1/admin/export/products.csv` writes `sku`, every Global column, and one `<field>@<channel>` /
 `<field>@<channel>/<language>` column per (field, scope) where **any** exported product holds an own value; a
 product without an own value there gets `INHERIT` in that column; a deliberately empty value `NULL`; text that
-equals a token is escaped. Export uses no profile. Export → re-import of the unchanged file (with any profile)
+equals a token is escaped. Export uses no profile (FR-043, owner round 6). Export → re-import of the unchanged file (with any profile)
 writes nothing (FR-114; test `backend/test/integration/import_export/products-csv-roundtrip.test.ts`).
 
 ## 4. Admin

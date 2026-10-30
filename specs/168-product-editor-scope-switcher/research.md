@@ -190,12 +190,14 @@ across families is only possible on one transaction, which `CommandBus.run` alre
 `seo_meta_override.*` Commands from inside catalog's Command* — nested `CommandBus.run` forks a new transaction
 and writes a second audit entry (FR-072 says one). *An outbox for SEO* — not atomic.
 
-**Reading — "every per-section Save that writes product data" (FR-070).** The one Save covers the product row and
-every scoped family. Collection editors that add, remove or reorder rows of a global-only list (variants, bundle
-slots, grouped items, product links, images, attachments, packaging units, price-book rows contributed by
-`price_lists`, channel membership contributed by `sales_channels`, per-warehouse stock) are not "saves" of a field
-and keep their own audited actions. **This reading is user-visible; it is listed as owner question Q2 in
-`plan.md`.** Nothing in the design depends on the answer except the scope of US7's UI tasks.
+**Scope of the Save (FR-070, owner round 6).** The one Save covers the product row and every scoped family.
+Structural operations (add / remove / reorder variants, bundle slots, grouped items, links, images, attachments,
+packaging units), price-book rows (`price_lists`), channel membership (`sales_channels`) and warehouse stock
+(`inventory`) stay immediate, individually audited actions labelled "applies immediately"; they are never staged
+and never part of the Save, and they do not bump the version token (R7).
+
+**Undo (FR-074, owner round 6).** The audit entry's `before` is a complete, valid `changes` body; re-applying it
+through the save route restores the save. No restore UI in 168; "Restore this save" is a named follow-up.
 
 ## R6 — "Copy this value to other channels in the same language" (FR-086)
 
@@ -225,6 +227,20 @@ match, and every second save would answer a spurious 409. So both sides are mill
 where `:next` is a JavaScript `Date` (never `now()`), strictly greater than `:version` (bumped by 1 ms when the
 clock has not moved) → 0 rows → `409 VERSION_CONFLICT`. Every bump below uses the same helper
 (`bumpProductVersion(em, productId, expected?)` in catalog).
+
+**What bumps, and what does not (round 6 consistency rule).** The token versions exactly what the Save
+overwrites: the product row's own fields and every scoped value (save, copy, PATCH scopes, URL-key writes, bulk
+scoped status, overview resets, the connector port, CSV import). **Immediate actions do not bump it** — catalog's
+structural Commands (variants, bundle slots, grouped items, links, gallery / attachment / packaging add, remove,
+reorder, asset replace, base quantity, default flag) write their own tables and must not touch
+`products.updated_at` (no dirty `Product` entity in their unit of work); price-book rows, channel membership and
+stock live in other modules' tables and cannot touch it. So staged edits survive the editor's own immediate
+actions and another admin's structural changes alike. A staged cell whose **subject** an immediate action
+deleted is refused `SCOPED_VALUE_INVALID` reason `subject_not_found` (the editor drops such cells first, with a
+notice); a scope an immediate membership change made invalid is refused `SCOPE_INVALID` with the staged changes
+kept (FR-073). Rejected: the editor adopting a token returned by its own immediate actions — another admin's
+unrelated structural change would still 409 the Save, and modules that cannot write `products` would have to
+return a catalog version.
 Every catalog write that changes a scoped value of the product — save, copy, bulk scoped status, overview resets,
 the scope write port (connectors), CSV import — bumps `products.updated_at` in its transaction, so the token
 covers the whole scoped model.
@@ -268,6 +284,12 @@ encode once "primary language" is gone. *Keep the old meaning and add a sentinel
   `nonBindingDependencies` as **`refuses-without`**: "a product save that changes SEO fields is refused while SEO is
   off; saves without SEO changes are unaffected". The save resolves it only when `changes.seo` is non-empty, so a
   switched-off `seo` refuses exactly those saves (`503 MODULE_DISABLED`, rolled back) and no other (FR-092).
+- **`/seo` screen (FR-094, owner round 6).** Categories and CMS pages stay; a product shows a link to the product
+  editor's SEO tab instead of a product editing mode.
+- **Empty SEO values (owner round 6).** An empty override of any of the five fields makes `resolveForProduct`
+  return the caller's derived fallback for that field (title from the effective name, description from the
+  effective description), exactly as when no value exists; the admin still shows the field as "set at this
+  scope, empty".
 - **Admin.** `seo` contributes the inline SEO section to a new zone `product.editor.seo` (replacing the
   `ProductSeoLink` contribution to `product.editor.seo.after`); the section reads from the catalog read
   endpoint's `seo` block and stages through the zone's `onStage` prop (`contracts/editor-ui.md`). With `seo` off
@@ -428,10 +450,8 @@ owner keyed redirects per (C, L) (round 3).
   unchanged file is a no-op (FR-114) — the profile's mapping is not needed to re-import an export.
 - The activation setting's description is rewritten: switching off keeps profiles.
 
-**Reading — FR-043's "the product export MUST follow the same mapping".** Read as: export and import share one
-column grammar and encoding; export addresses scopes directly, so it needs no mapping and a mapping's
-one-to-many targets are not inverted. **Listed as owner question Q3** because the spec's wording could also mean
-"export per source locale through the profile".
+**Export (FR-043, owner round 6).** The export uses no import profile: Global plus per-scope columns in the
+grammar above (the spec's `sklep_pl:pl` is illustrative; FR-043 leaves the naming to the plan), exact on re-import.
 
 **Rejected.** *A per-profile permission code* — no new code (FR-084 of 163). *Profiles in the Settings store* —
 FR-048 names a table owned by `import_export`. *Hand-written audit* — XIII.

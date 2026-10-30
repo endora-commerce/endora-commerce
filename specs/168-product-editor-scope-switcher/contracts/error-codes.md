@@ -8,7 +8,7 @@ Each new code lands **in one commit** with: its `ERROR_CODES` member (`packages/
 | Code | Owner | HTTP | Raised by | `details` |
 | --- | --- | --- | --- | --- |
 | `FIELD_NOT_AT_SCOPE` | catalog | 422 | a write naming a field at a scope outside its set (FR-012), incl. a C×L write of audience / window / MOQ / returnable / non-text attribute | `{ fields: [{ field, levels: ('G'\|'C'\|'CL')[] }] }` |
-| `SCOPED_VALUE_INVALID` | catalog | 422 | `validateScopedWrite` refusals in the save, copy, PATCH scopes and the scope write port (FR-062, FR-113) | `{ fields: [{ field, scope, reason: 'required_empty' \| 'not_emptyable' \| 'inherit_at_global' \| 'source_inherits' \| 'invalid' }] }` |
+| `SCOPED_VALUE_INVALID` | catalog | 422 | `validateScopedWrite` refusals in the save, copy, PATCH scopes and the scope write port (FR-062, FR-113) | `{ fields: [{ field, scope, reason: 'required_empty' \| 'not_emptyable' \| 'inherit_at_global' \| 'source_inherits' \| 'subject_not_found' \| 'invalid' }] }` |
 | `GLOBAL_ONLY_FIELD` | catalog | 422 | `changes.product` outside Global (FR-081) | `{ fields: string[] }` |
 | `IMPORT_PROFILE_REQUIRED` | import_export | 422 | products import without `profileId` (FR-048) | none |
 | `IMPORT_PROFILE_NOT_FOUND` | import_export | 404 | profile routes, import | `{ profileId }` |

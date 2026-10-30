@@ -20,6 +20,8 @@ a failing test (marked **RED**) in the same phase, and every FR is traced to a t
   `page-builder-admin`, `storefront`; S3 owns `catalog/src/admin/**`, catalog `i18n/` (after C1),
   `admin-kit` scoped-field, `seo/src/admin/**`, `admin/test/modules/{catalog,seo}`. A task touching another
   stream's file says so and the owner applies it.
+- **IDs T143–T148 were added by spec round 6** and sit in the phase where they run, not in numeric order.
+- **Prototype gate**: every S3 task waits for **T143** (owner-reviewed clickable prototype); S1 and S2 do not.
 - Paths: `packages/modules/<id>/…` modules; `backend/test/{unit,contract,integration,perf}/<module>/…` backend
   tests (`[PG]` = needs Postgres); module unit tests sit beside their subjects (`*.test.ts`, no `test/` dir).
 
@@ -89,7 +91,7 @@ US5, US6, US7 and US9 land; they are the acceptance of FR-004.
 **Independent test**: spec US1 *Independent Test*.
 
 - [ ] T026 [P] [US1] (S1) **RED** `backend/test/contract/catalog/scoped-values-save-isolation.test.ts` [PG]: seed name, description and a scopable text attribute at C×L in `en-US`, `pl-PL`, `de-DE`; save an unrelated field at another scope through `PUT …/scoped-values`; assert every other cell unchanged (FR-002, FR-003, FR-004, SC-001, US1 #1, #3)
-- [ ] T027 [P] [US1] (S3) **RED** `admin/test/modules/catalog/product-editor-f1-f2-regression.test.tsx`: the editor at a scope with `de-DE` values; change an unrelated field and Save; the request carries only the staged cells; the attributes section never renders `[object Object]` or a serialised map at any scope (FR-002, FR-003, US1 #1–#3)
+- [ ] T027 [P] [US1] (S3, after T143) **RED** `admin/test/modules/catalog/product-editor-f1-f2-regression.test.tsx`: the editor at a scope with `de-DE` values; change an unrelated field and Save; the request carries only the staged cells; the attributes section never renders `[object Object]` or a serialised map at any scope (FR-002, FR-003, US1 #1–#3)
 
 ---
 
@@ -144,11 +146,11 @@ US5, US6, US7 and US9 land; they are the acceptance of FR-004.
 - [ ] T054 [P] [US3] (S2) **RED** `backend/test/integration/inventory/effective-text-alerts.test.ts` [PG]: operator alerts Global; back-in-stock e-mail at the subscription's channel and language
 - [ ] T055 [P] [US3] (S2) **RED** `backend/test/integration/product_feeds/effective-text-feed.test.ts` [PG]
 - [ ] T056 [P] [US3] (S2) **RED** `backend/test/integration/quick_order/effective-text-search.test.ts` [PG]
-- [ ] T057 [P] [US3] (S2) **RED** `backend/test/integration/seo/effective-text-derived-meta.test.ts` [PG]: derived title / description and sitemap entries use the (C, L) text
+- [ ] T057 [P] [US3] (S2) **RED** `backend/test/integration/seo/effective-text-derived-meta.test.ts` [PG]: derived title / description and sitemap entries use the (C, L) text; an empty SEO title / description override yields the derived value (round 6, US10 #4)
 - [ ] T058 [P] [US3] (S2) **RED** `backend/test/integration/price_lists/product-lines-global-name.test.ts` [PG]: price-book product lines page and search by the Global name (one admin key)
 - [ ] T059 [P] [US3] (S2) **RED** `backend/test/integration/search/language-restricted-match.test.ts` (Meilisearch): Polish shopper "drill" does not find "Wiertarka X"; finds it by "wiertarka"; C×L vs Global per channel (FR-033)
 - [ ] T060 [P] [US3] (S2) **RED** package tests: `packages/admin-kit/src/components/product-browser/product-line.test.ts`, `packages/page-builder-admin/src/chrome/CatalogPickers.test.tsx` — Global string (FR-031)
-- [ ] T061 [P] [US3] (S2) **RED** `storefront/test/catalog/pdp-scoped-texts.test.ts`: PDP name, description (empty override renders none, US2 #9), alt text, attachments and packaging at (C, L)
+- [ ] T061 [P] [US3] (S2) **RED** `storefront/test/catalog/pdp-scoped-texts.test.ts`: PDP name, description (empty override renders none, US2 #9), alt text (empty override → `alt=""`, round 6), attachments and packaging at (C, L)
 
 ### Implementation
 
@@ -165,7 +167,7 @@ US5, US6, US7 and US9 land; they are the acceptance of FR-004.
 - [ ] T072 [P] [US3] (S2) Global-string readers: `packages/modules/crm/src/backend/services/reference-service.ts`, `crm/src/admin/lib/references.ts`, `packages/modules/cms/src/admin/components/admin-catalog-preview-map.ts`, `packages/modules/audit_logs/src/backend/services/recent-activity-service.ts` (string or legacy map), `packages/admin-kit/src/components/product-browser/{product-line.ts,ProductBrowserDialog.tsx}`, `packages/page-builder-admin/src/{chrome/CatalogPickers.tsx,email/EmailEditorPane.tsx}` — T060 green
 - [ ] T073 [P] [US3] (S2) Compile-verify and de-shim `shopping_lists`, `promotions`, `tasks`, `projects`, `platform`, `comparisons` contracts consumers
 - [ ] T074 [US3] (S2) Search: `search-indexer.ts` (`texts.<L>` for every channel language, settings), `search-availability.ts` and `plugin.ts` (reindex boot check, pre-168 fallback logged), `search-query.service.ts` (`attributesToSearchOn` on `texts.<L>`, hit display) in `packages/modules/search/src/backend/` per `contracts/search-index.md`; update the indexer unit tests first — T059 green
-- [ ] T075 [US3] (S2) Storefront: `storefront/app/(catalog)/p/[slug]/page.tsx`, `storefront/lib/api/catalog.ts` — empty-override rendering for alt text behind one function implementing owner Q1's recommendation (b) until answered — T061 green
+- [ ] T075 [US3] (S2) Storefront: `storefront/app/(catalog)/p/[slug]/page.tsx`, `storefront/lib/api/catalog.ts` — an empty alt override renders `alt=""`, never the asset's alt text (round 6) — T061 green
 - [ ] T076 [US3] (S2) Sweep each reader module's tests in `backend/test/{contract,integration}/<module>/` and `admin/test/modules/<module>/` to string names; remove the last `// 168-shim` outside catalog admin — T048 green except catalog admin files (S3 removes those in US5)
 
 **Checkpoint C3**: readers green, T048 green (allow-list holds only S3's pending admin files, each named).
@@ -192,10 +194,16 @@ US5, US6, US7 and US9 land; they are the acceptance of FR-004.
 - [ ] T084 [US4] (S1) `catalog-bulk-import.service.ts`: `ProductImportRow` v2 (scope cells) through the same writers; `exportScopedValues()` on `catalogBulkImportPort` replacing `exportScopedStatuses()`
 - [ ] T085 [US4] (S2) `import_export` package: `./migrations` export in `packages/modules/import_export/package.json`, `src/migrations/index.ts`, scaffold `--module import_export --name import_profiles`, entity `src/backend/entities/import-profile.entity.ts`; `composer:generate`, `manifests:generate`, lockfile — T078 migration half green
 - [ ] T086 [US4] (S2) `src/backend/services/import-profile.service.ts`, Commands `import_profile.create/update/delete` (`src/backend/commands/import-profile.commands.ts`, `commandBus` from the container), routes in `src/backend/routes.ts` gated `requireAdmin('catalog:write')` behind the any-of gate, wiring in `src/backend/index.ts` — T078 green
-- [ ] T087 [US4] (S2) `src/backend/services/adapters/products.adapter.ts` and `csv-codec.ts`: header grammar, `decodeCsvScopedCell`, `planLocaleWrites` with the profile, report warnings and field errors, `IMPORT_PROFILE_REQUIRED`; export through `encodeCsvScopedCell` with scope columns and no profile (owner Q3 recommendation (a)) — T079–T081 green
+- [ ] T087 [US4] (S2) `src/backend/services/adapters/products.adapter.ts` and `csv-codec.ts`: header grammar, `decodeCsvScopedCell`, `planLocaleWrites` with the profile, report warnings and field errors, `IMPORT_PROFILE_REQUIRED`; export through `encodeCsvScopedCell` with Global + scope columns and no profile (FR-043, round 6) — T079–T081 green
 - [ ] T088 [US4] (S2) Admin: Import profiles section and the required profile `Select` in `packages/modules/import_export/src/admin/pages/ImportExportPage.tsx` (admin-kit primitives; `catalog:write` only) — T082 green
 - [ ] T089 [US4] (S2) `import_export` manifest: activation setting description (profiles are kept when off), `open-import-export-center` keywords (`profile`, `profil`, `mapping`, `mapowanie`); `i18n/{en,pl}.json` (`importProfiles.*`); off-state test `backend/test/contract/import_export/import-profiles-off-state.test.ts` [PG] (RED first: routes refused, section and action absent, profiles back after re-activation) (XVII)
 - [ ] T090 [US4] (S2) `pim_connector`: manifest description (owns the locale-mapping contract and the whole-field grammar), `i18n/{en,pl}.json`, connector-author page in `packages/modules/pim_connector/docs/` (mapping, source language for Global, port v2, encoding, grammar) (FR-045, FR-046)
+
+---
+
+## Gate G-S3: prototype review before the editor stream (spec round 6)
+
+- [ ] T143 (designer + owner; coordinator tracks) Build a clickable prototype of the editor with `endora-commerce-designer` against `contracts/editor-ui.md` and `.claude/skills/ux-laws/SKILL.md`: the scope bar (switcher, banner, read-only line), `ScopedField` in every state (the "Use value from <parent scope>" checkbox, inheritance markers and source lines, empty override, Global only, not at this scope), the Save / Discard / Stay dialog and the "Applies immediately" labels; the owner reviews it; record the approval and any changes to `contracts/editor-ui.md` in a `docs(168)` commit. **No S3 task starts before this is checked**; S1 and S2 continue in parallel
 
 ---
 
@@ -232,11 +240,15 @@ US5, US6, US7 and US9 land; they are the acceptance of FR-004.
 **Goal**: one Save, one Command, one audit entry, all or nothing; Save / Discard / Stay.
 **Independent test**: spec US7 *Independent Test* (SEO part completes in US10).
 
-- [ ] T103 [P] [US7] (S1) **RED** `backend/test/contract/catalog/scoped-values-save.test.ts` [PG]: one audit entry with every cell's before / after (FR-072, SC-008); `changedFields`; warn-mode warnings (US7 #3, FR-098); re-applying the audit before-state restores the save (US7 #5, FR-074 as read in the plan); `409 VERSION_CONFLICT` writes nothing (US7 #6)
+- [ ] T103 [P] [US7] (S1) **RED** `backend/test/contract/catalog/scoped-values-save.test.ts` [PG]: one audit entry with every cell's before / after (FR-072, SC-008); `changedFields`; warn-mode warnings (US7 #3, FR-098); re-applying the audit before-state through the API restores 100% of the fields (US7 #5, FR-074, SC-008); `409 VERSION_CONFLICT` writes nothing (US7 #6)
 - [ ] T104 [P] [US7] (S1) **RED** `backend/test/contract/catalog/scoped-values-save-atomicity.test.ts` [PG]: failure injected in each family writer, a late `URL_KEY_TAKEN`, a refuse-mode gate → nothing written, no audit entry, no event (FR-071, FR-073, FR-076, SC-007)
 - [ ] T105 [US7] (S1) Order the save: gate before any write, then the fixed write order; failure-injection seam for tests; audit projection carries a complete, re-applicable before-state — T103, T104 green
 - [ ] T106 [P] [US7] (S3) **RED** `admin/test/modules/catalog/product-editor-save.test.tsx`: US7 #1–#6 UI half; Save / Discard / Stay (FR-075); staged changes survive tab switches (FR-083); the unsaved-changes prompt counts every staged change; per-field errors and per-pair gate refusal
-- [ ] T107 [US7] (S3) Header Save, error mapping, switch-guard `ModalDialog`, `useUnsavedChangesPrompt` on the store; retire every per-section Save and auto-save that writes a scoped value or the product row (FR-070; collection editors per owner Q2 recommendation (a), labelled "applies immediately") — T106 green
+- [ ] T107 [US7] (S3) Header Save, error mapping, switch-guard `ModalDialog`, `useUnsavedChangesPrompt` on the store; retire every per-section Save and auto-save that writes a scoped value or the product row (FR-070, round 6) — T106 green
+- [ ] T144 [P] [US7] (S1) **RED** `backend/test/contract/catalog/scoped-values-version-immediate-actions.test.ts` [PG]: read the version; run every immediate action (add / remove / reorder a variant, bundle slot, grouped item, link, gallery item, attachment, packaging unit; replace an image asset; a price-book row write through `price_lists`; a channel-membership add; a stock change through `inventory`); then a Save with the **old** version → 200 and the staged cells written; a Save naming the removed gallery item's alt text → `422 SCOPED_VALUE_INVALID` `subject_not_found`, nothing written (FR-070, spec *Edge Cases*, R7)
+- [ ] T145 [US7] (S1) Make T144 green in `packages/modules/catalog/src/backend/services/` (`gallery.service.ts`, `attachment.service.ts`, `packaging-unit.service.ts`, `product-link.service.ts`, `grouped.service.ts`, `bundle.service.ts`, variant writers in `catalog-admin.service.ts`): no structural Command marks the `Product` entity dirty or writes `products.updated_at`; `bumpProductVersion` is called only by the scoped-value / product-row writers; `subject_not_found` in `scoped-values-save.service.ts`. A gap in another module (none expected: those cannot write `products`) goes to its owning stream
+- [ ] T146 [P] [US7] (S3) **RED** `admin/test/modules/catalog/product-editor-immediate-actions.test.tsx`: staged scoped edits survive an immediate action on every tab; each immediate control is labelled "Applies immediately"; an immediate action neither stages nor saves; staged cells of a removed subject are dropped with an announced notice; the next Save sends the version read before the immediate action and succeeds (FR-070, US7 #7, spec *Edge Cases*)
+- [ ] T147 [US7] (S3) "Applies immediately" labels on every structural / price-book / membership / stock control in `packages/modules/catalog/src/admin/**` (and through the existing zones for `price_lists`, `sales_channels`, `inventory` contributions — the label is rendered by the host around the zone); store refresh of one family without clearing `staged`; drop-and-announce for removed subjects — T146 green
 
 ---
 
@@ -274,12 +286,13 @@ US5, US6, US7 and US9 land; they are the acceptance of FR-004.
 - [ ] T118 [US10] (S2) Scaffold `--module seo --name product_meta_three_levels` in `packages/modules/seo/src/migrations/`, entity notes in `seo-meta-override.entity.ts`, generated artefacts — T117 green
 - [ ] T119 [P] [US10] (S2) **RED** `backend/test/contract/seo/product-meta-write-port.test.ts` [PG]: `applyWithin` writes on the caller's em, no flush, no audit, rolled back with the caller; refusals; `readWithin` (FR-091). Before writing the port, read the `check:command-coverage`, `check:transaction-context` and `check:port-shape` rows of `specs/conventions/check-inventory.md` (research R9, *Check estate*)
 - [ ] T120 [P] [US10] (S2) **RED** `backend/test/contract/seo/product-meta-read-relaxed.test.ts` [PG]: `catalog:read` → 200 on `GET …/seo/meta/product/:id` at G / C / C×L; 403 on `GET …/seo/meta/category/:id` and `…/cms_page/:id`; permission inventory sees the literal (FR-093, research R9 review)
-- [ ] T121 [US10] (S2) `seo` backend: `readScoped`, three-level `resolveForProduct` and `listScopesForProduct` in `meta-tag-resolver.service.ts`; `SeoProductMetaWritePort` implementation; `providePort('seoProductMetaWritePort', …)` in `src/backend/index.ts` (`// command-coverage-ignore:` marker naming catalog's Command on the caller-transaction writes; `em.execute` only; run `check:command-coverage`, `check:transaction-context`, `check:port-shape`); the static product GET route in `routes.ts`; product three-level addressing in PUT / DELETE — T119, T120 green
+- [ ] T121 [US10] (S2) `seo` backend: `readScoped`, three-level `resolveForProduct` (an empty override yields the derived value, round 6) and `listScopesForProduct` in `meta-tag-resolver.service.ts`; `SeoProductMetaWritePort` implementation; `providePort('seoProductMetaWritePort', …)` in `src/backend/index.ts` (`// command-coverage-ignore:` marker naming catalog's Command on the caller-transaction writes; `em.execute` only; run `check:command-coverage`, `check:transaction-context`, `check:port-shape`); the static product GET route in `routes.ts`; product three-level addressing in PUT / DELETE — T119, T120 green
 - [ ] T122 [P] [US10] (S1) **RED** `backend/test/contract/catalog/scoped-values-seo.test.ts` [PG] (SEO title + name in one save, one transaction, one audit entry incl. SEO; injected SEO failure → neither written) and `backend/test/contract/catalog/scoped-values-seo-off.test.ts` [PG] (`seo` off: read `seo: null`, save without SEO succeeds, save with SEO `503 MODULE_DISABLED` and nothing written; full restoration on re-activation) (FR-090…FR-092, XVII)
 - [ ] T123 [US10] (S1) Catalog: `nonBindingDependencies` `refuses-without` entry for `seoProductMetaWritePort` in `packages/modules/catalog/src/manifest.ts`; read endpoint's `seo` block behind `effectiveState.isPresent('seo')`; save step 8 with `lazyPort` inside the Command; `check:port-dependencies`, `check:port-catches` — T122 green
 - [ ] T124 [P] [US10] (S3) **RED** `admin/test/modules/seo/product-seo-section.test.tsx` (fields at the scope with sources, staging through `onStage`, read-only mode) and `admin/test/modules/catalog/product-editor-seo-off.test.tsx` (no contributor → no SEO tab, no request, no error)
 - [ ] T125 [US10] (S3) `packages/modules/seo/src/admin/zones/ProductSeoSection.tsx` contributed to `product.editor.seo` in `seo/src/admin/index.ts`; delete `ProductSeoLink.tsx` and its contribution; host mount and tab visibility in `ProductEditor.tsx` — T124 green
-- [ ] T126 [US10] (S2) `/seo` screen: `SeoMetaScopeEditor.tsx` keeps category / CMS-page scopes; for a product it links to the editor's SEO tab (owner Q5 recommendation (a)); `seo/i18n/{en,pl}.json`; manifest `whenAbsent` wording on catalog's side handed to S1
+- [ ] T148 [P] [US10] (S3) **RED** `admin/test/modules/seo/seo-screen-product-link.test.tsx`: `/seo` edits categories and CMS pages; a product shows only a link to `/catalog/products/:id?tab=seo` (FR-094, US10 #5)
+- [ ] T126 [US10] (S3) `/seo` screen: `packages/modules/seo/src/admin/pages/SeoMetaScopeEditor.tsx` / `SeoPage.tsx` keep category / CMS-page scopes; the product mode is replaced by the link (FR-094); `seo/i18n/{en,pl}.json` UI keys; catalog-side `whenAbsent` wording handed to S1 — T148 green
 
 ---
 
@@ -316,7 +329,7 @@ US5, US6, US7 and US9 land; they are the acceptance of FR-004.
 - [ ] T139 [P] (S2) Measurements "After" column of `quickstart.md` § *Measurements*: search index bytes and p95 latency (1 and 3 languages, `contracts/search-index.md` §4), listing bench vs 163 SC-004 (+10%), editor scope switch (SC-012: one request, no slower than a product page load)
 - [ ] T140 (all) Fixture sweep and stale-reference trap: grep `backend/test`, `admin/test`, `storefront/test`, `packages/*/src/**/*.test.*` for `'{"en-US"`, product `name: {`, `nameTranslations`, `altText: {`, deleted file names and removed routes (`value-overrides`, `scope-context`, `ProductScopeEditor`, `AttachmentScopesDialog`, `ProductSeoLink`, the three 163 entities); re-derive the module-removal ledger entries the deletions free (AGENTS.md *traps*)
 - [ ] T141 (S1) Final gate, recording which suites ran: `pnpm -r run typecheck`, `pnpm -r run lint`, `pnpm run check:naming && pnpm run check:language`, `pnpm --filter backend run check:module-boundary`, `check:port-dependencies`, `check:port-catches`, `check:port-shape`, `check:transaction-context`, `check:command-coverage`, `check:off-state-coverage`, `check:admin-zones`, `check:error-translations`, `check:module-docs`, `check:docs-translations`, `check:demo-data-budget`, `check:test-ownership`, `check:entry-presence`, `pnpm --filter backend exec vitest run test/contract/admin_users/permission-inventory.test.ts test/unit/db/fk-dependency-drift.test.ts test/unit/db/migrations-registry.test.ts`, `manifests:check`, `pnpm --filter '!backend' run test`, the targeted suites of `quickstart.md` §5, T048 with an empty allow-list for 168 shims; walk `quickstart.md` §0–§4 on the dev stack
-- [ ] T142 (S1) Prepare (in the merge-request description, not files) the follow-up issue bodies: research R20 rows 1–7 (FR-117) and owner Q4 option (b) if the owner chose (a)
+- [ ] T142 (S1) Prepare (in the merge-request description, not files) the follow-up issue bodies: research R20 rows 1–7 (FR-117) and "Restore this save" on the save's audit entry (FR-074 follow-up, round 6)
 
 ---
 
@@ -329,7 +342,7 @@ Phase 1 ─► Phase 2 (S1) ─► C1 ─┬─► US2 (S1) ──────�
                                │        │                         │                      │
                                ├─► US3 readers + search (S2) ─► US4 (S2; T083–T084 S1 after US2) ─► US10 seo backend (S2)
                                │
-                               └─► US5 (S3, API mocked) ─► US6 ─► US7 UI ─► US8 ─► US9 ─► US10 UI ─► US11 UI ─► US12
+                               └─► T143 prototype gate ─► US5 (S3, API mocked) ─► US6 ─► US7 UI ─► US8 ─► US9 ─► US10 UI ─► US11 UI ─► US12
 US1's tests (T026 S1, T027 S3) are written at C1 and turn green after US2 + US5–US7 + US9.
 Polish after every story; T141 last.
 ```
@@ -354,8 +367,7 @@ Polish after every story; T141 last.
 One release (round 3), so "MVP" is an internal milestone, not a ship: **Phases 1–2 + US2 + US3** make the model and
 every reader correct (the P1 data-safety core); **US5 + US6 + US7** then make US1's regression tests green — the
 first point at which the editor is usable end to end and the natural mid-feature review. US4 and US8–US10 complete
-P2; US11–US12 (P3) and Polish finish the release. Owner questions Q1–Q5 (plan) touch T075, T087, T105, T107, T126
-only; build the recommended option there and keep the seam.
+P2; US11–US12 (P3) and Polish finish the release. The prototype gate T143 opens S3; S1 and S2 do not wait for it.
 
 ## Traceability (every FR and SC → task)
 
@@ -363,7 +375,7 @@ only; build the recommended option there and keep the seam.
 | --- | --- |
 | FR-001 (removed), FR-021…FR-025 (removed) | — |
 | FR-002, FR-003, FR-004, SC-001 | T026, T027 |
-| FR-010, FR-011, FR-012, FR-013, FR-014, FR-015 | T004, T007, T029, T032, T035 (FR-012 attributes: T042, T113) |
+| FR-010, FR-011, FR-012, FR-013, FR-014, FR-015 | T004, T007, T029, T032, T035 (FR-012 attributes: T042, T113; FR-013 round-6 exceptions: T057, T061, T075, T121) |
 | FR-016 | T030, T039 |
 | FR-017, FR-018, SC-004 | T029 |
 | FR-020, FR-026, SC-002 | T015–T019, T024, T078, T117 |
@@ -377,7 +389,7 @@ only; build the recommended option there and keep the seam.
 | FR-050…FR-055, FR-057, SC-006 | T091, T094, T095 |
 | FR-056 | T044, T092, T093 |
 | FR-060…FR-065, SC-009 | T097–T102 |
-| FR-070, FR-071, FR-072, FR-073, FR-074, FR-076, SC-007, SC-008 | T038, T103–T107 |
+| FR-070, FR-071, FR-072, FR-073, FR-074, FR-076, SC-007, SC-008 | T038, T103–T107, T144–T147 |
 | FR-075 | T106, T107, T131 |
 | FR-077 | T040, T046 |
 | FR-080, FR-084, SC-010 | T108–T110 |
@@ -385,8 +397,9 @@ only; build the recommended option there and keep the seam.
 | FR-083 | T106, T107 |
 | FR-085 | T111, T112 |
 | FR-086 | T114–T116 |
-| FR-090, FR-091, FR-092 | T119, T121–T125 |
+| FR-090, FR-091, FR-092 | T119, T121–T125 (US10 #4 SEO empty → derived: T057, T121) |
 | FR-093 | T120, T121 |
+| FR-094 | T148, T126 |
 | FR-095, FR-096 | T033, T035, T127 |
 | FR-097, FR-098 | T103, T127–T130 |
 | FR-100, FR-101 | T045, T131, T132 |
@@ -402,3 +415,4 @@ only; build the recommended option there and keep the seam.
 | SC-011 | T141 (`quickstart.md` §4 walk, timed) |
 | SC-012 | T003, T139 |
 | SC-013 | T134 |
+| Prototype gate (spec *Assumptions*, round 6) | T143 |

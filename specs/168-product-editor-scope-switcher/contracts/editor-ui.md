@@ -40,6 +40,14 @@ Designer audit: `design-audit.md` §4 (Language-level recommendations void).
   remove the SEO changes or switch SEO on" (spec *Edge Cases*).
 - Switching scope (switcher, scope-map link, completeness link) with `staged.size > 0` → `ModalDialog` "Save /
   Discard / Stay" (FR-075). `useUnsavedChangesPrompt` reads `staged`.
+- **Immediate actions (FR-070, owner round 6).** Structural operations (variants, bundle slots, grouped items,
+  links, images, attachments, packaging units: add / remove / reorder / replace asset), price-book rows, channel
+  membership and warehouse stock run at once as their own audited Commands. Each such control carries the visible
+  label "Applies immediately" (text, not only an icon). They never enter `staged`, never clear it and do not change
+  the version the Save sends (R7). After one, the editor refreshes only the affected family's list and keeps every
+  staged change; staged cells of a subject the action removed are dropped with a live-region notice ("Unsaved
+  change to the removed image was discarded"). A membership change that makes the current scope invalid moves the
+  editor to the nearest valid scope through the Save / Discard / Stay guard.
 - Warn-mode warnings after a save: the existing `product-gate-warning` live region (FR-098).
 - Retired: `ProductScopeEditor` chips, `ProductScopeControls`'s "Save availability", `ProductOrderRulesCard`'s two
   Saves and the returnable auto-save, `ProductUrlKeysPanel`'s "Add override" and its Save, the gallery "Scope" and

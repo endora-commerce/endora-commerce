@@ -149,7 +149,7 @@ null` and `(product_id, label, sales_channel_id, language_code) where language_c
 
 Effective at (C, L): an item is shown unless its effective `hidden` is true; role R = effective holder of R; a
 holder that is effectively hidden at (C, L) resolves to none (163 rule kept). Alt at (C, L) = effective alt; when it
-is `absent` the asset's alt text in L applies (derived fallback); what an **empty** alt shows is owner question Q1.
+is `absent` the asset's alt text in L applies (derived fallback); an **empty** alt renders literally `alt=""` (decorative image, never the asset's alt text — owner round 6).
 
 ## 7. Attachments and packaging units (catalog) — `scope_model_media` (replaces 163 §8)
 
@@ -194,8 +194,8 @@ Category and CMS-page rows are unchanged (FR-117).
 | `attribute:<key>` scopable text | G, C, CL | if `isRequired` | no value |
 | `attribute:<key>` scopable non-text | G, C | if `isRequired`; single select (`enum`, `select`) and `boolean` refuse always | `number` / `price`: no value · `date`: no limit · `multiselect`: nothing selected |
 | `attribute:<key>` not scopable | G | if `isRequired` | — |
-| `seo:title`, `seo:description`, `seo:ogTitle`, `seo:ogDescription`, `seo:ogImageUrl` | G, C, CL | no | owner question Q1 |
-| `gallery:<itemId>:altText` | G, C, CL | no | owner question Q1 |
+| `seo:title`, `seo:description`, `seo:ogTitle`, `seo:ogDescription`, `seo:ogImageUrl` | G, C, CL | no | the storefront's derived value, as when absent (round 6) |
+| `gallery:<itemId>:altText` | G, C, CL | no | `alt=""` — decorative image (round 6) |
 | `gallery:<itemId>:hidden` | G, C, CL | n/a (boolean) | refused |
 | `galleryRole:<label>` | G, C, CL | no | no image holds the role |
 | `attachment:<id>:name` / `:description` | G, C, CL | no | nothing shown |
@@ -241,6 +241,7 @@ filterable fields of 163 unchanged.
 
 | Transition | Effect |
 | --- | --- |
+| Immediate action (structural op, price-book row, membership, stock) | its own audited Command; **does not bump `products.updated_at`**; staged editor changes are untouched (R7) |
 | Save at scope S | one Command; for each staged (field, S): `set` → upsert own value; `empty` → upsert empty row (refused for required / select / boolean); `inherit` → delete own row (refused at G); version bumped; one audit entry; one `product.updated.v1` with `changedFields` |
 | Copy to channels | one Command; upsert the source's own value (or empty) at each (C_target, L); one audit entry |
 | Product leaves a channel / channel drops a language | rows retained and ignored, listed as orphaned; orphaned URL keys keep reserving (FR-016, FR-018) |
