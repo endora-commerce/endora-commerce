@@ -113,7 +113,7 @@ type SaveScopedValuesRequest = {
 | 2. Every changed field supported at the scope's level (data-model §9) | `422 FIELD_NOT_AT_SCOPE` `{ fields: [{ field, levels }] }` | nothing written |
 | 3. `validateScopedWrite` per cell (required / select / boolean refuse `empty`; `inherit` at G refused; value schemas, lengths) | `422 SCOPED_VALUE_INVALID` `{ fields: [{ field, reason: 'required_empty' \| 'not_emptyable' \| 'inherit_at_global' \| 'invalid' }] }` | nothing written |
 | 4. `capture`: before-state of every touched cell, SEO cells via `seoProductMetaWritePort.readWithin(em, …)` | — | — |
-| 5. Compare-and-set `products.updated_at = :version` | `409 VERSION_CONFLICT` | nothing written |
+| 5. Compare-and-set the version: `date_trunc('milliseconds', updated_at) = :version`, new value a JavaScript `Date` > `:version` (research R7 — never SQL `now()`) | `409 VERSION_CONFLICT` | nothing written |
 | 6. Completeness gate, when a change turns a (C, L) on (163 M3 rule; FR-076) | refuse mode: `422 SCOPE_INCOMPLETE` (163 shape) | nothing written |
 | 7. Catalog writes in order: product row → scope rows → value overrides → family overrides → URL key (advisory locks; `409 URL_KEY_TAKEN` / `URL_KEY_REDIRECT_TAKEOVER_REQUIRED`) | any error | transaction rolled back |
 | 8. `seoProductMetaWritePort.applyWithin(em, …)` iff `changes.seo` non-empty — resolved here, so a switched-off `seo` answers `503 MODULE_DISABLED` | any error | rolled back |

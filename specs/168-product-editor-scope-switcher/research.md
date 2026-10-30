@@ -217,8 +217,14 @@ into N overrides; offering it only on an own value avoids the surprise.
 ## R7 — Optimistic concurrency token
 
 **Decision.** `products.updated_at` (ISO string, millisecond precision) is the product's **version**. The read
-endpoint returns it; the save and copy Commands compare-and-set it
-(`update products set updated_at = now() where id = ? and updated_at = ?` → 0 rows → `409 VERSION_CONFLICT`).
+endpoint returns it; the save and copy Commands compare-and-set it. **Precision is part of the contract**: the
+column is `timestamptz` (microseconds, `core_foundation_init`), while the ORM and the API speak JavaScript `Date`
+(milliseconds) — a CAS written with SQL `now()` would store microseconds that the next ISO round-trip cannot
+match, and every second save would answer a spurious 409. So both sides are millisecond-truncated:
+`update products set updated_at = :next where id = :id and date_trunc('milliseconds', updated_at) = :version`,
+where `:next` is a JavaScript `Date` (never `now()`), strictly greater than `:version` (bumped by 1 ms when the
+clock has not moved) → 0 rows → `409 VERSION_CONFLICT`. Every bump below uses the same helper
+(`bumpProductVersion(em, productId, expected?)` in catalog).
 Every catalog write that changes a scoped value of the product — save, copy, bulk scoped status, overview resets,
 the scope write port (connectors), CSV import — bumps `products.updated_at` in its transaction, so the token
 covers the whole scoped model.
@@ -283,6 +289,15 @@ encode once "primary language" is gone. *Keep the old meaning and add a sentinel
 | Tenancy (XI) | SEO overrides and products are platform-global; no organisation data is involved |
 | Write side | Unchanged: `catalog:write`, and only through catalog's save Command or seo's own Commands |
 | Verdict | **Accept.** Residual risk: none beyond what `catalog:read` already grants. Tests: a `catalog:read`-only admin reads product SEO (200) and is refused the category and CMS-page SEO GET (403); the inventory test proves the new literal is declared |
+
+**Check estate for the caller-transaction writer.** `applyWithin` persists `seo_meta_overrides` rows without a
+Command of its own, by design (one audit entry, FR-072). It must satisfy `check:command-coverage` (a
+`// command-coverage-ignore: <reason>` marker naming the caller's Command, the shape
+`admin_notifications`' `recordWithin` uses in `admin-notification-service.ts`), `check:transaction-context` (no
+`getKnex()` / connection-level SQL inside it — `em.execute` only) and `check:port-shape` (the port type is generic
+over `EM` with no `@mikro-orm` import in `packages/contracts`, the `AdminNotificationRecordPort<EM>` precedent; no
+optional method). **Unverified at planning time**: the builder reads `specs/conventions/check-inventory.md` rows
+for the three checks before writing the port (tasks T119, T121).
 
 **Rejected.** *Relax the generic route to `catalog:read`* — leaks CMS-page metadata (above). *Have catalog read
 `seo_meta_overrides` itself* — Principle I.
