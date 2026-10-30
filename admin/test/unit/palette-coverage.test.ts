@@ -15,9 +15,10 @@ import {
 /**
  * Every admin destination a module contributes is reachable from ⌘K / CTRL+K,
  * or is recorded here as deliberately not a palette target (Principle XVI;
- * issue #510). The rule is stated in `specs/conventions/module-admin-surfaces.md`
- * § *Command palette*, item 7; the derivation is
- * `admin/test/helpers/palette-coverage.ts`.
+ * issue #510), and every module with an admin page declares at least one
+ * palette action of its own (issue #82). The rules are stated in
+ * `specs/conventions/module-admin-surfaces.md` § *Command palette*, item 7;
+ * the derivation is `admin/test/helpers/palette-coverage.ts`.
  */
 
 /**
@@ -182,7 +183,9 @@ describe('palette coverage rule (red proofs)', () => {
     expect(
       run({
         surfaces: [surface({ routes: [{ path: '/widgets/:id/history' }, { path: '/widgets/*' }], nav: [] })],
-        actions: [],
+        // The module's own action, so the per-module rule is met and only
+        // the per-destination question is asked of these two routes.
+        actions: [action('/widget-search')],
       }),
     ).toEqual([]);
   });
@@ -200,6 +203,26 @@ describe('palette coverage rule (red proofs)', () => {
     expect(run({ exemptions: { widgets: { '/widgets/new': reason } } })).toEqual([
       'stale-exemption /widgets/new',
     ]);
+  });
+
+  it('refuses a module with admin pages that declares no action of its own, even when another module covers them', () => {
+    const gadgets = (targetRoute: string): CoverageAction => ({ ...action(targetRoute), moduleId: 'gadgets' });
+    expect(
+      run({ actions: [gadgets('/widgets'), gadgets('/widgets/new'), gadgets('/widget-groups')] }),
+    ).toEqual(['module-without-action /widgets']);
+  });
+
+  it('refuses a module whose only pages are parameterised and which declares no action', () => {
+    expect(
+      run({
+        surfaces: [surface({ routes: [{ path: '/widgets/:id' }], nav: [] })],
+        actions: [],
+      }),
+    ).toEqual(['module-without-action /widgets/:id']);
+  });
+
+  it('asks no action of a module contributing no admin page (zones only)', () => {
+    expect(run({ surfaces: [surface({ routes: [], nav: [] })], actions: [] })).toEqual([]);
   });
 
   it('refuses an exemption for a route no module contributes', () => {
