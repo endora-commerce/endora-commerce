@@ -118,7 +118,8 @@
  *
  *  - **`container-name-unregistered`** — the documented name appears in no
  *    `di.register` and no `di.providePort` anywhere under `src/modules` or
- *    `src/apps`. A consumer copying it gets
+ *    `src/apps`, and is not a name the platform itself registers
+ *    (`platformOwnedNames`, issue #91). A consumer copying it gets
  *    `[kernel] '…' is not registered in this composition` at first call.
  *  - **`container-name-not-the-gated-registration`** — the port type *is*
  *    registered, by a typed `di.providePort<T>('X', …)`, and the doc names some
@@ -384,10 +385,11 @@ export interface PortShapeInput {
    */
   readonly unpublishedResolutionLedger?: Readonly<Record<string, string>>;
   /**
-   * Names a **composition root or the kernel** supplies, which signal 3 skips:
-   * neither has a contracts file to publish from. Supplied by the host rather
-   * than read here, because which names a platform reserves is a fact about a
-   * composition and this file says only what a source text spells.
+   * Names a **composition root or the kernel** supplies. Signal 2 counts them
+   * as registered, and signal 3 skips them: neither has a contracts file to
+   * publish from. Supplied by the host rather than read here, because which
+   * names a platform reserves is a fact about a composition and this file says
+   * only what a source text spells.
    */
   readonly platformOwnedNames?: ReadonlySet<string>;
   /** Ports a composition root still bridges on their owner's behalf. Same reason. */
@@ -718,11 +720,16 @@ export function checkPortShape(input: PortShapeInput): PortShapeResult {
 
   const registrationKindOf = (container: string): 'gated' | 'plain' | null =>
     gatedNames.has(container) ? 'gated' : allNames.has(container) ? 'plain' : null;
+  // A name the platform registers has no module registration to find, and is
+  // registered all the same (issue #91) — signal 3 below reads the same set.
+  const platformOwnedNames = input.platformOwnedNames ?? new Set<string>();
 
   for (const port of published) {
     if (port.containers.length === 0) continue;
     const gatedName = gatedNameOfType.get(port.portName);
-    const unregistered = port.containers.filter((name) => registrationKindOf(name) === null);
+    const unregistered = port.containers.filter(
+      (name) => registrationKindOf(name) === null && !platformOwnedNames.has(name),
+    );
 
     // "No registration behind this published interface at all" is the shape the
     // ledger answers for, so it is asked once per port and not once per
@@ -841,7 +848,6 @@ export function checkPortShape(input: PortShapeInput): PortShapeResult {
   }
 
   const resolutionLedger = input.unpublishedResolutionLedger ?? {};
-  const platformOwnedNames = input.platformOwnedNames ?? new Set<string>();
   const hostRegisteredPorts = input.hostRegisteredPorts ?? {};
   const unpublishedResolutions: UnpublishedResolutionFinding[] = [];
   const resolutionLedgerHits = new Set<string>();
