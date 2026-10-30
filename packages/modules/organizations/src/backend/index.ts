@@ -455,6 +455,7 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(
         ({ emFactory, eventBus, commandBus, auditLogService }: OrganizationsCradle) =>
           organizationsModule({
+            translate: organizationsTranslate,
             emFactory,
             eventBus,
             commandBus,

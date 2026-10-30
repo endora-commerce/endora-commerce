@@ -21,6 +21,20 @@ export const ORGANIZATIONS_PROSE_EN = {
     '  Tax ID:  {taxId}\n' +
     '  Status:  {status}\n\n' +
     'Open in the admin panel: {linkPath}',
+  'moderation.account.pendingVerification':
+    'Your organization is awaiting verification. Orders and requests for quotation will be available once it is complete.',
+  'moderation.account.blocked':
+    'Placing orders and requests for quotation is currently suspended. Please contact your account manager.',
+  'moderation.account.rejected':
+    "Your organization's registration was rejected. Please contact the platform administration.",
+  'moderation.checkout.pendingVerification':
+    'Your organization is awaiting verification. Orders will be available once it is complete.',
+  'moderation.checkout.blocked':
+    'Placing orders is currently suspended. Please contact your account manager.',
+  'moderation.checkout.rejected':
+    "Your organization's registration was rejected. Please contact the platform administration.",
+  'moderation.checkout.unavailable':
+    'Placing orders is currently unavailable.',
 } as const;
 
 export type OrganizationsProseKey = keyof typeof ORGANIZATIONS_PROSE_EN;

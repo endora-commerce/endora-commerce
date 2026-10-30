@@ -134,6 +134,10 @@ VALIDATION_FAILED`.
 Customer-side gate: the storefront receives the localized
 "why-you-can't-transact" message via `GET /api/v1/me`'s
 `organization.canTransact` + `organization.moderationMessage` fields.
+The message, like the checkout preflight's 423 `reason`, is written in
+the language the response is answered in (the storefront's
+`Accept-Language`, else the sales channel's default language), from
+the `moderation.*` keys of this module's bundle.
 The cart and checkout pages render `<OrganizationModerationBanner>`
 above the form when `canTransact === false`.
 
