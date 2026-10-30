@@ -19,6 +19,9 @@ import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
  */
 
 const TEST_MODULE_ID = 'fixture_http_actions';
+/** A fixture action under a real module, so its bundle key resolves against shipped bundles. */
+const KEYWORDS_MODULE_ID = 'credentials';
+const KEYWORDS_ACTION_ID = 'fixture-keywords-560';
 const adminCookie = { b2b_session: 'stub-admin-session' };
 
 /**
@@ -112,6 +115,47 @@ describe('GET /api/v1/admin/admin-actions (contract)', () => {
     }
   });
 
+  /**
+   * Issue #560 — the palette's per-language keywords, end to end: the column,
+   * the `_i18n` resolver over the bundles the harness installs from disk, and
+   * the wire. The row borrows `credentials`' real `keywordsKey` under a fixture
+   * action id, so the words asserted are the ones that module ships.
+   */
+  it('serves the Polish keywords of a keywordsKey to a Polish admin and the English ones to an English admin', async () => {
+    await h.em().getKnex()('module_actions').insert({
+      module_id: KEYWORDS_MODULE_ID,
+      action_id: KEYWORDS_ACTION_ID,
+      label_key: 'actions.newCredential.label',
+      keywords_key: 'actions.newCredential.keywords',
+      icon: 'Plus',
+      target_route: '/credentials/new',
+      required_permission: null,
+      keywords: JSON.stringify(['credential', 'configuration']),
+      weight: 100,
+    });
+
+    const keywordsIn = async (language: 'en' | 'pl'): Promise<string[]> => {
+      const res = await h.app.inject({
+        method: 'GET',
+        url: `/api/v1/admin/admin-actions?language=${language}`,
+        cookies: adminCookie,
+      });
+      expect(res.statusCode).toBe(200);
+      const parsed = GetAdminActionsResponseSchema.parse((res.json() as { data: unknown }).data);
+      const row = parsed.data.find(
+        (a) => a.moduleId === KEYWORDS_MODULE_ID && a.actionId === KEYWORDS_ACTION_ID,
+      );
+      expect(row).toBeDefined();
+      return row!.keywords;
+    };
+
+    const pl = await keywordsIn('pl');
+    expect(pl).toEqual(expect.arrayContaining(['credential', 'configuration', 'nowe poświadczenie']));
+    const en = await keywordsIn('en');
+    expect(en).toEqual(expect.arrayContaining(['credential', 'configuration', 'new credential']));
+    expect(en).not.toContain('nowe poświadczenie');
+  });
+
   it('sets a private no-cache Cache-Control header', async () => {
     const res = await h.app.inject({
       method: 'GET',
@@ -165,5 +209,6 @@ async function cleanup(h: BackendServerHandle): Promise<void> {
     seededEnabledIds = null;
   }
   await h.em().nativeDelete(ModuleAction, { moduleId: TEST_MODULE_ID });
+  await h.em().nativeDelete(ModuleAction, { moduleId: KEYWORDS_MODULE_ID, actionId: KEYWORDS_ACTION_ID });
   await h.em().nativeDelete(ModuleRegistration, { moduleId: TEST_MODULE_ID });
 }

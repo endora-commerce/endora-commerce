@@ -54,23 +54,4 @@ export const entries: Readonly<Record<string, string>> = {
     'in this module: `email-templates/order-confirmation.default.ts` carries the same ' +
     'message as a per-language `languages: { \'en-US\': ..., \'pl-PL\': ... }` envelope, which ' +
     'this check exempts by construction.',
-  'packages/modules/orders/src/manifest.ts:08715f6e81ec':
-    '`cykl życia` — A command-palette (Cmd-K) **search keyword**, deliberately bilingual so ' +
-    'that a Polish operator typing their own word finds the screen.\n\n' +
-    'It is debt rather than a mistake, and the repair is not an edit to this line. ' +
-    'Principle XVI puts a manifest action\'s `labelKey` and `descriptionKey` in the module\'s ' +
-    'own bundle and leaves `keywords` a flat array with no per-language shape at all, so ' +
-    'the honest fix is a `ModuleManifestSchema` change that lets an action declare keywords ' +
-    'per language — at which point every entry of this shape retires at once.\n\n' +
-    'Deleting the Polish keyword instead would satisfy this check and make the screen ' +
-    'unfindable for the operator it was added for, which is the wrong direction under a ' +
-    'ruling whose clause 2 is *two languages are the floor, not the ceiling*.',
-  'packages/modules/orders/src/manifest.ts:3d83018dc7c0':
-    '`Anna Nowak ul. Główna 1` — A Polish `sampleValue` in a manifest\'s template-variable ' +
-    'picker — the example an operator reads to learn what the variable renders.\n\n' +
-    'Case 1: the picker is an admin screen answering a request whose language the platform ' +
-    'resolves, so the sample is a sentence the backend can translate. The cheapest honest ' +
-    'repair is an English sample; a per-language `sampleValue` is the fuller one and needs ' +
-    'a `ModuleManifestSchema` change, so it is the same retiring condition as this module\'s ' +
-    'palette keywords where the two coincide.',
 };

@@ -104,6 +104,13 @@ transactionalEmails: [
 emailDefaultsRegistry.register('order_confirmation', { defaultSubject, defaultContent });
 ```
 
+A variable's `sampleValue` is English. When the sample reads differently in another
+language — an address, a status — add `sampleValueKey`, a key in the declaring module's own
+bundles (relative to its namespace, like a palette action's `labelKey`) holding the sample in
+every shipped language, the English entry equal to `sampleValue`. The editor's variable list
+and live preview, and the server preview, show the sample in the language being edited; the
+manifest's `sampleValue` answers when the key does not resolve.
+
 The owning module sends through the `TransactionalEmailSender` port (injected by
 composition), preserving its existing idempotency `messageId`:
 

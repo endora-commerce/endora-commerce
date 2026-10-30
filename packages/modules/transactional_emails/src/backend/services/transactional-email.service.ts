@@ -11,7 +11,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
+  SUPPORTED_LANGUAGES,
+  type AdminI18nTranslatePort,
+  type EmailVariableDescriptor,
   type PreviewEmailResponse,
+  type SupportedLanguage,
   type ResolvedEmailContent,
   type TransactionalEmailDetail,
   type TransactionalEmailSender,
@@ -105,6 +109,12 @@ export interface TransactionalEmailServiceDeps {
   onBlockFailure?: EmailBlockFailureReporter;
   /** The block names saved content may hold. Absent: the first-party set alone. */
   emailSafeNames?: EmailSafeNames;
+  /**
+   * `_i18n`'s resolver, through which a variable's `sampleValueKey` is read in
+   * the language being edited (issue #560). Absent, or refusing: every sample
+   * is the manifest's English literal, which is what it was before the key.
+   */
+  translator?: AdminI18nTranslatePort;
 }
 
 export class TransactionalEmailService implements TransactionalEmailSender {
@@ -119,6 +129,7 @@ export class TransactionalEmailService implements TransactionalEmailSender {
   private readonly blockRenderers: (() => EmailBlockRenderers) | undefined;
   private readonly onBlockFailure: EmailBlockFailureReporter | undefined;
   private readonly emailSafeNames: EmailSafeNames;
+  private readonly translator: AdminI18nTranslatePort | undefined;
 
   constructor(deps: TransactionalEmailServiceDeps) {
     this.emFactory = deps.emFactory;
@@ -132,6 +143,7 @@ export class TransactionalEmailService implements TransactionalEmailSender {
     this.blockRenderers = deps.blockRenderers;
     this.onBlockFailure = deps.onBlockFailure;
     this.emailSafeNames = deps.emailSafeNames ?? FIRST_PARTY_EMAIL_NAMES;
+    this.translator = deps.translator;
   }
 
   // --- Sending (port) -----------------------------------------------------
@@ -367,7 +379,7 @@ export class TransactionalEmailService implements TransactionalEmailSender {
       description: email.description,
       active: email.active,
       languages: email.languages,
-      variables: email.variables,
+      variables: await this.localizedVariables(email, lang),
       scope: { salesChannelId, language: lang },
       effective,
       default: { subject: email.defaultSubject[lang] ?? '', content: defaultContentTree as PuckDataTree },
@@ -491,13 +503,44 @@ export class TransactionalEmailService implements TransactionalEmailSender {
 
     const branding = await this.branding.resolve(input.salesChannelId);
     // Sample data drives the preview (FR-024).
-    const variables = this.sampleVariables(email.variables);
+    const variables = this.sampleVariables(await this.localizedVariables(email, lang));
     const rendered = await this.renderWith(em, resolved, branding, variables, {
       salesChannelId: input.salesChannelId,
       language: lang,
       ...(fallbackLanguage ? { fallbackLanguage } : {}),
     });
     return { subject: rendered.subject, html: rendered.html, text: rendered.text };
+  }
+
+  /**
+   * Issue #560 — the declared variables with every `sampleValueKey` resolved in
+   * `language` (a BCP-47 content language; one the platform ships no bundle for
+   * reads English). The key is relative to the declaring module's namespace,
+   * which is the e-mail's `ownerModule`. A key that resolves to the resolver's
+   * `moduleId.key` placeholder, a resolver that throws and an unwired one all
+   * leave the manifest's `sampleValue` standing: a preview with an English
+   * example is a lesser preview, never a failed one.
+   */
+  private async localizedVariables(
+    email: TransactionalEmail,
+    language: string,
+  ): Promise<EmailVariableDescriptor[]> {
+    const translator = this.translator;
+    const variables = email.variables ?? [];
+    if (!translator) return variables;
+    const bundleLanguage = bundleLanguageOf(language);
+    return Promise.all(
+      variables.map(async (variable) => {
+        const key = variable.sampleValueKey;
+        if (!key) return variable;
+        try {
+          const value = await translator.translate(email.ownerModule, key, bundleLanguage);
+          return value === `${email.ownerModule}.${key}` ? variable : { ...variable, sampleValue: value };
+        } catch {
+          return variable;
+        }
+      }),
+    );
   }
 
   private sampleVariables(
@@ -560,4 +603,12 @@ export class TransactionalEmailService implements TransactionalEmailSender {
       // Audit is best-effort; never block the operation.
     }
   }
+}
+
+/** A content language (`pl-PL`) reduced to the bundle language it reads; English otherwise. */
+function bundleLanguageOf(language: string): SupportedLanguage {
+  const primary = language.split('-', 1)[0]?.trim().toLowerCase() ?? '';
+  return (SUPPORTED_LANGUAGES as readonly string[]).includes(primary)
+    ? (primary as SupportedLanguage)
+    : 'en';
 }

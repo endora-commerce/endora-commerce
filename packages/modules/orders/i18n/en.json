@@ -117,5 +117,9 @@
   "orderDetail.comments.carryReason.target_missing": "the order has no field with this key",
   "orderDetail.comments.carryReason.value_type_mismatch": "the order's field has a different value type",
   "orderDetail.comments.carryReason.audience_mismatch": "the order's field is visible to customers, but the source field is internal",
-  "orderDetail.comments.carryReason.value_invalid": "the value is not valid for the order's field"
+  "orderDetail.comments.carryReason.value_invalid": "the value is not valid for the order's field",
+  "actions.openOrders.keywords": "orders, sales",
+  "actions.newOrder.keywords": "order, new, create",
+  "actions.orderStatusConfig.keywords": "statuses, lifecycle",
+  "emails.orderConfirmation.sample.shippingAddressText": "  Anna Nowak\n  1 Main Street"
 }

@@ -119,5 +119,9 @@
   "orderDetail.comments.carryReason.target_missing": "zamówienie nie ma pola o tym kluczu",
   "orderDetail.comments.carryReason.value_type_mismatch": "pole zamówienia ma inny typ wartości",
   "orderDetail.comments.carryReason.audience_mismatch": "pole zamówienia jest widoczne dla klientów, a pole źródłowe jest wewnętrzne",
-  "orderDetail.comments.carryReason.value_invalid": "wartość nie pasuje do pola zamówienia"
+  "orderDetail.comments.carryReason.value_invalid": "wartość nie pasuje do pola zamówienia",
+  "actions.openOrders.keywords": "zamówienia, sprzedaż",
+  "actions.newOrder.keywords": "zamówienie, nowe, utwórz",
+  "actions.orderStatusConfig.keywords": "statusy, cykl życia",
+  "emails.orderConfirmation.sample.shippingAddressText": "  Anna Nowak\n  ul. Główna 1"
 }

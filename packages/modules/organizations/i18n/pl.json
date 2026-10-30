@@ -54,5 +54,8 @@
   "create.status.pending_verification": "Oczekuje na weryfikację",
   "create.submit": "Utwórz organizację",
   "create.cancel": "Anuluj",
-  "create.error": "Nie udało się utworzyć organizacji."
+  "create.error": "Nie udało się utworzyć organizacji.",
+  "actions.openOrganizations.keywords": "organizacja, klient",
+  "actions.newOrganization.keywords": "organizacja, nowa, firma",
+  "emails.newOrgRegistration.sample.statusLabel": "Oczekuje na weryfikację"
 }
