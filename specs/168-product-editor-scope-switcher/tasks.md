@@ -203,7 +203,8 @@ US5, US6, US7 and US9 land; they are the acceptance of FR-004.
 
 ## Gate G-S3: prototype review before the editor stream (spec round 6)
 
-- [ ] T143 (designer + owner; coordinator tracks) Build a clickable prototype of the editor with `endora-commerce-designer` against `contracts/editor-ui.md` and `.claude/skills/ux-laws/SKILL.md`: the scope bar (switcher, banner, read-only line), `ScopedField` in every state (the "Use value from <parent scope>" checkbox, inheritance markers and source lines, empty override, Global only, not at this scope), the Save / Discard / Stay dialog and the "Applies immediately" labels; the owner reviews it; record the approval and any changes to `contracts/editor-ui.md` in a `docs(168)` commit. **No S3 task starts before this is checked**; S1 and S2 continue in parallel
+- [x] T143 (designer + owner; coordinator tracks) Build a clickable prototype of the editor with `endora-commerce-designer` against `contracts/editor-ui.md` and `.claude/skills/ux-laws/SKILL.md`: the scope bar (switcher, banner, read-only line), `ScopedField` in every state (the "Use value from <parent scope>" checkbox, inheritance markers and source lines, empty override, Global only, not at this scope), the Save / Discard / Stay dialog and the "Applies immediately" labels; the owner reviews it; record the approval and any changes to `contracts/editor-ui.md` in a `docs(168)` commit. **No S3 task starts before this is checked**; S1 and S2 continue in parallel
+  - Approved by the owner 2026-10-30 — prototype <https://claude.ai/artifact/6NSyfVSv3q4haqokHCCiU4>; outcome recorded in `contracts/editor-ui.md` §11.
 
 ---
 

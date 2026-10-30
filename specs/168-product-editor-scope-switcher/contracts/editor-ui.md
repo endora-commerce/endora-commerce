@@ -2,7 +2,9 @@
 
 Owner: `catalog` admin (`packages/modules/catalog/src/admin/`), primitives in `@endora-commerce/admin-kit`, the SEO
 section in `seo`'s admin. Decision: research R17. UX floor: `.claude/skills/ux-laws/SKILL.md` (WCAG 2.2 AA).
-Designer audit: `design-audit.md` §4 (Language-level recommendations void).
+Designer audit: `design-audit.md` §4 (Language-level recommendations void). Owner-approved prototype (T143,
+2026-10-30): <https://claude.ai/artifact/6NSyfVSv3q4haqokHCCiU4> — §11 records what it settled; where §11 and an
+earlier section differ, §11 wins.
 
 ## 1. URL state (FR-056, FR-100)
 
@@ -36,18 +38,20 @@ Designer audit: `design-audit.md` §4 (Language-level recommendations void).
   `PUT …/scoped-values` (`scoped-values-api.md` §3); on success the view is replaced by the response and `staged`
   cleared; on failure every staged change stays and each field shows its error (`aria-invalid`,
   `aria-describedby`); `SCOPE_INCOMPLETE` lists per (C, L) pair; `409` → "This product was changed elsewhere.
-  Reload to see the latest values." with a Reload button; `503 MODULE_DISABLED` for `seo` → "SEO is switched off;
+  Reload to see the latest values." with a button "Reload (discards your unsaved changes)" (§11); `503 MODULE_DISABLED` for `seo` → "SEO is switched off;
   remove the SEO changes or switch SEO on" (spec *Edge Cases*).
 - Switching scope (switcher, scope-map link, completeness link) with `staged.size > 0` → `ModalDialog` "Save /
-  Discard / Stay" (FR-075). `useUnsavedChangesPrompt` reads `staged`.
+  Discard / Stay" (FR-075); so does browser Back (`popstate`), where Stay re-pushes the current URL (§11).
+  `useUnsavedChangesPrompt` reads `staged`.
 - **Immediate actions (FR-070, owner round 6).** Structural operations (variants, bundle slots, grouped items,
   links, images, attachments, packaging units: add / remove / reorder / replace asset), price-book rows, channel
-  membership and warehouse stock run at once as their own audited Commands. Each such control carries the visible
-  label "Applies immediately" (text, not only an icon). They never enter `staged`, never clear it and do not change
+  membership and warehouse stock run at once as their own audited Commands. Each section holding such controls carries
+  one visible "Applies immediately" badge (text, not only an icon) on its heading (§11). They never enter `staged`, never clear it and do not change
   the version the Save sends (R7). After one, the editor refreshes only the affected family's list and keeps every
   staged change; staged cells of a subject the action removed are dropped with a live-region notice ("Unsaved
-  change to the removed image was discarded"). A membership change that makes the current scope invalid moves the
-  editor to the nearest valid scope through the Save / Discard / Stay guard.
+  change to the removed image was discarded"). Membership is edited only at Global (Channels is a global-only
+  tab), so a membership change that invalidates the current scope can only come from elsewhere; it surfaces as a
+  reload notice and the reloaded editor opens at the nearest valid scope (§11).
 - Warn-mode warnings after a save: the existing `product-gate-warning` live region (FR-098).
 - Retired: `ProductScopeEditor` chips, `ProductScopeControls`'s "Save availability", `ProductOrderRulesCard`'s two
   Saves and the returnable auto-save, `ProductUrlKeysPanel`'s "Add override" and its Save, the gallery "Scope" and
@@ -126,3 +130,46 @@ Name, URL key" whose items link `&field=`; at C a list "Missing in this channel:
 Every string in `catalog/i18n/{en,pl}.json` (and `seo/i18n`, `import_export/i18n`, `admin-kit` kit strings through
 the kit's i18n surface) — keys under `productEditor.scope.*`, `productEditor.scopedField.*`,
 `productEditor.save.*`, `productEditor.copy.*`, `productEditor.completeness.*`, `productEditor.tab.*`.
+
+## 11. Approved prototype (T143, owner 2026-10-30)
+
+Prototype: <https://claude.ai/artifact/6NSyfVSv3q4haqokHCCiU4>. Binding for S3; layout lives inside the S3 tasks.
+
+**Layout**
+
+- Fields in one grid row always align: each `ScopedField` spans **three shared subgrid rows** — (1) head: label,
+  badges and the "Use value from <parent scope>" checkbox; (2) the control; (3) notes. **All helper text** (source
+  line, empty-value meaning, "Set per channel" reason, missing marker, error, derived SEO value, "Save first to copy")
+  sits **below** the control.
+- Scope-bar selects are top-aligned. The multiselect (gallery roles) has the input height (36 px).
+- The scope bar is sticky at ≥ 1024 px only; below it Save sits in the bottom bar (`StickyFormActions`).
+- Duplicate, Archive / Restore and Delete live in a "Product" menu captioned "Whole product — applies to every
+  scope" (FR-084); Save is the one primary button.
+- Touch targets are ≥ 44 px below 1024 px.
+
+**Controls**
+
+- Inherited single selects and multiselects render as a **read-only text input** showing the option label(s) (a
+  native `select` has no `readonly`; §4 forbids `disabled`). Booleans (returnable, hidden) render as two-option
+  selects ("Yes / No", "Shown / Hidden"), never as a checkbox beside "Use value from …".
+- The Language select at "All channels" is `disabled` with the visible hint "Pick a channel to choose a language".
+- The copy action (§8) sits in a per-field "…" menu; absent when no other member channel offers L; replaced by
+  "Save first to copy this value to other channels" when the field has a staged change.
+
+**Badges and states** (refines §4)
+
+- Inheriting: "Not translated" for a text field at C×L, "Inherited" elsewhere, "No value" when the chain yields
+  nothing (FR-065). Own value: "Overridden"; own empty: "Empty here" plus a distinct (hatched) control.
+- "Applies immediately": one badge per section heading, not one per control (§3).
+- Untick then retype the inherited value: the field keeps an own, **pinned** value (`set`), not auto-unstaged.
+- Completeness markers (§9) are computed from **saved** values (the gate's view); the gate check on Save uses
+  saved plus staged values.
+
+**Rules settled by the review**
+
+- **URL key** renders on **Details → Content**, outside the `product.editor.seo` zone, so it stays with `seo` off.
+- **Required at Global**: name and URL key refuse being cleared at Global; a required attribute may be absent at
+  Global (the gate checks per (C, L)).
+- **Back with staged changes** goes through Save / Discard / Stay; Stay re-pushes the current URL (§1, §3).
+- **409 Reload** discards the staged changes and says so on the button (§3).
+- **Concurrent membership change** invalidating the current scope → reload notice (§3).
