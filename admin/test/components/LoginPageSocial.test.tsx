@@ -15,7 +15,9 @@ import type {
  * The two reads are stubbed at the HTTP client, one level below the hook, so
  * the loading gap and the error paths are exercised rather than asserted away.
  */
-vi.mock('../../../packages/admin-shell/src/lib/auth', () => ({
+const get = vi.fn();
+vi.mock('@endora-commerce/admin-kit/lib', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@endora-commerce/admin-kit/lib')>()),
   useAuth: () => ({
     login: vi.fn(),
     verifyMfa: vi.fn(),
@@ -24,10 +26,6 @@ vi.mock('../../../packages/admin-shell/src/lib/auth', () => ({
     lastLoginError: null,
     mfaChallengeId: null,
   }),
-}));
-
-const get = vi.fn();
-vi.mock('../../../packages/admin-shell/src/lib/api-client', () => ({
   apiClient: {
     get: (path: string) => get(path),
     post: vi.fn(),

@@ -6,8 +6,8 @@ import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { StrictMode, useState, type ReactElement, type ReactNode } from 'react';
 import { ADMIN_PREFERENCES_DEFAULTS, ADMIN_PRODUCT_SELECTION_MAX } from '@endora-commerce/contracts';
-import { TranslationProvider } from '../../../packages/admin-shell/src/i18n/TranslationProvider';
-import type { Bundle } from '../../../packages/admin-shell/src/i18n/types';
+import { TranslationProvider } from '@endora-commerce/admin-kit/i18n';
+import type { Bundle } from '@endora-commerce/admin-kit/i18n';
 import { adminSession } from '../helpers/render-with-session';
 
 /**

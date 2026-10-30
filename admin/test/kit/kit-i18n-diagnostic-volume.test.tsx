@@ -67,8 +67,7 @@ import { act, render } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 
-import { TranslationProvider } from '../../../packages/admin-shell/src/i18n/TranslationProvider';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { TranslationProvider, useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 /**
  * Keys no shipped bundle carries and no other test names, so the

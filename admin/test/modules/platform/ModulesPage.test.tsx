@@ -23,7 +23,8 @@ let listed: ModuleListItem[] = [];
 let presence: ModulePresence[] = [];
 let degraded = false;
 
-vi.mock('../../../../packages/admin-shell/src/lib/module-presence', () => ({
+vi.mock('@endora-commerce/admin-kit/lib', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@endora-commerce/admin-kit/lib')>()),
   useModulePresence: () => ({
     modules: presence,
     isPresent: (id: string) => presence.find((m) => m.id === id)?.present ?? false,

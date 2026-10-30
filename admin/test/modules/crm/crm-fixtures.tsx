@@ -9,11 +9,10 @@ import type {
   OpportunityWorkflow,
   PropagationOutcome,
 } from '@endora-commerce/contracts';
-import { AppLanguageContext } from '@endora-commerce/admin-kit/i18n';
+import { AppLanguageContext, TranslationProvider } from '@endora-commerce/admin-kit/i18n';
 import { render } from '@testing-library/react';
 import { expect } from 'vitest';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
-import { TranslationProvider } from '../../../../packages/admin-shell/src/i18n/TranslationProvider';
 import { textOfEditorDoc, type EditorDoc } from '@endora-commerce/admin-kit/components';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 

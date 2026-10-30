@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ClarifyRequest, PromptActionRequestDto } from '@endora-commerce/contracts';
-import { ApiError } from '../api-client.js';
+import { ApiError } from '@endora-commerce/admin-kit/lib';
 import {
   cancelPrompt,
   clarifyPrompt,

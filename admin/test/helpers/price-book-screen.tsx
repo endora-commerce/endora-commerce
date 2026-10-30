@@ -4,8 +4,8 @@ import { render, screen, type RenderResult } from '@testing-library/react';
 import type { ComponentType, ReactElement, ReactNode } from 'react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import type { AdminMe } from '@endora-commerce/admin-kit/lib';
-import { TranslationProvider } from '../../../packages/admin-shell/src/i18n/TranslationProvider';
-import type { Bundle } from '../../../packages/admin-shell/src/i18n/types';
+import { TranslationProvider } from '@endora-commerce/admin-kit/i18n';
+import type { Bundle } from '@endora-commerce/admin-kit/i18n';
 import { modulePresence, withSession } from './render-with-session';
 
 /**

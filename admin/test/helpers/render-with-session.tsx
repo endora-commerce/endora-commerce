@@ -17,8 +17,8 @@ import type {
 } from '@endora-commerce/contracts';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { TranslationProvider } from '../../../packages/admin-shell/src/i18n/TranslationProvider';
-import type { Bundle } from '../../../packages/admin-shell/src/i18n/types';
+import { TranslationProvider } from '@endora-commerce/admin-kit/i18n';
+import type { Bundle } from '@endora-commerce/admin-kit/i18n';
 
 /**
  * Mount a subject under the **real** session and module-presence providers,

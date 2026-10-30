@@ -4,8 +4,8 @@ import { join, resolve } from 'node:path';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
-import { TranslationProvider } from '../../../packages/admin-shell/src/i18n/TranslationProvider';
-import type { Bundle } from '../../../packages/admin-shell/src/i18n/types';
+import { TranslationProvider } from '@endora-commerce/admin-kit/i18n';
+import type { Bundle } from '@endora-commerce/admin-kit/i18n';
 import { ContentLanguageTabs, ScopePicker } from '@endora-commerce/admin-kit/components';
 import { apiClient } from '@endora-commerce/admin-kit/lib';
 

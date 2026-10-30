@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ApiError } from '@endora-commerce/admin-kit/lib';
-import { TranslationProvider } from '../../../../packages/admin-shell/src/i18n/TranslationProvider';
+import { TranslationProvider } from '@endora-commerce/admin-kit/i18n';
 import catalogEn from '../../../../packages/modules/catalog/i18n/en.json';
 import catalogPl from '../../../../packages/modules/catalog/i18n/pl.json';
 import { adminSession, withSession } from '../../helpers/render-with-session';

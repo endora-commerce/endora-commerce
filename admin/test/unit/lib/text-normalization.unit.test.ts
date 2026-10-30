@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalize } from '../../../../packages/admin-shell/src/lib/text-normalization';
+import { normalize } from '@endora-commerce/admin-kit/lib';
 
 /**
  * `normalize` is `foldDiacritics` from `@endora-commerce/contracts` plus a trim since issue

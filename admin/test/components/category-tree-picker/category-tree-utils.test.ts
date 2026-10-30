@@ -7,7 +7,7 @@ import {
   flattenCategoryTree,
   pickCategoryDisplayName,
   type CategoryTreePickerCategory,
-} from '../../../../packages/admin-shell/src/components/category-tree-picker/category-tree-utils';
+} from '@endora-commerce/admin-kit/components';
 
 const SAMPLE: CategoryTreePickerCategory[] = [
   {

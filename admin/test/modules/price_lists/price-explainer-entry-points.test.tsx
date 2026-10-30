@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import type { ComponentType, ReactElement, ReactNode } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { priceBookSchema } from '@endora-commerce/contracts';
-import { TranslationProvider } from '../../../../packages/admin-shell/src/i18n/TranslationProvider';
+import { TranslationProvider } from '@endora-commerce/admin-kit/i18n';
 import { BOOKS, CATALOG, IDS, PLATFORM_ADMIN } from '../../helpers/price-book-fixtures';
 import { modulePresence, withSession } from '../../helpers/render-with-session';
 

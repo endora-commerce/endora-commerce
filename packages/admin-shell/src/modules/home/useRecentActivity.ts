@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ApiError, apiClient } from '../../lib/api-client.js';
+import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
 
 /**
  * Feature 024 — admin-side hook that fetches the dashboard's curated

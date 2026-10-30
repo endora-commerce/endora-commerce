@@ -11,7 +11,7 @@ import {
   type CmsBrandTokensAdminRead,
 } from '@endora-commerce/contracts';
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
-import { AppLanguageContext } from '../../../../packages/admin-shell/src/i18n/app-language-context';
+import { AppLanguageContext } from '@endora-commerce/admin-kit/i18n';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 import { BrandPage } from '../../../../packages/modules/cms/src/admin/pages/BrandPage';

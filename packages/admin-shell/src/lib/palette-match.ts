@@ -1,4 +1,4 @@
-import { normalize } from './text-normalization.js';
+import { normalize } from '@endora-commerce/admin-kit/lib';
 
 /**
  * The ⌘K palette's one matching rule, shared by every group the dialog renders

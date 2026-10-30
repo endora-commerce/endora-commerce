@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useAuth } from '../lib/auth.js';
+import { useAuth } from '@endora-commerce/admin-kit/lib';
 
 /**
  * Signs the admin out of the Admin UI after a configurable period of

@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import type { GatedSurface, PermissionRequirement } from '../../lib/surface-visibility.js';
+import type { GatedSurface, PermissionRequirement } from '@endora-commerce/admin-kit/lib';
 
 /**
  * The sidebar's entry and section shapes, shared by `AppShell` and the Pinned

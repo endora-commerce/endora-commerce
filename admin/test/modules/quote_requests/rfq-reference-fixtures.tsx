@@ -3,9 +3,9 @@ import type { Mock } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { render } from '@testing-library/react';
 import { ApiError } from '@endora-commerce/admin-kit/lib';
-import { TranslationProvider } from '../../../../packages/admin-shell/src/i18n/TranslationProvider';
+import { TranslationProvider } from '@endora-commerce/admin-kit/i18n';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
-import type { Bundle } from '../../../../packages/admin-shell/src/i18n/types';
+import type { Bundle } from '@endora-commerce/admin-kit/i18n';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 
 /**

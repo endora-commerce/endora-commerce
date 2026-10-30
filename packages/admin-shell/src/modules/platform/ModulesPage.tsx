@@ -5,22 +5,23 @@ import type {
   ModulePresence,
   RecentActivityModuleVisibility,
 } from '@endora-commerce/contracts';
-import { ApiError } from '../../lib/api-client.js';
-import { Alert, AlertDescription } from '../../components/ui/alert.js';
-import { Badge } from '../../components/ui/badge.js';
-import { Button } from '../../components/ui/button.js';
-import { Card, CardContent } from '../../components/ui/card.js';
-import { PageHeader } from '../../components/ui/page-header.js';
+import { ApiError, useModulePresence } from '@endora-commerce/admin-kit/lib';
 import {
+  Alert,
+  AlertDescription,
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  PageHeader,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-} from '../../components/ui/table.js';
-import { useTranslation } from '../../i18n/useTranslation.js';
-import { useModulePresence } from '../../lib/module-presence/index.js';
+} from '@endora-commerce/admin-kit/ui';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { ModuleActivationControl } from './ModuleActivationControl.js';
 import { RecentActivityVisibilityControl } from './RecentActivityVisibilityControl.js';
 import { listModules, listRecentActivityVisibility } from './api.js';

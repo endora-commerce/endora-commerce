@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
-import { ApiError } from '../lib/api-client.js';
-import { useAuth } from '../lib/auth.js';
-import { useAppLanguage } from '../i18n/app-language-context.js';
-import { setPreferredLanguage } from '../i18n/language-storage.js';
-import { useTranslation } from '../i18n/useTranslation.js';
-import type { SupportedAdminLanguage } from '../i18n/types.js';
+import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
+import {
+  useAppLanguage,
+  setPreferredLanguage,
+  useTranslation,
+} from '@endora-commerce/admin-kit/i18n';
+import type { SupportedAdminLanguage } from '@endora-commerce/admin-kit/i18n';
 
 /**
  * Compact language picker for the top bar (feature 019 / FR-017).

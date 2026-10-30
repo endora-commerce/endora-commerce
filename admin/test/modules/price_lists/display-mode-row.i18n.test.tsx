@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
-import { TranslationProvider } from '../../../../packages/admin-shell/src/i18n/TranslationProvider';
+import { TranslationProvider } from '@endora-commerce/admin-kit/i18n';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 
 /**

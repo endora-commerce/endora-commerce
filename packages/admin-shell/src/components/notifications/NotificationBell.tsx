@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, CheckCheck } from 'lucide-react';
-import { useTranslationContext } from '../../i18n/TranslationProvider.js';
-import { useTranslation } from '../../i18n/useTranslation.js';
+import { useTranslationContext, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { notificationText } from './notification-text.js';
 import { useAdminNotifications, type AdminNotificationItem } from './useAdminNotifications.js';
 

@@ -3,7 +3,7 @@ import { screen } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { MemoryRouter } from 'react-router-dom';
-import type { Bundle } from '../../../../packages/admin-shell/src/i18n/types';
+import type { Bundle } from '@endora-commerce/admin-kit/i18n';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 

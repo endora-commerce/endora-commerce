@@ -1,5 +1,5 @@
 import type { AdminFeedbackRequest } from '@endora-commerce/contracts';
-import { apiClient } from '../api-client.js';
+import { apiClient } from '@endora-commerce/admin-kit/lib';
 
 /**
  * Sends feedback to the makers of Endora Commerce through this instance

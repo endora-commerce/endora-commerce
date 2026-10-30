@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { SettingDto, SettingGroupDto } from '@endora-commerce/contracts';
-import { TranslationProvider } from '../../../../packages/admin-shell/src/i18n/TranslationProvider';
-import type { Bundle } from '../../../../packages/admin-shell/src/i18n/types';
+import { TranslationProvider } from '@endora-commerce/admin-kit/i18n';
+import type { Bundle } from '@endora-commerce/admin-kit/i18n';
 import { passthroughBundle } from '../../helpers/render-with-i18n';
 
 /**

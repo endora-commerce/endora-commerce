@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { apiClient } from '../../lib/api-client.js';
+import { apiClient } from '@endora-commerce/admin-kit/lib';
 import type { NotificationMessage } from './notification-text.js';
 
 export interface AdminNotificationItem {
