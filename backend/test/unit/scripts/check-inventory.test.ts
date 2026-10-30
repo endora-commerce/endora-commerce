@@ -282,6 +282,7 @@ import {
 import {
   adminHostFilesWalked,
   adminPopulationLost,
+  adminRegistryLayersWalked,
   analyzeSource as moduleBoundaryAnalyze,
   checkModuleBoundary,
   findCrossModuleSql,
@@ -332,7 +333,9 @@ import {
   applicationReachRefusal,
   checkApplicationReaches,
   checkPlatformSurface,
+  checkSharedNames,
   platformSurfaceRefusal,
+  sharedNameRefusal,
   type ApplicationReachInput,
   type PlatformSurfaceFindingKind,
   type PlatformSurfaceInput,
@@ -627,6 +630,27 @@ function platformSurfaceInput(sources: Record<string, string>): PlatformSurfaceI
       subpathTargets: new Map([['http', 'backend/src/http/index.ts']]),
       declaredSubpaths: new Set(['http', 'composition']),
     },
+  };
+}
+
+/**
+ * Issue #84's input: one platform barrel (the text under test), the file it may
+ * re-export from, and a contracts module declaring the same name.
+ */
+function sharedNameInput(barrel: string) {
+  const platform: Record<string, string> = {
+    'packages/platform/src/kernel/index.ts': barrel,
+    'packages/platform/src/kernel/logger.ts': 'export interface Logger { info(m: string): void }',
+  };
+  return {
+    barrels: ['packages/platform/src/kernel/index.ts'],
+    platformSource: (key: string) => platform[key],
+    dependencies: new Map([
+      [
+        '@endora-commerce/contracts',
+        new Map([['packages/contracts/src/modules.ts', 'export interface Logger { info(m: string): void }']]),
+      ],
+    ]),
   };
 }
 
@@ -7295,6 +7319,40 @@ const CHECKS: readonly CheckEntry[] = [
           ? 1
           : 0,
       ),
+      // Issue #88. The module walk's `.tsx` files had no floor of their own:
+      // with `'.tsx'` dropped from `collectModuleFiles`, every token held and the
+      // run was red only through three ledger entries going stale. The author
+      // here is the generated admin registry, entering as source text with the
+      // index it names, and the proof is the probe itself — a walk that opened
+      // the index and not the screen it lazily imports — paired with the walk
+      // that opened both.
+      'short-admin-registry-walk-refuses': top(() => {
+        const files: Record<string, string> = {
+          'packages/modules/blog/src/admin/index.ts':
+            "export const contributions = { component: () => import('./pages/BlogPage.js') };",
+          'packages/modules/blog/src/admin/pages/BlogPage.tsx': 'export default 1;',
+        };
+        const walked = (keys: readonly string[]) =>
+          adminRegistryLayersWalked({
+            registry: "import { contributions } from '@endora-commerce/mod-blog/admin';",
+            registryKey: 'admin/src/modules.generated.ts',
+            packageDirectoryOf: () => 'packages/modules/blog',
+            readText: (key) => files[key] ?? null,
+            walked: new Set(keys),
+          });
+        const short = walked(['packages/modules/blog/src/admin/index.ts']);
+        const read = {
+          moduleFiles: ['modules/orders/a.ts'],
+          registeredModules: ['orders'],
+          ledgerDirectoryExists: true,
+          entityTables: 220,
+          migrationTables: 241,
+        };
+        return moduleBoundaryVacuous({ ...read, adminRegistryMissing: short.missing }) !== null &&
+          walked(Object.keys(files)).missing.length === 0
+          ? 1
+          : 0;
+      }),
     },
   },
   {
@@ -8056,6 +8114,34 @@ const CHECKS: readonly CheckEntry[] = [
         }) === null
           ? 0
           : 1,
+      ),
+      // Issue #84 — a published name a dependency of the platform exports too
+      // must be that dependency's own declaration. Each fixture enters as
+      // source text for both packages, so the follower deciding which
+      // declaration a barrel name is runs every time.
+      'shared-name-collision': top(
+        () =>
+          checkSharedNames(sharedNameInput("export type { Logger } from './logger.js';"), {})
+            .violations.filter((finding) => finding.kind === 'shared-name-collision').length,
+      ),
+      'shared-name-unresolved': top(
+        () =>
+          checkSharedNames(sharedNameInput("export type { Logger } from './gone.js';"), {
+            Logger: { reason: 'an unread name is never ledgerable' },
+          }).violations.filter((finding) => finding.kind === 'shared-name-unresolved').length,
+      ),
+      'stale-shared-name-key': top(
+        () =>
+          checkSharedNames(
+            sharedNameInput("export type { Logger } from '@endora-commerce/contracts';"),
+            { Logger: { reason: 'it is the same declaration now' } },
+          ).staleKeys.length,
+      ),
+      'no-dependency-to-compare': top(() =>
+        sharedNameRefusal({ dependencies: new Map() }) !== null &&
+        sharedNameRefusal({ dependencies: sharedNameInput('').dependencies }) === null
+          ? 1
+          : 0,
       ),
     },
   },
@@ -11760,7 +11846,8 @@ describe('every red proof enters at the top of the analysis', () => {
       // apart, and the four refusals. `declared-write-still-fails` is the one to
       // read: if it goes green on an R1-only implementation, R2 was folded into
       // R1 and the clause R1 cannot state was lost.
-      'backend/scripts/check-module-boundary.ts': 74,
+      // Plus issue #88's admin-registry floor (`short-admin-registry-walk-refuses`).
+      'backend/scripts/check-module-boundary.ts': 75,
       // Seven findings, both stale directions of the ledgers that carry one, and
       // the discrimination `undocumented-module` turns on: `docs: false` is a
       // decision and an absent declaration is not, one field apart, and
@@ -11867,7 +11954,12 @@ describe('every red proof enters at the top of the analysis', () => {
       // empty canonical-target map reports every relative reach as reaching
       // nothing, and an application walk that opened no file reports no reach
       // at all, while the module half keeps printing a healthy `files=`.
-      'backend/scripts/check-platform-surface.ts': 14,
+      //
+      // Plus issue #84's four: a published name a platform dependency declares
+      // differently, one the follower could not trace (never ledgerable), the
+      // shared-name ledger's stale direction, and the refusal of a run with no
+      // dependency to compare against.
+      'backend/scripts/check-platform-surface.ts': 18,
       // Plus D-171.1's two: the condition consumer-side declaration is
       // licensed against, and the discrimination that keeps it from firing on
       // the correct case. The second is a proof of its own because a signal
@@ -12621,6 +12713,14 @@ describe('the endora check estate holds every rule this inventory names', () => 
 
     expect(signals.includes('application-host-reach')).toBe(
       typeof rulePlatformSurface.scanApplicationReaches === 'function',
+    );
+  });
+
+  it('declares the shared-name half vacuous exactly while the analysis has one (issue #84)', () => {
+    const platformSurface = ESTATE.filter((row) => row.id === 'check:platform-surface');
+    const signals = platformSurface.flatMap((row) => row.partial ?? []).map((one) => one.signal);
+    expect(signals.includes('shared-published-name')).toBe(
+      typeof rulePlatformSurface.scanSharedNames === 'function',
     );
   });
 

@@ -5,6 +5,7 @@ import type { Redis } from 'ioredis';
 import { settingsManifestWithRecentActivity } from '@endora-commerce/contracts';
 import type {
   ModuleInstallHook,
+  ModuleLifecycleLogger,
   ModuleUninstallHook,
   RegistryState,
   ModuleListItem,
@@ -87,12 +88,12 @@ export interface OrchestratorDeps {
    * inject a stub here so a revert can be observed without touching schema.
    */
   migratorFor?: (orm: MikroORM) => Promise<IMigrator>;
-  /** Optional logger (Fastify request-logger compatible). Defaults to console. */
-  log?: {
-    info(msg: string): void;
-    warn(msg: string): void;
-    error(msg: string): void;
-  };
+  /**
+   * Optional logger (Fastify request-logger compatible). Defaults to console.
+   * The contracts' `ModuleLifecycleLogger`, the same logger the orchestrator
+   * hands to install/uninstall hooks — never a structural copy of it (#84).
+   */
+  log?: ModuleLifecycleLogger;
 }
 
 export interface InstallResult {

@@ -8945,7 +8945,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`fix/nodemailer-10` (nodemailer 7 -> 10 in mod-email and mod-newsletter): sites 10063 -> 10071, files 4152 -> 4156.** Resolved to `master` at the merge with `origin/master` after #16, then re-measured on a pristine clone of the merge commit (`setup-worktree.sh`, `build:packages`, no `docs/docs/modules` copies and no copy stamp, `git status --porcelain` empty), whose `[read-size drift]` census named exactly the eleven entries this branch moves. The movement is the two new co-located tests, `packages/modules/email/src/backend/services/smtp-mailer.test.ts` and `packages/modules/newsletter/src/backend/services/provider/smtp-provider.test.ts`. Their eight import statements are the eight new sites, and the walk's file count moves by four for the pair. Not computed from a delta.
     // **`fix/stranger-boot-0.100.1` (the 0.100.1 stranger-boot fixes and the first-publish guard's retirement), merged with `origin/master` after #33: files 4156 -> 4158.** The record was resolved wholly to `master` at the merge and re-measured on a pristine worktree of the merge commit (`setup-worktree.sh`, `build:packages`, no `docs/docs/modules` copies, `git status --porcelain` empty), whose `[read-size drift]` census named 22 drifted entries. The branch deletes `backend/scripts/first-publish-preconditions.ts` and its test, and adds `packages/platform/src/http/pretty-transport.ts`, its test, a CLI test and two changesets.
     // **`fix/demo-seed-admin-roles` (the demo composition becomes the package `@endora-commerce/demo-composition`), merged with `origin/master` after #40: files 4158 -> 4157.** The record was resolved wholly to `master` at the merge and re-measured on a pristine clone of the merge commit (`setup-worktree.sh`, `build:packages`, `git status --porcelain` empty), whose `[read-size drift]` census named 24 drifted entries. The branch moves the composition out of `backend/src/seeds/` (two files) into a new package of ten files, deletes the host's `backend/src/demo/composition-loader.ts`, and adds `packages/platform/src/demo/installed-composition{,.test}.ts`, a backend integration test with its fixture and two changesets — thirteen more tracked files, each counted by the walks whose roots reach it. Not computed from a delta.
-    files: 5738,
+    // **`debt/check-coverage-84-88` (issue #88, the `admin-registry` floor): files 5738 -> 6582, sites 14240 -> 17087.** The check changed, so the entry is re-recorded; the floor itself opens no file the walk did not already count, so both moves are drift since the last sweep. Measured on a pristine detached worktree of the branch head (`setup-worktree.sh`, `build:packages`).
+    files: 6582,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -9067,7 +9068,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T139 (`ledger_challenger_fixture` joins): 10830 -> 10834.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
     // **T069 (`comarch_xl` leaves), after merging `origin/master` at !1841: sites 10867 -> 10413.** The record was resolved wholly to `master` and re-measured on a pristine detached worktree of the merge commit `8c875cb4a`, after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the tree is this branch's E5 and `comarch_xl`'s departure (package, 34 host test files and their support file, three Polish pages, E1 baseline) over `master`. Not computed from a delta.
     // **T069 (`ksef` and `infakt` leave): 10413 -> 10063.** Agrees on `origin/master` (d6808271f, after `comarch_xl` left) and moves with the branch: E5, the two packages, their host tests, their Polish pages, the E9 drain and T140/T142; measured on the pristine pair.
-    sites: 14240,
+    // **`debt/check-coverage-84-88` (issue #88, the `admin-registry` floor): files 5738 -> 6582, sites 14240 -> 17087.** The check changed, so the entry is re-recorded; the floor itself opens no file the walk did not already count, so both moves are drift since the last sweep. Measured on a pristine detached worktree of the branch head (`setup-worktree.sh`, `build:packages`).
+    sites: 17087,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -9107,7 +9109,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Core's twelve are outside the expectation and that is the population
     // rather than an exemption: they belong to no module and sit under no module
     // walk root.
-    sources: ['manifest-index', 'migration-registry', 'module-packages'],
+    sources: ['manifest-index', 'migration-registry', 'module-packages', 'admin-registry'],
     //
     // **11893 -> 11898 sites, 4682 -> 4684 files.** D-218 moved `pim_pimcore`'s
     // `hmac-canonical-vectors.test.ts` and its `.json` vectors out of
@@ -11675,7 +11677,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/137-open-source-launch/` N4 (the first-publish floor, 123 T7-D1): files 1994 -> 1995.** Measured on a pristine worktree of the branch head, stacked on N3 over `origin/master` 5c3f2cb79 (`setup-worktree.sh`, `build:packages`, `git status --porcelain` empty), whose `[read-size drift]` census named exactly nine entries. Not computed from a delta.
     // **`fix/stranger-boot-0.100.1` (the 0.100.1 stranger-boot fixes and the first-publish guard's retirement), merged with `origin/master` after #33: files 1995 -> 1994.** The record was resolved wholly to `master` at the merge and re-measured on a pristine worktree of the merge commit (`setup-worktree.sh`, `build:packages`, no `docs/docs/modules` copies, `git status --porcelain` empty), whose `[read-size drift]` census named 22 drifted entries. The branch deletes `backend/scripts/first-publish-preconditions.ts` and its test, and adds `packages/platform/src/http/pretty-transport.ts`, its test, a CLI test and two changesets.
     // **`fix/demo-seed-admin-roles` (the demo composition becomes the package `@endora-commerce/demo-composition`), merged with `origin/master` after #40: files 1994 -> 1991.** The record was resolved wholly to `master` at the merge and re-measured on a pristine clone of the merge commit (`setup-worktree.sh`, `build:packages`, `git status --porcelain` empty), whose `[read-size drift]` census named 24 drifted entries. The branch moves the composition out of `backend/src/seeds/` (two files) into a new package of ten files, deletes the host's `backend/src/demo/composition-loader.ts`, and adds `packages/platform/src/demo/installed-composition{,.test}.ts`, a backend integration test with its fixture and two changesets — thirteen more tracked files, each counted by the walks whose roots reach it. Not computed from a delta.
-    files: 2560,
+    // **`debt/check-coverage-84-88` (issue #84, the shared-name half): files 2560 -> 3041, sites 1911 -> 2200.** The new half opens the contracts package's non-test sources and the platform files a shared name leads through, and adds the shared names to `sites`; the rest is drift since the last sweep. Measured on a pristine detached worktree of the branch head (`setup-worktree.sh`, `build:packages`).
+    files: 3041,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -11795,7 +11798,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T068/T115 (comarch prologue): 1592 -> 1593.** Agrees on `master` (655a22edc) and moves with the second ERP fixture and the relocated comarch architecture page; measured on the pristine pair.
     // **T069 (`comarch_xl` leaves), after merging `origin/master` at !1841: sites 1593 -> 1538.** The record was resolved wholly to `master` and re-measured on a pristine detached worktree of the merge commit `8c875cb4a`, after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the tree is this branch's E5 and `comarch_xl`'s departure (package, 34 host test files and their support file, three Polish pages, E1 baseline) over `master`. Not computed from a delta.
     // **T069 (`ksef` and `infakt` leave): 1538 -> 1496.** Agrees on `origin/master` (d6808271f, after `comarch_xl` left) and moves with the branch: E5, the two packages, their host tests, their Polish pages, the E9 drain and T140/T142; measured on the pristine pair.
-    sites: 1911,
+    // **`debt/check-coverage-84-88` (issue #84, the shared-name half): sites 1911 -> 2200.** The new half opens the contracts package's non-test sources and the platform files a shared name leads through, and adds the shared names to `sites`; the rest is drift since the last sweep. Measured on a pristine detached worktree of the branch head (`setup-worktree.sh`, `build:packages`).
+    sites: 2200,
     // count moves with the file count here because the reaches that went are exactly
     // the files that went.
     // **T119a: sites 1870 -> 1861.** The same nine files, each the single relative
@@ -11815,7 +11819,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `covered` is what the application walk opened of them. It disappears entirely when that ledger empties, which is what R4.2
     // expects, and `expected: 0` is a refusal rather than a silent floor of
     // nothing.
-    sources: ['manifest-index', 'platform-barrels', 'host-dependents', 'host-reaches'],
+    sources: ['manifest-index', 'platform-barrels', 'host-dependents', 'host-reaches', 'platform-dependencies'],
   },
   // Re-recorded by D-171.1, which widened the published-port population from
   // `packages/contracts/src` alone to include a module package's declared

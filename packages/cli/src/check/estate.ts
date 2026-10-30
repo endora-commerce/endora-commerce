@@ -891,6 +891,13 @@ export const ESTATE: readonly EstateEntry[] = [
           'an installed module package has no application tree, so the application-reach ' +
           'half has no subject here; declared vacuous rather than counted zero',
       },
+      {
+        signal: 'shared-published-name',
+        reason:
+          'issue #84’s half compares the platform’s published barrels with the workspace ' +
+          'packages the platform depends on; an installed module package is neither, so the ' +
+          'half has no subject here and is declared vacuous rather than counted zero',
+      },
     ],
     subjectDeclaration: {
       kind: 'exports-subpath',
