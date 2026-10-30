@@ -18,6 +18,12 @@ that reads a property, and the analysis follows the value through the shapes tha
 - a class's own method returning a carrying value, `const p = this.#port()`.
 
 The mirror holds too: a property read no longer answers to a local `const` of the same spelling.
+
+`PortCatchInput` gains an optional `pins` (`Record<'<file>:<name>', PortCatchPin>`): a host can
+declare an alias the analysis provably cannot derive, so the `catch` around it stays judged.
+`CheckResult.stalePins` lists every pin that no longer describes the tree — its file is gone, it
+names a gate no module provides, no site reaches a port through the name, or the analysis already
+follows the name without it — and a host should fail on any of them.
 `findPortCatches` and `checkPortCatches` keep their signatures. A tree's site population moves:
 sites that existed only through a shared spelling leave it, and port reaches the old spelling match
 missed (an accessor's result bound under another name, a renamed destructuring) join it.

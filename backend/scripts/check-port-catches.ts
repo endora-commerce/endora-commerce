@@ -296,6 +296,13 @@
  * reason and are ledgered as artefacts rather than hidden; the alternative —
  * resolving receivers — is a type-checker's job, not this analysis's.
  *
+ * One real reach falls through the same receiver-blindness from the other side:
+ * `projects`' `read.list(…).catch(…)`, where `read` is a holder built from a
+ * deps bag (D18's kept blind spot). The old spelling match kept it judged by
+ * accident; now {@link PORT_CATCH_PINS} declares the alias, two-way, until
+ * per-method attribution (issue #576) lets the analysis follow it and the pin
+ * reads stale.
+ *
  * `PORT_CATCH_WHY=1` prints every alias with the site that introduced it (and
  * `PROP`/`PGATE` lines for the property table), which is the first question a
  * newly-red site raises.
@@ -380,6 +387,7 @@ import {
   collectPortCatchFiles,
   findPortCatches,
   keyOf,
+  type PortCatchPin,
 } from '@endora-commerce/cli/rules/port-catches.js';
 import {
   loadManifestActivations,
@@ -390,6 +398,40 @@ import { requireModuleLayout } from './lib/module-roots.js';
 import { reportReadSize } from './lib/read-size.js';
 
 export * from '@endora-commerce/cli/rules/port-catches.js';
+
+/**
+ * Aliases this repository **declares** because the analysis provably cannot
+ * derive them (`PortCatchPin`; maintainer ruling on issue #100, 2026-10-30).
+ *
+ * Not a ledger of exemptions — the opposite: a pin puts a `catch` *into* the
+ * judged population, so a real port reach the value analysis cannot follow is
+ * still held to the rule. Two-way like the ledger: an entry reads stale, and
+ * fails the build, when its file is gone, when it names a gate nobody provides,
+ * when no site in its file reaches a port through the name, and when the
+ * analysis already follows the name on its own.
+ */
+export const PORT_CATCH_PINS: Readonly<Record<string, PortCatchPin>> = {
+  'packages/modules/projects/src/backend/routes/routes.projects.ts:read': {
+    gates: [
+      'customFieldListFilterPort',
+      'organizationDetailsPort',
+      'adminUserReadPort',
+      'permissionService',
+    ],
+    reason:
+      "A REAL PORT REACH THE VALUE ANALYSIS CANNOT FOLLOW (D18's blind spot for a holder " +
+      'built from a deps bag, feature 134 §2 half 2; issue #576). `read` is ' +
+      '`deps.projectReadService`, i.e. `cradle.projectsReadService` — a `ProjectReadService` ' +
+      'built from an object literal of `lazyPort`s, so it carries nothing as far as the ' +
+      'analysis is concerned. `read.list(…)` reaches `customFieldListFilterPort` ' +
+      '(`#customFieldCondition`), `organizationDetailsPort` and `adminUserReadPort` ' +
+      "(`#summaries`), and through `deps.access` (`ProjectAccess`, another bag) " +
+      '`permissionService` (`currentViewer`). Before #100 the `.catch` on it was ' +
+      'judged only because the unrelated deps key `read: lazyPort(taskReadPort)` shared the ' +
+      'spelling — with the wrong gate. Retires when #576 (per-method gate attribution) lets ' +
+      'the analysis follow the holder; the pin then reads stale and has to go.',
+  },
+};
 
 export const PORT_CATCHES_TO_DRAIN: Readonly<Record<string, string>> = {
   'packages/modules/organizations/src/backend/routes.public.ts:onLogin':
@@ -530,6 +572,7 @@ async function main(): Promise<void> {
     sources,
     manifests,
     hostResidentModules: layout.hostResidentModules,
+    pins: PORT_CATCH_PINS,
   };
   // The ledger is passed, never defaulted: a host states which exemptions it is
   // judging against, and `PORT_CATCHES_TO_DRAIN` is this repository's.
@@ -601,7 +644,8 @@ async function main(): Promise<void> {
       `violations=${result.violations.length} ledgered=${result.ledgered.length} ` +
       `owner-locked=${result.ownerLocked.length} ` +
       `rejection-handlers=${result.rejectionHandlerSites} ` +
-      `ledger-size=${Object.keys(PORT_CATCHES_TO_DRAIN).length} stale=${result.stale.length}`,
+      `ledger-size=${Object.keys(PORT_CATCHES_TO_DRAIN).length} stale=${result.stale.length} ` +
+      `pins=${Object.keys(PORT_CATCH_PINS).length} stale-pins=${result.stalePins.length}`,
   );
 
   if (result.violations.length > 0) {
@@ -623,7 +667,17 @@ async function main(): Promise<void> {
     for (const key of result.stale) console.error(`  - ${key}`);
   }
 
-  process.exit(result.violations.length > 0 || result.stale.length > 0 ? 1 : 0);
+  if (result.stalePins.length > 0) {
+    console.error(
+      '\nStale pins in PORT_CATCH_PINS (each no longer describes a site the analysis ' +
+        'cannot see — delete or correct it):',
+    );
+    for (const entry of result.stalePins) console.error(`  - ${entry}`);
+  }
+
+  process.exit(
+    result.violations.length > 0 || result.stale.length > 0 || result.stalePins.length > 0 ? 1 : 0,
+  );
 }
 
 // CLI only — importing this module (the unit self-test does) must not scan.

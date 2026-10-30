@@ -359,6 +359,38 @@ export interface PortCatchInput {
    * a port and also resolves it keeps its own answer.
    */
   readonly peerOwners?: ReadonlyMap<string, string> | undefined;
+  /**
+   * Aliases a host **declares** because the analysis provably cannot derive
+   * them, keyed `<path under src/>:<local name>` — see {@link PortCatchPin}.
+   * Omitted means none.
+   */
+  readonly pins?: Readonly<Record<string, PortCatchPin>> | undefined;
+}
+
+/**
+ * A declared alias: in one file, a local name holds a value that reaches these
+ * gated ports, through a shape the value analysis does not follow (issue #100's
+ * ruling; the D18 "holder built from a deps bag" blind spot, issue #576).
+ *
+ * It exists so that a `catch` a real port reach guards stays in the judged
+ * population when the only thing that used to keep it there was a spelling
+ * collision. It is **two-way**, in the idiom of the ledger: a pin reads stale —
+ * and fails the check — when its file is not read, when it names a gate no
+ * module provides, when no site in its file reaches the port through the name
+ * (the code moved or the name changed), and when the analysis already follows
+ * the name without it (the blind spot was lifted, so the pin is debt).
+ */
+export interface PortCatchPin {
+  /** The gated port names the value reaches — what the `catch` could swallow. */
+  readonly gates: readonly string[];
+  /** Why the analysis cannot see it, and what retires the pin. */
+  readonly reason: string;
+}
+
+/** `<file>:<name>` — split on the last colon, a path holding none of its own. */
+function pinParts(key: string): { readonly file: string; readonly name: string } {
+  const at = key.lastIndexOf(':');
+  return { file: key.slice(0, at), name: key.slice(at + 1) };
 }
 
 interface Analysis {
@@ -412,6 +444,8 @@ interface Analysis {
   readsPropertyAsPort(name: string, moduleId: string, file: string): boolean;
   /** The parsed sources, so the caller need not re-parse and node identity holds. */
   readonly parsed: ReadonlyMap<string, ts.SourceFile>;
+  /** Pin key → why it is stale, for the pins that were refused before seeding. */
+  readonly pinProblems: ReadonlyMap<string, string>;
 }
 
 /**
@@ -476,6 +510,7 @@ function analyze(
   sources: ReadonlyMap<string, string>,
   hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
   peerOwners: ReadonlyMap<string, string> = new Map(),
+  pins: Readonly<Record<string, PortCatchPin>> = {},
 ): Analysis {
   const parsed = new Map<string, ts.SourceFile>();
   for (const [file, text] of sources) {
@@ -1116,13 +1151,51 @@ function analyze(
 
   // Bounded so a pathological tree cannot spin: each round can only add
   // aliases, and the deepest chain the tree holds today is five hops.
-  for (let pass = 0; pass < 24; pass += 1) {
-    grew = false;
-    round();
-    if (!grew) break;
-  }
+  const fixpoint = (): void => {
+    for (let pass = 0; pass < 24; pass += 1) {
+      grew = false;
+      round();
+      if (!grew) break;
+    }
+  };
+  fixpoint();
 
-  return { portOwners, aliases, gatesAt, gatesOfReach, readsAsPort, readsPropertyAsPort, parsed };
+  // Pins are judged against the converged, **unpinned** tables — that is what
+  // makes "the analysis already follows this" decidable — and only then seeded,
+  // with one more fixpoint for whatever the declared alias unblocks.
+  const pinProblems = new Map<string, string>();
+  let seeded = false;
+  for (const [key, pin] of Object.entries(pins)) {
+    const { file, name } = pinParts(key);
+    if (!parsed.has(file)) {
+      pinProblems.set(key, 'its file is not in the walk');
+      continue;
+    }
+    const unknown = pin.gates.filter((gate) => !portOwners.has(gate));
+    if (pin.gates.length === 0 || unknown.length > 0) {
+      pinProblems.set(key, `it names no gate, or a gate no module provides (${unknown.join(', ')})`);
+      continue;
+    }
+    const moduleId = moduleOf(`/src/${file}`, hostResident) ?? ROOT;
+    if (readsAsPort(name, moduleId, file)) {
+      pinProblems.set(key, 'the analysis already follows the name without it');
+      continue;
+    }
+    addAlias(name, file, `pin ${key}`, new Set(pin.gates));
+    seeded = true;
+  }
+  if (seeded) fixpoint();
+
+  return {
+    portOwners,
+    aliases,
+    gatesAt,
+    gatesOfReach,
+    readsAsPort,
+    readsPropertyAsPort,
+    parsed,
+    pinProblems,
+  };
 }
 
 /** The declarations one file makes, and what it imports and re-exports by relative path. */
@@ -1693,6 +1766,8 @@ function classesIn(sf: ts.SourceFile): Map<string, Map<string, ts.Node>> {
 interface SiteScan {
   readonly found: PortCatch[];
   readonly rejectionHandlerSites: number;
+  /** Pin key → why it is stale — see {@link PortCatchPin}. */
+  readonly stalePins: ReadonlyMap<string, string>;
 }
 
 /** Every `try` and every promise-form rejection handler that reaches a gated port. */
@@ -1702,7 +1777,12 @@ export function findPortCatches(input: PortCatchInput): PortCatch[] {
 
 function scanSources(input: PortCatchInput): SiteScan {
   const hostResident = input.hostResidentModules ?? NO_HOST_RESIDENT_MODULES;
-  const analysis = analyze(input.sources, hostResident, input.peerOwners ?? new Map());
+  const analysis = analyze(
+    input.sources,
+    hostResident,
+    input.peerOwners ?? new Map(),
+    input.pins ?? {},
+  );
   const locked = lockedOwners(input.manifests ?? []);
   /**
    * D-63 — every gate this alias carries is owned by a module the platform
@@ -1919,7 +1999,17 @@ function scanSources(input: PortCatchInput): SiteScan {
   }
 
   found.sort((a, b) => (a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file)));
-  return { found, rejectionHandlerSites };
+  // The other half of a pin's two-way contract: a pin no site reaches through
+  // describes code that is no longer there.
+  const stalePins = new Map(analysis.pinProblems);
+  for (const key of Object.keys(input.pins ?? {})) {
+    if (stalePins.has(key)) continue;
+    const { file, name } = pinParts(key);
+    if (!found.some((entry) => entry.file === file && entry.port === name)) {
+      stalePins.set(key, 'no site in its file reaches a port through the name');
+    }
+  }
+  return { found, rejectionHandlerSites, stalePins };
 }
 
 export interface CheckResult {
@@ -1930,6 +2020,8 @@ export interface CheckResult {
   readonly ownerLocked: readonly PortCatch[];
   /** Ledger keys that no longer describe a violation — the staleness half. */
   readonly stale: readonly string[];
+  /** Pins that no longer describe a site, each with why — see {@link PortCatchPin}. */
+  readonly stalePins: readonly string[];
   /**
    * Every promise-form rejection handler the walk read, whether or not it
    * reaches a port. Zero over a real tree means the recogniser is blind, not
@@ -1942,7 +2034,7 @@ export function checkPortCatches(
   input: PortCatchInput,
   ledger: Readonly<Record<string, string>>,
 ): CheckResult {
-  const { found: all, rejectionHandlerSites } = scanSources(input);
+  const { found: all, rejectionHandlerSites, stalePins } = scanSources(input);
   const unhandled = all.filter((entry) => !entry.handled);
   const ownerLocked = unhandled.filter((entry) => entry.ownerLocked);
   const open = unhandled.filter((entry) => !entry.ownerLocked);
@@ -1956,6 +2048,7 @@ export function checkPortCatches(
     ledgered: open.filter((entry) => ledger[keyOf(entry)] !== undefined),
     ownerLocked,
     stale: Object.keys(ledger).filter((key) => !keys.has(key)),
+    stalePins: [...stalePins].map(([key, why]) => `${key} — ${why}`),
     rejectionHandlerSites,
   };
 }

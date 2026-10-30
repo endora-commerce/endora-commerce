@@ -1,8 +1,11 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   checkPortCatches,
   findPortCatches,
   keyOf,
+  PORT_CATCH_PINS,
   PORT_CATCHES_TO_DRAIN,
 } from '../../../scripts/check-port-catches.js';
 
@@ -1312,5 +1315,136 @@ describe('findPortCatches — a property is reached through the expression that 
         ),
       ),
     ).toEqual(['modules/carts/services/cart-pricing.ts:discounts']);
+  });
+});
+
+/**
+ * Declared aliases — `PORT_CATCH_PINS` (maintainer ruling on issue #100,
+ * 2026-10-30; retired by issue #576).
+ *
+ * A pin puts a `catch` around a real port reach the value analysis cannot follow
+ * back into the judged population. It has to be able to go **red** in each of
+ * the four ways it can stop describing the tree, or it is an exemption with
+ * extra steps.
+ */
+describe('checkPortCatches — a pinned alias keeps a site judged, and goes stale (#100, #576)', () => {
+  const PERMISSIONS = [
+    'modules/admin_roles/backend.ts',
+    'export function registerModule(ctx: ModuleContext): void {\n' +
+      "  ctx.di.providePort('permissionService', ctx.asFunction(() => x).singleton());\n}",
+  ] as const;
+
+  /** A holder built from a deps bag — the D18 shape the analysis does not follow. */
+  const routes = (handler: string): Map<string, string> =>
+    new Map([
+      PERMISSIONS,
+      [
+        'modules/projects/backend.ts',
+        "import { lazyPort } from '../../kernel/index.js';\n" +
+          'export function registerModule(ctx: ModuleContext): void {\n' +
+          "  const reads = new ProjectReads({ permissions: lazyPort<P>(ctx, 'permissionService') });\n}",
+      ],
+      [
+        'modules/projects/routes.ts',
+        'export async function routes(deps: Deps): Promise<unknown> {\n' +
+          '  const { projectReadService: read } = deps;\n' +
+          `  return read.list().catch(${handler});\n}`,
+      ],
+    ]);
+
+  const pin = (gates: readonly string[] = ['permissionService']) => ({
+    'modules/projects/routes.ts:read': {
+      gates,
+      reason: 'A holder built from a deps bag (D18); retires with per-method attribution (#576).',
+    },
+  });
+
+  it('does not see the site without the pin — the blind spot the pin exists for', () => {
+    expect(findPortCatches({ sources: routes('(error) => { throw error; }') })).toEqual([]);
+  });
+
+  it('judges the site with the pin, under the pinned gates', () => {
+    const found = findPortCatches({
+      sources: routes('(error) => { throw error; }'),
+      pins: pin(),
+    });
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({
+      file: 'modules/projects/routes.ts',
+      port: 'read',
+      form: 'promise',
+      handled: true,
+      gates: ['permissionService'],
+    });
+    const result = checkPortCatches({ sources: routes('(error) => { throw error; }'), pins: pin() }, {});
+    expect(result.stalePins).toEqual([]);
+  });
+
+  it('reports the pinned site as a violation the moment it stops re-throwing', () => {
+    const result = checkPortCatches({ sources: routes('() => []'), pins: pin() }, {});
+    expect(result.violations.map(keyOf)).toEqual(['modules/projects/routes.ts:read#promise']);
+  });
+
+  it('reads stale when no site reaches a port through the name any more', () => {
+    const sources = routes('(error) => { throw error; }');
+    sources.set('modules/projects/routes.ts', 'export const routes = (): number => 1;');
+    const { stalePins } = checkPortCatches({ sources, pins: pin() }, {});
+    expect(stalePins).toEqual([expect.stringContaining('no site in its file reaches')]);
+  });
+
+  it('reads stale when the analysis already follows the name without it', () => {
+    const sources = routes('(error) => { throw error; }');
+    sources.set(
+      'modules/projects/routes.ts',
+      "import { lazyPort } from '../../kernel/index.js';\n" +
+        "const read = lazyPort<P>(ctx, 'permissionService');\n" +
+        'export const routes = () => read.list().catch((error) => { throw error; });',
+    );
+    const { stalePins } = checkPortCatches({ sources, pins: pin() }, {});
+    expect(stalePins).toEqual([expect.stringContaining('already follows the name')]);
+  });
+
+  it('reads stale when it names a gate no module provides', () => {
+    const { stalePins } = checkPortCatches(
+      { sources: routes('(error) => { throw error; }'), pins: pin(['noSuchPort']) },
+      {},
+    );
+    expect(stalePins).toEqual([expect.stringContaining('noSuchPort')]);
+  });
+
+  it('pins the real `projects` site: its `.catch` is judged, under the gates it reaches', () => {
+    const file = 'packages/modules/projects/src/backend/routes/routes.projects.ts';
+    const text = readFileSync(
+      fileURLToPath(new URL(`../../../../${file}`, import.meta.url)),
+      'utf8',
+    );
+    const pinned = PORT_CATCH_PINS[`${file}:read`];
+    expect(pinned, 'the projects pin the #100 ruling asked for').toBeDefined();
+    const provider =
+      'export function registerModule(ctx: ModuleContext): void {\n' +
+      (pinned?.gates ?? [])
+        .map((gate) => `  ctx.di.providePort('${gate}', ctx.asFunction(() => x).singleton());\n`)
+        .join('') +
+      '}';
+    const sources = new Map([
+      ['packages/modules/admin_roles/src/backend/index.ts', provider],
+      [file, text],
+    ]);
+    const result = checkPortCatches({ sources, pins: PORT_CATCH_PINS }, {});
+    const site = findPortCatches({ sources, pins: PORT_CATCH_PINS }).find(
+      (entry) => entry.file === file && entry.port === 'read' && entry.form === 'promise',
+    );
+    expect(site).toMatchObject({ handled: true, gates: [...(pinned?.gates ?? [])].sort() });
+    // Every other pin names a file this narrowed tree does not hold — only the
+    // projects one is under test here.
+    expect(result.stalePins.filter((entry) => entry.startsWith(`${file}:`))).toEqual([]);
+  });
+
+  it('gives every real pin a reason and the ledger`s key shape', () => {
+    for (const [key, entry] of Object.entries(PORT_CATCH_PINS)) {
+      expect(key).toMatch(/^[\w./-]+\.ts:\w+$/);
+      expect(entry.reason.length, `${key} needs a reason`).toBeGreaterThan(80);
+      expect(entry.gates.length, `${key} names no gate`).toBeGreaterThan(0);
+    }
   });
 });
