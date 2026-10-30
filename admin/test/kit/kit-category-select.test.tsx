@@ -2,8 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactElement } from 'react';
-import { AppLanguageContext } from '../../../packages/admin-shell/src/i18n/app-language-context';
-import type { SupportedAdminLanguage } from '../../../packages/admin-shell/src/i18n/types';
+import { AppLanguageContext } from '@endora-commerce/admin-kit/i18n';
+import type { SupportedAdminLanguage } from '@endora-commerce/admin-kit/i18n';
 import { renderWithI18n } from '../helpers/render-with-i18n';
 
 /**

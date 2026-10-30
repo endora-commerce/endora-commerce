@@ -4,8 +4,8 @@ import { join, resolve } from 'node:path';
 import { render, screen } from '@testing-library/react';
 import type { ReactElement, ReactNode } from 'react';
 import { z } from 'zod';
-import { TranslationProvider } from '../../../packages/admin-shell/src/i18n/TranslationProvider';
-import type { Bundle } from '../../../packages/admin-shell/src/i18n/types';
+import { TranslationProvider } from '@endora-commerce/admin-kit/i18n';
+import type { Bundle } from '@endora-commerce/admin-kit/i18n';
 
 /**
  * Issue #98 — `FulfilmentStrategyPicker` offers what the contract declares.
