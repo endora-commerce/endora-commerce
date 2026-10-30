@@ -3,7 +3,7 @@ import type { Redis } from 'ioredis';
 import { describe, expect, it } from 'vitest';
 import { ChallengeStore } from './challenge-store.js';
 import { MfaLoginService } from './mfa-login-service.js';
-import type { MfaPolicyResolver } from './policy-resolver.js';
+import type { MfaPolicyResolver } from './mfa-policy-resolver.js';
 import type { SecondFactorVerifier } from './second-factor-verifier.js';
 
 /**

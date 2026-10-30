@@ -18,7 +18,7 @@ describe('pwa — who owns a push subscription', () => {
   it('names the signed-in customer', () => {
     expect(
       callingCustomerAccountId(
-        asRequest({ kind: 'customer', customerAccountId: 'cust-1', organizationId: 'org-1' }),
+        asRequest({ kind: 'customer', customerAccountId: 'cust-1', organizationId: 'org-1', impersonatorAdminUserId: null }),
       ),
     ).toBe('cust-1');
   });

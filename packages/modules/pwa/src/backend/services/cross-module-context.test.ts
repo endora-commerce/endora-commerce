@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { AssetDetail } from '@endora-commerce/contracts';
 import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
-import type { CachedChannel } from '@endora-commerce/platform/kernel';
+import type { SalesChannelResolutionPort } from '@endora-commerce/platform/kernel';
 import {
   createAssetUrlResolver,
   createChannelCodeResolver,
   createDefaultChannelIdResolver,
 } from './cross-module-context.js';
+
+/** The channel as the kernel's resolution port answers it (the cache's own type is not published). */
+type CachedChannel = NonNullable<Awaited<ReturnType<SalesChannelResolutionPort['getById']>>>;
 
 /**
  * The three mappings `PwaBridge` used to carry as closures in both composition
@@ -58,6 +61,7 @@ function cachedChannel(overrides: Partial<CachedChannel> = {}): CachedChannel {
     name: { en: 'Default' },
     active: true,
     anonymousAccess: true,
+    prefixDefaultLanguage: false,
     systemDefault: true,
     defaultLanguage: 'en',
     defaultCurrency: 'PLN',

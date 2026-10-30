@@ -26,7 +26,7 @@ const event = {
 };
 
 const ok = (): typeof fetch =>
-  vi.fn(async (_u: RequestInfo | URL, _i?: RequestInit) =>
+  vi.fn(async (_u: Parameters<typeof fetch>[0], _i?: RequestInit) =>
     new Response(null, { status: 200 }),
   ) as unknown as typeof fetch;
 
@@ -145,7 +145,7 @@ describe('SgtmClient failure handling', () => {
 
   it('aborts a hanging destination on the configured timeout', async () => {
     const fetchFn = vi.fn(
-      (_u: RequestInfo | URL, init?: RequestInit) =>
+      (_u: Parameters<typeof fetch>[0], init?: RequestInit) =>
         new Promise<Response>((_resolve, reject) => {
           init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
         }),

@@ -199,7 +199,7 @@ describe('seo bundles', () => {
     'settingLabels.seo.llms_txt_additional.name',
     'settingLabels.seo.llms_txt_additional.description',
     'errors.SEO_CRAWLER_TEXT_TOO_LARGE',
-    ...(manifest.actions ?? []).flatMap((a) => [a.labelKey, a.descriptionKey]),
+    ...(manifest.actions ?? []).flatMap((a) => (a.descriptionKey === undefined ? [a.labelKey] : [a.labelKey, a.descriptionKey])),
   ];
 
   it.each(['en', 'pl'])('%s carries every key', (language) => {

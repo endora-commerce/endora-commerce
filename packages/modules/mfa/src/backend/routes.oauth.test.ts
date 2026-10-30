@@ -108,10 +108,7 @@ async function build(): Promise<Harness> {
       defaultLanguage: 'pl-PL',
       prefixDefaultLanguage: true,
     }),
-    customerChannelAccess: {
-      permits,
-      assertAccountMayUse: async () => undefined,
-    },
+    customerChannelAccess: { permits },
   });
   await app.ready();
 
