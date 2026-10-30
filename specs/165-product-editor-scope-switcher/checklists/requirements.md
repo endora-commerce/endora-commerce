@@ -31,11 +31,15 @@
 
 ## Notes
 
-- **`[NEEDS CLARIFICATION]` markers: 0 after clarify round 4 (2026-10-30)** — 19 remained after round 1; round 2
-  resolved them and left one (FR-045 field protection), which round 3 resolved as FR-046. Round 4 added
-  FR-047 and FR-110…FR-115 (one write encoding). FR-001 and FR-021…FR-025 are kept as "Removed (round …)" so
-  citations stay stable. Follow-up questions raised by the round-4 answers are pending with the owner; do not
-  run `/speckit.plan` before they are answered or explicitly deferred.
+- **`[NEEDS CLARIFICATION]` markers: 0; clarify exhausted after round 5 (2026-10-30)** — 19 remained after round
+  1; rounds 2–5 resolved them and every follow-up. Round 4 added FR-047 and FR-110…FR-115; round 5 added
+  FR-048 (saved import profile), FR-116 (in-place change of `null`) and FR-117 (scoped product values only,
+  named follow-ups in *Out of Scope*). FR-001 and FR-021…FR-025 are kept as "Removed (round …)" so citations
+  stay stable. Ready for `/speckit.plan`.
+- **Left to the plan** (no user-visible behaviour at stake): which existing `import_export` permission gates
+  managing import profiles (no new permission code, 163 FR-084), profile writes through the Command Bus
+  (Constitution XIII), command-palette reachability of the profile screen (XVI), and how
+  `product_editor_preferences` encodes G / C / C×L (FR-056).
 - **Dependencies**: per-connector locale-mapping screens are an external dependency (PIM connectors live outside
   this repository; FR-045, *Assumptions*). The plan carries a security review of FR-093.
 - **Implementation detail, accepted deliberately**: the *Current state* section and a few requirements cite

@@ -2,8 +2,8 @@
 
 **Feature Branch**: `feat/165-product-editor-scope-switcher`
 **Created**: 2026-10-29
-**Status**: Draft — clarify rounds 1–4 recorded; no `[NEEDS CLARIFICATION]` marker remains in the
-requirements; follow-up questions raised by round 4 are pending with the owner (the speckit 3-marker cap is
+**Status**: Draft — clarify rounds 1–5 recorded; no `[NEEDS CLARIFICATION]` marker remains in the
+requirements; clarify is exhausted after round 5 — the remaining open points are plan decisions (the speckit 3-marker cap is
 lifted by owner instruction)
 **Input**: GitHub issue #523 — "one Magento-style scope switcher in the product editor header (Global →
 Sales channel → Sales channel × Language); the whole form, every tab, shows and edits the effective values
@@ -203,6 +203,24 @@ object.
   empty values? → A: It **overwrites the targets after a confirmation that lists the channels that will be
   overwritten**; copying an empty (`NULL`) value is allowed **only for optional fields**.
 
+### Session 2026-10-30 (round 5)
+
+Answers given by the owner on 2026-10-30 to the follow-up questions raised by round 4.
+
+- Q: How is the change of `null` from "inherit" to "empty" versioned? → A: **In place**, in the release that
+  ships 165, noted in the release notes and the changeset — no v2, no refusal period. Rationale: no live data;
+  165 already reshapes the 163 API; FR-115 documents the encoding.
+- Q: Does the write encoding reach inheritance that is not a product scope? → A: **Scoped product values only
+  in 165.** Every other `null = inherit` field in the contracts (e.g. per-product stock mode,
+  `catalog.ts:2112`) is a **named follow-up** listed in this spec, accepting that `null` temporarily has two
+  meanings across contracts.
+- Q: Where are a CSV import's locale mapping and source language for Global stored? → A: In a **new saved
+  import profile owned by `import_export`** (new table and migration); the operator picks a profile on import.
+- Q: What does `NULL` mean on a numeric field? → A: **Allowed on optional numerics, meaning "no value"** — for
+  minimum order quantity, "no minimum in this channel" (like dates). Required numerics still refuse it.
+- Q: Multiselect: is an empty list allowed? → A: **`NULL` is allowed on a multiselect and means "nothing
+  selected"** (no extra token). A plain select and a boolean still refuse `NULL`.
+
 ## Amendments to 163 (2026-10-29, extended 2026-10-30)
 
 163 is shipped on `master`. The following parts of `specs/163-product-data-scopes/spec.md` are **reversed or
@@ -244,7 +262,10 @@ rewritten** by this feature from the release that ships 165; 163's text stays as
 13. **FR-092** (CSV scoped-status columns: an empty `status@…` cell = use inherited;
     `packages/contracts/src/catalog.ts:2784-2797`) and every other 163 write where `null` or an empty value
     means "inherit" (e.g. the gallery role `null` = use inherited, `catalog.ts:1683`) — replaced by the one write
-    encoding of FR-110…FR-115 (round 4): empty = no change, `NULL` = empty, `INHERIT` = inherit.
+    encoding of FR-110…FR-115 (round 4): empty = no change, `NULL` = empty, `INHERIT` = inherit. Changed in
+    place, not versioned (round 5, FR-116). This includes 163's minimum order quantity encoding
+    (`null` = inherit, `1` = no minimum; `packages/contracts/src/product-scopes.ts:62`): `NULL` now means no
+    minimum in this channel.
 
 ## Corrections to the issue
 
@@ -292,18 +313,21 @@ Paths are relative to `packages/modules/catalog/src/admin/` unless they start wi
   the field holds its own value at this scope, which MAY be empty (FR-060…FR-062). The parent scope is Global
   at C and the channel at C×L. Earlier text of this spec and of 163 calls the same checkbox "Use value from <parent scope>".
 - **Empty override** — an override deliberately set to no value (`NULL`); the field shows nothing at that
-  scope (for a date: no limit). Refused for required fields and for selects and booleans (FR-062). Distinct
-  from *no override*, which inherits.
+  scope (for a date: no limit; for an optional number: no value, e.g. no minimum order quantity; for a
+  multiselect: nothing selected). Refused for required fields and for single selects and booleans (FR-062).
+  Distinct from *no override*, which inherits.
 - **Write encoding** — the one way every write path says "no change" (absent / empty / `""`), "empty"
   (`NULL` / `null`) and "inherit" (`INHERIT` / `{"inherit": true}`) (FR-110…FR-115).
-- **Source language for Global** — per PIM connection and per CSV import, the source locale whose values are
-  written to Global (FR-047). A setting of the import source, not a language of Global.
+- **Source language for Global** — per PIM connection and per CSV import profile, the source locale whose
+  values are written to Global (FR-047).
+- **Import profile** — a saved CSV import configuration owned by `import_export`, holding the locale mapping
+  and the source language for Global; the operator picks one on import (FR-048). A setting of the import source, not a language of Global.
 - **Required field** — a field the publish completeness gate covers: name, URL key, attributes marked
   required (FR-062).
 - **Field protection** — a manual operator toggle "do not overwrite from PIM" on a whole field, across all its
   scopes (FR-046).
 - **Locale mapping** — a configured rule (source locale, optionally source channel) → list of (channel,
-  language) targets, configured in each PIM connector separately and per import (FR-045).
+  language) targets, configured in each PIM connector separately and in each CSV import profile (FR-045, FR-048).
 - **Scopable attribute** — a user attribute whose definition carries the one "scopable" flag; a text
   attribute then supports {G, C, C×L}, a numeric, boolean, date, select, multiselect or other non-text
   attribute {G, C}. A
@@ -410,7 +434,7 @@ value respectively.
 
 ### User Story 4 - PIM and import write translations only where they are mapped (Priority: P2)
 
-An operator configures, in each PIM connector (FR-045) and per import, which source locale (optionally from which source
+An operator configures, in each PIM connector (FR-045) and in each CSV import profile (FR-048), which source locale (optionally from which source
 channel) feeds which Endora (channel, language) scopes. Synchronisation and imports write per-locale values
 to exactly those scopes; unmapped locales are written nowhere and the run reports a warning.
 
@@ -773,7 +797,7 @@ therefore a schema change, not a data-preserving move.
 
 #### PIM and import (US4)
 
-- **FR-040**: Each PIM connection and each import MUST hold a locale mapping: (source locale, optional source
+- **FR-040**: Each PIM connection and each CSV import profile (FR-048) MUST hold a locale mapping: (source locale, optional source
   channel) → list of (channel, language) targets. The mapping's contract is owned by `pim_connector` and
   shared by every connector (Ergonode, Akeneo, Pimcore, UnoPim); where it is configured is FR-045.
 - **FR-041**: A synchronisation or import MUST write a per-locale value only to its mapped targets (and to Global
@@ -799,10 +823,13 @@ therefore a schema change, not a data-preserving move.
   `attribute.<key>.<channel>.<locale>`, `seo.*.<locale>`) MUST be retired and the `pim_connector` path grammar
   reduced to whole fields; per-scope protection is out of scope (owner rejected it). No existing protection
   rule is migrated (no live data).
-- **FR-047** *(round 4)*: Each PIM connection and each CSV import MUST hold a **source language for Global**: the
+- **FR-047** *(round 4)*: Each PIM connection and each CSV import profile (FR-048) MUST hold a **source language for Global**: the
   values of that source locale are written to Global. Non-localizable source values MUST also be written to
   Global. The setting belongs to the import source (configured with the locale mapping, FR-045); the editor's
   Global label stays plain "Global" (FR-015).
+- **FR-048** *(round 5)*: `import_export` MUST own a new **saved import profile** (new table and migration,
+  `import_export`'s own) holding the locale mapping (FR-040) and the source language for Global (FR-047). The
+  operator MUST pick a profile when importing products; the CSV import applies that profile's mapping.
 
 #### Scope switcher (US5)
 
@@ -840,8 +867,10 @@ therefore a schema change, not a data-preserving move.
   an empty value MUST NOT be used to inherit (fixes F8). Unticking before Save MUST restore the value and write
   nothing. An unticked field MAY be saved empty as a **deliberately empty override** (FR-013) when the field is
   optional; a save that would store an empty override of a **required** field — name, URL key, an attribute
-  marked required (the fields the gate of FR-095 covers; round 4) — or of a **select or boolean** MUST be
-  refused, naming the field (FR-073). An empty **date** means "no limit" (e.g. no publication-window end).
+  marked required (the fields the gate of FR-095 covers; round 4) — or of a **single select or boolean** MUST
+  be refused, naming the field (FR-073). An empty **date** means "no limit" (e.g. no publication-window end);
+  an empty **optional number** means "no value" — for minimum order quantity, "no minimum in this channel";
+  an empty **multiselect** means "nothing selected" (round 5).
 - **FR-063**: Select fields (status, returnable, audience) MUST use the same control; "Inherit (…)" options and
   "Set a … for this channel" checkboxes MUST be retired (audit Q9, adopted).
 - **FR-064**: Inheriting controls MUST be read-only (not disabled); the source line MUST be the control's
@@ -959,12 +988,12 @@ therefore a schema change, not a data-preserving move.
   import, CSV export and the editor — MUST use one encoding: field absent, empty CSV cell or `""` = **no
   change**; `NULL` (JSON `null`) = **deliberately empty value** (empty override, FR-013); `INHERIT` (JSON
   `{"inherit": true}`) = **remove the own value and use the value from the scope above**.
-- **FR-111**: The encoding MUST be evolvable additively: a new token MAY be added; the meaning of an existing
-  encoding MUST NOT change without a breaking, versioned contract change (Constitution II).
+- **FR-111**: The encoding MUST be evolvable additively: a new token MAY be added; after 165 ships, the meaning
+  of an existing encoding MUST NOT change without a breaking, versioned contract change (Constitution II).
 - **FR-112**: In CSV a token MUST be the whole cell in exact uppercase; anything else (e.g. `null`, `No NULL
   here`) is ordinary text. A leading backslash MUST escape a literal: `\NULL` → the text "NULL", `\INHERIT` →
   "INHERIT", `\\NULL` → "\NULL".
-- **FR-113**: `NULL` on a required field or on a select / boolean (FR-062), and `INHERIT` at Global, MUST be a
+- **FR-113**: `NULL` on a required field or on a single select / boolean (FR-062), and `INHERIT` at Global, MUST be a
   row / field error reported in the import report, and a validation error in the API.
 - **FR-114**: Export MUST write `INHERIT` for an inherited value and `NULL` for a deliberately empty one, so that
   export followed by re-import of the unchanged file writes nothing.
@@ -972,6 +1001,12 @@ therefore a schema change, not a data-preserving move.
   encoding explicitly, noting that it differs from JSON Merge Patch and from Magento's conventions. The owner
   rejected `""` = inherit, a Magento-style `__EMPTY__VALUE__`-only token and a per-profile "empty cell means"
   option.
+- **FR-116** *(round 5)*: The change of `null` (and of an empty CSV cell) from "use inherited" under 163 to the
+  FR-110 meanings MUST ship **in place** in the release that ships 165 — no versioned v2 contract and no
+  refusal period — and MUST be stated in the release notes and the changeset.
+- **FR-117** *(round 5)*: FR-110…FR-116 apply to **scoped product values only**. Other contract fields where
+  `null` means "inherit" keep that meaning in 165 and are named follow-ups (*Out of Scope*); `null` therefore
+  temporarily has two meanings across the contracts.
 
 ### Key Entities
 
@@ -982,10 +1017,12 @@ therefore a schema change, not a data-preserving move.
 - **Field protection** — per product field, a manual "do not overwrite from PIM" toggle covering every scope
   of the field (FR-046).
 - *Translation archive entry* and *Migration report* — removed (round 2: no live data).
-- **Locale mapping** — per PIM connection or import: (source locale, optional source channel) → list of
+- **Locale mapping** — per PIM connection or CSV import profile: (source locale, optional source channel) → list of
   (channel, language) targets; contract owned by `pim_connector`, configured in each connector (FR-045).
 - **URL-key redirect** — keyed per (Channel, Language) (FR-016).
-- **Source language for Global** — per PIM connection and per CSV import (FR-047).
+- **Source language for Global** — per PIM connection and per CSV import profile (FR-047).
+- **Import profile** — saved CSV import configuration owned by `import_export`: locale mapping and source
+  language for Global (FR-048).
 - **Write encoding** — no change / `NULL` / `INHERIT`, shared by every write path (FR-110).
 - **Scopable flag** — the one flag on a user-attribute definition that replaces `channelScoped` /
   `languageScoped` (FR-012).
@@ -1041,7 +1078,7 @@ therefore a schema change, not a data-preserving move.
   warning (FR-041), and only its non-localizable values reach Global.
 - **Write-encoding change** (round 4): today's contracts use `null` or an empty CSV cell to mean "use
   inherited" (e.g. `packages/contracts/src/catalog.ts:1683, 2784-2797`); FR-110 gives `null` the meaning
-  "empty" instead. That is a change of meaning of an existing encoding, which FR-111 calls breaking.
+  "empty" instead. The owner decided to make that change in place, without versioning (round 5, FR-116).
 - **Blast radius** (coordinator measurement, 2026-10-29; the plan re-measures): per-locale name / description
   maps read in about ten modules (crm, orders, search, seo, comparisons, returns, pwa, projects,
   quote_requests, admin-kit); `nameTranslations` / `altText` in about twenty catalog files plus contracts,
@@ -1084,6 +1121,12 @@ Code-versus-spec defects in shipped 163, resolved here:
 - Per-scope (per-channel or per-language) field protection (FR-046, round 3).
 - An interim fix of F1 / F2 on the old per-language model (FR-001, removed round 3).
 - Moving the completeness-gate setting onto the product editor.
+- **Named follow-ups — `null = inherit` outside scoped product values** (FR-117, round 5; measured 2026-10-30
+  by grepping `packages/contracts/src`, the plan re-measures): the per-product stock mode override
+  (`catalog.ts:2112`, inherits the global stock mode); the organisation's stock-reservation setting
+  (`organizations.ts:75`, inherits the sales channel's); a variant's base price per currency
+  (`price-books.ts:971`, inherits the product's). Each keeps `null` = inherit until its follow-up adopts the
+  FR-110 encoding.
 - Per-deployment overlays (Constitution XV).
 
 ## Constitution constraints
