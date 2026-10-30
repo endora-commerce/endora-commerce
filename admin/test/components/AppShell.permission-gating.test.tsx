@@ -249,12 +249,14 @@ describe('AppShell — permission gates the palette and the sidebar alike (issue
    * used: `catalog:read` never opened this screen. It is the catalogue
    * **editor**, which did, and which now must not.
    *
-   * The sidebar is asserted alone because there is nothing else to assert:
-   * `taxes` contributes no `PALETTE_ITEMS` Navigate row and no manifest action,
-   * so the ⌘K palette has never offered this screen at all. That is a
-   * Principle XVI gap and it is reported rather than repaired here — adding a
-   * discovery surface is not this merge request's subject, and a palette row
-   * added now would carry the code without ever having carried the wrong one.
+   * The sidebar is asserted alone because it is the only half this file
+   * renders. `taxes` has had a palette entry since issue #510 — the manifest
+   * action `open-taxes`, gated on `taxes:read` — and like every manifest action
+   * it is the **server's** advertisement, resolved against the role and the
+   * effective enabled-set, not a `PALETTE_ITEMS` row this shell renders. That
+   * it carries the code its `targetRoute` enforces is
+   * `check:action-route-permissions`' assertion, and that the module declares
+   * one at all is `admin/test/unit/palette-coverage.test.ts`'.
    */
   it('hides /taxes from a catalogue editor', () => {
     renderShell(['catalog:read', 'catalog:write']);
