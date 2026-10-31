@@ -430,8 +430,8 @@ export default async function ProductPage({
                           apiBase={PDP_API_BASE}
                           productId={product.id}
                           {...(selectedVariantId ? { variantId: selectedVariantId } : {})}
-                          label={t('commerce.pdp.shoppingList.add')}
-                          removeLabel={t('commerce.pdp.shoppingList.remove')}
+                          label={t('card.list.add')}
+                          removeLabel={t('card.list.remove')}
                           showLabel
                           className="btn btn--outline h-[40px] w-full justify-center md:w-auto"
                         />
@@ -453,8 +453,8 @@ export default async function ProductPage({
                       apiBase={PDP_API_BASE}
                       productId={product.id}
                       {...(selectedVariantId ? { variantId: selectedVariantId } : {})}
-                      label={t('commerce.pdp.shoppingList.add')}
-                      removeLabel={t('commerce.pdp.shoppingList.remove')}
+                      label={t('card.list.add')}
+                      removeLabel={t('card.list.remove')}
                     />
                   )}
                   {oneClickEnabled && price ? (

@@ -224,8 +224,6 @@ export const commerce = defineMessages({
     'commerce.pdp.priceToggle.gross': 'GROSS',
     'commerce.pdp.notFound': 'Product not found',
     'commerce.pdp.sku': 'SKU:',
-    'commerce.pdp.shoppingList.add': 'Add to shopping list',
-    'commerce.pdp.shoppingList.remove': 'Remove from shopping list',
     'commerce.pdp.oneClick': 'Buy in one click',
     'commerce.pdp.datasheet': 'Datasheet',
 
@@ -444,8 +442,6 @@ export const commerce = defineMessages({
     'commerce.pdp.priceToggle.gross': 'BRUTTO',
     'commerce.pdp.notFound': 'Nie znaleziono produktu',
     'commerce.pdp.sku': 'Kod:',
-    'commerce.pdp.shoppingList.add': 'Dodaj do listy zakupów',
-    'commerce.pdp.shoppingList.remove': 'Usuń z listy zakupów',
     'commerce.pdp.oneClick': 'Kup jednym kliknięciem',
     'commerce.pdp.datasheet': 'Karta katalogowa',
 
