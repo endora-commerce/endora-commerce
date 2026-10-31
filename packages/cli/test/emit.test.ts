@@ -78,6 +78,7 @@ describe('the file set', () => {
       'tsconfig.json',
       'tsconfig.ui.build.json',
       'tsconfig.ui.json',
+      'tsconfig.ui.test.json',
       'vitest.config.ts',
     ]);
   });
@@ -93,6 +94,7 @@ describe('the file set', () => {
     expect(minimal.some((path) => path.startsWith('src/admin/'))).toBe(false);
     expect(minimal).not.toContain('tsconfig.ui.json');
     expect(minimal).not.toContain('tsconfig.ui.build.json');
+    expect(minimal).not.toContain('tsconfig.ui.test.json');
   });
 });
 
@@ -460,13 +462,19 @@ describe('the package-owned test run', () => {
     expect(vitest).not.toMatch(/include: \[[^\]]*'test\//);
   });
 
-  it('gives the admin test the Node types its layer is compiled without', () => {
+  it('gives the admin test the Node types in a program of its own (issue #566)', () => {
     // `tsconfig.ui.json` declares `"types": []` — a screen must not reach for
-    // `process.env` — and the admin test reads the bundles with `node:fs`.
-    const adminTest = emit(FULL).get('src/admin/index.test.ts')!;
+    // `process.env` — and the admin test reads the bundles with `node:fs`. A
+    // `/// <reference types="node" />` in the test would widen the whole UI
+    // program; the guard in `ui-layer-ambient-types.test.ts` refuses it.
+    const files = emit(FULL);
+    const uiTest = files.get('tsconfig.ui.test.json')!;
 
-    expect(adminTest.startsWith('/// <reference types="node" />')).toBe(true);
-    expect(emit(FULL).get('tsconfig.ui.json')).toContain('"types": []');
+    expect(files.get('src/admin/index.test.ts')).not.toMatch(/^\/\/\/ <reference/m);
+    expect(files.get('tsconfig.ui.json')).toContain('"types": []');
+    expect(uiTest).toContain('"extends": "./tsconfig.ui.json"');
+    expect(uiTest).toContain('"types": ["node"]');
+    expect(uiTest).toContain('"src/admin/**/*.test.ts"');
   });
 
   it('reaches the repository root from the depth it was told about', () => {
@@ -515,7 +523,7 @@ describe('the two build configurations', () => {
     const ui = files.get('tsconfig.ui.json')!;
     const uiBuild = files.get('tsconfig.ui.build.json')!;
 
-    expect(ui).toContain('"exclude": []');
+    expect(ui).toMatch(/"exclude": \[[^\]]*"src\/\*\*\/\*\.test\.tsx"/);
     expect(uiBuild).toContain('"extends": "./tsconfig.ui.json"');
     expect(uiBuild).toMatch(/"exclude": \[[^\]]*"src\/\*\*\/\*\.test\.tsx"/);
     // Nothing but the exclusion: the `jsx`/`lib` pair is declared once.
