@@ -142,7 +142,7 @@ export default async function CmsContentPage({ params, searchParams }: PageProps
         // section's own top padding, which the editor sets.
         <div data-cmsb-scheme={breadcrumbs.scheme} data-breadcrumbs-overlay="" className="relative z-20 h-0">
           <div className="absolute inset-x-0 top-0 mx-auto max-w-[var(--cmsb-container,1360px)] px-[var(--cmsb-gutter,24px)] pt-[24px] max-md:pt-[16px]">
-            <Breadcrumbs crumbs={crumbs} scheme={breadcrumbs.scheme} />
+            <Breadcrumbs locale={locale} crumbs={crumbs} scheme={breadcrumbs.scheme} />
           </div>
         </div>
       ) : breadcrumbs.visible ? (
@@ -163,7 +163,7 @@ export default async function CmsContentPage({ params, searchParams }: PageProps
                 : 'mx-auto max-w-[var(--cmsb-container,1360px)] px-[var(--cmsb-gutter,24px)] pt-[24px] pb-[16px] max-md:pt-[16px]'
             }
           >
-            <Breadcrumbs crumbs={crumbs} scheme={breadcrumbs.scheme} />
+            <Breadcrumbs locale={locale} crumbs={crumbs} scheme={breadcrumbs.scheme} />
           </div>
         </div>
       ) : null}

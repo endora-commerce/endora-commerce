@@ -20,7 +20,7 @@ export default async function ComparePage(): Promise<ReactNode> {
   const t = tForLocale(locale);
   return (
     <div className="mx-auto max-w-[1360px] px-[24px]" style={{ paddingTop: 24, paddingBottom: 56 }}>
-      <Breadcrumbs
+      <Breadcrumbs locale={locale}
         crumbs={[
           { href: '/', label: t('nav.home') },
           { href: '/compare', label: t('commerce.compare.title') },

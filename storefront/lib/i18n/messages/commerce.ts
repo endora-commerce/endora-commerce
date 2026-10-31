@@ -405,7 +405,7 @@ export const commerce = defineMessages({
     'commerce.listing.activeFilters': 'Aktywne ({count})',
     'commerce.listing.removeFilterNamed': 'Usuń filtr: {filter}',
     'commerce.listing.removeFilter': 'Usuń filtr',
-    'commerce.listing.showing': 'Pokazuję',
+    'commerce.listing.showing': 'Wyświetlono',
     'commerce.listing.results.one': 'wynik',
     'commerce.listing.results.few': 'wyniki',
     'commerce.listing.results.many': 'wyników',

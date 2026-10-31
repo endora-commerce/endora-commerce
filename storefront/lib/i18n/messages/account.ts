@@ -51,7 +51,6 @@ export const account = defineMessages({
     'account.nav.organization': 'Organization',
     'account.nav.organizationAddresses': 'Org addresses',
     'account.nav.members': 'Members',
-    'account.nav.signOut': 'Sign out',
 
     // Profile (`/account`).
     'account.profile.heading': 'Your profile',
@@ -395,7 +394,6 @@ export const account = defineMessages({
     'account.nav.organization': 'Organizacja',
     'account.nav.organizationAddresses': 'Adresy organizacji',
     'account.nav.members': 'Członkowie',
-    'account.nav.signOut': 'Wyloguj się',
 
     'account.profile.heading': 'Twój profil',
     'account.profile.verified': '(zweryfikowany)',
@@ -482,7 +480,7 @@ export const account = defineMessages({
     'account.cartStatus.abandoned': 'Porzucony',
     'account.cartStatus.completed': 'Zrealizowany',
     'account.cartStatus.rejected': 'Odrzucony',
-    'account.cartApprovalStatus.not_required': 'Niewymagana',
+    'account.cartApprovalStatus.not_required': 'Nie wymaga akceptacji',
     'account.cartApprovalStatus.pending': 'Oczekuje na akceptację',
     'account.cartApprovalStatus.approved': 'Zaakceptowany',
     'account.cartApprovalStatus.rejected_by_org_admin': 'Odrzucony przez administratora',

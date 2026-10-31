@@ -34,14 +34,11 @@ export function SignOutButton({
   /**
    * The page's language, from the server component that renders the button;
    * the caption is `auth.signOut.button` in it when no `label` is given.
-   * Optional only until the account sidebar (`app/(account)/layout.tsx`, keyed
-   * on the `account` branch of issue #85) passes it; until then that caller
-   * gets the English caption it has always had.
    */
-  locale?: string;
+  locale: string;
   className?: string;
 }): React.ReactElement {
-  const caption = label ?? tForLocale(locale ?? 'en-US')('auth.signOut.button');
+  const caption = label ?? tForLocale(locale)('auth.signOut.button');
   return (
     <form action={signOutReleasingPush(signOut)}>
       <button type="submit" className={className}>

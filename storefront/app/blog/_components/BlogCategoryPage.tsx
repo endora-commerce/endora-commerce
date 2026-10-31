@@ -26,7 +26,7 @@ export function BlogCategoryPage({
 
   return (
     <div className="space-y-8">
-      <Breadcrumbs
+      <Breadcrumbs locale={locale}
         crumbs={category.breadcrumb.map((c) => ({ href: c.url, label: c.name }))}
       />
 

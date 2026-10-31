@@ -76,6 +76,7 @@ export function ChannelAccessDenied({
         <div className="mt-[20px]">
           <SignOutButton
             signOut={signOut}
+            locale={locale}
             label={t('access.denied.signOut')}
             className="btn btn--outline min-h-[44px]"
           />

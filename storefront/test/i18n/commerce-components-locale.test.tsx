@@ -61,7 +61,7 @@ function summary(overrides: Partial<ProductSummary> = {}): ProductSummary {
 describe('catalog toolbar and filters', () => {
   it.each([
     ['en-US', 22, ['Showing', 'results', 'aria-label="Sort"', 'Sort: relevance', 'Newest', 'Name A–Z', '24 / page', 'aria-label="View mode"', 'aria-label="Grid"']],
-    ['pl-PL', 22, ['Pokazuję', 'wyniki', 'aria-label="Sortuj"', 'Sortuj: trafność', 'Najnowsze', 'Nazwa A–Z', '24 / strona', 'aria-label="Tryb widoku"', 'aria-label="Siatka"']],
+    ['pl-PL', 22, ['Wyświetlono', 'wyniki', 'aria-label="Sortuj"', 'Sortuj: trafność', 'Najnowsze', 'Nazwa A–Z', '24 / strona', 'aria-label="Tryb widoku"', 'aria-label="Siatka"']],
     ['pl-PL', 25, ['wyników']],
     ['en-US', 1, ['>result<']],
   ] as const)('toolbar in %s for %i shown', (locale, shown, texts) => {

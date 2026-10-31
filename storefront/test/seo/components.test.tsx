@@ -19,7 +19,7 @@ import type { ProductSummary, ProductAsset } from '@endora-commerce/contracts';
 describe('Breadcrumbs — JSON-LD + crawlable anchors', () => {
   it('emits BreadcrumbList JSON-LD and links every non-current crumb', () => {
     const html = renderToString(
-      <Breadcrumbs
+      <Breadcrumbs locale="en-US"
         crumbs={[
           { href: '/', label: 'Home' },
           { href: '/catalog', label: 'Catalog' },
@@ -38,7 +38,7 @@ describe('Breadcrumbs — JSON-LD + crawlable anchors', () => {
   });
 
   it('renders nothing for an empty crumb list', () => {
-    expect(renderToString(<Breadcrumbs crumbs={[]} />)).toBe('');
+    expect(renderToString(<Breadcrumbs locale="en-US" crumbs={[]} />)).toBe('');
   });
 });
 

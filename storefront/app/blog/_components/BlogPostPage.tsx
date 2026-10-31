@@ -48,7 +48,7 @@ export function BlogPostPage({
           ...(post.tags.length > 0 ? { keywords: post.tags.map((tag) => tag.name).join(', ') } : {}),
         }}
       />
-      <Breadcrumbs crumbs={post.breadcrumb.map((c) => ({ href: c.url, label: c.name }))} />
+      <Breadcrumbs locale={locale} crumbs={post.breadcrumb.map((c) => ({ href: c.url, label: c.name }))} />
 
       <header className="space-y-3">
         {date ? (

@@ -240,7 +240,7 @@ describe('shopping-list heart — the shop language (issue #85)', () => {
     const pl = renderToString(
       <AddToShoppingListButton apiBase="" productId="p1" label="Dodaj" locale="pl-PL" showLabel />,
     );
-    expect(pl).toContain('aria-label="Usuń z listy zakupowej"');
+    expect(pl).toContain('aria-label="Usuń z listy zakupów"');
     expect(pl).toContain('aria-label="Wybierz listę zakupów"');
     expect(visibleText(pl)).toContain('Dodano do „Site B”');
     expect(visibleText(pl)).toContain('domyślna');

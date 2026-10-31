@@ -179,7 +179,7 @@ describe('signing out', () => {
 
   it('renders the same Sign out button the account sidebar always had', async () => {
     const { SignOutButton } = await import('../components/account/SignOutButton');
-    const html = renderToString(<SignOutButton signOut={async () => {}} />);
+    const html = renderToString(<SignOutButton signOut={async () => {}} locale="en-US" />);
 
     expect(html).toContain('b2b-account__logout');
     expect(html).toContain('Sign out');

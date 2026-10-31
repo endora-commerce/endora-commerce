@@ -17,7 +17,7 @@ import { formatCount } from '../lib/orderMinimum';
 /**
  * Bordered toolbar that sits between the catalog title and the product
  * grid. Mirrors `.toolbar` from the Industria design:
- *   left  — "Pokazuję X–Y" hint (mono numerals)
+ *   left  — "Showing X–Y" hint (mono numerals)
  *   right — sort select + per-page select + grid/list viewmode toggle
  *
  * Stays in sync with the URL: changing any control re-pushes the

@@ -32,7 +32,7 @@ describe('structured data blocks', () => {
 
   it('breadcrumb labels and links are escaped inside the BreadcrumbList block', () => {
     const html = renderToString(
-      <Breadcrumbs
+      <Breadcrumbs locale="en-US"
         crumbs={[
           { href: '/', label: 'Home' },
           { href: '/p/x</script><script>alert(1)</script>', label: '</script><img src=x onerror=alert(1)>' },

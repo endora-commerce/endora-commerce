@@ -19,7 +19,7 @@ export function BlogTagPage({
   const { tag, posts } = payload;
   return (
     <div className="space-y-8">
-      <Breadcrumbs
+      <Breadcrumbs locale={locale}
         crumbs={payload.breadcrumb.map((c) => ({ href: c.url, label: c.name }))}
       />
 

@@ -1,17 +1,18 @@
 import { format } from './format';
 import { tForLocale, type MessageKey } from './messages';
 import { formatCount } from '../orderMinimum';
+import { pluralForm } from './plural';
 
 /**
  * Counted phrases of the `chrome` namespace (issue #85), in the right plural
  * form for the reader's language: Polish has three (one, then 2–4, then 5 and
  * up, with 12–14 taking the third), English two. The form is the
- * `Intl.PluralRules` category, so each phrase is keyed `<base>.<category>` in
- * the catalogue, as `lineGroups.summary.items.*` is.
+ * `Intl.PluralRules` category chosen by `pluralForm` (`./plural`), so each
+ * phrase is keyed `<base>.<form>` in the catalogue, as
+ * `lineGroups.summary.items.*` is.
  */
 function counted(base: string, count: number, locale: string): string {
-  const form = new Intl.PluralRules(locale).select(count);
-  const key = `${base}.${form}` as MessageKey;
+  const key = `${base}.${pluralForm(count, locale)}` as MessageKey;
   return format(tForLocale(locale)(key), { count: formatCount(count, locale) });
 }
 
