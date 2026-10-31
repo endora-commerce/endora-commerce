@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import type { ProductSummary, StorefrontProductStock } from '@endora-commerce/contracts';
 import { tForLocale } from '../lib/i18n/messages';
-import { cardAddToCartLabel } from '../lib/orderMinimum';
+import { cardAddToCartLabel, formatCount } from '../lib/orderMinimum';
+import { format } from '../lib/i18n/format';
 import { DEFAULT_VAT_RATE, formatMoney, grossUnitPriceFromNet } from '../lib/i18n/money';
 import { CompareToggle } from './CompareToggle';
 import { BaseSalePriceBlock } from './pricing/BaseSalePriceBlock';
@@ -64,7 +65,7 @@ export function ProductCard(props: {
   const { product, locale, stock, resolved, vatRate = DEFAULT_VAT_RATE } = props;
   const t = tForLocale(locale);
 
-  const stockNode = stock ? renderFromStorefrontStock(stock, locale, t) : stockFor(product, t);
+  const stockNode = stock ? renderFromStorefrontStock(stock, locale, t) : stockFor(product, t, locale);
 
   return (
     // The `active:` half is the click's own acknowledgement, and it is not
@@ -102,11 +103,9 @@ export function ProductCard(props: {
           />
         )}
       </LocalizedLink>
-      <CompareToggle productId={product.id} salesChannelCode={props.salesChannelCode} />
+      <CompareToggle productId={product.id} salesChannelCode={props.salesChannelCode} locale={locale} />
       {resolved && resolved.salePrice ? (
-        <span className="industria-badge industria-badge--sale" aria-label={t('product.requestQuote')}>
-          Promocja
-        </span>
+        <span className="industria-badge industria-badge--sale">{t('commerce.productCard.sale')}</span>
       ) : null}
 
       <div className="flex flex-1 flex-col gap-[6px] p-[14px] pb-[16px] max-md:gap-[5px] max-md:p-[10px] max-md:pb-[12px]">
@@ -156,12 +155,15 @@ function renderPriceSlot(args: {
           productSlug={product.slug}
           productName={product.name}
           variant="card"
+          locale={locale}
         />
       );
     }
     return (
       <>
-        <div className="font-mono text-[10px] uppercase tracking-[0.04em] text-subtle">od / szt.</div>
+        <div className="font-mono text-[10px] uppercase tracking-[0.04em] text-subtle">
+          {t('commerce.productCard.fromPerPiece')}
+        </div>
         <BaseSalePriceBlock
           basePrice={resolved.basePrice}
           salePrice={resolved.salePrice}
@@ -220,7 +222,7 @@ function renderPriceSlot(args: {
   return (
     <>
       <div className="industria-product-card__price__from">
-        {product.priceVariesByVariant ? t('product.priceFromVariants') : 'od / szt.'}
+        {product.priceVariesByVariant ? t('product.priceFromVariants') : t('commerce.productCard.fromPerPiece')}
       </div>
       {/* Owner ruling 2026-10-23: beside a list price a charged sale strikes the
           list price, not the buyer's own — two numbers, never three. */}
@@ -248,7 +250,9 @@ function renderPriceSlot(args: {
         <div className="font-mono text-[16px] font-semibold tracking-[-0.01em] text-fg">{priceFmt}</div>
       )}
       {grossFmt ? (
-        <div className="font-mono text-[11px] text-muted">brutto {grossFmt}</div>
+        <div className="font-mono text-[11px] text-muted">
+          {format(t('commerce.productCard.grossPrice'), { amount: grossFmt })}
+        </div>
       ) : null}
     </>
   );
@@ -279,7 +283,7 @@ function renderFromStorefrontStock(
     return (
       <span className="industria-stock industria-stock--in">
         <span className="dot" />
-        {`${stock.exactOnHand.toLocaleString(locale)} szt.`}
+        {format(t('commerce.stock.pieces'), { count: formatCount(stock.exactOnHand, locale) })}
       </span>
     );
   }
@@ -330,7 +334,7 @@ function renderFromStorefrontStock(
   }
 }
 
-function stockFor(p: ProductSummary, t: ReturnType<typeof tForLocale>): ReactNode {
+function stockFor(p: ProductSummary, t: ReturnType<typeof tForLocale>, locale: string): ReactNode {
   if (p.stockLevel !== null && p.stockLevel !== undefined) {
     if (p.stockLevel <= 0) {
       return (
@@ -344,14 +348,14 @@ function stockFor(p: ProductSummary, t: ReturnType<typeof tForLocale>): ReactNod
       return (
         <span className="industria-stock industria-stock--low">
           <span className="dot" />
-          Mało: {p.stockLevel}
+          {format(t('commerce.stock.low'), { count: formatCount(p.stockLevel, locale) })}
         </span>
       );
     }
     return (
       <span className="industria-stock industria-stock--in">
         <span className="dot" />
-        {p.stockLevel.toLocaleString('pl-PL')} szt.
+        {format(t('commerce.stock.pieces'), { count: formatCount(p.stockLevel, locale) })}
       </span>
     );
   }
@@ -375,7 +379,7 @@ function stockFor(p: ProductSummary, t: ReturnType<typeof tForLocale>): ReactNod
     return (
       <span className="industria-stock industria-stock--low">
         <span className="dot" />
-        Na zamówienie
+        {t('commerce.stock.toOrder')}
       </span>
     );
   }

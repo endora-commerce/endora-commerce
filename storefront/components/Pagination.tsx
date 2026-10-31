@@ -23,7 +23,7 @@ export function Pagination(props: {
     cursor: props.nextCursor,
   });
   return (
-    <nav className="mt-6 flex flex-wrap items-center justify-between gap-3" aria-label="Pagination">
+    <nav className="mt-6 flex flex-wrap items-center justify-between gap-3" aria-label={t('commerce.listing.pagination')}>
       <span className="text-[12px] text-muted" aria-hidden="true" />
       <div className="flex gap-1.5">
         <LocalizedLink

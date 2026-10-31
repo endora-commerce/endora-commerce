@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from 'react';
 import type { PricingMoney } from '../../lib/api/pricing';
 import { BaseSalePriceBlock } from './BaseSalePriceBlock';
+import { tForLocale } from '../../lib/i18n/messages';
 
 /**
  * Feature 044 / US3 — PDP net/gross price toggle (Industria Mobile design §04).
@@ -30,7 +31,11 @@ export function PdpPriceToggle(props: {
   labels?: { net: string; gross: string };
 }): ReactNode {
   const [mode, setMode] = useState<'net' | 'gross'>('net');
-  const labels = props.labels ?? { net: 'NETTO', gross: 'BRUTTO' };
+  const t = tForLocale(props.locale);
+  const labels = props.labels ?? {
+    net: t('commerce.pdp.priceToggle.net'),
+    gross: t('commerce.pdp.priceToggle.gross'),
+  };
 
   return (
     <div className="flex items-start justify-between gap-4">
@@ -49,7 +54,7 @@ export function PdpPriceToggle(props: {
       <div
         className="inline-flex shrink-0 items-center gap-[2px] rounded-md border border-line bg-surface-alt p-[2px]"
         role="radiogroup"
-        aria-label="Netto / brutto"
+        aria-label={t('commerce.pdp.priceToggle.label')}
       >
         {(['net', 'gross'] as const).map((m) => (
           <button

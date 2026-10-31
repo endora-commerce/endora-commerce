@@ -80,7 +80,7 @@ export async function generateMetadata({
   const { slug } = await params;
   const search = searchParams ? await searchParams : {};
   const variantSku = typeof search.variant === 'string' ? search.variant : null;
-  const { ctx } = await getServerContext();
+  const { ctx, locale } = await getServerContext();
   // Deliberately the anonymous answer, even for a signed-in buyer (issue
   // #265): this output is the crawler's and the social card's, it carries no
   // price to personalise, and asking it as the buyer would cost the shared
@@ -126,7 +126,7 @@ export async function generateMetadata({
       },
     };
   } catch {
-    return { title: 'Product not found', robots: { index: false, follow: false } };
+    return { title: tForLocale(locale)('commerce.pdp.notFound'), robots: { index: false, follow: false } };
   }
 }
 
@@ -311,11 +311,12 @@ export default async function ProductPage({
 
       <article className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-[24px] max-[720px]:grid-cols-1">
         {product.gallery && product.gallery.length > 0 ? (
-          <GallerySwitcher gallery={product.gallery} alt={product.name} />
+          <GallerySwitcher gallery={product.gallery} alt={product.name} locale={locale} />
         ) : (
           <ProductGallery
             assets={product.assets}
             alt={product.name}
+            locale={locale}
             placeholderUrl={product.primaryAssetUrl}
           />
         )}
@@ -333,7 +334,7 @@ export default async function ProductPage({
           </h1>
           <div className="mb-[16px] flex flex-wrap items-center gap-x-[18px] gap-y-[6px] border-y border-line py-[10px] font-mono text-[12px] text-muted">
             <span className="inline-flex gap-[6px]">
-              SKU: <strong className="font-medium text-fg">{product.sku}</strong>
+              {t('commerce.pdp.sku')} <strong className="font-medium text-fg">{product.sku}</strong>
             </span>
           </div>
           {/* Give the price extra breathing room (above + below) so it draws the
@@ -349,7 +350,6 @@ export default async function ProductPage({
                 listPriceLabel={t('product.listPrice')}
                 yourPriceLabel={t('product.yourPrice')}
                 locale={locale}
-                labels={{ net: 'NETTO', gross: 'BRUTTO' }}
               />
               <div className="mt-3">
                 <StockBadge product={product} stock={stock} locale={locale} />
@@ -430,14 +430,21 @@ export default async function ProductPage({
                           apiBase={PDP_API_BASE}
                           productId={product.id}
                           {...(selectedVariantId ? { variantId: selectedVariantId } : {})}
-                          label="Dodaj do listy zakupowej"
-                          removeLabel="Usuń z listy zakupowej"
+                          label={t('commerce.pdp.shoppingList.add')}
+                          removeLabel={t('commerce.pdp.shoppingList.remove')}
                           showLabel
                           className="btn btn--outline h-[40px] w-full justify-center md:w-auto"
                         />
                       }
                       // Secondary actions row, alongside the shopping-list + quote.
-                      compareAction={<CompareToggle productId={product.id} variant="inline" salesChannelCode={ctx.salesChannelCode} />}
+                      compareAction={
+                        <CompareToggle
+                          productId={product.id}
+                          variant="inline"
+                          salesChannelCode={ctx.salesChannelCode}
+                          locale={locale}
+                        />
+                      }
                     />
                   ) : (
                     // No buy-actions row (no price and RFQ-on-PDP off): still
@@ -446,8 +453,8 @@ export default async function ProductPage({
                       apiBase={PDP_API_BASE}
                       productId={product.id}
                       {...(selectedVariantId ? { variantId: selectedVariantId } : {})}
-                      label="Dodaj do listy zakupowej"
-                      removeLabel="Usuń z listy zakupowej"
+                      label={t('commerce.pdp.shoppingList.add')}
+                      removeLabel={t('commerce.pdp.shoppingList.remove')}
                     />
                   )}
                   {oneClickEnabled && price ? (
@@ -457,7 +464,7 @@ export default async function ProductPage({
                         <input type="hidden" name="variantId" value={selectedVariantId} />
                       ) : null}
                       <button type="submit" className="b2b-cta">
-                        Buy in one click
+                        {t('commerce.pdp.oneClick')}
                       </button>
                     </form>
                   ) : null}
@@ -473,12 +480,18 @@ export default async function ProductPage({
                   digitalDelivery: t('product.virtual.digitalDelivery'),
                 }}
                 addToCartAction={addToCartAction}
+                locale={locale}
               />
             ) : null}
           </div>
           {!buyActionsRendered ? (
             <div className="mt-3">
-              <CompareToggle productId={product.id} variant="inline" salesChannelCode={ctx.salesChannelCode} />
+              <CompareToggle
+                productId={product.id}
+                variant="inline"
+                salesChannelCode={ctx.salesChannelCode}
+                locale={locale}
+              />
             </div>
           ) : null}
           <Hook code="product.buttons.after" />

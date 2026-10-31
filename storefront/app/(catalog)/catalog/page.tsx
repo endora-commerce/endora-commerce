@@ -9,6 +9,9 @@ import { MobileFilterSheet } from '../../../components/mobile/MobileFilterSheet'
 import { listProducts, getFilters } from '../../../lib/api/catalog';
 import { getServerContext } from '../../../lib/server-context';
 import { tForLocale } from '../../../lib/i18n/messages';
+import { format } from '../../../lib/i18n/format';
+import { pluralKey } from '../../../lib/i18n/plural';
+import { formatCount } from '../../../lib/orderMinimum';
 import {
   parseCatalogPriceQuery,
   parsePriceBound,
@@ -66,9 +69,10 @@ export default async function CatalogPage({ searchParams }: PageProps): Promise<
   const clearHref = buildClearHref('/catalog', query.baseQuery);
   const filterLabels = {
     filters: t('catalog.filters'),
-    clear: 'Wyczyść',
-    applyTemplate: 'Pokaż {count} wyników',
-    close: 'Zamknij',
+    clear: t('commerce.listing.clearFilters'),
+    // The sheet fills `{count}`; the form is chosen here, where the count is known.
+    applyTemplate: t(pluralKey('commerce.listing.showResults', products.data.length, locale)),
+    close: t('commerce.common.close'),
   };
 
   return (
@@ -95,7 +99,11 @@ export default async function CatalogPage({ searchParams }: PageProps): Promise<
           <div className="industria-catalog__title">
             <div>
               <h1>{heading}</h1>
-              <p>{products.data.length.toLocaleString('pl-PL')} produktów</p>
+              <p>
+                {format(t(pluralKey('commerce.listing.productCount', products.data.length, locale)), {
+                  count: formatCount(products.data.length, locale),
+                })}
+              </p>
             </div>
           </div>
           <CatalogToolbar

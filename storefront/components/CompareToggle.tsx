@@ -8,6 +8,7 @@ import {
   removeProductFromCompare,
 } from '../lib/api/comparisons';
 import { LocalizedAnchor } from '../lib/i18n/localized-link';
+import { tForLocale } from '../lib/i18n/messages';
 
 /**
  * `<CompareToggle>` — feature 007 / T030.
@@ -31,7 +32,10 @@ export function CompareToggle(props: {
    * sits in a normal flow row — used in the PDP action zone.
    */
   variant?: 'card' | 'inline';
+  /** The page's language, from the server parent. */
+  locale: string;
 }): ReactNode {
+  const t = tForLocale(props.locale);
   const [hydrated, setHydrated] = useState(false);
   const [active, setActive] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -73,14 +77,14 @@ export function CompareToggle(props: {
       window.dispatchEvent(new CustomEvent('b2b:compare:changed'));
     } catch (err) {
       setError(
-        err instanceof ComparisonApiError ? err.message : 'Could not update compare set.',
+        err instanceof ComparisonApiError ? err.message : t('commerce.compare.toggle.failed'),
       );
     } finally {
       setBusy(false);
     }
   };
 
-  const compareLabel = active ? 'Usuń z porównania' : 'Dodaj do porównania';
+  const compareLabel = active ? t('commerce.compare.remove') : t('commerce.compare.toggle.add');
 
   if (props.variant === 'inline') {
     return (

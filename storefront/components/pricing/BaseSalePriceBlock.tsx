@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import type { DisplayMode } from '@endora-commerce/contracts';
 import type { PricingMoney } from '../../lib/api/pricing';
 import { DEFAULT_VAT_RATE, formatMoney, grossUnitPriceFromNet } from '../../lib/i18n/money';
+import { tForLocale } from '../../lib/i18n/messages';
 
 /**
  * Renders the customer-facing price block from a resolver-provided
@@ -45,19 +46,20 @@ export function BaseSalePriceBlock(props: {
   /** Visual variant — `card` is compact (catalog grid), `pdp` is the
    *  larger PDP-friendly layout. */
   variant?: 'card' | 'pdp';
-  /** Optional copy for the strike-through annotation; defaults to "before:". */
+  /** Optional copy for the strike-through annotation; defaults to the catalogue's "before". */
   baseLabel?: string;
-  /** Optional copy for the Sale price annotation; defaults to "Special price". */
+  /** Optional copy for the Sale price annotation; defaults to the catalogue's "Special price". */
   saleLabel?: string;
-  /** Copy for the list-price annotation; defaults to "List price". */
+  /** Copy for the list-price annotation; defaults to the catalogue's "List price". */
   listLabel?: string;
-  /** Copy for the buyer's price beside a list price; defaults to "Your price". */
+  /** Copy for the buyer's price beside a list price; defaults to the catalogue's "Your price". */
   yourPriceLabel?: string;
   /** Optional copy for the gross-tax tag. */
   grossSuffix?: string;
   /** Optional copy for the net-tax tag. */
   netSuffix?: string;
 }): ReactNode {
+  const t = tForLocale(props.locale);
   const {
     basePrice,
     salePrice = null,
@@ -66,12 +68,12 @@ export function BaseSalePriceBlock(props: {
     locale,
     vatRate = DEFAULT_VAT_RATE,
     variant = 'pdp',
-    baseLabel = 'before',
-    saleLabel = 'Special price',
-    listLabel = 'List price',
-    yourPriceLabel = 'Your price',
-    grossSuffix = 'gross',
-    netSuffix = 'net',
+    baseLabel = t('commerce.price.before'),
+    saleLabel = t('commerce.price.special'),
+    listLabel = t('product.listPrice'),
+    yourPriceLabel = t('product.yourPrice'),
+    grossSuffix = t('commerce.common.gross'),
+    netSuffix = t('commerce.common.net'),
   } = props;
 
   if (displayMode === 'none') return null;

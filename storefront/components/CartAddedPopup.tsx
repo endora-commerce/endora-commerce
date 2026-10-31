@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { AddToCartResult } from '../lib/cartAddState';
 import { LocalizedLink } from '../lib/i18n/localized-link';
+import { tForLocale } from '../lib/i18n/messages';
 
 /**
  * Confirmation popup shown after a PDP add-to-cart. Reacts to the
@@ -11,22 +12,28 @@ import { LocalizedLink } from '../lib/i18n/localized-link';
  * via the `b2b:cart:changed` event; on error it surfaces the message. The popup
  * auto-dismisses and can be closed manually. Replaces the previous behaviour of
  * force-redirecting the buyer to `/cart`.
+ *
+ * The labels default to the catalogue's in `locale`, the page's language passed
+ * down from the server parent.
  */
-export function CartAddedPopup({
-  state,
-  cartHref = '/cart',
-  addedLabel = 'Produkt został dodany do koszyka.',
-  goToCartLabel = 'Przejdź do koszyka',
-  continueLabel = 'Kontynuuj zakupy',
-  closeLabel = 'Zamknij',
-}: {
+export function CartAddedPopup(props: {
   state: AddToCartResult;
+  locale: string;
   cartHref?: string;
   addedLabel?: string;
   goToCartLabel?: string;
   continueLabel?: string;
   closeLabel?: string;
 }): ReactNode {
+  const t = tForLocale(props.locale);
+  const {
+    state,
+    cartHref = '/cart',
+    addedLabel = t('product.cartPopup.added'),
+    goToCartLabel = t('product.cartPopup.goToCart'),
+    continueLabel = t('product.cartPopup.continue'),
+    closeLabel = t('product.cartPopup.close'),
+  } = props;
   const [view, setView] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {

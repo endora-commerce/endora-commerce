@@ -17,7 +17,7 @@ const noop = (): AddToCartResult => ({ status: 'idle' });
 describe('VirtualCta — SSR contract', () => {
   it('renders nothing when virtual is null/empty', () => {
     const html = renderToString(
-      <VirtualCta
+      <VirtualCta locale="en-US"
         productId="00000000-0000-4000-8000-0000000000aa"
         virtual={{ downloadAssetId: null, downloadUrl: null }}
         labels={{ buyAndDownload: 'Buy and download', digitalDelivery: 'Digital delivery — instant access' }}
@@ -29,7 +29,7 @@ describe('VirtualCta — SSR contract', () => {
 
   it('renders the buy CTA as an add-to-cart form when downloadUrl is set', () => {
     const html = renderToString(
-      <VirtualCta
+      <VirtualCta locale="en-US"
         productId="00000000-0000-4000-8000-0000000000bb"
         virtual={{ downloadAssetId: null, downloadUrl: 'https://example.test/file.pdf' }}
         labels={{ buyAndDownload: 'Buy and download', digitalDelivery: 'Digital delivery — instant access' }}
@@ -46,7 +46,7 @@ describe('VirtualCta — SSR contract', () => {
 
   it('renders the buy CTA when downloadAssetId is set', () => {
     const html = renderToString(
-      <VirtualCta
+      <VirtualCta locale="en-US"
         productId="00000000-0000-4000-8000-0000000000cc"
         virtual={{ downloadAssetId: '00000000-0000-4000-8000-000000000001', downloadUrl: null }}
         labels={{ buyAndDownload: 'Buy and download', digitalDelivery: 'Digital delivery — instant access' }}

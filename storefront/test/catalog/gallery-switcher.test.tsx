@@ -38,13 +38,13 @@ const video = (
 
 describe('GallerySwitcher — SSR contract', () => {
   it('renders placeholder when gallery is empty', () => {
-    const html = renderToString(<GallerySwitcher gallery={[]} alt="Widget" />);
+    const html = renderToString(<GallerySwitcher gallery={[]} alt="Widget" locale="en-US" />);
     expect(html).toContain('aspect-square');
   });
 
   it('starts the carousel on the Base Image', () => {
     const html = renderToString(
-      <GallerySwitcher
+      <GallerySwitcher locale="en-US"
         gallery={[
           item('1', [], 0, '/asset/plain.jpg'),
           item('2', ['base_image'], 1, '/asset/base.jpg'),
@@ -62,7 +62,7 @@ describe('GallerySwitcher — SSR contract', () => {
 
   it('falls back to the first item when no Base Image is set', () => {
     const html = renderToString(
-      <GallerySwitcher
+      <GallerySwitcher locale="en-US"
         gallery={[
           item('1', ['thumbnail'], 0, '/asset/thumb.jpg'),
           item('2', [], 1, '/asset/plain.jpg'),
@@ -76,7 +76,7 @@ describe('GallerySwitcher — SSR contract', () => {
 
   it('marks the Small Image as highlighted in the thumbnail strip', () => {
     const html = renderToString(
-      <GallerySwitcher
+      <GallerySwitcher locale="en-US"
         gallery={[
           item('1', ['base_image'], 0, '/asset/base.jpg'),
           item('2', ['small_image'], 1, '/asset/small.jpg'),
@@ -90,7 +90,7 @@ describe('GallerySwitcher — SSR contract', () => {
 
   it('emits one thumbnail-strip entry per gallery item', () => {
     const html = renderToString(
-      <GallerySwitcher
+      <GallerySwitcher locale="en-US"
         gallery={[
           item('1', ['base_image'], 0),
           item('2', [], 1),
@@ -105,7 +105,7 @@ describe('GallerySwitcher — SSR contract', () => {
 
   it('renders a video item in the main view with a <video> element', () => {
     const html = renderToString(
-      <GallerySwitcher
+      <GallerySwitcher locale="en-US"
         gallery={[video('1', ['base_image'], 0, '/asset/clip.mp4')]}
         alt="Widget"
       />,
@@ -113,19 +113,35 @@ describe('GallerySwitcher — SSR contract', () => {
     expect(html).toContain('<video');
     expect(html).toContain(`src="${toAbsoluteAssetUrl('/asset/clip.mp4')}"`);
     // No zoom pill for video main views.
-    expect(html).not.toContain('Powiększ');
+    expect(html).not.toContain('Zoom');
   });
 
   it('shows the zoom pill for image main views', () => {
     const html = renderToString(
-      <GallerySwitcher gallery={[item('1', ['base_image'], 0)]} alt="Widget" />,
+      <GallerySwitcher locale="en-US" gallery={[item('1', ['base_image'], 0)]} alt="Widget" />,
     );
-    expect(html).toContain('Powiększ');
+    expect(html).toContain('Zoom');
+  });
+
+  // Issue #85 — the controls speak the page's language.
+  it.each([
+    ['en-US', ['Zoom', 'aria-label="Previous image"', 'aria-label="Next image"']],
+    ['pl-PL', ['Powiększ', 'aria-label="Poprzednie zdjęcie"', 'aria-label="Następne zdjęcie"']],
+  ])('labels the zoom pill and the arrows in %s', (locale, expected) => {
+    const html = renderToString(
+      <GallerySwitcher
+        locale={locale}
+        gallery={[item('1', ['base_image'], 0), item('2', [], 1)]}
+        alt="Widget"
+      />,
+    );
+    for (const text of expected) expect(html).toContain(text);
+    if (locale === 'en-US') expect(html).not.toMatch(/[ąćęłńóśźż]/i);
   });
 
   it("names each image by its own alt text at the request's language, else the product name (feature 163, FR-077)", () => {
     const html = renderToString(
-      <GallerySwitcher
+      <GallerySwitcher locale="en-US"
         gallery={[
           { ...item('1', ['base_image'], 0, '/asset/front.jpg'), altText: 'Paleta z przodu' },
           { ...item('2', [], 1, '/asset/side.jpg'), altText: null },
