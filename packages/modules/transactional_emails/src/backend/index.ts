@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type {
+  AdminI18nTranslatePort,
   EmailBlockRendererRegistryPort,
   TemplateEmailPort,
   ModuleManifest,
@@ -161,6 +162,10 @@ export function registerModule(ctx: ModuleContext): void {
                 { block, owner, err: error },
                 'a contributed e-mail block failed to render; the message was rendered without it',
               ),
+            // Issue #560 — a variable's sample value in the language being
+            // edited. `_i18n` is non-deactivatable; the service still keeps the
+            // manifest's English sample if the resolver refuses.
+            translator: lazyPort<AdminI18nTranslatePort>(ctx, 'adminI18nService'),
             resolveAssetUrl: (assetId: string) => cradle().transactionalEmailAssetUrl(assetId),
             requireAdmin: (permission?: string) => async (req, reply) =>
               cradle().requireAdmin(permission ?? '')(req, reply),

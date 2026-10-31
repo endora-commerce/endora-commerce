@@ -60,7 +60,10 @@ export const manifest = defineModuleManifest({
   description:
     'Admin-editable transactional email content and look (global + per sales channel), email-safe blocks/templates, variables, and preview.',
   version: '1.0.0',
-  dependencies: ['assets_library', 'email', 'sales_channels', 'settings'],
+  // `_i18n` owns `adminI18nService`, through which a template variable's
+  // `sampleValueKey` is read in the language being edited (issue #560); it
+  // cannot be switched off, so the edge costs no operator an activation control.
+  dependencies: ['_i18n', 'assets_library', 'email', 'sales_channels', 'settings'],
   // Feature 074 (Constitution XVII), test C2 — functional base. The second
   // half of the old ground was that `organizations` declares this module, so
   // the flip failed closed onto the tenancy root; ruling 2 withdraws that, and

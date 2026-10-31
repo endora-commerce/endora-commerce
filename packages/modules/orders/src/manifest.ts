@@ -696,7 +696,12 @@ export const manifest = defineModuleManifest({
           sampleValue:
             '  Subtotal: 99.99 PLN\n  Tax: 23.00 PLN\n  Delivery: 15.00 PLN\n  Total: 137.99 PLN',
         },
-        { key: 'order.shippingAddressText', label: 'Shipping address', sampleValue: '  Anna Nowak\n  ul. Główna 1' },
+        {
+          key: 'order.shippingAddressText',
+          label: 'Shipping address',
+          sampleValue: '  Anna Nowak\n  1 Main Street',
+          sampleValueKey: 'emails.orderConfirmation.sample.shippingAddressText',
+        },
         { key: 'order.billingAddressText', label: 'Billing address', sampleValue: '  Acme Sp. z o.o.' },
         { key: 'order.items', label: 'Order line items (list)', sampleValue: '[{"name":"Widget A","sku":"W-A","quantity":2,"price":"120,00 PLN"},{"name":"Widget B","sku":"W-B","quantity":1,"price":"990,00 PLN"}]' },
       ],
@@ -736,7 +741,8 @@ export const manifest = defineModuleManifest({
       icon: 'ShoppingCart',
       targetRoute: '/orders',
       requiredPermission: 'orders:read',
-      keywords: ['orders', 'sales', 'zamówienia', 'sprzedaż'],
+      keywords: ['orders', 'sales'],
+      keywordsKey: 'actions.openOrders.keywords',
       weight: 220,
     },
     // Issue #516 (Principle XVI): the create form is a sidebar entry of its
@@ -749,7 +755,8 @@ export const manifest = defineModuleManifest({
       icon: 'Plus',
       targetRoute: '/orders/new',
       requiredPermission: 'orders:write',
-      keywords: ['order', 'new', 'create', 'on behalf', 'zamówienie', 'nowe', 'utwórz'],
+      keywords: ['order', 'new', 'create', 'on behalf'],
+      keywordsKey: 'actions.newOrder.keywords',
       weight: 221,
     },
     {
@@ -765,7 +772,8 @@ export const manifest = defineModuleManifest({
       // instead (issue #232). If the editor reading is the right one, it is the
       // route that has to change, and that is a behaviour change of its own.
       requiredPermission: 'orders:read',
-      keywords: ['order status', 'lifecycle', 'statusy', 'cykl życia'],
+      keywords: ['order status', 'lifecycle'],
+      keywordsKey: 'actions.orderStatusConfig.keywords',
       weight: 225,
     },
   ],

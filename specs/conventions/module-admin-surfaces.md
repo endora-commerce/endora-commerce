@@ -102,7 +102,7 @@ Every module with an admin surface **must** be discoverable under ⌘K / CTRL+K.
 is not enough.
 
 1. **`manifest.ts`** — `actions: [{ id, labelKey, descriptionKey, icon, targetRoute,
-   requiredPermission, keywords, weight }]` for the module's landing surface plus its few
+   requiredPermission, keywords, keywordsKey, weight }]` for the module's landing surface plus its few
    highest-value operator actions. Curate — this is a discovery surface, not a route dump.
 2. **`requiredPermission`** — the code gating the target surface, so the palette never
    advertises a 403.
@@ -110,7 +110,10 @@ is not enough.
    (`actions.openX.label`, not `<module>.actions.openX.label`) and live in the module's own
    `i18n/en.json` + `pl.json`. Those files must be a **flat** `{"a.b.c": "text"}` map — a
    nested object fails `TranslationBundleEntriesSchema`, the boot reconciler only logs and
-   skips it, and the palette silently renders raw keys.
+   skips it, and the palette silently renders raw keys. `keywords` are **English** and match
+   in every language; a search word in another language goes in the bundle under the
+   action's `keywordsKey` (same relative form, value a comma-separated list, an entry in
+   **both** `en.json` and `pl.json`), never inline in the manifest (issue #560).
 4. **`icon`** — must be in `KnownIconNameSchema` (`packages/contracts/src/admin-actions.ts`);
    adding a name there requires the matching entry in
    `admin/src/lib/admin-actions/icon-map.ts` in the same MR.

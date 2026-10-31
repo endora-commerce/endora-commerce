@@ -38,6 +38,7 @@ import { Migration20260507T091405I18nAdminI18nInit } from '@endora-commerce/mod-
 
 // ── admin_actions ───────────────────────────────────────────────────────────
 import { Migration20260507T142354AdminActionsInit } from '@endora-commerce/mod-admin-actions/migrations';
+import { Migration20261030T145645AdminActionsKeywordsKey } from '@endora-commerce/mod-admin-actions/migrations';
 
 // ── admin_notifications ─────────────────────────────────────────────────────
 import { Migration20260611T140350AdminNotificationsInit } from '@endora-commerce/mod-admin-notifications/migrations';
@@ -418,6 +419,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── admin_actions ───────────────────────────────────────────────────────────
   migration('admin_actions', Migration20260507T142354AdminActionsInit),
+  migration('admin_actions', Migration20261030T145645AdminActionsKeywordsKey),
 
   // ── admin_notifications ─────────────────────────────────────────────────────
   migration('admin_notifications', Migration20260611T140350AdminNotificationsInit),

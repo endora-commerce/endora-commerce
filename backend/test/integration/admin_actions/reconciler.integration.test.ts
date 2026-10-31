@@ -105,6 +105,28 @@ describe('AdminActionsReconciler (integration)', () => {
     expect(Number(refreshedA.version)).toBeGreaterThan(initialVersion);
   });
 
+  // Issue #560 — the per-language keywords key travels with the row, and a
+  // later declaration without one clears it rather than leaving it standing.
+  it('stores the keywordsKey an action declares and clears it when the declaration drops it', async () => {
+    await reconciler().installForModule({
+      moduleId: MODULE_ID,
+      actions: [{ ...actionA, keywordsKey: 'fixture.actions.a.keywords' }],
+    });
+    const first = await (orm.em.fork() as EntityManager).findOne(ModuleAction, {
+      moduleId: MODULE_ID,
+      actionId: 'action-a',
+    });
+    expect(first?.keywordsKey).toBe('fixture.actions.a.keywords');
+
+    await reconciler().installForModule({ moduleId: MODULE_ID, actions: [actionA] });
+    const second = await (orm.em.fork() as EntityManager).findOne(ModuleAction, {
+      moduleId: MODULE_ID,
+      actionId: 'action-a',
+    });
+    expect(second).not.toBeNull();
+    expect(second?.keywordsKey ?? null).toBeNull();
+  });
+
   it('re-running with action-a removed prunes the row', async () => {
     const r = reconciler();
     await r.installForModule({ moduleId: MODULE_ID, actions: [actionA, actionB] });

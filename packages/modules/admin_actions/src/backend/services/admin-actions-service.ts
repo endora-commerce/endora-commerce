@@ -7,6 +7,7 @@ import type {
   PermissionReadPort,
   SupportedAdminLanguage,
 } from '@endora-commerce/contracts';
+import { parseBundleKeywords } from '@endora-commerce/contracts';
 import { inProcessCaches } from '@endora-commerce/platform/kernel';
 
 /**
@@ -73,6 +74,7 @@ interface ModuleActionRow {
   target_route: string;
   required_permission: string | null;
   keywords: string[];
+  keywords_key: string | null;
   weight: number;
   version: string | number;
 }
@@ -274,6 +276,7 @@ export class AdminActionsService {
         'a.target_route',
         'a.required_permission',
         'a.keywords',
+        'a.keywords_key',
         'a.weight',
         'a.version',
       )) as ModuleActionRow[];
@@ -334,7 +337,7 @@ export class AdminActionsService {
         description,
         icon: row.icon as KnownIconName,
         targetRoute: row.target_route,
-        keywords: Array.isArray(row.keywords) ? row.keywords : [],
+        keywords: await this.keywordsOf(row, args.language),
         weight: row.weight,
       });
     }
@@ -347,6 +350,21 @@ export class AdminActionsService {
     const result: ListVisibleResult = { actions: resolved, registryVersion };
     this.cache.set(cacheKey, result);
     return result;
+  }
+
+  /**
+   * Issue #560 — the manifest's `keywords`, which match in every language,
+   * followed by the words the action's `keywordsKey` resolves to in `language`
+   * (the resolver falls back to English), de-duplicated. A key that resolves to
+   * the `moduleId.key` placeholder contributes nothing, as a missing
+   * `descriptionKey` does above.
+   */
+  private async keywordsOf(row: ModuleActionRow, language: SupportedAdminLanguage): Promise<string[]> {
+    const declared = Array.isArray(row.keywords) ? row.keywords : [];
+    if (!row.keywords_key) return declared;
+    const value = await this.i18nService.translate(row.module_id, row.keywords_key, language);
+    if (value === `${row.module_id}.${row.keywords_key}`) return declared;
+    return [...new Set([...declared, ...parseBundleKeywords(value)])];
   }
 }
 

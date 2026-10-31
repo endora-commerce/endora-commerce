@@ -1,4 +1,7 @@
+import { dirname } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { parseBundleKeywords } from '@endora-commerce/contracts';
+import { loadModuleBundles } from '@endora-commerce/mod-i18n/backend';
 import { contributions as customersAdmin } from '@endora-commerce/mod-customers/admin';
 import { contributions as organizationsAdmin } from '@endora-commerce/mod-organizations/admin';
 import { contributions as salesChannelsAdmin } from '@endora-commerce/mod-sales-channels/admin';
@@ -256,8 +259,23 @@ describe('batch 14 contributes no palette action while off (Constitution XVII it
     // and the action can name one code. `customers:read` is the member that
     // opens the roster for the role the row was written for.
     expect(organizations?.requiredPermission).toBe('customers:read');
-    for (const keyword of ['org', 'organization', 'organizacja', 'klient']) {
+    for (const keyword of ['org', 'organization']) {
       expect(organizations?.keywords, keyword).toContain(keyword);
+    }
+    // Issue #560 — the Polish words left the manifest for the module's own
+    // bundle, under the action's `keywordsKey`; the palette serves them to a
+    // Polish operator beside the English ones, so the ⌘K answer is unchanged.
+    const organizationsEntry = REGISTERED_MANIFESTS.find(
+      (entry) => entry.manifest.id === 'organizations',
+    )!;
+    const polish = loadModuleBundles(
+      'organizations',
+      dirname(organizationsEntry.filePath),
+      organizationsEntry.manifest.i18n!.bundlesDir,
+    ).byLanguage.get('pl');
+    const polishKeywords = parseBundleKeywords(polish?.[organizations?.keywordsKey ?? ''] ?? '');
+    for (const keyword of ['organizacja', 'klient']) {
+      expect(polishKeywords, keyword).toContain(keyword);
     }
 
     const salesChannels = actionOf('sales_channels', 'open-sales-channels');
