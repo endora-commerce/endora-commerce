@@ -28,8 +28,8 @@ export type NamespaceKey<N> = N extends MessageNamespace<infer K> ? K : never;
  *
  * ```ts
  * export const commerce = defineMessages({
- *   'en-US': { 'commerce.cart.heading': 'Your cart' },
- *   'pl-PL': { 'commerce.cart.heading': 'Twój koszyk' },
+ *   'en-US': { 'commerce.cart.heading': 'Cart' },
+ *   'pl-PL': { 'commerce.cart.heading': 'Koszyk' },
  * });
  * ```
  */
