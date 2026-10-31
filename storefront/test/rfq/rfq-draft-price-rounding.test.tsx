@@ -20,7 +20,7 @@ describe('DraftLine — the proposed-price placeholder', () => {
     const html = renderToString(
       <DraftLine
         line={{ productId: 'p', slug: 'p', name: 'P', unitPrice: { amount, currency: 'PLN' }, proposedUnitPrice: null, quantity: 1 }}
-        t={strings(false)}
+        t={strings('en-US')}
         locale="en-US"
         minimum={null}
         proposalsAllowed
@@ -38,7 +38,7 @@ describe('DraftLine — a sub-cent price (§10.18)', () => {
     const html = renderToString(
       <DraftLine
         line={{ productId: 'p', slug: 'p', name: 'P', unitPrice: { amount: 0.0125, currency: 'PLN' }, proposedUnitPrice: null, quantity: 10_000 }}
-        t={strings(false)}
+        t={strings('en-US')}
         locale="pl-PL"
         minimum={null}
         proposalsAllowed={false}
@@ -56,7 +56,7 @@ describe('DraftLine — a sub-cent price (§10.18)', () => {
     const html = renderToString(
       <DraftLine
         line={{ productId: 'p', slug: 'p', name: 'P', unitPrice: { amount: 0.0125, currency: 'PLN' }, proposedUnitPrice: null, quantity: 1 }}
-        t={strings(false)}
+        t={strings('en-US')}
         locale="pl-PL"
         minimum={null}
         proposalsAllowed

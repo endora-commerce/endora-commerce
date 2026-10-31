@@ -113,6 +113,6 @@ export function blockTitle(
     case 'no-payment-method':
       return t('checkout.payment.none');
     case 'moderation':
-      return moderationMessage ?? 'Ordering is currently unavailable.';
+      return moderationMessage ?? t('commerce.checkout.orderingUnavailable');
   }
 }

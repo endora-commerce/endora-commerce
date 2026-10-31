@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { toAbsoluteAssetUrl } from '../lib/asset-url';
+import { tForLocale } from '../lib/i18n/messages';
 
 const SLIDE_EASING = 'transform 420ms cubic-bezier(0.22, 1, 0.36, 1)';
 
@@ -63,7 +64,10 @@ function Chevron({ dir }: { dir: 'left' | 'right' }): ReactNode {
 export function GallerySwitcher(rawProps: {
   gallery: GallerySwitcherItem[];
   alt: string;
+  /** The page's language, from the server parent. */
+  locale: string;
 }): ReactNode {
+  const t = tForLocale(rawProps.locale);
   // Host-relative asset URLs (e.g. `/assets/file/<id>`) must be rebased onto the
   // public API origin, otherwise the browser resolves them against the
   // storefront origin and every image/video 404s. Normalise once here so every
@@ -220,7 +224,7 @@ export function GallerySwitcher(rawProps: {
               type="button"
               onClick={() => goTo(safeIndex - 1)}
               disabled={safeIndex === 0}
-              aria-label="Poprzednie zdjęcie"
+              aria-label={t('commerce.gallery.previous')}
               className="absolute left-3 top-1/2 z-10 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full border border-line bg-surface/90 text-fg shadow-sm backdrop-blur transition-opacity hover:bg-surface disabled:pointer-events-none disabled:opacity-0 max-md:opacity-100 md:opacity-0 md:group-hover:opacity-100"
             >
               <Chevron dir="left" />
@@ -229,7 +233,7 @@ export function GallerySwitcher(rawProps: {
               type="button"
               onClick={() => goTo(safeIndex + 1)}
               disabled={safeIndex === count - 1}
-              aria-label="Następne zdjęcie"
+              aria-label={t('commerce.gallery.next')}
               className="absolute right-3 top-1/2 z-10 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full border border-line bg-surface/90 text-fg shadow-sm backdrop-blur transition-opacity hover:bg-surface disabled:pointer-events-none disabled:opacity-0 max-md:opacity-100 md:opacity-0 md:group-hover:opacity-100"
             >
               <Chevron dir="right" />
@@ -247,7 +251,7 @@ export function GallerySwitcher(rawProps: {
               <circle cx="11" cy="11" r="7" />
               <path d="M21 21l-4-4M11 8v6M8 11h6" strokeLinecap="round" />
             </svg>
-            Powiększ
+            {t('commerce.gallery.zoom')}
           </button>
         ) : null}
       </div>
@@ -351,7 +355,7 @@ export function GallerySwitcher(rawProps: {
                   goTo(safeIndex - 1);
                 }}
                 disabled={safeIndex === 0}
-                aria-label="Poprzednie zdjęcie"
+                aria-label={t('commerce.gallery.previous')}
                 className="absolute left-4 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 disabled:opacity-30"
               >
                 <Chevron dir="left" />
@@ -363,7 +367,7 @@ export function GallerySwitcher(rawProps: {
                   goTo(safeIndex + 1);
                 }}
                 disabled={safeIndex === count - 1}
-                aria-label="Następne zdjęcie"
+                aria-label={t('commerce.gallery.next')}
                 className="absolute right-4 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 disabled:opacity-30"
               >
                 <Chevron dir="right" />
@@ -373,7 +377,7 @@ export function GallerySwitcher(rawProps: {
           <button
             type="button"
             onClick={() => setZoomed(false)}
-            aria-label="Zamknij"
+            aria-label={t('commerce.common.close')}
             className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full bg-white/10 text-2xl leading-none text-white hover:bg-white/20"
           >
             ×

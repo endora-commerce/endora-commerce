@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { AddToRfqButton } from '../rfq/AddToRfqButton';
 import { LocalizedAnchor } from '../../lib/i18n/localized-link';
+import { tForLocale } from '../../lib/i18n/messages';
 
 /**
  * CTA replacement rendered when the resolved display mode is `none` (FR-041).
@@ -19,7 +20,7 @@ export function QuoteRequestCta(props: {
   productName?: string;
   variant?: 'card' | 'pdp';
   unitPrice?: { amount: number; currency: string } | null;
-  /** Optional copy override — defaults to a generic Polish "Request a quote". */
+  /** Optional copy override — defaults to the catalogue's "Price on request" (card) or hint (PDP). */
   label?: string;
   /** Hide the explanatory blurb shown above the form on the PDP. */
   withoutHint?: boolean;
@@ -28,11 +29,12 @@ export function QuoteRequestCta(props: {
    * it and the add never puts fewer pieces in the quote-request draft. `null`/absent = none.
    */
   minOrderQuantity?: number | null | undefined;
-  /** Request locale for the add button's copy and the minimum statement. */
-  locale?: string;
+  /** Request locale for the CTA's copy, the add button's copy and the minimum statement. */
+  locale: string;
 }): ReactNode {
   const { productId, productSlug, productName, variant = 'pdp', unitPrice, label, withoutHint } =
     props;
+  const t = tForLocale(props.locale);
 
   if (variant === 'card') {
     return (
@@ -41,7 +43,7 @@ export function QuoteRequestCta(props: {
         className="inline-block font-mono text-[12px] text-accent underline"
         data-product-id={productId}
       >
-        {label ?? 'Cena na zapytanie'}
+        {label ?? t('commerce.common.priceOnRequest')}
       </LocalizedAnchor>
     );
   }
@@ -50,7 +52,7 @@ export function QuoteRequestCta(props: {
     <div className="flex flex-col gap-[8px]" id="quote">
       {!withoutHint ? (
         <p className="m-0 text-[14px] text-fg-soft">
-          {label ?? 'Cena tego produktu jest dostępna w odpowiedzi na zapytanie ofertowe.'}
+          {label ?? t('commerce.quoteCta.hint')}
         </p>
       ) : null}
       <AddToRfqButton
@@ -60,7 +62,7 @@ export function QuoteRequestCta(props: {
         unitPrice={unitPrice ?? null}
         withQuantity
         minOrderQuantity={props.minOrderQuantity ?? null}
-        {...(props.locale ? { locale: props.locale } : {})}
+        locale={props.locale}
       />
     </div>
   );

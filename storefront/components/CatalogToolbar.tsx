@@ -4,6 +4,9 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useMemo, useTransition, type ChangeEvent, type ReactNode } from 'react';
 import type { ProductListSort } from '@endora-commerce/contracts';
 import { tForLocale } from '../lib/i18n/messages';
+import { format } from '../lib/i18n/format';
+import { pluralKey } from '../lib/i18n/plural';
+import { formatCount } from '../lib/orderMinimum';
 
 /**
  * Optional mobile-only Filters trigger (the `MobileFilterSheet` element)
@@ -100,8 +103,9 @@ export function CatalogToolbar(props: {
           </div>
         ) : null}
         <span key="shown-count" className="max-md:text-[12px]">
-          Pokazuję <strong className="font-mono font-semibold text-fg">1–{props.shown}</strong>{' '}
-          <span className="max-md:hidden">wyników</span>
+          {t('commerce.listing.showing')}{' '}
+          <strong className="font-mono font-semibold text-fg">1–{props.shown}</strong>{' '}
+          <span className="max-md:hidden">{t(pluralKey('commerce.listing.results', props.shown, props.locale))}</span>
         </span>
       </div>
       <div className="flex items-center gap-2">
@@ -110,12 +114,12 @@ export function CatalogToolbar(props: {
           name="sort"
           value={props.sort}
           onChange={onSortChange}
-          aria-label="Sortuj"
+          aria-label={t('commerce.listing.sort.label')}
         >
-          <option value="relevance">Sortuj: trafność</option>
-          <option value="-createdAt">Najnowsze</option>
-          <option value="name">Nazwa A–Z</option>
-          <option value="-name">Nazwa Z–A</option>
+          <option value="relevance">{t('commerce.listing.sort.relevance')}</option>
+          <option value="-createdAt">{t('commerce.listing.sort.newest')}</option>
+          <option value="name">{t('commerce.listing.sort.nameAsc')}</option>
+          <option value="-name">{t('commerce.listing.sort.nameDesc')}</option>
           {props.priceOrdering ? (
             <option key="price" value="price">
               {t('catalog.sort.priceAsc')}
@@ -132,22 +136,24 @@ export function CatalogToolbar(props: {
           name="limit"
           value={String(props.limit)}
           onChange={onLimitChange}
-          aria-label="Wyników na stronę"
+          aria-label={t('commerce.listing.perPage.label')}
         >
-          <option value="24">24 / strona</option>
-          <option value="48">48 / strona</option>
-          <option value="96">96 / strona</option>
+          {([24, 48, 96] as const).map((n) => (
+            <option key={n} value={String(n)}>
+              {format(t('commerce.listing.perPage.option'), { count: formatCount(n, props.locale) })}
+            </option>
+          ))}
         </select>
         <div
           className="inline-flex h-[32px] items-center gap-[2px] rounded-sm border border-line bg-surface-alt p-[2px] max-md:hidden"
           role="radiogroup"
-          aria-label="Tryb widoku"
+          aria-label={t('commerce.listing.view.label')}
         >
           <button
             type="button"
             role="radio"
             aria-checked={props.view === 'grid'}
-            aria-label="Siatka"
+            aria-label={t('commerce.listing.view.grid')}
             className={`flex h-[26px] w-[28px] items-center justify-center rounded-[3px] outline-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-600)] ${
               props.view === 'grid'
                 ? 'bg-surface text-fg shadow-sm'
@@ -161,7 +167,7 @@ export function CatalogToolbar(props: {
             type="button"
             role="radio"
             aria-checked={props.view === 'list'}
-            aria-label="Lista"
+            aria-label={t('commerce.listing.view.list')}
             className={`flex h-[26px] w-[28px] items-center justify-center rounded-[3px] outline-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-600)] ${
               props.view === 'list'
                 ? 'bg-surface text-fg shadow-sm'

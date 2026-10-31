@@ -17,6 +17,7 @@ import {
 import { CompareAddToCartButton } from './CompareAddToCartButton';
 import { toAbsoluteAssetUrl } from '../lib/asset-url';
 import { tForLocale } from '../lib/i18n/messages';
+import { format } from '../lib/i18n/format';
 import { LocalizedAnchor } from '../lib/i18n/localized-link';
 
 /**
@@ -51,8 +52,11 @@ export function ComparisonTable(props: {
   readonly salesChannelCode: string | undefined;
 }): ReactNode {
   const locale = props.locale ?? 'en-US';
+  const t = tForLocale(locale);
+  const localised = (value: Record<string, string>): string => localisedValue(value, locale);
   const [view, setView] = useState<ComparisonOwnerView | null | 'loading'>('loading');
-  const [error, setError] = useState<string | null>(null);
+  // `text: null` is an error with no message of its own: the catalogue's fallback is used.
+  const [error, setError] = useState<{ text: string | null } | null>(null);
   const [hideEmpty, setHideEmpty] = useState(false);
 
   useEffect(() => {
@@ -62,7 +66,7 @@ export function ComparisonTable(props: {
         if (!cancelled) setView(v);
       })
       .catch((err) => {
-        if (!cancelled) setError(toMessage(err));
+        if (!cancelled) setError({ text: toMessage(err) });
       });
     return () => {
       cancelled = true;
@@ -78,9 +82,11 @@ export function ComparisonTable(props: {
     return rows;
   }, [view, hideEmpty]);
 
-  if (error) return <div className="alert alert--error">{error}</div>;
-  if (view === 'loading') return <p className="muted">Ładowanie…</p>;
-  if (!view || view.products.length === 0) return <EmptyState />;
+  if (error) {
+    return <div className="alert alert--error">{error.text ?? t('commerce.compare.unexpectedError')}</div>;
+  }
+  if (view === 'loading') return <p className="muted">{t('commerce.common.loading')}</p>;
+  if (!view || view.products.length === 0) return <EmptyState text={t('commerce.compare.empty')} />;
 
   const showOnlyDifferences = view.displayMode === 'differences';
 
@@ -89,7 +95,7 @@ export function ComparisonTable(props: {
       const next = await removeProductFromCompare(productId, props.salesChannelCode);
       setView(next);
     } catch (err) {
-      setError(toMessage(err));
+      setError({ text: toMessage(err) });
     }
   };
 
@@ -98,7 +104,7 @@ export function ComparisonTable(props: {
       await deleteMyComparison(props.salesChannelCode);
       setView(null);
     } catch (err) {
-      setError(toMessage(err));
+      setError({ text: toMessage(err) });
     }
   };
 
@@ -109,7 +115,7 @@ export function ComparisonTable(props: {
       const fresh = await setComparisonDisplayMode(mode, props.salesChannelCode);
       setView(fresh);
     } catch (err) {
-      setError(toMessage(err));
+      setError({ text: toMessage(err) });
     }
   };
 
@@ -120,12 +126,12 @@ export function ComparisonTable(props: {
           <Switch
             checked={showOnlyDifferences}
             onChange={(next): void => void onToggleDifferences(next)}
-            label="Pokaż tylko różnice"
+            label={t('commerce.compare.showOnlyDifferences')}
           />
           <Switch
             checked={hideEmpty}
             onChange={setHideEmpty}
-            label="Ukryj puste"
+            label={t('commerce.compare.hideEmpty')}
           />
         </div>
         <div className="industria-compare-toolbar__right">
@@ -135,13 +141,13 @@ export function ComparisonTable(props: {
             hideEmptyRows={hideEmpty}
             salesChannelCode={props.salesChannelCode}
           />
-          <CopyShareLinkButton shareToken={view.shareToken} />
+          <CopyShareLinkButton shareToken={view.shareToken} locale={locale} />
           <button
             type="button"
             className="btn btn--ghost btn--sm"
             onClick={(): void => void onDelete()}
           >
-            <TrashIcon /> Wyczyść porównanie
+            <TrashIcon /> {t('commerce.compare.clear')}
           </button>
         </div>
       </div>
@@ -177,8 +183,8 @@ export function ComparisonTable(props: {
                       type="button"
                       className="industria-cmp-card__remove"
                       onClick={(): void => void onRemove(p.id)}
-                      aria-label={`Usuń ${localised(p.name)} z porównania`}
-                      title="Usuń z porównania"
+                      aria-label={format(t('commerce.compare.removeProduct'), { name: localised(p.name) })}
+                      title={t('commerce.compare.remove')}
                     >
                       <XIcon />
                     </button>
@@ -191,9 +197,7 @@ export function ComparisonTable(props: {
             {visibleRows.length === 0 ? (
               <tr>
                 <td colSpan={view.products.length + 1} className="muted">
-                  {hideEmpty
-                    ? 'Wszystkie wiersze są puste dla wybranych produktów — wyłącz „Ukryj puste”, aby zobaczyć atrybuty z brakującymi wartościami.'
-                    : 'Brak atrybutów spełniających aktualne filtry.'}
+                  {hideEmpty ? t('commerce.compare.allRowsEmpty') : t('commerce.compare.noRows')}
                 </td>
               </tr>
             ) : (
@@ -207,7 +211,7 @@ export function ComparisonTable(props: {
               ))
             )}
             <tr className="industria-compare-table__action-row">
-              <th scope="row">Akcja</th>
+              <th scope="row">{t('commerce.compare.actionRow')}</th>
               {view.products.map((p) => (
                 <td key={p.id}>
                   <div className="industria-compare-table__actions">
@@ -218,7 +222,7 @@ export function ComparisonTable(props: {
                       locale={locale}
                     />
                     <LocalizedAnchor href={`/p/${p.slug}`} className="btn btn--outline btn--sm">
-                      Karta produktu
+                      {t('commerce.compare.productPage')}
                     </LocalizedAnchor>
                   </div>
                 </td>
@@ -289,14 +293,15 @@ function ExportPdfButton(props: {
         disabled={busy || props.disabled}
         onClick={(): void => void onClick()}
       >
-        <DownloadIcon /> {busy ? t('compare.pdf.busy') : 'PDF'}
+        <DownloadIcon /> {busy ? t('compare.pdf.busy') : t('commerce.compare.pdf')}
       </button>
       {error ? <span className="b2b-compare__pdf-error">{error}</span> : null}
     </>
   );
 }
 
-function CopyShareLinkButton(props: { shareToken: string }): ReactNode {
+function CopyShareLinkButton(props: { shareToken: string; locale: string }): ReactNode {
+  const t = tForLocale(props.locale);
   const [copied, setCopied] = useState(false);
   const onCopy = async (): Promise<void> => {
     const url =
@@ -317,17 +322,15 @@ function CopyShareLinkButton(props: { shareToken: string }): ReactNode {
       className="btn btn--ghost btn--sm"
       onClick={(): void => void onCopy()}
     >
-      <LinkIcon /> {copied ? 'Skopiowano' : 'Udostępnij link'}
+      <LinkIcon /> {copied ? t('commerce.compare.copied') : t('commerce.compare.shareLink')}
     </button>
   );
 }
 
-function EmptyState(): ReactNode {
+function EmptyState(props: { text: string }): ReactNode {
   return (
     <div className="industria-compare-page">
-      <p className="muted">
-        Dodaj co najmniej dwa produkty z katalogu, aby porównać je obok siebie.
-      </p>
+      <p className="muted">{props.text}</p>
     </div>
   );
 }
@@ -346,13 +349,25 @@ export function filterRowsByMode(
   return rows;
 }
 
-function localised(value: Record<string, string>): string {
-  return value['pl-PL'] ?? value['pl'] ?? value['en-US'] ?? value['en'] ?? Object.values(value)[0] ?? '';
+/**
+ * A product name or attribute label in the page's language: the exact locale,
+ * then its language, then English, then whatever the map holds.
+ */
+export function localisedValue(value: Record<string, string>, locale: string): string {
+  const language = locale.split('-')[0] ?? locale;
+  return (
+    value[locale] ??
+    value[language] ??
+    value['en-US'] ??
+    value['en'] ??
+    Object.values(value)[0] ??
+    ''
+  );
 }
 
-function toMessage(err: unknown): string {
+function toMessage(err: unknown): string | null {
   if (err instanceof ComparisonApiError) return err.message;
-  return err instanceof Error ? err.message : 'Nieoczekiwany błąd.';
+  return err instanceof Error ? err.message : null;
 }
 
 /* Inline SVG icons — same stroke set as the rest of the Industria header. */
