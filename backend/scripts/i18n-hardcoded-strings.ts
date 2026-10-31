@@ -1620,8 +1620,8 @@ async function main(): Promise<void> {
     process.stderr.write(
       '\nThese files carry a hard-coded user-visible string the baseline does not\n' +
         'account for. Wrap it in `t(...)` and ship the key in en.json AND pl.json —\n' +
-        "for the storefront, in both locales of `storefront/lib/i18n/messages.ts`\n" +
-        '(Principle VIII) — do not raise the number:\n',
+        'for the storefront, in both locales of the area\'s namespace under\n' +
+        '`storefront/lib/i18n/messages/` (Principle VIII) — do not raise the number:\n',
     );
     for (const d of regressions) {
       process.stderr.write(`  - ${d.file}: ${d.actual} finding(s), baseline ${d.baseline}\n`);
