@@ -182,6 +182,13 @@ Na stronie modułu `price_lists` opisano, jak wybierana jest cena, którą płac
   bo miejsce, od którego prowadzi dalej, może być produktem, którego oglądający nie widzi. Kursor,
   którego nie da się otworzyć — zmieniony, wydany przez wersję sprzed pieczętowania albo przed zmianą
   klucza sesji instancji — zaczyna listę od pierwszej strony.
+- **Odczyt wskazanych produktów** — `?ids=<id>,<id>,…` w `GET /api/v1/catalog/products` zawęża
+  listę do tych produktów: najwyżej 24 różne identyfikatory, każdy w formacie uuid, w przeciwnym
+  razie `400 VALIDATION_FAILED`. Odpowiedź zawiera te z nich, które oglądający może zobaczyć,
+  wycenione dokładnie tak jak każda karta na liście dla tego oglądającego, w kolejności samej listy —
+  wywołujący, któremu zależy na własnej kolejności, porządkuje je według identyfikatorów. Ten
+  parametr łączy się z pozostałymi filtrami, a odpowiedź zawsze pochodzi z PostgreSQL. W ten sposób
+  są odczytywane produkty powiązane z wpisem na blogu.
 - **Gdy tryb wyświetlania cen oglądającego to *Żaden*** — na przykład dla niezalogowanego
   odwiedzającego w kanale, który ukrywa ceny do czasu zalogowania — lista i szczegóły produktu nie
   zawierają kwoty, a sortowanie i zakres cen są dla tej strony odrzucane. Kanały sprzedaży nie mają

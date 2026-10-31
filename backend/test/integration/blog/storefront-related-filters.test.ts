@@ -175,6 +175,41 @@ describe('blog storefront related-* filters (T077)', () => {
     expect(out.relatedPosts).toHaveLength(1);
   });
 
+  it('names the related products by id, in the editor’s order, with nothing about the viewer (issue #590)', async () => {
+    const parentSlug = `ids-parent-${Date.now()}`;
+    const parent = await createPublishedPost(parentSlug);
+    const conn = h.em().getConnection();
+    const linked = [randomUUID(), randomUUID(), randomUUID()];
+    for (const [i, id] of linked.entries()) {
+      productIds.push(id);
+      await conn.execute(
+        `insert into products (id, sku, name, description, slug, type, status, created_at, updated_at)
+         values (?, ?, ?::jsonb, '{}'::jsonb, ?, 'simple', 'active', now(), now())`,
+        [id, `ids-sku-${i}-${Date.now()}`, JSON.stringify({ 'en-US': `Ids ${i}` }), `ids-prod-${i}-${Date.now()}`],
+      );
+    }
+    // Not the creation order: the payload keeps the order the editor saved.
+    const order = [linked[2]!, linked[0]!, linked[1]!];
+    await setRelatedProducts(parent.id, order);
+    if (h.blog.cache) await h.blog.cache.invalidateAll();
+
+    const read = async (): Promise<Record<string, unknown>> => {
+      const res = await h.app.inject({
+        method: 'GET',
+        url: `/api/v1/blog/by-slug?slug=${parentSlug}`,
+        headers: { 'x-sales-channel': defaultChannelCode, 'x-blog-language': 'en-US' },
+      });
+      expect(res.statusCode).toBe(200);
+      return (res.json() as { data: { post: Record<string, unknown> } }).data.post;
+    };
+    const post = await read();
+    expect(post['relatedProductIds']).toEqual(order);
+    // The payload is cached for every visitor: it carries ids, never a price.
+    expect(JSON.stringify(post)).not.toContain('"price"');
+    // A cache hit answers the same ids.
+    expect((await read())['relatedProductIds']).toEqual(order);
+  });
+
   it('storefront omits a soft-deleted related product (R6 — no generic registry)', async () => {
     const parentSlug = `prod-filter-parent-${Date.now()}`;
     const parent = await createPublishedPost(parentSlug);

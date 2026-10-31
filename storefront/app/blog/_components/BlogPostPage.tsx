@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { BlogBySlugPostResponse } from '@endora-commerce/contracts';
+import type { BlogBySlugPostResponse, ProductSummary } from '@endora-commerce/contracts';
 import { Breadcrumbs } from '../../../components/Breadcrumbs';
 import { JsonLd } from '../../../lib/seo/JsonLd';
 import { absoluteUrl } from '../../../lib/seo/site-url';
@@ -21,11 +21,21 @@ export function BlogPostPage({
   payload,
   language,
   locale,
+  relatedProducts,
+  salesChannelCode,
 }: {
   payload: BlogBySlugPostResponse;
   language: string;
   /** The page language, for the date and the strips' headings (issue #85). */
   locale: string;
+  /**
+   * The post's related products as this viewer's listing cards, in the post's
+   * order (`getBlogRelatedProducts`, issue #590). The payload names them by id
+   * only; it carries no card and no price.
+   */
+  relatedProducts: ProductSummary[];
+  /** The active sales channel, for the product cards' browser-side calls. */
+  salesChannelCode: string | undefined;
 }): ReactNode {
   const { post } = payload;
   const date = formatDate(post.publishedAt, locale);
@@ -68,7 +78,7 @@ export function BlogPostPage({
 
       <TagChipStrip tags={post.tags} />
       <RelatedPostsStrip posts={post.relatedPosts} locale={locale} />
-      <RelatedProductsStrip products={post.relatedProducts} locale={locale} />
+      <RelatedProductsStrip products={relatedProducts} locale={locale} salesChannelCode={salesChannelCode} />
     </article>
   );
 }

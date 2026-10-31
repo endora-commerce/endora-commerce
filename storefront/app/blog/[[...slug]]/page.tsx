@@ -8,6 +8,7 @@ import { BlogTagPage } from '../_components/BlogTagPage';
 import {
   getBlogBySlug,
   getBlogIndex,
+  getBlogRelatedProducts,
   getBlogTagByCode,
 } from '../../../lib/api/blog';
 import { getServerContext } from '../../../lib/server-context';
@@ -90,7 +91,7 @@ export default async function BlogCatchAllPage({
 }: PageProps): Promise<ReactNode> {
   const { slug } = await params;
   const sp = await searchParams;
-  const { ctx, locale } = await getServerContext();
+  const { ctx, locale, modules } = await getServerContext();
   const language = ctx.locale ?? locale ?? 'en-US';
 
   // /blog → index
@@ -112,7 +113,18 @@ export default async function BlogCatchAllPage({
     const payload = await getBlogBySlug(slug[0] as string, ctx, readPage(sp));
     if (!payload) notFound();
     if (payload.kind === 'category') return <BlogCategoryPage payload={payload} locale={locale} />;
-    return <BlogPostPage payload={payload} language={language} locale={locale} />;
+    // Issue #590 — the related products are read as the viewer, here, and not
+    // in the post payload, which is cached for every visitor.
+    const relatedProducts = await getBlogRelatedProducts(payload.post.relatedProductIds, ctx, modules);
+    return (
+      <BlogPostPage
+        payload={payload}
+        language={language}
+        locale={locale}
+        relatedProducts={relatedProducts}
+        salesChannelCode={ctx.salesChannelCode}
+      />
+    );
   }
 
   notFound();

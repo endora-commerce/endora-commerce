@@ -131,6 +131,27 @@ dialog listing the affected parents (driven by the
 
 The Post-as-Related-Product relationship uses **soft-delete-+-storefront-filter**: a soft-deleted product is invisible on the next storefront read; the join row remains. A generic `ProductReferenceRegistry` may ship in a follow-up.
 
+### Related products on the storefront
+
+The post payload of `GET /api/v1/blog/by-slug` names its related products **by id only** —
+`relatedProductIds`, in the order the editor saved — because the payload is cached per sales
+channel and language for every visitor, so it carries nothing about one.
+
+The storefront reads those products in **one** catalogue listing read, as the visitor:
+`GET /api/v1/catalog/products?ids=…` (at most 24, the first ones of the post). Each card is
+therefore the product card a catalogue listing shows that visitor:
+
+- only the products the visitor may see on the channel — a deleted, unpublished,
+  out-of-channel or restricted product is left out, and the others keep the post's order;
+- the price the pricing engine resolves for the visitor — the sales channel, the selected
+  currency, the organisation and the customer account — shown net, gross or both according to
+  the display mode, or *Price on request* when the display mode is `none`, and formatted for the
+  page language.
+
+The strip is not shown when the post links no product the visitor may see, or while the
+catalogue is not present. The older `relatedProducts` field (`BlogProductCard`) is deprecated:
+no composition ever filled it, and it will be removed in a later minor release.
+
 ## Settings
 
 | Code                  | Type    | Default | Notes                                                |
@@ -259,6 +280,6 @@ and the storefront does not ask for posts.
 | [Sales Channels](../sales_channels/index.md) | Channel resolution + language fallback                |
 | [Assets Library](../assets-library/index.md) | Asset URL signing + reference registry                |
 | [CMS](../cms/index.md)                       | Page Builder envelope (`cmsContentEnvelopeSchema`)          |
-| [Catalog](../catalog.md)                     | Product card resolution for Related Products                |
+| [Catalog](../catalog.md)                     | Nothing: the storefront reads Related Products from the public listing (`?ids=`) as the visitor |
 
 The blog module never imports another module's internals — every cross-module read goes through a documented service port.
