@@ -5,7 +5,7 @@ import type {
 } from '@endora-commerce/email-components/render/block-renderers';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { ModuleManifest } from '@endora-commerce/contracts';
+import type { AdminI18nTranslatePort, ModuleManifest } from '@endora-commerce/contracts';
 import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { CommandBus } from '@endora-commerce/platform/commands';
@@ -57,6 +57,8 @@ export interface TransactionalEmailsModuleOptions {
   registeredBlockNames?: () => readonly string[];
   /** Told about a contributed block that threw while a message rendered. */
   onBlockFailure?: EmailBlockFailureReporter;
+  /** Resolves a variable's `sampleValueKey` in the language being edited (issue #560). */
+  translator?: AdminI18nTranslatePort;
   /** Exposes the sender back to composition so owning modules can send. */
   exposeSender?: (sender: TransactionalEmailService) => void;
   /** Exposes branding so newsletter (and others) can inject logoUrl/accent. */
@@ -96,6 +98,7 @@ export function transactionalEmailsModule(
       ...(options.auditLog ? { auditLog: options.auditLog } : {}),
       ...(options.blockRenderers ? { blockRenderers: options.blockRenderers } : {}),
       ...(options.onBlockFailure ? { onBlockFailure: options.onBlockFailure } : {}),
+      ...(options.translator ? { translator: options.translator } : {}),
     });
 
     const blocks = new EmailBlockService(options.emFactory, options.auditLog, emailSafeNames);

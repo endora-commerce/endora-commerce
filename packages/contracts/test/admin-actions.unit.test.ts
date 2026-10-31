@@ -6,6 +6,7 @@ import {
   KnownIconNameSchema,
   ModuleActionSchema,
   ModuleActionsManifestSchema,
+  parseBundleKeywords,
 } from '../src/admin-actions.js';
 
 const validAction = {
@@ -90,6 +91,36 @@ describe('ModuleActionSchema', () => {
     expect(() =>
       ModuleActionSchema.parse({ ...validAction, keywords: ['   ', 'product'] }),
     ).toThrow();
+  });
+
+  // Issue #560 — the per-language keywords live in the module's bundle, named
+  // the way `labelKey` and `descriptionKey` name theirs.
+  it('accepts a keywordsKey and leaves it undefined when absent', () => {
+    const parsed = ModuleActionSchema.parse({
+      ...validAction,
+      keywordsKey: 'actions.newProduct.keywords',
+    });
+    expect(parsed.keywordsKey).toBe('actions.newProduct.keywords');
+    expect(ModuleActionSchema.parse(validAction).keywordsKey).toBeUndefined();
+  });
+
+  it('rejects a keywordsKey that is not a translation key', () => {
+    for (const keywordsKey of ['.leading', 'trailing.', 'CamelTop.foo', 'a..b', '']) {
+      expect(() => ModuleActionSchema.parse({ ...validAction, keywordsKey })).toThrow();
+    }
+  });
+});
+
+describe('parseBundleKeywords', () => {
+  it('splits a bundle value on commas, trimming and dropping empty entries', () => {
+    expect(parseBundleKeywords(' nowe poświadczenie,konfiguracja , ,')).toEqual([
+      'nowe poświadczenie',
+      'konfiguracja',
+    ]);
+  });
+
+  it('answers an empty list for an empty value', () => {
+    expect(parseBundleKeywords('')).toEqual([]);
   });
 });
 

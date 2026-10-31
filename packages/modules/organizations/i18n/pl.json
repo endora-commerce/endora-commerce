@@ -67,5 +67,8 @@
   "moderation.checkout.pendingVerification": "Twoja Organizacja oczekuje na weryfikację. Zamówienia będą dostępne po jej zakończeniu.",
   "moderation.checkout.blocked": "Składanie Zamówień jest obecnie wstrzymane. Prosimy o kontakt z opiekunem konta.",
   "moderation.checkout.rejected": "Rejestracja Twojej Organizacji została odrzucona. Prosimy o kontakt z administracją platformy.",
-  "moderation.checkout.unavailable": "Składanie Zamówień obecnie niedostępne."
+  "moderation.checkout.unavailable": "Składanie Zamówień obecnie niedostępne.",
+  "actions.openOrganizations.keywords": "organizacja, klient",
+  "actions.newOrganization.keywords": "organizacja, nowa, firma",
+  "emails.newOrgRegistration.sample.statusLabel": "Oczekuje na weryfikację"
 }

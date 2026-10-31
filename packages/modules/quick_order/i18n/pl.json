@@ -52,5 +52,6 @@
   "onBehalf.build.rejectedPieces": "{product}: {quantity} szt., minimum {minimum} szt.",
   "onBehalf.build.rejectedUnits": "{product}: {quantity} szt., minimum {minimum} × {unit}",
   "onBehalf.build.rejectedUnitsUnnamed": "{product}: {quantity} szt., minimum w jednostkach opakowania: {minimum}",
-  "orderEntry.tab.quick": "Szybkie zamówienie"
+  "orderEntry.tab.quick": "Szybkie zamówienie",
+  "actions.openQuickOrder.keywords": "szybkie zamówienie, import csv"
 }

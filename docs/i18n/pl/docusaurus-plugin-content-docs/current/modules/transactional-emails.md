@@ -101,6 +101,13 @@ transactionalEmails: [
 emailDefaultsRegistry.register('order_confirmation', { defaultSubject, defaultContent });
 ```
 
+`sampleValue` zmiennej jest po angielsku. Gdy przykład w innym języku brzmi inaczej — adres,
+status — dodaj `sampleValueKey`: klucz we własnych pakietach tłumaczeń modułu, który deklaruje
+zmienną (względny wobec jego przestrzeni nazw, jak `labelKey` akcji palety), z przykładem w każdym
+dostarczanym języku; wpis angielski jest równy `sampleValue`. Lista zmiennych i podgląd na żywo
+w edytorze oraz podgląd po stronie serwera pokazują przykład w edytowanym języku; gdy klucz się
+nie rozwiązuje, obowiązuje `sampleValue` z manifestu.
+
 Moduł, do którego należy e-mail, wysyła go przez port `TransactionalEmailSender` (wstrzykiwany przez
 kompozycję), zachowując dotychczasową idempotentność opartą na `messageId`:
 

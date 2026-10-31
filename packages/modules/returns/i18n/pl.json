@@ -25,5 +25,7 @@
   "settlement.replacement": "Wymiana",
   "settlement.repair": "Naprawa",
   "nav.returns.label": "Zwroty",
-  "errors.RETURN_LINE_NOT_RETURNABLE": "Produktu „{productName}” nie można zwrócić. Nadal możesz złożyć reklamację."
+  "errors.RETURN_LINE_NOT_RETURNABLE": "Produktu „{productName}” nie można zwrócić. Nadal możesz złożyć reklamację.",
+  "actions.openReturns.keywords": "zwroty, reklamacje",
+  "actions.returnStatusConfig.keywords": "statusy zwrotów"
 }

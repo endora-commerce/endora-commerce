@@ -25,5 +25,7 @@
   "settlement.replacement": "Replacement",
   "settlement.repair": "Repair",
   "nav.returns.label": "Returns",
-  "errors.RETURN_LINE_NOT_RETURNABLE": "\"{productName}\" cannot be returned. You can still file a complaint."
+  "errors.RETURN_LINE_NOT_RETURNABLE": "\"{productName}\" cannot be returned. You can still file a complaint.",
+  "actions.openReturns.keywords": "returns, complaints",
+  "actions.returnStatusConfig.keywords": "return statuses"
 }

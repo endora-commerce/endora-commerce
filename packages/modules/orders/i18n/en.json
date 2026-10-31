@@ -127,5 +127,9 @@
   "email.orderConfirmation.discounts": "Applied discounts:",
   "email.orderConfirmation.summary": "Summary:",
   "email.orderConfirmation.shippingAddress": "Shipping address:",
-  "email.orderConfirmation.billingAddress": "Billing address:"
+  "email.orderConfirmation.billingAddress": "Billing address:",
+  "actions.openOrders.keywords": "orders, sales",
+  "actions.newOrder.keywords": "order, new, create",
+  "actions.orderStatusConfig.keywords": "statuses, lifecycle",
+  "emails.orderConfirmation.sample.shippingAddressText": "  Anna Nowak\n  1 Main Street"
 }
