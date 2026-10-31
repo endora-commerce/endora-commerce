@@ -1,6 +1,10 @@
 import type { ReactNode } from 'react';
 import type { CreditLimitView } from '../lib/api/credit-limit';
 import { formatMoney } from '../lib/i18n/money';
+import { tForLocale } from '../lib/i18n/messages';
+import { format } from '../lib/i18n/format';
+import { formatCount } from '../lib/orderMinimum';
+import { pluralKey, richText } from '../lib/account/labels';
 
 /**
  * Credit limit summary widget (T219). Used by Account and Checkout to
@@ -12,13 +16,15 @@ export interface CreditLimitWidgetProps {
   limit: CreditLimitView;
   /** When true, expands the active-reservations table inline. */
   showReservations?: boolean;
-  /** Active Sales Channel display locale (e.g. `pl-PL`). */
-  locale?: string;
+  /** The page language (e.g. `pl-PL`): the widget's copy, dates and amounts. */
+  locale: string;
 }
 
 export function CreditLimitWidget(props: CreditLimitWidgetProps): ReactNode {
   const { limit, locale } = props;
+  const t = tForLocale(locale);
   const money = (amount: number): string => formatMoney(amount, limit.currency, locale);
+  const reservationCount = limit.activeReservations.length;
   const reservedSum = limit.grantedAmount - limit.availableAmount;
   const fillPct =
     limit.grantedAmount > 0
@@ -27,15 +33,18 @@ export function CreditLimitWidget(props: CreditLimitWidgetProps): ReactNode {
 
   return (
     <section className="rounded-md border border-line bg-surface p-[16px]">
-      <h3 className="m-0 mb-2 text-[1rem]">Credit limit</h3>
+      <h3 className="m-0 mb-2 text-[1rem]">{t('account.creditLimit.heading')}</h3>
       <p className="m-0 mb-2">
-        <strong>{money(limit.availableAmount)}</strong>{' '}
-        available of{' '}
-        {money(limit.grantedAmount)}
+        {richText(t('account.creditLimit.available'), {
+          available: <strong>{money(limit.availableAmount)}</strong>,
+          granted: money(limit.grantedAmount),
+        })}
         {' · '}
         <span className="text-muted">
-          {money(reservedSum)} reserved across{' '}
-          {limit.activeReservations.length} order(s)
+          {format(t(pluralKey('account.creditLimit.reserved', reservationCount, locale)), {
+            amount: money(reservedSum),
+            count: formatCount(reservationCount, locale),
+          })}
         </span>
       </p>
       <div aria-hidden="true" className="h-[6px] overflow-hidden rounded-[3px] bg-surface-alt">
@@ -49,9 +58,9 @@ export function CreditLimitWidget(props: CreditLimitWidgetProps): ReactNode {
         <table className="b2b-account__table mt-3">
           <thead>
             <tr>
-              <th>Order</th>
-              <th>Reserved</th>
-              <th>Since</th>
+              <th>{t('account.creditLimit.col.order')}</th>
+              <th>{t('account.creditLimit.col.reserved')}</th>
+              <th>{t('account.creditLimit.col.since')}</th>
             </tr>
           </thead>
           <tbody>
@@ -59,7 +68,7 @@ export function CreditLimitWidget(props: CreditLimitWidgetProps): ReactNode {
               <tr key={r.orderId}>
                 <td>{r.orderId.slice(0, 8)}</td>
                 <td>{money(r.amount)}</td>
-                <td>{new Date(r.createdAt).toLocaleString()}</td>
+                <td>{new Date(r.createdAt).toLocaleString(locale)}</td>
               </tr>
             ))}
           </tbody>

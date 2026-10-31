@@ -4,6 +4,8 @@ import { StorefrontApiError } from '../../../../lib/api/client';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../../lib/i18n/navigation';
 import { LocalizedLink } from '../../../../lib/i18n/localized-link';
+import { getServerContext } from '../../../../lib/server-context';
+import { tForLocale } from '../../../../lib/i18n/messages';
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -27,14 +29,16 @@ export default async function PasswordResetConfirmPage({
   const token = params.token ?? '';
   const status = params.status;
   const error = params.error;
+  const { locale } = await getServerContext();
+  const t = tForLocale(locale);
 
   if (status === 'done') {
     return (
       <div className="b2b-auth">
-        <h1>Password updated</h1>
-        <p className="b2b-auth__success">You can now sign in with your new password.</p>
+        <h1>{t('auth.passwordReset.done.heading')}</h1>
+        <p className="b2b-auth__success">{t('auth.passwordReset.done.body')}</p>
         <p>
-          <LocalizedLink href="/login">Continue to sign-in</LocalizedLink>.
+          <LocalizedLink href="/login">{t('auth.passwordReset.done.continue')}</LocalizedLink>.
         </p>
       </div>
     );
@@ -43,9 +47,10 @@ export default async function PasswordResetConfirmPage({
   if (!token) {
     return (
       <div className="b2b-auth">
-        <h1>Reset link missing</h1>
+        <h1>{t('auth.passwordReset.missing.heading')}</h1>
         <p className="b2b-auth__error">
-          This page expects a <code>?token=</code> query parameter from your reset email.
+          {t('auth.common.tokenMissingBefore')} <code>?token=</code>{' '}
+          {t('auth.passwordReset.missing.after')}
         </p>
       </div>
     );
@@ -53,12 +58,12 @@ export default async function PasswordResetConfirmPage({
 
   return (
     <div className="b2b-auth">
-      <h1>Choose a new password</h1>
+      <h1>{t('auth.passwordReset.confirm.heading')}</h1>
       {error ? <div className="b2b-auth__error">{error}</div> : null}
       <form action={confirmAction} className="b2b-auth__form">
         <input type="hidden" name="token" value={token} />
         <div className="b2b-auth__field">
-          <label htmlFor="new-password">New password (min 12 characters)</label>
+          <label htmlFor="new-password">{t('auth.passwordReset.confirm.newPassword')}</label>
           <input
             id="new-password"
             name="newPassword"
@@ -71,7 +76,7 @@ export default async function PasswordResetConfirmPage({
           />
         </div>
         <div className="b2b-auth__actions">
-          <button type="submit">Update password</button>
+          <button type="submit">{t('auth.passwordReset.confirm.submit')}</button>
         </div>
       </form>
     </div>
@@ -86,7 +91,9 @@ async function confirmAction(formData: FormData): Promise<void> {
     await confirmPasswordReset(token, newPassword);
   } catch (err) {
     const message =
-      err instanceof StorefrontApiError ? err.detail : 'Could not reset your password.';
+      err instanceof StorefrontApiError
+        ? err.detail
+        : tForLocale((await getServerContext()).locale)('auth.passwordReset.confirm.failed');
     return await localeRedirect(
       `/password-reset/confirm?token=${encodeURIComponent(token)}&error=${encodeURIComponent(message)}`,
     );

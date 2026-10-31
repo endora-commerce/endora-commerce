@@ -3,6 +3,8 @@ import { verifyEmail } from '../../../lib/api/auth';
 import { StorefrontApiError } from '../../../lib/api/client';
 import type { Metadata } from 'next';
 import { LocalizedLink } from '../../../lib/i18n/localized-link';
+import { getServerContext } from '../../../lib/server-context';
+import { tForLocale } from '../../../lib/i18n/messages';
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -24,13 +26,16 @@ export default async function VerifyPage({
 }): Promise<ReactNode> {
   const params = await searchParams;
   const token = params.token;
+  const { locale } = await getServerContext();
+  const t = tForLocale(locale);
 
   if (!token) {
     return (
       <div className="b2b-auth">
-        <h1>Verification link missing</h1>
+        <h1>{t('auth.verify.missing.heading')}</h1>
         <p className="b2b-auth__error">
-          This page expects a <code>?token=</code> query parameter from your verification email.
+          {t('auth.common.tokenMissingBefore')} <code>?token=</code>{' '}
+          {t('auth.verify.missing.after')}
         </p>
       </div>
     );
@@ -42,24 +47,26 @@ export default async function VerifyPage({
     await verifyEmail(token);
     success = true;
   } catch (err) {
-    error = err instanceof StorefrontApiError ? err.detail : 'Verification failed.';
+    error = err instanceof StorefrontApiError ? err.detail : t('auth.verify.failed');
   }
 
   return (
     <div className="b2b-auth">
-      <h1>Email verification</h1>
+      <h1>{t('auth.verify.heading')}</h1>
       {success ? (
         <>
-          <p className="b2b-auth__success">Your email is verified.</p>
+          <p className="b2b-auth__success">{t('auth.verify.success')}</p>
           <p>
-            <LocalizedLink href="/login">Sign in to continue</LocalizedLink>.
+            <LocalizedLink href="/login">{t('auth.verify.continue')}</LocalizedLink>.
           </p>
         </>
       ) : (
         <>
           <p className="b2b-auth__error">{error}</p>
           <p className="b2b-auth__hint">
-            Need a new link? <LocalizedLink href="/register">Register again</LocalizedLink> or contact support.
+            {t('auth.verify.newLinkPrompt')}{' '}
+            <LocalizedLink href="/register">{t('auth.verify.registerAgain')}</LocalizedLink>
+            {t('auth.verify.contactSupport')}
           </p>
         </>
       )}

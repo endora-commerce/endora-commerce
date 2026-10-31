@@ -17,7 +17,8 @@ export function BottomSheet(props: {
   open: boolean;
   onClose: () => void;
   title?: string;
-  closeLabel?: string;
+  /** The close button's accessible name, in the page's language. */
+  closeLabel: string;
   children: ReactNode;
   footer?: ReactNode;
 }): ReactNode {
@@ -53,7 +54,7 @@ export function BottomSheet(props: {
               type="button"
               className="icon-btn"
               onClick={onClose}
-              aria-label={props.closeLabel ?? 'Close'}
+              aria-label={props.closeLabel}
             >
               <XIcon />
             </button>

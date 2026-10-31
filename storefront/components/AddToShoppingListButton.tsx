@@ -13,7 +13,9 @@ import {
   removeFromDefaultListAction,
   type ShoppingListOption,
 } from '../lib/actions/shoppingList';
-import { useLocalizedPath } from '../lib/i18n/localized-link';
+import { useLocalizedPath, useUrlLanguageState } from '../lib/i18n/localized-link';
+import { tForLocale } from '../lib/i18n/messages';
+import { format } from '../lib/i18n/format';
 
 /**
  * Heart toggle for the customer's default shopping list. A first click adds the
@@ -42,7 +44,16 @@ export function AddToShoppingListButton(props: {
    * the other labelled buttons. The hover tooltip is dropped in this mode.
    */
   showLabel?: boolean;
+  /**
+   * The page language (issue #85), from the server component that renders the
+   * button. Until every caller passes it, the language the root layout put in
+   * the URL-language context is used — the same server-resolved page language,
+   * never the browser's.
+   */
+  locale?: string;
 }): ReactNode {
+  const urlLanguage = useUrlLanguageState();
+  const t = tForLocale(props.locale ?? urlLanguage.current);
   const [state, setState] = useState<'idle' | 'busy' | 'error'>('idle');
   /** Whether this product is currently in the customer's default list. */
   const localize = useLocalizedPath();
@@ -183,12 +194,12 @@ export function AddToShoppingListButton(props: {
     }
   };
 
-  const activeLabel = inList ? (props.removeLabel ?? 'Usuń z listy zakupowej') : props.label;
-  const tooltip = state === 'error' ? 'Nie udało się zmienić listy' : activeLabel;
+  const activeLabel = inList ? (props.removeLabel ?? t('card.list.remove')) : props.label;
+  const tooltip = state === 'error' ? t('card.list.failed') : activeLabel;
 
   if (props.showLabel) {
     const hasPicker = lists.length > 1;
-    const mainLabel = addedTo ? `Dodano do „${addedTo}”` : activeLabel;
+    const mainLabel = addedTo ? format(t('account.shoppingListButton.addedTo'), { name: addedTo }) : activeLabel;
     const baseClass = props.className ?? 'btn btn--outline';
     return (
       <div ref={rootRef} className="relative inline-flex">
@@ -212,7 +223,7 @@ export function AddToShoppingListButton(props: {
               className={`${baseClass} btn--split rounded-l-none border-l-0 px-2`}
               aria-haspopup="menu"
               aria-expanded={menuOpen}
-              aria-label="Wybierz listę zakupową"
+              aria-label={t('account.shoppingListButton.chooseList')}
             >
               <ChevronIcon open={menuOpen} />
             </button>
@@ -234,7 +245,7 @@ export function AddToShoppingListButton(props: {
                 >
                   <span className="truncate">{l.name}</span>
                   {l.isDefault ? (
-                    <span className="shrink-0 text-[11px] text-muted">domyślna</span>
+                    <span className="shrink-0 text-[11px] text-muted">{t('account.shoppingListButton.default')}</span>
                   ) : null}
                 </button>
               </li>

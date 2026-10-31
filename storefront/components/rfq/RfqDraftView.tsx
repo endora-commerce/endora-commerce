@@ -24,6 +24,8 @@ import type { CreateRfqLine } from '../../lib/api/rfq';
 import { belowMinimumText } from '../../lib/cartMinimum';
 import { formatCount, minimumStatement } from '../../lib/orderMinimum';
 import { tForLocale } from '../../lib/i18n/messages';
+import { format } from '../../lib/i18n/format';
+import { pluralKey } from '../../lib/i18n/plural';
 import { LocalizedLink, LocalizedAnchor } from '../../lib/i18n/localized-link';
 
 /**
@@ -56,8 +58,7 @@ export function RfqDraftView(props: {
   locale: string;
   priceProposalsAllowed: boolean;
 }): ReactNode {
-  const pl = props.locale.startsWith('pl');
-  const t = strings(pl);
+  const t = strings(props.locale);
   const proposalsAllowed = props.priceProposalsAllowed;
   const router = useRouter();
   const localize = useLocalizedPath();
@@ -418,7 +419,7 @@ export function DraftLine({
               aria-describedby={belowId}
               className="cursor-pointer rounded-sm border border-line bg-surface px-[8px] py-[2px] text-[12px] font-medium text-fg hover:border-line-strong hover:bg-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-[720px]:min-h-[44px]"
             >
-              {tForLocale(locale)('cart.line.setToMinimum').replace('{count}', formatCount(floor, locale))}
+              {format(tForLocale(locale)('cart.line.setToMinimum'), { count: formatCount(floor, locale) })}
             </button>
           </div>
         ) : null}
@@ -531,7 +532,7 @@ export function DraftLine({
 function Breadcrumbs({ t }: { t: Strings }): ReactNode {
   return (
     <nav
-      aria-label="Breadcrumb"
+      aria-label={t.breadcrumbLabel}
       className="my-[8px] mb-[16px] flex gap-[6px] text-[13px] text-[color:var(--ink-500)]"
     >
       <LocalizedLink href="/" className="text-inherit">
@@ -549,6 +550,7 @@ function formatMoney(amount: number, currency: string, options: FormatMoneyOptio
 
 export interface Strings {
   home: string;
+  breadcrumbLabel: string;
   heading: string;
   subheading: (n: number) => string;
   empty: string;
@@ -577,67 +579,38 @@ export interface Strings {
   errorGeneric: string;
 }
 
-export function strings(pl: boolean): Strings {
-  if (pl) {
-    return {
-      home: 'Strona główna',
-      heading: 'Zapytanie ofertowe',
-      subheading: (n) => (n === 1 ? '1 produkt w zapytaniu.' : `${n} produkty(ów) w zapytaniu.`),
-      empty: 'Twoje zapytanie ofertowe jest puste.',
-      browseCatalog: 'Przejdź do katalogu',
-      myRequests: 'Moje zapytania',
-      cardHeading: 'Pozycje zapytania',
-      itemCount: (n) => (n === 1 ? '1 pozycja' : `${n} pozycji`),
-      continueShopping: 'Kontynuuj zakupy',
-      clearAll: 'Wyczyść wszystko',
-      summaryHeading: 'Podsumowanie',
-      linesLabel: 'Liczba pozycji',
-      estTotalLabel: 'Szacowana wartość',
-      onRequest: 'Cena na zapytanie',
-      unit: 'szt.',
-      qtyLabel: 'Ilość',
-      proposedPriceLabel: 'Proponowana cena',
-      catalogPriceLabel: 'Cena katalogowa',
-      lockedPricingNote:
-        'Ceny w tym zapytaniu ustali dział sprzedaży. Przy pozycjach widzisz cenę katalogową — możesz zmienić ilości i dodać uwagi.',
-      lineTotalLabel: 'Wartość pozycji',
-      removeLabel: 'Usuń',
-      noteLabel: 'Uwagi do zapytania (opcjonalnie)',
-      notePlaceholder: 'Np. preferowany termin dostawy, wymagania techniczne…',
-      submit: 'Złóż zapytanie ofertowe',
-      submitting: 'Wysyłanie…',
-      note: 'Po złożeniu zapytania dział sprzedaży przygotuje ofertę z cenami i warunkami.',
-      errorGeneric: 'Nie udało się złożyć zapytania ofertowego.',
-    };
-  }
+export function strings(locale: string): Strings {
+  const t = tForLocale(locale);
   return {
-    home: 'Home',
-    heading: 'Quote request',
-    subheading: (n) => (n === 1 ? '1 product in your request.' : `${n} products in your request.`),
-    empty: 'Your quote request is empty.',
-    browseCatalog: 'Browse the catalog',
-    myRequests: 'My requests',
-    cardHeading: 'Request items',
-    itemCount: (n) => (n === 1 ? '1 item' : `${n} items`),
-    continueShopping: 'Continue shopping',
-    clearAll: 'Clear all',
-    summaryHeading: 'Summary',
-    linesLabel: 'Line items',
-    estTotalLabel: 'Estimated total',
-    onRequest: 'Price on request',
-    unit: 'pc.',
-    qtyLabel: 'Quantity',
-    proposedPriceLabel: 'Proposed price',
-    catalogPriceLabel: 'Catalogue price',
-    lockedPricingNote:
-      'Our sales team will set the prices for this request. Each line shows its catalogue price — you can still change quantities and add notes.',
-    lineTotalLabel: 'Line total',
-    removeLabel: 'Remove',
-    noteLabel: 'Notes for sales (optional)',
-    notePlaceholder: 'E.g. preferred delivery date, technical requirements…',
-    submit: 'Submit quote request',
-    submitting: 'Submitting…',
-    note: 'After you submit, our sales team will prepare a quote with prices and terms.',
-    errorGeneric: 'Could not submit the quote request.',
+    home: t('nav.home'),
+    breadcrumbLabel: t('commerce.common.breadcrumb'),
+    heading: t('commerce.rfqDraft.heading'),
+    subheading: (n) =>
+      format(t(pluralKey('commerce.rfqDraft.subheading', n, locale)), { count: formatCount(n, locale) }),
+    empty: t('commerce.rfqDraft.empty'),
+    browseCatalog: t('commerce.common.browseCatalog'),
+    myRequests: t('commerce.rfqDraft.myRequests'),
+    cardHeading: t('commerce.rfqDraft.cardHeading'),
+    itemCount: (n) =>
+      format(t(pluralKey('lineGroups.summary.items', n, locale)), { count: formatCount(n, locale) }),
+    continueShopping: t('commerce.common.continueShopping'),
+    clearAll: t('commerce.rfqDraft.clearAll'),
+    summaryHeading: t('commerce.common.summary'),
+    linesLabel: t('commerce.rfqDraft.linesLabel'),
+    estTotalLabel: t('commerce.rfqDraft.estTotal'),
+    onRequest: t('commerce.common.priceOnRequest'),
+    unit: t('commerce.common.pieceUnit'),
+    qtyLabel: t('common.quantity'),
+    proposedPriceLabel: t('commerce.rfqDraft.proposedPrice'),
+    catalogPriceLabel: t('commerce.rfqDraft.catalogPrice'),
+    lockedPricingNote: t('commerce.rfqDraft.lockedPricingNote'),
+    lineTotalLabel: t('commerce.common.lineTotal'),
+    removeLabel: t('commerce.common.remove'),
+    noteLabel: t('commerce.rfqDraft.noteLabel'),
+    notePlaceholder: t('commerce.rfqDraft.notePlaceholder'),
+    submit: t('commerce.rfqDraft.submit'),
+    submitting: t('commerce.rfqDraft.submitting'),
+    note: t('commerce.rfqDraft.afterSubmitNote'),
+    errorGeneric: t('commerce.rfqDraft.errorGeneric'),
   };
 }

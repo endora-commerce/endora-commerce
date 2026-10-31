@@ -21,6 +21,11 @@ import {
 } from '../../../lib/session';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../lib/i18n/navigation';
+import { tForLocale } from '../../../lib/i18n/messages';
+import { format } from '../../../lib/i18n/format';
+import { formatCount } from '../../../lib/orderMinimum';
+
+type Translate = ReturnType<typeof tForLocale>;
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -50,6 +55,7 @@ export default async function SecurityPage({
   // inferred from that 503: the page is not rendered at all.
   const { modules, locale } = await getServerContext();
   if (!modules.isPresent('mfa')) notFound();
+  const t = tForLocale(locale);
 
   const params = await searchParams;
 
@@ -58,17 +64,17 @@ export default async function SecurityPage({
 
   return (
     <div className="b2b-auth">
-      <h1>Account security</h1>
+      <h1>{t('auth.security.heading')}</h1>
       {params.error ? <div className="b2b-auth__error">{params.error}</div> : null}
 
-      {recoveryFlash ? <RecoveryCodes codes={recoveryFlash} /> : null}
+      {recoveryFlash ? <RecoveryCodes codes={recoveryFlash} t={t} /> : null}
 
       {status.totpActive ? (
-        <ActivePanel remaining={status.recoveryCodesRemaining} />
+        <ActivePanel remaining={formatCount(status.recoveryCodesRemaining, locale)} t={t} />
       ) : params.step === 'confirm' ? (
-        await ConfirmPanel()
+        await ConfirmPanel({ t })
       ) : (
-        <StartPanel />
+        <StartPanel t={t} />
       )}
 
       {/* Issue #194 — the identities that can sign into this account. The
@@ -82,36 +88,36 @@ export default async function SecurityPage({
   );
 }
 
-function StartPanel(): ReactNode {
+function StartPanel({ t }: { t: Translate }): ReactNode {
   return (
     <section>
-      <h2>Two-factor authentication</h2>
-      <p>Add a second step to your sign-in using an authenticator app.</p>
+      <h2>{t('auth.security.start.heading')}</h2>
+      <p>{t('auth.security.start.intro')}</p>
       <form action={startAction}>
-        <button type="submit">Enable 2FA</button>
+        <button type="submit">{t('auth.security.start.submit')}</button>
       </form>
     </section>
   );
 }
 
-async function ConfirmPanel(): Promise<ReactNode> {
+async function ConfirmPanel({ t }: { t: Translate }): Promise<ReactNode> {
   const setup = await getMfaSetupCookie();
   if (!setup) {
     return await localeRedirect('/account/security');
   }
   return (
     <section>
-      <h2>Scan and confirm</h2>
-      <p>Scan this setup link in your authenticator app, or enter the key manually:</p>
+      <h2>{t('auth.security.confirm.heading')}</h2>
+      <p>{t('auth.security.confirm.intro')}</p>
       <p>
         <code>{setup.otpauthUri}</code>
       </p>
       <p>
-        Manual key: <code>{setup.secret}</code>
+        {t('auth.mfa.manualKey')} <code>{setup.secret}</code>
       </p>
       <form action={confirmAction} className="b2b-auth__form">
         <div className="b2b-auth__field">
-          <label htmlFor="confirm-code">6-digit code</label>
+          <label htmlFor="confirm-code">{t('auth.mfa.sixDigitCode')}</label>
           <input
             id="confirm-code"
             name="code"
@@ -122,45 +128,45 @@ async function ConfirmPanel(): Promise<ReactNode> {
           />
         </div>
         <div className="b2b-auth__actions">
-          <button type="submit">Confirm and enable</button>
+          <button type="submit">{t('auth.security.confirm.submit')}</button>
         </div>
       </form>
     </section>
   );
 }
 
-function ActivePanel({ remaining }: { remaining: number }): ReactNode {
+function ActivePanel({ remaining, t }: { remaining: string; t: Translate }): ReactNode {
   return (
     <section>
-      <h2>Two-factor authentication is on</h2>
-      <p>Unused recovery codes remaining: {remaining}</p>
+      <h2>{t('auth.security.active.heading')}</h2>
+      <p>{format(t('auth.security.active.remaining'), { count: remaining })}</p>
       <form action={disableAction} className="b2b-auth__form">
         <div className="b2b-auth__field">
-          <label htmlFor="disable-code">Enter a current code to turn off 2FA</label>
+          <label htmlFor="disable-code">{t('auth.security.active.disableLabel')}</label>
           <input id="disable-code" name="code" autoComplete="one-time-code" required placeholder="123456" />
         </div>
         <div className="b2b-auth__actions">
-          <button type="submit">Disable 2FA</button>
+          <button type="submit">{t('auth.security.active.disable')}</button>
         </div>
       </form>
       <form action={regenerateAction} className="b2b-auth__form">
         <div className="b2b-auth__field">
-          <label htmlFor="regen-code">Enter a current code to regenerate recovery codes</label>
+          <label htmlFor="regen-code">{t('auth.security.active.regenerateLabel')}</label>
           <input id="regen-code" name="code" inputMode="numeric" required placeholder="123456" />
         </div>
         <div className="b2b-auth__actions">
-          <button type="submit">Regenerate recovery codes</button>
+          <button type="submit">{t('auth.security.active.regenerate')}</button>
         </div>
       </form>
     </section>
   );
 }
 
-function RecoveryCodes({ codes }: { codes: string[] }): ReactNode {
+function RecoveryCodes({ codes, t }: { codes: string[]; t: Translate }): ReactNode {
   return (
     <section className="b2b-auth__recovery">
-      <h2>Save your recovery codes</h2>
-      <p>Each code works once. Store them somewhere safe — they are shown only now.</p>
+      <h2>{t('auth.security.recovery.heading')}</h2>
+      <p>{t('auth.security.recovery.intro')}</p>
       <ul>
         {codes.map((c) => (
           <li key={c}>
@@ -180,7 +186,7 @@ async function startAction(): Promise<void> {
     const { secret, otpauthUri } = await startMfaSetup(session);
     await setMfaSetupCookie({ secret, otpauthUri });
   } catch (err) {
-    return await localeRedirect(`/account/security?error=${encodeURIComponent(errMsg(err))}`);
+    return await localeRedirect(`/account/security?error=${encodeURIComponent(await errMsg(err))}`);
   }
   return await localeRedirect('/account/security?step=confirm');
 }
@@ -195,7 +201,7 @@ async function confirmAction(formData: FormData): Promise<void> {
     await clearMfaSetupCookie();
     await setMfaRecoveryFlash(recoveryCodes);
   } catch (err) {
-    return await localeRedirect(`/account/security?step=confirm&error=${encodeURIComponent(errMsg(err))}`);
+    return await localeRedirect(`/account/security?step=confirm&error=${encodeURIComponent(await errMsg(err))}`);
   }
   return await localeRedirect('/account/security');
 }
@@ -208,7 +214,7 @@ async function disableAction(formData: FormData): Promise<void> {
   try {
     await disableMfa(session, code);
   } catch (err) {
-    return await localeRedirect(`/account/security?error=${encodeURIComponent(errMsg(err))}`);
+    return await localeRedirect(`/account/security?error=${encodeURIComponent(await errMsg(err))}`);
   }
   return await localeRedirect('/account/security');
 }
@@ -222,7 +228,7 @@ async function regenerateAction(formData: FormData): Promise<void> {
     const { recoveryCodes } = await regenerateMfaRecoveryCodes(session, code);
     await setMfaRecoveryFlash(recoveryCodes);
   } catch (err) {
-    return await localeRedirect(`/account/security?error=${encodeURIComponent(errMsg(err))}`);
+    return await localeRedirect(`/account/security?error=${encodeURIComponent(await errMsg(err))}`);
   }
   return await localeRedirect('/account/security');
 }
@@ -238,11 +244,12 @@ async function unlinkSocialAction(formData: FormData): Promise<void> {
   } catch (err) {
     // The refusal lands here too — the backend has the last word on whether an
     // account may lose a link, and its sentence is already localized.
-    return await localeRedirect(`/account/security?error=${encodeURIComponent(errMsg(err))}`);
+    return await localeRedirect(`/account/security?error=${encodeURIComponent(await errMsg(err))}`);
   }
   return await localeRedirect('/account/security');
 }
 
-function errMsg(err: unknown): string {
-  return err instanceof StorefrontApiError ? err.detail : 'Something went wrong. Please try again.';
+async function errMsg(err: unknown): Promise<string> {
+  if (err instanceof StorefrontApiError) return err.detail;
+  return tForLocale((await getServerContext()).locale)('auth.security.failed');
 }

@@ -7,6 +7,8 @@ import { ImpersonationBanner } from '../../components/ImpersonationBanner';
 import { SignOutButton } from '../../components/account/SignOutButton';
 import { localeRedirect } from '../../lib/i18n/navigation';
 import { LocalizedLink } from '../../lib/i18n/localized-link';
+import { getServerContext } from '../../lib/server-context';
+import { tForLocale } from '../../lib/i18n/messages';
 
 /**
  * Authenticated route-group layout (T154 + T155). Loads `/me` once for the
@@ -33,6 +35,8 @@ export default async function AccountLayout({
   }
 
   const isAdmin = me.customerAccount.role === 'organization_admin';
+  const { locale } = await getServerContext();
+  const t = tForLocale(locale);
 
   return (
     <section className="b2b-account">
@@ -43,12 +47,12 @@ export default async function AccountLayout({
           />
         </div>
       ) : null}
-      <aside className="b2b-account__nav" aria-label="Account">
+      <aside className="b2b-account__nav" aria-label={t('nav.account')}>
         <strong>{me.customerAccount.firstName} {me.customerAccount.lastName}</strong>
         {me.organization ? <span className="muted">{me.organization.name}</span> : null}
-        <LocalizedLink href="/account">Profile</LocalizedLink>
-        <LocalizedLink href="/addresses">My addresses</LocalizedLink>
-        <LocalizedLink href="/account/password">Change password</LocalizedLink>
+        <LocalizedLink href="/account">{t('account.nav.profile')}</LocalizedLink>
+        <LocalizedLink href="/addresses">{t('account.nav.addresses')}</LocalizedLink>
+        <LocalizedLink href="/account/password">{t('account.nav.password')}</LocalizedLink>
         {/*
           Order placement, RFQ submission, shopping lists, and quick order all
           require an Organization (the backend 422s for org-less callers), so
@@ -57,17 +61,17 @@ export default async function AccountLayout({
         */}
         {me.organization ? (
           <>
-            <LocalizedLink href="/orders">Orders</LocalizedLink>
-            <LocalizedLink href="/returns">Returns</LocalizedLink>
-            <LocalizedLink href="/quote-requests">Quote requests</LocalizedLink>
-            <LocalizedLink href="/shopping-lists">Shopping lists</LocalizedLink>
-            <LocalizedLink href="/quick-order">Quick order</LocalizedLink>
-            <LocalizedLink href="/organization">Organization</LocalizedLink>
-            <LocalizedLink href="/organization/addresses">Org addresses</LocalizedLink>
-            {isAdmin ? <LocalizedLink href="/organization/members">Members</LocalizedLink> : null}
+            <LocalizedLink href="/orders">{t('account.nav.orders')}</LocalizedLink>
+            <LocalizedLink href="/returns">{t('account.nav.returns')}</LocalizedLink>
+            <LocalizedLink href="/quote-requests">{t('account.nav.quoteRequests')}</LocalizedLink>
+            <LocalizedLink href="/shopping-lists">{t('account.nav.shoppingLists')}</LocalizedLink>
+            <LocalizedLink href="/quick-order">{t('account.nav.quickOrder')}</LocalizedLink>
+            <LocalizedLink href="/organization">{t('account.nav.organization')}</LocalizedLink>
+            <LocalizedLink href="/organization/addresses">{t('account.nav.organizationAddresses')}</LocalizedLink>
+            {isAdmin ? <LocalizedLink href="/organization/members">{t('account.nav.members')}</LocalizedLink> : null}
           </>
         ) : null}
-        <SignOutButton signOut={logoutAction} />
+        <SignOutButton signOut={logoutAction} label={t('account.nav.signOut')} />
       </aside>
       <div className="b2b-account__panel">{children}</div>
     </section>

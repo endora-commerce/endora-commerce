@@ -18,7 +18,7 @@ const noop = async (): Promise<AddToCartResult> => ({ status: 'idle' });
 describe('PdpStickyBuyBar', () => {
   it('renders the quantity stepper, add-to-cart label and product id', () => {
     const html = renderToString(
-      <PdpStickyBuyBar
+      <PdpStickyBuyBar locale="en-US"
         productId="prod-1"
         addToCartAction={noop}
         addToCartLabel="Do koszyka"
@@ -33,7 +33,7 @@ describe('PdpStickyBuyBar', () => {
 
   it('renders the datasheet shortcut only when a href is supplied', () => {
     const withDoc = renderToString(
-      <PdpStickyBuyBar
+      <PdpStickyBuyBar locale="en-US"
         productId="p"
         addToCartAction={noop}
         addToCartLabel="Do koszyka"
@@ -43,7 +43,7 @@ describe('PdpStickyBuyBar', () => {
     expect(withDoc).toContain('https://cdn/x.pdf');
 
     const without = renderToString(
-      <PdpStickyBuyBar productId="p" addToCartAction={noop} addToCartLabel="Do koszyka" />,
+      <PdpStickyBuyBar locale="en-US" productId="p" addToCartAction={noop} addToCartLabel="Do koszyka" />,
     );
     expect(without).not.toContain('href="https');
   });

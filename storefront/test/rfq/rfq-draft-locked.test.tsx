@@ -32,7 +32,7 @@ function renderLine(input: { pl: boolean; allowed: boolean; item?: RfqDraftItem 
   return renderToString(
     <DraftLine
       line={input.item ?? line}
-      t={strings(input.pl)}
+      t={strings(input.pl ? 'pl-PL' : 'en-US')}
       proposalsAllowed={input.allowed}
       onQty={(): void => undefined}
       onProposedPrice={(): void => undefined}
@@ -111,7 +111,7 @@ describe('LockedPricingNote', () => {
     [true, 'Ceny w tym zapytaniu ustali dział sprzedaży'],
     [false, 'Our sales team will set the prices for this request'],
   ])('tells the buyer that sales will price the request (pl=%s)', (pl, sentence) => {
-    const html = renderToString(<LockedPricingNote t={strings(pl)} />);
+    const html = renderToString(<LockedPricingNote t={strings(pl ? 'pl-PL' : 'en-US')} />);
     expect(html).toContain(sentence);
   });
 });

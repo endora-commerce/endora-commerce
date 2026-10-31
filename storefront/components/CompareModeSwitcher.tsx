@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import type { ComparisonDisplayMode } from '@endora-commerce/contracts';
+import { tForLocale, type MessageKey } from '../lib/i18n/messages';
 
 /**
  * Three-button mode switcher for the comparison page (feature 007 / T031).
@@ -13,10 +14,10 @@ import type { ComparisonDisplayMode } from '@endora-commerce/contracts';
  * (Spec NFR-002, SC-002.)
  */
 
-const MODE_LABELS: Record<ComparisonDisplayMode, string> = {
-  all: 'All attributes',
-  common: 'Common attributes only',
-  differences: 'Differences only',
+const MODE_LABELS: Record<ComparisonDisplayMode, MessageKey> = {
+  all: 'commerce.compare.mode.all',
+  common: 'commerce.compare.mode.common',
+  differences: 'commerce.compare.mode.differences',
 };
 
 const MODES: ComparisonDisplayMode[] = ['all', 'common', 'differences'];
@@ -25,12 +26,15 @@ export function CompareModeSwitcher(props: {
   value: ComparisonDisplayMode;
   onChange: (next: ComparisonDisplayMode) => void;
   disabled?: boolean;
+  /** The page's language, from the server parent. */
+  locale: string;
 }): ReactNode {
+  const t = tForLocale(props.locale);
   return (
     <div
       className="inline-flex overflow-hidden rounded-md border border-line"
       role="radiogroup"
-      aria-label="Display mode"
+      aria-label={t('commerce.compare.mode.label')}
     >
       {MODES.map((mode) => {
         const active = mode === props.value;
@@ -48,7 +52,7 @@ export function CompareModeSwitcher(props: {
               if (!active) props.onChange(mode);
             }}
           >
-            {MODE_LABELS[mode]}
+            {t(MODE_LABELS[mode])}
           </button>
         );
       })}

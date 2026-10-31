@@ -22,7 +22,7 @@ const labels = {
 describe('BottomSheet', () => {
   it('renders nothing when closed', () => {
     const html = renderToString(
-      <BottomSheet open={false} onClose={() => {}}>
+      <BottomSheet open={false} onClose={() => {}} closeLabel="Zamknij">
         <p>BODY</p>
       </BottomSheet>,
     );
@@ -31,7 +31,7 @@ describe('BottomSheet', () => {
 
   it('renders the sheet shell, title, body and footer when open', () => {
     const html = renderToString(
-      <BottomSheet open onClose={() => {}} title="Filtry" footer={<span>FOOT</span>}>
+      <BottomSheet open onClose={() => {}} title="Filtry" closeLabel="Zamknij" footer={<span>FOOT</span>}>
         <p>FACETS</p>
       </BottomSheet>,
     );

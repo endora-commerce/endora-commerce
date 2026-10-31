@@ -8,6 +8,7 @@ import { NewsletterConsent } from '../../../components/newsletter/NewsletterCons
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../lib/i18n/navigation';
 import { LocalizedLink } from '../../../lib/i18n/localized-link';
+import { tForLocale } from '../../../lib/i18n/messages';
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -31,7 +32,8 @@ export default async function RegisterCustomerPage({
 }): Promise<ReactNode> {
   const params = await searchParams;
   const orgRequired = params.orgRequired === '1';
-  const { ctx, anonymousAccess } = await getServerContext();
+  const { ctx, anonymousAccess, locale } = await getServerContext();
+  const t = tForLocale(locale);
   // `specs/154-sales-channel-access/` — individual self-registration signs the
   // new account in at once, which would be a way into a store that serves
   // signed-in business customers only. The backend refuses it there; this
@@ -42,12 +44,13 @@ export default async function RegisterCustomerPage({
 
   return (
     <div className="b2b-auth">
-      <h1>Create your account</h1>
-      <p>Register a personal account to browse and order. You can be linked to an organization later.</p>
+      <h1>{t('auth.registerCustomer.heading')}</h1>
+      <p>{t('auth.registerCustomer.intro')}</p>
       {orgRequired ? (
         <div className="b2b-auth__error">
-          Registration without an organization is currently disabled.{' '}
-          <LocalizedLink href="/register">Register your organization</LocalizedLink> instead.
+          {t('auth.registerCustomer.orgRequiredBefore')}{' '}
+          <LocalizedLink href="/register">{t('auth.registerCustomer.orgRequiredLink')}</LocalizedLink>
+          {t('auth.registerCustomer.orgRequiredAfter')}
         </div>
       ) : params.error ? (
         <div className="b2b-auth__error">{params.error}</div>
@@ -55,20 +58,20 @@ export default async function RegisterCustomerPage({
       <form action={registerCustomerAction} className="b2b-auth__form">
         <div className="b2b-auth__row">
           <div className="b2b-auth__field">
-            <label htmlFor="first">First name</label>
+            <label htmlFor="first">{t('auth.field.firstName')}</label>
             <input id="first" name="firstName" required maxLength={120} placeholder=" " />
           </div>
           <div className="b2b-auth__field">
-            <label htmlFor="last">Last name</label>
+            <label htmlFor="last">{t('auth.field.lastName')}</label>
             <input id="last" name="lastName" required maxLength={120} placeholder=" " />
           </div>
         </div>
         <div className="b2b-auth__field">
-          <label htmlFor="email">Email</label>
+          <label htmlFor="email">{t('auth.field.email')}</label>
           <input id="email" name="email" type="email" required placeholder=" " />
         </div>
         <div className="b2b-auth__field">
-          <label htmlFor="password">Password (min 12 characters)</label>
+          <label htmlFor="password">{t('auth.field.newPasswordMin')}</label>
           <input
             id="password"
             name="password"
@@ -84,11 +87,12 @@ export default async function RegisterCustomerPage({
           <NewsletterConsent channelCode={channelCode} ctx={ctx} />
         </div>
         <div className="b2b-auth__actions">
-          <button type="submit">Create account</button>
+          <button type="submit">{t('auth.common.createAccount')}</button>
         </div>
       </form>
       <p className="b2b-auth__hint">
-        Already have an account? <LocalizedLink href="/login">Sign in</LocalizedLink>.
+        {t('auth.common.haveAccountPrompt')}{' '}
+        <LocalizedLink href="/login">{t('nav.login')}</LocalizedLink>.
       </p>
     </div>
   );
@@ -110,7 +114,9 @@ async function registerCustomerAction(formData: FormData): Promise<void> {
       return await localeRedirect('/register-customer?orgRequired=1');
     }
     const message =
-      err instanceof StorefrontApiError ? err.detail : 'Registration failed. Please try again.';
+      err instanceof StorefrontApiError
+        ? err.detail
+        : tForLocale((await getServerContext()).locale)('auth.register.failed');
     return await localeRedirect(`/register-customer?error=${encodeURIComponent(message)}`);
   }
   // Newsletter consent (feature 048): subscribe the new account's email when the

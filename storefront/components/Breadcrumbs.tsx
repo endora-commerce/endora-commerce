@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { JsonLd } from '../lib/seo/JsonLd';
 import { absoluteUrl } from '../lib/seo/site-url';
 import { LocalizedLink } from '../lib/i18n/localized-link';
+import { tForLocale } from '../lib/i18n/messages';
 
 export interface BreadcrumbCrumb {
   /**
@@ -43,7 +44,15 @@ const SCHEME_CURRENT_CLASS = 'text-[color:var(--cmsb-fg,#15202b)]';
  * The JSON-LD `item` is absolute (`siteUrl()`), as schema.org's `ListItem`
  * expects; the visible links stay paths, like every other link here.
  */
-export function Breadcrumbs(props: { crumbs: BreadcrumbCrumb[]; scheme?: BreadcrumbsScheme }): ReactNode {
+export function Breadcrumbs(props: {
+  crumbs: BreadcrumbCrumb[];
+  scheme?: BreadcrumbsScheme;
+  /**
+   * The page's locale, for the trail's landmark name (issue #85). Optional only
+   * until every caller passes it; without it the name is in English.
+   */
+  locale?: string;
+}): ReactNode {
   if (props.crumbs.length === 0) return null;
   const painted = props.scheme !== undefined && props.scheme !== 'light';
   const jsonLd = {
@@ -57,7 +66,7 @@ export function Breadcrumbs(props: { crumbs: BreadcrumbCrumb[]; scheme?: Breadcr
     })),
   };
   return (
-    <nav aria-label="Breadcrumb">
+    <nav aria-label={tForLocale(props.locale ?? 'en-US')('chrome.breadcrumbs.label')}>
       {/*
         Migrated to utilities (was .b2b-breadcrumbs). Spacing/size use arbitrary px to
         preserve exact parity — the storefront root font-size is 14px, so Tailwind's

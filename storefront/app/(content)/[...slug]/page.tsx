@@ -40,9 +40,9 @@ interface PageProps {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
   const path = normalizeCmsUrlPath(slug.join('/'));
-  const { ctx, urlState } = await getServerContext();
+  const { ctx, urlState, locale } = await getServerContext();
   const page = await getCmsPageBySlug(path, ctx);
-  if (!page) return { title: 'Not found', robots: { index: false, follow: false } };
+  if (!page) return { title: tForLocale(locale)('content.notFound.title'), robots: { index: false, follow: false } };
   // R19D: the canonical address is the page's public path, which differs from
   // the request for the flat slug of a nested page (that request redirects).
   // R24 (amended by feature 167): the backend's URL for the served language — the

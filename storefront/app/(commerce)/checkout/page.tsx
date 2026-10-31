@@ -29,6 +29,8 @@ import { PlaceOrderButton } from '../../../components/checkout/PlaceOrderButton'
 import { blockTitle, placeOrderBlock } from '../../../lib/checkout/place-order-gate';
 import { selectablePaymentMethods } from '../../../lib/checkout/payment-method-eligibility';
 import { tForLocale } from '../../../lib/i18n/messages';
+import { format } from '../../../lib/i18n/format';
+import { formatCount } from '../../../lib/orderMinimum';
 import { CouponField } from '../../../components/checkout/CouponField';
 import { getServerContext } from '../../../lib/server-context';
 import { formatMoney } from '../../../lib/i18n/money';
@@ -170,10 +172,10 @@ export default async function CheckoutPage({
   if (cart.items.length === 0) {
     return (
       <div className="b2b-auth">
-        <h1>Checkout</h1>
-        <p>Your cart is empty — add a product before checking out.</p>
+        <h1>{tr('commerce.checkout.heading')}</h1>
+        <p>{tr('commerce.checkout.empty')}</p>
         <p>
-          <LocalizedLink href="/catalog">Browse the catalog</LocalizedLink>
+          <LocalizedLink href="/catalog">{tr('commerce.common.browseCatalog')}</LocalizedLink>
         </p>
       </div>
     );
@@ -218,7 +220,7 @@ export default async function CheckoutPage({
           currency: it.unitPrice.currency,
         }))}
       />
-      <h1>Checkout</h1>
+      <h1>{tr('commerce.checkout.heading')}</h1>
       <OrganizationModerationBanner
         status={me?.organization?.status}
         message={me?.organization?.moderationMessage ?? null}
@@ -260,7 +262,7 @@ export default async function CheckoutPage({
           locale={locale}
         />
         <div className="b2b-auth__field">
-          <label htmlFor="note">Note for the seller (optional)</label>
+          <label htmlFor="note">{tr('commerce.checkout.note')}</label>
           <textarea id="note" name="customerNote" rows={3} maxLength={4000} placeholder=" " />
         </div>
 
@@ -269,15 +271,15 @@ export default async function CheckoutPage({
             <CreditLimitWidget limit={creditLimit} locale={locale} />
             {creditAvailable < cartTotal ? (
               <p className="b2b-auth__hint">
-                Your cart total ({formatMoney(cartTotal, cart.subtotal.currency, locale)}) exceeds the
-                available credit. The credit-limit payment option is hidden until you reduce
-                the cart or contact support to raise your limit.
+                {format(tr('commerce.checkout.creditExceeded'), {
+                  total: formatMoney(cartTotal, cart.subtotal.currency, locale),
+                })}
               </p>
             ) : null}
           </div>
         ) : null}
 
-        <h3>Review</h3>
+        <h3>{tr('commerce.checkout.review')}</h3>
         <table className="b2b-account__table">
           <tbody>
             {cart.items.map((it) => (
@@ -294,7 +296,9 @@ export default async function CheckoutPage({
                     </div>
                   ) : null}
                 </td>
-                <td className="text-right">x {it.quantity}</td>
+                <td className="text-right">
+                  {format(tr('commerce.checkout.quantity'), { count: formatCount(it.quantity, locale) })}
+                </td>
                 <td className="text-right">
                   {formatMoney(Number(lineAmountHalfUp(it.unitPrice.amount, it.quantity)), it.unitPrice.currency, locale)}
                 </td>
@@ -302,7 +306,7 @@ export default async function CheckoutPage({
             ))}
             <tr>
               <th colSpan={2} scope="row" className="text-right">
-                Subtotal
+                {tr('commerce.common.subtotal')}
               </th>
               <th className="text-right">
                 {formatMoney(cart.subtotal.amount, cart.subtotal.currency, locale)}
@@ -311,7 +315,9 @@ export default async function CheckoutPage({
             {cart.discount ? (
               <tr>
                 <th colSpan={2} scope="row" className="text-right">
-                  Discount ({cart.discount.code})
+                  {cart.discount.code
+                    ? format(tr('commerce.common.discountWithCode'), { code: cart.discount.code })
+                    : tr('commerce.common.discount')}
                 </th>
                 <th className="text-right">
                   −{formatMoney(cart.discount.amount, cart.discount.currency, locale)}
@@ -321,7 +327,7 @@ export default async function CheckoutPage({
             {cart.grandTotal ? (
               <tr>
                 <th colSpan={2} scope="row" className="text-right">
-                  <strong>Total</strong>
+                  <strong>{tr('commerce.common.total')}</strong>
                 </th>
                 <th className="text-right">
                   <strong>
@@ -338,12 +344,12 @@ export default async function CheckoutPage({
             href="/cart"
             className="inline-flex items-center gap-2 rounded-sm border border-line bg-surface px-[16px] py-[10px] font-medium text-fg-soft transition-[background-color,border-color,color] duration-150 hover:border-line-strong hover:bg-surface-alt hover:text-[color:var(--ink-900)]"
           >
-            ← Back to cart
+            ← {tr('commerce.checkout.backToCart')}
           </LocalizedLink>
           <PlaceOrderButton
             blocked={placeOrderBlockReason}
-            label="Place order"
-            pendingLabel="Placing order…"
+            label={tr('commerce.checkout.placeOrder')}
+            pendingLabel={tr('commerce.checkout.placingOrder')}
             title={blockTitle(placeOrderBlockReason, tr, me?.organization?.moderationMessage ?? null)}
             describedBy={placeOrderBlockReason === 'below-minimum' ? BELOW_MINIMUM_SUMMARY_ID : undefined}
           />
@@ -481,11 +487,11 @@ async function submitAction(formData: FormData): Promise<void> {
   const session = await getSessionCookie();
   if (!session) return await localeRedirect('/login?next=/checkout');
 
+  const { ctx, locale } = await getServerContext();
   let order;
   try {
     // The action's own request carries the channel the buyer is shopping, and
     // the placement has to be told: see `placeOrder`.
-    const { ctx } = await getServerContext();
     order = await placeOrder(session, await buildPlaceOrderPayload(session, formData), ctx);
   } catch (err) {
     // Feature 036 (US4) — placement failed: the transaction rolled back, so the
@@ -496,7 +502,7 @@ async function submitAction(formData: FormData): Promise<void> {
     // cart prices (`CART_PRICE_CHANGED`) reads as that sentence, and the cart
     // the buyer goes back to already holds the current prices.
     const message =
-      err instanceof StorefrontApiError ? err.detail : 'Could not place the order.';
+      err instanceof StorefrontApiError ? err.detail : tForLocale(locale)('commerce.checkout.placeFailed');
     return await localeRedirect(`/checkout/failure?reason=${encodeURIComponent(message)}`);
   }
   // Feature 036 — a gateway method returns a redirect next-action; send the
@@ -529,7 +535,10 @@ async function applyCouponAction(formData: FormData): Promise<void> {
   if (!code) return await localeRedirect('/checkout');
   const result = await applyCartCoupon(jar, code);
   if (result.outcome === 'rejected') {
-    return await localeRedirect(`/checkout?couponError=${encodeURIComponent(couponRejectionMessage(result.reason))}`);
+    const { locale } = await getServerContext();
+    return await localeRedirect(
+      `/checkout?couponError=${encodeURIComponent(couponRejectionMessage(result.reason, locale))}`,
+    );
   }
   return await localeRedirect('/checkout');
 }
@@ -543,20 +552,21 @@ async function clearCouponAction(): Promise<void> {
 }
 
 /** Map the typed coupon-rejection reasons to a localized buyer message. */
-function couponRejectionMessage(reason: string): string {
+function couponRejectionMessage(reason: string, locale: string): string {
+  const t = tForLocale(locale);
   switch (reason) {
     case 'invalid_code':
     case 'coupon_format_invalid':
-      return 'This coupon code is invalid.';
+      return t('commerce.cart.coupon.rejected.invalidCode');
     case 'expired':
-      return 'This coupon has expired.';
+      return t('commerce.checkout.coupon.expired');
     case 'below_min_spend':
-      return 'Your cart does not meet this coupon’s minimum spend.';
+      return t('commerce.checkout.coupon.belowMinSpend');
     case 'wrong_channel':
     case 'wrong_customer_group':
     case 'wrong_organization':
-      return 'This coupon is not available for your account.';
+      return t('commerce.checkout.coupon.notAvailable');
     default:
-      return 'This coupon could not be applied.';
+      return t('commerce.checkout.coupon.generic');
   }
 }

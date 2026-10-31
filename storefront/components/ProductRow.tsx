@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 import type { ProductSummary } from '@endora-commerce/contracts';
 import { tForLocale } from '../lib/i18n/messages';
+import { format } from '../lib/i18n/format';
+import { formatCount } from '../lib/orderMinimum';
 import { DEFAULT_VAT_RATE, formatMoney, grossUnitPriceFromNet } from '../lib/i18n/money';
 import { LocalizedLink } from '../lib/i18n/localized-link';
 
@@ -63,18 +65,20 @@ export function ProductRow(props: {
           </LocalizedLink>
         </h3>
       </div>
-      <div className="max-[920px]:col-start-2">{renderStock(product, t)}</div>
+      <div className="max-[920px]:col-start-2">{renderStock(product, t, locale)}</div>
       <div className="text-right max-[920px]:col-start-2 max-[920px]:text-left">
         {priceFmt ? (
           <>
             <div className="font-mono text-[10px] uppercase tracking-[0.04em] text-subtle">
-              od / szt.
+              {t('commerce.productCard.fromPerPiece')}
             </div>
             <div className="font-mono text-[16px] font-semibold tracking-[-0.01em] text-fg">
               {priceFmt}
             </div>
             {grossFmt ? (
-              <div className="font-mono text-[11px] text-muted">brutto {grossFmt}</div>
+              <div className="font-mono text-[11px] text-muted">
+                {format(t('commerce.productCard.grossPrice'), { amount: grossFmt })}
+              </div>
             ) : null}
           </>
         ) : (
@@ -92,7 +96,7 @@ export function ProductRow(props: {
   );
 }
 
-function renderStock(p: ProductSummary, t: ReturnType<typeof tForLocale>): ReactNode {
+function renderStock(p: ProductSummary, t: ReturnType<typeof tForLocale>, locale: string): ReactNode {
   if (p.stockLevel !== null && p.stockLevel !== undefined) {
     if (p.stockLevel <= 0) {
       return (
@@ -106,14 +110,14 @@ function renderStock(p: ProductSummary, t: ReturnType<typeof tForLocale>): React
       return (
         <span className="industria-stock industria-stock--low">
           <span className="dot" />
-          Mało: {p.stockLevel}
+          {format(t('commerce.stock.low'), { count: formatCount(p.stockLevel, locale) })}
         </span>
       );
     }
     return (
       <span className="industria-stock industria-stock--in">
         <span className="dot" />
-        {p.stockLevel.toLocaleString('pl-PL')} szt.
+        {format(t('commerce.stock.pieces'), { count: formatCount(p.stockLevel, locale) })}
       </span>
     );
   }
@@ -137,7 +141,7 @@ function renderStock(p: ProductSummary, t: ReturnType<typeof tForLocale>): React
     return (
       <span className="industria-stock industria-stock--low">
         <span className="dot" />
-        Na zamówienie
+        {t('commerce.stock.toOrder')}
       </span>
     );
   }

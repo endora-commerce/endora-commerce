@@ -22,6 +22,9 @@ import {
 import type { CategoryNode, ProductListSort } from '@endora-commerce/contracts';
 import { getServerContext } from '../../../../lib/server-context';
 import { tForLocale } from '../../../../lib/i18n/messages';
+import { format } from '../../../../lib/i18n/format';
+import { pluralKey } from '../../../../lib/i18n/plural';
+import { formatCount } from '../../../../lib/orderMinimum';
 import {
   parseCatalogPriceQuery,
   parsePriceBound,
@@ -47,9 +50,11 @@ interface PageProps {
  */
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const { ctx } = await getServerContext();
+  const { ctx, locale } = await getServerContext();
   const node = findCategory(await getCategoryTree(ctx), slug);
-  if (!node) return { title: 'Not found', robots: { index: false, follow: false } };
+  if (!node) {
+    return { title: tForLocale(locale)('commerce.listing.categoryNotFound'), robots: { index: false, follow: false } };
+  }
   // Feature 167 — canonical under the language prefix, hreflang alternates, x-default.
   const alternates = await localizedAlternates(canonicalPath(seo.route, { slug: node.slug }));
   return {
@@ -107,9 +112,10 @@ export default async function CategoryPage({ params, searchParams }: PageProps):
   const clearHref = clearParams.toString() ? `${basePath}?${clearParams.toString()}` : basePath;
   const filterLabels = {
     filters: t('catalog.filters'),
-    clear: 'Wyczyść',
-    applyTemplate: 'Pokaż {count} wyników',
-    close: 'Zamknij',
+    clear: t('commerce.listing.clearFilters'),
+    // The sheet fills `{count}`; the form is chosen here, where the count is known.
+    applyTemplate: t(pluralKey('commerce.listing.showResults', products.data.length, locale)),
+    close: t('commerce.common.close'),
   };
 
   return (
@@ -157,7 +163,11 @@ export default async function CategoryPage({ params, searchParams }: PageProps):
           <div className="industria-catalog__title">
             <div>
               <h1>{node.name}</h1>
-              <p>{node.productCount.toLocaleString('pl-PL')} produktów</p>
+              <p>
+                {format(t(pluralKey('commerce.listing.productCount', node.productCount, locale)), {
+                  count: formatCount(node.productCount, locale),
+                })}
+              </p>
             </div>
           </div>
           {/*

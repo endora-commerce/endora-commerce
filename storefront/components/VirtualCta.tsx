@@ -28,6 +28,8 @@ export function VirtualCta(props: {
     prevState: AddToCartResult,
     formData: FormData,
   ) => AddToCartResult | Promise<AddToCartResult>;
+  /** The page's language, from the server parent — the confirmation popup speaks it. */
+  locale: string;
 }): ReactNode {
   const [cartState, cartFormAction, cartPending] = useActionState(
     props.addToCartAction,
@@ -51,7 +53,7 @@ export function VirtualCta(props: {
         </button>
       </form>
       <p className="mt-2 text-[12px] text-muted">{props.labels.digitalDelivery}</p>
-      <CartAddedPopup state={cartState} />
+      <CartAddedPopup state={cartState} locale={props.locale} />
     </div>
   );
 }

@@ -74,9 +74,25 @@ describe('BaseSalePriceBlock — Base + Sale', () => {
     );
     expect(html).toContain('b2b-pricing-block__base--struck');
     expect(html).toContain('b2b-pricing-block__sale');
-    expect(html).toContain('Special price');
+    // Issue #85 — the default annotation is the catalogue's, in the block's locale.
+    expect(html).toContain('Cena promocyjna');
+    expect(html).toContain('netto');
     expect(html).toMatch(/200/);
     expect(html).toMatch(/160/);
+  });
+
+  it('labels the sale in English for an English page (issue #85)', () => {
+    const html = renderToString(
+      <BaseSalePriceBlock
+        basePrice={{ amount: '200.00', currency: 'PLN' }}
+        salePrice={{ amount: '160.00', currency: 'PLN' }}
+        displayMode="net_only"
+        locale="en-US"
+      />,
+    );
+    expect(html).toContain('Special price');
+    expect(html).toContain('>net<');
+    expect(html).not.toContain('Cena promocyjna');
   });
 
   it('still renders the Sale price when displayMode is gross_only', () => {

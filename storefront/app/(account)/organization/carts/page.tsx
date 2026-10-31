@@ -8,6 +8,10 @@ import { getMe } from '../../../../lib/api/account';
 import { formatMoney } from '../../../../lib/i18n/money';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../../lib/i18n/navigation';
+import { getServerContext } from '../../../../lib/server-context';
+import { tForLocale } from '../../../../lib/i18n/messages';
+import { codeLabel } from '../../../../lib/account/labels';
+import { format } from '../../../../lib/i18n/format';
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -32,13 +36,13 @@ export default async function OrganizationCartsPage(): Promise<ReactNode> {
   if (!session) return await localeRedirect('/login');
   const me = await getMe(session);
   if (!me.organization) return await localeRedirect('/account');
+  const { locale } = await getServerContext();
+  const t = tForLocale(locale);
   if (me.customerAccount.role !== 'organization_admin') {
     return (
       <>
-        <h2>Organization carts</h2>
-        <p className="b2b-auth__error">
-          Only Organization Administrators can see this page.
-        </p>
+        <h2>{t('account.orgCarts.heading')}</h2>
+        <p className="b2b-auth__error">{t('account.orgCarts.adminOnly')}</p>
       </>
     );
   }
@@ -53,33 +57,31 @@ export default async function OrganizationCartsPage(): Promise<ReactNode> {
     });
     carts = res.data;
   } catch (err) {
-    loadError = err instanceof Error ? err.message : 'Could not load organization carts.';
+    loadError = err instanceof Error ? err.message : t('account.orgCarts.loadFailed');
   }
 
   return (
     <>
-      <h2>Organization carts</h2>
+      <h2>{t('account.orgCarts.heading')}</h2>
       <p className="b2b-auth__hint">
-        Every cart in the {me.organization.name} organization — including
-        members' active carts, pending-approval submissions, and historical
-        ones.
+        {format(t('account.orgCarts.intro'), { organization: me.organization.name })}
       </p>
 
       {loadError ? <p className="b2b-auth__error">{loadError}</p> : null}
 
       {carts.length === 0 ? (
-        <p>No carts yet.</p>
+        <p>{t('account.orgCarts.empty')}</p>
       ) : (
         <table className="b2b-account__table">
           <thead>
             <tr>
-              <th>Owner</th>
-              <th>Status</th>
-              <th>Approval</th>
-              <th>Items</th>
-              <th>Total</th>
-              <th>Last activity</th>
-              <th>Submitted</th>
+              <th>{t('account.orgCarts.col.owner')}</th>
+              <th>{t('account.common.status')}</th>
+              <th>{t('account.orgCarts.col.approval')}</th>
+              <th>{t('account.common.items')}</th>
+              <th>{t('account.common.total')}</th>
+              <th>{t('account.orgCarts.col.lastActivity')}</th>
+              <th>{t('account.orgCarts.col.submitted')}</th>
             </tr>
           </thead>
           <tbody>
@@ -88,24 +90,24 @@ export default async function OrganizationCartsPage(): Promise<ReactNode> {
                 <td>{cart.ownerDisplayName}</td>
                 <td>
                   <span className={`b2b-cart-status b2b-cart-status--${cart.status}`}>
-                    {cart.status}
+                    {codeLabel(t, 'account.cartStatus', cart.status)}
                   </span>
                 </td>
                 <td>
                   <span
                     className={`b2b-cart-approval b2b-cart-approval--${cart.approvalStatus}`}
                   >
-                    {cart.approvalStatus}
+                    {codeLabel(t, 'account.cartApprovalStatus', cart.approvalStatus)}
                   </span>
                 </td>
                 <td>{cart.itemCount}</td>
                 <td>
                   {formatMoney(cart.total.amount, cart.total.currency)}
                 </td>
-                <td>{new Date(cart.lastActivityAt).toLocaleString()}</td>
+                <td>{new Date(cart.lastActivityAt).toLocaleString(locale)}</td>
                 <td>
                   {cart.submittedForApprovalAt
-                    ? new Date(cart.submittedForApprovalAt).toLocaleString()
+                    ? new Date(cart.submittedForApprovalAt).toLocaleString(locale)
                     : '—'}
                 </td>
               </tr>

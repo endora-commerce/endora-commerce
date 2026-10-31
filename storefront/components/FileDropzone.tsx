@@ -1,6 +1,8 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { tForLocale } from '../lib/i18n/messages';
+import { format } from '../lib/i18n/format';
 
 /**
  * Drag-and-drop file picker for quick-order import (feature 039, FR-008).
@@ -13,13 +15,18 @@ export function FileDropzone({
   filenameField,
   contentField,
   accept = '.csv,.xlsx',
-  label = 'Drag a CSV or Excel file here, or click to choose',
+  locale,
+  label,
 }: {
   filenameField: string;
   contentField: string;
   accept?: string;
+  /** The page's language, from the server parent. */
+  locale: string;
+  /** Defaults to the catalogue's dropzone prompt in `locale`. */
   label?: string;
 }) {
+  const t = tForLocale(locale);
   const [name, setName] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -70,7 +77,11 @@ export function FileDropzone({
         role="button"
         tabIndex={0}
       >
-        {busy ? 'Reading file…' : name ? `Selected: ${name}` : label}
+        {busy
+          ? t('commerce.dropzone.reading')
+          : name
+            ? format(t('commerce.dropzone.selected'), { name })
+            : (label ?? t('quickOrder.page.dropzone'))}
       </div>
       <input
         ref={inputRef}

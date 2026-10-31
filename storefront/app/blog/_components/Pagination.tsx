@@ -1,10 +1,13 @@
 import type { ReactNode } from 'react';
 import { LocalizedLink } from '../../../lib/i18n/localized-link';
+import { tForLocale } from '../../../lib/i18n/messages';
 
 interface PaginationProps {
   basePath: string;
   page: number;
   totalPages: number;
+  /** The page language. */
+  locale: string;
 }
 
 /**
@@ -12,13 +15,14 @@ interface PaginationProps {
  * engines + LLM crawlers can follow them; rel="prev" + rel="next"
  * surface the surrounding pages for SEO (Principle VII).
  */
-export function Pagination({ basePath, page, totalPages }: PaginationProps): ReactNode {
+export function Pagination({ basePath, page, totalPages, locale }: PaginationProps): ReactNode {
   if (totalPages <= 1) return null;
+  const t = tForLocale(locale);
   const pages = pageWindow(page, totalPages);
 
   return (
     <nav
-      aria-label="Pagination"
+      aria-label={t('content.blog.pagination.label')}
       className="mt-8 flex items-center justify-center gap-2 text-sm"
     >
       {page > 1 ? (
@@ -27,7 +31,7 @@ export function Pagination({ basePath, page, totalPages }: PaginationProps): Rea
           rel="prev"
           className="rounded border border-[--line] px-3 py-1 hover:bg-[--surface-alt]"
         >
-          ← Previous
+          ← {t('content.blog.pagination.previous')}
         </LocalizedLink>
       ) : null}
       {pages.map((p, i) =>
@@ -55,7 +59,7 @@ export function Pagination({ basePath, page, totalPages }: PaginationProps): Rea
           rel="next"
           className="rounded border border-[--line] px-3 py-1 hover:bg-[--surface-alt]"
         >
-          Next →
+          {t('content.blog.pagination.next')} →
         </LocalizedLink>
       ) : null}
     </nav>

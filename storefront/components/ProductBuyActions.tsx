@@ -273,6 +273,7 @@ export function ProductBuyActions({
       {showCart ? (
         <CartAddedPopup
           state={cartState}
+          locale={locale}
           addedLabel={t('product.cartPopup.added')}
           goToCartLabel={t('product.cartPopup.goToCart')}
           continueLabel={t('product.cartPopup.continue')}

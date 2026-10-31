@@ -91,11 +91,12 @@ export function SearchAutocomplete(props: SearchAutocompleteProps): ReactNode {
   const [activeIndex, setActiveIndex] = useState<number>(-1);
   const [open, setOpen] = useState(false);
   /**
-   * Platform-aware modifier label for the keyboard hint. Initial value
-   * matches the SSR-rendered `⌘K` so hydration stays stable; the
-   * effect below corrects it to `Ctrl K` on non-Apple platforms.
+   * Platform-aware keyboard hint: `⌘K` on Apple platforms, `Ctrl K`
+   * elsewhere. Initial value matches the SSR-rendered `⌘K` so hydration
+   * stays stable; the effect below corrects it on non-Apple platforms. Key
+   * caps are not translated, and are written inside the `<kbd>` below.
    */
-  const [modifierLabel, setModifierLabel] = useState<'⌘K' | 'Ctrl K'>('⌘K');
+  const [appleKeyboard, setAppleKeyboard] = useState(true);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -183,7 +184,7 @@ export function SearchAutocomplete(props: SearchAutocompleteProps): ReactNode {
         ? ''
         : navigator.platform || navigator.userAgent;
     const isApple = /Mac|iPhone|iPad|iPod/i.test(platform);
-    setModifierLabel(isApple ? '⌘K' : 'Ctrl K');
+    setAppleKeyboard(isApple);
 
     function onKey(e: globalThis.KeyboardEvent): void {
       if (e.repeat) return;
@@ -253,7 +254,7 @@ export function SearchAutocomplete(props: SearchAutocompleteProps): ReactNode {
       />
       {props.showKeyboardHint ? (
         <kbd className="industria-search__kbd" aria-hidden="true">
-          {modifierLabel}
+          {appleKeyboard ? <>⌘K</> : <>Ctrl K</>}
         </kbd>
       ) : null}
       <button type="submit" className="industria-search__cta">

@@ -8,10 +8,10 @@ import { RelatedPostsStrip } from './RelatedPostsStrip';
 import { RelatedProductsStrip } from './RelatedProductsStrip';
 import { TagChipStrip } from './TagChipStrip';
 
-function formatDate(iso: string | null): string | null {
+function formatDate(iso: string | null, locale: string): string | null {
   if (!iso) return null;
   try {
-    return new Date(iso).toLocaleDateString();
+    return new Date(iso).toLocaleDateString(locale);
   } catch {
     return null;
   }
@@ -20,12 +20,15 @@ function formatDate(iso: string | null): string | null {
 export function BlogPostPage({
   payload,
   language,
+  locale,
 }: {
   payload: BlogBySlugPostResponse;
   language: string;
+  /** The page language, for the date and the strips' headings (issue #85). */
+  locale: string;
 }): ReactNode {
   const { post } = payload;
-  const date = formatDate(post.publishedAt);
+  const date = formatDate(post.publishedAt, locale);
   return (
     <article className="mx-auto max-w-4xl space-y-8">
       {/*
@@ -64,8 +67,8 @@ export function BlogPostPage({
       </div>
 
       <TagChipStrip tags={post.tags} />
-      <RelatedPostsStrip posts={post.relatedPosts} />
-      <RelatedProductsStrip products={post.relatedProducts} />
+      <RelatedPostsStrip posts={post.relatedPosts} locale={locale} />
+      <RelatedProductsStrip products={post.relatedProducts} locale={locale} />
     </article>
   );
 }

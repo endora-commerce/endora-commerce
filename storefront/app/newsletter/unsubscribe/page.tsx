@@ -2,6 +2,8 @@ import type { ReactNode } from 'react';
 import { publicUnsubscribe } from '../../../lib/api/newsletter';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../lib/i18n/navigation';
+import { tForLocale } from '../../../lib/i18n/messages';
+import { getServerContext } from '../../../lib/server-context';
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -21,12 +23,14 @@ export default async function NewsletterUnsubscribePage({
   searchParams: Promise<{ token?: string; valid?: string; done?: string }>;
 }): Promise<ReactNode> {
   const { token, valid, done } = await searchParams;
+  const { locale } = await getServerContext();
+  const t = tForLocale(locale);
 
   if (done === '1') {
     return (
       <main className="mx-auto max-w-lg px-4 py-16 text-center">
-        <h1 className="text-2xl font-semibold">Newsletter</h1>
-        <p className="mt-4 text-muted-foreground">You have been unsubscribed. We are sorry to see you go.</p>
+        <h1 className="text-2xl font-semibold">{t('content.newsletter.heading')}</h1>
+        <p className="mt-4 text-muted-foreground">{t('content.newsletter.unsubscribe.done')}</p>
       </main>
     );
   }
@@ -34,8 +38,8 @@ export default async function NewsletterUnsubscribePage({
   if (!token || valid === 'false') {
     return (
       <main className="mx-auto max-w-lg px-4 py-16 text-center">
-        <h1 className="text-2xl font-semibold">Newsletter</h1>
-        <p className="mt-4 text-muted-foreground">This unsubscribe link is invalid or has expired.</p>
+        <h1 className="text-2xl font-semibold">{t('content.newsletter.heading')}</h1>
+        <p className="mt-4 text-muted-foreground">{t('content.newsletter.unsubscribe.invalid')}</p>
       </main>
     );
   }
@@ -49,19 +53,17 @@ export default async function NewsletterUnsubscribePage({
 
   return (
     <main className="mx-auto max-w-lg px-4 py-16">
-      <h1 className="text-center text-2xl font-semibold">Unsubscribe</h1>
-      <p className="mt-4 text-center text-muted-foreground">
-        Confirm you want to stop receiving our newsletter. You may optionally tell us why.
-      </p>
+      <h1 className="text-center text-2xl font-semibold">{t('content.newsletter.unsubscribe.heading')}</h1>
+      <p className="mt-4 text-center text-muted-foreground">{t('content.newsletter.unsubscribe.intro')}</p>
       <form action={action} className="mt-6 flex flex-col gap-3">
         <textarea
           name="reason"
           rows={3}
-          placeholder="Reason (optional)"
+          placeholder={t('content.newsletter.unsubscribe.reasonPlaceholder')}
           className="rounded border px-3 py-2 text-sm"
         />
         <button type="submit" className="rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
-          Unsubscribe
+          {t('content.newsletter.unsubscribe.submit')}
         </button>
       </form>
     </main>
