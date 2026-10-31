@@ -5,6 +5,7 @@ import type {
   BlogIndexResponse,
   BlogPostCard,
   BlogTagByCodeResponse,
+  ProductSummary,
 } from '@endora-commerce/contracts';
 import { BlogIndexPage } from '../../app/blog/_components/BlogIndexPage';
 import { BlogCategoryPage } from '../../app/blog/_components/BlogCategoryPage';
@@ -121,13 +122,24 @@ describe('related strips', () => {
   it('head the related posts and products in the page language', () => {
     expect(renderToString(<RelatedPostsStrip posts={[POST]} locale="en-US" />)).toContain('>Related posts</h2>');
     expect(renderToString(<RelatedPostsStrip posts={[POST]} locale="pl-PL" />)).toContain('>Powiązane wpisy</h2>');
-    const product = { id: POST.id, slug: 'screw', name: 'Screw', mainImageUrl: null, price: null };
-    expect(renderToString(<RelatedProductsStrip products={[product]} locale="en-US" />)).toContain(
-      '>Related products</h2>',
-    );
-    expect(renderToString(<RelatedProductsStrip products={[product]} locale="pl-PL" />)).toContain(
-      '>Powiązane produkty</h2>',
-    );
+    const product: ProductSummary = {
+      id: POST.id,
+      sku: 'SCREW',
+      type: 'simple',
+      name: 'Screw',
+      slug: 'screw',
+      categorySlugs: [],
+      primaryAssetUrl: null,
+      price: null,
+      stockIndicator: null,
+      stockLevel: null,
+    };
+    expect(
+      renderToString(<RelatedProductsStrip products={[product]} locale="en-US" salesChannelCode={undefined} />),
+    ).toContain('>Related products</h2>');
+    expect(
+      renderToString(<RelatedProductsStrip products={[product]} locale="pl-PL" salesChannelCode={undefined} />),
+    ).toContain('>Powiązane produkty</h2>');
   });
 });
 

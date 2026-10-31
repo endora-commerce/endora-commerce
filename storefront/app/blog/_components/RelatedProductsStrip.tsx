@@ -1,56 +1,47 @@
 import type { ReactNode } from 'react';
-import type { BlogProductCard } from '@endora-commerce/contracts';
-import { LocalizedLink } from '../../../lib/i18n/localized-link';
+import type { ProductSummary } from '@endora-commerce/contracts';
+import { ProductCard } from '../../../components/ProductCard';
 import { tForLocale } from '../../../lib/i18n/messages';
 
+/**
+ * A blog post's related products — issue #590.
+ *
+ * Each one is the catalogue listing's card for this viewer
+ * (`getBlogRelatedProducts`), rendered by `ProductCard` from the summary's
+ * `resolvedPrice` exactly as the home page's cards are: the display mode decides
+ * net, gross or both, `none` is "price on request", and the amount is formatted
+ * for the page language as a unit price. The strip used to print the post
+ * payload's raw `{amount} {currency}`, a price resolved for nobody.
+ */
 export function RelatedProductsStrip({
   products,
   locale,
+  salesChannelCode,
 }: {
-  products: BlogProductCard[];
+  /** In the post's order; the products this viewer may see. */
+  products: ProductSummary[];
   /** The page language. */
   locale: string;
+  /** The active sales channel, handed to each card's browser-side calls. */
+  salesChannelCode: string | undefined;
 }): ReactNode {
   if (products.length === 0) return null;
   const t = tForLocale(locale);
   return (
     <section className="mt-12">
       <h2 className="mb-4 text-2xl font-semibold text-[--ink-700]">{t('product.links.related')}</h2>
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <ul className="m-0 grid list-none grid-cols-3 gap-[16px] p-0 max-[1100px]:grid-cols-2 max-[540px]:gap-[10px] max-[380px]:grid-cols-1">
         {products.map((product) => (
-          <LocalizedLink
-            key={product.id}
-            href={`/p/${product.slug}`}
-            className="group flex flex-col overflow-hidden rounded-lg border border-[--line] bg-[--surface] transition hover:shadow-lg"
-          >
-            {product.mainImageUrl ? (
-              <div className="relative aspect-square overflow-hidden bg-[--surface-alt]">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={product.mainImageUrl}
-                  alt=""
-                  className="h-full w-full object-cover transition group-hover:scale-105"
-                  loading="lazy"
-                />
-              </div>
-            ) : (
-              <div className="flex aspect-square items-center justify-center bg-[--surface-alt] text-[--ink-300]">
-                <span className="font-mono text-sm">{product.slug}</span>
-              </div>
-            )}
-            <div className="flex flex-1 flex-col gap-2 p-4">
-              <h3 className="text-base font-semibold leading-snug text-[--ink-700] group-hover:text-[--brand-700]">
-                {product.name}
-              </h3>
-              {product.price ? (
-                <span className="font-mono text-sm text-[--ink-700]">
-                  {product.price.amount} {product.price.currency}
-                </span>
-              ) : null}
-            </div>
-          </LocalizedLink>
+          <li key={product.id}>
+            <ProductCard
+              product={product}
+              locale={locale}
+              resolved={product.resolvedPrice ?? null}
+              salesChannelCode={salesChannelCode}
+            />
+          </li>
         ))}
-      </div>
+      </ul>
     </section>
   );
 }

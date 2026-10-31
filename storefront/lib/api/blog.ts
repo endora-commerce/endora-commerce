@@ -1,11 +1,15 @@
-import type {
-  BlogBySlugResponse,
-  BlogIndexResponse,
-  BlogPostCard,
-  BlogTagByCodeResponse,
+import {
+  PRODUCT_LIST_MAX_IDS,
+  type BlogBySlugResponse,
+  type BlogIndexResponse,
+  type BlogPostCard,
+  type BlogTagByCodeResponse,
+  type ProductSummary,
 } from '@endora-commerce/contracts';
+import { listProducts } from './catalog';
 import { apiGet, StorefrontApiError, type RequestContext } from './client';
 import { isModuleDisabled } from './module-absence';
+import type { ModulePresenceSet } from './module-presence';
 
 export type {
   BlogBySlugResponse,
@@ -107,5 +111,51 @@ export async function listBlogPosts(
   } catch (err) {
     if (isModuleDisabled(err)) return [];
     throw err;
+  }
+}
+
+/**
+ * A blog post's related products, as listing cards priced for the viewer —
+ * issue #590.
+ *
+ * The post payload names them by id only (`relatedProductIds`): it is cached
+ * per channel and language for every visitor, so it may carry nothing about
+ * one. This is the read that may: **one** catalogue listing read restricted to
+ * those ids (`?ids=`), through `listProducts` and so through `apiGetForViewer`,
+ * the shopper's currency and the request's channel and language. That makes
+ * each card exactly what a listing card is for this viewer — the products they
+ * may see, at the price the pricing engine resolves for their organisation and
+ * customer account, with the display mode that says net, gross or both — and a
+ * signed-in buyer's answer is fetched `no-store`, never into the shared Data
+ * Cache. Blog pages render per request (the root layout's `force-dynamic`), so
+ * the answer is not stored in a page either.
+ *
+ * The post's order is kept; a product the listing did not answer — unknown,
+ * deleted, out of the channel, hidden from this viewer — is left out. At most
+ * `PRODUCT_LIST_MAX_IDS`, the first ones of the post.
+ *
+ * An absence, never an error: nothing is asked while `catalog` is not present
+ * (Principle XVII — the presence the request resolved), a `MODULE_DISABLED`
+ * answer is the same absence, and any other failure costs the post its strip
+ * rather than the page, as a Page Builder product block does
+ * (`lib/page-builder/block-data.ts`).
+ */
+export async function getBlogRelatedProducts(
+  ids: readonly string[] | undefined,
+  ctx: RequestContext,
+  modules: Pick<ModulePresenceSet, 'isPresent'>,
+): Promise<ProductSummary[]> {
+  const named = [...new Set(ids ?? [])].slice(0, PRODUCT_LIST_MAX_IDS);
+  if (named.length === 0 || !modules.isPresent('catalog')) return [];
+  try {
+    const { data } = await listProducts({ ids: named, limit: named.length }, ctx);
+    const byId = new Map(data.map((product) => [product.id, product]));
+    return named.flatMap((id) => {
+      const product = byId.get(id);
+      return product ? [product] : [];
+    });
+  } catch {
+    // `MODULE_DISABLED` included: the strip is decorative, so every failure is its absence.
+    return [];
   }
 }

@@ -130,6 +130,30 @@ Powiązanie wpisu z produktem korzysta z **usunięcia miękkiego i filtrowania w
 produkt usunięty miękko jest niewidoczny przy następnym odczycie w storefroncie, a wiersz łączący
 pozostaje. Ogólny `ProductReferenceRegistry` może powstać w ramach kolejnej zmiany.
 
+### Powiązane produkty w storefroncie
+
+Dane wpisu zwracane przez `GET /api/v1/blog/by-slug` wskazują powiązane produkty **wyłącznie po
+identyfikatorach** — `relatedProductIds`, w kolejności zapisanej w edytorze — ponieważ są
+przechowywane w pamięci podręcznej dla kanału sprzedaży i języka, wspólnej dla wszystkich
+odwiedzających, więc nie mogą zawierać niczego, co dotyczy jednego z nich.
+
+Storefront odczytuje te produkty **jednym** zapytaniem o listę produktów katalogu, w imieniu
+odwiedzającego: `GET /api/v1/catalog/products?ids=…` (najwyżej 24, pierwsze z wpisu). Każda
+karta jest więc tą samą kartą produktu, którą temu odwiedzającemu pokazuje lista katalogu:
+
+- tylko produkty, które odwiedzający może zobaczyć w danym kanale — produkt usunięty,
+  nieopublikowany, spoza kanału albo z ograniczoną widocznością jest pomijany, a pozostałe
+  zachowują kolejność z wpisu;
+- cena, którą silnik cen wyznacza dla odwiedzającego — według kanału sprzedaży, wybranej waluty,
+  organizacji i konta klienta — pokazana jako netto, brutto albo obie, zgodnie z trybem
+  wyświetlania cen, albo *Cena na zapytanie*, gdy tryb wyświetlania to `none`, i sformatowana
+  w języku strony.
+
+Pasek nie jest wyświetlany, gdy wpis nie wskazuje żadnego produktu, który odwiedzający może
+zobaczyć, ani gdy katalog jest niedostępny. Starsze pole `relatedProducts` (`BlogProductCard`)
+jest przestarzałe: żadna konfiguracja go nie wypełniała i zostanie usunięte w jednym z kolejnych
+wydań minor.
+
 ## Ustawienia
 
 | Kod                  | Typ    | Wartość domyślna | Uwagi                                                |
@@ -259,7 +283,7 @@ wpisy.
 | [Kanały sprzedaży](../sales_channels/index.md) | Wyznaczanie kanału i język zastępczy                |
 | [Biblioteka mediów](../assets-library/index.md) | Podpisywanie adresów plików i rejestr odwołań           |
 | [CMS](../cms/index.md)                       | Strukturę treści Page Buildera (`cmsContentEnvelopeSchema`)         |
-| [Katalog](../catalog.md)                     | Karty produktów dla powiązanych produktów           |
+| [Katalog](../catalog.md)                     | Nic: storefront odczytuje powiązane produkty z publicznej listy (`?ids=`) w imieniu odwiedzającego |
 
 Moduł bloga nigdy nie importuje wnętrza innego modułu — każdy odczyt danych innego modułu przechodzi
 przez udokumentowany port usługi.

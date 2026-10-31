@@ -372,6 +372,19 @@ export const blogPostsListResponseSchema = z.object({
 });
 export type BlogPostsListResponse = z.infer<typeof blogPostsListResponseSchema>;
 
+/**
+ * @deprecated Since issue #590 — kept parseable for one minor release, then
+ * removed. Read {@link blogResolvedPostSchema}'s `relatedProductIds` instead and
+ * read the products from the catalogue listing (`GET /api/v1/catalog/products?ids=`),
+ * which answers them **for the viewer**.
+ *
+ * No composition this repository ships ever filled it: it was produced only by
+ * the optional `BlogStorefrontDeps.resolveProductCard`, which nothing passed, so
+ * `relatedProducts` was always empty. And it could not carry a correct price:
+ * the post payload is cached per (channel, language, slug) and shared by every
+ * visitor, so a price resolved for one buyer would be served to all of them,
+ * and the blog cache is not cleared when a price book changes.
+ */
 export const blogProductCardSchema = z.object({
   id: uuidSchema,
   slug: z.string(),
@@ -382,8 +395,13 @@ export const blogProductCardSchema = z.object({
       amount: z.string(),
       currency: z.string(),
     })
-    .nullable(),
+    .nullable()
+    .describe(
+      'Deprecated (issue #590). Not resolved for a buyer, not stated net or gross, never rendered by the storefront. ' +
+        'The viewer price of a related product comes from the catalogue listing (`?ids=`).',
+    ),
 });
+/** @deprecated Since issue #590 — see {@link blogProductCardSchema}. */
 export type BlogProductCard = z.infer<typeof blogProductCardSchema>;
 
 export const blogCategoryTileSchema = z.object({
@@ -447,7 +465,24 @@ export const blogResolvedPostSchema = z.object({
   content: blogContentEnvelopeSchema,
   tags: z.array(blogResolvedTagRefSchema),
   relatedPosts: z.array(blogPostCardSchema),
+  /** @deprecated Since issue #590 — always empty in a shipped composition; read `relatedProductIds`. */
   relatedProducts: z.array(blogProductCardSchema),
+  /**
+   * Issue #590 — the post's related products, by id, in the order the editor
+   * gave them. **Ids only, nothing about the viewer**, which is what makes the
+   * field safe in the post payload's shared cache.
+   *
+   * Price provenance: the payload carries no price. The storefront reads these
+   * products from the catalogue listing (`GET /api/v1/catalog/products?ids=`,
+   * at most `PRODUCT_LIST_MAX_IDS`) as the viewer, so each card's price is the
+   * one any listing card shows that viewer — resolved by the pricing engine for
+   * the request's sales channel, currency and buyer (organisation and customer
+   * account), net, with the display mode that says how to show it. A product
+   * the viewer may not see is not in that answer and is not shown.
+   *
+   * Optional so a payload cached before it existed still parses.
+   */
+  relatedProductIds: z.array(uuidSchema).optional(),
   categories: z.array(
     z.object({ id: uuidSchema, name: z.string(), slug: blogSlugSchema }),
   ),

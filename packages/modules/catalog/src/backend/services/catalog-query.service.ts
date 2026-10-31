@@ -272,6 +272,13 @@ export interface ListingCardReads {
 
 export interface ListProductsParams {
   q?: string | undefined;
+  /**
+   * Issue #590 — restrict the listing to these products (the contract's
+   * `productListIdsSchema`: validated, de-duplicated, at most
+   * `PRODUCT_LIST_MAX_IDS`). A narrowing like the others: availability, the
+   * text and attribute filters and the viewer's pricing all still apply.
+   */
+  ids?: readonly string[] | undefined;
   limit: number;
   cursor?: string | undefined;
   sort?: ProductListSort | undefined;
@@ -1291,6 +1298,16 @@ export class CatalogQueryService {
     const channel = ctx.resolvedChannel;
     const effective: EffectiveValueScope = this.#overrideContext(channel, ctx.preferredLanguage);
     const conditions: ListingCondition[] = [];
+    // Issue #590 — a read by id is one more condition of every statement a
+    // page is cut from, so the price orderings and the range walk honour it as
+    // the default order does; its page-side twin is in `passes` below.
+    const ids = params.ids && params.ids.length > 0 ? [...params.ids] : null;
+    if (ids) {
+      conditions.push({
+        sql: (alias) => `${alias}.id in (${ids.map(() => '?').join(',')})`,
+        params: ids,
+      });
+    }
     if (params.q) conditions.push(await this.#textSearchCondition(params.q, ctx, effective));
     const scopeOf = new Map(
       attributeViews.map((a) => [a.key, { channelScoped: a.channelScoped, languageScoped: a.languageScoped }]),
@@ -1304,8 +1321,10 @@ export class CatalogQueryService {
     }
     return {
       conditions,
-      passes: async (em, products) => {
+      passes: async (em, all) => {
         const out = new Set<string>();
+        const named = ids ? new Set(ids) : null;
+        const products = named ? all.filter((p) => named.has(p.id)) : all;
         if (attributeFilters.length === 0) {
           for (const p of products) out.add(p.id);
           return out;

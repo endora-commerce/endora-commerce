@@ -9,6 +9,7 @@ import {
   listingCurrencyQuerySchema,
   listingPriceChannelContext,
   productLinkKindSchema,
+  productListIdsSchema,
   productListSortSchema,
   resolveListingCurrency,
   validateBundleConfigurationRequestSchema,
@@ -183,7 +184,7 @@ export async function registerCatalogPublicRoutes(
 
   // GET /api/v1/catalog/products
   app.get('/api/v1/catalog/products', async (request, reply) => {
-    const { q, limit, cursor, sort, categorySlug, attributeFilters, changedSince, minPrice, maxPrice } =
+    const { q, ids, limit, cursor, sort, categorySlug, attributeFilters, changedSince, minPrice, maxPrice } =
       parseListQuery(request);
     const ctx = readContext(request);
     // The page's prices are resolved for this caller, so a page resolved for a
@@ -264,6 +265,8 @@ export async function registerCatalogPublicRoutes(
       searchQueryService !== undefined &&
       effectiveState.isPresent('search') &&
       changedSince === undefined &&
+      // Issue #590 — the index has no id filter; a read by id is Postgres's.
+      ids === undefined &&
       !wantsPrice;
     if (useMeili) {
       const outcome = await searchQueryService.listProducts(
@@ -291,7 +294,7 @@ export async function registerCatalogPublicRoutes(
     }
 
     const result = await queryService.listProducts(
-      { q, limit, cursor, sort, categorySlug, attributeFilters, changedSince, minPrice, maxPrice },
+      { q, ids, limit, cursor, sort, categorySlug, attributeFilters, changedSince, minPrice, maxPrice },
       ctx,
     );
     reply.header('x-search-backend', 'postgres');
@@ -457,6 +460,7 @@ export function readContext(request: FastifyRequest): {
  */
 function parseListQuery(request: FastifyRequest): {
   q?: string | undefined;
+  ids?: readonly string[] | undefined;
   limit: number;
   cursor?: string | undefined;
   sort?: ProductListSort | undefined;
@@ -469,6 +473,7 @@ function parseListQuery(request: FastifyRequest): {
   const raw = (request.query ?? {}) as Record<string, unknown>;
 
   const q = typeof raw['q'] === 'string' ? raw['q'] : undefined;
+  const ids = parseIds(raw['ids']);
   const limitRaw = typeof raw['limit'] === 'string' ? Number(raw['limit']) : undefined;
   const limit = Number.isFinite(limitRaw) && limitRaw! > 0 ? Math.min(200, limitRaw!) : 50;
   const cursor = typeof raw['cursor'] === 'string' ? raw['cursor'] : undefined;
@@ -509,6 +514,7 @@ function parseListQuery(request: FastifyRequest): {
 
   return {
     q,
+    ids,
     limit,
     cursor,
     sort,
@@ -518,4 +524,25 @@ function parseListQuery(request: FastifyRequest): {
     minPrice,
     maxPrice,
   };
+}
+
+/**
+ * Issue #590 — `?ids=`, the contract's `productListIdsSchema`. Refused rather
+ * than dropped, unlike the malformed parameters above: a caller naming products
+ * by id is a program, and answering fewer products than it named, silently,
+ * would hide its bug. A repeated parameter is refused too — the list is one
+ * comma-separated value.
+ */
+function parseIds(value: unknown): readonly string[] | undefined {
+  if (value === undefined) return undefined;
+  const parsed = productListIdsSchema.safeParse(value);
+  if (!parsed.success) {
+    throw new HttpError(
+      400,
+      ERROR_CODES.VALIDATION_FAILED,
+      parsed.error.issues.map((i) => `ids: ${i.message}`).join(' '),
+      parsed.error.issues.map((i) => ({ path: ['ids', ...i.path].join('.'), issue: i.message })),
+    );
+  }
+  return parsed.data;
 }

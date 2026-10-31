@@ -1476,9 +1476,47 @@ export function isPriceSort(sort: ProductListSort | undefined): sort is 'price' 
   return sort === 'price' || sort === '-price';
 }
 
+/**
+ * Issue #590 — the most products one `GET /api/v1/catalog/products?ids=` names.
+ * A hand-picked set (a blog post's related products) is a strip, not a
+ * catalogue: two dozen is twice the widest strip any surface renders, and it
+ * keeps the one batched price resolution behind the read small.
+ */
+export const PRODUCT_LIST_MAX_IDS = 24;
+
+/**
+ * Issue #590 — `?ids=` on the public listing: a comma-separated list of product
+ * ids, trimmed and de-duplicated (first occurrence wins), at least one and at
+ * most {@link PRODUCT_LIST_MAX_IDS}. A value that is not a uuid is refused
+ * (`400 VALIDATION_FAILED`) rather than dropped, because a caller naming
+ * products by id is a program, and silently answering fewer products than it
+ * asked for would hide its bug.
+ *
+ * The listing answers **the subset of those products this viewer may see** —
+ * channel membership, status, window and audience are the listing's own
+ * availability condition — each priced exactly as any listing card is: one
+ * batched resolution for the viewer (`resolveListingPriceDetails`). An id that
+ * is unknown, deleted, out of channel or hidden from the viewer is simply not
+ * in the answer. The order is the listing's, not the list's; a caller that
+ * cares about its own order re-orders by id.
+ */
+export const productListIdsSchema = z
+  .string()
+  .transform((raw) => [
+    ...new Set(
+      raw
+        .split(',')
+        .map((id) => id.trim())
+        .filter((id) => id.length > 0),
+    ),
+  ])
+  .pipe(z.array(uuidSchema).min(1).max(PRODUCT_LIST_MAX_IDS));
+
 export const productListQuerySchema = z
   .object({
     q: z.string().optional(),
+    /** Issue #590 — restrict the listing to these products ({@link productListIdsSchema}). */
+    ids: productListIdsSchema.optional(),
     limit: z.coerce.number().int().positive().max(200).default(50),
     cursor: z.string().optional(),
     sort: productListSortSchema.optional(),

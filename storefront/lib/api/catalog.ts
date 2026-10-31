@@ -71,6 +71,11 @@ export interface ListProductsResponse {
 
 export interface ListProductsQuery {
   q?: string | undefined;
+  /**
+   * Issue #590 — only these products (`?ids=`, at most `PRODUCT_LIST_MAX_IDS`).
+   * The answer is the subset the viewer may see, in the listing's order.
+   */
+  ids?: readonly string[] | undefined;
   cursor?: string | undefined;
   limit?: number | undefined;
   sort?: ProductListSort | undefined;
@@ -87,6 +92,7 @@ export async function listProducts(
 ): Promise<ListProductsResponse> {
   const params = new URLSearchParams();
   if (query.q) params.set('q', query.q);
+  if (query.ids && query.ids.length > 0) params.set('ids', query.ids.join(','));
   if (query.cursor) params.set('cursor', query.cursor);
   if (query.limit) params.set('limit', String(query.limit));
   if (query.sort) params.set('sort', query.sort);

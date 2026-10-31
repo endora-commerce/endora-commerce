@@ -28,8 +28,15 @@ export interface BlogStorefrontDeps {
   /**
    * Resolves a Catalog Product id to a card payload (or null when the
    * product is soft-deleted / out-of-channel — handled at the upstream
-   * port, not here). Optional: when omitted, related-products lists
-   * always render as empty (R6 storefront-filter contract).
+   * port, not here). Optional: when omitted, `relatedProducts` is empty.
+   *
+   * @deprecated Since issue #590 — no composition in this repository ever
+   * passed it, and the storefront no longer reads what it produces. The post
+   * payload names its related products in `relatedProductIds`, and the
+   * storefront reads them from the catalogue listing as the viewer. A card
+   * made here is cached for every visitor, so it must never carry a
+   * buyer-specific figure. Kept for one minor release so a deployment that
+   * passes it still compiles.
    */
   resolveProductCard?: (
     productId: string,
@@ -628,17 +635,23 @@ export class BlogStorefrontResolver {
       relatedPostRows.map((r) => this.toPostCard(em, r, language, channelDefault)),
     );
 
-    // Related products via the optional port.
-    const relatedProductIds = (await em.execute(
+    // Related products, by id and in the editor's order (issue #590). The
+    // storefront reads them from the catalogue listing as the viewer, which is
+    // where availability and the viewer's price are decided; this payload is
+    // cached for every visitor and so carries nothing about one.
+    const relatedProductRows = (await em.execute(
       `select product_id::text as id
          from blog_post_related_products
         where blog_post_id = ?
         order by position`,
       [post.id],
     )) as Array<{ id: string }>;
+    const relatedProductIds = relatedProductRows.map((r) => r.id);
+    // Deprecated (issue #590): filled only when a composition passes
+    // `resolveProductCard`, which none in this repository does.
     const relatedProducts: BlogProductCard[] = [];
     if (this.deps.resolveProductCard) {
-      for (const r of relatedProductIds) {
+      for (const r of relatedProductRows) {
         const card = await this.deps.resolveProductCard(r.id, channel.id, language);
         if (card) relatedProducts.push(card);
       }
@@ -686,6 +699,7 @@ export class BlogStorefrontResolver {
       tags,
       relatedPosts,
       relatedProducts,
+      relatedProductIds,
       categories,
       breadcrumb,
     };

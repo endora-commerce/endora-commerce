@@ -177,6 +177,12 @@ buyer pays is chosen.
   the position it continues from can be a product the viewer may not see. A cursor that does not
   open — altered, issued by a release before the seal, or before the instance's session key was
   changed — starts the listing again at its first page.
+- **Reading named products** — `?ids=<id>,<id>,…` on `GET /api/v1/catalog/products` restricts the
+  listing to those products: at most 24 distinct ids, each a uuid, or `400 VALIDATION_FAILED`. The
+  answer is the subset the viewer may see, priced exactly as any listing card for that viewer, in
+  the listing's own order — a caller that cares about its order re-orders by id. It combines with the
+  other filters and is always answered from PostgreSQL. A blog post's related products are read this
+  way.
 - **Where the viewer's price display mode is *None*** — for instance an anonymous visitor on a
   channel that hides prices until sign-in — the listing and the product detail carry no amount, and
   a price ordering or range is refused for that page. Sales channels have no price-visibility flag
