@@ -3,6 +3,7 @@ import type { FastifyRequest } from 'fastify';
 import type { Redis } from 'ioredis';
 import { z } from 'zod';
 import type {
+  AdminI18nTranslatePort,
   Actor,
   AddressReadPort,
   AddressServicePort,
@@ -581,6 +582,13 @@ export function registerModule(ctx: ModuleContext): void {
             purchaseConversion: orderPurchaseConversion,
             transitionEffects: orderTransitionEffectService,
             log: ctx.log,
+            translate: (key, language, params) =>
+              lazyPort<AdminI18nTranslatePort>(ctx, 'adminI18nService').translate(
+                'orders',
+                key,
+                language,
+                params,
+              ),
             // Ports, every one of them read lazily: this registration is a
             // singleton and a gate may not be frozen inside one.
             cartWritePort: lazyPort<CartWritePort>(ctx, 'cartWritePort'),

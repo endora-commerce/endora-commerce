@@ -180,6 +180,11 @@ export const manifest = defineModuleManifest({
   // `admin_roles` is where the one-time grant of the document-template
   // permissions writes (N3); it is non-deactivatable.
   dependencies: [
+    // `_i18n` owns `adminI18nService`, from which an invoice's PDF labels and
+    // non-product line names are taken in the invoice's language (issue #95).
+    // It declares `activation.nonDeactivatable`, so the edge costs no operator
+    // an activation control.
+    '_i18n',
     'admin_roles',
     'assets_library',
     'auth',

@@ -1,6 +1,7 @@
 import type { Content, TableCell } from 'pdfmake/interfaces.js';
 import { unitPriceFractionDigits, type InvoiceDetail } from '@endora-commerce/contracts';
 import { amountToWords, type AmountToWordsLocale } from '../services/amount-to-words.js';
+import { fillPlaceholders, INVOICES_PROSE_EN, type InvoicesProseKey } from '../invoices-prose.js';
 
 /**
  * Invoice PDF section builders (feature 047, US6). Each maps a slice of the
@@ -23,11 +24,26 @@ export function pct(rate: number): string {
   return `${Math.round(rate * 100)}%`;
 }
 
-export const TITLES: Record<InvoiceDetail['kind'], string> = {
-  invoice: 'Faktura',
-  proforma: 'Faktura proforma',
-  correction: 'Faktura korygująca',
-  wz: 'Dokument WZ',
+/**
+ * Every label the PDF draws that a template prop does not supply, keyed by its
+ * key in this module's bundle. The renderer resolves them in the document's
+ * `language` before drawing (`document/invoice-document-type.ts`); a section
+ * built without them draws English.
+ */
+export const INVOICE_PDF_LABEL_KEYS = (Object.keys(INVOICES_PROSE_EN) as InvoicesProseKey[]).filter(
+  (key): key is Extract<InvoicesProseKey, `pdf.${string}`> => key.startsWith('pdf.'),
+);
+export type InvoicePdfLabelKey = (typeof INVOICE_PDF_LABEL_KEYS)[number];
+export type InvoicePdfLabels = Readonly<Record<InvoicePdfLabelKey, string>>;
+export const INVOICE_PDF_LABELS_EN: InvoicePdfLabels = Object.fromEntries(
+  INVOICE_PDF_LABEL_KEYS.map((key) => [key, INVOICES_PROSE_EN[key]]),
+) as InvoicePdfLabels;
+
+const TITLE_KEYS: Record<InvoiceDetail['kind'], InvoicePdfLabelKey> = {
+  invoice: 'pdf.title.invoice',
+  proforma: 'pdf.title.proforma',
+  correction: 'pdf.title.correction',
+  wz: 'pdf.title.wz',
 };
 
 type Align = 'left' | 'center' | 'right';
@@ -88,6 +104,8 @@ export interface HeaderSectionOptions {
    * header's own row stands down (`specs/134-paid-module-extraction/` T137).
    */
   readonly suppressKsefNumber?: boolean;
+  /** The labels in the document's language. Absent, English. */
+  readonly labels?: InvoicePdfLabels;
 }
 
 export function headerSection(
@@ -95,6 +113,7 @@ export function headerSection(
   props: Props = {},
   options: HeaderSectionOptions = {},
 ): Content {
+  const labels = options.labels ?? INVOICE_PDF_LABELS_EN;
   const titleSize = num(props, 'titleSize', 14);
   const titleColor = optStr(props, 'titleColor');
   const titleBold = bool(props, 'titleBold', true);
@@ -102,7 +121,10 @@ export function headerSection(
   const rows: TableCell[][] = [
     [
       {
-        text: `${TITLES[inv.kind]} nr ${inv.number}`,
+        text: fillPlaceholders(labels['pdf.title.numbered'], {
+          title: labels[TITLE_KEYS[inv.kind]],
+          number: inv.number,
+        }),
         bold: titleBold,
         fontSize: titleSize,
         color: titleColor,
@@ -117,7 +139,7 @@ export function headerSection(
   if (inv.ksefReferenceNumber && !options.suppressKsefNumber) {
     rows.push([
       {
-        text: `${str(props, 'labelKsefNumber', 'Numer w KSeF')}: ${inv.ksefReferenceNumber}`,
+        text: `${str(props, 'labelKsefNumber', labels['pdf.label.ksefNumber'])}: ${inv.ksefReferenceNumber}`,
         alignment: align,
       },
     ]);
@@ -125,7 +147,7 @@ export function headerSection(
   if (bool(props, 'showIssuedAt', true)) {
     rows.push([
       {
-        text: `${str(props, 'labelIssuedAt', 'Data wystawienia')}: ${inv.issuedAt.slice(0, 10)}`,
+        text: `${str(props, 'labelIssuedAt', labels['pdf.label.issuedAt'])}: ${inv.issuedAt.slice(0, 10)}`,
         alignment: align,
       },
     ]);
@@ -133,7 +155,7 @@ export function headerSection(
   if (bool(props, 'showSaleDate', true)) {
     rows.push([
       {
-        text: `${str(props, 'labelSaleDate', 'Data sprzedaży')}: ${inv.saleDate ?? inv.issuedAt.slice(0, 10)}`,
+        text: `${str(props, 'labelSaleDate', labels['pdf.label.saleDate'])}: ${inv.saleDate ?? inv.issuedAt.slice(0, 10)}`,
         alignment: align,
       },
     ]);
@@ -141,7 +163,7 @@ export function headerSection(
   if (bool(props, 'showPaymentDue', true)) {
     rows.push([
       {
-        text: `${str(props, 'labelPaymentDue', 'Termin płatności')}: ${inv.paymentDueDate ?? '-'}`,
+        text: `${str(props, 'labelPaymentDue', labels['pdf.label.paymentDue'])}: ${inv.paymentDueDate ?? '-'}`,
         alignment: align,
       },
     ]);
@@ -149,7 +171,7 @@ export function headerSection(
   if (bool(props, 'showPaymentMethod', true)) {
     rows.push([
       {
-        text: `${str(props, 'labelPaymentMethod', 'Metoda płatności')}: ${inv.paymentMethod ?? '-'}`,
+        text: `${str(props, 'labelPaymentMethod', labels['pdf.label.paymentMethod'])}: ${inv.paymentMethod ?? '-'}`,
         alignment: align,
       },
     ]);
@@ -161,7 +183,11 @@ export function headerSection(
   };
 }
 
-export function partiesSection(inv: InvoiceDetail, props: Props = {}): Content {
+export function partiesSection(
+  inv: InvoiceDetail,
+  props: Props = {},
+  labels: InvoicePdfLabels = INVOICE_PDF_LABELS_EN,
+): Content {
   const seller = inv.seller;
   const buyer = inv.buyer;
   const labelFs = num(props, 'labelFontSize', 10);
@@ -169,13 +195,13 @@ export function partiesSection(inv: InvoiceDetail, props: Props = {}): Content {
   const sellerPct = Math.min(70, Math.max(30, num(props, 'sellerWidthPercent', 50)));
   const gap = num(props, 'columnGap', 16);
   const sellerStack: Content[] = [
-    { text: str(props, 'sellerLabel', 'Sprzedawca'), bold: true, fontSize: labelFs, margin: [0, 0, 0, 2] },
+    { text: str(props, 'sellerLabel', labels['pdf.label.seller']), bold: true, fontSize: labelFs, margin: [0, 0, 0, 2] },
     { text: seller.legalName, fontSize: bodyFs },
     { text: seller.addressLine1, fontSize: bodyFs },
   ];
   if (seller.addressLine2) sellerStack.push({ text: seller.addressLine2, fontSize: bodyFs });
   sellerStack.push({ text: `${seller.postalCode} ${seller.city}`, fontSize: bodyFs });
-  sellerStack.push({ text: `NIP: ${seller.taxId}`, fontSize: bodyFs });
+  sellerStack.push({ text: `${labels['pdf.label.taxId']}: ${seller.taxId}`, fontSize: bodyFs });
   if (bool(props, 'showSellerBank', true) && seller.bankAccount) {
     sellerStack.push({ text: `${seller.bankName ?? ''} ${seller.bankAccount}`.trim(), fontSize: bodyFs });
   }
@@ -184,7 +210,7 @@ export function partiesSection(inv: InvoiceDetail, props: Props = {}): Content {
   }
 
   const buyerStack: Content[] = [
-    { text: str(props, 'buyerLabel', 'Nabywca'), bold: true, fontSize: labelFs, margin: [0, 0, 0, 2] },
+    { text: str(props, 'buyerLabel', labels['pdf.label.buyer']), bold: true, fontSize: labelFs, margin: [0, 0, 0, 2] },
     { text: buyer.name, fontSize: bodyFs },
   ];
   if (buyer.addressLine1) buyerStack.push({ text: buyer.addressLine1, fontSize: bodyFs });
@@ -192,7 +218,7 @@ export function partiesSection(inv: InvoiceDetail, props: Props = {}): Content {
     buyerStack.push({ text: `${buyer.postalCode} ${buyer.city}`.trim(), fontSize: bodyFs });
   }
   if (bool(props, 'showBuyerTaxId', true) && buyer.taxId) {
-    buyerStack.push({ text: `NIP: ${buyer.taxId}`, fontSize: bodyFs });
+    buyerStack.push({ text: `${labels['pdf.label.taxId']}: ${buyer.taxId}`, fontSize: bodyFs });
   }
 
   return {
@@ -205,7 +231,11 @@ export function partiesSection(inv: InvoiceDetail, props: Props = {}): Content {
   };
 }
 
-export function lineItemsSection(inv: InvoiceDetail, props: Props = {}): Content {
+export function lineItemsSection(
+  inv: InvoiceDetail,
+  props: Props = {},
+  labels: InvoicePdfLabels = INVOICE_PDF_LABELS_EN,
+): Content {
   const fontSize = num(props, 'fontSize', 8);
   const headerBold = bool(props, 'headerBold', true);
   const headerBg = optStr(props, 'headerBackground');
@@ -221,15 +251,15 @@ export function lineItemsSection(inv: InvoiceDetail, props: Props = {}): Content
 
   type Col = { key: string; label: string; width: number | '*'; right?: boolean };
   const cols: Col[] = [
-    { key: 'lp', label: 'Lp', width: 16 },
-    { key: 'name', label: 'Nazwa', width: '*' },
+    { key: 'lp', label: labels['pdf.column.ordinal'], width: 16 },
+    { key: 'name', label: labels['pdf.column.name'], width: '*' },
   ];
-  if (showUnit) cols.push({ key: 'unit', label: 'Jedn.', width: 28 });
-  if (showQty) cols.push({ key: 'qty', label: 'Ilość', width: 32, right: true });
-  if (showUnitNet) cols.push({ key: 'unitNet', label: 'Cena netto', width: 50, right: true });
-  if (showTaxRate) cols.push({ key: 'tax', label: 'Stawka', width: 32, right: true });
-  if (showNet) cols.push({ key: 'net', label: 'Wartość netto', width: 56, right: true });
-  if (showGross) cols.push({ key: 'gross', label: 'Wartość brutto', width: 56, right: true });
+  if (showUnit) cols.push({ key: 'unit', label: labels['pdf.column.unit'], width: 28 });
+  if (showQty) cols.push({ key: 'qty', label: labels['pdf.column.quantity'], width: 32, right: true });
+  if (showUnitNet) cols.push({ key: 'unitNet', label: labels['pdf.column.unitNet'], width: 50, right: true });
+  if (showTaxRate) cols.push({ key: 'tax', label: labels['pdf.column.taxRate'], width: 32, right: true });
+  if (showNet) cols.push({ key: 'net', label: labels['pdf.column.net'], width: 56, right: true });
+  if (showGross) cols.push({ key: 'gross', label: labels['pdf.column.gross'], width: 56, right: true });
 
   const headerRow: TableCell[] = cols.map((c) => ({
     text: c.label,
@@ -299,16 +329,25 @@ export function lineItemsSection(inv: InvoiceDetail, props: Props = {}): Content
   };
 }
 
-export function vatSummarySection(inv: InvoiceDetail, props: Props = {}): Content {
+export function vatSummarySection(
+  inv: InvoiceDetail,
+  props: Props = {},
+  labels: InvoicePdfLabels = INVOICE_PDF_LABELS_EN,
+): Content {
   const fontSize = num(props, 'fontSize', 8);
   const headerBold = bool(props, 'headerBold', true);
   const headerBg = optStr(props, 'headerBackground');
   const headerColor = optStr(props, 'headerColor');
   const borderColor = optStr(props, 'borderColor') ?? '#cbd5e1';
   const showTotalRow = bool(props, 'showTotalRow', true);
-  const totalLabel = str(props, 'totalLabel', 'Razem');
+  const totalLabel = str(props, 'totalLabel', labels['pdf.label.total']);
 
-  const header: TableCell[] = ['Stawka VAT', 'Wartość netto', 'Kwota VAT', 'Wartość brutto'].map(
+  const header: TableCell[] = [
+    labels['pdf.vat.rate'],
+    labels['pdf.column.net'],
+    labels['pdf.vat.amount'],
+    labels['pdf.column.gross'],
+  ].map(
     (t, i) => ({
       text: t,
       bold: headerBold,
@@ -348,18 +387,15 @@ export function vatSummarySection(inv: InvoiceDetail, props: Props = {}): Conten
 }
 
 /**
- * The overpayment row's default label, in the language the amounts are written
- * in (issue #428). A template's `labelOverpayment` replaces it.
+ * `locale` is the language the amount in words is written in; `labels` the
+ * language of the labels, the document's. The overpayment row (issue #428) is
+ * labelled from `labels` unless a template's `labelOverpayment` replaces it.
  */
-const OVERPAYMENT_LABEL: Record<AmountToWordsLocale, string> = {
-  en: 'Overpayment',
-  pl: 'Nadpłata',
-};
-
 export function totalsSection(
   inv: InvoiceDetail,
   locale: AmountToWordsLocale,
   props: Props = {},
+  labels: InvoicePdfLabels = INVOICE_PDF_LABELS_EN,
 ): Content {
   const align = alignOf(props, 'right');
   const fontSize = num(props, 'fontSize', 10);
@@ -368,7 +404,7 @@ export function totalsSection(
   const stack: Content[] = [];
   if (bool(props, 'showPaid', true)) {
     stack.push({
-      text: `${str(props, 'labelPaid', 'Zapłacono')}: ${money(inv.paidTotal)} ${inv.currency}`,
+      text: `${str(props, 'labelPaid', labels['pdf.label.paid'])}: ${money(inv.paidTotal)} ${inv.currency}`,
       alignment: align,
       fontSize,
       color,
@@ -376,7 +412,7 @@ export function totalsSection(
   }
   if (bool(props, 'showAmountDue', true)) {
     stack.push({
-      text: `${str(props, 'labelAmountDue', 'Do zapłaty')}: ${money(inv.amountDue)} ${inv.currency}`,
+      text: `${str(props, 'labelAmountDue', labels['pdf.label.amountDue'])}: ${money(inv.amountDue)} ${inv.currency}`,
       alignment: align,
       bold: bool(props, 'amountDueBold', true),
       fontSize,
@@ -386,7 +422,7 @@ export function totalsSection(
   // Issue #428 — what was paid above the gross, beside an amount due of 0.
   if (bool(props, 'showOverpayment', true) && inv.overpayment > 0) {
     stack.push({
-      text: `${str(props, 'labelOverpayment', OVERPAYMENT_LABEL[locale])}: ${money(inv.overpayment)} ${inv.currency}`,
+      text: `${str(props, 'labelOverpayment', labels['pdf.label.overpayment'])}: ${money(inv.overpayment)} ${inv.currency}`,
       alignment: align,
       fontSize,
       color,
@@ -394,7 +430,7 @@ export function totalsSection(
   }
   if (bool(props, 'showGross', true)) {
     stack.push({
-      text: `${str(props, 'labelGross', 'Razem')}: ${money(inv.grossTotal)} ${inv.currency}`,
+      text: `${str(props, 'labelGross', labels['pdf.label.total'])}: ${money(inv.grossTotal)} ${inv.currency}`,
       alignment: align,
       fontSize,
       color,
@@ -402,7 +438,7 @@ export function totalsSection(
   }
   if (bool(props, 'showAmountInWords', true)) {
     stack.push({
-      text: `${str(props, 'labelInWords', 'Słownie')}: ${amountToWords(inv.grossTotal, inv.currency, locale)}`,
+      text: `${str(props, 'labelInWords', labels['pdf.label.inWords'])}: ${amountToWords(inv.grossTotal, inv.currency, locale)}`,
       alignment: align,
       italics: bool(props, 'amountInWordsItalics', true),
       fontSize,
@@ -446,11 +482,13 @@ export function notesSection(props: Props, inv: InvoiceDetail): Content {
   return textBlock(raw, inv, props, { fontSize: 11, showTopDivider: false, marginBottom: 8 });
 }
 
-export function footerSection(props: Props, inv: InvoiceDetail): Content {
+export function footerSection(
+  props: Props,
+  inv: InvoiceDetail,
+  labels: InvoicePdfLabels = INVOICE_PDF_LABELS_EN,
+): Content {
   const raw =
-    typeof props['text'] === 'string'
-      ? (props['text'] as string)
-      : 'Dziękujemy za współpracę.\n{{var seller.legalName}} · NIP {{var seller.taxId}}';
+    typeof props['text'] === 'string' ? (props['text'] as string) : labels['pdf.footer.default'];
   return textBlock(raw, inv, props, { fontSize: 9, showTopDivider: true, marginBottom: 8 });
 }
 

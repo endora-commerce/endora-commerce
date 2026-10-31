@@ -302,7 +302,14 @@ describe('planDev — the layers it starts are the ones this tree has', () => {
 // FR-060 — the supervisor, over real processes
 // ---------------------------------------------------------------------------
 
-describe('superviseDev — one foreground, one stop, and the failing layer named', () => {
+// These spawn real processes and wait on them through `eventually()`, whose own
+// budget is 10 s per call — so the test's must be wider than vitest's default
+// 10 s, or a slow runner times the test out before the assertion can say what
+// did not hold (issue #579).
+describe(
+  'superviseDev — one foreground, one stop, and the failing layer named',
+  { timeout: 30_000 },
+  () => {
   it('a failure in one stops the others, names which, and exits with its code', async () => {
     const dir = temp('dev-run-');
     const pids = join(dir, 'pids');
@@ -436,7 +443,8 @@ describe('superviseDev — one foreground, one stop, and the failing layer named
     expect(lines).toContain('[api] listening');
     expect(lines).toContain('[api] warned');
   });
-});
+  },
+);
 
 // ---------------------------------------------------------------------------
 // The argv layer — `endora dev`

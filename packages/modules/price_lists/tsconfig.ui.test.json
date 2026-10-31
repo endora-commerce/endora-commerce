@@ -1,0 +1,31 @@
+{
+  // Type-check configuration for this package's **UI-layer tests**, and the
+  // reason it is a third program rather than a line in `tsconfig.ui.json`
+  // (issue #566).
+  //
+  // The tests run in Node under `vitest`, and some of them say so — they read
+  // files or set `TZ`. The screens they test run in a browser, and
+  // `tsconfig.ui.json` declares `types: []` so a screen that reaches for
+  // `process` does not compile. A `/// <reference types="node" />` written in
+  // one test would apply to that **whole** program and switch the refusal off
+  // for every screen. So the tests are type-checked here, with the Node types,
+  // and `tsconfig.ui.json` reads none of them.
+  //
+  // Every other compiler option — `jsx`, the `DOM` lib, `paths` — is
+  // `tsconfig.ui.json`'s and is inherited, never restated. The generated
+  // `typecheck` script builds this program because the file exists
+  // (`backend/scripts/lib/module-package-manifest.ts`, `UI_TEST_TSCONFIG`);
+  // nothing emits it.
+  "extends": "./tsconfig.ui.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": [
+    "src/admin/**/*.test.ts",
+    "src/admin/**/*.test.tsx",
+    "src/admin/**/*.spec.ts",
+    "src/admin/**/*.spec.tsx"
+  ],
+  "exclude": []
+}

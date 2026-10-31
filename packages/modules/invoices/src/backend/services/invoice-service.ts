@@ -7,10 +7,12 @@ import {
   lineAmountHalfUp,
   moneyDifference,
   roundHalfUp,
+  supportedLanguageOf,
   type InvoiceDetail,
   type InvoiceKind,
   type OrderReadPort,
   type OrderReturnRefund,
+  type SupportedLanguage,
 } from '@endora-commerce/contracts';
 import { Invoice } from '../entities/invoice.entity.js';
 import { InvoiceLine } from '../entities/invoice-line.entity.js';
@@ -21,6 +23,8 @@ import type { InvoiceNumberGenerator } from './invoice-number-generator.js';
 import type { SellerSettingsResolver } from './seller-settings.js';
 import { buildInvoiceLines, readModelVatSummary, type RawOrderLine } from './invoice-line-builder.js';
 import { invoicePaidPosition } from './invoice-paid.js';
+import { invoicesProseTable, type InvoicesTranslate } from '../invoices-prose.js';
+import { INVOICE_RENDER_LANGUAGE } from '../document/invoice-document-type.js';
 import {
   shouldHoldForVendorNumber,
   type LedgerNumberingLookup,
@@ -75,6 +79,16 @@ export interface InvoiceDomainEventEmitter {
   emit(eventName: string, payload: { eventId: string; occurredAt: string } & Record<string, unknown>): void;
 }
 
+/** The names of the lines an invoice itemises beside the products, in this module's bundle. */
+const INVOICE_LINE_NAME_KEYS = [
+  'lines.item',
+  'lines.unit.piece',
+  'lines.unit.service',
+  'lines.delivery',
+  'lines.paymentSurcharge',
+  'lines.discount',
+] as const;
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
@@ -105,6 +119,17 @@ export class InvoiceService {
     private readonly ledgerRouting?: LedgerNumberingLookup,
     private readonly capturedPayments?: CapturedPaymentsLookup,
     private readonly returnRefunds?: ReturnRefundsLookup,
+    /**
+     * The language the lines an invoice itemises beside the products are named
+     * in, and this module's bundle to name them from (issue #95). The name is
+     * stored with the line — an issued invoice does not change — so it is
+     * written in the invoice's language, `INVOICE_RENDER_LANGUAGE` (owner answer
+     * N5), at issue. Without a translator, English.
+     */
+    private readonly lineProse: {
+      readonly translate?: InvoicesTranslate | undefined;
+      readonly language?: SupportedLanguage;
+    } = {},
   ) {}
 
   /** Issue an invoice/proforma for an order. Idempotent per (order, kind). */
@@ -131,9 +156,14 @@ export class InvoiceService {
     // It is **not** the order line's `lineTotal`: placement stores that gross
     // (`unitPrice × quantity × (1 + taxRate)`), and reading it as the net taxed
     // every VAT-payer line twice — the invoice's net was the order's gross.
+    const names = await invoicesProseTable(
+      this.lineProse.translate,
+      INVOICE_LINE_NAME_KEYS,
+      this.lineProse.language ?? supportedLanguageOf(INVOICE_RENDER_LANGUAGE),
+    );
     const raw: RawOrderLine[] = items.map((it) => ({
-      name: it.productSnapshot?.name ?? 'Pozycja',
-      unit: it.packagingUnitSnapshot?.name ?? 'szt.',
+      name: it.productSnapshot?.name ?? names['lines.item'],
+      unit: it.packagingUnitSnapshot?.name ?? names['lines.unit.piece'],
       quantity: it.quantity,
       unitNetPrice: it.unitPrice,
       taxRate: it.taxRate,
@@ -148,13 +178,20 @@ export class InvoiceService {
     // The amounts are read as the decimals they are stored as (issue #417).
     const deliveryTotal = roundHalfUp(order.deliveryTotal ?? 0);
     if (Number(deliveryTotal) > 0) {
-      raw.push({ name: 'Dostawa', unit: 'usł.', quantity: 1, unitNetPrice: deliveryTotal, taxRate: 0, netValue: deliveryTotal });
+      raw.push({
+        name: names['lines.delivery'],
+        unit: names['lines.unit.service'],
+        quantity: 1,
+        unitNetPrice: deliveryTotal,
+        taxRate: 0,
+        netValue: deliveryTotal,
+      });
     }
     const surcharge = roundHalfUp(order.paymentMethodSnapshot?.additionalPrice ?? 0);
     if (Number(surcharge) > 0) {
       raw.push({
-        name: 'Dopłata za metodę płatności',
-        unit: 'usł.',
+        name: names['lines.paymentSurcharge'],
+        unit: names['lines.unit.service'],
         quantity: 1,
         unitNetPrice: surcharge,
         taxRate: 0,
@@ -164,7 +201,14 @@ export class InvoiceService {
     const discountTotal = roundHalfUp(order.discountTotal ?? 0);
     if (Number(discountTotal) > 0) {
       const negative = `-${discountTotal}`;
-      raw.push({ name: 'Rabat', unit: 'usł.', quantity: 1, unitNetPrice: negative, taxRate: 0, netValue: negative });
+      raw.push({
+        name: names['lines.discount'],
+        unit: names['lines.unit.service'],
+        quantity: 1,
+        unitNetPrice: negative,
+        taxRate: 0,
+        netValue: negative,
+      });
     }
     const built = buildInvoiceLines(raw);
 

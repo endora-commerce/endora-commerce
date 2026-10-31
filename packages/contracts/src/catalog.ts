@@ -960,11 +960,23 @@ export type BulkOperationStatus = z.infer<typeof bulkOperationStatusSchema>;
 /**
  * One timestamped lifecycle event in a bulk operation's log trail, surfaced
  * in the bulk-operations detail view next to the per-element results.
+ *
+ * The trail is stored and read later by administrators in languages of their
+ * own, so an entry carries `messageKey` — a key in `catalog`'s bundle and the
+ * params that fill it — for its reader to translate, and `message`, the
+ * finished English sentence, for a reader that cannot resolve the key. Entries
+ * written before `messageKey` existed carry only `message`.
  */
 export const bulkOperationLogEntrySchema = z.object({
   ts: z.string(),
   level: z.enum(['info', 'warn', 'error']),
   message: z.string(),
+  messageKey: z
+    .object({
+      key: z.string().min(1),
+      params: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
+    })
+    .optional(),
 });
 export type BulkOperationLogEntry = z.infer<typeof bulkOperationLogEntrySchema>;
 

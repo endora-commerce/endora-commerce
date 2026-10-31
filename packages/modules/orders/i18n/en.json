@@ -117,5 +117,15 @@
   "orderDetail.comments.carryReason.target_missing": "the order has no field with this key",
   "orderDetail.comments.carryReason.value_type_mismatch": "the order's field has a different value type",
   "orderDetail.comments.carryReason.audience_mismatch": "the order's field is visible to customers, but the source field is internal",
-  "orderDetail.comments.carryReason.value_invalid": "the value is not valid for the order's field"
+  "orderDetail.comments.carryReason.value_invalid": "the value is not valid for the order's field",
+  "email.orderConfirmation.subject": "Order confirmation {businessId}",
+  "email.orderConfirmation.thanks": "Thank you for your order.",
+  "email.orderConfirmation.order": "Order: {businessId}",
+  "email.orderConfirmation.products": "Products:",
+  "email.orderConfirmation.deliveryMethod": "Delivery method: {line}",
+  "email.orderConfirmation.paymentMethod": "Payment method: {line}",
+  "email.orderConfirmation.discounts": "Applied discounts:",
+  "email.orderConfirmation.summary": "Summary:",
+  "email.orderConfirmation.shippingAddress": "Shipping address:",
+  "email.orderConfirmation.billingAddress": "Billing address:"
 }

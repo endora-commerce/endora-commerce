@@ -359,6 +359,38 @@ export interface PortCatchInput {
    * a port and also resolves it keeps its own answer.
    */
   readonly peerOwners?: ReadonlyMap<string, string> | undefined;
+  /**
+   * Aliases a host **declares** because the analysis provably cannot derive
+   * them, keyed `<path under src/>:<local name>` — see {@link PortCatchPin}.
+   * Omitted means none.
+   */
+  readonly pins?: Readonly<Record<string, PortCatchPin>> | undefined;
+}
+
+/**
+ * A declared alias: in one file, a local name holds a value that reaches these
+ * gated ports, through a shape the value analysis does not follow (issue #100's
+ * ruling; the D18 "holder built from a deps bag" blind spot, issue #576).
+ *
+ * It exists so that a `catch` a real port reach guards stays in the judged
+ * population when the only thing that used to keep it there was a spelling
+ * collision. It is **two-way**, in the idiom of the ledger: a pin reads stale —
+ * and fails the check — when its file is not read, when it names a gate no
+ * module provides, when no site in its file reaches the port through the name
+ * (the code moved or the name changed), and when the analysis already follows
+ * the name without it (the blind spot was lifted, so the pin is debt).
+ */
+export interface PortCatchPin {
+  /** The gated port names the value reaches — what the `catch` could swallow. */
+  readonly gates: readonly string[];
+  /** Why the analysis cannot see it, and what retires the pin. */
+  readonly reason: string;
+}
+
+/** `<file>:<name>` — split on the last colon, a path holding none of its own. */
+function pinParts(key: string): { readonly file: string; readonly name: string } {
+  const at = key.lastIndexOf(':');
+  return { file: key.slice(0, at), name: key.slice(at + 1) };
 }
 
 interface Analysis {
@@ -382,18 +414,52 @@ interface Analysis {
    */
   gatesAt(name: string, moduleId: string, file: string): ReadonlySet<string>;
   /**
-   * Does `name`, read inside `moduleId`, stand for a gated port?
+   * The gates a {@link Reach} carries where it is read: a bare name's from the
+   * binding table alone, a property name's from what {@link readsPropertyAsPort}
+   * consults (issue #100).
+   */
+  gatesOfReach(reach: Reach, moduleId: string, file: string): ReadonlySet<string>;
+  /**
+   * Does the **bare identifier** `name`, read inside `moduleId`, stand for a
+   * gated port?
    *
-   * `at` is the **bare identifier** the name was read as, when there is one.
-   * Supplying it resolves the name lexically first: a nearer binding the alias
-   * table did not introduce shadows the wider alias (issue #278). Omit it for a
-   * property name (`x.promotion`), which no lexical binding can shadow, and
-   * inside {@link gatesIn}, which is documented to over-collect.
+   * `at` is the identifier node, when there is one. Supplying it resolves the
+   * name lexically first: a nearer binding the alias table did not introduce
+   * shadows the wider alias (issue #278). Omit it only inside {@link gatesIn},
+   * which is documented to over-collect.
+   *
+   * A property name is **never** answered here (issue #100): `{ value: port }`
+   * does not bind `value`, so it must not make a bare `value` read as the port.
+   * Ask {@link readsPropertyAsPort} for `x.value`.
    */
   readsAsPort(name: string, moduleId: string, file: string, at?: ts.Node): boolean;
+  /**
+   * Does the property name in `x.<name>` stand for a gated port, read inside
+   * `moduleId`? Three things answer, and a local `const` is not one of them: a
+   * container name (`cradle().promotionService`), a parameter the port was
+   * passed as, read back in its own file (`this.transitionService`), and a
+   * deps-object key of the module (`this.deps.promotion`). No lexical binding
+   * can shadow a property name.
+   */
+  readsPropertyAsPort(name: string, moduleId: string, file: string): boolean;
   /** The parsed sources, so the caller need not re-parse and node identity holds. */
   readonly parsed: ReadonlyMap<string, ts.SourceFile>;
+  /** Pin key → why it is stale, for the pins that were refused before seeding. */
+  readonly pinProblems: ReadonlyMap<string, string>;
 }
+
+/**
+ * What a site or a method body reached, and **how** it was read (issue #100):
+ * `name` for a bare identifier, `.name` for a property name. The two resolve
+ * against different tables, so the spelling alone is not enough to say which
+ * gates the reach carries. A string rather than a record so that a `Set` still
+ * de-duplicates it.
+ */
+type Reach = string;
+
+const bareReach = (name: string): Reach => name;
+const propertyReach = (name: string): Reach => `.${name}`;
+const reachName = (reach: Reach): string => (reach.startsWith('.') ? reach.slice(1) : reach);
 
 /**
  * The awilix resolver-builder chain. `ctx.asFunction(f).singleton()` is the
@@ -444,6 +510,7 @@ function analyze(
   sources: ReadonlyMap<string, string>,
   hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
   peerOwners: ReadonlyMap<string, string> = new Map(),
+  pins: Readonly<Record<string, PortCatchPin>> = {},
 ): Analysis {
   const parsed = new Map<string, ts.SourceFile>();
   for (const [file, text] of sources) {
@@ -532,6 +599,63 @@ function analyze(
   // where the identical identifier is normally the module's own instance.
   for (const name of portOwners.keys()) addAlias(name, EVERYWHERE, undefined, new Set([name]));
 
+  /**
+   * Property name → module scope → the gated port names a key of that spelling
+   * carries there (issue #100).
+   *
+   * `{ promotion: lazyPort(ctx, 'promotionService') }` used to go into the alias
+   * table above, which made **every bare identifier** `promotion` in the module
+   * read as the port — an unrelated `const promotion = makeEngine()` included. A
+   * property name is not a binding, so it lives here, and only an expression that
+   * reads a property reaches it: `x.promotion`, `x.sender()` when the key holds a
+   * carrying closure, `const { promotion } = x`.
+   */
+  const propertyGates = new Map<string, Map<string, Set<string>>>();
+  /**
+   * The keys whose value is a **closure** that reaches a gate, by module scope:
+   * `{ sender: () => cradle().transactionalEmailSenderAccessor() }`. Calling one
+   * runs the closure, so `deps.sender()` hands the port on — unlike a call on a
+   * port, whose result is data.
+   */
+  const accessorProperties = new Map<string, Set<string>>();
+  /** Parameter aliases (name → the files declaring them) — see {@link bindingReadAsProperty}. */
+  const parameterAliases = new Map<string, Set<string>>();
+  const addProperty = (
+    name: string,
+    scope: string,
+    where: string,
+    gates: ReadonlySet<string>,
+    accessor: boolean,
+  ): void => {
+    const byScope = propertyGates.get(name) ?? new Map<string, Set<string>>();
+    propertyGates.set(name, byScope);
+    let carried = byScope.get(scope);
+    if (carried === undefined) {
+      carried = new Set<string>();
+      byScope.set(scope, carried);
+      grew = true;
+      if (process.env.PORT_CATCH_WHY) console.error(`PROP  ${name} @${scope} <- ${where}`);
+    }
+    for (const gate of gates) {
+      if (carried.has(gate)) continue;
+      carried.add(gate);
+      grew = true;
+      if (process.env.PORT_CATCH_WHY) console.error(`PGATE ${name} <- ${gate} @${where}`);
+    }
+    if (!accessor) return;
+    const scopes = accessorProperties.get(name) ?? new Set<string>();
+    accessorProperties.set(name, scopes);
+    if (!scopes.has(scope)) {
+      scopes.add(scope);
+      grew = true;
+    }
+  };
+  /** A property key is visible in the module that wrote it — a root's, in the root. */
+  const propertyVisible = (name: string, moduleId: string): boolean =>
+    propertyGates.get(name)?.has(moduleId) === true;
+  const isAccessorProperty = (name: string, moduleId: string): boolean =>
+    accessorProperties.get(name)?.has(moduleId) === true;
+
   const readsAsPort = (name: string, moduleId: string, file: string, at?: ts.Node): boolean => {
     const scopes = aliases.get(name);
     if (scopes === undefined) return false;
@@ -553,6 +677,49 @@ function analyze(
       if (visible) for (const gate of gates) found.add(gate);
     }
     return found;
+  };
+
+  /**
+   * Which binding-table aliases a **property** read may answer to. Two kinds, and
+   * a local `const` is neither (issue #100, the mirror of the defect): a binding
+   * is no more a property than a property is a binding, so `const status = …`
+   * must not make every `row.status` in the file read as the port.
+   *
+   *   - a **container name** (`EVERYWHERE`) — `cradle().promotionService`,
+   *     `cradle().shipmentEmailSender` — which is a property of the cradle;
+   *   - a **parameter** the port was passed as, in the file declaring it —
+   *     `constructor(private readonly transitionService: Promo)` is read back as
+   *     `this.transitionService`.
+   */
+  const bindingReadAsProperty = (name: string, moduleId: string, file: string): boolean => {
+    const scopes = aliases.get(name);
+    if (scopes === undefined) return false;
+    if (parameterAliases.get(name)?.has(file) === true) return true;
+    return scopes.has(EVERYWHERE) && portOwners.get(name) !== moduleId;
+  };
+
+  const readsPropertyAsPort = (name: string, moduleId: string, file: string): boolean =>
+    bindingReadAsProperty(name, moduleId, file) || propertyVisible(name, moduleId);
+
+  /** The gates property `name` carries as read inside `moduleId`: both kinds above, and its keys. */
+  const propertyGatesAt = (name: string, moduleId: string, file: string): Set<string> => {
+    const found = new Set<string>();
+    const byScope = gatesOf.get(name);
+    if (byScope !== undefined) {
+      if (portOwners.get(name) !== moduleId) {
+        for (const gate of byScope.get(EVERYWHERE) ?? []) found.add(gate);
+      }
+      if (parameterAliases.get(name)?.has(file) === true) {
+        for (const gate of byScope.get(file) ?? []) found.add(gate);
+      }
+    }
+    for (const gate of propertyGates.get(name)?.get(moduleId) ?? []) found.add(gate);
+    return found;
+  };
+
+  const gatesOfReach = (reach: Reach, moduleId: string, file: string): ReadonlySet<string> => {
+    const name = reachName(reach);
+    return reach === name ? gatesAt(name, moduleId, file) : propertyGatesAt(name, moduleId, file);
   };
 
   /** `lazyPort<T>(ctx, 'gatedName')`, and only a gated one. */
@@ -616,8 +783,57 @@ function analyze(
     for (const [file, sf] of parsed) {
       const scope = moduleOf(`/src/${file}`, hostResident) ?? ROOT;
       const reads = (name: string, at?: ts.Node): boolean => readsAsPort(name, scope, file, at);
+      const readsProperty = (name: string): boolean => readsPropertyAsPort(name, scope, file);
       const at = (node: ts.Node): string =>
         `${file}:${sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1}`;
+      /** This file's classes by member, for `this.<method>()` — see {@link ownMethodReturns}. */
+      const members = classesIn(sf);
+      /** Methods whose returns are being followed — a guard against a recursive pair. */
+      const following = new Set<ts.Node>();
+      /**
+       * The method `this.<name>(…)` calls inside the class this call sits in,
+       * when that class declares one — the same resolution D-88's hop uses.
+       */
+      const ownMethodBody = (call: ts.CallExpression): ts.Node | undefined => {
+        const method = thisMethodCalled(call);
+        const className = method === null ? null : enclosingClassName(call);
+        if (method === null || className === null) return undefined;
+        return members.get(className)?.get(method);
+      };
+      /**
+       * The expressions a method body returns — its own `return` statements, not
+       * those of a closure inside it — or the body itself when it is a concise
+       * arrow's.
+       */
+      const returnedBy = (body: ts.Node): ts.Expression[] => {
+        if (!ts.isBlock(body)) return ts.isExpression(body) ? [body] : [];
+        const returned: ts.Expression[] = [];
+        const scan = (node: ts.Node): void => {
+          if (ts.isFunctionLike(node) || ts.isClassLike(node)) return;
+          if (ts.isReturnStatement(node) && node.expression) returned.push(node.expression);
+          node.forEachChild(scan);
+        };
+        body.forEachChild(scan);
+        return returned;
+      };
+      /**
+       * `this.#requireCustomFields()` returning `this.deps.customFields` — a
+       * class's own method handing on what it returns (issue #100). Followed
+       * inside the class only, the bound D-88 already draws.
+       */
+      const ownMethodReturns = <T>(
+        call: ts.CallExpression,
+        onReturned: (returned: ts.Expression) => T,
+      ): T[] => {
+        const body = ownMethodBody(call);
+        if (body === undefined || following.has(body)) return [];
+        following.add(body);
+        try {
+          return returnedBy(body).map(onReturned);
+        } finally {
+          following.delete(body);
+        }
+      };
 
       /**
        * Does evaluating this expression yield a value that still reaches the
@@ -637,7 +853,7 @@ function analyze(
         // name is what the gate answers for. A field read *off* a port
         // (`proxy.rows`, `p.attributeValues[k]`) is data, and treating it as a
         // carrier cascaded through every local it was ever assigned to.
-        if (ts.isPropertyAccessExpression(node)) return reads(node.name.text);
+        if (ts.isPropertyAccessExpression(node)) return readsProperty(node.name.text);
         if (
           ts.isParenthesizedExpression(node) ||
           ts.isAwaitExpression(node) ||
@@ -665,8 +881,9 @@ function analyze(
         // An object literal deliberately does **not** carry, however many ports
         // it holds: a deps bag is a record, and tainting the bag makes every
         // `this.deps.anythingAtAll()` in the receiving class read as a port
-        // call. Its carrying keys become aliases one by one instead, which is
-        // where the port is actually reached.
+        // call. Its carrying keys become property entries one by one instead
+        // (issue #100: properties, not bindings), read where the port is
+        // actually reached.
         //
         // So a holder **built from** a bag does not carry either, and that
         // blind spot is known and kept (feature 134 D18 §2, half 2 withdrawn).
@@ -679,9 +896,28 @@ function analyze(
         // cannot tell apart from a real swallow has no honest classification,
         // so the widening waits for per-method attribution.
         if (ts.isArrayLiteralExpression(node)) return node.elements.some(carries);
-        if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) return bodyReads(node, reads);
+        if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) {
+          return bodyReads(node, reads, readsProperty);
+        }
         if (ts.isNewExpression(node)) return (node.arguments ?? []).some(carries);
         if (ts.isCallExpression(node)) {
+          // Two calls do hand the port on, and both are a value this analysis
+          // can follow rather than a spelling (issue #100). A class's own method
+          // returns what its `return` statements carry; and a key holding a
+          // carrying closure — `{ sender: () => cradle().accessor() }` — runs that
+          // closure when it is called, so `deps.sender()` is the port reached.
+          //
+          // A method called **on** a port is still the gated call and still
+          // data, whatever its name: `inputs.translate().translate(…)` calls the
+          // i18n service's `translate`, not a second accessor of that spelling.
+          if (ownMethodReturns(node, carries).some(Boolean)) return true;
+          if (
+            ts.isPropertyAccessExpression(node.expression) &&
+            isAccessorProperty(node.expression.name.text, scope) &&
+            !carries(node.expression.expression)
+          ) {
+            return true;
+          }
           // A **factory** hands the port on, and `ctx.asFunction(f).singleton()`
           // is `f` in a wrapper. Every other call returns data — including
           // `proxy.applyToCart(…)`, which *is* the gated call but whose result
@@ -703,6 +939,45 @@ function analyze(
       };
 
       /**
+       * Is this a closure whose **result** is the port — an accessor — rather
+       * than one that merely uses a port on the way to some data (issue #100)?
+       *
+       * `() => cradle().transactionalEmailSenderAccessor()` calls the port
+       * itself, by a name the binding table holds, and hands back what the port
+       * hands out; `() => cradle().customFields` hands back the port. Both are
+       * accessors, and calling one — `deps.sender()` — reaches the port.
+       * `() => providers.resolveProvider()` is not: it calls a **method of a
+       * holder**, and that call's result is data like any other call's, an SMTP
+       * transport built from a resolved credential. Only the binding table
+       * answers for the callee, so a deps key spelled like the method cannot
+       * make a closure an accessor by naming itself.
+       */
+      const handsOnPort = (node: ts.Node): boolean => {
+        if (!isClosure(node)) return false;
+        let fn: ts.Node = node;
+        while (!ts.isArrowFunction(fn) && !ts.isFunctionExpression(fn)) {
+          fn = (fn as ts.ParenthesizedExpression).expression;
+        }
+        const closure = fn as ts.ArrowFunction | ts.FunctionExpression;
+        return returnedBy(closure.body).some((returned) => {
+          if (carries(returned)) return true;
+          let call: ts.Node = returned;
+          while (
+            ts.isAwaitExpression(call) ||
+            ts.isParenthesizedExpression(call) ||
+            ts.isNonNullExpression(call) ||
+            ts.isAsExpression(call)
+          ) {
+            call = call.expression;
+          }
+          if (!ts.isCallExpression(call)) return false;
+          const callee = call.expression;
+          if (ts.isIdentifier(callee)) return callee.text !== 'lazyPort' && reads(callee.text, callee);
+          return ts.isPropertyAccessExpression(callee) && reads(callee.name.text);
+        });
+      };
+
+      /**
        * **Which** gates a carrying expression reaches — the input to D-63's
        * `OWNER LOCKED` derivation.
        *
@@ -720,9 +995,10 @@ function analyze(
        */
       const gatesIn = (node: ts.Node): Set<string> => {
         const found = new Set<string>();
-        const record = (name: string): void => {
+        const record = (reach: Reach): void => {
+          const name = reachName(reach);
           if (portOwners.has(name)) found.add(name);
-          for (const gate of gatesAt(name, scope, file)) found.add(gate);
+          for (const gate of gatesOfReach(reach, scope, file)) found.add(gate);
         };
         const scan = (inner: ts.Node): void => {
           if (ts.isTypeNode(inner)) return;
@@ -733,12 +1009,22 @@ function analyze(
             }
             return;
           }
+          // Issue #100 — what a class's own method returns, followed exactly
+          // where `carries` follows it: a returned value that does not carry
+          // (`return { …deps bag… }`) contributes nothing, as it would not here.
+          if (ts.isCallExpression(inner)) {
+            for (const gates of ownMethodReturns(inner, (returned) =>
+              carries(returned) ? gatesIn(returned) : new Set<string>(),
+            )) {
+              for (const gate of gates) found.add(gate);
+            }
+          }
           if (ts.isPropertyAccessExpression(inner)) {
-            if (reads(inner.name.text)) record(inner.name.text);
+            if (readsProperty(inner.name.text)) record(propertyReach(inner.name.text));
             scan(inner.expression);
             return;
           }
-          if (ts.isIdentifier(inner) && reads(inner.text)) record(inner.text);
+          if (ts.isIdentifier(inner) && reads(inner.text)) record(bareReach(inner.text));
           inner.forEachChild(scan);
         };
         scan(node);
@@ -762,13 +1048,37 @@ function analyze(
           markCarrier(node);
         }
         // `{ promotion: lazyPort(ctx, 'promotionService') }` — a deps-object key.
+        // A **property**, not a binding (issue #100): it is reached through an
+        // expression that reads the key, never through a bare identifier that
+        // happens to share its spelling.
         if (ts.isPropertyAssignment(node) && ts.isIdentifier(node.name)) {
           if (carries(node.initializer)) {
-            addAlias(node.name.text, scope, at(node), gatesIn(node.initializer));
+            addProperty(
+              node.name.text,
+              scope,
+              at(node),
+              gatesIn(node.initializer),
+              handsOnPort(node.initializer),
+            );
           }
         }
         if (ts.isShorthandPropertyAssignment(node) && reads(node.name.text)) {
-          addAlias(node.name.text, scope, at(node), gatesIn(node.name));
+          addProperty(node.name.text, scope, at(node), gatesIn(node.name), false);
+        }
+        // `const { promotion } = this.deps`, `({ sender }: Deps) => …`,
+        // `const { promotion: promo } = deps` — a destructuring **is** a binding,
+        // and it binds what the key holds (issue #100). File-scoped, as a `const`
+        // is.
+        if (
+          ts.isBindingElement(node) &&
+          ts.isObjectBindingPattern(node.parent) &&
+          ts.isIdentifier(node.name) &&
+          node.dotDotDotToken === undefined
+        ) {
+          const key = node.propertyName ?? node.name;
+          if (ts.isIdentifier(key) && readsProperty(key.text)) {
+            addAlias(node.name.text, file, at(node), propertyGatesAt(key.text, scope, file));
+          }
         }
         if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
           // `new CartService(emFactory, lazyPort(…))` — the parameter it lands on.
@@ -796,6 +1106,9 @@ function analyze(
                 // parameter is in scope, rather than the module the `new`
                 // happens to sit in, where it is not in scope at all.
                 addAlias(parameter.name.text, declared.file, at(node), gatesIn(argument));
+                const files = parameterAliases.get(parameter.name.text) ?? new Set<string>();
+                parameterAliases.set(parameter.name.text, files);
+                files.add(declared.file);
                 markCarrier(parameter);
               }
             });
@@ -838,13 +1151,51 @@ function analyze(
 
   // Bounded so a pathological tree cannot spin: each round can only add
   // aliases, and the deepest chain the tree holds today is five hops.
-  for (let pass = 0; pass < 24; pass += 1) {
-    grew = false;
-    round();
-    if (!grew) break;
-  }
+  const fixpoint = (): void => {
+    for (let pass = 0; pass < 24; pass += 1) {
+      grew = false;
+      round();
+      if (!grew) break;
+    }
+  };
+  fixpoint();
 
-  return { portOwners, aliases, gatesAt, readsAsPort, parsed };
+  // Pins are judged against the converged, **unpinned** tables — that is what
+  // makes "the analysis already follows this" decidable — and only then seeded,
+  // with one more fixpoint for whatever the declared alias unblocks.
+  const pinProblems = new Map<string, string>();
+  let seeded = false;
+  for (const [key, pin] of Object.entries(pins)) {
+    const { file, name } = pinParts(key);
+    if (!parsed.has(file)) {
+      pinProblems.set(key, 'its file is not in the walk');
+      continue;
+    }
+    const unknown = pin.gates.filter((gate) => !portOwners.has(gate));
+    if (pin.gates.length === 0 || unknown.length > 0) {
+      pinProblems.set(key, `it names no gate, or a gate no module provides (${unknown.join(', ')})`);
+      continue;
+    }
+    const moduleId = moduleOf(`/src/${file}`, hostResident) ?? ROOT;
+    if (readsAsPort(name, moduleId, file)) {
+      pinProblems.set(key, 'the analysis already follows the name without it');
+      continue;
+    }
+    addAlias(name, file, `pin ${key}`, new Set(pin.gates));
+    seeded = true;
+  }
+  if (seeded) fixpoint();
+
+  return {
+    portOwners,
+    aliases,
+    gatesAt,
+    gatesOfReach,
+    readsAsPort,
+    readsPropertyAsPort,
+    parsed,
+    pinProblems,
+  };
 }
 
 /** The declarations one file makes, and what it imports and re-exports by relative path. */
@@ -997,12 +1348,13 @@ function resolveDeclaration<D>(
 function bodyReads(
   fn: ts.ArrowFunction | ts.FunctionExpression,
   reads: (name: string, at?: ts.Node) => boolean,
+  readsProperty: (name: string) => boolean,
 ): boolean {
   let hit = false;
   const scan = (node: ts.Node): void => {
     if (hit || ts.isTypeNode(node)) return;
     if (ts.isPropertyAccessExpression(node)) {
-      if (reads(node.name.text)) {
+      if (readsProperty(node.name.text)) {
         hit = true;
         return;
       }
@@ -1027,6 +1379,19 @@ function bodyReads(
   };
   scan(fn.body);
   return hit;
+}
+
+/** A function literal, through the wrappers that pass a value on unchanged. */
+function isClosure(node: ts.Node): boolean {
+  if (
+    ts.isParenthesizedExpression(node) ||
+    ts.isAsExpression(node) ||
+    ts.isSatisfiesExpression(node) ||
+    ts.isNonNullExpression(node)
+  ) {
+    return isClosure(node.expression);
+  }
+  return ts.isArrowFunction(node) || ts.isFunctionExpression(node);
 }
 
 /** The trailing identifier of a receiver: `this.deps.x` → `x`, `y` → `y`. */
@@ -1217,6 +1582,33 @@ function handlerHandles(handler: ts.Expression, delegates: ReadonlySet<string>):
  */
 const METHOD_HOP_ROUNDS = 12;
 
+/**
+ * What a call through a property access reaches: its **receiver** when that
+ * reads as a port (`promotion.applyToCart()`, `this.deps.promotion.applyToCart()`),
+ * otherwise the **method** when the method name does
+ * (`this.deps.getTransactionalEmailSender()` — the alias is the thing called).
+ *
+ * A bare receiver resolves lexically (issue #278) against the binding table; a
+ * property receiver or method name is a property read, answered by
+ * `readsPropertyAsPort` and by no lexical binding (issue #100). Only the
+ * wrappers that pass a value on unchanged are looked through.
+ */
+function propertyCallReach(
+  callee: ts.PropertyAccessExpression,
+  reads: (name: string, at?: ts.Node) => boolean,
+  readsProperty: (name: string) => boolean,
+): Reach | null {
+  let receiver: ts.Expression = callee.expression;
+  while (ts.isNonNullExpression(receiver) || ts.isParenthesizedExpression(receiver)) {
+    receiver = receiver.expression;
+  }
+  if (ts.isIdentifier(receiver) && reads(receiver.text, receiver)) return bareReach(receiver.text);
+  if (ts.isPropertyAccessExpression(receiver) && readsProperty(receiver.name.text)) {
+    return propertyReach(receiver.name.text);
+  }
+  return readsProperty(callee.name.text) ? propertyReach(callee.name.text) : null;
+}
+
 /** The name of a class member as `this.<name>` would spell it, or `null`. */
 function memberName(name: ts.PropertyName | undefined): string | null {
   if (name === undefined) return null;
@@ -1264,19 +1656,21 @@ function methodKey(file: string, className: string, method: string): string {
 function collectCarryingMethods(
   parsed: ReadonlyMap<string, ts.SourceFile>,
   readsAsPortIn: (file: string, name: string, at?: ts.Node) => boolean,
+  readsPropertyIn: (file: string, name: string) => boolean,
   declaresMember: (file: string, className: string, name: string) => boolean,
-): Map<string, Set<string>> {
-  /** method key → the port/alias names its body reaches. */
-  const carries = new Map<string, Set<string>>();
+): Map<string, Set<Reach>> {
+  /** method key → the reaches its body makes. */
+  const carries = new Map<string, Set<Reach>>();
   /** method key → the method keys it calls through `this`. */
   const edges = new Map<string, Set<string>>();
 
   for (const [file, sf] of parsed) {
     const reads = (name: string, at?: ts.Node): boolean => readsAsPortIn(file, name, at);
+    const readsProperty = (name: string): boolean => readsPropertyIn(file, name);
 
     const record = (className: string, method: string, body: ts.Node): void => {
       const key = methodKey(file, className, method);
-      const ports = carries.get(key) ?? new Set<string>();
+      const ports = carries.get(key) ?? new Set<Reach>();
       const calls = edges.get(key) ?? new Set<string>();
       const scan = (inner: ts.Node): void => {
         if (ts.isCallExpression(inner)) {
@@ -1284,25 +1678,18 @@ function collectCarryingMethods(
           if (hop !== null && declaresMember(file, className, hop)) {
             calls.add(methodKey(file, className, hop));
           } else if (ts.isPropertyAccessExpression(inner.expression)) {
-            const receiver = tailName(inner.expression.expression);
-            // Issue #278 — the receiver resolves lexically when it is a bare
-            // identifier (`transitionService.apply(…)`); `this.deps.promotion`
-            // is a property chain and has no lexical binding to resolve.
-            const receiverNode = ts.isIdentifier(inner.expression.expression)
-              ? inner.expression.expression
-              : undefined;
-            if (receiver !== null && reads(receiver, receiverNode)) ports.add(receiver);
-            else if (reads(inner.expression.name.text)) ports.add(inner.expression.name.text);
+            const reach = propertyCallReach(inner.expression, reads, readsProperty);
+            if (reach !== null) ports.add(reach);
           }
           if (
             ts.isIdentifier(inner.expression) &&
             inner.expression.text !== 'lazyPort' &&
             reads(inner.expression.text, inner.expression)
           ) {
-            ports.add(inner.expression.text);
+            ports.add(bareReach(inner.expression.text));
           }
           if (ts.isIdentifier(inner.expression) && inner.expression.text === 'requireModuleEnabled') {
-            ports.add('requireModuleEnabled');
+            ports.add(bareReach('requireModuleEnabled'));
           }
         }
         inner.forEachChild(scan);
@@ -1379,6 +1766,8 @@ function classesIn(sf: ts.SourceFile): Map<string, Map<string, ts.Node>> {
 interface SiteScan {
   readonly found: PortCatch[];
   readonly rejectionHandlerSites: number;
+  /** Pin key → why it is stale — see {@link PortCatchPin}. */
+  readonly stalePins: ReadonlyMap<string, string>;
 }
 
 /** Every `try` and every promise-form rejection handler that reaches a gated port. */
@@ -1388,7 +1777,12 @@ export function findPortCatches(input: PortCatchInput): PortCatch[] {
 
 function scanSources(input: PortCatchInput): SiteScan {
   const hostResident = input.hostResidentModules ?? NO_HOST_RESIDENT_MODULES;
-  const analysis = analyze(input.sources, hostResident, input.peerOwners ?? new Map());
+  const analysis = analyze(
+    input.sources,
+    hostResident,
+    input.peerOwners ?? new Map(),
+    input.pins ?? {},
+  );
   const locked = lockedOwners(input.manifests ?? []);
   /**
    * D-63 — every gate this alias carries is owned by a module the platform
@@ -1429,10 +1823,11 @@ function scanSources(input: PortCatchInput): SiteScan {
   }
   const declaresMember = (file: string, className: string, name: string): boolean =>
     declaredMembers.get(file)?.get(className)?.has(name) === true;
+  const moduleOfFile = (file: string): string => moduleOf(`/src/${file}`, hostResident) ?? ROOT;
   const carryingMethods = collectCarryingMethods(
     parsed,
-    (file, name, at) =>
-      analysis.readsAsPort(name, moduleOf(`/src/${file}`, hostResident) ?? ROOT, file, at),
+    (file, name, at) => analysis.readsAsPort(name, moduleOfFile(file), file, at),
+    (file, name) => analysis.readsPropertyAsPort(name, moduleOfFile(file), file),
     declaresMember,
   );
 
@@ -1442,6 +1837,8 @@ function scanSources(input: PortCatchInput): SiteScan {
 
     const readsAsPort = (name: string, at?: ts.Node): boolean =>
       analysis.readsAsPort(name, moduleId, file, at);
+    const readsPropertyAsPort = (name: string): boolean =>
+      analysis.readsPropertyAsPort(name, moduleId, file);
 
     /**
      * One site, whichever spelling it is written in.
@@ -1464,9 +1861,9 @@ function scanSources(input: PortCatchInput): SiteScan {
          * method and the value is what its body reaches, so `gates` — and with
          * it the `OWNER LOCKED` derivation — comes out unchanged.
          */
-        const ports = new Map<string, Set<string>>();
-        const add = (name: string, via: Iterable<string>): void => {
-          const carried = ports.get(name) ?? new Set<string>();
+        const ports = new Map<string, Set<Reach>>();
+        const add = (name: string, via: Iterable<Reach>): void => {
+          const carried = ports.get(name) ?? new Set<Reach>();
           for (const one of via) carried.add(one);
           ports.set(name, carried);
         };
@@ -1478,24 +1875,51 @@ function scanSources(input: PortCatchInput): SiteScan {
             ? method
             : null;
         };
+        /**
+         * A local bound **inside this site** to the result of a call the site
+         * already reports — `const sender = this.deps.getTransactionalEmailSender()`
+         * inside the `try`, then `sender.send(…)` — is the same reach under a
+         * second name, not a second reach (issue #100). The presence answer it
+         * could carry is the one that call raises, and the site already names
+         * that call; reporting both would give one `catch` two ledger keys.
+         * A local bound **outside** the site is a reach of its own, because the
+         * call that produced it is not guarded here.
+         */
+        const alreadyReached = (receiver: ts.Expression): boolean => {
+          let local: ts.Expression = receiver;
+          while (ts.isNonNullExpression(local) || ts.isParenthesizedExpression(local)) {
+            local = local.expression;
+          }
+          if (!ts.isIdentifier(local)) return false;
+          const binding = nearestBinding(local, local.text);
+          if (binding === null || !ts.isVariableDeclaration(binding) || !binding.initializer) {
+            return false;
+          }
+          const start = binding.initializer.getStart(sf);
+          const guarded = guardedRoots.some(
+            (root) => root.getStart(sf) <= start && binding.end <= root.end,
+          );
+          if (!guarded) return false;
+          let call: ts.Expression = binding.initializer;
+          while (ts.isAwaitExpression(call) || ts.isParenthesizedExpression(call)) {
+            call = call.expression;
+          }
+          if (!ts.isCallExpression(call)) return false;
+          if (ts.isPropertyAccessExpression(call.expression)) {
+            return propertyCallReach(call.expression, readsAsPort, readsPropertyAsPort) !== null;
+          }
+          return ts.isIdentifier(call.expression) && readsAsPort(call.expression.text, call.expression);
+        };
         const scan = (inner: ts.Node): void => {
           if (
             ts.isCallExpression(inner) &&
             ts.isPropertyAccessExpression(inner.expression) &&
             ownMethod(inner) === null
           ) {
-            const receiver = tailName(inner.expression.expression);
-            // Issue #278 — see the twin in `collectCarryingMethods`: a bare
-            // identifier receiver resolves lexically, a property chain cannot.
-            const receiverNode = ts.isIdentifier(inner.expression.expression)
-              ? inner.expression.expression
-              : undefined;
-            if (receiver !== null && readsAsPort(receiver, receiverNode)) {
-              add(receiver, [receiver]);
-            } else if (readsAsPort(inner.expression.name.text)) {
-              // `this.deps.getTransactionalEmailSender()` — the alias is the
-              // thing being called, not the object it hangs off.
-              add(inner.expression.name.text, [inner.expression.name.text]);
+            // The twin of `collectCarryingMethods`' read, by construction.
+            const reach = propertyCallReach(inner.expression, readsAsPort, readsPropertyAsPort);
+            if (reach !== null && !alreadyReached(inner.expression.expression)) {
+              add(reachName(reach), [reach]);
             }
           }
           if (
@@ -1504,7 +1928,7 @@ function scanSources(input: PortCatchInput): SiteScan {
             inner.expression.text !== 'lazyPort' &&
             readsAsPort(inner.expression.text, inner.expression)
           ) {
-            add(inner.expression.text, [inner.expression.text]);
+            add(inner.expression.text, [bareReach(inner.expression.text)]);
           }
           // `requireModuleEnabled('x')` throws the same error, on purpose.
           if (
@@ -1512,7 +1936,7 @@ function scanSources(input: PortCatchInput): SiteScan {
             ts.isIdentifier(inner.expression) &&
             inner.expression.text === 'requireModuleEnabled'
           ) {
-            add('requireModuleEnabled', ['requireModuleEnabled']);
+            add('requireModuleEnabled', [bareReach('requireModuleEnabled')]);
           }
           // D-88 — one hop backwards, through `this` and nothing else.
           if (ts.isCallExpression(inner) && className !== null) {
@@ -1531,8 +1955,8 @@ function scanSources(input: PortCatchInput): SiteScan {
             const gates = [
               ...new Set(
                 [...via].flatMap((one) => [
-                  ...(analysis.portOwners.has(one) ? [one] : []),
-                  ...analysis.gatesAt(one, moduleId, file),
+                  ...(analysis.portOwners.has(reachName(one)) ? [reachName(one)] : []),
+                  ...analysis.gatesOfReach(one, moduleId, file),
                 ]),
               ),
             ].sort();
@@ -1575,7 +1999,17 @@ function scanSources(input: PortCatchInput): SiteScan {
   }
 
   found.sort((a, b) => (a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file)));
-  return { found, rejectionHandlerSites };
+  // The other half of a pin's two-way contract: a pin no site reaches through
+  // describes code that is no longer there.
+  const stalePins = new Map(analysis.pinProblems);
+  for (const key of Object.keys(input.pins ?? {})) {
+    if (stalePins.has(key)) continue;
+    const { file, name } = pinParts(key);
+    if (!found.some((entry) => entry.file === file && entry.port === name)) {
+      stalePins.set(key, 'no site in its file reaches a port through the name');
+    }
+  }
+  return { found, rejectionHandlerSites, stalePins };
 }
 
 export interface CheckResult {
@@ -1586,6 +2020,8 @@ export interface CheckResult {
   readonly ownerLocked: readonly PortCatch[];
   /** Ledger keys that no longer describe a violation — the staleness half. */
   readonly stale: readonly string[];
+  /** Pins that no longer describe a site, each with why — see {@link PortCatchPin}. */
+  readonly stalePins: readonly string[];
   /**
    * Every promise-form rejection handler the walk read, whether or not it
    * reaches a port. Zero over a real tree means the recogniser is blind, not
@@ -1598,7 +2034,7 @@ export function checkPortCatches(
   input: PortCatchInput,
   ledger: Readonly<Record<string, string>>,
 ): CheckResult {
-  const { found: all, rejectionHandlerSites } = scanSources(input);
+  const { found: all, rejectionHandlerSites, stalePins } = scanSources(input);
   const unhandled = all.filter((entry) => !entry.handled);
   const ownerLocked = unhandled.filter((entry) => entry.ownerLocked);
   const open = unhandled.filter((entry) => !entry.ownerLocked);
@@ -1612,6 +2048,7 @@ export function checkPortCatches(
     ledgered: open.filter((entry) => ledger[keyOf(entry)] !== undefined),
     ownerLocked,
     stale: Object.keys(ledger).filter((key) => !keys.has(key)),
+    stalePins: [...stalePins].map(([key, why]) => `${key} — ${why}`),
     rejectionHandlerSites,
   };
 }
