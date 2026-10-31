@@ -3012,5 +3012,13 @@
   "blocks.image.fields.captionSize.options.lead": "Lead",
   "blocks.image.fields.captionSize.options.body": "Body",
   "blocks.image.fields.captionSize.options.small": "Small",
-  "blocks.image.fields.captionSize.options.custom": "Custom (px)"
+  "blocks.image.fields.captionSize.options.custom": "Custom (px)",
+  "actions.newPage.keywords": "page, new, create",
+  "actions.openPages.keywords": "pages, page, content",
+  "actions.openBlocks.keywords": "blocks, block",
+  "actions.openTemplates.keywords": "templates, template",
+  "actions.openHooks.keywords": "hooks",
+  "actions.openPageBuilderTranslationSettings.keywords": "translator, translation, translate, page builder",
+  "actions.openCmsBrand.keywords": "brand, fonts, colours, theme",
+  "actions.openContactFormSettings.keywords": "contact, form, recipients, enquiries"
 }

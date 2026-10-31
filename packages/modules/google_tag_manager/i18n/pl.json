@@ -1,4 +1,5 @@
 {
   "actions.openGoogleTagManager.label": "Google Tag Manager",
-  "actions.openGoogleTagManager.description": "Skonfiguruj kontener GTM i tagowanie server-side dla kanału sprzedaży"
+  "actions.openGoogleTagManager.description": "Skonfiguruj kontener GTM i tagowanie server-side dla kanału sprzedaży",
+  "actions.openGoogleTagManager.keywords": "tagi, kontener"
 }

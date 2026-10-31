@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { parseBundleKeywords } from '@endora-commerce/contracts';
 import { manifest } from '../manifest.js';
 
 /**
@@ -149,9 +150,15 @@ describe('seo manifest — command palette', () => {
 
   it('is findable by the words an operator would type', () => {
     const keywords = manifest.actions?.flatMap((a) => a.keywords ?? []) ?? [];
-    for (const word of ['robots', 'noindex', 'llms', 'seo', 'sitemap', 'indeksowanie']) {
+    for (const word of ['robots', 'noindex', 'llms', 'seo', 'sitemap']) {
       expect(keywords).toContain(word);
     }
+    // Issue #573 — the Polish word is in `pl.json`, under the action's `keywordsKey`.
+    const polish = JSON.parse(
+      readFileSync(new URL('../../i18n/pl.json', import.meta.url), 'utf8'),
+    ) as Record<string, string>;
+    const key = action('open-search-engine-robots')?.keywordsKey ?? '';
+    expect(parseBundleKeywords(polish[key] ?? '')).toContain('indeksowanie');
   });
 });
 

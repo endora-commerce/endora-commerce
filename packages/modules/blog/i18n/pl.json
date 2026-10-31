@@ -411,5 +411,9 @@
   "blocks.latestPosts.fields.leadWeight.options.600": "Półgruba (600)",
   "blocks.latestPosts.fields.leadWeight.options.700": "Gruba (700)",
   "blocks.latestPosts.fields.leadWeight.options.800": "Bardzo gruba (800)",
-  "blocks.latestPosts.fields.leadWeight.options.default": "Domyślna"
+  "blocks.latestPosts.fields.leadWeight.options.default": "Domyślna",
+  "actions.openPosts.keywords": "wpis, wpisy, artykuł, artykuły",
+  "actions.openCategories.keywords": "kategoria, kategorie",
+  "actions.openTags.keywords": "tagi",
+  "actions.newPost.keywords": "wpis, nowy"
 }

@@ -111,5 +111,6 @@
   "kind.pdf": "plik PDF",
   "kind.other": "dokument",
   "actions.openLibrary.label": "Biblioteka zasobów",
-  "actions.openLibrary.description": "Przeglądaj, przesyłaj i podmieniaj pliki oraz zarządzaj stałymi linkami."
+  "actions.openLibrary.description": "Przeglądaj, przesyłaj i podmieniaj pliki oraz zarządzaj stałymi linkami.",
+  "actions.openLibrary.keywords": "pliki, zasoby"
 }

@@ -3012,5 +3012,13 @@
   "blocks.image.fields.captionSize.options.lead": "Wprowadzenie",
   "blocks.image.fields.captionSize.options.body": "Tekst podstawowy",
   "blocks.image.fields.captionSize.options.small": "Mały",
-  "blocks.image.fields.captionSize.options.custom": "Własny (px)"
+  "blocks.image.fields.captionSize.options.custom": "Własny (px)",
+  "actions.newPage.keywords": "strona, nowa, utwórz",
+  "actions.openPages.keywords": "strony, strona, treści",
+  "actions.openBlocks.keywords": "bloki, blok",
+  "actions.openTemplates.keywords": "szablony, szablon",
+  "actions.openHooks.keywords": "hooki",
+  "actions.openPageBuilderTranslationSettings.keywords": "tłumacz, tłumaczenie, przetłumacz, kreator stron",
+  "actions.openCmsBrand.keywords": "marka, czcionki, kolory, motyw",
+  "actions.openContactFormSettings.keywords": "kontakt, formularz, odbiorcy, zapytania"
 }

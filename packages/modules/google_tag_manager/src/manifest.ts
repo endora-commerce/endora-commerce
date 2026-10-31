@@ -108,17 +108,8 @@ export const manifest = defineModuleManifest({
       // Core catalogue code, referenced rather than re-declared: this module
       // owns no permission of its own.
       requiredPermission: 'settings:read',
-      keywords: [
-        'gtm',
-        'google',
-        'tag',
-        'manager',
-        'container',
-        'datalayer',
-        'sgtm',
-        'tagi',
-        'kontener',
-      ],
+      keywords: ['gtm', 'google', 'tag', 'manager', 'container', 'datalayer', 'sgtm'],
+      keywordsKey: 'actions.openGoogleTagManager.keywords',
       weight: 246,
     },
   ],

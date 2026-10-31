@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { parseBundleKeywords } from '@endora-commerce/contracts';
 import { manifest } from '../manifest.js';
 
 /**
@@ -17,6 +18,15 @@ function bundle(language: (typeof LANGUAGES)[number]): Record<string, string> {
   ) as Record<string, string>;
 }
 
+/**
+ * Issue #573 — the Polish search words of an action, which live in `pl.json`
+ * under its `keywordsKey` rather than in the manifest's English `keywords`.
+ */
+function polishKeywords(actionId: string): string[] {
+  const key = (manifest.actions ?? []).find((a) => a.id === actionId)?.keywordsKey;
+  return parseBundleKeywords(key ? (bundle('pl')[key] ?? '') : '');
+}
+
 const NAVIGATION_ENTRIES = [
   {
     id: 'open-pages',
@@ -26,7 +36,8 @@ const NAVIGATION_ENTRIES = [
     key: 'openPages',
     en: 'CMS Pages',
     pl: 'Strony CMS',
-    keywords: ['pages', 'strony'],
+    keywords: ['pages'],
+    polish: ['strony'],
   },
   {
     id: 'open-blocks',
@@ -36,7 +47,8 @@ const NAVIGATION_ENTRIES = [
     key: 'openBlocks',
     en: 'CMS Blocks',
     pl: 'Bloki CMS',
-    keywords: ['blocks', 'bloki'],
+    keywords: ['blocks'],
+    polish: ['bloki'],
   },
   {
     id: 'open-templates',
@@ -46,7 +58,8 @@ const NAVIGATION_ENTRIES = [
     key: 'openTemplates',
     en: 'CMS Templates',
     pl: 'Szablony CMS',
-    keywords: ['templates', 'szablony'],
+    keywords: ['templates'],
+    polish: ['szablony'],
   },
   {
     id: 'open-hooks',
@@ -56,7 +69,8 @@ const NAVIGATION_ENTRIES = [
     key: 'openHooks',
     en: 'CMS Hooks',
     pl: 'Hooki CMS',
-    keywords: ['hooks', 'hooki'],
+    keywords: ['hooks'],
+    polish: ['hooki'],
   },
 ] as const;
 
@@ -71,9 +85,11 @@ describe('cms manifest — command palette', () => {
       icon: 'FileText',
       targetRoute: '/cms/pages/new',
       requiredPermission: 'cms.write',
-      keywords: ['page', 'new', 'create', 'strona', 'nowa', 'utwórz'],
+      keywords: ['page', 'new', 'create'],
+      keywordsKey: 'actions.newPage.keywords',
       weight: 130,
     });
+    expect(polishKeywords('new-page')).toEqual(['strona', 'nowa', 'utwórz']);
   });
 
   it('declares one navigation entry per list screen, right after new-page', () => {
@@ -97,8 +113,9 @@ describe('cms manifest — command palette', () => {
       weight: 136,
       labelKey: 'actions.openCmsBrand.label',
       descriptionKey: 'actions.openCmsBrand.description',
-      keywords: expect.arrayContaining(['brand', 'fonts', 'colours', 'colors', 'typography', 'theme', 'marka']),
+      keywords: expect.arrayContaining(['brand', 'fonts', 'colours', 'colors', 'typography', 'theme']),
     });
+    expect(polishKeywords('open-cms-brand')).toContain('marka');
     for (const language of LANGUAGES) {
       const messages = bundle(language);
       expect(messages['actions.openCmsBrand.label']).toMatch(/\S/);
@@ -123,6 +140,7 @@ describe('cms manifest — command palette', () => {
 
       it('is found by an English and a Polish word', () => {
         expect(action?.keywords).toEqual(expect.arrayContaining(['cms', ...entry.keywords]));
+        expect(polishKeywords(entry.id)).toEqual(expect.arrayContaining([...entry.polish]));
       });
 
       it('has a label matching the sidebar and a description in both languages', () => {
@@ -220,7 +238,8 @@ describe('cms manifest — Page Builder translation', () => {
       labelKey: 'actions.openPageBuilderTranslationSettings.label',
       descriptionKey: 'actions.openPageBuilderTranslationSettings.description',
     });
-    expect(action!.keywords).toEqual(expect.arrayContaining(['translate', 'tłumacz', 'ai', 'page builder']));
+    expect(action!.keywords).toEqual(expect.arrayContaining(['translate', 'ai', 'page builder']));
+    expect(polishKeywords('open-page-builder-translation-settings')).toContain('tłumacz');
     for (const language of LANGUAGES) {
       expect(bundle(language)['actions.openPageBuilderTranslationSettings.label']).toMatch(/\S/);
     }
@@ -267,7 +286,8 @@ describe('cms manifest — contact form', () => {
       descriptionKey: 'actions.openContactFormSettings.description',
       weight: 137,
     });
-    expect(action!.keywords).toEqual(expect.arrayContaining(['contact', 'form', 'recipients', 'kontakt', 'formularz']));
+    expect(action!.keywords).toEqual(expect.arrayContaining(['contact', 'form', 'recipients']));
+    expect(polishKeywords('open-contact-form-settings')).toEqual(expect.arrayContaining(['kontakt', 'formularz']));
     for (const language of LANGUAGES) {
       expect(bundle(language)['actions.openContactFormSettings.label']).toMatch(/\S/);
       expect(bundle(language)['actions.openContactFormSettings.description']).toMatch(/\S/);

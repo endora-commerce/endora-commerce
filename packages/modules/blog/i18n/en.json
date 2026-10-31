@@ -411,5 +411,9 @@
   "blocks.latestPosts.fields.leadWeight.options.600": "Semibold (600)",
   "blocks.latestPosts.fields.leadWeight.options.700": "Bold (700)",
   "blocks.latestPosts.fields.leadWeight.options.800": "Extra bold (800)",
-  "blocks.latestPosts.fields.leadWeight.options.default": "Default"
+  "blocks.latestPosts.fields.leadWeight.options.default": "Default",
+  "actions.openPosts.keywords": "post, posts, article, articles",
+  "actions.openCategories.keywords": "category, categories",
+  "actions.openTags.keywords": "tags",
+  "actions.newPost.keywords": "post, new"
 }

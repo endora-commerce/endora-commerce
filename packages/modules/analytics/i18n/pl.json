@@ -18,5 +18,6 @@
   "column.day": "Dzień",
   "settingGroups.analytics.name": "Analityka",
   "settingLabels.analytics.reporting_time_zone.name": "Strefa czasowa raportów",
-  "settingLabels.analytics.reporting_time_zone.description": "Strefa czasowa (nazwa IANA, np. Europe/Warsaw), w której raporty liczą dni, miesiące i inne zakresy dni — obecnie analityka projektów. Domyślnie UTC. Gdy Analityka jest wyłączona, raporty liczą w UTC."
+  "settingLabels.analytics.reporting_time_zone.description": "Strefa czasowa (nazwa IANA, np. Europe/Warsaw), w której raporty liczą dni, miesiące i inne zakresy dni — obecnie analityka projektów. Domyślnie UTC. Gdy Analityka jest wyłączona, raporty liczą w UTC.",
+  "actions.openAnalytics.keywords": "analityka, zdarzenia, raport"
 }

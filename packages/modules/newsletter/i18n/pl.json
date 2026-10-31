@@ -86,5 +86,10 @@
   "blocks.signup.fields.attributes.fields.label.label": "Etykieta",
   "blocks.signup.fields.attributes.fields.placeholder.label": "Podpowiedź w polu",
   "blocks.signup.fields.attributes.fields.required.label": "Wymagane",
-  "blocks.signup.fields.messages.fields.fields.label": "Brak wymaganego pola"
+  "blocks.signup.fields.messages.fields.fields.label": "Brak wymaganego pola",
+  "actions.openCampaigns.keywords": "kampanie",
+  "actions.openAutomations.keywords": "automatyzacje",
+  "actions.openTags.keywords": "tagi, pola",
+  "actions.openBlocks.keywords": "bloki, nagłówek, stopka",
+  "actions.openProvider.keywords": "nadawca, wysyłka"
 }

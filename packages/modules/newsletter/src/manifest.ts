@@ -250,8 +250,8 @@ export const manifest = defineModuleManifest({
      * deletes, arriving as declarations (Principle XVI).
      *
      * Same destinations, same codes and the same keywords the hand-written
-     * rows carried, English and Polish alike — the palette an operator sees is
-     * unchanged. What changes is who answers for it: a hand-written row is a
+     * rows carried — the English in `keywords`, the Polish under `keywordsKey`
+     * since issue #573 — so the palette an operator sees is unchanged. What changes is who answers for it: a hand-written row is a
      * copy the server was never asked about, so it went on advertising these
      * two screens after an operator switched `newsletter` off, and this module
      * is one that really can be switched off.
@@ -263,7 +263,8 @@ export const manifest = defineModuleManifest({
       icon: 'Inbox',
       targetRoute: '/newsletter/campaigns',
       requiredPermission: 'newsletter:read',
-      keywords: ['newsletter', 'campaigns', 'email', 'marketing', 'kampanie'],
+      keywords: ['newsletter', 'campaigns', 'email', 'marketing'],
+      keywordsKey: 'actions.openCampaigns.keywords',
       weight: 232,
     },
     {
@@ -273,7 +274,8 @@ export const manifest = defineModuleManifest({
       icon: 'Inbox',
       targetRoute: '/newsletter/automations',
       requiredPermission: 'newsletter:read',
-      keywords: ['newsletter', 'automations', 'workflow', 'automatyzacje'],
+      keywords: ['newsletter', 'automations', 'workflow'],
+      keywordsKey: 'actions.openAutomations.keywords',
       weight: 233,
     },
     // Issue #516 (Principle XVI): the last three sidebar screens. Tags and
@@ -287,7 +289,8 @@ export const manifest = defineModuleManifest({
       icon: 'Inbox',
       targetRoute: '/newsletter/tags',
       requiredPermission: 'newsletter:read',
-      keywords: ['newsletter', 'tags', 'fields', 'subscribers', 'tagi', 'pola'],
+      keywords: ['newsletter', 'tags', 'fields', 'subscribers'],
+      keywordsKey: 'actions.openTags.keywords',
       weight: 234,
     },
     {
@@ -297,7 +300,8 @@ export const manifest = defineModuleManifest({
       icon: 'Inbox',
       targetRoute: '/newsletter/blocks',
       requiredPermission: 'newsletter:read',
-      keywords: ['newsletter', 'blocks', 'email', 'header', 'footer', 'bloki', 'nagłówek', 'stopka'],
+      keywords: ['newsletter', 'blocks', 'email', 'header', 'footer'],
+      keywordsKey: 'actions.openBlocks.keywords',
       weight: 235,
     },
     {
@@ -307,7 +311,8 @@ export const manifest = defineModuleManifest({
       icon: 'Inbox',
       targetRoute: '/newsletter/provider',
       requiredPermission: 'newsletter:write',
-      keywords: ['newsletter', 'provider', 'sender', 'smtp', 'throttle', 'nadawca', 'wysyłka'],
+      keywords: ['newsletter', 'provider', 'sender', 'smtp', 'throttle'],
+      keywordsKey: 'actions.openProvider.keywords',
       weight: 236,
     },
   ],

@@ -123,5 +123,6 @@
   "errors.MEGAMENU_KIND_NOT_ALLOWED_AS_TAB": "Obraz, osadzony blok ani drzewo kategorii nie mogą być zakładką paska nawigacji. Umieść je pod zakładką.",
   "errors.MEGAMENU_LABEL_REQUIRED": "Ta pozycja potrzebuje etykiety w co najmniej jednym języku, bo nie ma własnej nazwy do wyświetlenia.",
   "errors.MEGAMENU_LINK_TAB_INVALID": "Zakładka wyświetlana jako link musi gdzieś prowadzić i nie może mieć pozycji pod sobą.",
-  "nav.megamenu.label": "Megamenu"
+  "nav.megamenu.label": "Megamenu",
+  "actions.editMegamenu.keywords": "edytuj, nawigacja"
 }
