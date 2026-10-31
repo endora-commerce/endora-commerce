@@ -86,7 +86,7 @@ afterEach(() => {
 describe('Breadcrumbs', () => {
   it('renders a crumb without a link as text, and gives it no JSON-LD item', () => {
     const html = renderToString(
-      <Breadcrumbs
+      <Breadcrumbs locale="en-US"
         crumbs={[
           { href: '/', label: 'Home' },
           { href: null, label: 'Client zone' },
@@ -227,7 +227,7 @@ describe('R22J: the painted trail\'s colours; R23: the band\'s own padding only'
 
   it('on muted and dark, links take the muted text and the current page the scheme text', () => {
     for (const scheme of ['muted', 'dark'] as const) {
-      const html = renderToString(<Breadcrumbs crumbs={crumbs} scheme={scheme} />);
+      const html = renderToString(<Breadcrumbs locale="en-US" crumbs={crumbs} scheme={scheme} />);
       const ol = /<ol class="([^"]*)"/.exec(html)?.[1] ?? '';
       expect(ol, scheme).not.toContain('--cmsb-link');
       expect(ol, scheme).toContain('[&amp;_a]:text-[color:var(--cmsb-fg-muted,#64748b)]');
@@ -236,7 +236,7 @@ describe('R22J: the painted trail\'s colours; R23: the band\'s own padding only'
   });
 
   it('the light trail keeps its own colours', () => {
-    const html = renderToString(<Breadcrumbs crumbs={crumbs} />);
+    const html = renderToString(<Breadcrumbs locale="en-US" crumbs={crumbs} />);
     expect(html).toContain('<span aria-current="page">Buyers</span>');
     expect(html).not.toContain('--cmsb-fg');
   });

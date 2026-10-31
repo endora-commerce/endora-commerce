@@ -13,18 +13,15 @@ import { tForLocale } from '../lib/i18n/messages';
 
 export interface ImpersonationBannerProps {
   impersonatorAdminUserId: string;
-  /**
-   * The page's locale (issue #85). Optional only until the one caller,
-   * `app/(account)/layout.tsx`, passes it; without it the banner is in English.
-   */
-  locale?: string;
+  /** The page's locale (issue #85). */
+  locale: string;
   /** URL to POST to in order to end the impersonation. Defaults to the canonical endpoint. */
   endActionPath?: string;
 }
 
 export function ImpersonationBanner(props: ImpersonationBannerProps): ReactNode {
   const endPath = props.endActionPath ?? '/api/v1/admin/impersonation/end';
-  const t = tForLocale(props.locale ?? 'en-US');
+  const t = tForLocale(props.locale);
   const [bodyBefore, bodyAfter] = t('chrome.impersonation.body').split('{admin}');
   return (
     <div

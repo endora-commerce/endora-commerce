@@ -1237,7 +1237,9 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
  * one gone is the footer's `&copy;`, an entity the first rule read as a
  * word), plus single-word JSX text, visible attributes written through `{…}`,
  * literals rendered as JSX children, label tables, Next `metadata`, and English
- * outside JSX, none of which the first rule could see.
+ * outside JSX, none of which the first rule could see. The five area slices
+ * then keyed all but **2**, both in `chrome` and each justified beside its
+ * entry (2026-10-31).
  *
  * **Grouped by area, one section per namespace file under
  * `storefront/lib/i18n/messages/`**, so the slices draining it can run in

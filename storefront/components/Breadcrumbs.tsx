@@ -47,11 +47,8 @@ const SCHEME_CURRENT_CLASS = 'text-[color:var(--cmsb-fg,#15202b)]';
 export function Breadcrumbs(props: {
   crumbs: BreadcrumbCrumb[];
   scheme?: BreadcrumbsScheme;
-  /**
-   * The page's locale, for the trail's landmark name (issue #85). Optional only
-   * until every caller passes it; without it the name is in English.
-   */
-  locale?: string;
+  /** The page's locale, for the trail's landmark name (issue #85). */
+  locale: string;
 }): ReactNode {
   if (props.crumbs.length === 0) return null;
   const painted = props.scheme !== undefined && props.scheme !== 'light';
@@ -66,7 +63,7 @@ export function Breadcrumbs(props: {
     })),
   };
   return (
-    <nav aria-label={tForLocale(props.locale ?? 'en-US')('chrome.breadcrumbs.label')}>
+    <nav aria-label={tForLocale(props.locale)('chrome.breadcrumbs.label')}>
       {/*
         Migrated to utilities (was .b2b-breadcrumbs). Spacing/size use arbitrary px to
         preserve exact parity — the storefront root font-size is 14px, so Tailwind's

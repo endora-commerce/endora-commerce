@@ -296,7 +296,7 @@ export default async function ProductPage({
           ...(price?.currency ? { currency: price.currency } : {}),
         }}
       />
-      <Breadcrumbs
+      <Breadcrumbs locale={locale}
         crumbs={[
           { href: '/', label: t('nav.home') },
           { href: '/catalog', label: t('catalog.heading') },
@@ -427,6 +427,7 @@ export default async function ProductPage({
                       // Secondary actions row, next to compare + quote.
                       leadingAction={
                         <AddToShoppingListButton
+                          locale={locale}
                           apiBase={PDP_API_BASE}
                           productId={product.id}
                           {...(selectedVariantId ? { variantId: selectedVariantId } : {})}
@@ -450,6 +451,7 @@ export default async function ProductPage({
                     // No buy-actions row (no price and RFQ-on-PDP off): still
                     // offer the shopping-list heart on its own.
                     <AddToShoppingListButton
+                      locale={locale}
                       apiBase={PDP_API_BASE}
                       productId={product.id}
                       {...(selectedVariantId ? { variantId: selectedVariantId } : {})}

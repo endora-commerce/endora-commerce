@@ -1,5 +1,6 @@
 import { Fragment, type ReactNode } from 'react';
 import { MESSAGES, type MessageKey } from '../i18n/messages';
+import { pluralForm } from '../i18n/plural';
 
 /**
  * Small catalogue helpers for the account area (issue #85): counted sentences,
@@ -11,16 +12,7 @@ type Translate = (key: MessageKey) => string;
 
 /** The key of a counted sentence's plural form: `${base}.one` / `.few` / `.many` / `.other`. */
 export function pluralKey(base: string, count: number, locale: string): MessageKey {
-  let form: Intl.LDMLPluralRule;
-  try {
-    form = new Intl.PluralRules(locale).select(count);
-  } catch {
-    form = 'other';
-  }
-  // The catalogue carries one/few/many/other; `zero`/`two` (no supported
-  // language uses them) read as `other`.
-  const known = form === 'one' || form === 'few' || form === 'many' ? form : 'other';
-  return `${base}.${known}` as MessageKey;
+  return `${base}.${pluralForm(count, locale)}` as MessageKey;
 }
 
 /**

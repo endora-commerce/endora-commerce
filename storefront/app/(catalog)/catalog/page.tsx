@@ -77,7 +77,7 @@ export default async function CatalogPage({ searchParams }: PageProps): Promise<
 
   return (
     <div className="mx-auto max-w-[1360px] px-[24px]">
-      <Breadcrumbs
+      <Breadcrumbs locale={locale}
         crumbs={[
           { href: '/', label: t('nav.home') },
           { href: '/catalog', label: t('catalog.heading') },

@@ -174,13 +174,13 @@ describe('ProductCardActions — page language', () => {
     const pl = (over: Partial<Parameters<typeof productCardActionLabels>[0]>) =>
       productCardActionLabels({ ...idle, locale: 'pl-PL', ...over });
     expect(pl({})).toEqual({
-      list: 'Dodaj do listy zakupowej',
+      list: 'Dodaj do listy zakupów',
       quote: 'Dodaj do zapytania',
       quoteName: 'Dodaj do zapytania',
       cart: 'Dodaj do koszyka',
       cartName: 'Dodaj do koszyka',
     });
-    expect(pl({ inList: true }).list).toBe('Usuń z listy zakupowej');
+    expect(pl({ inList: true }).list).toBe('Usuń z listy zakupów');
     expect(pl({ listState: 'error' }).list).toBe('Nie udało się zmienić listy');
     expect(pl({ cartState: 'done' }).cart).toBe('Dodano do koszyka');
     expect(pl({ cartState: 'error' }).cart).toBe('Nie udało się dodać');
@@ -202,8 +202,8 @@ describe('ProductCardActions — page language', () => {
       'Nie udało się dodać',
       'Dodaj do zapytania',
       'Dodano do zapytania',
-      'Dodaj do listy zakupowej',
-      'Usuń z listy zakupowej',
+      'Dodaj do listy zakupów',
+      'Usuń z listy zakupów',
       'Nie udało się zmienić listy',
     ]) {
       expect(actions).not.toContain(literal);

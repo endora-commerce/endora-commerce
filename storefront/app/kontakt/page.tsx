@@ -38,7 +38,7 @@ export default async function KontaktPage(): Promise<ReactNode> {
         navigation: `Breadcrumbs` renders the JSON-LD itself, so declaring the
         type in `seo.ts` and rendering the component are one change, not two.
       */}
-      <Breadcrumbs
+      <Breadcrumbs locale={locale}
         crumbs={[
           { href: '/', label: t('nav.home') },
           { href: '/kontakt', label: t('content.contact.title') },

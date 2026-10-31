@@ -139,7 +139,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps):
           })),
         }}
       />
-      <Breadcrumbs
+      <Breadcrumbs locale={locale}
         crumbs={[
           { href: '/', label: t('nav.home') },
           { href: '/catalog', label: t('catalog.heading') },

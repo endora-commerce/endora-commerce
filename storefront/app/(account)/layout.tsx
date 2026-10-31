@@ -42,7 +42,7 @@ export default async function AccountLayout({
     <section className="b2b-account">
       {me.impersonation ? (
         <div style={{ gridColumn: '1 / -1' }}>
-          <ImpersonationBanner
+          <ImpersonationBanner locale={locale}
             impersonatorAdminUserId={me.impersonation.impersonatorAdminUserId}
           />
         </div>
@@ -71,7 +71,7 @@ export default async function AccountLayout({
             {isAdmin ? <LocalizedLink href="/organization/members">{t('account.nav.members')}</LocalizedLink> : null}
           </>
         ) : null}
-        <SignOutButton signOut={logoutAction} label={t('account.nav.signOut')} />
+        <SignOutButton signOut={logoutAction} locale={locale} />
       </aside>
       <div className="b2b-account__panel">{children}</div>
     </section>
