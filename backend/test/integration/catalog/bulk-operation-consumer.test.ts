@@ -80,8 +80,8 @@ describe('Bulk-operation queue consumer — processById', () => {
     expect(after?.status).toBe('completed');
     expect(after?.succeeded).toBe(3);
     // The log trail grew with start + completion entries.
-    expect(after?.logs?.some((l) => l.message.includes('Rozpoczęto'))).toBe(true);
-    expect(after?.logs?.some((l) => l.message.includes('Zakończono'))).toBe(true);
+    expect(after?.logs?.some((l) => l.messageKey?.key === 'bulkOperations.log.started')).toBe(true);
+    expect(after?.logs?.some((l) => l.messageKey?.key === 'bulkOperations.log.finished')).toBe(true);
 
     // Redelivery / a second worker claiming the same job is a no-op.
     await svc.processById(op.id);

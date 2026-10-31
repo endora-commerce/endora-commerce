@@ -1,7 +1,9 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   buildOrderConfirmationEmail,
   buildOrderConfirmationVariables,
+  resolveOrderConfirmationProse,
 } from './order-confirmation.js';
 import {
   noCarrierShippingLineRenderer,
@@ -105,8 +107,12 @@ describe('buildOrderConfirmationEmail', () => {
     expect(body).toContain('none');
   });
 
-  it('localizes summary labels for pl-PL', () => {
-    const mail = buildOrderConfirmationEmail({ ...input(), language: 'pl-PL' }, renderers);
+  it('localizes summary labels for pl-PL', async () => {
+    const pl = JSON.parse(
+      readFileSync(new URL('../../../i18n/pl.json', import.meta.url), 'utf8'),
+    ) as Record<string, string>;
+    const prose = await resolveOrderConfirmationProse(async (key) => pl[key] ?? `orders.${key}`, 'pl-PL');
+    const mail = buildOrderConfirmationEmail({ ...input(), language: 'pl-PL' }, renderers, prose);
     expect(mail.subject).toContain('Potwierdzenie zamówienia');
     expect(mail.text).toContain('Suma częściowa: 100.00 PLN');
     expect(mail.text).toContain('VAT: 23.00 PLN');

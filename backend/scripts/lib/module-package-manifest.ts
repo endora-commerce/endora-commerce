@@ -398,6 +398,13 @@ export interface LayerInventory {
   readonly hasTests: boolean;
   readonly hasVitestConfig: boolean;
   /**
+   * Whether the package declares {@link UI_TEST_TSCONFIG}: a third type-check
+   * program for UI-layer tests that need Node (issue #566). Read off the
+   * directory for the same reason `hasVitestConfig` is — a script an author has
+   * to remember to extend is a program nothing builds.
+   */
+  readonly hasUiTestConfig: boolean;
+  /**
    * Every test file the package ships — under `src/` and under `test/` alike,
    * sorted, package-relative.
    *
@@ -422,6 +429,17 @@ export interface LayerInventory {
 
 /** The root export every module package has: its manifest. */
 export const ROOT_ENTRY = 'src/manifest.ts';
+
+/**
+ * The UI layer's test program, for tests that run in Node and say so (issue
+ * #566). `tsconfig.ui.json` declares `types: []` so a screen that reaches for
+ * `process` does not compile; a `/// <reference types="node" />` in one test
+ * would apply to that whole program and switch the refusal off for every
+ * screen. A package whose UI tests need Node moves them into this program,
+ * which extends `tsconfig.ui.json`, takes the Node types, and is excluded by
+ * nothing else — the emit already leaves tests out.
+ */
+export const UI_TEST_TSCONFIG = 'tsconfig.ui.test.json';
 
 /**
  * What a package ships, read off its directory.
@@ -489,6 +507,15 @@ export function layerInventoryOf(packageDir: string, fs: ManifestFs): LayerInven
         `lives), or move the file to backend/test/ if it needs a booted server.`,
     );
   }
+  const hasUiTestConfig = fs.readText(join(packageDir, UI_TEST_TSCONFIG)) !== null;
+  if (hasUiTestConfig && !layers.some((layer) => UI_LAYER_DIRECTORIES.includes(layer.directory))) {
+    throw new ModulePackageManifestError(
+      `${packageDir}: declares ${UI_TEST_TSCONFIG} and has no UI layer ` +
+        `(${UI_LAYER_DIRECTORIES.map((layer) => `src/${layer}/`).join(', ')}). The \`typecheck\` ` +
+        `script builds that program only beside the UI layer's own, so here it would be a ` +
+        `configuration no script names and no \`tsc\` invocation reads. Delete it.`,
+    );
+  }
   return {
     layers,
     assets: assetsUnder(srcDir, fs, packageDir),
@@ -508,6 +535,7 @@ export function layerInventoryOf(packageDir: string, fs: ManifestFs): LayerInven
       fs.listFiles(join(packageDir, 'test')).length > 0 ||
       fs.listDirectories(join(packageDir, 'test')).length > 0,
     hasVitestConfig,
+    hasUiTestConfig,
     testFiles,
   };
 }
@@ -2266,8 +2294,13 @@ export function renderManifest(input: RenderInput): string {
     // with `--noEmit` on top: a second config restating the compiler options
     // would be a third place the `jsx`/`lib` pair is declared, and two
     // declarations of a compiler guarantee are two answers waiting to disagree.
-    // The type-check reads the co-located tests; the emit excludes them.
-    typecheck: hasUiLayer ? 'tsc -p tsconfig.json && tsc -p tsconfig.ui.json --noEmit' : 'tsc -p tsconfig.json',
+    // The type-check reads the co-located tests; the emit excludes them. A
+    // package whose UI tests need Node builds them as a third program
+    // (`UI_TEST_TSCONFIG`, issue #566), so their Node types never reach a screen.
+    typecheck: hasUiLayer
+      ? 'tsc -p tsconfig.json && tsc -p tsconfig.ui.json --noEmit' +
+        (input.layers.hasUiTestConfig ? ` && tsc -p ${UI_TEST_TSCONFIG} --noEmit` : '')
+      : 'tsc -p tsconfig.json',
     lint: input.layers.hasTests ? 'eslint src test' : 'eslint src',
   };
   // Bare `vitest run`, never `--passWithNoTests` (feature 089, Phase 1). The

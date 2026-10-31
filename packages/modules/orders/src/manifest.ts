@@ -121,6 +121,11 @@ export const manifest = defineModuleManifest({
   // non-deactivatable, so the declaration buys install and migration order
   // rather than a flip-time refusal.
   dependencies: [
+    // `_i18n` owns `adminI18nService`, from which the in-code order
+    // confirmation takes its sentences in the channel's language (issue #95).
+    // It declares `activation.nonDeactivatable`, so the edge costs no operator
+    // an activation control.
+    '_i18n',
     'addresses',
     // `specs/117-instance-bring-up/` Phase 6 — `ordersAdminScopeResolver` is
     // this module's own since FR-033, and it reads the acting admin's role

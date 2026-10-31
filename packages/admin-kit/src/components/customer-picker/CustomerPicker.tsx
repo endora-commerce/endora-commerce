@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ApiError, apiClient } from '../../lib/index.js';
+import { useTranslation } from '../../i18n/useTranslation.js';
 import { Combobox, type ComboboxOption } from '../../ui/combobox.js';
 
 /**
@@ -62,6 +63,11 @@ export function CustomerPicker(props: CustomerPickerProps): ReactNode {
   const [options, setOptions] = useState<ComboboxOption<string>[]>([]);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Whether any search has answered. Opening the list asks for the first page
+  // after the debounce, and until that answer arrives nothing has been searched:
+  // the empty list prompts for a term rather than claiming no match (#563).
+  const [answered, setAnswered] = useState(false);
+  const t = useTranslation('core');
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seqRef = useRef(0);
@@ -98,13 +104,18 @@ export function CustomerPicker(props: CustomerPickerProps): ReactNode {
         );
       } catch (err) {
         if (seq !== seqRef.current) return;
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Search failed.');
+        setError(
+          err instanceof ApiError ? err.envelope.error.message : t('customerPicker.searchFailed'),
+        );
         setOptions([]);
       } finally {
-        if (seq === seqRef.current) setSearching(false);
+        if (seq === seqRef.current) {
+          setSearching(false);
+          setAnswered(true);
+        }
       }
     },
-    [props.status, props.organizationId],
+    [props.status, props.organizationId, t],
   );
 
   const handleSearchChange = useCallback(
@@ -122,8 +133,12 @@ export function CustomerPicker(props: CustomerPickerProps): ReactNode {
     return c ? customerLabel(c) : '';
   }, [props.value, cache]);
 
+  // A failure outranks everything; before any answer, prompt for a term; after
+  // one, the caller's empty message or the kit's. While a search is in flight
+  // <Combobox> shows its own loading row.
   const emptyMessage =
-    error ?? props.emptyMessage ?? (searching ? 'Searching…' : 'No matching customers.');
+    error ??
+    (answered ? (props.emptyMessage ?? t('customerPicker.noMatch')) : t('customerPicker.prompt'));
 
   return (
     <Combobox<string>
@@ -135,9 +150,9 @@ export function CustomerPicker(props: CustomerPickerProps): ReactNode {
       loading={searching}
       clearable={props.clearable ?? true}
       disabled={props.disabled ?? false}
-      placeholder={props.placeholder ?? 'Search customers by name or email…'}
+      placeholder={props.placeholder ?? t('customerPicker.placeholder')}
       emptyMessage={emptyMessage}
-      ariaLabel={props.ariaLabel ?? 'Select customer'}
+      ariaLabel={props.ariaLabel ?? t('customerPicker.ariaLabel')}
       id={props.id ?? ''}
       className={props.className ?? ''}
       selectedLabel={selectedLabel}

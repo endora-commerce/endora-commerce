@@ -11,6 +11,7 @@ import { ApiError, apiClient, formatDateTime } from '@endora-commerce/admin-kit/
 import { Alert, AlertDescription, Badge, Card, CardContent, CardHeader, CardTitle, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { lookupProductLabels, type ProductLabel } from '../lib/product-labels.js';
+import { bulkOperationLogText } from '../lib/bulk-operation-log-text.js';
 
 /**
  * Bulk operation detail view — feature: bulk-operations detail.
@@ -292,7 +293,7 @@ export function BulkOperationDetailPage(): ReactNode {
                 <li key={idx} className="flex flex-wrap gap-2">
                   <span className="text-muted-foreground">{formatDateTime(entry.ts)}</span>
                   <span className={`uppercase ${LOG_LEVEL_CLASS[entry.level]}`}>{entry.level}</span>
-                  <span className={LOG_LEVEL_CLASS[entry.level]}>{entry.message}</span>
+                  <span className={LOG_LEVEL_CLASS[entry.level]}>{bulkOperationLogText(t, entry)}</span>
                 </li>
               ))}
             </ul>

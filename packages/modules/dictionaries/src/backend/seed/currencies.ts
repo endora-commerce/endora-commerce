@@ -23,7 +23,7 @@ export const CURRENCY_SEED: readonly CurrencySeedRow[] = [
   // Already created by migration 012; the reconciler updates the new
   // columns (symbol_position, decimal_places) only when they hold the
   // default value left by the migration.
-  { code: 'PLN', label: 'Polish złoty',          symbol: 'zł',  symbolPosition: 'suffix', decimalPlaces: 2 },
+  { code: 'PLN', label: 'Polish zloty',          symbol: 'zł',  symbolPosition: 'suffix', decimalPlaces: 2 },
   { code: 'EUR', label: 'Euro',                  symbol: '€',   symbolPosition: 'suffix', decimalPlaces: 2 },
 
   // Major non-EUR Western currencies.
@@ -42,7 +42,7 @@ export const CURRENCY_SEED: readonly CurrencySeedRow[] = [
   { code: 'NOK', label: 'Norwegian krone',       symbol: 'kr',  symbolPosition: 'suffix', decimalPlaces: 2 },
   { code: 'RON', label: 'Romanian leu',          symbol: 'lei', symbolPosition: 'suffix', decimalPlaces: 2 },
   { code: 'SEK', label: 'Swedish krona',         symbol: 'kr',  symbolPosition: 'suffix', decimalPlaces: 2 },
-  { code: 'ISK', label: 'Icelandic króna',       symbol: 'kr',  symbolPosition: 'suffix', decimalPlaces: 0 },
+  { code: 'ISK', label: 'Icelandic krona',       symbol: 'kr',  symbolPosition: 'suffix', decimalPlaces: 0 },
 
   // Other Europe.
   { code: 'UAH', label: 'Ukrainian hryvnia',     symbol: '₴',   symbolPosition: 'suffix', decimalPlaces: 2 },

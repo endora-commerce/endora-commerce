@@ -26,6 +26,7 @@ import { createAutoIssueReactor } from './services/auto-issue-reactor.js';
 import { registerInvoicesAdminRoutes } from './routes.admin.js';
 import { registerInvoicesCustomerRoutes } from './routes.customer.js';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { InvoicesTranslate } from './invoices-prose.js';
 
 /**
  * The attach function this module hands its composition root.
@@ -58,6 +59,12 @@ export interface InvoicesModuleOptions {
    * switched off.
    */
   orderReadPort: OrderReadPort;
+  /**
+   * This module's bundle, for the names of the lines an invoice itemises
+   * beside the products, written in the invoice's language when it is issued
+   * (issue #95). Absent, they are written in English.
+   */
+  translate?: InvoicesTranslate;
   assetReadPort: AssetReadPort;
   assetsLibrary: AssetsLibraryPort;
   saleDocumentAttachments: InvoiceAttachmentFetchPort;
@@ -161,6 +168,7 @@ export function invoicesModule(options: InvoicesModuleOptions): {
     options.ledgerRouting,
     options.capturedPayments,
     options.returnRefunds,
+    { translate: options.translate },
   );
   // T118c — built unconditionally. The three inputs used to be optional bridge
   // members, so a composition that supplied two of the three got no dispatcher

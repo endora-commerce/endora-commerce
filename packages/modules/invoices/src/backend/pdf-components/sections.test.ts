@@ -1,6 +1,15 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { InvoiceDetail } from '@endora-commerce/contracts';
-import { interpolate, lineItemsSection, money, totalsSection, unitMoney } from './sections.js';
+import {
+  INVOICE_PDF_LABEL_KEYS,
+  interpolate,
+  lineItemsSection,
+  money,
+  totalsSection,
+  unitMoney,
+  type InvoicePdfLabels,
+} from './sections.js';
 import { sampleInvoiceDetail } from './sample.js';
 
 /**
@@ -36,22 +45,28 @@ describe('invoice PDF — unit net price', () => {
  * amount due.
  */
 describe('invoice PDF — overpayment', () => {
+  const pl = JSON.parse(
+    readFileSync(new URL('../../../i18n/pl.json', import.meta.url), 'utf8'),
+  ) as Record<string, string>;
+  const PL: InvoicePdfLabels = Object.fromEntries(
+    INVOICE_PDF_LABEL_KEYS.map((key) => [key, pl[key]!]),
+  ) as InvoicePdfLabels;
   const texts = (content: unknown): string[] =>
     ((content as { stack: Array<{ text: string }> }).stack ?? []).map((c) => c.text);
 
   it('prints the overpayment beside an amount due of 0', () => {
     const invoice = { ...sampleInvoiceDetail(), grossTotal: 2400, paidTotal: 2450, amountDue: 0, overpayment: 50 };
-    const lines = texts(totalsSection(invoice, 'pl', { showAmountInWords: false }));
+    const lines = texts(totalsSection(invoice, 'pl', { showAmountInWords: false }, PL));
     expect(lines).toContain(`Do zapłaty: ${money(0)} USD`);
     expect(lines).toContain(`Nadpłata: ${money(50)} USD`);
   });
 
   it('takes the label from the template, and can be hidden', () => {
     const invoice = { ...sampleInvoiceDetail(), paidTotal: 2450, amountDue: 0, overpayment: 50 };
-    expect(texts(totalsSection(invoice, 'pl', { labelOverpayment: 'Overpayment' }))).toContain(
+    expect(texts(totalsSection(invoice, 'pl', { labelOverpayment: 'Overpayment' }, PL))).toContain(
       `Overpayment: ${money(50)} USD`,
     );
-    expect(texts(totalsSection(invoice, 'pl', { showOverpayment: false })).join('\n')).not.toContain('Nadpłata');
+    expect(texts(totalsSection(invoice, 'pl', { showOverpayment: false }, PL)).join('\n')).not.toContain('Nadpłata');
   });
 
   it('labels it in English on an English document', () => {
@@ -60,7 +75,7 @@ describe('invoice PDF — overpayment', () => {
   });
 
   it('prints no overpayment line when nothing was overpaid', () => {
-    const lines = texts(totalsSection(sampleInvoiceDetail(), 'pl', {}));
+    const lines = texts(totalsSection(sampleInvoiceDetail(), 'pl', {}, PL));
     expect(lines.join('\n')).not.toContain('Nadpłata');
   });
 

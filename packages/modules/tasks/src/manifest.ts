@@ -219,9 +219,32 @@ export const manifest = defineModuleManifest({
     { code: 'TASK_STATUS_UNKNOWN' },
     { code: 'TASK_TRANSITION_FORBIDDEN' },
     { code: 'TASK_TRANSITION_CONFLICT' },
-    { code: 'TASK_WORKFLOW_INVALID' },
-    { code: 'TASK_STATUS_IN_USE_TOO_MANY' },
+    // The broken rule is the refusal token (`{ rule, code: rule }`): the five
+    // graph rules of `TaskWorkflowRule`, the three configuration refusals of
+    // `TaskWorkflowConfigRule` and the two of `TaskPriorityConfigRule`.
+    {
+      code: 'TASK_WORKFLOW_INVALID',
+      tokens: [
+        'exactly_one_initial',
+        'initial_must_be_open',
+        'done_status_required',
+        'cancelled_status_required',
+        'transition_unknown_status',
+        'status_code_taken',
+        'category_in_use',
+        'replacement_required',
+        'priority_code_taken',
+        'priority_replacement_required',
+      ],
+    },
+    // A status removal carries no token; a priority removal carries
+    // `priority` (`priority-service.ts`, through `holdTasksFor`).
+    { code: 'TASK_STATUS_IN_USE_TOO_MANY', tokens: ['priority'] },
     { code: 'TASK_PRIVATE_READ_ONLY' },
+    // No `tokens`: the raise passes the unknown priority code itself as
+    // `details.code`, an open set, so it is on `check:error-translations`'
+    // `UNDECLARABLE_TOKEN_ERROR_CODES` until the raise moves it to a member
+    // of its own (issue #83).
     { code: 'TASK_PRIORITY_UNKNOWN' },
     { code: 'TASK_TAG_UNKNOWN' },
     { code: 'TASK_TAG_NAME_TAKEN' },

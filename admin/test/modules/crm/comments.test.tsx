@@ -5,6 +5,7 @@ import type { OpportunityComment } from '@endora-commerce/contracts';
 import {
   OPPORTUNITY_ID,
   ORDER_STATUS_GRAPH,
+  caretAt,
   core,
   crmLookupResponse,
   detail,
@@ -141,8 +142,12 @@ const countedTab = (labelKey: string, count: number): string =>
 
 const detailReads = (): number => getSpy.mock.calls.filter(([path]) => path === DETAIL_PATH).length;
 
-const entry = (panel: HTMLElement, text: string): HTMLElement =>
-  within(panel).getByText(text).closest('li') as HTMLElement;
+/**
+ * The list item holding a comment, once the list has arrived. `openTab` returns
+ * when the panel exists, which can be before the comments are read (#565).
+ */
+const entry = async (panel: HTMLElement, text: string): Promise<HTMLElement> =>
+  (await within(panel).findByText(text)).closest('li') as HTMLElement;
 
 describe('the Notes tab', () => {
   const open = (permissions?: readonly string[]): Promise<HTMLElement> =>
@@ -162,8 +167,8 @@ describe('the Notes tab', () => {
 
   it('offers edit and delete on the author\'s own note and on nobody else\'s', async () => {
     const panel = await open();
-    const mine = entry(panel, 'Call back on Friday.');
-    const theirs = entry(panel, 'They want forty vans.');
+    const mine = await entry(panel, 'Call back on Friday.');
+    const theirs = await entry(panel, 'They want forty vans.');
     expect(within(mine).getByRole('button', { name: core('comments.edit') })).toBeInTheDocument();
     expect(within(mine).getByRole('button', { name: core('comments.delete') })).toBeInTheDocument();
     expect(within(theirs).queryByRole('button', { name: core('comments.edit') })).toBeNull();
@@ -223,7 +228,7 @@ describe('the Notes tab', () => {
     });
     const panel = await open();
     await userEvent.click(
-      within(entry(panel, 'Call back on Friday.')).getByRole('button', { name: core('comments.edit') }),
+      within(await entry(panel, 'Call back on Friday.')).getByRole('button', { name: core('comments.edit') }),
     );
     const field = within(panel).getByLabelText(core('comments.edit.label'));
     expect(storedText(field)).toBe('Call back on Friday.');
@@ -244,10 +249,19 @@ describe('the Notes tab', () => {
     );
     const panel = await open();
     await userEvent.click(
-      within(entry(panel, 'Call back on Friday.')).getByRole('button', { name: core('comments.edit') }),
+      within(await entry(panel, 'Call back on Friday.')).getByRole('button', { name: core('comments.edit') }),
     );
     const field = within(panel).getByLabelText(core('comments.edit.label'));
-    await userEvent.type(field, ' Really.');
+    // The field focuses itself at the end one frame after it appears, and a
+    // click lands the caret wherever jsdom puts it. Typing before that frame
+    // has run put the text at position 0 on CI (#565): wait for the field's
+    // own focus, then place the caret where a person appending would.
+    await waitFor(() => {
+      expect(storedText(field)).toBe('Call back on Friday.');
+      expect(field).toHaveFocus();
+    });
+    caretAt(field, 'Call back on Friday.'.length);
+    await userEvent.type(field, ' Really.', { skipClick: true });
     await userEvent.click(within(panel).getByRole('button', { name: core('common.action.save') }));
     expect(await within(panel).findByText('Only the author may change a note.')).toBeInTheDocument();
     expect(storedText(field)).toBe('Call back on Friday. Really.');
@@ -260,7 +274,7 @@ describe('the Notes tab', () => {
     });
     const panel = await open();
     await userEvent.click(
-      within(entry(panel, 'Call back on Friday.')).getByRole('button', { name: core('comments.delete') }),
+      within(await entry(panel, 'Call back on Friday.')).getByRole('button', { name: core('comments.delete') }),
     );
     const dialog = screen.getByRole('dialog', { name: core('comments.delete.title') });
     expect(deleteSpy).not.toHaveBeenCalled();

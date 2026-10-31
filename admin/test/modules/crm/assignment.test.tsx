@@ -267,7 +267,7 @@ describe('the assignee on the opportunity', () => {
     await waitFor(() =>
       expect(within(section).getByLabelText(en('assignment.change'))).toHaveValue('Piotr Zielony'),
     );
-    expect(within(section).getByRole('status')).toHaveTextContent(en('assignment.saved'));
+    expect(within(section).getByText(en('assignment.saved'))).toHaveAttribute('role', 'status');
   });
 
   it('unassigns when the choice is cleared', async () => {
@@ -280,7 +280,7 @@ describe('the assignee on the opportunity', () => {
       expect(postSpy).toHaveBeenCalledWith(`${DETAIL_PATH}/assign`, { adminUserId: null }),
     );
     await waitFor(() =>
-      expect(within(section).getByRole('status')).toHaveTextContent(en('assignment.cleared')),
+      expect(within(section).getByText(en('assignment.cleared'))).toHaveAttribute('role', 'status'),
     );
   });
 

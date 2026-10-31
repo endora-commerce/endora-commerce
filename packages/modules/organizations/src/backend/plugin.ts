@@ -35,6 +35,7 @@ import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { RequireAdminAnyFactory } from '@endora-commerce/platform/kernel';
 import type { DictionaryValidator } from '@endora-commerce/contracts';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { OrganizationsTranslate } from './services/organizations-prose.js';
 
 /**
  * Composition root for the organizations + customer_accounts + addresses
@@ -154,6 +155,12 @@ export interface OrganizationsModuleOptions {
    * system default without one), and backs the admin *Sales channels*
    * endpoints and the admin create.
    */
+  /**
+   * This module's bundle (`_i18n`'s `adminI18nService`), for the customer-safe
+   * moderation sentences the storefront endpoints answer in the request's
+   * language (issue #95). Absent, they are answered in English.
+   */
+  translate?: OrganizationsTranslate;
   salesChannelMembership?: Pick<
     SalesChannelMembershipPort,
     'bindToDefaultIfEmpty' | 'replaceChannelsForEntity' | 'listChannelsForEntity'
@@ -223,6 +230,7 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       resolveCustomerContext: options.resolveCustomerContext,
       resolveCustomerActorOptionalOrg: resolveOptionalOrgContext,
       emFactory: options.emFactory,
+      ...(options.translate ? { translate: options.translate } : {}),
     });
     if (options.restrictionService) {
       await registerOrganizationsStorefrontRoutes(app, {
@@ -235,6 +243,7 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
         // no-org callers — that behavior is correct for order placement and
         // RFQ submission but wrong here.
         resolveCustomerContext: resolveOptionalOrgContext,
+        ...(options.translate ? { translate: options.translate } : {}),
       });
     }
     await registerMembersRoutes(app, {

@@ -24,3 +24,18 @@ export const SUPPORTED_LANGUAGES = SupportedLanguageSchema.options;
 
 /** The language the platform answers in when nothing else resolves. */
 export const LANGUAGE_FALLBACK: SupportedLanguage = 'en';
+
+/**
+ * The shipped language a BCP-47 tag (`pl-PL`, a sales channel's
+ * `defaultLanguage`, a document's `language`) is written in — its primary
+ * subtag when the platform ships a bundle for it, else {@link LANGUAGE_FALLBACK}.
+ *
+ * For a backend module that composes prose for a reader whose language it holds
+ * as a content-language tag and looks the sentence up in its own bundle.
+ */
+export function supportedLanguageOf(tag: string | null | undefined): SupportedLanguage {
+  const primary = (tag ?? '').split(/[-_]/, 1)[0]?.trim().toLowerCase() ?? '';
+  return (SUPPORTED_LANGUAGES as readonly string[]).includes(primary)
+    ? (primary as SupportedLanguage)
+    : LANGUAGE_FALLBACK;
+}

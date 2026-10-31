@@ -13,6 +13,8 @@ import {
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { Organization } from './entities/organization.entity.js';
+import { describeModerationStatus } from './services/moderation-message.js';
+import type { OrganizationsTranslate } from './services/organizations-prose.js';
 
 export interface OrganizationsCustomerDeps {
   customerAuthService: CustomerAuthPort;
@@ -41,6 +43,11 @@ export interface OrganizationsCustomerDeps {
   };
   /** Read-only EntityManager factory for the GET /me endpoint. */
   emFactory: () => EntityManager;
+  /**
+   * This module's bundle, for `moderationMessage` in the language the response
+   * is answered in (issue #95). Absent, English.
+   */
+  translate?: OrganizationsTranslate;
 }
 
 export async function registerOrganizationsCustomerRoutes(
@@ -72,7 +79,16 @@ export async function registerOrganizationsCustomerRoutes(
       return {
         data: {
           customerAccount: serializeCustomer(customer),
-          organization: organization ? serializeOrganization(organization) : null,
+          organization: organization
+            ? serializeOrganization(
+                organization,
+                await describeModerationStatus(
+                  deps.translate,
+                  organization.status,
+                  await request.responseLanguage(),
+                ),
+              )
+            : null,
           impersonation: impersonatorAdminUserId
             ? { impersonatorAdminUserId }
             : null,
@@ -203,7 +219,7 @@ function serializeCustomer(c: CustomerAccountRecord) {
   };
 }
 
-function serializeOrganization(o: Organization) {
+function serializeOrganization(o: Organization, moderationMessage: string | null) {
   return {
     id: o.id,
     name: o.name,
@@ -215,30 +231,13 @@ function serializeOrganization(o: Organization) {
     registeredAddress: o.registeredAddress,
     version: o.version,
     canTransact: o.status === 'active',
-    moderationMessage: describeModerationStatus(o.status),
+    /**
+     * Localized, customer-safe explanation of the current Organization status
+     * when ordering is unavailable, `null` for `active`. The storefront uses it
+     * as the disabled-CTA tooltip / cart-banner body.
+     */
+    moderationMessage,
     createdAt: o.createdAt.toISOString(),
     updatedAt: o.updatedAt.toISOString(),
   };
-}
-
-/**
- * Localized, customer-safe explanation of the current Organization status
- * when ordering is unavailable. Returns `null` for `active` (no message).
- * The storefront uses the non-null value as the disabled-CTA tooltip /
- * cart-banner body. Never contains admin-only details (the admin's
- * `blockedReason` field is intentionally not exposed).
- */
-function describeModerationStatus(
-  status: Organization['status'],
-): string | null {
-  switch (status) {
-    case 'active':
-      return null;
-    case 'pending_verification':
-      return 'Twoja Organizacja oczekuje na weryfikację. Zamówienia i Zapytania Ofertowe będą dostępne po jej zakończeniu.';
-    case 'blocked':
-      return 'Składanie Zamówień i Zapytań Ofertowych jest obecnie wstrzymane. Prosimy o kontakt z opiekunem konta.';
-    case 'rejected':
-      return 'Rejestracja Twojej Organizacji została odrzucona. Prosimy o kontakt z administracją platformy.';
-  }
 }

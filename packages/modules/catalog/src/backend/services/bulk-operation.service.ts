@@ -248,12 +248,9 @@ export class BulkOperationService {
     op.total = input.payload.productIds.length;
     op.payload = input.payload;
     op.logs = [
-      logEntry(
-        'info',
-        op.type === BULK_OPERATION_TYPES.SEARCH_REINDEX
-          ? 'Operacja przeindeksowania wyszukiwarki utworzona i dodana do kolejki.'
-          : `Operacja utworzona i dodana do kolejki (${op.total} elementów).`,
-      ),
+      op.type === BULK_OPERATION_TYPES.SEARCH_REINDEX
+        ? logEntry('info', 'bulkOperations.log.reindexQueued')
+        : logEntry('info', 'bulkOperations.log.queued', { total: op.total }),
     ];
     await em.persistAndFlush(op);
     // Producer side (Principle X): enqueue and return. Never block the HTTP
@@ -383,7 +380,7 @@ export class BulkOperationService {
     if (!op) return;
 
     const logs: BulkOperationLogEntry[] = Array.isArray(op.logs) ? [...op.logs] : [];
-    logs.push(logEntry('info', `Rozpoczęto przetwarzanie operacji (${op.total} elementów).`));
+    logs.push(logEntry('info', 'bulkOperations.log.started', { total: op.total }));
 
     if (op.type === BULK_OPERATION_TYPES.SEARCH_REINDEX) {
       await this.processReindex(op, logs);
@@ -433,17 +430,16 @@ export class BulkOperationService {
       ));
 
       logs.push(
-        logEntry(
-          'info',
-          `Zakończono: ${result.summary.succeeded} z powodzeniem, ${result.summary.skipped} pominięto, ${result.summary.failed} z błędem (łącznie ${result.summary.total}).`,
-        ),
+        logEntry('info', 'bulkOperations.log.finished', {
+          succeeded: result.summary.succeeded,
+          skipped: result.summary.skipped,
+          failed: result.summary.failed,
+          total: result.summary.total,
+        }),
       );
       if (result.summary.failed > 0) {
         logs.push(
-          logEntry(
-            'warn',
-            `${result.summary.failed} elementów zakończyło się błędem — szczegóły w statusie pojedynczych elementów.`,
-          ),
+          logEntry('warn', 'bulkOperations.log.itemsFailed', { failed: result.summary.failed }),
         );
       }
       // Build revert state from the products that actually succeeded, reading
@@ -482,7 +478,7 @@ export class BulkOperationService {
       await this.notify(op, 'completed', result.summary);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      logs.push(logEntry('error', `Operacja nie powiodła się: ${message}`));
+      logs.push(logEntry('error', 'bulkOperations.log.failed', { message }));
       await em.nativeUpdate(
         BulkOperation,
         { id },
@@ -508,7 +504,7 @@ export class BulkOperationService {
     const em = this.emFactory();
     if (!this.deps.reindexRunner) {
       const message = 'Search reindex handler is not configured.';
-      logs.push(logEntry('error', `Operacja nie powiodła się: ${message}`));
+      logs.push(logEntry('error', 'bulkOperations.log.failed', { message }));
       await em.nativeUpdate(
         BulkOperation,
         { id: op.id },
@@ -520,7 +516,7 @@ export class BulkOperationService {
     try {
       const { documentCount } = await this.deps.reindexRunner();
       logs.push(
-        logEntry('info', `Przeindeksowano ${documentCount} dokumentów we wszystkich indeksach.`),
+        logEntry('info', 'bulkOperations.log.reindexed', { documentCount }),
       );
       await em.nativeUpdate(
         BulkOperation,
@@ -544,7 +540,7 @@ export class BulkOperationService {
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      logs.push(logEntry('error', `Operacja nie powiodła się: ${message}`));
+      logs.push(logEntry('error', 'bulkOperations.log.failed', { message }));
       await em.nativeUpdate(
         BulkOperation,
         { id: op.id },
@@ -867,8 +863,42 @@ function pickProductFields(product: Product, keys: readonly string[]): Record<st
   return out;
 }
 
-function logEntry(level: BulkOperationLogEntry['level'], message: string): BulkOperationLogEntry {
-  return { ts: new Date().toISOString(), level, message };
+/**
+ * The trail is stored and read later by administrators in languages of their
+ * own, so the backend cannot write it in its reader's language
+ * (`specs/conventions/module-i18n.md`): an entry stores the key its reader
+ * translates, its params, and the English sentence for a reader that cannot
+ * resolve the key (issue #95). The English is `i18n/en.json`'s, held equal to
+ * it by `bulk-operation-log.test.ts`.
+ */
+const LOG_ENGLISH = {
+  'bulkOperations.log.queued': 'Operation created and queued ({total} items).',
+  'bulkOperations.log.reindexQueued': 'Search reindex operation created and queued.',
+  'bulkOperations.log.started': 'Started processing the operation ({total} items).',
+  'bulkOperations.log.finished':
+    'Finished: {succeeded} succeeded, {skipped} skipped, {failed} failed ({total} in total).',
+  'bulkOperations.log.itemsFailed': '{failed} items failed — see the status of each item for details.',
+  'bulkOperations.log.failed': 'The operation failed: {message}',
+  'bulkOperations.log.reindexed': 'Reindexed {documentCount} documents across all indexes.',
+} as const;
+
+export type BulkOperationLogKey = keyof typeof LOG_ENGLISH;
+export const BULK_OPERATION_LOG_ENGLISH: Readonly<Record<BulkOperationLogKey, string>> = LOG_ENGLISH;
+
+function logEntry(
+  level: BulkOperationLogEntry['level'],
+  key: BulkOperationLogKey,
+  params?: Record<string, string | number>,
+): BulkOperationLogEntry {
+  const message = LOG_ENGLISH[key].replace(/\{(\w+)\}/g, (match, name: string) =>
+    params?.[name] != null ? String(params[name]) : match,
+  );
+  return {
+    ts: new Date().toISOString(),
+    level,
+    message,
+    messageKey: params ? { key, params } : { key },
+  };
 }
 
 function touchedFieldsOf(payload: BulkOperationPayload): string[] {

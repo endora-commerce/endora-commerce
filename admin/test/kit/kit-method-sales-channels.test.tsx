@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState, type ReactNode } from 'react';
+import { AppLanguageContext } from '@endora-commerce/admin-kit/i18n';
 import { renderWithI18n } from '../helpers/render-with-i18n';
 
 /**
@@ -253,5 +254,31 @@ describe('MethodSalesChannelsCell', () => {
 
     await screen.findByRole('alert');
     expect(screen.getByText('2 selected')).toBeInTheDocument();
+  });
+
+  it('names the channels in the admin language (#562)', async () => {
+    // Channel names are keyed by locale (`pl-PL`), the admin language by its
+    // short code (`pl`). This picker matches by language prefix, so a Polish
+    // admin reads the Polish name; the case pins that against a regression.
+    getSpy.mockResolvedValue({
+      data: [
+        { id: CHANNEL_A, code: 'default', name: { 'en-US': 'Default shop', 'pl-PL': 'Sklep domyślny' }, active: true },
+        { id: CHANNEL_B, code: 'b2b-eu', name: { 'en-US': 'B2B Europe' }, active: true },
+      ],
+    });
+    function Cell(): ReactNode {
+      const options = useSalesChannelOptions(OPTIONS_PATH, true);
+      return <MethodSalesChannelsCell options={options} salesChannelIds={[CHANNEL_A, CHANNEL_B]} />;
+    }
+    renderWithI18n(
+      <AppLanguageContext.Provider value={{ language: 'pl', setLanguage: (): void => {} }}>
+        <Cell />
+      </AppLanguageContext.Provider>,
+      BUNDLE,
+    );
+
+    const list = await screen.findByRole('list');
+    expect(list).toHaveTextContent('Sklep domyślny');
+    expect(list).toHaveTextContent('B2B Europe');
   });
 });
