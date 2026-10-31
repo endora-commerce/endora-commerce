@@ -214,6 +214,66 @@ describe('d169PortsFindings refuses each shape it names', () => {
     ).toEqual(['unresolvable-reexport']);
   });
 
+  describe('charges a named re-export only with what it asked for (issue #564)', () => {
+    // `shared.ts` publishes names this analysis resolves and, beside them, a
+    // bare re-export it cannot follow. A barrel naming a resolved one has a
+    // known surface; only a name the file does not resolve, or a star over the
+    // whole file, inherits the unknown. `#101` drew that line for `./backend`
+    // and left this reader inheriting every unresolvable of any file it read.
+    const SHARED = '/pkg/src/backend/shared.ts';
+    const SHARED_SOURCE = [
+      'export class ApplyService {}',
+      'export interface ApplyPort { apply(): void }',
+      "export * from '@somebody/else';",
+    ].join('\n');
+
+    it('does not inherit it through `export type { X } from` of a resolved class', () => {
+      expect(
+        kinds({
+          '/pkg/src/ports/index.ts': "export type { ApplyService } from '../backend/shared.js';\n",
+          [SHARED]: SHARED_SOURCE,
+        }),
+      ).toEqual([]);
+    });
+
+    it('does not inherit it through a resolved interface either', () => {
+      expect(
+        kinds({
+          '/pkg/src/ports/index.ts': "export type { ApplyPort } from '../backend/shared.js';\n",
+          [SHARED]: SHARED_SOURCE,
+        }),
+      ).toEqual([]);
+    });
+
+    it('does not inherit it through an imported binding exported by name', () => {
+      expect(
+        kinds({
+          '/pkg/src/ports/index.ts':
+            "import type { ApplyPort } from '../backend/shared.js';\nexport type { ApplyPort };\n",
+          [SHARED]: SHARED_SOURCE,
+        }),
+      ).toEqual([]);
+    });
+
+    it('still inherits it when the name it asks for is not among the resolved exports', () => {
+      expect(
+        kinds({
+          '/pkg/src/ports/index.ts': "export type { Unknown } from '../backend/shared.js';\n",
+          [SHARED]: SHARED_SOURCE,
+        }),
+      ).toEqual(['unresolvable-reexport']);
+    });
+
+    it('still inherits it through a star, which publishes whatever the bare one carries', () => {
+      expect(
+        kinds({
+          '/pkg/src/ports/index.ts': "export type * from '../backend/shared.js';\n",
+          [SHARED]: SHARED_SOURCE,
+        }),
+      ).toEqual(['unresolvable-reexport']);
+    });
+  });
+
   it('reads exports as syntax, not as prose', () => {
     expect(
       kinds({

@@ -35,11 +35,11 @@
   },
   "include": ["src/admin/**/*"],
   // The inherited `exclude` names `src/admin/**/*` — that is what keeps the
-  // backend program off this layer — so it is **replaced** here, with nothing,
-  // rather than inherited, or `tsc` reports TS18003 over the one directory this
-  // program exists to compile. Co-located tests stay in the program: this file
-  // is also the UI layer's type-check (`tsc -p tsconfig.ui.json --noEmit`), and
-  // a test excluded here is read by no `tsc` invocation (issue #81). The emit
-  // runs `tsconfig.ui.build.json`, which extends this file and excludes them.
-  "exclude": []
+  // backend program off this layer — so it is **replaced** here rather than
+  // inherited, or `tsc` reports TS18003 over the one directory this program
+  // exists to compile. It is replaced with the **tests**: this package's UI
+  // tests run in Node and are type-checked by `tsconfig.ui.test.json`, with the
+  // Node types this program must not carry (issue #566). They are still read by
+  // a `tsc` invocation (issue #81) — that one.
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/**/*.spec.ts", "src/**/*.spec.tsx"]
 }
