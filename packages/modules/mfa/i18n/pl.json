@@ -11,7 +11,7 @@
   "errors.MFA_REAUTH_REQUIRED": "Wyłączenie weryfikacji dwuetapowej musi zostać przez Ciebie potwierdzone. Podaj aktualny kod z aplikacji uwierzytelniającej albo hasło do tego konta.",
   "errors.MFA_TOO_MANY_ATTEMPTS": "Wpisano zbyt wiele błędnych kodów, więc ta próba logowania została przerwana. Zaloguj się ponownie i użyj kolejnego kodu prosto z aplikacji uwierzytelniającej albo jednego z kodów odzyskiwania.",
   "errors.MFA_WRONG_SURFACE": "To logowanie zostało rozpoczęte w innym miejscu, więc tego kodu nie można tu potwierdzić. Wróć na stronę, na której rozpoczęło się logowanie, i wpisz kod tam.",
-  "errors.MFA_DEACTIVATION_BLOCKED": "Nie można wyłączyć weryfikacji dwuetapowej, dopóki administratorzy muszą z niej korzystać. Najpierw wyłącz ustawienie „Admin UI — enforce 2FA” (mfa.admin.totp_enforced), a potem wyłącz moduł.",
+  "errors.MFA_DEACTIVATION_BLOCKED": "Nie można wyłączyć weryfikacji dwuetapowej, dopóki administratorzy muszą z niej korzystać. Najpierw wyłącz ustawienie „Admin UI — enforce two-step verification” (mfa.admin.totp_enforced), a potem wyłącz moduł.",
   "nav.security.label": "Bezpieczeństwo konta",
   "actions.openSecurity.label": "Bezpieczeństwo konta",
   "actions.openSecurity.description": "Skonfiguruj lub zmień własną weryfikację dwuetapową",

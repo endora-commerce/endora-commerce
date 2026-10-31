@@ -7,10 +7,10 @@ import {
 /**
  * MFA module — feature 042.
  *
- * Owns two-factor authentication (TOTP + recovery codes) and federated
+ * Owns two-step verification (TOTP + recovery codes) and federated
  * sign-in (Google / Microsoft) across the Storefront and Admin UI, plus the
  * per-surface / per-channel / per-organization enablement & enforcement
- * policy and Platform-Admin 2FA reset.
+ * policy and Platform-Admin two-step verification reset.
  *
  * `mfa` is a singular acronym module name — a documented Principle VI
  * carve-out (see specs/042-mfa-authentication/plan.md Complexity Tracking).
@@ -35,7 +35,7 @@ const settings = defineModuleSettingsManifest({
     },
     {
       code: MFA_SETTING_CODES.ADMIN_TOTP_ENABLED,
-      name: 'Admin UI — allow 2FA',
+      name: 'Admin UI — allow two-step verification',
       description: 'When enabled, admin users may set up TOTP two-step verification.',
       groupCode: 'mfa',
       valueType: 'boolean',
@@ -43,7 +43,7 @@ const settings = defineModuleSettingsManifest({
     },
     {
       code: MFA_SETTING_CODES.ADMIN_TOTP_ENFORCED,
-      name: 'Admin UI — enforce 2FA',
+      name: 'Admin UI — enforce two-step verification',
       description:
         'When enabled, admin users must complete two-step verification setup before accessing the Admin UI.',
       groupCode: 'mfa',
@@ -52,7 +52,7 @@ const settings = defineModuleSettingsManifest({
     },
     {
       code: MFA_SETTING_CODES.STOREFRONT_TOTP_ENABLED,
-      name: 'Storefront — allow 2FA',
+      name: 'Storefront — allow two-step verification',
       description:
         'When enabled, customers may set up TOTP two-step verification. Can be overridden per sales channel.',
       groupCode: 'mfa',
@@ -61,7 +61,7 @@ const settings = defineModuleSettingsManifest({
     },
     {
       code: MFA_SETTING_CODES.STOREFRONT_TOTP_ENFORCED,
-      name: 'Storefront — enforce 2FA',
+      name: 'Storefront — enforce two-step verification',
       description:
         'When enabled, customers must complete two-step verification setup before using the storefront. Can be overridden per sales channel.',
       groupCode: 'mfa',
