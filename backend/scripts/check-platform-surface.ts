@@ -580,10 +580,13 @@ export const SHARED_PUBLISHED_NAMES: Readonly<Record<string, LedgeredSharedName>
     reason:
       '`@endora-commerce/platform/kernel` publishes `AuditLogEntry` as the MikroORM entity ' +
       'class of an `audit_logs` row (`kernel/audit/audit-log-entry.entity.ts`), and ' +
-      '`@endora-commerce/contracts` exports `AuditLogEntry` as the API shape inferred from ' +
+      '`@endora-commerce/contracts` exported `AuditLogEntry` as the API shape inferred from ' +
       '`auditLogEntrySchema` (`admin.ts`). Two different things under one name, found by the ' +
-      'signal that introduced this ledger (issue #84). Renaming either is a breaking change to ' +
-      'a published export and is a maintainer decision, so it is held here rather than renamed.',
+      'signal that introduced this ledger (issue #84). The maintainer ruled (2026-10-30) that ' +
+      'the contracts type is renamed `AuditLogEntryResponse` and `AuditLogEntry` stays there for ' +
+      'one minor release as a `@deprecated` alias of it — still a different declaration under ' +
+      'the same published name, so the collision stands while the alias does. This entry is ' +
+      'deleted by the change that removes the alias, in the minor release after the rename.',
   },
 };
 

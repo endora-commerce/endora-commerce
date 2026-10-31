@@ -322,4 +322,11 @@ export const auditLogEntrySchema = z.object({
   userAgent: z.string().nullable(),
   requestId: z.string().nullable(),
 });
-export type AuditLogEntry = z.infer<typeof auditLogEntrySchema>;
+export type AuditLogEntryResponse = z.infer<typeof auditLogEntrySchema>;
+/**
+ * @deprecated Use {@link AuditLogEntryResponse}. `@endora-commerce/platform/kernel`
+ * publishes `AuditLogEntry` as the MikroORM entity of an `audit_logs` row, a
+ * different thing under the same name (issue #84). This alias is removed in the
+ * next minor release.
+ */
+export type AuditLogEntry = AuditLogEntryResponse;
