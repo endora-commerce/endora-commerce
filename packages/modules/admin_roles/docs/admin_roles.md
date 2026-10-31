@@ -22,8 +22,8 @@ Permissions are strings shaped `module:action` (e.g. `catalog:write`,
 `integrations:manage`, `audit:read`). `permission-service.ts` exposes
 `hasPermission(adminUser, 'module:action')`; the `requireAdmin(permission?)`
 pre-handler in `auth/plugin.ts` consults it on every gated route. A Role
-may also require 2FA — `requireAdmin` enforces the 2FA challenge before
-invoking the route handler.
+may also require two-step verification — `requireAdmin` enforces the
+second-step challenge before invoking the route handler.
 
 ## The platform-administrator role
 

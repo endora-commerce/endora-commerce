@@ -21,7 +21,7 @@ Definicje ról administratorów oraz macierz uprawnień modułów, które rola p
 Uprawnienia to stringi w postaci `module:action` (np. `catalog:write`, `integrations:manage`,
 `audit:read`). `permission-service.ts` udostępnia `hasPermission(adminUser, 'module:action')`;
 pre-handler `requireAdmin(permission?)` w `auth/plugin.ts` sprawdza je na każdej chronionej trasie.
-Rola może też wymagać 2FA — `requireAdmin` wymusza wtedy weryfikację drugiego składnika, zanim
+Rola może też wymagać weryfikacji dwuetapowej — `requireAdmin` wymusza wtedy drugi krok logowania, zanim
 wykona się handler trasy.
 
 ## Rola administratora platformy

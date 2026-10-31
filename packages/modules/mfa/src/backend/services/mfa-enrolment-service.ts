@@ -49,7 +49,7 @@ export class MfaEnrolmentService {
       status: 'active',
     });
     if (active) {
-      throw new HttpError(409, 'MFA_ALREADY_ENROLLED', '2FA is already enabled for this account.');
+      throw new HttpError(409, 'MFA_ALREADY_ENROLLED', 'Two-step verification is already enabled for this account.');
     }
     // Replace any half-finished pending enrolment.
     const pendings = await em.find(MfaEnrolment, {
@@ -159,7 +159,7 @@ export class MfaEnrolmentService {
       status: 'active',
     });
     if (!active) {
-      throw new HttpError(400, 'MFA_NO_ACTIVE_ENROLMENT', '2FA is not enabled for this account.');
+      throw new HttpError(400, 'MFA_NO_ACTIVE_ENROLMENT', 'Two-step verification is not enabled for this account.');
     }
     await em.nativeDelete(MfaRecoveryCode, { enrolmentId: active.id });
     const codes = generateRecoveryCodes();

@@ -1,11 +1,11 @@
 ---
 title: customer_accounts
-description: Logowanie klientów, reset hasła, 2FA, przypisanie roli
+description: Logowanie klientów, reset hasła, weryfikacja dwuetapowa, przypisanie roli
 ---
 
 # `customer_accounts`
 
-Dane każdego użytkownika po stronie klienta: logowanie, zarządzanie hasłem, opcjonalne 2FA i rola
+Dane każdego użytkownika po stronie klienta: logowanie, zarządzanie hasłem, opcjonalna weryfikacja dwuetapowa i rola
 w organizacji. Moduł korzysta ze wspólnej usługi sesji z `auth`; odpowiada za tożsamość użytkowników
 po stronie klienta.
 
@@ -13,7 +13,7 @@ po stronie klienta.
 
 | Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
-| `POST /api/v1/auth/login` | E-mail i hasło (oraz krok TOTP, gdy włączone jest 2FA) |
+| `POST /api/v1/auth/login` | E-mail i hasło (oraz krok TOTP, gdy włączona jest weryfikacja dwuetapowa) |
 | `POST /api/v1/auth/logout` | Zakończenie sesji |
 | `POST /api/v1/me/password` | Zmiana hasła (odrzuca błędne `currentPassword`). Udana zmiana wylogowuje konto ze wszystkich pozostałych sesji (sesja, z której wysłano żądanie, zostaje), unieważnia niewykorzystane tokeny resetu hasła i wycofuje każde rozpoczęte, a niedokończone logowanie. |
 | `POST /api/v1/auth/password-reset/request` | Rozpoczęcie resetu hasła. Nowy link unieważnia wszystkie wcześniejsze niewykorzystane, więc działa tylko ten z najnowszej wiadomości. Powtarzane żądania dla jednego adresu są ograniczane (zob. niżej) |
@@ -68,8 +68,8 @@ nie odpowie w ciągu trzech sekund, próba jest odrzucana z **503
 
 - **Polityka haseł** — `password-hasher.ts` opakowuje argon2id; tam dostosowuje się parametry
   kosztu.
-- **Kody zapasowe i drugie składniki uwierzytelniania** — nie należą do tego modułu. 2FA klientów i
-  administratorów obsługuje moduł `mfa`, na tabeli `mfa_enrolments`, udostępniony pod
+- **Kody zapasowe i drugie składniki uwierzytelniania** — nie należą do tego modułu. Weryfikację dwuetapową klientów
+  i administratorów obsługuje moduł `mfa`, na tabeli `mfa_enrolments`, udostępniony pod
   `/api/v1/account/mfa/*`; kody odzyskiwania to tam jednorazowe wiersze. Zastąpiony szkielet, na
   który ten punkt wcześniej wskazywał (`totp-enrolment-service.ts`), usunięto 2026-08-25 — nigdy
   nie pozwalał dokończyć ani jednej rejestracji drugiego składnika.

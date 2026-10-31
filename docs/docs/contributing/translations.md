@@ -55,6 +55,7 @@ first and only propose a glossary edit if the term genuinely does not fit.
 | role                    | rola                        |                                                     |
 | permission              | uprawnienie                 |                                                     |
 | audit log               | dziennik audytu             |                                                     |
+| two-step verification   | weryfikacja dwuetapowa      | the one MFA term; never "2FA" or "two-factor"       |
 | product                 | produkt                     |                                                     |
 | products                | produkty                    | nom. plural for `2-4`; `produktów` for `5+`         |
 | variant                 | wariant                     |                                                     |

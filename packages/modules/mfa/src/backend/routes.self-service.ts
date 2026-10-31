@@ -92,7 +92,7 @@ export async function registerMfaSelfServiceRoutes(
       organizationId: opts.resolveOrganizationId?.(request) ?? null,
     });
     if (!policy.totpEnabled) {
-      throw new HttpError(403, 'MFA_NOT_ENABLED', 'Two-factor authentication is not enabled for your account.');
+      throw new HttpError(403, 'MFA_NOT_ENABLED', 'Two-step verification is not enabled for your account.');
     }
     const label =
       (await opts.resolveAccountEmail(subjectType, subject.subjectId)) ?? subject.subjectId;
@@ -272,5 +272,5 @@ async function reauthenticate(
     // typed an email here.
     throw new HttpError(403, ERROR_CODES.CURRENT_PASSWORD_INVALID, 'The current password is incorrect.');
   }
-  throw new HttpError(400, 'MFA_REAUTH_REQUIRED', 'A current code is required to disable 2FA.');
+  throw new HttpError(400, 'MFA_REAUTH_REQUIRED', 'A current code is required to disable two-step verification.');
 }

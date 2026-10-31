@@ -543,13 +543,13 @@ Liczby są stałymi modułu, a nie ustawieniami. Zobacz
 administratorzy i klienci zostaną wylogowani na pozostałych urządzeniach tam, gdzie dotąd nie
 byli:
 
-- administrator, który zmienia własne hasło albo wyłącza własne uwierzytelnianie dwuskładnikowe,
+- administrator, który zmienia własne hasło albo wyłącza własną weryfikację dwuetapową,
   kończy wszystkie pozostałe sesje konta i zachowuje tę, z której dokonano zmiany;
 - dezaktywacja albo usunięcie administratora kończy wszystkie sesje konta, a sesja konta, które
   nie jest aktywne, jest odrzucana niezależnie od tego, czy cokolwiek ją unieważniło;
 - `pnpm run admin:create` uruchomione ponownie dla istniejącego konta zastępuje jego hasło, jak
   dotąd, a teraz kończy też wszystkie sesje tego konta;
-- klient, który zmienia hasło albo wyłącza uwierzytelnianie dwuskładnikowe, kończy wszystkie
+- klient, który zmienia hasło albo wyłącza weryfikację dwuetapową, kończy wszystkie
   pozostałe sesje konta; użycie odnośnika resetującego hasło kończy je wszystkie, podobnie jak
   zresetowanie drugiego składnika klienta przez administratora.
 

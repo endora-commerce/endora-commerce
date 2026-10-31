@@ -378,14 +378,14 @@ holding `catalog:write` and neither pricing code gets `403` from `GET /api/v1/ad
 and from `GET /api/v1/admin/price-books/targets/customer-groups` — that negative case is the half
 that proves the boundary holds.
 
-### D4. Turn on two-factor authentication for the Admin UI
+### D4. Turn on two-step verification for the Admin UI
 
 **Why.** The MFA module is active by default, but every capability inside it ships **off**:
 `mfa.admin.totp_enabled` and `mfa.admin.totp_enforced` both default to `false`
 (`packages/modules/mfa/src/manifest.ts:37-51`). A deployment that changes nothing has
 password-only admin access on a public domain.
 
-**Do (operator + engineer).** Set `MFA_SECRET_ENCRYPTION_KEY` (B1), then allow admin 2FA,
+**Do (operator + engineer).** Set `MFA_SECRET_ENCRYPTION_KEY` (B1), then allow admin two-step verification,
 enrol every administrator, and only then enforce it — enforcing before enrolment locks
 everybody out.
 

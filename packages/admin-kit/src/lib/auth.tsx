@@ -241,7 +241,7 @@ export function AuthProvider({ initial, children }: AuthProviderProps): ReactNod
           setState((prev) => ({
             ...prev,
             lastLoginError:
-              'Two-factor authentication is required for your account. Please contact a platform administrator to finish setup.',
+              'Two-step verification is required for your account. Please contact a platform administrator to finish setup.',
           }));
           return;
         }

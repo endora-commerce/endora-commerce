@@ -7,10 +7,10 @@ import {
 /**
  * MFA module — feature 042.
  *
- * Owns two-factor authentication (TOTP + recovery codes) and federated
+ * Owns two-step verification (TOTP + recovery codes) and federated
  * sign-in (Google / Microsoft) across the Storefront and Admin UI, plus the
  * per-surface / per-channel / per-organization enablement & enforcement
- * policy and Platform-Admin 2FA reset.
+ * policy and Platform-Admin two-step verification reset.
  *
  * `mfa` is a singular acronym module name — a documented Principle VI
  * carve-out (see specs/042-mfa-authentication/plan.md Complexity Tracking).
@@ -28,42 +28,42 @@ const settings = defineModuleSettingsManifest({
       code: MFA_SETTING_CODES.ACTIVATION,
       name: 'MFA enabled',
       description:
-        'Switches the whole module on or off: two-factor enrolment and challenges, the federated sign-in buttons, the per-organization enforcement policy and the admin reset screen. Nothing is dropped — enrolled secrets, recovery codes and every policy value stay in the database and apply again exactly as before when you switch it back on.',
+        'Switches the whole module on or off: two-step verification enrolment and challenges, the federated sign-in buttons, the per-organization enforcement policy and the admin reset screen. Nothing is dropped — enrolled secrets, recovery codes and every policy value stay in the database and apply again exactly as before when you switch it back on.',
       groupCode: 'mfa',
       valueType: 'boolean',
       defaultValue: true,
     },
     {
       code: MFA_SETTING_CODES.ADMIN_TOTP_ENABLED,
-      name: 'Admin UI — allow 2FA',
-      description: 'When enabled, admin users may set up TOTP two-factor authentication.',
+      name: 'Admin UI — allow two-step verification',
+      description: 'When enabled, admin users may set up TOTP two-step verification.',
       groupCode: 'mfa',
       valueType: 'boolean',
       defaultValue: false,
     },
     {
       code: MFA_SETTING_CODES.ADMIN_TOTP_ENFORCED,
-      name: 'Admin UI — enforce 2FA',
+      name: 'Admin UI — enforce two-step verification',
       description:
-        'When enabled, admin users must complete 2FA setup before accessing the Admin UI.',
+        'When enabled, admin users must complete two-step verification setup before accessing the Admin UI.',
       groupCode: 'mfa',
       valueType: 'boolean',
       defaultValue: false,
     },
     {
       code: MFA_SETTING_CODES.STOREFRONT_TOTP_ENABLED,
-      name: 'Storefront — allow 2FA',
+      name: 'Storefront — allow two-step verification',
       description:
-        'When enabled, customers may set up TOTP two-factor authentication. Can be overridden per sales channel.',
+        'When enabled, customers may set up TOTP two-step verification. Can be overridden per sales channel.',
       groupCode: 'mfa',
       valueType: 'boolean',
       defaultValue: false,
     },
     {
       code: MFA_SETTING_CODES.STOREFRONT_TOTP_ENFORCED,
-      name: 'Storefront — enforce 2FA',
+      name: 'Storefront — enforce two-step verification',
       description:
-        'When enabled, customers must complete 2FA setup before using the storefront. Can be overridden per sales channel.',
+        'When enabled, customers must complete two-step verification setup before using the storefront. Can be overridden per sales channel.',
       groupCode: 'mfa',
       valueType: 'boolean',
       defaultValue: false,
@@ -112,7 +112,7 @@ export const manifest = defineModuleManifest({
   id: 'mfa',
   name: 'MFA',
   description:
-    'Two-factor authentication (TOTP + recovery codes) and Google/Microsoft sign-in, with per-scope enablement/enforcement and admin reset.',
+    'Two-step verification (TOTP + recovery codes) and Google/Microsoft sign-in, with per-scope enablement/enforcement and admin reset.',
   version: '1.0.0',
   /**
    * What this module needs from the environment (`specs/117-instance-bring-up/`
@@ -276,8 +276,8 @@ export const manifest = defineModuleManifest({
   ],
   i18n: { bundlesDir: 'i18n' },
   permissions: [
-    { code: 'mfa:reset', label: "Reset a user's 2FA" },
-    { code: 'mfa:manage', label: 'Manage 2FA policies and organization enforcement' },
+    { code: 'mfa:reset', label: "Reset a user's two-step verification" },
+    { code: 'mfa:manage', label: 'Manage two-step verification policies and organization enforcement' },
   ],
   // Principle XVI (issue #510): the signed-in admin's own two-factor screen was
   // reachable from neither the sidebar nor the palette. **No
@@ -292,7 +292,7 @@ export const manifest = defineModuleManifest({
       descriptionKey: 'actions.openSecurity.description',
       icon: 'ShieldCheck',
       targetRoute: '/security',
-      keywords: ['2fa', 'mfa', 'two-factor', 'security', 'authenticator', 'totp'],
+      keywords: ['2fa', 'mfa', 'two-factor', 'two-step verification', 'security', 'authenticator', 'totp'],
       keywordsKey: 'actions.openSecurity.keywords',
       weight: 900,
     },

@@ -84,7 +84,7 @@ describe('MFA refusals render their sentence, not their code (issue #223)', () =
     expect(res.statusCode).toBe(403);
     expect(res.json().error?.code).toBe('MFA_NOT_ENABLED');
     expect(res.json().error?.message).toBe(
-      'Two-factor authentication is not available here, so it cannot be switched on ' +
+      'Two-step verification is not available here, so it cannot be switched on ' +
         'for this account. Your administrator decides where it can be used — ask them ' +
         'to enable it.',
     );

@@ -123,7 +123,7 @@ znaki szesnastkowe dekodują się do 48 bajtów, a nie 32).
 | `SESSION_COOKIE_SECRET` | `openssl rand -hex 32` | Backend i worker kończą działanie przy starcie z komunikatem `SESSION_COOKIE_SECRET must be set in production`. | Akceptowany jest każdy niepusty ciąg, więc wartość zastępcza działa i podpisuje ciasteczka publicznie znanym kluczem. |
 | `NEWSLETTER_TOKEN_SECRET` | `openssl rand -base64 32` | Działa. Linki potwierdzenia i wypisania z newslettera są podpisywane kluczem `SESSION_COOKIE_SECRET` (`packages/platform/src/composition/newsletter-token-secret.ts`), więc zmiana klucza sesji unieważnia każdy link, który wciąż czeka w skrzynce odbiorcy. Ustaw go, aby oba klucze można było zmieniać niezależnie. | Jako klucz podpisujący akceptowany jest każdy niepusty ciąg. |
 | `SETTINGS_SECRET_ENCRYPTION_KEY` | `openssl rand -base64 32` (musi dekodować się do 32 bajtów) | Backend startuje i zapisuje w logu `[settings] SETTINGS_SECRET_ENCRYPTION_KEY is not set`. Sekretnych ustawień i sekretnych pól danych uwierzytelniających (np. tokenu API zapisywanego przez moduł) nie da się zapisać ani odczytać, dopóki klucz nie zostanie ustawiony, a backend uruchomiony ponownie. | Nie jest sprawdzany przy starcie. Backend uruchamia się **bez ostrzeżenia**, a potem każdy zapis sekretnego ustawienia kończy się błędem `SETTINGS_SECRET_ENCRYPTION_KEY is misconfigured — it must decode to 32 bytes (got N)`, zgłaszanym przez moduł `credentials`. |
-| `MFA_SECRET_ENCRYPTION_KEY` | `openssl rand -base64 32` (musi dekodować się do 32 bajtów) | Moduł `mfa` udostępnia swoje ekrany, ale odrzuca każdą rejestrację drugiego składnika, więc żaden administrator nie włączy 2FA (D4). | Gdy `mfa` jest zainstalowany, backend nie startuje: `MFA_SECRET_ENCRYPTION_KEY must decode to 32 bytes (got N)`. |
+| `MFA_SECRET_ENCRYPTION_KEY` | `openssl rand -base64 32` (musi dekodować się do 32 bajtów) | Moduł `mfa` udostępnia swoje ekrany, ale odrzuca każdą rejestrację drugiego składnika, więc żaden administrator nie włączy weryfikacji dwuetapowej (D4). | Gdy `mfa` jest zainstalowany, backend nie startuje: `MFA_SECRET_ENCRYPTION_KEY must decode to 32 bytes (got N)`. |
 | `ASSETS_LIBRARY_HMAC_KEY` | `openssl rand -hex 32` | Backend startuje. Każde żądanie, które podpisuje lub sprawdza link do prywatnego pliku, kończy się błędem `ASSETS_LIBRARY_HMAC_KEY is unset`. | Wartość zaczynająca się od `change-me` — wartość zastępcza ze starszych plików przykładowych — jest odrzucana przy pierwszym linku do prywatnego pliku, tak samo jak brak klucza: `ASSETS_LIBRARY_HMAC_KEY is still the placeholder an env example carried`. Każda inna wartość, która nie jest szesnastkowa, jest używana jako surowe bajty i akceptowana. |
 | `MEILI_MASTER_KEY` | `openssl rand -base64 32` | `deploy/compose.prod.yml` uruchamia Meilisearch z `MEILI_ENV: production`, który bez klucza głównego odmawia startu. Backend odczytuje tę samą wartość jako `MEILISEARCH_API_KEY`. | Meilisearch akceptuje każdy klucz o długości co najmniej 16 bajtów, więc wartość zastępcza daje wyszukiwarce publicznie znany klucz. |
 | `POSTGRES_PASSWORD` | `openssl rand -hex 32` (szesnastkowo, nie base64: wartość trafia bez kodowania do `DATABASE_URL`, gdzie `/` albo `+` psuje adres) | `deploy/compose.prod.yml` przyjmuje wtedy `b2b` (`${POSTGRES_PASSWORD:-b2b}`). | Wartość zastępcza działa i jest publicznie znana. |
@@ -377,16 +377,16 @@ pasku bocznym pojawia się pozycja **Cenniki**, a `⌘K` → „cenniki” oferu
 `GET /api/v1/admin/price-books/targets/customer-groups` — ten negatywny przypadek to połowa dowodu,
 że granica trzyma.
 
-### D4. Włącz uwierzytelnianie dwuskładnikowe w panelu administracyjnym
+### D4. Włącz weryfikację dwuetapową w panelu administracyjnym
 
 **Dlaczego.** Moduł MFA jest domyślnie aktywny, ale każda jego funkcja startuje **wyłączona**:
 `mfa.admin.totp_enabled` i `mfa.admin.totp_enforced` mają domyślnie wartość `false`
 (`packages/modules/mfa/src/manifest.ts:37-51`). Wdrożenie, w którym nic się nie zmieni, chroni dostęp
 administracyjny w publicznej domenie wyłącznie hasłem.
 
-**Do zrobienia (operator i inżynier).** Ustaw `MFA_SECRET_ENCRYPTION_KEY` (B1), potem zezwól na 2FA
-dla administratorów, zarejestruj drugi składnik dla każdego administratora i dopiero wtedy wymuś
-2FA — wymuszenie przed rejestracją zablokuje wszystkich.
+**Do zrobienia (operator i inżynier).** Ustaw `MFA_SECRET_ENCRYPTION_KEY` (B1), potem zezwól na weryfikację
+dwuetapową dla administratorów, zarejestruj drugi składnik dla każdego administratora i dopiero wtedy wymuś
+weryfikację dwuetapową — wymuszenie przed rejestracją zablokuje wszystkich.
 
 **Weryfikacja.** Drugie logowanie prosi o kod, a konto bez zarejestrowanego drugiego składnika jest
 odrzucane po włączeniu wymuszenia. Dopóki wymuszenie jest włączone, `/platform/modules` odmawia

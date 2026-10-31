@@ -119,7 +119,7 @@ export default function AdminSecuritySettings(): ReactNode {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <ShieldCheck className="size-5 text-primary" />
-            Two-factor authentication
+            Two-step verification
           </CardTitle>
           <CardDescription>
             Protect your admin account with a time-based code from an authenticator app.
@@ -153,13 +153,13 @@ export default function AdminSecuritySettings(): ReactNode {
           ) : status.totpActive ? (
             <div className="space-y-6">
               <p className="text-sm">
-                2FA is <strong>enabled</strong>. Unused recovery codes: {status.recoveryCodesRemaining}.
+                Two-step verification is <strong>enabled</strong>. Unused recovery codes: {status.recoveryCodesRemaining}.
               </p>
               <form className="space-y-2" onSubmit={disable}>
-                <Label htmlFor="disable-code">Enter a current code to disable 2FA</Label>
+                <Label htmlFor="disable-code">Enter a current code to disable two-step verification</Label>
                 <Input id="disable-code" value={code} onChange={(e): void => setCode(e.target.value)} required />
                 <Button type="submit" variant="destructive" disabled={busy}>
-                  Disable 2FA
+                  Disable two-step verification
                 </Button>
               </form>
               <form className="space-y-2" onSubmit={regenerate}>
@@ -201,7 +201,7 @@ export default function AdminSecuritySettings(): ReactNode {
             </form>
           ) : (
             <Button onClick={startSetup} disabled={busy}>
-              Enable 2FA
+              Enable two-step verification
             </Button>
           )}
         </CardContent>

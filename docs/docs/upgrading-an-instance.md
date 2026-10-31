@@ -519,13 +519,13 @@ The numbers are fixed in the module and are not Settings. See
 **A credential change ends the sessions obtained before it.** Expect administrators and customers
 to be signed out on their other devices where they were not before:
 
-- an administrator changing their own password, or switching their own two-factor authentication
+- an administrator changing their own password, or switching their own two-step verification
   off, ends every other session of the account and keeps the one the change was made from;
 - deactivating or deleting an administrator ends every session of the account, and a session of
   an account that is not active is refused whether or not anything revoked it;
 - `pnpm run admin:create` run again for an account that already exists replaces its password, as
   before, and now also ends every session of that account;
-- a customer changing their password, or switching their two-factor authentication off, ends
+- a customer changing their password, or switching their two-step verification off, ends
   every other session of the account; redeeming a password-reset link ends all of them, and so
   does an administrator's reset of a customer's second factor.
 
@@ -1926,7 +1926,7 @@ channel's assortment. The order preview likewise refuses an unknown channel with
   the second-step screen instead of being signed in, and a blocked customer account is refused with
   the password sign-in's sentence. A customer session whose account is blocked, deleted or gone is
   treated as signed out.
-- **A wrong code or password on the signed-in two-factor screens no longer signs the administrator
+- **A wrong code or password on the signed-in two-step verification screens no longer signs the administrator
   out.** Confirming the set-up, switching the second factor off and regenerating recovery codes
   answer a wrong code with `403 MFA_INVALID_CODE` and a wrong password with
   `403 CURRENT_PASSWORD_INVALID`; they answered `401`, which the Admin UI treats as an expired
@@ -2074,7 +2074,7 @@ See [Which URLs are stable](./modules/assets-library/index.md#which-urls-are-sta
   `403` without the entity's own permission, and `405` for an import of an export-only entity the
   caller may export.
 - **Changed status codes.**
-  - The two-factor self-service routes (`…/activate`, `…/disable`, `…/recovery-codes/regenerate`
+  - The two-step verification self-service routes (`…/activate`, `…/disable`, `…/recovery-codes/regenerate`
     under `/api/v1/admin/account/mfa` and `/api/v1/account/mfa`) answer `403 MFA_INVALID_CODE` and
     `403 CURRENT_PASSWORD_INVALID`, where they answered `401`. Sign-in challenges keep their `401`.
   - A sales representative outside a quote request's organization gets `404` on every admin quote

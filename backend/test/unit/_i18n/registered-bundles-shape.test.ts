@@ -163,7 +163,7 @@ describe('registered module i18n bundles — real filesystem shape', () => {
    */
   it('every manifest action keyword is English — a word the English bundles use, or allowlisted', () => {
     const KEYWORD_TOKENS_OUTSIDE_THE_ENGLISH_BUNDLES = new Set([
-      'article', 'balance', 'clients', 'conditions', 'datalayer', 'ecommerce', 'ga4',
+      '2fa', 'article', 'balance', 'clients', 'conditions', 'datalayer', 'ecommerce', 'ga4',
       'i18n', 'insight', 'kanban', 'multimedia', 'orgs', 'pipeline', 'presence', 'purge',
       'rbac', 'refunds', 'sgtm', 'smtp', 'swagger', 'timezone', 'todo', 'urgency',
     ]);
