@@ -14672,7 +14672,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // entry carried from merges that did not re-record it: `origin/master` at e7da5e453,
     // measured in the same fresh worktree with that commit's script, reads 619. So
     // 619 + 359 = 978, measured rather than computed.
-    files: 978,
+    // **Issue #85, the storefront's strict shapes: 978 -> 951.** `origin/master` (bf0a97dca)
+    // reads 943; this branch adds the eight catalogue files under `storefront/lib/i18n/`.
+    files: 951,
     sites: null,
     // `admin-ui` is the workspace manifests' own answer to "how many packages
     // ship a tree of admin UI", reconciled against how many of them the walk

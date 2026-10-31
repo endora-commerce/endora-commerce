@@ -17,13 +17,37 @@ path while draining a screen.
 **The storefront is in the same run since issue #85**, with its own ledger,
 `STOREFRONT_HARDCODED_STRINGS_BASELINE`, ratcheted the same two ways. Its walk is the `storefront`
 workspace member's `.ts` **and** `.tsx` sources (tests, `test/`, `scripts/` and `public/` excepted),
-and it asks one question more than the admin walk: a string or template literal carrying a Polish
-diacritic, anywhere in the source, outside a per-language structure — an object literal with two or
-more locale-keyed properties, which is the shape of `storefront/lib/i18n/messages.ts`. The admin walk
-does not ask it, so its ledger is unchanged. The bound is declared rather than discovered: Polish
-with no diacritic (`Uwagi`, `cena`) and an English literal outside JSX are both invisible to it. A
-storefront string is keyed into **both** locales of `messages.ts`, where the total inner `Record`
-makes a missing Polish entry a `tsc` error.
+and it is judged by a strict reading the admin walk does not get, so the admin ledger is unchanged.
+Six finding kinds, each literal reported once, under the first that claims it:
+
+- **`jsx-text`** — any JSX text with a letter in it, single words included (`Koszyk`, `Cart`);
+  symbols, digits and entities carry none, and `<code>`, `<kbd>`, `<samp>`, `<script>`, `<style>`
+  and SVG `<text>`/`<tspan>` are exempt.
+- **`jsx-attr`** — a visible attribute (`title`, `alt`, `placeholder`, `label`, the text-bearing
+  `aria-*`, and a component prop named for copy: `removeLabel`, `cardHeading`), read through
+  `{…}`: parentheses, both branches of a conditional, `&&`'s right operand, `||`, `??`, `+` and a
+  template — never through a call, so `{t('key')}` is not a finding.
+- **`jsx-expression`** — a literal rendered as a JSX child, through the same pass-through set:
+  `{ok ? 'Saved' : 'Failed'}`.
+- **`copy-property`** — a literal under a property named for copy (`title`, `description`,
+  `label`, `heading`, `message`, `placeholder`, `text`, `hint`, `body`, … and camelCase names ending
+  in `Label`, `Heading`, `Hint`, `Note`, …), which is Next's `metadata` and every label table; and
+  the other word-shaped values of an object literal one of whose values was reported.
+- **`prose-literal`** — any other literal shaped like prose: a capital and two or more words, or a
+  sentence ending. Not a developer's diagnostic (`console.*`, `new …Error`, `throw`, a
+  `[tag]`-prefixed message), a comparison or `case`, a key, a catalogue call, styling (`className`,
+  `cn()`, `style={{…}}`, a font family), an HTTP header or status body, a URL, MIME type, colour
+  or SVG path.
+- **`polish-literal`** — a literal carrying a Polish diacritic that none of the above claimed.
+
+All six skip a per-language structure — an object literal with two or more locale-keyed properties,
+which is the catalogue's shape. **What stays invisible**, declared rather than discovered: a single
+lower-case word, or a single capitalised one, outside every named context (`const unit = 'szt.'`,
+`const label = 'Uwagi'` rendered later by name); a word reached only through a function argument
+(`format(x, 'Total')`); and copy that arrives from a variable whose initialiser is one of those. A
+storefront string is keyed into **both** locales of one namespace under
+`storefront/lib/i18n/messages/` — `defineMessages` makes a key missing from either a `tsc` error —
+and `storefront/lib/i18n/format.ts` fills its `{name}` placeholders in one pass.
 
 **Read those first two clauses as a rule and an instrument, not as a rule and its enforcement** —
 the semicolon has been doing work it cannot do. The rule is every user-facing string; the
@@ -59,10 +83,10 @@ were constitutional, the amendment is drafted for them in
 and a pointer from the other** — never two statements of one rule.
 
 **Where it already holds, measured rather than assumed.** The **storefront** implements all three
-clauses and is the strongest of the three surfaces: `storefront/lib/i18n/messages.ts` declares
-`const MESSAGES: Record<string, Record<MessageKey, string>>`, and that inner `Record` is **total**
-— so a Polish string missing from the catalogue is a **`tsc` error**, not a runtime fallback, and
-`pnpm -r run typecheck` is the instrument. Its `tForLocale` still carries the runtime chain
+clauses and is the strongest of the three surfaces: every namespace under
+`storefront/lib/i18n/messages/` is written through `defineMessages`, which types the `pl-PL` block
+as exactly the keys of the `en-US` one — so a Polish string missing from the catalogue is a **`tsc`
+error**, not a runtime fallback, and `pnpm -r run typecheck` is the instrument. Its `tForLocale` still carries the runtime chain
 (requested locale → `en-US` → the key), which is what answers a *third* locale nobody has written
 a catalogue for. The **admin** implements the same chain independently in
 `packages/admin-kit/src/i18n/resolver.ts` (`FALLBACK_LANGUAGE = 'en'`, requested → English →

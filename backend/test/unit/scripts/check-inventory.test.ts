@@ -10631,6 +10631,56 @@ const CHECKS: readonly CheckEntry[] = [
             { polishLiterals: true },
           ).filter((f) => f.kind === 'polish-literal').length,
       ),
+      // Issue #85's strict shapes, storefront only. Each fixture carries an
+      // exempt twin beside its red line, and the proof is exactly-one, so a
+      // predicate that reported everything of that shape — or nothing — reads
+      // as 0.
+      'jsx-text-single-word': top(() =>
+        hardcodedAnalyze(
+          'export const A = () => <p><a>Koszyk</a><code>ctx.id</code><span>→</span></p>;\n',
+          '/repo/storefront/components/a.tsx',
+          { polishLiterals: true, strictShapes: true },
+        ).filter((f) => f.kind === 'jsx-text').length === 1
+          ? 1
+          : 0,
+      ),
+      'jsx-attr-through-expression': top(() =>
+        hardcodedAnalyze(
+          "export const A = () => <button aria-label={open ? 'Close' : t('nav.open')} className={'Foo Bar'} />;\n",
+          '/repo/storefront/components/a.tsx',
+          { polishLiterals: true, strictShapes: true },
+        ).filter((f) => f.kind === 'jsx-attr').length === 1
+          ? 1
+          : 0,
+      ),
+      'jsx-expression': top(() =>
+        hardcodedAnalyze(
+          "export const A = () => <p>{ok ? 'Saved' : t('cart.failed')}{' · '}</p>;\n",
+          '/repo/storefront/components/a.tsx',
+          { polishLiterals: true, strictShapes: true },
+        ).filter((f) => f.kind === 'jsx-expression').length === 1
+          ? 1
+          : 0,
+      ),
+      'copy-property': top(() =>
+        hardcodedAnalyze(
+          "export const metadata = { title: 'Cart', other: { text: '#7c4a03' } };\n",
+          '/repo/storefront/app/cart/page.tsx',
+          { polishLiterals: true, strictShapes: true },
+        ).filter((f) => f.kind === 'copy-property').length === 1
+          ? 1
+          : 0,
+      ),
+      'prose-literal': top(() =>
+        hardcodedAnalyze(
+          "export const a = 'Could not save address.';\n" +
+            "console.error('Could not save address.');\n",
+          '/repo/storefront/lib/a.ts',
+          { polishLiterals: true, strictShapes: true },
+        ).filter((f) => f.kind === 'prose-literal').length === 1
+          ? 1
+          : 0,
+      ),
       // The `module-admin` floor, counted as a refusal rather than a finding —
       // `bundlePairingReadRefusals`' shape. It refuses two ways and both are
       // driven here from a fixture that enters above the analysis: a registry
@@ -12114,8 +12164,10 @@ describe('every red proof enters at the top of the analysis', () => {
       // Two finding kinds, plus the `module-admin` floor's refusal — the third
       // root family's only independent author, added when feature 091's drain
       // made 357 of this walk's 422 files corroborated by nothing — plus the
-      // storefront's `polish-literal` shape (issue #85).
-      'backend/scripts/i18n-hardcoded-strings.ts': 4,
+      // storefront's `polish-literal` shape (issue #85), plus the storefront's
+      // five strict shapes: single-word JSX text, a visible attribute read
+      // through `{…}`, a JSX child literal, a copy property, a prose literal.
+      'backend/scripts/i18n-hardcoded-strings.ts': 9,
       // Four rules, the fifth (migration class scope) that reads the
       // filesystem, and issue #244's short listing — the shape every one of
       // this script's other floors is green on. Plus feature 080's three for

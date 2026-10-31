@@ -1,5 +1,6 @@
 import { unitPriceDisplayText } from '@endora-commerce/contracts';
 import type { RfqDiffEntry } from '../api/rfq';
+import { format } from '../i18n/format';
 import { tForLocale } from '../i18n/messages';
 
 /**
@@ -20,29 +21,29 @@ export function describeRfqDiff(d: RfqDiffEntry, locale: string): string {
     value !== null ? unitPriceDisplayText(value) : '\u2014';
   switch (d.kind) {
     case 'header_note':
-      return fill(t('quoteRequest.diff.headerNote'), {
+      return format(t('quoteRequest.diff.headerNote'), {
         before: d.before ?? '\u2014',
         after: d.after ?? '\u2014',
       });
     case 'line_added':
       return d.agreedUnitPrice !== null
-        ? fill(t('quoteRequest.diff.lineAddedAt'), {
+        ? format(t('quoteRequest.diff.lineAddedAt'), {
             line: line(d),
             quantity: String(d.quantity),
             price: unitPriceDisplayText(d.agreedUnitPrice),
           })
-        : fill(t('quoteRequest.diff.lineAdded'), { line: line(d), quantity: String(d.quantity) });
+        : format(t('quoteRequest.diff.lineAdded'), { line: line(d), quantity: String(d.quantity) });
     case 'line_removed':
-      return fill(t('quoteRequest.diff.lineRemoved'), { line: line(d) });
+      return format(t('quoteRequest.diff.lineRemoved'), { line: line(d) });
     case 'line_quantity':
-      return fill(t('quoteRequest.diff.lineQuantity'), {
+      return format(t('quoteRequest.diff.lineQuantity'), {
         line: line(d),
         before: String(d.before),
         after: String(d.after),
       });
     case 'line_agreed_unit_price':
       // Unit prices, at their significant places up to four (owner ruling of 2026-10-25).
-      return fill(t('quoteRequest.diff.linePrice'), {
+      return format(t('quoteRequest.diff.linePrice'), {
         line: line(d),
         before: price(d.before),
         after: price(d.after),
@@ -50,12 +51,4 @@ export function describeRfqDiff(d: RfqDiffEntry, locale: string): string {
     case 'grouping':
       return t('quoteRequest.diff.grouping');
   }
-}
-
-/**
- * `{name}` → its value, in one pass and through a function, so a product name
- * carrying `$&` or `{line}` is inserted verbatim rather than read as a pattern.
- */
-function fill(template: string, values: Readonly<Record<string, string>>): string {
-  return template.replace(/\{(\w+)\}/g, (match, name: string) => values[name] ?? match);
 }
