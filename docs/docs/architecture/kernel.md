@@ -575,6 +575,18 @@ record — tainting it made `this.deps.<anything>()` a port call, 39 of them in 
 run), and a **field read off a port**. Run with `PORT_CATCH_WHY=1` to see every
 alias with the site that introduced it.
 
+**A holder built from a deps bag is followed per method instead.** Since
+`new ProjectReadService({ access, organizations: lazyPort(…) })` cannot carry as a
+value without tainting every method of the class, the check tracks it as a
+**holder** — which class instance, closure or object literal a declaration holds —
+and attributes a gate only where the holder is *called*: `read.list()` reaches
+what `ProjectReadService#list` reaches, and `read.getOrFail()`, a row read,
+reaches nothing and is not a site. A key is looked up in the bag the receiver
+actually holds, never by its spelling across the module. What a call on a holder
+carries is what **escapes** the method: a presence answer the method's own
+`catch` consumes on purpose is judged at that `catch`, not again at the caller's.
+`PORT_CATCH_UNIT=<regex>` prints what escapes each matching method or closure.
+
 **An alias is visible where its binding is, and nowhere else.**
 A `const` is file-scoped because it is. A **deps-object key** is module-scoped,
 because the receiving class reads it as `this.deps.<key>` from another file and a

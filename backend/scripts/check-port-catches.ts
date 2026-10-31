@@ -296,12 +296,35 @@
  * reason and are ledgered as artefacts rather than hidden; the alternative —
  * resolving receivers — is a type-checker's job, not this analysis's.
  *
- * One real reach falls through the same receiver-blindness from the other side:
- * `projects`' `read.list(…).catch(…)`, where `read` is a holder built from a
- * deps bag (D18's kept blind spot). The old spelling match kept it judged by
- * accident; now {@link PORT_CATCH_PINS} declares the alias, two-way, until
- * per-method attribution (issue #576) lets the analysis follow it and the pin
- * reads stale.
+ * ## A holder built from a deps bag carries per method (issue #576)
+ *
+ * `new C({ k: lazyPort(…) })` carries nothing as a **value** — a bag that did
+ * would taint every method of `C`, the row reads included (D18 §2, half 2). It is
+ * followed as a **holder** instead, in tables of its own that bind a class
+ * instance, a closure or an object literal to a *declaration* (resolved
+ * lexically, destructurings included) and carry no gate. A call on one reaches
+ * what escapes the method it resolves to: `read.list()` reaches what
+ * `ProjectReadService#list` reaches, `this.deps.audience(id)` what the closure
+ * under that key of *this class's own bag* reaches, and `read.getOrFail()` —
+ * a row read — nothing, so it makes no site. A key is looked up in the literal
+ * the receiver holds, never by its spelling across the module; the container's
+ * names are the one name-keyed table, as a root's registrations already are.
+ *
+ * **What escapes**, not what is reached: a reach inside the callee's own `try`
+ * (or under its own `.catch`) whose handler consumes the presence answer is that
+ * inner site's to be judged for. `DeliveryService#deliverInline` records a
+ * switched-off `credentials` as a failed attempt on purpose, so the generation
+ * run's `.catch` around `deliverArtefact` swallows nothing. A handler lets the
+ * answer through when it ends in a `throw`, hands its variable to the narrowing
+ * or a re-throwing delegate, or re-throws it anywhere but under a negated
+ * `instanceof ModuleDisabledError` test.
+ *
+ * The holder resolution is consulted only for a call the value tables found
+ * nothing for, so every site they already judged keeps exactly its gates; the
+ * D-88 hop pulls a holder call's escaping gates into the method that makes it,
+ * which is how `tasks`' `#dueFor` reaches `permissionService` through
+ * `createTaskAudience`'s closure. `PORT_CATCH_UNIT=<regex>` prints what escapes
+ * each matching unit (a method, or a closure by position).
  *
  * `PORT_CATCH_WHY=1` prints every alias with the site that introduced it (and
  * `PROP`/`PGATE` lines for the property table), which is the first question a
@@ -409,29 +432,14 @@ export * from '@endora-commerce/cli/rules/port-catches.js';
  * fails the build, when its file is gone, when it names a gate nobody provides,
  * when no site in its file reaches a port through the name, and when the
  * analysis already follows the name on its own.
+ *
+ * **Empty since issue #576.** Its one entry, `projects`' `read` in
+ * `routes/routes.projects.ts`, was a holder built from a deps bag; the holder
+ * tables follow it now, the pin read stale on exactly that clause, and the site
+ * is judged under the four gates the pin had written by hand — derived instead.
+ * The mechanism stays for the next shape the analysis provably cannot follow.
  */
-export const PORT_CATCH_PINS: Readonly<Record<string, PortCatchPin>> = {
-  'packages/modules/projects/src/backend/routes/routes.projects.ts:read': {
-    gates: [
-      'customFieldListFilterPort',
-      'organizationDetailsPort',
-      'adminUserReadPort',
-      'permissionService',
-    ],
-    reason:
-      "A REAL PORT REACH THE VALUE ANALYSIS CANNOT FOLLOW (D18's blind spot for a holder " +
-      'built from a deps bag, feature 134 §2 half 2; issue #576). `read` is ' +
-      '`deps.projectReadService`, i.e. `cradle.projectsReadService` — a `ProjectReadService` ' +
-      'built from an object literal of `lazyPort`s, so it carries nothing as far as the ' +
-      'analysis is concerned. `read.list(…)` reaches `customFieldListFilterPort` ' +
-      '(`#customFieldCondition`), `organizationDetailsPort` and `adminUserReadPort` ' +
-      "(`#summaries`), and through `deps.access` (`ProjectAccess`, another bag) " +
-      '`permissionService` (`currentViewer`). Before #100 the `.catch` on it was ' +
-      'judged only because the unrelated deps key `read: lazyPort(taskReadPort)` shared the ' +
-      'spelling — with the wrong gate. Retires when #576 (per-method gate attribution) lets ' +
-      'the analysis follow the holder; the pin then reads stale and has to go.',
-  },
-};
+export const PORT_CATCH_PINS: Readonly<Record<string, PortCatchPin>> = {};
 
 export const PORT_CATCHES_TO_DRAIN: Readonly<Record<string, string>> = {
   'packages/modules/organizations/src/backend/routes.public.ts:onLogin':
@@ -481,9 +489,11 @@ export const PORT_CATCHES_TO_DRAIN: Readonly<Record<string, string>> = {
     'inside the worker, where `processById` answers the presence question for them. ' +
     '`rethrowIfModuleDisabled` is not available here and would not be an improvement: ' +
     'the chain is `void`ed at boot, so a re-throw is an unhandled rejection rather than ' +
-    'an answer to anybody, which is D-62/D-67 verbatim. Retires when the analysis ' +
-    "attributes a holder's gates per method rather than per value — not before, and " +
-    'not by renaming the binding, because the alias follows the value.',
+    'an answer to anybody, which is D-62/D-67 verbatim. Issue #576 attributes a holder ' +
+    'per method only where the value tables do not already carry it, and this one is ' +
+    'built from **positional** carrying arguments (#133), which still carry per value. ' +
+    'Retires when that rule is narrowed to per-method too — not by renaming the binding, ' +
+    'because the alias follows the value.',
   'packages/modules/catalog/src/backend/services/catalog-attribute-read.service.ts:composeAll':
     'NO GATED PORT IS REACHED HERE — an analysis artefact, ledgered so that it is ' +
     'argued with rather than hidden (issue #100). The `try` in `listAll` guards ' +
@@ -526,6 +536,45 @@ export const PORT_CATCHES_TO_DRAIN: Readonly<Record<string, string>> = {
     'with the reason stated: the presence question this entry used to hold has been ' +
     'moved out of the `catch` and is pinned by ' +
     '`test/unit/product_feeds/boot-reconcile-presence.test.ts`.',
+  'packages/modules/crm/src/backend/services/opportunity-origin-link-service.ts:carryIntoDocument':
+    'AFTER THE FACT, and the presence answer is decided before the port is asked (issue ' +
+    "#576). Judged since per-method attribution: `carryIntoDocument` is the closure " +
+    '`createCarryIntoDocument` returns, and it reaches `orders` (locked) and ' +
+    "`quote_requests`' carry receivers — the latter only behind `deps.quoteRequestsPresent()`, " +
+    "`crmQuoteRequests.isPresent()`, a presence probe this analysis cannot read. `#carry` " +
+    'runs after the link has committed, and its own comment is the requirement: a carry ' +
+    'that throws must not undo the link or reach the subscriber, and the operator log names ' +
+    'the document that did not receive the values. Re-throwing would fail the ' +
+    '`order.created.v1` / `rfq.created_by_admin.v1` subscriber for work that succeeded. ' +
+    '(The site also lists gates the receiver-blind `.orders` / `.quoteRequests` property ' +
+    "names lend it from elsewhere in `crm` — #100's known limit.) Retires when the analysis " +
+    'reads a presence probe ahead of a reach, or when the carry receiver answers ' +
+    '"not present" in its return type.',
+  'packages/modules/product_feeds/src/backend/workers/feed-delivery-worker.ts:notifyExhausted#promise':
+    'A DEGRADE THE OWNER ALREADY ANSWERS (D-60), seen through a holder since issue #576. ' +
+    "`notifyExhausted` calls `FailedRunNotifier#notifyDeliveryExhausted`, whose `catch` " +
+    "re-throws `ModuleDisabledError` — so statically the `admin_notifications` gate escapes to " +
+    "this `.catch(() => undefined)`. It cannot arrive: the notifier's recorder is " +
+    "`presenceAwareRecorder`, which answers `'not-present'` from `effectiveState` before the " +
+    "port is reached, and the notifier's own `rethrowIfModuleDisabled` is there because the " +
+    'analysis cannot see that decision. Narrowing here would fail an already-exhausted ' +
+    'delivery job over a bell notification. Retires when the analysis reads a presence ' +
+    'decision inside a holder method (`effectiveState.isPresent` ahead of the reach).',
+  'packages/modules/product_feeds/src/backend/workers/feed-run-reaper-worker.ts:reaper':
+    'A DEGRADE THE OWNER ALREADY ANSWERS (D-60), seen through a holder since issue #576. ' +
+    "`reaper.releaseStaleClaims()` raises `notifyFailedRun`, i.e. `FailedRunNotifier#notify`, " +
+    "whose `catch` re-throws `ModuleDisabledError` — so the `admin_notifications` gate " +
+    "statically escapes to `reapTick`'s `catch`. It cannot arrive, for the reason the " +
+    "`notifyExhausted` entry gives (`presenceAwareRecorder` answers absence first), and the " +
+    'sweep is designed never to throw out of the handler (the header of this worker: a failed ' +
+    'tick is retried, logged and eventually disabled, while the next tick fixes the same ' +
+    'rows). Retires with the `notifyExhausted` entry.',
+  'packages/modules/product_feeds/src/backend/workers/taxonomy-refresh-worker.ts:refresh':
+    'A DEGRADE THE OWNER ALREADY ANSWERS (D-60), seen through a holder since issue #576. ' +
+    "`refresh.runCheck()` reaches `FailedRunNotifier#notifyTaxonomyNotFound`, whose `catch` " +
+    "re-throws `ModuleDisabledError`, so the `admin_notifications` gate statically escapes to " +
+    "this `catch`. It cannot arrive (`presenceAwareRecorder` answers absence first), and " +
+    'FR-093 requires the job not to fail here. Retires with the `notifyExhausted` entry.',
 };
 
 async function main(): Promise<void> {
@@ -577,10 +626,10 @@ async function main(): Promise<void> {
   // The ledger is passed, never defaulted: a host states which exemptions it is
   // judging against, and `PORT_CATCHES_TO_DRAIN` is this repository's.
   const result = checkPortCatches(catchInput, PORT_CATCHES_TO_DRAIN);
-  const result_all = listMode ? findPortCatches(catchInput) : [];
+  const resultAll = listMode ? findPortCatches(catchInput) : [];
 
   if (listMode) {
-    for (const entry of result_all) {
+    for (const entry of resultAll) {
       const tag = entry.handled
         ? 'HANDLED '
         : entry.ownerLocked
