@@ -10907,7 +10907,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T069 (`ksef` and `infakt` leave): 124 -> 119.** Agrees on `origin/master` (d6808271f, after `comarch_xl` left) and moves with the branch: E5, the two packages, their host tests, their Polish pages, the E9 drain and T140/T142; measured on the pristine pair.
     // **Issue #100 (`port-catches` reads a deps key as a property, not a binding): sites 163 -> 215.** Measured on a fresh detached worktree of the commit; the narrative is in the commit message.
     // **Issue #100 ruling (the `projects` pin, `PORT_CATCH_PINS`): sites 215 -> 216.** The pinned `.catch` rejoins the population; re-measured on a fresh detached worktree of the commit.
-    sites: 216,
+    // **Issue #576 (holders built from a deps bag carry per method; the pin removed): sites 216 -> 268.** Re-measured on a fresh detached worktree of the commit; the narrative is in the commit message.
+    sites: 268,
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 2138 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
