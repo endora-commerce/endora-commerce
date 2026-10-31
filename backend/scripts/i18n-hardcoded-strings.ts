@@ -1254,35 +1254,6 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
 export const STOREFRONT_HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // ── commerce: cart, checkout, catalog, product page and listings, compare, quick order and the quote-request draft.
   //    Keyed into `storefront/lib/i18n/messages/commerce.ts`.
-  'storefront/app/(account)/quick-order/page.tsx': 1,
-  'storefront/app/(catalog)/c/[slug]/page.tsx': 5,
-  'storefront/app/(catalog)/catalog/page.tsx': 4,
-  'storefront/app/(catalog)/p/[slug]/page.tsx': 7,
-  'storefront/app/(commerce)/cart/page.tsx': 130,
-  'storefront/app/(commerce)/checkout/page.tsx': 21,
-  'storefront/app/(commerce)/quote-request/actions.ts': 1,
-  'storefront/app/compare/page.tsx': 3,
-  'storefront/app/compare/share/[token]/page.tsx': 4,
-  'storefront/components/CartAddedPopup.tsx': 3,
-  'storefront/components/CatalogToolbar.tsx': 14,
-  'storefront/components/checkout/CheckoutHeader.tsx': 4,
-  'storefront/components/checkout/PaymentMethods.tsx': 1,
-  'storefront/components/CompareModeSwitcher.tsx': 4,
-  'storefront/components/CompareToggle.tsx': 3,
-  'storefront/components/ComparisonTable.tsx': 15,
-  'storefront/components/FileDropzone.tsx': 3,
-  'storefront/components/FilterPanel.tsx': 4,
-  'storefront/components/GallerySwitcher.tsx': 6,
-  'storefront/components/mobile/PdpStickyBuyBar.tsx': 2,
-  'storefront/components/Pagination.tsx': 1,
-  'storefront/components/pricing/BaseSalePriceBlock.tsx': 3,
-  'storefront/components/pricing/PdpPriceToggle.tsx': 1,
-  'storefront/components/pricing/QuoteRequestCta.tsx': 2,
-  'storefront/components/ProductCard.tsx': 8,
-  'storefront/components/ProductRow.tsx': 5,
-  'storefront/components/rfq/RfqDraftView.tsx': 53,
-  'storefront/components/SharedComparisonTable.tsx': 11,
-  'storefront/lib/checkout/place-order-gate.ts': 1,
 
   // ── account: account pages, orders, quote requests, shopping lists, returns, addresses, preferences, organization.
   //    Keyed into `storefront/lib/i18n/messages/account.ts`.
