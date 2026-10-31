@@ -119,7 +119,14 @@ export function LocaleSwitcher({ label }: { label: string }): ReactNode {
   );
 }
 
-export function CurrencySwitcher({ currency }: { currency?: string | undefined }): ReactNode {
+export function CurrencySwitcher({
+  currency,
+  label,
+}: {
+  currency?: string | undefined;
+  /** The switcher's caption, in the page's language ("Currency:"). */
+  label: string;
+}): ReactNode {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const onChange = (event: ChangeEvent<HTMLSelectElement>): void => {
@@ -128,7 +135,7 @@ export function CurrencySwitcher({ currency }: { currency?: string | undefined }
   };
   return (
     <div className="industria-topbar__switcher">
-      <label htmlFor="b2b-currency">Waluta:</label>
+      <label htmlFor="b2b-currency">{label}</label>
       {currency ? (
         <CurrencyPicker id="b2b-currency" name="currency" value={currency} onChange={onChange} />
       ) : (

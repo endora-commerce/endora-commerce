@@ -1306,30 +1306,13 @@ export const STOREFRONT_HARDCODED_STRINGS_BASELINE: Readonly<Record<string, numb
 
   // ── chrome: home, header, footer, not-found, offline, PWA, analytics and consent, pickers, mobile overlays, the rest.
   //    Keyed into `storefront/lib/i18n/messages/chrome.ts`.
-  'storefront/app/layout.tsx': 2,
-  'storefront/app/manifest.webmanifest/route.ts': 1,
-  'storefront/app/not-found.tsx': 18,
-  'storefront/app/offline/page.tsx': 3,
-  'storefront/app/page.tsx': 45,
-  'storefront/components/analytics/CookieConsentMessage.tsx': 1,
-  'storefront/components/analytics/GoogleTagManager.tsx': 1,
-  'storefront/components/Breadcrumbs.tsx': 1,
-  'storefront/components/Footer.tsx': 34,
-  'storefront/components/Header.tsx': 19,
-  'storefront/components/HeaderPreferenceSwitchers.tsx': 1,
-  'storefront/components/ImpersonationBanner.tsx': 4,
-  'storefront/components/MiniCartBadge.tsx': 1,
-  'storefront/components/mobile/BottomSheet.tsx': 1,
-  'storefront/components/mobile/MobileSearchOverlay.tsx': 4,
-  'storefront/components/mobile/MobileTabBar.tsx': 1,
-  'storefront/components/pwa/InstallPrompt.tsx': 10,
-  'storefront/components/pwa/PushOptIn.tsx': 5,
-  'storefront/components/PwaRegister.tsx': 2,
-  'storefront/components/SearchAutocomplete.tsx': 1,
+  //    Two left, by decision rather than oversight:
+  //    - `pwa-server.ts`: `'B2B Platform'`, the web-app manifest's default app name when the
+  //      backend cannot be read and `NEXT_PUBLIC_APP_NAME` is unset. A product name, not copy:
+  //      one name in every language, as the operator-configured app name it stands in for is.
+  //    - `llms-txt-base.ts`: the closed-store sentence of `llms.txt`, which is English by design
+  //      (the file is read by software; see `LLMS_TXT_PAGE_TITLES`).
   'storefront/lib/api/pwa-server.ts': 1,
-  'storefront/lib/dictionary/pickers/CountryPicker.tsx': 3,
-  'storefront/lib/dictionary/pickers/CurrencyPicker.tsx': 3,
-  'storefront/lib/dictionary/pickers/LanguagePicker.tsx': 3,
   'storefront/lib/seo/llms-txt-base.ts': 1,
 
   // ── content: blog, contact, newsletter pages and components, CMS pages.

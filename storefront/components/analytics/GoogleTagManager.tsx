@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import Script from 'next/script';
 import { gtmContainerIdSchema, type GtmStorefrontConfig } from '@endora-commerce/contracts';
+import { tForLocale } from '../../lib/i18n/messages';
 
 /**
  * Injects the sales channel's Google Tag Manager container (feature 066, US1).
@@ -30,7 +31,7 @@ import { gtmContainerIdSchema, type GtmStorefrontConfig } from '@endora-commerce
  * storefront emits. A server component cannot read the visitor's decision
  * anyway; the client-side `gtag('consent','update',…)` does that.
  */
-export function GoogleTagManager({ config }: { config: GtmStorefrontConfig }): ReactNode {
+export function GoogleTagManager({ config, locale }: { config: GtmStorefrontConfig; locale: string }): ReactNode {
   if (!config.enabled || !config.containerId) return null;
   const parsed = gtmContainerIdSchema.safeParse(config.containerId);
   if (!parsed.success) return null;
@@ -59,7 +60,7 @@ export function GoogleTagManager({ config }: { config: GtmStorefrontConfig }): R
           height="0"
           width="0"
           style={{ display: 'none', visibility: 'hidden' }}
-          title="Google Tag Manager"
+          title={tForLocale(locale)('chrome.gtm.frameTitle')}
         />
       </noscript>
     </>

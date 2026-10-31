@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { tForLocale } from '../../lib/i18n/messages';
 
 /**
  * Add-to-home-screen prompt (feature 046, US1). Captures the
@@ -40,43 +41,16 @@ function isDismissActive(): boolean {
   }
 }
 
-interface Copy {
-  title: string;
-  body: string;
-  install: string;
-  dismiss: string;
-  close: string;
-}
-
-/** Bilingual copy keyed off `<html lang>`, mirroring CartMergeToast. */
-function pickCopy(lang: string): Copy {
-  if (lang.toLowerCase().startsWith('pl')) {
-    return {
-      title: 'Zainstaluj aplikację',
-      body: 'Dodaj sklep do ekranu głównego, aby mieć do niego dostęp jednym dotknięciem — bez sklepu z aplikacjami.',
-      install: 'Zainstaluj',
-      dismiss: 'Nie teraz',
-      close: 'Zamknij',
-    };
-  }
-  return {
-    title: 'Install our app',
-    body: 'Add this store to your home screen for one-tap access — no app store needed.',
-    install: 'Install',
-    dismiss: 'Not now',
-    close: 'Close',
-  };
-}
-
-export function InstallPrompt(): React.ReactElement | null {
+/**
+ * @param locale The page's locale, from the root layout — the copy is the
+ *   catalogue's `chrome.pwa.install.*` in it (issue #85).
+ */
+export function InstallPrompt({ locale }: { locale: string }): React.ReactElement | null {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
-  const [lang, setLang] = useState('en');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (isDismissActive()) return;
-
-    setLang(document.documentElement.lang || 'en');
 
     const handler = (event: Event) => {
       event.preventDefault();
@@ -92,7 +66,7 @@ export function InstallPrompt(): React.ReactElement | null {
 
   if (!deferred) return null;
 
-  const copy = pickCopy(lang);
+  const t = tForLocale(locale);
 
   const dismiss = () => {
     try {
@@ -121,7 +95,7 @@ export function InstallPrompt(): React.ReactElement | null {
       <div
         role="dialog"
         aria-modal="false"
-        aria-label={copy.title}
+        aria-label={t('chrome.pwa.install.title')}
         aria-live="polite"
         data-testid="pwa-install-prompt"
         className="b2b-route-fade relative flex w-full gap-[14px] rounded-lg border border-line bg-surface p-[18px] shadow-lg sm:w-[420px]"
@@ -129,7 +103,7 @@ export function InstallPrompt(): React.ReactElement | null {
         <button
           type="button"
           onClick={dismiss}
-          aria-label={copy.close}
+          aria-label={t('chrome.pwa.install.close')}
           className="absolute right-[8px] top-[8px] inline-flex size-[28px] items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-alt hover:text-fg"
         >
           <CloseIcon />
@@ -143,14 +117,14 @@ export function InstallPrompt(): React.ReactElement | null {
         </span>
 
         <div className="min-w-0 pr-[20px]">
-          <p className="text-[14px] font-semibold text-fg">{copy.title}</p>
-          <p className="mt-[4px] text-[13px] leading-[1.45] text-muted">{copy.body}</p>
+          <p className="text-[14px] font-semibold text-fg">{t('chrome.pwa.install.title')}</p>
+          <p className="mt-[4px] text-[13px] leading-[1.45] text-muted">{t('chrome.pwa.install.body')}</p>
           <div className="mt-[14px] flex items-center gap-[10px]">
             <button type="button" className="b2b-cta" onClick={() => void install()}>
-              {copy.install}
+              {t('chrome.pwa.install.install')}
             </button>
             <button type="button" className="btn btn--outline" onClick={dismiss}>
-              {copy.dismiss}
+              {t('chrome.pwa.install.dismiss')}
             </button>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { tForLocale } from '../lib/i18n/messages';
 
 /**
  * Storefront impersonation banner (T194). Rendered on every authenticated
@@ -12,28 +13,35 @@ import type { ReactNode } from 'react';
 
 export interface ImpersonationBannerProps {
   impersonatorAdminUserId: string;
+  /**
+   * The page's locale (issue #85). Optional only until the one caller,
+   * `app/(account)/layout.tsx`, passes it; without it the banner is in English.
+   */
+  locale?: string;
   /** URL to POST to in order to end the impersonation. Defaults to the canonical endpoint. */
   endActionPath?: string;
 }
 
 export function ImpersonationBanner(props: ImpersonationBannerProps): ReactNode {
   const endPath = props.endActionPath ?? '/api/v1/admin/impersonation/end';
+  const t = tForLocale(props.locale ?? 'en-US');
+  const [bodyBefore, bodyAfter] = t('chrome.impersonation.body').split('{admin}');
   return (
     <div
       role="alert"
       className="flex items-center justify-between gap-3 bg-warn px-[16px] py-[8px] text-white"
     >
       <span>
-        <strong>Support session active.</strong> An administrator (
-        <code>{props.impersonatorAdminUserId.slice(0, 8)}</code>) is signed in as you. Anything
-        you do here is logged.
+        <strong>{t('chrome.impersonation.heading')}</strong> {bodyBefore}
+        <code>{props.impersonatorAdminUserId.slice(0, 8)}</code>
+        {bodyAfter}
       </span>
       <form action={endPath} method="post">
         <button
           type="submit"
           className="cursor-pointer rounded border-0 bg-white px-[12px] py-[4px] text-fg"
         >
-          End support session
+          {t('chrome.impersonation.end')}
         </button>
       </form>
     </div>
