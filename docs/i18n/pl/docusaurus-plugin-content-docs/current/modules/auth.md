@@ -52,7 +52,7 @@ przechowywał czas zalogowania i nic poza nim.
 
 ## Brak własnych tras HTTP
 
-`auth` to moduł z podstawowymi mechanizmami — endpointy logowania, wylogowania i 2FA należą do
+`auth` to moduł z podstawowymi mechanizmami — endpointy logowania, wylogowania i weryfikacji dwuetapowej należą do
 modułów obsługujących klientów (`customer_accounts`) i administratorów (`admin_users`).
 
 ## Punkty rozszerzenia

@@ -39,8 +39,8 @@ Operator włącza i wyłącza ten moduł na **/platform/modules**. Decyduje o ty
 
 | Kod | Etykieta | Wymaga też |
 | --- | --- | --- |
-| `mfa:manage` | Manage 2FA policies and organization enforcement | — |
-| `mfa:reset` | Reset a user's 2FA | — |
+| `mfa:manage` | Manage two-step verification policies and organization enforcement | — |
+| `mfa:reset` | Reset a user's two-step verification | — |
 
 ## Paleta poleceń
 

@@ -55,7 +55,7 @@ then an administrator's row held the sign-in time and nothing after.
 
 ## No HTTP routes of its own
 
-`auth` is a primitive module — login/logout/2FA endpoints belong to the
+`auth` is a primitive module — login/logout/two-step verification endpoints belong to the
 customer-facing `customer_accounts` and admin-facing `admin_users`
 modules.
 

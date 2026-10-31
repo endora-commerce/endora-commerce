@@ -14,7 +14,7 @@ User + role CRUD is gated by the `admin_users:manage` permission.
 
 | Verb + Path | Purpose |
 | --- | --- |
-| `POST /api/v1/auth/admin/login` | Admin login (2FA challenge if Role requires it). Repeated wrong passwords are throttled: 429 `ADMIN_AUTHENTICATION_THROTTLED` with `Retry-After` — see below |
+| `POST /api/v1/auth/admin/login` | Admin login (two-step verification challenge if Role requires it). Repeated wrong passwords are throttled: 429 `ADMIN_AUTHENTICATION_THROTTLED` with `Retry-After` — see below |
 | `POST /api/v1/auth/admin/logout` | Destroy admin session |
 | `PATCH /api/v1/admin/me` | The signed-in administrator edits their own first and last name and changes their own password; no permission code is needed. A new `password` must come with `currentPassword`: without it the request is refused with 400 `VALIDATION_FAILED`, with a wrong one with 403 `CURRENT_PASSWORD_INVALID`, with a new password equal to the current one with 400 `NEW_PASSWORD_UNCHANGED`, and a refused request changes nothing — not the name either. An accepted password change signs out every other session of the account (see *Sessions and password changes*). Repeated wrong current passwords are throttled like wrong passwords at sign-in (429 `ADMIN_AUTHENTICATION_THROTTLED`) |
 | `GET /api/v1/admin/admin-users` | List admin users (deleted rows filtered) |
@@ -42,7 +42,7 @@ administrator's own permissions, unless their role holds the wildcard `*`:
   `ADMIN_ROLE_GRANT_EXCEEDED`, with the missing codes in `details.permissions`.
 - A role the platform or a module seeds (`platform_admin`, `blog_manager`,
   `content_manager`) is changed — renamed, given other permissions or another
-  two-factor flag — only by a holder of `*`: 409 `ADMIN_ROLE_PROTECTED` with
+  two-step verification flag — only by a holder of `*`: 409 `ADMIN_ROLE_PROTECTED` with
   `details.code: 'modify'`.
 - A role is assigned to an account, when it is created or edited, only if the
   actor holds every permission the role grants: 403 `ADMIN_ROLE_GRANT_EXCEEDED`.
@@ -90,11 +90,11 @@ A session is a credential, so it is withdrawn when the thing it stood for is:
 | A peer resets the password (`POST /api/v1/admin/admin-users/:id/password`) | Every session of the account |
 | The account is deactivated (`status: 'inactive'`) or deleted | Every session of the account |
 | `admin_users create` (`admin:create`) is run again for an account that already exists | Every session of the account. The write is audited as `admin_user.change_password` with `via: 'cli'` and no acting administrator |
-| The administrator disables their own two-factor authentication (`POST /api/v1/admin/account/mfa/disable`) | Every session of the account **except the one the request was made from** |
+| The administrator disables their own two-step verification (`POST /api/v1/admin/account/mfa/disable`) | Every session of the account **except the one the request was made from** |
 
 "Every session" means the sign-ins on other browsers and devices and the impersonation sessions
 the administrator started. The same writes withdraw every sign-in the account had begun and not
-finished — a pending second-factor challenge or two-factor setup ticket — so a login started with
+finished — a pending second-factor challenge or two-step verification setup ticket — so a login started with
 the old password cannot be completed afterwards. The new state is written first and the sessions
 are revoked after it, so nothing can be obtained with the old password once revocation has run. After a self-service change the administrator stays signed in where
 they made it — no new cookie is issued and the profile screen stays open — and has to sign in
@@ -149,9 +149,9 @@ What this means in practice:
   way**, so the answer does not reveal which addresses have accounts.
 - **Passwords and second-factor codes are counted separately.** A password is
   counted wherever it is asked for — at sign-in, as the current password when
-  an administrator changes their own, and when it confirms switching two-factor
-  authentication off — and so is a code: at the second sign-in step,
-  when it confirms switching two-factor authentication off, and when recovery
+  an administrator changes their own, and when it confirms switching two-step
+  verification off — and so is a code: at the second sign-in step,
+  when it confirms switching two-step verification off, and when recovery
   codes are regenerated.
 - **At most five attempts from one address are checked at the same time** (20
   for one account). An attempt beyond that is answered 429 with
@@ -193,7 +193,7 @@ by the budget of twenty that the account has for everybody else. So:
   every device then has to complete a sign-in
   again to become known. It is not honoured while the account is deactivated or
   deleted, but **reactivating the account with the same password revives the
-  cookies its devices already hold**. Resetting two-factor authentication,
+  cookies its devices already hold**. Resetting two-step verification,
   enrolling in it or switching it off does not revoke them. To make every
   device of an account unknown, change its password.
 - **Only a sign-in that verified a password or a second factor sets the
@@ -390,7 +390,7 @@ through the audit log.
 
 ## Entities
 
-`AdminUser` (email, passwordHash, two-factor state, single `adminRoleId`,
+`AdminUser` (email, passwordHash, two-step verification state, single `adminRoleId`,
 `status`, soft-delete `deletedAt`).
 
 `AdminUserPreference` (administrator, preference key, `jsonb` value, `updatedAt`) — see

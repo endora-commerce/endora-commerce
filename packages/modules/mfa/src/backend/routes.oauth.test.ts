@@ -325,7 +325,7 @@ describe('federated sign-in — the second factor', () => {
       expect(res.statusCode).toBe(302);
       expect(res.headers['location']).toContain('/login?error=');
       expect(decodeURIComponent(res.headers['location'] as string)).toContain(
-        'Two-factor authentication is required for your account.',
+        'Two-step verification is required for your account.',
       );
       expect(h.createSession).not.toHaveBeenCalled();
     },

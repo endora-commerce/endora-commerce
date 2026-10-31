@@ -83,7 +83,7 @@ describe('LoginPage — handover from a federated sign-in', () => {
 
   it('shows the sentence a refused federated sign-in came back with', async () => {
     const sentence =
-      'Two-factor authentication is required for your account. Please contact a platform administrator to finish setup.';
+      'Two-step verification is required for your account. Please contact a platform administrator to finish setup.';
     window.history.replaceState(null, '', `/login?error=${encodeURIComponent(sentence)}`);
 
     render(

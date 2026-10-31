@@ -131,7 +131,7 @@ export const mfaDisableRequestSchema = z
     code: z.string().min(6).max(20).optional(),
   })
   .refine((v) => Boolean(v.password) || Boolean(v.code), {
-    message: 'Either password or code is required to disable 2FA.',
+    message: 'Either password or code is required to disable two-step verification.',
   });
 export type MfaDisableRequest = z.infer<typeof mfaDisableRequestSchema>;
 

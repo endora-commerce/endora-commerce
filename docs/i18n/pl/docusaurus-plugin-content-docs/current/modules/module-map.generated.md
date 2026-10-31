@@ -42,7 +42,7 @@ platformy, a nie tego, co akurat zostało opisane.
 | [crm](./crm.md) | Szanse sprzedażowe z konfigurowalnym przepływem statusów, za którym podążają powiązane zamówienia | @endora-commerce/mod-crm |
 | [currencies](./currencies.md) | Lista akceptowanych kodów walut ISO 4217 i waluta domyślna | @endora-commerce/mod-currencies |
 | [custom_fields](./custom_fields.md) | Typowane pola, które operator dodaje do zamówień, zapytań ofertowych, szans sprzedażowych i innych rekordów bez zmiany kodu, edytowane na jednym ekranie, dostępne jako filtry list w panelu i przenoszone z jednego rekordu do rekordu z niego utworzonego. | @endora-commerce/mod-custom-fields |
-| [customer_accounts](./customer_accounts.md) | Logowanie klientów, reset hasła, 2FA, przypisanie roli | @endora-commerce/mod-customer-accounts |
+| [customer_accounts](./customer_accounts.md) | Logowanie klientów, reset hasła, weryfikacja dwuetapowa, przypisanie roli | @endora-commerce/mod-customer-accounts |
 | [customers](./customers.md) | Cykl życia klienta na bazie `customer_accounts` — organizacje firmowe i prywatne, przypisanie handlowca i obsługa klientów w panelu administracyjnym | @endora-commerce/mod-customers |
 | [delivery_methods](./delivery_methods.md) | Skonfigurowane metody dostawy | @endora-commerce/mod-delivery-methods |
 | [Słowniki](./dictionaries/index.md) | Dane słownikowe tworzone przy instalacji — kraje, waluty, języki — z możliwością zmiany kolejności w panelu | @endora-commerce/mod-dictionaries |

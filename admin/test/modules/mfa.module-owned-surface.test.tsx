@@ -160,7 +160,7 @@ function renderAt(path: string): RenderResult {
  * that the screen is *there*, not how many times it says its own name.
  */
 const screenIsRendered = (): boolean =>
-  screen.queryAllByText(/Two-factor authentication/).length > 0;
+  screen.queryAllByText(/Two-step verification/).length > 0;
 
 /** Every sidebar link's `href`, in rendered order. */
 function sidebarHrefs(): (string | null)[] {

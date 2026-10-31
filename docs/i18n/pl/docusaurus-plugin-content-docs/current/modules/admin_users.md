@@ -14,7 +14,7 @@ Zarządzanie użytkownikami i rolami wymaga uprawnienia `admin_users:manage`.
 
 | Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
-| `POST /api/v1/auth/admin/login` | Logowanie administratora (z weryfikacją 2FA, gdy wymaga tego rola). Powtarzane błędne hasła są ograniczane: 429 `ADMIN_AUTHENTICATION_THROTTLED` z nagłówkiem `Retry-After` — patrz niżej |
+| `POST /api/v1/auth/admin/login` | Logowanie administratora (z weryfikacją dwuetapową, gdy wymaga tego rola). Powtarzane błędne hasła są ograniczane: 429 `ADMIN_AUTHENTICATION_THROTTLED` z nagłówkiem `Retry-After` — patrz niżej |
 | `POST /api/v1/auth/admin/logout` | Zakończenie sesji administratora |
 | `PATCH /api/v1/admin/me` | Zalogowany administrator edytuje własne imię i nazwisko oraz zmienia własne hasło; nie jest potrzebne żadne uprawnienie. Nowe `password` musi być wysłane razem z `currentPassword`: bez niego żądanie jest odrzucane z 400 `VALIDATION_FAILED`, z błędnym — z 403 `CURRENT_PASSWORD_INVALID`, z nowym hasłem takim samym jak obecne — z 400 `NEW_PASSWORD_UNCHANGED`, a odrzucone żądanie niczego nie zmienia — imienia i nazwiska również. Przyjęta zmiana hasła wylogowuje wszystkie pozostałe sesje konta (zob. *Sesje a zmiana hasła*). Powtarzane błędne bieżące hasła są ograniczane tak samo jak błędne hasła przy logowaniu (429 `ADMIN_AUTHENTICATION_THROTTLED`) |
 | `GET /api/v1/admin/admin-users` | Lista administratorów (usunięte konta są pomijane) |
@@ -87,12 +87,12 @@ potwierdzała:
 | Inny administrator resetuje hasło (`POST /api/v1/admin/admin-users/:id/password`) | Wszystkie sesje konta |
 | Konto zostaje dezaktywowane (`status: 'inactive'`) albo usunięte | Wszystkie sesje konta |
 | Polecenie `admin_users create` (`admin:create`) zostaje uruchomione ponownie dla konta, które już istnieje | Wszystkie sesje konta. Zapis trafia do dziennika audytu jako `admin_user.change_password` z `via: 'cli'` i bez administratora wykonującego |
-| Administrator wyłącza własne uwierzytelnianie dwuskładnikowe (`POST /api/v1/admin/account/mfa/disable`) | Wszystkie sesje konta **poza tą, z której wysłano żądanie** |
+| Administrator wyłącza własną weryfikację dwuetapową (`POST /api/v1/admin/account/mfa/disable`) | Wszystkie sesje konta **poza tą, z której wysłano żądanie** |
 
 „Wszystkie sesje” to logowania w innych przeglądarkach i na innych urządzeniach oraz sesje
 logowania jako klient rozpoczęte przez tego administratora. Te same zapisy wycofują każde
 logowanie, które konto rozpoczęło i którego nie dokończyło — oczekującą weryfikację drugiego
-składnika albo bilet konfiguracji uwierzytelniania dwuskładnikowego — dlatego logowania
+składnika albo bilet konfiguracji weryfikacji dwuetapowej — dlatego logowania
 rozpoczętego starym hasłem nie da się później dokończyć. Najpierw zapisywany jest nowy stan,
 a dopiero potem unieważniane są sesje, więc po unieważnieniu nie da się już niczego uzyskać
 starym hasłem. Po samodzielnej zmianie hasła
@@ -151,8 +151,8 @@ Co to oznacza w praktyce:
 - **Hasła i kody drugiego składnika są liczone osobno.** Hasło jest liczone
   wszędzie tam, gdzie się o nie pyta — przy logowaniu, jako bieżące hasło, gdy
   administrator zmienia własne, oraz przy potwierdzaniu wyłączenia
-  uwierzytelniania dwuskładnikowego — i tak samo kod: w drugim kroku
-  logowania, przy potwierdzaniu wyłączenia uwierzytelniania dwuskładnikowego
+  weryfikacji dwuetapowej — i tak samo kod: w drugim kroku
+  logowania, przy potwierdzaniu wyłączenia weryfikacji dwuetapowej
   oraz przy ponownym generowaniu kodów odzyskiwania.
 - **Jednocześnie sprawdzanych jest najwyżej pięć prób z jednego adresu** (20
   dla jednego konta). Próba ponad ten limit otrzymuje 429 z `Retry-After: 1`
@@ -197,7 +197,7 @@ ani przez ten limit odrzucana. Dlatego:
   ponownie ukończyć logowanie, żeby stać się znanym. Nie jest honorowany, dopóki
   konto jest dezaktywowane lub usunięte, ale **ponowna aktywacja konta z tym
   samym hasłem przywraca pliki cookie, które jego urządzenia już mają**. Reset
-  uwierzytelniania dwuskładnikowego, jego włączenie ani wyłączenie ich nie
+  weryfikacji dwuetapowej, jej włączenie ani wyłączenie ich nie
   unieważnia. Żeby wszystkie urządzenia konta stały się nieznane, zmień jego
   hasło.
 - **Plik cookie ustawia wyłącznie logowanie, które zweryfikowało hasło lub
@@ -401,7 +401,7 @@ dzienniku audytu zarówno z `actorAdminUserId`, jak i z `impersonatedCustomerAcc
 
 ## Encje
 
-`AdminUser` (e-mail, passwordHash, stan uwierzytelniania dwuskładnikowego, jedno `adminRoleId`,
+`AdminUser` (e-mail, passwordHash, stan weryfikacji dwuetapowej, jedno `adminRoleId`,
 `status`, usunięcie miękkie przez `deletedAt`).
 
 `AdminUserPreference` (administrator, klucz preferencji, wartość `jsonb`, `updatedAt`) — zob.

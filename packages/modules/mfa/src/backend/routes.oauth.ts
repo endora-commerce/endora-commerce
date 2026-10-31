@@ -128,9 +128,9 @@ const ACCOUNT_BLOCKED_MESSAGE = 'This account has been blocked. Please contact s
  */
 const SETUP_REQUIRED_MESSAGE: Record<Surface, string> = {
   customer:
-    'Two-factor authentication is required for your account. Sign in with your email and password to set it up.',
+    'Two-step verification is required for your account. Sign in with your email and password to set it up.',
   admin:
-    'Two-factor authentication is required for your account. Please contact a platform administrator to finish setup.',
+    'Two-step verification is required for your account. Please contact a platform administrator to finish setup.',
 };
 
 function oauthCookiePath(surface: Surface): string {

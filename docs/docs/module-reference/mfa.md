@@ -39,8 +39,8 @@ An operator switches this module on and off on **/platform/modules**. The choice
 
 | Code | Label | Also needs |
 | --- | --- | --- |
-| `mfa:manage` | Manage 2FA policies and organization enforcement | — |
-| `mfa:reset` | Reset a user's 2FA | — |
+| `mfa:manage` | Manage two-step verification policies and organization enforcement | — |
+| `mfa:reset` | Reset a user's two-step verification | — |
 
 ## Command palette
 
