@@ -11,6 +11,7 @@ import {
 import { StorefrontApiError } from '../../../lib/api/client';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../lib/i18n/navigation';
+import { tForLocale } from '../../../lib/i18n/messages';
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -43,6 +44,7 @@ export default async function PreferencesPage({
   if (!session) return await localeRedirect('/login?next=/preferences');
   const sp = await searchParams;
   const { locale, ctx } = await getServerContext();
+  const t = tForLocale(locale);
 
   const [me, paymentMethods, deliveryMethods, deliveryAddresses, billingAddresses] =
     await Promise.all([
@@ -60,24 +62,21 @@ export default async function PreferencesPage({
 
   return (
     <>
-      <h2>Default ordering preferences</h2>
-      <p className="b2b-auth__hint">
-        These are applied automatically at checkout. Leave a field blank to inherit your
-        organization&apos;s default.
-      </p>
+      <h2>{t('account.preferences.heading')}</h2>
+      <p className="b2b-auth__hint">{t('account.preferences.hint')}</p>
 
-      {sp.saved ? <p className="b2b-auth__success">Preferences saved.</p> : null}
+      {sp.saved ? <p className="b2b-auth__success">{t('account.preferences.saved')}</p> : null}
       {sp.error ? <p className="b2b-auth__error">{sp.error}</p> : null}
 
       <form action={saveAction} className="b2b-auth__form">
         <div className="b2b-auth__field">
-          <label htmlFor="defaultPaymentMethodId">Default payment method</label>
+          <label htmlFor="defaultPaymentMethodId">{t('account.preferences.payment')}</label>
           <select
             id="defaultPaymentMethodId"
             name="defaultPaymentMethodId"
             defaultValue={current?.defaultPaymentMethodId ?? ''}
           >
-            <option value="">(inherit organization default)</option>
+            <option value="">{t('account.preferences.inherit')}</option>
             {paymentMethods.map((m) => (
               <option key={m.id} value={m.id}>
                 {localized(m.name, locale)}
@@ -87,13 +86,13 @@ export default async function PreferencesPage({
         </div>
 
         <div className="b2b-auth__field">
-          <label htmlFor="defaultDeliveryMethodId">Default delivery method</label>
+          <label htmlFor="defaultDeliveryMethodId">{t('account.preferences.delivery')}</label>
           <select
             id="defaultDeliveryMethodId"
             name="defaultDeliveryMethodId"
             defaultValue={current?.defaultDeliveryMethodId ?? ''}
           >
-            <option value="">(inherit organization default)</option>
+            <option value="">{t('account.preferences.inherit')}</option>
             {deliveryMethods.map((m) => (
               <option key={m.id} value={m.id}>
                 {localized(m.name, locale)}
@@ -103,13 +102,13 @@ export default async function PreferencesPage({
         </div>
 
         <div className="b2b-auth__field">
-          <label htmlFor="defaultBillingAddressId">Default billing address</label>
+          <label htmlFor="defaultBillingAddressId">{t('account.preferences.billingAddress')}</label>
           <select
             id="defaultBillingAddressId"
             name="defaultBillingAddressId"
             defaultValue={current?.defaultBillingAddressId ?? ''}
           >
-            <option value="">(inherit organization default)</option>
+            <option value="">{t('account.preferences.inherit')}</option>
             {billingAddresses.map((a) => (
               <option key={a.id} value={a.id}>
                 {addressLabel(a)}
@@ -119,13 +118,13 @@ export default async function PreferencesPage({
         </div>
 
         <div className="b2b-auth__field">
-          <label htmlFor="defaultShippingAddressId">Default shipping address</label>
+          <label htmlFor="defaultShippingAddressId">{t('account.preferences.shippingAddress')}</label>
           <select
             id="defaultShippingAddressId"
             name="defaultShippingAddressId"
             defaultValue={current?.defaultShippingAddressId ?? ''}
           >
-            <option value="">(inherit organization default)</option>
+            <option value="">{t('account.preferences.inherit')}</option>
             {deliveryAddresses.map((a) => (
               <option key={a.id} value={a.id}>
                 {addressLabel(a)}
@@ -135,7 +134,7 @@ export default async function PreferencesPage({
         </div>
 
         <div className="b2b-auth__actions">
-          <button type="submit">Save preferences</button>
+          <button type="submit">{t('account.preferences.submit')}</button>
         </div>
       </form>
     </>
@@ -163,7 +162,9 @@ async function saveAction(formData: FormData): Promise<void> {
       defaultShippingAddressId: field('defaultShippingAddressId'),
     });
   } catch (err) {
-    const message = err instanceof StorefrontApiError ? err.detail : 'Could not save preferences.';
+    const message = err instanceof StorefrontApiError
+        ? err.detail
+        : tForLocale((await getServerContext()).locale)('account.preferences.failed');
     return await localeRedirect(`/preferences?error=${encodeURIComponent(message)}`);
   }
   return await localeRedirect('/preferences?saved=1');

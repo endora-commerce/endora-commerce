@@ -19,7 +19,7 @@ import { getSessionCookie } from '../../../../lib/session';
 import { getServerContext } from '../../../../lib/server-context';
 import { StorefrontApiError } from '../../../../lib/api/client';
 import { formatMoney } from '../../../../lib/i18n/money';
-import { tForLocale } from '../../../../lib/i18n/messages';
+import { tForLocale, type MessageKey } from '../../../../lib/i18n/messages';
 import { resolvePaymentReturnNotice } from '../../../../lib/orders/payment-return-notice';
 import { OrderItemRows } from '../../../../components/orders/OrderItemRows';
 import { PurchaseTracker } from '../../../../components/analytics/EcommerceTrackers';
@@ -27,6 +27,8 @@ import { purchaseTrackingPayload } from '../../../../lib/analytics/purchase-elig
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../../lib/i18n/navigation';
 import { LocalizedLink } from '../../../../lib/i18n/localized-link';
+import { format } from '../../../../lib/i18n/format';
+import { codeLabel, richText } from '../../../../lib/account/labels';
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -66,6 +68,9 @@ export default async function OrderConfirmationPage({
   const { payment: paymentReturn, error: actionError } = (await searchParams) ?? {};
   if (!session) return await localeRedirect(`/login?next=/orders/${id}`);
 
+  const { locale } = await getServerContext();
+  const t = tForLocale(locale);
+
   let order;
   try {
     order = await getMyOrder(session, id);
@@ -73,8 +78,8 @@ export default async function OrderConfirmationPage({
     if (err instanceof StorefrontApiError && err.status === 404) {
       return (
         <div className="b2b-auth">
-          <h1>Order not found</h1>
-          <p className="b2b-auth__error">We couldn&apos;t find that order.</p>
+          <h1>{t('account.order.notFound.heading')}</h1>
+          <p className="b2b-auth__error">{t('account.order.notFound.body')}</p>
         </div>
       );
     }
@@ -88,8 +93,6 @@ export default async function OrderConfirmationPage({
     comments = [];
   }
 
-  const { locale } = await getServerContext();
-  const t = tForLocale(locale);
   const paymentNotice = resolvePaymentReturnNotice(paymentReturn, order.paymentStatus);
   /**
    * The GA4 `purchase` conversion for this order (issue #277).
@@ -154,9 +157,9 @@ export default async function OrderConfirmationPage({
     <div className="b2b-auth max-w-[720px]">
       {/* Feature 049 — GA4 purchase (no-op unless Enhanced Ecommerce is on). */}
       {purchase ? <PurchaseTracker order={purchase} orderId={order.id} /> : null}
-      <h1>Thank you — order placed</h1>
+      <h1>{t('account.order.heading')}</h1>
       <p className="b2b-auth__success">
-        Order <strong>{order.businessId}</strong> has been received.
+        {richText(t('account.order.received'), { number: <strong>{order.businessId}</strong> })}
       </p>
 
       {actionError && actionError.trim().length > 0 ? (
@@ -168,10 +171,7 @@ export default async function OrderConfirmationPage({
       {paymentNotice ? <p className="b2b-auth__hint">{t(paymentNotice)}</p> : null}
 
       {order.nextAction?.kind === 'awaiting_transfer' ? (
-        <p>
-          Pay by bank transfer using the reference printed on the proforma invoice we&apos;ll
-          email shortly. We&apos;ll update the order once the payment clears.
-        </p>
+        <p>{t('account.order.bankTransfer')}</p>
       ) : null}
 
       {canRetryPayment ? (
@@ -202,13 +202,13 @@ export default async function OrderConfirmationPage({
         <form action={reorderAction} className="inline">
           <input type="hidden" name="id" value={order.id} />
           <button type="submit" className="btn btn--outline btn--sm">
-            Order again → cart
+            {t('account.order.reorderToCart')}
           </button>
         </form>
         <form action={reorderToQuoteAction} className="inline">
           <input type="hidden" name="id" value={order.id} />
           <button type="submit" className="btn btn--outline btn--sm">
-            Order again → quote request
+            {t('account.order.reorderToQuote')}
           </button>
         </form>
         {returnAction ? (
@@ -224,40 +224,40 @@ export default async function OrderConfirmationPage({
             rel="noreferrer"
             className="btn btn--outline btn--sm"
           >
-            Download invoice {inv.number}
+            {format(t('account.order.downloadInvoice'), { number: inv.number })}
           </a>
         ))}
         <LocalizedLink href="/orders" className="btn btn--ghost btn--sm">
-          See all orders
+          {t('account.order.allOrders')}
         </LocalizedLink>
       </div>
 
-      <h2 className="mt-10">Status</h2>
+      <h2 className="mt-10">{t('account.common.status')}</h2>
       <table className="b2b-account__table">
         <tbody>
           <tr>
-            <th scope="row">Order status</th>
+            <th scope="row">{t('account.order.status.order')}</th>
             <td>{resolveOrderStatusLabel(order, locale)}</td>
           </tr>
           <tr>
-            <th scope="row">Payment status</th>
-            <td>{order.paymentStatus}</td>
+            <th scope="row">{t('account.order.status.payment')}</th>
+            <td>{codeLabel(t, 'account.paymentStatus', order.paymentStatus)}</td>
           </tr>
           <tr>
-            <th scope="row">Placed</th>
-            <td>{new Date(order.placedAt).toLocaleString()}</td>
+            <th scope="row">{t('account.order.status.placed')}</th>
+            <td>{new Date(order.placedAt).toLocaleString(locale)}</td>
           </tr>
         </tbody>
       </table>
 
-      <h2 className="mt-10">Items</h2>
+      <h2 className="mt-10">{t('account.common.items')}</h2>
       <table className="b2b-account__table">
         <thead>
           <tr>
-            <th>Product</th>
-            <th>Qty</th>
-            <th>Unit</th>
-            <th className="text-right">Line</th>
+            <th>{t('account.common.product')}</th>
+            <th>{t('account.common.quantity')}</th>
+            <th>{t('account.order.items.unitPrice')}</th>
+            <th className="text-right">{t('account.order.items.lineTotal')}</th>
           </tr>
         </thead>
         <tbody>
@@ -266,7 +266,7 @@ export default async function OrderConfirmationPage({
         <tfoot>
           <tr>
             <th colSpan={3} className="text-right">
-              Subtotal
+              {t('account.order.totals.subtotal')}
             </th>
             <td className="text-right">
               {formatMoney(order.subtotal, order.currency, locale)}
@@ -274,7 +274,7 @@ export default async function OrderConfirmationPage({
           </tr>
           <tr>
             <th colSpan={3} className="text-right">
-              Tax
+              {t('account.order.totals.tax')}
             </th>
             <td className="text-right">
               {formatMoney(order.taxTotal, order.currency, locale)}
@@ -283,7 +283,7 @@ export default async function OrderConfirmationPage({
           {order.discountTotal > 0 ? (
             <tr>
               <th colSpan={3} className="text-right">
-                Discount
+                {t('account.order.totals.discount')}
               </th>
               <td className="text-right">
                 −{formatMoney(order.discountTotal, order.currency, locale)}
@@ -292,7 +292,7 @@ export default async function OrderConfirmationPage({
           ) : null}
           <tr>
             <th colSpan={3} className="text-right">
-              Delivery
+              {t('account.order.totals.delivery')}
             </th>
             <td className="text-right">
               {formatMoney(order.deliveryTotal, order.currency, locale)}
@@ -300,7 +300,7 @@ export default async function OrderConfirmationPage({
           </tr>
           <tr>
             <th colSpan={3} className="text-right">
-              <strong>Total</strong>
+              <strong>{t('account.common.total')}</strong>
             </th>
             <td className="text-right">
               <strong>
@@ -313,48 +313,54 @@ export default async function OrderConfirmationPage({
 
       {awaitingPayment ? (
         <p className="b2b-auth__hint">
-          This order is awaiting payment.{' '}
+          {t('account.order.awaitingPayment')}{' '}
           {order.nextAction?.kind === 'awaiting_transfer'
-            ? 'Use the bank-transfer details above to pay.'
-            : 'Complete payment to proceed.'}
+            ? t('account.order.awaitingTransfer')
+            : t('account.order.completePayment')}
         </p>
       ) : null}
 
-      <h2 className="mt-10">Comments</h2>
+      <h2 className="mt-10">{t('account.order.comments.heading')}</h2>
       {comments.length === 0 ? (
-        <p className="b2b-auth__hint">No comments yet.</p>
+        <p className="b2b-auth__hint">{t('account.order.comments.none')}</p>
       ) : (
         <ul className="b2b-account__comments">
           {comments.map((c) => (
             <li key={c.id}>
-              <small>{new Date(c.createdAt).toLocaleString()}</small>
+              <small>{new Date(c.createdAt).toLocaleString(locale)}</small>
               <p>{c.body}</p>
             </li>
           ))}
         </ul>
       )}
       {isTerminal ? (
-        <p className="b2b-auth__hint">Commenting is closed for this order.</p>
+        <p className="b2b-auth__hint">{t('account.order.comments.closed')}</p>
       ) : (
         <form action={addCommentAction} className="mt-4">
           <input type="hidden" name="id" value={order.id} />
           <textarea
             name="body"
             required
-            aria-label="Add a comment"
+            aria-label={t('account.order.comments.label')}
             rows={4}
-            placeholder="Write a message to our team…"
+            placeholder={t('account.order.comments.placeholder')}
             className="w-full resize-y rounded-md border border-line bg-surface px-[12px] py-[10px] text-[14px] leading-[1.5] text-fg placeholder:text-muted focus:border-line-strong focus:outline-none"
           />
           <div className="mt-4">
             <button type="submit" className="btn btn--outline btn--sm">
-              Add comment
+              {t('account.order.comments.submit')}
             </button>
           </div>
         </form>
       )}
     </div>
   );
+}
+
+/** A server action's own refusal, in the page's language. */
+async function failure(key: MessageKey): Promise<string> {
+  const { locale } = await getServerContext();
+  return tForLocale(locale)(key);
 }
 
 async function addCommentAction(formData: FormData): Promise<void> {
@@ -367,7 +373,7 @@ async function addCommentAction(formData: FormData): Promise<void> {
     try {
       await addOrderComment(session, id, body);
     } catch (err) {
-      const message = err instanceof StorefrontApiError ? err.detail : 'Could not add comment.';
+      const message = err instanceof StorefrontApiError ? err.detail : await failure('account.order.comments.failed');
       return await localeRedirect(`/orders/${id}?error=${encodeURIComponent(message)}`);
     }
   }
@@ -384,7 +390,7 @@ async function reorderAction(formData: FormData): Promise<void> {
     const result = await reorderOrder(session, id);
     target = result.checkoutUrl || '/cart';
   } catch (err) {
-    const message = err instanceof StorefrontApiError ? err.detail : 'Could not reorder.';
+    const message = err instanceof StorefrontApiError ? err.detail : await failure('account.order.reorderFailed');
     return await localeRedirect(`/orders/${id}?error=${encodeURIComponent(message)}`);
   }
   return await localeRedirect(target);
@@ -455,7 +461,7 @@ async function reorderToQuoteAction(formData: FormData): Promise<void> {
     const { ctx } = await getServerContext();
     await cloneOrderToQuote(session, id, ctx);
   } catch (err) {
-    const message = err instanceof StorefrontApiError ? err.detail : 'Could not create quote request.';
+    const message = err instanceof StorefrontApiError ? err.detail : await failure('account.order.reorderToQuoteFailed');
     return await localeRedirect(`/orders/${id}?error=${encodeURIComponent(message)}`);
   }
   return await localeRedirect('/quote-requests');

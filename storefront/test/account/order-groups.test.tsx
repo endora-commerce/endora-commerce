@@ -66,7 +66,8 @@ describe('storefront order detail — line groups (T066)', () => {
               <td>
                 <Link href={`/p/${it.productId}`}>{it.productSnapshot.name}</Link>
                 <br />
-                <small className="text-subtle">SKU: {it.variantSnapshot?.sku ?? it.productSnapshot.sku}</small>
+                {/* Keyed since issue #85: one catalogue sentence, so no text-node separator. */}
+                <small className="text-subtle">{`SKU: ${it.variantSnapshot?.sku ?? it.productSnapshot.sku}`}</small>
               </td>
               <td>{it.quantity}</td>
               <td>{formatMoney(it.unitPrice, 'PLN', 'en-US')}</td>

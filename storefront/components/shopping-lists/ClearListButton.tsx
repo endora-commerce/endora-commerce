@@ -2,6 +2,7 @@
 
 import { useState, useTransition, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { tForLocale } from '../../lib/i18n/messages';
 
 /**
  * "Clear list" control for the shopping-list detail page. Renders a button
@@ -21,11 +22,15 @@ import { createPortal } from 'react-dom';
  */
 export function ClearListButton({
   listId,
+  locale,
   clearAction,
 }: {
   listId: string;
+  /** The page language, from the server page that renders this (issue #85). */
+  locale: string;
   clearAction: (formData: FormData) => void | Promise<void>;
 }): ReactNode {
+  const t = tForLocale(locale);
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -45,7 +50,7 @@ export function ClearListButton({
   return (
     <>
       <button type="button" className="btn btn--outline" onClick={(): void => setOpen(true)}>
-        Clear list
+        {t('account.shoppingList.clear.button')}
       </button>
 
       {open && typeof document !== 'undefined'
@@ -79,10 +84,10 @@ export function ClearListButton({
                 }}
               >
                 <h2 id="clear-list-title" style={{ marginTop: 0, fontSize: 18 }}>
-                  Clear this list?
+                  {t('account.shoppingList.clear.title')}
                 </h2>
                 <p style={{ marginTop: 8, fontSize: 14 }}>
-                  This removes all items from the list. This action cannot be undone.
+                  {t('account.shoppingList.clear.body')}
                 </p>
                 <div
                   style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}
@@ -93,7 +98,7 @@ export function ClearListButton({
                     disabled={pending}
                     onClick={(): void => setOpen(false)}
                   >
-                    Cancel
+                    {t('account.common.cancel')}
                   </button>
                   <button
                     type="button"
@@ -102,7 +107,7 @@ export function ClearListButton({
                     style={{ background: '#b91c1c', borderColor: '#b91c1c', color: '#fff' }}
                     onClick={confirmClear}
                   >
-                    {pending ? 'Clearing…' : 'Clear list'}
+                    {pending ? t('account.shoppingList.clear.pending') : t('account.shoppingList.clear.button')}
                   </button>
                 </div>
               </div>

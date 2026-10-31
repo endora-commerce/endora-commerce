@@ -21,6 +21,9 @@ import { describeRfqDiff } from '../../../../lib/quote-requests/describe-diff';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../../lib/i18n/navigation';
 import { LocalizedLink } from '../../../../lib/i18n/localized-link';
+import { tForLocale, type MessageKey } from '../../../../lib/i18n/messages';
+import { format } from '../../../../lib/i18n/format';
+import { quoteRequestEventLabel, quoteRequestStatusLabel } from '../../../../lib/account/labels';
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -63,6 +66,9 @@ export default async function QuoteRequestDetailPage({
   const { id } = await params;
   if (!session) return await localeRedirect(`/login?next=/quote-requests/${id}`);
 
+  const { locale } = await getServerContext();
+  const t = tForLocale(locale);
+
   let rfq: RfqDetail;
   try {
     rfq = await getRfqById(session, id);
@@ -70,9 +76,9 @@ export default async function QuoteRequestDetailPage({
     if (err instanceof StorefrontApiError && err.status === 404) {
       return (
         <div className="mx-auto max-w-[1360px] px-[24px]" style={{ paddingTop: 24, paddingBottom: 48 }}>
-          <p className="muted">Nie znaleziono zapytania ofertowego.</p>
+          <p className="muted">{t('account.quoteRequest.notFound')}</p>
           <LocalizedLink href="/quote-requests" className="btn btn--outline btn--sm">
-            ← Lista zapytań
+            {t('account.quoteRequest.backToList')}
           </LocalizedLink>
         </div>
       );
@@ -80,7 +86,6 @@ export default async function QuoteRequestDetailPage({
     throw err;
   }
   const sp = await searchParams;
-  const { locale } = await getServerContext();
   // The server's clock, taken once so the meta sentence and the gate below it
   // cannot disagree about which side of the deadline this render is on.
   const now = new Date();
@@ -106,20 +111,21 @@ export default async function QuoteRequestDetailPage({
   return (
     <div className="mx-auto max-w-[1360px] px-[24px]" style={{ paddingTop: 24, paddingBottom: 48 }}>
       <LocalizedLink href="/quote-requests" className="btn btn--ghost btn--sm" style={{ marginBottom: 8 }}>
-        ← Lista zapytań
+        {t('account.quoteRequest.backToList')}
       </LocalizedLink>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
-        <h1>Zapytanie #{rfq.businessId}</h1>
+        <h1>{format(t('account.quoteRequest.heading'), { number: rfq.businessId })}</h1>
         <RfqStatusBadge
           status={rfq.status}
           awaiting={rfq.awaitingCustomerRevisionAcceptance}
+          locale={locale}
         />
       </div>
       <p className="muted" style={{ fontSize: 13, marginBottom: 18 }}>
-        Utworzone {new Date(rfq.createdAt).toLocaleString('pl-PL')}
+        {format(t('account.quoteRequest.created'), { date: new Date(rfq.createdAt).toLocaleString(locale) })}
         {rfq.submittedAt
-          ? ` · zgłoszone ${new Date(rfq.submittedAt).toLocaleString('pl-PL')}`
+          ? ` · ${format(t('account.quoteRequest.submitted'), { date: new Date(rfq.submittedAt).toLocaleString(locale) })}`
           : null}
         {/*
           The deadline reads as a third instant of the same kind, beside the two
@@ -161,14 +167,14 @@ export default async function QuoteRequestDetailPage({
             fontSize: 13,
           }}
         >
-          <strong>Powód anulowania: </strong>
+          <strong>{t('account.quoteRequest.cancellationReason')} </strong>
           {rfq.cancellationReason}
         </p>
       ) : null}
 
       {rfq.headerNote ? (
         <p style={{ fontSize: 13, color: 'var(--ink-700)', marginBottom: 18 }}>
-          <strong>Uwagi: </strong>
+          <strong>{t('account.quoteRequest.notes')} </strong>
           {rfq.headerNote}
         </p>
       ) : null}
@@ -189,11 +195,11 @@ export default async function QuoteRequestDetailPage({
         <table className="industria-orders" style={{ width: '100%' }}>
           <thead>
             <tr>
-              <th>Produkt</th>
-              <th>Ilość</th>
-              <th>Cena żądana</th>
-              <th>Cena uzgodniona</th>
-              <th>Razem</th>
+              <th>{t('account.common.product')}</th>
+              <th>{t('account.quoteRequest.col.quantity')}</th>
+              <th>{t('account.quoteRequest.col.requestedPrice')}</th>
+              <th>{t('account.quoteRequest.col.agreedPrice')}</th>
+              <th>{t('account.common.total')}</th>
             </tr>
           </thead>
           <tbody>
@@ -240,7 +246,7 @@ export default async function QuoteRequestDetailPage({
                 <>
                   <tr>
                     <td colSpan={4} style={{ textAlign: 'right' }}>
-                      Suma netto
+                      {t('account.quoteRequest.totals.net')}
                     </td>
                     <td>
                       {fmt(total)}
@@ -248,7 +254,7 @@ export default async function QuoteRequestDetailPage({
                   </tr>
                   <tr>
                     <td colSpan={4} style={{ textAlign: 'right' }}>
-                      VAT ({(taxRate * 100).toFixed(0)}%)
+                      {format(t('account.quoteRequest.totals.vat'), { rate: (taxRate * 100).toFixed(0) })}
                     </td>
                     <td>
                       {fmt(taxTotal ?? 0)}
@@ -258,7 +264,7 @@ export default async function QuoteRequestDetailPage({
               ) : null}
               <tr>
                 <th colSpan={4} style={{ textAlign: 'right' }}>
-                  {taxRate > 0 ? 'Suma brutto' : 'Suma'}
+                  {taxRate > 0 ? t('account.quoteRequest.totals.gross') : t('account.common.total')}
                 </th>
                 <th>
                   {fmt(grossTotal ?? total)}
@@ -291,7 +297,7 @@ export default async function QuoteRequestDetailPage({
 
       {rfq.events.length > 0 ? (
         <section style={{ marginTop: 32 }}>
-          <h2>Historia zmian</h2>
+          <h2>{t('account.quoteRequest.history')}</h2>
           <ul
             style={{
               listStyle: 'none',
@@ -306,10 +312,10 @@ export default async function QuoteRequestDetailPage({
                 style={{ padding: '10px 0 10px 16px', borderBottom: '1px dashed var(--line)' }}
               >
                 <div style={{ fontSize: 12, color: 'var(--ink-500)' }}>
-                  {new Date(e.createdAt).toLocaleString('pl-PL')}
+                  {new Date(e.createdAt).toLocaleString(locale)}
                   {e.actorRoleLabel ? ` · ${e.actorRoleLabel}` : null}
                 </div>
-                <div style={{ fontSize: 13, fontWeight: 500 }}>{describeEvent(e.eventType)}</div>
+                <div style={{ fontSize: 13, fontWeight: 500 }}>{quoteRequestEventLabel(t, e.eventType)}</div>
               </li>
             ))}
           </ul>
@@ -338,7 +344,7 @@ function ComparisonBlock({
       }}
     >
       <strong style={{ display: 'block', marginBottom: 8 }}>
-        Co zmieniło się od Twojej ostatniej wizyty:
+        {tForLocale(locale)('account.quoteRequest.changesSinceLastVisit')}
       </strong>
       <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
         {comparison.diff.map((d, i) => (
@@ -349,47 +355,39 @@ function ComparisonBlock({
   );
 }
 
-function describeEvent(t: string): string {
-  const map: Record<string, string> = {
-    created: 'Utworzono zapytanie',
-    submitted: 'Zgłoszono do realizacji',
-    modified: 'Zmodyfikowano',
-    approved: 'Zaakceptowano',
-    canceled: 'Anulowano',
-    expired: 'Wygasło',
-    completed: 'Zrealizowane',
-    'customer-accepted-revision': 'Klient zaakceptował zmiany',
-    'customer-rejected-revision': 'Klient odrzucił zmiany',
-    're-submitted': 'Złożono ponownie',
-    'note-added': 'Dodano notatkę',
-  };
-  return map[t] ?? t;
-}
-
 function RfqStatusBadge({
   status,
   awaiting,
+  locale,
 }: {
   status: RfqStatus;
   awaiting: boolean;
+  locale: string;
 }): ReactNode {
+  const t = tForLocale(locale);
   if (awaiting) {
     return (
       <span className="industria-status industria-status--processing">
-        Oczekuje akceptacji
+        {t('account.quoteRequestStatus.awaitingAcceptance')}
       </span>
     );
   }
-  const map: Record<RfqStatus, { cls: string; label: string }> = {
-    Pending: { cls: 'industria-status--processing', label: 'Oczekuje' },
-    'Created from admin': { cls: 'industria-status--processing', label: 'Od opiekuna' },
-    Approved: { cls: 'industria-status--paid', label: 'Zatwierdzone' },
-    Completed: { cls: 'industria-status--delivered', label: 'Zrealizowane' },
-    Canceled: { cls: 'industria-status--draft', label: 'Anulowane' },
-    Expired: { cls: 'industria-status--draft', label: 'Wygasłe' },
+  const tone: Record<RfqStatus, string> = {
+    Pending: 'industria-status--processing',
+    'Created from admin': 'industria-status--processing',
+    Approved: 'industria-status--paid',
+    Completed: 'industria-status--delivered',
+    Canceled: 'industria-status--draft',
+    Expired: 'industria-status--draft',
   };
-  const entry = map[status] ?? { cls: 'industria-status--draft', label: status };
-  return <span className={`industria-status ${entry.cls}`}>{entry.label}</span>;
+  const cls = tone[status] ?? 'industria-status--draft';
+  return <span className={`industria-status ${cls}`}>{quoteRequestStatusLabel(t, status)}</span>;
+}
+
+/** A server action's own refusal, in the page's language. */
+async function failure(key: MessageKey): Promise<string> {
+  const { locale } = await getServerContext();
+  return tForLocale(locale)(key);
 }
 
 async function acceptAction(formData: FormData): Promise<void> {
@@ -401,7 +399,7 @@ async function acceptAction(formData: FormData): Promise<void> {
   try {
     await acceptRevision(session, rfqId, expectedRevisionNumber);
   } catch (err) {
-    const msg = err instanceof StorefrontApiError ? err.detail : 'Nie udało się zaakceptować zmian.';
+    const msg = err instanceof StorefrontApiError ? err.detail : await failure('account.quoteRequest.acceptFailed');
     return await localeRedirect(`/quote-requests/${rfqId}?error=${encodeURIComponent(msg)}`);
   }
   return await localeRedirect(`/quote-requests/${rfqId}`);
@@ -417,7 +415,7 @@ async function rejectAction(formData: FormData): Promise<void> {
   try {
     await rejectRevision(session, rfqId, expectedRevisionNumber, reason || undefined);
   } catch (err) {
-    const msg = err instanceof StorefrontApiError ? err.detail : 'Nie udało się odrzucić zmian.';
+    const msg = err instanceof StorefrontApiError ? err.detail : await failure('account.quoteRequest.rejectFailed');
     return await localeRedirect(`/quote-requests/${rfqId}?error=${encodeURIComponent(msg)}`);
   }
   return await localeRedirect(`/quote-requests/${rfqId}`);
@@ -448,7 +446,7 @@ async function resubmitAction(formData: FormData): Promise<void> {
     const created = await resubmitRfq(session, rfqId);
     return await localeRedirect(`/quote-requests/${created.id}`);
   } catch (err) {
-    const msg = err instanceof StorefrontApiError ? err.detail : 'Nie udało się złożyć ponownie.';
+    const msg = err instanceof StorefrontApiError ? err.detail : await failure('account.quoteRequest.resubmitFailed');
     return await localeRedirect(`/quote-requests/${rfqId}?error=${encodeURIComponent(msg)}`);
   }
 }

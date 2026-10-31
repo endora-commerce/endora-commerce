@@ -6,6 +6,10 @@ import { StorefrontApiError } from '../../../../lib/api/client';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../../lib/i18n/navigation';
 import { LocalizedLink } from '../../../../lib/i18n/localized-link';
+import { getServerContext } from '../../../../lib/server-context';
+import { tForLocale } from '../../../../lib/i18n/messages';
+import { format } from '../../../../lib/i18n/format';
+import { codeLabel, richText } from '../../../../lib/account/labels';
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -46,25 +50,30 @@ export default async function ReturnDetailPage({
   }
 
   const isTerminal = ['rejected', 'closed', 'cancelled'].includes(detail.statusCode);
+  const { locale } = await getServerContext();
+  const t = tForLocale(locale);
 
   return (
     <div className="b2b-auth max-w-[720px]">
       <p>
-        <LocalizedLink href="/returns">← Back to returns</LocalizedLink>
+        <LocalizedLink href="/returns">{t('returns.new.backToReturns')}</LocalizedLink>
       </p>
-      <h1>{detail.rmaNumber ?? 'Return case'}</h1>
+      <h1>{detail.rmaNumber ?? t('account.return.fallbackTitle')}</h1>
       <p>
-        Status: <strong>{detail.statusLabel}</strong> · {detail.kind}
+        {richText(t('account.return.status'), { status: <strong>{detail.statusLabel}</strong> })} ·{' '}
+        {codeLabel(t, 'returns.new.kind', detail.kind)}
       </p>
-      {detail.rejectionReason ? <p className="muted">Rejection reason: {detail.rejectionReason}</p> : null}
+      {detail.rejectionReason ? (
+        <p className="muted">{format(t('account.return.rejectionReason'), { reason: detail.rejectionReason })}</p>
+      ) : null}
 
-      <h2>Items</h2>
+      <h2>{t('account.common.items')}</h2>
       <table className="b2b-account__table">
         <thead>
           <tr>
-            <th>Product</th>
-            <th>Qty</th>
-            <th className="text-right">Refund</th>
+            <th>{t('account.common.product')}</th>
+            <th>{t('account.common.quantity')}</th>
+            <th className="text-right">{t('account.returns.col.refund')}</th>
           </tr>
         </thead>
         <tbody>
@@ -78,15 +87,15 @@ export default async function ReturnDetailPage({
         </tbody>
       </table>
 
-      <h2>Conversation</h2>
+      <h2>{t('account.return.conversation')}</h2>
       {detail.comments.length === 0 ? (
-        <p>No messages yet.</p>
+        <p>{t('account.return.noMessages')}</p>
       ) : (
         <ul className="b2b-account__comments">
           {detail.comments.map((c) => (
             <li key={c.id}>
               <span className="muted">
-                {c.authorKind} · {new Date(c.createdAt).toLocaleString()}
+                {codeLabel(t, 'account.returnAuthor', c.authorKind)} · {new Date(c.createdAt).toLocaleString(locale)}
               </span>
               <div>{c.body}</div>
             </li>
@@ -96,12 +105,12 @@ export default async function ReturnDetailPage({
 
       {!isTerminal ? (
         <form action={addComment} className="b2b-auth__form">
-          <label htmlFor="body">Add a message</label>
+          <label htmlFor="body">{t('account.return.addMessage')}</label>
           <textarea id="body" name="body" required maxLength={2000} />
-          <button type="submit">Send</button>
+          <button type="submit">{t('account.return.send')}</button>
         </form>
       ) : (
-        <p className="muted">This case is closed.</p>
+        <p className="muted">{t('account.return.closed')}</p>
       )}
     </div>
   );

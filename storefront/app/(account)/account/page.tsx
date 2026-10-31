@@ -15,6 +15,8 @@ import {
 } from '../../../components/pwa/PushPreferencesForm';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../lib/i18n/navigation';
+import { tForLocale } from '../../../lib/i18n/messages';
+import { codeLabel } from '../../../lib/account/labels';
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -37,6 +39,7 @@ export default async function AccountProfilePage({
   if (!session) return await localeRedirect('/login');
   const sp = await searchParams;
   const { locale, ctx } = await getServerContext();
+  const t = tForLocale(locale);
   // The push section (`specs/149-pwa-order-status-push/`) is read beside the
   // profile: the public config says what the channel offers, the preferences
   // what this customer chose. Either failing hides the section.
@@ -49,41 +52,43 @@ export default async function AccountProfilePage({
 
   return (
     <>
-      <h2>Your profile</h2>
+      <h2>{t('account.profile.heading')}</h2>
       {creditLimit ? (
         <div className="mb-[16px]">
-          <CreditLimitWidget limit={creditLimit} showReservations />
+          <CreditLimitWidget limit={creditLimit} locale={locale} showReservations />
         </div>
       ) : null}
       <table className="b2b-account__table">
         <tbody>
           <tr>
-            <th scope="row">Name</th>
+            <th scope="row">{t('account.common.name')}</th>
             <td>
               {me.customerAccount.firstName} {me.customerAccount.lastName}
             </td>
           </tr>
           <tr>
-            <th scope="row">Email</th>
+            <th scope="row">{t('account.common.email')}</th>
             <td>
               {me.customerAccount.email}{' '}
               {me.customerAccount.emailVerifiedAt ? (
-                <span className="muted">(verified)</span>
+                <span className="muted">{t('account.profile.verified')}</span>
               ) : (
-                <span className="muted">(unverified)</span>
+                <span className="muted">{t('account.profile.unverified')}</span>
               )}
             </td>
           </tr>
           <tr>
-            <th scope="row">Role</th>
-            <td>{me.customerAccount.role}</td>
+            <th scope="row">{t('account.common.role')}</th>
+            <td>{codeLabel(t, 'account.role', me.customerAccount.role)}</td>
           </tr>
           <tr>
-            <th scope="row">Two-factor</th>
-            <td>{me.customerAccount.twoFactorEnabled ? 'Enabled' : 'Disabled'}</td>
+            <th scope="row">{t('account.profile.twoFactor')}</th>
+            <td>{me.customerAccount.twoFactorEnabled
+                ? t('account.profile.twoFactorEnabled')
+                : t('account.profile.twoFactorDisabled')}</td>
           </tr>
           <tr>
-            <th scope="row">Organization</th>
+            <th scope="row">{t('account.profile.organization')}</th>
             <td>{me.organization?.name ?? '—'}</td>
           </tr>
         </tbody>
