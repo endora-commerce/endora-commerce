@@ -50,7 +50,7 @@ export default async function SecurityPage({
 
   // Constitution XVII item 5 — this whole page is `mfa`'s contribution to the
   // storefront, so it goes when the module does. Without this it kept offering
-  // "Enable 2FA" for a capability that was switched off, and every server
+  // "Turn on two-step verification" for a capability that was switched off, and every server
   // action below answered 503 on the click. Absence is projected rather than
   // inferred from that 503: the page is not rendered at all.
   const { modules, locale } = await getServerContext();

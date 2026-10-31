@@ -113,9 +113,9 @@ inBoth('the sign-in page', () => render(LoginPage), {
 });
 
 inBoth('the forced 2FA setup page', () => render(SetupPage), {
-  'en-US': ['Set up two-factor authentication', 'Manual key:', '6-digit code', 'Confirm and continue'],
+  'en-US': ['Set up two-step verification', 'Manual key:', '6-digit code', 'Confirm and continue'],
   'pl-PL': [
-    'Skonfiguruj uwierzytelnianie dwuskładnikowe',
+    'Skonfiguruj weryfikację dwuetapową',
     'Klucz do wpisania ręcznie:',
     'Kod 6-cyfrowy',
     'Potwierdź i kontynuuj',
@@ -214,8 +214,8 @@ describe('a verification that failed for want of an answer', () => {
 });
 
 inBoth('the account security page with 2FA off', () => render(SecurityPage), {
-  'en-US': ['Account security', 'Two-factor authentication', 'Enable 2FA'],
-  'pl-PL': ['Bezpieczeństwo konta', 'Uwierzytelnianie dwuskładnikowe', 'Włącz 2FA'],
+  'en-US': ['Account security', 'Two-step verification', 'Turn on two-step verification'],
+  'pl-PL': ['Bezpieczeństwo konta', 'Weryfikacja dwuetapowa', 'Włącz weryfikację dwuetapową'],
 });
 
 describe('the account security page with 2FA on and fresh recovery codes', () => {
@@ -223,7 +223,7 @@ describe('the account security page with 2FA on and fresh recovery codes', () =>
     mfa.status = { totpActive: true, recoveryCodesRemaining: 10000, socialLinks: [] };
     mfa.recoveryFlash = ['aaaa-bbbb'];
     const en = await render(SecurityPage);
-    expect(en).toContain('Two-factor authentication is on');
+    expect(en).toContain('Two-step verification is on');
     expect(en).toContain('Unused recovery codes remaining: 10,000');
     expect(en).toContain('Save your recovery codes');
     expect(en).toContain('Regenerate recovery codes');
@@ -231,7 +231,7 @@ describe('the account security page with 2FA on and fresh recovery codes', () =>
 
     context.locale = 'pl-PL';
     const pl = await render(SecurityPage);
-    expect(pl).toContain('Uwierzytelnianie dwuskładnikowe jest włączone');
+    expect(pl).toContain('Weryfikacja dwuetapowa jest włączona');
     expect(pl).toMatch(/Pozostałe niewykorzystane kody odzyskiwania: 10\s000/);
     expect(pl).toContain('Zapisz kody odzyskiwania');
     expect(pl).toContain('Wygeneruj nowe kody odzyskiwania');
@@ -252,11 +252,11 @@ describe('the account security page while confirming enrolment', () => {
 });
 
 inBoth('the organization security page', () => render(OrganizationSecurityPage, { done: '1' }), {
-  'en-US': ['Organization security', 'Enforcement updated.', 'Require 2FA for all members', 'Stop requiring 2FA'],
+  'en-US': ['Organization security', 'Enforcement updated.', 'Require two-step verification for all members', 'Stop requiring two-step verification'],
   'pl-PL': [
     'Bezpieczeństwo organizacji',
     'Wymóg został zaktualizowany.',
-    'Wymagaj 2FA od wszystkich członków',
-    'Wyłącz wymóg 2FA',
+    'Wymagaj weryfikacji dwuetapowej od wszystkich członków',
+    'Wyłącz wymóg weryfikacji dwuetapowej',
   ],
 });

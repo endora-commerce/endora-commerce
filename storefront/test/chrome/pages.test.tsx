@@ -78,7 +78,7 @@ describe('the built-in home page', () => {
     expect(html).toContain('Nośność dynamiczna');
     expect(html).toContain('14,0 kN');
     expect(html).toContain('obr/min');
-    expect(html).toContain('Cut-off 14:00.');
+    expect(html).toContain('Zamówienia do 14:00 wysyłamy tego samego dnia.');
     expect(html).toContain('<h4>Wysyłka tego samego dnia</h4>');
     expect(html).not.toContain('Same-day shipping');
   });

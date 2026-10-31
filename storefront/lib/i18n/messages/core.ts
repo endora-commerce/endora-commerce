@@ -540,7 +540,7 @@ export const core = defineMessages({
     'nav.search': 'Wyszukiwanie',
     'nav.account': 'Konto',
     'nav.login': 'Zaloguj się',
-    'nav.quickOrder': 'Quick Order',
+    'nav.quickOrder': 'Szybkie zamówienie',
     'nav.cart': 'Koszyk',
     'nav.quoteRequest': 'Zapytanie',
     'nav.megamenu.label': 'Nawigacja główna',

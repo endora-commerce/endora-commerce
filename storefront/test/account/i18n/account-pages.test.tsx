@@ -166,12 +166,12 @@ describe('account shell — the shop language (issue #85)', () => {
     const { en, pl } = await both(() => Page({ searchParams: Promise.resolve({}) }));
     expect(en).toContain('Your profile');
     expect(en).toContain('Role Organization Admin');
-    expect(en).toContain('Two-factor authentication Disabled');
+    expect(en).toContain('Two-step verification Disabled');
     expect(en).toContain('(verified)');
     expect(en).not.toMatch(POLISH_DIACRITIC);
     expect(pl).toContain('Twój profil');
     expect(pl).toContain('Rola Administrator organizacji');
-    expect(pl).toContain('Uwierzytelnianie dwuskładnikowe Wyłączone');
+    expect(pl).toContain('Weryfikacja dwuetapowa Wyłączone');
     expect(pl).toContain('(zweryfikowany)');
   });
 
