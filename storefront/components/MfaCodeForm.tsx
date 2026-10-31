@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { tForLocale } from '../lib/i18n/messages';
 
 /**
  * Presentational second-step code form (feature 042, US1). Resembles the login
@@ -9,15 +10,19 @@ export function MfaCodeForm({
   action,
   next,
   error,
+  locale,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   next: string;
   error?: string | undefined;
+  /** The page's language, from the server component that renders the form. */
+  locale: string;
 }): ReactNode {
+  const t = tForLocale(locale);
   return (
     <div className="b2b-auth">
-      <h1>Two-step verification</h1>
-      <p>Enter the 6-digit code from your authenticator app, or a recovery code.</p>
+      <h1>{t('auth.mfa.heading')}</h1>
+      <p>{t('auth.mfa.intro')}</p>
       {error ? (
         <div className="b2b-auth__error" role="alert">
           {error}
@@ -26,7 +31,7 @@ export function MfaCodeForm({
       <form action={action} className="b2b-auth__form">
         <input type="hidden" name="next" value={next} />
         <div className="b2b-auth__field">
-          <label htmlFor="mfa-code">Authentication code</label>
+          <label htmlFor="mfa-code">{t('auth.mfa.codeLabel')}</label>
           <input
             id="mfa-code"
             name="code"
@@ -38,7 +43,7 @@ export function MfaCodeForm({
           />
         </div>
         <div className="b2b-auth__actions">
-          <button type="submit">Verify</button>
+          <button type="submit">{t('auth.mfa.submit')}</button>
         </div>
       </form>
     </div>

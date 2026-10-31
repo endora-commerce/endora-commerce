@@ -184,6 +184,15 @@ describe('signing out', () => {
     expect(html).toContain('b2b-account__logout');
     expect(html).toContain('Sign out');
   });
+
+  it('captions the button in the page language it is given (issue #85)', async () => {
+    const { SignOutButton } = await import('../components/account/SignOutButton');
+    expect(renderToString(<SignOutButton signOut={async () => {}} locale="en-US" />)).toContain('Sign out');
+    expect(renderToString(<SignOutButton signOut={async () => {}} locale="pl-PL" />)).toContain('Wyloguj się');
+    expect(
+      renderToString(<SignOutButton signOut={async () => {}} locale="pl-PL" label="Log out" />),
+    ).toContain('Log out');
+  });
 });
 
 describe('turning notifications off by hand', () => {
