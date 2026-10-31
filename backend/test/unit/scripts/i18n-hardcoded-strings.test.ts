@@ -226,6 +226,10 @@ describe('analyzeSource — the storefront\'s strict shapes (issue #85)', () => 
       );
     });
 
+    it('reports an example address — it is copy, and localised', () => {
+      expect(kinds(jsx('<input type="email" placeholder="adres@firma.pl" />'))).toEqual(['jsx-attr']);
+    });
+
     it('ignores a catalogue key, a URL and an SVG path', () => {
       expect(kinds(jsx('<img alt="product.image" title="https://example.com/a" />'))).toEqual([]);
       expect(kinds(jsx('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />'))).toEqual([]);

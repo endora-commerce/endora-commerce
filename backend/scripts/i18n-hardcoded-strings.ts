@@ -739,7 +739,9 @@ const JSX_ENTITY = /&(?:[A-Za-z]+|#\d+|#x[0-9A-Fa-f]+);/g;
 function isNonCopyValue(text: string): boolean {
   const t = text.trim();
   if (!LETTER.test(t)) return true;
-  if (/^[a-z_$@][\w$@]*(?:[.:/_\-[\]*]+[\w$@\]*]+)+$/.test(t)) return true;
+  // No `@`: an example address in a placeholder (`adres@firma.pl`) is copy,
+  // and a localised one at that.
+  if (/^[a-z_$][\w$]*(?:[.:/_\-[\]*]+[\w$\]*]+)+$/.test(t)) return true;
   if (/^(?:[a-z][a-z0-9+.-]*:\/\/|mailto:|tel:|data:|\/|\.\.?\/|#[\w-]*$|\?)/i.test(t)) return true;
   if (/^[a-z]+\/[a-z0-9.+-]+(?:\s*;.*)?$/.test(t)) return true;
   if (/^#[0-9a-f]{3,8}$/i.test(t)) return true;
@@ -1231,8 +1233,9 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
  * Measured when the root was added (2026-10-30, on `master` at e7da5e453):
  * 547 findings across 90 files, of which the first slices keyed 15, leaving
  * 532 across 85. Re-measured when the strict shapes landed (2026-10-31):
- * **1027 findings across 107 files** — every one of the 532 is still
- * here, plus single-word JSX text, visible attributes written through `{…}`,
+ * **1029 findings across 107 files** — 531 of the 532 are still here (the
+ * one gone is the footer's `&copy;`, an entity the first rule read as a
+ * word), plus single-word JSX text, visible attributes written through `{…}`,
  * literals rendered as JSX children, label tables, Next `metadata`, and English
  * outside JSX, none of which the first rule could see.
  *
@@ -1334,7 +1337,7 @@ export const STOREFRONT_HARDCODED_STRINGS_BASELINE: Readonly<Record<string, numb
   'storefront/components/analytics/CookieConsentMessage.tsx': 1,
   'storefront/components/analytics/GoogleTagManager.tsx': 1,
   'storefront/components/Breadcrumbs.tsx': 1,
-  'storefront/components/Footer.tsx': 33,
+  'storefront/components/Footer.tsx': 34,
   'storefront/components/Header.tsx': 19,
   'storefront/components/HeaderPreferenceSwitchers.tsx': 1,
   'storefront/components/ImpersonationBanner.tsx': 4,
@@ -1369,7 +1372,7 @@ export const STOREFRONT_HARDCODED_STRINGS_BASELINE: Readonly<Record<string, numb
   'storefront/app/newsletter/unsubscribe/page.tsx': 8,
   'storefront/components/contact/ContactForm.tsx': 10,
   'storefront/components/newsletter/NewsletterConsent.tsx': 2,
-  'storefront/components/newsletter/NewsletterSignup.tsx': 3,
+  'storefront/components/newsletter/NewsletterSignup.tsx': 4,
 };
 
 /** One file's measured count against its baseline. */
