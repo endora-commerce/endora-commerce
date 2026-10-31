@@ -611,5 +611,11 @@
   "organizationPanel.column.stage": "Bieżący etap",
   "organizationPanel.noStage": "Brak bieżącego etapu",
   "organizationPanel.more": "Pokazano {shown} najnowszych z {total}.",
-  "organizationPanel.all": "Wszystkie projekty"
+  "organizationPanel.all": "Wszystkie projekty",
+  "actions.openProjects.keywords": "projekty, projekt, etapy",
+  "actions.newProject.keywords": "projekt, nowy, utwórz",
+  "actions.openProjectTemplates.keywords": "projekt, szablony, szablon",
+  "actions.openProjectAnalytics.keywords": "projekt, analityka, raport",
+  "actions.openProjectRoles.keywords": "projekt, role, zespół",
+  "actions.openProjectLossReasons.keywords": "projekt, utrata, powody"
 }
