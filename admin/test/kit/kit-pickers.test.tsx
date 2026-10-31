@@ -165,6 +165,22 @@ describe('SalesChannelPicker', () => {
     });
   });
 
+  it('reports a response with no channel list as a failed load, not a crash', async () => {
+    // A body of another endpoint's shape (`{ data: [] }`) used to fail inside
+    // the load's own `.then` and land in its `.catch`; holding `undefined` in
+    // state instead throws at render, outside every handler.
+    getSpy.mockResolvedValue({ data: [], meta: { limit: 20, nextCursor: null } });
+    renderWithI18n(
+      withLanguage(<SalesChannelPicker value={null} onChange={vi.fn()} />),
+      shippedCoreBundle('en'),
+    );
+
+    await userEvent.setup().click(screen.getByRole('combobox', { name: 'Select sales channel' }));
+    await waitFor(() => {
+      expect(screen.getByRole('listbox').textContent).toBe('Failed to load channels.');
+    });
+  });
+
   it('narrows to the active channels when asked', async () => {
     getSpy.mockResolvedValue({ items: [], page: 1, pageSize: 200, total: 0 });
     renderWithI18n(withLanguage(<SalesChannelPicker value={null} onChange={vi.fn()} activeOnly />));
