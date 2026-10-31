@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { PUSH_DISMISS_KEY, getPwaConfig, subscribeToPush } from '../../lib/api/pwa';
+import { tForLocale } from '../../lib/i18n/messages';
 
 /**
  * Push opt-in (feature 046, US4). Shown only when the channel has push enabled
@@ -23,7 +24,9 @@ function isIos(): boolean {
   return /iphone|ipad|ipod/i.test(navigator.userAgent);
 }
 
-export function PushOptIn(): React.ReactElement | null {
+/** @param locale The page's locale, from the root layout (issue #85). */
+export function PushOptIn({ locale }: { locale: string }): React.ReactElement | null {
+  const t = tForLocale(locale);
   const [vapidKey, setVapidKey] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [iosHint, setIosHint] = useState(false);
@@ -61,9 +64,9 @@ export function PushOptIn(): React.ReactElement | null {
         className="flex items-center justify-between border-b border-line bg-accent-soft px-[16px] py-[10px] text-[13px] text-accent"
         data-testid="pwa-push-ios-hint"
       >
-        <span>Add this store to your home screen to enable notifications.</span>
+        <span>{t('chrome.pwa.push.iosHint')}</span>
         <button type="button" className="opacity-70" onClick={dismiss}>
-          Dismiss
+          {t('chrome.pwa.push.iosDismiss')}
         </button>
       </div>
     );
@@ -76,7 +79,7 @@ export function PushOptIn(): React.ReactElement | null {
       className="flex items-center justify-between border-b border-line bg-accent-soft px-[16px] py-[10px] text-[13px] text-accent"
       data-testid="pwa-push-optin"
     >
-      <span>Get notified about your orders and quotes.</span>
+      <span>{t('chrome.pwa.push.prompt')}</span>
       <span className="flex gap-[12px]">
         <button
           type="button"
@@ -87,10 +90,10 @@ export function PushOptIn(): React.ReactElement | null {
             else dismiss();
           }}
         >
-          Enable notifications
+          {t('chrome.pwa.push.enable')}
         </button>
         <button type="button" className="opacity-70" onClick={dismiss}>
-          Not now
+          {t('chrome.pwa.push.notNow')}
         </button>
       </span>
     </div>

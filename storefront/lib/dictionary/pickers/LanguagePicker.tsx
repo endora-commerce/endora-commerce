@@ -3,21 +3,25 @@
 import { useEffect, useMemo, useState, type SelectHTMLAttributes } from 'react';
 import type { ResolvedLanguage } from '@endora-commerce/contracts';
 import { useDictionary } from '../DictionaryProvider';
+import { tForLocale } from '../../i18n/messages';
+import { format } from '../../i18n/format';
 
 export interface LanguagePickerProps
   extends Omit<SelectHTMLAttributes<HTMLSelectElement>, 'children'> {
   includeBlank?: boolean;
+  /** The blank option's caption; the catalogue's "Select …" in the provider's locale when omitted. */
   blankLabel?: string;
 }
 
 export function LanguagePicker({
   includeBlank = false,
-  blankLabel = 'Select language',
+  blankLabel,
   value,
   defaultValue,
   ...props
 }: LanguagePickerProps): React.ReactElement {
   const dictionary = useDictionary();
+  const t = tForLocale(dictionary.locale ?? '');
   const selected = String(value ?? defaultValue ?? '');
   const [archived, setArchived] = useState<ResolvedLanguage & { isActive: boolean } | null>(null);
 
@@ -43,15 +47,17 @@ export function LanguagePicker({
 
   return (
     <select value={value} defaultValue={defaultValue} {...props}>
-      {includeBlank ? <option value="">{blankLabel}</option> : null}
+      {includeBlank ? <option value="">{blankLabel ?? t('chrome.picker.language.blank')}</option> : null}
       {active.map((language) => (
         <option key={language.code} value={language.code}>
           {language.label}
         </option>
       ))}
       {archived ? (
-        <optgroup label="Archived">
-          <option value={archived.code}>{archived.label} (archived)</option>
+        <optgroup label={t('chrome.picker.archivedGroup')}>
+          <option value={archived.code}>
+            {format(t('chrome.picker.language.archived'), { label: archived.label })}
+          </option>
         </optgroup>
       ) : null}
     </select>

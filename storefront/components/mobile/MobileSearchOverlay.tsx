@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { getSuggestions, SearchSuggestError, type SuggestResponse } from '../../lib/api/search';
 import { toAbsoluteAssetUrl } from '../../lib/asset-url';
 import { LocalizedLink } from '../../lib/i18n/localized-link';
+import { tForLocale } from '../../lib/i18n/messages';
 
 const DEBOUNCE_MS = 200;
 
@@ -25,6 +26,7 @@ export function MobileSearchOverlay(props: {
   /** Category/brand shortcut pills (top departments from the megamenu). */
   quickLinks?: { label: string; href: string }[];
 }): ReactNode {
+  const t = tForLocale(props.locale);
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState('');
   const [response, setResponse] = useState<SuggestResponse | null>(null);
@@ -108,7 +110,7 @@ export function MobileSearchOverlay(props: {
               type="button"
               className="icon-btn"
               onClick={() => setOpen(false)}
-              aria-label="Wstecz"
+              aria-label={t('chrome.mobileSearch.back')}
             >
               <ChevLeftIcon />
             </button>
@@ -134,7 +136,7 @@ export function MobileSearchOverlay(props: {
                   type="button"
                   className="px-[10px] text-subtle"
                   onClick={() => setValue('')}
-                  aria-label="Wyczyść"
+                  aria-label={t('chrome.mobileSearch.clear')}
                 >
                   <XIcon />
                 </button>
@@ -146,7 +148,7 @@ export function MobileSearchOverlay(props: {
             {trimmed.length >= minLen ? (
               <>
                 <div className="px-[16px] pt-[14px] pb-[6px] font-mono text-[11px] uppercase tracking-[0.06em] text-subtle">
-                  Podpowiedzi
+                  {t('chrome.mobileSearch.suggestions')}
                 </div>
                 {suggestions.map((p) => (
                   <LocalizedLink
@@ -193,7 +195,7 @@ export function MobileSearchOverlay(props: {
             ) : (
               <div className="px-[16px] pt-[14px]">
                 <div className="mb-[10px] font-mono text-[11px] uppercase tracking-[0.06em] text-subtle">
-                  Kategorie
+                  {t('chrome.mobileSearch.categories')}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {(props.quickLinks ?? []).map((q) => (

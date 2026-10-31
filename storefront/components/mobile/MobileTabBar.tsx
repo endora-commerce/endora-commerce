@@ -23,6 +23,8 @@ export function MobileTabBar(props: {
   cartItemCount?: number;
   /** Localized tab captions. */
   labels: {
+    /** The tab bar's landmark name. */
+    navigation: string;
     home: string;
     quoteRequest: string;
     quickOrder: string;
@@ -88,7 +90,7 @@ export function MobileTabBar(props: {
   ];
 
   return (
-    <nav className="m-tabbar" aria-label="Mobile">
+    <nav className="m-tabbar" aria-label={props.labels.navigation}>
       {tabs.map((tab) => {
         // Feature 167 — match the logical path, not the prefixed browser path.
         const active = tab.match(stripLocalePrefix(pathname, urlState));

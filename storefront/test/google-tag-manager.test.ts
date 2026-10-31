@@ -69,7 +69,7 @@ const trackedConfig: GtmStorefrontConfig = {
 };
 
 function render(config: GtmStorefrontConfig): string {
-  return renderToString(createElement(GoogleTagManager, { config }));
+  return renderToString(createElement(GoogleTagManager, { config, locale: 'en-US' }));
 }
 
 let dataLayer: unknown[];

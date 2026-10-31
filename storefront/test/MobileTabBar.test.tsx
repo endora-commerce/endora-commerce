@@ -20,6 +20,7 @@ vi.mock('next/navigation', () => ({
 const { MobileTabBar } = await import('../components/mobile/MobileTabBar');
 
 const labels = {
+  navigation: 'Mobile',
   home: 'Home',
   quoteRequest: 'Quote',
   quickOrder: 'Quick Order',

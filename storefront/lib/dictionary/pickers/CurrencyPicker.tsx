@@ -3,21 +3,25 @@
 import { useEffect, useMemo, useState, type SelectHTMLAttributes } from 'react';
 import type { ResolvedCurrency } from '@endora-commerce/contracts';
 import { useDictionary } from '../DictionaryProvider';
+import { tForLocale } from '../../i18n/messages';
+import { format } from '../../i18n/format';
 
 export interface CurrencyPickerProps
   extends Omit<SelectHTMLAttributes<HTMLSelectElement>, 'children'> {
   includeBlank?: boolean;
+  /** The blank option's caption; the catalogue's "Select …" in the provider's locale when omitted. */
   blankLabel?: string;
 }
 
 export function CurrencyPicker({
   includeBlank = false,
-  blankLabel = 'Select currency',
+  blankLabel,
   value,
   defaultValue,
   ...props
 }: CurrencyPickerProps): React.ReactElement {
   const dictionary = useDictionary();
+  const t = tForLocale(dictionary.locale ?? '');
   const selected = String(value ?? defaultValue ?? '');
   const [archived, setArchived] = useState<ResolvedCurrency & { isActive: boolean } | null>(null);
 
@@ -43,16 +47,16 @@ export function CurrencyPicker({
 
   return (
     <select value={value} defaultValue={defaultValue} {...props}>
-      {includeBlank ? <option value="">{blankLabel}</option> : null}
+      {includeBlank ? <option value="">{blankLabel ?? t('chrome.picker.currency.blank')}</option> : null}
       {active.map((currency) => (
         <option key={currency.code} value={currency.code}>
           {currency.label} ({currency.code})
         </option>
       ))}
       {archived ? (
-        <optgroup label="Archived">
+        <optgroup label={t('chrome.picker.archivedGroup')}>
           <option value={archived.code}>
-            {archived.label} ({archived.code}, archived)
+            {format(t('chrome.picker.currency.archived'), { label: archived.label, code: archived.code })}
           </option>
         </optgroup>
       ) : null}

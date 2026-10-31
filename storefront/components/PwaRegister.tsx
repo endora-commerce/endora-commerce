@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { tForLocale } from '../lib/i18n/messages';
 
 /**
  * Registers the storefront service worker (feature 046) and surfaces a
@@ -15,7 +16,7 @@ import { useEffect, useState } from 'react';
  * do we post `pwa:skip-waiting` and reload — so an update never discards
  * in-progress work mid-task (FR-028).
  */
-export function PwaRegister(): React.ReactElement | null {
+export function PwaRegister({ locale }: { locale: string }): React.ReactElement | null {
   const [waiting, setWaiting] = useState<ServiceWorker | null>(null);
 
   useEffect(() => {
@@ -52,6 +53,7 @@ export function PwaRegister(): React.ReactElement | null {
   }, []);
 
   if (!waiting) return null;
+  const t = tForLocale(locale);
 
   return (
     <div
@@ -60,7 +62,7 @@ export function PwaRegister(): React.ReactElement | null {
       className="border-b border-line bg-accent-soft px-[16px] py-[10px] text-[13px] text-accent"
       data-testid="pwa-update-banner"
     >
-      <span>A new version is available.</span>
+      <span>{t('chrome.pwa.update.available')}</span>
       <button
         type="button"
         className="ml-[12px] underline"
@@ -68,7 +70,7 @@ export function PwaRegister(): React.ReactElement | null {
           waiting.postMessage({ type: 'pwa:skip-waiting' });
         }}
       >
-        Reload
+        {t('chrome.pwa.update.reload')}
       </button>
     </div>
   );
