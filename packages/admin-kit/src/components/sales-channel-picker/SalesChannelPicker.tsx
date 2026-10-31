@@ -76,6 +76,10 @@ export function SalesChannelPicker(props: SalesChannelPickerProps): ReactNode {
     listSalesChannels(activeOnly)
       .then((res) => {
         if (!alive) return;
+        // Checked here, inside the load: a body with no list fails into the
+        // `.catch` below as a failed load. Held in state, it would throw at
+        // render instead, outside every handler.
+        if (!Array.isArray(res.items)) throw new TypeError('The sales channel list has no items.');
         setChannels(res.items);
       })
       .catch((err: unknown) => {

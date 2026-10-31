@@ -129,5 +129,9 @@
   "email.orderConfirmation.discounts": "Zastosowane rabaty:",
   "email.orderConfirmation.summary": "Podsumowanie:",
   "email.orderConfirmation.shippingAddress": "Adres dostawy:",
-  "email.orderConfirmation.billingAddress": "Adres rozliczeniowy:"
+  "email.orderConfirmation.billingAddress": "Adres rozliczeniowy:",
+  "actions.openOrders.keywords": "zamówienia, sprzedaż",
+  "actions.newOrder.keywords": "zamówienie, nowe, utwórz",
+  "actions.orderStatusConfig.keywords": "statusy, cykl życia",
+  "emails.orderConfirmation.sample.shippingAddressText": "  Anna Nowak\n  ul. Główna 1"
 }

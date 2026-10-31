@@ -210,7 +210,8 @@ export const manifest = defineModuleManifest({
       icon: 'Package',
       targetRoute: '/returns',
       requiredPermission: 'returns:read',
-      keywords: ['returns', 'refunds', 'rma', 'zwroty', 'reklamacje'],
+      keywords: ['returns', 'refunds', 'rma'],
+      keywordsKey: 'actions.openReturns.keywords',
       weight: 230,
     },
     {
@@ -223,7 +224,8 @@ export const manifest = defineModuleManifest({
       // that renders the screen is read-gated, so the write code hid a screen
       // read-only operators can open (issue #232).
       requiredPermission: 'returns:read',
-      keywords: ['return status', 'rma workflow', 'statusy zwrotów'],
+      keywords: ['return status', 'rma workflow'],
+      keywordsKey: 'actions.returnStatusConfig.keywords',
       weight: 235,
     },
   ],

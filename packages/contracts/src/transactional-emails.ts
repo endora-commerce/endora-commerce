@@ -20,7 +20,20 @@ export const transactionalEmailCodeRe = /^[a-z][a-z0-9_]*$/;
 export const emailVariableDescriptorSchema = z.object({
   key: z.string().min(1).max(160),
   label: z.string().min(1).max(200),
+  /** The example the preview substitutes. English, like every manifest default. */
   sampleValue: z.string().max(2000).optional(),
+  /**
+   * Issue #560 — a bundle key, relative to the declaring module's namespace as
+   * a palette action's `labelKey` is, carrying the sample in every shipped
+   * language. The detail and the preview resolve it in the language being
+   * edited; `sampleValue` is what answers when it resolves to nothing.
+   */
+  sampleValueKey: z
+    .string()
+    .min(1)
+    .max(255)
+    .regex(/^[a-z][a-zA-Z0-9_]*(\.[a-z][a-zA-Z0-9_]*)*$/, 'Translation key must be dot-separated camelCase namespaces')
+    .optional(),
   description: z.string().max(500).optional(),
 });
 export type EmailVariableDescriptor = z.infer<typeof emailVariableDescriptorSchema>;

@@ -36,7 +36,8 @@ export const manifest = defineModuleManifest({
       icon: 'Plus',
       targetRoute: '/catalog/products/new',
       requiredPermission: 'catalog:write',
-      keywords: ['product', 'new', 'add', 'create', 'produkt', 'nowy', 'dodaj'],
+      keywords: ['product', 'new', 'add', 'create'],
+      keywordsKey: 'actions.newProduct.keywords',
       weight: 100,
     },
   ],
@@ -45,7 +46,15 @@ export const manifest = defineModuleManifest({
 
 Każdy wpis MUSI mieć stabilne `id`, tłumaczalny `labelKey`, `icon` z zamkniętej listy dozwolonych
 ikon oraz `targetRoute`. Pola opcjonalne to `descriptionKey`, `requiredPermission`, `keywords` (do
-10) i `weight` (domyślnie 100).
+10), `keywordsKey` i `weight` (domyślnie 100).
+
+`keywords` są po angielsku i pasują w każdym języku panelu. Słowa wyszukiwania w innym języku
+nie trafiają do manifestu: `keywordsKey` wskazuje wpis we własnych pakietach tłumaczeń modułu —
+względny wobec przestrzeni nazw modułu, tak jak `labelKey` — którego wartością jest lista
+rozdzielona przecinkami, na przykład `"actions.newProduct.keywords": "produkt, nowy, dodaj"`
+w `i18n/pl.json` i `"product, new, add"` w `i18n/en.json`. Serwer rozwiązuje go w języku
+operatora (z powrotem do angielskiego) i zwraca te słowa po `keywords` z manifestu, więc polski
+operator znajdzie akcję po polskim słowie, a nadal także po angielskim.
 
 `requiredPermission` jest w schemacie opcjonalne, ale w praktyce obowiązkowe: musi to być **kod,
 który backend egzekwuje na trasie stojącej za `targetRoute`**, żeby paleta nigdy nie proponowała
@@ -124,6 +133,7 @@ platformy; paleta po prostu nie czyta jej już z pominięciem platformy.
 | `target_route` | `varchar(255)` | Trasa w panelu administracyjnym. |
 | `required_permission` | `varchar(64) NULL` | Kod uprawnienia, w dowolnej notacji. |
 | `keywords` | `jsonb` | Tablica ciągów znaków. |
+| `keywords_key` | `varchar(255) NULL` | Klucz i18n słów wyszukiwania w danym języku, rozwiązywany przy odczycie. |
 | `weight` | `integer` | Klucz sortowania (domyślnie 100). |
 | `version` | `bigint` | Licznik dla wiersza; zwiększany przy każdym UPSERT. |
 | `installed_at`, `updated_at` | `timestamptz` | Metadane wiersza. |
