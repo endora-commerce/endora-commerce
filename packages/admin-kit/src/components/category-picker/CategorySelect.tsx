@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ApiError, apiClient } from '../../lib/index.js';
 import { useAppLanguage } from '../../i18n/app-language-context.js';
+import { useTranslation } from '../../i18n/useTranslation.js';
 import { Combobox, type ComboboxOption } from '../../ui/combobox.js';
 import {
   adminLanguageToLocale,
@@ -43,7 +44,10 @@ export function CategorySelect(props: CategorySelectProps): ReactNode {
   const { language } = useAppLanguage();
   const [categories, setCategories] = useState<AdminCategory[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // The server's sentence when it sent one, `null` for a failure it did not
+  // explain — translated at render, so the load effect does not depend on `t`.
+  const [error, setError] = useState<{ message: string | null } | null>(null);
+  const t = useTranslation('core');
 
   useEffect(() => {
     let alive = true;
@@ -56,9 +60,7 @@ export function CategorySelect(props: CategorySelectProps): ReactNode {
       })
       .catch((err: unknown) => {
         if (!alive) return;
-        setError(
-          err instanceof ApiError ? err.envelope.error.message : 'Failed to load categories.',
-        );
+        setError({ message: err instanceof ApiError ? err.envelope.error.message : null });
       })
       .finally(() => {
         if (alive) setLoading(false);
@@ -79,7 +81,8 @@ export function CategorySelect(props: CategorySelectProps): ReactNode {
     }));
   }, [categories, language]);
 
-  const emptyMessage = error ?? props.emptyMessage ?? 'No categories.';
+  const errorMessage = error === null ? null : (error.message ?? t('categorySelect.loadError'));
+  const emptyMessage = errorMessage ?? props.emptyMessage ?? t('categorySelect.empty');
 
   return (
     <Combobox<string>
@@ -89,9 +92,9 @@ export function CategorySelect(props: CategorySelectProps): ReactNode {
       loading={loading}
       clearable={props.clearable ?? true}
       disabled={props.disabled ?? false}
-      placeholder={props.placeholder ?? 'Select a category…'}
+      placeholder={props.placeholder ?? t('categorySelect.placeholder')}
       emptyMessage={emptyMessage}
-      ariaLabel={props.ariaLabel ?? 'Select category'}
+      ariaLabel={props.ariaLabel ?? t('categorySelect.ariaLabel')}
       id={props.id ?? ''}
       className={props.className ?? ''}
     />
