@@ -61,10 +61,12 @@ describe('the file set', () => {
     expect([...emit(FULL).keys()].sort()).toEqual([
       'i18n/en.json',
       'i18n/pl.json',
+      'src/admin/index.test.ts',
       'src/admin/index.ts',
       'src/admin/pages/DemoWidgetsPage.tsx',
       'src/backend/entities/demo-widgets-item.entity.ts',
       'src/backend/index.ts',
+      'src/backend/manifest.test.ts',
       'src/backend/routes.admin.ts',
       'src/backend/services/demo-widgets.service.ts',
       'src/backend/workers/demo-widgets.worker.ts',
@@ -72,12 +74,11 @@ describe('the file set', () => {
       'src/migrations/20260901T120000_demo_widgets_init.ts',
       'src/migrations/index.ts',
       'src/ports/index.ts',
-      'test/unit/admin-contributions.test.ts',
-      'test/unit/manifest.test.ts',
       'tsconfig.build.json',
       'tsconfig.json',
       'tsconfig.ui.build.json',
       'tsconfig.ui.json',
+      'tsconfig.ui.test.json',
       'vitest.config.ts',
     ]);
   });
@@ -93,6 +94,7 @@ describe('the file set', () => {
     expect(minimal.some((path) => path.startsWith('src/admin/'))).toBe(false);
     expect(minimal).not.toContain('tsconfig.ui.json');
     expect(minimal).not.toContain('tsconfig.ui.build.json');
+    expect(minimal).not.toContain('tsconfig.ui.test.json');
   });
 });
 
@@ -414,12 +416,65 @@ describe('the package-owned test run', () => {
     // Again the setting rather than the word: the file's own comment explains
     // why the flag is absent.
     expect(files.get('vitest.config.ts')).not.toMatch(/passWithNoTests\s*:/);
-    expect(files.has('test/unit/manifest.test.ts')).toBe(true);
+    expect(files.has('src/backend/manifest.test.ts')).toBe(true);
     // R16: a package that ships a UI layer must not ship test files no runner
     // collects. The admin test is a `.ts` under the configured include, and it
     // never evaluates the screen — the route component is a lazy factory.
-    expect(files.has('test/unit/admin-contributions.test.ts')).toBe(true);
-    expect(emit(HEADLESS).has('test/unit/admin-contributions.test.ts')).toBe(false);
+    expect(files.has('src/admin/index.test.ts')).toBe(true);
+    expect(emit(HEADLESS).has('src/admin/index.test.ts')).toBe(false);
+  });
+
+  it('puts every test under src/ and emits no test/ directory', () => {
+    // A module package has no `test/` directory: its tests sit beside their
+    // subjects as `*.test.ts` (`specs/106-module-owned-tests/`
+    // `contracts/module-test-ownership.md` §2), and only there are they in the
+    // type-check program `tsconfig.json` declares (issue #81).
+    for (const spec of [FULL, HEADLESS, {}]) {
+      const paths = [...emit(spec).keys()];
+      const tests = paths.filter((path) => /\.test\.tsx?$/.test(path));
+
+      expect(paths.some((path) => path.startsWith('test/'))).toBe(false);
+      expect(tests.length).toBeGreaterThan(0);
+      for (const test of tests) {
+        expect(test.startsWith('src/'), test).toBe(true);
+        // Never `src/<file>`: the manifest generator refuses a sibling of
+        // `src/manifest.ts`, which is reachable through no subpath.
+        expect(test.split('/').length, test).toBeGreaterThan(2);
+        // Relative to the file's own directory, never back out of `src/`.
+        expect(emit(spec).get(test), test).not.toContain('../../src/');
+      }
+    }
+  });
+
+  it('puts the admin test beside the admin entry it covers', () => {
+    const files = emit(FULL);
+
+    expect(files.has('src/admin/index.ts')).toBe(true);
+    expect(files.get('src/admin/index.test.ts')).toContain("from './index.js'");
+    expect(files.get('src/backend/manifest.test.ts')).toContain("from '../manifest.js'");
+  });
+
+  it('collects the co-located tests and no test/ tree', () => {
+    // The raw text, not `codeOf`: a glob's `/**/` reads as a block comment.
+    const vitest = emit(FULL).get('vitest.config.ts')!;
+
+    expect(vitest).toContain("include: ['src/**/*.test.ts'],");
+    expect(vitest).not.toMatch(/include: \[[^\]]*'test\//);
+  });
+
+  it('gives the admin test the Node types in a program of its own (issue #566)', () => {
+    // `tsconfig.ui.json` declares `"types": []` — a screen must not reach for
+    // `process.env` — and the admin test reads the bundles with `node:fs`. A
+    // `/// <reference types="node" />` in the test would widen the whole UI
+    // program; the guard in `ui-layer-ambient-types.test.ts` refuses it.
+    const files = emit(FULL);
+    const uiTest = files.get('tsconfig.ui.test.json')!;
+
+    expect(files.get('src/admin/index.test.ts')).not.toMatch(/^\/\/\/ <reference/m);
+    expect(files.get('tsconfig.ui.json')).toContain('"types": []');
+    expect(uiTest).toContain('"extends": "./tsconfig.ui.json"');
+    expect(uiTest).toContain('"types": ["node"]');
+    expect(uiTest).toContain('"src/admin/**/*.test.ts"');
   });
 
   it('reaches the repository root from the depth it was told about', () => {
@@ -468,7 +523,7 @@ describe('the two build configurations', () => {
     const ui = files.get('tsconfig.ui.json')!;
     const uiBuild = files.get('tsconfig.ui.build.json')!;
 
-    expect(ui).toContain('"exclude": []');
+    expect(ui).toMatch(/"exclude": \[[^\]]*"src\/\*\*\/\*\.test\.tsx"/);
     expect(uiBuild).toContain('"extends": "./tsconfig.ui.json"');
     expect(uiBuild).toMatch(/"exclude": \[[^\]]*"src\/\*\*\/\*\.test\.tsx"/);
     // Nothing but the exclusion: the `jsx`/`lib` pair is declared once.
