@@ -11,7 +11,7 @@
   "errors.TASK_TRANSITION_FORBIDDEN": "The task workflow does not allow this move. The task can move to: {allowed}.",
   "errors.TASK_TRANSITION_CONFLICT": "Someone changed this task’s status in the meantime. Reload it and try again.",
   "errors.TASK_PRIVATE_READ_ONLY": "This private task belongs to someone else: you may read it or delete it, not change it.",
-  "errors.TASK_PRIORITY_UNKNOWN": "This priority does not exist.",
+  "errors.TASK_PRIORITY_UNKNOWN": "The priority \"{priorityCode}\" does not exist.",
   "errors.TASK_TAG_UNKNOWN": "One of these tags does not exist.",
   "errors.TASK_TAG_NAME_TAKEN": "A tag with this name already exists.",
   "errors.TASK_ATTACHMENT_REFUSED": "This file cannot be attached: it is too large, or it is a file a browser would run (HTML, SVG, XML, JavaScript).",
