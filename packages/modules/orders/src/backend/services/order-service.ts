@@ -183,6 +183,7 @@ import type {
 } from '@endora-commerce/contracts';
 import {
   buildOrderConfirmationEmail,
+  resolveOrderConfirmationProse,
   buildOrderConfirmationVariables,
   type OrderConfirmationRenderers,
 } from '../email-templates/order-confirmation.js';
@@ -195,6 +196,7 @@ import {
   type OrganizationMethodChoice,
 } from './organization-method-allow-list-gate.js';
 import { loadArrangedOrderLines } from './order-line-order.js';
+import type { OrdersTranslate } from '../orders-prose.js';
 
 
 export interface OrderEvents extends Record<string, EventBase> {
@@ -516,6 +518,8 @@ export class OrderService {
 
   private readonly transitionEffects: OrderTransitionEffectService | undefined;
   private readonly log: PlatformLogger | undefined;
+  /** This module's bundle, for the in-code order confirmation (issue #95). Absent, English. */
+  private readonly translate: OrdersTranslate | undefined;
 
   constructor(
     private readonly emFactory: () => EntityManager,
@@ -565,6 +569,12 @@ export class OrderService {
       transitionEffects?: OrderTransitionEffectService;
       log?: PlatformLogger;
       /**
+       * This module's bundle (`_i18n`'s `adminI18nService`), from which the
+       * in-code order confirmation takes its sentences in the channel's
+       * language. Absent, the e-mail is written in English.
+       */
+      translate?: OrdersTranslate;
+      /**
        * Resolve the VAT rate (as a fraction, e.g. `0.23`) for a single product
        * line, given the billing country, the product's tax class (its `type`),
        * and the organization's VAT status. Optional only because the parameter
@@ -598,6 +608,7 @@ export class OrderService {
     this.confirmationRecipients = paymentDeps?.confirmationRecipients;
     this.getTransactionalEmailSender = paymentDeps?.getTransactionalEmailSender;
     this.transitionEffects = paymentDeps?.transitionEffects;
+    this.translate = paymentDeps?.translate;
     this.log = paymentDeps?.log;
     this.resolveMinOrderValue = paymentDeps?.resolveMinOrderValue;
     this.resolveChannelFulfilmentStrategy = paymentDeps?.resolveChannelFulfilmentStrategy;
@@ -792,6 +803,7 @@ export class OrderService {
       this.shippingAdapters?.get(deliveryMethod?.adapter ?? '')?.renderers?.email ?? null;
     const channel = await em.findOne(SalesChannel, { id: order.salesChannelId });
     const language = channel?.defaultLanguage ?? 'en-US';
+    const prose = await resolveOrderConfirmationProse(this.translate, language);
     const message = buildOrderConfirmationEmail(
       {
         to: customer.email,
@@ -821,6 +833,7 @@ export class OrderService {
         })),
       },
       this.orderConfirmationRenderers(),
+      prose,
     );
     let result: OrderEmailResult;
     try {

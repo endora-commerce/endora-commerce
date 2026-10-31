@@ -1,4 +1,4 @@
-import { unitPriceDisplayText } from '@endora-commerce/contracts';
+import { supportedLanguageOf, unitPriceDisplayText } from '@endora-commerce/contracts';
 import type {
   EmailMailerSendInput,
   PaymentEmailRendererPort,
@@ -8,6 +8,13 @@ import {
   orderTotalsLabels,
   type OrderTotalsLabels,
 } from '@endora-commerce/email-components/render/order-labels';
+import {
+  fillPlaceholders,
+  ORDERS_PROSE_EN,
+  ordersProseTable,
+  type OrdersProseKey,
+  type OrdersTranslate,
+} from '../orders-prose.js';
 
 /**
  * Order-confirmation e-mail (feature 034). Sent after a successful checkout.
@@ -174,15 +181,46 @@ export function buildOrderConfirmationVariables(
   };
 }
 
+const ORDER_CONFIRMATION_KEYS = (Object.keys(ORDERS_PROSE_EN) as OrdersProseKey[]).filter(
+  (key): key is Extract<OrdersProseKey, `email.orderConfirmation.${string}`> =>
+    key.startsWith('email.orderConfirmation.'),
+);
+
+/** The sentences of the in-code order confirmation, as templates in one language. */
+export type OrderConfirmationProse = Readonly<
+  Record<(typeof ORDER_CONFIRMATION_KEYS)[number], string>
+>;
+
+/** The sentences in English — what the builder writes when it is handed none. */
+export const ORDER_CONFIRMATION_PROSE_EN: OrderConfirmationProse = Object.fromEntries(
+  ORDER_CONFIRMATION_KEYS.map((key) => [key, ORDERS_PROSE_EN[key]]),
+) as OrderConfirmationProse;
+
+/**
+ * The sentences in `language` — the order's content language, a BCP-47 tag —
+ * from this module's bundle, English where it cannot answer (issue #95).
+ */
+export function resolveOrderConfirmationProse(
+  translate: OrdersTranslate | undefined,
+  language: string | undefined,
+): Promise<OrderConfirmationProse> {
+  return ordersProseTable(translate, ORDER_CONFIRMATION_KEYS, supportedLanguageOf(language));
+}
+
+/**
+ * `prose` carries the sentences in the e-mail's language
+ * ({@link resolveOrderConfirmationProse}); the totals and address labels are
+ * `email-components`' and follow `input.language` as before.
+ */
 export function buildOrderConfirmationEmail(
   input: BuildOrderConfirmationEmailInput,
   renderers: OrderConfirmationRenderers,
+  prose: OrderConfirmationProse = ORDER_CONFIRMATION_PROSE_EN,
 ): EmailMailerSendInput {
   const { order, items } = input;
   const currency = order.currency;
   const discountTotal = Number(order.discountTotal);
   const labels = orderTotalsLabels(input.language);
-  const pl = (input.language ?? '').toLowerCase().startsWith('pl');
 
   const productLines = items.map(
     (it) =>
@@ -210,39 +248,39 @@ export function buildOrderConfirmationEmail(
     discountTotal > 0 || order.promotionCode
       ? [
           ``,
-          pl ? `Zastosowane rabaty:` : `Applied discounts:`,
+          prose['email.orderConfirmation.discounts'],
           `  ${order.promotionCode ? `${order.promotionCode}: ` : ''}-${money(discountTotal, currency)}`,
         ]
-      : [``, pl ? `Zastosowane rabaty:` : `Applied discounts:`, `  ${labels.none}`];
+      : [``, prose['email.orderConfirmation.discounts'], `  ${labels.none}`];
 
   const text = [
-    pl ? `Dziękujemy za zamówienie.` : `Thank you for your order.`,
+    prose['email.orderConfirmation.thanks'],
     ``,
-    pl ? `Zamówienie: ${order.businessId}` : `Order: ${order.businessId}`,
+    fillPlaceholders(prose['email.orderConfirmation.order'], { businessId: order.businessId }),
     ``,
-    pl ? `Produkty:` : `Products:`,
+    prose['email.orderConfirmation.products'],
     ...productLines,
     ``,
-    pl ? `Metoda dostawy: ${shippingLine}` : `Delivery method: ${shippingLine}`,
-    pl ? `Metoda płatności: ${paymentLine}` : `Payment method: ${paymentLine}`,
+    fillPlaceholders(prose['email.orderConfirmation.deliveryMethod'], { line: shippingLine }),
+    fillPlaceholders(prose['email.orderConfirmation.paymentMethod'], { line: paymentLine }),
     ...discountSection,
     ``,
-    pl ? `Podsumowanie:` : `Summary:`,
+    prose['email.orderConfirmation.summary'],
     ...summary,
     ``,
-    pl ? `Adres dostawy:` : `Shipping address:`,
+    prose['email.orderConfirmation.shippingAddress'],
     formatAddress(order.deliveryAddress, labels),
     ``,
-    pl ? `Adres rozliczeniowy:` : `Billing address:`,
+    prose['email.orderConfirmation.billingAddress'],
     formatAddress(order.billingAddress, labels),
   ].join('\n');
 
   return {
     messageId: `order_confirmation:${order.id}`,
     to: input.to,
-    subject: pl
-      ? `Potwierdzenie zamówienia ${order.businessId}`
-      : `Order confirmation ${order.businessId}`,
+    subject: fillPlaceholders(prose['email.orderConfirmation.subject'], {
+      businessId: order.businessId,
+    }),
     text,
     meta: {
       kind: 'order_confirmation',

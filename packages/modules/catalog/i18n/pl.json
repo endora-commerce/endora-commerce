@@ -1536,5 +1536,12 @@
   "blocks.productSlider.fields.leadWeight.options.default": "Domyślna",
   "blocks.productSlider.fields.leadColor.label": "Kolor wprowadzenia",
   "blocks.productSlider.fields.headingLineHeight.label": "Wysokość linii nagłówka",
-  "blocks.productGrid.fields.headingLineHeight.label": "Wysokość linii nagłówka"
+  "blocks.productGrid.fields.headingLineHeight.label": "Wysokość linii nagłówka",
+  "bulkOperations.log.queued": "Operacja utworzona i dodana do kolejki ({total} elementów).",
+  "bulkOperations.log.reindexQueued": "Operacja przeindeksowania wyszukiwarki utworzona i dodana do kolejki.",
+  "bulkOperations.log.started": "Rozpoczęto przetwarzanie operacji ({total} elementów).",
+  "bulkOperations.log.finished": "Zakończono: {succeeded} z powodzeniem, {skipped} pominięto, {failed} z błędem (łącznie {total}).",
+  "bulkOperations.log.itemsFailed": "{failed} elementów zakończyło się błędem — szczegóły w statusie pojedynczych elementów.",
+  "bulkOperations.log.failed": "Operacja nie powiodła się: {message}",
+  "bulkOperations.log.reindexed": "Przeindeksowano {documentCount} dokumentów we wszystkich indeksach."
 }

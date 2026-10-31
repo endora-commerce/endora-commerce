@@ -1,0 +1,1223 @@
+{
+  "header.invoice": {
+    "table": {
+      "widths": [
+        "*"
+      ],
+      "body": [
+        [
+          {
+            "text": "Faktura nr INV-2026-0042",
+            "bold": true,
+            "fontSize": 14,
+            "alignment": "left"
+          }
+        ],
+        [
+          {
+            "text": "Numer w KSeF: KSEF-1",
+            "alignment": "left"
+          }
+        ],
+        [
+          {
+            "text": "Data wystawienia: 2026-05-04",
+            "alignment": "left"
+          }
+        ],
+        [
+          {
+            "text": "Data sprzedaży: 2026-05-04",
+            "alignment": "left"
+          }
+        ],
+        [
+          {
+            "text": "Termin płatności: 2026-05-18",
+            "alignment": "left"
+          }
+        ],
+        [
+          {
+            "text": "Metoda płatności: Bank transfer",
+            "alignment": "left"
+          }
+        ]
+      ]
+    },
+    "layout": "noBorders",
+    "margin": [
+      0,
+      0,
+      0,
+      12
+    ]
+  },
+  "header.proforma": {
+    "table": {
+      "widths": [
+        "*"
+      ],
+      "body": [
+        [
+          {
+            "text": "Faktura proforma nr INV-2026-0042",
+            "bold": true,
+            "fontSize": 14,
+            "alignment": "left"
+          }
+        ],
+        [
+          {
+            "text": "Numer w KSeF: KSEF-1",
+            "alignment": "left"
+          }
+        ],
+        [
+          {
+            "text": "Data wystawienia: 2026-05-04",
+            "alignment": "left"
+          }
+        ],
+        [
+          {
+            "text": "Data sprzedaży: 2026-05-04",
+            "alignment": "left"
+          }
+        ],
+        [
+          {
+            "text": "Termin płatności: 2026-05-18",
+            "alignment": "left"
+          }
+        ],
+        [
+          {
+            "text": "Metoda płatności: Bank transfer",
+            "alignment": "left"
+          }
+        ]
+      ]
+    },
+    "layout": "noBorders",
+    "margin": [
+      0,
+      0,
+      0,
+      12
+    ]
+  },
+  "header.correction": {
+    "table": {
+      "widths": [
+        "*"
+      ],
+      "body": [
+        [
+          {
+            "text": "Faktura korygująca nr INV-2026-0042",
+            "bold": true,
+            "fontSize": 14,
+            "alignment": "left"
+          }
+        ],
+        [
+          {
+            "text": "Numer w KSeF: KSEF-1",
+            "alignment": "left"
+          }
+        ],
+        [
+          {
+            "text": "Data wystawienia: 2026-05-04",
+            "alignment": "left"
+          }
+        ],
+        [
+          {
+            "text": "Data sprzedaży: 2026-05-04",
+            "alignment": "left"
+          }
+        ],
+        [
+          {
+            "text": "Termin płatności: 2026-05-18",
+            "alignment": "left"
+          }
+        ],
+        [
+          {
+            "text": "Metoda płatności: Bank transfer",
+            "alignment": "left"
+          }
+        ]
+      ]
+    },
+    "layout": "noBorders",
+    "margin": [
+      0,
+      0,
+      0,
+      12
+    ]
+  },
+  "header.wz": {
+    "table": {
+      "widths": [
+        "*"
+      ],
+      "body": [
+        [
+          {
+            "text": "Dokument WZ nr INV-2026-0042",
+            "bold": true,
+            "fontSize": 14,
+            "alignment": "left"
+          }
+        ],
+        [
+          {
+            "text": "Numer w KSeF: KSEF-1",
+            "alignment": "left"
+          }
+        ],
+        [
+          {
+            "text": "Data wystawienia: 2026-05-04",
+            "alignment": "left"
+          }
+        ],
+        [
+          {
+            "text": "Data sprzedaży: 2026-05-04",
+            "alignment": "left"
+          }
+        ],
+        [
+          {
+            "text": "Termin płatności: 2026-05-18",
+            "alignment": "left"
+          }
+        ],
+        [
+          {
+            "text": "Metoda płatności: Bank transfer",
+            "alignment": "left"
+          }
+        ]
+      ]
+    },
+    "layout": "noBorders",
+    "margin": [
+      0,
+      0,
+      0,
+      12
+    ]
+  },
+  "defaults.invoices.InvoiceHeader": {
+    "table": {
+      "widths": [
+        "*"
+      ],
+      "body": [
+        [
+          {
+            "text": "Faktura korygująca nr INV-2026-0042",
+            "bold": true,
+            "fontSize": 14,
+            "alignment": "left"
+          }
+        ],
+        [
+          {
+            "text": "Numer w KSeF: KSEF-1",
+            "alignment": "left"
+          }
+        ],
+        [
+          {
+            "text": "Data wystawienia: 2026-05-04",
+            "alignment": "left"
+          }
+        ],
+        [
+          {
+            "text": "Data sprzedaży: 2026-05-04",
+            "alignment": "left"
+          }
+        ],
+        [
+          {
+            "text": "Termin płatności: 2026-05-18",
+            "alignment": "left"
+          }
+        ],
+        [
+          {
+            "text": "Metoda płatności: Bank transfer",
+            "alignment": "left"
+          }
+        ]
+      ]
+    },
+    "layout": "noBorders",
+    "margin": [
+      0,
+      0,
+      0,
+      12
+    ]
+  },
+  "defaults.invoices.InvoiceParties": {
+    "columns": [
+      {
+        "width": "50%",
+        "stack": [
+          {
+            "text": "Sprzedawca",
+            "bold": true,
+            "fontSize": 10,
+            "margin": [
+              0,
+              0,
+              0,
+              2
+            ]
+          },
+          {
+            "text": "Acme Supplies Ltd.",
+            "fontSize": 10
+          },
+          {
+            "text": "100 Market Street, Suite 4",
+            "fontSize": 10
+          },
+          {
+            "text": "10001 New York",
+            "fontSize": 10
+          },
+          {
+            "text": "NIP: 12-3456789",
+            "fontSize": 10
+          },
+          {
+            "text": "Example Bank US64 EXAMPLE 0000 0000 0000 00",
+            "fontSize": 10
+          },
+          {
+            "text": "SWIFT: EXAMPUS33",
+            "fontSize": 10
+          }
+        ]
+      },
+      {
+        "width": 16,
+        "text": ""
+      },
+      {
+        "width": "50%",
+        "stack": [
+          {
+            "text": "Nabywca",
+            "bold": true,
+            "fontSize": 10,
+            "margin": [
+              0,
+              0,
+              0,
+              2
+            ]
+          },
+          {
+            "text": "Globex Trading Co.",
+            "fontSize": 10
+          },
+          {
+            "text": "250 Commerce Avenue",
+            "fontSize": 10
+          },
+          {
+            "text": "60601 Chicago",
+            "fontSize": 10
+          },
+          {
+            "text": "NIP: 98-7654321",
+            "fontSize": 10
+          }
+        ]
+      }
+    ],
+    "margin": [
+      0,
+      0,
+      0,
+      16
+    ]
+  },
+  "defaults.invoices.InvoiceLineItems": {
+    "table": {
+      "headerRows": 1,
+      "widths": [
+        16,
+        "*",
+        28,
+        32,
+        50,
+        32,
+        56,
+        56
+      ],
+      "body": [
+        [
+          {
+            "text": "Lp",
+            "bold": true,
+            "fontSize": 8,
+            "alignment": "left"
+          },
+          {
+            "text": "Nazwa",
+            "bold": true,
+            "fontSize": 8,
+            "alignment": "left"
+          },
+          {
+            "text": "Jedn.",
+            "bold": true,
+            "fontSize": 8,
+            "alignment": "left"
+          },
+          {
+            "text": "Ilość",
+            "bold": true,
+            "fontSize": 8,
+            "alignment": "right"
+          },
+          {
+            "text": "Cena netto",
+            "bold": true,
+            "fontSize": 8,
+            "alignment": "right"
+          },
+          {
+            "text": "Stawka",
+            "bold": true,
+            "fontSize": 8,
+            "alignment": "right"
+          },
+          {
+            "text": "Wartość netto",
+            "bold": true,
+            "fontSize": 8,
+            "alignment": "right"
+          },
+          {
+            "text": "Wartość brutto",
+            "bold": true,
+            "fontSize": 8,
+            "alignment": "right"
+          }
+        ],
+        [
+          {
+            "text": "1",
+            "fontSize": 8,
+            "alignment": "left"
+          },
+          {
+            "text": "Cloud hosting — annual plan",
+            "fontSize": 8,
+            "alignment": "left"
+          },
+          {
+            "text": "ea",
+            "fontSize": 8,
+            "alignment": "left"
+          },
+          {
+            "text": "1",
+            "fontSize": 8,
+            "alignment": "right"
+          },
+          {
+            "text": "500,00",
+            "fontSize": 8,
+            "alignment": "right"
+          },
+          {
+            "text": "20%",
+            "fontSize": 8,
+            "alignment": "right"
+          },
+          {
+            "text": "500,00",
+            "fontSize": 8,
+            "alignment": "right"
+          },
+          {
+            "text": "600,00",
+            "fontSize": 8,
+            "alignment": "right"
+          }
+        ],
+        [
+          {
+            "text": "2",
+            "fontSize": 8,
+            "alignment": "left"
+          },
+          {
+            "text": "Professional services — onboarding",
+            "fontSize": 8,
+            "alignment": "left"
+          },
+          {
+            "text": "hr",
+            "fontSize": 8,
+            "alignment": "left"
+          },
+          {
+            "text": "10",
+            "fontSize": 8,
+            "alignment": "right"
+          },
+          {
+            "text": "150,00",
+            "fontSize": 8,
+            "alignment": "right"
+          },
+          {
+            "text": "20%",
+            "fontSize": 8,
+            "alignment": "right"
+          },
+          {
+            "text": "1500,00",
+            "fontSize": 8,
+            "alignment": "right"
+          },
+          {
+            "text": "1800,00",
+            "fontSize": 8,
+            "alignment": "right"
+          }
+        ]
+      ]
+    },
+    "layout": {},
+    "margin": [
+      0,
+      0,
+      0,
+      12
+    ]
+  },
+  "defaults.invoices.InvoiceVatSummary": {
+    "table": {
+      "headerRows": 1,
+      "widths": [
+        "auto",
+        "auto",
+        "auto",
+        "auto"
+      ],
+      "body": [
+        [
+          {
+            "text": "Stawka VAT",
+            "bold": true,
+            "fontSize": 8,
+            "alignment": "left"
+          },
+          {
+            "text": "Wartość netto",
+            "bold": true,
+            "fontSize": 8,
+            "alignment": "right"
+          },
+          {
+            "text": "Kwota VAT",
+            "bold": true,
+            "fontSize": 8,
+            "alignment": "right"
+          },
+          {
+            "text": "Wartość brutto",
+            "bold": true,
+            "fontSize": 8,
+            "alignment": "right"
+          }
+        ],
+        [
+          {
+            "text": "20%",
+            "fontSize": 8
+          },
+          {
+            "text": "2000,00",
+            "fontSize": 8,
+            "alignment": "right"
+          },
+          {
+            "text": "400,00",
+            "fontSize": 8,
+            "alignment": "right"
+          },
+          {
+            "text": "2400,00",
+            "fontSize": 8,
+            "alignment": "right"
+          }
+        ],
+        [
+          {
+            "text": "Razem",
+            "fontSize": 8,
+            "bold": true
+          },
+          {
+            "text": "2000,00",
+            "fontSize": 8,
+            "alignment": "right",
+            "bold": true
+          },
+          {
+            "text": "400,00",
+            "fontSize": 8,
+            "alignment": "right",
+            "bold": true
+          },
+          {
+            "text": "2400,00",
+            "fontSize": 8,
+            "alignment": "right",
+            "bold": true
+          }
+        ]
+      ]
+    },
+    "layout": {},
+    "margin": [
+      0,
+      0,
+      0,
+      12
+    ]
+  },
+  "defaults.invoices.InvoiceTotals": {
+    "stack": [
+      {
+        "text": "Zapłacono: 2450,00 PLN",
+        "alignment": "right",
+        "fontSize": 10
+      },
+      {
+        "text": "Do zapłaty: 0,00 PLN",
+        "alignment": "right",
+        "bold": true,
+        "fontSize": 10
+      },
+      {
+        "text": "Nadpłata: 50,00 PLN",
+        "alignment": "right",
+        "fontSize": 10
+      },
+      {
+        "text": "Razem: 2400,00 PLN",
+        "alignment": "right",
+        "fontSize": 10
+      },
+      {
+        "text": "Słownie: dwa tysiące czterysta złotych 00/100",
+        "alignment": "right",
+        "italics": true,
+        "fontSize": 10,
+        "margin": [
+          0,
+          6,
+          0,
+          0
+        ]
+      }
+    ],
+    "margin": [
+      0,
+      0,
+      0,
+      16
+    ]
+  },
+  "defaults.invoices.InvoiceNotes": {
+    "stack": [
+      {
+        "text": "",
+        "alignment": "left",
+        "fontSize": 11,
+        "bold": false,
+        "italics": false
+      }
+    ],
+    "margin": [
+      0,
+      0,
+      0,
+      8
+    ]
+  },
+  "defaults.invoices.InvoiceSpacer": {
+    "text": "",
+    "margin": [
+      0,
+      0,
+      0,
+      16
+    ]
+  },
+  "defaults.invoices.InvoiceDivider": {
+    "canvas": [
+      {
+        "type": "line",
+        "x1": 0,
+        "y1": 0,
+        "x2": 515,
+        "y2": 0,
+        "lineWidth": 1,
+        "lineColor": "#e5e7eb"
+      }
+    ],
+    "margin": [
+      0,
+      8,
+      0,
+      8
+    ]
+  },
+  "defaults.invoices.InvoiceLogo": {
+    "text": ""
+  },
+  "defaults.invoices.InvoiceFooter": {
+    "stack": [
+      {
+        "canvas": [
+          {
+            "type": "line",
+            "x1": 0,
+            "y1": 0,
+            "x2": 515,
+            "y2": 0,
+            "lineWidth": 0.5,
+            "lineColor": "#e5e7eb"
+          }
+        ],
+        "margin": [
+          0,
+          0,
+          0,
+          8
+        ]
+      },
+      {
+        "text": "Dziękujemy za współpracę.\nAcme Supplies Ltd. · NIP 12-3456789",
+        "alignment": "left",
+        "fontSize": 9,
+        "bold": false,
+        "italics": false
+      }
+    ],
+    "margin": [
+      0,
+      0,
+      0,
+      8
+    ]
+  },
+  "seed.invoices.InvoiceLogo": {
+    "text": ""
+  },
+  "seed.invoices.InvoiceHeader": {
+    "table": {
+      "widths": [
+        "*"
+      ],
+      "body": [
+        [
+          {
+            "text": "Faktura korygująca nr INV-2026-0042",
+            "bold": true,
+            "fontSize": 14,
+            "color": "#0f172a",
+            "alignment": "left"
+          }
+        ],
+        [
+          {
+            "text": "Numer w KSeF: KSEF-1",
+            "alignment": "left"
+          }
+        ],
+        [
+          {
+            "text": "Issue date: 2026-05-04",
+            "alignment": "left"
+          }
+        ],
+        [
+          {
+            "text": "Sale date: 2026-05-04",
+            "alignment": "left"
+          }
+        ],
+        [
+          {
+            "text": "Payment due: 2026-05-18",
+            "alignment": "left"
+          }
+        ],
+        [
+          {
+            "text": "Payment method: Bank transfer",
+            "alignment": "left"
+          }
+        ]
+      ]
+    },
+    "layout": "noBorders",
+    "margin": [
+      0,
+      0,
+      0,
+      12
+    ]
+  },
+  "seed.invoices.InvoiceSpacer": {
+    "text": "",
+    "margin": [
+      0,
+      0,
+      0,
+      8
+    ]
+  },
+  "seed.invoices.InvoiceParties": {
+    "columns": [
+      {
+        "width": "50%",
+        "stack": [
+          {
+            "text": "Seller",
+            "bold": true,
+            "fontSize": 10,
+            "margin": [
+              0,
+              0,
+              0,
+              2
+            ]
+          },
+          {
+            "text": "Acme Supplies Ltd.",
+            "fontSize": 10
+          },
+          {
+            "text": "100 Market Street, Suite 4",
+            "fontSize": 10
+          },
+          {
+            "text": "10001 New York",
+            "fontSize": 10
+          },
+          {
+            "text": "NIP: 12-3456789",
+            "fontSize": 10
+          },
+          {
+            "text": "Example Bank US64 EXAMPLE 0000 0000 0000 00",
+            "fontSize": 10
+          },
+          {
+            "text": "SWIFT: EXAMPUS33",
+            "fontSize": 10
+          }
+        ]
+      },
+      {
+        "width": 16,
+        "text": ""
+      },
+      {
+        "width": "50%",
+        "stack": [
+          {
+            "text": "Buyer",
+            "bold": true,
+            "fontSize": 10,
+            "margin": [
+              0,
+              0,
+              0,
+              2
+            ]
+          },
+          {
+            "text": "Globex Trading Co.",
+            "fontSize": 10
+          },
+          {
+            "text": "250 Commerce Avenue",
+            "fontSize": 10
+          },
+          {
+            "text": "60601 Chicago",
+            "fontSize": 10
+          },
+          {
+            "text": "NIP: 98-7654321",
+            "fontSize": 10
+          }
+        ]
+      }
+    ],
+    "margin": [
+      0,
+      0,
+      0,
+      16
+    ]
+  },
+  "seed.invoices.InvoiceLineItems": {
+    "table": {
+      "headerRows": 1,
+      "widths": [
+        16,
+        "*",
+        28,
+        32,
+        50,
+        32,
+        56,
+        56
+      ],
+      "body": [
+        [
+          {
+            "text": "Lp",
+            "bold": true,
+            "fontSize": 8,
+            "alignment": "left"
+          },
+          {
+            "text": "Nazwa",
+            "bold": true,
+            "fontSize": 8,
+            "alignment": "left"
+          },
+          {
+            "text": "Jedn.",
+            "bold": true,
+            "fontSize": 8,
+            "alignment": "left"
+          },
+          {
+            "text": "Ilość",
+            "bold": true,
+            "fontSize": 8,
+            "alignment": "right"
+          },
+          {
+            "text": "Cena netto",
+            "bold": true,
+            "fontSize": 8,
+            "alignment": "right"
+          },
+          {
+            "text": "Stawka",
+            "bold": true,
+            "fontSize": 8,
+            "alignment": "right"
+          },
+          {
+            "text": "Wartość netto",
+            "bold": true,
+            "fontSize": 8,
+            "alignment": "right"
+          },
+          {
+            "text": "Wartość brutto",
+            "bold": true,
+            "fontSize": 8,
+            "alignment": "right"
+          }
+        ],
+        [
+          {
+            "text": "1",
+            "fontSize": 8,
+            "alignment": "left"
+          },
+          {
+            "text": "Cloud hosting — annual plan",
+            "fontSize": 8,
+            "alignment": "left"
+          },
+          {
+            "text": "ea",
+            "fontSize": 8,
+            "alignment": "left"
+          },
+          {
+            "text": "1",
+            "fontSize": 8,
+            "alignment": "right"
+          },
+          {
+            "text": "500,00",
+            "fontSize": 8,
+            "alignment": "right"
+          },
+          {
+            "text": "20%",
+            "fontSize": 8,
+            "alignment": "right"
+          },
+          {
+            "text": "500,00",
+            "fontSize": 8,
+            "alignment": "right"
+          },
+          {
+            "text": "600,00",
+            "fontSize": 8,
+            "alignment": "right"
+          }
+        ],
+        [
+          {
+            "text": "2",
+            "fontSize": 8,
+            "alignment": "left"
+          },
+          {
+            "text": "Professional services — onboarding",
+            "fontSize": 8,
+            "alignment": "left"
+          },
+          {
+            "text": "hr",
+            "fontSize": 8,
+            "alignment": "left"
+          },
+          {
+            "text": "10",
+            "fontSize": 8,
+            "alignment": "right"
+          },
+          {
+            "text": "150,00",
+            "fontSize": 8,
+            "alignment": "right"
+          },
+          {
+            "text": "20%",
+            "fontSize": 8,
+            "alignment": "right"
+          },
+          {
+            "text": "1500,00",
+            "fontSize": 8,
+            "alignment": "right"
+          },
+          {
+            "text": "1800,00",
+            "fontSize": 8,
+            "alignment": "right"
+          }
+        ]
+      ]
+    },
+    "layout": {},
+    "margin": [
+      0,
+      0,
+      0,
+      12
+    ]
+  },
+  "seed.invoices.InvoiceVatSummary": {
+    "table": {
+      "headerRows": 1,
+      "widths": [
+        "auto",
+        "auto",
+        "auto",
+        "auto"
+      ],
+      "body": [
+        [
+          {
+            "text": "Stawka VAT",
+            "bold": true,
+            "fontSize": 8,
+            "alignment": "left"
+          },
+          {
+            "text": "Wartość netto",
+            "bold": true,
+            "fontSize": 8,
+            "alignment": "right"
+          },
+          {
+            "text": "Kwota VAT",
+            "bold": true,
+            "fontSize": 8,
+            "alignment": "right"
+          },
+          {
+            "text": "Wartość brutto",
+            "bold": true,
+            "fontSize": 8,
+            "alignment": "right"
+          }
+        ],
+        [
+          {
+            "text": "20%",
+            "fontSize": 8
+          },
+          {
+            "text": "2000,00",
+            "fontSize": 8,
+            "alignment": "right"
+          },
+          {
+            "text": "400,00",
+            "fontSize": 8,
+            "alignment": "right"
+          },
+          {
+            "text": "2400,00",
+            "fontSize": 8,
+            "alignment": "right"
+          }
+        ],
+        [
+          {
+            "text": "Total",
+            "fontSize": 8,
+            "bold": true
+          },
+          {
+            "text": "2000,00",
+            "fontSize": 8,
+            "alignment": "right",
+            "bold": true
+          },
+          {
+            "text": "400,00",
+            "fontSize": 8,
+            "alignment": "right",
+            "bold": true
+          },
+          {
+            "text": "2400,00",
+            "fontSize": 8,
+            "alignment": "right",
+            "bold": true
+          }
+        ]
+      ]
+    },
+    "layout": {},
+    "margin": [
+      0,
+      0,
+      0,
+      12
+    ]
+  },
+  "seed.invoices.InvoiceTotals": {
+    "stack": [
+      {
+        "text": "Paid: 2450,00 PLN",
+        "alignment": "right",
+        "fontSize": 10,
+        "color": "#0f172a"
+      },
+      {
+        "text": "Amount due: 0,00 PLN",
+        "alignment": "right",
+        "bold": true,
+        "fontSize": 10,
+        "color": "#0f172a"
+      },
+      {
+        "text": "Nadpłata: 50,00 PLN",
+        "alignment": "right",
+        "fontSize": 10,
+        "color": "#0f172a"
+      },
+      {
+        "text": "Total: 2400,00 PLN",
+        "alignment": "right",
+        "fontSize": 10,
+        "color": "#0f172a"
+      },
+      {
+        "text": "In words: dwa tysiące czterysta złotych 00/100",
+        "alignment": "right",
+        "italics": true,
+        "fontSize": 10,
+        "color": "#0f172a",
+        "margin": [
+          0,
+          6,
+          0,
+          0
+        ]
+      }
+    ],
+    "margin": [
+      0,
+      0,
+      0,
+      16
+    ]
+  },
+  "seed.invoices.InvoiceFooter": {
+    "stack": [
+      {
+        "canvas": [
+          {
+            "type": "line",
+            "x1": 0,
+            "y1": 0,
+            "x2": 515,
+            "y2": 0,
+            "lineWidth": 0.5,
+            "lineColor": "#e5e7eb"
+          }
+        ],
+        "margin": [
+          0,
+          0,
+          0,
+          8
+        ]
+      },
+      {
+        "text": "Thank you for your business.\nAcme Supplies Ltd. · Tax ID 12-3456789",
+        "alignment": "center",
+        "fontSize": 9,
+        "color": "#0f172a",
+        "bold": false,
+        "italics": false
+      }
+    ],
+    "margin": [
+      0,
+      0,
+      0,
+      8
+    ]
+  }
+}

@@ -5,6 +5,8 @@ import type { OrganizationContextService } from './services/organization-context
 import type {
   OrganizationRestrictionService,
 } from './services/organization-restriction-service.js';
+import { describeCheckoutRefusal } from './services/moderation-message.js';
+import type { OrganizationsTranslate } from './services/organizations-prose.js';
 
 export interface OrganizationsStorefrontDeps {
   contextService: OrganizationContextService;
@@ -15,6 +17,11 @@ export interface OrganizationsStorefrontDeps {
     organizationId: string | null;
   };
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
+  /**
+   * This module's bundle, for the refusal's `reason` in the language the
+   * response is answered in (issue #95). Absent, English.
+   */
+  translate?: OrganizationsTranslate;
 }
 
 /**
@@ -58,7 +65,11 @@ export async function registerOrganizationsStorefrontRoutes(
         return {
           canTransact: false,
           status: org.status,
-          reason: describeStatus(org.status),
+          reason: await describeCheckoutRefusal(
+            deps.translate,
+            org.status,
+            await request.responseLanguage(),
+          ),
         };
       }
 
@@ -72,24 +83,4 @@ export async function registerOrganizationsStorefrontRoutes(
       };
     },
   );
-}
-
-/**
- * Customer-safe localization of the moderation status. The storefront
- * displays this string verbatim; admin-only details (block-reason text)
- * are intentionally NOT exposed here.
- */
-function describeStatus(
-  status: 'pending_verification' | 'blocked' | 'rejected' | string,
-): string {
-  switch (status) {
-    case 'pending_verification':
-      return 'Twoja Organizacja oczekuje na weryfikację. Zamówienia będą dostępne po jej zakończeniu.';
-    case 'blocked':
-      return 'Składanie Zamówień jest obecnie wstrzymane. Prosimy o kontakt z opiekunem konta.';
-    case 'rejected':
-      return 'Rejestracja Twojej Organizacji została odrzucona. Prosimy o kontakt z administracją platformy.';
-    default:
-      return 'Składanie Zamówień obecnie niedostępne.';
-  }
 }

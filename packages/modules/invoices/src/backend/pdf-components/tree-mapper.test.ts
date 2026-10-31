@@ -113,8 +113,8 @@ describe('invoice template tree mapper (US6)', () => {
     });
     const json = JSON.stringify(customized);
     expect(json).toContain('Issued:');
-    expect(json).not.toContain('Data sprzedaży');
-    expect(withDefaults).toContain('Data sprzedaży');
+    expect(json).not.toContain('Sale date');
+    expect(withDefaults).toContain('Sale date');
   });
 
   it('hides optional line-item columns when toggled off', () => {
@@ -129,7 +129,7 @@ describe('invoice template tree mapper (US6)', () => {
     });
     const fullWidths = (full as { table: { widths: unknown[] } }).table.widths;
     const slimWidths = (slim as { table: { widths: unknown[] } }).table.widths;
-    expect(slimWidths.length).toBe(2); // Lp + Nazwa only
+    expect(slimWidths.length).toBe(2); // ordinal + name only
     expect(fullWidths.length).toBeGreaterThan(slimWidths.length);
   });
 });
