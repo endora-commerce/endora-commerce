@@ -52,11 +52,15 @@ export function emitModuleFiles(spec: ModuleScaffoldSpec, depth: number): readon
   if (spec.layers.admin !== null) {
     files.push({ path: 'tsconfig.ui.json', content: uiConfig() });
     files.push({ path: 'tsconfig.ui.build.json', content: uiBuildConfig() });
+    files.push({ path: 'tsconfig.ui.test.json', content: uiTestConfig() });
   }
   files.push(
     { path: 'vitest.config.ts', content: vitestConfig(spec, depth) },
     { path: 'src/manifest.ts', content: moduleManifest(spec) },
     { path: 'src/backend/index.ts', content: backendIndex(spec) },
+    // Not \`src/manifest.test.ts\`: the manifest generator refuses any sibling
+    // of the root manifest, which is reachable through no subpath.
+    { path: 'src/backend/manifest.test.ts', content: manifestTest(spec) },
     { path: `src/backend/services/${slugOf(spec.id)}.service.ts`, content: service(spec) },
   );
   if (spec.permissions.length > 0) {
@@ -75,14 +79,11 @@ export function emitModuleFiles(spec: ModuleScaffoldSpec, depth: number): readon
   }
   if (spec.layers.admin !== null) {
     files.push({ path: 'src/admin/index.ts', content: adminIndex(spec) });
+    files.push({ path: 'src/admin/index.test.ts', content: adminTest(spec) });
     files.push({ path: `src/admin/pages/${pageComponentOf(spec)}.tsx`, content: adminPage(spec) });
   }
   files.push({ path: 'i18n/en.json', content: bundle(spec) });
   files.push({ path: 'i18n/pl.json', content: bundle(spec) });
-  files.push({ path: 'test/unit/manifest.test.ts', content: manifestTest(spec) });
-  if (spec.layers.admin !== null) {
-    files.push({ path: 'test/unit/admin-contributions.test.ts', content: adminTest(spec) });
-  }
   return files;
 }
 
@@ -270,13 +271,12 @@ function uiConfig(): string {
   },
   "include": ["src/admin/**/*"],
   // The inherited \`exclude\` names \`src/admin/**/*\` — that is what keeps the
-  // backend program off this layer — so it is **replaced** here, with nothing,
-  // rather than inherited, or \`tsc\` reports TS18003 over the one directory
-  // this program exists to compile. Co-located tests stay in the program: this
-  // file is also the UI layer's type-check (\`tsc -p tsconfig.ui.json --noEmit\`),
-  // and a test excluded here is read by no \`tsc\` invocation. The emit runs
-  // \`tsconfig.ui.build.json\`, which extends this file and excludes them.
-  "exclude": []
+  // backend program off this layer — so it is **replaced** here rather than
+  // inherited, or \`tsc\` reports TS18003 over the one directory this program
+  // exists to compile. It is replaced with the **tests**: they run in Node and
+  // are type-checked by \`tsconfig.ui.test.json\`, with the Node types this
+  // program must not carry. They are still read by a \`tsc\` invocation — that one.
+  "exclude": ${patternList(UI_TEST_PATTERNS)}
 }
 `;
 }
@@ -293,6 +293,33 @@ function uiBuildConfig(): string {
   // that pair would be two answers waiting to disagree.
   "extends": "./tsconfig.ui.json",
   "exclude": ${patternList(UI_TEST_PATTERNS)}
+}
+`;
+}
+
+function uiTestConfig(): string {
+  return `{
+  // Type-check configuration for this package's **UI-layer tests**, and the
+  // reason it is a third program rather than a line in \`tsconfig.ui.json\`.
+  //
+  // The tests run in Node under \`vitest\`, and the scaffold's own reads the
+  // bundles with \`node:fs\`. The screens they test run in a browser, and
+  // \`tsconfig.ui.json\` declares \`types: []\` so a screen that reaches for
+  // \`process\` does not compile. A \`/// <reference types="node" />\` written in
+  // one test would apply to that **whole** program and switch the refusal off
+  // for every screen. So the tests are type-checked here, with the Node types,
+  // and \`tsconfig.ui.json\` reads none of them.
+  //
+  // Every other compiler option — \`jsx\`, the \`DOM\` lib, \`paths\` — is
+  // \`tsconfig.ui.json\`'s and is inherited, never restated. The generated
+  // \`typecheck\` script builds this program because the file exists.
+  "extends": "./tsconfig.ui.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ${patternList(UI_TEST_PATTERNS.map((pattern) => pattern.replace('src/', 'src/admin/')))},
+  "exclude": []
 }
 `;
 }
@@ -320,9 +347,9 @@ export default mergeConfig(
     test: {
       name: ${quote(`mod-${slugOf(spec.id)}`)},
       environment: 'node',
-      // Both roots the layout contract allows: co-located beside the source,
-      // and the package-owned \`test/unit/\` tree.
-      include: ['src/**/*.test.ts', 'test/**/*.test.ts'],
+      // Tests sit beside their subjects; a module package has no \`test/\`
+      // directory, and a test outside \`src/\` is in no type-check program.
+      include: ['src/**/*.test.ts'],
     },
   }),
 );
@@ -1267,7 +1294,7 @@ function adminPage(spec: ModuleScaffoldSpec): string {
   return lines.join('\n');
 }
 
-// --- test/unit/admin-contributions.test.ts ---------------------------------
+// --- src/admin/index.test.ts ----------------------------------------------
 
 /**
  * What an admin contribution can be wrong about without anything else noticing.
@@ -1280,7 +1307,9 @@ function adminPage(spec: ModuleScaffoldSpec): string {
  * of them.
  */
 function adminTest(spec: ModuleScaffoldSpec): string {
-  return `import { describe, expect, it } from 'vitest';
+  return `// The test runs in Node, so \`tsconfig.ui.test.json\` type-checks it with the
+// Node types; the admin layer it tests is compiled without them.
+import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -1288,8 +1317,8 @@ import {
   AdminNavDeclarationSchema,
   AdminRouteDeclarationSchema,
 } from '@endora-commerce/contracts';
-import * as adminLayer from '../../src/admin/index.js';
-import { manifest } from '../../src/manifest.js';
+import * as adminLayer from './index.js';
+import { manifest } from '../manifest.js';
 
 const packageDir = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 
@@ -1413,14 +1442,14 @@ function bundle(spec: ModuleScaffoldSpec): string {
   return flatJson(bundleEntries(spec));
 }
 
-// --- test/unit/manifest.test.ts --------------------------------------------
+// --- src/backend/manifest.test.ts -----------------------------------------
 
 function manifestTest(spec: ModuleScaffoldSpec): string {
   return `import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { basename, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { manifest } from '../../src/manifest.js';
+import { manifest } from '../manifest.js';
 
 /**
  * What a module manifest can be wrong about without anything else noticing.

@@ -241,10 +241,9 @@ export const manifest = defineModuleManifest({
     // `priority` (`priority-service.ts`, through `holdTasksFor`).
     { code: 'TASK_STATUS_IN_USE_TOO_MANY', tokens: ['priority'] },
     { code: 'TASK_PRIVATE_READ_ONLY' },
-    // No `tokens`: the raise passes the unknown priority code itself as
-    // `details.code`, an open set, so it is on `check:error-translations`'
-    // `UNDECLARABLE_TOKEN_ERROR_CODES` until the raise moves it to a member
-    // of its own (issue #83).
+    // No `tokens`: the raise carries the unknown priority code as
+    // `details.priorityCode`, which the sentence names, and no `details.code`
+    // (issue #569).
     { code: 'TASK_PRIORITY_UNKNOWN' },
     { code: 'TASK_TAG_UNKNOWN' },
     { code: 'TASK_TAG_NAME_TAKEN' },

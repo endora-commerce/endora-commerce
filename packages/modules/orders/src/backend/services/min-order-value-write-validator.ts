@@ -29,7 +29,10 @@ export function createMinOrderValueValidator(): SettingWriteValidator {
           400,
           ERROR_CODES.AMOUNT_PRECISION_EXCEEDED,
           'An amount has more than two decimal places.',
-          { code: ORDERS_SETTING_CODES.MIN_ORDER_VALUE },
+          // `setting`, not `code`: the envelope reads `details.code` as a
+          // refusal token that picks the sentence (issue #569). The sentence is
+          // the one every money field shares, so it names no setting.
+          { setting: ORDERS_SETTING_CODES.MIN_ORDER_VALUE },
         );
       }
     },

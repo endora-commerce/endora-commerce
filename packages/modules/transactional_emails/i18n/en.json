@@ -102,5 +102,6 @@
   "blocks.category.embeds": "Embeds",
   "blocks.category.internal": "Internal",
   "pageBuilder.blockPreview.unavailable": "This block has no preview in the editor. Its fields can be edited in the side panel.",
-  "actions.openEmailBlocks.keywords": "blocks"
+  "actions.openEmailBlocks.keywords": "blocks",
+  "errors.TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE": "The \"{emailCode}\" email is always on and cannot be switched off."
 }

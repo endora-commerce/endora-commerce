@@ -11,7 +11,7 @@
   "errors.TASK_TRANSITION_FORBIDDEN": "Przebieg zadań nie pozwala na to przejście. Zadanie może przejść do: {allowed}.",
   "errors.TASK_TRANSITION_CONFLICT": "Ktoś w międzyczasie zmienił status tego zadania. Odśwież je i spróbuj ponownie.",
   "errors.TASK_PRIVATE_READ_ONLY": "To prywatne zadanie należy do kogoś innego: możesz je przeczytać lub usunąć, ale nie zmienić.",
-  "errors.TASK_PRIORITY_UNKNOWN": "Taki priorytet nie istnieje.",
+  "errors.TASK_PRIORITY_UNKNOWN": "Priorytet „{priorityCode}” nie istnieje.",
   "errors.TASK_TAG_UNKNOWN": "Jedna z tych etykiet nie istnieje.",
   "errors.TASK_TAG_NAME_TAKEN": "Etykieta o tej nazwie już istnieje.",
   "errors.TASK_ATTACHMENT_REFUSED": "Tego pliku nie można załączyć: jest za duży albo przeglądarka by go uruchomiła (HTML, SVG, XML, JavaScript).",

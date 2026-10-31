@@ -39,8 +39,11 @@ export function assertEmailActivationWritable(
 ): void {
   const reason = defaults.nonDeactivatableReasonOf(code);
   if (reason === null) return;
+  // `emailCode`, not `code`: the envelope reads `details.code` as a refusal
+  // token that picks the sentence, and an e-mail's registry code is a value
+  // the sentence names (issue #569).
   throw new HttpError(409, ERROR_CODES.TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE, reason, {
-    code,
+    emailCode: code,
     reason,
   });
 }

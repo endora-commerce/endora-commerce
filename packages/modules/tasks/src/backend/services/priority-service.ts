@@ -55,8 +55,15 @@ function snapshot(priority: TaskPriority): Record<string, unknown> {
 /** The `replacement` that clears the priority of the Tasks holding a removed one. */
 export const NO_PRIORITY = 'none';
 
+/**
+ * The unknown priority code travels as `details.priorityCode`, never as
+ * `details.code`: the envelope reads `details.code` as a refusal token that
+ * picks the sentence, and an operator-configured code is not one (issue #569).
+ */
 export function priorityUnknown(code: string): HttpError {
-  return new HttpError(422, ERROR_CODES.TASK_PRIORITY_UNKNOWN, `"${code}" is not a configured priority.`, { code });
+  return new HttpError(422, ERROR_CODES.TASK_PRIORITY_UNKNOWN, `"${code}" is not a configured priority.`, {
+    priorityCode: code,
+  });
 }
 
 /**
