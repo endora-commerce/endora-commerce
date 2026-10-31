@@ -9,5 +9,6 @@
   "errors.ADMIN_ROLE_PROTECTED": "Rola „{role}” pochodzi z platformy lub jednego z jej modułów i nie można jej usunąć.",
   "errors.ADMIN_ROLE_REQUIRED": "To konto administratora nie ma przypisanej roli, więc nie może korzystać z panelu administracyjnego. Poproś administratora platformy o przypisanie roli.",
   "errors.ADMIN_ROLE_GRANT_EXCEEDED": "Twoja rola nie ma tych uprawnień, więc nie możesz ich nadać ani zmienić roli, która je ma: {permissions}.",
-  "errors.ADMIN_ROLE_PROTECTED.modify": "Rola „{role}” jest tworzona przez platformę lub jeden z jej modułów. Może ją zmienić tylko administrator z pełnym dostępem."
+  "errors.ADMIN_ROLE_PROTECTED.modify": "Rola „{role}” jest tworzona przez platformę lub jeden z jej modułów. Może ją zmienić tylko administrator z pełnym dostępem.",
+  "actions.openAdminRoles.keywords": "uprawnienia"
 }

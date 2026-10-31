@@ -62,5 +62,6 @@
   "blocks.comparisonTable.description": "Jedna kolumna na produkt i jeden wiersz na porównywany atrybut.",
   "blocks.comparisonShareLink.label": "Link do udostępniania",
   "blocks.comparisonShareLink.description": "Adres strony udostępniania porównania, opcjonalnie jako kod QR.",
-  "list.pdfTemplate": "Szablon PDF"
+  "list.pdfTemplate": "Szablon PDF",
+  "actions.openComparisons.keywords": "porównanie, porównania"
 }

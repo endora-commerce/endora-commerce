@@ -31,5 +31,7 @@
   "mappings.action.begin_checkout": "Checkout started",
   "mappings.action.place_order_clicked": "Place Order clicked",
   "mappings.action.purchase": "Order completed",
-  "mappings.action.contact_form_submitted": "Contact form submitted"
+  "mappings.action.contact_form_submitted": "Contact form submitted",
+  "actions.openLinkedInAds.keywords": "conversions, ads",
+  "actions.newConversionMapping.keywords": "conversion, mapping"
 }

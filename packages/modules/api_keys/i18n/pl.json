@@ -5,5 +5,6 @@
   "errors.API_KEY_CHANNEL_MISMATCH": "Klucz API jest powiązany z innym kanałem sprzedaży.",
   "errors.API_KEY_NOT_BOUND": "Ten endpoint wymaga klucza API powiązanego z dystrybutorem.",
   "errors.API_KEY_OUT_OF_SCOPE": "Klucz API nie ma wymaganego zakresu: {requiredScope}.",
-  "errors.API_KEY_SCOPE_NOT_HELD": "Klucz API może dostać tylko zakresy, które ma Twoja rola. Twoja rola nie ma: {scopes}."
+  "errors.API_KEY_SCOPE_NOT_HELD": "Klucz API może dostać tylko zakresy, które ma Twoja rola. Twoja rola nie ma: {scopes}.",
+  "actions.openApiKeys.keywords": "klucze api, integracja"
 }

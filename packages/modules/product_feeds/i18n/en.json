@@ -636,5 +636,11 @@
   "delivery.reason.internal_error": "Something went wrong on this platform.",
   "delivery.lastAttempt.succeeded": "Last delivered {when}",
   "delivery.lastAttempt.failed": "Last delivery failed {when}",
-  "nav.productFeeds.label": "Product feeds"
+  "nav.productFeeds.label": "Product feeds",
+  "actions.openProductFeeds.keywords": "product feed, catalog",
+  "actions.createProductFeed.keywords": "new feed, product feed",
+  "actions.openFeedTemplates.keywords": "feed template, fields",
+  "actions.importFeedTemplate.keywords": "feed template, load",
+  "actions.openFeedCategoryMapping.keywords": "taxonomy, category mapping, categories",
+  "actions.openFeedTaxonomyRevisions.keywords": "taxonomy update, new version, taxonomy version, taxonomy download"
 }

@@ -99,5 +99,7 @@
   "actions.openDictionary.label": "Słownik",
   "actions.openDictionary.description": "Kraje, waluty, języki",
   "actions.openDictionaryAudit.label": "Audyt słownika",
-  "actions.openDictionaryAudit.description": "Nierozwiązane referencje rejestrów"
+  "actions.openDictionaryAudit.description": "Nierozwiązane referencje rejestrów",
+  "actions.openDictionary.keywords": "słownik, kraje, waluty, języki",
+  "actions.openDictionaryAudit.keywords": "audyt, słownika"
 }

@@ -62,5 +62,6 @@
   "blocks.comparisonTable.description": "One column per product and one row per compared attribute.",
   "blocks.comparisonShareLink.label": "Share link",
   "blocks.comparisonShareLink.description": "The comparison's share page address, optionally as a QR code.",
-  "list.pdfTemplate": "PDF template"
+  "list.pdfTemplate": "PDF template",
+  "actions.openComparisons.keywords": "comparison, comparisons"
 }

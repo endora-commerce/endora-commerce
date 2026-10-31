@@ -571,5 +571,9 @@
   "sources.base": "Cena bazowa",
   "sources.buyer": "Cena kupującego",
   "sources.catalogue": "Cena katalogowa",
-  "sources.sale": "Cena promocyjna"
+  "sources.sale": "Cena promocyjna",
+  "actions.openPriceLists.keywords": "cennik, cenniki",
+  "actions.newPriceBook.keywords": "nowy cennik, utwórz cennik",
+  "actions.openPriceExplainer.keywords": "wyjaśnienie ceny, dlaczego ta cena",
+  "actions.openPricingSettings.keywords": "ustawienia cenowe, kolejność cen, cena katalogowa"
 }

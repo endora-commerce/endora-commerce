@@ -130,5 +130,6 @@
   "customFields.validation.optionValueRequired": "Enter a stored value.",
   "customFields.validation.optionValueDuplicate": "Another option already uses the stored value “{value}”.",
   "customFields.validation.singleDefault": "A single-choice field can start with one default option only. Clear “{label}” first.",
-  "customFields.validation.rejected": "This value was not accepted. Check it and try again."
+  "customFields.validation.rejected": "This value was not accepted. Check it and try again.",
+  "actions.openCustomFields.keywords": "fields, custom"
 }

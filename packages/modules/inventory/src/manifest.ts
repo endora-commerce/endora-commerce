@@ -342,7 +342,8 @@ export const manifest = defineModuleManifest({
       // route, which is a derivation, and never asks whether the route's code is
       // the right authority, which is a judgement.
       requiredPermission: 'inventory:read',
-      keywords: ['stock', 'inventory', 'warehouse', 'magazyn', 'zapasy'],
+      keywords: ['stock', 'inventory', 'warehouse'],
+      keywordsKey: 'actions.openInventory.keywords',
       weight: 230,
     },
     // Issue #516 (Principle XVI): the four other sidebar screens were reachable
@@ -356,7 +357,8 @@ export const manifest = defineModuleManifest({
       icon: 'Warehouse',
       targetRoute: '/warehouses',
       requiredPermission: 'inventory:read',
-      keywords: ['warehouse', 'warehouses', 'location', 'magazyn', 'magazyny'],
+      keywords: ['warehouse', 'warehouses', 'location'],
+      keywordsKey: 'actions.openWarehouses.keywords',
       weight: 231,
     },
     {
@@ -366,7 +368,8 @@ export const manifest = defineModuleManifest({
       icon: 'TrendingDown',
       targetRoute: '/inventory/low-stock',
       requiredPermission: 'inventory:read',
-      keywords: ['low stock', 'stock', 'threshold', 'reorder', 'niskie', 'stan', 'próg'],
+      keywords: ['low stock', 'stock', 'threshold', 'reorder'],
+      keywordsKey: 'actions.openLowStock.keywords',
       weight: 232,
     },
     {
@@ -376,7 +379,8 @@ export const manifest = defineModuleManifest({
       icon: 'Bell',
       targetRoute: '/inventory/notifications',
       requiredPermission: 'inventory:read',
-      keywords: ['notify', 'back in stock', 'availability', 'notifications', 'powiadomienia', 'dostępność'],
+      keywords: ['notify', 'back in stock', 'availability', 'notifications'],
+      keywordsKey: 'actions.openStockNotifications.keywords',
       weight: 233,
     },
     {
@@ -386,7 +390,8 @@ export const manifest = defineModuleManifest({
       icon: 'PackageOpen',
       targetRoute: '/inventory/import',
       requiredPermission: 'inventory:write',
-      keywords: ['import', 'stock', 'csv', 'upload', 'stany', 'magazyn'],
+      keywords: ['import', 'stock', 'csv', 'upload'],
+      keywordsKey: 'actions.importStock.keywords',
       weight: 234,
     },
   ],

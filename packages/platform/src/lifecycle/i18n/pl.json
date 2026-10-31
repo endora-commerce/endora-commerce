@@ -3,5 +3,7 @@
   "actions.openPlatformModules.description": "Co udostępnia ta instalacja i co Twoja firma ma włączone",
   "actions.openApiDescription.label": "Opis API",
   "actions.openApiDescription.description": "Dokument OpenAPI i interaktywna dokumentacja API",
-  "adminRoles.permission.platform.api_description.read": "Odczyt opisu API"
+  "adminRoles.permission.platform.api_description.read": "Odczyt opisu API",
+  "actions.openPlatformModules.keywords": "moduły, włącz, wyłącz",
+  "actions.openApiDescription.keywords": "dokumentacja, opis api"
 }

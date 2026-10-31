@@ -641,7 +641,8 @@ export const manifest = defineModuleManifest({
       icon: 'Plus',
       targetRoute: '/catalog/products/new',
       requiredPermission: 'catalog:write',
-      keywords: ['product', 'new', 'add', 'create', 'produkt', 'nowy', 'dodaj'],
+      keywords: ['product', 'new', 'add', 'create'],
+      keywordsKey: 'actions.newProduct.keywords',
       weight: 100,
     },
     // The three below arrive with feature 091's Phase 4 batch 15, by the route
@@ -665,30 +666,25 @@ export const manifest = defineModuleManifest({
       keywords: [
         'products',
         'catalog',
-        'produkty',
-        'katalog',
-        'zakres',
         // An action carries at most ten keywords (`adminActionSchema`) and the
         // palette matches a substring of the joined keywords, so the English
         // phrases share entries: "scope", "visibility" and "channel" all find
-        // the first. A Polish keyword is one word per entry — a Polish phrase is
-        // prose in a module's English default (`check:default-language-prose`).
+        // the first.
         'scope visibility per channel',
         'publication window',
         // The Archived filter and the Archive / Restore actions live on the
-        // product list and editor: "archive", "archived", "restore", "archiwum"
-        // and "przywr" find them.
+        // product list and editor: "archive", "archived" and "restore" find
+        // them, and the Polish words are under `keywordsKey` (issue #573).
         'archived restore',
-        'archiwum',
-        'przywróć',
       ],
+      keywordsKey: 'actions.openProducts.keywords',
       weight: 200,
     },
     // Feature 163, owner decision PAL-1 = B (2026-10-26) — the product list's
     // Archived tab as a palette row of its own. A `targetRoute` takes no query
     // string, so it opens a dedicated route the admin layer declares before the
-    // editor's `/catalog/products/:id`. Polish keywords are one word per entry
-    // (`check:default-language-prose`).
+    // editor's `/catalog/products/:id`. Polish keywords are in the bundle, under
+    // `keywordsKey` (issue #573).
     {
       id: 'open-archived-products',
       labelKey: 'actions.openArchivedProducts.label',
@@ -696,7 +692,8 @@ export const manifest = defineModuleManifest({
       icon: 'Archive',
       targetRoute: '/catalog/products/archived',
       requiredPermission: 'catalog:read',
-      keywords: ['archived', 'archive', 'restore', 'archived products', 'archiwum', 'zarchiwizowane', 'przywróć'],
+      keywords: ['archived', 'archive', 'restore', 'archived products'],
+      keywordsKey: 'actions.openArchivedProducts.keywords',
       weight: 210,
     },
     {
@@ -706,7 +703,8 @@ export const manifest = defineModuleManifest({
       icon: 'Boxes',
       targetRoute: '/catalog/categories',
       requiredPermission: 'catalog:read',
-      keywords: ['category', 'categories', 'tree', 'kategorie'],
+      keywords: ['category', 'categories', 'tree'],
+      keywordsKey: 'actions.openCategories.keywords',
       weight: 300,
     },
     {
@@ -716,7 +714,8 @@ export const manifest = defineModuleManifest({
       icon: 'Tag',
       targetRoute: '/catalog/attributes',
       requiredPermission: 'catalog:read',
-      keywords: ['attribute', 'attributes', 'atrybuty'],
+      keywords: ['attribute', 'attributes'],
+      keywordsKey: 'actions.openAttributes.keywords',
       weight: 400,
     },
     // Issue #516 (Principle XVI): the three remaining sidebar screens were
@@ -729,7 +728,8 @@ export const manifest = defineModuleManifest({
       icon: 'Tag',
       targetRoute: '/catalog/attribute-sets',
       requiredPermission: 'catalog:read',
-      keywords: ['attribute set', 'attribute sets', 'attributes', 'zestaw', 'zestawy', 'atrybuty'],
+      keywords: ['attribute set', 'attribute sets', 'attributes'],
+      keywordsKey: 'actions.openAttributeSets.keywords',
       weight: 410,
     },
     {
@@ -739,7 +739,8 @@ export const manifest = defineModuleManifest({
       icon: 'FileText',
       targetRoute: '/catalog/attachment-types',
       requiredPermission: 'catalog:read',
-      keywords: ['attachment', 'attachments', 'attachment type', 'certificate', 'załącznik', 'załączniki', 'rodzaje', 'certyfikat'],
+      keywords: ['attachment', 'attachments', 'attachment type', 'certificate'],
+      keywordsKey: 'actions.openAttachmentTypes.keywords',
       weight: 420,
     },
     {
@@ -749,7 +750,8 @@ export const manifest = defineModuleManifest({
       icon: 'ListChecks',
       targetRoute: '/catalog/bulk-operations',
       requiredPermission: 'catalog:read',
-      keywords: ['bulk', 'bulk edit', 'bulk actions', 'operations', 'masowe', 'masowa', 'akcje'],
+      keywords: ['bulk', 'bulk edit', 'bulk actions', 'operations'],
+      keywordsKey: 'actions.openBulkOperations.keywords',
       weight: 430,
     },
   ],

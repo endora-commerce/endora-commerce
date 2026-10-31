@@ -100,5 +100,6 @@
 
   "nav.carts.label": "Koszyki",
   "actions.openCarts.label": "Koszyki",
-  "actions.openCarts.description": "Przeglądaj koszyki klientów i ich status akceptacji"
+  "actions.openCarts.description": "Przeglądaj koszyki klientów i ich status akceptacji",
+  "actions.openCarts.keywords": "koszyk, koszyki, porzucone"
 }

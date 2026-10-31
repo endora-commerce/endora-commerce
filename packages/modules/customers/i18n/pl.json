@@ -88,5 +88,7 @@
   "adminSearch.field.email": "E-mail",
   "adminSearch.field.name": "Imię i nazwisko",
   "adminSearch.status.active": "Aktywny",
-  "adminSearch.status.blocked": "Zablokowany"
+  "adminSearch.status.blocked": "Zablokowany",
+  "actions.openCustomers.keywords": "klienci, klient",
+  "actions.onlineCustomers.keywords": "aktywni, klienci online"
 }

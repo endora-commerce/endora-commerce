@@ -29,5 +29,6 @@
   "customEvents.actions.add_to_cart": "Dodaj do koszyka",
   "customEvents.actions.add_to_quote_request": "Dodaj do zapytania ofertowego",
   "customEvents.actions.add_to_shopping_list": "Dodaj do listy zakupowej",
-  "customEvents.actions.button_click_by_id": "Kliknięcie przycisku (wg ID)"
+  "customEvents.actions.button_click_by_id": "Kliknięcie przycisku (wg ID)",
+  "actions.newCustomEvent.keywords": "zdarzenie"
 }

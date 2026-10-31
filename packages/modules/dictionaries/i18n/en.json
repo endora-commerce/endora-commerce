@@ -99,5 +99,7 @@
   "actions.openDictionary.label": "Dictionary",
   "actions.openDictionary.description": "Countries, currencies, languages",
   "actions.openDictionaryAudit.label": "Dictionary audit",
-  "actions.openDictionaryAudit.description": "Unresolved registry references"
+  "actions.openDictionaryAudit.description": "Unresolved registry references",
+  "actions.openDictionary.keywords": "dictionary, countries, currencies, languages",
+  "actions.openDictionaryAudit.keywords": "audit, dictionary"
 }

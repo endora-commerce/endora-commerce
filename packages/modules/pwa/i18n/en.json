@@ -52,5 +52,6 @@
   "notification.quote.body.canceled": "Quote {quoteNumber} has been cancelled.",
   "notification.quote.body.expired": "Quote {quoteNumber} has expired.",
   "actions.openSettings.label": "PWA settings",
-  "actions.openSettings.description": "App identity, caching and push notifications"
+  "actions.openSettings.description": "App identity, caching and push notifications",
+  "actions.openSettings.keywords": "notifications, app"
 }

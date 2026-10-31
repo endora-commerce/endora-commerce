@@ -556,5 +556,12 @@
   "priorities.delete.replacement": "Give the tasks",
   "priorities.delete.replacementPlaceholder": "Choose a priority",
   "priorities.delete.none": "No priority",
-  "priorities.delete.replacementRequired": "Choose the priority the tasks get, or no priority."
+  "priorities.delete.replacementRequired": "Choose the priority the tasks get, or no priority.",
+  "actions.openTasks.keywords": "tasks, task",
+  "actions.openMyTasks.keywords": "my tasks, assigned, tasks",
+  "actions.newTask.keywords": "task, new, create",
+  "actions.openTaskWorkflow.keywords": "statuses, transitions, flow",
+  "actions.openTaskPriorities.keywords": "priorities, priority, urgency",
+  "actions.openTaskTags.keywords": "tags, labels",
+  "actions.openTaskGeneralSettings.keywords": "settings, time zone"
 }

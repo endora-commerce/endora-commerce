@@ -23,5 +23,7 @@
   "page.title": "Import / Eksport",
   "requiredHeader": "Wymagany nagłówek:",
   "rolledBack": "Wycofano: {count} wierszy nie powiodło się. Brak zmian.",
-  "uploading": "Wgrywanie…"
+  "uploading": "Wgrywanie…",
+  "actions.importProducts.keywords": "wgraj",
+  "actions.openCenter.keywords": "centrum"
 }

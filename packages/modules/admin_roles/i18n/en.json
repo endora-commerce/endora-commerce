@@ -9,5 +9,6 @@
   "errors.ADMIN_ROLE_PROTECTED": "The \"{role}\" role is seeded by the platform or one of its modules and cannot be deleted.",
   "errors.ADMIN_ROLE_REQUIRED": "This administrator account has no role, so it cannot use the admin panel. Ask a platform administrator to assign it a role.",
   "errors.ADMIN_ROLE_GRANT_EXCEEDED": "Your own role does not hold these permissions, so you cannot grant them or change a role that holds them: {permissions}.",
-  "errors.ADMIN_ROLE_PROTECTED.modify": "The \"{role}\" role is seeded by the platform or one of its modules. Only an administrator with full access can change it."
+  "errors.ADMIN_ROLE_PROTECTED.modify": "The \"{role}\" role is seeded by the platform or one of its modules. Only an administrator with full access can change it.",
+  "actions.openAdminRoles.keywords": "permissions"
 }

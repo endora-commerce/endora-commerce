@@ -7,5 +7,6 @@
   "actions.openAdminFeedbackSettings.label": "Feedback settings",
   "actions.openAdminFeedbackSettings.description": "Decide whether administrators can send feedback to Endora, and where it goes",
   "errors.ADMIN_FEEDBACK_NOT_CONFIGURED": "Sending feedback is switched off on this instance.",
-  "errors.ADMIN_FEEDBACK_DELIVERY_FAILED": "Your feedback could not be delivered. Try again later."
+  "errors.ADMIN_FEEDBACK_DELIVERY_FAILED": "Your feedback could not be delivered. Try again later.",
+  "actions.openAdminFeedbackSettings.keywords": "feedback, report, support"
 }

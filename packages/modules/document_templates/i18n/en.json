@@ -181,5 +181,6 @@
   "itemsTable.style.headerBackground": "Header background",
   "itemsTable.style.borderColor": "Border colour",
   "itemsTable.style.stripeColor": "Stripe colour",
-  "itemsTable.columns.editShort": "Edit"
+  "itemsTable.columns.editShort": "Edit",
+  "actions.openDocumentTemplates.keywords": "pdf template, invoice template, comparison, offer template, request for quotation pdf"
 }

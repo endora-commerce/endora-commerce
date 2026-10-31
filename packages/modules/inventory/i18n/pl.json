@@ -36,5 +36,10 @@
   "nav.warehouses.label": "Magazyny",
   "nav.lowStock.label": "Niskie stany",
   "nav.notifyWhenAvailable.label": "Powiadom o dostępności",
-  "nav.importStock.label": "Import stanów"
+  "nav.importStock.label": "Import stanów",
+  "actions.openInventory.keywords": "magazyn, zapasy",
+  "actions.openWarehouses.keywords": "magazyn, magazyny",
+  "actions.openLowStock.keywords": "niskie, stan, próg",
+  "actions.openStockNotifications.keywords": "powiadomienia, dostępność",
+  "actions.importStock.keywords": "stany, magazyn"
 }

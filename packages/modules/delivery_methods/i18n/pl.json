@@ -17,5 +17,6 @@
   "methods.availability.unavailable": "Nieoferowana przy składaniu zamówienia",
   "methods.availability.noAdapter": "Żaden zainstalowany moduł nie dostarcza adaptera „{adapter}”. Ta metoda nie będzie oferowana przy składaniu zamówienia, dopóki nie otrzyma zarejestrowanego adaptera — edytuj ją i wybierz adapter.",
   "methods.availability.moduleOff": "Moduł „{module}”, który dostarcza ten adapter, jest wyłączony. Ta metoda nie będzie oferowana przy składaniu zamówienia, dopóki moduł nie zostanie ponownie włączony albo metoda nie otrzyma innego zarejestrowanego adaptera.",
-  "methods.availability.moduleUnavailable": "Moduł „{module}”, który dostarcza ten adapter, nie jest dostępny w tej instalacji. Ta metoda nie będzie oferowana przy składaniu zamówienia, dopóki moduł nie będzie ponownie dostępny albo metoda nie otrzyma innego zarejestrowanego adaptera."
+  "methods.availability.moduleUnavailable": "Moduł „{module}”, który dostarcza ten adapter, nie jest dostępny w tej instalacji. Ta metoda nie będzie oferowana przy składaniu zamówienia, dopóki moduł nie będzie ponownie dostępny albo metoda nie otrzyma innego zarejestrowanego adaptera.",
+  "actions.openDeliveryMethods.keywords": "metody dostawy, wysyłka, kurier"
 }

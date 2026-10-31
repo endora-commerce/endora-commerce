@@ -86,5 +86,10 @@
   "blocks.signup.fields.attributes.fields.label.label": "Label",
   "blocks.signup.fields.attributes.fields.placeholder.label": "Placeholder",
   "blocks.signup.fields.attributes.fields.required.label": "Required",
-  "blocks.signup.fields.messages.fields.fields.label": "Required field missing"
+  "blocks.signup.fields.messages.fields.fields.label": "Required field missing",
+  "actions.openCampaigns.keywords": "campaigns",
+  "actions.openAutomations.keywords": "automations",
+  "actions.openTags.keywords": "tags, fields",
+  "actions.openBlocks.keywords": "blocks, header, footer",
+  "actions.openProvider.keywords": "sender, sending"
 }

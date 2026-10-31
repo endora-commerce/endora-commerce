@@ -16,5 +16,6 @@
   "actions.openSecurity.label": "Bezpieczeństwo konta",
   "actions.openSecurity.description": "Skonfiguruj lub zmień własne uwierzytelnianie dwuskładnikowe",
   "security.setup.qrAlt": "Kod QR do zeskanowania aplikacją uwierzytelniającą",
-  "security.setup.qrHint": "Zeskanuj ten kod QR aplikacją uwierzytelniającą albo wpisz poniższy klucz ręcznie."
+  "security.setup.qrHint": "Zeskanuj ten kod QR aplikacją uwierzytelniającą albo wpisz poniższy klucz ręcznie.",
+  "actions.openSecurity.keywords": "bezpieczeństwo, dwuskładnikowe"
 }

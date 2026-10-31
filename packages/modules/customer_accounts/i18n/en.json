@@ -28,5 +28,6 @@
   "groups.action.delete.confirm": "Delete customer group “{code}”? Customers and organizations assigned to it keep their records and lose the assignment.",
   "groups.message.saved": "Customer group “{code}” saved.",
   "groups.message.deleted": "Customer group deleted.",
-  "nav.customerGroups.label": "Customer groups"
+  "nav.customerGroups.label": "Customer groups",
+  "actions.openCustomerGroups.keywords": "customer, group, segment"
 }

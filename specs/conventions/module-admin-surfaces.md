@@ -113,7 +113,10 @@ is not enough.
    skips it, and the palette silently renders raw keys. `keywords` are **English** and match
    in every language; a search word in another language goes in the bundle under the
    action's `keywordsKey` (same relative form, value a comma-separated list, an entry in
-   **both** `en.json` and `pl.json`), never inline in the manifest (issue #560).
+   **both** `en.json` and `pl.json`), never inline in the manifest (issue #560). A manifest
+   keyword word that no registered `en.json` uses fails
+   `backend/test/unit/_i18n/registered-bundles-shape.test.ts` (issue #573): move it to the
+   bundle, or — if it is English or a technical token — add it to that test's allowlist.
 4. **`icon`** — must be in `KnownIconNameSchema` (`packages/contracts/src/admin-actions.ts`);
    adding a name there requires the matching entry in
    `admin/src/lib/admin-actions/icon-map.ts` in the same MR.

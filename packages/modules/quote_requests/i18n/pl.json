@@ -175,5 +175,6 @@
   "history.carryReason.value_type_mismatch": "pole zapytania ofertowego ma inny typ wartości",
   "history.carryReason.audience_mismatch": "pole zapytania ofertowego jest widoczne dla klientów, a pole szansy sprzedażowej jest wewnętrzne",
   "history.carryReason.value_invalid": "wartość nie pasuje do pola zapytania ofertowego",
-  "history.carryReasonUnknown": "nie udało się przenieść wartości"
+  "history.carryReasonUnknown": "nie udało się przenieść wartości",
+  "actions.openInbox.keywords": "zapytanie, oferta"
 }

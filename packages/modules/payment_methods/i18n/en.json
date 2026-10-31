@@ -1,5 +1,6 @@
 {
   "actions.openPaymentMethods.label": "Payment methods",
   "actions.openPaymentMethods.description": "Define payment methods and choose which ones are offered to buyers",
-  "nav.paymentMethods.label": "Payment methods"
+  "nav.paymentMethods.label": "Payment methods",
+  "actions.openPaymentMethods.keywords": "payment, method"
 }

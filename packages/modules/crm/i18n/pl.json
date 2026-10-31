@@ -818,5 +818,12 @@
   "history.carryReason.audience_mismatch": "pole szansy sprzedażowej jest widoczne dla klientów, a pole źródłowe jest wewnętrzne",
   "history.carryReason.value_invalid": "wartość nie pasuje do pola szansy sprzedażowej",
   "history.carryReasonUnknown": "nie udało się przenieść wartości",
-  "history.customFieldValuesHidden": "Zmieniono wartości pól niestandardowych. Twoja rola nie daje do nich dostępu."
+  "history.customFieldValuesHidden": "Zmieniono wartości pól niestandardowych. Twoja rola nie daje do nich dostępu.",
+  "actions.openOpportunities.keywords": "szansa, sprzedaż, lejek",
+  "actions.newOpportunity.keywords": "szansa, sprzedaż, nowa",
+  "actions.openOpportunityBoard.keywords": "szansa, tablica, lejek",
+  "actions.openCrmAnalytics.keywords": "analityka, raport, handlowiec",
+  "actions.openCrmCalendar.keywords": "kalendarz, wydarzenia, przypomnienie, terminy",
+  "actions.openCrmTags.keywords": "etykieta, etykiety",
+  "actions.openCrmWorkflow.keywords": "przepływ, statusy, lejek"
 }

@@ -1543,5 +1543,13 @@
   "bulkOperations.log.finished": "Finished: {succeeded} succeeded, {skipped} skipped, {failed} failed ({total} in total).",
   "bulkOperations.log.itemsFailed": "{failed} items failed — see the status of each item for details.",
   "bulkOperations.log.failed": "The operation failed: {message}",
-  "bulkOperations.log.reindexed": "Reindexed {documentCount} documents across all indexes."
+  "bulkOperations.log.reindexed": "Reindexed {documentCount} documents across all indexes.",
+  "actions.newProduct.keywords": "product, new, add",
+  "actions.openProducts.keywords": "products, catalog, scope, archive, restore",
+  "actions.openArchivedProducts.keywords": "archive, archived, restore",
+  "actions.openCategories.keywords": "categories",
+  "actions.openAttributes.keywords": "attributes",
+  "actions.openAttributeSets.keywords": "set, sets, attributes",
+  "actions.openAttachmentTypes.keywords": "attachment, attachments, types, certificate",
+  "actions.openBulkOperations.keywords": "bulk, mass, actions"
 }

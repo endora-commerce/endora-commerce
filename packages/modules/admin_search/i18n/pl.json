@@ -39,5 +39,7 @@
   "page.results.retry": "Spróbuj ponownie",
   "page.results.more": "Pasuje więcej rekordów — doprecyzuj szukany tekst.",
   "page.results.unavailable": "Tym razem nie udało się przeszukać: {label}.",
-  "page.results.announce": "Znaleziono rekordów: {count}"
+  "page.results.announce": "Znaleziono rekordów: {count}",
+  "actions.openGlobalSearch.keywords": "szukaj, wyszukaj, rekordy",
+  "actions.openConfiguration.keywords": "pola, wyszukiwania, konfiguracja"
 }

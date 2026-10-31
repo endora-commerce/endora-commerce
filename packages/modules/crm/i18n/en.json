@@ -818,5 +818,12 @@
   "history.carryReason.audience_mismatch": "the sales opportunity's field is visible to customers, but the source field is internal",
   "history.carryReason.value_invalid": "the value is not valid for the sales opportunity's field",
   "history.carryReasonUnknown": "the value could not be carried",
-  "history.customFieldValuesHidden": "Custom field values changed. Your role does not give access to them."
+  "history.customFieldValuesHidden": "Custom field values changed. Your role does not give access to them.",
+  "actions.openOpportunities.keywords": "opportunity, sales, funnel",
+  "actions.newOpportunity.keywords": "opportunity, sales, new",
+  "actions.openOpportunityBoard.keywords": "opportunity, board, funnel",
+  "actions.openCrmAnalytics.keywords": "analytics, report, sales rep",
+  "actions.openCrmCalendar.keywords": "calendar, events, reminder, deadlines",
+  "actions.openCrmTags.keywords": "label, labels",
+  "actions.openCrmWorkflow.keywords": "workflow, statuses, funnel"
 }

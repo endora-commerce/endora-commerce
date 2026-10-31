@@ -77,5 +77,6 @@
   "lines.unit.service": "usł.",
   "lines.delivery": "Dostawa",
   "lines.paymentSurcharge": "Dopłata za metodę płatności",
-  "lines.discount": "Rabat"
+  "lines.discount": "Rabat",
+  "actions.openInvoices.keywords": "faktury"
 }

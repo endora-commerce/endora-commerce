@@ -123,7 +123,8 @@ export const manifest = defineModuleManifest({
       targetRoute: '/seo',
       // The code the screen's own routes are gated by.
       requiredPermission: 'catalog:write',
-      keywords: ['seo', 'sitemap', 'meta', 'search engines', 'wyszukiwarki'],
+      keywords: ['seo', 'sitemap', 'meta', 'search engines'],
+      keywordsKey: 'actions.openSeo.keywords',
       weight: 120,
     },
     {
@@ -140,7 +141,8 @@ export const manifest = defineModuleManifest({
       icon: 'Search',
       targetRoute: '/settings',
       requiredPermission: 'settings:read',
-      keywords: ['robots', 'noindex', 'nofollow', 'llms', 'indexing', 'indeksowanie'],
+      keywords: ['robots', 'noindex', 'nofollow', 'llms', 'indexing'],
+      keywordsKey: 'actions.openSearchEngineRobots.keywords',
       weight: 110,
     },
   ],

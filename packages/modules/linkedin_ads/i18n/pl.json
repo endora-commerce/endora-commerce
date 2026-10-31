@@ -31,5 +31,7 @@
   "mappings.action.begin_checkout": "Rozpoczęcie zamówienia",
   "mappings.action.place_order_clicked": "Kliknięcie „Złóż zamówienie”",
   "mappings.action.purchase": "Złożenie zamówienia",
-  "mappings.action.contact_form_submitted": "Zapis formularza kontaktowego"
+  "mappings.action.contact_form_submitted": "Zapis formularza kontaktowego",
+  "actions.openLinkedInAds.keywords": "konwersje, reklamy",
+  "actions.newConversionMapping.keywords": "konwersja, mapowanie"
 }

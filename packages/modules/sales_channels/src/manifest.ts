@@ -189,10 +189,10 @@ export const manifest = defineModuleManifest({
      * (`appShell.nav.salesChannels`, `appShell.palette.sub.storefrontChannels`),
      * moved into this module's own bundle.
      *
-     * Keywords are matched in every admin language, so they carry both. The
-     * plural `kanały` is the screen's Polish name: matching is "query word ⊂
-     * keyword", so `kanał` alone left an English-language admin typing
-     * `kanały` with nothing.
+     * `keywords` are English and match in every admin language; the Polish
+     * words are under `keywordsKey` (issue #573). The plural `kanały` there is
+     * the screen's Polish name: matching is "query word ⊂ keyword", so `kanał`
+     * alone left an operator typing `kanały` with nothing.
      */
     {
       id: 'open-sales-channels',
@@ -201,7 +201,8 @@ export const manifest = defineModuleManifest({
       icon: 'Store',
       targetRoute: '/sales-channels',
       requiredPermission: 'sales_channels:read',
-      keywords: ['sales', 'channel', 'channels', 'kanał', 'kanały', 'sprzedaży'],
+      keywords: ['sales', 'channel', 'channels'],
+      keywordsKey: 'actions.openSalesChannels.keywords',
       weight: 160,
     },
     {
@@ -211,7 +212,8 @@ export const manifest = defineModuleManifest({
       icon: 'Layers',
       targetRoute: '/sales-channels/new',
       requiredPermission: 'sales_channels:write',
-      keywords: ['channel', 'new', 'storefront', 'kanał', 'sprzedaży'],
+      keywords: ['channel', 'new', 'storefront'],
+      keywordsKey: 'actions.newSalesChannel.keywords',
       weight: 150,
     },
   ],

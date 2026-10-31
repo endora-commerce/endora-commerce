@@ -611,5 +611,11 @@
   "organizationPanel.column.stage": "Current stage",
   "organizationPanel.noStage": "No current stage",
   "organizationPanel.more": "The {shown} newest of {total} are shown.",
-  "organizationPanel.all": "All projects"
+  "organizationPanel.all": "All projects",
+  "actions.openProjects.keywords": "projects, project, stages",
+  "actions.newProject.keywords": "project, new, create",
+  "actions.openProjectTemplates.keywords": "project, templates, template",
+  "actions.openProjectAnalytics.keywords": "project, analytics, report",
+  "actions.openProjectRoles.keywords": "project, roles, team",
+  "actions.openProjectLossReasons.keywords": "project, loss, reasons"
 }

@@ -1,7 +1,4 @@
-import { dirname } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { parseBundleKeywords } from '@endora-commerce/contracts';
-import { loadModuleBundles } from '@endora-commerce/mod-i18n/backend';
 import { contributions as customersAdmin } from '@endora-commerce/mod-customers/admin';
 import { contributions as organizationsAdmin } from '@endora-commerce/mod-organizations/admin';
 import { contributions as salesChannelsAdmin } from '@endora-commerce/mod-sales-channels/admin';
@@ -17,6 +14,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { withModuleOff, type OffStateAxis } from '../../helpers/off-state.js';
+import { servedPaletteKeywords } from '../../helpers/palette-keywords.js';
 
 /**
  * The **server-side** half of feature 091 batch 14's off-state proof — the
@@ -262,27 +260,18 @@ describe('batch 14 contributes no palette action while off (Constitution XVII it
     for (const keyword of ['org', 'organization']) {
       expect(organizations?.keywords, keyword).toContain(keyword);
     }
-    // Issue #560 — the Polish words left the manifest for the module's own
-    // bundle, under the action's `keywordsKey`; the palette serves them to a
-    // Polish operator beside the English ones, so the ⌘K answer is unchanged.
-    const organizationsEntry = REGISTERED_MANIFESTS.find(
-      (entry) => entry.manifest.id === 'organizations',
-    )!;
-    const polish = loadModuleBundles(
-      'organizations',
-      dirname(organizationsEntry.filePath),
-      organizationsEntry.manifest.i18n!.bundlesDir,
-    ).byLanguage.get('pl');
-    const polishKeywords = parseBundleKeywords(polish?.[organizations?.keywordsKey ?? ''] ?? '');
+    // Issues #560/#573 — the Polish words left the manifest for the module's
+    // own bundle, under the action's `keywordsKey`; the palette serves them to
+    // a Polish operator beside the English ones, so the ⌘K answer is unchanged.
     for (const keyword of ['organizacja', 'klient']) {
-      expect(polishKeywords, keyword).toContain(keyword);
+      expect(servedPaletteKeywords('organizations', 'open-organizations', 'pl'), keyword).toContain(keyword);
     }
 
     const salesChannels = actionOf('sales_channels', 'open-sales-channels');
     expect(salesChannels?.targetRoute).toBe('/sales-channels');
     expect(salesChannels?.requiredPermission).toBe('sales_channels:read');
     for (const keyword of ['sales', 'channel', 'kanał']) {
-      expect(salesChannels?.keywords, keyword).toContain(keyword);
+      expect(servedPaletteKeywords('sales_channels', 'open-sales-channels', 'pl'), keyword).toContain(keyword);
     }
   });
 

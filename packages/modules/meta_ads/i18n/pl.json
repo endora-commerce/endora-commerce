@@ -31,5 +31,7 @@
   "error.generic": "Coś poszło nie tak.",
   "error.notFound": "Nie znaleziono zdarzenia własnego.",
   "error.versionConflict": "Ktoś inny zmienił to zdarzenie. Odśwież stronę i ponów zmianę.",
-  "error.validationFailed": "Niektóre pola są nieprawidłowe."
+  "error.validationFailed": "Niektóre pola są nieprawidłowe.",
+  "actions.openMetaAds.keywords": "reklamy",
+  "actions.newCustomEvent.keywords": "zdarzenie"
 }

@@ -89,5 +89,7 @@
   "metaScope.discard.cancel": "Wróć do edycji",
   "metaScope.inherit.title": "Użyć dziedziczonego dla zakresu {scope}?",
   "metaScope.inherit.body": "Nadpisanie dla zakresu {scope} zostanie usunięte — {fields}. Każde z tych pól pokaże wtedy wartość dziedziczoną.",
-  "metaScope.inherit.cancel": "Anuluj"
+  "metaScope.inherit.cancel": "Anuluj",
+  "actions.openSeo.keywords": "wyszukiwarki",
+  "actions.openSearchEngineRobots.keywords": "indeksowanie"
 }

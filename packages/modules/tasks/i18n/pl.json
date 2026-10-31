@@ -556,5 +556,12 @@
   "priorities.delete.replacement": "Nadaj zadaniom",
   "priorities.delete.replacementPlaceholder": "Wybierz priorytet",
   "priorities.delete.none": "Brak priorytetu",
-  "priorities.delete.replacementRequired": "Wybierz priorytet, który otrzymają zadania, albo brak priorytetu."
+  "priorities.delete.replacementRequired": "Wybierz priorytet, który otrzymają zadania, albo brak priorytetu.",
+  "actions.openTasks.keywords": "zadania, zadanie",
+  "actions.openMyTasks.keywords": "moje zadania, przypisane, zadania",
+  "actions.newTask.keywords": "zadanie, nowe, utwórz",
+  "actions.openTaskWorkflow.keywords": "statusy, przejścia, przebieg",
+  "actions.openTaskPriorities.keywords": "priorytety, priorytet, pilność",
+  "actions.openTaskTags.keywords": "etykiety, etykieta",
+  "actions.openTaskGeneralSettings.keywords": "ustawienia, strefa czasowa"
 }

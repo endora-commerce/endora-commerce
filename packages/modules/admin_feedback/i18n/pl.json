@@ -7,5 +7,6 @@
   "actions.openAdminFeedbackSettings.label": "Ustawienia opinii",
   "actions.openAdminFeedbackSettings.description": "Zdecyduj, czy administratorzy mogą wysyłać opinie do Endory i dokąd one trafiają",
   "errors.ADMIN_FEEDBACK_NOT_CONFIGURED": "Wysyłanie opinii jest wyłączone na tej instancji.",
-  "errors.ADMIN_FEEDBACK_DELIVERY_FAILED": "Nie udało się dostarczyć Twojej opinii. Spróbuj ponownie później."
+  "errors.ADMIN_FEEDBACK_DELIVERY_FAILED": "Nie udało się dostarczyć Twojej opinii. Spróbuj ponownie później.",
+  "actions.openAdminFeedbackSettings.keywords": "opinia, zgłoszenie, wsparcie"
 }

@@ -102,5 +102,6 @@
   "blocks.category.embeds": "Osadzone",
   "blocks.category.internal": "Wewnętrzne",
   "pageBuilder.blockPreview.unavailable": "Ten blok nie ma podglądu w edytorze. Jego pola można edytować w panelu bocznym.",
+  "actions.openEmailBlocks.keywords": "bloki",
   "errors.TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE": "Mail „{emailCode}” jest zawsze włączony i nie można go wyłączyć."
 }

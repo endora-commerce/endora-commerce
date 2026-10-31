@@ -137,7 +137,8 @@ export const manifest = defineModuleManifest({
       icon: 'CircleDollarSign',
       targetRoute: '/price-lists',
       requiredPermission: PRICE_LIST_PERMISSIONS.READ,
-      keywords: ['pricing', 'prices', 'price list', 'price book', 'cennik', 'cenniki'],
+      keywords: ['pricing', 'prices', 'price list', 'price book'],
+      keywordsKey: 'actions.openPriceLists.keywords',
       weight: 240,
     },
     {
@@ -147,10 +148,8 @@ export const manifest = defineModuleManifest({
       icon: 'PlusCircle',
       targetRoute: '/price-lists/new',
       requiredPermission: PRICE_LIST_PERMISSIONS.WRITE,
-      // Polish keywords are written folded: the palette folds diacritics on both
-      // sides of the match (`foldDiacritics`), and a module's sources default to
-      // English (`check:default-language-prose`).
-      keywords: ['new price book', 'create price list', 'nowy cennik', 'utworz cennik'],
+      keywords: ['new price book', 'create price list'],
+      keywordsKey: 'actions.newPriceBook.keywords',
       weight: 241,
     },
     {
@@ -160,7 +159,8 @@ export const manifest = defineModuleManifest({
       icon: 'Search',
       targetRoute: '/price-lists/explain',
       requiredPermission: PRICE_LIST_PERMISSIONS.READ,
-      keywords: ['why this price', 'price explanation', 'explain price', 'wyjasnienie ceny', 'dlaczego ta cena'],
+      keywords: ['why this price', 'price explanation', 'explain price'],
+      keywordsKey: 'actions.openPriceExplainer.keywords',
       weight: 242,
     },
     {
@@ -172,7 +172,8 @@ export const manifest = defineModuleManifest({
       icon: 'Settings',
       targetRoute: '/price-lists/display-modes',
       requiredPermission: PRICE_LIST_PERMISSIONS.READ,
-      keywords: ['pricing settings', 'display mode', 'precedence', 'list price', 'ustawienia cenowe', 'kolejnosc cen', 'cena katalogowa'],
+      keywords: ['pricing settings', 'display mode', 'precedence', 'list price'],
+      keywordsKey: 'actions.openPricingSettings.keywords',
       weight: 243,
     },
   ],

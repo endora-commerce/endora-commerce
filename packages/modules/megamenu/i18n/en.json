@@ -123,5 +123,6 @@
   "errors.MEGAMENU_KIND_NOT_ALLOWED_AS_TAB": "An image, an embedded block or a category tree cannot be a tab of the navigation bar. Place it under a tab.",
   "errors.MEGAMENU_LABEL_REQUIRED": "This item needs a label in at least one language, because it has no name of its own to show.",
   "errors.MEGAMENU_LINK_TAB_INVALID": "A tab shown as a link must point somewhere and cannot have items under it.",
-  "nav.megamenu.label": "Megamenu"
+  "nav.megamenu.label": "Megamenu",
+  "actions.editMegamenu.keywords": "edit, navigation"
 }

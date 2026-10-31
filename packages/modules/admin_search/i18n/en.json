@@ -39,5 +39,7 @@
   "page.results.retry": "Try again",
   "page.results.more": "More records match — refine the search text.",
   "page.results.unavailable": "{label} could not be searched this time.",
-  "page.results.announce": "{count} records found"
+  "page.results.announce": "{count} records found",
+  "actions.openGlobalSearch.keywords": "search, find, records",
+  "actions.openConfiguration.keywords": "fields, search, configuration"
 }

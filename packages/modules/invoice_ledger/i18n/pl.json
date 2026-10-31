@@ -46,5 +46,6 @@
   "adminRoles.permission.invoice_ledger:write": "Zarządzanie księgą faktur",
   "errors.INVOICE_LEDGER_VENDOR_ALREADY_ACTIVE": "Inny dostawca księgi faktur jest już aktywny ({activeModuleId}). Najpierw go wyłącz.",
   "errors.INVOICE_LEDGER_CREDENTIALS_MISSING": "Brakuje danych dostępowych dostawcy księgi dla tej faktury.",
-  "errors.INVOICE_LEDGER_DELIVERY_NOT_RETRYABLE": "Tej dostawy nie można ponowić."
+  "errors.INVOICE_LEDGER_DELIVERY_NOT_RETRYABLE": "Tej dostawy nie można ponowić.",
+  "actions.openDeliveries.keywords": "faktury"
 }

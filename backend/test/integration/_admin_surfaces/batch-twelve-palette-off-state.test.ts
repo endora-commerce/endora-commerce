@@ -9,6 +9,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { withModuleOff, type OffStateAxis } from '../../helpers/off-state.js';
+import { servedPaletteKeywords } from '../../helpers/palette-keywords.js';
 
 /**
  * The **server-side** half of feature 091 batch 12's off-state proof — the
@@ -178,8 +179,10 @@ describe('batch 12 contributes no palette action while off (Constitution XVII it
     const action = (manifest?.actions ?? []).find((entry) => entry.id === 'open-rfq-inbox');
     expect(action?.targetRoute).toBe('/quote-requests');
     expect(action?.requiredPermission).toBe('rfqs:handle');
+    // Issue #573 — `zapytanie` is served to a Polish operator from `pl.json`.
+    const served = servedPaletteKeywords('quote_requests', 'open-rfq-inbox', 'pl');
     for (const keyword of ['rfq', 'quote', 'zapytanie']) {
-      expect(action?.keywords, keyword).toContain(keyword);
+      expect(served, keyword).toContain(keyword);
     }
   });
 });

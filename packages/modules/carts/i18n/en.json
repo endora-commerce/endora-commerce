@@ -100,5 +100,6 @@
 
   "nav.carts.label": "Carts",
   "actions.openCarts.label": "Carts",
-  "actions.openCarts.description": "Browse customer carts and their approval status"
+  "actions.openCarts.description": "Browse customer carts and their approval status",
+  "actions.openCarts.keywords": "cart, carts, abandoned"
 }

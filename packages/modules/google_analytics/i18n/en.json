@@ -29,5 +29,6 @@
   "customEvents.actions.add_to_cart": "Add to cart",
   "customEvents.actions.add_to_quote_request": "Add to quote request",
   "customEvents.actions.add_to_shopping_list": "Add to shopping list",
-  "customEvents.actions.button_click_by_id": "Button click (by ID)"
+  "customEvents.actions.button_click_by_id": "Button click (by ID)",
+  "actions.newCustomEvent.keywords": "event"
 }

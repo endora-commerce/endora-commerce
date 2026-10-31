@@ -23,5 +23,7 @@
   "page.title": "Import / Export",
   "requiredHeader": "Required header:",
   "rolledBack": "Rolled back: {count} row(s) failed. No changes applied.",
-  "uploading": "Uploading…"
+  "uploading": "Uploading…",
+  "actions.importProducts.keywords": "upload",
+  "actions.openCenter.keywords": "center"
 }

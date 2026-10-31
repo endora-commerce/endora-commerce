@@ -89,5 +89,7 @@
   "metaScope.discard.cancel": "Keep editing",
   "metaScope.inherit.title": "Use inherited for {scope}?",
   "metaScope.inherit.body": "The override for {scope} is removed — {fields}. Each of them then shows the inherited value.",
-  "metaScope.inherit.cancel": "Cancel"
+  "metaScope.inherit.cancel": "Cancel",
+  "actions.openSeo.keywords": "search engines",
+  "actions.openSearchEngineRobots.keywords": "indexing"
 }

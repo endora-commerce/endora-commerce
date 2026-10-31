@@ -32,5 +32,6 @@
   "limits.perOrganization": "Per organization",
   "limits.perCustomer": "Per customer",
   "nav.promotions.label": "Promotions",
-  "nav.promotionRules.label": "Promotion rules"
+  "nav.promotionRules.label": "Promotion rules",
+  "actions.openPromotionRules.keywords": "rules, rule, promotion"
 }

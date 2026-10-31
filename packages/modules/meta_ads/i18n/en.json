@@ -31,5 +31,7 @@
   "error.generic": "Something went wrong.",
   "error.notFound": "Custom event not found.",
   "error.versionConflict": "Someone else changed this custom event. Reload and reapply your edit.",
-  "error.validationFailed": "Some fields are invalid."
+  "error.validationFailed": "Some fields are invalid.",
+  "actions.openMetaAds.keywords": "ads",
+  "actions.newCustomEvent.keywords": "event"
 }

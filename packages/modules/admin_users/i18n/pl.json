@@ -6,5 +6,6 @@
   "errors.ADMIN_AUTHENTICATION_UNAVAILABLE": "Logowanie jest chwilowo niedostępne, ponieważ usługa, od której zależy, nie odpowiada. Spróbuj ponownie za chwilę; jeśli problem się powtarza, skontaktuj się z osobą, która utrzymuje tę platformę.",
   "errors.ADMIN_USER_ROLE_REQUIRED": "Konto administratora musi mieć przypisaną rolę. Wybierz rolę dla tego konta.",
   "errors.NEW_PASSWORD_UNCHANGED": "Nowe hasło jest takie samo jak obecne. Wybierz inne hasło.",
-  "errors.ADMIN_USER_OUTRANKS_ACTOR": "Rola tego konta ma uprawnienia, których nie ma Twoja rola ({permissions}), więc nie możesz go zmienić, ustawić mu hasła, dezaktywować ani usunąć."
+  "errors.ADMIN_USER_OUTRANKS_ACTOR": "Rola tego konta ma uprawnienia, których nie ma Twoja rola ({permissions}), więc nie możesz go zmienić, ustawić mu hasła, dezaktywować ani usunąć.",
+  "actions.openAdminUsers.keywords": "użytkownicy, operatorzy, konta"
 }
