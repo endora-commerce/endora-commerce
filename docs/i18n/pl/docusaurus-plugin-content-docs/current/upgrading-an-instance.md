@@ -3329,6 +3329,45 @@ Ten wpis został napisany 2026-10-27 na podstawie gałęzi specyfikacji `163-pro
   URL kanału: `productPath({ key, languageCode, channel })` zastępuje
   `productPath({ key, languageCode, channelDefaultLanguage })`.
 
+#### Sklep: katalog komunikatów podzielony na przestrzenie nazw {#after-0-109-0-message-namespaces}
+
+- **Co się zmieniło.** Katalog komunikatów storefrontu, `lib/i18n/messages.ts`, był jednym plikiem:
+  unia `MessageKey` oraz bloki `en-US` i `pl-PL`. Jego nagłówek zachęcał motyw do zastąpienia pliku
+  albo rozszerzenia rekordu. Bloki znajdują się teraz w plikach przestrzeni nazw w
+  `lib/i18n/messages/`: `core.ts` zawiera każdy klucz starego pliku, w tym samym brzmieniu, a
+  `commerce.ts`, `account.ts`, `auth.ts`, `chrome.ts` i `content.ts` — teksty, które storefront
+  pokazywał tylko w jednym języku, a teraz pokazuje w obu. Każda przestrzeń nazw jest zapisana za
+  pomocą `defineMessages` z `messages/define.ts`, które już przy sprawdzaniu typów odrzuca blok
+  polski bez klucza z bloku angielskiego albo z kluczem, którego angielski nie ma. `messages.ts` je
+  składa: `MessageKey` jest wyprowadzany z kluczy przestrzeni nazw, a `MESSAGES`, `tForLocale`,
+  `CATALOGUE_LOCALES` i `SupportedLocale` zachowują swój kształt. Nowa funkcja pomocnicza,
+  `lib/i18n/format.ts`, wypełnia symbole zastępcze `{name}` w komunikacie.
+- **Komponenty dostają język.** Komponenty, które wyświetlały tekst tylko po angielsku albo tylko
+  po polsku, czytają teraz swoje słowa z katalogu, a komponent kliencki dostaje język strony jako
+  właściwość `locale` od komponentu serwerowego, który go renderuje — na przykład
+  `components/contact/ContactForm.tsx`. Własna strona, która renderuje taki komponent, przekazuje
+  mu `locale` z `getServerContext()`.
+- **Jeśli Twój storefront nie zmieniał `lib/i18n/messages.ts`**, przenieś razem
+  `lib/i18n/messages.ts`, cały katalog `lib/i18n/messages/` i `lib/i18n/format.ts`, wraz z
+  komponentami.
+- **Jeśli zmieniono brzmienie w `lib/i18n/messages.ts`**, przenieś pliki, a następnie wprowadź tę
+  samą zmianę tam, gdzie klucz jest teraz zadeklarowany: `git grep "'<key>'" lib/i18n/messages/`
+  wskaże plik — `core.ts` dla każdego klucza ze starego pliku. Prowadź listę tych zmian: to zmiany
+  w plikach wydania i trzeba je powtórzyć po każdej aktualizacji.
+- **Jeśli dodano własne klucze**, nie dopisuj ich do `core.ts`. Umieść je we własnym pliku
+  przestrzeni nazw — na przykład `lib/i18n/messages/theme.ts`, zapisanym za pomocą
+  `defineMessages({ 'en-US': {…}, 'pl-PL': {…} })` jak pozostałe — i dodaj go do
+  `MESSAGE_NAMESPACES` w `lib/i18n/messages.ts`. Klucz może być zadeklarowany tylko w jednej
+  przestrzeni nazw: druga deklaracja po cichu zastąpiłaby pierwszą.
+- **Jeśli `lib/i18n/messages.ts` zastąpiono własnym katalogiem**, komponenty wydania używają
+  kluczy, których Twój plik nie ma, więc storefront przestaje przechodzić sprawdzanie typów.
+  Przenieś katalog wydania i przenieś do niego swoje brzmienia jak wyżej, zamiast ponownie
+  zastępować plik.
+
+Ten wpis został napisany 2026-10-31 na gałęzi zgłoszenia #85
+(`debt/85-storefront-i18n-infra` i gałęzi obszarów opartych na niej). W chwili jego pisania żadna
+instancja nie była zaktualizowana z jego uwzględnieniem.
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza

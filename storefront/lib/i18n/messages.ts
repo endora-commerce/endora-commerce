@@ -11,9 +11,12 @@ import type { NamespaceKey } from './messages/define';
  * navigation labels, button captions, and other chrome that is *not*
  * editorial content (CMS pages cover editorial).
  *
- * Themes typically override `components/*` rather than message keys; if
- * a theme wants its own copy, it can replace this file or extend the
- * record.
+ * Themes typically override `components/*` rather than message keys. A
+ * theme's own keys go in a namespace file of its own under `./messages/`,
+ * added to `MESSAGE_NAMESPACES` below; do not replace this file — the
+ * release's components name keys only the release's namespaces carry
+ * (`docs/docs/upgrading-an-instance.md`, "the message catalogue is split
+ * into namespaces").
  */
 
 export type SupportedLocale = string;
