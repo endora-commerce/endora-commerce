@@ -52,5 +52,6 @@
   "onBehalf.build.rejectedPieces": "{product}: {quantity} pcs, minimum {minimum} pcs",
   "onBehalf.build.rejectedUnits": "{product}: {quantity} pcs, minimum {minimum} × {unit}",
   "onBehalf.build.rejectedUnitsUnnamed": "{product}: {quantity} pcs, minimum {minimum} packaging units",
-  "orderEntry.tab.quick": "Quick order"
+  "orderEntry.tab.quick": "Quick order",
+  "actions.openQuickOrder.keywords": "quick order, csv import"
 }

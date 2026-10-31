@@ -35,7 +35,8 @@ export const manifest = defineModuleManifest({
       icon: 'Plus',
       targetRoute: '/catalog/products/new',
       requiredPermission: 'catalog:write',
-      keywords: ['product', 'new', 'add', 'create', 'produkt', 'nowy', 'dodaj'],
+      keywords: ['product', 'new', 'add', 'create'],
+      keywordsKey: 'actions.newProduct.keywords',
       weight: 100,
     },
   ],
@@ -44,7 +45,15 @@ export const manifest = defineModuleManifest({
 
 Each entry MUST carry a stable `id`, a translatable `labelKey`, an `icon` from the closed
 allowlist, and a `targetRoute`. Optional fields are `descriptionKey`, `requiredPermission`,
-`keywords` (up to 10), and `weight` (default 100).
+`keywords` (up to 10), `keywordsKey`, and `weight` (default 100).
+
+`keywords` are English and match in every admin language. Search words in another language
+do not go into the manifest: `keywordsKey` names an entry in the module's own bundles —
+relative to the module namespace, like `labelKey` — whose value is a comma-separated list,
+for example `"actions.newProduct.keywords": "produkt, nowy, dodaj"` in `i18n/pl.json` and
+`"product, new, add"` in `i18n/en.json`. The server resolves it in the operator's language
+(falling back to English) and serves those words after the manifest's `keywords`, so a
+Polish operator finds the action by a Polish word and still by an English one.
 
 `requiredPermission` is optional in the schema and all but mandatory in practice: it must be
 **the code the backend enforces on the route behind `targetRoute`**, so the palette never
@@ -125,6 +134,7 @@ longer reads it behind the platform's back.
 | `target_route` | `varchar(255)` | Admin route. |
 | `required_permission` | `varchar(64) NULL` | Permission code, any notation. |
 | `keywords` | `jsonb` | Array of strings. |
+| `keywords_key` | `varchar(255) NULL` | i18n key of the per-language search words, resolved at read time. |
 | `weight` | `integer` | Sort key (default 100). |
 | `version` | `bigint` | Per-row sequence; bumped on every UPSERT. |
 | `installed_at`, `updated_at` | `timestamptz` | Row metadata. |

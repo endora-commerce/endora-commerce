@@ -1,6 +1,6 @@
 import { dirname } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { SUPPORTED_LANGUAGES } from '@endora-commerce/contracts';
+import { parseBundleKeywords, SUPPORTED_LANGUAGES } from '@endora-commerce/contracts';
 import {
   BundleLoadError,
   loadModuleBundles,
@@ -69,7 +69,7 @@ describe('registered module i18n bundles — real filesystem shape', () => {
     },
   );
 
-  it('every action label/description key declared in a manifest resolves in every shipped language', () => {
+  it('every action label/description/keywords key declared in a manifest resolves in every shipped language', () => {
     const missing: string[] = [];
     for (const entry of withBundles) {
       const actions = entry.manifest.actions ?? [];
@@ -93,7 +93,7 @@ describe('registered module i18n bundles — real filesystem shape', () => {
           continue;
         }
         for (const action of actions) {
-          const keys = [action.labelKey, action.descriptionKey].filter(
+          const keys = [action.labelKey, action.descriptionKey, action.keywordsKey].filter(
             (k): k is string => typeof k === 'string',
           );
           for (const key of keys) {
@@ -105,6 +105,70 @@ describe('registered module i18n bundles — real filesystem shape', () => {
       }
     }
     expect(missing).toEqual([]);
+  });
+
+  /**
+   * Issue #560 — a `keywordsKey` value is a comma-separated word list
+   * (`parseBundleKeywords`), held to the bounds `ModuleActionSchema` puts on
+   * `keywords`; and a template variable's `sampleValueKey` resolves in every
+   * shipped language, its English value being the manifest's own `sampleValue`
+   * — the literal the preview falls back to — so the two cannot drift apart.
+   */
+  it('every action keywordsKey resolves to a bounded word list in every shipped language', () => {
+    const problems: string[] = [];
+    let declared = 0;
+    for (const entry of withBundles) {
+      const actions = (entry.manifest.actions ?? []).filter((a) => a.keywordsKey);
+      if (actions.length === 0) continue;
+      const loaded = loadModuleBundles(
+        entry.manifest.id,
+        dirname(entry.filePath),
+        entry.manifest.i18n!.bundlesDir,
+      );
+      for (const action of actions) {
+        declared += 1;
+        for (const language of SUPPORTED_LANGUAGES) {
+          const value = loaded.byLanguage.get(language)?.[action.keywordsKey!];
+          const words = value === undefined ? [] : parseBundleKeywords(value);
+          if (words.length === 0 || words.length > 10 || words.some((w) => w.length > 64)) {
+            problems.push(`${entry.manifest.id}/${language}.json → ${action.keywordsKey}: ${JSON.stringify(value)}`);
+          }
+        }
+      }
+    }
+    expect(problems).toEqual([]);
+    expect(declared).toBeGreaterThan(0);
+  });
+
+  it('every template-variable sampleValueKey resolves in every shipped language, English matching the manifest', () => {
+    const problems: string[] = [];
+    let declared = 0;
+    for (const entry of withBundles) {
+      const variables = (entry.manifest.transactionalEmails ?? []).flatMap((e) => e.variables ?? []);
+      const keyed = variables.filter((v) => v.sampleValueKey);
+      if (keyed.length === 0) continue;
+      const loaded = loadModuleBundles(
+        entry.manifest.id,
+        dirname(entry.filePath),
+        entry.manifest.i18n!.bundlesDir,
+      );
+      for (const variable of keyed) {
+        declared += 1;
+        for (const language of SUPPORTED_LANGUAGES) {
+          const value = loaded.byLanguage.get(language)?.[variable.sampleValueKey!];
+          if (value === undefined) {
+            problems.push(`${entry.manifest.id}/${language}.json → ${variable.sampleValueKey}`);
+          } else if (language === 'en' && value !== variable.sampleValue) {
+            problems.push(
+              `${entry.manifest.id}/en.json → ${variable.sampleValueKey} is ${JSON.stringify(value)}, ` +
+                `the manifest sampleValue is ${JSON.stringify(variable.sampleValue)}`,
+            );
+          }
+        }
+      }
+    }
+    expect(problems).toEqual([]);
+    expect(declared).toBeGreaterThan(0);
   });
 
   /**

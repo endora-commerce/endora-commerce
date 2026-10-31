@@ -49,9 +49,9 @@ export class AdminActionsReconciler {
       await targetEm.execute(
         `insert into "module_actions" (` +
           `"module_id", "action_id", "label_key", "description_key", "icon", ` +
-          `"target_route", "required_permission", "keywords", "weight", ` +
+          `"target_route", "required_permission", "keywords", "keywords_key", "weight", ` +
           `"installed_at", "updated_at"` +
-          `) values (?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, now(), now()) ` +
+          `) values (?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, now(), now()) ` +
           `on conflict ("module_id", "action_id") do update set ` +
           `"label_key" = excluded."label_key", ` +
           `"description_key" = excluded."description_key", ` +
@@ -59,6 +59,7 @@ export class AdminActionsReconciler {
           `"target_route" = excluded."target_route", ` +
           `"required_permission" = excluded."required_permission", ` +
           `"keywords" = excluded."keywords", ` +
+          `"keywords_key" = excluded."keywords_key", ` +
           `"weight" = excluded."weight", ` +
           `"version" = nextval('module_actions_version_seq'), ` +
           `"updated_at" = now()`,
@@ -71,6 +72,7 @@ export class AdminActionsReconciler {
           action.targetRoute,
           action.requiredPermission ?? null,
           JSON.stringify(action.keywords ?? []),
+          action.keywordsKey ?? null,
           action.weight ?? 100,
         ],
       );

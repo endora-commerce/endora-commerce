@@ -132,7 +132,8 @@ export const manifest = defineModuleManifest({
       targetRoute: '/orders/quick-order',
       // The admin quick-order routes are gated on orders:write.
       requiredPermission: 'orders:write',
-      keywords: ['quick order', 'import', 'csv', 'szybkie zamówienie', 'import csv'],
+      keywords: ['quick order', 'import', 'csv', 'import csv'],
+      keywordsKey: 'actions.openQuickOrder.keywords',
       weight: 226,
     },
   ],

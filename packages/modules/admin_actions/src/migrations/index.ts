@@ -23,11 +23,14 @@
  */
 
 import { Migration20260507T142354AdminActionsInit } from './20260507T142354_admin_actions_init.js';
+import { Migration20261030T145645AdminActionsKeywordsKey } from './20261030T145645_admin_actions_keywords_key.js';
 
 export const migrations = [
   Migration20260507T142354AdminActionsInit,
+  Migration20261030T145645AdminActionsKeywordsKey,
 ];
 
 export {
   Migration20260507T142354AdminActionsInit,
+  Migration20261030T145645AdminActionsKeywordsKey,
 };
