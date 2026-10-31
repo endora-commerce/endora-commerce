@@ -6,6 +6,8 @@ import { CountryPicker } from '../../../lib/dictionary/pickers/CountryPicker';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../lib/i18n/navigation';
 import { LocalizedLink } from '../../../lib/i18n/localized-link';
+import { getServerContext } from '../../../lib/server-context';
+import { tForLocale } from '../../../lib/i18n/messages';
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -29,19 +31,22 @@ export default async function RegisterPage({
   const params = await searchParams;
   const status = params.status;
   const error = params.error;
+  const { locale } = await getServerContext();
+  const t = tForLocale(locale);
 
   if (status === 'pending') {
     return (
       <>
         <Hook code="register.top" />
         <div className="b2b-auth">
-          <h1>Almost there</h1>
+          <h1>{t('auth.register.pending.heading')}</h1>
           <p className="b2b-auth__success">
-            We sent a verification email to <strong>{params.email}</strong>. Click the link in
-            that email to activate your account.
+            {t('auth.register.pending.sentBefore')} <strong>{params.email}</strong>
+            {t('auth.register.pending.sentAfter')}
           </p>
           <p className="b2b-auth__hint">
-            Already verified? <LocalizedLink href="/login">Sign in</LocalizedLink>.
+            {t('auth.register.pending.verifiedPrompt')}{' '}
+            <LocalizedLink href="/login">{t('nav.login')}</LocalizedLink>.
           </p>
         </div>
         <Hook code="register.bottom" />
@@ -53,37 +58,37 @@ export default async function RegisterPage({
     <>
       <Hook code="register.top" />
       <div className="b2b-auth">
-        <h1>Create your business account</h1>
-        <p>Tell us about your organization. We use this to set up invoicing and tax handling.</p>
+        <h1>{t('auth.register.heading')}</h1>
+        <p>{t('auth.register.intro')}</p>
         {error ? <div className="b2b-auth__error">{error}</div> : null}
         <form action={registerAction} className="b2b-auth__form">
           <fieldset className="b2b-auth__form" style={{ border: 0, padding: 0 }}>
-            <legend style={{ fontWeight: 600 }}>Organization</legend>
+            <legend style={{ fontWeight: 600 }}>{t('auth.register.organizationLegend')}</legend>
             <div className="b2b-auth__field">
-              <label htmlFor="org-name">Legal name</label>
+              <label htmlFor="org-name">{t('auth.register.legalName')}</label>
               <input id="org-name" name="organizationName" required maxLength={255} placeholder=" " />
             </div>
             <div className="b2b-auth__field">
-              <label htmlFor="org-tax">Tax ID</label>
+              <label htmlFor="org-tax">{t('auth.register.taxId')}</label>
               <input id="org-tax" name="taxId" required minLength={8} maxLength={32} placeholder=" " />
             </div>
             <div className="b2b-auth__row">
               <div className="b2b-auth__field">
-                <label htmlFor="addr-street">Street</label>
+                <label htmlFor="addr-street">{t('auth.register.street')}</label>
                 <input id="addr-street" name="street" required maxLength={255} placeholder=" " />
               </div>
               <div className="b2b-auth__field">
-                <label htmlFor="addr-city">City</label>
+                <label htmlFor="addr-city">{t('checkout.address.city')}</label>
                 <input id="addr-city" name="city" required maxLength={120} placeholder=" " />
               </div>
             </div>
             <div className="b2b-auth__row">
               <div className="b2b-auth__field">
-                <label htmlFor="addr-postal">Postal code</label>
+                <label htmlFor="addr-postal">{t('checkout.address.postalCode')}</label>
                 <input id="addr-postal" name="postalCode" required maxLength={20} placeholder=" " />
               </div>
               <div className="b2b-auth__field">
-                <label htmlFor="addr-country">Country</label>
+                <label htmlFor="addr-country">{t('auth.register.country')}</label>
                 <CountryPicker
                   id="addr-country"
                   name="country"
@@ -94,23 +99,23 @@ export default async function RegisterPage({
             </div>
           </fieldset>
           <fieldset className="b2b-auth__form" style={{ border: 0, padding: 0 }}>
-            <legend style={{ fontWeight: 600 }}>Account owner</legend>
+            <legend style={{ fontWeight: 600 }}>{t('auth.register.ownerLegend')}</legend>
             <div className="b2b-auth__row">
               <div className="b2b-auth__field">
-                <label htmlFor="user-first">First name</label>
+                <label htmlFor="user-first">{t('auth.field.firstName')}</label>
                 <input id="user-first" name="firstName" required maxLength={120} placeholder=" " />
               </div>
               <div className="b2b-auth__field">
-                <label htmlFor="user-last">Last name</label>
+                <label htmlFor="user-last">{t('auth.field.lastName')}</label>
                 <input id="user-last" name="lastName" required maxLength={120} placeholder=" " />
               </div>
             </div>
             <div className="b2b-auth__field">
-              <label htmlFor="user-email">Email</label>
+              <label htmlFor="user-email">{t('auth.field.email')}</label>
               <input id="user-email" name="email" type="email" required placeholder=" " />
             </div>
             <div className="b2b-auth__field">
-              <label htmlFor="user-password">Password (min 12 characters)</label>
+              <label htmlFor="user-password">{t('auth.field.newPasswordMin')}</label>
               <input
                 id="user-password"
                 name="password"
@@ -124,11 +129,12 @@ export default async function RegisterPage({
           </fieldset>
           <input type="hidden" name="acceptedTermsVersion" value="2025-01" />
           <div className="b2b-auth__actions">
-            <button type="submit">Create account</button>
+            <button type="submit">{t('auth.common.createAccount')}</button>
           </div>
         </form>
         <p className="b2b-auth__hint">
-          Already have an account? <LocalizedLink href="/login">Sign in</LocalizedLink>.
+          {t('auth.common.haveAccountPrompt')}{' '}
+          <LocalizedLink href="/login">{t('nav.login')}</LocalizedLink>.
         </p>
       </div>
       <Hook code="register.bottom" />
@@ -161,7 +167,9 @@ async function registerAction(formData: FormData): Promise<void> {
     });
   } catch (err) {
     const message =
-      err instanceof StorefrontApiError ? err.detail : 'Registration failed. Please try again.';
+      err instanceof StorefrontApiError
+        ? err.detail
+        : tForLocale((await getServerContext()).locale)('auth.register.failed');
     return await localeRedirect(`/register?error=${encodeURIComponent(message)}`);
   }
   return await localeRedirect(`/register?status=pending&email=${encodeURIComponent(email)}`);

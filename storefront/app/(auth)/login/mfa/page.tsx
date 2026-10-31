@@ -15,6 +15,7 @@ import {
 } from '../../../../lib/auth/sign-in-errors';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../../lib/i18n/navigation';
+import { tForLocale } from '../../../../lib/i18n/messages';
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -47,7 +48,7 @@ export default async function MfaPage({
   return (
     <>
       <Hook code="login.top" />
-      <MfaCodeForm action={verifyAction} next={nextPath} error={error} />
+      <MfaCodeForm action={verifyAction} next={nextPath} error={error} locale={locale} />
       <Hook code="login.bottom" />
     </>
   );
@@ -62,11 +63,13 @@ async function verifyAction(formData: FormData): Promise<void> {
     return await localeRedirect(`/login?next=${encodeURIComponent(next)}`);
   }
 
+  const t = tForLocale((await getServerContext()).locale);
+
   let result;
   try {
     result = await verifyCustomerMfa({ challengeId, code });
   } catch (err) {
-    const message = signInErrorParam(err, 'Verification failed. Please try again.');
+    const message = signInErrorParam(err, t('auth.mfa.verifyFailed'));
     if (message === CHANNEL_NOT_PERMITTED_ERROR) {
       // `specs/154-sales-channel-access/` — the account may not use this store.
       // Another code would not change that, so the challenge is dropped and the
@@ -78,7 +81,7 @@ async function verifyAction(formData: FormData): Promise<void> {
   }
   if (!result.sessionCookieValue) {
     return await localeRedirect(
-      `/login/mfa?error=${encodeURIComponent('Verification failed. Please try again.')}&next=${encodeURIComponent(next)}`,
+      `/login/mfa?error=${encodeURIComponent(t('auth.mfa.verifyFailed'))}&next=${encodeURIComponent(next)}`,
     );
   }
   await setSessionCookie(result.sessionCookieValue);

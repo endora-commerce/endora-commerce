@@ -4,6 +4,8 @@ import { StorefrontApiError } from '../../../../lib/api/client';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../../lib/i18n/navigation';
 import { LocalizedLink } from '../../../../lib/i18n/localized-link';
+import { getServerContext } from '../../../../lib/server-context';
+import { tForLocale } from '../../../../lib/i18n/messages';
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -24,15 +26,19 @@ export default async function PasswordResetRequestPage({
   searchParams: Promise<{ status?: string; email?: string; error?: string }>;
 }): Promise<ReactNode> {
   const params = await searchParams;
+  const { locale } = await getServerContext();
+  const t = tForLocale(locale);
   if (params.status === 'sent') {
     return (
       <div className="b2b-auth">
-        <h1>Check your inbox</h1>
+        <h1>{t('auth.passwordReset.sent.heading')}</h1>
         <p className="b2b-auth__success">
-          If <strong>{params.email}</strong> matches an account, we just emailed a reset link.
+          {t('auth.passwordReset.sent.before')} <strong>{params.email}</strong>{' '}
+          {t('auth.passwordReset.sent.after')}
         </p>
         <p className="b2b-auth__hint">
-          The link expires in 24 hours. <LocalizedLink href="/login">Back to sign-in</LocalizedLink>.
+          {t('auth.passwordReset.sent.expiry')}{' '}
+          <LocalizedLink href="/login">{t('auth.passwordReset.sent.backToSignIn')}</LocalizedLink>.
         </p>
       </div>
     );
@@ -40,20 +46,21 @@ export default async function PasswordResetRequestPage({
 
   return (
     <div className="b2b-auth">
-      <h1>Reset your password</h1>
-      <p>Enter your account email — we&apos;ll send a reset link if it matches.</p>
+      <h1>{t('auth.passwordReset.request.heading')}</h1>
+      <p>{t('auth.passwordReset.request.intro')}</p>
       {params.error ? <div className="b2b-auth__error">{params.error}</div> : null}
       <form action={requestAction} className="b2b-auth__form">
         <div className="b2b-auth__field">
-          <label htmlFor="reset-email">Email</label>
+          <label htmlFor="reset-email">{t('auth.field.email')}</label>
           <input id="reset-email" name="email" type="email" required autoComplete="email" placeholder=" " />
         </div>
         <div className="b2b-auth__actions">
-          <button type="submit">Send reset link</button>
+          <button type="submit">{t('auth.passwordReset.request.submit')}</button>
         </div>
       </form>
       <p className="b2b-auth__hint">
-        Remembered it? <LocalizedLink href="/login">Sign in</LocalizedLink>.
+        {t('auth.passwordReset.request.rememberedPrompt')}{' '}
+        <LocalizedLink href="/login">{t('nav.login')}</LocalizedLink>.
       </p>
     </div>
   );

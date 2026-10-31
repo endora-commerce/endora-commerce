@@ -71,8 +71,8 @@ export default async function LoginPage({
     <>
       <Hook code="login.top" />
       <div className="b2b-auth">
-        <h1>Sign in</h1>
-        <p>Use your work email and password.</p>
+        <h1>{t('auth.login.heading')}</h1>
+        <p>{t('auth.login.intro')}</p>
         {signInRequired ? (
           <p className="b2b-auth__notice" role="status">
             {t('auth.login.signInRequired')}
@@ -86,11 +86,11 @@ export default async function LoginPage({
         <form action={loginAction} className="b2b-auth__form">
           <input type="hidden" name="next" value={nextPath} />
           <div className="b2b-auth__field">
-            <label htmlFor="login-email">Email</label>
+            <label htmlFor="login-email">{t('auth.field.email')}</label>
             <input id="login-email" name="email" type="email" required autoComplete="email" placeholder=" " />
           </div>
           <div className="b2b-auth__field">
-            <label htmlFor="login-password">Password</label>
+            <label htmlFor="login-password">{t('auth.field.password')}</label>
             <input
               id="login-password"
               name="password"
@@ -101,7 +101,7 @@ export default async function LoginPage({
             />
           </div>
           <div className="b2b-auth__actions">
-            <button type="submit">Sign in</button>
+            <button type="submit">{t('auth.login.submit')}</button>
           </div>
         </form>
         <SocialLoginButtons
@@ -115,10 +115,12 @@ export default async function LoginPage({
           salesChannelCode={ctx.salesChannelCode}
         />
         <p className="b2b-auth__hint">
-          Forgot your password? <LocalizedLink href="/password-reset/request">Reset it</LocalizedLink>.
+          {t('auth.login.forgotPrompt')}{' '}
+          <LocalizedLink href="/password-reset/request">{t('auth.login.forgotLink')}</LocalizedLink>.
         </p>
         <p className="b2b-auth__hint">
-          New here? <LocalizedLink href="/register">Create an account</LocalizedLink>.
+          {t('auth.login.newPrompt')}{' '}
+          <LocalizedLink href="/register">{t('auth.login.registerLink')}</LocalizedLink>.
         </p>
       </div>
       <Hook code="login.bottom" />
@@ -135,11 +137,14 @@ async function loginAction(formData: FormData): Promise<void> {
   // Only the network/auth call is wrapped — the `redirect()` calls below must
   // stay OUTSIDE the try, otherwise Next's `NEXT_REDIRECT` control-flow throw
   // is caught here and re-routed into the error branch, blanking the page.
+  const { locale } = await getServerContext();
+  const t = tForLocale(locale);
+
   let result;
   try {
     result = await loginCustomer({ email, password });
   } catch (err) {
-    const message = signInErrorParam(err, 'Sign-in failed. Please try again.');
+    const message = signInErrorParam(err, t('auth.login.failed'));
     return await localeRedirect(`/login?error=${encodeURIComponent(message)}&next=${encodeURIComponent(next)}`);
   }
   // Feature 042 — two-step login. An account with active 2FA gets routed to the
@@ -156,7 +161,7 @@ async function loginAction(formData: FormData): Promise<void> {
       begun = await beginMfaSetupTicket(result.setupTicket);
     } catch {
       return await localeRedirect(
-        `/login?error=${encodeURIComponent('Could not start two-factor setup. Please try again.')}&next=${encodeURIComponent(next)}`,
+        `/login?error=${encodeURIComponent(t('auth.login.setupStartFailed'))}&next=${encodeURIComponent(next)}`,
       );
     }
     await setMfaSetupTicketCookie({
@@ -168,7 +173,7 @@ async function loginAction(formData: FormData): Promise<void> {
   }
   if (!result.sessionCookieValue) {
     return await localeRedirect(
-      `/login?error=${encodeURIComponent('Sign-in failed. Please try again.')}&next=${encodeURIComponent(next)}`,
+      `/login?error=${encodeURIComponent(t('auth.login.failed'))}&next=${encodeURIComponent(next)}`,
     );
   }
   await setSessionCookie(result.sessionCookieValue);

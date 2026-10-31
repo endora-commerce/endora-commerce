@@ -1313,19 +1313,7 @@ export const STOREFRONT_HARDCODED_STRINGS_BASELINE: Readonly<Record<string, numb
 
   // ── auth: login, registration, verification, password reset, invitations, security pages, MFA.
   //    Keyed into `storefront/lib/i18n/messages/auth.ts`.
-  'storefront/app/(auth)/invitations/[token]/accept/page.tsx': 12,
-  'storefront/app/(auth)/login/mfa/page.tsx': 2,
-  'storefront/app/(auth)/login/page.tsx': 12,
-  'storefront/app/(auth)/login/setup/page.tsx': 7,
-  'storefront/app/(auth)/password-reset/confirm/page.tsx': 10,
-  'storefront/app/(auth)/password-reset/request/page.tsx': 11,
-  'storefront/app/(auth)/register-customer/page.tsx': 13,
-  'storefront/app/(auth)/register/page.tsx': 23,
-  'storefront/app/(auth)/verify/page.tsx': 10,
-  'storefront/app/account/organization-security/page.tsx': 6,
-  'storefront/app/account/security/page.tsx': 18,
-  'storefront/components/account/SignOutButton.tsx': 1,
-  'storefront/components/MfaCodeForm.tsx': 4,
+  //    Drained (issue #85): every file of this area is keyed.
 
   // ── chrome: home, header, footer, not-found, offline, PWA, analytics and consent, pickers, mobile overlays, the rest.
   //    Keyed into `storefront/lib/i18n/messages/chrome.ts`.

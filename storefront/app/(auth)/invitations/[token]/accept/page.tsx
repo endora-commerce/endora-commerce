@@ -6,6 +6,8 @@ import { setSessionCookie } from '../../../../../lib/session';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../../../lib/i18n/navigation';
 import { LocalizedLink } from '../../../../../lib/i18n/localized-link';
+import { getServerContext } from '../../../../../lib/server-context';
+import { tForLocale } from '../../../../../lib/i18n/messages';
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -29,24 +31,26 @@ export default async function AcceptInvitationPage({
 }): Promise<ReactNode> {
   const { token } = await params;
   const { error } = await searchParams;
+  const { locale } = await getServerContext();
+  const t = tForLocale(locale);
 
   return (
     <div className="b2b-auth">
-      <h1>Accept invitation</h1>
-      <p>Set your name and password to join the organization.</p>
+      <h1>{t('auth.invitation.heading')}</h1>
+      <p>{t('auth.invitation.intro')}</p>
       {error ? <div className="b2b-auth__error">{error}</div> : null}
       <form action={acceptInvitationAction} className="b2b-auth__form">
         <input type="hidden" name="token" value={token} />
         <div className="b2b-auth__field">
-          <label htmlFor="invite-fn">First name</label>
+          <label htmlFor="invite-fn">{t('auth.field.firstName')}</label>
           <input id="invite-fn" name="firstName" required autoComplete="given-name" maxLength={120} placeholder=" " />
         </div>
         <div className="b2b-auth__field">
-          <label htmlFor="invite-ln">Last name</label>
+          <label htmlFor="invite-ln">{t('auth.field.lastName')}</label>
           <input id="invite-ln" name="lastName" required autoComplete="family-name" maxLength={120} placeholder=" " />
         </div>
         <div className="b2b-auth__field">
-          <label htmlFor="invite-pw">Password (at least 12 characters)</label>
+          <label htmlFor="invite-pw">{t('auth.field.newPasswordMin')}</label>
           <input
             id="invite-pw"
             name="password"
@@ -59,12 +63,13 @@ export default async function AcceptInvitationPage({
           />
         </div>
         <div className="b2b-auth__actions">
-          <button type="submit">Create account</button>
+          <button type="submit">{t('auth.common.createAccount')}</button>
         </div>
       </form>
       <p className="b2b-auth__hint">
-        Wrong link? Ask your admin for a new invitation or{' '}
-        <LocalizedLink href="/login">sign in</LocalizedLink> if you already have an account.
+        {t('auth.invitation.wrongLinkBefore')}{' '}
+        <LocalizedLink href="/login">{t('auth.invitation.wrongLinkLink')}</LocalizedLink>
+        {t('auth.invitation.wrongLinkAfter')}
       </p>
     </div>
   );
@@ -77,6 +82,7 @@ async function acceptInvitationAction(formData: FormData): Promise<void> {
   const firstName = ((formData.get('firstName') as string) ?? '').trim();
   const lastName = ((formData.get('lastName') as string) ?? '').trim();
   const password = (formData.get('password') as string) ?? '';
+  const t = tForLocale((await getServerContext()).locale);
 
   const redirectWithError = async (message: string): Promise<never> => {
     const q = new URLSearchParams({ error: message });
@@ -87,7 +93,7 @@ async function acceptInvitationAction(formData: FormData): Promise<void> {
   };
 
   if (!token.trim()) {
-    return await redirectWithError('Invitation link is invalid.');
+    return await redirectWithError(t('auth.invitation.invalidLink'));
   }
 
   try {
@@ -103,12 +109,12 @@ async function acceptInvitationAction(formData: FormData): Promise<void> {
     // Feature 042 — a 2FA-protected/enforced account must finish the second
     // step via the normal login flow.
     if (login.status !== 'authenticated' || !login.sessionCookieValue) {
-      return await redirectWithError('Account created. Please sign in to continue.');
+      return await redirectWithError(t('auth.invitation.signInToContinue'));
     }
     await setSessionCookie(login.sessionCookieValue);
   } catch (err) {
     const message =
-      err instanceof StorefrontApiError ? err.detail : 'Could not accept invitation. Try again.';
+      err instanceof StorefrontApiError ? err.detail : t('auth.invitation.failed');
     return await redirectWithError(message);
   }
 
