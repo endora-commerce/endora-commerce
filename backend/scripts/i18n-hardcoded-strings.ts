@@ -1357,22 +1357,7 @@ export const STOREFRONT_HARDCODED_STRINGS_BASELINE: Readonly<Record<string, numb
 
   // ── content: blog, contact, newsletter pages and components, CMS pages.
   //    Keyed into `storefront/lib/i18n/messages/content.ts`.
-  'storefront/app/(content)/[...slug]/page.tsx': 1,
-  'storefront/app/blog/_components/BlogCategoryPage.tsx': 1,
-  'storefront/app/blog/_components/BlogIndexPage.tsx': 4,
-  'storefront/app/blog/_components/BlogTagPage.tsx': 1,
-  'storefront/app/blog/_components/CategoryTree.tsx': 2,
-  'storefront/app/blog/_components/Pagination.tsx': 3,
-  'storefront/app/blog/_components/RelatedPostsStrip.tsx': 1,
-  'storefront/app/blog/_components/RelatedProductsStrip.tsx': 1,
-  'storefront/app/blog/[[...slug]]/page.tsx': 7,
-  'storefront/app/kontakt/page.tsx': 7,
-  'storefront/app/newsletter/confirm/page.tsx': 3,
-  'storefront/app/newsletter/subscribed/page.tsx': 4,
-  'storefront/app/newsletter/unsubscribe/page.tsx': 8,
-  'storefront/components/contact/ContactForm.tsx': 10,
-  'storefront/components/newsletter/NewsletterConsent.tsx': 2,
-  'storefront/components/newsletter/NewsletterSignup.tsx': 4,
+  //    Every finding keyed; nothing ledgered.
 };
 
 /** One file's measured count against its baseline. */

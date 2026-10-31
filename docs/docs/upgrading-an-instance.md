@@ -3175,6 +3175,41 @@ This entry was written on 2026-10-27 against the branch of spec `163-product-dat
   channel's URL facts: `productPath({ key, languageCode, channel })` replaces
   `productPath({ key, languageCode, channelDefaultLanguage })`.
 
+#### Storefront: the message catalogue is split into namespaces {#after-0-109-0-message-namespaces}
+
+- **What changed.** The storefront's message catalogue, `lib/i18n/messages.ts`, was one file: the
+  `MessageKey` union and the `en-US` and `pl-PL` blocks. Its header invited a theme to replace the
+  file or extend the record. The blocks now live in namespace files under `lib/i18n/messages/`:
+  `core.ts` holds every key the old file held, with the same wording, and `commerce.ts`,
+  `account.ts`, `auth.ts`, `chrome.ts` and `content.ts` hold the strings the storefront showed in one
+  language only and now shows in both. Each namespace is written with `defineMessages` from
+  `messages/define.ts`, which refuses, at type-check time, a Polish block that lacks a key of the
+  English one or has a key it does not. `messages.ts` composes them: `MessageKey` is derived from the
+  namespaces' keys, and `MESSAGES`, `tForLocale`, `CATALOGUE_LOCALES` and `SupportedLocale` keep their
+  shape. A new helper, `lib/i18n/format.ts`, fills a message's `{name}` placeholders.
+- **Components take the language.** Components that rendered English or Polish only now read their
+  words from the catalogue, and a client component receives the page language as a `locale` prop
+  from the server component that renders it — `components/contact/ContactForm.tsx`, for example. A
+  page of your own that renders such a component passes it the `locale` from `getServerContext()`.
+- **If your storefront left `lib/i18n/messages.ts` as it was**, bring over `lib/i18n/messages.ts`,
+  the whole `lib/i18n/messages/` directory and `lib/i18n/format.ts` together, with the components.
+- **If you changed wording in `lib/i18n/messages.ts`**, bring the files over, then make the same
+  change where the key is now declared: `git grep "'<key>'" lib/i18n/messages/` names the file —
+  `core.ts` for every key the old file had. Keep a list of those edits; they are edits to the
+  release's files and have to be made again after each upgrade.
+- **If you added keys of your own**, do not add them to `core.ts`. Put them in a namespace file of
+  your own — for example `lib/i18n/messages/theme.ts`, written with `defineMessages({ 'en-US': {…},
+  'pl-PL': {…} })` like the others — and add it to `MESSAGE_NAMESPACES` in `lib/i18n/messages.ts`.
+  A key may be declared in one namespace only: a second declaration would silently replace the
+  first.
+- **If you replaced `lib/i18n/messages.ts` with a catalogue of your own**, the release's components
+  name keys your file does not have, so the storefront no longer type-checks. Bring the release's
+  catalogue over and move your wording into it as above, rather than replacing the file again.
+
+This entry was written on 2026-10-31 against the branch of issue #85
+(`debt/85-storefront-i18n-infra` and the area branches stacked on it). No instance had been
+upgraded with it when it was written.
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except

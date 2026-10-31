@@ -5,14 +5,19 @@ import { PageBuilderRender } from '../../../components/PageBuilderRender';
 import { CategoryTree } from './CategoryTree';
 import { Pagination } from './Pagination';
 import { PostCard } from './PostCard';
+import { tForLocale } from '../../../lib/i18n/messages';
 
 const BLOG_PREFIX = '/blog';
 
 export function BlogCategoryPage({
   payload,
+  locale,
 }: {
   payload: BlogBySlugCategoryResponse;
+  /** The page language, for the page's own words and the cards' dates. */
+  locale: string;
 }): ReactNode {
+  const t = tForLocale(locale);
   const { category, posts } = payload;
   const description =
     category.description && category.description.languages
@@ -45,11 +50,11 @@ export function BlogCategoryPage({
       <div className="grid gap-8 lg:grid-cols-[1fr_240px]">
         <main>
           {posts.data.length === 0 ? (
-            <p className="text-[--ink-400]">No posts in this category yet.</p>
+            <p className="text-[--ink-400]">{t('content.blog.category.empty')}</p>
           ) : (
             <div className="grid gap-6 md:grid-cols-2">
               {posts.data.map((post) => (
-                <PostCard key={post.id} post={post} />
+                <PostCard key={post.id} post={post} locale={locale} />
               ))}
             </div>
           )}
@@ -57,12 +62,14 @@ export function BlogCategoryPage({
             basePath={`${BLOG_PREFIX}/${category.slug}`}
             page={posts.pagination.page}
             totalPages={posts.pagination.totalPages}
+            locale={locale}
           />
         </main>
         <aside>
           <CategoryTree
             children={category.childCategories}
             currentSlug={category.slug}
+            locale={locale}
           />
         </aside>
       </div>

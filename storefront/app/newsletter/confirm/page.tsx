@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 import type { Metadata } from 'next';
+import { tForLocale } from '../../../lib/i18n/messages';
+import { getServerContext } from '../../../lib/server-context';
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -18,14 +20,14 @@ export default async function NewsletterConfirmPage({
   searchParams: Promise<{ status?: string }>;
 }): Promise<ReactNode> {
   const { status } = await searchParams;
+  const { locale } = await getServerContext();
+  const t = tForLocale(locale);
   const ok = status === 'ok';
   return (
     <main className="mx-auto max-w-lg px-4 py-16 text-center">
-      <h1 className="text-2xl font-semibold">Newsletter</h1>
+      <h1 className="text-2xl font-semibold">{t('content.newsletter.heading')}</h1>
       <p className="mt-4 text-muted-foreground">
-        {ok
-          ? 'Your subscription is confirmed. Thank you!'
-          : 'This confirmation link is invalid or has expired.'}
+        {ok ? t('content.newsletter.confirm.ok') : t('content.newsletter.confirm.invalid')}
       </p>
     </main>
   );

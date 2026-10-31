@@ -19,7 +19,7 @@ const PRODUCT: BlogProductCard = {
 
 describe('RelatedProductsStrip — SSR rendering', () => {
   it('renders nothing when there are no related products', () => {
-    const html = renderToString(<RelatedProductsStrip products={[]} />);
+    const html = renderToString(<RelatedProductsStrip products={[]} locale="en-US" />);
     expect(html).toBe('');
   });
 
@@ -30,6 +30,7 @@ describe('RelatedProductsStrip — SSR rendering', () => {
           PRODUCT,
           { ...PRODUCT, id: '99999999-8888-4777-8666-555555555555', slug: 'shiny-grommet', name: 'Shiny grommet' },
         ]}
+        locale="en-US"
       />,
     );
     expect(html).toContain('href="/p/demo-screws-0040"');
