@@ -426,6 +426,14 @@ type PricedListingPrice = Extract<ListingPrice, { source: 'price_list' }>;
 interface PriceWalkScope {
   context: ListingPriceViewerContext;
   categoryIds: ReadonlySet<string> | null;
+  /**
+   * The products the price surface is asked about, at its source: the category
+   * filter's products, the named ones (`?ids=`, issue #590), or the named ones
+   * in the category; `undefined` for the whole surface. Narrowing only page-side
+   * would let a walk spend its scan budget on products nobody asked for and
+   * answer an empty page that "has more" (review of #594).
+   */
+  restrictToProductIds: readonly string[] | undefined;
   /** Feature 163 — the read's availability scope, applied to every chunk of the walk. */
   availability: PageAvailabilityScope;
   /** Feature 163 — the free-text and attribute filters over effective values, likewise. */
@@ -1436,7 +1444,7 @@ export class CatalogQueryService {
       return this.#listRemainder(em, params, ctx, where, direction, scope, decoded, decoded.after);
     }
     const amountRange = this.#amountRange(params);
-    const restrictToProductIds = scope.categoryIds ? [...scope.categoryIds] : undefined;
+    const { restrictToProductIds } = scope;
 
     // A cursor issued under another sort is discarded rather than
     // reinterpreted: the existing behaviour for a cursor that does not parse.
@@ -1637,9 +1645,17 @@ export class CatalogQueryService {
     availability: PageAvailabilityScope,
     filters: ListingFilters,
   ): Promise<PriceWalkScope> {
+    const categoryIds = params.categorySlug ? await this.productIdsInCategoryTree(em, params.categorySlug) : null;
+    const named = params.ids && params.ids.length > 0 ? params.ids : null;
+    const restrictToProductIds = named
+      ? named.filter((id) => categoryIds === null || categoryIds.has(id))
+      : categoryIds
+        ? [...categoryIds]
+        : undefined;
     return {
       context: await this.#viewerPricingContext(ctx),
-      categoryIds: params.categorySlug ? await this.productIdsInCategoryTree(em, params.categorySlug) : null,
+      categoryIds,
+      restrictToProductIds,
       availability,
       filters,
     };

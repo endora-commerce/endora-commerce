@@ -9,6 +9,8 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { seedPriceBookSql } from '../../helpers/price-book-sql.js';
+import { warmPriceSort } from '../../helpers/price-surface.js';
 import {
   CHANNEL_AMOUNT,
   ORG_A_AMOUNT,
@@ -194,5 +196,103 @@ describe('GET /api/v1/catalog/products?ids= (issue #590)', () => {
     const atCap = await byIds([...tooMany.slice(0, PRODUCT_LIST_MAX_IDS - 1), VIEWER_PRICED_PRODUCT_ID]);
     expect(atCap.status).toBe(200);
     expect(atCap.entries.map((e) => e.id)).toEqual([VIEWER_PRICED_PRODUCT_ID]);
+  });
+});
+
+/**
+ * Review of #594 — `?ids=` under a price ordering or a price range.
+ *
+ * A price ordering reads the price surface in chunks under a scan budget of
+ * eight times the page size. The named products are narrowed at that source
+ * (`restrictToProductIds`), not only page-side: otherwise a walk over a
+ * catalogue with more than the budget's worth of cheaper (or, descending, more
+ * expensive) products spends the budget on products nobody named and answers
+ * `data: []`, `hasMore: true`.
+ *
+ * So the two named products sit **in the middle**: 30 priced products cost
+ * less than both and 30 more, and a page of two (budget 16 rows) must still be
+ * complete, in price order, with nothing after it.
+ */
+describe('GET /api/v1/catalog/products?ids= under a price ordering or range (review of #594)', () => {
+  let h: BackendServerHandle;
+  const RUN_SORT = `ids590s_${randomUUID().slice(0, 8)}`;
+  const named = { cheaper: '', dearer: '' };
+  const LIMIT = 2;
+
+  beforeAll(async () => {
+    h = await setupBackendServer();
+    const em = h.em();
+    const retail = await em.findOneOrFail(SalesChannel, { code: 'pl_retail' });
+    const rows: Array<{ productId: string; fixed: string }> = [];
+    const create = async (key: string, amount: number): Promise<string> => {
+      const sku = `IDS590S-${RUN_SORT}-${key}`.toUpperCase();
+      const product = em.create(Product, {
+        sku,
+        slug: sku.toLowerCase().replace(/_/g, '-'),
+        type: 'simple',
+        status: 'active',
+        name: { 'en-US': `Ids sort probe ${key}` },
+        description: { 'en-US': '' },
+        visibility: 'public',
+        allowedOrganizationIds: [],
+        attributeValues: {},
+      });
+      await em.persistAndFlush(product);
+      await em
+        .getConnection()
+        .execute('insert into sales_channel_products (sales_channel_id, product_id) values (?, ?)', [
+          retail.id,
+          product.id,
+        ]);
+      rows.push({ productId: product.id, fixed: `${amount}.00` });
+      return product.id;
+    };
+    for (let i = 1; i <= 30; i += 1) await create(`low-${i}`, i);
+    for (let i = 1; i <= 30; i += 1) await create(`high-${i}`, 200 + i);
+    named.cheaper = await create('named-90', 90);
+    named.dearer = await create('named-100', 100);
+    await seedPriceBookSql(em, { name: `Ids sort probe ${RUN_SORT}`, audience: 'everyone', rows });
+    await warmPriceSort(h, [{ headers: RETAIL_CHANNEL }]);
+  }, 120_000);
+
+  afterAll(async () => {
+    await teardownBackendServer(h);
+  });
+
+  async function page(query: string): Promise<{ ids: string[]; hasMore: boolean }> {
+    const res = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/catalog/products?ids=${named.dearer},${named.cheaper}&limit=${LIMIT}${query}`,
+      headers: RETAIL_CHANNEL,
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    const body = res.json() as { data: Entry[]; pagination: { hasMore: boolean } };
+    return { ids: body.data.map((e) => e.id), hasMore: body.pagination.hasMore };
+  }
+
+  it('sort=price answers both named products in one complete page, cheapest first', async () => {
+    expect(await page('&sort=price')).toEqual({ ids: [named.cheaper, named.dearer], hasMore: false });
+  });
+
+  it('sort=-price answers both named products in one complete page, dearest first', async () => {
+    expect(await page('&sort=-price')).toEqual({ ids: [named.dearer, named.cheaper], hasMore: false });
+  });
+
+  it('a price range under a price ordering is narrowed at the source too', async () => {
+    // The range admits the 30 cheaper products as well, so only the source narrowing keeps the page whole.
+    expect(await page('&sort=price&minPrice=0&maxPrice=150')).toEqual({
+      ids: [named.cheaper, named.dearer],
+      hasMore: false,
+    });
+    expect(await page('&sort=-price&minPrice=0&maxPrice=150')).toEqual({
+      ids: [named.dearer, named.cheaper],
+      hasMore: false,
+    });
+  });
+
+  it('a price range under the default ordering answers both named products in one page', async () => {
+    const out = await page('&minPrice=50&maxPrice=150');
+    expect(out.ids.sort()).toEqual([named.cheaper, named.dearer].sort());
+    expect(out.hasMore).toBe(false);
   });
 });
