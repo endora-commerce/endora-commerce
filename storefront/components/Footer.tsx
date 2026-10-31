@@ -1,5 +1,8 @@
 import type { ReactNode } from 'react';
 import { LocalizedAnchor, LocalizedForm } from '../lib/i18n/localized-link';
+import { tForLocale } from '../lib/i18n/messages';
+import { format } from '../lib/i18n/format';
+import { REFERENCE_BRAND_MARK, REFERENCE_BRAND_NAME } from '../lib/theme/reference-brand';
 
 /**
  * Industria-themed footer. Five-column dark layout with brand panel,
@@ -52,20 +55,24 @@ function EndoraCommerceMark(props: { className?: string }): ReactNode {
 }
 
 export function Footer(props: {
+  /** The page's locale; the footer's copy is rendered in it. */
+  locale: string;
   cmsLinks?: Array<{ path: string; title: string }>;
   top?: ReactNode;
   bottom?: ReactNode;
   copyright?: ReactNode;
 }): ReactNode {
+  const t = tForLocale(props.locale);
   const supportLinks = props.cmsLinks && props.cmsLinks.length > 0
     ? props.cmsLinks
     : [
-        { path: 'kontakt', title: 'Kontakt' },
-        { path: 'reklamacje', title: 'Reklamacje i zwroty' },
-        { path: 'dostawa', title: 'Dostawa i płatności' },
-        { path: 'certyfikaty', title: 'Certyfikaty i zgodność' },
-        { path: 'pomoc', title: 'Centrum pomocy' },
+        { path: 'kontakt', title: t('chrome.footer.support.contact') },
+        { path: 'reklamacje', title: t('chrome.footer.support.returns') },
+        { path: 'dostawa', title: t('chrome.footer.support.delivery') },
+        { path: 'certyfikaty', title: t('chrome.footer.support.certificates') },
+        { path: 'pomoc', title: t('chrome.footer.support.help') },
       ];
+  const [builtWithBefore, builtWithAfter] = t('chrome.footer.builtWith').split('{heart}');
 
   return (
     <footer className="mt-[64px] bg-[#18181b] pt-[56px] pb-[28px] text-[#d4d4d8] dark:bg-[#050507]">
@@ -74,38 +81,44 @@ export function Footer(props: {
         <div className="grid grid-cols-[2fr_repeat(4,1fr)] gap-8 border-b border-white/8 pb-9 max-[920px]:grid-cols-2">
           <div>
             <div className="flex items-center gap-2.5">
-              <span className="industria-header__mark bg-white text-[var(--ink-900)]">IN</span>
-              <strong className="text-[16px] text-white">Industria</strong>
+              <span className="industria-header__mark bg-white text-[var(--ink-900)]">{REFERENCE_BRAND_MARK}</span>
+              <strong className="text-[16px] text-white">{REFERENCE_BRAND_NAME}</strong>
             </div>
             <p className="mt-[14px] max-w-[280px] leading-[1.5] text-[#a1a1aa]">
-              Hurtownia B2B komponentów przemysłowych. Łożyska, napędy, automatyka, elektryka,
-              pneumatyka i narzędzia. Wysyłka tego samego dnia, faktura z odroczonym terminem
-              płatności i pełna dokumentacja techniczna.
+              {t('chrome.footer.about')}
             </p>
           </div>
 
           <div>
-            <h5 className={COL_HEADING}>Sklep</h5>
-            <LocalizedAnchor className={COL_LINK} href="/catalog">Katalog</LocalizedAnchor>
-            <LocalizedAnchor className={COL_LINK} href="/c/fasteners">Łączniki</LocalizedAnchor>
-            <LocalizedAnchor className={COL_LINK} href="/c/tools">Narzędzia</LocalizedAnchor>
-            <LocalizedAnchor className={COL_LINK} href="/c/electronics">Elektronika</LocalizedAnchor>
-            <LocalizedAnchor className={COL_LINK} href="/c/safety">BHP</LocalizedAnchor>
-            <LocalizedAnchor className={COL_LINK} href="/quick-order">Quick Order</LocalizedAnchor>
+            <h5 className={COL_HEADING}>{t('chrome.footer.shop')}</h5>
+            <LocalizedAnchor className={COL_LINK} href="/catalog">{t('nav.catalog')}</LocalizedAnchor>
+            <LocalizedAnchor className={COL_LINK} href="/c/fasteners">
+              {t('chrome.shared.category.fasteners')}
+            </LocalizedAnchor>
+            <LocalizedAnchor className={COL_LINK} href="/c/tools">{t('chrome.shared.category.tools')}</LocalizedAnchor>
+            <LocalizedAnchor className={COL_LINK} href="/c/electronics">
+              {t('chrome.shared.category.electronics')}
+            </LocalizedAnchor>
+            <LocalizedAnchor className={COL_LINK} href="/c/safety">{t('chrome.shared.category.safety')}</LocalizedAnchor>
+            <LocalizedAnchor className={COL_LINK} href="/quick-order">{t('nav.quickOrder')}</LocalizedAnchor>
           </div>
 
           <div>
-            <h5 className={COL_HEADING}>Konto B2B</h5>
-            <LocalizedAnchor className={COL_LINK} href="/account">Moje konto</LocalizedAnchor>
-            <LocalizedAnchor className={COL_LINK} href="/orders">Zamówienia</LocalizedAnchor>
-            <LocalizedAnchor className={COL_LINK} href="/invoices">Faktury</LocalizedAnchor>
-            <LocalizedAnchor className={COL_LINK} href="/quote-requests">RFQ — zapytania ofertowe</LocalizedAnchor>
-            <LocalizedAnchor className={COL_LINK} href="/shopping-lists">Listy zakupowe</LocalizedAnchor>
-            <LocalizedAnchor className={COL_LINK} href="/credit-limit">Limit kredytowy</LocalizedAnchor>
+            <h5 className={COL_HEADING}>{t('chrome.footer.account')}</h5>
+            <LocalizedAnchor className={COL_LINK} href="/account">{t('chrome.footer.myAccount')}</LocalizedAnchor>
+            <LocalizedAnchor className={COL_LINK} href="/orders">{t('chrome.footer.orders')}</LocalizedAnchor>
+            <LocalizedAnchor className={COL_LINK} href="/invoices">{t('chrome.footer.invoices')}</LocalizedAnchor>
+            <LocalizedAnchor className={COL_LINK} href="/quote-requests">
+              {t('chrome.footer.quoteRequests')}
+            </LocalizedAnchor>
+            <LocalizedAnchor className={COL_LINK} href="/shopping-lists">
+              {t('chrome.footer.shoppingLists')}
+            </LocalizedAnchor>
+            <LocalizedAnchor className={COL_LINK} href="/credit-limit">{t('chrome.shared.creditLimit')}</LocalizedAnchor>
           </div>
 
           <div>
-            <h5 className={COL_HEADING}>Wsparcie</h5>
+            <h5 className={COL_HEADING}>{t('chrome.footer.support')}</h5>
             {supportLinks.map((l) => (
               <LocalizedAnchor key={l.path} className={COL_LINK} href={`/${l.path}`}>
                 {l.title}
@@ -114,20 +127,18 @@ export function Footer(props: {
           </div>
 
           <div>
-            <h5 className={COL_HEADING}>Newsletter techniczny</h5>
-            <p className="mb-3 text-[12px] text-[#a1a1aa]">
-              Nowości katalogowe, promocje cenowe i raporty dostępności.
-            </p>
+            <h5 className={COL_HEADING}>{t('chrome.footer.newsletter.heading')}</h5>
+            <p className="mb-3 text-[12px] text-[#a1a1aa]">{t('chrome.footer.newsletter.intro')}</p>
             <LocalizedForm action="/newsletter" method="POST">
               <input
                 className="mb-2 w-full rounded-md border border-white/12 bg-white/4 px-2.5 py-2 text-[13px] text-white placeholder:text-[#71717a]"
                 type="email"
                 name="email"
-                placeholder="adres@firma.pl"
+                placeholder={t('chrome.footer.newsletter.placeholder')}
                 required
               />
               <button type="submit" className="btn btn--primary btn--block btn--sm">
-                Zapisz się
+                {t('chrome.footer.newsletter.submit')}
               </button>
             </LocalizedForm>
           </div>
@@ -135,23 +146,26 @@ export function Footer(props: {
 
         {props.bottom}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-[22px] text-[12px] text-[#71717a]">
-          <span>
-            &copy; {new Date().getFullYear()} Industria B2B Sp. z o.o. · NIP 7251234567 · KRS
-            0000987654
-          </span>
+          <span>{format(t('chrome.footer.legal'), { year: String(new Date().getFullYear()) })}</span>
           {props.copyright}
           <span className="inline-flex gap-4">
-            <LocalizedAnchor className="text-[#a1a1aa] hover:text-white" href="/regulamin">Regulamin</LocalizedAnchor>
-            <LocalizedAnchor className="text-[#a1a1aa] hover:text-white" href="/polityka-prywatnosci">
-              Polityka prywatności
+            <LocalizedAnchor className="text-[#a1a1aa] hover:text-white" href="/regulamin">
+              {t('chrome.footer.terms')}
             </LocalizedAnchor>
-            <LocalizedAnchor className="text-[#a1a1aa] hover:text-white" href="/cookies">Cookies</LocalizedAnchor>
+            <LocalizedAnchor className="text-[#a1a1aa] hover:text-white" href="/polityka-prywatnosci">
+              {t('chrome.footer.privacy')}
+            </LocalizedAnchor>
+            <LocalizedAnchor className="text-[#a1a1aa] hover:text-white" href="/cookies">
+              {t('chrome.footer.cookies')}
+            </LocalizedAnchor>
           </span>
         </div>
 
         <p className="mt-[22px] flex flex-wrap items-center justify-center gap-x-2.5 gap-y-2 border-t border-white/8 pt-[22px] text-[12px] text-[#71717a]">
           <span>
-            Built with <span aria-hidden="true">❤️</span> using
+            {builtWithBefore}
+            <span aria-hidden="true">❤️</span>
+            {builtWithAfter}
           </span>
           <a
             className="inline-flex items-center gap-2 text-[15px] font-semibold text-[#d4d4d8] hover:text-white"
@@ -160,7 +174,7 @@ export function Footer(props: {
             rel="noopener"
           >
             <EndoraCommerceMark className="h-7 w-7 shrink-0" />
-            Endora Commerce
+            {t('chrome.footer.builtWithProduct')}
           </a>
         </p>
       </div>

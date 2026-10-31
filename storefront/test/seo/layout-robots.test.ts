@@ -56,18 +56,40 @@ function exportedNames(): string[] {
   return names;
 }
 
-/** The object literal `export const metadata` is initialised with. */
+/** Every `return` statement directly in `fn`'s body — not in a nested function. */
+function ownReturns(fn: ts.FunctionDeclaration): ts.ReturnStatement[] {
+  const found: ts.ReturnStatement[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isReturnStatement(node)) found.push(node);
+    if (ts.isFunctionLike(node)) return;
+    ts.forEachChild(node, visit);
+  };
+  if (fn.body) ts.forEachChild(fn.body, visit);
+  return found;
+}
+
+/**
+ * The layout's one metadata object literal.
+ *
+ * Since issue #85 the default title and description are in the page's
+ * language, so the layout exports `generateMetadata` rather than a constant
+ * `metadata`; it must still return **one object literal**, so what it declares
+ * can be read here — a computed value, a second return or a spread could each
+ * bring a `robots` member in unseen.
+ */
 function metadataLiteral(): ts.ObjectLiteralExpression {
   for (const statement of source.statements) {
-    if (!ts.isVariableStatement(statement)) continue;
-    for (const declaration of statement.declarationList.declarations) {
-      if (declaration.name.getText(source) !== 'metadata') continue;
-      if (declaration.initializer && ts.isObjectLiteralExpression(declaration.initializer)) {
-        return declaration.initializer;
+    if (ts.isFunctionDeclaration(statement) && statement.name?.text === 'generateMetadata') {
+      const returns = ownReturns(statement);
+      if (returns.length !== 1) {
+        throw new Error(`app/layout.tsx's generateMetadata has ${returns.length} returns; it must have one`);
       }
+      const value = returns[0]!.expression;
+      if (value && ts.isObjectLiteralExpression(value)) return value;
+      throw new Error("app/layout.tsx's generateMetadata no longer returns an object literal");
     }
   }
-  throw new Error('app/layout.tsx no longer exports a `metadata` object literal');
+  throw new Error('app/layout.tsx no longer exports a `generateMetadata` returning an object literal');
 }
 
 /** JSX elements named `tag`, opening or self-closing. */
@@ -85,7 +107,7 @@ function jsxElements(tag: string): (ts.JsxOpeningElement | ts.JsxSelfClosingElem
 }
 
 describe('the root layout declares no robots through the metadata API', () => {
-  it('has a static metadata object with no robots member', () => {
+  it('returns one metadata object literal with no robots member', () => {
     const members = metadataLiteral().properties.map((property) =>
       property.name ? property.name.getText(source) : property.getText(source),
     );
@@ -94,9 +116,9 @@ describe('the root layout declares no robots through the metadata API', () => {
     expect(metadataLiteral().properties.some(ts.isSpreadAssignment)).toBe(false);
   });
 
-  it('exports no generateMetadata that could compute one', () => {
-    expect(exportedNames()).toContain('metadata');
-    expect(exportedNames()).not.toContain('generateMetadata');
+  it('declares its metadata in one place only', () => {
+    expect(exportedNames()).toContain('generateMetadata');
+    expect(exportedNames()).not.toContain('metadata');
   });
 });
 

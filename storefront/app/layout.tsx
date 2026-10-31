@@ -129,14 +129,23 @@ async function readViewer(session: string): Promise<ViewerRead> {
  * (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-012). The deployment's origin
  * is declared once, here; a route that spelled its own absolute URL would go on
  * naming the old origin after a move, with nothing to notice.
+ *
+ * The default title and description are in the page's language (issue #85).
+ * During an outage the language comes from the request alone, as the layout's
+ * bare-document branch takes it: every backend read would fail.
  */
-export const metadata: Metadata = {
-  metadataBase: siteUrl(),
-  title: 'B2B Platform',
-  description:
-    'A B2B commerce platform supporting Quote Requests and direct purchase for business customers.',
-  manifest: '/manifest.webmanifest',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = (await isUnreachableBackendRender())
+    ? await outageLocale()
+    : (await getServerContext()).locale;
+  const t = tForLocale(locale);
+  return {
+    metadataBase: siteUrl(),
+    title: t('chrome.layout.title'),
+    description: t('chrome.layout.description'),
+    manifest: '/manifest.webmanifest',
+  };
+}
 
 /**
  * Feature 044 — the mobile experience uses fixed top/bottom chrome (bottom
@@ -327,8 +336,8 @@ export default async function RootLayout({
             <CartMergeToast />
             {/* Feature 046 — PWA install prompt + push opt-in. Both render to
                 null unless supported and enabled (graceful degradation). */}
-            <InstallPrompt />
-            <PushOptIn />
+            <InstallPrompt locale={locale} />
+            <PushOptIn locale={locale} />
             <Hook code="page.top" />
             {viewer.refusal === 'not_permitted' ? (
               <ChannelAccessDenied locale={locale} access={access} signOut={signOutAction} />
@@ -341,6 +350,7 @@ export default async function RootLayout({
               still needs the legal/support links). */}
           <Hook code="footer.before" />
           <Footer
+            locale={locale}
             top={<Hook code="footer.top" />}
             bottom={<Hook code="footer.bottom" />}
             copyright={<Hook code="footer.copyright" />}
@@ -352,6 +362,7 @@ export default async function RootLayout({
           <MobileTabBar
             cartItemCount={cartItemCount}
             labels={{
+              navigation: t('chrome.mobileTabBar.label'),
               home: t('nav.home'),
               quoteRequest: t('nav.quoteRequest'),
               quickOrder: t('nav.quickOrder'),
@@ -361,7 +372,7 @@ export default async function RootLayout({
           />
         </div>
       </DictionaryProvider>
-      <PwaRegister />
+      <PwaRegister locale={locale} />
       <SpeculationRules enabled={speculation.enabled} eagerness={speculation.eagerness} />
       {/* Feature 049 — Google Analytics 4. Renders nothing for untracked
           channels; page views are emitted per navigation by the provider. */}
@@ -371,7 +382,7 @@ export default async function RootLayout({
       <MetaPixel config={metaConfig} />
       {/* Feature 066 — the operator's GTM container plus the client-side
           bootstrap for the platform's own dataLayer vocabulary. */}
-      <GoogleTagManager config={gtmConfig} />
+      <GoogleTagManager config={gtmConfig} locale={locale} />
       <GtmProvider config={gtmConfig} salesChannelCode={ctx.salesChannelCode} />
       {/* The prompt is owed whenever any enabled integration on the channel
           requires consent — not only Google Analytics (FR-015). */}

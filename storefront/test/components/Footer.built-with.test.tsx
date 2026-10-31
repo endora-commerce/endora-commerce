@@ -9,7 +9,7 @@ import { Footer, BUILT_WITH_URL } from '../../components/Footer';
  * site's analytics from every other referral.
  */
 describe('Footer — the "built with" credit', () => {
-  const html = renderToString(<Footer />);
+  const html = renderToString(<Footer locale="en-US" />);
 
   it('says what the shop is built with', () => {
     expect(html).toContain('Built with');
@@ -47,7 +47,7 @@ describe('Footer — the "built with" credit', () => {
  */
 describe('Footer — where the "built with" credit sits', () => {
   const html = renderToString(
-    <Footer bottom={<p>hook-bottom-slot</p>} copyright={<span>hook-copyright-slot</span>} />,
+    <Footer locale="en-US" bottom={<p>hook-bottom-slot</p>} copyright={<span>hook-copyright-slot</span>} />,
   );
   const credit = html.indexOf('Built with');
 
@@ -56,7 +56,7 @@ describe('Footer — where the "built with" credit sits', () => {
       'Industria B2B Sp. z o.o.',
       'hook-bottom-slot',
       'hook-copyright-slot',
-      'Polityka prywatności',
+      'Privacy policy',
       'Cookies',
     ]) {
       expect(html).toContain(earlier);

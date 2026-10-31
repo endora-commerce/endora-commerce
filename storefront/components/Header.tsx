@@ -2,6 +2,8 @@ import type { ReactNode } from 'react';
 import type { I18nConfigResponse, ResolvedMegamenu } from '@endora-commerce/contracts';
 import type { MeResult } from '../lib/api/account';
 import { tForLocale } from '../lib/i18n/messages';
+import { format } from '../lib/i18n/format';
+import { REFERENCE_BRAND_MARK, REFERENCE_BRAND_NAME } from '../lib/theme/reference-brand';
 import { NavigationBar } from './Megamenu/NavigationBar';
 import { MegamenuMobileDrawer } from './Megamenu/MegamenuMobileDrawer';
 import { MobileSearchOverlay } from './mobile/MobileSearchOverlay';
@@ -48,6 +50,11 @@ export function Header(props: {
   // server-only `BACKEND_BASE_URL` (internal `http://backend:3001`) that
   // triggers a Mixed Content block over HTTPS.
   const apiBaseUrl = publicApiBaseUrl();
+  const cutoff = new Intl.DateTimeFormat(props.locale, {
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'UTC',
+  }).format(SHIPPING_CUTOFF);
 
   // Category/brand shortcut pills for the mobile search overlay: the catalogue
   // tab's departments when the menu has one (feature 168), else the tabs.
@@ -79,21 +86,21 @@ export function Header(props: {
             </span>
             <span className="industria-topbar__sep" aria-hidden="true" />
             <span className="industria-topbar__item">
-              <TruckIcon /> Wysyłka dziś, jeśli zamówisz do 14:00
+              <TruckIcon /> {format(t('chrome.header.shipsTodayBy'), { time: cutoff })}
             </span>
             <span className="industria-topbar__sep" aria-hidden="true" />
             <span className="industria-topbar__item">
-              <DocIcon /> Faktura VAT
+              <DocIcon /> {t('chrome.shared.vatInvoice')}
             </span>
           </div>
           <div className="industria-topbar__right">
             <span className="industria-topbar__chip">
-              <strong>NIP</strong> 7251234567
+              <strong>{t('chrome.header.taxId')}</strong> {DEMO_TAX_ID}
             </span>
-            <CurrencySwitcher currency={props.currency} />
+            <CurrencySwitcher currency={props.currency} label={t('chrome.header.currency')} />
             <span className="industria-topbar__sep" aria-hidden="true" />
             <LocalizedAnchor href="/help" className="industria-topbar__item">
-              <HelpIcon /> Wsparcie B2B
+              <HelpIcon /> {t('chrome.header.support')}
             </LocalizedAnchor>
             {/* Feature 167 — the channel's languages decide; it hides itself for one. */}
             <LocaleSwitcher label={t('header.language')} />
@@ -104,10 +111,10 @@ export function Header(props: {
       <header className="industria-header">
         <div className="mx-auto max-w-[1360px] px-[24px] industria-header__inner hidden min-[877px]:grid">
           <LocalizedLink href="/" className="industria-header__brand">
-            <span className="industria-header__mark">IN</span>
+            <span className="industria-header__mark">{REFERENCE_BRAND_MARK}</span>
             <span className="industria-header__brand__name">
-              Industria
-              <small>B2B · Komponenty przemysłowe</small>
+              {REFERENCE_BRAND_NAME}
+              <small>{t('chrome.header.tagline')}</small>
             </span>
           </LocalizedLink>
           <LocalizedForm
@@ -137,22 +144,22 @@ export function Header(props: {
             <ShoppingListHeartBadge
               apiBase={apiBaseUrl}
               loggedIn={Boolean(props.user)}
-              ariaLabel="Lista zakupowa"
+              ariaLabel={t('chrome.header.shoppingList')}
             />
             <RfqDraftBadge
-              ariaLabel="Zapytanie ofertowe"
-              itemsAriaLabelTemplate="Zapytanie ofertowe · {count} pozycji"
+              ariaLabel={t('chrome.header.quoteRequest')}
+              itemsAriaLabelTemplate={t('chrome.header.quoteRequestItems')}
             />
             <CompareCounterLink
               href="/compare"
-              ariaLabel="Porównaj produkty"
+              ariaLabel={t('chrome.header.compare')}
               icon={<CompareIcon />}
               salesChannelCode={props.salesChannelCode}
             />
             <CartCounterBadge
               initialCount={props.cartItemCount ?? 0}
-              emptyAriaLabel="Koszyk"
-              itemsAriaLabelTemplate="Koszyk · {count} pozycji"
+              emptyAriaLabel={t('nav.cart')}
+              itemsAriaLabelTemplate={t('chrome.header.cartItems')}
             />
             <UserPill user={props.user ?? null} loginLabel={t('nav.login')} />
           </div>
@@ -187,24 +194,24 @@ export function Header(props: {
               </LocalizedLink>
             )}
             <LocalizedLink href="/" className="mr-auto inline-flex items-center gap-[8px]">
-              <span className="industria-header__mark">IN</span>
+              <span className="industria-header__mark">{REFERENCE_BRAND_MARK}</span>
               <span className="flex flex-col leading-none">
-                <span className="text-[15px] font-bold text-fg">Industria</span>
+                <span className="text-[15px] font-bold text-fg">{REFERENCE_BRAND_NAME}</span>
                 <small className="mt-[2px] text-[9px] font-medium uppercase tracking-[0.12em] text-subtle">
-                  Komponenty B2B
+                  {t('chrome.header.taglineCompact')}
                 </small>
               </span>
             </LocalizedLink>
             <CompareCounterLink
               href="/compare"
-              ariaLabel="Porównaj produkty"
+              ariaLabel={t('chrome.header.compare')}
               icon={<CompareIcon />}
               salesChannelCode={props.salesChannelCode}
             />
             <CartCounterBadge
               initialCount={props.cartItemCount ?? 0}
-              emptyAriaLabel="Koszyk"
-              itemsAriaLabelTemplate="Koszyk · {count} pozycji"
+              emptyAriaLabel={t('nav.cart')}
+              itemsAriaLabelTemplate={t('chrome.header.cartItems')}
             />
           </div>
           <div className="px-[16px] pb-[10px]">
@@ -236,6 +243,12 @@ export function Header(props: {
     </>
   );
 }
+
+/** The demo shop's 14:00 shipping cut-off, as a time of day (read in UTC, so the zone never moves it). */
+const SHIPPING_CUTOFF = new Date(Date.UTC(2000, 0, 1, 14, 0));
+
+/** The demo shop's tax identification number. */
+const DEMO_TAX_ID = '7251234567';
 
 /** Two-letter initials from the customer's name (falls back to the email). */
 function initials(user: MeResult): string {
