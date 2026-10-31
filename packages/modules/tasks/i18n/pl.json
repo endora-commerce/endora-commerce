@@ -562,6 +562,6 @@
   "actions.newTask.keywords": "zadanie, nowe, utwórz",
   "actions.openTaskWorkflow.keywords": "statusy, przejścia, przebieg",
   "actions.openTaskPriorities.keywords": "priorytety, priorytet, pilność",
-  "actions.openTaskTags.keywords": "tagi, etykiety",
+  "actions.openTaskTags.keywords": "etykiety, etykieta",
   "actions.openTaskGeneralSettings.keywords": "ustawienia, strefa czasowa"
 }
