@@ -77,5 +77,6 @@
   "lines.unit.service": "svc",
   "lines.delivery": "Delivery",
   "lines.paymentSurcharge": "Payment method surcharge",
-  "lines.discount": "Discount"
+  "lines.discount": "Discount",
+  "actions.openInvoices.keywords": "invoices"
 }

@@ -93,5 +93,7 @@
   "identity.prefixDefaultLanguage.hint": "Gdy włączone, każdy adres sklepu zaczyna się od swojego języka, również domyślnego: /pl/p/wiertarka, /en/p/drill. Gdy wyłączone, adres bez języka oznacza język domyślny (/p/wiertarka), a prefiks mają tylko pozostałe języki. Zmienione adresy nadal działają dzięki przekierowaniom.",
   "identity.prefixDefaultLanguage.prefixesHeading": "Prefiksy języków w adresach sklepu",
   "identity.prefixDefaultLanguage.urlChangeWarning": "Zmiana języków kanału lub tego przełącznika zmienia adresy URL sklepu. Stare adresy są przekierowywane; przeglądarki mogą pamiętać zapisane przekierowanie do godziny.",
-  "list.badge.signInRequired": "Wymaga logowania"
+  "list.badge.signInRequired": "Wymaga logowania",
+  "actions.openSalesChannels.keywords": "kanał, kanały, sprzedaży",
+  "actions.newSalesChannel.keywords": "kanał, sprzedaży"
 }

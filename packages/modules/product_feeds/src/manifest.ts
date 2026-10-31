@@ -286,7 +286,8 @@ export const manifest = defineModuleManifest({
       icon: 'Rss',
       targetRoute: '/product-feeds',
       requiredPermission: PRODUCT_FEEDS_READ_PERMISSION,
-      keywords: ['feed', 'feed produktowy', 'google merchant', 'meta', 'katalog', 'xml', 'csv'],
+      keywords: ['feed', 'google merchant', 'meta', 'xml', 'csv'],
+      keywordsKey: 'actions.openProductFeeds.keywords',
       weight: 250,
     },
     {
@@ -296,7 +297,8 @@ export const manifest = defineModuleManifest({
       icon: 'PlusCircle',
       targetRoute: '/product-feeds/new',
       requiredPermission: PRODUCT_FEEDS_WRITE_PERMISSION,
-      keywords: ['feed', 'nowy feed', 'feed produktowy', 'google merchant', 'meta'],
+      keywords: ['feed', 'google merchant', 'meta'],
+      keywordsKey: 'actions.createProductFeed.keywords',
       weight: 251,
     },
     {
@@ -306,7 +308,8 @@ export const manifest = defineModuleManifest({
       icon: 'FileText',
       targetRoute: '/product-feeds/templates',
       requiredPermission: PRODUCT_FEEDS_READ_PERMISSION,
-      keywords: ['szablon feedu', 'template', 'feed', 'xml', 'csv', 'pola'],
+      keywords: ['template', 'feed', 'xml', 'csv'],
+      keywordsKey: 'actions.openFeedTemplates.keywords',
       weight: 252,
     },
     {
@@ -318,7 +321,8 @@ export const manifest = defineModuleManifest({
       icon: 'Upload',
       targetRoute: '/product-feeds/templates/import',
       requiredPermission: PRODUCT_FEEDS_WRITE_PERMISSION,
-      keywords: ['import', 'szablon feedu', 'template', 'wczytaj', 'json'],
+      keywords: ['import', 'template', 'json'],
+      keywordsKey: 'actions.importFeedTemplate.keywords',
       weight: 253,
     },
     {
@@ -333,7 +337,8 @@ export const manifest = defineModuleManifest({
       // mapping needs the write one, and the palette row is the way in rather
       // than the save (issue #232).
       requiredPermission: PRODUCT_FEEDS_READ_PERMISSION,
-      keywords: ['taksonomia', 'mapowanie kategorii', 'kategorie', 'google merchant', 'meta'],
+      keywords: ['google merchant', 'meta'],
+      keywordsKey: 'actions.openFeedCategoryMapping.keywords',
       weight: 254,
     },
     {
@@ -346,14 +351,8 @@ export const manifest = defineModuleManifest({
       icon: 'Download',
       targetRoute: '/product-feeds/taxonomy-revisions',
       requiredPermission: PRODUCT_FEEDS_READ_PERMISSION,
-      keywords: [
-        'aktualizacja taksonomii',
-        'nowa wersja',
-        'wersja taksonomii',
-        'pobieranie taksonomii',
-        'taxonomy update',
-        'revision',
-      ],
+      keywords: ['taxonomy update', 'revision'],
+      keywordsKey: 'actions.openFeedTaxonomyRevisions.keywords',
       weight: 255,
     },
   ],

@@ -13,6 +13,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { withModuleOff, type OffStateAxis } from '../../helpers/off-state.js';
+import { servedPaletteKeywords } from '../../helpers/palette-keywords.js';
 
 /**
  * The **server-side** half of feature 091 batch 15's off-state proof — the
@@ -299,8 +300,11 @@ describe('batch 15 contributes no palette action while off (Constitution XVII it
       const action = actionOf('catalog', id);
       expect(action?.targetRoute, id).toBe(route);
       expect(action?.requiredPermission, id).toBe('catalog:read');
+      // Issue #573 — what a Polish operator is served: the manifest's English
+      // words and the Polish ones under the action's `keywordsKey`.
+      const served = servedPaletteKeywords('catalog', id, 'pl');
       for (const keyword of keywords) {
-        expect(action?.keywords, `${id}: ${keyword}`).toContain(keyword);
+        expect(served, `${id}: ${keyword}`).toContain(keyword);
       }
     }
   });
@@ -318,8 +322,9 @@ describe('batch 15 contributes no palette action while off (Constitution XVII it
     ).find((entry) => entry.id === 'open-archived-products');
     expect(action?.targetRoute).toBe('/catalog/products/archived');
     expect(action?.requiredPermission).toBe('catalog:read');
+    const served = servedPaletteKeywords('catalog', 'open-archived-products', 'pl');
     for (const keyword of ['archived', 'restore', 'archiwum', 'zarchiwizowane']) {
-      expect(action?.keywords, keyword).toContain(keyword);
+      expect(served, keyword).toContain(keyword);
     }
   });
 

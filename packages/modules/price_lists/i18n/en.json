@@ -571,5 +571,9 @@
   "sources.base": "Base price",
   "sources.buyer": "Buyer price",
   "sources.catalogue": "Catalogue price",
-  "sources.sale": "Sale price"
+  "sources.sale": "Sale price",
+  "actions.openPriceLists.keywords": "price list, price lists",
+  "actions.newPriceBook.keywords": "new price list, create price list",
+  "actions.openPriceExplainer.keywords": "price explanation, why this price",
+  "actions.openPricingSettings.keywords": "pricing settings, price precedence, list price"
 }

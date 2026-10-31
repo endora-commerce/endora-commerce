@@ -1543,5 +1543,13 @@
   "bulkOperations.log.finished": "Zakończono: {succeeded} z powodzeniem, {skipped} pominięto, {failed} z błędem (łącznie {total}).",
   "bulkOperations.log.itemsFailed": "{failed} elementów zakończyło się błędem — szczegóły w statusie pojedynczych elementów.",
   "bulkOperations.log.failed": "Operacja nie powiodła się: {message}",
-  "bulkOperations.log.reindexed": "Przeindeksowano {documentCount} dokumentów we wszystkich indeksach."
+  "bulkOperations.log.reindexed": "Przeindeksowano {documentCount} dokumentów we wszystkich indeksach.",
+  "actions.newProduct.keywords": "produkt, nowy, dodaj",
+  "actions.openProducts.keywords": "produkty, katalog, zakres, archiwum, przywróć",
+  "actions.openArchivedProducts.keywords": "archiwum, zarchiwizowane, przywróć",
+  "actions.openCategories.keywords": "kategorie",
+  "actions.openAttributes.keywords": "atrybuty",
+  "actions.openAttributeSets.keywords": "zestaw, zestawy, atrybuty",
+  "actions.openAttachmentTypes.keywords": "załącznik, załączniki, rodzaje, certyfikat",
+  "actions.openBulkOperations.keywords": "masowe, masowa, akcje"
 }

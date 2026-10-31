@@ -5,5 +5,6 @@
   "errors.LIMIT_INSUFFICIENT": "Dostępny limit kredytowy ({availableAmount} {currency}) nie pokrywa wartości tego zamówienia ({orderTotal} {currency}). Zmniejsz zamówienie albo wybierz inną metodę płatności.",
   "nav.creditLimits.label": "Limity kredytowe",
   "actions.openCreditLimits.label": "Limity kredytowe",
-  "actions.openCreditLimits.description": "Limity kredytowe i salda klientów"
+  "actions.openCreditLimits.description": "Limity kredytowe i salda klientów",
+  "actions.openCreditLimits.keywords": "limity kredytowe, saldo"
 }

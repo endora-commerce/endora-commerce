@@ -636,5 +636,11 @@
   "delivery.reason.internal_error": "Coś poszło nie tak po stronie tej platformy.",
   "delivery.lastAttempt.succeeded": "Ostatnio dostarczono {when}",
   "delivery.lastAttempt.failed": "Ostatnie dostarczenie nie powiodło się {when}",
-  "nav.productFeeds.label": "Feedy produktowe"
+  "nav.productFeeds.label": "Feedy produktowe",
+  "actions.openProductFeeds.keywords": "feed produktowy, katalog",
+  "actions.createProductFeed.keywords": "nowy feed, feed produktowy",
+  "actions.openFeedTemplates.keywords": "szablon feedu, pola",
+  "actions.importFeedTemplate.keywords": "szablon feedu, wczytaj",
+  "actions.openFeedCategoryMapping.keywords": "taksonomia, mapowanie kategorii, kategorie",
+  "actions.openFeedTaxonomyRevisions.keywords": "aktualizacja taksonomii, nowa wersja, wersja taksonomii, pobieranie taksonomii"
 }

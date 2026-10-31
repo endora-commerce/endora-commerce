@@ -17,5 +17,6 @@
   "methods.availability.unavailable": "Not offered at checkout",
   "methods.availability.noAdapter": "No installed module provides the \"{adapter}\" adapter. This method is not offered at checkout until it has a registered adapter — edit it and choose one.",
   "methods.availability.moduleOff": "The \"{module}\" module that provides this adapter is switched off. This method is not offered at checkout until the module is switched on again or the method gets another registered adapter.",
-  "methods.availability.moduleUnavailable": "The \"{module}\" module that provides this adapter is not available in this installation. This method is not offered at checkout until the module is available again or the method gets another registered adapter."
+  "methods.availability.moduleUnavailable": "The \"{module}\" module that provides this adapter is not available in this installation. This method is not offered at checkout until the module is available again or the method gets another registered adapter.",
+  "actions.openDeliveryMethods.keywords": "delivery methods, shipping, courier"
 }

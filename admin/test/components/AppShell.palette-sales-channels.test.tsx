@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { parseBundleKeywords } from '@endora-commerce/contracts';
 import type { AdminActionView, GetAdminActionsResponse, SupportedAdminLanguage } from '@endora-commerce/contracts';
 import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
 import { adminSession, everyDeclaredModule, modulePresence, withSession } from '../helpers/render-with-session';
@@ -54,7 +55,14 @@ function servedRows(language: SupportedAdminLanguage): AdminActionView[] {
     description: action.descriptionKey ? (bundle[action.descriptionKey] ?? null) : null,
     icon: action.icon,
     targetRoute: action.targetRoute,
-    keywords: [...(action.keywords ?? [])],
+    // The manifest's English words, then the ones its `keywordsKey` resolves
+    // to in `language` (issues #560, #573), as `AdminActionsService` serves them.
+    keywords: [
+      ...new Set([
+        ...(action.keywords ?? []),
+        ...(action.keywordsKey ? parseBundleKeywords(bundle[action.keywordsKey] ?? '') : []),
+      ]),
+    ],
     weight: action.weight ?? 100,
   }));
 }
@@ -131,7 +139,10 @@ describe('AppShell palette — the Sales channels screen is reachable (Constitut
     resetPromptCapabilityCacheForTesting();
   });
 
-  it.each(['pl', 'en'] as const)(
+  // Issue #573 — a Polish search word is served from `pl.json`, so it finds the
+  // screen in a Polish-language admin; an English-language admin is served the
+  // manifest's English words and its own bundle's.
+  it.each(['pl'] as const)(
     'finds the Sales channels roster for every Polish query, in a %s-language admin',
     async (language) => {
       const label = BUNDLES[language]['actions.openSalesChannels.label'] as string;

@@ -130,5 +130,6 @@
   "customFields.validation.optionValueRequired": "Wpisz zapisaną wartość.",
   "customFields.validation.optionValueDuplicate": "Inna opcja ma już zapisaną wartość „{value}”.",
   "customFields.validation.singleDefault": "Pole pojedynczego wyboru może zaczynać od jednej opcji domyślnej. Najpierw odznacz „{label}”.",
-  "customFields.validation.rejected": "Ta wartość nie została przyjęta. Sprawdź ją i spróbuj ponownie."
+  "customFields.validation.rejected": "Ta wartość nie została przyjęta. Sprawdź ją i spróbuj ponownie.",
+  "actions.openCustomFields.keywords": "pola, niestandardowe"
 }

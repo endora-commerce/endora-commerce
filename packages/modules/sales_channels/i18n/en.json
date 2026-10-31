@@ -93,5 +93,7 @@
   "identity.prefixDefaultLanguage.hint": "When on, every storefront address starts with its language, the default one included: /pl/p/drill, /en/p/drill. When off, an address without a language is the default language (/p/drill) and only the other languages are prefixed. Addresses that change keep working through redirects.",
   "identity.prefixDefaultLanguage.prefixesHeading": "Language prefixes in storefront URLs",
   "identity.prefixDefaultLanguage.urlChangeWarning": "Changing the channel's languages or this switch changes the storefront's URLs. Old addresses are redirected; browsers may keep a redirect they cached for up to an hour.",
-  "list.badge.signInRequired": "Sign-in required"
+  "list.badge.signInRequired": "Sign-in required",
+  "actions.openSalesChannels.keywords": "channel, channels, sales",
+  "actions.newSalesChannel.keywords": "channel, sales"
 }

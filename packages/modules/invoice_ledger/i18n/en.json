@@ -46,5 +46,6 @@
   "adminRoles.permission.invoice_ledger:write": "Manage invoice ledger",
   "errors.INVOICE_LEDGER_VENDOR_ALREADY_ACTIVE": "Another invoice ledger vendor is already active ({activeModuleId}). Switch it off first.",
   "errors.INVOICE_LEDGER_CREDENTIALS_MISSING": "The ledger vendor credentials for this invoice are missing.",
-  "errors.INVOICE_LEDGER_DELIVERY_NOT_RETRYABLE": "This delivery cannot be retried."
+  "errors.INVOICE_LEDGER_DELIVERY_NOT_RETRYABLE": "This delivery cannot be retried.",
+  "actions.openDeliveries.keywords": "invoices"
 }
