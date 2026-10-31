@@ -77,6 +77,7 @@ import {
 } from '../../../scripts/check-entry-scope.js';
 import {
   findPlaceholderSentences,
+  findUndeclaredTokenRaises,
   findUnraisedCodes,
   findUnreachableSentences,
   findUntranslatedErrorCodes,
@@ -6022,6 +6023,21 @@ const CHECKS: readonly CheckEntry[] = [
           readRaiseSites(tree.listSources(), new Set(Object.keys(tree.keys))),
         ).filter((f) => f.token === 'archived').length;
       }),
+      // Issue #83, the ruling of 2026-10-30 (P6): a code raised with a token
+      // the static read cannot spell, whose manifest declares no `tokens`.
+      'token-undeclared': top(() => {
+        const tree = errorSentenceTree(
+          {
+            'cms.en': { 'errors.BLOG_POST_NOT_FOUND': 'No such post.' },
+            'cms.pl': { 'errors.BLOG_POST_NOT_FOUND': 'Nie ma takiego wpisu.' },
+          },
+          "export const gone = (why: string) =>\n  new HttpError(404, ERROR_CODES.BLOG_POST_NOT_FOUND, 'Gone.', { code: why });",
+        );
+        return findUndeclaredTokenRaises(
+          tree,
+          readRaiseSites(tree.listSources(), new Set(Object.keys(tree.keys))),
+        ).length;
+      }),
       // Issue #83, slice 3 (P7): a declared code no source file names.
       'code-unraised': top(() => {
         const tree = errorSentenceTree(
@@ -11784,7 +11800,11 @@ describe('every red proof enters at the top of the analysis', () => {
       // and P7's unraised code. Each reads something the other predicates
       // never open — a key the grammar refuses, a raise's `details.code`, the
       // source tree — so none of the twelve above could go red for them.
-      'backend/scripts/check-error-translations.ts': 15,
+      // Plus the ruling of 2026-10-30's one: P6's `token-undeclared`, a
+      // computed token on a code that declares none. `token-untranslated`
+      // reads only tokens it is given, so it cannot go red for a set nobody
+      // stated.
+      'backend/scripts/check-error-translations.ts': 16,
       // Three shapes the read reaches the fallback through, four fabrications
       // the fallback performs; the two axes are independent, so the count is
       // their union rather than their product. Plus issue #275's five: three

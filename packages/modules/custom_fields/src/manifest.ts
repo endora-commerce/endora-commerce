@@ -69,6 +69,11 @@ export const manifest = defineModuleManifest({
    * refusals of a definition change that shared `CUSTOM_FIELD_DEFINITION_INVALID`
    * and an English message; each now has a sentence naming what it refuses
    * (`details.label` / `details.value`, or `details.key`) and no tokens.
+   * The route passes the service error's `details` on by spread, which a
+   * static read cannot see into, so each says so with `tokens: []`
+   * (`check:error-translations`, issue #83): every
+   * `CustomFieldDefinitionError` raised under those three reasons carries
+   * `key`, or `value` and `label`, and never a `code`.
    *
    * **`CUSTOM_FIELD_CARRY_INCOMPATIBLE`** (feature 162) is the family's tenth
    * and the first with tokens: the definition Commands refuse turning on a
@@ -93,10 +98,10 @@ export const manifest = defineModuleManifest({
     { code: 'CUSTOM_FIELD_HOST_MANAGED' },
     { code: 'CUSTOM_FIELD_KEY_CONFLICT' },
     { code: 'CUSTOM_FIELD_NOT_FOUND' },
-    { code: 'CUSTOM_FIELD_OPTION_IN_USE' },
-    { code: 'CUSTOM_FIELD_STORED_VALUES_EXIST' },
+    { code: 'CUSTOM_FIELD_OPTION_IN_USE', tokens: [] },
+    { code: 'CUSTOM_FIELD_STORED_VALUES_EXIST', tokens: [] },
     { code: 'CUSTOM_FIELD_VALUE_INVALID' },
-    { code: 'CUSTOM_FIELD_VALUE_TYPE_LOCKED' },
+    { code: 'CUSTOM_FIELD_VALUE_TYPE_LOCKED', tokens: [] },
   ],
   permissions: [
     { code: 'custom_fields:read', label: 'View custom fields' },

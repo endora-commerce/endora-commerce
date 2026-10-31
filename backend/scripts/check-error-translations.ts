@@ -83,7 +83,13 @@
  *          P1 counting the base key said nothing about it. The token set is the
  *          literal tokens a static read of `new HttpError(…)` sites finds plus
  *          the manifest's declared `tokens`; a raise whose token the read
- *          cannot spell is counted (`tokenSitesUnresolved`) and not judged.
+ *          cannot spell is counted (`tokenSitesUnresolved`) and judged
+ *          through the declaration: since the maintainer's ruling of
+ *          2026-10-30, a code raised that way **must** declare its `tokens`,
+ *          and one that does not is `token-undeclared`. A code whose token
+ *          set no declaration can state — an open set, or a value outside the
+ *          token grammar — is ledgered by `UNDECLARABLE_TOKEN_ERROR_CODES`,
+ *          two-way, may only shrink; its repair is at the raise.
  *          Three tokens rendered the thrower's English when it landed, and all
  *          three were written. No ledger: every repair is a sentence.
  *   **P7** a declared code something in the source tree names. The read counts
@@ -491,6 +497,37 @@ export const UNRAISED_ERROR_CODES: ReadonlySet<string> = new Set([
   'SETTING_BREAKING_CHANGE_REJECTED', 'SETTING_CODE_CONFLICT',
 ]);
 
+/**
+ * Codes raised with a computed `details.code` whose token set **cannot** be
+ * declared (P6's `token-undeclared`, issue #83), measured when the predicate
+ * landed: three codes. Two-way like the ledgers above — a new such code fails,
+ * and an entry whose raise has since been given a declarable token set fails
+ * too — and it may only shrink.
+ *
+ * Every entry is the same defect seen from the check: the raise puts a
+ * **value** under `details.code`, where the envelope expects a refusal token,
+ * so the envelope looks up `errors.<CODE>.<value>`, finds nothing, and the
+ * operator reads the thrower's English in every language — the base sentence,
+ * where one is written, is never read. The repair is at the raise (move the
+ * value to a member of its own name, and keep `code` for a token, or drop it),
+ * not in the manifest, which is why each entry is ledgered here instead of
+ * declared.
+ */
+export const UNDECLARABLE_TOKEN_ERROR_CODES: ReadonlySet<string> = new Set([
+  // _i18n (1) — `orders`' minimum-order-value validator passes the setting's
+  // code, `orders.min_order_value`, as `details.code`. The set is one value,
+  // but a dotted value is outside the token grammar, so no declaration can
+  // name it and no `errors.AMOUNT_PRECISION_EXCEEDED.<token>` key can hold it.
+  'AMOUNT_PRECISION_EXCEEDED',
+  // tasks (1) — `priorityUnknown(code)` passes the priority code the caller
+  // sent (`{ code }`): an operator-configured, open set.
+  'TASK_PRIORITY_UNKNOWN',
+  // transactional_emails (1) — the raise passes the email's registry code,
+  // an open set every module that registers an email extends; the module's
+  // manifest note on the code says so in full.
+  'TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE',
+]);
+
 export interface Finding {
   readonly code: string;
   readonly moduleId: string;
@@ -824,6 +861,12 @@ export function translationInputFor(
  * `errorCodes[].tokens`, keyed by code, for the codes the routing resolved.
  * A contested code has no route, so the declaration it would be read against
  * is ambiguous — P4 reports it and P6 does not guess.
+ *
+ * **An empty list is kept**, because it is a statement and not an absence:
+ * `tokens: []` says the code is raised with a `details` the static read cannot
+ * see into — a parameter handed down by a helper, a caught error's `details` —
+ * and that none of the values it can take carries a `code`. It is what
+ * answers `token-undeclared` for such a raise without inventing a token.
  */
 export function declaredTokensOf(
   declarations: readonly ManifestErrorCodeDeclaration[],
@@ -833,7 +876,7 @@ export function declaredTokensOf(
   for (const declaration of declarations) {
     for (const code of declaration.manifest.errorCodes ?? []) {
       if (targets[code.code]?.moduleId !== declaration.manifest.id) continue;
-      if (code.tokens !== undefined && code.tokens.length > 0) tokens[code.code] = [...code.tokens];
+      if (code.tokens !== undefined) tokens[code.code] = [...code.tokens];
     }
   }
   return tokens;
@@ -1152,9 +1195,10 @@ export interface TokenedRaise extends RaiseSite {
 
 /**
  * A `new HttpError(…)` whose `details` may carry a token the static read
- * cannot spell — a variable, a parameter, a spread. Counted and printed, never
- * a finding: the token set such a raise draws from is what a manifest's
- * `tokens` declaration states, and P6 reads that declaration as well.
+ * cannot spell — a variable, a parameter, a spread. Not a finding by itself:
+ * the token set such a raise draws from is what a manifest's `tokens`
+ * declaration states, so the finding is a code raised this way that declares
+ * none ({@link findUndeclaredTokenRaises}).
  */
 export interface UnresolvedTokenRaise extends RaiseSite {
   readonly expression: string;
@@ -1207,6 +1251,48 @@ type TokenRead =
   | { readonly kind: 'literal'; readonly tokens: readonly string[] }
   | { readonly kind: 'unresolved'; readonly expression: string };
 
+/** Both of two reads at once — the two branches of a conditional, say. */
+function eitherRead(a: TokenRead, b: TokenRead): TokenRead {
+  if (a.kind === 'unresolved') return a;
+  if (b.kind === 'unresolved') return b;
+  if (a.kind === 'none') return b;
+  if (b.kind === 'none') return a;
+  return { kind: 'literal', tokens: [...a.tokens, ...b.tokens] };
+}
+
+/**
+ * The initializer of the `const` an identifier names, when the declaration is
+ * in a block enclosing the use in the same file — or `null`. A parameter, a
+ * `let`, an import and anything declared elsewhere stay unresolved, because
+ * the value they hold is not written where the read can see it.
+ */
+function constInitializer(identifier: ts.Identifier): ts.Expression | null {
+  for (let scope: ts.Node | undefined = identifier.parent; scope; scope = scope.parent) {
+    // A parameter of that name shadows every `const` further out.
+    if (
+      ts.isFunctionLike(scope) &&
+      scope.parameters.some((p) => ts.isIdentifier(p.name) && p.name.text === identifier.text)
+    ) {
+      return null;
+    }
+    if (!ts.isBlock(scope) && !ts.isSourceFile(scope) && !ts.isModuleBlock(scope)) continue;
+    for (const statement of scope.statements) {
+      if (!ts.isVariableStatement(statement)) continue;
+      if ((statement.declarationList.flags & ts.NodeFlags.Const) === 0) continue;
+      for (const declaration of statement.declarationList.declarations) {
+        if (
+          ts.isIdentifier(declaration.name) &&
+          declaration.name.text === identifier.text &&
+          declaration.initializer !== undefined
+        ) {
+          return declaration.initializer;
+        }
+      }
+    }
+  }
+  return null;
+}
+
 /** The literal token(s) an expression evaluates to, or why it cannot be read. */
 function literalTokens(expression: ts.Expression, source: ts.SourceFile): TokenRead {
   const node = unwrapped(expression);
@@ -1224,24 +1310,71 @@ function literalTokens(expression: ts.Expression, source: ts.SourceFile): TokenR
 }
 
 /**
+ * How many `const`s the read follows from one `details` before it gives up —
+ * a guard against a declaration that names itself, not a measured depth.
+ */
+const MAX_CONST_HOPS = 4;
+
+/**
  * The token a raise's `details` argument carries — the same discrimination the
  * envelope's `refusalToken` makes at runtime, made over syntax: the Zod-style
  * array and an absent argument carry none, an object literal carries its
  * `code` member, and anything else is a value the read cannot see into.
+ *
+ * Four shapes are seen through rather than counted (the ruling of 2026-10-30
+ * made every unresolved raise owe a declaration, so a shape the read can
+ * decide must not be sent to the manifest): an `.map(…)` call, which is an
+ * array; a conditional or a `??`, which is either side; a spread, whose members are
+ * read as if written in place; and a `const` declared in an enclosing block of
+ * the same file, which is its initializer.
  */
-function tokenOfDetails(details: ts.Expression | undefined, source: ts.SourceFile): TokenRead {
+function tokenOfDetails(
+  details: ts.Expression | undefined,
+  source: ts.SourceFile,
+  hops = 0,
+): TokenRead {
   if (details === undefined) return { kind: 'none' };
   const node = unwrapped(details);
   if (ts.isIdentifier(node) && node.text === 'undefined') return { kind: 'none' };
+  if (node.kind === ts.SyntaxKind.NullKeyword) return { kind: 'none' };
   if (ts.isArrayLiteralExpression(node)) return { kind: 'none' };
+  if (
+    ts.isCallExpression(node) &&
+    ts.isPropertyAccessExpression(node.expression) &&
+    node.expression.name.text === 'map'
+  ) {
+    return { kind: 'none' };
+  }
+  if (ts.isConditionalExpression(node)) {
+    return eitherRead(
+      tokenOfDetails(node.whenTrue, source, hops),
+      tokenOfDetails(node.whenFalse, source, hops),
+    );
+  }
+  if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken) {
+    return eitherRead(
+      tokenOfDetails(node.left, source, hops),
+      tokenOfDetails(node.right, source, hops),
+    );
+  }
+  if (ts.isIdentifier(node) && hops < MAX_CONST_HOPS) {
+    const initializer = constInitializer(node);
+    if (initializer !== null) return tokenOfDetails(initializer, source, hops + 1);
+  }
   if (!ts.isObjectLiteralExpression(node)) {
     return { kind: 'unresolved', expression: node.getText(source) };
   }
   let read: TokenRead = { kind: 'none' };
   for (const property of node.properties) {
-    // Later members win, as they do at runtime, so the walk keeps the last.
+    // Later members win, as they do at runtime, so the walk keeps the last —
+    // except that a spread which may or may not carry a `code` keeps the
+    // earlier one beside its own.
     if (ts.isSpreadAssignment(property)) {
-      read = { kind: 'unresolved', expression: property.getText(source) };
+      const spread = tokenOfDetails(property.expression, source, hops);
+      read =
+        spread.kind === 'unresolved'
+          ? { kind: 'unresolved', expression: property.getText(source) }
+          : eitherRead(read, spread);
       continue;
     }
     const name = property.name;
@@ -1288,7 +1421,8 @@ export function readRaiseSites(sources: Iterable<SourceFile>, codes: ReadonlySet
       file.path,
       file.text,
       ts.ScriptTarget.Latest,
-      false,
+      // Parents, so a `details` identifier can be followed to its `const`.
+      true,
       file.path.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
     );
     const siteOf = (node: ts.Node): string =>
@@ -1428,6 +1562,57 @@ export function findUntranslatedTokens(
   return findings.sort((a, b) => a.code.localeCompare(b.code) || a.token.localeCompare(b.token));
 }
 
+/** A code raised with a token the read cannot spell, whose manifest declares none (P6). */
+export interface UndeclaredTokenFinding {
+  readonly code: string;
+  /** The module whose manifest owes the `tokens` declaration. */
+  readonly moduleId: string;
+  /** The raise sites whose `details.code` is computed. */
+  readonly sites: readonly string[];
+}
+
+/**
+ * P6's `token-undeclared` — a code raised with a computed token declares its
+ * token set (issue #83; the maintainer's ruling of 2026-10-30).
+ *
+ * {@link findUntranslatedTokens} judges the tokens it is given, and for a
+ * raise whose `details.code` is a variable, a details object built elsewhere
+ * or a spread, the only author of that set is the manifest's `tokens`. A code
+ * with no declaration therefore had nothing to be judged against: a token
+ * added behind the variable rendered the thrower's English in every language
+ * with the check green. So the declaration is required, and once it exists the
+ * per-token bundle check covers every member.
+ *
+ * A declaration of `tokens: []` answers it too — the module's statement that
+ * the computed `details` never carries a `code` ({@link declaredTokensOf}).
+ *
+ * The exclusions are {@link findUntranslatedTokens}' own: a code whose tokens
+ * the envelope never translates, and a code no module routes (P3's or P4's
+ * finding). Its ledger is {@link UNDECLARABLE_TOKEN_ERROR_CODES}, and it holds
+ * only codes whose token set no declaration can state.
+ */
+export function findUndeclaredTokenRaises(
+  input: Pick<TranslationInput, 'keys' | 'declaredTokens'>,
+  raises: Pick<RaiseRead, 'unresolvedTokens'>,
+): UndeclaredTokenFinding[] {
+  const sites = new Map<string, string[]>();
+  for (const raise of raises.unresolvedTokens) {
+    if (TOKENS_NEVER_TRANSLATED.has(raise.code)) continue;
+    if (!input.keys[raise.code]) continue;
+    if (raise.code in input.declaredTokens) continue;
+    const found = sites.get(raise.code);
+    if (found) found.push(raise.site);
+    else sites.set(raise.code, [raise.site]);
+  }
+  return [...sites]
+    .map(([code, raisedAt]) => ({
+      code,
+      moduleId: input.keys[code]!.moduleId,
+      sites: [...raisedAt].sort(),
+    }))
+    .sort((a, b) => a.code.localeCompare(b.code));
+}
+
 /**
  * P7 — a declared code nothing in the tree names (issue #83, slice 3).
  *
@@ -1462,6 +1647,11 @@ export interface AnalysisResult {
   readonly keysWalked: readonly BundleKey[];
   /** P6 findings — a token a code is raised with that has no sentence. No ledger. */
   readonly tokens: readonly TokenFinding[];
+  /** P6's `token-undeclared` findings, ledgered and not. */
+  readonly undeclaredTokens: readonly UndeclaredTokenFinding[];
+  readonly undeclaredTokensUnledgered: readonly UndeclaredTokenFinding[];
+  /** `UNDECLARABLE_TOKEN_ERROR_CODES` entries that are no longer findings. */
+  readonly undeclaredTokensStale: readonly string[];
   /** P7 findings — declared codes nothing names, ledgered and not. */
   readonly unraised: readonly string[];
   readonly unraisedUnledgered: readonly string[];
@@ -1492,6 +1682,7 @@ export function analyseErrorTranslations(
   input: TranslationInput,
   ledger: ReadonlySet<string> = UNTRANSLATED_ERROR_CODES,
   unraisedLedger: ReadonlySet<string> = UNRAISED_ERROR_CODES,
+  undeclarableLedger: ReadonlySet<string> = UNDECLARABLE_TOKEN_ERROR_CODES,
 ): AnalysisResult {
   const findings = findUntranslatedErrorCodes(input);
   const unledgered = findings.filter((f) => !ledger.has(f.code));
@@ -1507,6 +1698,12 @@ export function analyseErrorTranslations(
     new Set([...Object.keys(input.keys), ...input.collisions.map((collision) => collision.code)]),
   );
   const tokens = findUntranslatedTokens(input, raises);
+  const undeclaredTokens = findUndeclaredTokenRaises(input, raises);
+  const undeclaredTokensUnledgered = undeclaredTokens.filter((f) => !undeclarableLedger.has(f.code));
+  const undeclaredFound = new Set(undeclaredTokens.map((f) => f.code));
+  const undeclaredTokensStale = [...undeclarableLedger]
+    .filter((code) => !undeclaredFound.has(code))
+    .sort();
   const unraised = findUnraisedCodes(input, raises);
   const unraisedUnledgered = unraised.filter((code) => !unraisedLedger.has(code));
   const unraisedFound = new Set(unraised);
@@ -1530,7 +1727,8 @@ export function analyseErrorTranslations(
     reconciliations.filter((finding) => finding.kind === 'undeclared-enum-member').length;
   const empty = {
     findings, unledgered, stale, sentences, reconciliations, collisions, placeholders,
-    keysWalked, enumeratedCodesAccountedFor, tokens, unraised, unraisedUnledgered,
+    keysWalked, enumeratedCodesAccountedFor, tokens, undeclaredTokens,
+    undeclaredTokensUnledgered, undeclaredTokensStale, unraised, unraisedUnledgered,
     unraisedStale, raises,
   };
 
@@ -1597,6 +1795,8 @@ export function analyseErrorTranslations(
       collisions.length > 0 ||
       placeholders.length > 0 ||
       tokens.length > 0 ||
+      undeclaredTokensUnledgered.length > 0 ||
+      undeclaredTokensStale.length > 0 ||
       unraisedUnledgered.length > 0 ||
       unraisedStale.length > 0
         ? 1
@@ -1614,6 +1814,9 @@ export function analyseErrorTranslations(
       `placeholder=${byPlaceholder('placeholder')} ` +
       `sameAsEnglish=${byPlaceholder('same-as-english')} ` +
       `tokenUntranslated=${tokens.length} ` +
+      `tokenUndeclared=${undeclaredTokensUnledgered.length} ` +
+      `tokenUndeclaredLedgered=${undeclaredTokens.length - undeclaredTokensUnledgered.length} ` +
+      `tokenUndeclaredStale=${undeclaredTokensStale.length} ` +
       `tokenSitesUnresolved=${raises.unresolvedTokens.length} ` +
       `unraised=${unraisedUnledgered.length} unraisedLedgered=${unraised.length - unraisedUnledgered.length} ` +
       `unraisedLedgerSize=${unraisedLedger.size} unraisedStale=${unraisedStale.length}`,
@@ -1816,6 +2019,29 @@ async function main(): Promise<void> {
         `  - ${f.key} → ${f.moduleId} (missing in: ${f.missingIn.join(', ')}; ${where})`,
       );
     }
+  }
+
+  if (result.undeclaredTokensUnledgered.length > 0) {
+    console.error(
+      '\nThese codes are raised with a refusal token the static read cannot spell, and ' +
+        'their manifest declares no `tokens`, so no sentence can be checked for what the ' +
+        'raise will carry. Follow the variable to the values it can take and declare them ' +
+        'in errorCodes[].tokens (tokens: [] when none of them carries a code); the token ' +
+        'check above then asks for each sentence. Do not add to UNDECLARABLE_TOKEN_ERROR_CODES ' +
+        'to make a build pass — that ledger ' +
+        'holds only codes whose token set cannot be declared, and their repair is at the raise:',
+    );
+    for (const f of result.undeclaredTokensUnledgered) {
+      console.error(`  - [token-undeclared] ${f.code} → ${f.moduleId} (raised at ${f.sites.join(', ')})`);
+    }
+  }
+
+  if (result.undeclaredTokensStale.length > 0) {
+    console.error(
+      '\nThese are in UNDECLARABLE_TOKEN_ERROR_CODES but are no longer raised with an ' +
+        'undeclared computed token. Delete them from the ledger — it may only shrink:',
+    );
+    for (const code of result.undeclaredTokensStale) console.error(`  - ${code}`);
   }
 
   if (result.unraisedUnledgered.length > 0) {

@@ -63,7 +63,10 @@ export const manifest = defineModuleManifest({
   errorCodes: [
     { code: 'DOCUMENT_TEMPLATE_NOT_FOUND' },
     { code: 'DOCUMENT_TYPE_NOT_AVAILABLE' },
-    { code: 'DOCUMENT_TEMPLATE_INVALID' },
+    // Raised through two `invalid(message, details)` helpers, whose callers
+    // pass the offending `path`, `limit`, `language` or id and never a `code`
+    // — so no refusal token (`check:error-translations`, issue #83).
+    { code: 'DOCUMENT_TEMPLATE_INVALID', tokens: [] },
     { code: 'DOCUMENT_TEMPLATE_IS_DEFAULT' },
     { code: 'DOCUMENT_TEMPLATE_NOT_SELECTABLE' },
     { code: 'DOCUMENT_RENDER_FAILED' },
