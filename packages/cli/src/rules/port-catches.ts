@@ -369,8 +369,9 @@ export interface PortCatchInput {
 
 /**
  * A declared alias: in one file, a local name holds a value that reaches these
- * gated ports, through a shape the value analysis does not follow (issue #100's
- * ruling; the D18 "holder built from a deps bag" blind spot, issue #576).
+ * gated ports, through a shape the analysis does not follow (issue #100's
+ * ruling). Its first entry was the D18 "holder built from a deps bag" blind
+ * spot, which issue #576 lifted — and which the staleness clause below caught.
  *
  * It exists so that a `catch` a real port reach guards stays in the judged
  * population when the only thing that used to keep it there was a spelling
@@ -446,7 +447,29 @@ interface Analysis {
   readonly parsed: ReadonlyMap<string, ts.SourceFile>;
   /** Pin key → why it is stale, for the pins that were refused before seeding. */
   readonly pinProblems: ReadonlyMap<string, string>;
+  /**
+   * The holders `node`, written in `file`, evaluates to — a class instance or a
+   * closure, never a gate (issue #576). What a call on one reaches is the
+   * method's, resolved by {@link collectCarryingMethods}.
+   */
+  holdersOf(node: ts.Node, file: string): ReadonlySet<HolderToken>;
+  /** Every holder the tables hold, by token — the units a call on one resolves to. */
+  readonly holderUnits: ReadonlyMap<HolderToken, HolderUnit>;
 }
+
+/** A holder's identity: `class <file>#<name>` or `fn <file>@<pos>` (issue #576). */
+type HolderToken = string;
+
+type HolderFunction = ts.ArrowFunction | ts.FunctionExpression | ts.MethodDeclaration;
+
+/**
+ * What a holder token stands for — a class whose methods are called, a
+ * closure that is, or an object literal whose keys are read.
+ */
+type HolderUnit =
+  | { readonly kind: 'class'; readonly file: string; readonly declaration: ts.ClassDeclaration }
+  | { readonly kind: 'function'; readonly file: string; readonly fn: HolderFunction }
+  | { readonly kind: 'object'; readonly file: string; readonly literal: ts.ObjectLiteralExpression };
 
 /**
  * What a site or a method body reached, and **how** it was read (issue #100):
@@ -459,7 +482,14 @@ type Reach = string;
 
 const bareReach = (name: string): Reach => name;
 const propertyReach = (name: string): Reach => `.${name}`;
-const reachName = (reach: Reach): string => (reach.startsWith('.') ? reach.slice(1) : reach);
+/**
+ * A gate reached **through a holder** (issue #576), already resolved in the
+ * holder's own file: the name it was read by belongs to another file's tables,
+ * so the gate is carried rather than the spelling.
+ */
+const gateReach = (gate: string): Reach => `!${gate}`;
+const reachName = (reach: Reach): string =>
+  reach.startsWith('.') || reach.startsWith('!') ? reach.slice(1) : reach;
 
 /**
  * The awilix resolver-builder chain. `ctx.asFunction(f).singleton()` is the
@@ -719,6 +749,7 @@ function analyze(
 
   const gatesOfReach = (reach: Reach, moduleId: string, file: string): ReadonlySet<string> => {
     const name = reachName(reach);
+    if (reach.startsWith('!')) return new Set([name]);
     return reach === name ? gatesAt(name, moduleId, file) : propertyGatesAt(name, moduleId, file);
   };
 
@@ -776,6 +807,341 @@ function analyze(
   }
 
   /**
+   * Holders, followed as holders (issue #576; feature 134 D18 §2, half 2).
+   *
+   * The value tables above deliberately stop at an object literal: a deps bag
+   * that carried as a value would taint every method of the class built from
+   * it. These tables follow the **holder** instead — which class instance,
+   * which closure, which object literal a binding holds — and carry no gate at
+   * all. A gate is attributed only where a holder is *called*: `read.list()`
+   * reaches what `ProjectReadService#list` reaches, `this.deps.audience(id)`
+   * what the closure under that key reaches, and `read.getOrFail()` — a row
+   * read — nothing. That resolution is {@link collectCarryingMethods}' (it
+   * needs every method's reaches, which need these tables to have converged).
+   *
+   * **Receiver-aware, which is what the value tables cannot be.** A holder is
+   * bound to a *declaration* — a `const`, a parameter, a destructured element —
+   * resolved lexically from the identifier that reads it, never to a spelling.
+   * A key is looked up **in the literal the receiver holds** (`this.deps.k`
+   * reads `k` of the bag that class was constructed with), so a closure under
+   * `resolve` in one bag does not answer for every `.resolve()` in the module.
+   * The one name-keyed table is the container's: a key registered through
+   * `ctx.di.register` is read off a cradle whose shape no syntax names, which
+   * is the value tables' own rule for a root's registrations.
+   */
+  const holdersByDeclaration = new Map<ts.Node, Set<HolderToken>>();
+  /** Container name → module scope (or everywhere, for a root's) → holders. */
+  const containerHolders = new Map<string, Map<string, Set<HolderToken>>>();
+  const holderUnits = new Map<HolderToken, HolderUnit>();
+  const addHolders = (
+    into: Set<HolderToken>,
+    tokens: Iterable<HolderToken>,
+    label: string,
+    where: string,
+  ): void => {
+    for (const token of tokens) {
+      if (into.has(token)) continue;
+      into.add(token);
+      grew = true;
+      if (process.env.PORT_CATCH_WHY) console.error(`HOLD  ${label} <- ${token} @${where}`);
+    }
+  };
+  const holdDeclaration = (
+    declaration: ts.Node,
+    tokens: ReadonlySet<HolderToken>,
+    where: string,
+  ): void => {
+    if (tokens.size === 0) return;
+    const held = holdersByDeclaration.get(declaration) ?? new Set<HolderToken>();
+    holdersByDeclaration.set(declaration, held);
+    const name = (declaration as { name?: ts.Node }).name;
+    addHolders(held, tokens, name !== undefined && ts.isIdentifier(name) ? name.text : '?', where);
+  };
+  const holdContainerName = (
+    name: string,
+    scope: string,
+    tokens: ReadonlySet<HolderToken>,
+    where: string,
+  ): void => {
+    if (tokens.size === 0) return;
+    const byScope = containerHolders.get(name) ?? new Map<string, Set<HolderToken>>();
+    containerHolders.set(name, byScope);
+    const held = byScope.get(scope) ?? new Set<HolderToken>();
+    byScope.set(scope, held);
+    addHolders(held, tokens, `${name} @${scope}`, where);
+  };
+  const containerHoldersAt = (name: string, moduleId: string): Set<HolderToken> => {
+    const found = new Set<HolderToken>();
+    const byScope = containerHolders.get(name);
+    for (const token of byScope?.get(moduleId) ?? []) found.add(token);
+    for (const token of byScope?.get(EVERYWHERE) ?? []) found.add(token);
+    return found;
+  };
+  const classToken = (file: string, declaration: ts.ClassDeclaration): HolderToken => {
+    const token = `class ${file}@${declaration.pos}`;
+    if (!holderUnits.has(token)) holderUnits.set(token, { kind: 'class', file, declaration });
+    return token;
+  };
+  const functionToken = (file: string, fn: HolderFunction): HolderToken => {
+    const token = `fn ${file}@${fn.pos}`;
+    if (!holderUnits.has(token)) holderUnits.set(token, { kind: 'function', file, fn });
+    return token;
+  };
+  const objectToken = (file: string, literal: ts.ObjectLiteralExpression): HolderToken => {
+    const token = `object ${file}@${literal.pos}`;
+    if (!holderUnits.has(token)) holderUnits.set(token, { kind: 'object', file, literal });
+    return token;
+  };
+  // Every closure is a unit up front, so a token first minted while a site is
+  // being resolved still names a body whose reaches were collected.
+  for (const [file, sf] of parsed) {
+    const visit = (node: ts.Node): void => {
+      if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) functionToken(file, node);
+      if (ts.isMethodDeclaration(node) && ts.isObjectLiteralExpression(node.parent)) {
+        functionToken(file, node);
+      }
+      node.forEachChild(visit);
+    };
+    sf.forEachChild(visit);
+  }
+  const membersByFile = new Map<string, Map<string, Map<string, ts.Node>>>();
+  const membersOf = (file: string): Map<string, Map<string, ts.Node>> => {
+    let members = membersByFile.get(file);
+    if (members === undefined) {
+      members = classesIn(parsed.get(file) as ts.SourceFile);
+      membersByFile.set(file, members);
+    }
+    return members;
+  };
+  /** Does a declaration named `name` in `file` hold a holder — the pin-staleness question. */
+  const holdsAnywhereIn = (file: string, name: string): boolean => {
+    for (const [declaration, held] of holdersByDeclaration) {
+      const named = (declaration as { name?: ts.Node }).name;
+      if (
+        held.size > 0 &&
+        named !== undefined &&
+        ts.isIdentifier(named) &&
+        named.text === name &&
+        declaration.getSourceFile().fileName === file
+      ) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  /**
+   * What key `key` of each holder in `tokens` holds: a literal's property
+   * (through its spreads), a class's constructor parameter or initialised field
+   * of that name. `seen` bounds a literal that spreads itself.
+   */
+  const memberHolders = (
+    tokens: Iterable<HolderToken>,
+    key: string,
+    seen: Set<string>,
+  ): Set<HolderToken> => {
+    const found = new Set<HolderToken>();
+    for (const token of tokens) {
+      const visit = `${token}.${key}`;
+      if (seen.has(visit)) continue;
+      seen.add(visit);
+      const unit = holderUnits.get(token);
+      if (unit === undefined || unit.kind === 'function') continue;
+      if (unit.kind === 'object') {
+        for (const property of unit.literal.properties) {
+          let held: Iterable<HolderToken> = [];
+          if (ts.isSpreadAssignment(property)) {
+            held = memberHolders(holdersOf(property.expression, unit.file, seen), key, seen);
+          } else if (memberName(property.name) !== key) {
+            continue;
+          } else if (ts.isPropertyAssignment(property)) {
+            held = holdersOf(property.initializer, unit.file, seen);
+          } else if (ts.isShorthandPropertyAssignment(property)) {
+            held = holdersOf(property.name, unit.file, seen);
+          } else if (ts.isMethodDeclaration(property)) {
+            held = [functionToken(unit.file, property)];
+          }
+          for (const one of held) found.add(one);
+        }
+        continue;
+      }
+      for (const member of unit.declaration.members) {
+        if (ts.isConstructorDeclaration(member)) {
+          for (const parameter of member.parameters) {
+            if (ts.isIdentifier(parameter.name) && parameter.name.text === key) {
+              for (const one of holdersByDeclaration.get(parameter) ?? []) found.add(one);
+            }
+          }
+        } else if (
+          ts.isPropertyDeclaration(member) &&
+          memberName(member.name) === key &&
+          member.initializer !== undefined
+        ) {
+          for (const one of holdersOf(member.initializer, unit.file, seen)) found.add(one);
+        }
+      }
+    }
+    return found;
+  };
+
+  /**
+   * The holders evaluating `node` (written in `file`) yields. Structural, like
+   * {@link carries}: a `new` of a class the file resolves, a closure, an object
+   * literal, a binding the tables hold, a key of a holder, a container name,
+   * and the calls that hand a holder on — the resolver chain around a factory,
+   * a class's own method returning one, and a factory function the file
+   * resolves, whose `return`s are read in **its** file.
+   */
+  const holdersOf = (
+    node: ts.Node,
+    file: string,
+    seen: Set<string> = new Set(),
+  ): Set<HolderToken> => {
+    const found = new Set<HolderToken>();
+    const moduleId = moduleOf(`/src/${file}`, hostResident) ?? ROOT;
+    const returnsOf = (body: ts.Node, inFile: string): void => {
+      const visit = `return ${inFile}@${body.pos}`;
+      if (seen.has(visit)) return;
+      seen.add(visit);
+      for (const returned of returnedExpressions(body)) {
+        for (const token of holdersOf(returned, inFile, seen)) found.add(token);
+      }
+    };
+    const visit = (at: ts.Node): void => {
+      if (
+        ts.isParenthesizedExpression(at) ||
+        ts.isAwaitExpression(at) ||
+        ts.isNonNullExpression(at) ||
+        ts.isAsExpression(at) ||
+        ts.isSatisfiesExpression(at)
+      ) {
+        visit(at.expression);
+        return;
+      }
+      if (ts.isConditionalExpression(at)) {
+        visit(at.whenTrue);
+        visit(at.whenFalse);
+        return;
+      }
+      if (ts.isBinaryExpression(at)) {
+        const operator = at.operatorToken.kind;
+        if (
+          operator === ts.SyntaxKind.QuestionQuestionToken ||
+          operator === ts.SyntaxKind.BarBarToken ||
+          operator === ts.SyntaxKind.AmpersandAmpersandToken
+        ) {
+          visit(at.left);
+          visit(at.right);
+        }
+        return;
+      }
+      if (ts.isNewExpression(at)) {
+        if (!ts.isIdentifier(at.expression)) return;
+        const declared = resolveClass(file, at.expression.text);
+        if (declared !== undefined) found.add(classToken(declared.file, declared.declaration));
+        return;
+      }
+      if (ts.isArrowFunction(at) || ts.isFunctionExpression(at)) {
+        found.add(functionToken(file, at));
+        return;
+      }
+      if (ts.isObjectLiteralExpression(at)) {
+        found.add(objectToken(file, at));
+        return;
+      }
+      if (ts.isIdentifier(at)) {
+        const declaration = holderBindingOf(at);
+        for (const token of declaration === null ? [] : (holdersByDeclaration.get(declaration) ?? [])) {
+          found.add(token);
+        }
+        return;
+      }
+      if (ts.isPropertyAccessExpression(at)) {
+        const key = at.name.text;
+        if (at.expression.kind === ts.SyntaxKind.ThisKeyword) {
+          // `this.deps` — what the enclosing class was constructed with.
+          const owner = enclosingClass(at);
+          if (owner !== null) {
+            for (const token of memberHolders([classToken(file, owner)], key, seen)) found.add(token);
+          }
+          return;
+        }
+        for (const token of memberHolders(holdersOf(at.expression, file, seen), key, seen)) {
+          found.add(token);
+        }
+        for (const token of containerHoldersAt(key, moduleId)) found.add(token);
+        return;
+      }
+      if (!ts.isCallExpression(at)) return;
+      const callee = at.expression;
+      const calleeName = ts.isPropertyAccessExpression(callee)
+        ? callee.name.text
+        : ts.isIdentifier(callee)
+          ? callee.text
+          : null;
+      if (ts.isPropertyAccessExpression(callee) && RESOLVER_BUILDERS.has(callee.name.text)) {
+        visit(callee.expression);
+        return;
+      }
+      if (calleeName !== null && RESOLVER_ENTRIES.has(calleeName)) {
+        // `asFunction(f)` registers what `f` returns; `asValue(v)` is `v`;
+        // `asClass(C)` an instance of `C`.
+        const [registered] = at.arguments;
+        if (registered === undefined) return;
+        if (calleeName === 'asValue') {
+          visit(registered);
+        } else if (calleeName === 'asClass') {
+          if (ts.isIdentifier(registered)) {
+            const declared = resolveClass(file, registered.text);
+            if (declared !== undefined) found.add(classToken(declared.file, declared.declaration));
+          }
+        } else if (isClosure(registered)) {
+          returnsOf(unwrapClosure(registered).body, file);
+        } else if (ts.isIdentifier(registered)) {
+          const declared = resolveFunction(file, registered.text);
+          if (declared?.declaration.body !== undefined) {
+            returnsOf(declared.declaration.body, declared.file);
+          }
+        }
+        return;
+      }
+      const method = thisMethodCalled(at);
+      if (method !== null) {
+        const className = enclosingClassName(at);
+        const body = className === null ? undefined : membersOf(file).get(className)?.get(method);
+        if (body !== undefined) returnsOf(body, file);
+        return;
+      }
+      if (ts.isIdentifier(callee)) {
+        const declared = resolveFunction(file, callee.text);
+        if (declared?.declaration.body !== undefined) {
+          returnsOf(declared.declaration.body, declared.file);
+        }
+      }
+    };
+    visit(node);
+    return found;
+  };
+
+  /** The holders each element of a destructuring takes: `key` of what it destructures. */
+  const holdPattern = (
+    pattern: ts.ObjectBindingPattern,
+    source: ReadonlySet<HolderToken>,
+    moduleId: string,
+    where: string,
+  ): void => {
+    for (const element of pattern.elements) {
+      if (element.dotDotDotToken !== undefined || !ts.isIdentifier(element.name)) continue;
+      const key = element.propertyName ?? element.name;
+      if (!ts.isIdentifier(key)) continue;
+      const held = memberHolders(source, key.text, new Set());
+      // A cradle's shape is no syntax's: its keys are the container's names.
+      for (const token of containerHoldersAt(key.text, moduleId)) held.add(token);
+      holdDeclaration(element, held, where);
+    }
+  };
+
+  /**
    * One round over every file. Reads the alias table as it stands and adds to
    * it; `grew` says whether another round can find anything new.
    */
@@ -805,17 +1171,7 @@ function analyze(
        * those of a closure inside it — or the body itself when it is a concise
        * arrow's.
        */
-      const returnedBy = (body: ts.Node): ts.Expression[] => {
-        if (!ts.isBlock(body)) return ts.isExpression(body) ? [body] : [];
-        const returned: ts.Expression[] = [];
-        const scan = (node: ts.Node): void => {
-          if (ts.isFunctionLike(node) || ts.isClassLike(node)) return;
-          if (ts.isReturnStatement(node) && node.expression) returned.push(node.expression);
-          node.forEachChild(scan);
-        };
-        body.forEachChild(scan);
-        return returned;
-      };
+      const returnedBy = returnedExpressions;
       /**
        * `this.#requireCustomFields()` returning `this.deps.customFields` — a
        * class's own method handing on what it returns (issue #100). Followed
@@ -885,16 +1241,15 @@ function analyze(
         // (issue #100: properties, not bindings), read where the port is
         // actually reached.
         //
-        // So a holder **built from** a bag does not carry either, and that
-        // blind spot is known and kept (feature 134 D18 §2, half 2 withdrawn).
-        // Letting `new C({ k: <carrier> })` carry was measured: it made the
-        // `product_feeds` inline-delivery chain visible, and it also added
-        // fourteen unhandled sites, among them `catch` blocks around holder
-        // methods that never touch the port — `connections.getOrFail()` reads a
-        // row, yet the holder carries `credentials` as a whole, because gates
-        // are attributed per value rather than per method. A site the analysis
-        // cannot tell apart from a real swallow has no honest classification,
-        // so the widening waits for per-method attribution.
+        // So a holder **built from** a bag does not carry as a value either
+        // (feature 134 D18 §2, half 2). Letting `new C({ k: <carrier> })`
+        // carry was measured: it added fourteen unhandled sites, among them
+        // `catch` blocks around holder methods that never touch the port —
+        // `connections.getOrFail()` reads a row, yet the holder carried
+        // `credentials` as a whole. Since issue #576 such a holder is followed
+        // by the holder tables instead, and a call on it is attributed **per
+        // method** where it is made (`collectCarryingMethods`), so the value
+        // tables keep refusing it on purpose.
         if (ts.isArrayLiteralExpression(node)) return node.elements.some(carries);
         if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) {
           return bodyReads(node, reads, readsProperty);
@@ -954,12 +1309,7 @@ function analyze(
        */
       const handsOnPort = (node: ts.Node): boolean => {
         if (!isClosure(node)) return false;
-        let fn: ts.Node = node;
-        while (!ts.isArrowFunction(fn) && !ts.isFunctionExpression(fn)) {
-          fn = (fn as ts.ParenthesizedExpression).expression;
-        }
-        const closure = fn as ts.ArrowFunction | ts.FunctionExpression;
-        return returnedBy(closure.body).some((returned) => {
+        return returnedBy(unwrapClosure(node).body).some((returned) => {
           if (carries(returned)) return true;
           let call: ts.Node = returned;
           while (
@@ -1047,6 +1397,19 @@ function analyze(
           // This binding *is* the alias, so it must not read as a shadow of one.
           markCarrier(node);
         }
+        // Issue #576 — the same binding, for the holder it holds; and a
+        // destructuring, for the keys of it.
+        if (ts.isVariableDeclaration(node) && node.initializer) {
+          if (ts.isIdentifier(node.name)) {
+            holdDeclaration(node, holdersOf(node.initializer, file), at(node));
+          } else if (ts.isObjectBindingPattern(node.name)) {
+            holdPattern(node.name, holdersOf(node.initializer, file), scope, at(node));
+          }
+        }
+        // `({ projectsAccess }: Cradle) => …` — a cradle destructured.
+        if (ts.isParameter(node) && ts.isObjectBindingPattern(node.name)) {
+          holdPattern(node.name, new Set(), scope, at(node));
+        }
         // `{ promotion: lazyPort(ctx, 'promotionService') }` — a deps-object key.
         // A **property**, not a binding (issue #100): it is reached through an
         // expression that reads the key, never through a bare identifier that
@@ -1085,7 +1448,9 @@ function analyze(
           const callee = ts.isIdentifier(node.expression) ? node.expression.text : null;
           if (callee !== null && node.arguments) {
             node.arguments.forEach((argument, index) => {
-              if (!carries(argument)) return;
+              const carried = carries(argument);
+              const held = holdersOf(argument, file);
+              if (!carried && held.size === 0) return;
               // The two lookups are kept apart rather than merged into one
               // ternary: `classes` and `functions` hold different declaration
               // shapes, and merging them costs two casts for no gain.
@@ -1101,7 +1466,7 @@ function analyze(
               }
               if (declared === undefined) return;
               const parameter = declared.declaration.parameters[index];
-              if (parameter && ts.isIdentifier(parameter.name)) {
+              if (parameter && ts.isIdentifier(parameter.name) && carried) {
                 // Issue #278 — the **declaring** file, which is where the
                 // parameter is in scope, rather than the module the `new`
                 // happens to sit in, where it is not in scope at all.
@@ -1110,6 +1475,14 @@ function analyze(
                 parameterAliases.set(parameter.name.text, files);
                 files.add(declared.file);
                 markCarrier(parameter);
+              }
+              // Issue #576 — a holder passed as a parameter, or destructured
+              // by one; `this.<param>` reads it back through the class.
+              if (parameter && ts.isIdentifier(parameter.name)) {
+                holdDeclaration(parameter, held, at(node));
+              } else if (parameter && ts.isObjectBindingPattern(parameter.name)) {
+                const declaredModule = moduleOf(`/src/${declared.file}`, hostResident) ?? ROOT;
+                holdPattern(parameter.name, held, declaredModule, at(node));
               }
             });
           }
@@ -1120,6 +1493,24 @@ function analyze(
           // either a port, and already global by the rule above, or an internal
           // name whose spelling (`mailer`, `client`, `settings`) collides with
           // half the tree.
+          // Issue #576 — a container name holds what it was registered with,
+          // in the registering module (everywhere, for a root's).
+          if (ts.isCallExpression(node) && isContainerRegistration(node)) {
+            for (const argument of node.arguments) {
+              if (!ts.isObjectLiteralExpression(argument)) continue;
+              for (const property of argument.properties) {
+                const value = ts.isPropertyAssignment(property)
+                  ? property.initializer
+                  : ts.isShorthandPropertyAssignment(property)
+                    ? property.name
+                    : null;
+                const name = memberName(property.name);
+                if (value === null || name === null) continue;
+                const where = scope === ROOT ? EVERYWHERE : scope;
+                holdContainerName(name, where, holdersOf(value, file), at(property));
+              }
+            }
+          }
           if (scope === ROOT && ts.isCallExpression(node) && isContainerRegistration(node)) {
             for (const argument of node.arguments) {
               if (!ts.isObjectLiteralExpression(argument)) continue;
@@ -1177,7 +1568,9 @@ function analyze(
       continue;
     }
     const moduleId = moduleOf(`/src/${file}`, hostResident) ?? ROOT;
-    if (readsAsPort(name, moduleId, file)) {
+    // Either table: a name the holder tables follow is resolved per method
+    // (issue #576), so the pin's hand-written gates are the debt it promised to be.
+    if (readsAsPort(name, moduleId, file) || holdsAnywhereIn(file, name)) {
       pinProblems.set(key, 'the analysis already follows the name without it');
       continue;
     }
@@ -1195,6 +1588,8 @@ function analyze(
     readsPropertyAsPort,
     parsed,
     pinProblems,
+    holdersOf: (node, file) => holdersOf(node, file),
+    holderUnits,
   };
 }
 
@@ -1379,6 +1774,31 @@ function bodyReads(
   };
   scan(fn.body);
   return hit;
+}
+
+/**
+ * The expressions a body returns — its own `return` statements, not those of a
+ * closure inside it — or the body itself when it is a concise arrow's.
+ */
+function returnedExpressions(body: ts.Node): ts.Expression[] {
+  if (!ts.isBlock(body)) return ts.isExpression(body) ? [body] : [];
+  const returned: ts.Expression[] = [];
+  const scan = (node: ts.Node): void => {
+    if (ts.isFunctionLike(node) || ts.isClassLike(node)) return;
+    if (ts.isReturnStatement(node) && node.expression) returned.push(node.expression);
+    node.forEachChild(scan);
+  };
+  body.forEachChild(scan);
+  return returned;
+}
+
+/** The function literal {@link isClosure} accepted, through its wrappers. */
+function unwrapClosure(node: ts.Node): ts.ArrowFunction | ts.FunctionExpression {
+  let fn: ts.Node = node;
+  while (!ts.isArrowFunction(fn) && !ts.isFunctionExpression(fn)) {
+    fn = (fn as ts.ParenthesizedExpression).expression;
+  }
+  return fn;
 }
 
 /** A function literal, through the wrappers that pass a value on unchanged. */
@@ -1625,6 +2045,69 @@ function thisMethodCalled(node: ts.CallExpression): string | null {
   return ts.isIdentifier(name) || ts.isPrivateIdentifier(name) ? name.text : null;
 }
 
+/** The class declaration a node sits inside, or `null`. */
+function enclosingClass(node: ts.Node): ts.ClassDeclaration | null {
+  for (let at: ts.Node | undefined = node; at !== undefined; at = at.parent) {
+    if (ts.isClassDeclaration(at)) return at;
+  }
+  return null;
+}
+
+/**
+ * Every declaration a scope makes **directly**, destructured elements included
+ * — the holder tables' lexical resolution (issue #576).
+ *
+ * Wider than {@link directBindings} on purpose, and kept apart from it: that
+ * one decides *shadowing* for the port aliases and deliberately leaves a
+ * destructuring out (it cannot tell what one holds). Here a destructured element
+ * is a declaration the holder tables bind, so it has to be found.
+ */
+const HOLDER_SCOPE_DECLARATIONS = new WeakMap<ts.Node, ReadonlyMap<string, ts.Node>>();
+
+function holderDeclarationsOf(scope: ts.Node): ReadonlyMap<string, ts.Node> {
+  const cached = HOLDER_SCOPE_DECLARATIONS.get(scope);
+  if (cached !== undefined) return cached;
+  const found = new Map<string, ts.Node>();
+  const addName = (name: ts.BindingName, declaration: ts.Node): void => {
+    if (ts.isIdentifier(name)) {
+      found.set(name.text, declaration);
+      return;
+    }
+    for (const element of name.elements) {
+      if (ts.isBindingElement(element)) addName(element.name, element);
+    }
+  };
+  const addList = (list: ts.VariableDeclarationList): void => {
+    for (const declaration of list.declarations) addName(declaration.name, declaration);
+  };
+  const addStatements = (statements: readonly ts.Statement[]): void => {
+    for (const statement of statements) {
+      if (ts.isVariableStatement(statement)) addList(statement.declarationList);
+    }
+  };
+  if (ts.isSourceFile(scope) || ts.isBlock(scope) || ts.isModuleBlock(scope)) {
+    addStatements(scope.statements);
+  } else if (ts.isCaseBlock(scope)) {
+    for (const clause of scope.clauses) addStatements(clause.statements);
+  } else if (ts.isForStatement(scope) || ts.isForInStatement(scope) || ts.isForOfStatement(scope)) {
+    const { initializer } = scope;
+    if (initializer !== undefined && ts.isVariableDeclarationList(initializer)) addList(initializer);
+  } else if (ts.isFunctionLike(scope)) {
+    for (const parameter of scope.parameters) addName(parameter.name, parameter);
+  }
+  HOLDER_SCOPE_DECLARATIONS.set(scope, found);
+  return found;
+}
+
+/** The declaration a bare identifier resolves to, destructurings included — or `null`. */
+function holderBindingOf(identifier: ts.Identifier): ts.Node | null {
+  for (let node: ts.Node | undefined = identifier.parent; node !== undefined; node = node.parent) {
+    const declaration = holderDeclarationsOf(node).get(identifier.text);
+    if (declaration !== undefined) return declaration;
+  }
+  return null;
+}
+
 /** The class a node sits inside, by name — `null` for a class expression. */
 function enclosingClassName(node: ts.Node): string | null {
   for (let at: ts.Node | undefined = node; at !== undefined; at = at.parent) {
@@ -1639,7 +2122,9 @@ function methodKey(file: string, className: string, method: string): string {
 }
 
 /**
- * Which methods carry a gate into a `catch` around a call to them (D-88).
+ * Which methods carry a gate into a `catch` around a call to them (D-88), and
+ * — since issue #576 — what escapes each method and each closure a holder call
+ * can resolve to.
  *
  * Two passes and then a fixpoint. The first records, per class member, the port
  * or alias names its body reaches directly — the same three call shapes the
@@ -1649,82 +2134,300 @@ function methodKey(file: string, className: string, method: string): string {
  * appears, which is what makes a private method calling a private method that
  * reaches a gate carry as well.
  *
- * Nothing crosses a class boundary here, and nothing crosses a file boundary:
- * that is the whole limit, and it is stated in the header because one hop is a
- * limit too.
+ * D-88's `this` hop crosses no class boundary and no file boundary. A call on
+ * a **holder** does (issue #576): its edge points at the member, or the
+ * closure, the holder tables resolved, and it pulls in what **escapes** that
+ * unit as gates already resolved in the unit's own file — never a reach that
+ * the unit's own `catch` consumed, and never a spelling read in the wrong file.
  */
 function collectCarryingMethods(
   parsed: ReadonlyMap<string, ts.SourceFile>,
   readsAsPortIn: (file: string, name: string, at?: ts.Node) => boolean,
   readsPropertyIn: (file: string, name: string) => boolean,
   declaresMember: (file: string, className: string, name: string) => boolean,
-): Map<string, Set<Reach>> {
-  /** method key → the reaches its body makes. */
+  holders: HolderResolution,
+): CarryingUnits {
+  /** unit key → the reaches its body makes. */
   const carries = new Map<string, Set<Reach>>();
-  /** method key → the method keys it calls through `this`. */
+  /** unit key → the method keys it calls through `this`. */
   const edges = new Map<string, Set<string>>();
+  /** unit key → the units it calls through a holder (issue #576). */
+  const holderEdges = new Map<string, Set<string>>();
+  /**
+   * The same three, for what **escapes** the unit (issue #576): a reach inside
+   * a `try` — or under a `.catch` — that consumes the presence answer is that
+   * inner site's to be judged for, and never reaches a caller's `catch`. D-88's
+   * hop keeps reading every reach, as it always has; a call on a holder reads
+   * only what escapes the method it resolves to.
+   */
+  const escaping = new Map<string, Set<Reach>>();
+  const escapingEdges = new Map<string, Set<string>>();
+  const escapingHolderEdges = new Map<string, Set<string>>();
+  /** unit key → the file its reaches resolve in. */
+  const fileOf = new Map<string, string>();
 
-  for (const [file, sf] of parsed) {
+  const record = (file: string, className: string | null, key: string, body: ts.Node): void => {
     const reads = (name: string, at?: ts.Node): boolean => readsAsPortIn(file, name, at);
     const readsProperty = (name: string): boolean => readsPropertyIn(file, name);
-
-    const record = (className: string, method: string, body: ts.Node): void => {
-      const key = methodKey(file, className, method);
-      const ports = carries.get(key) ?? new Set<Reach>();
-      const calls = edges.get(key) ?? new Set<string>();
-      const scan = (inner: ts.Node): void => {
-        if (ts.isCallExpression(inner)) {
-          const hop = thisMethodCalled(inner);
-          if (hop !== null && declaresMember(file, className, hop)) {
-            calls.add(methodKey(file, className, hop));
-          } else if (ts.isPropertyAccessExpression(inner.expression)) {
-            const reach = propertyCallReach(inner.expression, reads, readsProperty);
-            if (reach !== null) ports.add(reach);
-          }
-          if (
-            ts.isIdentifier(inner.expression) &&
-            inner.expression.text !== 'lazyPort' &&
-            reads(inner.expression.text, inner.expression)
-          ) {
-            ports.add(bareReach(inner.expression.text));
-          }
-          if (ts.isIdentifier(inner.expression) && inner.expression.text === 'requireModuleEnabled') {
-            ports.add(bareReach('requireModuleEnabled'));
+    const ports = new Set<Reach>();
+    const calls = new Set<string>();
+    const viaHolders = new Set<string>();
+    const escapingPorts = new Set<Reach>();
+    const escapingCalls = new Set<string>();
+    const escapingViaHolders = new Set<string>();
+    const scan = (inner: ts.Node): void => {
+      if (ts.isCallExpression(inner)) {
+        const escapes = presenceEscapes(inner, body, holders.delegates);
+        const reach = (one: Reach): void => {
+          ports.add(one);
+          if (escapes) escapingPorts.add(one);
+        };
+        const hop = thisMethodCalled(inner);
+        let reached = false;
+        if (hop !== null && className !== null && declaresMember(file, className, hop)) {
+          calls.add(methodKey(file, className, hop));
+          if (escapes) escapingCalls.add(methodKey(file, className, hop));
+          reached = true;
+        } else if (ts.isPropertyAccessExpression(inner.expression)) {
+          const found = propertyCallReach(inner.expression, reads, readsProperty);
+          if (found !== null) {
+            reach(found);
+            reached = true;
           }
         }
-        inner.forEachChild(scan);
-      };
-      body.forEachChild(scan);
-      carries.set(key, ports);
-      edges.set(key, calls);
-    };
-
-    for (const [className, members] of classesIn(sf)) {
-      for (const [name, body] of members) record(className, name, body);
-    }
-  }
-
-  for (let round = 0; round < METHOD_HOP_ROUNDS; round += 1) {
-    let grew = false;
-    for (const [key, calls] of edges) {
-      const ports = carries.get(key);
-      if (ports === undefined) continue;
-      for (const callee of calls) {
-        for (const port of carries.get(callee) ?? []) {
-          if (!ports.has(port)) {
-            ports.add(port);
-            grew = true;
+        if (
+          ts.isIdentifier(inner.expression) &&
+          inner.expression.text !== 'lazyPort' &&
+          reads(inner.expression.text, inner.expression)
+        ) {
+          reach(bareReach(inner.expression.text));
+          reached = true;
+        }
+        if (ts.isIdentifier(inner.expression) && inner.expression.text === 'requireModuleEnabled') {
+          reach(bareReach('requireModuleEnabled'));
+        }
+        // Issue #576 — only where the value tables found nothing, so a call
+        // they already judge keeps exactly the gates it had.
+        if (!reached) {
+          const targets = holders.targetsOf(inner, file);
+          for (const target of [...targets.receiver, ...targets.callee]) {
+            viaHolders.add(target);
+            if (escapes) escapingViaHolders.add(target);
           }
         }
       }
+      inner.forEachChild(scan);
+    };
+    // The body itself, not only its children: a concise arrow's body *is* the
+    // call (`(input) => notifier.notify(input)`).
+    scan(body);
+    carries.set(key, ports);
+    edges.set(key, calls);
+    holderEdges.set(key, viaHolders);
+    escaping.set(key, escapingPorts);
+    escapingEdges.set(key, escapingCalls);
+    escapingHolderEdges.set(key, escapingViaHolders);
+    fileOf.set(key, file);
+  };
+
+  for (const [file, sf] of parsed) {
+    for (const [className, members] of classesIn(sf)) {
+      for (const [name, body] of members) record(file, className, methodKey(file, className, name), body);
     }
+  }
+  for (const unit of holders.functions) {
+    record(unit.file, enclosingClassName(unit.body), unit.key, unit.body);
+  }
+
+  /** What escapes a unit, as gates resolved where the unit is written. */
+  const resolved = (key: string): Set<string> => {
+    const file = fileOf.get(key);
+    const gates = new Set<string>();
+    if (file === undefined) return gates;
+    for (const reach of escaping.get(key) ?? []) {
+      for (const gate of holders.gatesOf(reach, file)) gates.add(gate);
+    }
+    return gates;
+  };
+
+  for (let round = 0; round < METHOD_HOP_ROUNDS; round += 1) {
+    let grew = false;
+    const add = (ports: Set<Reach>, port: Reach): void => {
+      if (ports.has(port)) return;
+      ports.add(port);
+      grew = true;
+    };
+    const follow = (
+      into: Map<string, Set<Reach>>,
+      through: Map<string, Set<string>>,
+      from: Map<string, Set<Reach>>,
+    ): void => {
+      for (const [key, calls] of through) {
+        const ports = into.get(key);
+        if (ports === undefined) continue;
+        for (const callee of calls) {
+          for (const port of from.get(callee) ?? []) add(ports, port);
+        }
+      }
+    };
+    const followHolders = (into: Map<string, Set<Reach>>, through: Map<string, Set<string>>): void => {
+      for (const [key, targets] of through) {
+        const ports = into.get(key);
+        if (ports === undefined) continue;
+        for (const target of targets) {
+          for (const gate of resolved(target)) add(ports, gateReach(gate));
+        }
+      }
+    };
+    follow(carries, edges, carries);
+    follow(escaping, escapingEdges, escaping);
+    followHolders(carries, holderEdges);
+    followHolders(escaping, escapingHolderEdges);
     if (!grew) break;
   }
 
+  const gates = new Map<string, Set<string>>();
+  for (const key of carries.keys()) gates.set(key, resolved(key));
   // A method that reaches nothing is not a carrier; dropping it here keeps the
   // lookup at the `try` site a presence test rather than a size test.
   for (const [key, ports] of [...carries]) if (ports.size === 0) carries.delete(key);
-  return carries;
+  return { reaches: carries, gates };
+}
+
+/**
+ * Per unit — a class member, keyed {@link methodKey}, or a holder closure,
+ * keyed by its token — what its body reaches (D-88), and the gates those
+ * reaches carry where the body is written (issue #576).
+ */
+interface CarryingUnits {
+  readonly reaches: ReadonlyMap<string, ReadonlySet<Reach>>;
+  readonly gates: ReadonlyMap<string, ReadonlySet<string>>;
+}
+
+/**
+ * How a call on a holder resolves (issue #576): to the member it names of
+ * each class the **receiver** holds, and to each closure the **callee** holds.
+ */
+interface HolderResolution {
+  targetsOf(
+    call: ts.CallExpression,
+    file: string,
+  ): { readonly receiver: readonly string[]; readonly callee: readonly string[] };
+  readonly functions: Iterable<{ readonly key: string; readonly file: string; readonly body: ts.Node }>;
+  gatesOf(reach: Reach, file: string): Iterable<string>;
+  /** The re-throwing delegates — see {@link collectRethrowDelegates}. */
+  readonly delegates: ReadonlySet<string>;
+}
+
+/**
+ * Can a presence answer raised by `call` leave `body` (issue #576)?
+ *
+ * Not when a `try` around it, or a `.catch` / `.then(ok, onErr)` whose receiver
+ * chain holds it, consumes the answer — see {@link letsPresenceThrough}. That
+ * inner `catch` is a site of its own and is judged there; what it consumed is
+ * not something a caller's `catch` can swallow a second time.
+ */
+function presenceEscapes(call: ts.Node, body: ts.Node, delegates: ReadonlySet<string>): boolean {
+  let child: ts.Node = call;
+  for (let at = call.parent; at !== undefined && child !== body; child = at, at = at.parent) {
+    if (ts.isTryStatement(at) && at.tryBlock === child && at.catchClause !== undefined) {
+      const variable = at.catchClause.variableDeclaration?.name;
+      const name = variable !== undefined && ts.isIdentifier(variable) ? variable.text : null;
+      if (!letsPresenceThrough(at.catchClause.block, name, delegates)) return false;
+    }
+    // Through the callee `<guarded>.catch`, so from inside the guarded chain —
+    // never from the handler, which is an argument.
+    const rejection = ts.isCallExpression(at) && at.expression === child ? rejectionHandlerOf(at) : null;
+    if (rejection !== null) {
+      const { handler } = rejection;
+      if (ts.isArrowFunction(handler) || ts.isFunctionExpression(handler)) {
+        const [first] = handler.parameters;
+        const name = first !== undefined && ts.isIdentifier(first.name) ? first.name.text : null;
+        if (!letsPresenceThrough(handler.body, name, delegates)) return false;
+      } else {
+        const named = tailName(handler);
+        if (named === null || (named !== NARROWING && !delegates.has(named))) return false;
+      }
+    }
+  }
+  return true;
+}
+
+/**
+ * Does a handler body hand `ModuleDisabledError` on, rather than consume it?
+ *
+ * Deliberately not {@link bodyHandles}, which answers a different question —
+ * whether the handler *decided*: `if (!(err instanceof ModuleDisabledError))
+ * throw err; return recordFailure(err)` decides by consuming, which is what
+ * `DeliveryService.deliverInline` does on purpose (feature 134 D18). It lets
+ * the answer through when its last statement throws, when it hands its
+ * variable to the narrowing or to a re-throwing delegate, and when it re-throws it
+ * anywhere except under a negated `instanceof ModuleDisabledError` test. Every
+ * doubt reads as *through*, the direction that keeps a caller's site.
+ */
+function letsPresenceThrough(
+  handler: ts.Node,
+  variable: string | null,
+  delegates: ReadonlySet<string>,
+): boolean {
+  if (!ts.isBlock(handler)) {
+    let named = false;
+    const scan = (node: ts.Node): void => {
+      if (ts.isIdentifier(node) && (node.text === NARROWING || delegates.has(node.text))) named = true;
+      node.forEachChild(scan);
+    };
+    scan(handler);
+    return named;
+  }
+  const last = handler.statements.at(-1);
+  if (last !== undefined && ts.isThrowStatement(last)) return true;
+  let through = false;
+  const negatedPresenceTest = (node: ts.Node): boolean => {
+    let inner: ts.Node = node;
+    if (!ts.isPrefixUnaryExpression(inner) || inner.operator !== ts.SyntaxKind.ExclamationToken) {
+      return false;
+    }
+    inner = inner.operand;
+    while (ts.isParenthesizedExpression(inner)) inner = inner.expression;
+    return (
+      ts.isBinaryExpression(inner) &&
+      inner.operatorToken.kind === ts.SyntaxKind.InstanceOfKeyword &&
+      ts.isIdentifier(inner.right) &&
+      inner.right.text === 'ModuleDisabledError'
+    );
+  };
+  const scan = (node: ts.Node): void => {
+    if (through || ts.isFunctionLike(node)) return;
+    // The narrowing, or a re-throwing delegate, **handed the error**: a
+    // delegate is known by its spelling alone, so `this.record(request)` in a
+    // handler that consumed the error must not read as one.
+    if (ts.isCallExpression(node) && variable !== null) {
+      const callee = tailName(node.expression);
+      const handsOn = node.arguments.some(
+        (argument) => ts.isIdentifier(argument) && argument.text === variable,
+      );
+      if (handsOn && callee !== null && (callee === NARROWING || delegates.has(callee))) {
+        through = true;
+      }
+    }
+    if (
+      ts.isThrowStatement(node) &&
+      variable !== null &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === variable
+    ) {
+      let guardedAway = false;
+      for (let at: ts.Node = node; at !== handler; at = at.parent) {
+        if (ts.isIfStatement(at.parent) && at.parent.thenStatement === at) {
+          if (negatedPresenceTest(at.parent.expression)) guardedAway = true;
+        }
+      }
+      if (!guardedAway) through = true;
+    }
+    node.forEachChild(scan);
+  };
+  scan(handler);
+  return through;
 }
 
 /** Class name → its method-shaped members, by the name `this.<x>` spells. */
@@ -1824,12 +2527,64 @@ function scanSources(input: PortCatchInput): SiteScan {
   const declaresMember = (file: string, className: string, name: string): boolean =>
     declaredMembers.get(file)?.get(className)?.has(name) === true;
   const moduleOfFile = (file: string): string => moduleOf(`/src/${file}`, hostResident) ?? ROOT;
-  const carryingMethods = collectCarryingMethods(
+  /**
+   * Issue #576 — a call on a holder: the member it names of each class the
+   * receiver holds (`read.list()`), and each closure the callee itself holds
+   * (`this.deps.audience(id)`). `this.<m>()` is D-88's, not this.
+   */
+  const holderTargets = (
+    call: ts.CallExpression,
+    file: string,
+  ): { receiver: string[]; callee: string[] } => {
+    const receiver: string[] = [];
+    const callee: string[] = [];
+    const target = call.expression;
+    if (
+      ts.isPropertyAccessExpression(target) &&
+      target.expression.kind !== ts.SyntaxKind.ThisKeyword
+    ) {
+      const method = target.name.text;
+      for (const token of analysis.holdersOf(target.expression, file)) {
+        const unit = analysis.holderUnits.get(token);
+        const className = unit?.kind === 'class' ? unit.declaration.name?.text : undefined;
+        if (unit !== undefined && className !== undefined && declaresMember(unit.file, className, method)) {
+          receiver.push(methodKey(unit.file, className, method));
+        }
+      }
+    }
+    if (ts.isPropertyAccessExpression(target) || ts.isIdentifier(target)) {
+      for (const token of analysis.holdersOf(target, file)) {
+        if (analysis.holderUnits.get(token)?.kind === 'function') callee.push(token);
+      }
+    }
+    return { receiver, callee };
+  };
+  const carrying = collectCarryingMethods(
     parsed,
     (file, name, at) => analysis.readsAsPort(name, moduleOfFile(file), file, at),
     (file, name) => analysis.readsPropertyAsPort(name, moduleOfFile(file), file),
     declaresMember,
+    {
+      targetsOf: holderTargets,
+      delegates,
+      functions: [...analysis.holderUnits].flatMap(([key, unit]) =>
+        unit.kind === 'function' && unit.fn.body !== undefined
+          ? [{ key, file: unit.file, body: unit.fn.body }]
+          : [],
+      ),
+      gatesOf: (reach, file) => [
+        ...(analysis.portOwners.has(reachName(reach)) ? [reachName(reach)] : []),
+        ...analysis.gatesOfReach(reach, moduleOfFile(file), file),
+      ],
+    },
   );
+  const carryingMethods = carrying.reaches;
+  if (process.env.PORT_CATCH_UNIT) {
+    const pattern = new RegExp(process.env.PORT_CATCH_UNIT);
+    for (const [key, gates] of carrying.gates) {
+      if (pattern.test(key)) console.error(`UNIT  ${key} escapes ${[...gates].sort().join(',')}`);
+    }
+  }
 
   for (const [file] of input.sources) {
     const moduleId = moduleOf(`/src/${file}`, hostResident) ?? ROOT;
@@ -1911,6 +2666,8 @@ function scanSources(input: PortCatchInput): SiteScan {
           return ts.isIdentifier(call.expression) && readsAsPort(call.expression.text, call.expression);
         };
         const scan = (inner: ts.Node): void => {
+          /** The value tables answered for this call — see the holder clause below. */
+          let reached = false;
           if (
             ts.isCallExpression(inner) &&
             ts.isPropertyAccessExpression(inner.expression) &&
@@ -1918,6 +2675,7 @@ function scanSources(input: PortCatchInput): SiteScan {
           ) {
             // The twin of `collectCarryingMethods`' read, by construction.
             const reach = propertyCallReach(inner.expression, readsAsPort, readsPropertyAsPort);
+            if (reach !== null) reached = true;
             if (reach !== null && !alreadyReached(inner.expression.expression)) {
               add(reachName(reach), [reach]);
             }
@@ -1928,7 +2686,29 @@ function scanSources(input: PortCatchInput): SiteScan {
             inner.expression.text !== 'lazyPort' &&
             readsAsPort(inner.expression.text, inner.expression)
           ) {
+            reached = true;
             add(inner.expression.text, [bareReach(inner.expression.text)]);
+          }
+          // Issue #576 — a call on a holder reaches what the **method** (or the
+          // closure) it resolves to reaches, and a method that reaches nothing
+          // makes no site: `read.getOrFail()` reading a row is not a port call
+          // because `read.list()` is one. Named as the value form names it —
+          // the receiver for a method, the callee for a closure.
+          if (ts.isCallExpression(inner) && !reached && ownMethod(inner) === null) {
+            const targets = holderTargets(inner, file);
+            const reachedThrough = (units: readonly string[]): Reach[] =>
+              units.flatMap((unit) => [...(carrying.gates.get(unit) ?? [])].map(gateReach));
+            const viaReceiver = reachedThrough(targets.receiver);
+            const viaCallee = reachedThrough(targets.callee);
+            const callee = inner.expression;
+            if (viaReceiver.length > 0 && ts.isPropertyAccessExpression(callee)) {
+              const name = tailName(callee.expression);
+              if (name !== null) add(name, viaReceiver);
+            }
+            if (viaCallee.length > 0) {
+              const name = tailName(callee);
+              if (name !== null) add(name, viaCallee);
+            }
           }
           // `requireModuleEnabled('x')` throws the same error, on purpose.
           if (

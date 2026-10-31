@@ -530,6 +530,18 @@ dane), **literał obiektu** (worek zależności to rekord — oznaczenie go spra
 portu**. Uruchom z `PORT_CATCH_WHY=1`, aby zobaczyć każdy alias wraz z miejscem, które go
 wprowadziło.
 
+**Obiekt zbudowany z worka zależności jest za to śledzony metoda po metodzie.** Skoro
+`new ProjectReadService({ access, organizations: lazyPort(…) })` nie może nieść blokady jako
+wartość, nie oznaczając każdej metody klasy, sprawdzenie śledzi go jako **obiekt przechowujący** —
+którą instancję klasy, domknięcie albo literał obiektu przechowuje dana deklaracja — i przypisuje
+blokadę dopiero tam, gdzie ten obiekt jest *wywoływany*: `read.list()` sięga tam, dokąd sięga
+`ProjectReadService#list`, a `read.getOrFail()`, odczyt wiersza, nie sięga nigdzie i nie jest
+miejscem do oceny. Klucz jest odczytywany z worka, który odbiorca faktycznie przechowuje, nigdy po
+samej pisowni w obrębie modułu. Wywołanie na takim obiekcie niesie to, co **wydostaje się** z
+metody: odpowiedź o obecności, którą własny `catch` metody celowo pochłania, jest oceniana przy tym
+`catch`, a nie ponownie u wywołującego. `PORT_CATCH_UNIT=<regex>` wypisuje, co wydostaje się z
+każdej pasującej metody lub domknięcia.
+
 **Alias jest widoczny tam, gdzie jest jego wiązanie, i nigdzie indziej.** `const` ma zasięg pliku,
 bo taki ma w kodzie. **Klucz obiektu zależności** ma zasięg modułu, bo klasa, która go otrzymuje,
 odczytuje go jako `this.deps.<key>` w innym pliku, a nazwa właściwości nie jest wiązaniem
