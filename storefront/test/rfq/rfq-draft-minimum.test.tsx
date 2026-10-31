@@ -40,7 +40,7 @@ function renderLine(input: {
   return renderToString(
     <DraftLine
       line={{ ...line, quantity: input.quantity }}
-      t={strings(input.locale.startsWith('pl'))}
+      t={strings(input.locale)}
       locale={input.locale}
       minimum={input.minimum}
       proposalsAllowed

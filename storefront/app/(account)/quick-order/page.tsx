@@ -33,6 +33,12 @@ import { LocalizedLink, LocalizedAnchor } from '../../../lib/i18n/localized-link
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 /**
+ * The paste box's example: the import format itself — the `sku,quantity` header the backend
+ * parser reads and two example SKUs — not copy, so it is the same in every language.
+ */
+const CSV_SAMPLE = ['sku,quantity', 'EXAMPLE-SIMPLE-001,10', 'EXAMPLE-BLUE-002,5'].join('\n');
+
+/**
  * Quick order (feature 039 / US1). Two-step flow:
  *   1. Paste a CSV with `sku,quantity` headers (plus optional variant
  *      attribute columns) OR drag-drop a CSV / Excel file; the importer
@@ -153,6 +159,7 @@ export default async function QuickOrderPage({
         <FileDropzone
           filenameField="quickOrderFilename"
           contentField="quickOrderFileContent"
+          locale={locale}
           label={t('quickOrder.page.dropzone')}
         />
       </form>
@@ -164,7 +171,7 @@ export default async function QuickOrderPage({
             id="csv"
             name="csv"
             rows={8}
-            placeholder={'sku,quantity\nEXAMPLE-SIMPLE-001,10\nEXAMPLE-BLUE-002,5'}
+            placeholder={CSV_SAMPLE}
             style={{ fontFamily: 'monospace' }}
           />
         </div>

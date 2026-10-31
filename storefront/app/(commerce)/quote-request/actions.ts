@@ -5,6 +5,8 @@ import { createRfq, type CreateRfqLine } from '../../../lib/api/rfq';
 import { getProductMinimumsBySlugs } from '../../../lib/api/catalog';
 import { StorefrontApiError, type RequestContext } from '../../../lib/api/client';
 import { getSessionCookie } from '../../../lib/session';
+import { getServerContext } from '../../../lib/server-context';
+import { tForLocale } from '../../../lib/i18n/messages';
 
 /**
  * Server action backing the `/quote-request` draft submission.
@@ -28,7 +30,8 @@ export async function submitQuoteRequest(input: {
   const session = await getSessionCookie();
   if (!session) return { ok: false, reason: 'auth' };
   if (input.items.length === 0) {
-    return { ok: false, reason: 'error', message: 'Empty quote request.' };
+    const { locale } = await getServerContext();
+    return { ok: false, reason: 'error', message: tForLocale(locale)('commerce.rfqDraft.emptySubmit') };
   }
   try {
     const rfq = await createRfq(session, {
