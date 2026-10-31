@@ -2156,6 +2156,37 @@ describe('module package manifests are generated (feature 080, T041)', () => {
       expect(scripts['build']).not.toMatch(/tsc -p tsconfig\.ui\.json(?!\S)/);
       expect(scripts['typecheck']).toBe('tsc -p tsconfig.json && tsc -p tsconfig.ui.json --noEmit');
     });
+
+    it('type-checks the UI layer’s Node-using tests in a program of their own (issue #566)', () => {
+      // A `/// <reference types="node" />` in one admin test applies to the
+      // whole program, so `tsconfig.ui.json` stopped rejecting `process` in a
+      // screen. A package whose UI tests need Node declares
+      // `tsconfig.ui.test.json`, and the type-check builds it as a third program;
+      // whether it does is read off the directory, never written by an author.
+      const scripts = manifestOf(
+        widgets({
+          ...BACKEND_ONLY,
+          'src/admin/index.ts': 'export {};\n',
+          'tsconfig.ui.test.json': '{ "extends": "./tsconfig.ui.json" }\n',
+        }),
+      )['scripts'] as Record<string, string>;
+      expect(scripts['typecheck']).toBe(
+        'tsc -p tsconfig.json && tsc -p tsconfig.ui.json --noEmit && tsc -p tsconfig.ui.test.json --noEmit',
+      );
+      // The emit is untouched: the tests are not in it either way.
+      expect(scripts['build']).toMatch(/&& tsc -p tsconfig\.ui\.build\.json$/);
+      expect(scripts['build']).not.toContain('tsconfig.ui.test.json');
+    });
+
+    it('refuses a UI test program in a package with no UI layer to test', () => {
+      // A configuration no script names is a program nothing builds — the
+      // silent pass the type-check scripts exist to prevent.
+      expect(() =>
+        render(
+          widgets({ ...BACKEND_ONLY, 'tsconfig.ui.test.json': '{ "extends": "./tsconfig.ui.json" }\n' }),
+        ),
+      ).toThrow(/tsconfig\.ui\.test\.json/);
+    });
   });
 
   describe('the sub-derivations, each on its own', () => {

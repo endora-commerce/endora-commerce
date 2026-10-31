@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ApiError, apiClient } from '../../lib/index.js';
+import { useTranslation } from '../../i18n/useTranslation.js';
 import { Combobox, type ComboboxOption } from '../../ui/combobox.js';
 
 /**
@@ -31,7 +32,10 @@ export interface CustomerGroupPickerProps {
 export function CustomerGroupPicker(props: CustomerGroupPickerProps): ReactNode {
   const [groups, setGroups] = useState<CustomerGroupSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // The server's sentence when it sent one, `null` for a failure it did not
+  // explain — translated at render, so the load effect does not depend on `t`.
+  const [error, setError] = useState<{ message: string | null } | null>(null);
+  const t = useTranslation('core');
 
   useEffect(() => {
     let alive = true;
@@ -44,7 +48,7 @@ export function CustomerGroupPicker(props: CustomerGroupPickerProps): ReactNode 
       })
       .catch((err: unknown) => {
         if (!alive) return;
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load groups.');
+        setError({ message: err instanceof ApiError ? err.envelope.error.message : null });
       })
       .finally(() => {
         if (alive) setLoading(false);
@@ -59,7 +63,9 @@ export function CustomerGroupPicker(props: CustomerGroupPickerProps): ReactNode 
     [groups],
   );
 
-  const emptyMessage = error ?? props.emptyMessage ?? 'No customer groups.';
+  const errorMessage =
+    error === null ? null : (error.message ?? t('customerGroupPicker.loadError'));
+  const emptyMessage = errorMessage ?? props.emptyMessage ?? t('customerGroupPicker.empty');
 
   return (
     <Combobox<string>
@@ -69,9 +75,9 @@ export function CustomerGroupPicker(props: CustomerGroupPickerProps): ReactNode 
       loading={loading}
       clearable={props.clearable ?? true}
       disabled={props.disabled ?? false}
-      placeholder={props.placeholder ?? 'Select a customer group…'}
+      placeholder={props.placeholder ?? t('customerGroupPicker.placeholder')}
       emptyMessage={emptyMessage}
-      ariaLabel={props.ariaLabel ?? 'Select customer group'}
+      ariaLabel={props.ariaLabel ?? t('customerGroupPicker.ariaLabel')}
       id={props.id ?? ''}
       className={props.className ?? ''}
     />

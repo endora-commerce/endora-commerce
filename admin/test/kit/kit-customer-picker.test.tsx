@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { ReactElement } from 'react';
 import { renderWithI18n } from '../helpers/render-with-i18n';
+import { shippedCoreBundle } from '../helpers/core-bundle';
 
 /**
  * Issue #89 — `CustomerPicker` has a test.
@@ -37,6 +39,11 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
 const { CustomerPicker } = await import('@endora-commerce/admin-kit/components');
 const { ApiError } = await import('@endora-commerce/admin-kit/lib');
 
+/** Renders with the shipped `core` bundle, so the assertions name real copy (#561). */
+function renderPicker(ui: ReactElement, language: 'en' | 'pl' = 'en'): ReturnType<typeof renderWithI18n> {
+  return renderWithI18n(ui, shippedCoreBundle(language), { language });
+}
+
 afterEach(() => {
   getSpy.mockReset();
 });
@@ -54,7 +61,7 @@ describe('CustomerPicker', () => {
   it('shows a loading row while the search is in flight', async () => {
     let resolve: (v: unknown) => void = () => {};
     getSpy.mockReturnValue(new Promise((r) => (resolve = r)));
-    renderWithI18n(<CustomerPicker value={null} onChange={vi.fn()} />);
+    renderPicker(<CustomerPicker value={null} onChange={vi.fn()} />);
 
     await search('kow');
     await waitFor(() => expect(getSpy).toHaveBeenCalledTimes(1));
@@ -66,7 +73,7 @@ describe('CustomerPicker', () => {
 
   it('carries the status and organization narrowing, and says when nothing matches', async () => {
     getSpy.mockResolvedValue({ data: [] });
-    renderWithI18n(
+    renderPicker(
       <CustomerPicker value={null} onChange={vi.fn()} status="active" organizationId="org-9" />,
     );
 
@@ -96,7 +103,7 @@ describe('CustomerPicker', () => {
       ],
     });
     const onChange = vi.fn();
-    renderWithI18n(<CustomerPicker value={null} onChange={onChange} />);
+    renderPicker(<CustomerPicker value={null} onChange={onChange} />);
 
     await search('a');
     const options = await screen.findAllByRole('option');
@@ -111,7 +118,7 @@ describe('CustomerPicker', () => {
 
   it('shows the server message when the search fails', async () => {
     getSpy.mockRejectedValue(FAILURE);
-    renderWithI18n(<CustomerPicker value={null} onChange={vi.fn()} />);
+    renderPicker(<CustomerPicker value={null} onChange={vi.fn()} />);
 
     await search('kow');
     await waitFor(() => {
@@ -125,7 +132,7 @@ describe('CustomerPicker', () => {
     // failed search there read as "no accounts", which sends the operator
     // looking for a customer that does exist.
     getSpy.mockRejectedValue(FAILURE);
-    renderWithI18n(
+    renderPicker(
       <CustomerPicker value={null} onChange={vi.fn()} emptyMessage="No accounts in this organization." />,
     );
 
@@ -134,5 +141,42 @@ describe('CustomerPicker', () => {
       expect(screen.getByRole('listbox').textContent).toContain('Customers could not be searched.');
     });
     expect(screen.getByRole('listbox').textContent).not.toContain('No accounts in this organization.');
+  });
+
+  it('asks for a search term before any search has answered, instead of claiming no match', async () => {
+    getSpy.mockReturnValue(new Promise(() => {}));
+    renderPicker(
+      <CustomerPicker value={null} onChange={vi.fn()} emptyMessage="No accounts in this organization." />,
+    );
+
+    await userEvent.setup().click(screen.getByRole('combobox', { name: 'Select customer' }));
+    const listbox = screen.getByRole('listbox');
+    expect(listbox.textContent).toBe('Type a name or e-mail address to search.');
+    expect(screen.getByRole('status').textContent).toBe('Type a name or e-mail address to search.');
+  });
+
+  it('speaks Polish to a Polish admin', async () => {
+    getSpy.mockResolvedValue({ data: [] });
+    renderPicker(<CustomerPicker value={null} onChange={vi.fn()} />, 'pl');
+
+    const input = screen.getByRole('combobox', { name: 'Wybierz klienta' });
+    expect(input.getAttribute('placeholder')).toBe(
+      'Szukaj klientów po imieniu, nazwisku lub adresie e-mail…',
+    );
+    const user = userEvent.setup();
+    await user.click(input);
+    expect(screen.getByRole('listbox').textContent).toBe(
+      'Wpisz imię, nazwisko lub adres e-mail, aby wyszukać.',
+    );
+    await user.type(input, 'kow');
+    await waitFor(() => {
+      expect(screen.getByRole('listbox').textContent).toBe('Brak pasujących klientów.');
+    });
+
+    getSpy.mockRejectedValue(new TypeError('Failed to fetch'));
+    await user.type(input, 'x');
+    await waitFor(() => {
+      expect(screen.getByRole('listbox').textContent).toBe('Wyszukiwanie nie powiodło się.');
+    });
   });
 });

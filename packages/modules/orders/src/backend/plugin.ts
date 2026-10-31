@@ -71,6 +71,7 @@ import type { PurchaseConversionService } from './services/purchase-conversion-s
 import type { OrderConfirmationRenderers } from './email-templates/order-confirmation.js';
 // Feature 035 — shipping-method adapter framework + shipment lifecycle.
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { OrdersTranslate } from './orders-prose.js';
 
 /**
  * Composition root for the commerce surface — carts + orders + invoice
@@ -362,6 +363,11 @@ export interface OrdersModuleOptions {
   /** The module's logger; the transition engine warns through it. */
   log?: PlatformLogger;
   /**
+   * This module's bundle, from which the in-code order confirmation takes its
+   * sentences in the channel's language (issue #95). Absent, English.
+   */
+  translate?: OrdersTranslate;
+  /**
    * Feature 027 §R5 — Redis client used by the cart-pricing-recompute
    * cache. When provided alongside `pricingService`, every full-cart
    * read re-resolves unit prices through PricingService with a 30 s
@@ -509,6 +515,7 @@ export function commerceModule(options: OrdersModuleOptions) {
         resolveTaxRate: options.resolveTaxRate,
         transitionEffects: options.transitionEffects,
         ...(options.log ? { log: options.log } : {}),
+        ...(options.translate ? { translate: options.translate } : {}),
         neighbours: {
           organizationDetails: options.organizationDetails,
           organizationRestriction: options.organizationRestriction,

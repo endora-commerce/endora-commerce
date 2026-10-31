@@ -183,7 +183,9 @@
  * service to `queue` in one file and holds a BullMQ queue under the same
  * spelling in another. A **deps-object key** is module-scoped, because the
  * receiving class reads it as `this.deps.<key>` from another file and a property
- * name is not a lexical binding anybody can shadow. A root's container
+ * name is not a lexical binding anybody can shadow — **and it is a property, not
+ * a binding** (issue #100): it is reached only by an expression that reads a
+ * property, never by a bare identifier of the same spelling. A root's container
  * registration is visible everywhere, because a container name is global by
  * construction. A gated port's own name is global too, *except inside the module
  * that owns it*, where the same identifier normally denotes the module's own
@@ -258,8 +260,52 @@
  * to a site, it invents a site — and a site invented in one module is a site an
  * author deletes by renaming something in another.
  *
- * `PORT_CATCH_WHY=1` prints every alias with the site that introduced it, which
- * is the first question a newly-red site raises.
+ * ## A property is not a binding, and a binding is not a property (issue #100)
+ *
+ * `{ value: lazyPort(…) }` used to enter the same table as `const value = …`,
+ * so every bare `value` in the module read as the port — an unrelated
+ * `const value = makeEngine()` in a sibling file became a site. Deps-object keys
+ * now live in a **property table** of their own, and a key is reached only
+ * through an expression that reads a property, following the value:
+ *
+ *   - `x.key` and `x.key.method()` — a property read;
+ *   - `x.key()` when the key holds an **accessor**, a closure whose result is
+ *     the port (`{ sender: () => cradle().transactionalEmailSenderAccessor() }`)
+ *     — so `const sender = deps.sender(); … sender.send(…)` is seen whatever
+ *     the local is called. A closure that merely *uses* a port on the way to
+ *     data (`() => providers.resolveProvider()`) is not an accessor, and a method
+ *     called *on* a port is the gated call, whose result stays data;
+ *   - `const { key } = x`, `const { key: local } = x`, `({ key }: Deps) => …` —
+ *     a destructuring is a binding, file-scoped like a `const`;
+ *   - `this.#method()` when the class's own method returns a carrying value —
+ *     `const customFields = this.#requireCustomFields()`.
+ *
+ * The mirror holds as well: a property read answers to a container name, to a
+ * parameter the port was passed as (read back as `this.<param>` in its own
+ * file) and to a deps-object key — never to a local `const` of the same spelling.
+ *
+ * A local bound **inside** a site to the result of a call that site already
+ * reports (`const sender = this.deps.getTransactionalEmailSender()` inside the
+ * `try`) is that reach under a second name and is not reported twice. Bound
+ * **outside** the site, it is a reach of its own: the call that produced it is
+ * not guarded there.
+ *
+ * What property reads still cannot do is see their **receiver**: `x.next()`
+ * reads `next` whatever `x` is, so a method name that collides with a module's
+ * deps key reads as that key. Two `catalog` sites reach no port at all for that
+ * reason and are ledgered as artefacts rather than hidden; the alternative —
+ * resolving receivers — is a type-checker's job, not this analysis's.
+ *
+ * One real reach falls through the same receiver-blindness from the other side:
+ * `projects`' `read.list(…).catch(…)`, where `read` is a holder built from a
+ * deps bag (D18's kept blind spot). The old spelling match kept it judged by
+ * accident; now {@link PORT_CATCH_PINS} declares the alias, two-way, until
+ * per-method attribution (issue #576) lets the analysis follow it and the pin
+ * reads stale.
+ *
+ * `PORT_CATCH_WHY=1` prints every alias with the site that introduced it (and
+ * `PROP`/`PGATE` lines for the property table), which is the first question a
+ * newly-red site raises.
  *
  * ## What counts as handling it
  *
@@ -341,6 +387,7 @@ import {
   collectPortCatchFiles,
   findPortCatches,
   keyOf,
+  type PortCatchPin,
 } from '@endora-commerce/cli/rules/port-catches.js';
 import {
   loadManifestActivations,
@@ -351,6 +398,40 @@ import { requireModuleLayout } from './lib/module-roots.js';
 import { reportReadSize } from './lib/read-size.js';
 
 export * from '@endora-commerce/cli/rules/port-catches.js';
+
+/**
+ * Aliases this repository **declares** because the analysis provably cannot
+ * derive them (`PortCatchPin`; maintainer ruling on issue #100, 2026-10-30).
+ *
+ * Not a ledger of exemptions — the opposite: a pin puts a `catch` *into* the
+ * judged population, so a real port reach the value analysis cannot follow is
+ * still held to the rule. Two-way like the ledger: an entry reads stale, and
+ * fails the build, when its file is gone, when it names a gate nobody provides,
+ * when no site in its file reaches a port through the name, and when the
+ * analysis already follows the name on its own.
+ */
+export const PORT_CATCH_PINS: Readonly<Record<string, PortCatchPin>> = {
+  'packages/modules/projects/src/backend/routes/routes.projects.ts:read': {
+    gates: [
+      'customFieldListFilterPort',
+      'organizationDetailsPort',
+      'adminUserReadPort',
+      'permissionService',
+    ],
+    reason:
+      "A REAL PORT REACH THE VALUE ANALYSIS CANNOT FOLLOW (D18's blind spot for a holder " +
+      'built from a deps bag, feature 134 §2 half 2; issue #576). `read` is ' +
+      '`deps.projectReadService`, i.e. `cradle.projectsReadService` — a `ProjectReadService` ' +
+      'built from an object literal of `lazyPort`s, so it carries nothing as far as the ' +
+      'analysis is concerned. `read.list(…)` reaches `customFieldListFilterPort` ' +
+      '(`#customFieldCondition`), `organizationDetailsPort` and `adminUserReadPort` ' +
+      "(`#summaries`), and through `deps.access` (`ProjectAccess`, another bag) " +
+      '`permissionService` (`currentViewer`). Before #100 the `.catch` on it was ' +
+      'judged only because the unrelated deps key `read: lazyPort(taskReadPort)` shared the ' +
+      'spelling — with the wrong gate. Retires when #576 (per-method gate attribution) lets ' +
+      'the analysis follow the holder; the pin then reads stale and has to go.',
+  },
+};
 
 export const PORT_CATCHES_TO_DRAIN: Readonly<Record<string, string>> = {
   'packages/modules/organizations/src/backend/routes.public.ts:onLogin':
@@ -403,6 +484,32 @@ export const PORT_CATCHES_TO_DRAIN: Readonly<Record<string, string>> = {
     'an answer to anybody, which is D-62/D-67 verbatim. Retires when the analysis ' +
     "attributes a holder's gates per method rather than per value — not before, and " +
     'not by renaming the binding, because the alias follows the value.',
+  'packages/modules/catalog/src/backend/services/catalog-attribute-read.service.ts:composeAll':
+    'NO GATED PORT IS REACHED HERE — an analysis artefact, ledgered so that it is ' +
+    'argued with rather than hidden (issue #100). The `try` in `listAll` guards ' +
+    '`this.composeAll(defs, extensions)` alone, an in-memory join of two arrays; both ' +
+    "port reads (`this.definitions.listForEntity`) sit outside it, and the `catch` " +
+    're-throws everything that is not a `CatalogAttributeIntegrityError` in any case. ' +
+    'The D-88 hop reaches `composeAll` because its body calls ' +
+    '`extByDefId.values().next()`, and `next` is a `catalog` deps-object key ' +
+    "(`{ …, next: entry.key }` in `url-key.service.ts`) — a property read matched by " +
+    'its spelling, which is the one thing a receiver-blind analysis cannot avoid. ' +
+    'Before #100 this site read OWNER LOCKED, and only by accident: the gates that ' +
+    "spelling lent it happened to be `languages`' alone. Retires when a property read " +
+    'is attributed through its receiver rather than its name.',
+  'packages/modules/catalog/src/backend/services/product-page-revalidation.ts:keysOf':
+    'NO GATED PORT IS REACHED HERE — an analysis artefact, ledgered so that it is ' +
+    'argued with rather than hidden (issue #100). `keysOf` is the closure ' +
+    '`catalog/backend/index.ts` hands `ProductPageRevalidation`: three `em.find` reads ' +
+    "of this module's own `Product`, `ProductUrlKey` and `ProductUrlRedirect` rows, " +
+    'nothing else. The analysis reads the closure as a carrier because its body reads ' +
+    '`k.key` / `r.key`, and `key` is a `catalog` deps-object key of the same ' +
+    'spelling. The `catch` in `#send` is the best-effort keys read the revalidation ' +
+    'was designed around (it degrades to the shared product tag); narrowing it would ' +
+    'be wrong as well as pointless — `#send` runs under `#inFlight`, which has only a ' +
+    '`.finally`, so a re-throw would be an unhandled rejection. Before #100 this site ' +
+    "read OWNER LOCKED, and only by accident: the lent gates were `languages`' alone. " +
+    'Retires when a property read is attributed through its receiver rather than its name.',
   'packages/modules/product_feeds/src/backend/index.ts:run':
     'BOOT HOOK, and now a genuine tolerance rather than a swallowed presence ' +
     'answer (issue #147, D-62). The hook asks ' +
@@ -465,6 +572,7 @@ async function main(): Promise<void> {
     sources,
     manifests,
     hostResidentModules: layout.hostResidentModules,
+    pins: PORT_CATCH_PINS,
   };
   // The ledger is passed, never defaulted: a host states which exemptions it is
   // judging against, and `PORT_CATCHES_TO_DRAIN` is this repository's.
@@ -536,7 +644,8 @@ async function main(): Promise<void> {
       `violations=${result.violations.length} ledgered=${result.ledgered.length} ` +
       `owner-locked=${result.ownerLocked.length} ` +
       `rejection-handlers=${result.rejectionHandlerSites} ` +
-      `ledger-size=${Object.keys(PORT_CATCHES_TO_DRAIN).length} stale=${result.stale.length}`,
+      `ledger-size=${Object.keys(PORT_CATCHES_TO_DRAIN).length} stale=${result.stale.length} ` +
+      `pins=${Object.keys(PORT_CATCH_PINS).length} stale-pins=${result.stalePins.length}`,
   );
 
   if (result.violations.length > 0) {
@@ -558,7 +667,17 @@ async function main(): Promise<void> {
     for (const key of result.stale) console.error(`  - ${key}`);
   }
 
-  process.exit(result.violations.length > 0 || result.stale.length > 0 ? 1 : 0);
+  if (result.stalePins.length > 0) {
+    console.error(
+      '\nStale pins in PORT_CATCH_PINS (each no longer describes a site the analysis ' +
+        'cannot see — delete or correct it):',
+    );
+    for (const entry of result.stalePins) console.error(`  - ${entry}`);
+  }
+
+  process.exit(
+    result.violations.length > 0 || result.stale.length > 0 || result.stalePins.length > 0 ? 1 : 0,
+  );
 }
 
 // CLI only — importing this module (the unit self-test does) must not scan.

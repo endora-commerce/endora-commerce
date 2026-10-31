@@ -12,6 +12,7 @@ import {
   spacerSection,
   dividerSection,
   logoSection,
+  type InvoicePdfLabels,
 } from './sections.js';
 
 /**
@@ -40,6 +41,8 @@ export type InvoiceComponentName = (typeof INVOICE_COMPONENT_NAMES)[number];
 export interface OwnBlockRenderOptions {
   /** A present, placed contributed block prints the KSeF number (T137). */
   readonly suppressKsefNumber?: boolean;
+  /** The labels in the document's language. Absent, English. */
+  readonly labels?: InvoicePdfLabels;
 }
 
 type Mapper = (
@@ -51,15 +54,15 @@ type Mapper = (
 
 const COMPONENT_MAP: Record<InvoiceComponentName, Mapper> = {
   'invoices.InvoiceHeader': (p, inv, _locale, options) => headerSection(inv, p, options),
-  'invoices.InvoiceParties': (p, inv) => partiesSection(inv, p),
-  'invoices.InvoiceLineItems': (p, inv) => lineItemsSection(inv, p),
-  'invoices.InvoiceVatSummary': (p, inv) => vatSummarySection(inv, p),
-  'invoices.InvoiceTotals': (p, inv, locale) => totalsSection(inv, locale, p),
+  'invoices.InvoiceParties': (p, inv, _locale, { labels }) => partiesSection(inv, p, labels),
+  'invoices.InvoiceLineItems': (p, inv, _locale, { labels }) => lineItemsSection(inv, p, labels),
+  'invoices.InvoiceVatSummary': (p, inv, _locale, { labels }) => vatSummarySection(inv, p, labels),
+  'invoices.InvoiceTotals': (p, inv, locale, { labels }) => totalsSection(inv, locale, p, labels),
   'invoices.InvoiceNotes': (p, inv) => notesSection(p, inv),
   'invoices.InvoiceSpacer': (p) => spacerSection(p),
   'invoices.InvoiceDivider': (p) => dividerSection(p),
   'invoices.InvoiceLogo': (p) => logoSection(p),
-  'invoices.InvoiceFooter': (p, inv) => footerSection(p, inv),
+  'invoices.InvoiceFooter': (p, inv, _locale, { labels }) => footerSection(p, inv, labels),
 };
 
 /** Render one of this module's own blocks — `undefined` for any other name. */

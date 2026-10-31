@@ -1536,5 +1536,12 @@
   "blocks.productSlider.fields.leadWeight.options.default": "Default",
   "blocks.productSlider.fields.leadColor.label": "Lead color",
   "blocks.productSlider.fields.headingLineHeight.label": "Heading line height",
-  "blocks.productGrid.fields.headingLineHeight.label": "Heading line height"
+  "blocks.productGrid.fields.headingLineHeight.label": "Heading line height",
+  "bulkOperations.log.queued": "Operation created and queued ({total} items).",
+  "bulkOperations.log.reindexQueued": "Search reindex operation created and queued.",
+  "bulkOperations.log.started": "Started processing the operation ({total} items).",
+  "bulkOperations.log.finished": "Finished: {succeeded} succeeded, {skipped} skipped, {failed} failed ({total} in total).",
+  "bulkOperations.log.itemsFailed": "{failed} items failed — see the status of each item for details.",
+  "bulkOperations.log.failed": "The operation failed: {message}",
+  "bulkOperations.log.reindexed": "Reindexed {documentCount} documents across all indexes."
 }

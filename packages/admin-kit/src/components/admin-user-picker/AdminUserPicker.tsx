@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ApiError, apiClient } from '../../lib/index.js';
+import { useTranslation } from '../../i18n/useTranslation.js';
 import { Combobox, type ComboboxOption } from '../../ui/combobox.js';
 
 /**
@@ -43,6 +44,11 @@ export function AdminUserPicker(props: AdminUserPickerProps): ReactNode {
   const [options, setOptions] = useState<ComboboxOption<string>[]>([]);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Whether any search has answered. Opening the list asks for the first page
+  // after the debounce, and until that answer arrives nothing has been searched:
+  // the empty list prompts for a term rather than claiming no match (#563).
+  const [answered, setAnswered] = useState(false);
+  const t = useTranslation('core');
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seqRef = useRef(0);
@@ -72,12 +78,17 @@ export function AdminUserPicker(props: AdminUserPickerProps): ReactNode {
       );
     } catch (err) {
       if (seq !== seqRef.current) return;
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Search failed.');
+      setError(
+        err instanceof ApiError ? err.envelope.error.message : t('adminUserPicker.searchFailed'),
+      );
       setOptions([]);
     } finally {
-      if (seq === seqRef.current) setSearching(false);
+      if (seq === seqRef.current) {
+        setSearching(false);
+        setAnswered(true);
+      }
     }
-  }, []);
+  }, [t]);
 
   const handleSearchChange = useCallback(
     (query: string): void => {
@@ -94,8 +105,12 @@ export function AdminUserPicker(props: AdminUserPickerProps): ReactNode {
     return u ? adminUserLabel(u) : '';
   }, [props.value, cache]);
 
+  // A failure outranks everything; before any answer, prompt for a term; after
+  // one, the caller's empty message or the kit's. While a search is in flight
+  // <Combobox> shows its own loading row.
   const emptyMessage =
-    error ?? props.emptyMessage ?? (searching ? 'Searching…' : 'No matching admin users.');
+    error ??
+    (answered ? (props.emptyMessage ?? t('adminUserPicker.noMatch')) : t('adminUserPicker.prompt'));
 
   return (
     <Combobox<string>
@@ -107,9 +122,9 @@ export function AdminUserPicker(props: AdminUserPickerProps): ReactNode {
       loading={searching}
       clearable={props.clearable ?? true}
       disabled={props.disabled ?? false}
-      placeholder={props.placeholder ?? 'Search admin users by name or email…'}
+      placeholder={props.placeholder ?? t('adminUserPicker.placeholder')}
       emptyMessage={emptyMessage}
-      ariaLabel={props.ariaLabel ?? 'Select admin user'}
+      ariaLabel={props.ariaLabel ?? t('adminUserPicker.ariaLabel')}
       id={props.id ?? ''}
       className={props.className ?? ''}
       selectedLabel={selectedLabel}

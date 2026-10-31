@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
+import type { z } from 'zod';
+import type { AuditLogEntry, AuditLogEntryResponse, auditLogEntrySchema } from './admin.js';
 import {
   adminMeResponseSchema,
   updateAdminUserRequestSchema,
@@ -111,5 +113,21 @@ describe('adminMeResponseSchema — preferences', () => {
 
   it('refuses a response without the key', () => {
     expect(adminMeResponseSchema.safeParse(me).success).toBe(false);
+  });
+});
+
+/**
+ * The audit-log row as the API returns it (issue #84). `@endora-commerce/platform/kernel`
+ * publishes `AuditLogEntry` as the MikroORM entity of an `audit_logs` row, so the
+ * contract's type carries the package's `…Response` suffix instead. `AuditLogEntry`
+ * stays for one minor release as a deprecated alias of the same type.
+ */
+describe('AuditLogEntryResponse', () => {
+  it('is the shape inferred from `auditLogEntrySchema`', () => {
+    expectTypeOf<AuditLogEntryResponse>().toEqualTypeOf<z.infer<typeof auditLogEntrySchema>>();
+  });
+
+  it('keeps the deprecated `AuditLogEntry` as an alias of it', () => {
+    expectTypeOf<AuditLogEntry>().toEqualTypeOf<AuditLogEntryResponse>();
   });
 });

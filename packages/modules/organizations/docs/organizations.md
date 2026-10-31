@@ -134,6 +134,10 @@ VALIDATION_FAILED`.
 Customer-side gate: the storefront receives the localized
 "why-you-can't-transact" message via `GET /api/v1/me`'s
 `organization.canTransact` + `organization.moderationMessage` fields.
+The message, like the checkout preflight's 423 `reason`, is written in
+the language the response is answered in (the storefront's
+`Accept-Language`, else the sales channel's default language), from
+the `moderation.*` keys of this module's bundle.
 The cart and checkout pages render `<OrganizationModerationBanner>`
 above the form when `canTransact === false`.
 
@@ -146,6 +150,12 @@ broadcast notification (`audience='all_admins'`,
 in the `organizations.notifications.new_registration_recipients`
 setting. The bell polls every 30 s via
 `GET /api/v1/admin/notifications`.
+
+The bell entry carries English text and the `notifications.newRegistration.*`
+keys of this module's bundle, so each administrator reads it in their own
+language. The e-mail goes through the `new_org_registration` template when
+one is defined; otherwise the module composes it itself, in the language of
+the system-default sales channel, from the same bundle.
 
 | Verb + Path | Purpose |
 | --- | --- |

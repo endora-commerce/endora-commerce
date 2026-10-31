@@ -5,6 +5,7 @@ import type { ReactElement } from 'react';
 import { AppLanguageContext } from '@endora-commerce/admin-kit/i18n';
 import type { SupportedAdminLanguage } from '@endora-commerce/admin-kit/i18n';
 import { renderWithI18n } from '../helpers/render-with-i18n';
+import { shippedCoreBundle } from '../helpers/core-bundle';
 
 /**
  * Issue #89 — `CategorySelect` has a test.
@@ -54,15 +55,18 @@ function renderSelect(
   ui: ReactElement,
   language: SupportedAdminLanguage = 'en',
 ): ReturnType<typeof renderWithI18n> {
+  // The shipped `core` bundle in the same language, so the copy is real (#561).
   return renderWithI18n(
     <AppLanguageContext.Provider value={{ language, setLanguage: (): void => {} }}>
       {ui}
     </AppLanguageContext.Provider>,
+    shippedCoreBundle(language === 'pl' ? 'pl' : 'en'),
+    { language },
   );
 }
 
-async function open(): Promise<HTMLElement> {
-  await userEvent.setup().click(screen.getByRole('combobox', { name: 'Select category' }));
+async function open(name = 'Select category'): Promise<HTMLElement> {
+  await userEvent.setup().click(screen.getByRole('combobox', { name }));
   return screen.getByRole('listbox');
 }
 
@@ -111,7 +115,7 @@ describe('CategorySelect', () => {
     getSpy.mockResolvedValue({ data: CATEGORIES });
     renderSelect(<CategorySelect value={null} onChange={vi.fn()} />, 'pl');
 
-    await open();
+    await open('Wybierz kategorię');
     const options = await screen.findAllByRole('option');
     expect(options.map((o) => o.textContent)).toEqual(['Krzesłachairs', 'Biurkadesks', 'miscmisc']);
   });
@@ -136,5 +140,25 @@ describe('CategorySelect', () => {
     const listbox = await open();
     await waitFor(() => expect(listbox.textContent).toContain('Failed to load categories.'));
     expect(listbox.textContent).not.toContain('Create a category first.');
+  });
+
+  it('speaks Polish to a Polish admin', async () => {
+    getSpy.mockResolvedValue({ data: [] });
+    renderSelect(<CategorySelect value={null} onChange={vi.fn()} />, 'pl');
+
+    const input = screen.getByRole('combobox', { name: 'Wybierz kategorię' });
+    expect(input.getAttribute('placeholder')).toBe('Wybierz kategorię…');
+    await userEvent.setup().click(input);
+    await waitFor(() => expect(screen.getByRole('listbox').textContent).toBe('Brak kategorii.'));
+  });
+
+  it('says in Polish that the categories failed to load', async () => {
+    getSpy.mockRejectedValue(new TypeError('Failed to fetch'));
+    renderSelect(<CategorySelect value={null} onChange={vi.fn()} />, 'pl');
+
+    await userEvent.setup().click(screen.getByRole('combobox', { name: 'Wybierz kategorię' }));
+    await waitFor(() => {
+      expect(screen.getByRole('listbox').textContent).toBe('Nie udało się wczytać kategorii.');
+    });
   });
 });

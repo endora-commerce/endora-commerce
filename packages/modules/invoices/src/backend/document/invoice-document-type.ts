@@ -1,11 +1,15 @@
-import type {
-  DocumentBlockRenderer,
-  DocumentTypeRegistration,
-  InvoiceDocumentData,
-  InvoicePdfBlockRegistration,
+import {
+  supportedLanguageOf,
+  type DocumentBlockRenderer,
+  type DocumentTypeRegistration,
+  type InvoiceDocumentData,
+  type InvoicePdfBlockRegistration,
+  type SupportedLanguage,
 } from '@endora-commerce/contracts';
+import { invoicesProseTable, type InvoicesTranslate } from '../invoices-prose.js';
 import { embedInvoiceLogoImages, type LoadAssetImage } from '../pdf-components/embed-logo-images.js';
 import { sampleInvoiceDetail } from '../pdf-components/sample.js';
+import { INVOICE_PDF_LABEL_KEYS, type InvoicePdfLabels } from '../pdf-components/sections.js';
 import { INVOICE_COMPONENT_NAMES, renderOwnBlock } from '../pdf-components/tree-mapper.js';
 import { GENERIC_INVOICE_TEMPLATE_CONTENT } from '../seeds/generic-invoice-template.js';
 import type { InvoicePdfBlockRegistry } from '../services/invoice-pdf-block-registry.js';
@@ -47,17 +51,39 @@ const OWN = new Set<string>(INVOICE_COMPONENT_NAMES);
  *   when it renders, so pdfmake never fetches anything.
  * - Polish only (N5); A4 portrait, margins 40/40/48/40, 10 pt; the preview's
  *   sample prints the amount in words in English, as the old editor did.
+ * - **Labels** a template prop does not supply are drawn in the document's
+ *   `language`, from this module's bundle through `translate`; without it, in
+ *   English (issue #95).
  */
 export function createInvoiceDocumentType(deps: {
   readonly contributed: InvoicePdfBlockRegistry;
   readonly loadAssetImage: LoadAssetImage;
+  readonly translate?: InvoicesTranslate;
 }): DocumentTypeRegistration<InvoiceDocumentData, InvoicePrepared> {
+  // One resolution per render and language: every own block of one PDF draws
+  // from the same table, keyed on the render's data object.
+  const labelsByRender = new WeakMap<object, Map<SupportedLanguage, Promise<InvoicePdfLabels>>>();
+  const labelsFor = (data: InvoiceDocumentData, language: string): Promise<InvoicePdfLabels> => {
+    const supported = supportedLanguageOf(language);
+    let byLanguage = labelsByRender.get(data);
+    if (!byLanguage) {
+      byLanguage = new Map();
+      labelsByRender.set(data, byLanguage);
+    }
+    let labels = byLanguage.get(supported);
+    if (!labels) {
+      labels = invoicesProseTable(deps.translate, INVOICE_PDF_LABEL_KEYS, supported);
+      byLanguage.set(supported, labels);
+    }
+    return labels;
+  };
+
   const own: InvoiceBlock[] = INVOICE_COMPONENT_NAMES.map(
     (name): InvoiceBlock => ({
       name,
       moduleId: 'invoices',
       describe: () => describeOwnBlock(name),
-      async render({ props, data, prepared }) {
+      async render({ props, data, prepared, language }) {
         let effective: Record<string, unknown> = { ...props };
         if (name === 'invoices.InvoiceLogo') {
           const embedded = (await embedInvoiceLogoImages(
@@ -68,6 +94,7 @@ export function createInvoiceDocumentType(deps: {
         }
         return renderOwnBlock(name, effective, data.invoice, data.amountLocale, {
           suppressKsefNumber: prepared.suppressKsefNumber,
+          labels: await labelsFor(data, language),
         });
       },
     }),

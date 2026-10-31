@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { EventBus } from '@endora-commerce/platform/events';
 import type {
+  AdminI18nTranslatePort,
   AdminRolePort,
   AssetReadPort,
   AssetsLibraryPort,
@@ -62,6 +63,7 @@ import { InvoiceExternalAttachment } from './entities/invoice-external-attachmen
 import { InvoiceLine } from './entities/invoice-line.entity.js';
 import { InvoiceNumberCounter } from './entities/invoice-number-counter.entity.js';
 import { createInvoiceDocumentType } from './document/invoice-document-type.js';
+import type { InvoicesTranslate } from './invoices-prose.js';
 import { GRANT_DONE_SETTING, grantDocumentTemplatesAccess } from './document/document-templates-grant.js';
 import { Invoice } from './entities/invoice.entity.js';
 
@@ -142,6 +144,15 @@ export interface InvoicesCradle {
 }
 
 export function registerModule(ctx: ModuleContext): void {
+  // This module's bundle, for the invoice labels and line names it writes in
+  // the invoice's language (issue #95). Resolved per call, so the gate stays live.
+  const translate: InvoicesTranslate = (key, language, params) =>
+    lazyPort<AdminI18nTranslatePort>(ctx, 'adminI18nService').translate(
+      'invoices',
+      key,
+      language,
+      params,
+    );
   ctx.di.register({
     /**
      * Feature 078, D-95.3 / D-95.4 — the boot-time numbering configuration.
@@ -205,6 +216,7 @@ export function registerModule(ctx: ModuleContext): void {
           // `orders` an operator had switched off. `orders` is already a
           // binding dependency of this manifest and the edge stays fail-closed.
           orderReadPort: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
+          translate,
           assetReadPort: lazyPort<AssetReadPort>(ctx, 'assetReadPort'),
           assetsLibrary: lazyPort<AssetsLibraryPort>(ctx, 'assetsLibraryPort'),
           // Feature 134, T061 — this module's own registry, not a connector's
@@ -517,6 +529,7 @@ export function registerModule(ctx: ModuleContext): void {
       createInvoiceDocumentType({
         contributed: invoicePdfBlockRegistry,
         loadAssetImage: invoices.handle.loadAssetImage,
+        translate,
       }),
     );
   });
