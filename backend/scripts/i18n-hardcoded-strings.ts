@@ -257,7 +257,7 @@ export function scanDefaultTree(): DefaultTreeScan {
   const storefront = storefrontScanRoot();
   const storefrontFiles: string[] = [];
   if (storefront !== null) collectStorefrontFiles(storefront, storefrontFiles);
-  for (const file of storefrontFiles) walkFile(file, findings, { polishLiterals: true });
+  for (const file of storefrontFiles) walkFile(file, findings, STOREFRONT_ANALYSIS);
   return {
     files: [...files, ...storefrontFiles],
     findings,
@@ -345,17 +345,30 @@ export function moduleAdminFloorRefusal(
  *      (title, aria-label, placeholder, alt) and whose value is a string
  *      literal, e.g. `<input placeholder="Search…" />`.
  *
- * The storefront (issue #85) is walked as well, over `.ts` and `.tsx`, and with
- * a third shape:
- *   3. A string or template literal anywhere in the source that contains a
- *      Polish diacritic, outside a per-language structure (an object literal
- *      with two or more locale-keyed properties — the message catalogue's
- *      shape). The storefront's literals were Polish, and most of them were
- *      not JSX text but label tables and composed sentences.
- *   Its bound is declared: Polish carrying no diacritic is invisible to it,
- *   and an English literal outside JSX is not a finding.
+ * The storefront (issue #85) is walked as well, over `.ts` and `.tsx`, and is
+ * judged strictly ({@link STOREFRONT_ANALYSIS}) — six kinds, each literal
+ * reported once, under the first that claims it:
+ *   - `jsx-text`: any JSX text with a letter, single words included (`Koszyk`);
+ *     `<code>`, `<kbd>`, `<samp>`, `<script>`, `<style>` and SVG text exempt.
+ *   - `jsx-attr`: a visible attribute — the four above, `label`, the
+ *     text-bearing `aria-*`, a prop named for copy (`removeLabel`) — read
+ *     through `{…}`, parentheses, conditional branches, `&&`, `||`, `??`, `+`
+ *     and templates, never through a call.
+ *   - `jsx-expression`: a literal rendered as a JSX child, `{ok ? 'A' : 'B'}`.
+ *   - `copy-property`: a literal under a property named for copy (`title`,
+ *     `description`, `label`, `qtyLabel`, … — Next's `metadata`, label
+ *     tables), and the word-shaped siblings of a value that was reported.
+ *   - `prose-literal`: any other prose-shaped literal (a capital and two
+ *     words, or a sentence ending), outside diagnostics, comparisons, keys,
+ *     catalogue calls, styling, HTTP headers, URLs, MIME types and SVG paths.
+ *   - `polish-literal`: a literal with a Polish diacritic none of those claimed.
+ *   All of them skip a per-language structure (an object literal with two or
+ *   more locale-keyed properties — the message catalogue's shape). The bound is
+ *   declared: a lone word outside every named context (`const unit = 'szt.'`)
+ *   and copy reaching the page only through a call argument are invisible.
  *
- * False-positive controls:
+ * False-positive controls (the admin's two shapes; the storefront's are on
+ * {@link analyzeStrict} and its helpers):
  *   - Ignore strings made entirely of code-style characters: identifiers
  *     with dots or underscores, paths, regex shapes, UUID/hex.
  *   - Ignore JSX inside <code>...</code> (technical identifier display).
@@ -389,12 +402,33 @@ const USER_VISIBLE_ATTRS = new Set([
   'alt',
 ]);
 
+/**
+ * The finding vocabulary. The first two are the admin's; the storefront is
+ * judged by all six (see {@link AnalyzeOptions.strictShapes}).
+ *
+ * - `jsx-text` — a JSX text node.
+ * - `jsx-attr` — the value of an attribute the user reads or hears.
+ * - `jsx-expression` — a literal rendered as a JSX child: `{ok ? 'Saved' : 'Failed'}`.
+ * - `copy-property` — a literal under a property named for rendered copy:
+ *   `{ title: 'Cart' }`, `metadata.description`, a label table's `qtyLabel`.
+ * - `prose-literal` — a literal shaped like prose anywhere else.
+ * - `polish-literal` — a literal carrying a Polish diacritic that none of the
+ *   above reported.
+ */
+export type FindingKind =
+  | 'jsx-text'
+  | 'jsx-attr'
+  | 'jsx-expression'
+  | 'copy-property'
+  | 'prose-literal'
+  | 'polish-literal';
+
 export interface Finding {
   filePath: string;
   line: number;
   column: number;
   text: string;
-  kind: 'jsx-text' | 'jsx-attr' | 'polish-literal';
+  kind: FindingKind;
 }
 
 /** What {@link analyzeSource} asks beyond the two JSX shapes. */
@@ -405,7 +439,18 @@ export interface AnalyzeOptions {
    * over the two JSX shapes.
    */
   readonly polishLiterals?: boolean;
+  /**
+   * The storefront's strict shapes (issue #85): every JSX text node with a
+   * letter in it, a wider set of visible attributes read through `{…}`, literals
+   * rendered as JSX children, copy-named properties and prose-shaped literals.
+   * Off for the admin roots, so `HARDCODED_STRINGS_BASELINE` is counted by the
+   * rule it was measured with. See {@link analyzeStrict}.
+   */
+  readonly strictShapes?: boolean;
 }
+
+/** How the storefront is analysed, by the default scan and by the draining mode alike. */
+export const STOREFRONT_ANALYSIS: AnalyzeOptions = { polishLiterals: true, strictShapes: true };
 
 const POLISH_DIACRITIC = /[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/;
 
@@ -499,12 +544,13 @@ export function analyzeSource(
   const kind = filePath.endsWith('.ts') ? ts.ScriptKind.TS : ts.ScriptKind.TSX;
   const sf = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true, kind);
 
-  function polishLiteral(node: ts.Node, text: string): void {
-    if (!POLISH_DIACRITIC.test(text)) return;
-    if (isNonValueLiteral(node) || isUserVisibleAttributeValue(node)) return;
-    if (insidePerLanguageStructure(node)) return;
+  function polishLiteral(node: ts.Node, text: string): boolean {
+    if (!POLISH_DIACRITIC.test(text)) return false;
+    if (isNonValueLiteral(node) || isUserVisibleAttributeValue(node)) return false;
+    if (insidePerLanguageStructure(node)) return false;
     const { line, character } = sf.getLineAndCharacterOfPosition(node.getStart(sf));
     findings.push({ filePath, line: line + 1, column: character + 1, text, kind: 'polish-literal' });
+    return true;
   }
 
   function isInsideCodeElement(node: ts.Node): boolean {
@@ -519,6 +565,11 @@ export function analyzeSource(
       p = p.parent;
     }
     return false;
+  }
+
+  if (options.strictShapes) {
+    analyzeStrict(sf, filePath, findings, (node, text) => polishLiteral(node, text), options);
+    return findings;
   }
 
   function visit(node: ts.Node): void {
@@ -564,6 +615,415 @@ export function analyzeSource(
 
   visit(sf);
   return findings;
+}
+
+/**
+ * Attributes whose value the user reads or hears, for the storefront's strict
+ * shapes: the admin's four, the ARIA attributes that carry text, and `label`
+ * (a `<track>`/`<option>`/`<optgroup>` attribute, and the prop name the
+ * storefront's own components use for a button or field caption — ten string
+ * values in the tree when this was measured). A component prop named for copy
+ * (`removeLabel`, `emptyAriaLabel`) is visible too; see {@link namesRenderedCopy}.
+ */
+const STRICT_VISIBLE_ATTRS = new Set([
+  ...USER_VISIBLE_ATTRS,
+  'label',
+  'aria-description',
+  'aria-roledescription',
+  'aria-valuetext',
+  'aria-placeholder',
+  'aria-braillelabel',
+  'aria-brailleroledescription',
+]);
+
+/**
+ * Property and prop names that hold rendered copy. Next's `metadata` is
+ * `title`/`description`; a component's props and a label table use the rest.
+ * Measured on the storefront: `title` (23 string values), `label` (22),
+ * `heading` (12), `description`, `placeholder`, `body`, `message`, `text`.
+ * `text` also names a colour token in the theme tables (`text: '#7c4a03'`),
+ * which the value filter ({@link isNonCopyValue}) answers, not the name.
+ */
+const COPY_NAMES = new Set([
+  'title',
+  'subtitle',
+  'description',
+  'label',
+  'heading',
+  'subheading',
+  'message',
+  'placeholder',
+  'ariaLabel',
+  'alt',
+  'text',
+  'caption',
+  'hint',
+  'body',
+]);
+
+/**
+ * The last word of a camelCase name that makes it copy: `qtyLabel`,
+ * `cardHeading`, `notePlaceholder`, `convertToQrHint`, `lockedPricingNote` —
+ * the storefront's label tables name their entries this way (36 such names
+ * carried a literal when this was measured).
+ */
+const COPY_NAME_SUFFIXES = new Set([
+  'Label',
+  'Title',
+  'Heading',
+  'Message',
+  'Placeholder',
+  'Description',
+  'Text',
+  'Caption',
+  'Hint',
+  'Note',
+  'Body',
+]);
+
+function namesRenderedCopy(name: string): boolean {
+  if (COPY_NAMES.has(name)) return true;
+  const last = /[a-z0-9]([A-Z][a-z]+)$/.exec(name);
+  return last !== null && COPY_NAME_SUFFIXES.has(last[1]!);
+}
+
+/** Attributes whose value is styling — never copy, whatever it looks like. */
+const STYLING_ATTRS = new Set(['className', 'class', 'style']);
+
+/** CSS properties whose value is a list of names (`'Inter, Helvetica Neue'`), never copy. */
+const CSS_NAME_PROPERTIES = new Set(['fontFamily', 'font', 'font-family']);
+
+/** Whether `object` is the literal written as a JSX `style` attribute: `style={{ … }}`. */
+function isStyleObject(object: ts.ObjectLiteralExpression): boolean {
+  let p: ts.Node | undefined = object.parent;
+  while (
+    p &&
+    (ts.isParenthesizedExpression(p) || ts.isAsExpression(p) || ts.isSatisfiesExpression(p))
+  ) {
+    p = p.parent;
+  }
+  return (
+    p !== undefined &&
+    ts.isJsxExpression(p) &&
+    p.parent !== undefined &&
+    ts.isJsxAttribute(p.parent) &&
+    p.parent.name.getText() === 'style'
+  );
+}
+
+/** Calls whose arguments are class names, never copy. */
+const CLASS_NAME_CALLS = new Set(['cn', 'clsx', 'cx', 'cva', 'twMerge', 'classNames']);
+
+/** Calls whose argument is a catalogue key, never copy. */
+const CATALOGUE_CALLS = new Set(['t', 'tForLocale']);
+
+/**
+ * Elements whose text is not prose for a translator: technical text
+ * (`code`, `kbd`, `samp`), content that is not rendered as text (`script`,
+ * `style`), and SVG text, which in this storefront is a logo glyph (the payment
+ * icons' `<tspan>G</tspan>`), not a sentence.
+ */
+const NON_PROSE_ELEMENTS = new Set(['code', 'kbd', 'samp', 'script', 'style', 'text', 'tspan']);
+
+const LETTER = /\p{L}/u;
+
+/** `&nbsp;`, `&amp;`, `&#8212;` — a JSX entity is a character, not a word. */
+const JSX_ENTITY = /&(?:[A-Za-z]+|#\d+|#x[0-9A-Fa-f]+);/g;
+
+/**
+ * A value that is not copy whatever property or attribute holds it: a
+ * catalogue key or another dotted/snake/kebab identifier (`nav.cart`,
+ * `pwa:skip-waiting`, `not-allowed`), a URL or path, a MIME type, a colour, a
+ * CSS function. Starts lower-case, so `E-mail` and `Cart` stay copy.
+ */
+function isNonCopyValue(text: string): boolean {
+  const t = text.trim();
+  if (!LETTER.test(t)) return true;
+  if (/^[a-z_$@][\w$@]*(?:[.:/_\-[\]*]+[\w$@\]*]+)+$/.test(t)) return true;
+  if (/^(?:[a-z][a-z0-9+.-]*:\/\/|mailto:|tel:|data:|\/|\.\.?\/|#[\w-]*$|\?)/i.test(t)) return true;
+  if (/^[a-z]+\/[a-z0-9.+-]+(?:\s*;.*)?$/.test(t)) return true;
+  if (/^#[0-9a-f]{3,8}$/i.test(t)) return true;
+  if (/^(?:var|rgba?|hsla?|calc|url|clamp|min|max|color-mix|linear-gradient)\(/.test(t)) {
+    return true;
+  }
+  // SVG path data (`M12 22s8-4 8-10V5l-8-3z`): 90 icon paths read as two-word
+  // capitalised "prose" before this line.
+  if (/^[Mm][\d\s.,MmLlHhVvCcSsQqTtAaZz-]*$/.test(t)) return true;
+  return false;
+}
+
+/**
+ * Whether a literal outside every named context is shaped like prose: it
+ * starts with a capital and has two or more words (`Continue shopping`), or it
+ * ends like a sentence (`Saved.`, `Loading…`, `the cart is empty.`) and starts
+ * with a capital or has two or more words. A single lower-case word, a code
+ * token and a capitalised identifier (`Escape`, `ItemList`) are not.
+ */
+function isProseShaped(text: string): boolean {
+  const t = text.trim();
+  if (isNonCopyValue(t)) return false;
+  // A tagged diagnostic (`[page-builder] … was ignored.`) is for a developer.
+  if (/^\[[\w:.-]+\]/.test(t)) return false;
+  const words = t.split(/\s+/).filter((word) => LETTER.test(word));
+  if (words.length === 0) return false;
+  const capital = /^\p{Lu}/u.test(t);
+  const sentenceEnd = /[.!?…]$/u.test(t);
+  if (capital && words.length >= 2) return true;
+  if (sentenceEnd && (capital || words.length >= 2)) return true;
+  return false;
+}
+
+/** The text a translator would see: a template's static parts around `${…}`. */
+type TextLiteral = ts.StringLiteral | ts.NoSubstitutionTemplateLiteral | ts.TemplateExpression;
+
+function literalText(node: TextLiteral): string {
+  return ts.isTemplateExpression(node) ? templateText(node) : node.text;
+}
+
+/**
+ * Climb from a literal through the expressions that pass its value on
+ * unchanged — parentheses, type assertions, both branches of a conditional,
+ * `&&`'s right operand, either operand of `||`, `??` and `+`, a template's
+ * substitution, and the `{…}` around an attribute value — and return the
+ * outermost node reached. Its parent is the context that decides the kind.
+ *
+ * A call argument does not pass through: `{t('cart.title')}` and
+ * `{format(x, 'pl-PL')}` hand the literal to code, not to the reader.
+ */
+function passThroughTop(node: ts.Node): ts.Node {
+  let cur = node;
+  for (;;) {
+    const p = cur.parent;
+    if (!p) return cur;
+    if (
+      ts.isParenthesizedExpression(p) ||
+      ts.isAsExpression(p) ||
+      ts.isSatisfiesExpression(p) ||
+      ts.isNonNullExpression(p) ||
+      ts.isTypeAssertionExpression(p)
+    ) {
+      cur = p;
+    } else if (ts.isConditionalExpression(p) && cur !== p.condition) {
+      cur = p;
+    } else if (ts.isBinaryExpression(p)) {
+      const op = p.operatorToken.kind;
+      const passes =
+        op === ts.SyntaxKind.PlusToken ||
+        op === ts.SyntaxKind.BarBarToken ||
+        op === ts.SyntaxKind.QuestionQuestionToken ||
+        (op === ts.SyntaxKind.AmpersandAmpersandToken && cur === p.right);
+      if (!passes) return cur;
+      cur = p;
+    } else if (ts.isTemplateSpan(p)) {
+      cur = p.parent;
+    } else if (ts.isJsxExpression(p) && p.parent !== undefined && ts.isJsxAttribute(p.parent)) {
+      cur = p;
+    } else {
+      return cur;
+    }
+  }
+}
+
+function isInsideElement(node: ts.Node, tags: ReadonlySet<string>): boolean {
+  for (let p = node.parent; p; p = p.parent) {
+    if (ts.isJsxElement(p)) {
+      const tag = p.openingElement.tagName;
+      if (ts.isIdentifier(tag) && tags.has(tag.text)) return true;
+    }
+  }
+  return false;
+}
+
+function calleeName(expression: ts.Expression): string | null {
+  if (ts.isIdentifier(expression)) return expression.text;
+  if (ts.isPropertyAccessExpression(expression)) return expression.name.text;
+  // `tForLocale(locale)('key')` — the callee is itself a catalogue call.
+  if (ts.isCallExpression(expression)) return calleeName(expression.expression);
+  return null;
+}
+
+/** The receiver's last name: `console` for `console.warn`, `headers` for `response.headers.set`. */
+function receiverName(expression: ts.Expression): string | null {
+  if (!ts.isPropertyAccessExpression(expression)) return null;
+  const receiver = expression.expression;
+  if (ts.isIdentifier(receiver)) return receiver.text;
+  if (ts.isPropertyAccessExpression(receiver)) return receiver.name.text;
+  return null;
+}
+
+/** `headers.set('Vary', 'Accept-Language, Cookie')` — an HTTP header, not copy. */
+const HEADER_METHODS = new Set(['set', 'append', 'get', 'has', 'delete']);
+
+const COMPARISON_OPERATORS = new Set([
+  ts.SyntaxKind.EqualsEqualsEqualsToken,
+  ts.SyntaxKind.ExclamationEqualsEqualsToken,
+  ts.SyntaxKind.EqualsEqualsToken,
+  ts.SyntaxKind.ExclamationEqualsToken,
+  ts.SyntaxKind.InKeyword,
+]);
+
+/**
+ * Whether the context a prose-shaped literal sits in says it is not rendered:
+ * a developer's diagnostic (`console.*`, `new …Error(…)`, `throw`), a value
+ * compared against rather than shown (`===`, `case`, `in`), a key (an object
+ * key, an element access, an enum member), a catalogue key (`t(…)`), styling
+ * (`cn(…)`, `className`, a `style={{…}}` object, a font family), an HTTP
+ * header or status body.
+ */
+function isNonRenderedContext(literal: ts.Node, top: ts.Node): boolean {
+  const own = literal.parent;
+  if (own) {
+    const named =
+      ts.isPropertyAssignment(own) || ts.isPropertySignature(own) || ts.isMethodDeclaration(own);
+    if (named && own.name === literal) return true;
+    if (ts.isElementAccessExpression(own) && own.argumentExpression === literal) return true;
+    if (ts.isComputedPropertyName(own)) return true;
+  }
+  const ctx = top.parent;
+  if (!ctx) return false;
+  if (ts.isThrowStatement(ctx)) return true;
+  if (ts.isPropertyAssignment(ctx) && ctx.initializer === top) {
+    const key = propertyKeyText(ctx.name);
+    if (key !== null && CSS_NAME_PROPERTIES.has(key)) return true;
+    if (ts.isObjectLiteralExpression(ctx.parent) && isStyleObject(ctx.parent)) return true;
+  }
+  if (ts.isCaseClause(ctx) && ctx.expression === top) return true;
+  if (ts.isEnumMember(ctx)) return true;
+  if (ts.isBinaryExpression(ctx) && COMPARISON_OPERATORS.has(ctx.operatorToken.kind)) return true;
+  if (ts.isJsxAttribute(ctx) && STYLING_ATTRS.has(ctx.name.getText())) return true;
+  if (ts.isCallExpression(ctx) && ctx.arguments.includes(top as ts.Expression)) {
+    const name = calleeName(ctx.expression);
+    if (name !== null && (CATALOGUE_CALLS.has(name) || CLASS_NAME_CALLS.has(name))) return true;
+    const receiver = receiverName(ctx.expression);
+    if (receiver === 'console') return true;
+    if (
+      receiver !== null &&
+      /headers$/i.test(receiver) &&
+      name !== null &&
+      HEADER_METHODS.has(name)
+    ) {
+      return true;
+    }
+  }
+  if (ts.isNewExpression(ctx) && ctx.arguments?.includes(top as ts.Expression)) {
+    const name = calleeName(ctx.expression);
+    // A developer's error, and an HTTP body that is a status text
+    // (`new NextResponse('Not Found', { status: 404 })`).
+    if (name !== null && (/Error$/.test(name) || name === 'Response' || name === 'NextResponse')) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * The storefront's strict shapes (issue #85). The admin's two shapes miss most
+ * of what the storefront renders: a single word of JSX text (`Koszyk`) read as
+ * "code-like", a visible attribute written `{'…'}` or `{a ? 'X' : 'Y'}`, a
+ * literal rendered as a JSX child, a label table, Next's `metadata`, and any
+ * English sentence outside JSX. Each literal is reported once, under the first
+ * kind that claims it; a Polish literal none of them claims is `polish-literal`
+ * as before.
+ */
+function analyzeStrict(
+  sf: ts.SourceFile,
+  filePath: string,
+  findings: Finding[],
+  polishFallback: (node: ts.Node, text: string) => boolean,
+  options: AnalyzeOptions,
+): void {
+  const first = findings.length;
+  // Every literal reported, so the label-table pass below can find its siblings.
+  const reported = new Set<ts.Node>();
+  const push = (node: ts.Node, text: string, kind: FindingKind): void => {
+    const { line, character } = sf.getLineAndCharacterOfPosition(node.getStart(sf));
+    findings.push({ filePath, line: line + 1, column: character + 1, text, kind });
+    reported.add(node);
+  };
+
+  const classify = (literal: TextLiteral, text: string): FindingKind | null => {
+    if (isNonValueLiteral(literal) || insidePerLanguageStructure(literal)) return null;
+    const top = passThroughTop(literal);
+    const ctx = top.parent;
+    if (ctx && ts.isJsxAttribute(ctx)) {
+      const name = ctx.name.getText(sf);
+      if (STYLING_ATTRS.has(name)) return null;
+      if (STRICT_VISIBLE_ATTRS.has(name) || namesRenderedCopy(name)) {
+        return isNonCopyValue(text) ? null : 'jsx-attr';
+      }
+    } else if (
+      ctx &&
+      ts.isJsxExpression(ctx) &&
+      ctx.parent !== undefined &&
+      (ts.isJsxElement(ctx.parent) || ts.isJsxFragment(ctx.parent))
+    ) {
+      if (isNonCopyValue(text) || isInsideElement(ctx, NON_PROSE_ELEMENTS)) return null;
+      return 'jsx-expression';
+    } else if (ctx && ts.isPropertyAssignment(ctx) && ctx.initializer === top) {
+      const key = propertyKeyText(ctx.name);
+      if (key !== null && namesRenderedCopy(key)) {
+        return isNonCopyValue(text) ? null : 'copy-property';
+      }
+    }
+    if (!isProseShaped(text) || isNonRenderedContext(literal, top)) return null;
+    // A Polish literal no named context claims stays `polish-literal`, the kind
+    // it had before these shapes existed.
+    if (options.polishLiterals && POLISH_DIACRITIC.test(text)) return null;
+    return 'prose-literal';
+  };
+
+  const visit = (node: ts.Node): void => {
+    if (ts.isJsxText(node)) {
+      const trimmed = node.text.replace(JSX_ENTITY, ' ').trim();
+      if (LETTER.test(trimmed) && !isInsideElement(node, NON_PROSE_ELEMENTS)) {
+        push(node, node.text.trim(), 'jsx-text');
+      }
+    } else if (
+      ts.isStringLiteral(node) ||
+      ts.isNoSubstitutionTemplateLiteral(node) ||
+      ts.isTemplateExpression(node)
+    ) {
+      const text = literalText(node);
+      const kind = classify(node, text);
+      if (kind !== null) push(node, text, kind);
+      else if (options.polishLiterals && polishFallback(node, text)) reported.add(node);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+
+  // A label table: an object literal one of whose values was reported is a
+  // table of copy, so its other values are copy too whatever their keys are
+  // called — `{ heading: 'Your cart', install: 'Install', close: 'Close' }`.
+  // Only a value that reads as a word does (a capital and a lower-case letter,
+  // or two words): the same tables carry slugs, icon names, paths and class
+  // names beside their copy (`slug: 'fasteners'`, `cls: 'status--paid'`).
+  const siblings = (node: ts.Node): void => {
+    if (ts.isObjectLiteralExpression(node)) {
+      const values = node.properties
+        .filter(ts.isPropertyAssignment)
+        .map((property) => property.initializer)
+        .filter(
+          (value): value is TextLiteral =>
+            ts.isStringLiteral(value) ||
+            ts.isNoSubstitutionTemplateLiteral(value) ||
+            ts.isTemplateExpression(value),
+        );
+      if (values.some((value) => reported.has(value))) {
+        for (const value of values) {
+          if (reported.has(value) || insidePerLanguageStructure(value)) continue;
+          const text = literalText(value);
+          if (isNonCopyValue(text)) continue;
+          const words = text.trim().split(/\s+/).filter((word) => LETTER.test(word)).length;
+          if (/^\p{Lu}\p{Ll}/u.test(text.trim()) || words >= 2) push(value, text, 'copy-property');
+        }
+      }
+    }
+    ts.forEachChild(node, siblings);
+  };
+  siblings(sf);
+  const own = findings.splice(first).sort((a, b) => a.line - b.line || a.column - b.column);
+  findings.push(...own);
 }
 
 /**
@@ -973,7 +1433,7 @@ async function main(): Promise<void> {
       } catch {
         process.stderr.write(`[i18n:hardcoded] path not found: ${r}\n`);
       }
-      for (const f of here) walkFile(f, found, { polishLiterals: sf });
+      for (const f of here) walkFile(f, found, sf ? STOREFRONT_ANALYSIS : {});
       collected.push(...here);
     }
     files = collected;
@@ -1082,7 +1542,8 @@ async function main(): Promise<void> {
   const cwd = process.cwd();
   const print = (f: Finding): void => {
     const rel = relative(cwd, f.filePath);
-    const text = f.text.length > 80 ? `${f.text.slice(0, 77)}...` : f.text;
+    const flat = f.text.replace(/\s*\n\s*/g, ' ');
+    const text = flat.length > 80 ? `${flat.slice(0, 77)}...` : flat;
     process.stdout.write(`${rel}:${f.line}:${f.column} → "${text}" (${f.kind})\n`);
   };
 
