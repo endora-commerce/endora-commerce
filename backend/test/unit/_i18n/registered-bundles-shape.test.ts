@@ -140,6 +140,78 @@ describe('registered module i18n bundles — real filesystem shape', () => {
     expect(declared).toBeGreaterThan(0);
   });
 
+  /**
+   * Issue #573 — a manifest's `keywords` are English; a word an operator types
+   * in another language goes under the action's `keywordsKey`. The prose
+   * detector (`check:default-language-prose`) cannot see a single Polish word
+   * with no diacritic and no stopword (`statusy`, `klient`), which is how about
+   * forty-five modules kept them inline after #560.
+   *
+   * So the rule is positive rather than a detector: every word of every
+   * `keywords` entry is a word the platform's **English** bundles already use —
+   * every registered module's `en.json`, minus its `*.keywords` entries, so the
+   * rule cannot be satisfied by writing the same word into the list it judges —
+   * or one of the few English and technical tokens below that no English string
+   * happens to contain. A Polish word is in no `en.json`, so it fails here
+   * whether or not it carries a diacritic. The corpus is the whole platform's
+   * rather than the declaring module's own because that one is too small to
+   * hold even its own screen's vocabulary, and a guard that needs a ledger
+   * entry for every ordinary English word is one nobody keeps.
+   *
+   * The allowlist is two-way: an entry no keyword uses, or one the corpus now
+   * holds anyway, fails too, so it cannot grow into a place Polish hides.
+   */
+  it('every manifest action keyword is English — a word the English bundles use, or allowlisted', () => {
+    const KEYWORD_TOKENS_OUTSIDE_THE_ENGLISH_BUNDLES = new Set([
+      'article', 'balance', 'clients', 'conditions', 'datalayer', 'ecommerce', 'ga4',
+      'i18n', 'insight', 'kanban', 'multimedia', 'orgs', 'pipeline', 'presence', 'purge',
+      'rbac', 'refunds', 'sgtm', 'smtp', 'swagger', 'timezone', 'todo', 'urgency',
+    ]);
+    const wordsOf = (text: string): string[] => text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+
+    const english = new Set<string>();
+    for (const entry of withBundles) {
+      const bundle = loadModuleBundles(
+        entry.manifest.id,
+        dirname(entry.filePath),
+        entry.manifest.i18n!.bundlesDir,
+      ).byLanguage.get('en');
+      for (const [key, value] of Object.entries(bundle ?? {})) {
+        if (!key.endsWith('.keywords')) for (const word of wordsOf(value)) english.add(word);
+      }
+    }
+
+    const problems: string[] = [];
+    const allowlistUsed = new Set<string>();
+    let checked = 0;
+    for (const entry of REGISTERED_MANIFESTS) {
+      for (const action of entry.manifest.actions ?? []) {
+        for (const keyword of action.keywords ?? []) {
+          checked += 1;
+          for (const word of wordsOf(keyword)) {
+            if (english.has(word)) continue;
+            if (KEYWORD_TOKENS_OUTSIDE_THE_ENGLISH_BUNDLES.has(word)) {
+              allowlistUsed.add(word);
+              continue;
+            }
+            problems.push(
+              `${entry.manifest.id}/${action.id}: "${keyword}" — "${word}" is in no en.json. ` +
+                'A non-English word goes in i18n/<language>.json under the action\'s keywordsKey; ' +
+                'an English one the bundles do not use goes in this allowlist.',
+            );
+          }
+        }
+      }
+    }
+    for (const word of KEYWORD_TOKENS_OUTSIDE_THE_ENGLISH_BUNDLES) {
+      if (english.has(word)) problems.push(`allowlist: "${word}" is in an en.json now — delete the entry`);
+      else if (!allowlistUsed.has(word)) problems.push(`allowlist: "${word}" is in no manifest keyword — delete the entry`);
+    }
+    expect(problems).toEqual([]);
+    expect(english.size).toBeGreaterThan(1000);
+    expect(checked).toBeGreaterThan(0);
+  });
+
   it('every template-variable sampleValueKey resolves in every shipped language, English matching the manifest', () => {
     const problems: string[] = [];
     let declared = 0;
