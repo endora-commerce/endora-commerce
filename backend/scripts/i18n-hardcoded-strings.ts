@@ -1222,109 +1222,154 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
  * as {@link HARDCODED_STRINGS_BASELINE} and judged in the same run.
  *
  * Kept as its own constant rather than merged into the admin's because the two
- * are counted by different rules — the storefront's entries include the
- * `polish-literal` shape the admin's were never measured against — and because
- * it is drained by a different stream of work, one storefront component per
- * merge request. Keys are repository-relative and every one starts with
- * `storefront/`; the companion test holds both halves of that.
+ * are counted by different rules — the storefront's by the strict shapes
+ * ({@link STOREFRONT_ANALYSIS}) the admin's were never measured against — and
+ * because it is drained by a different stream of work. Keys are
+ * repository-relative and every one starts with `storefront/`; the companion
+ * test holds both halves of that.
  *
  * Measured when the root was added (2026-10-30, on `master` at e7da5e453):
- * **547 findings across 90 files** of the 469 the storefront walk opens — 387
- * JSX text nodes, 26 user-visible attributes and 123 Polish literals outside
- * JSX, before the first slices (the quote-request action row, the consent
- * banner, the cart-merge toast, the organization moderation banner and the
- * quote-request comparison sentences) were keyed in the same merge request.
- * What stands below is what those slices left.
+ * 547 findings across 90 files, of which the first slices keyed 15, leaving
+ * 532 across 85. Re-measured when the strict shapes landed (2026-10-31):
+ * **1027 findings across 107 files** — every one of the 532 is still
+ * here, plus single-word JSX text, visible attributes written through `{…}`,
+ * literals rendered as JSX children, label tables, Next `metadata`, and English
+ * outside JSX, none of which the first rule could see.
+ *
+ * **Grouped by area, one section per namespace file under
+ * `storefront/lib/i18n/messages/`**, so the slices draining it can run in
+ * parallel: a branch keys files of one area into that area's namespace and
+ * edits that area's section here and nothing else, and the comment line
+ * between two sections keeps two such edits from touching the same hunk. Keep
+ * an entry in its section when you lower it; a file that is new to the ledger
+ * goes in the section of the area that renders it, and anything that fits no
+ * area goes in `chrome`.
  *
  * It is meant to reach `{}`. Never raise a number: key the string into both
- * locales of `storefront/lib/i18n/messages.ts` instead.
+ * locales of the area's namespace instead.
  */
 export const STOREFRONT_HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
-  'storefront/app/(account)/account/page.tsx': 3,
-  'storefront/app/(account)/account/password/page.tsx': 5,
-  'storefront/app/(account)/addresses/page.tsx': 13,
-  'storefront/app/(account)/layout.tsx': 6,
-  'storefront/app/(account)/newsletter/page.tsx': 4,
-  'storefront/app/(account)/orders/[id]/page.tsx': 17,
-  'storefront/app/(account)/orders/page.tsx': 2,
-  'storefront/app/(account)/organization/addresses/page.tsx': 7,
-  'storefront/app/(account)/organization/carts/page.tsx': 7,
-  'storefront/app/(account)/organization/members/page.tsx': 6,
-  'storefront/app/(account)/organization/page.tsx': 3,
-  'storefront/app/(account)/organization/settings/cart-approval/page.tsx': 7,
-  'storefront/app/(account)/preferences/page.tsx': 12,
-  'storefront/app/(account)/quote-requests/[id]/page.tsx': 25,
-  'storefront/app/(account)/quote-requests/page.tsx': 7,
-  'storefront/app/(account)/returns/[id]/page.tsx': 6,
-  'storefront/app/(account)/returns/page.tsx': 3,
-  'storefront/app/(account)/shopping-lists/[id]/page.tsx': 15,
-  'storefront/app/(account)/shopping-lists/page.tsx': 8,
-  'storefront/app/(auth)/invitations/[token]/accept/page.tsx': 9,
-  'storefront/app/(auth)/login/page.tsx': 7,
-  'storefront/app/(auth)/login/setup/page.tsx': 5,
-  'storefront/app/(auth)/password-reset/confirm/page.tsx': 9,
-  'storefront/app/(auth)/password-reset/request/page.tsx': 9,
-  'storefront/app/(auth)/register-customer/page.tsx': 10,
-  'storefront/app/(auth)/register/page.tsx': 17,
-  'storefront/app/(auth)/verify/page.tsx': 9,
-  'storefront/app/(catalog)/c/[slug]/page.tsx': 3,
-  'storefront/app/(catalog)/catalog/page.tsx': 3,
-  'storefront/app/(catalog)/p/[slug]/page.tsx': 4,
-  'storefront/app/(commerce)/cart/page.tsx': 42,
-  'storefront/app/(commerce)/checkout/page.tsx': 7,
-  'storefront/app/account/organization-security/page.tsx': 5,
-  'storefront/app/account/security/page.tsx': 17,
-  'storefront/app/blog/_components/BlogCategoryPage.tsx': 1,
-  'storefront/app/blog/_components/BlogIndexPage.tsx': 2,
-  'storefront/app/blog/_components/BlogTagPage.tsx': 1,
-  'storefront/app/blog/_components/Pagination.tsx': 2,
-  'storefront/app/blog/_components/RelatedPostsStrip.tsx': 1,
-  'storefront/app/blog/_components/RelatedProductsStrip.tsx': 1,
+  // ── commerce: cart, checkout, catalog, product page and listings, compare, quick order and the quote-request draft.
+  //    Keyed into `storefront/lib/i18n/messages/commerce.ts`.
+  'storefront/app/(account)/quick-order/page.tsx': 1,
+  'storefront/app/(catalog)/c/[slug]/page.tsx': 5,
+  'storefront/app/(catalog)/catalog/page.tsx': 4,
+  'storefront/app/(catalog)/p/[slug]/page.tsx': 7,
+  'storefront/app/(commerce)/cart/page.tsx': 130,
+  'storefront/app/(commerce)/checkout/page.tsx': 21,
+  'storefront/app/(commerce)/quote-request/actions.ts': 1,
   'storefront/app/compare/page.tsx': 3,
   'storefront/app/compare/share/[token]/page.tsx': 4,
-  'storefront/app/kontakt/page.tsx': 4,
-  'storefront/app/newsletter/unsubscribe/page.tsx': 4,
-  'storefront/app/not-found.tsx': 17,
-  'storefront/app/offline/page.tsx': 2,
-  'storefront/app/page.tsx': 36,
-  'storefront/components/AddToShoppingListButton.tsx': 4,
-  'storefront/components/CartAddedPopup.tsx': 2,
-  'storefront/components/CatalogToolbar.tsx': 10,
-  'storefront/components/CompareModeSwitcher.tsx': 1,
-  'storefront/components/CompareToggle.tsx': 2,
-  'storefront/components/ComparisonTable.tsx': 11,
-  'storefront/components/CreditLimitWidget.tsx': 4,
+  'storefront/components/CartAddedPopup.tsx': 3,
+  'storefront/components/CatalogToolbar.tsx': 14,
+  'storefront/components/checkout/CheckoutHeader.tsx': 4,
+  'storefront/components/checkout/PaymentMethods.tsx': 1,
+  'storefront/components/CompareModeSwitcher.tsx': 4,
+  'storefront/components/CompareToggle.tsx': 3,
+  'storefront/components/ComparisonTable.tsx': 15,
+  'storefront/components/FileDropzone.tsx': 3,
   'storefront/components/FilterPanel.tsx': 4,
-  'storefront/components/Footer.tsx': 21,
-  'storefront/components/GallerySwitcher.tsx': 5,
-  'storefront/components/Header.tsx': 7,
-  'storefront/components/HeaderPreferenceSwitchers.tsx': 1,
-  'storefront/components/ImpersonationBanner.tsx': 4,
-  'storefront/components/MfaCodeForm.tsx': 3,
-  'storefront/components/ProductCard.tsx': 3,
-  'storefront/components/ProductRow.tsx': 3,
-  'storefront/components/PwaRegister.tsx': 1,
-  'storefront/components/SharedComparisonTable.tsx': 9,
+  'storefront/components/GallerySwitcher.tsx': 6,
+  'storefront/components/mobile/PdpStickyBuyBar.tsx': 2,
+  'storefront/components/Pagination.tsx': 1,
+  'storefront/components/pricing/BaseSalePriceBlock.tsx': 3,
+  'storefront/components/pricing/PdpPriceToggle.tsx': 1,
+  'storefront/components/pricing/QuoteRequestCta.tsx': 2,
+  'storefront/components/ProductCard.tsx': 8,
+  'storefront/components/ProductRow.tsx': 5,
+  'storefront/components/rfq/RfqDraftView.tsx': 53,
+  'storefront/components/SharedComparisonTable.tsx': 11,
+  'storefront/lib/checkout/place-order-gate.ts': 1,
+
+  // ── account: account pages, orders, quote requests, shopping lists, returns, addresses, preferences, organization.
+  //    Keyed into `storefront/lib/i18n/messages/account.ts`.
+  'storefront/app/(account)/account/page.tsx': 10,
+  'storefront/app/(account)/account/password/page.tsx': 6,
+  'storefront/app/(account)/addresses/page.tsx': 29,
+  'storefront/app/(account)/layout.tsx': 12,
+  'storefront/app/(account)/newsletter/page.tsx': 8,
+  'storefront/app/(account)/orders/[id]/page.tsx': 36,
+  'storefront/app/(account)/orders/page.tsx': 10,
+  'storefront/app/(account)/organization/addresses/page.tsx': 23,
+  'storefront/app/(account)/organization/carts/page.tsx': 14,
+  'storefront/app/(account)/organization/members/page.tsx': 27,
+  'storefront/app/(account)/organization/page.tsx': 4,
+  'storefront/app/(account)/organization/settings/cart-approval/page.tsx': 10,
+  'storefront/app/(account)/preferences/page.tsx': 13,
+  'storefront/app/(account)/quote-requests/[id]/page.tsx': 40,
+  'storefront/app/(account)/quote-requests/page.tsx': 16,
+  'storefront/app/(account)/returns/[id]/page.tsx': 13,
+  'storefront/app/(account)/returns/page.tsx': 9,
+  'storefront/app/(account)/shopping-lists/[id]/page.tsx': 34,
+  'storefront/app/(account)/shopping-lists/page.tsx': 15,
+  'storefront/components/AddToShoppingListButton.tsx': 5,
+  'storefront/components/CreditLimitWidget.tsx': 7,
+  'storefront/components/orders/OrderItemRows.tsx': 1,
+  'storefront/components/shopping-lists/ClearListButton.tsx': 6,
+  'storefront/components/shopping-lists/DeleteShoppingListButton.tsx': 7,
+
+  // ── auth: login, registration, verification, password reset, invitations, security pages, MFA.
+  //    Keyed into `storefront/lib/i18n/messages/auth.ts`.
+  'storefront/app/(auth)/invitations/[token]/accept/page.tsx': 12,
+  'storefront/app/(auth)/login/mfa/page.tsx': 2,
+  'storefront/app/(auth)/login/page.tsx': 12,
+  'storefront/app/(auth)/login/setup/page.tsx': 7,
+  'storefront/app/(auth)/password-reset/confirm/page.tsx': 10,
+  'storefront/app/(auth)/password-reset/request/page.tsx': 11,
+  'storefront/app/(auth)/register-customer/page.tsx': 13,
+  'storefront/app/(auth)/register/page.tsx': 23,
+  'storefront/app/(auth)/verify/page.tsx': 10,
+  'storefront/app/account/organization-security/page.tsx': 6,
+  'storefront/app/account/security/page.tsx': 18,
+  'storefront/components/account/SignOutButton.tsx': 1,
+  'storefront/components/MfaCodeForm.tsx': 4,
+
+  // ── chrome: home, header, footer, not-found, offline, PWA, analytics and consent, pickers, mobile overlays, the rest.
+  //    Keyed into `storefront/lib/i18n/messages/chrome.ts`.
+  'storefront/app/layout.tsx': 2,
+  'storefront/app/manifest.webmanifest/route.ts': 1,
+  'storefront/app/not-found.tsx': 18,
+  'storefront/app/offline/page.tsx': 3,
+  'storefront/app/page.tsx': 45,
   'storefront/components/analytics/CookieConsentMessage.tsx': 1,
   'storefront/components/analytics/GoogleTagManager.tsx': 1,
-  'storefront/components/checkout/CheckoutHeader.tsx': 2,
-  'storefront/components/checkout/PaymentMethods.tsx': 1,
-  'storefront/components/contact/ContactForm.tsx': 7,
-  'storefront/components/mobile/MobileSearchOverlay.tsx': 1,
-  'storefront/components/mobile/PdpStickyBuyBar.tsx': 1,
+  'storefront/components/Breadcrumbs.tsx': 1,
+  'storefront/components/Footer.tsx': 33,
+  'storefront/components/Header.tsx': 19,
+  'storefront/components/HeaderPreferenceSwitchers.tsx': 1,
+  'storefront/components/ImpersonationBanner.tsx': 4,
+  'storefront/components/MiniCartBadge.tsx': 1,
+  'storefront/components/mobile/BottomSheet.tsx': 1,
+  'storefront/components/mobile/MobileSearchOverlay.tsx': 4,
+  'storefront/components/mobile/MobileTabBar.tsx': 1,
+  'storefront/components/pwa/InstallPrompt.tsx': 10,
+  'storefront/components/pwa/PushOptIn.tsx': 5,
+  'storefront/components/PwaRegister.tsx': 2,
+  'storefront/components/SearchAutocomplete.tsx': 1,
+  'storefront/lib/api/pwa-server.ts': 1,
+  'storefront/lib/dictionary/pickers/CountryPicker.tsx': 3,
+  'storefront/lib/dictionary/pickers/CurrencyPicker.tsx': 3,
+  'storefront/lib/dictionary/pickers/LanguagePicker.tsx': 3,
+  'storefront/lib/seo/llms-txt-base.ts': 1,
+
+  // ── content: blog, contact, newsletter pages and components, CMS pages.
+  //    Keyed into `storefront/lib/i18n/messages/content.ts`.
+  'storefront/app/(content)/[...slug]/page.tsx': 1,
+  'storefront/app/blog/_components/BlogCategoryPage.tsx': 1,
+  'storefront/app/blog/_components/BlogIndexPage.tsx': 4,
+  'storefront/app/blog/_components/BlogTagPage.tsx': 1,
+  'storefront/app/blog/_components/CategoryTree.tsx': 2,
+  'storefront/app/blog/_components/Pagination.tsx': 3,
+  'storefront/app/blog/_components/RelatedPostsStrip.tsx': 1,
+  'storefront/app/blog/_components/RelatedProductsStrip.tsx': 1,
+  'storefront/app/blog/[[...slug]]/page.tsx': 7,
+  'storefront/app/kontakt/page.tsx': 7,
+  'storefront/app/newsletter/confirm/page.tsx': 3,
+  'storefront/app/newsletter/subscribed/page.tsx': 4,
+  'storefront/app/newsletter/unsubscribe/page.tsx': 8,
+  'storefront/components/contact/ContactForm.tsx': 10,
   'storefront/components/newsletter/NewsletterConsent.tsx': 2,
-  'storefront/components/newsletter/NewsletterSignup.tsx': 1,
-  'storefront/components/orders/OrderItemRows.tsx': 1,
-  'storefront/components/pricing/PdpPriceToggle.tsx': 1,
-  'storefront/components/pricing/QuoteRequestCta.tsx': 1,
-  'storefront/components/pwa/InstallPrompt.tsx': 2,
-  'storefront/components/pwa/PushOptIn.tsx': 4,
-  'storefront/components/rfq/RfqDraftView.tsx': 13,
-  'storefront/components/shopping-lists/ClearListButton.tsx': 3,
-  'storefront/components/shopping-lists/DeleteShoppingListButton.tsx': 2,
-  'storefront/lib/dictionary/pickers/CountryPicker.tsx': 1,
-  'storefront/lib/dictionary/pickers/CurrencyPicker.tsx': 1,
-  'storefront/lib/dictionary/pickers/LanguagePicker.tsx': 1,
+  'storefront/components/newsletter/NewsletterSignup.tsx': 3,
 };
 
 /** One file's measured count against its baseline. */
