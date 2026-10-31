@@ -410,7 +410,8 @@ export const manifest = defineModuleManifest({
       // `requireAdmin('settings:read')` — so the palette offered the screen to
       // every role and every role without the code collected a 403 on arrival.
       requiredPermission: 'settings:read',
-      keywords: ['settings', 'preferences', 'config', 'ustawienia'],
+      keywords: ['settings', 'preferences', 'config'],
+      keywordsKey: 'actions.openSettings.keywords',
       weight: 250,
     },
     // Issue #516 (Principle XVI): the two other sidebar screens. Each declares
@@ -423,7 +424,8 @@ export const manifest = defineModuleManifest({
       icon: 'Settings',
       targetRoute: '/settings/groups',
       requiredPermission: 'settings:read',
-      keywords: ['settings', 'groups', 'sections', 'ustawienia', 'grupy'],
+      keywords: ['settings', 'groups', 'sections'],
+      keywordsKey: 'actions.openSettingGroups.keywords',
       weight: 251,
     },
     {
@@ -433,7 +435,8 @@ export const manifest = defineModuleManifest({
       icon: 'Eraser',
       targetRoute: '/settings/cache',
       requiredPermission: 'settings:write',
-      keywords: ['cache', 'clear', 'flush', 'purge', 'wyczyść', 'pamięć'],
+      keywords: ['cache', 'clear', 'flush', 'purge'],
+      keywordsKey: 'actions.clearCache.keywords',
       weight: 252,
     },
   ],

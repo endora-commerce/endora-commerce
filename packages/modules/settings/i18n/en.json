@@ -171,5 +171,8 @@
   "nav.settings.label": "Settings",
   "nav.settingGroups.label": "Setting groups",
   "nav.cache.label": "Clear cache",
-  "editor.credentialRef.preview": "Preview"
+  "editor.credentialRef.preview": "Preview",
+  "actions.openSettings.keywords": "settings",
+  "actions.openSettingGroups.keywords": "settings, groups",
+  "actions.clearCache.keywords": "clear, memory"
 }

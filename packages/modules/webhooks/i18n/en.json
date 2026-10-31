@@ -4,5 +4,6 @@
   "nav.webhooks.label": "Webhooks",
   "actions.openWebhooks.label": "Webhooks",
   "actions.openWebhooks.description": "Event subscriptions & deliveries",
-  "subscription.eventType.notDelivered": "Not delivered: nothing sends this event to webhooks. The subscription keeps it until you remove it."
+  "subscription.eventType.notDelivered": "Not delivered: nothing sends this event to webhooks. The subscription keeps it until you remove it.",
+  "actions.openWebhooks.keywords": "webhooks, events, integration"
 }

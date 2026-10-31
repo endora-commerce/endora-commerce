@@ -16,5 +16,6 @@
   "actions.openSecurity.label": "Account security",
   "actions.openSecurity.description": "Set up or change your own two-factor authentication",
   "security.setup.qrAlt": "QR code to scan with your authenticator app",
-  "security.setup.qrHint": "Scan this QR code with your authenticator app, or enter the key below by hand."
+  "security.setup.qrHint": "Scan this QR code with your authenticator app, or enter the key below by hand.",
+  "actions.openSecurity.keywords": "security, two-factor"
 }

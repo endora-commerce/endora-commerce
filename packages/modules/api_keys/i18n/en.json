@@ -5,5 +5,6 @@
   "errors.API_KEY_CHANNEL_MISMATCH": "API key is bound to a different sales channel.",
   "errors.API_KEY_NOT_BOUND": "This endpoint requires a distributor-bound API key.",
   "errors.API_KEY_OUT_OF_SCOPE": "API key lacks the required scope: {requiredScope}.",
-  "errors.API_KEY_SCOPE_NOT_HELD": "You can only give an API key scopes your own role holds. Your role does not hold: {scopes}."
+  "errors.API_KEY_SCOPE_NOT_HELD": "You can only give an API key scopes your own role holds. Your role does not hold: {scopes}.",
+  "actions.openApiKeys.keywords": "api keys, integration"
 }

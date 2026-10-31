@@ -2,5 +2,6 @@
   "nav.auditLog.label": "Dziennik audytu",
   "actions.openAuditLog.label": "Dziennik audytu",
   "actions.openAuditLog.description": "Kto co zmienił i kiedy",
-  "auditLog.tenant.escape_hatch": "Dostęp między organizacjami"
+  "auditLog.tenant.escape_hatch": "Dostęp między organizacjami",
+  "actions.openAuditLog.keywords": "audyt, dziennik, historia"
 }

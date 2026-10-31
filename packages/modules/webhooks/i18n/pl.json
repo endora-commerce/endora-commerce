@@ -4,5 +4,6 @@
   "nav.webhooks.label": "Webhooki",
   "actions.openWebhooks.label": "Webhooki",
   "actions.openWebhooks.description": "Subskrypcje zdarzeń i dostarczenia",
-  "subscription.eventType.notDelivered": "Niedostarczane: nic nie wysyła tego zdarzenia do webhooków. Subskrypcja zachowuje je, dopóki go nie usuniesz."
+  "subscription.eventType.notDelivered": "Niedostarczane: nic nie wysyła tego zdarzenia do webhooków. Subskrypcja zachowuje je, dopóki go nie usuniesz.",
+  "actions.openWebhooks.keywords": "webhooki, zdarzenia, integracja"
 }

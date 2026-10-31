@@ -77,7 +77,8 @@ export const manifest = defineModuleManifest({
       // Core catalogue code, referenced rather than re-declared: this module
       // owns no permission of its own.
       requiredPermission: 'settings:read',
-      keywords: ['feedback', 'support', 'relay', 'opinia', 'zgłoszenie', 'wsparcie'],
+      keywords: ['feedback', 'support', 'relay'],
+      keywordsKey: 'actions.openAdminFeedbackSettings.keywords',
       weight: 960,
     },
   ],
