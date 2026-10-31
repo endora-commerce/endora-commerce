@@ -20,7 +20,10 @@ import {
   reportMoreText,
   shoppingListSkipLabel,
 } from '../../../../lib/batchReport';
-import { tForLocale } from '../../../../lib/i18n/messages';
+import { tForLocale, type MessageKey } from '../../../../lib/i18n/messages';
+import { format } from '../../../../lib/i18n/format';
+import { formatCount } from '../../../../lib/orderMinimum';
+import { pluralKey, richText } from '../../../../lib/account/labels';
 import { LIST_QUANTITY_MAX, parseListQuantity } from '../../../../lib/shoppingListQuantity';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../../lib/i18n/navigation';
@@ -70,6 +73,8 @@ export default async function ShoppingListDetailPage({
   const { id } = await params;
   if (!session) return await localeRedirect(`/login?next=/account/shopping-lists/${id}`);
   const sp = await searchParams;
+  const { ctx, locale } = await getServerContext();
+  const t = tForLocale(locale);
   let list;
   try {
     list = await getShoppingList(session, id);
@@ -77,8 +82,8 @@ export default async function ShoppingListDetailPage({
     if (err instanceof StorefrontApiError && err.status === 404) {
       return (
         <div>
-          <h2>Shopping list not found</h2>
-          <p className="b2b-auth__error">We couldn&apos;t find that list.</p>
+          <h2>{t('account.shoppingList.notFound.heading')}</h2>
+          <p className="b2b-auth__error">{t('account.shoppingList.notFound.body')}</p>
         </div>
       );
     }
@@ -89,8 +94,11 @@ export default async function ShoppingListDetailPage({
   // the product card (the item row only carries the product UUID). The detail
   // endpoint accepts an id or a slug; failures (archived / removed) fall back
   // to the raw id so the row still renders.
-  const { ctx, locale } = await getServerContext();
-  const t = tForLocale(locale);
+  /** A counted sentence of this page — "Added 3 items to your cart." — in the page's language. */
+  const counted = (base: string, raw: string | undefined): string => {
+    const count = Number(raw ?? 0);
+    return format(t(pluralKey(base, count, locale)), { count: formatCount(count, locale) });
+  };
   // Feature 155 (FR-011) — which rows the conversion left out, and why (a minimum included).
   // Carried capped (the first rows plus a count), so the URL stays bounded.
   const cartSkipReport = sp.cartAdded !== undefined ? decodeConversionSkips(sp.cartSkips) : { lines: [], more: 0 };
@@ -112,16 +120,15 @@ export default async function ShoppingListDetailPage({
     <>
       <h2>{list.name}</h2>
       <p>
-        <LocalizedLink href="/shopping-lists">← All lists</LocalizedLink>
+        <LocalizedLink href="/shopping-lists">{t('account.shoppingList.backToLists')}</LocalizedLink>
       </p>
       {sp.error ? <p className="b2b-auth__error">{sp.error}</p> : null}
       {sp.cartAdded ? (
         <p className="b2b-auth__success">
-          Added {sp.cartAdded} item(s) to your cart
+          {counted('account.shoppingList.cartAdded', sp.cartAdded)}
           {sp.cartSkipped && Number(sp.cartSkipped) > 0
-            ? `, skipped ${sp.cartSkipped} row(s)`
+            ? ` ${counted('account.shoppingList.cartSkipped', sp.cartSkipped)}`
             : ''}
-          .
         </p>
       ) : null}
       {cartSkips.length > 0 ? (
@@ -146,11 +153,11 @@ export default async function ShoppingListDetailPage({
       ) : null}
       {sp.rfqAdded ? (
         <p className="b2b-auth__success">
-          Added {sp.rfqAdded} item(s) to your draft RFQ
+          {counted('account.shoppingList.rfqAdded', sp.rfqAdded)}
           {sp.rfqSkipped && Number(sp.rfqSkipped) > 0
-            ? `, skipped ${sp.rfqSkipped} archived row(s)`
-            : ''}
-          . <LocalizedLink href={`/quote-requests/${sp.rfqId}`}>Open the RFQ</LocalizedLink>.
+            ? ` ${counted('account.shoppingList.rfqSkipped', sp.rfqSkipped)}`
+            : ''}{' '}
+          <LocalizedLink href={`/quote-requests/${sp.rfqId}`}>{t('account.shoppingList.openRfq')}</LocalizedLink>
         </p>
       ) : null}
 
@@ -158,7 +165,7 @@ export default async function ShoppingListDetailPage({
         <input type="hidden" name="listId" value={list.id} />
         <div className="flex flex-1 flex-col gap-1">
           <label htmlFor="rename" className="text-sm text-fg-soft">
-            Rename list
+            {t('account.shoppingList.rename.label')}
           </label>
           <input
             id="rename"
@@ -170,15 +177,16 @@ export default async function ShoppingListDetailPage({
           />
         </div>
         <button type="submit" className="btn btn--outline">
-          Rename
+          {t('account.shoppingList.rename.submit')}
         </button>
       </form>
 
-      <h3 className="mt-10 mb-4">Items</h3>
+      <h3 className="mt-10 mb-4">{t('account.common.items')}</h3>
       {list.items.length === 0 ? (
         <p className="muted">
-          No items yet. Find a product on the <LocalizedLink href="/catalog">catalog</LocalizedLink> and add it from
-          its detail page (coming next).
+          {richText(t('account.shoppingList.empty'), {
+            catalog: <LocalizedLink href="/catalog">{t('account.shoppingList.emptyCatalogLink')}</LocalizedLink>,
+          })}
         </p>
       ) : (
         <>
@@ -210,9 +218,9 @@ export default async function ShoppingListDetailPage({
             <thead>
               <tr>
                 <th></th>
-                <th>Product</th>
-                <th>Qty</th>
-                <th>Note</th>
+                <th>{t('account.common.product')}</th>
+                <th>{t('account.common.quantity')}</th>
+                <th>{t('account.shoppingList.col.note')}</th>
                 <th></th>
               </tr>
             </thead>
@@ -235,12 +243,15 @@ export default async function ShoppingListDetailPage({
                       return (
                         <LocalizedLink href={`/p/${product.slug}`} className="flex flex-col">
                           <span className="font-medium text-fg">{product.name}</span>
-                          <span className="text-xs text-fg-soft">SKU: {product.sku}</span>
+                          <span className="text-xs text-fg-soft">{format(t('account.common.sku'), { sku: product.sku })}</span>
                         </LocalizedLink>
                       );
                     })()}
                     {it.variantId ? (
-                      <span className="text-xs text-fg-soft"> · variant {it.variantId.slice(0, 8)}</span>
+                      <span className="text-xs text-fg-soft">
+                        {' · '}
+                        {format(t('account.shoppingList.variant'), { id: it.variantId.slice(0, 8) })}
+                      </span>
                     ) : null}
                   </td>
                   <td>
@@ -254,7 +265,7 @@ export default async function ShoppingListDetailPage({
                   </td>
                   <td>{it.note ?? ''}</td>
                   <td>
-                    <RemoveItemForm itemId={it.id} />
+                    <RemoveItemForm itemId={it.id} label={t('account.common.remove')} />
                   </td>
                 </tr>
               ))}
@@ -262,20 +273,20 @@ export default async function ShoppingListDetailPage({
           </table>
           <div className="mt-6 mb-10 flex flex-wrap gap-2">
             <button type="submit" form="sl-convert" formAction={convertAllToCartAction} className="btn btn--primary">
-              Convert all to cart
+              {t('account.shoppingList.toCart.all')}
             </button>
             <button type="submit" form="sl-convert" className="btn btn--outline">
-              Convert selected to cart
+              {t('account.shoppingList.toCart.selected')}
             </button>
             <button type="submit" form="sl-convert" formAction={convertAllToRfqAction} className="btn btn--outline">
-              Convert all to RFQ
+              {t('account.shoppingList.toQuote.all')}
             </button>
             <button type="submit" form="sl-convert" formAction={convertSelectedToRfqAction} className="btn btn--outline">
-              Convert selected to RFQ
+              {t('account.shoppingList.toQuote.selected')}
             </button>
           </div>
         <div className="mb-10 flex flex-wrap gap-2 border-t border-line pt-6">
-          <ClearListButton listId={list.id} clearAction={clearListAction} />
+          <ClearListButton listId={list.id} locale={locale} clearAction={clearListAction} />
         </div>
         </>
       )}
@@ -334,12 +345,18 @@ function UpdateQtyForm({
 }
 
 /** Per-row remove button, wired to the standalone `sl-remove-<itemId>` form. */
-function RemoveItemForm({ itemId }: { itemId: string }): ReactNode {
+function RemoveItemForm({ itemId, label }: { itemId: string; label: string }): ReactNode {
   return (
     <button type="submit" form={`sl-remove-${itemId}`} className="btn btn--outline btn--sm">
-      Remove
+      {label}
     </button>
   );
+}
+
+/** A server action's own refusal, in the page's language. */
+async function failure(key: MessageKey): Promise<string> {
+  const { locale } = await getServerContext();
+  return tForLocale(locale)(key);
 }
 
 async function renameAction(formData: FormData): Promise<void> {
@@ -351,7 +368,7 @@ async function renameAction(formData: FormData): Promise<void> {
   try {
     await renameShoppingList(session, listId, name);
   } catch (err) {
-    const message = err instanceof StorefrontApiError ? err.detail : 'Rename failed.';
+    const message = err instanceof StorefrontApiError ? err.detail : await failure('account.shoppingList.renameFailed');
     return await localeRedirect(`/shopping-lists/${listId}?error=${encodeURIComponent(message)}`);
   }
   return await localeRedirect(`/shopping-lists/${listId}`);
@@ -370,7 +387,7 @@ async function updateQtyAction(formData: FormData): Promise<void> {
   try {
     await updateShoppingListItem(session, listId, itemId, { quantity });
   } catch (err) {
-    const message = err instanceof StorefrontApiError ? err.detail : 'Update failed.';
+    const message = err instanceof StorefrontApiError ? err.detail : await failure('account.shoppingList.updateFailed');
     return await localeRedirect(`/shopping-lists/${listId}?error=${encodeURIComponent(message)}`);
   }
   return await localeRedirect(`/shopping-lists/${listId}`);
@@ -385,7 +402,7 @@ async function removeAction(formData: FormData): Promise<void> {
   try {
     await removeShoppingListItem(session, listId, itemId);
   } catch (err) {
-    const message = err instanceof StorefrontApiError ? err.detail : 'Remove failed.';
+    const message = err instanceof StorefrontApiError ? err.detail : await failure('account.shoppingList.removeFailed');
     return await localeRedirect(`/shopping-lists/${listId}?error=${encodeURIComponent(message)}`);
   }
   return await localeRedirect(`/shopping-lists/${listId}`);
@@ -399,7 +416,7 @@ async function clearListAction(formData: FormData): Promise<void> {
   try {
     await clearShoppingListItems(session, listId);
   } catch (err) {
-    const message = err instanceof StorefrontApiError ? err.detail : 'Clear failed.';
+    const message = err instanceof StorefrontApiError ? err.detail : await failure('account.shoppingList.clearFailed');
     return await localeRedirect(`/shopping-lists/${listId}?error=${encodeURIComponent(message)}`);
   }
   return await localeRedirect(`/shopping-lists/${listId}`);
@@ -412,13 +429,13 @@ async function convertAllToCartAction(formData: FormData): Promise<void> {
   const listId = (formData.get('listId') as string) ?? '';
   // The success redirect must live OUTSIDE the try: Next's `redirect()` signals
   // by throwing `NEXT_REDIRECT`, which a surrounding catch would swallow and
-  // mis-report as "Convert failed." (the bug this fixes). Only the API call is
+  // mis-report as a failed conversion (the bug this fixes). Only the API call is
   // guarded; the redirect runs after, matching removeAction/clearListAction.
   let result: Awaited<ReturnType<typeof convertShoppingListToCart>>;
   try {
     result = await convertShoppingListToCart(session, listId);
   } catch (err) {
-    const message = err instanceof StorefrontApiError ? err.detail : 'Convert failed.';
+    const message = err instanceof StorefrontApiError ? err.detail : await failure('account.shoppingList.convertFailed');
     return await localeRedirect(`/shopping-lists/${listId}?error=${encodeURIComponent(message)}`);
   }
   // Flush the cart route's Router Cache so the newly added lines show on the
@@ -434,13 +451,14 @@ async function convertSelectedToCartAction(formData: FormData): Promise<void> {
   const listId = (formData.get('listId') as string) ?? '';
   const itemIds = (formData.getAll('itemIds') as string[]).filter(Boolean);
   if (itemIds.length === 0) {
-    return await localeRedirect(`/shopping-lists/${listId}?error=Select+at+least+one+item.`);
+    const message = await failure('account.shoppingList.selectAtLeastOne');
+    return await localeRedirect(`/shopping-lists/${listId}?error=${encodeURIComponent(message)}`);
   }
   let result: Awaited<ReturnType<typeof convertShoppingListToCart>>;
   try {
     result = await convertShoppingListToCart(session, listId, itemIds);
   } catch (err) {
-    const message = err instanceof StorefrontApiError ? err.detail : 'Convert failed.';
+    const message = err instanceof StorefrontApiError ? err.detail : await failure('account.shoppingList.convertFailed');
     return await localeRedirect(`/shopping-lists/${listId}?error=${encodeURIComponent(message)}`);
   }
   revalidatePath('/cart');
@@ -456,7 +474,7 @@ async function convertAllToRfqAction(formData: FormData): Promise<void> {
   try {
     result = await convertShoppingListToRfq(session, listId);
   } catch (err) {
-    const message = err instanceof StorefrontApiError ? err.detail : 'Convert failed.';
+    const message = err instanceof StorefrontApiError ? err.detail : await failure('account.shoppingList.convertFailed');
     return await localeRedirect(`/shopping-lists/${listId}?error=${encodeURIComponent(message)}`);
   }
   // Without this, Next's Router Cache keeps serving the previously cached
@@ -475,13 +493,14 @@ async function convertSelectedToRfqAction(formData: FormData): Promise<void> {
   const listId = (formData.get('listId') as string) ?? '';
   const itemIds = (formData.getAll('itemIds') as string[]).filter(Boolean);
   if (itemIds.length === 0) {
-    return await localeRedirect(`/shopping-lists/${listId}?error=Select+at+least+one+item.`);
+    const message = await failure('account.shoppingList.selectAtLeastOne');
+    return await localeRedirect(`/shopping-lists/${listId}?error=${encodeURIComponent(message)}`);
   }
   let result: Awaited<ReturnType<typeof convertShoppingListToRfq>>;
   try {
     result = await convertShoppingListToRfq(session, listId, itemIds);
   } catch (err) {
-    const message = err instanceof StorefrontApiError ? err.detail : 'Convert failed.';
+    const message = err instanceof StorefrontApiError ? err.detail : await failure('account.shoppingList.convertFailed');
     return await localeRedirect(`/shopping-lists/${listId}?error=${encodeURIComponent(message)}`);
   }
   revalidatePath('/quote-requests');

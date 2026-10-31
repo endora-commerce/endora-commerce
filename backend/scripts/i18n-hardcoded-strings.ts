@@ -1286,30 +1286,7 @@ export const STOREFRONT_HARDCODED_STRINGS_BASELINE: Readonly<Record<string, numb
 
   // ── account: account pages, orders, quote requests, shopping lists, returns, addresses, preferences, organization.
   //    Keyed into `storefront/lib/i18n/messages/account.ts`.
-  'storefront/app/(account)/account/page.tsx': 10,
-  'storefront/app/(account)/account/password/page.tsx': 6,
-  'storefront/app/(account)/addresses/page.tsx': 29,
-  'storefront/app/(account)/layout.tsx': 12,
-  'storefront/app/(account)/newsletter/page.tsx': 8,
-  'storefront/app/(account)/orders/[id]/page.tsx': 36,
-  'storefront/app/(account)/orders/page.tsx': 10,
-  'storefront/app/(account)/organization/addresses/page.tsx': 23,
-  'storefront/app/(account)/organization/carts/page.tsx': 14,
-  'storefront/app/(account)/organization/members/page.tsx': 27,
-  'storefront/app/(account)/organization/page.tsx': 4,
-  'storefront/app/(account)/organization/settings/cart-approval/page.tsx': 10,
-  'storefront/app/(account)/preferences/page.tsx': 13,
-  'storefront/app/(account)/quote-requests/[id]/page.tsx': 40,
-  'storefront/app/(account)/quote-requests/page.tsx': 16,
-  'storefront/app/(account)/returns/[id]/page.tsx': 13,
-  'storefront/app/(account)/returns/page.tsx': 9,
-  'storefront/app/(account)/shopping-lists/[id]/page.tsx': 34,
-  'storefront/app/(account)/shopping-lists/page.tsx': 15,
-  'storefront/components/AddToShoppingListButton.tsx': 5,
-  'storefront/components/CreditLimitWidget.tsx': 7,
-  'storefront/components/orders/OrderItemRows.tsx': 1,
-  'storefront/components/shopping-lists/ClearListButton.tsx': 6,
-  'storefront/components/shopping-lists/DeleteShoppingListButton.tsx': 7,
+  //    Drained: every account file is keyed (issue #85).
 
   // ── auth: login, registration, verification, password reset, invitations, security pages, MFA.
   //    Keyed into `storefront/lib/i18n/messages/auth.ts`.

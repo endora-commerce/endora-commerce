@@ -3,6 +3,9 @@ import { getSessionCookie } from '../../../lib/session';
 import { getMe } from '../../../lib/api/account';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../lib/i18n/navigation';
+import { getServerContext } from '../../../lib/server-context';
+import { tForLocale } from '../../../lib/i18n/messages';
+import { codeLabel } from '../../../lib/account/labels';
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -21,25 +24,27 @@ export default async function OrganizationPage(): Promise<ReactNode> {
   const me = await getMe(session);
   const o = me.organization;
   if (!o) return await localeRedirect('/account');
+  const { locale } = await getServerContext();
+  const t = tForLocale(locale);
   return (
     <>
       <h2>{o.name}</h2>
       <table className="b2b-account__table">
         <tbody>
           <tr>
-            <th scope="row">Tax ID</th>
+            <th scope="row">{t('account.organization.taxId')}</th>
             <td>{o.taxId}</td>
           </tr>
           <tr>
-            <th scope="row">Status</th>
-            <td>{o.status}</td>
+            <th scope="row">{t('account.common.status')}</th>
+            <td>{codeLabel(t, 'account.organizationStatus', o.status)}</td>
           </tr>
           <tr>
-            <th scope="row">VAT status</th>
-            <td>{o.vatStatus}</td>
+            <th scope="row">{t('account.organization.vatStatus')}</th>
+            <td>{codeLabel(t, 'account.vatStatus', o.vatStatus)}</td>
           </tr>
           <tr>
-            <th scope="row">Registered address</th>
+            <th scope="row">{t('account.organization.registeredAddress')}</th>
             <td>
               {o.registeredAddress.street}
               <br />
