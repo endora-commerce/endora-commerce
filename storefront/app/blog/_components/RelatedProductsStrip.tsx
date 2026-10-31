@@ -1,16 +1,21 @@
 import type { ReactNode } from 'react';
 import type { BlogProductCard } from '@endora-commerce/contracts';
 import { LocalizedLink } from '../../../lib/i18n/localized-link';
+import { tForLocale } from '../../../lib/i18n/messages';
 
 export function RelatedProductsStrip({
   products,
+  locale,
 }: {
   products: BlogProductCard[];
+  /** The page language. */
+  locale: string;
 }): ReactNode {
   if (products.length === 0) return null;
+  const t = tForLocale(locale);
   return (
     <section className="mt-12">
-      <h2 className="mb-4 text-2xl font-semibold text-[--ink-700]">Related products</h2>
+      <h2 className="mb-4 text-2xl font-semibold text-[--ink-700]">{t('product.links.related')}</h2>
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {products.map((product) => (
           <LocalizedLink

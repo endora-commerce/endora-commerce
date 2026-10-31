@@ -3,14 +3,19 @@ import type { BlogTagByCodeResponse } from '@endora-commerce/contracts';
 import { Breadcrumbs } from '../../../components/Breadcrumbs';
 import { Pagination } from './Pagination';
 import { PostCard } from './PostCard';
+import { tForLocale } from '../../../lib/i18n/messages';
 
 const BLOG_PREFIX = '/blog';
 
 export function BlogTagPage({
   payload,
+  locale,
 }: {
   payload: BlogTagByCodeResponse;
+  /** The page language, for the page's own words and the cards' dates. */
+  locale: string;
 }): ReactNode {
+  const t = tForLocale(locale);
   const { tag, posts } = payload;
   return (
     <div className="space-y-8">
@@ -26,11 +31,11 @@ export function BlogTagPage({
       </header>
 
       {posts.data.length === 0 ? (
-        <p className="text-[--ink-400]">No posts carry this tag yet.</p>
+        <p className="text-[--ink-400]">{t('content.blog.tag.empty')}</p>
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {posts.data.map((post) => (
-            <PostCard key={post.id} post={post} />
+            <PostCard key={post.id} post={post} locale={locale} />
           ))}
         </div>
       )}
@@ -39,6 +44,7 @@ export function BlogTagPage({
         basePath={`${BLOG_PREFIX}/tag/${tag.code}`}
         page={posts.pagination.page}
         totalPages={posts.pagination.totalPages}
+        locale={locale}
       />
     </div>
   );
