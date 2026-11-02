@@ -2919,7 +2919,114 @@ untried.
 
 ### After upgrading to 0.109.0 {#after-0-109-0}
 
-Each entry below stands on its own: read the ones for the parts of the platform you use.
+`pnpm run upgrade 0.109.0` moves the packages of the release from `0.108.0` and applies its
+migrations — twenty-four for modules of earlier releases (each runs where its module is declared), and six more for the two new
+modules, `tasks` and `projects`, which run only once an instance declares them. **Two changes are
+breaking for stored data and need a decision from you**: a product's status is `active` or
+`inactive`, `draft` is gone and archiving is its own action
+([Products](#after-0-109-0-product-status)); and the megamenu becomes the storefront's navigation
+bar, with every stored top-level item turned into a tab ([Navigation bar](#after-0-109-0-megamenu)).
+The page builder's *Image slider* block is removed in favour of the *Carousel*
+([Page builder](#after-0-109-0-page-builder)). Beside them the release puts the language into the
+storefront URL, gives product data a value per sales channel and language, makes a quote's validity
+bind order placement, places orders taken for a customer without touching the customer's basket,
+restarts a storefront that has stopped answering, keeps each administrator's Admin UI preferences
+on the server, hides a library file from a reader who may not see the records using it, and brings
+the storefront's buyer-facing text into English and Polish. The steps below say what to do, in
+order; each entry after them stands on its own, so read the ones for the parts of the platform you
+use.
+
+#### What to do, in order {#after-0-109-0-steps}
+
+Before the upgrade:
+
+1. **Stop every process of the previous release before you migrate**, API and workers alike.
+   `Migration20261028T173317CoreSalesChannelsRetireIsPublic` drops `sales_channels.is_public`,
+   which the previous release reads. On a database the platform has never started on, start the
+   previous release once first — the reason is in [Sales channels](#after-0-109-0-channel-prices).
+2. **Note the CMS pages that use the *Image slider* block.** The block is removed: its content stays
+   stored but the storefront renders nothing for it, and nothing converts it
+   ([Page builder](#after-0-109-0-page-builder)).
+
+The upgrade itself:
+
+3. **Run `pnpm run upgrade 0.109.0`.** `setup` applies the migrations module by module, in the
+   order of the modules' dependencies, and each module's own in the order of their stamps. Grouped
+   by module:
+
+   | Migration | Module | What it does |
+   | --- | --- | --- |
+   | `Migration20261028T173317CoreSalesChannelsRetireIsPublic` | `core` | Gives each channel that had `is_public` off its own `pricing.unauthenticated_display_mode = none`, then drops `sales_channels.is_public` — see [Sales channels](#after-0-109-0-channel-prices) |
+   | `Migration20261029T152922CoreSalesChannelsPrefixDefaultLanguage` | `core` | `sales_channels.prefix_default_language`, off for every existing channel — see [the language in the URL](#after-0-109-0-language-in-url) |
+   | `Migration20261030T145645AdminActionsKeywordsKey` | `admin_actions` | Nullable `module_actions.keywords_key`, filled by the next install or boot reconcile |
+   | `Migration20261027T160234AdminUsersAdminUserPreferences` | `admin_users` | Table `admin_user_preferences` — see [Admin UI](#after-0-109-0-admin) |
+   | `Migration20261022T035133CatalogProductScopes` | `catalog` | Tables `product_channel_scopes` and `product_channel_language_scopes`, empty |
+   | `Migration20261022T054223CatalogProductUrlKeys` | `catalog` | Tables `product_url_keys` and `product_url_redirects` |
+   | `Migration20261025T222634CatalogProductStatusDropDraft` | `catalog` | Archives every `inactive` product, then turns every `draft` into `inactive` — see [Products](#after-0-109-0-product-status) |
+   | `Migration20261026T033453CatalogProductMediaScopes` | `catalog` | `gallery_items.alt_text`, tables `gallery_item_channel_hidden` and `gallery_item_channel_labels` |
+   | `Migration20261026T084533CatalogAttachmentPackagingTranslations` | `catalog` | Per-language names and descriptions of attachments and packaging units, table `product_attachment_channel_hidden` |
+   | `Migration20261025T215911SeoMetaOverrideChannelScope` | `seo` | Nullable `seo_meta_overrides.sales_channel_id`; `locale` becomes nullable, one of the two required |
+   | `Migration20261022T163218CmsBrandTokens` | `cms` | Table `cms_brand_tokens`, empty: every block reads the default tokens until you set your own |
+   | `Migration20261023T052237CmsPageTreeAndShare` | `cms` | `cms_pages.parent_page_id`, `breadcrumbs_visible` (`true`), `breadcrumbs_scheme` (`light`) and `share_image_asset_id` |
+   | `Migration20261027T165458CmsPageParentPathInUrl` | `cms` | `cms_pages.parent_path_in_url`, `false` for every page, so no URL moves |
+   | `Migration20261028T090524CmsPageBreadcrumbsOverlay` | `cms` | `cms_pages.breadcrumbs_overlay`, `false` |
+   | `Migration20261029T131218CmsPageTranslations` | `cms` | `cms_pages.translations`, empty: every page reads as before |
+   | `Migration20261023T063013BlogPostMainImage` | `blog` | Nullable `blog_posts.main_image_asset_id` |
+   | `Migration20261029T162855MegamenuNavigationBar` | `megamenu` | `presentation`, `alignment` and `audience` on `megamenu_items`; every top-level item becomes a start-aligned `mega` tab for everyone — see [Navigation bar](#after-0-109-0-megamenu) |
+   | `Migration20261029T190956MegamenuTabClickNavigates` | `megamenu` | `megamenu_items.click_navigates`, `false` |
+   | `Migration20261027T020030CrmOpportunityReferenceDocuments` | `crm` | Admits references to quote requests and tasks |
+   | `Migration20261028T143444CrmOpportunityReferenceKinds` | `crm` | Admits references to opportunities and projects |
+   | `Migration20261102T121950CartsCartItemQuoteRequest` | `carts` | Nullable `cart_items.quote_request_id`, backfilled for the agreed lines of a basket filled from a quote — see [Quote validity](#after-0-109-0-quote-validity) |
+   | `Migration20261102T122014CartsCartStatusWorking` | `carts` | Admits the basket status `working` — see [Working baskets](#after-0-109-0-working-basket) |
+   | `Migration20261025T145041ProductFeedsGoogleTemplatePackFields` | `product_feeds` | Three pack fields on the installed Google Merchant Center template — see [Product feeds](#after-0-109-0-feed-packs) |
+
+   Declaring `tasks` adds `Migration20261026T133731TasksInit` and
+   `Migration20261028T140002TasksTaskManagement`; declaring `projects` adds
+   `Migration20261026T144350ProjectsInit`, `Migration20261026T231555ProjectsLinkOrganization`,
+   `Migration20261027T172441ProjectsValueChanges` and `Migration20261028T143448ProjectsReferenceKinds`
+   (step 13). All six only create the modules' own tables and seed their default statuses,
+   priorities and roles.
+
+After the upgrade, before the instance takes traffic again:
+
+4. **Run one search reindex per sales channel** (Bulk actions page), so the search index carries
+   each product's per-channel and per-language state ([Products](#after-0-109-0-product-status)).
+5. **Restore the products you mean to sell again.** Every product that was `inactive` is now
+   archived, and setting it `active` does not bring it back. Open **Archived products**
+   (`/catalog/products/archived`), select them and choose **Restore**.
+6. **Bring the storefront over.** A storefront created by an earlier release keeps working against
+   this one, but it does not show the navigation bar's new tabs, the language-prefixed URLs, the
+   bilingual text, the quote-validity notice at checkout or the contact form, and it is not
+   restarted when it stops answering. What each needs is in the entries below; the shortest path is
+   to bring over the release's storefront as a whole — `git diff v0.108.0 v0.109.0 -- storefront`
+   in the platform repository lists every change. At the very least copy
+   `scripts/supervise.mjs` and the Dockerfile's last stage, and set `init: true` on the storefront
+   service ([Storefront supervisor](#after-0-109-0-storefront-supervisor)).
+7. **Check `REVALIDATE_SECRET`**: it must be the same value in the backend's `.env` and the
+   storefront's. With different values the storefront refuses every revalidation, so a cached page
+   — a product page now among them — stays stale until its time window runs out; the backend logs
+   the refusal
+   ([Cache revalidation](#after-0-109-0-revalidation)).
+
+Whenever it suits you:
+
+8. **Review the navigation bar** on the menu editor (*Megamenu*): every stored top-level item is
+   now a *mega* tab, and the release's storefront header no longer adds *All categories* or the
+   Quick Order button by itself — add them as tabs if you want them
+   ([Navigation bar](#after-0-109-0-megamenu)).
+9. **Rebuild the pages of step 2** with a *Carousel* and one *Carousel image* per slide.
+10. **On a channel that had the public-channel flag off, check what signed-in buyers see**: they now
+    see prices according to their display mode ([Sales channels](#after-0-109-0-channel-prices)).
+11. **Add the root `worker` script** if you run the queue consumers in their own process
+    ([Worker script](#after-0-109-0-worker-script)).
+12. **Set the new settings you want**: *Contact form* recipients per sales channel
+    (`cms.contact_form_recipients`, needed before the *Contact form* block sends anything), the
+    shop's logo and social profiles (`shop.logo_asset_id`, `shop.social_profiles`, used by the
+    storefront's structured data) and the *Reporting time zone* (`analytics.reporting_time_zone`,
+    `UTC` by default).
+13. **Decide whether to add `tasks` and `projects`**
+    ([Tasks and Projects](#after-0-109-0-tasks-projects)).
+14. **Check the new peer dependencies** ([Dependencies](#after-0-109-0-dependencies)).
 
 #### Product feeds: a price below one cent is published as a pack {#after-0-109-0-feed-packs}
 
@@ -3209,6 +3316,322 @@ This entry was written on 2026-10-27 against the branch of spec `163-product-dat
 This entry was written on 2026-10-31 against the branch of issue #85
 (`debt/85-storefront-i18n-infra` and the area branches stacked on it). No instance had been
 upgraded with it when it was written.
+
+#### Orders: a quote's validity binds order placement {#after-0-109-0-quote-validity}
+
+**For operators.**
+
+- **What changed** (issue #167). A quote's *valid until* date used to bind only its conversion into
+  a basket: once the basket was filled from an accepted quote, it could be ordered at the agreed
+  prices at any time afterwards. Placement now checks every basket line still priced at its
+  agreement. **A basket filled from a quote whose validity has passed can no longer be ordered**,
+  and neither can one whose quote no longer applies — re-opened, cancelled, expired or deleted. The
+  buyer can still remove those lines, or ask for a new quote.
+- **With the `quote_requests` module switched off, such a basket is refused too**, because nothing
+  can confirm the agreed prices. Until this release it was placed at the agreed prices.
+- **What the migration does.** `Migration20261102T121950CartsCartItemQuoteRequest` records on each
+  basket line which quote it came from, backfilled for the agreed lines of every basket already
+  filled from a quote, so the rule also holds for baskets filled before the upgrade.
+
+**For API clients and integrators.** Placement answers `410 QUOTE_VALIDITY_ENDED` with
+`details.code` `lapsed`, `withdrawn` or `unavailable`; the order-total preview carries the same
+verdict as `quoteCommitmentRefusal` (`null` when nothing is refused).
+
+**In an existing storefront.** The release's storefront warns at checkout before the buyer tries to
+order (`components/checkout/QuoteValidityNotice.tsx`, used by `app/(commerce)/checkout/page.tsx`,
+with `lib/checkout/place-order-gate.ts` and `lib/api/orders.ts`). An earlier storefront shows the
+server's refusal when the order is placed; bring those files over to warn earlier.
+
+#### Orders placed for a customer leave the customer's basket alone {#after-0-109-0-working-basket}
+
+- **What changed** (issue #169). An order created by an operator in the Admin UI, a one-click buy
+  and an order taken through the external order intake used to empty and close the customer's
+  active basket — one filled from an accepted quote included — and place the order from it. They
+  now place from a separate **working basket** built from the order's lines; the customer's basket
+  is left exactly as it was, whether the order is placed or refused.
+- **What you will see.** Nothing new: a working basket is never listed on the carts screens and
+  never swept as abandoned. It ends `completed` with the order, or is deleted when the order is
+  refused. `Migration20261102T122014CartsCartStatusWorking` admits the new basket status `working`.
+- **For API clients and integrators**: a cart's `status` may be `working` (`cartStatusSchema`); a
+  client that validates statuses against a closed list must accept it.
+- **For module and overlay authors**: `CartWritePort.addItems`' option `replaceExisting: true` is
+  replaced by `workingBasket: true`, which returns a new cart; pass its id to
+  `OrderPlacementPort.placeOrder` as `workingBasketId`. An implementation of
+  `CartPlacementApplyPort` has to provide the new `readWorkingForPlacement` and
+  `discardWorkingBasket`.
+
+#### Storefront: a server that stops answering is restarted {#after-0-109-0-storefront-supervisor}
+
+- **What changed** (issue #152). Docker restarts a container that **exits**, never one that is only
+  *unhealthy*, so a storefront process that was alive but no longer answered stayed down until
+  someone restarted it. The release's storefront image runs the server under a supervising parent,
+  `scripts/supervise.mjs`, which probes `/robots.txt` and, after three unanswered probes in a row,
+  ends the server and exits `1`, so the restart policy starts a fresh container. Any HTTP answer
+  counts, a `500` or a `503` included. With the defaults a hung server is ended within about 50
+  seconds.
+- **New, optional environment variables** on the storefront service:
+  `STOREFRONT_SUPERVISOR_PROBE`, `STOREFRONT_SUPERVISOR_PROBE_URL`,
+  `STOREFRONT_SUPERVISOR_INTERVAL_SECONDS`, `STOREFRONT_SUPERVISOR_TIMEOUT_SECONDS`,
+  `STOREFRONT_SUPERVISOR_FAILURES`, `STOREFRONT_SUPERVISOR_START_GRACE_SECONDS` and
+  `STOREFRONT_SUPERVISOR_KILL_GRACE_SECONDS`. The defaults need none; a value the supervisor
+  cannot read stops the container at start. Their meaning is on
+  [Storefront process supervisor](./deployment/storefront-supervisor.md).
+- **`init: true`.** The compose examples (`deploy/compose.prod.yml`,
+  `deploy/three-host/compose.storefront.yml`) now set it on the storefront service, so Docker's
+  init reaps any process the server leaves behind.
+- **What to do in an existing storefront.** `endora upgrade` does not touch the storefront's own
+  files. Copy `scripts/supervise.mjs` from the release's storefront and the last stage of its
+  `Dockerfile`, whose command becomes
+  `CMD ["node", "storefront/scripts/supervise.mjs", "storefront/server.js"]`, then add
+  `init: true` to the storefront service of your compose file (`docker run --init` for a container
+  started by hand). Nothing else changes; without these edits the storefront runs as before,
+  unsupervised.
+
+#### Instance: a root `worker` script {#after-0-109-0-worker-script}
+
+A new instance's root `package.json` declares `worker`, so the separate worker tier is started with
+`pnpm run worker` beside `pnpm run start` for the API, as
+[Queue consumers](./operations/queue-consumers.md) describes. `endora upgrade` does not add it to an
+existing instance: run `pnpm -C backend run worker`, which is the same command, or add
+`"worker": "pnpm -C backend run worker"` to the root `scripts`. The operator commands throughout
+this documentation are now written in the form an instance runs them, from the instance root.
+
+#### Storefront cache revalidation: `REVALIDATE_SECRET` and its warnings {#after-0-109-0-revalidation}
+
+- **Product pages follow their product at once.** The backend now asks the storefront to drop a
+  product's cached page after the product changes, is archived, deleted or leaves a sales channel,
+  through the same `/api/revalidate` call it already made for categories and CMS pages
+  (`STOREFRONT_BASE_URL` and `REVALIDATE_SECRET`; nothing is asked without them).
+- **A refusal is logged.** Each call is bounded to five seconds, and a refusal — a `401` because the
+  two sides hold different `REVALIDATE_SECRET` values, a `400`, a `5xx` — is logged as a warning
+  with its status and the number of tags, never the secret. A warning repeated within a minute is
+  counted rather than written again, and the next one carries `suppressed`, the number held back.
+  If such warnings appear after the upgrade, set the same value on both sides.
+- **An instance installed with `endora install --no-storefront`** has an empty `REVALIDATE_SECRET`;
+  the installer now says so and prints the command that adds a storefront with the same value.
+
+#### Storefront: the megamenu becomes the navigation bar {#after-0-109-0-megamenu}
+
+**For operators.**
+
+- **What changed** (spec 168). A menu's top-level item is a **tab** with a presentation — *Link*,
+  *Dropdown*, *Mega* panel or *Panel with side list* — and an alignment, start or end. Two new item
+  kinds, **Group** (a heading and a column of a mega panel) and **Category tree** (the live
+  categories under a root, one to three levels deep), and an **audience** on every item —
+  everyone, guests, signed-in customers or chosen customer groups. A tab with a link of its own and
+  a panel can follow its link on click.
+- **What the migration does.** `Migration20261029T162855MegamenuNavigationBar` makes every stored
+  top-level item a start-aligned *Mega* tab shown to everyone, and converts nothing else. Saving a
+  menu now refuses a tab of a kind that cannot be one, a *Link* tab with children and a group,
+  external link or button with no label.
+- **What you will see.** The release's storefront header renders the menu's tabs and nothing else:
+  the hard-coded *All categories* trigger, the Quick Order button and the mobile drawer's Quick
+  Order promo are gone. Add them as tabs if you want them — a *Panel with side list* tab over a
+  category tree, and a link tab to Quick Order aligned to the end, as the demo menu does.
+
+**For API clients and integrators.** The megamenu wire contract changes without a compatibility
+period: a resolved item's `id` and `parentId` are strings, not uuids (a category a tree expands to
+is `<tree item id>:<category id>`), tabs carry `presentation` and `alignment`, and a `category-tree`
+item never appears in a resolved tree. An identified caller is answered with
+`Cache-Control: private, no-store`, since the answer depends on its audience. The cache prefix
+moves to `megamenu:v2:`.
+
+**In an existing storefront.** An earlier storefront still renders the stored menu, as mega panels,
+with its own *All categories* and Quick Order buttons, but it cannot render groups, category trees,
+the other presentations or the new tab-click behaviour. Bring over `components/Header.tsx`, the
+`components/Megamenu/` directory (`NavigationBar.tsx` and `panels.tsx` are new),
+`lib/api/megamenu.ts` and the navigation styles in `app/globals.css`.
+
+#### Page builder: the Carousel replaces the Image slider, and new blocks {#after-0-109-0-page-builder}
+
+**For operators.**
+
+- **The *Image slider* block (`cms.ImageSlider`) is removed.** A page that uses it keeps the block
+  in storage, but the storefront renders nothing in its place and the rest of the page renders as
+  before. Rebuild it with a **Carousel** (the former *Content slider*) holding one **Carousel
+  image** per slide: every image-slider option has a counterpart there. A stored *Content slider*
+  keeps its look — arrows over the edges, dots below.
+- **New blocks and options.** The Carousel gains a header, several slides per view per breakpoint,
+  a fade effect, control placements and an autoplay that is off by default, and accepts the new
+  item blocks *Carousel image*, *Carousel split*, *Link tile* and *Download tile*. New blocks:
+  *Contact form*, *Page navigation* (jump links to sections of the page), *Latest posts* and a
+  reshaped *Newsletter sign-up* that can collect subscriber attributes. Most blocks gain layout,
+  text and spacing options per breakpoint.
+- **Brand tokens.** One set of colours, colour schemes, fonts, type scale, button sizes, spacing and
+  widths every block reads, set globally and optionally per sales channel
+  ([Brand](./modules/cms/brand.md)). The upgrade stores none, so every page looks as before until
+  you set them.
+- **Pages.** A page can have a breadcrumb parent, breadcrumb display options, a sharing image, and
+  its own name, slug and description in each of its languages. None changes a stored page: a parent
+  shapes only the breadcrumb trail, and the parent's path joins the URL only when *parent path in
+  URL* is switched on for that page.
+- **The contact form sends nothing until it has recipients.** Set *Contact form* recipients
+  (`cms.contact_form_recipients`, up to ten addresses per sales channel, on the *Settings* screen or
+  through ⌘K / CTRL+K). Without them the form answers that it is unavailable. It e-mails each message through
+  the platform mailer with the visitor as Reply-To and stores nothing; submissions are limited to
+  ten per client address in ten minutes ([Contact form](./modules/cms/contact-form.md)).
+- **Blog.** A post has a main image, picked from the library, and its related products are shown as
+  product cards priced for the viewer.
+
+**For module and overlay authors.** `@endora-commerce/cms-components` no longer exports
+`ImageSlider`, `imageSliderTitleStyle`, the `components/image-slider-item` subpath or their types;
+`carouselImageFromImageSliderItem(item)` maps a stored image-slider item for code that converts
+content. `EmailMailerSendInput` gains an optional `replyTo`. `blogProductCardSchema`,
+`BlogProductCard` and `blogResolvedPostSchema.relatedProducts` are deprecated and are removed in a
+later minor: read `relatedProductIds` and fetch the products with
+`GET /api/v1/catalog/products?ids=…` as the viewer.
+
+**In an existing storefront.** The blocks render through `@endora-commerce/cms-components`, which
+the upgrade moves, but the contact form posts to the storefront's own `app/forms/contact/route.ts`
+(with `lib/api/contact-form.ts`), the newsletter sign-up to `app/newsletter/subscribe/route.ts`, and
+the blocks' words in the page language come from `lib/page-builder/` and
+`components/LocalizedCmsRenderProvider.tsx`; brand tokens are read by `lib/api/brand.ts`, and a
+post's related products by `app/blog/_components/RelatedProductsStrip.tsx`. Bring those over with
+the rest of the storefront (step 6).
+
+#### Tasks and Projects: two new modules {#after-0-109-0-tasks-projects}
+
+The release brings two new packages. Neither is required by any other module, so the upgrade does
+not declare them; [Adding a module that is new in a release](#adding-a-new-module) says how.
+
+- **`@endora-commerce/mod-tasks`** (module id `tasks`): Tasks for administrators — a number, a
+  title, a description, assignees, a due date, a status and a priority — on their own or linked to
+  records other modules own: orders, products, quote requests, opportunities and projects. Statuses,
+  their transitions, priorities and tags are configurable; reminders and a daily digest are sent by
+  e-mail. Permissions `tasks:read`, `tasks:write`, `tasks:see_private` and `tasks:configure`. See
+  [Tasks](./modules/tasks.md).
+- **`@endora-commerce/mod-projects`** (module id `projects`): Projects for one or more
+  Organizations, or internal, run through Stages by Members holding Project Roles, from templates,
+  with analytics. Permissions `projects:read`, `projects:write`, `projects:see_all`,
+  `projects:configure` and `projects:analytics`. It works without Tasks, and offers Tasks when that
+  module is on. See [Projects](./modules/projects.md).
+- **Once declared, each is switched on** (`tasks.enabled`, `projects.enabled`) and can be switched
+  off on `/platform/modules` without losing data. Give the roles that should use them the
+  permissions above on *Admin roles*.
+- **Without them** nothing changes, except that Sales opportunities can now also refer to other
+  opportunities, quote requests and — when the modules are present — Tasks and Projects.
+
+#### Library files follow the visibility of the records that use them {#after-0-109-0-asset-visibility}
+
+- **What changed** (spec 166). A file in the asset library used only by records a reader may not
+  see — a private or draft Task, a Project they are not a member of, an Opportunity outside their
+  reach — is hidden from that reader: it is left out of the library list, its search, the folders
+  and the file picker, and every admin route that takes its id answers as for a file that does not
+  exist. A file nobody uses, or one used by a product, category, CMS page, blog post or menu, is
+  visible to every library reader as before. The Platform administrator sees every file.
+- **Linking a file by id** — to a product's gallery, attachments or downloads, a category or blog
+  image, a menu item — refuses a file the administrator may not see exactly as a missing one.
+- **Deleting a folder with its contents** now refuses with `409 ASSET_REFERENCED` when any file
+  inside is still in use (issue #535). It used to delete such files.
+- Nothing to do: there is no migration and no new permission.
+
+#### Two-step verification {#after-0-109-0-two-step}
+
+- **One code admits one sign-in.** The same valid authenticator code or recovery code sent to
+  several sign-in attempts at once used to be accepted by each of them; it is now accepted once.
+- **Enrolment shows a QR code** beside the manual key, in the Admin UI's *Account security* and in
+  every setup answer (`qrSvg`, an SVG document to render as an image, never as HTML).
+- **One name.** Multi-factor sign-in is called **two-step verification** (Polish: *weryfikacja
+  dwuetapowa*) in every screen, setting name, permission label and message, in place of
+  "two-factor authentication" and "2FA". Identifiers, permission codes, setting keys and error codes
+  are unchanged, and the palette still finds *two-factor* and *2fa*.
+- `@endora-commerce/mod-mfa` now peers on `uqr` ([Dependencies](#after-0-109-0-dependencies)).
+
+#### Admin UI: preferences, pins, notifications and the palette {#after-0-109-0-admin}
+
+- **Preferences are kept on the server, per administrator** (spec 164): sidebar pins, folded sidebar
+  groups, the rail mode, each list's page size and its list-or-board choice follow an administrator
+  to every browser and device. On the first load after the upgrade, the page sizes the browser
+  remembered for the signed-in administrator are carried over once; the folded groups and rail mode
+  were not tied to an administrator and are reset, so everyone opens in the default sidebar layout
+  once. Nothing is kept in the browser's storage any more.
+- **Pins.** Every sidebar entry has a pin button; pinned entries come first, in a *Pinned* section
+  that can be reordered by dragging or with the keyboard. A palette result that leads to a sidebar
+  entry can be pinned with `Alt+Enter`.
+- **Every administrator reads their own notifications** on the bell, whatever their role (issue
+  #518). `admin:read` — now labelled *View notifications sent to all admins* — decides only whether
+  the broadcasts to all administrators are shown.
+- **Every module's screens are reachable from the command palette**, and the palette finds an
+  action by a word in the operator's language as well as by the English one. The Polish words now
+  come from the module bundles; `Migration20261030T145645AdminActionsKeywordsKey` stores the key the
+  next reconcile writes.
+- **Custom fields** are created in the same form that edits them, with a label per language and
+  options with their own labels.
+- **The Admin UI loads less code** (issue #175): the admin kit and shell can now be tree-shaken,
+  and in the platform's own build the admin entry chunk fell to about a third of its size.
+
+#### Prices withheld under display mode *None* {#after-0-109-0-display-mode-none}
+
+- **What changed** (issue #491). A viewer whose display mode is *None* — a guest on a shop that shows
+  prices only after sign-in, typically — used to have prices hidden by the storefront only, while
+  the API still sent them: the price, the base and sale prices, the list price and every tier. The
+  server now sends no amount to such a viewer, on listings, the product page, search, comparisons
+  and the resolved-price route; the storefront still renders "price on request".
+- **Price-sorted listing cursors are sealed** (issue #497): a cursor can no longer be decoded to
+  reveal a product, or a price, the viewer may not see. Paging is unchanged.
+- Nothing to do. A client that read a guest's prices from the API reads none.
+
+#### Messages and documents in the reader's language {#after-0-109-0-languages}
+
+- **Text the backend writes follows a language rather than being Polish in code** (issues #94, #95):
+  the new-organization notification is read in each administrator's language, its fallback e-mail
+  and the in-code order confirmation are written in the sales channel's language, the moderation
+  messages a buyer sees follow the request's language, and a bulk operation's log is shown in the
+  reader's language. A Polish channel or reader sees the same text as before; elsewhere the
+  new-organization notification, its fallback e-mail, the moderation messages and the bulk
+  operation log now read English where they read Polish.
+- **Invoices are unchanged**: they are printed in Polish, and that rendering is byte for byte the
+  same; their labels now come from the module's language bundle.
+- **Error messages are sentences** in English and Polish where 137 of each read as the error code
+  in Title Case. Error codes and HTTP statuses are unchanged.
+- **The storefront's buyer-facing text is in both languages**, every area — catalogue, basket,
+  checkout, account, sign-in, content and the page chrome (issue #85); see
+  [the message catalogue](#after-0-109-0-message-namespaces) for an existing storefront.
+
+#### Dependencies {#after-0-109-0-dependencies}
+
+The release adds peer dependencies an instance must resolve:
+
+| Package | Peer | Declare it in |
+| --- | --- | --- |
+| `@endora-commerce/mod-mfa` | `uqr` `^0` (the platform builds with `^0.1.3`) | `backend/package.json` |
+| `@endora-commerce/admin-kit` | `@tiptap/react` and `@tiptap/starter-kit` `^3.22.5` | `admin/package.json` |
+| `@endora-commerce/mod-cms` | `@fastify/rate-limit` `^10` | `backend/package.json` |
+| `@endora-commerce/mod-analytics` | `zod` `^4` | `backend/package.json` (already declared for the platform) |
+
+pnpm installs a missing peer by itself while `auto-install-peers` is on, its default, so the upgrade
+runs without these edits; declaring them pins the version in your own manifest and is required where
+that option is off. Then run `pnpm install`. `endora upgrade` moves only the release's own packages.
+
+#### For module and overlay authors {#after-0-109-0-authors}
+
+- **`@endora-commerce/admin-shell`'s re-export shims over `@endora-commerce/admin-kit` are removed**
+  (issue #97). None was reachable through the package's `exports`, so no import changes; a test that
+  mocks one with `vi.mock` must name the kit specifier, for example
+  `vi.mock('@endora-commerce/admin-kit/lib', …)`.
+- **`AuditLogEntry` from `@endora-commerce/contracts` is now `AuditLogEntryResponse`.** The old name
+  stays as a deprecated alias and is removed in the next minor; the shape is unchanged.
+- **Sales channel identity writes run through the Command Bus.** `SalesChannelsService.create` and
+  `update` need an ambient TenantContext — wrap a call outside a request in
+  `withSystemScope('<reason>', …)` from `@endora-commerce/platform/tenancy` — and lose their
+  optional `context` argument. The audit entry `sales_channel.identity.changed` now holds the
+  snapshot before and after.
+- **The cart-view schemas describe what the routes answer** (issue #128): several fields became
+  nullable or optional and none was narrowed, so everything that parsed before still parses.
+- **Palette keywords in a manifest are English**; words in another language go into the module's
+  bundle under the action's `keywordsKey` (issues #560, #573), resolved in the operator's language.
+- **`endora new module` writes its tests beside their subjects** and type-checks them. A package
+  scaffolded earlier keeps working; the changelog of `@endora-commerce/cli` says how to move its
+  `test/unit/` files.
+- **`@endora-commerce/cli/lib/sql-tables.js`** can read DDL against an existing table
+  (`{ ddl: true }`), so `check:module-boundary` now reports a migration that indexes or alters
+  another module's table (issue #108).
+
+This section was written on 2026-11-02 against the release branch `release/version-0.109.0`, read
+from the changesets of the release against its migrations, manifests, routes and the reference
+storefront's history; the entries from *Product feeds* to *the message catalogue* were written
+earlier, by the pull requests that made each change. No instance had been upgraded with `pnpm run upgrade 0.109.0` when it was written; the
+order of the steps and the storefront edits are untried.
 
 ## An instance that is mixed from the start
 

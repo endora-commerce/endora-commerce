@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-admin-feedback",
-  "version": "0.108.0",
+  "version": "0.109.0",
   "type": "module",
   "sideEffects": false,
   "description": "Send feedback from the admin to the makers of Endora Commerce: a message, a contact address and what the instance knows about itself, relayed as one e-mail and stored nowhere.",

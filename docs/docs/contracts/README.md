@@ -39,7 +39,9 @@ scope can be issued only by an administrator who holds it.
 - **From an integration** — send the key as a bearer token:
 
 ```bash
-pnpm run dev:infra && pnpm --filter backend run dev
+# In the root of an instance:
+pnpm run dev:services && pnpm run dev
+# In a checkout of the Endora Commerce repository: pnpm run dev:infra && pnpm --filter backend run dev
 # in another shell, with a key issued with the platform.api_description.read scope:
 curl -H "Authorization: Bearer sk_live_…" http://localhost:3001/api/v1/_openapi.json | jq .info
 ```

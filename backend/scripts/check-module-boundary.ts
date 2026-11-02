@@ -250,17 +250,24 @@
  *     Ordering is neither instrument's subject and never was — that is
  *     `src/db/migration-order.ts`'.
  *
- *     So the two subjects are: **DDL** there, **DML** here. The populations
- *     cannot overlap even in principle, because `STATEMENT_HEAD` admits only
- *     `select`, `insert into`, `update`, `delete from` and `with`, and never
- *     `create` or `alter`. What a migration is excluded from above is this
+ *     So the two subjects are: a **foreign key** there, a **migration's reach**
+ *     here. They do not overlap even where both read `alter table` (issue
+ *     #108): `fk-graph.ts` attributes an edge to the module owning the
+ *     *referencing table*, whatever migration wrote it, and this check
+ *     attributes a statement to the module whose *migration* holds it. So
+ *     `alter table "b_table"` in `a`'s migration is nothing there and a
+ *     finding here, and a migration's own `create table` is nothing here — it
+ *     is the declaration the owner map is built from, and DDL against a table
+ *     the same source creates is part of that declaration (`sql-tables.ts`
+ *     states the DDL heads it reads). What a migration is excluded from above is this
  *     predicate's rule — *every reach is debt*, into
  *     `scripts/ledgers/cross-module-imports/` — and {@link analyzeMigrationSql}
  *     judges the same statements under two rules of their own, with two ledgers
  *     of their own: **R1**, a cross-module table reference requires the owner in
  *     the declaring module's transitive manifest `dependencies` closure (which
  *     is AGENTS.md § *Migrations* item 4 with its predicate widened from
- *     `references` to DML), and **R2**, a migration may not *write* another
+ *     `references` to DML and to DDL against an existing table), and **R2**, a
+ *     migration may not *write* another
  *     module's table whether or not R1 holds. Kernel-owned tables are outside
  *     both, by derivation from the owner map.
  *   - **Comments, for both `sql` paths** — not by exclusion but by
@@ -419,6 +426,7 @@ import {
 import { namedSpecifiers, type SpecifierKind } from './lib/specifiers.js';
 import { resolutionCandidates } from './lib/platform-surface.js';
 import {
+  declaredIndexes,
   declaredTableNames,
   sqlTableAccesses,
   type SqlAccessDirection,
@@ -568,7 +576,8 @@ export type MigrationSqlRule =
   | 'migration-writes-a-foreign-table';
 
 /**
- * A migration naming another module's table in DML (feature 097).
+ * A migration naming another module's table in DML (feature 097) or in DDL
+ * against an existing table (issue #108).
  *
  * Deliberately **not** a `ModuleBoundaryFinding`: it takes its own two ledgers,
  * because the host check's rule over an ordinary source is "every reach is debt"
@@ -1758,6 +1767,12 @@ export function analyzeMigrationSql(
   closures: DependencyClosures,
   hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
   tally?: SiteTally,
+  /**
+   * Index name → table over every migration the caller read, so a `drop index`
+   * resolves to the table its `create index` named — usually in another file
+   * (issue #108). {@link findMigrationSql} builds it with {@link migrationIndexTables}.
+   */
+  indexTables?: ReadonlyMap<string, string>,
 ): MigrationSqlFinding[] {
   if (!isMigration(file)) return [];
   const owner = moduleLocationOf(file, hostResident);
@@ -1765,7 +1780,11 @@ export function analyzeMigrationSql(
 
   const declared = closures.get(owner.id) ?? new Set<string>();
   const found: MigrationSqlFinding[] = [];
-  for (const access of sqlTableAccesses(source, file)) {
+  // DDL is read here and nowhere else (issue #108): an index, an `alter table`,
+  // a comment, a trigger or a `drop` against another module's table changes
+  // that table's schema, which is the owner's decision exactly as its rows are.
+  // It is a write, so R2 reports it whether or not R1 holds.
+  for (const access of sqlTableAccesses(source, file, { ddl: true, indexTables })) {
     if (tally !== undefined) tally.count += 1;
     const target = owners.get(access.table);
     if (target === undefined || isCoreOwner(target)) continue;
@@ -1839,11 +1858,43 @@ export function findMigrationSql(
     prebuiltOwners ??
     buildTableOwners(input.schema, input.packageTables ?? [], hostResident).owners;
   const tally: SiteTally = { count: 0 };
+  const indexTables = migrationIndexTables([...input.schema, ...migrations]);
   const found = migrations.flatMap(([file, text]) =>
-    analyzeMigrationSql(text, file, owners, input.dependencyClosures!, hostResident, tally),
+    analyzeMigrationSql(
+      text,
+      file,
+      owners,
+      input.dependencyClosures!,
+      hostResident,
+      tally,
+      indexTables,
+    ),
   );
   found.sort((a, b) => (a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file)));
   return { found, sites: tally.count, files: migrations.length, declaredClasses };
+}
+
+/**
+ * Every index a migration creates, mapped to its table — `drop index`'s only
+ * route to a table (issue #108).
+ *
+ * Read over the schema sources as well as the module walk's migrations, because
+ * the platform's own migrations are outside every module walk root and created
+ * indexes a module migration may later drop. A name created twice keeps its
+ * first table: Postgres index names are unique per schema, so a second `create`
+ * of one name can only follow a `drop` of the first.
+ */
+function migrationIndexTables(
+  sources: Iterable<readonly [string, string]>,
+): ReadonlyMap<string, string> {
+  const map = new Map<string, string>();
+  for (const [file, text] of sources) {
+    if (!isMigration(file) || !text.includes('index')) continue;
+    for (const { index, table } of declaredIndexes(text, file)) {
+      if (!map.has(index)) map.set(index, table);
+    }
+  }
+  return map;
 }
 
 /** The file half of a ledger key, or `null` when the key does not parse. */
@@ -3444,7 +3495,7 @@ async function main(): Promise<void> {
     shardsOf.reduce((sum, shard) => sum + Object.keys(shard.entries).length, 0) - permanent.length;
   console.log(
     `[module-boundary] migrations=${result.migrationFiles} ` +
-      `cross-module DML=${result.migrationFindings.length} ` +
+      `cross-module SQL=${result.migrationFindings.length} ` +
       `(undeclared=${result.undeclaredReferences.violations.length + result.undeclaredReferences.ledgered.length} ` +
       `foreign-writes=${result.foreignWrites.violations.length + result.foreignWrites.ledgered.length}) ` +
       `violations=${result.undeclaredReferences.violations.length + result.foreignWrites.violations.length} ` +

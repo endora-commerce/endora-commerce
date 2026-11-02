@@ -39,8 +39,13 @@ by the `BACKEND_ROLE` environment variable:
 For a single VPS, run only the API process — it co-locates the workers:
 
 ```bash
-pnpm --filter backend run start      # production (built)
-pnpm --filter backend run dev        # development (tsx watch)
+# In the root of an instance:
+pnpm run start      # production (built)
+pnpm run dev        # development (watch)
+
+# In a checkout of the Endora Commerce repository:
+pnpm --filter backend run start
+pnpm --filter backend run dev
 ```
 
 This is the posture the rule allows for low-volume work: the worker
@@ -53,13 +58,22 @@ When bulk edits, imports, or re-indexing get heavy enough to contend with
 request latency, split the workers into their own process(es):
 
 ```bash
+# In the root of an instance.
 # Web tier — HTTP only, no in-process consumers.
-BACKEND_ROLE=api pnpm --filter backend run start
+BACKEND_ROLE=api pnpm run start
 
 # Worker tier — consumers only, no HTTP listener.
+pnpm run worker
+
+# In a checkout of the Endora Commerce repository:
+BACKEND_ROLE=api pnpm --filter backend run start
 pnpm --filter backend run worker          # production (built)
 pnpm --filter backend run worker:dev      # development (tsx watch)
 ```
+
+An instance has no watch-mode worker: `pnpm run dev` runs the API with the workers co-located,
+which is what a development machine needs. An instance scaffolded before its root declared
+`worker` has no `pnpm run worker`; `pnpm -C backend run worker` is the same command there.
 
 Scale the worker tier **horizontally** by starting more worker processes (or
 containers). BullMQ's atomic job claim guarantees a job is processed by exactly
@@ -151,10 +165,14 @@ to the same worker model; document and operate them as follows in the meantime:
 
 | Job | How it runs today | Invocation |
 | --- | --- | --- |
-| Cart abandonment sweep | Manual / cron script | `pnpm --filter backend run cart:abandonment-sweep` |
-| Full search re-index | Manual CLI | `pnpm --filter backend run search:reindex` |
+| Cart abandonment sweep | Manual / cron script | `pnpm run cli carts abandonment-sweep` |
+| Full search re-index | Manual CLI | `pnpm run cli search reindex` |
 | Price-book status sweep (moves *Scheduled* books to *Active* and *Active* ones to *Expired* for the admin's display; prices follow a book's dates at the exact instant regardless) | In-process `setInterval` (every 5 min) | starts with the API process |
 | RFQ expiry | Service method, invoked on a schedule | `RfqExpiryWorker.sweep()` |
+
+The two commands are run in the root of an instance. In a checkout of the Endora Commerce
+repository they are `pnpm --filter backend run cart:abandonment-sweep` and
+`pnpm --filter backend run search:reindex`.
 
 :::note
 The in-process `setInterval` sweepers above are the legacy pattern the

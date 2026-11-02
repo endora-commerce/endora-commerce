@@ -32,6 +32,13 @@
 import { argDeclarations, buildInvocation, corepack, nodeImage } from '../new-instance/deploy.js';
 import { TOKEN_VARIABLE } from './npmrc.js';
 
+/**
+ * The supervising parent the image runs as its command (issue #152), as a path
+ * inside the storefront tree. The scaffold copies it from the reference
+ * storefront like any other file, so this names it rather than renders it.
+ */
+export const SUPERVISOR_SCRIPT = 'scripts/supervise.mjs';
+
 /** The BuildKit secret the install reads the registry token from (D-274 clause 2.4). */
 const TOKEN_SECRET = TOKEN_VARIABLE.toLowerCase();
 
@@ -115,8 +122,17 @@ export function storefrontDockerfile(input: StorefrontDockerInput): string {
     'COPY --from=build /app/storefront/.next/standalone ./',
     'COPY --from=build /app/storefront/.next/static ./storefront/.next/static',
     'COPY --from=build /app/storefront/public ./storefront/public',
+    '# The command is a supervising parent, not the server: Docker restarts a',
+    '# container whose process exited and does nothing for one that is only',
+    '# `unhealthy`. `scripts/supervise.mjs` runs the server as its child, forwards',
+    '# signals and its exit code, probes it over HTTP, and after a run of',
+    '# unanswered probes kills it and exits non-zero so the restart policy brings',
+    '# the container back. Its STOREFRONT_SUPERVISOR_* variables are documented in',
+    '# the file itself. Run the container with an init in front — `init: true` in',
+    '# compose, `docker run --init` — which is what reaps an orphaned process.',
+    `COPY --from=build /app/storefront/${SUPERVISOR_SCRIPT} ./storefront/${SUPERVISOR_SCRIPT}`,
     'EXPOSE 3000',
-    'CMD ["node", "storefront/server.js"]',
+    `CMD ["node", "storefront/${SUPERVISOR_SCRIPT}", "storefront/server.js"]`,
   ].join('\n')}\n`;
 }
 

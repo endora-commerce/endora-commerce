@@ -55,7 +55,19 @@ The channel-access rule applies to baskets like to every storefront call: an ano
 
 [ active / approved ]    ──(checkout success)──▶ [ completed / approved ]
 [ active / * ]           ──(Cart→QR conversion)─▶ [ completed / *; converted_to_quote_request_id set ]
+
+[ working ]              ──(order placed)───────▶ [ completed; completed_order_id set ]
+[ working ]              ──(placement refused)──▶ (deleted)
 ```
+
+**Working baskets.** Admin order creation, one-click buy and the external order
+API place an order from the lines of the request, not from what the buyer has
+collected. They write those lines into a separate basket in status `working`
+and place the order from it; the customer's active basket — including one
+filled from an accepted quote request — is not read, emptied or closed. A
+working basket ends `completed` with `completed_order_id` naming its order, or
+is deleted when the placement is refused. It never appears in a cart list, in
+the customer's carts panel or in the abandonment sweep.
 
 Re-arm rule: any buyer-driven mutation (add/remove/quantity/coupon) on an
 `approved` cart silently drops `approval_status` back to `pending`.
@@ -236,8 +248,9 @@ Reactivation: any buyer activity (touch, add/remove/qty/coupon) on an
   line remembers the quantity its price was agreed for, and keeps the agreed
   price only at that quantity (see *Line prices*). Adding a line, removing one
   or changing a quantity keeps the mark; removing the last line, or seeding the cart again from
-  another source (a reorder), clears the mark, and an order an administrator
-  creates for the customer starts a new cart without it. The Orders module reads it at placement and decides whether the order
+  another source (a reorder), clears the mark. An order an administrator
+  creates for the customer leaves the basket and its mark alone (see *Working
+  baskets*). The Orders module reads it at placement and decides whether the order
   may record the quote. The re-priced copy above sets no mark.
 - **Shopping List → Cart**: delegated to the existing
   `ShoppingListService.convertToCart`; the carts module
@@ -286,12 +299,14 @@ line of the product in the cart (the Catalog module's page defines both).
   added** when a line cannot be resolved; one asking for `report` receives every
   failure as an outcome. A caller may also ask for a line below a minimum to
   refuse the whole batch before anything is written, and — for a customer — for
-  the batch to replace the basket, which is then cleared only once the batch has
-  passed: that is how admin order creation and the external order API leave a
-  customer's basket untouched when they refuse a request. Before that clear, a
-  batch that throws on a failed line also prices every line it is about to
-  write, so a product with no price or one sold on request only refuses the
-  request with the basket still intact. At most 200 lines per call.
+  the batch to go into a new working basket instead of the active one (see
+  *Working baskets*), which is created only once the batch has passed and
+  deleted again if writing a line fails: that is how admin order creation,
+  one-click buy and the external order API place an order without touching the
+  customer's basket. Before the working basket is created, the batch also
+  prices every line it is about to write, so a product with no price or one
+  sold on request only refuses the request with nothing written. At most 200
+  lines per call.
 - **A basket filled from an accepted quote request** keeps the quote's
   negotiated quantities: each line seeded from the quote is exempt from the
   minimums **while its quantity equals the quote's quantity** for that line
@@ -352,7 +367,9 @@ surfaces `couponDroppedThisRead`. Wiring into the read path is a follow-up.
   follow-up.
 - **Abandonment scheduler** — the worker is constructed in production
   composition but not yet wired to a cron / BullMQ schedule. The ops CLI
-  `pnpm --filter backend run cart:abandonment-sweep` runs one tick by hand.
+  `pnpm run cli carts abandonment-sweep`, run in the root of an instance, runs
+  one tick by hand; in a checkout of the Endora Commerce repository it is
+  `pnpm --filter backend run cart:abandonment-sweep`.
   It is a manifest-declared command the host runs, so it sweeps through the
   composition's own `cartAbandonmentWorker` — see
   `packages/modules/carts/src/backend/cli/abandonment-sweep.ts` for the body and

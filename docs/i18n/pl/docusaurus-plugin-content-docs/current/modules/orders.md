@@ -130,7 +130,7 @@ listy odpowiedzią `400 VALIDATION_FAILED`:
   listy są niezależne.
 - **Nic nie jest zapisywane** — nie powstaje zamówienie, rezerwacja stanu ani płatność, a koszyk
   klienta pozostaje bez zmian. Tworzenie zamówienia przez administratora i przyjęcie zamówienia
-  kluczem API sprawdzają listy, zanim zastąpią koszyk.
+  kluczem API sprawdzają listy, zanim zapiszą pozycje zamówienia.
 - **Administratorów też to obowiązuje** — tak zostało postanowione: zamówienie utworzone w imieniu
   klienta podlega listom dozwolonych metod organizacji tego klienta i żadne ustawienie tego nie
   wyłącza. Formularz tworzenia pokazuje wszystkie metody; dla metody, na którą organizacja nie
@@ -160,7 +160,7 @@ odrzucają metodę, która nie jest dostępna w kanale **zamówienia**, odpowied
 - **Brak przypisania oznacza każdy kanał** — metoda nieprzypisana do żadnego kanału sprzedaży
   jest dostępna we wszystkich.
 - **Nic nie jest zapisywane** — tak jak przy listach dozwolonych metod, a tworzenie zamówienia w
-  panelu i przyjmowanie zamówień kluczem API sprawdzają to, zanim podmienią koszyk.
+  panelu i przyjmowanie zamówień kluczem API sprawdzają to, zanim zapiszą pozycje zamówienia.
 
 ### Metoda, która nie przechodzi obu sprawdzeń
 
@@ -624,8 +624,18 @@ logu i nie jest pokazywana kupującemu. Żadne żądanie nie przyjmuje tego pola
 ekran tworzenia zamówienia w panelu administracyjnym, ani zewnętrzne API zamówień nie mogą wskazać
 zapytania ofertowego.
 
-Gdy moduł zapytań ofertowych jest wyłączony, zamówienia są składane dokładnie tak jak dotąd i nie
-zapisują żadnego zapytania.
+**Uzgodnione ceny to osobne pytanie i ono może zablokować zamówienie.** Zanim cokolwiek zostanie
+zarezerwowane lub zapisane, składanie zamówienia sprawdza każdą pozycję koszyka wciąż wycenioną
+według uzgodnienia z oferty (wciąż w uzgodnionej ilości) względem tej oferty w jej obecnym stanie
+i odmawia z kodem `410 QUOTE_VALIDITY_ENDED`, gdy termin ważności oferty upłynął (`details.code`
+`lapsed`), gdy oferta już nie obowiązuje — otwarta ponownie, anulowana, wygasła lub usunięta
+(`withdrawn`) — albo gdy moduł zapytań ofertowych jest wyłączony i nic nie może potwierdzić cen
+(`unavailable`). Koszyk pozostaje bez zmian. Oferta zakończona już przez inne zamówienie nadal
+wiąże swoje ceny do terminu ważności. Strona modułu zapytań ofertowych, w części *Termin
+ważności*, opisuje tę regułę od strony kupującego.
+
+Gdy moduł zapytań ofertowych jest wyłączony, koszyk bez cen z oferty jest składany dokładnie tak
+jak dotąd i nie zapisuje żadnego zapytania.
 
 ## Grupy pozycji
 
@@ -709,12 +719,13 @@ zewnętrzne API zamówień.
   przy przekazaniu koszyka do akceptacji, więc przekazanie ocenia pozycję wypełnioną z zapytania
   tak jak podgląd; składanie zamówienia potwierdza zapytanie ponownie.
 - **Zewnętrzne API zamówień** (`POST /api/v1/external/orders`) i tworzenie zamówienia w panelu
-  budują koszyk z żądania i oceniają łączną ilość każdego produktu ze wszystkich pozycji żądania;
-  żądanie poniżej minimum jest odrzucane w całości, z `details.lines[]` kluczowanym `index`. Żądanie
-  jest oceniane samodzielnie — zastępowany koszyk nie liczy się do niczego — i odrzucane, **zanim**
-  koszyk klienta zostanie naruszony, więc odrzucone żądanie zostawia ten koszyk dokładnie takim,
-  jakim był. To samo dotyczy pozycji bez ceny albo sprzedawanej wyłącznie na zapytanie: jest
-  wyceniana, zanim koszyk zostanie zastąpiony. Żadne
+  budują z żądania koszyk roboczy (*Koszyki robocze* modułu koszyków) i oceniają łączną ilość
+  każdego produktu ze wszystkich pozycji żądania; żądanie poniżej minimum jest odrzucane w całości,
+  z `details.lines[]` kluczowanym `index`. Żądanie jest oceniane samodzielnie — koszyk klienta nie
+  liczy się do niczego — i odrzucane, **zanim** cokolwiek zostanie zapisane. Koszyk klienta nigdy
+  nie jest naruszany, niezależnie od tego, czy zamówienie zostanie złożone, czy odrzucone. To samo
+  dotyczy pozycji bez ceny albo sprzedawanej wyłącznie na zapytanie: jest wyceniana, zanim koszyk
+  roboczy powstanie. Żadne
   z nich nie przenosi jednostki opakowania, więc działa tam tylko minimum w sztukach. **Oba
   odrzucają więcej niż 200 pozycji** z kodem `422 VALIDATION_FAILED`,
   `details.code = 'too_many_items'` — w zewnętrznym API jest to sprawdzane jako pierwsze, zanim

@@ -158,6 +158,8 @@ describe('order placement — the basket of the order’s channel', () => {
       completeForOrder: (em, input) => realPlacement.completeForOrder(em, input),
       findPriceDrift: (em, input) => realPlacement.findPriceDrift(em, input),
       refreshLinePrices: (input) => realPlacement.refreshLinePrices(input),
+      readWorkingForPlacement: (em, ctx) => realPlacement.readWorkingForPlacement(em, ctx),
+      discardWorkingBasket: (input) => realPlacement.discardWorkingBasket(input),
     };
     const registry = new PaymentAdapterRegistry();
     for (const a of builtInPaymentAdapters()) registry.register(a, 'payments');

@@ -162,7 +162,9 @@ both failed silently. Both have since been fixed, in different ways:
   plus the analytics and marketing modules). Unset, the revalidator is a silent no-op and the
   storefront endpoint answers 401: content changes do not appear until the fetch cache expires
   on its own. It is now in `deploy/.env.prod.example` and handed to **both** the backend and the
-  storefront container — the same value, or the seam does not close.
+  storefront container — the same value, or the seam does not close. Two different values are
+  logged by the backend as `[storefront-revalidate] refused` with status `401`, at most once a
+  minute.
 
 **Do (engineer).** Generate `REVALIDATE_SECRET` (`openssl rand -hex 32`) into `deploy/.env`.
 Confirm `API_DOMAIN` is the real public API domain.
@@ -205,13 +207,20 @@ the same order, that `deploy/compose.prod.yml` runs as `backend-migrate` and `ba
 before the API starts:
 
 ```bash
+# In the root of the instance:
+DATABASE_URL=…/b2b_rehearsal pnpm run setup
+
+# In a checkout of the Endora Commerce repository:
 DATABASE_URL=…/b2b_rehearsal pnpm --filter backend run setup
 ```
 
-`setup` (in `backend/package.json`) is `db:fresh` followed by `module:install --all`. Running
-`db:fresh` alone is not a rehearsal of the deployment: a database whose first act after the
-migrations is a boot never runs its install hooks. Never run `db:fresh`, `setup` or `db:reset`
-without an explicit `DATABASE_URL`: unprefixed they rebuild the developer's own database, and
+An instance's `setup` is `generate` (when the instance has one), `build`, `migrate` and
+`module:install --all`; the repository's (in `backend/package.json`) is `db:fresh` followed by
+`module:install --all`. On an empty database both are the whole chain followed by every install
+hook. Running the migrations alone (`migrate`, `db:fresh`) is not a rehearsal of the deployment:
+a database whose first act after the migrations is a boot never runs its install hooks. Never run
+`setup`, `db:fresh` or `db:reset` without an explicit `DATABASE_URL`: unprefixed they work on the
+developer's own database — in a checkout `db:fresh`, `setup` and `db:reset` rebuild it, and
 `db:reset` also runs the demo seed.
 
 **Verify.** Both steps complete with no ordering failure and no failed install hook, and the
@@ -413,9 +422,11 @@ they are not using. Switching off is non-destructive and reversible: it drops no
 configuration, permissions or schema. **Do not rely on the confirmation prompt to tell you what
 a deactivation costs** — today it only names the module
 (`admin/src/modules/platform/ModuleActivationControl.tsx:88`). What breaks when a module goes
-off is recorded in the deactivation-consequence ledger, which
-`pnpm --filter backend run check:port-dependencies` builds; ask an engineer to read it for any
-module the client is not obviously done with.
+off is recorded in the
+[deactivation-consequence ledger](../architecture/kernel.md#the-deactivation-consequence-ledger);
+ask an engineer to read it for any module the client is not obviously done with. An instance has
+no command that builds it: it is a static check over the platform's module tree, run in a checkout
+of the Endora Commerce repository as `pnpm --filter backend run check:port-dependencies`.
 
 **Verify.** For each module switched off: its sidebar entry is gone, its palette actions are
 gone, and its API answers `503 MODULE_DISABLED`. For each left on, somebody can name why.

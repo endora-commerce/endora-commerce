@@ -383,6 +383,16 @@ export const orderPreviewTotalRequestSchema = z.object({
 });
 export type OrderPreviewTotalRequest = z.infer<typeof orderPreviewTotalRequestSchema>;
 
+/**
+ * Issue #167 — why a basket priced at a quote's agreed prices cannot be ordered at them now.
+ * `lapsed`: the quote's validity date has passed; `withdrawn`: the quote is gone or no longer in
+ * a state whose prices bind (re-opened, cancelled, expired); `unavailable`: the quote desk is
+ * switched off, so nothing can confirm the prices. Placement refuses with
+ * `410 QUOTE_VALIDITY_ENDED` and this value in `details.code`.
+ */
+export const quoteCommitmentRefusalSchema = z.enum(['lapsed', 'withdrawn', 'unavailable']);
+export type QuoteCommitmentRefusal = z.infer<typeof quoteCommitmentRefusalSchema>;
+
 export const orderPreviewTotalResponseSchema = z.object({
   subtotal: z.number(),
   taxTotal: z.number(),
@@ -408,6 +418,12 @@ export const orderPreviewTotalResponseSchema = z.object({
       }),
     )
     .default([]),
+  /**
+   * Issue #167 — set when the basket holds lines priced at a quote's agreed prices and placement
+   * will refuse them (`410 QUOTE_VALIDITY_ENDED`); `null` otherwise. Advisory, like
+   * `belowMinimumLines`: placement re-checks.
+   */
+  quoteCommitmentRefusal: quoteCommitmentRefusalSchema.nullable().default(null),
 });
 export type OrderPreviewTotalResponse = z.infer<typeof orderPreviewTotalResponseSchema>;
 
@@ -1359,11 +1375,17 @@ export interface OrderPlacementPort {
    * `options.language` (feature 155, D3/D4) — the language the caller's response
    * is answered in, which a minimum refusal names the product in. Absent, the
    * record's own fallback chain.
+   *
+   * `options.workingBasketId` (issue #169) — place from this **working**
+   * basket of the customer's (`CartWritePort.addItems` with `workingBasket`)
+   * instead of their active basket, which the placement then never touches. The
+   * working basket ends `completed` against the order, or is removed when the
+   * placement is refused.
    */
   placeOrder(
     ctx: OrderCustomerContext,
     req: PlaceOrderRequest,
-    options?: { language?: string },
+    options?: { language?: string; workingBasketId?: string },
   ): Promise<PlacedOrderRecord>;
 }
 

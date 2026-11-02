@@ -37,6 +37,7 @@ import { main } from '../src/bin/endora.js';
 import { buildArgFlags, buildInputsFor } from '../src/lib/instance-build-inputs.js';
 import { DECLARATION_FILE } from '../src/inputs/declaration.js';
 import { resolveStorefrontSource, runNewStorefront } from '../src/new-storefront/index.js';
+import { SUPERVISOR_SCRIPT } from '../src/new-storefront/dockerfile.js';
 import {
   addressVariables,
   declaredVariablesOf,
@@ -964,6 +965,25 @@ describe('the scaffolded Dockerfile builds in the scaffolded tree', () => {
       (match) => match[0]!,
     );
     expect(passed).toEqual([...buildArgFlags('storefront')]);
+  });
+
+  /**
+   * Issue #152: the image's command is the supervising parent, which the run
+   * stage copies out of the build stage — so it has to be a file the scaffold
+   * writes, or the image builds and the container cannot start.
+   */
+  it('runs the supervising parent the scaffold writes, with the standalone server as its child', () => {
+    const plan = planned();
+    const dockerfile = fileOf(plan, 'Dockerfile');
+    expect(plan.files.map((file) => file.path)).toContain(SUPERVISOR_SCRIPT);
+    expect(dockerfile).toContain(
+      `COPY --from=build /app/storefront/${SUPERVISOR_SCRIPT} ./storefront/${SUPERVISOR_SCRIPT}\n`,
+    );
+    const commands = dockerfile.split('\n').filter((line) => /^CMD\s/.test(line));
+    expect(commands).toEqual([`CMD ["node", "storefront/${SUPERVISOR_SCRIPT}", "storefront/server.js"]`]);
+    // The reference image runs the same command, so the two cannot drift apart.
+    const reference = readFileSync(join(REPO_ROOT, 'storefront', 'Dockerfile'), 'utf8');
+    expect(reference.split('\n').filter((line) => /^CMD\s/.test(line))).toEqual(commands);
   });
 
   it('keeps the environment file and installed trees out of the build context', () => {

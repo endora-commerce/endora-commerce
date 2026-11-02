@@ -191,19 +191,21 @@ describe('155 — API order intake: minimums through the batch, and the item bou
 
   it('F3 — with the batch step replaced by a double that admits every line, placement still refuses A × 5', async () => {
     const service = cradle().cartService;
-    const original = service.getOrCreateForCustomer.bind(service);
     const admitted: CartBatchLineInput[][] = [];
     const spy = vi.spyOn(service, 'addItems').mockImplementation(async (...args: unknown[]) => {
       // The basket the intake addresses — the one of its binding's channel.
       const basket = (args[0] as { customer: typeof CTX & { salesChannelId: string } }).customer;
       const lines = args[1] as CartBatchLineInput[];
       admitted.push(lines);
-      await cradle().cartWritePort.replaceItemsForCustomer(
+      const seeded = await cradle().cartWritePort.replaceItemsForCustomer(
         basket,
         lines.map((l) => ({ productId: l.productId, quantity: l.quantity, unitPrice: '10.00', currency: 'PLN' })),
       );
+      // Issue #169 — placement places from the working basket `addItems` hands
+      // back, never from the active one: the double hands back an unchecked one.
+      await h.em().getConnection().execute(`update carts set status = 'working' where id = ?`, [seeded.cart.id]);
       return {
-        cart: await original(basket),
+        cart: { ...seeded.cart, status: 'working' },
         items: [],
         outcomes: lines.map((_, index) => ({ index, status: 'added' as const })),
       };

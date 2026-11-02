@@ -267,8 +267,10 @@ whole tree, backend member included, runs `pnpm install` and builds one thing fr
 `index.html`.
 
 **The storefront alone is given the secret, never a new one.** `REVALIDATE_SECRET` is one value
-held by two machines. A run with `api` and no storefront generates it once (or writes the one you
-pass), puts it in the instance's `.env`, says which file and does not print it. Copy it from there
+held by two machines. A run whose `--only` names `api` and not `storefront` generates it once (or
+writes the one you pass), puts it in the instance's `.env`, says which file and does not print it.
+A whole-instance run with `--no-storefront` generates none — see
+[Adding a storefront later](#the-storefront). Copy it from there
 into `--revalidate-secret` on the storefront's machine. `--sales-channel <code>` names the Sales
 Channel the storefront sells on; left out, it is `default`, the code the platform creates its
 default channel with.
@@ -348,8 +350,8 @@ checked from one machine, because the other side of each is somewhere else.
    release as the API, with the same `--module` list if you gave the API one.
 5. **The API and the storefront hold one `REVALIDATE_SECRET`**, and the API's
    `STOREFRONT_BASE_URL` is the storefront's origin: that pair is how the API asks the storefront
-   to refresh a cached page. With two different values the storefront refuses every refresh and
-   nothing reports it.
+   to refresh a cached page. With two different values the storefront refuses every refresh, and
+   the API logs each refusal as a warning — see [Adding a storefront later](#the-storefront).
 
 ## Every flag
 
@@ -445,20 +447,36 @@ pnpm run build && pnpm run start
 `start` serves the build `build` produced, on the `PORT` in the storefront's `.env`; if the tree
 was not built, it says to run `pnpm run build`.
 
-**Adding a storefront later** is `endora new storefront <dir>`, run from anywhere. The storefront
-and the instance must share one secret, `REVALIDATE_SECRET` — the key the backend uses to ask the
-storefront to refresh a cached page. When the installer writes both trees it generates that value
-once and writes it into both. When the storefront comes later, nothing does that for you:
+**Adding a storefront later.** The storefront and the instance must share one secret,
+`REVALIDATE_SECRET` — the key the backend uses to ask the storefront to refresh a cached page. When
+the installer writes both trees it generates that value once and writes it into both. A run with
+`--no-storefront` generates none, leaves `REVALIDATE_SECRET` in the instance's `.env` empty, and its
+closing text says so and prints the command below. When the storefront comes later, nothing shares
+the value for you:
 
 1. Choose one value (for example `openssl rand -hex 32`).
-2. Set `REVALIDATE_SECRET` to it in the instance's `.env`, and set `STOREFRONT_BASE_URL` there to
-   the storefront's address.
-3. Give the storefront the same value — `endora new storefront <dir> --revalidate-secret <value>`,
-   or its own `.env`.
+2. Set `REVALIDATE_SECRET` to it in the instance's `.env`, set `STOREFRONT_BASE_URL` there to the
+   storefront's address, and restart the API.
+3. Write the storefront with the same value, from the instance's directory so it is the same
+   release:
+
+   ```bash
+   pnpm exec endora install ../my-shop-storefront --only storefront \
+     --api-url http://localhost:3001 --storefront-url http://localhost:3000 \
+     --revalidate-secret "$REVALIDATE_SECRET"
+   ```
+
+   It refuses to write a storefront without `--revalidate-secret`. `endora new storefront <dir>
+   --revalidate-secret <value>` is the lower-level alternative: it copies the storefront and
+   resolves its inputs, but does not install it.
 
 Without step 2 the backend simply does not ask the storefront to refresh, and pages change only
-when their cache expires. With two different values, the storefront refuses every refresh and
-nothing reports it.
+when their cache expires. With two different values the storefront refuses every refresh, and the
+API logs a warning, `[storefront-revalidate] refused: REVALIDATE_SECRET differs between the backend
+and the storefront`, with the status `401` — the value itself is never logged. A storefront that
+cannot be reached is logged the same way, as `[storefront-revalidate] failed`. Each warning is
+logged at most once a minute per storefront and status; the next one carries a `suppressed` count
+of the repeats held back in between.
 
 ## From your machine to production
 

@@ -247,17 +247,22 @@ uzgadnia się w tym samym oknie 30 s.
 
 ## Wiersz poleceń
 
-Wiersze ustawień instalują i usuwają polecenia cyklu życia modułu, a nie osobne polecenia:
+Wiersze ustawień instalują i usuwają polecenia cyklu życia modułu, a nie osobne polecenia.
+Uruchamiaj je w katalogu głównym instancji:
 
 ```bash
 # Install a module: runs its migrations and reconciles its settings manifest.
-pnpm --filter backend run module:install <module-id> [--dry-run] [--json]
+pnpm run module:install <module-id> [--dry-run] [--json]
 
 # Soft uninstall (default): unregisters the module's settings and marks the
 # module uninstalled; its tables and data stay. --hard also reverts the
 # module's migrations and must be combined with --force.
-pnpm --filter backend run module:uninstall <module-id> [--hard --force] [--json]
+pnpm run module:uninstall <module-id> [--hard --force] [--json]
 ```
+
+W klonie repozytorium Endora Commerce te same dwa polecenia mają postać
+`pnpm --filter backend run module:install` i
+`pnpm --filter backend run module:uninstall`, z tymi samymi argumentami.
 
 `module:uninstall` nadal przyjmuje `--remove-settings` i `--preserve-settings` ze względu na zgodność
 wsteczną: pierwsza flaga oznacza `--hard --force`, druga nic nie robi. Gramatyka argumentów i kody

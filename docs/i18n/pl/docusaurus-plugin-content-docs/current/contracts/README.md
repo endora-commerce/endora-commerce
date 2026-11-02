@@ -34,7 +34,9 @@ tylko administrator, który sam je ma.
 - **Z integracji** — wyślij klucz jako token bearer:
 
 ```bash
-pnpm run dev:infra && pnpm --filter backend run dev
+# W katalogu głównym instancji:
+pnpm run dev:services && pnpm run dev
+# W klonie repozytorium Endora Commerce: pnpm run dev:infra && pnpm --filter backend run dev
 # in another shell, with a key issued with the platform.api_description.read scope:
 curl -H "Authorization: Bearer sk_live_…" http://localhost:3001/api/v1/_openapi.json | jq .info
 ```

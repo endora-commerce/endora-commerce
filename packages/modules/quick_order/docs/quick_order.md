@@ -111,14 +111,15 @@ When `quick_order.one_click_buy_enabled` is on for the buyer's sales channel
 the defaults and the buyer is routed by the payment `nextAction` (gateway
 redirect, or the order / success page when no payment step is required).
 
-The product becomes the buyer's whole basket through the cart's `addItems`
-with `replaceExisting: true` and `onBelowMinimum: 'throw'`, then
-`OrderService.placeOrder` places it. `addItems` empties the basket only once
-nothing is left to refuse the line for, so a line refused before the write —
-below its minimum order quantity, without a price, or quote-only — leaves the
-basket exactly as it was. A refusal at placement, after the line was written
-(stock, the organization, a payment or delivery method), leaves the basket
-holding that one one-click line.
+The buyer's basket is left alone. The product goes into a separate working
+basket (the Carts module's *Working baskets*) through the cart's `addItems`
+with `workingBasket: true` and `onBelowMinimum: 'throw'`, and
+`OrderService.placeOrder` places the order from that basket. Whatever the
+buyer had in their basket — including lines filled from an accepted quote
+request — is still there afterwards. A line refused before the write (below
+its minimum order quantity, without a price, or quote-only) writes nothing. A
+refusal at placement, after the line was written (stock, the organization, a
+payment or delivery method), deletes the working basket again.
 
 Same validations as a normal order (org active, minimum value, credit limit,
 stock, minimum order quantity). For a `simple` or `configurable` product with

@@ -104,5 +104,17 @@ WORKDIR /app
 COPY --from=build /app/storefront/.next/standalone ./
 COPY --from=build /app/storefront/.next/static ./storefront/.next/static
 COPY --from=build /app/storefront/public ./storefront/public
+# The command is a supervising parent, not the server itself (issue #152). Docker restarts a
+# container whose process has exited and does nothing for one that is only `unhealthy`, so a
+# server that is alive but no longer answering stayed down. `scripts/supervise.mjs` runs
+# `storefront/server.js` as its child, forwards SIGTERM/SIGINT/SIGHUP and the child's exit
+# code, probes it over HTTP, and after a run of unanswered probes kills it and exits non-zero
+# so the restart policy brings the container back. Dependency-free: it is one file beside the
+# standalone tree. Its `STOREFRONT_SUPERVISOR_*` variables are in
+# docs/docs/deployment/storefront-supervisor.md.
+#
+# Run it with an init in front (`init: true` in compose, `docker run --init`): the supervisor
+# handles its signals as PID 1, but an init is what reaps an orphaned grandchild.
+COPY --from=build /app/storefront/scripts/supervise.mjs ./storefront/scripts/supervise.mjs
 EXPOSE 3000
-CMD ["node", "storefront/server.js"]
+CMD ["node", "storefront/scripts/supervise.mjs", "storefront/server.js"]

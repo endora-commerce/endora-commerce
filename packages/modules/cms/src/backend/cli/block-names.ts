@@ -2,7 +2,8 @@
  * `cms block-names` — the operator's pre-flight report for the block-name
  * migration (feature 096, T410; `contracts/block-name-migration.md` §7).
  *
- *     pnpm --filter backend run cli -- block-names
+ *     pnpm run cli cms block-names                       # an instance, from its root
+ *     pnpm --filter backend run cli -- cms block-names   # a checkout of this repository
  *
  * **It writes nothing, and read-only is the whole point**: the operator runs it
  * on a production database *before* they have decided to upgrade. There is no

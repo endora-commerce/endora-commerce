@@ -71,14 +71,11 @@ describe('import_export — off state [integration]', () => {
         },
       ],
       adminPresence: { cookies: ADMIN },
-      settingWrite: {
-        // Not the activation control — that is the documented exception. This
-        // module owns exactly one Setting, so there is nothing else to probe,
-        // and the activation endpoint's own contract test covers it.
-        code: 'import_export.enabled',
-        value: true,
-        cookies: ADMIN,
-      },
+      // No `settingWrite`: the only Setting this module owns is
+      // `import_export.enabled`, its own activation control — the documented
+      // exception, refused as `MODULE_ACTIVATION_PROTECTED` rather than as an
+      // absent module's configuration (issue #174), and covered by the
+      // activation endpoint's own contract test.
     });
   });
 

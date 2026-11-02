@@ -162,8 +162,10 @@ binaries is out of scope; the technical readiness is:
 ## Operator runbook
 
 1. Set `SETTINGS_SECRET_ENCRYPTION_KEY` (for VAPID/FCM secrets) and run
-   `pnpm --filter backend run migration:up` (applies this module's migrations,
-   including `push_notification_preferences`).
+   `pnpm run migrate` in the root of the instance (applies this module's
+   migrations, including `push_notification_preferences`). In a checkout of the
+   Endora Commerce repository the same step is
+   `pnpm --filter backend run migration:up`.
 2. In **Settings → PWA**, set identity + upload an icon, toggle caching/push,
    and choose whether order and quote status changes notify customers.
 3. Click **Generate VAPID keys** (or `POST /api/v1/admin/pwa/vapid/generate`).

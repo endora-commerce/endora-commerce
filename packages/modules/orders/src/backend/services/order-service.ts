@@ -129,6 +129,12 @@ import {
 } from '../domain/quote-line-groups.js';
 import { quoteSourceHonoursExemptions } from '../domain/quote-source-exemption.js';
 import {
+  judgeQuoteCommitments,
+  quotesReliedOn,
+  type QuoteCommitmentLine,
+  type QuoteCommitmentQuote,
+} from '../domain/quote-commitment.js';
+import {
   assertBasketMeetsMinimums,
   belowMinimumLinesOf,
   evaluateBasketMinimums,
@@ -175,6 +181,7 @@ import type {
   PaymentMethodReadPort,
   PaymentMethodRecord,
   OrderPreviewTotalResponse,
+  QuoteCommitmentRefusal,
   QuoteRequestLineRecord,
   QuoteRequestReadPort,
   QuoteRequestRecord,
@@ -406,6 +413,26 @@ interface QuoteRequestSourceAssessment {
    * these rather than asking the port a second time. Empty when nothing was read.
    */
   quoteRequestLines: readonly QuoteRequestLineRecord[];
+}
+
+/**
+ * Issue #167 — the refusal of a basket priced at a quote that no longer binds:
+ * `410 QUOTE_VALIDITY_ENDED`, the code `convert-to-order` answers for the same
+ * deadline, with the reason in `details.code` — the envelope's refusal token,
+ * which selects the buyer's sentence in `quote_requests`' bundle and which a
+ * client can branch on.
+ */
+function quoteCommitmentEnded(reason: QuoteCommitmentRefusal): HttpError {
+  return new HttpError(
+    410,
+    ERROR_CODES.QUOTE_VALIDITY_ENDED,
+    reason === 'lapsed'
+      ? 'The quote these prices were agreed on has expired; ask for a new quote before ordering.'
+      : reason === 'withdrawn'
+        ? 'The quote these prices were agreed on is no longer in force; ask for a new quote before ordering.'
+        : 'Prices agreed on a quote cannot be confirmed at the moment; remove the quoted items to order at current prices.',
+    { code: reason },
+  );
 }
 
 /** A basket with no claim, or a claim nothing can vouch for: no source, no exemption. */
@@ -1291,6 +1318,7 @@ export class OrderService {
     total: number;
     currency: string;
     belowMinimumLines: OrderPreviewTotalResponse['belowMinimumLines'];
+    quoteCommitmentRefusal: QuoteCommitmentRefusal | null;
   }> {
     // No `EntityManager` for the basket: it is read through a port now
     // (feature 080, T048). The reads this method makes itself are the
@@ -1389,6 +1417,13 @@ export class OrderService {
       evaluateBasketMinimums(cart, items, catalogue, quoteSource.honoursExemptions),
       (productId) => this.#productName(productById, productId, options.language),
     );
+    // Issue #167 — the quote prices placement will refuse, by the same rule.
+    const quoteCommitmentRefusal = await this.#quoteCommitmentRefusal(
+      ctx.organizationId,
+      cart,
+      items,
+      quoteSource.quoteRequest,
+    );
 
     // Tax country: prefer the selected billing address (matches placeOrder),
     // else the organization's registered country.
@@ -1425,7 +1460,49 @@ export class OrderService {
       total: totals.total,
       currency: totals.currency,
       belowMinimumLines,
+      quoteCommitmentRefusal,
     };
+  }
+
+  /**
+   * Issue #167 — whether the basket's quote prices may still be ordered at
+   * (`../domain/quote-commitment.ts`): every quote a line is priced at the
+   * agreement of is read again, **now**, over the port `quote_requests`
+   * publishes, and must still be in force and inside its validity date.
+   *
+   * Independent of {@link #vouchedQuoteRequestSource}, which decides what the
+   * order *names*; this decides whether it may be placed at those prices at
+   * all. The quote the source judgement already read is reused rather than
+   * read twice.
+   *
+   * Presence is asked first, as for the source: with `quote_requests` off
+   * nothing can confirm an agreed price, so a basket that relies on one is
+   * refused (`unavailable`, fail-closed) and an ordinary basket is untouched.
+   * No `catch` around the port — a read that fails is a failed placement, not
+   * a price taken on trust.
+   */
+  async #quoteCommitmentRefusal(
+    organizationId: string,
+    cart: { sourceQuoteRequestId: string | null },
+    items: ReadonlyArray<QuoteCommitmentLine>,
+    alreadyRead: QuoteRequestRecord | null,
+  ): Promise<QuoteCommitmentRefusal | null> {
+    const relied = quotesReliedOn(cart, items);
+    if (relied.quoteRequestIds.length === 0 && !relied.unattributed) return null;
+    const quoteRequests = this.neighbours.quoteRequestRead();
+    const quotes = new Map<string, QuoteCommitmentQuote | null>();
+    if (quoteRequests) {
+      for (const id of relied.quoteRequestIds) {
+        quotes.set(id, alreadyRead?.id === id ? alreadyRead : await quoteRequests.findById(id));
+      }
+    }
+    return judgeQuoteCommitments({
+      organizationId,
+      relied,
+      quoteDeskPresent: quoteRequests !== null,
+      quotes,
+      now: new Date(),
+    });
   }
 
   /**
@@ -1591,9 +1668,17 @@ export class OrderService {
       origin?: OriginReference;
       language?: string | undefined;
       lineGrouping?: OrderLineGroupingInput | undefined;
+      /**
+       * Issue #169 — the working basket to place from instead of the customer's
+       * active basket (admin create, one-click, API intake). Completed against
+       * the order, or removed when the placement is refused; the active basket
+       * is not read.
+       */
+      workingBasketId?: string | undefined;
     },
   ): Promise<Order> {
     const em = this.emFactory();
+    const workingBasketId = options?.workingBasketId;
     // What this placement announces, emitted once the transaction below has
     // returned (issue #171). The storefront checkout, one-click, external
     // intake and admin create paths all reach this method outside a Command
@@ -1692,13 +1777,20 @@ export class OrderService {
       // customer holds one per channel, created and priced on the channel it is
       // used on (`specs/154-sales-channel-access/`, contracts/basket-attribution.md
       // §4).
-      const basket = await this.neighbours.cartPlacementApply.readActiveForPlacement(tx, {
+      //
+      // Issue #169 — or the working basket the caller wrote this order's lines
+      // into, when it names one: the customer's active basket is then not read,
+      // and so not completed either.
+      const basketCtx = {
         customerAccountId: ctx.customerAccountId,
         // `null` for the reason `previewTotal` states above: the query this
         // replaces filtered on the customer account and the status alone.
         organizationId: null,
         salesChannelId: orderChannel.id,
-      });
+      };
+      const basket = workingBasketId
+        ? await this.neighbours.cartPlacementApply.readWorkingForPlacement(tx, { ...basketCtx, cartId: workingBasketId })
+        : await this.neighbours.cartPlacementApply.readActiveForPlacement(tx, basketCtx);
       const cart = basket?.cart ?? null;
       const items = basket?.items ?? [];
       if (!cart || items.length === 0) {
@@ -1757,6 +1849,19 @@ export class OrderService {
         cart.sourceQuoteRequestId,
         items,
       );
+      // Issue #167 — owner ruling of 2026-11-02: a basket priced at a quote
+      // whose validity has ended cannot be ordered; a new quote must be issued.
+      // Before the minimums, because it is the buyer's real obstacle: a lapsed
+      // quote also costs its lines their exemption, and "below the minimum"
+      // would send them to fix a quantity rather than ask for a new quote.
+      // Still before the first side effect, so the basket survives as it was.
+      const quoteCommitment = await this.#quoteCommitmentRefusal(
+        ctx.organizationId,
+        cart,
+        items,
+        quoteSource.quoteRequest,
+      );
+      if (quoteCommitment !== null) throw quoteCommitmentEnded(quoteCommitment);
       assertBasketMeetsMinimums(
         evaluateBasketMinimums(cart, items, catalogue, quoteSource.honoursExemptions),
         (productId) => this.#productName(productById, productId, options?.language),
@@ -1777,7 +1882,9 @@ export class OrderService {
         organizationId: ctx.organizationId,
       });
       if (priceDrift.length > 0) {
-        repriceCartId = cart.id;
+        // A working basket is removed below rather than brought up to date:
+        // nobody goes back to review it.
+        if (!workingBasketId) repriceCartId = cart.id;
         throw new HttpError(
           409,
           ERROR_CODES.CART_PRICE_CHANGED,
@@ -2642,6 +2749,22 @@ export class OrderService {
 
       return order;
     }).catch(async (error: unknown) => {
+      if (workingBasketId) {
+        // Issue #169 — a refused placement leaves no working basket behind. The
+        // refusal travels whatever happens here: a leftover working basket is
+        // nobody's basket and is read by nothing.
+        try {
+          await this.neighbours.cartPlacementApply.discardWorkingBasket({
+            cartId: workingBasketId,
+            customerAccountId: ctx.customerAccountId,
+          });
+        } catch (discardError) {
+          this.log?.warn(
+            { err: discardError, cartId: workingBasketId },
+            '[orders] could not remove the working basket of a refused placement',
+          );
+        }
+      }
       if (repriceCartId !== null) {
         // The refusal travels whatever happens here: a basket left stale is
         // refused again, and brought up to date again, on the next attempt.

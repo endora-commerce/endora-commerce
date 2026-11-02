@@ -159,6 +159,16 @@ describe('checkout preview', () => {
     expect(orderPreviewTotalResponseSchema.parse(totals).belowMinimumLines).toEqual([]);
   });
 
+  it('issue #167 — defaults quoteCommitmentRefusal to null and accepts the three reasons only', () => {
+    expect(orderPreviewTotalResponseSchema.parse(totals).quoteCommitmentRefusal).toBeNull();
+    for (const reason of ['lapsed', 'withdrawn', 'unavailable'] as const) {
+      expect(orderPreviewTotalResponseSchema.parse({ ...totals, quoteCommitmentRefusal: reason }).quoteCommitmentRefusal).toBe(
+        reason,
+      );
+    }
+    expect(orderPreviewTotalResponseSchema.safeParse({ ...totals, quoteCommitmentRefusal: 'expired' }).success).toBe(false);
+  });
+
   it('accepts minimum lines and a product_unavailable line without name or minimum', () => {
     const parsed = orderPreviewTotalResponseSchema.parse({
       ...totals,
@@ -384,7 +394,7 @@ describe('cart batch add — CartWritePort.addItems (contracts/cart-and-checkout
         {
           onLineError: 'throw' | 'report';
           onBelowMinimum?: 'report' | 'throw';
-          replaceExisting?: boolean;
+          workingBasket?: boolean;
           keepRepeatedLines?: boolean;
           language?: string;
         },

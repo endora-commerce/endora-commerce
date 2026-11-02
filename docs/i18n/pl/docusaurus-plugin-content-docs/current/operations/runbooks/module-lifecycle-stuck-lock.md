@@ -43,7 +43,9 @@ obecna dłużej niż ok. 6 minut oznacza, że proces trzymający blokadę uległ
 
 ```bash
 # 1. Check active sessions on the box that runs the backend.
-ps -ef | grep -E "tsx.*_lifecycle/scripts" | grep -v grep
+# An instance runs them as dist/module-commands/*.js, a checkout of the
+# repository as src/lifecycle/scripts/*.ts.
+ps -ef | grep -E "module-commands/|lifecycle/scripts/" | grep -v grep
 
 # 2. If no live process, delete the stale key.
 redis-cli del b2b:module:lifecycle:lock
@@ -82,7 +84,7 @@ psql "$DATABASE_URL" -c \
 
 # 2. Either re-attempt install (the orchestrator's rollback will
 #    cover the partial state on its own) ...
-pnpm --filter backend run module:install <module-id>
+pnpm run module:install <module-id>
 
 # 3. ... OR, if the rollback never runs, manually flip the row to
 #    'uninstalled' so a fresh install can take it from there.
@@ -94,7 +96,8 @@ psql "$DATABASE_URL" -c \
       and state = 'installing';"
 ```
 
-Następnie uruchom ponownie `pnpm --filter backend run module:install <module-id>`. Instalacja jest
+Następnie uruchom ponownie `pnpm run module:install <module-id>` w katalogu głównym instancji (w klonie
+repozytorium Endora Commerce: `pnpm --filter backend run module:install <module-id>`). Instalacja jest
 idempotentna — wykonane już migracje są pomijane, ustawienia są uzgadniane z manifestem, a wiersz
 rejestru przechodzi w stan `installed`.
 

@@ -306,7 +306,16 @@ export const manifest = defineModuleManifest({
    * `PRODUCT_NOT_FOUND`, which is `catalog`'s and is declared there. None is
    * declared here and every one of those sentences stays where it is.
    *
-   * **No `tokens`, and it is derived rather than assumed.** The envelope's
+   * **One code carries `tokens`, and it is raised by another module.**
+   * `QUOTE_VALIDITY_ENDED` is also `orders`' refusal at placement of a basket
+   * still priced at a quote that no longer binds (issue #167): it puts the
+   * reason in `details.code`, and the three members below are
+   * `quoteCommitmentRefusalSchema`'s in `packages/contracts/src/orders.ts`, in
+   * its order — the enum is the authority, as for `carts`' coupon reasons.
+   * The code stays this module's: the sentence is about this module's quote,
+   * and ownership follows the code, not the raise site.
+   *
+   * **No other `tokens`, and it is derived rather than assumed.** The envelope's
    * `refusalToken` (`packages/platform/src/http/error-envelope.ts`) reads
    * exactly one member of `details` — `code`, and only when `details` is an
    * object — as the tail of `errors.<CODE>.<token>`. Every raise of these
@@ -318,7 +327,7 @@ export const manifest = defineModuleManifest({
    */
   errorCodes: [
     { code: 'QUOTE_INCOMPLETE' },
-    { code: 'QUOTE_VALIDITY_ENDED' },
+    { code: 'QUOTE_VALIDITY_ENDED', tokens: ['lapsed', 'withdrawn', 'unavailable'] },
     { code: 'RFQ_ALREADY_CLAIMED' },
     { code: 'RFQ_EMPTY' },
     { code: 'RFQ_EXPIRED' },

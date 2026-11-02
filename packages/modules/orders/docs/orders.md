@@ -131,7 +131,7 @@ Placement and both previews refuse a method outside a non-empty list with
   method, and the two lists are independent.
 - **Nothing is written** — no order, stock reservation or payment, and the
   customer's basket is unchanged. Admin create and the API-key intake check
-  before they replace the basket.
+  before they write the order's lines.
 - **Administrators are bound too** — by decision, an order created on a
   customer's behalf honours that customer's Organization allow-lists, and no
   setting exempts it. The create form lists every method; the preview and the
@@ -162,7 +162,7 @@ with `400 VALIDATION_FAILED`:
 - **No assignment means every channel** — a method assigned to no sales channel
   is offered on all of them.
 - **Nothing is written** — as for the allow-lists, and admin create and the
-  API-key intake check before they replace the basket.
+  API-key intake check before they write the order's lines.
 
 ### A method that fails both
 
@@ -662,8 +662,19 @@ logged, never shown to the buyer. No request body carries the field: the
 storefront, the admin create-order screen and the external order API cannot
 name a quote request.
 
-With the Quote Requests module switched off, orders are placed exactly as
-before and record no quote request.
+**The agreed prices are a different question, and that one can refuse the
+order.** Before anything is reserved or written, placement checks every basket
+line still priced at a quote's agreement (still at the agreed quantity) against
+that quote as it is now, and refuses with `410 QUOTE_VALIDITY_ENDED` when the
+quote's validity date has passed (`details.code` `lapsed`), when it no longer
+applies — re-opened, canceled, expired or gone (`withdrawn`) — or when the Quote
+Requests module is switched off and nothing can confirm the prices
+(`unavailable`). The basket stays as it was. A quote another order has already
+completed still binds its prices until its validity date. The Quote Requests
+module page, under *Validity date*, describes the rule from the buyer's side.
+
+With the Quote Requests module switched off, a basket without quote prices is
+placed exactly as before and records no quote request.
 
 ## Line groups
 
@@ -756,13 +767,14 @@ admin's Create order and the external order API.
   Carts module asks when a basket is submitted for approval, so submit judges a
   quote-seeded line as the preview does; placement confirms the quote again.
 - **External order API** (`POST /api/v1/external/orders`) and admin Create
-  order build the basket from the request and judge each product's total over
-  the request's lines; a below-minimum request is refused whole, with
-  `details.lines[]` keyed by `index`. The request is judged on its own — the
-  basket it replaces counts toward nothing — and refused **before** the
-  customer's basket is touched, so a refused request leaves that basket exactly
-  as it was. The same holds for a line with no price or one sold on request
-  only: it is priced before the basket is replaced. Neither carries a packaging unit, so only
+  order build a working basket from the request (the Carts module's *Working
+  baskets*) and judge each product's total over the request's lines; a
+  below-minimum request is refused whole, with `details.lines[]` keyed by
+  `index`. The request is judged on its own — the customer's basket counts
+  toward nothing — and refused **before** anything is written. The customer's
+  basket is never touched, whether the order is placed or refused. The same
+  holds for a line with no price or one sold on request only: it is priced
+  before the working basket is created. Neither carries a packaging unit, so only
   the pieces minimum applies there. **Both refuse more than 200 lines** with
   `422 VALIDATION_FAILED`, `details.code = 'too_many_items'` — on the external
   API this is checked first, before the `Idempotency-Key` header is required,

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
+import { setupTestDb, type FirstBootTestDb } from '../../helpers/test-db.js';
 import { DefaultChannelReconciler } from '@endora-commerce/platform/composition';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 
@@ -10,12 +10,19 @@ import { SalesChannel } from '@endora-commerce/platform/kernel';
  * `system_default` flag (research R-4). It runs from `composition.ts`
  * before HTTP comes up. Three distinct startup states + the idempotent
  * re-run case are exercised below.
+ *
+ * Every state starts from an **empty** `sales_channels` table, and the shared
+ * database never has one — the platform guarantees a default channel
+ * (D-47…D-51) and the files after this one rely on it. So the file runs on a
+ * database of its own in first-boot state, `setupTestDb({ firstBoot })`, rather
+ * than emptying the shared table and trusting a rollback to put it back
+ * (issue #115).
  */
 describe('boot-time default-channel reconciliation (T021)', () => {
-  let db: TestDb;
+  let db: FirstBootTestDb;
 
   beforeAll(async () => {
-    db = await setupTestDb();
+    db = await setupTestDb({ firstBoot: 'boot_default_channel' });
   });
 
   afterAll(async () => {
@@ -26,24 +33,14 @@ describe('boot-time default-channel reconciliation (T021)', () => {
     await db.beginTx();
   });
 
-  async function clearChannels(): Promise<void> {
-    const em = db.em();
-    // Release the quote-request attributions first (issue #266). Since a quote
-    // request records the channel it was raised on,
-    // `quote_requests_sales_channel_fk` — `on delete restrict` — refuses to let
-    // the system-default channel go while any RFQ another file raised still
-    // points at it, and every one of them does now. Inside this file's
-    // transaction, which is rolled back after each case, so no other file's row
-    // is really touched.
-    await em.execute('update "quote_requests" set "sales_channel_id" = null');
-    const all = await em.find(SalesChannel, {});
-    for (const c of all) em.remove(c);
-    await em.flush();
+  /** The first-boot precondition, asserted rather than arranged. */
+  async function expectNoChannels(): Promise<void> {
+    expect(await db.em().count(SalesChannel, {})).toBe(0);
   }
 
   it('inserts a fresh Default row when the table is empty', async () => {
     try {
-      await clearChannels();
+      await expectNoChannels();
       const em = db.em();
       const reconciler = new DefaultChannelReconciler(() => em);
 
@@ -80,7 +77,7 @@ describe('boot-time default-channel reconciliation (T021)', () => {
 
   it('promotes the lexically-first row when no system_default exists', async () => {
     try {
-      await clearChannels();
+      await expectNoChannels();
       const em = db.em();
       // Two channels — neither system_default. `default` wins the tie-break.
       const a = em.create(SalesChannel, {
@@ -122,7 +119,7 @@ describe('boot-time default-channel reconciliation (T021)', () => {
 
   it('is a no-op when exactly one row already has system_default=true', async () => {
     try {
-      await clearChannels();
+      await expectNoChannels();
       const em = db.em();
       const def = em.create(SalesChannel, {
         code: 'preexisting',
@@ -152,7 +149,7 @@ describe('boot-time default-channel reconciliation (T021)', () => {
 
   it('is idempotent when run twice in a row', async () => {
     try {
-      await clearChannels();
+      await expectNoChannels();
       const em = db.em();
       const reconciler = new DefaultChannelReconciler(() => em);
 

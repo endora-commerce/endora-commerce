@@ -24,9 +24,10 @@ export interface OneClickPlaceInput {
 
 /**
  * OneClickService (feature 039, US5). Computes whether the one-click button
- * should show, and places a one-click order by reusing the platform's
- * established single-active-cart flow: clear the cart, add the chosen product,
- * then run `OrderService.placeOrder` with the buyer's resolved default methods
+ * should show, and places a one-click order through the platform's one
+ * placement path: write the chosen product into a working basket (the buyer's
+ * active basket is left alone, issue #169), then run `OrderService.placeOrder`
+ * from it with the buyer's resolved default methods
  * and addresses. All order validation (org active, minimum value, credit limit,
  * stock) and the payment-routing `nextAction` come from `placeOrder` (FR-029 /
  * FR-030); no parallel ordering path (FR-031).
@@ -119,17 +120,17 @@ export class OneClickService {
     // Read before the basket is touched, so a failed read leaves it as it was.
     const quantity = input.quantity ?? (await this.#defaultQuantity(input.productId));
 
-    // The line becomes the buyer's whole basket (the single-active-cart model
-    // admin order-create and the API intake use too), and `addItems` clears the
-    // basket only once nothing is left to refuse the line for — resolution, the
-    // minimums, the price — so a refused line leaves the basket as it was.
-    // A placement refusal after the seed (stock, the organization, a method)
-    // still leaves the basket holding this one line: that is inherent to
-    // one-click, which buys through the basket, and out of scope here.
+    // The line is written into a working basket of the buyer's, and the order
+    // is placed from it: the buyer's own active basket — a quote-seeded one
+    // included — is not touched (issue #169). `addItems` creates the working
+    // basket only once nothing is left to refuse the line for — resolution,
+    // the minimums, the price — and placement removes it again when it refuses
+    // (stock, the organization, a method), so a refused one-click leaves
+    // nothing behind.
     //
-    // The basket is the one of the channel the order is placed on
+    // The basket is one of the channel the order is placed on
     // (`specs/154-sales-channel-access/`, contracts/basket-attribution.md §1).
-    await this.cartWrite.addItems(
+    const working = await this.cartWrite.addItems(
       { customer: { ...customerCtx, salesChannelId } },
       [
         {
@@ -141,7 +142,7 @@ export class OneClickService {
       {
         onLineError: 'throw',
         onBelowMinimum: 'throw',
-        replaceExisting: true,
+        workingBasket: true,
         ...(options.language ? { language: options.language } : {}),
       },
     );
@@ -156,7 +157,7 @@ export class OneClickService {
         salesChannelId,
         ...(input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : {}),
       },
-      options.language ? { language: options.language } : undefined,
+      { ...(options.language ? { language: options.language } : {}), workingBasketId: working.cart.id },
     );
   }
 
