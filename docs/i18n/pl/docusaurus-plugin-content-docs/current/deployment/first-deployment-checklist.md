@@ -208,14 +208,22 @@ modułów — te same dwa kroki, w tej samej kolejności, które `deploy/compose
 `backend-migrate` i `backend-install`, zanim uruchomi się API:
 
 ```bash
+# W katalogu głównym instancji:
+DATABASE_URL=…/b2b_rehearsal pnpm run setup
+
+# W klonie repozytorium Endora Commerce:
 DATABASE_URL=…/b2b_rehearsal pnpm --filter backend run setup
 ```
 
-`setup` (w `backend/package.json`) to `db:fresh`, a po nim `module:install --all`. Samo `db:fresh`
-nie jest próbą wdrożenia: baza, której pierwszą czynnością po migracjach jest start aplikacji,
-nigdy nie wykonuje swoich hooków instalacyjnych. Nigdy nie uruchamiaj `db:fresh`, `setup` ani
-`db:reset` bez jawnego `DATABASE_URL`: bez tej zmiennej przebudowują własną bazę programisty, a
-`db:reset` dodatkowo wczytuje dane demonstracyjne.
+`setup` instancji to `generate` (jeśli instancja go ma), `build`, `migrate` i
+`module:install --all`; `setup` repozytorium (w `backend/package.json`) to `db:fresh`, a po nim
+`module:install --all`. Na pustej bazie oba oznaczają cały łańcuch migracji, a po nim wszystkie
+hooki instalacyjne. Same migracje (`migrate`, `db:fresh`) nie są próbą wdrożenia: baza, której
+pierwszą czynnością po migracjach jest start aplikacji, nigdy nie wykonuje swoich hooków
+instalacyjnych. Nigdy nie uruchamiaj `setup`, `db:fresh` ani `db:reset` bez jawnego
+`DATABASE_URL`: bez tej zmiennej działają na własnej bazie programisty — w klonie repozytorium
+`db:fresh`, `setup` i `db:reset` ją przebudowują, a `db:reset` dodatkowo wczytuje dane
+demonstracyjne.
 
 **Weryfikacja.** Oba kroki kończą się bez błędu kolejności i bez nieudanego hooka instalacyjnego, a
 powstały schemat odpowiada temu, co tworzą kontenery `backend-migrate` i `backend-install` na
@@ -413,9 +421,12 @@ z czego klient nie korzysta. Wyłączenie niczego nie niszczy i jest odwracalne:
 konfiguracji, uprawnień ani schematu. **Nie licz na to, że okno potwierdzenia powie, co kosztuje
 wyłączenie** — dziś podaje tylko nazwę modułu
 (`admin/src/modules/platform/ModuleActivationControl.tsx:88`). Co przestaje działać po wyłączeniu
-modułu, opisuje rejestr skutków wyłączenia budowany przez
-`pnpm --filter backend run check:port-dependencies`; poproś inżyniera o odczytanie go dla każdego
-modułu, z którego klient na pewno nie będzie korzystał.
+modułu, opisuje
+[rejestr skutków wyłączenia](../architecture/kernel.md#rejestr-skutków-wyłączenia); poproś
+inżyniera o odczytanie go dla każdego modułu, z którego klient na pewno nie będzie korzystał.
+Instancja nie ma polecenia, które go buduje: to statyczna kontrola drzewa modułów platformy,
+uruchamiana w klonie repozytorium Endora Commerce jako
+`pnpm --filter backend run check:port-dependencies`.
 
 **Weryfikacja.** Dla każdego wyłączonego modułu: zniknęła pozycja na pasku bocznym i akcje palety
 poleceń, a API odpowiada `503 MODULE_DISABLED`. Dla każdego pozostawionego włączonego ktoś potrafi

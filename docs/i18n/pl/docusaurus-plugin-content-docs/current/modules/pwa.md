@@ -156,8 +156,9 @@ techniczna:
 ## Instrukcja dla operatora
 
 1. Ustaw `SETTINGS_SECRET_ENCRYPTION_KEY` (dla sekretów VAPID i FCM) i uruchom
-   `pnpm --filter backend run migration:up` (wykonuje migracje tego modułu, w tym
-   `push_notification_preferences`).
+   `pnpm run migrate` w katalogu głównym instancji (wykonuje migracje tego modułu, w tym
+   `push_notification_preferences`). W klonie repozytorium Endora Commerce ten sam krok to
+   `pnpm --filter backend run migration:up`.
 2. W **Settings → PWA** ustaw tożsamość aplikacji, prześlij ikonę, włącz pamięć podręczną i
    powiadomienia push oraz wybierz, czy zmiany statusu zamówień i zapytań ofertowych mają
    powiadamiać klientów.

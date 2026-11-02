@@ -350,7 +350,9 @@ odczytu to zmiana na później.
   przygotowane w usługach jako szkielet; osobne szablony to zmiana na później.
 - **Harmonogram wyszukiwania porzuconych koszyków** — worker jest tworzony w produkcyjnej kompozycji,
   ale nie jest jeszcze podłączony do crona ani harmonogramu BullMQ. Polecenie
-  `pnpm --filter backend run cart:abandonment-sweep` uruchamia jeden przebieg ręcznie. To polecenie
+  `pnpm run cli carts abandonment-sweep`, uruchomione w katalogu głównym instancji, wykonuje jeden
+  przebieg ręcznie; w klonie repozytorium Endora Commerce ma postać
+  `pnpm --filter backend run cart:abandonment-sweep`. To polecenie
   zadeklarowane w manifeście, które uruchamia host, więc przebieg korzysta z `cartAbandonmentWorker`
   z kompozycji — implementacja jest w
   `packages/modules/carts/src/backend/cli/abandonment-sweep.ts`, a deklaracja w eksporcie

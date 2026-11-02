@@ -965,6 +965,24 @@ describe('the tree (§1, §2)', () => {
       expect(root['admin:create']).toBe('pnpm -C backend run admin:create');
     });
 
+    /**
+     * Issue #133 — the separate worker tier is started from the root, like the
+     * API. The backend member has declared `worker` all along, and
+     * `docs/docs/operations/queue-consumers.md` tells an operator to split the
+     * consumers into their own process with it; the root forwarded `start` and
+     * not `worker`, so the one documented command for that tier had no form an
+     * operator could run from where every other command runs.
+     */
+    it('#133 — the root forwards `worker` beside `start`, with `-C`', () => {
+      const root = (
+        JSON.parse(
+          planInstance(planInput()).files.find((file) => file.path === 'package.json')!.content,
+        ) as { scripts: Record<string, string> }
+      ).scripts;
+      expect(root['start']).toBe('pnpm -C backend run start');
+      expect(root['worker']).toBe('pnpm -C backend run worker');
+    });
+
     it('T2-E — the next steps name the administrator, after the module install', () => {
       const steps = nextSteps('/tmp/acme', 'default', DEFAULT_TOPOLOGY, ['settings', 'admin_users']);
       const text = steps.join('\n');

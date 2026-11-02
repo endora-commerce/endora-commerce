@@ -259,17 +259,21 @@ shared entries for everyone, and every other process converges within the same
 ## CLI
 
 Settings rows are installed and removed by the module lifecycle commands, not
-by commands of their own:
+by commands of their own. Run them in the root of the instance:
 
 ```bash
 # Install a module: runs its migrations and reconciles its settings manifest.
-pnpm --filter backend run module:install <module-id> [--dry-run] [--json]
+pnpm run module:install <module-id> [--dry-run] [--json]
 
 # Soft uninstall (default): unregisters the module's settings and marks the
 # module uninstalled; its tables and data stay. --hard also reverts the
 # module's migrations and must be combined with --force.
-pnpm --filter backend run module:uninstall <module-id> [--hard --force] [--json]
+pnpm run module:uninstall <module-id> [--hard --force] [--json]
 ```
+
+In a checkout of the Endora Commerce repository the same two commands are
+`pnpm --filter backend run module:install` and
+`pnpm --filter backend run module:uninstall`, with the same arguments.
 
 `--remove-settings` and `--preserve-settings` are still accepted by
 `module:uninstall` for backward compatibility: the first means `--hard --force`,
