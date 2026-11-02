@@ -10,6 +10,7 @@ import { CartItem } from '../entities/cart-item.entity.js';
 import type { CartLinePriceDrift, CartPlacementApplyPort } from '../../ports/index.js';
 import { toCartItemRecord, toCartRecord } from './cart-read-port.js';
 import { agreementOf, storedPriceDiffers, type CartLinePricing } from './cart-line-pricing.js';
+import { discardWorkingBasketOn } from './working-basket.js';
 
 /**
  * `cartPlacementApplyPort` — the basket half of order placement, run on the
@@ -72,6 +73,29 @@ export class CartPlacementApplyService implements CartPlacementApplyPort {
     // it (feature 159, research N-31); unordered, it was the heap's order.
     const items = await em.find(CartItem, { cartId: cart.id }, { orderBy: { createdAt: 'asc', id: 'asc' } });
     return { cart: toCartRecord(cart), items: items.map(toCartItemRecord) };
+  }
+
+  async readWorkingForPlacement(
+    em: EntityManager,
+    ctx: CartCustomerContext & { cartId: string },
+  ): Promise<CartWithItems | null> {
+    // Issue #169 — the working basket the caller created for this order: the
+    // customer's, on the order's channel, and still `working`. Anything else —
+    // the active basket's id among them — is no basket to place from.
+    const cart = await em.findOne(Cart, {
+      id: ctx.cartId,
+      customerAccountId: ctx.customerAccountId,
+      ...(ctx.organizationId === null ? {} : { organizationId: ctx.organizationId }),
+      salesChannelId: ctx.salesChannelId,
+      status: 'working',
+    });
+    if (!cart) return null;
+    const items = await em.find(CartItem, { cartId: cart.id }, { orderBy: { createdAt: 'asc', id: 'asc' } });
+    return { cart: toCartRecord(cart), items: items.map(toCartItemRecord) };
+  }
+
+  async discardWorkingBasket(input: { cartId: string; customerAccountId: string }): Promise<void> {
+    await discardWorkingBasketOn(this.emFactory(), input);
   }
 
   async completeForOrder(

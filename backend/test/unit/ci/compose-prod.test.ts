@@ -293,3 +293,36 @@ describe('it leaves SETTINGS_SECRET_ENCRYPTION_KEY empty rather than a placehold
     expect(comment).toMatch(/secret settings/i);
   });
 });
+
+/**
+ * Issue #152 — a storefront that is alive but no longer answering is restarted.
+ *
+ * `restart: unless-stopped` acts on an exit, and Docker does nothing for a
+ * container that is only `unhealthy`; a storefront whose event loop was starved
+ * stayed down until somebody noticed. The image's command is therefore a
+ * supervising parent that turns "stopped answering" into an exit
+ * (`storefront/scripts/supervise.mjs`, whose logic `storefront/test/supervise.test.ts`
+ * pins), and this file has to give that exit a policy and the supervisor an init.
+ */
+describe('it restarts a storefront that stops answering (issue #152)', () => {
+  const STOREFRONT_DOCKERFILE = readFileSync(join(REPO_ROOT, 'storefront/Dockerfile'), 'utf8');
+  const SUPERVISOR = 'storefront/scripts/supervise.mjs';
+
+  it('restarts the storefront on an exit and runs an init in front of its supervisor', () => {
+    const storefront = SERVICES.get('storefront')!;
+    expect(storefront.some((line) => /^ {4}restart:\s*unless-stopped\s*$/.test(line))).toBe(true);
+    expect(
+      storefront.some((line) => /^ {4}init:\s*true\s*$/.test(line)),
+      'without an init the supervisor is PID 1 and nothing reaps a process the server orphans',
+    ).toBe(true);
+  });
+
+  it('the storefront image runs the supervisor, with the standalone server as its child', () => {
+    const commands = STOREFRONT_DOCKERFILE.split('\n').filter((line) => /^CMD\s/.test(line));
+    expect(commands).toEqual([`CMD ["node", "${SUPERVISOR}", "storefront/server.js"]`]);
+    expect(STOREFRONT_DOCKERFILE).toContain(
+      `COPY --from=build /app/${SUPERVISOR} ./${SUPERVISOR}\n`,
+    );
+    expect(existsSync(join(REPO_ROOT, SUPERVISOR)), `${SUPERVISOR} does not exist`).toBe(true);
+  });
+});

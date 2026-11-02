@@ -1375,11 +1375,17 @@ export interface OrderPlacementPort {
    * `options.language` (feature 155, D3/D4) — the language the caller's response
    * is answered in, which a minimum refusal names the product in. Absent, the
    * record's own fallback chain.
+   *
+   * `options.workingBasketId` (issue #169) — place from this **working**
+   * basket of the customer's (`CartWritePort.addItems` with `workingBasket`)
+   * instead of their active basket, which the placement then never touches. The
+   * working basket ends `completed` against the order, or is removed when the
+   * placement is refused.
    */
   placeOrder(
     ctx: OrderCustomerContext,
     req: PlaceOrderRequest,
-    options?: { language?: string },
+    options?: { language?: string; workingBasketId?: string },
   ): Promise<PlacedOrderRecord>;
 }
 

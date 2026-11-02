@@ -390,8 +390,8 @@ describe('POST /api/v1/quick-order/one-click — placement', () => {
     /**
      * Round C (item 1) — one-click used to clear the basket and then add the
      * line, so a line the add path refused left the buyer an empty basket. The
-     * line now goes through `addItems` with `replaceExisting`, which clears only
-     * once nothing is left to refuse the line for.
+     * line now goes through `addItems` with `workingBasket` (issue #169), which
+     * never touches the basket at all.
      */
     it('one-click below the minimum is refused 422 and the basket is still K × 3', async () => {
       const before = await seedBasket();
@@ -464,13 +464,16 @@ describe('POST /api/v1/quick-order/one-click — placement', () => {
       ) => { place(ctx: unknown, input: unknown, salesChannelId: string): Promise<unknown> };
       const realCart = cradle().cartWritePort;
       const uncheckedCart = {
-        addItems: async (_actor: unknown, lines: Array<{ productId: string; quantity: number }>) => ({
-          ...(await realCart.replaceItemsForCustomer(
+        addItems: async (_actor: unknown, lines: Array<{ productId: string; quantity: number }>) => {
+          const seeded = await realCart.replaceItemsForCustomer(
             basketCtx(),
             lines.map((line) => ({ productId: line.productId, quantity: line.quantity, unitPrice: '10.00', currency: 'PLN' })),
-          )),
-          outcomes: [],
-        }),
+          );
+          // Issue #169 — one-click places from the working basket `addItems`
+          // hands back: the double hands back an unchecked one.
+          await h.em().getConnection().execute(`update carts set status = 'working' where id = ?`, [seeded.cart.id]);
+          return { ...seeded, cart: { ...seeded.cart, status: 'working' }, outcomes: [] };
+        },
       };
       const preferences = {
         resolveForCustomer: async () => ({

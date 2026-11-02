@@ -133,9 +133,9 @@ describe('OneClickService.place', () => {
     });
   });
 
-  it('replaces the basket with the product in one batch, and places the order from resolved defaults', async () => {
+  it('writes the product into a working basket and places the order from it with the resolved defaults (#169)', async () => {
     const clearForCustomer = vi.fn(async () => undefined);
-    const addItems = vi.fn(async () => ({ cart: {}, items: [], outcomes: [] }));
+    const addItems = vi.fn(async () => ({ cart: { id: 'working-1', status: 'working' }, items: [], outcomes: [] }));
     const placeOrder = vi.fn(
       async () => ({ id: 'o-1', status: 'new', nextAction: null }) as unknown as PlacedOrderRecord,
     );
@@ -151,8 +151,8 @@ describe('OneClickService.place', () => {
     );
 
     expect(order.id).toBe('o-1');
-    // Round C (item 1) — the basket is replaced by `addItems` itself, after every
-    // refusal it can raise, never cleared up front by this service.
+    // Issue #169 — the buyer's active basket is never cleared: the line goes
+    // into a working basket, and the order is placed from that one.
     expect(clearForCustomer).not.toHaveBeenCalled();
     // Feature 155 (D3/D4) — both refusals name the product in the response's language.
     // The basket is the one of the channel the order is placed on
@@ -163,7 +163,7 @@ describe('OneClickService.place', () => {
       {
         onLineError: 'throw',
         onBelowMinimum: 'throw',
-        replaceExisting: true,
+        workingBasket: true,
         language: 'pl',
       },
     );
@@ -177,7 +177,7 @@ describe('OneClickService.place', () => {
         salesChannelId: CHANNEL_ID,
         idempotencyKey: 'k-1',
       },
-      { language: 'pl' },
+      { language: 'pl', workingBasketId: 'working-1' },
     );
   });
 

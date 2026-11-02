@@ -1668,9 +1668,17 @@ export class OrderService {
       origin?: OriginReference;
       language?: string | undefined;
       lineGrouping?: OrderLineGroupingInput | undefined;
+      /**
+       * Issue #169 — the working basket to place from instead of the customer's
+       * active basket (admin create, one-click, API intake). Completed against
+       * the order, or removed when the placement is refused; the active basket
+       * is not read.
+       */
+      workingBasketId?: string | undefined;
     },
   ): Promise<Order> {
     const em = this.emFactory();
+    const workingBasketId = options?.workingBasketId;
     // What this placement announces, emitted once the transaction below has
     // returned (issue #171). The storefront checkout, one-click, external
     // intake and admin create paths all reach this method outside a Command
@@ -1769,13 +1777,20 @@ export class OrderService {
       // customer holds one per channel, created and priced on the channel it is
       // used on (`specs/154-sales-channel-access/`, contracts/basket-attribution.md
       // §4).
-      const basket = await this.neighbours.cartPlacementApply.readActiveForPlacement(tx, {
+      //
+      // Issue #169 — or the working basket the caller wrote this order's lines
+      // into, when it names one: the customer's active basket is then not read,
+      // and so not completed either.
+      const basketCtx = {
         customerAccountId: ctx.customerAccountId,
         // `null` for the reason `previewTotal` states above: the query this
         // replaces filtered on the customer account and the status alone.
         organizationId: null,
         salesChannelId: orderChannel.id,
-      });
+      };
+      const basket = workingBasketId
+        ? await this.neighbours.cartPlacementApply.readWorkingForPlacement(tx, { ...basketCtx, cartId: workingBasketId })
+        : await this.neighbours.cartPlacementApply.readActiveForPlacement(tx, basketCtx);
       const cart = basket?.cart ?? null;
       const items = basket?.items ?? [];
       if (!cart || items.length === 0) {
@@ -1867,7 +1882,9 @@ export class OrderService {
         organizationId: ctx.organizationId,
       });
       if (priceDrift.length > 0) {
-        repriceCartId = cart.id;
+        // A working basket is removed below rather than brought up to date:
+        // nobody goes back to review it.
+        if (!workingBasketId) repriceCartId = cart.id;
         throw new HttpError(
           409,
           ERROR_CODES.CART_PRICE_CHANGED,
@@ -2732,6 +2749,22 @@ export class OrderService {
 
       return order;
     }).catch(async (error: unknown) => {
+      if (workingBasketId) {
+        // Issue #169 — a refused placement leaves no working basket behind. The
+        // refusal travels whatever happens here: a leftover working basket is
+        // nobody's basket and is read by nothing.
+        try {
+          await this.neighbours.cartPlacementApply.discardWorkingBasket({
+            cartId: workingBasketId,
+            customerAccountId: ctx.customerAccountId,
+          });
+        } catch (discardError) {
+          this.log?.warn(
+            { err: discardError, cartId: workingBasketId },
+            '[orders] could not remove the working basket of a refused placement',
+          );
+        }
+      }
       if (repriceCartId !== null) {
         // The refusal travels whatever happens here: a basket left stale is
         // refused again, and brought up to date again, on the next attempt.

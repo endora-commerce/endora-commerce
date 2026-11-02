@@ -962,3 +962,33 @@ describe('the settings encryption key is rendered empty, with how to fill it in'
     }
   }
 });
+
+/**
+ * Issue #152 — a storefront that is alive but no longer answering recovers by
+ * itself. Docker's `restart` acts on an exit and never on `unhealthy`; the
+ * storefront image's command is a supervising parent that turns "stopped
+ * answering" into an exit, and the example has to give that exit a policy to
+ * act on and an init in front of the supervisor. Read off the parsed
+ * documents, in both topologies, because a key one level too deep is a key
+ * `docker compose` reads as something else.
+ */
+describe('issue #152 — the storefront service restarts a hung server', () => {
+  const storefrontService = (topology: Topology): Record<string, unknown> => {
+    const path =
+      topology === 'single-host' ? 'deploy/compose.prod.yml' : 'deploy/three-host/compose.storefront.yml';
+    const services = parseComposeYaml(fileAt(withAdmin({ topology }), path))['services'] as Record<
+      string,
+      Record<string, unknown>
+    >;
+    expect(services['storefront'], `${path} has no storefront service`).toBeDefined();
+    return services['storefront']!;
+  };
+
+  for (const topology of TOPOLOGIES) {
+    it(`${topology}: restarts on an exit and runs an init in front of the supervisor`, () => {
+      const service = storefrontService(topology);
+      expect(service['restart']).toBe('unless-stopped');
+      expect(service['init']).toBe('true');
+    });
+  }
+});

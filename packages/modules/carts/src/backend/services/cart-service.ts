@@ -30,6 +30,7 @@ import { basketScopeLanguage, withBasketOrderRules } from './cart-availability.j
 import type { CartApprovalService } from './cart-approval-service.js';
 import type { CartAuditService } from './cart-audit-service.js';
 import type { CartRecomputeCache } from './cart-recompute-cache.js';
+import { discardWorkingBasketOn } from './working-basket.js';
 import {
   CartLinePricing,
   agreementOf,
@@ -264,6 +265,26 @@ export class CartService {
   }
 
   /**
+   * A fresh working basket of the customer's on `ctx.salesChannelId` (issue
+   * #169) — the cart an order is placed from when the order's lines are named
+   * by the request rather than collected by the buyer. Status `working` keeps it
+   * out of `carts_one_active_per_customer_per_channel` and out of every read of
+   * "the customer's basket", so the active one stands beside it untouched.
+   */
+  async #createWorkingBasketOn(em: EntityManager, ctx: CustomerContext): Promise<Cart> {
+    // command-coverage-ignore: the transient working state an order is placed
+    // from; the placement that consumes it is the audited write.
+    const cart = em.create(Cart, {
+      customerAccountId: ctx.customerAccountId,
+      organizationId: ctx.organizationId,
+      status: 'working',
+      salesChannelId: ctx.salesChannelId,
+    });
+    await em.persistAndFlush(cart);
+    return cart;
+  }
+
+  /**
    * The active anonymous basket `token` names on `salesChannelId`, created on
    * that channel when no basket holds the token — or `null` when the token
    * already belongs to a basket that is not an active basket of this channel
@@ -425,13 +446,18 @@ export class CartService {
    *    is thrown as `addItem` throws it, the earlier lines staying added; with
    *    `'report'` it is the line's `failed` outcome.
    *
-   * `replaceExisting` (a customer only, with `onLineError: 'throw'`) makes the
-   * batch the customer's whole basket — admin order creation, the API intake and
-   * one-click: step 2 judges the batch alone, and the active cart is cleared
-   * ({@link clearForCustomer}) only once steps 1 and 2 have passed, so a refused
-   * request leaves the basket exactly as it was.
+   * `workingBasket` (a customer only, with `onLineError: 'throw'`) writes the
+   * batch into a **fresh working basket** — a cart of the customer's on the
+   * actor's channel in status `working` — instead of the active one: admin order
+   * creation, the API intake and one-click, which place an order from exactly
+   * these lines (issue #169). Step 2 judges the batch alone; the working basket
+   * is created only once steps 1 and 2 have passed, and removed again when the
+   * write step refuses a line, so a refused request writes nothing. The
+   * customer's active basket is never read, cleared or completed by it. The
+   * caller hands the returned cart's id to placement, which completes it against
+   * the order or removes it when placement refuses.
    *
-   * `keepRepeatedLines` (with `replaceExisting` only) writes every line as a line
+   * `keepRepeatedLines` (with `workingBasket` only) writes every line as a line
    * of its own — a repeated `(product, variant, unit)` is not merged into the
    * first — each priced at its own quantity, created in request order with
    * strictly increasing creation times so the basket reads back in that order.
@@ -448,22 +474,21 @@ export class CartService {
     options: {
       onLineError: 'throw' | 'report';
       onBelowMinimum?: 'report' | 'throw';
-      replaceExisting?: boolean;
+      workingBasket?: boolean;
       keepRepeatedLines?: boolean;
       language?: string;
     },
   ): Promise<{ cart: Cart; items: CartItem[]; outcomes: CartBatchLineOutcome[] }> {
-    if (options.keepRepeatedLines && !options.replaceExisting) {
-      throw new Error('[carts] addItems: keepRepeatedLines needs replaceExisting — it describes a fresh basket.');
+    if (options.keepRepeatedLines && !options.workingBasket) {
+      throw new Error('[carts] addItems: keepRepeatedLines needs workingBasket — it describes a fresh basket.');
     }
-    if (options.replaceExisting && !actor.customer) {
-      throw new Error('[carts] addItems: replaceExisting needs a customer — only a customer has a basket to replace.');
+    if (options.workingBasket && !actor.customer) {
+      throw new Error('[carts] addItems: workingBasket needs a customer — only a customer places an order from one.');
     }
-    if (options.replaceExisting && options.onLineError !== 'throw') {
-      // With 'report' a line the write step refuses is an outcome, met only
-      // after the basket has been cleared — the request would replace the
-      // basket with part of itself.
-      throw new Error("[carts] addItems: replaceExisting needs onLineError 'throw' — a reported failure would leave a partly replaced basket.");
+    if (options.workingBasket && options.onLineError !== 'throw') {
+      // With 'report' a line the write step refuses is an outcome — the order
+      // would be placed from part of the request.
+      throw new Error("[carts] addItems: workingBasket needs onLineError 'throw' — a reported failure would leave a partly written working basket.");
     }
     if (lines.length > CART_MAX_LINES) {
       throw new HttpError(422, ERROR_CODES.CART_LINE_CAP_EXCEEDED, 'cart_line_cap_exceeded', {
@@ -489,20 +514,18 @@ export class CartService {
     const em = this.emFactory();
     let cart: Cart;
     let rejections: Map<number, CartBatchRejection>;
-    if (options.replaceExisting) {
-      // Step 2 — the request alone: the basket it replaces counts toward nothing.
+    if (options.workingBasket) {
+      // Step 2 — the request alone: the customer's active basket counts toward
+      // nothing, and is not touched (issue #169).
       rejections = await this.#judgeBatch({ sourceQuoteRequestId: null }, [], resolvedLines, this.#basketChannelOf(actor));
       await this.#throwIfBelowMinimum(actor, rejections, resolvedLines, options);
       // Round B (item 3) — the write step's own refusals (no price, quote-only)
-      // are judged here too, before the basket is cleared, so a request refused
-      // for them also leaves the basket as it was.
-      if (options.onLineError === 'throw') {
-        await this.#assertBatchOrderable(em, actor, resolvedLines, rejections, options.keepRepeatedLines === true);
-      }
-      // Only now, with nothing left to refuse the request for, is the customer's
-      // basket replaced.
-      await this.clearForCustomer(actor.customer!);
-      cart = await this.#getOrCreateForCustomerOn(em, actor.customer!);
+      // are judged here too, before the working basket is created, so a request
+      // refused for them writes nothing.
+      await this.#assertBatchOrderable(em, actor, resolvedLines, rejections, options.keepRepeatedLines === true);
+      // Only now, with nothing left to refuse the request for, is the working
+      // basket created.
+      cart = await this.#createWorkingBasketOn(em, actor.customer!);
     } else {
       cart = this.#requireBasket(
         actor.customer
@@ -554,6 +577,12 @@ export class CartService {
           kept ? { createdAt: new Date(seedBase + index) } : undefined,
         );
       } catch (err) {
+        // A working basket is removed whatever refused its line, a presence
+        // answer included — which still travels, below.
+        if (options.workingBasket) {
+          failure = err;
+          break;
+        }
         rethrowIfModuleDisabled(err);
         if (options.onLineError === 'throw' || !(err instanceof HttpError)) {
           failure = err;
@@ -567,6 +596,13 @@ export class CartService {
       outcomes.set(index, { index, status: 'added' });
     }
 
+    // A working basket the write step refused a line of is the request's own
+    // and nobody else's: it goes, lines and audit rows with it, so a refused
+    // request leaves nothing behind (issue #169).
+    if (failure !== null && options.workingBasket) {
+      await discardWorkingBasketOn(em, { cartId: cart.id });
+      throw failure;
+    }
     // The lines already written stay written, so the basket's bookkeeping
     // follows them even when a later line is about to be thrown.
     if (added > 0) {
@@ -588,15 +624,15 @@ export class CartService {
   }
 
   /**
-   * The write step's pricing refusals, asked before a `replaceExisting` batch
-   * clears the basket (`'throw'` mode): every line to be written is priced at
+   * The write step's pricing refusals, asked before a `workingBasket` batch
+   * creates its basket (`'throw'` mode): every line to be written is priced at
    * the quantity its write will price it at — the running total of its
    * `(product, variant, unit)` key, as `#writeLine` merges a repeated line into
    * the first. The basket being written is a fresh one, so there is no agreed
    * line to price at and no line cap to meet (a batch holds at most
    * `CART_MAX_LINES` lines). Refuses with exactly the refusal the write would
    * raise. A price edited between this and the write can still refuse a line
-   * after the clear; placement prices the basket again either way. With
+   * once the working basket exists — which then removes it; placement prices the basket again either way. With
    * `keepRepeated` no line merges, so each is priced at its own quantity.
    */
   async #assertBatchOrderable(

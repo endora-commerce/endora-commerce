@@ -140,8 +140,12 @@ export class CartAdminService {
 
   async list(query: AdminCartsListQuery = {}): Promise<AdminCartsListResponse> {
     const em = this.emFactory();
-    const where: Record<string, unknown> = {};
-    if (query.status && query.status.length > 0) where['status'] = { $in: query.status };
+    // A working basket (issue #169) is transient placement state, never a cart
+    // an operator lists: it is seen once it is `completed` against its order.
+    const where: Record<string, unknown> = { status: { $ne: 'working' } };
+    if (query.status && query.status.length > 0) {
+      where['status'] = { $in: query.status.filter((status) => status !== 'working') };
+    }
     if (query.approvalStatus && query.approvalStatus.length > 0) {
       where['approvalStatus'] = { $in: query.approvalStatus };
     }

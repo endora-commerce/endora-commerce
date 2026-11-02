@@ -64,7 +64,18 @@ go w sklepie, do którego jego organizacja nie jest przypisana.
 
 [ active / approved ]    ──(checkout success)──▶ [ completed / approved ]
 [ active / * ]           ──(Cart→QR conversion)─▶ [ completed / *; converted_to_quote_request_id set ]
+
+[ working ]              ──(order placed)───────▶ [ completed; completed_order_id set ]
+[ working ]              ──(placement refused)──▶ (deleted)
 ```
+
+**Koszyki robocze.** Tworzenie zamówienia przez administratora, zakup jednym kliknięciem i
+zewnętrzne API zamówień składają zamówienie z pozycji żądania, a nie z tego, co zebrał kupujący.
+Zapisują te pozycje w osobnym koszyku o statusie `working` i z niego składają zamówienie; aktywny
+koszyk klienta — także wypełniony z zaakceptowanego zapytania ofertowego — nie jest odczytywany,
+opróżniany ani zamykany. Koszyk roboczy kończy jako `completed` z `completed_order_id` wskazującym
+jego zamówienie albo jest usuwany, gdy złożenie zamówienia zostanie odrzucone. Nie pojawia się na
+żadnej liście koszyków, w panelu koszyków klienta ani w wyszukiwaniu porzuconych koszyków.
 
 Ponowne wymaganie akceptacji: każda zmiana koszyka przez kupującego (dodanie, usunięcie, ilość,
 kupon) w koszyku `approved` po cichu przywraca `approval_status` do `pending`.
@@ -232,8 +243,9 @@ porzucenia mógł ponownie wysłać powiadomienie.
   którego został wypełniony. Każda pozycja pamięta ilość, dla której uzgodniono jej cenę, i zachowuje
   uzgodnioną cenę tylko przy tej ilości (zobacz *Ceny pozycji*). Dodanie pozycji, usunięcie jednej z
   nich albo zmiana ilości zachowuje oznaczenie; usunięcie ostatniej pozycji albo
-  ponowne wypełnienie koszyka z innego źródła (ponowne zamówienie) usuwa oznaczenie, a zamówienie
-  tworzone dla klienta przez administratora zaczyna nowy koszyk bez niego. Moduł zamówień odczytuje je przy składaniu zamówienia i
+  ponowne wypełnienie koszyka z innego źródła (ponowne zamówienie) usuwa oznaczenie. Zamówienie
+  tworzone dla klienta przez administratora zostawia koszyk i jego oznaczenie bez zmian (zobacz
+  *Koszyki robocze*). Moduł zamówień odczytuje je przy składaniu zamówienia i
   rozstrzyga, czy zamówienie może zapisać to zapytanie. Opisana wyżej kopia z ponowną wyceną nie
   ustawia oznaczenia.
 - **Lista zakupów → koszyk**: przekazywane do istniejącego `ShoppingListService.convertToCart`; moduł
@@ -276,12 +288,13 @@ definiuje strona modułu Catalog).
   `throw`, dostaje teraz błąd **zanim cokolwiek zostanie dodane**, gdy pozycji nie da się
   rozstrzygnąć; ten, który prosi o `report`, dostaje każdą porażkę jako wynik. Wywołujący może też
   poprosić, by pozycja poniżej minimum odrzucała całą partię, zanim cokolwiek zostanie zapisane, a —
-  dla klienta — by partia zastąpiła koszyk, który jest wtedy czyszczony dopiero po pozytywnej ocenie
-  partii: w ten sposób tworzenie zamówienia przez administratora i zewnętrzne API zamówień zostawiają
-  koszyk klienta nienaruszony, gdy odrzucają żądanie. Przed tym wyczyszczeniem partia, która ma
-  zgłaszać błąd przy nieudanej pozycji, wycenia też każdą pozycję, którą zamierza zapisać, więc
-  produkt bez ceny albo sprzedawany wyłącznie na zapytanie odrzuca żądanie, a koszyk pozostaje
-  nienaruszony. Najwyżej 200 pozycji na wywołanie.
+  dla klienta — by partia trafiła do nowego koszyka roboczego zamiast do aktywnego (zobacz *Koszyki
+  robocze*), który powstaje dopiero po pozytywnej ocenie partii i jest ponownie usuwany, gdy zapis
+  pozycji się nie powiedzie: w ten sposób tworzenie zamówienia przez administratora, zakup jednym
+  kliknięciem i zewnętrzne API zamówień składają zamówienie, nie dotykając koszyka klienta. Zanim
+  koszyk roboczy powstanie, partia wycenia też każdą pozycję, którą zamierza zapisać, więc produkt
+  bez ceny albo sprzedawany wyłącznie na zapytanie odrzuca żądanie i nic nie zostaje zapisane.
+  Najwyżej 200 pozycji na wywołanie.
 - **Koszyk wypełniony z zaakceptowanego zapytania ofertowego** zachowuje wynegocjowane ilości
   zapytania: każda pozycja wypełniona z zapytania jest zwolniona z minimów, **dopóki jej ilość
   równa się ilości z zapytania** dla tej pozycji — ilości, przy której obowiązuje uzgodniona cena

@@ -34,7 +34,8 @@ export class CartQueryService {
     const em = this.emFactory();
     const carts = await em.find(
       Cart,
-      { customerAccountId },
+      // A working basket (issue #169) is no basket of the customer's.
+      { customerAccountId, status: { $ne: 'working' } },
       { orderBy: { lastActivityAt: 'desc' } },
     );
     if (carts.length === 0) return { current: null, abandoned: [] };
