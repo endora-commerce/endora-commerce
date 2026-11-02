@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, type OrderPlacementPort } from '@endora-commerce/contracts';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import {
   setupBackendServer,
@@ -16,6 +16,7 @@ import {
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { acceptedQuoteRequest, convertQuoteRequestToCart } from '../../helpers/quote-conversion.js';
+import { Cart, CartItem } from '../../helpers/package-entities.js';
 
 /**
  * Issue #169 (owner ruling) — none of the three paths that place an order on
@@ -215,8 +216,39 @@ describe('order placement on the customer’s behalf keeps the active basket (#1
     { name: 'external order intake', place: intake, idAt: 'data' as const },
   ];
 
+  /** Lapse the quote the active basket was seeded from (issue #167). */
+  const lapseQuoteOf = (basket: BasketSnapshot) =>
+    h
+      .em()
+      .getConnection()
+      .execute(`update "quote_requests" set "expires_at" = now() - interval '1 minute' where "id" = ?`, [
+        basket.sourceQuoteRequestId,
+      ]);
+
   for (const path of paths) {
     describe(path.name, () => {
+      // Issue #167 — the quote-commitment check reads the basket placement
+      // reads. A working basket is written from the request's lines with no
+      // agreement, so a lapsed quote on the active basket beside it does not
+      // refuse the request, and the request is not priced at the quote either.
+      it('the active basket’s quote has lapsed: the request still places from its own basket, at no quote price', async () => {
+        const before = await quoteSeededBasket();
+        await lapseQuoteOf(before);
+
+        // The agreed quantity, so only the missing agreement keeps the quote price off it.
+        const res = await path.place(7);
+        expect(res.statusCode, res.body).toBe(201);
+        const orderId = orderIdOf(res.json(), path.idAt);
+        const prices = await h
+          .em()
+          .getConnection()
+          .execute<Array<{ unit_price: string }>>(`select unit_price from order_items where order_id = ?`, [orderId]);
+        expect(prices.map((row) => Number(row.unit_price))).not.toContain(11.25);
+
+        expect(await activeBasket()).toEqual(before);
+        await expectPlacedFromItsOwnBasket(orderId, before);
+      });
+
       it('places the order and leaves the quote-seeded active basket exactly as it was', async () => {
         const before = await quoteSeededBasket();
 
@@ -243,4 +275,53 @@ describe('order placement on the customer’s behalf keeps the active basket (#1
       });
     });
   }
+
+  /**
+   * Issue #167 — no path writes an agreement into a working basket today (the
+   * quote seed writes the active one only), so this forges one, to hold that
+   * the check is not a property of which basket placement reads.
+   */
+  it('a working basket carrying a lapsed quote’s agreed line is refused like the active one, and removed', async () => {
+    const before = await quoteSeededBasket();
+    await lapseQuoteOf(before);
+    const em = h.em().fork();
+    const working = em.create(Cart, {
+      customerAccountId: TEST_CUSTOMER_ID,
+      organizationId: TEST_ORGANIZATION_ID,
+      salesChannelId: channelId,
+      status: 'working',
+    });
+    await em.flush();
+    em.create(CartItem, {
+      cartId: working.id,
+      productId: SEED_PRODUCT_101_ID,
+      quantity: 7,
+      unitPrice: '11.2500',
+      currency: 'PLN',
+      priceSource: 'agreed',
+      agreedQuantity: 7,
+      agreedUnitPrice: '11.2500',
+      agreedCurrency: 'PLN',
+      quoteRequestId: before.sourceQuoteRequestId,
+    });
+    await em.flush();
+
+    const placement = (h.container.cradle as unknown as { orderPlacementPort: OrderPlacementPort }).orderPlacementPort;
+    await expect(
+      placement.placeOrder(
+        { customerAccountId: TEST_CUSTOMER_ID, organizationId: TEST_ORGANIZATION_ID },
+        {
+          deliveryAddressId: SEED_ADDRESS_DELIVERY_ID,
+          billingAddressId: SEED_ADDRESS_BILLING_ID,
+          deliveryMethodId: SEED_DELIVERY_METHOD_ID,
+          paymentMethodId: SEED_PAYMENT_METHOD_ID,
+          salesChannelId: channelId,
+        },
+        { workingBasketId: working.id },
+      ),
+    ).rejects.toMatchObject({ statusCode: 410, code: ERROR_CODES.QUOTE_VALIDITY_ENDED, details: { code: 'lapsed' } });
+
+    expect(await activeBasket()).toEqual(before);
+    expect(await cartsOf(`status = 'working'`, [])).toEqual([]);
+  });
 });

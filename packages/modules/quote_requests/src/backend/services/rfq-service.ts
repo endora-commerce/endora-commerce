@@ -1178,6 +1178,13 @@ export class RfqService {
     // expiry worker sweeps only `Pending` / `Created from admin`, so nothing
     // in the platform ever reached this row again.
     //
+    // Issue #167 (owner ruling of 2026-11-02) — and not only here. The
+    // commitment is consumed when the order is *placed*, so `orders` reads this
+    // request again at placement, through `quoteRequestReadPort`, for every
+    // basket line still priced at its agreement, and refuses with the same
+    // code once the date has passed: a basket seeded inside the window cannot
+    // be ordered at the agreed prices after it; a new quote must be issued.
+    //
     // `QUOTE_VALIDITY_ENDED` rather than `RFQ_EXPIRED`: the buyer here already
     // made their decision inside the window and it is the *quote* that has run
     // out, which is a different sentence and a different remedy from an offer

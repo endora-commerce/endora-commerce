@@ -169,7 +169,17 @@ export interface OrderTotalPreview {
    * two minima appears twice. Absent from an older backend; read as none.
    */
   belowMinimumLines?: CheckoutBelowMinimumLine[];
+  /**
+   * Issue #167 — set when the basket is priced at a quote placement will no longer honour
+   * (`410 QUOTE_VALIDITY_ENDED`): `lapsed` (its validity date passed), `withdrawn` (it no longer
+   * applies), `unavailable` (quote prices cannot be confirmed at all). Absent from an older
+   * backend; read as none.
+   */
+  quoteCommitmentRefusal?: QuoteCommitmentRefusal | null;
 }
+
+/** `quoteCommitmentRefusalSchema` in `@endora-commerce/contracts`. */
+export type QuoteCommitmentRefusal = 'lapsed' | 'withdrawn' | 'unavailable';
 
 /**
  * `ctx` is required for the reason {@link placeOrder} gives: the preview is for

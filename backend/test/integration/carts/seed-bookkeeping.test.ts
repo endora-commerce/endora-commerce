@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Cart } from '../../helpers/package-entities.js';
+import { Cart, CartItem } from '../../helpers/package-entities.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { systemDefaultSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
@@ -79,5 +79,25 @@ describe('carts — a seeded basket is a basket somebody just used', () => {
       const read = await cartWritePortOf(h).replaceItemsForCustomer(CTX, quantities.map((quantity) => ({ ...LINE, quantity })));
       expect(read.items.map((item) => item.quantity)).toEqual(quantities);
     }
+  });
+
+  /**
+   * Issue #167 — a line seeded with an agreement names the quote it came from,
+   * so placement can read that quote again; a seed without one (a reorder)
+   * names none.
+   */
+  it('names the source quote on each agreed line, and none on a reorder seed', async () => {
+    const quoteRequestId = '00000000-0000-4000-8000-0000000167a1';
+    const agreed = await cartWritePortOf(h).replaceItemsForCustomer(CTX, [LINE, { ...LINE, quantity: 3 }], {
+      sourceQuoteRequestId: quoteRequestId,
+    });
+    expect(agreed.items.map((item) => item.quoteRequestId)).toEqual([quoteRequestId, quoteRequestId]);
+    const em = h.em();
+    em.clear();
+    const stored = await em.find(CartItem, { cartId: agreed.cart.id }, { filters: false });
+    expect(stored.map((item) => item.quoteRequestId)).toEqual([quoteRequestId, quoteRequestId]);
+
+    const reorder = await cartWritePortOf(h).replaceItemsForCustomer(CTX, [LINE]);
+    expect(reorder.items.map((item) => item.quoteRequestId ?? null)).toEqual([null]);
   });
 });

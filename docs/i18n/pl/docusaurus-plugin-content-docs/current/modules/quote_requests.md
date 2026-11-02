@@ -107,6 +107,53 @@ W praktyce oznacza to, że:
   obowiązywać, nie da się zamienić na zamówienie. Jego pozycji nie można już edytować, więc
   rozwiązaniem jest `resubmit`, które tworzy nowe zapytanie do wyceny przez sprzedawcę.
 
+## Termin ważności
+
+Operator może nadać ofercie termin — *Ważna przez N dni* przy rewizji zapytania lub przy tworzeniu
+go w imieniu klienta (`expiresInDays`, zapisywane jako `expiresAt`). Obie strony widzą *ważna do
+&lt;data&gt;*, a ta data jest **ostatnią chwilą, w której można złożyć zamówienie po uzgodnionych
+cenach**, a nie tylko ostatnią chwilą na przygotowanie koszyka. Bez terminu uzgodnione ceny nie
+mają daty końcowej.
+
+| Kiedy | Po terminie | Kod |
+| --- | --- | --- |
+| Kupujący akceptuje ofertę (`accept-revision`) | Odmowa | `410 RFQ_EXPIRED` |
+| Kupujący zamienia zaakceptowaną ofertę na koszyk (`convert-to-order`) | Odmowa | `410 QUOTE_VALIDITY_ENDED` |
+| Zamówienie jest składane z tego koszyka | Odmowa | `410 QUOTE_VALIDITY_ENDED` |
+
+**Koszyk jest sprawdzany ponownie przy składaniu zamówienia.** Każda pozycja koszyka wypełniona
+przez `convert-to-order` pamięta ofertę, z której pochodzi jej uzgodniona cena. Gdy zamówienie jest
+składane z tego koszyka — w kasie sklepu albo dowolną inną ścieżką, która składa zamówienie
+z koszyka kupującego — każda pozycja wciąż wyceniona według uzgodnienia (wciąż w uzgodnionej ilości) jest
+sprawdzana względem tej oferty w jej *obecnym* stanie. Koszyka zamienionego w ostatnim dniu
+ważności nie da się więc następnego dnia zamówić po uzgodnionych cenach: potrzebna jest nowa
+oferta. Odmowa niczego nie zmienia — koszyk zostaje taki, jakim zostawił go kupujący, a oferta
+pozostaje `Approved`.
+
+`details.code` odmowy mówi, dlaczego, a kupujący czyta dla każdego przypadku zdanie w swoim
+języku:
+
+| `details.code` | Znaczenie |
+| --- | --- |
+| `lapsed` | Termin ważności oferty upłynął. |
+| `withdrawn` | Oferta już nie obowiązuje: sprzedawca otworzył ją ponownie nową rewizją, została anulowana lub wygasła, albo już nie istnieje. |
+| `unavailable` | Moduł zapytań ofertowych jest wyłączony, więc nic nie może potwierdzić uzgodnionych cen. |
+
+Kasa sklepu zadaje to samo pytanie, zanim kupujący naciśnie *Złóż zamówienie*: podgląd sumy
+zamówienia (`POST /api/v1/orders/preview-total`) zwraca `quoteCommitmentRefusal` z jedną z trzech
+wartości albo `null`, a kasa pokazuje komunikat i wyłącza przycisk. Przy ofercie, która straciła
+ważność lub już nie obowiązuje, komunikat prowadzi do zapytań ofertowych kupującego, gdzie prosi on
+o nową ofertę.
+
+Co nadal da się zamówić:
+
+- **Pozycję, której ilość zmieniono z uzgodnionej.** Jest wyceniana z cennika jak każda pozycja
+  koszyka, więc nie korzysta z niczego, co uzgodnił sprzedawca, i termin oferty jej nie dotyczy.
+- **Koszyk bez pozycji z oferty.** Kupujący zawsze może zamówić resztę po aktualnych cenach.
+- **Drugi koszyk tej samej oferty po zamówieniu pierwszego** (dwie osoby z organizacji, które
+  obie ją zamieniły). Oferta ma wtedy status `Completed`; drugie zamówienie nie wskazuje oferty,
+  a dopóki termin ważności nie upłynął, jego pozycje zachowują uzgodnione ceny.
+
 ## Cena referencyjna
 
 Każda pozycja zapytania ofertowego ma **cenę referencyjną**: tyle, ile klient zapytania zapłaciłby
@@ -771,8 +818,8 @@ z wygaszania; przy `0` wszędzie zadanie nic nie robi. W przeciwnym razie zapyta
    każdego innego zapytania.
 
 Zadanie nie wygasza zapytania *dlatego*, że minął termin ważności. Ten termin jest egzekwowany,
-gdy kupujący akceptuje ofertę albo zamienia ją na zamówienie (`410`); sam z siebie nie zamyka
-zapytania.
+gdy kupujący akceptuje ofertę, zamienia ją na koszyk i składa zamówienie (`410`, zob. *Termin
+ważności*); sam z siebie nie zamyka zapytania.
 
 ### Co robi jedno uruchomienie
 

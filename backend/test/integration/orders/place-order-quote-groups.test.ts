@@ -297,11 +297,13 @@ describe('159 — an order placed from a grouped quote keeps its groups', () => 
       await expectUngrouped((await place()).id);
     });
 
-    it('a quote no longer approved', async () => {
+    // Issue #167 — a quote no longer approved does not bind its agreed prices
+    // either, so the basket it filled is refused rather than placed ungrouped.
+    it('a quote no longer approved — refused at its agreed prices, so nothing to group', async () => {
       const quoteId = await acceptedGroupedQuote();
       await convertQuoteRequestToCart(h, quoteId);
       await sql(`update "quote_requests" set "status" = 'Canceled', "canceled_at" = now() where "id" = ?`, [quoteId]);
-      await expectUngrouped((await place()).id);
+      await expect(place()).rejects.toThrow(/checkOutBasket: 410 .*QUOTE_VALIDITY_ENDED/);
     });
 
     it('a quote already ordered', async () => {
@@ -321,13 +323,17 @@ describe('159 — an order placed from a grouped quote keeps its groups', () => 
       await expectUngrouped((await place()).id);
     });
 
+    // Issue #167 — with the module off its agreed prices cannot be confirmed,
+    // so the basket converted earlier is refused (fail-closed). What FR-083
+    // still covers while off is an ordinary basket, which never had groups.
     it.each(['deactivated', 'platform-unavailable'] as const)(
-      'quote requests %s — the basket converted earlier is placed without groups (FR-083)',
+      'quote requests %s — the basket converted earlier is refused at its agreed prices',
       async (axis) => {
         const quoteId = await acceptedGroupedQuote();
         await convertQuoteRequestToCart(h, quoteId);
-        const placed = await withModuleOff('quote_requests', axis, () => place());
-        await expectUngrouped(placed.id);
+        await expect(withModuleOff('quote_requests', axis, () => place())).rejects.toThrow(
+          /checkOutBasket: 410 .*QUOTE_VALIDITY_ENDED/,
+        );
       },
     );
   });

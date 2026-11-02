@@ -1,4 +1,5 @@
 import type { QuoteRequestSourceRefusal } from './quote-request-source.js';
+import { quoteValidityHasLapsed } from './quote-commitment.js';
 
 /**
  * Feature 155 (FR-036; research R19 step 3; threat F2) — whether a basket's
@@ -28,5 +29,5 @@ export function quoteSourceHonoursExemptions(
   now: Date,
 ): boolean {
   if (!judged.accepted || quoteRequest === null) return false;
-  return quoteRequest.expiresAt === null || new Date(quoteRequest.expiresAt).getTime() > now.getTime();
+  return !quoteValidityHasLapsed(quoteRequest.expiresAt, now);
 }

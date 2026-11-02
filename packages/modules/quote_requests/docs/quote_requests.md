@@ -116,6 +116,57 @@ What this means in practice:
   edited, so the way forward is `resubmit`, which raises a new request for the
   seller to price.
 
+## Validity date
+
+An operator can date an offer — *Valid for N days* when revising a request or
+creating one on a customer's behalf (`expiresInDays`, stored as `expiresAt`).
+Both parties are shown *expires &lt;date&gt;*, and the date is **the last moment
+an order can be placed at the agreed prices**, not only the last moment the
+basket can be prepared. Without a date the agreed prices have no deadline.
+
+| When | After the date | Code |
+| --- | --- | --- |
+| The buyer accepts the offer (`accept-revision`) | Refused | `410 RFQ_EXPIRED` |
+| The buyer converts the accepted quote into a basket (`convert-to-order`) | Refused | `410 QUOTE_VALIDITY_ENDED` |
+| The order is placed from that basket | Refused | `410 QUOTE_VALIDITY_ENDED` |
+
+**The basket is checked again at placement.** Each basket line filled by
+`convert-to-order` remembers the quote its agreed price came from. When the
+order is placed from that basket — at the storefront checkout or by any
+other path that places the buyer's basket — every line still priced at
+its agreement (still at the agreed quantity) is checked against that quote as
+it is *now*. A basket converted on the last valid day therefore cannot be
+ordered at the agreed prices the day after: a new quote must be issued. The
+refusal changes nothing — the basket stays as the buyer left it, and the quote
+stays `Approved`.
+
+The refusal's `details.code` says why, and the buyer reads a sentence in their
+language for each:
+
+| `details.code` | Meaning |
+| --- | --- |
+| `lapsed` | The quote's validity date has passed. |
+| `withdrawn` | The quote no longer applies: the seller re-opened it with a new revision, it was cancelled or expired, or it no longer exists. |
+| `unavailable` | The Quote Requests module is switched off, so nothing can confirm the agreed prices. |
+
+The storefront checkout asks the same question before the buyer presses
+*Place order*: the order-total preview (`POST /api/v1/orders/preview-total`)
+answers `quoteCommitmentRefusal` with one of the three values, or `null`, and
+the checkout shows a notice and disables the button. For a lapsed or withdrawn
+quote it leads to the buyer's quote requests, where they ask for a new quote.
+
+What still places:
+
+- **A line moved off its agreed quantity.** It is priced from the price list,
+  like any basket line, so it consumes nothing the seller agreed and the
+  quote's date does not bind it.
+- **A basket with the quoted lines removed.** The buyer can always order the
+  rest at current prices.
+- **A second basket of the same quote after the first was ordered** (two
+  colleagues who each converted it). The quote is then `Completed`; the second
+  order names no quote, and while the validity date has not passed its lines
+  keep the agreed prices.
+
 ## Reference price
 
 Every quote line carries a **reference price**: what the request's customer
@@ -851,8 +902,8 @@ set to `0` everywhere, the sweep does nothing. Otherwise a request is moved to
    the seller set none, the inactivity rule applies as to any other request.
 
 The sweep does not expire a request *because* its validity date passed. That
-date is enforced when the buyer accepts or converts (`410`); it does not, on
-its own, close the request.
+date is enforced when the buyer accepts, converts and places the order (`410`,
+see *Validity date*); it does not, on its own, close the request.
 
 ### What one tick does
 
