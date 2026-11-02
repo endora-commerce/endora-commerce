@@ -5,18 +5,19 @@ import {
   adminTransitionRequestSchema,
   adminReturnsListQuerySchema,
   bulkTransitionRequestSchema,
+  createReturnSavedViewRequestSchema,
   createReturnShipmentRequestSchema,
   returnDeliveryMethodCreateSchema,
   returnDeliveryMethodUpdateSchema,
   returnReasonCreateSchema,
   returnReasonUpdateSchema,
-  returnSavedViewCreateSchema,
-  returnSavedViewUpdateSchema,
   returnStatusCreateSchema,
   returnStatusUpdateSchema,
   returnTransitionsSetSchema,
   settlementRequestSchema,
+  updateReturnSavedViewRequestSchema,
 } from '@endora-commerce/contracts';
+import { savedViewActor } from './saved-view-actor.js';
 import type { ReturnCaseService } from './services/return-case-service.js';
 import type { ReturnAuthorizationService } from './services/return-authorization-service.js';
 import type { ReturnCommentService } from './services/return-comment-service.js';
@@ -113,41 +114,45 @@ export async function registerReturnsAdminRoutes(
     },
   );
 
-  app.get('/api/v1/admin/returns/list-views', { preHandler: requireAdmin('returns:read') }, async (request) => {
-    const adminUserId = resolveAdminUserId(request);
-    return { data: await listViewService.listFor(adminUserId) };
+  // --- Saved list views (US8; the rules of `specs/147-saved-views/` since #312)
+  // The actor comes from the request's tenant context (`./saved-view-actor.ts`),
+  // derived exactly as the order, product and quote request lists derive
+  // theirs. It is read on every route, the list included, because
+  // `isPlatformAdmin` decides `canModify`.
+  const VIEWS = '/api/v1/admin/returns/list-views';
+
+  app.get(VIEWS, { preHandler: requireAdmin('returns:read') }, async () => {
+    return { data: await listViewService.listFor(savedViewActor()) };
   });
 
   app.post(
-    '/api/v1/admin/returns/list-views',
-    { preHandler: requireAdmin('returns:read'), schema: { body: returnSavedViewCreateSchema } },
+    VIEWS,
+    { preHandler: requireAdmin('returns:read'), schema: { body: createReturnSavedViewRequestSchema } },
     async (request, reply) => {
-      const adminUserId = resolveAdminUserId(request);
-      const body = returnSavedViewCreateSchema.parse(request.body);
-      const data = await listViewService.create(adminUserId, body);
+      const actor = savedViewActor();
+      const body = createReturnSavedViewRequestSchema.parse(request.body);
+      const data = await listViewService.create(actor, body);
       reply.status(201);
       return { data };
     },
   );
 
   app.patch<{ Params: { id: string } }>(
-    '/api/v1/admin/returns/list-views/:id',
-    { preHandler: requireAdmin('returns:read'), schema: { body: returnSavedViewUpdateSchema } },
+    `${VIEWS}/:id`,
+    { preHandler: requireAdmin('returns:read'), schema: { body: updateReturnSavedViewRequestSchema } },
     async (request) => {
-      const adminUserId = resolveAdminUserId(request);
-      const body = returnSavedViewUpdateSchema.parse(request.body);
-      const data = await listViewService.update(request.params.id, adminUserId, body);
-      return { data };
+      const actor = savedViewActor();
+      const body = updateReturnSavedViewRequestSchema.parse(request.body);
+      return { data: await listViewService.update(request.params.id, actor, body) };
     },
   );
 
   app.delete<{ Params: { id: string } }>(
-    '/api/v1/admin/returns/list-views/:id',
+    `${VIEWS}/:id`,
     { preHandler: requireAdmin('returns:read') },
     async (request) => {
-      const adminUserId = resolveAdminUserId(request);
-      await listViewService.remove(request.params.id, adminUserId);
-      return { data: { ok: true } };
+      await listViewService.remove(request.params.id, savedViewActor());
+      return { data: { deleted: request.params.id } };
     },
   );
 

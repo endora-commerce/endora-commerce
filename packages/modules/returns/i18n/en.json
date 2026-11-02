@@ -25,6 +25,7 @@
   "settlement.replacement": "Replacement",
   "settlement.repair": "Repair",
   "nav.returns.label": "Returns",
+  "errors.RETURN_SAVED_VIEW_NAME_TAKEN": "You already have a saved view with this name on the return list. Choose a different name.",
   "errors.RETURN_LINE_NOT_RETURNABLE": "\"{productName}\" cannot be returned. You can still file a complaint.",
   "actions.openReturns.keywords": "returns, complaints",
   "actions.returnStatusConfig.keywords": "return statuses"

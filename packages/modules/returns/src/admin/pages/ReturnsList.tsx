@@ -10,12 +10,24 @@ import {
   usePageSizePreference,
 } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, Select, MultiSelect, type MultiSelectOption, PageHeader } from '@endora-commerce/admin-kit/ui';
-import { ResponsiveTable, type ResponsiveColumn, PaginationFooter } from '@endora-commerce/admin-kit/components';
+import {
+  ResponsiveTable,
+  type ResponsiveColumn,
+  PaginationFooter,
+  SavedViewsControl,
+  type SavedViewState,
+} from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { returnsClient } from '../api/returns-client.js';
 
 import type { AdminReturnRow, ReturnStatusDto } from '@endora-commerce/contracts';
 
+
+const VIEWS_ENDPOINT = '/api/v1/admin/returns/list-views';
+const DEFAULT_SORT = 'submittedAt:desc';
+/** The sort options the toolbar offers; a saved sort outside them loads the default. */
+const SORTS = ['submittedAt:desc', 'submittedAt:asc', 'rmaNumber:asc', 'rmaNumber:desc'] as const;
+const KINDS = ['return', 'complaint'] as const;
 
 /** Resolve the admin-facing label for a status: default name → English → first → code. */
 function statusName(s: ReturnStatusDto): string {
@@ -42,7 +54,7 @@ export function ReturnsList(): ReactNode {
   const [kindFilter, setKindFilter] = useState('');
   const [rma, setRma] = useState('');
   const [debouncedRma, setDebouncedRma] = useState('');
-  const [sort, setSort] = useState('submittedAt:desc');
+  const [sort, setSort] = useState<string>(DEFAULT_SORT);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -160,6 +172,38 @@ export function ReturnsList(): ReactNode {
       ? [{ key: 'rma', label: `${t('returns.filter.rmaNumber')}: ${rma.trim()}`, onRemove: (): void => setRma('') }]
       : []),
   ];
+
+  // Saved views (#312): what the list really has — the status, kind and RMA
+  // number filters and the sort. It has no column picker, so a view stores no
+  // columns. The RMA number is stored as the list applies it, debounced and
+  // trimmed.
+  const trimmedRma = debouncedRma.trim();
+  const [sortField = 'submittedAt', sortDir] = sort.split(':');
+  const currentView: SavedViewState = {
+    filters: {
+      ...(statusCodes.length ? { status: statusCodes } : {}),
+      ...(kindFilter ? { kind: kindFilter } : {}),
+      ...(trimmedRma ? { rmaNumber: trimmedRma } : {}),
+    },
+    sort: { field: sortField, dir: sortDir === 'asc' ? 'asc' : 'desc' },
+  };
+
+  // Loading a view replaces every filter and the sort; a value the page does
+  // not offer is dropped. The page and the debounced RMA number are set in the
+  // same batch, so no list request goes out with the old page or the old RMA.
+  const applyView = (view: SavedViewState): void => {
+    const f = view.filters;
+    setPage(0);
+    setSelected(new Set());
+    setStatusCodes(Array.isArray(f['status']) ? f['status'].filter((c): c is string => typeof c === 'string') : []);
+    const kind = f['kind'];
+    setKindFilter(typeof kind === 'string' && (KINDS as readonly string[]).includes(kind) ? kind : '');
+    const savedRma = typeof f['rmaNumber'] === 'string' ? f['rmaNumber'] : '';
+    setRma(savedRma);
+    setDebouncedRma(savedRma);
+    const savedSort = view.sort ? `${view.sort.field}:${view.sort.dir}` : DEFAULT_SORT;
+    setSort((SORTS as readonly string[]).includes(savedSort) ? savedSort : DEFAULT_SORT);
+  };
 
   const clearAllFilters = (): void => {
     setStatusCodes([]);
@@ -329,6 +373,14 @@ export function ReturnsList(): ReactNode {
               <option value="rmaNumber:asc">{t('returns.sort.rmaAsc')}</option>
               <option value="rmaNumber:desc">{t('returns.sort.rmaDesc')}</option>
             </Select>
+            <div className="ml-auto">
+              <SavedViewsControl
+                endpoint={VIEWS_ENDPOINT}
+                current={currentView}
+                onApply={applyView}
+                onError={setError}
+              />
+            </div>
           </div>
 
           {/* Applied-filter chips — each removable, with a one-click clear-all. */}
