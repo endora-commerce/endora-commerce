@@ -5,6 +5,9 @@ import { assertServicesAvailable } from '../declared-services.js';
 import { declareChannelBridgesForTests } from './channel-bridges.js';
 import { BASE_DATABASE_URL_ENV, TEMPLATE_DATABASE_ENV } from '@endora-commerce/test-kit/database';
 import { cloneTemplateForCaller, dropRunDatabase } from '@endora-commerce/test-kit/database';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { migratedDatabase } from './migrated-database.js';
 
 /**
  * Transaction-rollback fixture pattern (R-03):
@@ -59,7 +62,16 @@ export interface TestDb {
   close: () => Promise<void>;
 }
 
-export async function setupTestDb(): Promise<TestDb> {
+/**
+ * `setupTestDb({ firstBoot })` — see {@link setupFirstBootTestDb}. One name for
+ * both on purpose: `check-test-ownership` reads a call of `setupTestDb` as the
+ * host's composition, and a first-boot database is composed from exactly the
+ * same generated entity index and migration registry.
+ */
+export function setupTestDb(): Promise<TestDb>;
+export function setupTestDb(options: FirstBootOptions): Promise<FirstBootTestDb>;
+export async function setupTestDb(options?: FirstBootOptions): Promise<TestDb | FirstBootTestDb> {
+  if (options !== undefined) return setupFirstBootTestDb(options.firstBoot);
   // Issue #211 — see the note in `setupBackendServer`; same seam, same reason.
   assertServicesAvailable('setupTestDb');
   // Feature 120 (FR-015) — this harness composes no platform, so no module's
@@ -82,7 +94,6 @@ type MikroOrmConfig = Awaited<ReturnType<typeof mikroOrmConfig>>;
 
 async function openTestDb(config: MikroOrmConfig): Promise<TestDb> {
   const orm = await MikroORM.init(config);
-  let activeEm: EntityManager | undefined;
 
   // Read outside any test transaction, once per file: the channel is platform
   // state that `global-setup.ts` guarantees, not per-test fixture data.
@@ -90,6 +101,7 @@ async function openTestDb(config: MikroOrmConfig): Promise<TestDb> {
     .fork()
     .findOne(SalesChannel, { systemDefault: true });
   if (!systemDefault) {
+    await orm.close(true);
     throw new Error(
       'No system-default sales channel in the test database. One is established ' +
         'by test/global-setup.ts immediately after the migrations, so this means ' +
@@ -98,9 +110,14 @@ async function openTestDb(config: MikroOrmConfig): Promise<TestDb> {
     );
   }
 
+  return { ...transactionHandle(orm), systemDefaultChannelId: systemDefault.id };
+}
+
+/** The per-test transaction half of a {@link TestDb}, over an ORM it owns. */
+function transactionHandle(orm: MikroORM): Omit<TestDb, 'systemDefaultChannelId'> {
+  let activeEm: EntityManager | undefined;
   return {
     orm,
-    systemDefaultChannelId: systemDefault.id,
     async beginTx() {
       const forked = orm.em.fork({ clear: true }) as EntityManager;
       await forked.begin();
@@ -196,4 +213,79 @@ export async function setupMigratorTestDb(): Promise<TestDb> {
       await dropRunDatabase(baseUrl, clone.name, () => {});
     },
   };
+}
+
+/** A {@link TestDb} over a database whose `sales_channels` table is empty. */
+export type FirstBootTestDb = Omit<TestDb, 'systemDefaultChannelId'>;
+
+export interface FirstBootOptions {
+  /** Names the database on the shared-isolation fallback (`<prefix>_<rand>_test`). */
+  readonly firstBoot: string;
+}
+
+const BACKEND_ROOT = fileURLToPath(new URL('../..', import.meta.url));
+
+/**
+ * A database of the file's own in the state a platform's **first boot** meets
+ * it: every migration applied and nothing else — in particular **no sales
+ * channel**, which every other fixture here guarantees (issue #115).
+ *
+ * It exists for the files whose subject is what happens around an empty or
+ * hand-arranged `sales_channels` table: the boot-time reconciler, the
+ * system-default flag move, the migration that adds a channel column. They
+ * used to empty the shared table to get there — `update "quote_requests" set
+ * "sales_channel_id" = null`, then every channel removed one by one — inside a
+ * rolled-back transaction, which held as long as every statement really ran
+ * inside it, and broke the platform's one guarantee (D-47…D-51) for every file
+ * after it the moment one did not. `check:shared-table-wipes` refuses that
+ * shape since. Here the table is empty because nothing put a row in it, and
+ * the database is dropped on `close()`.
+ *
+ * The database is `migratedDatabase()`'s: a clone of this invocation's
+ * template with the platform invariants withdrawn, or, under
+ * `BACKEND_TEST_ISOLATION=shared`, an empty database the migration runner is
+ * spawned into. Cases still run in a transaction that is rolled back, so they
+ * do not leak into one another.
+ */
+async function setupFirstBootTestDb(prefix: string): Promise<FirstBootTestDb> {
+  assertServicesAvailable('setupTestDb');
+  await declareChannelBridgesForTests();
+  const database = await migratedDatabase(prefix, (url) => migrateInto(url));
+  let orm: MikroORM;
+  try {
+    orm = await MikroORM.init({ ...(await mikroOrmConfig()), clientUrl: database.url });
+  } catch (error) {
+    await database.drop();
+    throw error;
+  }
+  const handle = transactionHandle(orm);
+  return {
+    ...handle,
+    close: async () => {
+      try {
+        await handle.close();
+      } finally {
+        await database.drop();
+      }
+    },
+  };
+}
+
+/** `migration:up` into `url`, as an operator runs it — the shared-isolation fallback only. */
+async function migrateInto(url: string): Promise<void> {
+  await new Promise<void>((resolveRun, rejectRun) => {
+    const child = spawn('pnpm', ['exec', 'tsx', 'src/db/migrate.ts', 'up'], {
+      cwd: BACKEND_ROOT,
+      env: { ...process.env, DATABASE_URL: url },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let output = '';
+    child.stdout.on('data', (chunk: Buffer) => (output += chunk.toString()));
+    child.stderr.on('data', (chunk: Buffer) => (output += chunk.toString()));
+    child.on('error', rejectRun);
+    child.on('close', (code) => {
+      if (code === 0) resolveRun();
+      else rejectRun(new Error(`migration:up into ${url} exited ${code}\n${output}`));
+    });
+  });
 }
