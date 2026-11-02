@@ -20,6 +20,7 @@ import {
   convertQuoteRequestToCart,
   whenOrderCreatedSettled,
 } from '../../helpers/quote-conversion.js';
+import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 
 const bundle = (language: 'en' | 'pl'): Record<string, string> =>
   JSON.parse(
@@ -110,9 +111,18 @@ describe('orders — a quote’s validity is checked again when the order is pla
     });
   };
 
+  /** The stock this file tops up, put back in `afterAll`: the database is shared by every file. */
+  let savedStock: Array<{ id: string; on_hand: number }> = [];
+
   beforeAll(async () => {
     h = await setupBackendServer();
-    await h.em().getConnection().execute(`update "stock_levels" set "on_hand" = 100000`);
+    const connection = h.em().getConnection();
+    savedStock = await connection.execute(`select "id", "on_hand" from "stock_levels" where "product_id" = ?`, [
+      SEED_PRODUCT_101_ID,
+    ]);
+    await connection.execute(`update "stock_levels" set "on_hand" = 100000 where "product_id" = ?`, [
+      SEED_PRODUCT_101_ID,
+    ]);
   });
 
   beforeEach(async () => {
@@ -125,6 +135,10 @@ describe('orders — a quote’s validity is checked again when the order is pla
   });
 
   afterAll(async () => {
+    const connection = h.em().getConnection();
+    for (const row of savedStock) {
+      await connection.execute(`update "stock_levels" set "on_hand" = ? where "id" = ?`, [row.on_hand, row.id]);
+    }
     await teardownBackendServer(h);
   });
 
