@@ -17,6 +17,7 @@ import {
   TIER_UNIT_PRICE,
   TIER_VOLUME_PRICE,
 } from '../../helpers/tiered-product-fixture.js';
+import { emptyCustomerBasket } from '../../helpers/customer-basket.js';
 
 /**
  * An order line is placed at the price its cart line may be ordered at **now**,
@@ -47,7 +48,7 @@ describe('POST /api/v1/orders — the line price is the price for its current qu
   });
 
   beforeEach(async () => {
-    await h.cartService()!.clearForCustomer(customerCtx);
+    await emptyCustomerBasket(h, customerCtx);
   });
 
   function place() {

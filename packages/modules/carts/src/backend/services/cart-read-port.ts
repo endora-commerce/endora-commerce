@@ -92,8 +92,6 @@ export function createCartWritePort(
       };
     },
 
-    clearForCustomer: (ctx) => getService().clearForCustomer(ctx),
-
     async replaceItemsForCustomer(
       ctx,
       lines,

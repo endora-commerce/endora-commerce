@@ -1363,21 +1363,6 @@ export class CartService {
     return refused;
   }
 
-  async clearForCustomer(ctx: CustomerContext): Promise<void> {
-    // command-coverage-ignore: empties the ephemeral cart — transient pre-order
-    // working state; the resulting order captures the audited final state.
-    const em = this.emFactory();
-    const cart = await em.findOne(Cart, {
-      customerAccountId: ctx.customerAccountId,
-      salesChannelId: ctx.salesChannelId,
-      status: 'active',
-    });
-    if (!cart) return;
-    await em.nativeDelete(CartItem, { cartId: cart.id });
-    cart.status = 'completed';
-    await em.flush();
-  }
-
   /**
    * The line's basket is the caller's **and** the one of the channel the caller
    * is on: a customer's basket of another store is not this store's basket, so

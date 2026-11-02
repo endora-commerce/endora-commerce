@@ -14,6 +14,7 @@ import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js'
 import { priceListChannelBridge } from '../../helpers/orders-neighbour-ports.js';
 import { seedPriceBookSql } from '../../helpers/price-book-sql.js';
 import { CUSTOMER_COOKIES } from '../../helpers/test-actors.js';
+import { emptyCustomerBasket } from '../../helpers/customer-basket.js';
 
 /**
  * Issue #124, the price half — an absent `price_lists` must refuse, not price
@@ -87,7 +88,7 @@ describe('price_lists — an absent owner refuses to price a cart line [integrat
     // every other file of the run, and a re-price another file cached for it
     // would answer this read without asking `price_lists` at all.
     const retail = await h.em().findOneOrFail(SalesChannel, { code: SALES_CHANNEL_HEADER['x-sales-channel'] });
-    await h.cartService()!.clearForCustomer({
+    await emptyCustomerBasket(h, {
       ...CUSTOMER_COOKIES[CUSTOMER.b2b_session]!,
       salesChannelId: retail.id,
     });

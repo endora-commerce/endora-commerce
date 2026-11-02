@@ -10,6 +10,7 @@ import { SEED_PRODUCT_101_ID, SEED_PRODUCT_102_ID } from '../../helpers/seed-cat
 import { CUSTOMER_COOKIES, TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { seedPriceBookSql } from '../../helpers/price-book-sql.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
+import { emptyCustomerBasket } from '../../helpers/customer-basket.js';
 
 /**
  * Feature 160 (FR-028, SC-002) — every pricing surface returns the same amount,
@@ -52,7 +53,7 @@ describe('pricing — every surface agrees (SC-002)', () => {
   }, 5 * 60_000);
 
   afterAll(async () => {
-    await h.cartService()?.clearForCustomer({ ...CUSTOMER_COOKIES[SESSION.b2b_session]!, salesChannelId: retailId });
+    await emptyCustomerBasket(h, { ...CUSTOMER_COOKIES[SESSION.b2b_session]!, salesChannelId: retailId });
     await teardownBackendServer(h);
   });
 
