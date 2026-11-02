@@ -146,7 +146,13 @@ export const cartViewLineSchema = z.object({
   id: uuidSchema,
   productId: uuidSchema,
   variantId: uuidSchema.nullable(),
-  productName: z.string(),
+  /**
+   * The product's name in the response language, `null` when it is not known
+   * to the reply: the line-mutation replies (`POST`/`PATCH`/`DELETE
+   * /api/v1/cart/items…`) do not resolve product names and answer `null` on
+   * every line; `GET /api/v1/cart` resolves it (issue #128).
+   */
+  productName: z.string().nullable(),
   /**
    * Feature 163 (owner decision S1 = A) — `null` when the product is not
    * available at the basket's (channel, language): the line keeps its name and
@@ -156,7 +162,12 @@ export const cartViewLineSchema = z.object({
   productSlug: z.string().nullable().optional(),
   /** The product's SKU, kept on an unavailable line too. */
   productSku: z.string().nullable().optional(),
-  productThumbnailUrl: z.string().nullable(),
+  /**
+   * Declared since feature 027 and **not answered by any cart route today**
+   * (issue #128): a client must treat it as absent. Optional so the schema
+   * describes the wire rather than a field nobody sends.
+   */
+  productThumbnailUrl: z.string().nullable().optional(),
   quantity: z.number().int().positive(),
   unitPrice: moneySchema,
   lineTotal: moneySchema,
@@ -186,8 +197,15 @@ export type CartViewLine = z.infer<typeof cartViewLineSchema>;
 export const cartMiniLineSchema = z.object({
   id: uuidSchema,
   productId: uuidSchema,
-  productName: z.string(),
-  productThumbnailUrl: z.string().nullable(),
+  /** Answered on every mini line (issue #128); `null` = the line is not a variant. */
+  variantId: uuidSchema.nullable().optional(),
+  /**
+   * Declared since feature 027 and **not answered by the mini view** (issue
+   * #128) — it skips the product lookup on purpose (FR-007). A client must
+   * treat both as absent.
+   */
+  productName: z.string().nullable().optional(),
+  productThumbnailUrl: z.string().nullable().optional(),
   quantity: z.number().int().positive(),
   unitPrice: moneySchema,
   lineTotal: moneySchema,
@@ -244,23 +262,45 @@ export const cartFullPayloadSchema = z.object({
   primaryCta: cartPrimaryCtaSchema,
   droppedLines: z.array(cartDroppedLineSchema),
   couponDroppedThisRead: couponDroppedThisReadSchema,
-  createdAt: isoDateTimeSchema,
-  updatedAt: isoDateTimeSchema,
-  lastActivityAt: isoDateTimeSchema,
+  /**
+   * `null` on the empty basket — the reply for a caller who has no basket yet,
+   * whose `id` is `null` too (issue #128). A basket that exists always carries
+   * all three.
+   */
+  createdAt: isoDateTimeSchema.nullable(),
+  updatedAt: isoDateTimeSchema.nullable(),
+  lastActivityAt: isoDateTimeSchema.nullable(),
 });
 export type CartFullPayload = z.infer<typeof cartFullPayloadSchema>;
 
 export const cartFullResponseSchema = z.object({ data: cartFullPayloadSchema });
 export type CartFullResponse = z.infer<typeof cartFullResponseSchema>;
 
+/**
+ * `GET /api/v1/cart?view=mini` — the header's lightweight basket (feature 027,
+ * FR-007).
+ *
+ * What the route answers is `id`, `itemCount`, `items` and `subtotal`, on an
+ * empty basket too. `status`, `approvalStatus`, `grandTotal` and `primaryCta`
+ * were declared required here and have **never been answered** by the mini
+ * view, which skips the coupon and promotion work they need on purpose; they
+ * are optional so the schema describes the wire (issue #128). A client that
+ * needs them reads the full view.
+ */
 export const cartMiniPayloadSchema = z.object({
   id: uuidSchema.nullable(),
-  status: cartStatusSchema,
-  approvalStatus: cartApprovalStatusSchema,
+  status: cartStatusSchema.optional(),
+  approvalStatus: cartApprovalStatusSchema.optional(),
   items: z.array(cartMiniLineSchema),
   itemCount: z.number().int().nonnegative(),
-  grandTotal: moneySchema,
-  primaryCta: cartPrimaryCtaSchema,
+  /**
+   * The sum of the lines at their stored unit prices — no re-pricing, no
+   * discount. Answered on every mini reply; optional only so a value that
+   * parsed before it was declared still parses.
+   */
+  subtotal: moneySchema.optional(),
+  grandTotal: moneySchema.optional(),
+  primaryCta: cartPrimaryCtaSchema.optional(),
 });
 export type CartMiniPayload = z.infer<typeof cartMiniPayloadSchema>;
 
