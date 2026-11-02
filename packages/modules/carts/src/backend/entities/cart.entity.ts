@@ -13,6 +13,14 @@ import { randomUUID } from 'crypto';
  *   abandoned    → active     (owner activity)
  *   active       → completed  (checkout success OR cart→QR conversion)
  *   active       → rejected   (org-admin reject OR platform-admin reject)
+ *   working      → completed  (placement of the order it was created for)
+ *
+ * `working` (issue #169) is a basket the platform places an order from on the
+ * customer's behalf — admin order creation, one-click buy, the external order
+ * intake — written from the request's lines beside the customer's active
+ * basket, which it never touches. It is never the customer's basket: not
+ * unique per channel, not swept, not listed. Placement completes it against
+ * the order (`completed_order_id`) or removes it when it refuses.
  *
  * Legacy `converted` was migrated to `completed` by migration 050. Mass
  * code in the repo that previously wrote `'converted'` now writes
@@ -177,13 +185,14 @@ export class Cart {
   updatedAt: Date = new Date();
 }
 
-export type CartStatus = 'active' | 'abandoned' | 'completed' | 'rejected';
+export type CartStatus = 'active' | 'abandoned' | 'completed' | 'rejected' | 'working';
 
 export const CART_STATUSES: readonly CartStatus[] = [
   'active',
   'abandoned',
   'completed',
   'rejected',
+  'working',
 ] as const;
 
 export type CartApprovalStatus =

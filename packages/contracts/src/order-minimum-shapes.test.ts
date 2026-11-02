@@ -384,7 +384,7 @@ describe('cart batch add — CartWritePort.addItems (contracts/cart-and-checkout
         {
           onLineError: 'throw' | 'report';
           onBelowMinimum?: 'report' | 'throw';
-          replaceExisting?: boolean;
+          workingBasket?: boolean;
           keepRepeatedLines?: boolean;
           language?: string;
         },

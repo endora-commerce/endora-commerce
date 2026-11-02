@@ -130,6 +130,8 @@ describe('placeOrder — the payment row apply port, against a live transaction'
         readActiveForPlacement: (em, ctx) => real.cartPlacementApply.readActiveForPlacement(em, ctx),
         findPriceDrift: (em, input) => real.cartPlacementApply.findPriceDrift(em, input),
         refreshLinePrices: (input) => real.cartPlacementApply.refreshLinePrices(input),
+        readWorkingForPlacement: (em, ctx) => real.cartPlacementApply.readWorkingForPlacement(em, ctx),
+        discardWorkingBasket: (input) => real.cartPlacementApply.discardWorkingBasket(input),
         completeForOrder: async (em, input) => {
           // Let the real completion write first: the point is that a *committed*
           // statement would survive, so the failure has to land after one.

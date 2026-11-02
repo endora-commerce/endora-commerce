@@ -102,13 +102,14 @@ kliknięciem”. Pomija on koszyk i checkout: zamówienie jest składane z warto
 a kupujący trafia tam, gdzie wskazuje `nextAction` płatności (przekierowanie do bramki albo strona
 zamówienia lub sukcesu, gdy krok płatności nie jest potrzebny).
 
-Produkt staje się całym koszykiem kupującego przez metodę koszyka `addItems` z
-`replaceExisting: true` i `onBelowMinimum: 'throw'`, a następnie `OrderService.placeOrder` składa
-zamówienie. `addItems` opróżnia koszyk dopiero wtedy, gdy nie ma już powodu, by odrzucić pozycję,
-więc pozycja odrzucona przed zapisem — poniżej minimalnej ilości zamówienia, bez ceny albo dostępna
-tylko przez zapytanie ofertowe — zostawia koszyk dokładnie takim, jaki był. Odmowa przy składaniu
+Koszyk kupującego pozostaje nietknięty. Produkt trafia do osobnego koszyka roboczego (*Koszyki
+robocze* modułu koszyków) przez metodę koszyka `addItems` z `workingBasket: true`
+i `onBelowMinimum: 'throw'`, a `OrderService.placeOrder` składa zamówienie z tego koszyka. To, co
+kupujący miał w koszyku — także pozycje wypełnione z zaakceptowanego zapytania ofertowego —
+pozostaje tam później. Pozycja odrzucona przed zapisem — poniżej minimalnej ilości zamówienia, bez
+ceny albo dostępna tylko przez zapytanie ofertowe — niczego nie zapisuje. Odmowa przy składaniu
 zamówienia, już po zapisaniu pozycji (stan magazynowy, organizacja, metoda płatności lub dostawy),
-zostawia w koszyku tę jedną pozycję z zakupu jednym kliknięciem.
+ponownie usuwa koszyk roboczy.
 
 Obowiązują te same warunki co przy zwykłym zamówieniu (aktywna organizacja, wartość minimalna, limit
 kredytowy, stan magazynowy, minimalna ilość zamówienia). Dla produktu `simple` lub `configurable` z

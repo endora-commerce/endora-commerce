@@ -22,6 +22,9 @@ import {
   type CatalogProductReadPort,
   type CatalogProductRecord,
   type PromotionApplication,
+  type CartFullPayload,
+  type CartMiniPayload,
+  type CouponDropReason,
 } from '@endora-commerce/contracts';
 import {
   availableRecords,
@@ -378,7 +381,7 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
     // cart fell below min spend after a line removal), drop it silently
     // on the cart record and surface `couponDroppedThisRead` so the
     // storefront banner can inform the buyer.
-    let couponDroppedThisRead: { code: string; reason: string } | null = null;
+    let couponDroppedThisRead: { code: string; reason: CouponDropReason } | null = null;
     if (cart.appliedPromotionCode && items.length > 0) {
       try {
         const result = await deps.cartCouponService.reevaluateOnRead(cart, items);
@@ -745,7 +748,12 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
   });
 }
 
-function emptyCart() {
+/**
+ * The reply for a caller with no basket on this channel. Typed by the contract
+ * like the serialisers below (issue #128): a field the contract requires and
+ * this literal stops answering is a compile error.
+ */
+function emptyCart(): CartFullPayload {
   return {
     id: null,
     customerAccountId: null,
@@ -769,18 +777,11 @@ function emptyCart() {
   };
 }
 
-function emptyMiniCart() {
+function emptyMiniCart(): CartMiniPayload {
   return {
     id: null,
     itemCount: 0,
-    items: [] as Array<{
-      id: string;
-      productId: string;
-      variantId: string | null;
-      quantity: number;
-      unitPrice: { amount: number; currency: string };
-      lineTotal: { amount: number; currency: string };
-    }>,
+    items: [],
     subtotal: { amount: 0, currency: 'PLN' },
   };
 }
@@ -792,7 +793,7 @@ function emptyMiniCart() {
  * `primaryCta`. The header renders this on every page navigation so the
  * envelope is intentionally minimal.
  */
-function serializeCartMini(cart: Cart, items: CartItem[]) {
+function serializeCartMini(cart: Cart, items: CartItem[]): CartMiniPayload {
   const currency = items[0]?.currency ?? 'PLN';
   const serializedItems = items.map((it) => {
     const unitPriceAmount = Number(it.unitPrice);
@@ -834,7 +835,7 @@ function serializeCart(
   cart: Cart,
   items: CartItem[],
   recomputedPrices: Map<string, { amount: number; currency: string }> | null = null,
-  couponDroppedThisRead: { code: string; reason: string } | null = null,
+  couponDroppedThisRead: { code: string; reason: CouponDropReason } | null = null,
   productMeta: Map<string, ProductMeta> = new Map(),
   application: PromotionApplication | null = null,
   /** Feature 155 — the full view's per-line minimum flags; absent on the mutation answers. */
@@ -844,7 +845,7 @@ function serializeCart(
    * as unavailable, because placement refuses them.
    */
   pricingRefusals: Map<string, RecomputeRefusal> | null = null,
-) {
+): CartFullPayload {
   let currency = items[0]?.currency ?? 'PLN';
   // Each line at the price it is shown at, for the subtotal (issue #417: exact).
   const priced: Array<{ unitPrice: number | string; quantity: number }> = [];
