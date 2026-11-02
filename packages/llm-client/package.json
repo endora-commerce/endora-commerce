@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/llm-client",
-  "version": "0.108.0",
+  "version": "0.109.0",
   "type": "module",
   "description": "Provider-neutral LLM transport — fetch-based Anthropic, Google and OpenAI (and OpenAI-compatible) adapters with tool calling, shared by the modules that call a language model.",
   "license": "MIT",

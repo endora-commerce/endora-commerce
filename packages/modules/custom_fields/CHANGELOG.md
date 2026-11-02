@@ -1,5 +1,148 @@
 # @endora-commerce/mod-custom-fields
 
+## 0.109.0
+
+### Minor Changes
+
+- 2aa2c9b: _Project_ is a record type of Custom Fields: an operator defines fields on Projects on
+  `/custom-fields` as on Opportunities, and the Projects module validates, stores and shows them.
+
+  **`@endora-commerce/mod-custom-fields`**:
+
+  - New entity type `project` (_Project_ / _Projekt_), owned by the `projects` module: offered on
+    the entity-types listing, and its definitions created, changed or deleted, only while Projects
+    is on — while it is off the type is absent and a definition write answers 409
+    `CUSTOM_FIELD_HOST_MANAGED`, as for the other owned types. Definitions and stored values are
+    kept and served again when Projects is back.
+  - A Project definition may be marked as a list filter; no carry targets.
+  - The values live in `projects.custom_field_values`; the definition-change guards and the
+    list-filter condition read that column.
+
+  **`@endora-commerce/contracts`**:
+
+  - `supportedEntityTypeSchema` gains `'project'`. A consumer that switches exhaustively over
+    `SupportedEntityType`, or holds a `Record<SupportedEntityType, …>`, gets a compile error until
+    it handles the new member.
+
+- 55864a1: Tasks can carry custom fields (`specs/165-task-management/` R-8): `task` is a host entity type owned by the `tasks` module, stored in `tasks.custom_field_values`, offered only while Tasks is on, and usable as a list filter.
+
+### Patch Changes
+
+- 24ef6aa: `/custom-fields`: a field is created in the same definition form that edits it, so it can be fully
+  defined when it is created (#447).
+
+  - **New field** opens the form in a dialog with the edit dialog's sections in the same order:
+    definition (record type, type, key), labels, options, rules, behaviour. Create still sends one
+    `POST` — now with a label per admin language and options carrying their own labels per language,
+    the default flag and their order. The comma-separated options box is gone.
+  - The label languages are the platform's supported languages, not a list written in the module.
+  - **Who can see the value** is offered in the edit dialog as well; a change that breaks a carry asks
+    first, as it does from the table.
+  - Both views check before sending: the key's format, a default label, unique non-empty option values,
+    a default label per option, and at most one default option on a _Single choice_ field (several are
+    allowed on _Multiple choice_). A server refusal is said next to the field it concerns — a taken key
+    at the key — never as a code.
+  - The behaviour block's `row` layout and the `customFields.carry.helpGroup` key went with the inline
+    create form; the create form's carry checkboxes now carry their own help lines, as the editor's do.
+
+- c99b4cd: The command-palette actions of the commerce modules (`carts`, `catalog`, `comparisons`, `credit_limits`, `customer_accounts`, `customers`, `custom_fields`, `delivery_methods`, `dictionaries`, `document_templates`, `import_export`, `inventory`, `invoice_ledger`, `invoices`, `payment_methods`, `price_lists`, `product_feeds`, `promotions`, `quote_requests`, `sales_channels`, `taxes`) keep only English `keywords` in their manifests. Their Polish search words moved to each module's `i18n/pl.json` under the action's new `keywordsKey`, with an English entry in `i18n/en.json` (issue #573, following #560), and the ones that had been written without diacritics now carry them (`utwórz cennik`, `wyjaśnienie ceny`, `kolejność cen`). A Polish operator finds the same screens by the same words; an English-language admin is no longer offered the Polish ones.
+- df95f59: The manifests now declare the refusal tokens of every error code they raise with a computed `details.code`. `mod-tasks` declares `TASK_WORKFLOW_INVALID`'s ten rule tokens and `TASK_STATUS_IN_USE_TOO_MANY`'s `priority`; `mod-custom-fields` (`CUSTOM_FIELD_OPTION_IN_USE`, `CUSTOM_FIELD_STORED_VALUES_EXIST`, `CUSTOM_FIELD_VALUE_TYPE_LOCKED`), `mod-document-templates` (`DOCUMENT_TEMPLATE_INVALID`) and `mod-projects` (`PROJECT_MOVE_NOT_PERMITTED`) declare `tokens: []`, stating that those raises never carry a token. Every token already had its sentence in English and Polish, so no rendered message changes.
+- Updated dependencies [42b1038]
+- Updated dependencies [5d192d3]
+- Updated dependencies [9b45768]
+- Updated dependencies [d2acc82]
+- Updated dependencies [22604fa]
+- Updated dependencies [c3165da]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [e64ed74]
+- Updated dependencies [e03e6a9]
+- Updated dependencies [50338a6]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [22604fa]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [9ff8307]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [07f3764]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [ea892d5]
+- Updated dependencies [678fed1]
+- Updated dependencies [dcbd154]
+- Updated dependencies [a76d6ee]
+- Updated dependencies [22604fa]
+- Updated dependencies [9a38360]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [bdef54c]
+- Updated dependencies [1b4f2b7]
+- Updated dependencies [d560d58]
+- Updated dependencies [dd6deb2]
+- Updated dependencies [3f697a3]
+- Updated dependencies [df0a90e]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [774d23e]
+- Updated dependencies [4cb0a7d]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [f148418]
+- Updated dependencies [3ea1249]
+- Updated dependencies [476c5aa]
+- Updated dependencies [8ef189b]
+- Updated dependencies [4bc5c7f]
+- Updated dependencies [eba4fd8]
+- Updated dependencies [61fc321]
+- Updated dependencies [9b3e7f0]
+- Updated dependencies [ecdd2f7]
+- Updated dependencies [ecdd2f7]
+- Updated dependencies [b7baf8a]
+- Updated dependencies [1b1c43e]
+- Updated dependencies [56e237d]
+- Updated dependencies [d50b874]
+- Updated dependencies [a166cfd]
+- Updated dependencies [0a816a0]
+- Updated dependencies [f261ed3]
+- Updated dependencies [302e5ce]
+- Updated dependencies [d68fb89]
+- Updated dependencies [c73366c]
+- Updated dependencies [b0a1e48]
+- Updated dependencies [b25d8be]
+- Updated dependencies [5038a3a]
+- Updated dependencies [df95f59]
+- Updated dependencies [1fd4822]
+- Updated dependencies [9cb3c8d]
+- Updated dependencies [0f5bcde]
+- Updated dependencies [c72a83e]
+- Updated dependencies [42189ce]
+- Updated dependencies [d9053a7]
+- Updated dependencies [23489bf]
+- Updated dependencies [f40ce92]
+- Updated dependencies [55864a1]
+- Updated dependencies [ed85493]
+- Updated dependencies [3174251]
+- Updated dependencies [55864a1]
+- Updated dependencies [11b0eb8]
+- Updated dependencies [b8b6eed]
+- Updated dependencies [2aa2c9b]
+- Updated dependencies [883d192]
+- Updated dependencies [5114576]
+- Updated dependencies [8f7c38e]
+- Updated dependencies [1846755]
+  - @endora-commerce/admin-kit@0.109.0
+  - @endora-commerce/platform@0.109.0
+  - @endora-commerce/contracts@0.109.0
+
 ## 0.108.0
 
 ### Minor Changes

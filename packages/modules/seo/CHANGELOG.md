@@ -1,5 +1,179 @@
 # @endora-commerce/mod-seo
 
+## 0.109.0
+
+### Minor Changes
+
+- 61fc321: The storefront language is part of the URL path (`/pl/p/wiertarka`, `/en/p/drill`, issue #396).
+
+  **Upgrade note for operators: existing sales channels keep their addresses.** The migration
+  `Migration20261029T152922CoreSalesChannelsPrefixDefaultLanguage` adds the per-channel setting
+  _Prefix the default language in URLs_ and switches it **off** on every channel that exists when it
+  runs, so default-language URLs stay unprefixed; channels created later start **on**. To adopt
+  prefixes for the default language too, switch _Prefix the default language in URLs_ on in
+  _Sales channels_ → the channel. Other languages are prefixed either way: a former
+  `/p/<key>?lang=<L>` link answers a permanent redirect to `/<prefix>/p/<key>`. A CMS page whose slug
+  starts with a channel language prefix can no longer be saved.
+
+  `@endora-commerce/contracts`:
+
+  - New: `channelUrlLanguages`, `channelUrlLanguageAliases`, `storefrontPagePath`,
+    `storefrontPagePathFor`, `storefrontDefaultPath`, `channelUrlLanguageSchema`,
+    `channelUrlLanguageAliasSchema`, `URL_LANGUAGE_PREFIX_PATTERN`, types `ChannelUrlFacts`,
+    `ChannelUrlLanguage`, `ChannelUrlLanguageAlias`; `productDefaultPath(key)`.
+  - **`productPath` takes the channel's URL facts and never appends `?lang=`:**
+    `productPath({ key, languageCode, channelDefaultLanguage })` (`/p/drill?lang=en-US`) becomes
+    `productPath({ key, languageCode, channel })` (`/en/p/drill`), where `channel` is any
+    `{ languages, defaultLanguage, prefixDefaultLanguage }` — the cached channel satisfies it.
+  - `productKeyResolutionSchema`'s `redirect` requires `permanent` (`false` for a key of another
+    channel language, answered 307); `productPagePathsSchema` requires `xDefault`.
+  - Sales channel shapes carry `prefixDefaultLanguage` (create defaults to `true`); the public
+    channel read answers `prefixDefaultLanguage`, `urlLanguages` and `urlLanguageAliases`.
+  - `cmsPageUrl` (163 R24) takes the channel's URL facts and composes the prefixed path:
+    `cmsPageUrl({ path, languageCode, channelDefaultLanguage })` (`/about-us?lang=en-US`) becomes
+    `cmsPageUrl({ path, languageCode, channel })` (`/en/about-us`). The resolved CMS page's `url` and
+    `alternates`, and the storefront page index, therefore carry each language's own slug under its
+    prefix.
+  - `CmsPageRecord` gains optional `languages` and `translations` (the `seo` sitemap lists each
+    language at its own slug); `cmsPageSummarySchema` gains an optional
+    `shadowedByLanguagePrefix` (any of the page's slugs, per-language ones included).
+
+  Emitters (catalog, seo sitemap, product feeds, organizations, customers, newsletter, comparisons,
+  mfa, invoices) compose prefixed storefront URLs; the product feed `link` uses the product's key in
+  the feed language; the invoice e-mail links the storefront order page; the admin password reset
+  links `/password-reset/confirm`. `cms-components` localizes block links through the render
+  context's `localizePath`.
+
+### Patch Changes
+
+- bdef54c: The product editor's SEO tab ends with a new admin zone, `product.editor.seo.after` (props: the product id). `seo` contributes the link to its meta-tag editor there, shown while `seo` is on and the admin holds `catalog:write`; `catalog` no longer names `seo`. The tab's former "Page title (preview)" input, which saved nothing, is gone.
+- 4cb0a7d: Product data scopes — checkpoint C/E/Q review fixes.
+
+  - **Platform:** new `withSystemScopeActingFor(adminUserId, reason, fn)` in `@endora-commerce/platform/tenancy` — a worker's system scope acting for the admin who queued the work, so its Commands are audited with that admin.
+  - **Catalog — audit:** a queued bulk Archive / Restore and a queued bulk scoped-status edit audit each product with the admin who requested the operation (it was a null actor). The API-key upsert `PUT /api/v1/catalog/products/by-sku/:sku` of an existing product is now the audited `product.update` Command, its entry naming the key (`apiKeyId` in the after-state); it is still never checked by the completeness gate.
+  - **Catalog — Archive / Restore** lock the product row, so a concurrent single and bulk Archive transition the product once: one audit entry, one `product.archived.v1`.
+  - **Catalog:** a composition that cannot build the completeness gate logs one warning instead of running unchecked silently.
+  - **SEO:** the cached sitemaps are marked stale on a change of the global status, archive, visibility or organization list, and on `product.archived.v1`, as they already were on the scoped values and URL keys.
+  - **Behaviour change for API clients (contracts, SEO):** an override's `ogImageUrl` must be an `http(s)` URL or a path starting with a single `/` (`ogImageUrlSchema`); `javascript:`, `data:` and other schemes are refused with `400 VALIDATION_FAILED`. The read shape accepts any stored string.
+  - **Contracts:** `effectiveOrderRules` and `effectiveKeys` are documented as applying no availability — a buyer-facing caller filters with `filterAvailable` first.
+
+- 62b9a1c: Search, the sitemap and product feeds follow product data scopes per sales channel and language.
+
+  - **Search:** a channel index carries every member that is on in at least one channel language; each document gains `liveLanguages`, `publishFromMs`, `publishUntilMs` and the channel-effective `visibility` and `allowedOrganizationIds` (all filterable). A query filters on the request language, the publication window at query time and the caller's audience, so a page is cut from available hits only; hydration asks `catalog` again for every hit. On the first reindex-scheduler tick after the upgrade (about a minute after start) the worker process makes those fields filterable (and `localizedNames` searchable) on every existing channel index without a reindex, changing a setting only where it is missing, so queries keep using the index; documents indexed before the upgrade are served as before. **Upgrade step:** run one reindex per sales channel (the `search_reindex` bulk operation or the reindex CLI) so the window and per-language filters are exact. `SearchIndexerOptions` requires `availability`; `SearchQueryService` takes the availability port as its sixth argument.
+  - **Sitemap:** lists a product when it is available in the channel to an anonymous visitor at generation time — on in a channel language, inside its publication window, admitted by the channel's audience rule — with one URL per live language (`?lang=<code>` outside the channel's default). A product off globally but on in the channel is listed; one switched off in the channel is not.
+  - **Product feeds:** the eligibility floor is effective availability at the feed's channel and language for an anonymous reader (scoped status, publication window, channel audience) instead of the global status; the selection preview counts the same set.
+  - **Search, effective names:** documents carry `localizedNames.<language>` — the Name shown at the channel in each live language (channel overrides applied) — and a query searches `localizedNames.<request language>` beside the fields it always searched. Should an index still lack `localizedNames` as a searchable field, the query is asked again without that restriction, so search keeps working.
+
+  **Release note — after upgrading:** run one `search_reindex` per sales channel. Until then the window, per-language and effective-name parts of search are approximate (documents indexed before the upgrade are served as before). The storefront listing's name sort now follows the effective name shown in the request's channel and language instead of the product slug, so its order changes for products whose name and slug sort differently; name-sort cursors issued before the upgrade start the list again.
+
+- 9598e15: The SEO screen's meta-tag editor loads a scope as soon as it is selected (Load refreshes it), keeps the channel and language selectors disabled while a request is in flight and ignores an answer for a scope no longer selected, so an override can only be saved to the scope on screen. Switching away from unsaved changes and **Use inherited** now ask first; for a product the editor waits for the product's sales channels. The screen opens with an entity selected when its address carries `?entityType=product&entityId=<id>`, which is where the product editor's SEO link now points; an `entityId` that is not a UUID is ignored, and the editor encodes the id in every request path it builds.
+- 4de595c: The SEO meta editor routes (`GET`, `PUT`, `DELETE /api/v1/admin/seo/meta/:entityType/:entityId`) answer `404 NOT_FOUND` for an `entityId` that is not a UUID, where PostgreSQL's refusal used to surface as a 500.
+- 1a6c47e: The SEO screen's meta-tag editor addresses a product override by sales channel as well as language: the channel list holds the product's own sales channels, a channel offers its own languages or the whole channel, the effective values say where each one comes from (channel and language, whole channel, language, or the product itself), and **Use inherited** removes the override at exactly the selected scope. The admin meta read answers `sources` beside `resolved`. Categories keep the language rows only.
+- a76d6ee: SEO overrides per sales channel and per sales channel × language.
+
+  - Migration `20261025T215911_seo_meta_override_channel_scope.ts` adds `seo_meta_overrides.sales_channel_id`, makes `locale` nullable (at least one of the two is set) and replaces the `(entity_type, entity_id, locale)` unique with one partial unique per scope. Existing rows are language overrides, unchanged.
+  - `GET|PUT|DELETE /api/v1/admin/seo/meta/:entityType/:entityId` take an optional `channelId` (query for GET and DELETE, body for PUT) beside `locale`; naming neither is still the `en-US` row. Only a product takes a channel (`422 VALIDATION_FAILED` otherwise); a channel the product is not in, or a language the channel does not offer, is `422 SCOPE_INVALID` on PUT and allowed on DELETE. Each field resolves channel × language → channel → language → derived.
+  - Writes are the Commands `seo_meta_override.upsert` and `seo_meta_override.delete`: one audit entry per request, with the full override before and after (an update's `before` is no longer `null`); deleting nothing writes no entry. `MetaTagResolverService` takes the `commandBus` instead of an audit sink.
+  - New port `seoProductMetaPort` (`resolveForProduct`, `listScopesForProduct`).
+
+- 678fed1: The sitemap lists one URL per language a product is live in, each on the product's effective URL key in that language (`catalogProductUrlKeyReadPort`), with `?lang=` off the channel's default language. A `product.updated.v1` that changes a product's scoped status, publication window, audience or URL keys marks every channel's cached sitemap stale, so the next request regenerates it.
+- d86466f: The command-palette actions of the content and marketing modules (`analytics`, `assets_library`, `blog`, `cms`, `google_analytics`, `google_tag_manager`, `linkedin_ads`, `megamenu`, `meta_ads`, `newsletter`, `pwa`, `seo`, `transactional_emails`) keep only English `keywords` in their manifests. Their Polish search words moved to each module's `i18n/pl.json` under the action's new `keywordsKey`, with an English entry in `i18n/en.json` (issue #573, following #560). A Polish operator finds the same screens by the same words; an English-language admin is no longer offered the Polish ones.
+- Updated dependencies [42b1038]
+- Updated dependencies [5d192d3]
+- Updated dependencies [9b45768]
+- Updated dependencies [d2acc82]
+- Updated dependencies [22604fa]
+- Updated dependencies [c3165da]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [e64ed74]
+- Updated dependencies [e03e6a9]
+- Updated dependencies [50338a6]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [22604fa]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [9ff8307]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [07f3764]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [ea892d5]
+- Updated dependencies [678fed1]
+- Updated dependencies [dcbd154]
+- Updated dependencies [a76d6ee]
+- Updated dependencies [22604fa]
+- Updated dependencies [9a38360]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [bdef54c]
+- Updated dependencies [1b4f2b7]
+- Updated dependencies [d560d58]
+- Updated dependencies [dd6deb2]
+- Updated dependencies [3f697a3]
+- Updated dependencies [df0a90e]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [774d23e]
+- Updated dependencies [4cb0a7d]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [f148418]
+- Updated dependencies [3ea1249]
+- Updated dependencies [476c5aa]
+- Updated dependencies [8ef189b]
+- Updated dependencies [4bc5c7f]
+- Updated dependencies [eba4fd8]
+- Updated dependencies [61fc321]
+- Updated dependencies [9b3e7f0]
+- Updated dependencies [ecdd2f7]
+- Updated dependencies [ecdd2f7]
+- Updated dependencies [b7baf8a]
+- Updated dependencies [1b1c43e]
+- Updated dependencies [56e237d]
+- Updated dependencies [d50b874]
+- Updated dependencies [a166cfd]
+- Updated dependencies [0a816a0]
+- Updated dependencies [f261ed3]
+- Updated dependencies [302e5ce]
+- Updated dependencies [d68fb89]
+- Updated dependencies [c73366c]
+- Updated dependencies [b0a1e48]
+- Updated dependencies [b25d8be]
+- Updated dependencies [5038a3a]
+- Updated dependencies [df95f59]
+- Updated dependencies [1fd4822]
+- Updated dependencies [9cb3c8d]
+- Updated dependencies [0f5bcde]
+- Updated dependencies [c72a83e]
+- Updated dependencies [42189ce]
+- Updated dependencies [d9053a7]
+- Updated dependencies [23489bf]
+- Updated dependencies [f40ce92]
+- Updated dependencies [55864a1]
+- Updated dependencies [ed85493]
+- Updated dependencies [3174251]
+- Updated dependencies [55864a1]
+- Updated dependencies [11b0eb8]
+- Updated dependencies [b8b6eed]
+- Updated dependencies [2aa2c9b]
+- Updated dependencies [883d192]
+- Updated dependencies [5114576]
+- Updated dependencies [8f7c38e]
+- Updated dependencies [1846755]
+  - @endora-commerce/admin-kit@0.109.0
+  - @endora-commerce/platform@0.109.0
+  - @endora-commerce/contracts@0.109.0
+
 ## 0.108.0
 
 ### Patch Changes

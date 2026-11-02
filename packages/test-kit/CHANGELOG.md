@@ -1,5 +1,119 @@
 # @endora-commerce/test-kit
 
+## 0.109.0
+
+### Patch Changes
+
+- 302e5ce: A price-sorted or price-filtered catalogue cursor no longer reveals anything about a product the
+  viewer may not see (issue #497). Such a cursor was base64 of JSON. A page cut by its scan budget
+  continues from where its scan stopped, which can be a product hidden from the viewer, and under a
+  price sort that position held the product's resolved price and id; a full page ended on its last
+  card, whose price the viewer's display mode may withhold while the price order still ranks it.
+
+  - **`@endora-commerce/mod-catalog`.** Every cursor the price walks issue —
+    `GET /api/v1/catalog/products` and the external catalogue API with `sort=price`, `sort=-price`,
+    or `minPrice` / `maxPrice` under another sort — is sealed: it decodes to nothing and cannot be
+    altered or forged. Paging is unchanged: a budget-cut page is still short or empty with
+    `hasMore: true`, the walk still moves forward, and it still meets every product it shows once.
+    The module now resolves the container value `cursorSeal` (`CatalogCradle.cursorSeal`), and
+    `CatalogQueryService` takes it as a new last constructor argument; a price walk without it
+    throws. The default listing's cursor is unchanged.
+  - **Cursors in flight.** A price-walk cursor of the old, readable format — a storefront link held
+    across the upgrade — no longer continues the walk: it is discarded like any cursor that does not
+    parse, and the listing answers its first page (`200`, not `400`). So does a cursor that was
+    altered, and every price-walk cursor issued before the instance's `SESSION_COOKIE_SECRET` changes.
+  - **`@endora-commerce/platform`.** New `createCursorSeal(secret)` on `./composition`: AES-256-GCM
+    from `node:crypto`, its keys derived with HKDF from the secret, the purpose bound as additional
+    data, the plaintext padded to 128-byte blocks so a token's length does not follow an amount's
+    digits. Deterministic (a synthetic IV, an HMAC of purpose and payload): one position seals to
+    one token, so a storefront's next-page link stays one URL a cache and a crawler can reuse.
+    `composeApp` registers `cursorSeal: createCursorSeal(process.env.SESSION_COOKIE_SECRET)`; no new
+    environment input. The key is derived on first use, so a composition without a session
+    key is not refused, and a seal or an open without one throws.
+  - **`@endora-commerce/test-kit`.** `composeTestServer` registers a `cursorSeal` with a pinned test
+    key; a harness's own `values.cursorSeal` overrides it.
+
+- Updated dependencies [5d192d3]
+- Updated dependencies [d2acc82]
+- Updated dependencies [22604fa]
+- Updated dependencies [e64ed74]
+- Updated dependencies [50338a6]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [22604fa]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [9ff8307]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [07f3764]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [ea892d5]
+- Updated dependencies [678fed1]
+- Updated dependencies [dcbd154]
+- Updated dependencies [a76d6ee]
+- Updated dependencies [22604fa]
+- Updated dependencies [9a38360]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [bdef54c]
+- Updated dependencies [1b4f2b7]
+- Updated dependencies [d560d58]
+- Updated dependencies [dd6deb2]
+- Updated dependencies [3f697a3]
+- Updated dependencies [df0a90e]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [774d23e]
+- Updated dependencies [4cb0a7d]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [f148418]
+- Updated dependencies [3ea1249]
+- Updated dependencies [8ef189b]
+- Updated dependencies [4bc5c7f]
+- Updated dependencies [eba4fd8]
+- Updated dependencies [61fc321]
+- Updated dependencies [9b3e7f0]
+- Updated dependencies [ecdd2f7]
+- Updated dependencies [ecdd2f7]
+- Updated dependencies [b7baf8a]
+- Updated dependencies [56e237d]
+- Updated dependencies [d50b874]
+- Updated dependencies [a166cfd]
+- Updated dependencies [0a816a0]
+- Updated dependencies [f261ed3]
+- Updated dependencies [302e5ce]
+- Updated dependencies [c73366c]
+- Updated dependencies [b0a1e48]
+- Updated dependencies [b25d8be]
+- Updated dependencies [5038a3a]
+- Updated dependencies [df95f59]
+- Updated dependencies [1fd4822]
+- Updated dependencies [9cb3c8d]
+- Updated dependencies [0f5bcde]
+- Updated dependencies [c72a83e]
+- Updated dependencies [ed85493]
+- Updated dependencies [3174251]
+- Updated dependencies [55864a1]
+- Updated dependencies [11b0eb8]
+- Updated dependencies [b8b6eed]
+- Updated dependencies [2aa2c9b]
+- Updated dependencies [883d192]
+- Updated dependencies [5114576]
+- Updated dependencies [8f7c38e]
+  - @endora-commerce/platform@0.109.0
+  - @endora-commerce/contracts@0.109.0
+
 ## 0.108.0
 
 ### Patch Changes

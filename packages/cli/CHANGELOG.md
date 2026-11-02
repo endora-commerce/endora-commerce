@@ -1,5 +1,229 @@
 # @endora-commerce/cli
 
+## 0.109.0
+
+### Minor Changes
+
+- 8082616: A storefront that is alive but no longer answering is now restarted (issue #152). `endora new storefront` writes a `Dockerfile` whose command is a supervising parent, `scripts/supervise.mjs` (part of the scaffolded tree): `CMD ["node", "storefront/scripts/supervise.mjs", "storefront/server.js"]` replaces `CMD ["node", "storefront/server.js"]`. The supervisor runs the standalone server as its child, forwards `SIGTERM`/`SIGINT`/`SIGHUP` and the child's exit code, probes `http://127.0.0.1:$PORT/robots.txt`, and after three consecutive unanswered probes sends `SIGTERM`, then `SIGKILL`, and exits `1` so the restart policy starts a fresh container. Any HTTP status counts as an answer. It is tuned or switched off with the optional `STOREFRONT_SUPERVISOR_PROBE`, `_PROBE_URL`, `_INTERVAL_SECONDS`, `_TIMEOUT_SECONDS`, `_FAILURES`, `_START_GRACE_SECONDS` and `_KILL_GRACE_SECONDS` variables; an unreadable value stops the container at start. The `storefront` service in the instance's compose examples (`deploy/compose.prod.yml` and `deploy/three-host/compose.storefront.yml`) now sets `init: true`. An existing storefront picks this up by copying `scripts/supervise.mjs` and the Dockerfile's last stage; nothing else changes.
+- 0d6983a: `@endora-commerce/cli/lib/sql-tables.js` can read DDL that targets an existing table (issue #108). `sqlTableAccesses(source, file, options?)` takes a new optional third argument, `SqlTableAccessOptions`: with `{ ddl: true }` it also reports the table named by `create [unique] index … on`, `alter table`, `drop table`, `comment on table` / `comment on column`, `create trigger … on` and `drop trigger … on`. Quoted and unquoted names, schema-qualified names, `if [not] exists`, `only` and `concurrently` are all read. Each of these is a `write` access with the new `syntax: 'ddl'`. A table that the same source creates with `create table` is not reported. `drop index` names an index, not a table, so it resolves through `indexTables` (index name to table); build that map with the new `declaredIndexes(source, file)`. Calls without the option behave exactly as before. `SqlAccessSyntax` now includes `'ddl'`, so a `switch` over it that checks it covers every case needs one more branch.
+
+### Patch Changes
+
+- 5d192d3: A storefront added after an `endora install --no-storefront` run is no longer a silent mismatch of `REVALIDATE_SECRET` (#112).
+
+  - `endora install --no-storefront`: the closing text says whether `REVALIDATE_SECRET` in the instance's `.env` holds a value (a plain run generates none, so it is empty), what to set before a storefront is added, and prints the command that adds it — `pnpm exec endora install <dir>-storefront --only storefront --api-url … --storefront-url … --revalidate-secret <the same value>`. The refusal for a storefront that cannot be written from here, and the wizard's parts question, point at the same command instead of `endora new storefront <dir>`.
+  - `StorefrontRevalidator`: a warning identical to one logged in the last minute — same storefront, same status, or a transport failure again — is held and counted, and the next one logged carries `suppressed`, the number held. A 2xx answer clears the record for that storefront. A revalidator constructed without `logger` now reports through the platform logger instead of discarding the warning, so a refusal during a module activation or from the settings cache screen is logged too. The secret is never logged.
+
+- bbf7182: `endora new module` no longer tells you to declare the new package in `backend/package.json` by hand: the platform's manifest generator now writes that dependency itself, beside the module's own `package.json`, `LICENSE` and `README.md`. The next steps also say that the package must be built before the generator or its check runs again.
+- f261ed3: The sales channel's `isPublic` flag is retired in favour of the pricing display-mode chain
+  (issue #492; closes #467). The flag was documented as anonymous-price visibility, but every read of
+  it withheld prices from **everyone** on the channel, signed-in buyers included, beside a chain that
+  already says "prices after sign-in" per channel: `pricing.unauthenticated_display_mode = none`.
+
+  **Behaviour change.** Signed-in buyers on a channel that had `isPublic = false` now see prices
+  according to the display-mode chain (their organization's override, else the channel's
+  `pricing.default_display_mode`), where they used to see none — on the catalogue listing, the product
+  page, product links, search, comparisons, and the price sort and range, which are no longer refused
+  to them. Anonymous visitors on such a channel still see no prices: the migration below carries that
+  half of the flag over. A channel that had `isPublic = false` **and** its own value for
+  `pricing.unauthenticated_display_mode` keeps that value, so its anonymous visitors now see prices if
+  that value is a priced mode. A new channel, the boot-time default channel included, no longer starts
+  with prices hidden from everyone; it follows the chain like any other.
+
+  The display-mode chain itself is unchanged (owner ruling of 2026-10-28): a product or category
+  override takes precedence over the channel's `pricing.unauthenticated_display_mode`, also for
+  anonymous visitors, so a product overridden to `gross_only` shows its price to guests on a channel
+  whose guest mode is `none`. An organization override still applies to signed-in buyers only.
+
+  - **`@endora-commerce/platform`.** New migration `Migration20261028T173317CoreSalesChannelsRetireIsPublic`
+    (core): every channel with `is_public = false` and no value of its own for
+    `pricing.unauthenticated_display_mode` gets `"none"` as its per-channel value, then
+    `sales_channels.is_public` is dropped. It refuses — rather than migrating into showing prices — a
+    database that has a non-public channel but no registered `pricing.unauthenticated_display_mode`
+    setting; start the platform once on the previous release, so the settings reconciler registers
+    it, and migrate again. Because the column is dropped, stop processes running the previous release
+    before migrating. `SalesChannel.isPublic` and `CachedChannel.isPublic` are removed;
+    `SALES_CHANNELS_CACHE_KEY_PREFIX` moves from `sales-channels:v3:` to `sales-channels:v4:`, so no
+    process reads an entry cached in the other shape. The default-channel reconciler no longer sets
+    the flag.
+  - **`@endora-commerce/contracts`.** `ResolvedSearchChannel.isPublic` is removed — drop it from the
+    context you hand `SearchQueryPort`. No public HTTP shape carried the flag, so no response changes
+    shape. The `SALES_CHANNEL_AUDIT_ACTIONS` documentation now says who writes each row: the identity
+    Commands (with `stateBefore` / `stateAfter` snapshots) since #484.
+  - **`@endora-commerce/mod-catalog`.** `CatalogResolvedChannel.isPublic` and the `isPublic` field of
+    `ProductLinkService`'s storefront context are removed. The catalogue no longer skips pricing on
+    a channel: prices follow the viewer's display mode (a viewer whose mode is `none` gets the
+    withheld answer, `resolvedPrice.displayMode: 'none'`, where the channel used to answer
+    `resolvedPrice: null`). The price controls are refused only where the page's display mode is
+    `none`; the reason "This sales channel does not publish prices…" is gone.
+  - **`@endora-commerce/mod-search`.** The service's `ResolvedSearchChannel.isPublic` is removed, and
+    hits are always resolved for the viewer.
+  - **`@endora-commerce/mod-comparisons`.** A comparison is priced for the viewer on every channel.
+  - **`@endora-commerce/mod-sales-channels`.** The channel form's _Open to anonymous visitors_ hint
+    gains a second line pointing to the guest display mode, with a link to _Pricing settings_
+    (`identity.anonymousAccess.pricesHint`, `identity.anonymousAccess.pricesLink`, English and
+    Polish). New channels are no longer written with the flag.
+  - **`@endora-commerce/mod-price-lists`, `@endora-commerce/mod-i18n`.** _Pricing settings_ states,
+    under the two default modes, that a channel's own value wins over them and that a product or
+    category override takes precedence over both, for anonymous visitors too
+    (`priceLists.displayModes.settings.precedenceHint`).
+  - **`@endora-commerce/demo-composition`.** The `pl_b2b_vip` channel is created without the flag and
+    a new step, _the VIP channel hides prices until sign-in_, sets its
+    `pricing.unauthenticated_display_mode` to `none`; its signed-in buyers see prices. `pl_retail`
+    publishes prices to everyone, as before.
+  - **`@endora-commerce/mod-settings`, `@endora-commerce/cli`.** Comments only: the cache-clear
+    namespace names the new key prefix, and the channel-resolution rule no longer cites the flag.
+
+- eeed924: `endora new module` scaffolds a package whose co-located tests are type-checked: the test patterns are excluded in `tsconfig.build.json` (the emit) rather than in `tsconfig.json` (the type-check), and a package with an admin layer gets a `tsconfig.ui.build.json` that extends `tsconfig.ui.json` and adds only the test exclusion. A package scaffolded earlier keeps working; to have its `src/**/*.test.ts` files type-checked, make the same move by hand and point the `build` script's UI compile at `tsconfig.ui.build.json`.
+
+  `contextAdmits` is also exported from `@endora-commerce/page-builder-core/context-admits`, a module that imports nothing but a type, so a Node program can use the rule without compiling the editor. The export from the package root is unchanged.
+
+- 9cb3c8d: `check:platform-surface` gains a signal for issue #84: a name the platform's published barrels export and a workspace package the platform depends on (`@endora-commerce/contracts`) also exports must resolve to that package's own declaration, or it is a finding. `@endora-commerce/cli/rules/platform-surface.js` exports `scanSharedNames`, `checkSharedNames`, `sharedNameRefusal`, `sharedNameRemedyOf` and `dependencyDeclarations`, with the `SharedNameInput`, `SharedNameFinding`, `SharedNameFindingKind`, `SharedNameScan`, `SharedNameResult` and `LedgeredSharedName` types.
+
+  `@endora-commerce/platform`: the lifecycle orchestrator's optional `log` dependency is typed as the contracts' `ModuleLifecycleLogger` instead of an inline copy of the same shape. Structurally identical, so no caller changes.
+
+- b6c9cb9: The `port-catches` rule (`@endora-commerce/cli/rules/port-catches.js`) follows a holder built from
+  a deps bag and attributes its gates per method (issue #576).
+
+  `new C({ k: lazyPort(ctx, 'somePort') })` still carries nothing as a value. It is now tracked as a
+  holder: a class instance, a closure or an object literal, bound to the declaration that holds it
+  (destructurings included) and passed on through parameters, `this.<field>` and container
+  registrations. A call on a holder reaches what **escapes** the method or closure it resolves to:
+
+  - `read.list()` reaches what `C#list` reaches, and `read.getOrFail()`, a row read, makes no site;
+  - `this.deps.audience(id)` reaches what the closure under `audience` in _this class's own_ bag
+    reaches. Keys are looked up in the literal the receiver holds, not by their spelling across the
+    module;
+  - a presence answer the callee's own `catch` consumes (e.g. `if (!(err instanceof
+ModuleDisabledError)) throw err; return record(err)`) does not reach the caller's `catch`.
+
+  The D-88 `this` hop pulls a holder call's escaping gates into the calling method. A call the value
+  tables already judge keeps exactly its gates. A pin over a name the holder tables follow now reads
+  stale ("the analysis already follows the name without it"). `PORT_CATCH_UNIT=<regex>` prints what
+  escapes each matching unit. A tree's site population grows: holder method reaches the analysis
+  could not see before join it.
+
+- cce12dd: The `port-catches` rule (`@endora-commerce/cli/rules/port-catches.js`) no longer treats an
+  object-literal property name as a binding (issue #100).
+
+  `{ value: lazyPort(ctx, 'somePort') }` used to make every bare identifier `value` in the module
+  read as that port, so an unrelated `const value = makeEngine()` around a `try`/`catch` became a
+  reported site. Deps-object keys are now a table of their own, reached only through an expression
+  that reads a property, and the analysis follows the value through the shapes that do:
+
+  - a property read, `x.key` / `x.key.method()`;
+  - a call through a key whose value is an accessor closure —
+    `{ sender: () => cradle().transactionalEmailSenderAccessor() }` read back as
+    `const s = deps.sender(); s.send(…)`, whatever the local is called;
+  - a destructuring, `const { key } = x`, `const { key: local } = x`, `({ key }: Deps) => …`;
+  - a class's own method returning a carrying value, `const p = this.#port()`.
+
+  The mirror holds too: a property read no longer answers to a local `const` of the same spelling.
+
+  `PortCatchInput` gains an optional `pins` (`Record<'<file>:<name>', PortCatchPin>`): a host can
+  declare an alias the analysis provably cannot derive, so the `catch` around it stays judged.
+  `CheckResult.stalePins` lists every pin that no longer describes the tree — its file is gone, it
+  names a gate no module provides, no site reaches a port through the name, or the analysis already
+  follows the name without it — and a host should fail on any of them.
+  `findPortCatches` and `checkPortCatches` keep their signatures. A tree's site population moves:
+  sites that existed only through a shared spelling leave it, and port reaches the old spelling match
+  missed (an accessor's result bound under another name, a renamed destructuring) join it.
+
+- f8effbf: Two static-check rules under `@endora-commerce/cli/rules/*` read their subject more precisely.
+
+  - **`subscribe-seam`** (issue #90). A worker returned from an arrow function through a conditional,
+    parentheses, an `as` assertion or a non-null assertion — `() => cond ? createXWorker() : null` —
+    now counts as handed to the caller, both when the arrow is a worker factory and when it returns a
+    factory's call. Before, only an arrow whose body was the call itself counted, so such a factory
+    was reported as dropping its worker. A call that is only the condition of the conditional still
+    does not count.
+  - **`port-shape`** (issue #91). Signal 2 now treats a documented `Container name:` that is in
+    `PortShapeInput.platformOwnedNames` as registered, as signal 3 already did. A port doc that names
+    a container the platform registers no longer gets a `container-name-unregistered` finding that no
+    edit to the doc could clear.
+
+- 453b25b: A new instance's root `package.json` declares `worker`, so the separate worker tier is started
+  with `pnpm run worker` from the instance root, beside `pnpm run start` for the API, and the
+  instance README's command block names it. The backend
+  member has always declared `worker`, and the queue-consumer documentation tells an operator to
+  split the consumers into their own process with it, but the root forwarded `start` and not
+  `worker`. An instance scaffolded before this release has no root `worker`: run
+  `pnpm -C backend run worker`, which is the same command, or add
+  `"worker": "pnpm -C backend run worker"` to the root `scripts`.
+- 46de85c: `endora new module` writes its tests beside their subjects instead of under `test/unit/`: `src/backend/manifest.test.ts` (was `test/unit/manifest.test.ts`; not `src/manifest.test.ts`, which the manifest generator refuses as a sibling of the root manifest) and, with `--admin`, `src/admin/index.test.ts` (was `test/unit/admin-contributions.test.ts`), which is type-checked by a new `tsconfig.ui.test.json` (the Node types it reads bundles with, in a program of its own) while `tsconfig.ui.json` keeps `types: []` and now excludes the tests — the layout issue #566 gave the existing modules. The emitted `vitest.config.ts` collects `src/**/*.test.ts` only. A module package has no `test/` directory, and a test there is in no type-check program — `tsconfig.json` includes `src/**/*` alone. A package scaffolded earlier is unaffected; to have its `test/unit/` files type-checked, move each under `src/` beside its subject (never as a sibling of `src/manifest.ts`), re-point its relative imports, and drop `test/**/*.test.ts` from the `include` list in its `vitest.config.ts`.
+- Updated dependencies [d2acc82]
+- Updated dependencies [22604fa]
+- Updated dependencies [e64ed74]
+- Updated dependencies [50338a6]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [22604fa]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [9ff8307]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [07f3764]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [ea892d5]
+- Updated dependencies [678fed1]
+- Updated dependencies [dcbd154]
+- Updated dependencies [a76d6ee]
+- Updated dependencies [22604fa]
+- Updated dependencies [9a38360]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [bdef54c]
+- Updated dependencies [1b4f2b7]
+- Updated dependencies [d560d58]
+- Updated dependencies [dd6deb2]
+- Updated dependencies [3f697a3]
+- Updated dependencies [df0a90e]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [774d23e]
+- Updated dependencies [4cb0a7d]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [f148418]
+- Updated dependencies [8ef189b]
+- Updated dependencies [4bc5c7f]
+- Updated dependencies [eba4fd8]
+- Updated dependencies [61fc321]
+- Updated dependencies [9b3e7f0]
+- Updated dependencies [ecdd2f7]
+- Updated dependencies [ecdd2f7]
+- Updated dependencies [b7baf8a]
+- Updated dependencies [56e237d]
+- Updated dependencies [d50b874]
+- Updated dependencies [0a816a0]
+- Updated dependencies [f261ed3]
+- Updated dependencies [c73366c]
+- Updated dependencies [b25d8be]
+- Updated dependencies [5038a3a]
+- Updated dependencies [df95f59]
+- Updated dependencies [1fd4822]
+- Updated dependencies [0f5bcde]
+- Updated dependencies [c72a83e]
+- Updated dependencies [ed85493]
+- Updated dependencies [3174251]
+- Updated dependencies [55864a1]
+- Updated dependencies [11b0eb8]
+- Updated dependencies [b8b6eed]
+- Updated dependencies [2aa2c9b]
+- Updated dependencies [883d192]
+- Updated dependencies [5114576]
+- Updated dependencies [8f7c38e]
+  - @endora-commerce/contracts@0.109.0
+
 ## 0.108.0
 
 ### Patch Changes
