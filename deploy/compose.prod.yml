@@ -211,7 +211,14 @@ services:
 
   storefront:
     image: ${REGISTRY_IMAGE}/storefront:${IMAGE_TAG:-latest}
+    # `restart` acts on an EXIT, never on `unhealthy` (issue #152). The image's command is a
+    # supervising parent (`storefront/scripts/supervise.mjs`) that probes the server and,
+    # after a run of unanswered probes, kills it and exits non-zero — which is what this
+    # policy then restarts. `init: true` puts Docker's init in front of it as PID 1, to
+    # reap any process the server orphans. Tuning: STOREFRONT_SUPERVISOR_* in
+    # docs/docs/deployment/storefront-supervisor.md; the defaults need no variable.
     restart: unless-stopped
+    init: true
     environment:
       NODE_ENV: production
       PORT: '3000'
