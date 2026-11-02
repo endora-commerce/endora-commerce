@@ -384,7 +384,14 @@ export class CartAdminService {
     }
     this.#assertCartInScope(cart);
     if (cart.status === 'completed' || cart.status === 'rejected') {
-      throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'already_terminal');
+      // Issue #86 — its own code, not `VALIDATION_FAILED` with the token
+      // `already_terminal` as the message the operator read.
+      throw new HttpError(
+        422,
+        ERROR_CODES.CART_ALREADY_TERMINAL,
+        'This cart is already completed or rejected.',
+        { cartId: cart.id, status: cart.status },
+      );
     }
     const fromStatus = cart.status;
     cart.status = 'rejected';

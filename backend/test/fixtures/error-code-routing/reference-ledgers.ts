@@ -768,6 +768,43 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'reaches — every request schema in front of it already refuses the same quantity as a ' +
       'malformed request.',
   },
+  CART_APPROVAL_NOT_REQUIRED: {
+    to: 'carts',
+    reason:
+      'Minted for the refusal to send a cart for approval when the Organization does not ' +
+      'require approval (issue #86). It was raised as `VALIDATION_FAILED` with the token ' +
+      '`approval_not_required` as its message, which the envelope never replaces, so the buyer ' +
+      'read the token. The one raise site is `carts`\' `CartApprovalService.submitForApproval`.',
+  },
+  CART_APPROVAL_ALREADY_SUBMITTED: {
+    to: 'carts',
+    reason:
+      'Minted for the refusal to send a cart for approval a second time (issue #86). It was ' +
+      'raised as `VALIDATION_FAILED` with the token `approval_already_initiated` as its message. ' +
+      'The one raise site is `carts`\' `CartApprovalService.submitForApproval`.',
+  },
+  CART_APPROVAL_SELF_SUBMIT: {
+    to: 'carts',
+    reason:
+      'Minted for the refusal of an Organization administrator sending their own cart for ' +
+      'approval (issue #86). It was raised as `VALIDATION_FAILED` with the token ' +
+      '`org_admin_self_submit` as its message. The one raise site is `carts`\' ' +
+      '`CartApprovalService.submitForApproval`.',
+  },
+  CART_APPROVAL_NOT_PENDING: {
+    to: 'carts',
+    reason:
+      'Minted for the refusal to approve or reject a cart that is not awaiting approval ' +
+      '(issue #86). It was raised as `VALIDATION_FAILED` with the token `approval_not_pending` ' +
+      'as its message. The raise sites are `carts`\' `CartApprovalService.approve` and `reject`.',
+  },
+  CART_ALREADY_TERMINAL: {
+    to: 'carts',
+    reason:
+      'Minted for the refusal to reject, in the admin, a cart that is already completed or ' +
+      'rejected (issue #86). It was raised as `VALIDATION_FAILED` with the token ' +
+      '`already_terminal` as its message. The one raise site is `carts`\' `CartAdminService.reject`.',
+  },
   CART_PRODUCT_UNPRICED: {
     to: 'carts',
     reason:

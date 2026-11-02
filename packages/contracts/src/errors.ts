@@ -195,6 +195,18 @@ export const ERROR_CODES = {
    * the buyer reviews it before placing again.
    */
   CART_PRICE_CHANGED: 'CART_PRICE_CHANGED',
+  // Issue #86 — the cart-approval and admin-reject refusals, raised as
+  // `VALIDATION_FAILED` with a machine token as the message until then.
+  /** The Organization does not require cart approval, so the cart is not sent for it. */
+  CART_APPROVAL_NOT_REQUIRED: 'CART_APPROVAL_NOT_REQUIRED',
+  /** The cart has already been sent for approval (`details.approvalStatus`). */
+  CART_APPROVAL_ALREADY_SUBMITTED: 'CART_APPROVAL_ALREADY_SUBMITTED',
+  /** An Organization administrator orders directly; their own cart is not sent for approval. */
+  CART_APPROVAL_SELF_SUBMIT: 'CART_APPROVAL_SELF_SUBMIT',
+  /** The cart is not awaiting approval, so it cannot be approved or rejected (`details.approvalStatus`). */
+  CART_APPROVAL_NOT_PENDING: 'CART_APPROVAL_NOT_PENDING',
+  /** The cart is already completed or rejected, so it cannot be rejected (`details.status`). */
+  CART_ALREADY_TERMINAL: 'CART_ALREADY_TERMINAL',
   STOCK_UNAVAILABLE: 'STOCK_UNAVAILABLE',
   PROMOTION_INVALID: 'PROMOTION_INVALID',
   ORGANIZATION_SUSPENDED: 'ORGANIZATION_SUSPENDED',
