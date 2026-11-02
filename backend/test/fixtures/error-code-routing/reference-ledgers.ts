@@ -1076,6 +1076,45 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'placement earns when the basket it is handed belongs to another sales channel. The raise ' +
       'site is `orders`\' placement; the noun is the order.',
   },
+  ORDER_DELIVERY_METHOD_UNAVAILABLE: {
+    to: 'orders',
+    reason:
+      'Minted for the refusal of a delivery method that cannot be used for the order being ' +
+      'previewed or placed — not active, refused by its adapter, outside the Organization\'s ' +
+      'allow-list or not offered in the order\'s sales channel (issue #86). It was raised as ' +
+      '`VALIDATION_FAILED` with an English sentence the envelope never replaces. The noun is the ' +
+      'order\'s method choice and every raise site is `orders`\' (`OrderService`, both method ' +
+      'gates); `DELIVERY_METHOD_*` is the family `delivery_methods` would reach for.',
+  },
+  ORDER_PAYMENT_METHOD_UNAVAILABLE: {
+    to: 'orders',
+    reason:
+      'The payment twin of `ORDER_DELIVERY_METHOD_UNAVAILABLE` (issue #86), on the same ' +
+      'reasoning; `PAYMENT_METHOD_*` is the family `payment_methods` would reach for.',
+  },
+  ORDER_BELOW_MINIMUM_VALUE: {
+    to: 'orders',
+    reason:
+      'Minted for the refusal of an order whose basket is below the sales channel\'s minimum ' +
+      'order value (issue #86). It was raised as `VALIDATION_FAILED` with `details.code = ' +
+      '\'order_below_minimum\'` and an English sentence; `details` now carries the minimum, the ' +
+      'basket value and the currency the sentences name. The one raise site is ' +
+      '`OrderService.placeOrder`, and the setting is `orders.min_order_value`.',
+  },
+  ORDER_COMMENTS_CLOSED: {
+    to: 'orders',
+    reason:
+      'Minted for the refusal of a comment on an order in a terminal status (issue #86). It was ' +
+      'raised as `VALIDATION_FAILED` with an English sentence. The one raise site is ' +
+      '`OrderCommentService`, reached by the buyer and by an operator.',
+  },
+  ORDER_CLONE_NO_LINES: {
+    to: 'orders',
+    reason:
+      'Minted for the refusal to copy an order with no lines into a quote request (issue #86). ' +
+      'It was raised as `VALIDATION_FAILED` with an English sentence. The one raise site is ' +
+      '`OrderCloneToQuoteService.clone`; the noun is the order.',
+  },
   ASSET_REPLACE_KIND_MISMATCH: {
     to: 'assets_library',
     reason:

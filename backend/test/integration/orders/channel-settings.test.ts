@@ -214,9 +214,10 @@ describe('order placement — the seven per-channel settings', () => {
     await addToCart(1);
     const refused = await withChannelValue(SETTING.minOrderValue, 10_000, async () => place());
     expect(refused.statusCode).toBe(422);
-    expect(
-      (refused.body as { error: { details?: { code?: string; minimum?: number } } }).error.details,
-    ).toMatchObject({ code: 'order_below_minimum', minimum: 10_000 });
+    // Issue #86 — its own code, the minimum as a two-decimal string.
+    const error = (refused.body as { error: { code: string; details?: Record<string, unknown> } }).error;
+    expect(error.code).toBe('ORDER_BELOW_MINIMUM_VALUE');
+    expect(error.details).toMatchObject({ minimum: '10000.00' });
 
     // Same cart, minimum back at the manifest default: it goes through. Without
     // this the case would also pass against a placement broken for any reason.

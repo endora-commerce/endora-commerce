@@ -212,6 +212,23 @@ export const ERROR_CODES = {
   ORGANIZATION_SUSPENDED: 'ORGANIZATION_SUSPENDED',
   ORDER_NOT_FOUND: 'ORDER_NOT_FOUND',
   ORDER_NOT_CANCELLABLE: 'ORDER_NOT_CANCELLABLE',
+  // Issue #86 — order-path refusals raised as `VALIDATION_FAILED` with an
+  // English sentence until then.
+  /**
+   * The chosen delivery method cannot be used for this order: not active, not
+   * usable on this surface, outside the Organization's allow-list
+   * (`details.code = 'delivery_method_not_allowed_for_organization'`) or not
+   * offered in the order's sales channel (`'delivery_method_not_in_sales_channel'`).
+   */
+  ORDER_DELIVERY_METHOD_UNAVAILABLE: 'ORDER_DELIVERY_METHOD_UNAVAILABLE',
+  /** The payment twin of `ORDER_DELIVERY_METHOD_UNAVAILABLE`, with the `payment_method_…` tokens. */
+  ORDER_PAYMENT_METHOD_UNAVAILABLE: 'ORDER_PAYMENT_METHOD_UNAVAILABLE',
+  /** The basket is below the channel's minimum order value (`details.minimum`, `subtotal`, `currency`). */
+  ORDER_BELOW_MINIMUM_VALUE: 'ORDER_BELOW_MINIMUM_VALUE',
+  /** The order is in a terminal status, so it takes no more comments. */
+  ORDER_COMMENTS_CLOSED: 'ORDER_COMMENTS_CLOSED',
+  /** The order has no lines, so there is nothing to copy into a quote request. */
+  ORDER_CLONE_NO_LINES: 'ORDER_CLONE_NO_LINES',
   /** 422 — the basket handed to placement belongs to another sales channel (feature 154). */
   ORDER_SALES_CHANNEL_MISMATCH: 'ORDER_SALES_CHANNEL_MISMATCH',
   // Saved list views (`specs/147-saved-views/`, FR-022) — an admin already

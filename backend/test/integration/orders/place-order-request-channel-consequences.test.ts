@@ -210,9 +210,10 @@ describe('order placement — what follows the resolved request channel', () => 
 
   function expectBelowMinimum(res: { statusCode: number; body: unknown }, minimum: number): void {
     expect(res.statusCode).toBe(422);
-    expect(
-      (res.body as { error: { details?: { code?: string; minimum?: number } } }).error.details,
-    ).toMatchObject({ code: 'order_below_minimum', minimum });
+    // Issue #86 — its own code, the minimum as a two-decimal string.
+    const error = (res.body as { error: { code: string; details?: Record<string, unknown> } }).error;
+    expect(error.code).toBe('ORDER_BELOW_MINIMUM_VALUE');
+    expect(error.details).toMatchObject({ minimum: minimum.toFixed(2) });
   }
 
   it('numbers the order with the prefix of the channel the request named', async () => {

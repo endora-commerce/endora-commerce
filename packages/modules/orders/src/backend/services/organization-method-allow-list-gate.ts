@@ -62,7 +62,7 @@ export async function assertMethodsAllowedForOrganization(
     if (excludes(allowed, deliveryMethodId)) {
       throw new HttpError(
         400,
-        ERROR_CODES.VALIDATION_FAILED,
+        ERROR_CODES.ORDER_DELIVERY_METHOD_UNAVAILABLE,
         'The selected delivery method is not available to this Organization.',
         { code: DELIVERY_METHOD_NOT_ALLOWED_FOR_ORGANIZATION, deliveryMethodId },
       );
@@ -74,7 +74,7 @@ export async function assertMethodsAllowedForOrganization(
     if (excludes(allowed, paymentMethodId)) {
       throw new HttpError(
         400,
-        ERROR_CODES.VALIDATION_FAILED,
+        ERROR_CODES.ORDER_PAYMENT_METHOD_UNAVAILABLE,
         'The selected payment method is not available to this Organization.',
         { code: PAYMENT_METHOD_NOT_ALLOWED_FOR_ORGANIZATION, paymentMethodId },
       );

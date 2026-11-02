@@ -665,6 +665,20 @@ export const manifest = defineModuleManifest({
     // Feature 154 — placement refuses a basket of another sales channel.
     { code: 'ORDER_SALES_CHANNEL_MISMATCH' },
     { code: 'ORDER_SAVED_VIEW_NAME_TAKEN' },
+    // Issue #86 — order-path refusals that were `VALIDATION_FAILED` with an
+    // English sentence. The method pair keeps the `details.code` tokens its
+    // two gates already published, and each token has its own sentence.
+    {
+      code: 'ORDER_DELIVERY_METHOD_UNAVAILABLE',
+      tokens: ['delivery_method_not_allowed_for_organization', 'delivery_method_not_in_sales_channel'],
+    },
+    {
+      code: 'ORDER_PAYMENT_METHOD_UNAVAILABLE',
+      tokens: ['payment_method_not_allowed_for_organization', 'payment_method_not_in_sales_channel'],
+    },
+    { code: 'ORDER_BELOW_MINIMUM_VALUE' },
+    { code: 'ORDER_COMMENTS_CLOSED' },
+    { code: 'ORDER_CLONE_NO_LINES' },
   ],
   settings,
   // Feature 074 (Constitution XVII), test C2 — functional base. This module had
