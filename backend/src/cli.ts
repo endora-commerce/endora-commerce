@@ -48,8 +48,15 @@
  *
  * ## Usage
  *
+ * This file is this repository's; in a checkout of it:
+ *
  *   pnpm --filter backend run cli -- --list
  *   pnpm --filter backend run cli -- <module id> <command> [args…]
+ *
+ * An instance renders its own `backend/src/cli.ts` and reaches it from its
+ * root as `pnpm run cli --list` and `pnpm run cli <module id> <command>` —
+ * the repository form matches no project there, prints `No projects matched
+ * the filters` and exits 0 having run nothing (issue #133).
  *
  * The named aliases in `backend/package.json` — `search:reindex`,
  * `admin:create`, `i18n:reload` and the rest — are thin wrappers over this.

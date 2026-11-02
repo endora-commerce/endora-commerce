@@ -352,7 +352,9 @@ surfaces `couponDroppedThisRead`. Wiring into the read path is a follow-up.
   follow-up.
 - **Abandonment scheduler** — the worker is constructed in production
   composition but not yet wired to a cron / BullMQ schedule. The ops CLI
-  `pnpm --filter backend run cart:abandonment-sweep` runs one tick by hand.
+  `pnpm run cli carts abandonment-sweep`, run in the root of an instance, runs
+  one tick by hand; in a checkout of the Endora Commerce repository it is
+  `pnpm --filter backend run cart:abandonment-sweep`.
   It is a manifest-declared command the host runs, so it sweeps through the
   composition's own `cartAbandonmentWorker` — see
   `packages/modules/carts/src/backend/cli/abandonment-sweep.ts` for the body and

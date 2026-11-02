@@ -27,7 +27,19 @@ aktywacji — do osoby prowadzącej biznes, i żadna z osi nie nadpisuje drugiej
 
 ## Polecenia CLI
 
-Wszystkie polecenia są zdefiniowane w `backend/package.json`:
+Instancja — drzewo, które zapisuje `npx create-endora-commerce` — ma pięć poleceń w swoim
+katalogu głównym. Uruchamiaj je tam:
+
+```bash
+pnpm run module:install <id> [--dry-run] [--json]     # or: pnpm run module:install --all
+pnpm run module:uninstall <id> [--hard] [--force] [--json]
+pnpm run module:enable <id> [--json]
+pnpm run module:disable <id> [--cascade] [--json]
+pnpm run module:status [<id>] [--filter=<state>] [--json]
+```
+
+W klonie repozytorium Endora Commerce te same pięć poleceń jest zdefiniowanych w
+`backend/package.json`; przyjmują te same argumenty i zwracają te same kody wyjścia:
 
 ```bash
 pnpm --filter backend run module:install <id> [--dry-run] [--json]
@@ -37,18 +49,10 @@ pnpm --filter backend run module:disable <id> [--cascade] [--json]
 pnpm --filter backend run module:status [<id>] [--filter=<state>] [--json]
 ```
 
+W instancji postać z repozytorium nie robi nic: członek backendu nazywa się tam inaczej, więc pnpm
+wypisuje `No projects matched the filters` i kończy się kodem `0`, nie uruchamiając polecenia.
+
 ### W instancji
-
-Instancja — drzewo, które zapisuje `npx create-endora-commerce` — ma te same pięć poleceń w swoim
-katalogu głównym; przyjmują te same argumenty i zwracają te same kody wyjścia:
-
-```bash
-pnpm run module:install <id> [--dry-run] [--json]     # or: pnpm run module:install --all
-pnpm run module:uninstall <id> [--hard] [--force] [--json]
-pnpm run module:enable <id> [--json]
-pnpm run module:disable <id> [--cascade] [--json]
-pnpm run module:status [<id>] [--filter=<state>] [--json]
-```
 
 Obejmują zarówno pakiety modułów zainstalowane w instancji, jak i jej własne moduły nakładkowe w
 `apps/<deployment>/modules/`. Działające API i worker dowiadują się o zmianie wprowadzonej

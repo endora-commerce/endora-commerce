@@ -38,8 +38,13 @@ potrzebuje osobnego grafu usług. Rolę procesu wybiera zmienna środowiskowa `B
 Na jednym serwerze VPS uruchom tylko proces API — workery działają w nim:
 
 ```bash
-pnpm --filter backend run start      # production (built)
-pnpm --filter backend run dev        # development (tsx watch)
+# W katalogu głównym instancji:
+pnpm run start      # production (built)
+pnpm run dev        # development (watch)
+
+# W klonie repozytorium Endora Commerce:
+pnpm --filter backend run start
+pnpm --filter backend run dev
 ```
 
 Przy niewielkim obciążeniu ta zasada na to pozwala: worker pozostaje *osobnym punktem wejścia*, ale
@@ -51,13 +56,23 @@ Gdy masowe edycje, importy albo ponowne indeksowanie zaczynają spowalniać obs�
 workery do osobnych procesów:
 
 ```bash
+# W katalogu głównym instancji.
 # Warstwa web — tylko HTTP, bez konsumentów in-process.
-BACKEND_ROLE=api pnpm --filter backend run start
+BACKEND_ROLE=api pnpm run start
 
 # Warstwa worker — tylko konsumenci, bez listenera HTTP.
+pnpm run worker
+
+# W klonie repozytorium Endora Commerce:
+BACKEND_ROLE=api pnpm --filter backend run start
 pnpm --filter backend run worker          # production (built)
 pnpm --filter backend run worker:dev      # development (tsx watch)
 ```
+
+Instancja nie ma workera w trybie obserwowania zmian: `pnpm run dev` uruchamia API razem z
+workerami, a tego potrzebuje komputer deweloperski. Instancja utworzona, zanim jej katalog główny
+zadeklarował `worker`, nie ma `pnpm run worker`; tam to samo polecenie to
+`pnpm -C backend run worker`.
 
 Warstwę workerów skaluj **poziomo**, uruchamiając więcej procesów (albo kontenerów) workera.
 Atomowe pobieranie zadań w BullMQ gwarantuje, że każde zadanie wykona dokładnie jeden z nich;
@@ -144,10 +159,14 @@ samego modelu workerów; do tego czasu dokumentuj je i obsługuj tak:
 
 | Zadanie | Jak działa dziś | Uruchomienie |
 | --- | --- | --- |
-| Wyszukiwanie porzuconych koszyków | Skrypt uruchamiany ręcznie lub przez cron | `pnpm --filter backend run cart:abandonment-sweep` |
-| Pełne ponowne indeksowanie wyszukiwarki | Polecenie uruchamiane ręcznie | `pnpm --filter backend run search:reindex` |
+| Wyszukiwanie porzuconych koszyków | Skrypt uruchamiany ręcznie lub przez cron | `pnpm run cli carts abandonment-sweep` |
+| Pełne ponowne indeksowanie wyszukiwarki | Polecenie uruchamiane ręcznie | `pnpm run cli search reindex` |
 | Aktualizacja statusów cenników (przenosi cenniki *Zaplanowane* do *Aktywnych*, a *Aktywne* do *Wygasłych* na potrzeby widoku w panelu; ceny i tak stosują daty cennika dokładnie w ich chwili) | `setInterval` w procesie (co 5 min) | startuje razem z procesem API |
 | Wygasanie zapytań ofertowych | Metoda usługi wywoływana według harmonogramu | `RfqExpiryWorker.sweep()` |
+
+Oba polecenia uruchamia się w katalogu głównym instancji. W klonie repozytorium Endora Commerce mają
+postać `pnpm --filter backend run cart:abandonment-sweep` i
+`pnpm --filter backend run search:reindex`.
 
 :::note
 Opisane wyżej zadania oparte na `setInterval` w procesie to starszy wzorzec, który zastępuje zasada

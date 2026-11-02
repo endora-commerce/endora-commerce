@@ -982,6 +982,11 @@ export function planInstance(input: PlanInput): InstancePlan {
     // survives beside it for the operator who wants them (§3's User Story 3).
     setup: setupSteps.map((step) => `pnpm run ${step}`).join(' && '),
     start: 'pnpm -C backend run start',
+    // The separate worker tier, beside the API it is split from (issue #133).
+    // The member has declared `worker` all along and the queue-consumer page
+    // sends an operator to it; without this entry the root, where every other
+    // command runs, had no way to start it.
+    worker: 'pnpm -C backend run worker',
     // FR-110 — the admin bundle, served. Baseline step D1: `admin/package.json`
     // has declared `preview` all along and no root script and no printed step
     // named it, so a client who ran `build:admin` had a bundle and no way to
