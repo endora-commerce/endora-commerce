@@ -7032,11 +7032,54 @@ const CHECKS: readonly CheckEntry[] = [
           'this.addSql(`insert into "sales_channels" ("id") values (?);`);',
         ),
       ),
-      // The non-duplication of `fk-dependency-drift.test.ts`: DDL is its
-      // subject, and `STATEMENT_HEAD` does not admit `create` or `alter`.
+      // `create table` is the **declaration** the owner map is built from, not
+      // an access to an existing table — so it stays out even now that the
+      // migration path reads DDL (issue #108).
       'migration-ddl-is-not-a-finding': top(() =>
         migrationOnlyTheControl(
           'this.addSql(`create table "b_table" ("id" uuid not null);`);',
+        ),
+      ),
+      // --- DDL against an existing table (issue #108) ------------------------
+      //
+      // `STATEMENT_HEAD` admits no `create` or `alter`, so a migration could
+      // index, alter or drop another module's table with nothing reading it —
+      // one real instance, an index on `cms_pages`, was repaired by hand while
+      // the rule stayed blind. Each proof asserts on a count the DML path
+      // cannot produce, because the fixture gives it no DML to see.
+      'migration-ddl-foreign-index': top(() =>
+        migrationFindingsOf(
+          'migration-writes-a-foreign-table',
+          'this.addSql(`create unique index if not exists "b_uq" on "public"."b_table" ("id");`);',
+          { a: ['b'], b: [] },
+        ),
+      ),
+      // `drop index` names an index, so it reaches its table only through the
+      // `create index` that named it — in another file, which is why the map is
+      // built over the whole migration population.
+      'migration-ddl-drop-index-through-its-create': top(() => {
+        const created = 'modules/b/migrations/20260901T090000_b_init.ts';
+        const sources = new Map([
+          [created, 'this.addSql(`create index "b_flag_idx" on "b_table" ("flag");`);'],
+          [A_MIGRATION, 'this.addSql(`drop index concurrently if exists "b_flag_idx";`);'],
+        ]);
+        return findMigrationSql({
+          sources,
+          schema: new Map([...MIGRATION_SCHEMA, ...sources]),
+          dependencyClosures: dependencyClosures(new Map([['a', ['b']], ['b', []]])),
+        }).found.filter(
+          (found) => found.file === A_MIGRATION && found.rule === 'migration-writes-a-foreign-table',
+        ).length;
+      }),
+      // A table the same migration creates is part of that declaration: its
+      // index and its `down()` drop are not accesses to an *existing* table.
+      'migration-ddl-on-a-table-it-creates-is-not-a-finding': top(() =>
+        migrationOnlyTheControl(
+          [
+            'this.addSql(`create table "b_table" ("id" uuid not null);`);',
+            'this.addSql(`create index "b_idx" on "b_table" ("id");`);',
+            'this.addSql(`drop table if exists "b_table" cascade;`);',
+          ].join('\n'),
         ),
       ),
       // The AST reader's property, re-asserted at the new population.
@@ -11917,7 +11960,10 @@ describe('every red proof enters at the top of the analysis', () => {
       // read: if it goes green on an R1-only implementation, R2 was folded into
       // R1 and the clause R1 cannot state was lost.
       // Plus issue #88's admin-registry floor (`short-admin-registry-walk-refuses`).
-      'backend/scripts/check-module-boundary.ts': 75,
+      // Plus issue #108's three for DDL against an existing table: a foreign
+      // index, a `drop index` attributed through its `create`, and the
+      // discrimination that keeps a migration's own `create table` out.
+      'backend/scripts/check-module-boundary.ts': 78,
       // Seven findings, both stale directions of the ledgers that carry one, and
       // the discrimination `undocumented-module` turns on: `docs: false` is a
       // decision and an absent declaration is not, one field apart, and
