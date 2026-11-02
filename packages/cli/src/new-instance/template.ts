@@ -1626,6 +1626,7 @@ const README_COMMANDS: readonly (readonly [script: string, argument: string, not
   ['migrate', '', 'the schema, in the order the manifests compute'],
   ['module:install', ' --all', 'every module you declared, in dependency order'],
   ['start', '', 'the API'],
+  ['worker', '', 'the queue consumers on their own, for an API started with\n`BACKEND_ROLE=api`. Without that the API runs them itself'],
   ['preview:admin', '', 'the admin bundle you just built, served on its own port'],
   ['dev:all', '', 'the API, the admin preview and the storefront beside this\ndirectory, in one terminal. Ctrl-C stops all of them'],
   ['dev', '', 'the API, rebuilt and restarted as you edit your overlay'],
