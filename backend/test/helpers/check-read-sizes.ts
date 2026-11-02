@@ -9069,7 +9069,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T069 (`comarch_xl` leaves), after merging `origin/master` at !1841: sites 10867 -> 10413.** The record was resolved wholly to `master` and re-measured on a pristine detached worktree of the merge commit `8c875cb4a`, after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the tree is this branch's E5 and `comarch_xl`'s departure (package, 34 host test files and their support file, three Polish pages, E1 baseline) over `master`. Not computed from a delta.
     // **T069 (`ksef` and `infakt` leave): 10413 -> 10063.** Agrees on `origin/master` (d6808271f, after `comarch_xl` left) and moves with the branch: E5, the two packages, their host tests, their Polish pages, the E9 drain and T140/T142; measured on the pristine pair.
     // **`debt/check-coverage-84-88` (issue #88, the `admin-registry` floor): files 5738 -> 6582, sites 14240 -> 17087.** The check changed, so the entry is re-recorded; the floor itself opens no file the walk did not already count, so both moves are drift since the last sweep. Measured on a pristine detached worktree of the branch head (`setup-worktree.sh`, `build:packages`).
-    sites: 17087,
+    // **Issue #108 (the migration rules read DDL against an existing table): sites 17066 -> 17924.** The check changed, so the entry is re-recorded; `files` is left drifted (6567 on `master` and on the branch, not this change's).
+    sites: 17924,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by

@@ -14,7 +14,8 @@
  *
  *   - {@link sqlTableAccesses} — the table identifiers a source *uses*, through
  *     two recognition paths: a **statement** literal, and a knex query
- *     **builder** (issue #187).
+ *     **builder** (issue #187) — plus a third, **DDL** against an existing
+ *     table, that a caller opts into for migration files (issue #108).
  *   - {@link declaredTableNames} — the table names a source *declares*, from an
  *     `@Entity()` class or from `create table` DDL. Both sources are needed: an
  *     owner map built from entity classes alone maps 220 tables and misses every
@@ -88,6 +89,33 @@
  * both do. A spelling collision is a visible finding a reader resolves; a
  * receiver rule is a miss nobody sees, and this file's whole reason for existing
  * is that the second kind of failure is the expensive one.
+ *
+ * ## What DDL has to look like (issue #108)
+ *
+ * `STATEMENT_HEAD` admits no `create` and no `alter`, so a migration could index,
+ * alter, comment on or drop another module's table and name nothing this reader
+ * saw — one real instance, an index on `cms_pages` created by another module's
+ * migration, was repaired by hand while the rule stayed blind. The DDL path
+ * reads `create [unique] index … on`, `alter table`, `drop table`, `drop index`,
+ * `comment on table|column` and `create|drop trigger … on`, quoted or bare,
+ * schema-qualified or not, through `if [not] exists`, `only` and `concurrently`.
+ * Three choices shape it:
+ *
+ *   - **Opt-in** ({@link SqlTableAccessOptions.ddl}). The rule it serves is about
+ *     migration files; elsewhere `alter table` in a literal changes no schema
+ *     this repository judges.
+ *   - **Anywhere in the literal**, not at its head. A migration's `addSql`
+ *     carries a `create table` and its indexes in one literal as a matter of
+ *     course, and wraps conditional DDL in `do $$ … $$`; the full head skeleton
+ *     (`create index <name> on <table>`) is what keeps prose out, and the owner
+ *     map bounds what is left.
+ *   - **A table the same source creates is not an existing table.** Indexing it
+ *     beside its `create table`, or dropping it in `down()`, is part of the
+ *     declaration, and who may declare a table is the owner map's question.
+ *
+ * `drop index` names an index, so it reaches a table only through the
+ * `create index` that named it — {@link declaredIndexes}, collected by the
+ * caller over every migration, since the two are usually in different files.
  */
 import ts from 'typescript';
 
@@ -103,7 +131,29 @@ export type SqlAccessDirection = 'read' | 'write';
  * path, which is how a new signal goes blind behind an existing one's red
  * (issue #130).
  */
-export type SqlAccessSyntax = 'statement' | 'builder';
+export type SqlAccessSyntax = 'statement' | 'builder' | 'ddl';
+
+/**
+ * What a caller asks the reader to recognise beyond DML and builders.
+ *
+ * DDL is **opt-in** (issue #108). The rule it serves — a migration may not
+ * write a table another module owns — is a rule about migration files, and a
+ * service or a test that mentions `alter table` in a literal is not touching a
+ * schema; reading DDL everywhere would widen `check:transaction-context` and the
+ * host predicate for no rule either of them states.
+ */
+export interface SqlTableAccessOptions {
+  /** Read DDL heads as well — set for migration files only. */
+  readonly ddl?: boolean;
+  /**
+   * Index name → table, for `drop index`, which names an index and not a table.
+   *
+   * The caller builds it from every migration it reads ({@link declaredIndexes}),
+   * because the `drop` and the `create` it undoes are usually in two files. An
+   * index created in the same source resolves without it.
+   */
+  readonly indexTables?: ReadonlyMap<string, string> | undefined;
+}
 
 /** One table identifier a SQL literal or a query builder names. */
 export interface SqlTableAccess {
@@ -208,9 +258,14 @@ const NOT_A_TABLE = new Set(['set', 'select', 'values', 'only', 'lateral', 'tabl
  * not exist. That is what lets the check's red proofs enter here, with source
  * text, rather than below with a resolved table list.
  */
-export function sqlTableAccesses(source: string, file: string): SqlTableAccess[] {
+export function sqlTableAccesses(
+  source: string,
+  file: string,
+  options: SqlTableAccessOptions = {},
+): SqlTableAccess[] {
   const sf = parse(source, file);
   const found = [...statementAccesses(sf), ...builderAccesses(sf)];
+  if (options.ddl === true) found.push(...ddlAccesses(sf, options.indexTables ?? new Map()));
   found.sort((a, b) => a.line - b.line);
   return found;
 }
@@ -440,6 +495,202 @@ function builderAccesses(sf: ts.SourceFile): SqlTableAccess[] {
     node.forEachChild(visit);
   };
   sf.forEachChild(visit);
+  return found;
+}
+
+// ---------------------------------------------------------------------------
+// Data definition against an existing table (issue #108)
+// ---------------------------------------------------------------------------
+
+/** One SQL identifier, quoted or bare. A quoted one may hold anything but `"`. */
+const IDENT = String.raw`(?:"[^"]+"|[a-z_][a-z0-9_$]*)`;
+
+/** `ident`, `schema.ident`, `"schema"."ident"`, `schema.table.column`. */
+const QUALIFIED = String.raw`${IDENT}(?:\s*\.\s*${IDENT})*`;
+
+/** A comma-separated list of {@link QUALIFIED} names — `drop table a, b`. */
+const QUALIFIED_LIST = String.raw`${QUALIFIED}(?:\s*,\s*${QUALIFIED})*`;
+
+/**
+ * `create [unique] index [concurrently] [[if not exists] name] on [only] table`.
+ *
+ * Group 1 is the index name (absent for Postgres' unnamed form), group 2 the
+ * table.
+ */
+const CREATE_INDEX = new RegExp(
+  String.raw`\bcreate\s+(?:unique\s+)?index\s+(?:concurrently\s+)?` +
+    String.raw`(?:(?:if\s+not\s+exists\s+)?(${IDENT})\s+)?on\s+(?:only\s+)?(${QUALIFIED})`,
+  'gi',
+);
+
+/**
+ * The DDL heads whose target is a table that already exists, and so may be
+ * another module's. `create table` is deliberately absent: it is the
+ * **declaration** the owner map is built from ({@link declaredTableNames}).
+ *
+ * `column` says which identifier of the qualified name is the table: the last
+ * one, or — for `comment on column t.c` — the one before it. Every head is
+ * matched anywhere in a literal rather than at its start, because a
+ * migration's `addSql` carries several statements in one literal as a matter of
+ * course and wraps conditional DDL in `do $$ … $$` blocks.
+ */
+const DDL_HEADS: ReadonlyArray<{ readonly pattern: RegExp; readonly column?: boolean }> = [
+  { pattern: CREATE_INDEX },
+  {
+    pattern: new RegExp(
+      String.raw`\balter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?(${QUALIFIED})`,
+      'gi',
+    ),
+  },
+  {
+    pattern: new RegExp(String.raw`\bdrop\s+table\s+(?:if\s+exists\s+)?(${QUALIFIED_LIST})`, 'gi'),
+  },
+  { pattern: new RegExp(String.raw`\bcomment\s+on\s+table\s+(${QUALIFIED})`, 'gi') },
+  { pattern: new RegExp(String.raw`\bcomment\s+on\s+column\s+(${QUALIFIED})`, 'gi'), column: true },
+  {
+    // The event list (`insert or update of "status"`) sits between the trigger
+    // name and `on`, so it is skipped lazily up to the first whole-word `on`.
+    pattern: new RegExp(
+      String.raw`\bcreate\s+(?:or\s+replace\s+)?(?:constraint\s+)?trigger\s+${IDENT}\s+` +
+        String.raw`(?:before|after|instead\s+of)\b[\s\S]*?\bon\s+(?:only\s+)?(${QUALIFIED})`,
+      'gi',
+    ),
+  },
+  {
+    pattern: new RegExp(
+      String.raw`\bdrop\s+trigger\s+(?:if\s+exists\s+)?${IDENT}\s+on\s+(${QUALIFIED})`,
+      'gi',
+    ),
+  },
+];
+
+/** `drop index [concurrently] [if exists] a, b` — names indexes, not tables. */
+const DROP_INDEX = new RegExp(
+  String.raw`\bdrop\s+index\s+(?:concurrently\s+)?(?:if\s+exists\s+)?(${QUALIFIED_LIST})`,
+  'gi',
+);
+
+/** The identifiers of a qualified name, unquoted and lower-cased. */
+function identifiersOf(qualified: string): string[] {
+  const parts: string[] = [];
+  for (const match of qualified.matchAll(new RegExp(IDENT, 'gi'))) {
+    parts.push(match[0].replace(/^"(.*)"$/, '$1').toLowerCase());
+  }
+  return parts;
+}
+
+/** The qualified names a comma-separated list holds. */
+function namesOf(list: string): string[] {
+  return [...list.matchAll(new RegExp(QUALIFIED, 'gi'))].map((match) => match[0]);
+}
+
+/**
+ * The table a qualified name denotes: its last identifier — the schema is
+ * dropped for the reason the statement path drops it — or, for a column, the
+ * one before that.
+ */
+function tableOfName(qualified: string, column: boolean): string | null {
+  const parts = identifiersOf(qualified);
+  const table = column ? parts[parts.length - 2] : parts[parts.length - 1];
+  return table !== undefined && /^[a-z_][a-z0-9_]*$/.test(table) ? table : null;
+}
+
+/** The text a DDL match starts, for the message. */
+function ddlStatement(text: string, at: number): string {
+  const end = text.indexOf(';', at);
+  const statement = text.slice(at, end === -1 ? undefined : end + 1);
+  return statement.replace(/\s+/g, ' ').trim().slice(0, 80);
+}
+
+/** Every `create index … on <table>` in one literal, as index → table. */
+function indexesIn(text: string): Array<{ index: string; table: string }> {
+  const found: Array<{ index: string; table: string }> = [];
+  for (const match of text.matchAll(CREATE_INDEX)) {
+    if (match[1] === undefined || match[2] === undefined) continue;
+    const index = identifiersOf(match[1])[0];
+    const table = tableOfName(match[2], false);
+    if (index !== undefined && table !== null) found.push({ index, table });
+  }
+  return found;
+}
+
+/**
+ * The indexes `source` creates, with the table each one is on.
+ *
+ * `drop index` names an index, so the reader can attribute it to a table only
+ * through what created it — which is usually an earlier migration, often in
+ * another module. A caller reading many sources collects these into the map
+ * {@link SqlTableAccessOptions.indexTables} takes. Read from literal nodes, like
+ * everything else here, so a comment declares nothing.
+ */
+export function declaredIndexes(
+  source: string,
+  file: string,
+): Array<{ index: string; table: string }> {
+  const found: Array<{ index: string; table: string }> = [];
+  for (const literal of literals(parse(source, file))) found.push(...indexesIn(literal.text));
+  return found;
+}
+
+/**
+ * The existing tables named by DDL in `sf`'s literals — each a **write**: a
+ * module that indexes, alters, comments on or drops a table changes that
+ * table's schema, which is exactly what the owner decides.
+ */
+function ddlAccesses(
+  sf: ts.SourceFile,
+  indexTables: ReadonlyMap<string, string>,
+): SqlTableAccess[] {
+  const found: SqlTableAccess[] = [];
+  const all = literals(sf);
+  // A table this source itself creates is not an *existing* table: indexing it
+  // beside its `create table`, or dropping it in the same migration's `down()`,
+  // is part of that declaration. Who may declare a table is the owner map's
+  // question (entity over migration), not this path's — reporting the index and
+  // not the `create` would attribute the finding to the wrong statement.
+  const created = new Set<string>();
+  for (const literal of all) {
+    for (const match of literal.text.matchAll(CREATE_TABLE)) {
+      if (match[1] !== undefined) created.add(match[1].toLowerCase());
+    }
+  }
+  for (const literal of all) {
+    const local = new Map(indexTables);
+    for (const { index, table } of indexesIn(literal.text)) local.set(index, table);
+
+    const named: Array<{ table: string; at: number }> = [];
+    for (const head of DDL_HEADS) {
+      for (const match of literal.text.matchAll(head.pattern)) {
+        const target = match[match.length - 1];
+        if (target === undefined) continue;
+        for (const name of namesOf(target)) {
+          const table = tableOfName(name, head.column === true);
+          if (table !== null) named.push({ table, at: match.index });
+        }
+      }
+    }
+    for (const match of literal.text.matchAll(DROP_INDEX)) {
+      for (const name of namesOf(match[1] ?? '')) {
+        const index = identifiersOf(name).pop();
+        const table = index === undefined ? undefined : local.get(index);
+        if (table !== undefined) named.push({ table, at: match.index });
+      }
+    }
+
+    named.sort((a, b) => a.at - b.at);
+    const seen = new Set<string>();
+    for (const { table, at } of named) {
+      if (seen.has(table) || created.has(table)) continue;
+      seen.add(table);
+      found.push({
+        table,
+        direction: 'write',
+        syntax: 'ddl',
+        line: literal.line,
+        statement: ddlStatement(literal.text, at),
+      });
+    }
+  }
   return found;
 }
 
