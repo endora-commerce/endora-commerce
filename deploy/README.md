@@ -41,6 +41,11 @@ The Docker stack binds the three apps to `127.0.0.1` only, so they are reachable
 
 Apps run built output: `node dist/index.js` (backend, feature 080 D-165) / Next standalone
 (storefront) / nginx (admin).
+The storefront's standalone server runs under a supervising parent
+(`storefront/scripts/supervise.mjs`, issue #152) that kills a server which stops answering
+HTTP and exits non-zero, so `restart: unless-stopped` brings it back — Docker itself never
+restarts a container that is only `unhealthy`. Its `STOREFRONT_SUPERVISOR_*` variables are in
+`docs/docs/deployment/storefront-supervisor.md`; the defaults need none.
 The backend runs API **and** BullMQ workers in one process (`BACKEND_ROLE=all`).
 
 ---
