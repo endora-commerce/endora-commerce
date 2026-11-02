@@ -415,14 +415,19 @@ describe('155 — placement and the checkout preview refuse below-minimum lines 
       ...args: unknown[]
     ) => { place(ctx: unknown, input: unknown, salesChannelId: string): Promise<unknown> };
     const realCart = cradle().cartWritePort;
+    let workingCartId = '';
     const uncheckedCart = {
-      addItems: async (_actor: unknown, lines: Array<{ productId: string; quantity: number }>) => ({
-        ...(await realCart.replaceItemsForCustomer(
+      addItems: async (_actor: unknown, lines: Array<{ productId: string; quantity: number }>) => {
+        const seeded = await realCart.replaceItemsForCustomer(
           BASKET_CTX,
           lines.map((line) => ({ productId: line.productId, quantity: line.quantity, unitPrice: '10.00', currency: 'PLN' })),
-        )),
-        outcomes: [],
-      }),
+        );
+        // Issue #169 — one-click places from the working basket `addItems` hands
+        // back: the double hands back an unchecked one.
+        await h.em().getConnection().execute(`update carts set status = 'working' where id = ?`, [seeded.cart.id]);
+        workingCartId = seeded.cart.id;
+        return { ...seeded, cart: { ...seeded.cart, status: 'working' }, outcomes: [] };
+      },
     };
     const preferences = {
       resolveForCustomer: async () => ({
@@ -445,7 +450,9 @@ describe('155 — placement and the checkout preview refuse below-minimum lines 
       statusCode: 422,
       code: ERROR_CODES.PRODUCT_BELOW_MINIMUM_QUANTITY,
     });
-    expect((await basketLines()).map((l) => [l.productId, l.quantity])).toEqual([[A.id, 5]]);
+    // The refused placement removed the working basket it was handed.
+    const left = await h.em().getConnection().execute(`select id from carts where id = ?`, [workingCartId]);
+    expect(left).toEqual([]);
     expect(await orderCount()).toBe(ordersBefore);
   });
 

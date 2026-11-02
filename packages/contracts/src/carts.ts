@@ -89,7 +89,12 @@ export type UpdateCartItemRequest = z.infer<typeof updateCartItemRequestSchema>;
 //  Feature 027 — status & approval enums (shared across surfaces)
 // ────────────────────────────────────────────────────────────────────────
 
-export const cartStatusSchema = z.enum(['active', 'abandoned', 'completed', 'rejected']);
+/**
+ * `working` (issue #169): a basket an order is placed from on the customer's
+ * behalf, beside their active basket. Never listed and never the customer's
+ * basket; it ends `completed` against its order or is removed.
+ */
+export const cartStatusSchema = z.enum(['active', 'abandoned', 'completed', 'rejected', 'working']);
 export type CartStatus = z.infer<typeof cartStatusSchema>;
 
 export const cartApprovalStatusSchema = z.enum([
@@ -838,13 +843,17 @@ export interface CartWritePort {
    * PRODUCT_BELOW_MINIMUM_QUANTITY` / `PACKAGING_UNIT_BELOW_MINIMUM_QUANTITY`,
    * every offending line in `details.lines` keyed by its `index`.
    *
-   * `replaceExisting` (a customer actor only) — the batch becomes the customer's
-   * whole basket: step (2) judges the batch alone, and the active cart is cleared
-   * only after steps (1) and (2) pass, so a request refused there leaves the
-   * basket exactly as it was. It requires `onLineError: 'throw'`; with
-   * `'report'` the call is refused before anything is read or written.
+   * `workingBasket` (a customer actor only; issue #169) — the batch is written
+   * into a fresh **working** basket of the customer's on the actor's channel,
+   * never into the active one, which stays exactly as it was: step (2) judges
+   * the batch alone, and the working basket is created only after steps (1) and
+   * (2) pass and removed again when step (3) refuses a line, so a refused
+   * request writes nothing. The returned cart is that working basket; its id is
+   * what `OrderPlacementPort.placeOrder`'s `workingBasketId` places from. It
+   * requires `onLineError: 'throw'`; with `'report'` the call is refused before
+   * anything is read or written.
    *
-   * `keepRepeatedLines` (with `replaceExisting` only) — every line stays a line
+   * `keepRepeatedLines` (with `workingBasket` only) — every line stays a line
    * of its own: a repeated `(product, variant, unit)` is not merged into the
    * first, each line is priced at its own quantity, and the basket reads back in
    * the batch's order. Minimums are still judged on a product's total. Feature
@@ -862,7 +871,7 @@ export interface CartWritePort {
     options: {
       onLineError: 'throw' | 'report';
       onBelowMinimum?: 'report' | 'throw';
-      replaceExisting?: boolean;
+      workingBasket?: boolean;
       keepRepeatedLines?: boolean;
       language?: string;
     },
