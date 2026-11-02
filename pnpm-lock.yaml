@@ -131,6 +131,9 @@ importers:
       '@endora-commerce/mod-document-templates':
         specifier: workspace:*
         version: link:../packages/modules/document_templates
+      '@endora-commerce/mod-forms':
+        specifier: workspace:*
+        version: link:../packages/modules/forms
       '@endora-commerce/mod-google-analytics':
         specifier: workspace:*
         version: link:../packages/modules/google_analytics
@@ -438,6 +441,9 @@ importers:
       '@endora-commerce/mod-erp-connector':
         specifier: workspace:*
         version: link:../packages/modules/erp_connector
+      '@endora-commerce/mod-forms':
+        specifier: workspace:*
+        version: link:../packages/modules/forms
       '@endora-commerce/mod-google-analytics':
         specifier: workspace:*
         version: link:../packages/modules/google_analytics
@@ -2405,6 +2411,63 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.11
+        version: 4.1.11(@types/node@22.19.17)(happy-dom@20.14.5)(jsdom@29.1.1(@noble/hashes@2.0.1))(vite@7.3.7(@types/node@22.19.17)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.2)(tsx@4.23.15)(yaml@2.9.0))
+
+  packages/modules/forms:
+    devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
+      '@endora-commerce/cms-components':
+        specifier: workspace:*
+        version: link:../../cms-components
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@endora-commerce/email-components':
+        specifier: workspace:*
+        version: link:../../email-components
+      '@endora-commerce/platform':
+        specifier: workspace:*
+        version: link:../../platform
+      '@fastify/rate-limit':
+        specifier: ^10.3.0
+        version: 10.3.0
+      '@mikro-orm/core':
+        specifier: ^6.6.13
+        version: 6.6.16
+      '@mikro-orm/migrations':
+        specifier: ^6.6.13
+        version: 6.6.16(@mikro-orm/core@6.6.16)(@types/node@22.19.17)(pg@8.20.0)
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.3.0
+      bullmq:
+        specifier: ^5.76.1
+        version: 5.76.1
+      fastify:
+        specifier: ^5.12.5
+        version: 5.12.5
+      ioredis:
+        specifier: ^5.10.1
+        version: 5.10.1
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.18.2
+        version: 7.18.4(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3

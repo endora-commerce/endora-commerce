@@ -205,6 +205,9 @@ import { Migration20260817T070014EmailDeliveryRecord } from '@endora-commerce/mo
 // ── erp_connector ───────────────────────────────────────────────────────────
 import { Migration20260911T120000ErpConnectorInit } from '@endora-commerce/mod-erp-connector/migrations';
 
+// ── forms ───────────────────────────────────────────────────────────────────
+import { Migration20261102T111501FormsInit } from '@endora-commerce/mod-forms/migrations';
+
 // ── google_analytics ────────────────────────────────────────────────────────
 import { Migration20260715T171116GoogleAnalyticsInit } from '@endora-commerce/mod-google-analytics/migrations';
 
@@ -585,6 +588,9 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── erp_connector ───────────────────────────────────────────────────────────
   migration('erp_connector', Migration20260911T120000ErpConnectorInit),
+
+  // ── forms ───────────────────────────────────────────────────────────────────
+  migration('forms', Migration20261102T111501FormsInit),
 
   // ── google_analytics ────────────────────────────────────────────────────────
   migration('google_analytics', Migration20260715T171116GoogleAnalyticsInit),

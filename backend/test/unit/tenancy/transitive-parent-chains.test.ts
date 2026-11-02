@@ -104,9 +104,14 @@ describe('the committed platform’s transitive tenancy chains', () => {
     // `QuoteRequestItemGroup` -> `QuoteRequest` and `OrderItemGroup` -> `Order`,
     // each a named group of its document's lines, one hop to a parent owned by
     // the same module — the shape of the CRM children.
+    // **One more since `specs/170-forms-module/`** (research § Principle XI
+    // review): `FormEntryNote` -> `FormEntry`, an employee's note on a form
+    // entry, one hop to a parent owned by the same module — and the first chain
+    // here whose terminus is `customer`-scoped rather than `org`-scoped.
     expect(transitive.map((meta) => meta.className).sort()).toEqual(
       [
         ...CRM_OPPORTUNITY_CHILDREN,
+        'FormEntryNote',
         'Invoice',
         'InvoiceExternalAttachment',
         'OrderItemGroup',
@@ -126,6 +131,9 @@ describe('the committed platform’s transitive tenancy chains', () => {
         key: 'organizationId',
       });
     }
+    const formEntryNote = transitive.find((meta) => meta.className === 'FormEntryNote');
+    expect(formEntryNote).toMatchObject({ parentClassName: 'FormEntry', fk: 'entryId' });
+    expect(resolveTransitiveParent(formEntryNote!)).toMatchObject({ className: 'FormEntry', scope: 'customer' });
     const accountPolicy = transitive.find((meta) => meta.className === 'QuoteRequestAccountPolicy');
     expect(accountPolicy).toMatchObject({ parentClassName: 'CustomerAccount', fk: 'customerAccountId' });
     expect(resolveTransitiveParent(accountPolicy!)).toMatchObject({

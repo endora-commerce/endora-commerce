@@ -34,6 +34,7 @@ import { MissingComponentPlaceholder } from './components/MissingComponentPlaceh
 import { NewsletterSignup } from './components/NewsletterSignup.js';
 import { PageNavigation } from './components/PageNavigation.js';
 import { Signup as NewsletterSignupBlock } from './components/NewsletterSignupForm.js';
+import { Form as FormsFormBlock } from './components/forms/Form.js';
 import { ProductCard } from './components/ProductCard.js';
 import { ProductGrid } from './components/ProductGrid.js';
 import { ProductSlider } from './components/ProductSlider.js';
@@ -87,6 +88,8 @@ export * from './components/MediaText.js';
 export * from './components/MissingComponentPlaceholder.js';
 export * from './components/NewsletterSignup.js';
 export * from './components/NewsletterSignupForm.js';
+// Feature 170 — the `forms` module's form, placed on a page.
+export * from './components/forms/Form.js';
 export * from './components/PageNavigation.js';
 export * from './components/page-navigation-spy.js';
 export * from './components/ProductCard.js';
@@ -425,6 +428,13 @@ export const defaultPageBuilderConfig: Config = {
     // Feature 163 (T076) — declared by the `newsletter` manifest, rendered from here (research R-17).
     'newsletter.Signup': definePageBuilderComponent({
       ...(NewsletterSignupBlock as unknown as ComponentConfig),
+      contexts: ['cms'],
+      responsiveFields: [],
+    }),
+    // Feature 170 (`specs/170-forms-module/` contracts/blocks-and-storefront.md §1) — declared by the
+    // `forms` manifest, rendered from here (research R-8).
+    'forms.Form': definePageBuilderComponent({
+      ...(FormsFormBlock as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: [],
     }),

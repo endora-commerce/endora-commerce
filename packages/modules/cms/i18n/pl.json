@@ -3020,5 +3020,9 @@
   "actions.openHooks.keywords": "hooki",
   "actions.openPageBuilderTranslationSettings.keywords": "tłumacz, tłumaczenie, przetłumacz, kreator stron",
   "actions.openCmsBrand.keywords": "marka, czcionki, kolory, motyw",
-  "actions.openContactFormSettings.keywords": "kontakt, formularz, odbiorcy, zapytania"
+  "actions.openContactFormSettings.keywords": "kontakt, formularz, odbiorcy, zapytania",
+  "blocks.form.note.draft": "Ten formularz jest szkicem i nie jest pokazywany klientom. Opublikuj go w module Formularze.",
+  "blocks.form.note.closed": "Ten formularz jest zamknięty: klienci widzą zamiast niego komunikat o zamknięciu.",
+  "blocks.form.note.notFound": "Nie znaleziono formularza. Mógł zostać usunięty — wybierz inny formularz w ustawieniach bloku.",
+  "blocks.form.note.forbidden": "Nie masz uprawnień do przeglądania formularzy, więc nie można tu pokazać tego formularza."
 }

@@ -145,6 +145,7 @@
     "@endora-commerce/mod-document-templates": "workspace:*",
     "@endora-commerce/mod-email": "workspace:*",
     "@endora-commerce/mod-erp-connector": "workspace:*",
+    "@endora-commerce/mod-forms": "workspace:*",
     "@endora-commerce/mod-google-analytics": "workspace:*",
     "@endora-commerce/mod-google-tag-manager": "workspace:*",
     "@endora-commerce/mod-i18n": "workspace:*",

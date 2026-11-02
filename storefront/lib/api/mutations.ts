@@ -50,7 +50,7 @@ function throwFromErrorEnvelope(status: number, envelope: unknown): never {
         .join('; ');
       message = `${message} (${hint})`;
     }
-    throw new StorefrontApiError(status, err.code, message, err.requestId);
+    throw new StorefrontApiError(status, err.code, message, err.requestId, err.details);
   }
   throw new StorefrontApiError(status, 'INTERNAL', `HTTP ${status}`);
 }

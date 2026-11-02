@@ -2865,6 +2865,295 @@ textarea.cmsc-pb-contact-form__control {
   }
 }
 
+/* ── Form (feature 170, `specs/170-forms-module/` contracts/blocks-and-storefront.md §5) ──
+ * A published form of the `forms` module. Sections are grids of one to three columns from the
+ * tablet breakpoint up — one column below it (FR-016) — and each field spans its width. Three
+ * field looks, three sizes and two alignments, every colour from the section's colour scheme
+ * (each token with a literal fallback, as the contact form's). No px option, no colour of its own. */
+.cmsc-pb-form {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  color: var(--cmsb-fg, #15202b);
+}
+.cmsc-pb-form__header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cmsc-pb-form__title {
+  margin: 0;
+}
+.cmsc-pb-form__description,
+.cmsc-pb-form__section-description {
+  margin: 0;
+  color: var(--cmsb-fg-muted, #64748b);
+}
+.cmsc-pb-form__form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.cmsc-pb-form__section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cmsc-pb-form__section-title {
+  margin: 0;
+}
+.cmsc-pb-form__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px 20px;
+}
+.cmsc-pb-form__cell {
+  min-width: 0;
+}
+.cmsc-pb-form__field,
+.cmsc-pb-form__part {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.cmsc-pb-form__group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.cmsc-pb-form__group > legend {
+  margin-bottom: 4px;
+  padding: 0;
+}
+.cmsc-pb-form__parts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px 20px;
+}
+.cmsc-pb-form__label {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.cmsc-pb-form__req {
+  margin-left: 2px;
+  color: var(--cmsb-fg-muted, #64748b);
+}
+.cmsc-pb-form__help {
+  margin: 0;
+  color: var(--cmsb-fg-muted, #64748b);
+  font-size: 0.8125rem;
+}
+.cmsc-pb-form__control {
+  width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 10px 14px;
+  border: 1px solid var(--cmsb-border, #d9e0e7);
+  border-radius: 8px;
+  background: var(--cmsb-bg, #fff);
+  color: var(--cmsb-fg, #15202b);
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1.4;
+}
+textarea.cmsc-pb-form__control {
+  min-height: 120px;
+  resize: vertical;
+}
+.cmsc-pb-form__control::placeholder {
+  color: var(--cmsb-fg-muted, #64748b);
+  opacity: 1;
+}
+.cmsc-pb-form__check input:focus-visible,
+.cmsc-pb-form__control:focus-visible {
+  outline: 2px solid var(--cmsb-color-primary, #1261a6);
+  outline-offset: 2px;
+}
+.cmsc-pb-form__control[aria-invalid='true'],
+.cmsc-pb-form__check input[aria-invalid='true'] {
+  border-color: var(--cmsb-color-danger, #b91c1c);
+  outline: 2px solid var(--cmsb-color-danger, #b91c1c);
+  outline-offset: 1px;
+}
+.cmsc-pb-form--look-underline .cmsc-pb-form__control {
+  border-width: 0 0 1px;
+  border-radius: 0;
+  padding-right: 0;
+  padding-left: 0;
+  background: transparent;
+}
+.cmsc-pb-form--look-pill .cmsc-pb-form__control {
+  border-radius: 999px;
+  padding-right: 20px;
+  padding-left: 20px;
+}
+.cmsc-pb-form--look-pill textarea.cmsc-pb-form__control {
+  border-radius: 16px;
+}
+.cmsc-pb-form--size-s .cmsc-pb-form__control {
+  min-height: 36px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  font-size: 0.875rem;
+}
+.cmsc-pb-form--size-l .cmsc-pb-form__control {
+  min-height: 52px;
+  padding-top: 14px;
+  padding-bottom: 14px;
+  font-size: 1.125rem;
+}
+.cmsc-pb-form__check {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px;
+}
+.cmsc-pb-form__check input {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  accent-color: var(--cmsb-color-primary, #1261a6);
+}
+.cmsc-pb-form__check label {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+.cmsc-pb-form__check label a,
+.cmsc-pb-form__content a {
+  color: inherit;
+  text-decoration: underline;
+}
+.cmsc-pb-form__consent-text > p,
+.cmsc-pb-form__content > p {
+  margin: 0;
+}
+.cmsc-pb-form__content {
+  display: block;
+}
+.cmsc-pb-form__break {
+  margin: 8px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--cmsb-border, #d9e0e7);
+}
+.cmsc-pb-form__error {
+  display: flex;
+  flex-basis: 100%;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--cmsb-color-danger, #b91c1c);
+  font-size: 0.875rem;
+}
+.cmsc-pb-form__error-icon {
+  flex: 0 0 auto;
+  width: 1em;
+  height: 1em;
+}
+.cmsc-pb-form__summary {
+  padding: 12px 16px;
+  border: 2px solid var(--cmsb-color-danger, #b91c1c);
+  border-radius: 8px;
+}
+.cmsc-pb-form__summary:focus-visible {
+  outline: 2px solid var(--cmsb-color-primary, #1261a6);
+  outline-offset: 2px;
+}
+.cmsc-pb-form__summary-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+  color: var(--cmsb-color-danger, #b91c1c);
+  font-weight: 600;
+}
+.cmsc-pb-form__summary-list {
+  margin: 0;
+  padding-left: 20px;
+}
+.cmsc-pb-form__summary-list a {
+  color: inherit;
+  text-decoration: underline;
+}
+.cmsc-pb-form__actions {
+  display: flex;
+}
+/* Feature 170 (US6): the CAPTCHA widget's container — the provider's smallest widget height reserved,
+   so its arrival after the script loads shifts nothing below it. */
+.cmsc-pb-form__captcha {
+  min-height: 65px;
+}
+.cmsc-pb-form--align-center .cmsc-pb-form__captcha {
+  display: flex;
+  justify-content: center;
+}
+/* Feature 170 (US2): the confirmation, a closed/not-yet-open/full/sign-in message and the editor's note. */
+.cmsc-pb-form__message {
+  margin: 0;
+  padding: 12px 16px;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+}
+.cmsc-pb-form__message > :first-child {
+  margin-top: 0;
+}
+.cmsc-pb-form__message > :last-child {
+  margin-bottom: 0;
+}
+.cmsc-pb-form__message a {
+  color: inherit;
+  text-decoration: underline;
+}
+.cmsc-pb-form__note {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border: 1px dashed currentColor;
+  border-radius: 8px;
+  font-size: 0.875em;
+}
+.cmsc-pb-form--align-center .cmsc-pb-form__header {
+  text-align: center;
+}
+.cmsc-pb-form--align-center .cmsc-pb-form__actions {
+  justify-content: center;
+}
+.cmsc-pb-form__hp {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+@media (min-width: 768px) {
+  .cmsc-pb-form__grid--cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .cmsc-pb-form__grid--cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .cmsc-pb-form__cell--span-2 {
+    grid-column: span 2;
+  }
+  .cmsc-pb-form__cell--span-3 {
+    grid-column: span 3;
+  }
+  .cmsc-pb-form__parts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .cmsc-pb-form__part--street,
+  .cmsc-pb-form__part--line2 {
+    grid-column: 1 / -1;
+  }
+}
+
 .cmsc-pb-slide {
   min-height: 0;
   overflow: hidden;

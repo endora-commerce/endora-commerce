@@ -10,12 +10,16 @@ import {
   defaultPageBuilderConfig,
   withMissingBlockPlaceholders,
 } from '@endora-commerce/cms-components';
+import type { CmsPageBuilderDescriptor } from '@endora-commerce/contracts';
 import {
   composeDeclaredBlocks,
   loadBlockEditors,
   namesToLoad,
+  withoutWithdrawnBundledBlocks,
   type DeclaredBlock,
 } from '../../../../packages/modules/cms/src/admin/components/block-contributions';
+import { buildPageBuilderEditorConfig } from '../../../../packages/modules/cms/src/admin/components/PageBuilderEditor';
+import { editorDescriptor } from './page-builder-editor-harness';
 
 /**
  * `specs/141-module-block-renderers/` US2 — a module's block renders and edits
@@ -259,6 +263,57 @@ describe('a stored block whose owner is absent (FR-016)', () => {
       renderable: new Set(Object.keys(components)),
     });
     expect(Object.values(categories).flatMap((c) => c.components ?? [])).not.toContain('crm.Badge');
+  });
+});
+
+/**
+ * `specs/170-forms-module/` US10-1 — a block this bundle renders but another module owns
+ * (`forms.Form`, `newsletter.Signup`, `catalog.*`, `blog.*`) follows its owner's presence too. The
+ * served descriptor is the presence answer (the registry leaves out an absent owner's blocks), so
+ * a bundled block of another module the descriptor no longer declares is withdrawn, and a stored
+ * one degrades to the missing-block note like any absent owner's.
+ */
+describe('a stored forms.Form while forms is off (170 US10-1)', () => {
+  const served = editorDescriptor() as unknown as CmsPageBuilderDescriptor;
+  const withoutForms: CmsPageBuilderDescriptor = {
+    ...served,
+    components: served.components.filter((entry) => entry.ownerModule !== 'forms'),
+    categories: (served.categories ?? []).filter((section) => section.ownerModule !== 'forms'),
+  };
+  const stored = [{ type: 'forms.Form', props: { id: 'form-1', formId: '3b0c9f0e-2d1a-4c5b-8e7f-6a5b4c3d2e1f' } }];
+
+  function editorConfig(descriptor: CmsPageBuilderDescriptor | null): Config {
+    return buildPageBuilderEditorConfig({
+      descriptor,
+      context: 'cms',
+      t: (key) => key,
+      translateInScope: (scope, key) => `${scope}.${key}`,
+      storedBlockNames: ['forms.Form'],
+    });
+  }
+
+  it('withdraws a bundled block of another module the descriptor does not declare, and keeps cms’ own', () => {
+    const kept = withoutWithdrawnBundledBlocks(BASE, withoutForms);
+    expect(kept['forms.Form']).toBeUndefined();
+    expect(kept['newsletter.Signup']).toBe(BASE['newsletter.Signup']);
+    expect(kept['cms.Text']).toBe(BASE['cms.Text']);
+    // Before the descriptor is read nothing is withdrawn: absence is the server's answer.
+    expect(withoutWithdrawnBundledBlocks(BASE, null)).toBe(BASE);
+    expect(withoutWithdrawnBundledBlocks(BASE, served)['forms.Form']).toBe(BASE['forms.Form']);
+  });
+
+  it('shows the missing-block note on the canvas and does not offer the block', () => {
+    const config = editorConfig(withoutForms);
+    const html = draw(config.components as Record<string, ComponentConfig>, stored);
+    expect(html).toContain('Missing CMS component');
+    expect(html).toContain('forms.Form');
+    const offered = Object.values(config.categories ?? {}).flatMap((section) => section.components ?? []);
+    expect(offered).not.toContain('forms.Form');
+  });
+
+  it('is the block again once forms is back, from the same stored document', () => {
+    const html = draw(editorConfig(served).components as Record<string, ComponentConfig>, stored);
+    expect(html).not.toContain('Missing CMS component');
   });
 });
 

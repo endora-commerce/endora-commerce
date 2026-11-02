@@ -28,6 +28,7 @@ import type { ComponentConfig, Config } from '@puckeditor/core';
 import type { CmsPageBuilderDescriptor } from '@endora-commerce/contracts';
 import type { OwnedBlockContribution } from '@endora-commerce/admin-kit/zones';
 import { makeMissingComponentConfig } from '@endora-commerce/cms-components';
+import { ownerOf } from '@endora-commerce/page-builder-core';
 import {
   editorConfigFromDescriptor,
   neutralBlockPreview,
@@ -41,6 +42,32 @@ export type DeclaredBlock = CmsPageBuilderDescriptor['components'][number];
 
 /** Where an ignored or failed contribution is said; the editor logs it. */
 export type BlockContributionReport = (message: string) => void;
+
+/**
+ * The bundled renderers whose owner is present (`specs/170-forms-module/` US10-1).
+ *
+ * This bundle renders a few blocks other modules own — `forms.Form`, `newsletter.Signup`,
+ * `catalog.*`, `blog.*` — and a renderer being bundled says nothing about its owner being on. The
+ * served descriptor is the presence answer: the registry leaves out every block of an absent
+ * owner, so a bundled block of a module other than `cms` the descriptor does not declare is
+ * withdrawn here, and a stored one degrades to the missing-block note through
+ * `withMissingBlockPlaceholders`, like any absent owner's. Every context's entries count, not only
+ * this editor's — the context filter is a separate step. Before the descriptor is read
+ * (`null`) nothing is withdrawn.
+ */
+export function withoutWithdrawnBundledBlocks<T>(
+  bundled: Readonly<Record<string, T>>,
+  descriptor: { readonly components: readonly Pick<DeclaredBlock, 'name'>[] } | null,
+): Readonly<Record<string, T>> {
+  if (descriptor === null) return bundled;
+  const declared = new Set(descriptor.components.map((entry) => entry.name));
+  return Object.fromEntries(
+    Object.entries(bundled).filter(([name]) => {
+      const owner = ownerOf(name);
+      return owner === null || owner === 'cms' || declared.has(name);
+    }),
+  );
+}
 
 /** The declared names the bundle does not render — the ones worth a factory. */
 export function namesToLoad(

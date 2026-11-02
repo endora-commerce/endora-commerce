@@ -49,6 +49,7 @@ platformy, a nie tego, co akurat zostało opisane.
 | [Szablony dokumentów](./document-templates.md) | Projektowanie dokumentów PDF generowanych przez platformę — porównania produktów, faktury i zapytania ofertowego — w Page Builderze, dla każdego rodzaju dokumentu, języka i kanału sprzedaży | @endora-commerce/mod-document-templates |
 | `email` | _brak strony_ | @endora-commerce/mod-email |
 | `erp_connector` | _brak strony_ | @endora-commerce/mod-erp-connector |
+| [Formularze](./forms.md) | Kreator formularzy — formularze z sekcjami, logiką warunkową i tłumaczeniami, umieszczane na stronach blokiem Formularz, z zapisanymi zgłoszeniami, notatkami, eksportem CSV, powiadomieniami e-mail, okresem przechowywania i zdarzeniem webhooka | @endora-commerce/mod-forms |
 | [Google Analytics](./google-analytics.md) | Google Analytics 4 dla storefrontu — Measurement ID dla każdego kanału, Enhanced Ecommerce, kreator zdarzeń własnych i opcjonalne tagowanie po stronie serwera | @endora-commerce/mod-google-analytics |
 | [Google Tag Manager](./google-tag-manager.md) | Kontenery Google Tag Manager osobno dla każdego kanału sprzedaży, z udokumentowanymi zdarzeniami e-commerce w dataLayer i opcjonalnym przekazywaniem zdarzeń po stronie serwera | @endora-commerce/mod-google-tag-manager |
 | [import_export](./import_export.md) | Import i eksport CSV do masowej edycji encji | @endora-commerce/mod-import-export |

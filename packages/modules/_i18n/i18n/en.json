@@ -2461,5 +2461,14 @@
   "pageBuilder.newsletterField.types.text": "Text",
   "pageBuilder.newsletterField.types.number": "Number",
   "pageBuilder.newsletterField.types.boolean": "Yes / no",
-  "pageBuilder.newsletterField.types.date": "Date"
+  "pageBuilder.newsletterField.types.date": "Date",
+  "pageBuilder.formPicker.choose": "Choose a form…",
+  "pageBuilder.formPicker.create": "Create a new form",
+  "pageBuilder.formPicker.newTab": "(opens in a new tab)",
+  "pageBuilder.formPicker.notFound": "This form was not found. It may have been deleted — choose another one.",
+  "pageBuilder.formPicker.forbidden": "You do not have permission to view forms, so the form cannot be changed here.",
+  "pageBuilder.formPicker.loadFailed": "The forms could not be loaded. The block keeps its form.",
+  "pageBuilder.formPicker.status.draft": "Draft",
+  "pageBuilder.formPicker.status.published": "Published",
+  "pageBuilder.formPicker.status.closed": "Closed"
 }

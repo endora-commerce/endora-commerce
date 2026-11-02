@@ -59,6 +59,19 @@ export const CATALOG_PRODUCT_STOREFRONT_CACHE_TAGS = {
   maxLength: 256,
 } as const;
 
+/**
+ * Feature 170 (research R-21, FR-063) — the storefront's read of one public form definition.
+ * `forms` drops it after a committed publish, close, reopen or delete. Every state of that read is
+ * a `200` (`unavailable` included), so the 60 s revalidation bounds staleness even when the drop
+ * by tag is lost.
+ */
+export const FORMS_STOREFRONT_CACHE_TAGS = {
+  /** One form's reads, on every channel and language. */
+  form: (formId: string): string => `forms:form:${formId}`,
+  /** Next drops a tag longer than this. */
+  maxLength: 256,
+} as const;
+
 /** The resolved megamenu of a channel and language — it inlines CMS blocks. */
 export const MEGAMENU_STOREFRONT_CACHE_TAG = 'megamenu';
 

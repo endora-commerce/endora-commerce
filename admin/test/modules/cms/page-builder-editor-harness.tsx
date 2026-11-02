@@ -7,6 +7,7 @@ import type { Data } from '@puckeditor/core';
 import { manifest as blogManifest } from '@endora-commerce/mod-blog';
 import { manifest as catalogManifest } from '@endora-commerce/mod-catalog';
 import { manifest as cmsManifest } from '@endora-commerce/mod-cms';
+import { manifest as formsManifest } from '@endora-commerce/mod-forms';
 import { manifest as newsletterManifest } from '@endora-commerce/mod-newsletter';
 import { TranslationProvider } from '@endora-commerce/admin-kit/i18n';
 import type { Bundle } from '@endora-commerce/admin-kit/i18n';
@@ -38,6 +39,8 @@ const OWNERS: ReadonlyArray<readonly [string, BlockManifest]> = [
   ['catalog', catalogManifest as unknown as BlockManifest],
   ['blog', blogManifest as unknown as BlockManifest],
   ['newsletter', newsletterManifest as unknown as BlockManifest],
+  // Feature 170 — `forms.Form`, declared by `forms`.
+  ['forms', formsManifest as unknown as BlockManifest],
 ];
 
 /** What `GET /api/v1/admin/cms/page-builder/config` answers for a platform composing these four modules. */
@@ -65,6 +68,7 @@ export function shippedBundles(language: 'en' | 'pl'): Bundle {
     catalog: read('catalog'),
     blog: read('blog'),
     newsletter: read('newsletter'),
+    forms: read('forms'),
   } as Bundle;
 }
 

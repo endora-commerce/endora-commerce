@@ -14,6 +14,8 @@ import { cmsCarouselLabels } from '../lib/page-builder/carousel-labels';
 import { pageNavigationText } from '../lib/page-builder/page-navigation-text';
 import { newsletterSignupText } from '../lib/page-builder/newsletter-signup-text';
 import { cmsContactFormText } from '../lib/page-builder/contact-form-text';
+import { formsRenderContext } from '../lib/page-builder/forms-context';
+import { collectBlockDataRequests } from '@endora-commerce/cms-components/utils/block-data';
 import { publicApiBaseUrl } from '../lib/env.mjs';
 
 const mediaBaseUrl = publicApiBaseUrl().replace(
@@ -33,8 +35,14 @@ function embedNode(item: CmsResolvedBlock | CmsResolvedTemplate) {
  * `location`, the page's path and query, is what a block posting a plain form
  * back to the page reads (feature 163, `newsletter.Signup`): where to come
  * back to, and the outcome the handler put on the URL.
+ *
+ * Feature 170 — a page holding a `forms.Form` block also gets the forms
+ * context (`lib/page-builder/forms-context.ts`): the block's words, the
+ * countries, the viewer, the page context of hidden fields and a refused
+ * no-JS attempt addressed to it. Read only for such a page, and only while
+ * `forms` is present, so every other page costs nothing more.
  */
-export function CmsPageRenderer({
+export async function CmsPageRenderer({
   page,
   ctx,
   modules,
@@ -54,6 +62,22 @@ export function CmsPageRenderer({
     ),
   };
 
+  const documents = [
+    page.content.data,
+    ...Object.values(page.embeds.blocks).map((block) => block.content.data),
+    ...Object.values(page.embeds.templates).map((template) => template.content.data),
+  ];
+  const hasForm = collectBlockDataRequests(documents).some((request) => request.kind === 'form');
+  const forms =
+    hasForm && (modules?.isPresent('forms') ?? true)
+      ? await formsRenderContext({
+          language: page.language,
+          location: location ?? { path: `/${page.path ?? page.slug}`, query: {} },
+          pageTitle: page.name,
+          ctx,
+        })
+      : undefined;
+
   const assets = Object.fromEntries(
     Object.entries(page.assets).map(([id, asset]) => [
       id,
@@ -71,16 +95,13 @@ export function CmsPageRenderer({
       carouselLabels={cmsCarouselLabels(page.language)}
       pageNavigationText={pageNavigationText(page.language)}
       contactFormText={cmsContactFormText(page.language)}
+      {...(forms ? { forms } : {})}
     >
       <Hook code="cms.page.top" />
       <BlockData
         ctx={ctx}
         {...(modules ? { modules } : {})}
-        documents={[
-          page.content.data,
-          ...Object.values(page.embeds.blocks).map((block) => block.content.data),
-          ...Object.values(page.embeds.templates).map((template) => template.content.data),
-        ]}
+        documents={documents}
       >
         <PageBuilderRender data={page.content.data} pageContainer />
       </BlockData>

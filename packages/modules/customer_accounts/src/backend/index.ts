@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
-import type { ChannelMemberEntityType } from '@endora-commerce/contracts';
+import { CUSTOMER_ACCOUNT_ANONYMIZED_EVENT, type ChannelMemberEntityType } from '@endora-commerce/contracts';
 import { normalizeEmailAddress } from '@endora-commerce/contracts';
 import type { AuditReferenceRegistryPort, OrganizationDetailsPort } from '@endora-commerce/contracts';
 import type {
@@ -27,6 +27,7 @@ import type {
   SalesChannelAccessPort,
 } from '@endora-commerce/platform/kernel';
 import type { CommandBus } from '@endora-commerce/platform/commands';
+import type { EventBus } from '@endora-commerce/platform/events';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
 import { withSystemScope } from '@endora-commerce/platform/tenancy';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
@@ -138,6 +139,8 @@ export interface CustomerAccountsCradle {
   readonly redis: AttemptCounterStore;
   /** Feature 054 — the customer-group writes audit co-transactionally. */
   readonly commandBus: CommandBus;
+  /** The in-process bus `customer_account.anonymized.v1` is published on (read per call). */
+  readonly eventBus: EventBus;
   /** `auth`'s admin guard, for the customer-group admin routes. */
   readonly requireAdmin: RequireAdminFactory;
   readonly settingsReadPort: SettingsReadPort;
@@ -289,6 +292,17 @@ export function registerModule(ctx: ModuleContext): void {
             // proxy is what makes the capture legal at all.
             lazyPort<PersonalOrganizationProvisionApi>(ctx, 'personalOrganizationProvisionApi'),
             commandBus,
+            // `specs/170-forms-module/` research R-17 — the anonymisation is
+            // announced in a bus scope this write awaits, so a subscriber's
+            // erasure runs within the sweep step (cms' `publishContentChange`
+            // precedent). The bus is read per call, never captured; a handler's
+            // failure is the bus's to log and never fails the sweep.
+            async (payload) => {
+              const bus = ctx.cradle<CustomerAccountsCradle>().eventBus;
+              await bus.run(async () => {
+                bus.emit(CUSTOMER_ACCOUNT_ANONYMIZED_EVENT, payload);
+              });
+            },
           ),
       )
       .singleton(),

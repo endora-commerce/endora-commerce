@@ -2461,5 +2461,14 @@
   "pageBuilder.newsletterField.types.text": "Tekst",
   "pageBuilder.newsletterField.types.number": "Liczba",
   "pageBuilder.newsletterField.types.boolean": "Tak / nie",
-  "pageBuilder.newsletterField.types.date": "Data"
+  "pageBuilder.newsletterField.types.date": "Data",
+  "pageBuilder.formPicker.choose": "Wybierz formularz…",
+  "pageBuilder.formPicker.create": "Utwórz nowy formularz",
+  "pageBuilder.formPicker.newTab": "(otwiera się w nowej karcie)",
+  "pageBuilder.formPicker.notFound": "Nie znaleziono tego formularza. Mógł zostać usunięty — wybierz inny.",
+  "pageBuilder.formPicker.forbidden": "Nie masz uprawnień do przeglądania formularzy, więc nie można tu zmienić formularza.",
+  "pageBuilder.formPicker.loadFailed": "Nie udało się wczytać formularzy. Blok zachowuje swój formularz.",
+  "pageBuilder.formPicker.status.draft": "Szkic",
+  "pageBuilder.formPicker.status.published": "Opublikowany",
+  "pageBuilder.formPicker.status.closed": "Zamknięty"
 }

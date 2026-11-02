@@ -51,6 +51,7 @@ import {
   composeDeclaredBlocks,
   loadBlockEditors,
   namesToLoad,
+  withoutWithdrawnBundledBlocks,
   type DeclaredBlock,
   type LoadedBlockEditors,
 } from './block-contributions.js';
@@ -82,6 +83,7 @@ import { CAROUSEL_BLOCKS_WITH_ADMIN_FIELDS, withAdminCarouselFields } from './Ca
 import { LISTING_BLOCKS_WITH_ADMIN_FIELDS, withAdminListingFields } from './ListingFields.js';
 import { PAGE_NAVIGATION_BLOCKS_WITH_ADMIN_FIELDS, withAdminPageNavigationFields } from './PageNavigationFields.js';
 import { NEWSLETTER_SIGNUP_FIELDS_BLOCK, withAdminNewsletterSignupFields } from './NewsletterSignupFields.js';
+import { FORM_BLOCK_FIELDS_BLOCK, withAdminFormBlockFields } from './FormBlockFields.js';
 import { buildViewports } from './build-viewports.js';
 import {
   applyRowLayoutPreset,
@@ -252,9 +254,11 @@ function mergeConfig(
 ): Config {
   const base = defaultPageBuilderConfig;
 
+  // Feature 170 (US10-1) — a bundled block whose owner is absent is withdrawn, so a stored one
+  // shows the missing-block note.
   const bundled: Record<string, ComponentConfig> = {
-    ...(base.components ?? {}),
-  } as Record<string, ComponentConfig>;
+    ...withoutWithdrawnBundledBlocks((base.components ?? {}) as Record<string, ComponentConfig>, descriptor),
+  };
 
   // Replace InsertBlock's free-text "Block code" field with a dropdown of the
   // available CMS blocks, so authors pick from a list instead of having to know
@@ -326,6 +330,12 @@ function mergeConfig(
   for (const name of [NEWSLETTER_SIGNUP_FIELDS_BLOCK]) {
     const cfg = bundled[name];
     if (cfg) bundled[name] = withAdminNewsletterSignupFields(cfg);
+  }
+
+  // Feature 170 — `forms.Form`'s form from the forms the editor may see.
+  for (const name of [FORM_BLOCK_FIELDS_BLOCK]) {
+    const cfg = bundled[name];
+    if (cfg) bundled[name] = withAdminFormBlockFields(cfg);
   }
 
   const productCard = bundled['catalog.ProductCard'];

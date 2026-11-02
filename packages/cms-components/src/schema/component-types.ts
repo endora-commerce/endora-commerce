@@ -2001,3 +2001,26 @@ export interface ContactFormProps extends HideOnProps, BoxStyleProps {
   /** The form's accessible name. Translatable. Unset: the page language's. */
   formLabel?: string;
 }
+
+/**
+ * Feature 170 (`specs/170-forms-module/` contracts/blocks-and-storefront.md §2) — `forms.Form`,
+ * the block that places a published form on a page. It holds a form id and presets only: no text,
+ * no field, no recipient, no pixel and no colour (FR-003, FR-005). Every text is the form's own, per
+ * language; the colour scheme is the section's.
+ */
+export interface FormBlockProps extends HideOnProps {
+  /** A form of the `forms` module, or `''` until one is picked. */
+  formId?: string;
+  /** Unset: `boxed`. */
+  fieldLook?: 'boxed' | 'underline' | 'pill';
+  /** Unset: `m`. */
+  size?: 's' | 'm' | 'l';
+  /** The submit button's look: a `ButtonSpec` without a link or a label — the label is the form's. */
+  buttonLook?: Partial<Omit<ButtonSpec, 'link' | 'label'>>;
+  /** Unset: `start`. */
+  align?: 'start' | 'center';
+  /** Unset: `true`. */
+  showTitle?: boolean;
+  /** Unset: `true`. */
+  showDescription?: boolean;
+}

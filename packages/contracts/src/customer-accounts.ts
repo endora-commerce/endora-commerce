@@ -20,6 +20,27 @@
 import { z } from 'zod';
 import { isoDateTimeSchema, uuidSchema } from './common.js';
 
+// --- the anonymisation event ---------------------------------------------------
+//
+// `specs/170-forms-module/` research R-17, contracts/events-and-webhook.md §3.
+// `CustomerAccountLifecycleWritePort.anonymize` announces the irreversible step
+// once, after its write and its audit row, so a module holding data attributed
+// to the account can erase it within the same sweep step. Ids only: the account
+// has just been scrubbed, and the event says which one, never what it held. Not
+// offered to outbound webhooks.
+
+export const CUSTOMER_ACCOUNT_ANONYMIZED_EVENT = 'customer_account.anonymized.v1';
+
+export const CustomerAccountAnonymizedEventV1Schema = z
+  .object({
+    eventId: z.string().min(1),
+    occurredAt: isoDateTimeSchema,
+    customerAccountId: z.string().uuid(),
+    organizationId: z.string().uuid(),
+  })
+  .strict();
+export type CustomerAccountAnonymizedEventV1 = z.infer<typeof CustomerAccountAnonymizedEventV1Schema>;
+
 // --- customer groups ---------------------------------------------------------
 //
 // Feature 076, D-79 — the segmentation bucket a customer belongs to. It used to

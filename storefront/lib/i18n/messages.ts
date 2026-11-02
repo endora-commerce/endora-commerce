@@ -4,6 +4,7 @@ import { chrome } from './messages/chrome';
 import { commerce } from './messages/commerce';
 import { content } from './messages/content';
 import { core } from './messages/core';
+import { forms } from './messages/forms';
 import type { NamespaceKey } from './messages/define';
 
 /**
@@ -38,6 +39,7 @@ export const MESSAGE_NAMESPACES = {
   auth,
   chrome,
   content,
+  forms,
 } as const;
 
 type Namespaces = typeof MESSAGE_NAMESPACES;
