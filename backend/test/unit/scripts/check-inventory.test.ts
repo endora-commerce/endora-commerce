@@ -2982,7 +2982,7 @@ function defaultedReads(file: string, source: string): number {
  * `check-shared-table-wipes`' analysis, entered where a real run enters it: one
  * test file's source text and an empty baseline, findings out.
  *
- * Filtered by the finding's `kind`, so the three spellings prove themselves
+ * Filtered by the finding's `kind`, so the spellings prove themselves
  * separately — an ORM-only detector reports zero over a `truncate`, and zero is
  * what a drained tree looks like.
  */
@@ -6358,6 +6358,38 @@ const CHECKS: readonly CheckEntry[] = [
             '});',
           ].join('\n'),
           'sql-delete',
+        ),
+      ),
+      // Issue #115: the cleanup `sales_channels/boot-time-default-reconciliation`
+      // carried, which emptied the platform's default channel with no
+      // `nativeDelete` and no `delete from` for the first three proofs to see.
+      'orm-find-all-remove-each': top(() =>
+        tableWipes(
+          'integration/sales_channels/boot-time-default-reconciliation.test.ts',
+          [
+            'async function clearChannels(): Promise<void> {',
+            '  const all = await em.find(SalesChannel, {});',
+            '  for (const c of all) em.remove(c);',
+            '  await em.flush();',
+            '}',
+          ].join('\n'),
+          'orm-remove-each',
+        ),
+      ),
+      // Issue #115's other half: the same helper nulled every quote request's
+      // channel before it removed the channels, a write to a table it never owned.
+      'sql-update-without-where': top(() =>
+        tableWipes(
+          'integration/sales_channels/boot-time-default-reconciliation.test.ts',
+          `await em.execute('update "quote_requests" set "sales_channel_id" = null');`,
+          'sql-update',
+        ),
+      ),
+      'orm-update-empty-filter': top(() =>
+        tableWipes(
+          'integration/sales_channels/x.test.ts',
+          'await em.nativeUpdate(SalesChannel, {}, { active: false });',
+          'orm-update',
         ),
       ),
       // The second direction: a baseline standing over a file that no longer
@@ -12109,9 +12141,10 @@ describe('every red proof enters at the top of the analysis', () => {
       // `storefront-deps` token, proven in the companion test where the record
       // it reads is built.
       'backend/scripts/check-rsc-discipline.ts': 8,
-      // Three spellings of a whole-table wipe, plus the baseline's second
-      // direction.
-      'backend/scripts/check-shared-table-wipes.ts': 4,
+      // Three spellings of a whole-table wipe, the find-all/remove-each shape and
+      // the two spellings of an unqualified update (issue #115), plus the
+      // baseline's second direction.
+      'backend/scripts/check-shared-table-wipes.ts': 7,
       // Three findings — the composed singleton reached two ways it is derived
       // (the container and the ORM's entities array), the reach that names no
       // binding, and T061a's chain parent, which carries two of its own because

@@ -25,11 +25,26 @@
  * ## What counts as a violation
  *
  * An **unscoped wipe**: a statement in a file under `backend/test/` that
- * removes every row of a table, in either spelling —
+ * removes or rewrites every row of a table, in any of these spellings —
  *
  *   1. **orm** — `em.nativeDelete(Entity, {})`, an empty filter meaning "all";
  *   2. **sql-truncate** — `conn.execute('truncate table "x", "y" cascade')`;
- *   3. **sql-delete** — `conn.execute('delete from "x"')` with no `where`.
+ *   3. **sql-delete** — `conn.execute('delete from "x"')` with no `where`;
+ *   4. **orm-remove-each** — `em.find(Entity, {})` (or `em.findAll(Entity)`)
+ *      whose result reaches `remove` / `removeAndFlush`: the array itself, a
+ *      `for … of` over it, or a `forEach` / `map` callback over it. No
+ *      `nativeDelete` and no SQL, and the table is just as empty after the
+ *      `flush` (issue #115: `sales_channels/boot-time-default-reconciliation`
+ *      removed the platform's default channel this way). Whether a `flush`
+ *      follows is not asked — a test that removes and never flushes has a
+ *      different bug, and some helper downstream flushes it anyway;
+ *   5. **sql-update** — `update "x" set …` with no `where`, and
+ *   6. **orm-update** — `em.nativeUpdate(Entity, {}, …)`. Neither removes a
+ *      row, and both leave every row of a table rewritten for the next file
+ *      to read — the same issue's `update "quote_requests" set
+ *      "sales_channel_id" = null`. An update's `set` clause routinely carries a
+ *      `${…}` hole before its `where`, so this one is read over the template's
+ *      whole text, holes included, rather than over its head alone.
  *
  * A wipe with a filter is not reported and is the repair: `nativeDelete(Entity,
  * { id: { $in: mine } })`, `delete from x where code = ?`. So is not wiping at
@@ -50,6 +65,11 @@
  *   - **A scoped delete of any size.** Deleting a hundred rows the test created
  *     is bookkeeping; deleting one row it did not is the defect. The predicate
  *     is the filter, not the volume.
+ *   - **A find-all whose result travels further than its own function.** The
+ *     result is followed through its binding, a `for … of` over it and a
+ *     callback over it, inside the function the find sits in. Returned to a
+ *     caller that removes it, it is not seen — no such shape exists in the tree,
+ *     and following values across functions is a type checker's job.
  *   - **A table named by a `${…}` hole.** `delete from ${table}` computes the
  *     table at runtime, so the statement's own text does not say what it
  *     empties. Every such statement in the tree today carries a `where`, so
@@ -103,6 +123,18 @@ const SEAM_PREFIXES: readonly string[] = ['helpers/', 'global-setup.ts'];
 /** The MikroORM call that takes a filter, where `{}` means every row. */
 const ORM_WIPE = 'nativeDelete';
 
+/** The MikroORM update that takes a filter first, where `{}` means every row. */
+const ORM_UPDATE = 'nativeUpdate';
+
+/** The MikroORM reads whose result, removed row by row, empties the table. */
+const ORM_FIND_ALL: ReadonlySet<string> = new Set(['find', 'findAll']);
+
+/** The unit-of-work removals that take an entity or an array of them. */
+const ORM_REMOVE: ReadonlySet<string> = new Set(['remove', 'removeAndFlush']);
+
+/** The array methods whose callback receives each row of the result in turn. */
+const ITERATING_METHODS: ReadonlySet<string> = new Set(['forEach', 'map', 'flatMap']);
+
 /** The raw-SQL entry points a test reaches the connection through. */
 const SQL_ENTRY: ReadonlySet<string> = new Set(['execute', 'query']);
 
@@ -120,14 +152,33 @@ const SQL_ENTRY: ReadonlySet<string> = new Set(['execute', 'query']);
  * they were fixed in the same change, and an entry for a file at zero would be
  * an invitation to write the shape back.
  *
+ * **Issue #115 widened what counts** — the find-all/remove-each shape and the
+ * two spellings of an unqualified update — and the sites that measured were
+ * either repaired in the same change (the three `sales_channels` files that
+ * emptied the platform's default channel now run on a first-boot database of
+ * their own, `setupTestDb({ firstBoot })`) or entered here, each with the shape it
+ * is written in beside it. Those comments say what the statement does, not
+ * that it is harmless: every one of them rewrites rows another file seeded.
+ *
  * It is meant to reach `{}`.
  */
 export const UNSCOPED_WIPES_BASELINE: Readonly<Record<string, number>> = {
+  // #115: `afterAll` removes every asset folder, one by one.
+  'contract/assets_library/admin-folders.contract.test.ts': 1,
   'contract/carts/cart-coupon-autodrop.contract.test.ts': 1,
   'contract/carts/cart-coupon.contract.test.ts': 1,
+  // #115: demotes every currency before restoring the original default.
+  'contract/i18n/admin-currencies.test.ts': 1,
+  // #115: demotes every language before restoring the original default.
+  'contract/i18n/admin-languages.test.ts': 1,
+  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
+  'contract/orders/admin-create-groups.test.ts': 1,
+  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
+  'contract/orders/carry-system-note-visibility.test.ts': 1,
   'contract/price_lists/display-modes.test.ts': 1,
   'contract/price_lists/pricing-resolution.test.ts': 1,
-  'contract/product_feeds/taxonomy-revisions.test.ts': 3,
+  // #115: +1, the same helper detaches every feed template from its taxonomy (`update … set "taxonomy_id" = null`).
+  'contract/product_feeds/taxonomy-revisions.test.ts': 4,
   'contract/promotions/attribute-criterion.test.ts': 1,
   'contract/promotions/coupon-generator.test.ts': 1,
   'contract/promotions/coupons.test.ts': 1,
@@ -136,18 +187,42 @@ export const UNSCOPED_WIPES_BASELINE: Readonly<Record<string, number>> = {
   'contract/prompt_actions/boundaries.test.ts': 1,
   'contract/prompt_actions/requests.test.ts': 1,
   'contract/search/admin-llm-toggle.contract.test.ts': 1,
+  // #115: removes every phrase record before each case.
+  'contract/search/public-record.contract.test.ts': 1,
+  'integration/_lifecycle/install-all.integration.test.ts': 1,
   'integration/addresses/dictionary-boundary.test.ts': 3,
   'integration/blog/asset-references.test.ts': 22,
   'integration/blog/dictionary-boundary.test.ts': 3,
   'integration/blog/seed-default-category.test.ts': 13,
   'integration/blog/slug-collision.test.ts': 11,
-  'integration/carts/cart-customer-group-promotion.test.ts': 1,
+  // #115: +1, clears every cart's applied promotion code.
+  'integration/carts/cart-customer-group-promotion.test.ts': 2,
   'integration/carts/cart-promotion-display.test.ts': 1,
   'integration/catalog/attributes-migration-parity.test.ts': 3,
   'integration/catalog/link-tile-price-source.test.ts': 1,
   'integration/catalog/listing-price-source.test.ts': 1,
   'integration/cms/legacy-migration.test.ts': 1,
   'integration/comparisons/comparison-price-source.integration.test.ts': 1,
+  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
+  'integration/crm/auto-create.test.ts': 1,
+  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
+  'integration/crm/create-from-opportunity.test.ts': 1,
+  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
+  'integration/crm/custom-field-carry-from-opportunity.test.ts': 1,
+  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
+  'integration/crm/custom-field-carry-quote-version.test.ts': 1,
+  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
+  'integration/crm/merged-stories.test.ts': 1,
+  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability, in three `beforeAll`s.
+  'integration/crm/off-state.test.ts': 3,
+  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
+  'integration/crm/quote-conversion.test.ts': 1,
+  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
+  'integration/crm/review-extensions.test.ts': 1,
+  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
+  'integration/crm/webhooks.test.ts': 1,
+  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
+  'integration/custom_fields/carry-audience.test.ts': 1,
   'integration/dictionaries/country-service.test.ts': 3,
   'integration/dictionaries/currency-service.test.ts': 3,
   'integration/dictionaries/language-country-service.test.ts': 3,
@@ -158,16 +233,31 @@ export const UNSCOPED_WIPES_BASELINE: Readonly<Record<string, number>> = {
   'integration/email/delivery-record.test.ts': 1,
   'integration/inventory/availability-worker.test.ts': 1,
   'integration/inventory/dictionary-boundary.test.ts': 3,
-  'integration/_lifecycle/install-all.integration.test.ts': 1,
+  // #115: demotes every language, inside its rolled-back transaction.
+  'integration/languages/default-channel-language-repair.test.ts': 1,
   'integration/megamenu/dictionary-boundary.test.ts': 3,
+  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
+  'integration/orders/admin-create-origin.test.ts': 1,
+  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
+  'integration/orders/order-created-after-commit.test.ts': 1,
+  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
+  'integration/orders/place-order-custom-field-carry.test.ts': 1,
+  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
+  'integration/orders/place-order-from-quote-request.test.ts': 1,
+  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
+  'integration/orders/place-order-quote-groups.test.ts': 1,
+  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
+  'integration/orders/quote-request-source-review.test.ts': 1,
   'integration/organizations/dictionary-boundary.test.ts': 3,
   'integration/organizations/flat-behavior-preserved.test.ts': 1,
   'integration/price_lists/display-mode-chain.test.ts': 2,
   'integration/product_feeds/schedule-lifecycle.test.ts': 1,
   'integration/product_feeds/taxonomy-bundled-data.test.ts': 4,
-  'integration/product_feeds/taxonomy-fetch-check.test.ts': 3,
+  // #115: +1, the same helper detaches every feed template from its taxonomy (`update … set "taxonomy_id" = null`).
+  'integration/product_feeds/taxonomy-fetch-check.test.ts': 4,
   'integration/product_feeds/taxonomy-fetch-disabled.test.ts': 1,
-  'integration/product_feeds/taxonomy-promote.test.ts': 3,
+  // #115: +1, the same helper detaches every feed template from its taxonomy (`update … set "taxonomy_id" = null`).
+  'integration/product_feeds/taxonomy-promote.test.ts': 4,
   'integration/product_feeds/taxonomy-reconcile.test.ts': 4,
   'integration/promotions/attribute-criterion-resolution.test.ts': 1,
   'integration/promotions/channel-binding.test.ts': 1,
@@ -179,11 +269,19 @@ export const UNSCOPED_WIPES_BASELINE: Readonly<Record<string, number>> = {
   'integration/promotions/usage-limits.test.ts': 3,
   'integration/prompt_actions/bulk-category-flow.test.ts': 1,
   'integration/prompt_actions/set-stock-flow.test.ts': 1,
+  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
+  'integration/quote_requests/conversion.test.ts': 1,
   'integration/sales_channels/dictionary-boundary.test.ts': 3,
   'integration/search/embedder-reactor.test.ts': 1,
+  // #115: resets every digest subscription's last-sent day.
+  'integration/tasks/digest.test.ts': 1,
   'integration/taxes/absent-owner-versus-configured-zero.test.ts': 5,
   'integration/taxes/dictionary-boundary.test.ts': 3,
   'integration/taxes/tax-service.test.ts': 1,
+  // #115: `nativeUpdate(TransactionalEmail, {}, …)` re-activates every e-mail after each case.
+  'integration/transactional_emails/delivery-record.test.ts': 1,
+  // #115: `nativeUpdate(TransactionalEmail, {}, …)` re-activates every e-mail after each case.
+  'integration/transactional_emails/per-email-activation.test.ts': 1,
   'unit/dictionaries/label-resolver.test.ts': 3,
   'unit/dictionaries/validator-lru-invalidation.test.ts': 3,
   'unit/dictionaries/validator-port.test.ts': 3,
@@ -204,7 +302,13 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 /** Which spelling the wipe was written in. */
-export type WipeKind = 'orm' | 'sql-truncate' | 'sql-delete';
+export type WipeKind =
+  | 'orm'
+  | 'sql-truncate'
+  | 'sql-delete'
+  | 'orm-remove-each'
+  | 'sql-update'
+  | 'orm-update';
 
 /**
  * Where the wipe sits. A `hook` runs for every test in the file, a `helper` runs
@@ -276,6 +380,19 @@ function literalText(node: ts.Expression): string | null {
   return null;
 }
 
+/**
+ * The whole static text of a string argument, each `${…}` hole kept as the
+ * literal `${}` — for a statement whose filter routinely sits after a hole.
+ */
+function fullLiteralText(node: ts.Expression): string | null {
+  const bare = unwrap(node);
+  if (ts.isStringLiteralLike(bare)) return bare.text;
+  if (ts.isTemplateExpression(bare)) {
+    return bare.head.text + bare.templateSpans.map((span) => '${}' + span.literal.text).join('');
+  }
+  return null;
+}
+
 /** Strip SQL quoting and schema qualification off a table name. */
 function normalizeTable(raw: string): string {
   return raw
@@ -322,6 +439,207 @@ export function unfilteredDeleteTable(sql: string): string | null {
   // still remove every row, so only a `where` takes a statement out.
   const table = normalizeTable(match[1] as string);
   return table.length > 0 && !table.includes('${') ? table : null;
+}
+
+/**
+ * The table an unqualified `update` rewrites, or `null` when the statement is
+ * filtered or is not an update. `select … for update` is not one: the verb
+ * has to open the statement.
+ */
+export function unfilteredUpdateTable(sql: string): string | null {
+  const match = /^\s*update\s+(?:only\s+)?([^\s;]+)\s+set\b([\s\S]*)$/i.exec(sql);
+  if (!match) return null;
+  if (/\bwhere\b/i.test(match[2] as string)) return null;
+  const table = normalizeTable(match[1] as string);
+  return table.length > 0 && !table.includes('${') ? table : null;
+}
+
+/** Whether an expression is the empty object literal, `{}`. */
+function isEmptyObject(node: ts.Expression | undefined): boolean {
+  if (node === undefined) return false;
+  const bare = unwrap(node);
+  return ts.isObjectLiteralExpression(bare) && bare.properties.length === 0;
+}
+
+/** Whether a call is `em.nativeUpdate(Entity, {}, data)` — an empty filter. */
+function ormUpdateTable(call: ts.CallExpression, sf: ts.SourceFile): string | null {
+  if (tailName(call.expression) !== ORM_UPDATE) return null;
+  const [entity, filter] = call.arguments;
+  if (entity === undefined || !isEmptyObject(filter)) return null;
+  return unwrap(entity).getText(sf).trim();
+}
+
+/**
+ * Whether a call reads every row of an entity: `em.find(Entity, {})`,
+ * `em.find(Entity, {}, options)`, `em.findAll(Entity)` or `em.findAll(Entity,
+ * options)` with no `where` in the options. The entity has to be a name —
+ * `rows.find((r) => …)` is `Array#find`, whose argument is a function.
+ */
+function findAllEntity(call: ts.CallExpression, sf: ts.SourceFile): string | null {
+  const name = tailName(call.expression);
+  if (name === null || !ORM_FIND_ALL.has(name)) return null;
+  if (!ts.isPropertyAccessExpression(call.expression)) return null;
+  const [entity, second] = call.arguments;
+  if (entity === undefined) return null;
+  const bare = unwrap(entity);
+  if (!ts.isIdentifier(bare) && !ts.isStringLiteralLike(bare)) return null;
+  if (name === 'find') {
+    if (!isEmptyObject(second)) return null;
+  } else if (second !== undefined) {
+    const options = unwrap(second);
+    if (!ts.isObjectLiteralExpression(options)) return null;
+    const where = options.properties.find(
+      (p) => p.name !== undefined && ts.isIdentifier(p.name) && p.name.text === 'where',
+    );
+    if (where !== undefined && !(ts.isPropertyAssignment(where) && isEmptyObject(where.initializer))) {
+      return null;
+    }
+  }
+  return bare.getText(sf).trim();
+}
+
+/** The call a find sits in once `await` and parentheses are peeled off it. */
+function outerExpression(node: ts.Expression): ts.Expression {
+  let current: ts.Expression = node;
+  for (;;) {
+    const parent: ts.Node = current.parent;
+    if (
+      ts.isAwaitExpression(parent) ||
+      ts.isParenthesizedExpression(parent) ||
+      ts.isAsExpression(parent) ||
+      ts.isNonNullExpression(parent)
+    ) {
+      current = parent;
+      continue;
+    }
+    return current;
+  }
+}
+
+/** The nearest function body or source file a node sits in — where its binding lives. */
+function scopeOf(node: ts.Node): ts.Node {
+  for (let cursor = node.parent; cursor !== undefined; cursor = cursor.parent) {
+    if (ts.isFunctionLike(cursor) || ts.isSourceFile(cursor)) return cursor;
+  }
+  return node.getSourceFile();
+}
+
+/** The first parameter's name of a callback, when it is a plain identifier. */
+function firstParameter(node: ts.Expression | undefined): string | null {
+  if (node === undefined) return null;
+  const bare = unwrap(node);
+  if (!ts.isArrowFunction(bare) && !ts.isFunctionExpression(bare)) return null;
+  const param = bare.parameters[0];
+  return param !== undefined && ts.isIdentifier(param.name) ? param.name.text : null;
+}
+
+/** Whether `call` is `em.remove(x)` / `em.removeAndFlush(x)` over one of `names`. */
+function removesOneOf(call: ts.CallExpression, names: ReadonlySet<string>): boolean {
+  const name = tailName(call.expression);
+  if (name === null || !ORM_REMOVE.has(name)) return false;
+  const arg = call.arguments[0];
+  if (arg === undefined) return false;
+  const bare = unwrap(arg);
+  return ts.isIdentifier(bare) && names.has(bare.text);
+}
+
+/** Whether any call under `root` removes one of `names`. */
+function anyRemoval(root: ts.Node, names: ReadonlySet<string>): boolean {
+  let hit = false;
+  const visit = (node: ts.Node): void => {
+    if (hit) return;
+    if (ts.isCallExpression(node) && removesOneOf(node, names)) {
+      hit = true;
+      return;
+    }
+    node.forEachChild(visit);
+  };
+  visit(root);
+  return hit;
+}
+
+/**
+ * Whether the rows a find-all returned reach a removal — the binding, a
+ * `for … of` over it, a `forEach` / `map` callback over it, or the find
+ * inlined as the removal's own argument or as the receiver of the iteration.
+ */
+function rowsReachRemoval(find: ts.CallExpression): boolean {
+  const outer = outerExpression(find);
+  const parent = outer.parent;
+
+  // `em.remove(await em.find(E, {}))`.
+  if (ts.isCallExpression(parent) && parent.arguments[0] === outer) {
+    const name = tailName(parent.expression);
+    if (name !== null && ORM_REMOVE.has(name)) return true;
+  }
+  // `(await em.find(E, {})).forEach((row) => em.remove(row))`.
+  if (ts.isPropertyAccessExpression(parent) && parent.expression === outer) {
+    const call = parent.parent;
+    if (
+      ts.isCallExpression(call) &&
+      call.expression === parent &&
+      ITERATING_METHODS.has(parent.name.text)
+    ) {
+      const row = firstParameter(call.arguments[0]);
+      return row !== null && anyRemoval(call.arguments[0] as ts.Node, new Set([row]));
+    }
+  }
+  // `for (const row of await em.find(E, {})) em.remove(row)`.
+  if (ts.isForOfStatement(parent) && parent.expression === outer) {
+    const row = loopVariable(parent);
+    return row !== null && anyRemoval(parent.statement, new Set([row]));
+  }
+  // `const rows = await em.find(E, {})`, then any of the above over `rows`.
+  if (!ts.isVariableDeclaration(parent) || parent.initializer !== outer) return false;
+  if (!ts.isIdentifier(parent.name)) return false;
+  const rows = parent.name.text;
+  let hit = false;
+  const visit = (node: ts.Node): void => {
+    if (hit) return;
+    if (ts.isCallExpression(node)) {
+      if (removesOneOf(node, new Set([rows]))) {
+        hit = true;
+        return;
+      }
+      const callee = node.expression;
+      if (
+        ts.isPropertyAccessExpression(callee) &&
+        ITERATING_METHODS.has(callee.name.text) &&
+        ts.isIdentifier(unwrap(callee.expression)) &&
+        (unwrap(callee.expression) as ts.Identifier).text === rows
+      ) {
+        const row = firstParameter(node.arguments[0]);
+        if (row !== null && anyRemoval(node.arguments[0] as ts.Node, new Set([row]))) {
+          hit = true;
+          return;
+        }
+      }
+    }
+    if (ts.isForOfStatement(node)) {
+      const over = unwrap(node.expression);
+      const row = loopVariable(node);
+      if (
+        ts.isIdentifier(over) &&
+        over.text === rows &&
+        row !== null &&
+        anyRemoval(node.statement, new Set([row]))
+      ) {
+        hit = true;
+        return;
+      }
+    }
+    node.forEachChild(visit);
+  };
+  visit(scopeOf(find));
+  return hit;
+}
+
+/** The loop variable of `for (const row of …)`, when it is a plain identifier. */
+function loopVariable(loop: ts.ForOfStatement): string | null {
+  const init = loop.initializer;
+  if (!ts.isVariableDeclarationList(init)) return ts.isIdentifier(init) ? init.text : null;
+  const decl = init.declarations[0];
+  return decl !== undefined && ts.isIdentifier(decl.name) ? decl.name.text : null;
 }
 
 /** Whether a call is `em.nativeDelete(Entity, {})` — an empty filter. */
@@ -373,8 +691,16 @@ export function findUnscopedWipes(input: TableWipeInput): UnscopedWipe[] {
         const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
         const { site, enclosing } = siteOf(node);
         const entity = ormWipeTable(node, sf);
+        const updated = entity === null ? ormUpdateTable(node, sf) : null;
+        const findAll = entity === null && updated === null ? findAllEntity(node, sf) : null;
         if (entity !== null) {
           found.push({ file, line, table: entity, kind: 'orm', site, enclosing });
+        } else if (updated !== null) {
+          found.push({ file, line, table: updated, kind: 'orm-update', site, enclosing });
+        } else if (findAll !== null) {
+          if (rowsReachRemoval(node)) {
+            found.push({ file, line, table: findAll, kind: 'orm-remove-each', site, enclosing });
+          }
         } else if (SQL_ENTRY.has(tailName(node.expression) ?? '')) {
           const sql = node.arguments[0] === undefined ? null : literalText(node.arguments[0]);
           if (sql !== null) {
@@ -385,8 +711,12 @@ export function findUnscopedWipes(input: TableWipeInput): UnscopedWipe[] {
               }
             } else {
               const deleted = unfilteredDeleteTable(sql);
+              const full = fullLiteralText(node.arguments[0] as ts.Expression);
+              const rewritten = full === null ? null : unfilteredUpdateTable(full);
               if (deleted !== null) {
                 found.push({ file, line, table: deleted, kind: 'sql-delete', site, enclosing });
+              } else if (rewritten !== null) {
+                found.push({ file, line, table: rewritten, kind: 'sql-update', site, enclosing });
               }
             }
           }
@@ -408,8 +738,10 @@ export function findUnscopedWipes(input: TableWipeInput): UnscopedWipe[] {
 }
 
 /**
- * How many test files delete from the database at all — the second
- * vacuous-pass guard.
+ * How many test files delete or rewrite rows at all — the second vacuous-pass
+ * guard, and the `sites` population the baseline ratchets: a `nativeDelete`,
+ * a `nativeUpdate`, a `remove` / `removeAndFlush`, or a SQL `delete`,
+ * `truncate` or `update`, whatever its filter.
  *
  * An empty file list is the obvious way to report a green over nothing; the
  * quieter one is a file list whose delete statements the detector no longer
@@ -427,10 +759,12 @@ export function filesDeletingRows(input: TableWipeInput): number {
       if (deletes) return;
       if (ts.isCallExpression(node)) {
         const name = tailName(node.expression);
-        if (name === ORM_WIPE) deletes = true;
-        else if (name !== null && SQL_ENTRY.has(name)) {
+        if (name === ORM_WIPE || name === ORM_UPDATE) deletes = true;
+        else if (name !== null && ORM_REMOVE.has(name) && ts.isPropertyAccessExpression(node.expression)) {
+          deletes = true;
+        } else if (name !== null && SQL_ENTRY.has(name)) {
           const sql = node.arguments[0] === undefined ? null : literalText(node.arguments[0]);
-          if (sql !== null && /^\s*(delete|truncate)\b/i.test(sql)) deletes = true;
+          if (sql !== null && /^\s*(delete|truncate|update)\b/i.test(sql)) deletes = true;
         }
       }
       node.forEachChild(visit);
@@ -518,7 +852,7 @@ function main(): void {
   const deleting = filesDeletingRows({ sources });
   if (deleting === 0) {
     console.error(
-      `[shared-table-wipes] read ${sources.size} test sources and found no delete statement ` +
+      `[shared-table-wipes] read ${sources.size} test sources and found no delete or update statement ` +
         `in any of them — the detection has gone blind; refusing to report a vacuous pass`,
     );
     process.exit(2);
@@ -539,8 +873,9 @@ function main(): void {
   }
 
   // What was read, beside what was found (issue #244). `files` is the walk;
-  // `sites` is the subset that deletes rows at all, the population the baseline
-  // ratchets. `self-reported`: nothing derives "every test that deletes".
+  // `sites` is the subset that deletes or rewrites rows at all (since issue
+  // #115, `remove` and `update` too), the population the baseline ratchets.
+  // `self-reported`: nothing derives "every test that deletes".
   reportReadSize({ prefix: '[shared-table-wipes]', files: sources.size, sites: deleting });
   console.log(
     `[shared-table-wipes] files deleting rows=${deleting} ` +

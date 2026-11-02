@@ -3,7 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { Migration20261029T152922CoreSalesChannelsPrefixDefaultLanguage } from '@endora-commerce/platform/migrations';
 import { DefaultChannelReconciler } from '@endora-commerce/platform/composition';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
-import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
+import { setupTestDb, type FirstBootTestDb } from '../../helpers/test-db.js';
 
 /**
  * Feature 167 — `sales_channels.prefix_default_language`
@@ -15,12 +15,18 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
  * database — is prefixed (`true`, OR-1). Each case runs in a transaction that is rolled
  * back, so the database the other files share never sees the dropped column or the
  * probe rows. The statements come from the migration class.
+ *
+ * The file runs on a database of its own with no channel in it,
+ * `setupTestDb({ firstBoot })`: the third case needs an empty table, and the first
+ * counts every prefixed row in it, so on the shared database the one would
+ * have to empty the platform's default channel and the other would be a claim
+ * about every channel another file had left (issue #115).
  */
 describe('sales_channels.prefix_default_language migration', () => {
-  let db: TestDb;
+  let db: FirstBootTestDb;
 
   beforeAll(async () => {
-    db = await setupTestDb();
+    db = await setupTestDb({ firstBoot: 'prefix_default_language' });
   });
 
   afterAll(async () => {
@@ -107,11 +113,7 @@ describe('sales_channels.prefix_default_language migration', () => {
   it('on an empty table the reconciler inserts a prefixed default channel', async () => {
     try {
       const em = db.em();
-      // As boot-time-default-reconciliation.test.ts: release the RFQ attributions
-      // (`on delete restrict`) inside the rolled-back transaction first.
-      await em.execute('update "quote_requests" set "sales_channel_id" = null');
-      for (const channel of await em.find(SalesChannel, {})) em.remove(channel);
-      await em.flush();
+      expect(await em.count(SalesChannel, {})).toBe(0);
       await down(em);
       await up(em);
 
