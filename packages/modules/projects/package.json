@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-projects",
-  "version": "0.108.0",
+  "version": "0.109.0",
   "type": "module",
   "sideEffects": false,
   "description": "Projects for zero or more Organizations, run through per-Project Stages by Members holding Project Roles.",

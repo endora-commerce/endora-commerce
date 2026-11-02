@@ -1,5 +1,251 @@
 # @endora-commerce/platform
 
+## 0.109.0
+
+### Minor Changes
+
+- 3ccf23b: A CMS save or publish answers once the storefront has dropped its cached copy, so the next storefront request shows the new content.
+
+  - `@endora-commerce/platform`: `StorefrontRevalidator` logs a call the storefront refuses (`{ status, tags }`; a 401 means `REVALIDATE_SECRET` differs between the backend and the storefront) and gives up after `timeoutMs` (new option, default 3000 ms). Both used to pass silently.
+  - `@endora-commerce/mod-cms`: `CmsContentInvalidator` awaits its `publish` callback, which may now return a promise (`CmsModuleOptions.publishContentChange: (change) => void | Promise<void>`). The module dispatches `cms.content_changed.v1` in an EventBus scope and its storefront-revalidation subscriber returns the revalidation, so a page, block, template or hook write waits for it (bounded by the revalidator's timeout, never failing the write).
+
+- 4cb0a7d: Product data scopes — checkpoint C/E/Q review fixes.
+
+  - **Platform:** new `withSystemScopeActingFor(adminUserId, reason, fn)` in `@endora-commerce/platform/tenancy` — a worker's system scope acting for the admin who queued the work, so its Commands are audited with that admin.
+  - **Catalog — audit:** a queued bulk Archive / Restore and a queued bulk scoped-status edit audit each product with the admin who requested the operation (it was a null actor). The API-key upsert `PUT /api/v1/catalog/products/by-sku/:sku` of an existing product is now the audited `product.update` Command, its entry naming the key (`apiKeyId` in the after-state); it is still never checked by the completeness gate.
+  - **Catalog — Archive / Restore** lock the product row, so a concurrent single and bulk Archive transition the product once: one audit entry, one `product.archived.v1`.
+  - **Catalog:** a composition that cannot build the completeness gate logs one warning instead of running unchecked silently.
+  - **SEO:** the cached sitemaps are marked stale on a change of the global status, archive, visibility or organization list, and on `product.archived.v1`, as they already were on the scoped values and URL keys.
+  - **Behaviour change for API clients (contracts, SEO):** an override's `ogImageUrl` must be an `http(s)` URL or a path starting with a single `/` (`ogImageUrlSchema`); `javascript:`, `data:` and other schemes are refused with `400 VALIDATION_FAILED`. The read shape accepts any stored string.
+  - **Contracts:** `effectiveOrderRules` and `effectiveKeys` are documented as applying no availability — a buyer-facing caller filters with `filterAvailable` first.
+
+- f148418: The storefront probes that take a bare product id follow product data scopes per sales channel and language.
+
+  - **Behaviour change for API clients — price and stock probes:** `GET /api/v1/storefront/products/:id/resolved-price`, `GET /api/v1/storefront/pricing/display-mode/:productId`, `GET /api/v1/storefront/inventory/stock/:id` and both notify-when-available routes (`POST /api/v1/storefront/inventory/notify-when-available`, `POST /api/v1/catalog/products/:id/notify-when-available`) answer only about a product available at the request's channel and language to the caller now. A product that is switched off there, outside its publication window, sold on another channel or outside the channel's audience rule gets each route's existing `404`, the same body an id nobody sells gets; a notify-when-available request for such a product can no longer reach `409 PRODUCT_UNMANAGED_STOCK` or `422 PRODUCT_IN_STOCK`.
+  - **Composition:** `price_lists`' plugin options and `inventory`'s plugin options take `catalogAvailability` (`catalogProductAvailabilityPort`), required; `AvailabilityNotificationService` takes it in place of the sales-channel membership port, and `SubscribeInput` gains `languageTag`.
+  - **Caching:** `markPersonalisedPricing` now marks every response for an authenticated caller `private, no-store`, not only one naming an organisation; `GET /api/v1/catalog/filters` and `GET /api/v1/catalog/categories` call it, since their counts and tree follow the caller's audience. Anonymous responses stay unstamped.
+  - **Product page:** an archived product answers `410` only where it would be available with the archive taken away; otherwise (switched off in that channel or language, outside its window) it answers the absent product's `404`.
+  - **Buyer seams name their channel:** `CreateForCustomerOptions.salesChannelId` (and the draft-edit and resubmit options) carry the channel the buyer's route resolved; quick order's pasted-SKU lookup takes it too; the basket asks availability at its own channel. The audience-only answer remains only for callers outside a request.
+  - **Helpers:** `@endora-commerce/contracts` exports `toScopeChannel`, `scopeLanguageOf` and `firstLanguageTag`. `BundleService.validateConfiguration` requires its availability filter.
+
+- 3ea1249: `StorefrontRevalidator.revalidate` is bounded and no longer silent about a refusal. Each call carries `AbortSignal.timeout(5000)`, and a non-2xx answer from the storefront's `/api/revalidate` — a `401` from a `REVALIDATE_SECRET` the two sides disagree on, a `400`, a `5xx` — is logged at warn level with its status and the number of tags (never the secret), as a transport failure already was. It still resolves either way: a revalidation never fails the write that asked for it. Before, a wrong secret left every tagged storefront entry stale with nothing in the log.
+- 61fc321: The storefront language is part of the URL path (`/pl/p/wiertarka`, `/en/p/drill`, issue #396).
+
+  **Upgrade note for operators: existing sales channels keep their addresses.** The migration
+  `Migration20261029T152922CoreSalesChannelsPrefixDefaultLanguage` adds the per-channel setting
+  _Prefix the default language in URLs_ and switches it **off** on every channel that exists when it
+  runs, so default-language URLs stay unprefixed; channels created later start **on**. To adopt
+  prefixes for the default language too, switch _Prefix the default language in URLs_ on in
+  _Sales channels_ → the channel. Other languages are prefixed either way: a former
+  `/p/<key>?lang=<L>` link answers a permanent redirect to `/<prefix>/p/<key>`. A CMS page whose slug
+  starts with a channel language prefix can no longer be saved.
+
+  `@endora-commerce/contracts`:
+
+  - New: `channelUrlLanguages`, `channelUrlLanguageAliases`, `storefrontPagePath`,
+    `storefrontPagePathFor`, `storefrontDefaultPath`, `channelUrlLanguageSchema`,
+    `channelUrlLanguageAliasSchema`, `URL_LANGUAGE_PREFIX_PATTERN`, types `ChannelUrlFacts`,
+    `ChannelUrlLanguage`, `ChannelUrlLanguageAlias`; `productDefaultPath(key)`.
+  - **`productPath` takes the channel's URL facts and never appends `?lang=`:**
+    `productPath({ key, languageCode, channelDefaultLanguage })` (`/p/drill?lang=en-US`) becomes
+    `productPath({ key, languageCode, channel })` (`/en/p/drill`), where `channel` is any
+    `{ languages, defaultLanguage, prefixDefaultLanguage }` — the cached channel satisfies it.
+  - `productKeyResolutionSchema`'s `redirect` requires `permanent` (`false` for a key of another
+    channel language, answered 307); `productPagePathsSchema` requires `xDefault`.
+  - Sales channel shapes carry `prefixDefaultLanguage` (create defaults to `true`); the public
+    channel read answers `prefixDefaultLanguage`, `urlLanguages` and `urlLanguageAliases`.
+  - `cmsPageUrl` (163 R24) takes the channel's URL facts and composes the prefixed path:
+    `cmsPageUrl({ path, languageCode, channelDefaultLanguage })` (`/about-us?lang=en-US`) becomes
+    `cmsPageUrl({ path, languageCode, channel })` (`/en/about-us`). The resolved CMS page's `url` and
+    `alternates`, and the storefront page index, therefore carry each language's own slug under its
+    prefix.
+  - `CmsPageRecord` gains optional `languages` and `translations` (the `seo` sitemap lists each
+    language at its own slug); `cmsPageSummarySchema` gains an optional
+    `shadowedByLanguagePrefix` (any of the page's slugs, per-language ones included).
+
+  Emitters (catalog, seo sitemap, product feeds, organizations, customers, newsletter, comparisons,
+  mfa, invoices) compose prefixed storefront URLs; the product feed `link` uses the product's key in
+  the feed language; the invoice e-mail links the storefront order page; the admin password reset
+  links `/password-reset/confirm`. `cms-components` localizes block links through the render
+  context's `localizePath`.
+
+- f261ed3: The sales channel's `isPublic` flag is retired in favour of the pricing display-mode chain
+  (issue #492; closes #467). The flag was documented as anonymous-price visibility, but every read of
+  it withheld prices from **everyone** on the channel, signed-in buyers included, beside a chain that
+  already says "prices after sign-in" per channel: `pricing.unauthenticated_display_mode = none`.
+
+  **Behaviour change.** Signed-in buyers on a channel that had `isPublic = false` now see prices
+  according to the display-mode chain (their organization's override, else the channel's
+  `pricing.default_display_mode`), where they used to see none — on the catalogue listing, the product
+  page, product links, search, comparisons, and the price sort and range, which are no longer refused
+  to them. Anonymous visitors on such a channel still see no prices: the migration below carries that
+  half of the flag over. A channel that had `isPublic = false` **and** its own value for
+  `pricing.unauthenticated_display_mode` keeps that value, so its anonymous visitors now see prices if
+  that value is a priced mode. A new channel, the boot-time default channel included, no longer starts
+  with prices hidden from everyone; it follows the chain like any other.
+
+  The display-mode chain itself is unchanged (owner ruling of 2026-10-28): a product or category
+  override takes precedence over the channel's `pricing.unauthenticated_display_mode`, also for
+  anonymous visitors, so a product overridden to `gross_only` shows its price to guests on a channel
+  whose guest mode is `none`. An organization override still applies to signed-in buyers only.
+
+  - **`@endora-commerce/platform`.** New migration `Migration20261028T173317CoreSalesChannelsRetireIsPublic`
+    (core): every channel with `is_public = false` and no value of its own for
+    `pricing.unauthenticated_display_mode` gets `"none"` as its per-channel value, then
+    `sales_channels.is_public` is dropped. It refuses — rather than migrating into showing prices — a
+    database that has a non-public channel but no registered `pricing.unauthenticated_display_mode`
+    setting; start the platform once on the previous release, so the settings reconciler registers
+    it, and migrate again. Because the column is dropped, stop processes running the previous release
+    before migrating. `SalesChannel.isPublic` and `CachedChannel.isPublic` are removed;
+    `SALES_CHANNELS_CACHE_KEY_PREFIX` moves from `sales-channels:v3:` to `sales-channels:v4:`, so no
+    process reads an entry cached in the other shape. The default-channel reconciler no longer sets
+    the flag.
+  - **`@endora-commerce/contracts`.** `ResolvedSearchChannel.isPublic` is removed — drop it from the
+    context you hand `SearchQueryPort`. No public HTTP shape carried the flag, so no response changes
+    shape. The `SALES_CHANNEL_AUDIT_ACTIONS` documentation now says who writes each row: the identity
+    Commands (with `stateBefore` / `stateAfter` snapshots) since #484.
+  - **`@endora-commerce/mod-catalog`.** `CatalogResolvedChannel.isPublic` and the `isPublic` field of
+    `ProductLinkService`'s storefront context are removed. The catalogue no longer skips pricing on
+    a channel: prices follow the viewer's display mode (a viewer whose mode is `none` gets the
+    withheld answer, `resolvedPrice.displayMode: 'none'`, where the channel used to answer
+    `resolvedPrice: null`). The price controls are refused only where the page's display mode is
+    `none`; the reason "This sales channel does not publish prices…" is gone.
+  - **`@endora-commerce/mod-search`.** The service's `ResolvedSearchChannel.isPublic` is removed, and
+    hits are always resolved for the viewer.
+  - **`@endora-commerce/mod-comparisons`.** A comparison is priced for the viewer on every channel.
+  - **`@endora-commerce/mod-sales-channels`.** The channel form's _Open to anonymous visitors_ hint
+    gains a second line pointing to the guest display mode, with a link to _Pricing settings_
+    (`identity.anonymousAccess.pricesHint`, `identity.anonymousAccess.pricesLink`, English and
+    Polish). New channels are no longer written with the flag.
+  - **`@endora-commerce/mod-price-lists`, `@endora-commerce/mod-i18n`.** _Pricing settings_ states,
+    under the two default modes, that a channel's own value wins over them and that a product or
+    category override takes precedence over both, for anonymous visitors too
+    (`priceLists.displayModes.settings.precedenceHint`).
+  - **`@endora-commerce/demo-composition`.** The `pl_b2b_vip` channel is created without the flag and
+    a new step, _the VIP channel hides prices until sign-in_, sets its
+    `pricing.unauthenticated_display_mode` to `none`; its signed-in buyers see prices. `pl_retail`
+    publishes prices to everyone, as before.
+  - **`@endora-commerce/mod-settings`, `@endora-commerce/cli`.** Comments only: the cache-clear
+    namespace names the new key prefix, and the channel-resolution rule no longer cites the flag.
+
+- 302e5ce: A price-sorted or price-filtered catalogue cursor no longer reveals anything about a product the
+  viewer may not see (issue #497). Such a cursor was base64 of JSON. A page cut by its scan budget
+  continues from where its scan stopped, which can be a product hidden from the viewer, and under a
+  price sort that position held the product's resolved price and id; a full page ended on its last
+  card, whose price the viewer's display mode may withhold while the price order still ranks it.
+
+  - **`@endora-commerce/mod-catalog`.** Every cursor the price walks issue —
+    `GET /api/v1/catalog/products` and the external catalogue API with `sort=price`, `sort=-price`,
+    or `minPrice` / `maxPrice` under another sort — is sealed: it decodes to nothing and cannot be
+    altered or forged. Paging is unchanged: a budget-cut page is still short or empty with
+    `hasMore: true`, the walk still moves forward, and it still meets every product it shows once.
+    The module now resolves the container value `cursorSeal` (`CatalogCradle.cursorSeal`), and
+    `CatalogQueryService` takes it as a new last constructor argument; a price walk without it
+    throws. The default listing's cursor is unchanged.
+  - **Cursors in flight.** A price-walk cursor of the old, readable format — a storefront link held
+    across the upgrade — no longer continues the walk: it is discarded like any cursor that does not
+    parse, and the listing answers its first page (`200`, not `400`). So does a cursor that was
+    altered, and every price-walk cursor issued before the instance's `SESSION_COOKIE_SECRET` changes.
+  - **`@endora-commerce/platform`.** New `createCursorSeal(secret)` on `./composition`: AES-256-GCM
+    from `node:crypto`, its keys derived with HKDF from the secret, the purpose bound as additional
+    data, the plaintext padded to 128-byte blocks so a token's length does not follow an amount's
+    digits. Deterministic (a synthetic IV, an HMAC of purpose and payload): one position seals to
+    one token, so a storefront's next-page link stays one URL a cache and a crawler can reuse.
+    `composeApp` registers `cursorSeal: createCursorSeal(process.env.SESSION_COOKIE_SECRET)`; no new
+    environment input. The key is derived on first use, so a composition without a session
+    key is not refused, and a seal or an open without one throws.
+  - **`@endora-commerce/test-kit`.** `composeTestServer` registers a `cursorSeal` with a pinned test
+    key; a harness's own `values.cursorSeal` overrides it.
+
+### Patch Changes
+
+- 5d192d3: A storefront added after an `endora install --no-storefront` run is no longer a silent mismatch of `REVALIDATE_SECRET` (#112).
+
+  - `endora install --no-storefront`: the closing text says whether `REVALIDATE_SECRET` in the instance's `.env` holds a value (a plain run generates none, so it is empty), what to set before a storefront is added, and prints the command that adds it — `pnpm exec endora install <dir>-storefront --only storefront --api-url … --storefront-url … --revalidate-secret <the same value>`. The refusal for a storefront that cannot be written from here, and the wizard's parts question, point at the same command instead of `endora new storefront <dir>`.
+  - `StorefrontRevalidator`: a warning identical to one logged in the last minute — same storefront, same status, or a transport failure again — is held and counted, and the next one logged carries `suppressed`, the number held. A 2xx answer clears the record for that storefront. A revalidator constructed without `logger` now reports through the platform logger instead of discarding the warning, so a refusal during a module activation or from the settings cache screen is logged too. The secret is never logged.
+
+- a166cfd: `orderMigrations` (`@endora-commerce/platform/db`) refuses a registry entry whose `cls` is `undefined` or `null` with a `MigrationOrderError` of the new code `'missing-class'`, naming the entry's position and owning module and pointing at `pnpm run build:packages`. It used to die on a `TypeError` reading `.name` of `undefined`, which is what a migration registry hands over when a module package's built `dist` no longer exports a class the registry imports. A consumer switching exhaustively over `MigrationOrderErrorCode` gains one case.
+
+  Every package's `build` script now deletes its own `dist` before compiling (`scripts/clean-package-dist.mjs` in the repository), so the compiled output of a deleted source no longer survives a rebuild. Nothing a package publishes changes shape; only its contents stop carrying files whose sources are gone.
+
+- b0a1e48: The command-palette actions of the administration modules (`admin_feedback`, `admin_roles`, `admin_search`, `admin_users`, `api_keys`, `audit_logs`, `mfa`, `settings`, `webhooks`, the kernel-served `module_lifecycle`) keep only English `keywords` in their manifests. Their Polish search words moved to each module's `i18n/pl.json` under the action's new `keywordsKey`, with an English entry in `i18n/en.json` (issue #573, following #560), and the ones that had been written without diacritics now carry them (`użytkownicy`). A Polish operator finds the same screens by the same words; an English-language admin is no longer offered the Polish ones.
+- 9cb3c8d: `check:platform-surface` gains a signal for issue #84: a name the platform's published barrels export and a workspace package the platform depends on (`@endora-commerce/contracts`) also exports must resolve to that package's own declaration, or it is a finding. `@endora-commerce/cli/rules/platform-surface.js` exports `scanSharedNames`, `checkSharedNames`, `sharedNameRefusal`, `sharedNameRemedyOf` and `dependencyDeclarations`, with the `SharedNameInput`, `SharedNameFinding`, `SharedNameFindingKind`, `SharedNameScan`, `SharedNameResult` and `LedgeredSharedName` types.
+
+  `@endora-commerce/platform`: the lifecycle orchestrator's optional `log` dependency is typed as the contracts' `ModuleLifecycleLogger` instead of an inline copy of the same shape. Structurally identical, so no caller changes.
+
+- Updated dependencies [d2acc82]
+- Updated dependencies [22604fa]
+- Updated dependencies [e64ed74]
+- Updated dependencies [50338a6]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [22604fa]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [9ff8307]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [07f3764]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [ea892d5]
+- Updated dependencies [678fed1]
+- Updated dependencies [dcbd154]
+- Updated dependencies [a76d6ee]
+- Updated dependencies [22604fa]
+- Updated dependencies [9a38360]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [bdef54c]
+- Updated dependencies [1b4f2b7]
+- Updated dependencies [d560d58]
+- Updated dependencies [dd6deb2]
+- Updated dependencies [3f697a3]
+- Updated dependencies [df0a90e]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [774d23e]
+- Updated dependencies [4cb0a7d]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [f148418]
+- Updated dependencies [8ef189b]
+- Updated dependencies [4bc5c7f]
+- Updated dependencies [eba4fd8]
+- Updated dependencies [61fc321]
+- Updated dependencies [9b3e7f0]
+- Updated dependencies [ecdd2f7]
+- Updated dependencies [ecdd2f7]
+- Updated dependencies [b7baf8a]
+- Updated dependencies [56e237d]
+- Updated dependencies [d50b874]
+- Updated dependencies [0a816a0]
+- Updated dependencies [f261ed3]
+- Updated dependencies [c73366c]
+- Updated dependencies [b25d8be]
+- Updated dependencies [5038a3a]
+- Updated dependencies [df95f59]
+- Updated dependencies [1fd4822]
+- Updated dependencies [0f5bcde]
+- Updated dependencies [c72a83e]
+- Updated dependencies [ed85493]
+- Updated dependencies [3174251]
+- Updated dependencies [55864a1]
+- Updated dependencies [11b0eb8]
+- Updated dependencies [b8b6eed]
+- Updated dependencies [2aa2c9b]
+- Updated dependencies [883d192]
+- Updated dependencies [5114576]
+- Updated dependencies [8f7c38e]
+  - @endora-commerce/contracts@0.109.0
+
 ## 0.108.0
 
 ### Minor Changes

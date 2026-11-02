@@ -3050,8 +3050,114 @@ wypróbowane.
 
 ### Po aktualizacji do wydania 0.109.0 {#after-0-109-0}
 
-Każdy wpis poniżej jest samodzielny: przeczytaj te, które dotyczą używanych przez ciebie części
-platformy.
+`pnpm run upgrade 0.109.0` przenosi pakiety wydania z `0.108.0` i wykonuje jego migracje —
+dwadzieścia cztery dla modułów z wcześniejszych wydań (każda wykonuje się tam, gdzie jej moduł jest zadeklarowany), i sześć kolejnych dla dwóch nowych
+modułów, `tasks` i `projects`, wykonywanych dopiero wtedy, gdy instancja je zadeklaruje. **Dwie
+zmiany łamią zgodność zapisanych danych i wymagają twojej decyzji**: status produktu to `active` albo
+`inactive`, statusu `draft` już nie ma, a archiwizacja jest osobną akcją
+([Produkty](#after-0-109-0-product-status)); megamenu staje się paskiem nawigacji storefrontu, a
+każda zapisana pozycja najwyższego poziomu — zakładką ([Pasek nawigacji](#after-0-109-0-megamenu)).
+Blok *Slider obrazów* kreatora stron zostaje usunięty na rzecz *Karuzeli*
+([Kreator stron](#after-0-109-0-page-builder)). Obok nich wydanie umieszcza język w adresie URL
+storefrontu, nadaje danym produktu wartość per kanał sprzedaży i język, sprawia, że ważność oferty
+wiąże składanie zamówienia, składa zamówienia przyjęte za klienta bez naruszania jego koszyka,
+restartuje storefront, który przestał odpowiadać, przechowuje na serwerze preferencje panelu każdego
+administratora, ukrywa plik biblioteki przed czytelnikiem, który nie może zobaczyć używających go
+rekordów, i udostępnia teksty storefrontu dla kupujących po angielsku i po polsku. Poniższe kroki
+mówią, co zrobić i w jakiej kolejności; każdy wpis po nich jest samodzielny, więc przeczytaj te, które
+dotyczą używanych przez ciebie części platformy.
+
+#### Co zrobić i w jakiej kolejności {#after-0-109-0-steps}
+
+Przed aktualizacją:
+
+1. **Zatrzymaj wszystkie procesy poprzedniego wydania przed migracją**, zarówno API, jak i workery.
+   `Migration20261028T173317CoreSalesChannelsRetireIsPublic` usuwa kolumnę `sales_channels.is_public`,
+   którą czyta poprzednie wydanie. Na bazie, na której platforma nigdy nie była uruchomiona, najpierw
+   uruchom raz poprzednie wydanie — powód jest w [Kanałach sprzedaży](#after-0-109-0-channel-prices).
+2. **Zanotuj strony CMS, które używają bloku *Slider obrazów*.** Blok zostaje usunięty: jego treść
+   pozostaje zapisana, ale storefront nic dla niej nie renderuje i nic jej nie konwertuje
+   ([Kreator stron](#after-0-109-0-page-builder)).
+
+Sama aktualizacja:
+
+3. **Uruchom `pnpm run upgrade 0.109.0`.** `setup` wykonuje migracje moduł po module, w kolejności
+   zależności modułów, a migracje jednego modułu — w kolejności ich znaczników czasu. Według
+   modułów:
+
+   | Migracja | Moduł | Co robi |
+   | --- | --- | --- |
+   | `Migration20261028T173317CoreSalesChannelsRetireIsPublic` | `core` | Każdemu kanałowi z wyłączonym `is_public` nadaje własne `pricing.unauthenticated_display_mode = none`, a potem usuwa `sales_channels.is_public` — zob. [Kanały sprzedaży](#after-0-109-0-channel-prices) |
+   | `Migration20261029T152922CoreSalesChannelsPrefixDefaultLanguage` | `core` | `sales_channels.prefix_default_language`, wyłączone dla każdego istniejącego kanału — zob. [język w adresie URL](#after-0-109-0-language-in-url) |
+   | `Migration20261030T145645AdminActionsKeywordsKey` | `admin_actions` | `module_actions.keywords_key`, może być `null`, wypełniane przy następnej rekoncyliacji instalacji lub startu |
+   | `Migration20261027T160234AdminUsersAdminUserPreferences` | `admin_users` | Tabela `admin_user_preferences` — zob. [Panel administracyjny](#after-0-109-0-admin) |
+   | `Migration20261022T035133CatalogProductScopes` | `catalog` | Tabele `product_channel_scopes` i `product_channel_language_scopes`, puste |
+   | `Migration20261022T054223CatalogProductUrlKeys` | `catalog` | Tabele `product_url_keys` i `product_url_redirects` |
+   | `Migration20261025T222634CatalogProductStatusDropDraft` | `catalog` | Archiwizuje każdy produkt `inactive`, a potem zmienia każdy `draft` na `inactive` — zob. [Produkty](#after-0-109-0-product-status) |
+   | `Migration20261026T033453CatalogProductMediaScopes` | `catalog` | `gallery_items.alt_text`, tabele `gallery_item_channel_hidden` i `gallery_item_channel_labels` |
+   | `Migration20261026T084533CatalogAttachmentPackagingTranslations` | `catalog` | Nazwy i opisy załączników oraz jednostek opakowania per język, tabela `product_attachment_channel_hidden` |
+   | `Migration20261025T215911SeoMetaOverrideChannelScope` | `seo` | `seo_meta_overrides.sales_channel_id`, może być `null`; `locale` może być `null`, wymagane jest jedno z dwóch |
+   | `Migration20261022T163218CmsBrandTokens` | `cms` | Tabela `cms_brand_tokens`, pusta: każdy blok czyta domyślne tokeny, dopóki nie ustawisz własnych |
+   | `Migration20261023T052237CmsPageTreeAndShare` | `cms` | `cms_pages.parent_page_id`, `breadcrumbs_visible` (`true`), `breadcrumbs_scheme` (`light`) i `share_image_asset_id` |
+   | `Migration20261027T165458CmsPageParentPathInUrl` | `cms` | `cms_pages.parent_path_in_url`, `false` dla każdej strony, więc żaden adres URL się nie zmienia |
+   | `Migration20261028T090524CmsPageBreadcrumbsOverlay` | `cms` | `cms_pages.breadcrumbs_overlay`, `false` |
+   | `Migration20261029T131218CmsPageTranslations` | `cms` | `cms_pages.translations`, puste: każda strona czyta się jak wcześniej |
+   | `Migration20261023T063013BlogPostMainImage` | `blog` | `blog_posts.main_image_asset_id`, może być `null` |
+   | `Migration20261029T162855MegamenuNavigationBar` | `megamenu` | `presentation`, `alignment` i `audience` w `megamenu_items`; każda pozycja najwyższego poziomu staje się zakładką `mega` wyrównaną do początku, dla wszystkich — zob. [Pasek nawigacji](#after-0-109-0-megamenu) |
+   | `Migration20261029T190956MegamenuTabClickNavigates` | `megamenu` | `megamenu_items.click_navigates`, `false` |
+   | `Migration20261027T020030CrmOpportunityReferenceDocuments` | `crm` | Dopuszcza odwołania do zapytań ofertowych i zadań |
+   | `Migration20261028T143444CrmOpportunityReferenceKinds` | `crm` | Dopuszcza odwołania do szans sprzedaży i projektów |
+   | `Migration20261102T121950CartsCartItemQuoteRequest` | `carts` | `cart_items.quote_request_id`, może być `null`, uzupełniane dla uzgodnionych pozycji koszyka napełnionego z oferty — zob. [Ważność oferty](#after-0-109-0-quote-validity) |
+   | `Migration20261102T122014CartsCartStatusWorking` | `carts` | Dopuszcza status koszyka `working` — zob. [Koszyki robocze](#after-0-109-0-working-basket) |
+   | `Migration20261025T145041ProductFeedsGoogleTemplatePackFields` | `product_feeds` | Trzy pola opakowania w zainstalowanym szablonie Google Merchant Center — zob. [Feedy produktowe](#after-0-109-0-feed-packs) |
+
+   Zadeklarowanie `tasks` dodaje `Migration20261026T133731TasksInit` i
+   `Migration20261028T140002TasksTaskManagement`; zadeklarowanie `projects` dodaje
+   `Migration20261026T144350ProjectsInit`, `Migration20261026T231555ProjectsLinkOrganization`,
+   `Migration20261027T172441ProjectsValueChanges` i `Migration20261028T143448ProjectsReferenceKinds`
+   (krok 13). Wszystkie sześć tworzy wyłącznie własne tabele modułów i zapisuje ich domyślne
+   statusy, priorytety i role.
+
+Po aktualizacji, zanim instancja znów zacznie obsługiwać ruch:
+
+4. **Uruchom jedno przeindeksowanie wyszukiwarki dla każdego kanału sprzedaży** (strona akcji
+   masowych), aby indeks zawierał stan każdego produktu per kanał i per język
+   ([Produkty](#after-0-109-0-product-status)).
+5. **Przywróć produkty, które chcesz znów sprzedawać.** Każdy produkt, który był `inactive`, jest
+   teraz zarchiwizowany, a ustawienie go jako `active` go nie przywraca. Otwórz **Zarchiwizowane
+   produkty** (`/catalog/products/archived`), zaznacz je i wybierz **Przywróć**.
+6. **Przenieś storefront.** Storefront utworzony we wcześniejszym wydaniu nadal działa z tym, ale nie
+   pokazuje nowych zakładek paska nawigacji, adresów URL z prefiksem języka, dwujęzycznych tekstów,
+   ostrzeżenia o ważności oferty przy zamówieniu ani formularza kontaktowego, i nie jest restartowany,
+   gdy przestaje odpowiadać. Czego potrzebuje każda z tych rzeczy, mówią wpisy poniżej; najkrócej jest
+   przenieść storefront wydania w całości — `git diff v0.108.0 v0.109.0 -- storefront` w repozytorium
+   platformy wymienia każdą zmianę. Co najmniej skopiuj `scripts/supervise.mjs` i ostatni etap
+   `Dockerfile` oraz ustaw `init: true` w usłudze storefrontu
+   ([Nadzorca storefrontu](#after-0-109-0-storefront-supervisor)).
+7. **Sprawdź `REVALIDATE_SECRET`**: musi mieć tę samą wartość w `.env` backendu i storefrontu. Przy
+   różnych wartościach storefront odrzuca każdą rewalidację, więc strona w pamięci podręcznej — teraz
+   także strona produktu — pozostaje nieaktualna do końca swojego okna czasowego; backend zapisuje
+   odmowę w logu ([Rewalidacja pamięci podręcznej](#after-0-109-0-revalidation)).
+
+Kiedy będzie ci wygodnie:
+
+8. **Przejrzyj pasek nawigacji** w edytorze menu (*Megamenu*): każda zapisana pozycja najwyższego
+   poziomu jest teraz zakładką *mega*, a nagłówek storefrontu z tego wydania nie dodaje już sam
+   przycisków *Wszystkie kategorie* ani Szybkiego zamówienia — dodaj je jako zakładki, jeśli ich
+   chcesz ([Pasek nawigacji](#after-0-109-0-megamenu)).
+9. **Odbuduj strony z kroku 2** za pomocą *Karuzeli* z jednym obrazem karuzeli na slajd.
+10. **W kanale, który miał wyłączoną flagę kanału publicznego, sprawdź, co widzą zalogowani
+    kupujący**: widzą teraz ceny zgodnie ze swoim trybem wyświetlania
+    ([Kanały sprzedaży](#after-0-109-0-channel-prices)).
+11. **Dodaj główny skrypt `worker`**, jeśli uruchamiasz konsumentów kolejek w osobnym procesie
+    ([Skrypt worker](#after-0-109-0-worker-script)).
+12. **Ustaw nowe ustawienia, których potrzebujesz**: odbiorców *Formularza kontaktowego* per kanał
+    sprzedaży (`cms.contact_form_recipients`, potrzebne, zanim blok *Formularz kontaktowy* cokolwiek
+    wyśle), logo i profile społecznościowe sklepu (`shop.logo_asset_id`, `shop.social_profiles`,
+    używane w danych strukturalnych storefrontu) oraz *Strefę czasową raportów*
+    (`analytics.reporting_time_zone`, domyślnie `UTC`).
+13. **Zdecyduj, czy dodać `tasks` i `projects`** ([Zadania i Projekty](#after-0-109-0-tasks-projects)).
+14. **Sprawdź nowe zależności peer** ([Zależności](#after-0-109-0-dependencies)).
 
 #### Feedy produktowe: cena poniżej jednego grosza jest publikowana jako opakowanie {#after-0-109-0-feed-packs}
 
@@ -3367,6 +3473,338 @@ Ten wpis został napisany 2026-10-27 na podstawie gałęzi specyfikacji `163-pro
 Ten wpis został napisany 2026-10-31 na gałęzi zgłoszenia #85
 (`debt/85-storefront-i18n-infra` i gałęzi obszarów opartych na niej). W chwili jego pisania żadna
 instancja nie była zaktualizowana z jego uwzględnieniem.
+
+#### Zamówienia: ważność oferty wiąże składanie zamówienia {#after-0-109-0-quote-validity}
+
+**Dla operatorów.**
+
+- **Co się zmieniło** (zgłoszenie #167). Data *ważna do* oferty wiązała dotąd tylko jej zamianę na
+  koszyk: koszyk napełniony z zaakceptowanej oferty można było potem zamówić po uzgodnionych cenach
+  w dowolnym momencie. Składanie zamówienia sprawdza teraz każdą pozycję koszyka, która nadal ma cenę
+  z uzgodnienia. **Koszyka napełnionego z oferty, której ważność minęła, nie można już zamówić**, tak
+  samo jak koszyka, którego oferta przestała obowiązywać — ponownie otwartej, anulowanej, wygasłej
+  albo usuniętej. Kupujący nadal może usunąć te pozycje albo poprosić o nową ofertę.
+- **Przy wyłączonym module `quote_requests` taki koszyk także jest odrzucany**, bo nic nie może
+  potwierdzić uzgodnionych cen. Do tego wydania był składany po uzgodnionych cenach.
+- **Co robi migracja.** `Migration20261102T121950CartsCartItemQuoteRequest` zapisuje przy każdej
+  pozycji koszyka, z której oferty pochodzi, z uzupełnieniem dla uzgodnionych pozycji każdego koszyka
+  już napełnionego z oferty, więc zasada obowiązuje także koszyki napełnione przed aktualizacją.
+
+**Dla klientów API i integratorów.** Składanie zamówienia odpowiada `410 QUOTE_VALIDITY_ENDED` z
+`details.code` `lapsed`, `withdrawn` albo `unavailable`; podgląd sum zamówienia zawiera ten sam
+werdykt jako `quoteCommitmentRefusal` (`null`, gdy nic nie jest odrzucane).
+
+**W istniejącym storefroncie.** Storefront z tego wydania ostrzega przy zamówieniu, zanim kupujący
+spróbuje je złożyć (`components/checkout/QuoteValidityNotice.tsx`, używany przez
+`app/(commerce)/checkout/page.tsx`, z `lib/checkout/place-order-gate.ts` i `lib/api/orders.ts`).
+Wcześniejszy storefront pokazuje odmowę serwera w chwili składania zamówienia; przenieś te pliki, aby
+ostrzegać wcześniej.
+
+#### Zamówienia złożone za klienta nie naruszają jego koszyka {#after-0-109-0-working-basket}
+
+- **Co się zmieniło** (zgłoszenie #169). Zamówienie utworzone przez operatora w panelu, zakup jednym
+  kliknięciem i zamówienie przyjęte przez zewnętrzny import zamówień opróżniały i zamykały aktywny
+  koszyk klienta — także napełniony z zaakceptowanej oferty — i składały z niego zamówienie. Teraz
+  składają je z osobnego **koszyka roboczego** utworzonego z pozycji zamówienia; koszyk klienta
+  pozostaje dokładnie taki, jaki był, niezależnie od tego, czy zamówienie zostanie złożone, czy
+  odrzucone.
+- **Co zobaczysz.** Nic nowego: koszyk roboczy nigdy nie pojawia się na ekranach koszyków i nigdy nie
+  jest usuwany jako porzucony. Kończy się stanem `completed` razem z zamówieniem albo jest usuwany,
+  gdy zamówienie zostanie odrzucone. `Migration20261102T122014CartsCartStatusWorking` dopuszcza nowy
+  status koszyka `working`.
+- **Dla klientów API i integratorów**: `status` koszyka może mieć wartość `working`
+  (`cartStatusSchema`); klient, który sprawdza statusy według zamkniętej listy, musi ją przyjąć.
+- **Dla autorów modułów i modułów nakładkowych**: opcję `replaceExisting: true` metody
+  `CartWritePort.addItems` zastępuje `workingBasket: true`, które zwraca nowy koszyk; przekaż jego id
+  do `OrderPlacementPort.placeOrder` jako `workingBasketId`. Implementacja `CartPlacementApplyPort`
+  musi dostarczyć nowe `readWorkingForPlacement` i `discardWorkingBasket`.
+
+#### Storefront: serwer, który przestaje odpowiadać, jest restartowany {#after-0-109-0-storefront-supervisor}
+
+- **Co się zmieniło** (zgłoszenie #152). Docker restartuje kontener, który się **kończy**, nigdy taki,
+  który jest tylko *unhealthy*, więc proces storefrontu, który żył, ale przestał odpowiadać, pozostawał
+  niedostępny, dopóki ktoś go nie zrestartował. Obraz storefrontu z tego wydania uruchamia serwer pod
+  nadzorującym procesem nadrzędnym, `scripts/supervise.mjs`, który odpytuje `/robots.txt` i po trzech
+  kolejnych próbach bez odpowiedzi kończy serwer i wychodzi z kodem `1`, więc polityka restartu
+  uruchamia nowy kontener. Liczy się każda odpowiedź HTTP, także `500` i `503`. Przy wartościach
+  domyślnych zawieszony serwer jest kończony w ciągu około 50 sekund.
+- **Nowe, opcjonalne zmienne środowiskowe** usługi storefrontu: `STOREFRONT_SUPERVISOR_PROBE`,
+  `STOREFRONT_SUPERVISOR_PROBE_URL`, `STOREFRONT_SUPERVISOR_INTERVAL_SECONDS`,
+  `STOREFRONT_SUPERVISOR_TIMEOUT_SECONDS`, `STOREFRONT_SUPERVISOR_FAILURES`,
+  `STOREFRONT_SUPERVISOR_START_GRACE_SECONDS` i `STOREFRONT_SUPERVISOR_KILL_GRACE_SECONDS`. Wartości
+  domyślne nie wymagają żadnej; wartość, której nadzorca nie umie odczytać, zatrzymuje kontener przy
+  starcie. Ich znaczenie opisuje strona
+  [Nadzorca procesu storefrontu](./deployment/storefront-supervisor.md).
+- **`init: true`.** Przykłady compose (`deploy/compose.prod.yml`,
+  `deploy/three-host/compose.storefront.yml`) ustawiają je teraz w usłudze storefrontu, więc proces
+  init Dockera sprząta procesy pozostawione przez serwer.
+- **Co zrobić w istniejącym storefroncie.** `endora upgrade` nie zmienia własnych plików
+  storefrontu. Skopiuj `scripts/supervise.mjs` ze storefrontu wydania i ostatni etap jego
+  `Dockerfile`, którego polecenie to teraz
+  `CMD ["node", "storefront/scripts/supervise.mjs", "storefront/server.js"]`, a potem dodaj
+  `init: true` do usługi storefrontu w swoim pliku compose (`docker run --init` dla kontenera
+  uruchamianego ręcznie). Nic więcej się nie zmienia; bez tych zmian storefront działa jak wcześniej,
+  bez nadzoru.
+
+#### Instancja: główny skrypt `worker` {#after-0-109-0-worker-script}
+
+Główny `package.json` nowej instancji deklaruje `worker`, więc osobną warstwę workerów uruchamia się
+poleceniem `pnpm run worker` obok `pnpm run start` dla API, jak opisuje strona
+[Konsumenci kolejek i przetwarzanie w tle](./operations/queue-consumers.md). `endora upgrade` nie dodaje go do istniejącej
+instancji: uruchom `pnpm -C backend run worker`, czyli to samo polecenie, albo dodaj
+`"worker": "pnpm -C backend run worker"` do głównych `scripts`. Polecenia operatora w całej tej
+dokumentacji są teraz zapisane w postaci, w jakiej uruchamia je instancja — z jej katalogu głównego.
+
+#### Rewalidacja pamięci podręcznej storefrontu: `REVALIDATE_SECRET` i ostrzeżenia {#after-0-109-0-revalidation}
+
+- **Strony produktów od razu nadążają za produktem.** Backend prosi teraz storefront o usunięcie
+  zapisanej strony produktu po jego zmianie, archiwizacji, usunięciu albo wyjściu z kanału sprzedaży,
+  tym samym wywołaniem `/api/revalidate`, którego używał już dla kategorii i stron CMS
+  (`STOREFRONT_BASE_URL` i `REVALIDATE_SECRET`; bez nich o nic nie prosi).
+- **Odmowa trafia do logu.** Każde wywołanie jest ograniczone do pięciu sekund, a odmowa — `401`, gdy
+  obie strony mają różne wartości `REVALIDATE_SECRET`, `400`, `5xx` — jest zapisywana jako ostrzeżenie
+  z kodem statusu i liczbą tagów, nigdy z sekretem. Ostrzeżenie powtórzone w ciągu minuty jest
+  zliczane zamiast zapisywane ponownie, a następne zawiera `suppressed`, liczbę wstrzymanych. Jeśli
+  takie ostrzeżenia pojawią się po aktualizacji, ustaw tę samą wartość po obu stronach.
+- **Instancja zainstalowana poleceniem `endora install --no-storefront`** ma pusty
+  `REVALIDATE_SECRET`; instalator mówi to teraz wprost i wypisuje polecenie, które dodaje storefront z
+  tą samą wartością.
+
+#### Storefront: megamenu staje się paskiem nawigacji {#after-0-109-0-megamenu}
+
+**Dla operatorów.**
+
+- **Co się zmieniło** (specyfikacja 168). Pozycja najwyższego poziomu menu jest **zakładką** z
+  prezentacją — *Link*, *Lista rozwijana*, panel *Mega* albo *Panel z listą boczną* — i wyrównaniem,
+  do początku albo do końca. Dwa nowe rodzaje pozycji, **Grupa** (nagłówek i kolumna panelu mega) i
+  **Drzewo kategorii** (bieżące kategorie pod wskazanym korzeniem, na jednym do trzech poziomów), oraz
+  **odbiorcy** każdej pozycji — wszyscy, goście, zalogowani klienci albo wybrane grupy klientów.
+  Zakładka z własnym linkiem i panelem może po kliknięciu przechodzić pod swój link.
+- **Co robi migracja.** `Migration20261029T162855MegamenuNavigationBar` zamienia każdą zapisaną
+  pozycję najwyższego poziomu w zakładkę *Mega* wyrównaną do początku, widoczną dla wszystkich, i
+  niczego więcej nie konwertuje. Zapis menu odrzuca teraz zakładkę rodzaju, który nie może nią być,
+  zakładkę *Link* z elementami podrzędnymi oraz grupę, link zewnętrzny albo przycisk bez etykiety.
+- **Co zobaczysz.** Nagłówek storefrontu z tego wydania renderuje zakładki menu i nic poza nimi:
+  zakodowany na stałe przycisk *Wszystkie kategorie*, przycisk Szybkiego zamówienia i jego promocja w
+  menu mobilnym znikają. Dodaj je jako zakładki, jeśli ich chcesz — zakładkę *Panel z listą boczną*
+  nad drzewem kategorii i zakładkę-link do Szybkiego zamówienia wyrównaną do końca, tak jak w menu
+  demonstracyjnym.
+
+**Dla klientów API i integratorów.** Kontrakt megamenu zmienia się bez okresu zgodności: `id` i
+`parentId` pozycji rozwiązanej to ciągi znaków, nie uuid (kategoria, w którą rozwija się drzewo, ma
+id `<id pozycji drzewa>:<id kategorii>`), zakładki zawierają `presentation` i `alignment`, a pozycja
+`category-tree` nigdy nie pojawia się w rozwiązanym drzewie. Rozpoznany wywołujący dostaje odpowiedź
+z `Cache-Control: private, no-store`, bo zależy ona od jego grupy odbiorców. Prefiks pamięci
+podręcznej zmienia się na `megamenu:v2:`.
+
+**W istniejącym storefroncie.** Wcześniejszy storefront nadal renderuje zapisane menu, jako panele
+mega, z własnymi przyciskami *Wszystkie kategorie* i Szybkiego zamówienia, ale nie umie renderować
+grup, drzew kategorii, pozostałych prezentacji ani nowego zachowania kliknięcia zakładki. Przenieś
+`components/Header.tsx`, katalog `components/Megamenu/` (`NavigationBar.tsx` i `panels.tsx` są nowe),
+`lib/api/megamenu.ts` i style nawigacji w `app/globals.css`.
+
+#### Kreator stron: Karuzela zastępuje Slider obrazów, nowe bloki {#after-0-109-0-page-builder}
+
+**Dla operatorów.**
+
+- **Blok *Slider obrazów* (`cms.ImageSlider`) zostaje usunięty.** Strona, która go używa, zachowuje
+  blok w zapisie, ale storefront nic w jego miejscu nie renderuje, a reszta strony renderuje się jak
+  wcześniej. Odbuduj go za pomocą **Karuzeli** (dawnego *Slidera treści*) z jednym obrazem karuzeli na
+  slajd: każda opcja slidera obrazów ma tam swój odpowiednik. Zapisany *Slider treści* zachowuje swój
+  wygląd — strzałki nad krawędziami, kropki poniżej.
+- **Nowe bloki i opcje.** Karuzela zyskuje nagłówek, kilka slajdów w widoku per punkt przełamania,
+  efekt przenikania, położenia kontrolek i autoodtwarzanie, domyślnie wyłączone, i przyjmuje nowe bloki
+  elementów: obraz karuzeli, układ dzielony karuzeli, kafel z linkiem i kafel pliku do pobrania. Nowe
+  bloki: *Formularz kontaktowy*, nawigacja strony (linki do sekcji tej samej strony), najnowsze wpisy
+  bloga i przebudowany *Zapis do newslettera*, który może zbierać atrybuty subskrybenta. Większość
+  bloków zyskuje opcje układu, tekstu i odstępów per punkt przełamania.
+- **Tokeny marki.** Jeden zestaw kolorów, schematów kolorów, krojów pisma, skali typograficznej,
+  rozmiarów przycisków, odstępów i szerokości, który czyta każdy blok, ustawiany globalnie i opcjonalnie
+  per kanał sprzedaży ([Marka](./modules/cms/brand.md)). Aktualizacja żadnych nie zapisuje, więc każda
+  strona wygląda jak wcześniej, dopóki ich nie ustawisz.
+- **Strony.** Strona może mieć rodzica w okruszkach, opcje wyświetlania okruszków, obraz do
+  udostępniania oraz własną nazwę, slug i opis w każdym ze swoich języków. Nic z tego nie zmienia
+  zapisanej strony: rodzic kształtuje tylko ścieżkę okruszków, a ścieżka rodzica wchodzi do adresu URL
+  tylko wtedy, gdy dla tej strony włączono *ścieżkę rodzica w adresie URL*.
+- **Formularz kontaktowy niczego nie wysyła, dopóki nie ma odbiorców.** Ustaw odbiorców *Formularza
+  kontaktowego* (`cms.contact_form_recipients`, do dziesięciu adresów per kanał sprzedaży, na ekranie
+  *Ustawienia* albo przez ⌘K / CTRL+K). Bez nich formularz odpowiada, że jest niedostępny. Każdą
+  wiadomość wysyła e-mailem przez mailer platformy, z odwiedzającym w Reply-To, i niczego nie
+  przechowuje; zgłoszenia są ograniczone do dziesięciu na adres klienta w ciągu dziesięciu minut
+  ([Formularz kontaktowy](./modules/cms/contact-form.md)).
+- **Blog.** Wpis ma obraz główny wybierany z biblioteki, a jego powiązane produkty są pokazywane jako
+  karty produktów z cenami dla oglądającego.
+
+**Dla autorów modułów i modułów nakładkowych.** `@endora-commerce/cms-components` nie eksportuje już
+`ImageSlider`, `imageSliderTitleStyle`, ścieżki `components/image-slider-item` ani ich typów;
+`carouselImageFromImageSliderItem(item)` mapuje zapisany element slidera obrazów dla kodu, który
+konwertuje treść. `EmailMailerSendInput` zyskuje opcjonalne `replyTo`. `blogProductCardSchema`,
+`BlogProductCard` i `blogResolvedPostSchema.relatedProducts` są przestarzałe i znikną w jednym z
+kolejnych wydań minor: czytaj `relatedProductIds` i pobieraj produkty przez
+`GET /api/v1/catalog/products?ids=…` jako oglądający.
+
+**W istniejącym storefroncie.** Bloki renderuje `@endora-commerce/cms-components`, który aktualizacja
+przenosi, ale formularz kontaktowy wysyła do własnego `app/forms/contact/route.ts` storefrontu (z
+`lib/api/contact-form.ts`), zapis do newslettera do `app/newsletter/subscribe/route.ts`, a słowa
+bloków w języku strony pochodzą z `lib/page-builder/` i `components/LocalizedCmsRenderProvider.tsx`;
+tokeny marki czyta `lib/api/brand.ts`, a powiązane produkty wpisu
+`app/blog/_components/RelatedProductsStrip.tsx`. Przenieś je razem z resztą storefrontu (krok 6).
+
+#### Zadania i Projekty: dwa nowe moduły {#after-0-109-0-tasks-projects}
+
+Wydanie przynosi dwa nowe pakiety. Żaden inny moduł ich nie wymaga, więc aktualizacja ich nie
+deklaruje; jak to zrobić, mówi [Dodawanie modułu, który jest nowy w wydaniu](#adding-a-new-module).
+
+- **`@endora-commerce/mod-tasks`** (id modułu `tasks`): Zadania dla administratorów — numer, tytuł,
+  opis, osoby przypisane, termin, status i priorytet — samodzielne albo powiązane z rekordami innych
+  modułów: zamówieniami, produktami, zapytaniami ofertowymi, szansami sprzedaży i projektami. Statusy,
+  przejścia między nimi, priorytety i tagi są konfigurowalne; przypomnienia i dzienne podsumowanie są
+  wysyłane e-mailem. Uprawnienia `tasks:read`, `tasks:write`, `tasks:see_private` i
+  `tasks:configure`. Zob. [Zadania](./modules/tasks.md).
+- **`@endora-commerce/mod-projects`** (id modułu `projects`): Projekty dla jednej lub wielu
+  Organizacji albo wewnętrzne, prowadzone przez Etapy przez Członków z Rolami w projekcie, z szablonów,
+  z analityką. Uprawnienia `projects:read`, `projects:write`, `projects:see_all`,
+  `projects:configure` i `projects:analytics`. Działa bez Zadań i oferuje Zadania, gdy ten moduł jest
+  włączony. Zob. [Projekty](./modules/projects.md).
+- **Po zadeklarowaniu każdy jest włączony** (`tasks.enabled`, `projects.enabled`) i można go wyłączyć
+  na `/platform/modules` bez utraty danych. Rolom, które mają z nich korzystać, nadaj powyższe
+  uprawnienia w *Rolach administratorów*.
+- **Bez nich** nic się nie zmienia, poza tym, że szanse sprzedaży mogą teraz odwoływać się także do
+  innych szans sprzedaży, zapytań ofertowych i — gdy moduły są obecne — Zadań i Projektów.
+
+#### Pliki biblioteki dziedziczą widoczność rekordów, które ich używają {#after-0-109-0-asset-visibility}
+
+- **Co się zmieniło** (specyfikacja 166). Plik w bibliotece zasobów używany wyłącznie przez rekordy,
+  których czytelnik nie może zobaczyć — prywatne lub robocze Zadanie, Projekt, w którym nie jest
+  członkiem, szansę sprzedaży poza jego zasięgiem — jest przed tym czytelnikiem ukryty: nie ma go na
+  liście biblioteki, w jej wyszukiwaniu, w folderach ani w wyborze plików, a każda trasa panelu, która
+  przyjmuje jego id, odpowiada jak dla pliku, który nie istnieje. Plik, którego nikt nie używa, albo
+  używany przez produkt, kategorię, stronę CMS, wpis bloga lub menu, jest jak wcześniej widoczny dla
+  każdego czytelnika biblioteki. Administrator platformy widzi każdy plik.
+- **Powiązanie pliku przez id** — z galerią, załącznikami lub plikami do pobrania produktu, obrazem
+  kategorii lub bloga, pozycją menu — odrzuca plik, którego administrator nie może zobaczyć, dokładnie
+  tak jak brakujący.
+- **Usunięcie folderu razem z zawartością** jest teraz odrzucane z `409 ASSET_REFERENCED`, gdy
+  którykolwiek plik w środku jest nadal używany (zgłoszenie #535). Dotąd takie pliki były usuwane.
+- Nic nie trzeba robić: nie ma migracji ani nowego uprawnienia.
+
+#### Weryfikacja dwuetapowa {#after-0-109-0-two-step}
+
+- **Jeden kod wpuszcza jedno logowanie.** Ten sam poprawny kod z aplikacji uwierzytelniającej albo
+  kod odzyskiwania wysłany jednocześnie do kilku prób logowania był dotąd przyjmowany przez każdą z
+  nich; teraz jest przyjmowany raz.
+- **Konfiguracja pokazuje kod QR** obok klucza do wpisania ręcznego, w *Bezpieczeństwie konta* panelu
+  i w każdej odpowiedzi konfiguracji (`qrSvg`, dokument SVG do wyświetlenia jako obraz, nigdy jako
+  HTML).
+- **Jedna nazwa.** Logowanie wieloskładnikowe nazywa się **weryfikacją dwuetapową** (po angielsku
+  *two-step verification*) na każdym ekranie, w nazwach ustawień, etykietach uprawnień i komunikatach,
+  zamiast „uwierzytelniania dwuskładnikowego” i „2FA”. Identyfikatory, kody uprawnień, klucze ustawień
+  i kody błędów się nie zmieniają, a paleta nadal znajduje *dwuskładnikowe* i *2fa*.
+- `@endora-commerce/mod-mfa` ma teraz zależność peer `uqr` ([Zależności](#after-0-109-0-dependencies)).
+
+#### Panel administracyjny: preferencje, przypięcia, powiadomienia i paleta {#after-0-109-0-admin}
+
+- **Preferencje są przechowywane na serwerze, dla każdego administratora** (specyfikacja 164):
+  przypięcia na pasku bocznym, zwinięte grupy paska, tryb wąskiego paska, rozmiar strony każdej listy i
+  wybór widoku listy lub tablicy towarzyszą administratorowi w każdej przeglądarce i na każdym
+  urządzeniu. Przy pierwszym wczytaniu po aktualizacji rozmiary stron zapamiętane przez przeglądarkę dla
+  zalogowanego administratora są jednorazowo przenoszone; zwinięte grupy i tryb wąskiego paska nie były
+  przypisane do administratora i zostają wyzerowane, więc każdy raz otworzy panel w domyślnym układzie
+  paska. Nic nie jest już przechowywane w pamięci przeglądarki.
+- **Przypięcia.** Każda pozycja paska bocznego ma przycisk przypięcia; przypięte pozycje są pierwsze,
+  w sekcji *Przypięte*, której kolejność zmienia się przeciąganiem albo z klawiatury. Wynik palety,
+  który prowadzi do pozycji paska, można przypiąć skrótem `Alt+Enter`.
+- **Każdy administrator czyta własne powiadomienia** w dzwonku, niezależnie od roli (zgłoszenie #518).
+  `admin:read` — teraz z etykietą o wyświetlaniu powiadomień wysłanych do wszystkich administratorów —
+  decyduje już tylko o tym, czy pokazywane są komunikaty do wszystkich administratorów.
+- **Ekrany każdego modułu są dostępne z palety poleceń**, a paleta znajduje akcję po słowie w języku
+  operatora, a także po angielskim. Polskie słowa pochodzą teraz z pakietów językowych modułów;
+  `Migration20261030T145645AdminActionsKeywordsKey` przechowuje klucz zapisywany przy następnej
+  rekoncyliacji.
+- **Pola niestandardowe** tworzy się w tym samym formularzu, który je edytuje, z etykietą w każdym
+  języku i opcjami z własnymi etykietami.
+- **Panel wczytuje mniej kodu** (zgłoszenie #175): zestaw komponentów panelu i powłoka mogą być teraz
+  przycinane przez bundler (tree-shaking), a we własnym buildzie platformy główny fragment panelu
+  zmalał do około jednej trzeciej rozmiaru.
+
+#### Ceny wstrzymywane w trybie wyświetlania *Brak* {#after-0-109-0-display-mode-none}
+
+- **Co się zmieniło** (zgłoszenie #491). Oglądający, którego tryb wyświetlania to *Brak* — zwykle gość
+  w sklepie pokazującym ceny dopiero po zalogowaniu — miał dotąd ceny ukryte tylko przez storefront,
+  podczas gdy API nadal je wysyłało: cenę, ceny bazową i promocyjną, cenę katalogową i każdy próg.
+  Serwer nie wysyła teraz takiemu oglądającemu żadnej kwoty — na listach, na stronie produktu, w
+  wyszukiwaniu, w porównaniach i w trasie rozwiązanej ceny; storefront nadal pokazuje „cena na
+  zapytanie”.
+- **Kursory list sortowanych według ceny są zapieczętowane** (zgłoszenie #497): kursora nie da się już
+  odkodować tak, by ujawnił produkt albo cenę, których oglądający nie może zobaczyć. Stronicowanie się
+  nie zmienia.
+- Nic nie trzeba robić. Klient, który czytał ceny gościa z API, nie dostaje żadnych.
+
+#### Komunikaty i dokumenty w języku czytelnika {#after-0-109-0-languages}
+
+- **Tekst pisany przez backend podąża za językiem, zamiast być po polsku w kodzie** (zgłoszenia #94,
+  #95): powiadomienie o nowej organizacji każdy administrator czyta w swoim języku, jego zapasowy
+  e-mail i potwierdzenie zamówienia generowane w kodzie są pisane w języku kanału sprzedaży, komunikaty
+  moderacji widziane przez kupującego podążają za językiem żądania, a dziennik operacji masowej jest
+  pokazywany w języku czytelnika. Polski kanał lub czytelnik widzi ten sam tekst co wcześniej; gdzie
+  indziej powiadomienie o nowej organizacji, jego zapasowy e-mail, komunikaty moderacji i dziennik
+  operacji masowej są teraz po angielsku tam, gdzie były po polsku.
+- **Faktury się nie zmieniają**: są drukowane po polsku i to renderowanie jest identyczne bajt w bajt;
+  ich etykiety pochodzą teraz z pakietu językowego modułu.
+- **Komunikaty błędów są zdaniami** po angielsku i po polsku tam, gdzie po 137 w każdym języku było
+  kodem błędu pisanym wielkimi literami. Kody błędów i statusy HTTP się nie zmieniają.
+- **Teksty storefrontu dla kupujących są w obu językach** w każdym obszarze — katalog, koszyk,
+  zamówienie, konto, logowanie, treści i elementy stałe strony (zgłoszenie #85); o istniejącym
+  storefroncie mówi wpis o [katalogu komunikatów](#after-0-109-0-message-namespaces).
+
+#### Zależności {#after-0-109-0-dependencies}
+
+Wydanie dodaje zależności peer, które instancja musi rozwiązać:
+
+| Pakiet | Zależność peer | Zadeklaruj w |
+| --- | --- | --- |
+| `@endora-commerce/mod-mfa` | `uqr` `^0` (platforma buduje się z `^0.1.3`) | `backend/package.json` |
+| `@endora-commerce/admin-kit` | `@tiptap/react` i `@tiptap/starter-kit` `^3.22.5` | `admin/package.json` |
+| `@endora-commerce/mod-cms` | `@fastify/rate-limit` `^10` | `backend/package.json` |
+| `@endora-commerce/mod-analytics` | `zod` `^4` | `backend/package.json` (już zadeklarowane dla platformy) |
+
+pnpm sam instaluje brakującą zależność peer, dopóki opcja `auto-install-peers` jest włączona, co jest
+jej wartością domyślną, więc aktualizacja przechodzi bez tych zmian; zadeklarowanie ich przypina
+wersję we własnym manifeście i jest wymagane tam, gdzie ta opcja jest wyłączona. Potem uruchom
+`pnpm install`. `endora upgrade` przenosi wyłącznie własne pakiety wydania.
+
+#### Dla autorów modułów i modułów nakładkowych {#after-0-109-0-authors}
+
+- **Moduły przekierowujące eksporty `@endora-commerce/admin-shell` do `@endora-commerce/admin-kit`
+  zostały usunięte** (zgłoszenie #97). Żaden nie był osiągalny przez `exports` pakietu, więc żaden
+  import się nie zmienia; test, który podmienia jeden z nich przez `vi.mock`, musi wskazać ścieżkę
+  zestawu, na przykład `vi.mock('@endora-commerce/admin-kit/lib', …)`.
+- **`AuditLogEntry` z `@endora-commerce/contracts` to teraz `AuditLogEntryResponse`.** Stara nazwa
+  pozostaje przestarzałym aliasem i zniknie w następnym wydaniu minor; kształt się nie zmienia.
+- **Zapisy tożsamości kanału sprzedaży przechodzą przez Command Bus.** `SalesChannelsService.create`
+  i `update` wymagają otaczającego TenantContext — wywołanie poza żądaniem opakuj w
+  `withSystemScope('<reason>', …)` z `@endora-commerce/platform/tenancy` — i tracą opcjonalny argument
+  `context`. Wpis audytu `sales_channel.identity.changed` zawiera teraz migawkę sprzed zapisu i po
+  nim.
+- **Schematy widoku koszyka opisują to, co odpowiadają trasy** (zgłoszenie #128): kilka pól może teraz
+  mieć wartość `null` albo jest opcjonalnych i żadne nie zostało zawężone, więc wszystko, co
+  przechodziło walidację wcześniej, przechodzi nadal.
+- **Słowa kluczowe palety w manifeście są po angielsku**; słowa w innym języku trafiają do pakietu
+  językowego modułu pod `keywordsKey` akcji (zgłoszenia #560, #573) i są rozwiązywane w języku
+  operatora.
+- **`endora new module` zapisuje testy obok ich przedmiotów** i sprawdza ich typy. Pakiet utworzony
+  wcześniej nadal działa; changelog `@endora-commerce/cli` mówi, jak przenieść jego pliki z
+  `test/unit/`.
+- **`@endora-commerce/cli/lib/sql-tables.js`** umie czytać DDL dotyczące istniejącej tabeli
+  (`{ ddl: true }`), więc `check:module-boundary` zgłasza teraz migrację, która indeksuje lub zmienia
+  tabelę innego modułu (zgłoszenie #108).
+
+Ta sekcja została napisana 2026-11-02 na gałęzi wydania `release/version-0.109.0`, na podstawie
+changesetów wydania zestawionych z jego migracjami, manifestami, trasami i historią storefrontu
+referencyjnego; wpisy od *Feedów produktowych* do *katalogu komunikatów* zostały napisane wcześniej,
+przez pull requesty, które wprowadziły każdą zmianę. W chwili jej pisania żadna instancja nie była
+zaktualizowana poleceniem `pnpm run upgrade 0.109.0`; kolejność kroków i zmiany w storefroncie nie
+zostały wypróbowane.
 
 ## Instancja niespójna od początku
 

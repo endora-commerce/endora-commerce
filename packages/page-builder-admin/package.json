@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/page-builder-admin",
-  "version": "0.108.0",
+  "version": "0.109.0",
   "type": "module",
   "endora": {
     "type": "admin-ui"

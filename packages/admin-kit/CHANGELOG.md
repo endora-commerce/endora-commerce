@@ -1,5 +1,195 @@
 # @endora-commerce/admin-kit
 
+## 0.109.0
+
+### Minor Changes
+
+- 9b45768: `ModalDialog` takes two optional props: `widthClassName` replaces the panel's default `max-w-lg`, and `dismissOnScrim={false}` keeps a press on the scrim from closing a dialog that holds unsaved input (Escape and the dialog's own buttons still close it). Existing callers are unaffected. The product browser draws an archived product's status as a neutral outline beside the catalogue's Archived pill.
+
+  The catalog's bulk edit is one `ModalDialog`: bulk Archive / Restore is confirmed in a second step of the same dialog, focus moves to the outcome's heading, an inline result no longer links to an operation page that does not exist, and a queued Archive / Restore says so and links to its operation. The product list keeps the archived empty-state copy for an unfiltered Archived tab, offers to repeat an empty search among archived products, and shows one coloured pill — Archived — on an archived row; the editor's archived notice carries its Restore action.
+
+- 0e33ca9: Additive props on the asset and CMS page pickers; existing callers are unchanged.
+
+  - `AssetPicker` and `AssetFieldPicker`: `acceptMimePrefix` also accepts `'font/'`, which lists font files in the picker grid. It narrows the grid only — the inline uploader is not restricted, because browsers report no reliable type for font files.
+  - `AssetFieldPicker`: optional `chooseLabel`, `changeLabel` and `clearLabel` for translated button copy; each defaults to the previous English text.
+  - `CmsPagePicker`: optional `excludeIds` (pages never offered, such as a page and its descendants in a parent picker; a client-side filter only) and `selectedLabel` (the label shown for `value` before a search has returned that page).
+
+- e03e6a9: **BREAKING — the admin screens follow the `active` | `inactive` status model, with Archive / Restore and an Archived filter.** Recorded at `minor`, which in a `0.x` series already takes every caret dependent out of range.
+
+  - **admin-kit product browser.** `ProductBrowserStatusFilter` is `'all' | 'active' | 'inactive' | 'archived'` (was `'all' | 'active' | 'draft' | 'inactive'`) and `ProductBrowserCounts` is `{ all, active, inactive, archived }` (was `{ all, active, draft, inactive }`). The browser no longer sends `includeArchived=1`: its first three tabs list products that are not archived, and the new Archived tab sends `archived=only`.
+  - **admin-kit `ProductBrowserItem`** gains an optional `archivedAt` (absent reads as not archived), and **`ProductBrowserRules`** gains `blockArchived`: an archived product is then shown but not selectable, with the reason `archived` (`productBrowser.reason.archived`), whatever its status, and the browser offers no Archived tab. `ProductSelectabilityReason` gains `'archived'`; the new `isProductArchived(row)` reads `archivedAt`. With `rules`, `ProductPicker` names an archived product beside its status.
+  - **`@endora-commerce/mod-i18n` (`core`)**: `productBrowser.tab.draft` and `productBrowser.status.draft` are removed; `productBrowser.tab.archived`, `productBrowser.status.archived` and `productBrowser.reason.archived` are added, in English and Polish.
+  - **page-builder-admin** `CatalogPickers`' product status filter offers All, Active and Inactive; `Draft` is gone.
+  - **catalog admin.** The product editor's status selector and the scope controls offer Active and Inactive; a new product starts Inactive and the create request carries the selected status. The editor offers **Archive** or **Restore** (with `catalog:write`) behind a confirmation, shows an archived product's state beside its status, and says that setting Active does not restore it. The product list has _All · Active · Inactive · Archived_ with the counts above, hides archived products unless the Archived tab is chosen, shows an Archived badge beside the status, and asks `resolve-ids` for the same population; a saved view stores the Archived tab as `archived: 'only'`, and a view saved with `status: 'draft'` opens as All. The bulk dialog's _Set status_ offers Active and Inactive, and the dialog offers bulk **Archive** (or **Restore** on the Archived tab) as its own confirmed action, with a per-product result and a link to the operation, where it can be undone.
+  - **orders** — creating an order refuses archived products in the browser and the quick search. **blog** — the related-products picker names inactive and archived products separately. **product feeds** — the criteria's status rule no longer offers `draft`.
+
+- 476c5aa: The signed-in administrator's Admin UI preferences, kept on the server, and a Pinned section in the sidebar (feature 164).
+
+  - **`useAdminPreference(key)` and `useAdminPreferencesStatus()`** (`@endora-commerce/admin-kit/lib`). `AuthProvider` now provides the signed-in administrator's preferences itself — no extra provider to mount. `useAdminPreference('sidebarPins' | 'sidebarCollapsedGroups' | 'sidebarRailMode')` returns the value and a setter that applies at once and saves in the background, newest value last, retried on reconnect and when the page returns to the foreground. `useAdminPreferencesStatus()` reports whether the preferences loaded and whether a save failed. A session seeded through `AuthProvider`'s `initial` without `preferences` reads the defaults; a fetched one without them opens with the defaults and saves nothing until a later load succeeds. `AdminMe` gains `preferences?: AdminPreferences | null`.
+  - **Pinned sidebar section** (`@endora-commerce/admin-shell`). Every sidebar entry has a pin button after its link (a Tab stop of its own; always visible with a 44 px target on touch). Pinned entries appear first, in a section of their own, in the expanded sidebar, the mobile drawer and — as the first icon — the collapsed rail, where its fly-out lists the pins with an unpin button. A pin whose entry the administrator cannot see is not shown. Pinning and unpinning are announced.
+  - **Reordering pins** in the expanded sidebar and the drawer, with the kit's `useReorderList`: drag a row, or focus its handle and use Space and the arrow keys (Escape cancels), or the up/down buttons on touch screens; every move is announced. A pin that is hidden at the moment keeps its place.
+  - **Pinning from the command palette.** A result whose destination is a sidebar entry has a pin button beside it, and `Alt+Enter` (`⌥↵`) pins or unpins the highlighted result; `Enter` still opens it. No palette entry or group is added.
+  - **`usePageSizePreference(scope)` is server-backed**, same signature: each list's page size is the signed-in administrator's, kept on the server per list (default 20); it is read when the list opens, so a change made on another device applies the next time the list opens. Folded sidebar groups (the Pinned section folds as `pinned`) and rail mode are server-held too, and present in the first render. Nothing is kept in `localStorage` any more.
+  - **One-time carry-over on upgrade.** On first load the browser's remembered page sizes **for the signed-in administrator** are sent to the server — a value already there wins — and removed once it confirmed; another administrator's are left alone. The two old sidebar values (`b2b-admin.nav.collapsed-groups`, `b2b-admin.nav.rail-mode`) were not tied to an administrator, so they are removed without being imported: everyone opens in the default sidebar layout once.
+  - **A failed save** keeps the change on screen and shows one dismissible notice below the top bar.
+  - **New `core` strings** (`@endora-commerce/mod-i18n`, English and Polish): `appShell.pinned.*` (including `appShell.pinned.reorder.*`), `appShell.palette.pin.*`, `adminPreferences.saveFailed`, `adminPreferences.dismiss`.
+  - **Theme** (`@endora-commerce/admin-kit/theme.css`): `.b2b-nav-row`, `.b2b-nav-pin`, `.b2b-nav-reorder-handle`, `.b2b-palette__pin` and the notice's classes.
+
+- 42189ce: CRM's collaboration components are in the kit, so any module's screen can have notes, messages,
+  references, attachments and a change history without copying them.
+
+  **`@endora-commerce/admin-kit/components`** gains:
+
+  - `ReferenceField` — the formatted text field in which `@` mentions a person, `@@` refers to a
+    document and `@@@` to a Product. What may be referred to is the `kinds` prop (the standard is
+    `REFERENCE_TRIGGER_KINDS`, `['admin_user', 'document', 'product']`), and where the suggestions
+    come from is a `ReferenceLookups` adapter (`searchPeople`, `searchDocuments`, `searchProducts`)
+    the screen fills from its own lookups, behind its own permissions. `@@` with `kind: 'document'`
+    shows one list grouped Orders · Quote requests · Tasks, from a `RecordDocumentLookupResponse`.
+  - `ReferenceText` — a stored text drawn with its formatting, and every reference — person, Order,
+    Product, Quote Request, Task — as a chip that links to its screen, or says it is unavailable.
+    An Order's chip carries `data-order-reference="<id>"`, and a chip inside the field carries its
+    token in `data-reference-token`; a chip copied from CRM's earlier editor, whose attribute was
+    `data-crm-token`, still pastes back as a chip.
+  - `CommentThread` and `CommentComposer` — a record's notes or messages, over a `CommentThreadApi`
+    adapter (`list`, `add`, `update`, `remove`); `RecordComment`, `CommentThreadCopy`.
+  - `AttachmentUploader` and `uploadAttachment(path, file)` — a file chosen or dropped, posted
+    multipart to the record's own upload endpoint.
+  - `useRecordHistory` and `RecordHistory` — a cursor-paginated change history whose headings,
+    field labels and values the record injects; `recordHistoryChanges` lists what an entry changed.
+  - `CursorPagination` — rows per page and Previous / Next for a list that knows no total, with a
+    `maxPageSize`.
+  - the reference grammar's editor halves: `findMentionTrigger`, `clipReferenceText`,
+    `editorDocOf`, `textOfEditorDoc`, `REFERENCE_NODE`, `MENTION_QUERY_LIMIT`.
+
+  The kit now declares `@tiptap/react` and `@tiptap/starter-kit` (`^3.22.5`) as peer dependencies.
+
+  **`@endora-commerce/mod-i18n`**: the components' English and Polish sentences are in the shared
+  `core` bundle (`references.*`, `editor.*`, `comments.*`, `history.*`, `cursorPagination.*`).
+
+  CRM is the components' first user; what that changes for `@endora-commerce/mod-crm` is in its own
+  entry.
+
+- 55864a1: Additive (`specs/165-task-management/`):
+
+  - `TagChips`, `TagMultiSelect` and `useTagOptions` (`components/tags/`), promoted from CRM with the options source injected, so any module can offer tags.
+  - `MoveToMenu` (`components/kanban/MoveToMenu.tsx`), the keyboard _Move to…_ menu for a `KanbanBoard` card, promoted from CRM; it takes generic `targets {code, name, color}`.
+  - The reference editor and `ReferenceText` know the reference kinds `opportunity` and `project`: two more document groups in the `@@` list and link targets for both.
+  - Admin preferences: `listViewModes` in the preference store, and `useListViewModePreference(listId)`, which remembers a list's list-or-board choice across devices.
+  - `CommentThread` takes `keepDeleted`: a deleted entry keeps its place, marked as deleted, with nothing left to change (`RecordComment.deletedAt`, optional). Without it a deleted entry leaves the list, as before.
+  - `MultiSelect` and `TagMultiSelect` take `ariaLabelledBy`: the trigger is named by a visible label's id rather than a second copy of it in `ariaLabel`. `TagMultiSelect` takes one of the two.
+  - `StatusTransitionGraph` names the statuses in its _From_ / _To_ form and in the selected move through `statusLabel`, as its graph already did, instead of showing their codes; the options' values stay the codes. Every workflow screen built on it (orders, returns, CRM, Projects' stages, Tasks) shows names there now.
+  - `ReferenceField`'s suggestion list keeps a suggestion's label (a record's number, a person's name) at its width and truncates the description (a title) instead: a long title no longer squeezes the number down to `TSK-…` or out of sight.
+  - `RecordHistory` and `CommentThread` take `formatTime`, optional: an entry's time in the record's own format. Without it both write it with `formatDateTime`, as before.
+
+### Patch Changes
+
+- 42b1038: `@endora-commerce/admin-shell` no longer carries its 67 re-export shims over `@endora-commerce/admin-kit` (`lib/api-client`, `lib/auth`, `components/ui/*`, `i18n/*` and the rest). The shell imports every one of those bindings from `@endora-commerce/admin-kit/lib`, `/ui`, `/components` or `/i18n` directly. None of the shims was reachable through the package's `exports` map, so nothing a consumer can import has changed: `AuthProvider` and the `AdminMe` / `AuthProviderProps` types are still exported from the package root, and are the kit's own bindings as before. A test that replaces one of these bindings with `vi.mock` must name the kit specifier (for example `vi.mock('@endora-commerce/admin-kit/lib', …)`, spreading the original module) — a mock on an old `admin-shell/src/...` path no longer has a file to resolve to.
+- c3165da: `OrganizationPickerMulti`'s `selectedLabels` takes an optional `status`: a label without one renders its chip without a status badge. Type-only widening; existing callers are unaffected.
+- 1b1c43e: Both packages now declare `"sideEffects": ["*.css"]` in `package.json`. No JavaScript file in either package does anything when it is imported, so a bundler can drop every barrel member a consumer does not use. The CSS files the packages ship (`theme.css`, `tailwind.css`) are still treated as side-effectful, so a stylesheet imported from JavaScript is kept.
+
+  The exported API does not change. In this repository's admin build, the entry chunk shrank from 2454.5 kB to 806.8 kB (gzip: 774.6 kB to 231.6 kB). A consumer that imported from the barrels gets a smaller bundle and does not need to change anything.
+
+- d68fb89: `CustomFieldListFilters` no longer loses a text or number filter typed into a control in the moment it appears, before its effects have run. The control used to take the value it mounted with back over what had just been typed, and in StrictMode the simulated unmount also cleared the pending commit, so clearing a filter as a list's fields finished loading could leave the list filtered by the old value. The control now adopts an outside value only when that value changes, and a pending commit is skipped only once the control is really unmounted.
+- 5038a3a: Multi-factor sign-in is now called **two-step verification** (Polish: **weryfikacja dwuetapowa**) in every user-facing string, replacing "two-factor authentication", "uwierzytelnianie dwuskładnikowe" and bare "2FA". Identifiers, permission codes (`mfa:reset`, `mfa:manage`), setting keys (`mfa.admin.totp_enforced` and its siblings) and error codes are unchanged.
+
+  - `@endora-commerce/mod-mfa`: the four TOTP setting names (now "Admin UI — allow two-step verification", "Admin UI — enforce two-step verification", "Storefront — allow two-step verification", "Storefront — enforce two-step verification"; the `MFA_DEACTIVATION_BLOCKED` sentence quotes the new name), the English and Polish error sentences, permission labels, the Admin UI account-security screen, the manifest's module, setting and permission descriptions, and the federated sign-in refusal sentence. The `open-security` palette action also matches "two-step verification" / "weryfikacja dwuetapowa"; "two-factor", "2fa" and "dwuskładnikowe" still match.
+  - `@endora-commerce/mod-i18n`: `adminRoles.field.requires2fa`, `adminUsers.column.twoFactor` and `organizations.detail.twoFactor`.
+  - `@endora-commerce/mod-customers`: the reset actions on the customer list and detail screens.
+  - `@endora-commerce/admin-kit`: the sentence shown when an administrator's password sign-in needs a second-step setup.
+  - `@endora-commerce/contracts`: the validation message of the MFA disable request body.
+  - `@endora-commerce/mod-admin-users`, `mod-admin-roles`, `mod-auth`, `mod-customer-accounts`: module documentation pages.
+
+- d9053a7: `FulfilmentStrategyPicker` derives its options from `fulfilmentStrategySchema.options` in `@endora-commerce/contracts` instead of a hand-copied list, so a strategy added to the contract is offered without a kit change. Its label is read from the `core` key `fulfilment.strategy.<id>`, which a new strategy must ship in every admin language. No prop changes; the five current strategies render as before.
+- 23489bf: Data-fetching picker fixes; no prop changes.
+
+  - `AdminUserPicker`, `CustomerPicker`, `CategorySelect` and `CustomerGroupPicker`: a failed request now shows its error in the listbox even when the caller passes `emptyMessage`. Previously the caller's empty-state text replaced the error, so a failure read as "nothing found".
+  - `CategorySelect`: category names are looked up by the admin language's locale (`pl` → `pl-PL`), so a Polish admin sees Polish names; before, every label fell back to `en-US`.
+  - `CategorySelect`, `CustomerGroupPicker`, `CustomerPicker` and `useCountriesQuery` import `apiClient` through the kit's `lib` barrel, so a test that mocks `@endora-commerce/admin-kit/lib` reaches them.
+
+- f40ce92: Kit pickers speak the admin's language and announce their state; no prop changes.
+
+  - `Combobox` keeps a polite live region (`role="status"`) mounted beside its input and writes the open list's status into it — the loading message, the empty message, or `Results: {count}` — so a screen reader hears a finished load, an empty result and a failed search (WCAG 2.2 SC 4.1.3). It is empty while the list is closed. Its default `loadingMessage` and `emptyMessage` now come from the `core` bundle (`common.combobox.loading`, `common.combobox.noResults`) instead of English literals. A test that finds the status text with `getByText` now matches two elements, the visible row and the live region; query the listbox (`getByRole('listbox')`) or the region (`getByRole('status')`) instead.
+  - `AdminUserPicker`, `CustomerPicker`, `CategorySelect`, `CustomerGroupPicker` and `SalesChannelPicker` take their default placeholder, accessible name, empty, prompt and error copy from the `core` bundle in English and Polish (`adminUserPicker.*`, `customerPicker.*`, `categorySelect.*`, `customerGroupPicker.*`, `salesChannelPicker.*`). Props that override them are unchanged.
+  - `AdminUserPicker` and `CustomerPicker` prompt for a name or e-mail address until their first search answers, instead of saying "No matching …" before anything has been searched.
+  - `SalesChannelPicker` labels channels by the admin language's locale (`pl` → `pl-PL`), so a Polish admin sees the Polish channel name; before, every label fell back to `en-US`. A failed load now shows its error even when the caller passes `emptyMessage`.
+
+  `@endora-commerce/mod-i18n` ships the new `core` keys in `en.json` and `pl.json`.
+
+- 1846755: `SalesChannelPicker` reports a list response with no `items` as a failed load again, instead of throwing at render. The translation change in the previous release moved the mapping out of the load's promise chain, so a malformed body stopped reaching its error handler and crashed the screen holding the picker.
+- Updated dependencies [d2acc82]
+- Updated dependencies [22604fa]
+- Updated dependencies [e64ed74]
+- Updated dependencies [50338a6]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [22604fa]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [9ff8307]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [07f3764]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [ea892d5]
+- Updated dependencies [678fed1]
+- Updated dependencies [dcbd154]
+- Updated dependencies [a76d6ee]
+- Updated dependencies [22604fa]
+- Updated dependencies [9a38360]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [bdef54c]
+- Updated dependencies [1b4f2b7]
+- Updated dependencies [d560d58]
+- Updated dependencies [dd6deb2]
+- Updated dependencies [3f697a3]
+- Updated dependencies [df0a90e]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [774d23e]
+- Updated dependencies [4cb0a7d]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [f148418]
+- Updated dependencies [8ef189b]
+- Updated dependencies [4bc5c7f]
+- Updated dependencies [eba4fd8]
+- Updated dependencies [61fc321]
+- Updated dependencies [9b3e7f0]
+- Updated dependencies [ecdd2f7]
+- Updated dependencies [ecdd2f7]
+- Updated dependencies [b7baf8a]
+- Updated dependencies [56e237d]
+- Updated dependencies [d50b874]
+- Updated dependencies [0a816a0]
+- Updated dependencies [f261ed3]
+- Updated dependencies [c73366c]
+- Updated dependencies [b25d8be]
+- Updated dependencies [5038a3a]
+- Updated dependencies [df95f59]
+- Updated dependencies [1fd4822]
+- Updated dependencies [0f5bcde]
+- Updated dependencies [c72a83e]
+- Updated dependencies [ed85493]
+- Updated dependencies [3174251]
+- Updated dependencies [55864a1]
+- Updated dependencies [11b0eb8]
+- Updated dependencies [b8b6eed]
+- Updated dependencies [2aa2c9b]
+- Updated dependencies [883d192]
+- Updated dependencies [5114576]
+- Updated dependencies [8f7c38e]
+  - @endora-commerce/contracts@0.109.0
+
 ## 0.108.0
 
 ### Minor Changes

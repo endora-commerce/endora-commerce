@@ -1,5 +1,177 @@
 # @endora-commerce/mod-crm
 
+## 0.109.0
+
+### Minor Changes
+
+- 4bc5c7f: Opportunity attachments are reader-restricted references (`specs/166-asset-reference-visibility/`): the asset library hides a file used only by Opportunities a reader may not see — those outside their Organization reach, or every one without `crm:read`. Every attachment reference is tagged with its `assetId`. Attaching an existing library file (`POST /api/v1/admin/crm/opportunities/:id/attachments`) asks the library first whether the caller may see it, and answers a hidden file exactly as a missing one (`422`), before the existing refusals.
+- 55864a1: Opportunities can refer to Opportunities and Projects (`specs/165-task-management/` R-5).
+
+  - Migration `crm_opportunity_reference_kinds` widens `crm_opportunity_references_target_type_check` to the seven reference kinds; its `down` restores the five.
+  - An Opportunity's description and notes resolve `[[opportunity:…]]` and `[[project:…]]` references per reader, and the `@@` list offers Opportunities and Projects when their module is on and the reader may read them. A referenced Project shows as unavailable while Projects is off.
+  - `opportunityReadPort` gains `findByIds` and `search`.
+  - The tag picker and the board's _Move to…_ menu now come from `@endora-commerce/admin-kit`; nothing changes for the user.
+
+- b8b6eed: An Opportunity's texts follow the reference standard shared with Projects: `@@` is one document
+  list — Orders · Quote requests · Tasks — and a Quote Request or a Task can be referred to in the
+  description, a note or a message. The Opportunity's screens are drawn with the admin kit's
+  collaboration components, and the screen ends with a zone other modules can fill.
+
+  **`@endora-commerce/mod-crm`**:
+
+  - **`@@` opens the document list**, where it searched the Organization's Orders alone. _Insert
+    document_ replaces _Insert order_. Orders and Quote Requests are the Opportunity's
+    Organization's (on the create form, the Organization chosen there); Tasks are any the reader
+    may see. Each group is offered only to a holder of `orders:read`, `rfqs:handle` or `tasks:read`
+    respectively, and only while its module is on; a role holding none of the three keeps `@@` as
+    typed.
+  - **`[[quote_request:<uuid>]]` and `[[task:<uuid>]]` are stored and resolved** like the other
+    three types: `references` names a Quote Request by its number (`/quote-requests/<id>`) and a
+    Task by its number (`/tasks/<id>`), and answers `available: false` without a label for a reader
+    without `rfqs:handle` / `tasks:read`, for a Task its context hides, for a target that is gone,
+    and while Quote Requests / Tasks are switched off. Texts stored before are unchanged byte for
+    byte, and read as they did.
+  - New route `GET /api/v1/admin/crm/lookups/documents?opportunityId=…&q=…` (`crm:write`; or
+    `organizationId=…` before the Opportunity exists) answering `RecordDocumentLookupResponse`, at
+    most ten documents per group — the shape Projects serves at `GET /projects/lookups/documents`.
+  - New migration `crm_opportunity_reference_documents`: the `crm_opportunity_references`
+    target-type check admits `quote_request` and `task`. Its `down` deletes the rows of those two
+    types first; the texts keep their tokens.
+  - A new `degrades-without` edge on `tasks` (`taskReadPort`): with Tasks off or absent, Task
+    references read as unavailable and Tasks are not offered after `@@`. Tasks stays switchable
+    while CRM is on.
+  - Notes, messages, references, attachments, the change history and the list pager are drawn with
+    the `@endora-commerce/admin-kit/components` collaboration components; apart from `@@` above,
+    what these screens show and do is unchanged. The package no longer declares `@tiptap/react` or
+    `@tiptap/starter-kit` — the editor is the kit's. A chip's token attribute is now
+    `data-reference-token` (was `data-crm-token`), and an Order chip's `data-order-reference` (was
+    `data-crm-order-reference`); a chip copied from the earlier editor still pastes as a chip.
+  - The Opportunity's screen mounts the `opportunity.detail.after` zone once, after the card
+    holding its tabs, handing over the Opportunity's id and nothing else. With nobody contributing
+    — no module, one that is switched off, or a person without the contribution's permission — the
+    screen is unchanged. CRM names no contributor; the first is the Projects module's _Project_
+    panel.
+
+  **`@endora-commerce/contracts`**:
+
+  - `OpportunityDocumentLookupQuerySchema` (`opportunityId?`, `organizationId?`, `q?`) and its type,
+    the query of the new route; the answer is `RecordDocumentLookupResponseSchema`.
+  - `AdminZoneNameSchema` gains `'opportunity.detail.after'`, with its props
+    `OpportunityDetailZoneProps { opportunityId }` in `AdminZonePropsMap`. A consumer that switches
+    exhaustively over `AdminZoneName` gets a compile error until it handles the new member.
+
+### Patch Changes
+
+- 77c01b1: The opportunity board no longer loses a filter when two of them change in the same moment. Two filter boxes whose typing pause ended together — two different fields, or the lowest and the highest of one field — each started from the address of the last render, so the second wrote over the first and only one reached the server and the address. Every change to the board's filters is now applied to the filters as they stand, and a field's filter is merged into the one the board holds, not the one its box was last given.
+- bd7968e: Every sidebar screen of these eight modules can now be found from the command palette (⌘K / CTRL+K), with English and Polish labels and search keywords. Each action carries the permission code of the screen it opens, so the palette never offers a screen the operator is refused.
+
+  - `@endora-commerce/mod-catalog` declares `open-attribute-sets`, `open-attachment-types` and `open-bulk-operations` (`catalog:read`).
+  - `@endora-commerce/mod-crm` declares `open-crm-tags` and `open-crm-workflow` (`crm:configure`).
+  - `@endora-commerce/mod-inventory` declares `open-warehouses`, `open-low-stock` and `open-stock-notifications` (`inventory:read`), and `import-stock` (`inventory:write`).
+  - `@endora-commerce/mod-newsletter` declares `open-newsletter-tags` and `open-newsletter-blocks` (`newsletter:read`), and `open-newsletter-provider` (`newsletter:write`).
+  - `@endora-commerce/mod-orders` declares `new-order` for the order-entry form (`orders:write`).
+  - `@endora-commerce/mod-projects` declares `open-project-roles` and `open-project-loss-reasons` (`projects:configure`).
+  - `@endora-commerce/mod-promotions` declares `open-promotion-rules` (`promotions:read`).
+  - `@endora-commerce/mod-settings` declares `open-setting-groups` (`settings:read`) and `clear-cache` (`settings:write`).
+
+- 8eb0fcb: The command-palette actions of the work-management modules (`crm`, `projects`, `tasks`) keep only English `keywords` in their manifests. Their Polish search words moved to each module's `i18n/pl.json` under the action's new `keywordsKey`, with an English entry in `i18n/en.json` (issue #573, following #560). A Polish operator finds the same screens by the same words; an English-language admin is no longer offered the Polish ones.
+- Updated dependencies [42b1038]
+- Updated dependencies [5d192d3]
+- Updated dependencies [9b45768]
+- Updated dependencies [d2acc82]
+- Updated dependencies [22604fa]
+- Updated dependencies [c3165da]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [e64ed74]
+- Updated dependencies [e03e6a9]
+- Updated dependencies [50338a6]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [22604fa]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [9ff8307]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [07f3764]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [ea892d5]
+- Updated dependencies [678fed1]
+- Updated dependencies [dcbd154]
+- Updated dependencies [a76d6ee]
+- Updated dependencies [22604fa]
+- Updated dependencies [9a38360]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [bdef54c]
+- Updated dependencies [1b4f2b7]
+- Updated dependencies [d560d58]
+- Updated dependencies [dd6deb2]
+- Updated dependencies [3f697a3]
+- Updated dependencies [df0a90e]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [3ccf23b]
+- Updated dependencies [774d23e]
+- Updated dependencies [4cb0a7d]
+- Updated dependencies [0e33ca9]
+- Updated dependencies [f148418]
+- Updated dependencies [3ea1249]
+- Updated dependencies [476c5aa]
+- Updated dependencies [8ef189b]
+- Updated dependencies [4bc5c7f]
+- Updated dependencies [eba4fd8]
+- Updated dependencies [61fc321]
+- Updated dependencies [9b3e7f0]
+- Updated dependencies [ecdd2f7]
+- Updated dependencies [ecdd2f7]
+- Updated dependencies [b7baf8a]
+- Updated dependencies [1b1c43e]
+- Updated dependencies [56e237d]
+- Updated dependencies [d50b874]
+- Updated dependencies [a166cfd]
+- Updated dependencies [0a816a0]
+- Updated dependencies [f261ed3]
+- Updated dependencies [302e5ce]
+- Updated dependencies [d68fb89]
+- Updated dependencies [c73366c]
+- Updated dependencies [b0a1e48]
+- Updated dependencies [b25d8be]
+- Updated dependencies [5038a3a]
+- Updated dependencies [df95f59]
+- Updated dependencies [1fd4822]
+- Updated dependencies [9cb3c8d]
+- Updated dependencies [0f5bcde]
+- Updated dependencies [c72a83e]
+- Updated dependencies [42189ce]
+- Updated dependencies [d9053a7]
+- Updated dependencies [23489bf]
+- Updated dependencies [f40ce92]
+- Updated dependencies [55864a1]
+- Updated dependencies [ed85493]
+- Updated dependencies [3174251]
+- Updated dependencies [55864a1]
+- Updated dependencies [11b0eb8]
+- Updated dependencies [b8b6eed]
+- Updated dependencies [2aa2c9b]
+- Updated dependencies [883d192]
+- Updated dependencies [5114576]
+- Updated dependencies [8f7c38e]
+- Updated dependencies [1846755]
+  - @endora-commerce/admin-kit@0.109.0
+  - @endora-commerce/platform@0.109.0
+  - @endora-commerce/contracts@0.109.0
+  - @endora-commerce/email-components@0.109.0
+
 ## 0.108.0
 
 ### Minor Changes

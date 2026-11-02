@@ -1,5 +1,0 @@
----
-'@endora-commerce/cli': minor
----
-
-`@endora-commerce/cli/lib/sql-tables.js` can read DDL that targets an existing table (issue #108). `sqlTableAccesses(source, file, options?)` takes a new optional third argument, `SqlTableAccessOptions`: with `{ ddl: true }` it also reports the table named by `create [unique] index … on`, `alter table`, `drop table`, `comment on table` / `comment on column`, `create trigger … on` and `drop trigger … on`. Quoted and unquoted names, schema-qualified names, `if [not] exists`, `only` and `concurrently` are all read. Each of these is a `write` access with the new `syntax: 'ddl'`. A table that the same source creates with `create table` is not reported. `drop index` names an index, not a table, so it resolves through `indexTables` (index name to table); build that map with the new `declaredIndexes(source, file)`. Calls without the option behave exactly as before. `SqlAccessSyntax` now includes `'ddl'`, so a `switch` over it that checks it covers every case needs one more branch.

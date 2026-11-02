@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-tasks",
-  "version": "0.108.0",
+  "version": "0.109.0",
   "type": "module",
   "sideEffects": false,
   "description": "Tasks assigned to admin users, with a due date and a status, which any module can own through an opaque context.",
