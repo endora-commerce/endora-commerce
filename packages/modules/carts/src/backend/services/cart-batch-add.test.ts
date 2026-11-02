@@ -180,6 +180,12 @@ function rig(
     flush: async () => {
       writes.flushes += 1;
     },
+    remove: (row: Row) => {
+      for (const table of [carts, items]) {
+        const at = table.indexOf(row);
+        if (at >= 0) table.splice(at, 1);
+      }
+    },
     nativeDelete: async (entity: unknown, where: Record<string, unknown>) => {
       const table = tableOf(entity);
       const kept = table.filter((row) => !matches(row, where));
@@ -773,58 +779,120 @@ describe("addItems — onBelowMinimum: 'throw' writes nothing (D1)", () => {
   });
 });
 
-describe('addItems — replaceExisting judges the request alone and clears only once it passes (D1)', () => {
-  it('a refused request leaves the existing basket exactly as it was', async () => {
-    const r = rig({ carts: [existingCart()], items: [cartLine({ productId: B, quantity: 3 })] });
+/**
+ * Issue #169 (owner ruling) — admin order creation, one-click buy and the
+ * external order intake place an order from a **working basket**: a fresh cart
+ * of the customer's, in status `working`, that the request's lines are written
+ * into. The customer's active basket — a quote-seeded one included — is never
+ * read, cleared or completed by it. These used to be `replaceExisting`, which
+ * emptied the active basket and closed it as `completed` with no order.
+ */
+describe('addItems — workingBasket writes the request into a fresh working basket and leaves the active one alone (#169)', () => {
+  const activeBasket = () => ({
+    carts: [existingCart({ sourceQuoteRequestId: 'qr-1' })],
+    items: [cartLine({ productId: B, quantity: 3 })],
+  });
+
+  it('a request that passes leaves the active basket exactly as it was and returns a working basket holding the request', async () => {
+    const r = rig(activeBasket());
+    const cartBefore = { ...r.carts[0]! };
+    const itemsBefore = r.items.map((row) => ({ ...row }));
+    const result = await r.service.addItems(ACTOR, [{ productId: A, variantId: RED, quantity: 10 }], {
+      onLineError: 'throw',
+      onBelowMinimum: 'throw',
+      workingBasket: true,
+    });
+    expect(r.carts.find((c) => c.id === 'cart-1')).toEqual(cartBefore);
+    expect(r.items.filter((i) => i.cartId === 'cart-1')).toEqual(itemsBefore);
+    expect(result.cart.id).not.toBe('cart-1');
+    expect(result.cart).toMatchObject({
+      status: 'working',
+      customerAccountId: CUSTOMER.customerAccountId,
+      organizationId: CUSTOMER.organizationId,
+      salesChannelId: CUSTOMER.salesChannelId,
+      sourceQuoteRequestId: null,
+    });
+    expect(result.items.map((i) => [i.cartId, i.productId, i.quantity])).toEqual([[result.cart.id, A, 10]]);
+  });
+
+  it('a second working basket is a new one each time — never the active basket, never the previous working one', async () => {
+    const r = rig(activeBasket());
+    const first = await r.service.addItems(ACTOR, [{ productId: B, quantity: 1 }], { onLineError: 'throw', workingBasket: true });
+    const second = await r.service.addItems(ACTOR, [{ productId: B, quantity: 2 }], { onLineError: 'throw', workingBasket: true });
+    expect(new Set(['cart-1', first.cart.id, second.cart.id]).size).toBe(3);
+    expect(second.items.map((i) => i.quantity)).toEqual([2]);
+    expect(r.carts.find((c) => c.id === 'cart-1')).toMatchObject({ status: 'active' });
+  });
+
+  it('a refused request leaves the active basket as it was and creates no working basket', async () => {
+    const r = rig(activeBasket());
     const cartsBefore = r.carts.map((row) => ({ ...row }));
     const itemsBefore = r.items.map((row) => ({ ...row }));
     await expect(
       r.service.addItems(ACTOR, [{ productId: A, variantId: RED, quantity: 5 }], {
         onLineError: 'throw',
         onBelowMinimum: 'throw',
-        replaceExisting: true,
+        workingBasket: true,
       }),
     ).rejects.toMatchObject({ statusCode: 422 });
     expect(r.carts).toEqual(cartsBefore);
     expect(r.items).toEqual(itemsBefore);
   });
 
-  it('a line that fails resolution leaves the existing basket exactly as it was', async () => {
-    const r = rig({ carts: [existingCart()], items: [cartLine({ productId: B, quantity: 3 })] });
+  it('a line that fails resolution leaves the active basket as it was and creates no working basket', async () => {
+    const r = rig(activeBasket());
+    const cartsBefore = r.carts.map((row) => ({ ...row }));
     const itemsBefore = r.items.map((row) => ({ ...row }));
     await expect(
       r.service.addItems(ACTOR, [{ productId: UNKNOWN, quantity: 5 }], {
         onLineError: 'throw',
         onBelowMinimum: 'throw',
-        replaceExisting: true,
+        workingBasket: true,
       }),
     ).rejects.toMatchObject({ statusCode: 404 });
-    expect(r.carts[0]).toMatchObject({ status: 'active' });
+    expect(r.carts).toEqual(cartsBefore);
     expect(r.items).toEqual(itemsBefore);
   });
 
-  it('the basket being replaced does not count toward the request: A × 7 in the cart does not carry A × 5', async () => {
+  it('a write-step refusal after the working basket exists removes it again, lines included', async () => {
+    let calls = 0;
+    const r = rig({
+      ...activeBasket(),
+      // Priced when the batch is judged, refused at the second line's write.
+      resolveLinePrice: async () => {
+        calls += 1;
+        return calls <= 2
+          ? { amount: '10.00', currency: 'PLN', priceListId: 'pl-1', isSale: false, bracketStartQuantity: 1, displayMode: 'gross_only' }
+          : { amount: '10.00', currency: 'PLN', priceListId: 'pl-1', isSale: false, bracketStartQuantity: 1, displayMode: calls === 3 ? 'gross_only' : 'none' };
+      },
+    });
+    const cartsBefore = r.carts.map((row) => ({ ...row }));
+    const itemsBefore = r.items.map((row) => ({ ...row }));
+    await expect(
+      r.service.addItems(
+        ACTOR,
+        [
+          { productId: B, quantity: 1 },
+          { productId: C, quantity: 10 },
+        ],
+        { onLineError: 'throw', workingBasket: true },
+      ),
+      // The quote-only refusal the second line's write meets.
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(r.carts).toEqual(cartsBefore);
+    expect(r.items).toEqual(itemsBefore);
+  });
+
+  it('the active basket does not count toward the request: A × 7 in it does not carry A × 5', async () => {
     const r = rig({ carts: [existingCart()], items: [cartLine({ productId: A, variantId: RED, quantity: 7 })] });
     await expect(
       r.service.addItems(ACTOR, [{ productId: A, variantId: RED, quantity: 5 }], {
         onLineError: 'throw',
         onBelowMinimum: 'throw',
-        replaceExisting: true,
+        workingBasket: true,
       }),
     ).rejects.toMatchObject({ statusCode: 422, details: { total: 5 } });
     expect(r.items).toHaveLength(1);
-  });
-
-  it('a request that passes replaces the basket: the old cart is completed, the new one holds the request', async () => {
-    const r = rig({ carts: [existingCart()], items: [cartLine({ productId: B, quantity: 3 })] });
-    const result = await r.service.addItems(ACTOR, [{ productId: A, variantId: RED, quantity: 10 }], {
-      onLineError: 'throw',
-      onBelowMinimum: 'throw',
-      replaceExisting: true,
-    });
-    expect(r.carts.find((c) => c.id === 'cart-1')).toMatchObject({ status: 'completed' });
-    expect(result.cart.id).not.toBe('cart-1');
-    expect(result.items.map((i) => [i.productId, i.quantity])).toEqual([[A, 10]]);
   });
 
   /**
@@ -853,7 +921,7 @@ describe('addItems — replaceExisting judges the request alone and clears only 
         { productId: C, quantity: 10 },
         { productId: B, quantity: 3 },
       ],
-      { onLineError: 'throw', onBelowMinimum: 'throw', replaceExisting: true, keepRepeatedLines: true },
+      { onLineError: 'throw', onBelowMinimum: 'throw', workingBasket: true, keepRepeatedLines: true },
     );
     const lines = result.items.filter((item) => item.cartId === result.cart.id);
     expect(lines.map((item) => [item.productId, item.quantity, item.unitPrice])).toEqual([
@@ -875,7 +943,7 @@ describe('addItems — replaceExisting judges the request alone and clears only 
         { productId: A, variantId: RED, quantity: 5 },
         { productId: A, variantId: RED, quantity: 5 },
       ],
-      { onLineError: 'throw', onBelowMinimum: 'throw', replaceExisting: true, keepRepeatedLines: true },
+      { onLineError: 'throw', onBelowMinimum: 'throw', workingBasket: true, keepRepeatedLines: true },
     );
     expect(result.items.map((item) => item.quantity)).toEqual([5, 5]);
   });
@@ -888,43 +956,43 @@ describe('addItems — replaceExisting judges the request alone and clears only 
         { productId: B, quantity: 5 },
         { productId: B, quantity: 3 },
       ],
-      { onLineError: 'throw', replaceExisting: true },
+      { onLineError: 'throw', workingBasket: true },
     );
     expect(result.items.map((item) => [item.productId, item.quantity])).toEqual([[B, 8]]);
   });
 
-  it('keepRepeatedLines is refused without replaceExisting — it describes a fresh basket', async () => {
+  it('keepRepeatedLines is refused without workingBasket — it describes a fresh basket', async () => {
     const r = rig();
     await expect(
       r.service.addItems(ACTOR, [{ productId: B, quantity: 1 }], { onLineError: 'throw', keepRepeatedLines: true }),
     ).rejects.toThrow(/keepRepeatedLines/);
   });
 
-  it('is refused for an anonymous actor — only a customer has a basket to replace', async () => {
+  it('is refused for an anonymous actor — only a customer places an order from a working basket', async () => {
     const r = rig();
     await expect(
       r.service.addItems({ anonymousToken: 'anon-1' }, [{ productId: B, quantity: 1 }], {
         onLineError: 'throw',
-        replaceExisting: true,
+        workingBasket: true,
       }),
-    ).rejects.toThrow(/replaceExisting/);
+    ).rejects.toThrow(/workingBasket/);
   });
 
   /**
    * Round C (item 2) — with `'report'` a line the write step refuses is an
-   * outcome rather than a refusal, so the basket would already be cleared when
-   * it is met: the combination is refused before anything is read or written.
+   * outcome rather than a refusal, so the request would be placed as part of
+   * itself: the combination is refused before anything is read or written.
    */
-  it("is refused with onLineError 'report' — a reported failure would arrive after the basket is cleared", async () => {
+  it("is refused with onLineError 'report' — a reported failure would leave a partly written working basket", async () => {
     const r = rig({ carts: [existingCart()], items: [cartLine({ productId: B, quantity: 3 })] });
     const cartsBefore = r.carts.map((row) => ({ ...row }));
     const itemsBefore = r.items.map((row) => ({ ...row }));
     await expect(
       r.service.addItems(ACTOR, [{ productId: B, quantity: 1 }], {
         onLineError: 'report',
-        replaceExisting: true,
+        workingBasket: true,
       }),
-    ).rejects.toThrow(/replaceExisting.*'throw'/);
+    ).rejects.toThrow(/workingBasket.*'throw'/);
     expect(r.carts).toEqual(cartsBefore);
     expect(r.items).toEqual(itemsBefore);
   });

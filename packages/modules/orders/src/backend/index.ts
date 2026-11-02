@@ -930,7 +930,10 @@ export function registerModule(ctx: ModuleContext): void {
           const order = await requireExposed(
             exposed.orderService,
             'order placement',
-          ).placeOrder(customerContext, req, options?.language ? { language: options.language } : undefined);
+          ).placeOrder(customerContext, req, {
+            ...(options?.language ? { language: options.language } : {}),
+            ...(options?.workingBasketId ? { workingBasketId: options.workingBasketId } : {}),
+          });
           return { ...toOrderRecord(order), nextAction: order.nextAction ?? null };
         },
       }))

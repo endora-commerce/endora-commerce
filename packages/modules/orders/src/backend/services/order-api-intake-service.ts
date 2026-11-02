@@ -31,7 +31,7 @@ import { assertWithinAdminOrderItemBound } from './request-minimums.js';
  *
  * Order intake for BOUND api keys: line items by SKU + quantity, durable
  * idempotency, and the org capability envelope inherited BY CONSTRUCTION —
- * the service seeds the designated service account's cart via the injected
+ * the service writes a working basket of the designated service account's via the injected
  * `CartService` and delegates to `OrderService.placeOrder` (the
  * `OrderCreationAdminService` pattern), so every guard the org's own buyer is
  * subject to runs unchanged: transact-status, address ownership, method
@@ -358,20 +358,21 @@ export class OrderApiIntakeService {
         body.billingAddress,
       );
 
-      // Seed the service account's cart (single-active-cart model) with real
-      // org pricing, then run the FULL placement pipeline.
+      // Write the lines into a working basket of the service account's, with
+      // real org pricing, then run the FULL placement pipeline from it. The
+      // account's own active basket — the one a buyer signed in as it shops
+      // into — is not touched (issue #169).
       //
       // Feature 155 (FR-009, R8): one batch, so a product's minimum is judged
       // on its total across the request's lines (D1). A line the Organization
       // may not see is thrown before anything is written, as `addItem` threw
       // it (FR-035); any line below a minimum refuses the whole request, keyed
-      // by its index in `lines`. Both refusals come before the basket is
-      // replaced (`replaceExisting`), so a refused request leaves it as it was.
-      // Placement checks the basket again (FR-037).
-      await this.deps.cartService.addItems({ customer: basketCtx }, resolvedLines, {
+      // by its index in `lines`. Both refusals come before the working basket
+      // exists. Placement checks the basket again (FR-037).
+      const working = await this.deps.cartService.addItems({ customer: basketCtx }, resolvedLines, {
         onLineError: 'throw',
         onBelowMinimum: 'throw',
-        replaceExisting: true,
+        workingBasket: true,
         ...(language ? { language } : {}),
       });
 
@@ -385,7 +386,7 @@ export class OrderApiIntakeService {
           salesChannelId: binding.salesChannelId,
           ...(body.customerReference ? { customerNote: body.customerReference } : {}),
         },
-        language ? { language } : undefined,
+        { ...(language ? { language } : {}), workingBasketId: working.cart.id },
       );
     } catch (err) {
       await cleanupTransient();

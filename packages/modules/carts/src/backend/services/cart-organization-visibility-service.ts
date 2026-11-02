@@ -41,8 +41,12 @@ export class CartOrganizationVisibilityService {
 
   async list(organizationId: string, query: OrgCartsListQuery = {}): Promise<OrgCartsListResponse> {
     const em = this.emFactory();
-    const where: Record<string, unknown> = { organizationId };
-    if (query.status && query.status.length > 0) where['status'] = { $in: query.status };
+    // A working basket (issue #169) is transient placement state, never a cart
+    // of the organisation's to list: it is seen once it is `completed`.
+    const where: Record<string, unknown> = { organizationId, status: { $ne: 'working' } };
+    if (query.status && query.status.length > 0) {
+      where['status'] = { $in: query.status.filter((status) => status !== 'working') };
+    }
     if (query.approvalStatus && query.approvalStatus.length > 0) {
       where['approvalStatus'] = { $in: query.approvalStatus };
     }

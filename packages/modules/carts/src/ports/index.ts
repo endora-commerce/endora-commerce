@@ -93,6 +93,29 @@ export interface CartPlacementApplyPort {
     ctx: CartCustomerContext,
   ): Promise<CartWithItems | null>;
   /**
+   * Issue #169 — the **working** basket `cartId` and its lines, read on `em`:
+   * the basket an order is placed from on the customer's behalf (admin order
+   * creation, one-click buy, the external order intake), written by
+   * `CartWritePort.addItems` with `workingBasket` beside the customer's active
+   * basket, which this never reads.
+   *
+   * `null` unless the cart is a working basket of `ctx.customerAccountId` on
+   * `ctx.salesChannelId` — the caller answers that `409 CART_EMPTY`, as it does
+   * a missing active basket. {@link completeForOrder} finishes it like any other.
+   */
+  readWorkingForPlacement(
+    em: EntityManager,
+    ctx: CartCustomerContext & { cartId: string },
+  ): Promise<CartWithItems | null>;
+  /**
+   * Issue #169 — remove the working basket `cartId` of `customerAccountId`,
+   * on this module's **own** `EntityManager`: for the caller whose placement
+   * from it was refused, after that transaction rolled back, so a refused
+   * placement leaves no basket behind. A no-op for any cart that is not that
+   * customer's working basket — the customer's own baskets are out of its reach.
+   */
+  discardWorkingBasket(input: { cartId: string; customerAccountId: string }): Promise<void>;
+  /**
    * Finish the basket the order was placed from: remove its lines, move it to
    * `completed`, stamp `completed_order_id` and release the anonymous-cart
    * token.

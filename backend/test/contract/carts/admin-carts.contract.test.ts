@@ -8,6 +8,7 @@ import {
 } from '../../helpers/test-server.js';
 
 import { SalesChannel } from '@endora-commerce/platform/kernel';
+import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 
 
 /**
@@ -52,6 +53,33 @@ describe('GET /api/v1/admin/carts', () => {
 
   afterAll(async () => {
     await teardownBackendServer(h);
+  });
+
+  /**
+   * Issue #169 — a working basket (the basket admin create, one-click buy and
+   * the external intake place an order from) is transient placement state, not
+   * a cart: it is listed by no filter, not even one naming its status.
+   */
+  it('never lists a working basket, even when the filter names its status', async () => {
+    const em = h.em();
+    const ch = await em.findOneOrFail(SalesChannel, { systemDefault: true });
+    const working = em.create(Cart, {
+      customerAccountId: TEST_CUSTOMER_ID,
+      organizationId: TEST_ORGANIZATION_ID,
+      salesChannelId: ch.id,
+      status: 'working',
+    });
+    await em.persistAndFlush(working);
+    try {
+      for (const url of ['/api/v1/admin/carts?pageSize=200', '/api/v1/admin/carts?status=working,active&pageSize=200']) {
+        const res = await h.app.inject({ method: 'GET', url, cookies: ADMIN_COOKIE });
+        expect(res.statusCode, res.body).toBe(200);
+        const ids = (res.json() as { data: Array<{ id: string }> }).data.map((r) => r.id);
+        expect(ids).not.toContain(working.id);
+      }
+    } finally {
+      await em.getConnection().execute(`delete from carts where id = ?`, [working.id]);
+    }
   });
 
   it('returns 401 from an unauthenticated session', async () => {
