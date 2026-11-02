@@ -662,8 +662,19 @@ logged, never shown to the buyer. No request body carries the field: the
 storefront, the admin create-order screen and the external order API cannot
 name a quote request.
 
-With the Quote Requests module switched off, orders are placed exactly as
-before and record no quote request.
+**The agreed prices are a different question, and that one can refuse the
+order.** Before anything is reserved or written, placement checks every basket
+line still priced at a quote's agreement (still at the agreed quantity) against
+that quote as it is now, and refuses with `410 QUOTE_VALIDITY_ENDED` when the
+quote's validity date has passed (`details.code` `lapsed`), when it no longer
+applies — re-opened, canceled, expired or gone (`withdrawn`) — or when the Quote
+Requests module is switched off and nothing can confirm the prices
+(`unavailable`). The basket stays as it was. A quote another order has already
+completed still binds its prices until its validity date. The Quote Requests
+module page, under *Validity date*, describes the rule from the buyer's side.
+
+With the Quote Requests module switched off, a basket without quote prices is
+placed exactly as before and records no quote request.
 
 ## Line groups
 

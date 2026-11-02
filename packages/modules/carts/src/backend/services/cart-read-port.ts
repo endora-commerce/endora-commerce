@@ -138,6 +138,8 @@ export function createCartWritePort(
                 agreedQuantity: line.quantity,
                 agreedUnitPrice: line.unitPrice,
                 agreedCurrency: line.currency,
+                // Issue #167 — the quote the agreement binds to, re-read at placement.
+                quoteRequestId: options?.sourceQuoteRequestId ?? null,
                 // Feature 160 (FR-030) — a quote's agreed price.
                 priceSource: 'agreed' as const,
               }
@@ -229,6 +231,7 @@ export function toCartItemRecord(item: CartItem): CartItemRecord {
     packagingUnitName: item.packagingUnitName ?? null,
     packagingUnitBaseQuantity: item.packagingUnitBaseQuantity ?? null,
     quoteSeededQuantity: item.agreedQuantity ?? null,
+    quoteRequestId: item.quoteRequestId ?? null,
     priceSource: item.priceSource ?? null,
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,

@@ -51,6 +51,7 @@ import type { MessageKey } from '../i18n/messages';
  */
 export type PlaceOrderBlock =
   | 'moderation'
+  | 'quote-ended'
   | 'below-minimum'
   | 'no-delivery-method'
   | 'no-payment-method'
@@ -76,8 +77,16 @@ export function placeOrderBlock(input: {
    * checkout preview's `belowMinimumLines` (`cartBlocksCheckout`, `canPlaceOrder`).
    */
   belowMinimum?: boolean;
+  /**
+   * Issue #167 — the basket is priced at a quote placement will no longer honour (the checkout
+   * preview's `quoteCommitmentRefusal`). After `moderation` and before `below-minimum`: the fix is
+   * a new quote or a basket without the quoted lines, either of which changes the minimums
+   * verdict too, so it is the upstream obstacle.
+   */
+  quoteEnded?: boolean;
 }): PlaceOrderBlock {
   if (!input.canTransact) return 'moderation';
+  if (input.quoteEnded === true) return 'quote-ended';
   if (input.belowMinimum === true) return 'below-minimum';
   if (input.deliveryMethodCount <= 0) return 'no-delivery-method';
   if (input.paymentMethodCount <= 0) return 'no-payment-method';
@@ -106,6 +115,8 @@ export function blockTitle(
   switch (block) {
     case null:
       return undefined;
+    case 'quote-ended':
+      return t('checkout.quoteEnded.blocked');
     case 'below-minimum':
       return t('checkout.belowMinimum.blocked');
     case 'no-delivery-method':

@@ -150,6 +150,18 @@ export const core = defineMessages({
     'checkout.belowMinimum.intro': 'Change the quantity or remove the line in your cart, then come back to place the order.',
     'checkout.belowMinimum.backToCart': 'Fix in cart',
     'checkout.belowMinimum.blocked': 'Some lines are below the minimum order quantity or no longer available.',
+    'checkout.quoteEnded.heading.lapsed': 'The quote has expired',
+    'checkout.quoteEnded.heading.withdrawn': 'The quote is no longer in force',
+    'checkout.quoteEnded.heading.unavailable': 'Quote prices cannot be confirmed',
+    'checkout.quoteEnded.body.lapsed':
+      'The prices in your basket were agreed on a quote whose validity date has passed, so the order cannot be placed at them. Ask your sales representative for a new quote, or remove the quoted items from your basket.',
+    'checkout.quoteEnded.body.withdrawn':
+      'The prices in your basket were agreed on a quote that no longer applies, so the order cannot be placed at them. Ask your sales representative for a new quote, or remove the quoted items from your basket.',
+    'checkout.quoteEnded.body.unavailable':
+      'The prices in your basket were agreed on a quote that cannot be confirmed at the moment. Remove the quoted items from your basket to order at current prices.',
+    'checkout.quoteEnded.toQuotes': 'Your quote requests',
+    'checkout.quoteEnded.toCart': 'Go to basket',
+    'checkout.quoteEnded.blocked': 'The prices in your basket come from a quote that can no longer be ordered.',
     'quickOrder.reason.sku_missing': 'SKU missing',
     'quickOrder.reason.quantity_invalid': 'Invalid quantity',
     'quickOrder.reason.product_not_found': 'Product not found',
@@ -668,6 +680,18 @@ export const core = defineMessages({
     'checkout.belowMinimum.intro': 'Zmień ilość lub usuń pozycję w koszyku, a następnie wróć, aby złożyć zamówienie.',
     'checkout.belowMinimum.backToCart': 'Popraw w koszyku',
     'checkout.belowMinimum.blocked': 'Niektóre pozycje są poniżej minimalnej ilości zamówienia lub nie są już dostępne.',
+    'checkout.quoteEnded.heading.lapsed': 'Oferta straciła ważność',
+    'checkout.quoteEnded.heading.withdrawn': 'Oferta już nie obowiązuje',
+    'checkout.quoteEnded.heading.unavailable': 'Nie można potwierdzić cen z oferty',
+    'checkout.quoteEnded.body.lapsed':
+      'Ceny w koszyku uzgodniono w ofercie, której termin ważności upłynął, więc nie można złożyć zamówienia po tych cenach. Poproś opiekuna handlowego o nową ofertę albo usuń z koszyka pozycje z oferty.',
+    'checkout.quoteEnded.body.withdrawn':
+      'Ceny w koszyku uzgodniono w ofercie, która już nie obowiązuje, więc nie można złożyć zamówienia po tych cenach. Poproś opiekuna handlowego o nową ofertę albo usuń z koszyka pozycje z oferty.',
+    'checkout.quoteEnded.body.unavailable':
+      'Ceny w koszyku uzgodniono w ofercie, której nie można teraz potwierdzić. Usuń z koszyka pozycje z oferty, aby zamówić po aktualnych cenach.',
+    'checkout.quoteEnded.toQuotes': 'Twoje zapytania ofertowe',
+    'checkout.quoteEnded.toCart': 'Przejdź do koszyka',
+    'checkout.quoteEnded.blocked': 'Ceny w koszyku pochodzą z oferty, której nie można już zamówić.',
     'quickOrder.reason.sku_missing': 'Brak SKU',
     'quickOrder.reason.quantity_invalid': 'Nieprawidłowa ilość',
     'quickOrder.reason.product_not_found': 'Nie znaleziono produktu',

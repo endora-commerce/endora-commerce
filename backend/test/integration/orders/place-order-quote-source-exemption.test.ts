@@ -124,6 +124,23 @@ describe('155 — the quote-line exemption needs a vouched quote source at place
     });
   };
 
+  /**
+   * Issue #167 — a quote that no longer binds its prices refuses the placement
+   * outright, ahead of the minimums. The exemption verdict is unchanged: the
+   * preview still flags the line, so a buyer who removes the quote's lines
+   * sees what is left to fix.
+   */
+  const expectQuoteNoLongerBinds = async (cookies: Record<string, string>, reason: 'lapsed' | 'withdrawn') => {
+    expect(await viewFlagOfA(cookies)).toBeNull();
+    expect(await previewLines(cookies)).toEqual([expect.objectContaining({ productId: A, kind: 'pieces', minimum: 10 })]);
+    const res = await place(cookies);
+    expect(res.statusCode, res.body).toBe(410);
+    expect((res.json() as ErrorBody).error).toMatchObject({
+      code: ERROR_CODES.QUOTE_VALIDITY_ENDED,
+      details: { code: reason },
+    });
+  };
+
   beforeAll(async () => {
     h = await setupBackendServer();
     const em = h.em();
@@ -166,7 +183,7 @@ describe('155 — the quote-line exemption needs a vouched quote source at place
     expect(await orderSource((res.json() as { data: { id: string } }).data.id)).toBe(quotes.valid);
   });
 
-  it('the quote cancelled after the conversion → judged like any line', async () => {
+  it('the quote cancelled after the conversion → its prices no longer bind (#167)', async () => {
     await convert(quotes.cancelled, ORG_ADMIN);
     await h
       .em()
@@ -174,16 +191,16 @@ describe('155 — the quote-line exemption needs a vouched quote source at place
       .execute(`update "quote_requests" set "status" = 'Canceled', "canceled_at" = now() where "id" = ?`, [
         quotes.cancelled,
       ]);
-    await expectJudgedLikeAnyLine(ORG_ADMIN);
+    await expectQuoteNoLongerBinds(ORG_ADMIN, 'withdrawn');
   });
 
-  it('the quote’s validity lapsed (expires_at in the past, still Approved) → judged like any line', async () => {
+  it('the quote’s validity lapsed (expires_at in the past, still Approved) → its prices no longer bind (#167)', async () => {
     await convert(quotes.expired, ORG_ADMIN);
     await h
       .em()
       .getConnection()
       .execute(`update "quote_requests" set "expires_at" = now() - interval '1 day' where "id" = ?`, [quotes.expired]);
-    await expectJudgedLikeAnyLine(ORG_ADMIN);
+    await expectQuoteNoLongerBinds(ORG_ADMIN, 'lapsed');
   });
 
   it('two baskets of one quote — the first places, the second is refused below the minimum', async () => {
@@ -219,7 +236,7 @@ describe('155 — the quote-line exemption needs a vouched quote source at place
     await expectJudgedLikeAnyLine(ORG_ADMIN);
   });
 
-  it('a quote of another Organization named by the basket → judged like any line (XI)', async () => {
+  it('a quote of another Organization named by the basket → its prices do not bind here (XI, #167)', async () => {
     await cartWritePortOf(h).replaceItemsForCustomer(
       {
         customerAccountId: TEST_CUSTOMER_ID,
@@ -229,7 +246,7 @@ describe('155 — the quote-line exemption needs a vouched quote source at place
       [{ productId: A, quantity: 5, unitPrice: '11.25', currency: 'PLN' }],
       { sourceQuoteRequestId: foreignQuote },
     );
-    await expectJudgedLikeAnyLine(ORG_ADMIN);
+    await expectQuoteNoLongerBinds(ORG_ADMIN, 'withdrawn');
   });
 
   /**

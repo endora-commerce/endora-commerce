@@ -31,6 +31,7 @@ import { Migration20261018T074021CartsCartItemAgreedPrice } from './20261018T074
 import { Migration20261019T043854CartsChannelBackfill } from './20261019T043854_carts_channel_backfill.js';
 import { Migration20261021T165244CartsCartItemsPriceSource } from './20261021T165244_carts_cart_items_price_source.js';
 import { Migration20261025T031727CartsUnitPriceFourPlaces } from './20261025T031727_carts_unit_price_four_places.js';
+import { Migration20261102T121950CartsCartItemQuoteRequest } from './20261102T121950_carts_cart_item_quote_request.js';
 
 export const migrations = [
   Migration20260611T140352CartsConsolidation,
@@ -42,6 +43,7 @@ export const migrations = [
   Migration20261019T043854CartsChannelBackfill,
   Migration20261021T165244CartsCartItemsPriceSource,
   Migration20261025T031727CartsUnitPriceFourPlaces,
+  Migration20261102T121950CartsCartItemQuoteRequest,
 ];
 
 export {
@@ -54,4 +56,5 @@ export {
   Migration20261019T043854CartsChannelBackfill,
   Migration20261021T165244CartsCartItemsPriceSource,
   Migration20261025T031727CartsUnitPriceFourPlaces,
+  Migration20261102T121950CartsCartItemQuoteRequest,
 };

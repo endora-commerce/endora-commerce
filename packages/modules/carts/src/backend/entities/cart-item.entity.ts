@@ -32,6 +32,7 @@ export class CartItem {
     | 'agreedQuantity'
     | 'agreedUnitPrice'
     | 'agreedCurrency'
+    | 'quoteRequestId'
     | 'priceSource';
 
   @PrimaryKey({ type: 'uuid' })
@@ -117,6 +118,18 @@ export class CartItem {
 
   @Property({ type: 'string', length: 3, nullable: true })
   agreedCurrency?: string | null;
+
+  /**
+   * Issue #167 — the accepted Quote Request the agreement above came from;
+   * null on every line that carries none. Written with the agreement, by the
+   * quote seed alone. A claim, like `Cart.sourceQuoteRequestId`: `orders`
+   * reads the request again at placement and refuses the line at its agreed
+   * price once the quote's validity has ended or it is no longer in force. No
+   * foreign key — the request is another module's row, and a request that has
+   * gone resolves to nothing, which placement refuses.
+   */
+  @Property({ type: 'uuid', nullable: true })
+  quoteRequestId?: string | null;
 
   @Property({ type: 'datetime', onCreate: () => new Date() })
   createdAt: Date = new Date();
