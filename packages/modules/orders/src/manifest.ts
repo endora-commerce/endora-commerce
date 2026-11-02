@@ -310,8 +310,8 @@ export const manifest = defineModuleManifest({
       name: 'quoteRequestReadPort',
       kind: 'degrades-without',
       whenAbsent:
-        'an order placed from a basket that an accepted quote filled no longer records that ' +
-        'quote, so the quote is not completed by it; the order itself is placed exactly as before',
+        'a basket still priced at a quote`s agreed prices is refused, since nothing can confirm ' +
+        'the quote is still valid; any other basket is placed as before and names no quote',
       reason:
         'Placement copies the accepted quote a basket was seeded from onto the order ' +
         '(`orders.source_quote_request_id`) and reads that quote back first: the basket ' +
@@ -319,8 +319,9 @@ export const manifest = defineModuleManifest({
         'own Organization that is still approved and still has an agreed line on the basket ' +
         '(`specs/143-crm-sales-opportunities/`, FR-100 to FR-103). A read on a ' +
         '`di.providePort` name behind `effectiveState.isPresent`: with the owner absent ' +
-        'nothing can vouch for the claim, so the order is placed without a source rather ' +
-        'than refused. Not `dependencies`, for the reason given on `rfqService` above.',
+        'nothing can vouch for the claim, so the order names no source. Issue #167: placement ' +
+        're-checks every quote a line is priced at; absent, that fails closed (`410 ' +
+        'QUOTE_VALIDITY_ENDED`, `unavailable`). Not `dependencies` (see `rfqService`).',
     },
     {
       moduleId: 'inventory',

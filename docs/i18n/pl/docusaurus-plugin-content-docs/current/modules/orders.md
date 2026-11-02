@@ -624,8 +624,18 @@ logu i nie jest pokazywana kupującemu. Żadne żądanie nie przyjmuje tego pola
 ekran tworzenia zamówienia w panelu administracyjnym, ani zewnętrzne API zamówień nie mogą wskazać
 zapytania ofertowego.
 
-Gdy moduł zapytań ofertowych jest wyłączony, zamówienia są składane dokładnie tak jak dotąd i nie
-zapisują żadnego zapytania.
+**Uzgodnione ceny to osobne pytanie i ono może zablokować zamówienie.** Zanim cokolwiek zostanie
+zarezerwowane lub zapisane, składanie zamówienia sprawdza każdą pozycję koszyka wciąż wycenioną
+według uzgodnienia z oferty (wciąż w uzgodnionej ilości) względem tej oferty w jej obecnym stanie
+i odmawia z kodem `410 QUOTE_VALIDITY_ENDED`, gdy termin ważności oferty upłynął (`details.code`
+`lapsed`), gdy oferta już nie obowiązuje — otwarta ponownie, anulowana, wygasła lub usunięta
+(`withdrawn`) — albo gdy moduł zapytań ofertowych jest wyłączony i nic nie może potwierdzić cen
+(`unavailable`). Koszyk pozostaje bez zmian. Oferta zakończona już przez inne zamówienie nadal
+wiąże swoje ceny do terminu ważności. Strona modułu zapytań ofertowych, w części *Termin
+ważności*, opisuje tę regułę od strony kupującego.
+
+Gdy moduł zapytań ofertowych jest wyłączony, koszyk bez cen z oferty jest składany dokładnie tak
+jak dotąd i nie zapisuje żadnego zapytania.
 
 ## Grupy pozycji
 

@@ -162,7 +162,9 @@ both failed silently. Both have since been fixed, in different ways:
   plus the analytics and marketing modules). Unset, the revalidator is a silent no-op and the
   storefront endpoint answers 401: content changes do not appear until the fetch cache expires
   on its own. It is now in `deploy/.env.prod.example` and handed to **both** the backend and the
-  storefront container — the same value, or the seam does not close.
+  storefront container — the same value, or the seam does not close. Two different values are
+  logged by the backend as `[storefront-revalidate] refused` with status `401`, at most once a
+  minute.
 
 **Do (engineer).** Generate `REVALIDATE_SECRET` (`openssl rand -hex 32`) into `deploy/.env`.
 Confirm `API_DOMAIN` is the real public API domain.

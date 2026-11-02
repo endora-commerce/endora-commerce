@@ -339,7 +339,9 @@ describe('orders — an order placed from an accepted quote request', () => {
       expect((await orderRow(placed.id)).sourceQuoteRequestId ?? null).toBeNull();
     });
 
-    it('a request that is no longer approved — cancelled between the conversion and the checkout', async () => {
+    // Issue #167 — a quote that no longer applies does not only lose the order
+    // its source: its agreed prices no longer bind, so placement refuses.
+    it('a request that is no longer approved — cancelled between the conversion and the checkout: refused', async () => {
       const rfq = await acceptedQuoteRequest(h);
       await convertQuoteRequestToCart(h, rfq.id);
       await h
@@ -347,8 +349,7 @@ describe('orders — an order placed from an accepted quote request', () => {
         .getConnection()
         .execute(`update "quote_requests" set "status" = 'Canceled', "canceled_at" = now() where "id" = ?`, [rfq.id]);
 
-      const placed = await place();
-      expect((await orderRow(placed.id)).sourceQuoteRequestId ?? null).toBeNull();
+      await expect(place()).rejects.toThrow(/checkOutBasket: 410 .*QUOTE_VALIDITY_ENDED/);
       const quote = await quoteRow(rfq.id);
       expect(quote.status).toBe('Canceled');
       expect(quote.convertedOrderId ?? null).toBeNull();
@@ -393,22 +394,24 @@ describe('orders — an order placed from an accepted quote request', () => {
   });
 
   describe('with quote_requests off', () => {
+    // Issue #167 — fail-closed: with the module off nothing can confirm that the
+    // quote's agreed prices still bind, so a basket priced at them is refused
+    // (`unavailable`) rather than ordered at a price nobody vouched for.
     it.each<OffStateAxis>(['deactivated', 'platform-unavailable'])(
-      'a basket converted earlier is still checked out while the module is %s — as an ordinary order',
+      'a basket converted earlier is refused at its agreed prices while the module is %s',
       async (axis) => {
         const rfq = await acceptedQuoteRequest(h);
         await convertQuoteRequestToCart(h, rfq.id);
 
-        const placed = await withModuleOff('quote_requests', axis, () => place());
+        await expect(withModuleOff('quote_requests', axis, () => place())).rejects.toThrow(
+          /checkOutBasket: 410 .*QUOTE_VALIDITY_ENDED/,
+        );
 
-        const order = await orderRow(placed.id);
-        expect(order.sourceQuoteRequestId ?? null).toBeNull();
-        const lines = await h.em().find(OrderItem, { orderId: placed.id }, { filters: false });
-        expect(Number(lines[0]?.unitPrice)).toBe(rfq.agreedUnitPrice);
-        // Nothing of the switched-off module moved.
+        // Nothing of the switched-off module moved, and the basket is intact.
         const quote = await quoteRow(rfq.id);
         expect(quote.status).toBe('Approved');
         expect(quote.convertedOrderId ?? null).toBeNull();
+        expect((await basketLineOf(SEED_PRODUCT_101_ID)).quantity).toBe(rfq.quantity);
       },
     );
 

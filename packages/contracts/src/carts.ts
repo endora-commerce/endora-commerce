@@ -672,6 +672,13 @@ export interface CartItemRecord {
    */
   quoteSeededQuantity: number | null;
   /**
+   * Issue #167 — the accepted Quote Request this line's agreement was seeded from; `null` (or
+   * absent) on every line that carries none. Written with {@link quoteSeededQuantity}, and read
+   * at order placement, which refuses the line at its agreed price once that quote's validity
+   * has ended or it is no longer in force.
+   */
+  quoteRequestId?: string | null;
+  /**
    * Feature 160 (FR-030) — which tier priced `unitPrice` (`base`, `catalogue`,
    * `buyer`, `sale`), or `agreed`; `null` for a line priced before the feature.
    * Order placement copies it onto the order line.

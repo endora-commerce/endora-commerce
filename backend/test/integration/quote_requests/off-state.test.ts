@@ -244,8 +244,9 @@ describe('quote_requests off-state, from a package (Constitution XVII)', () => {
   /**
    * Feature 155 (T056b; FR-036, research R17/R19) — with `quote_requests` off,
    * placement cannot vouch for a basket's quote source, so no line is exempt:
-   * a seeded A × 5 (A minimum 10) is flagged by the checkout preview and refused
-   * at placement — the fail-closed reading. Switched back on, the same basket's
+   * a seeded A × 5 (A minimum 10) is flagged by the checkout preview, and
+   * placement — which since issue #167 cannot confirm the agreed price either —
+   * refuses it: the fail-closed reading. Switched back on, the same basket's
    * exemption is honoured again and it places.
    */
   it('155 — while off, a quote-seeded A × 5 below its minimum is flagged and refused; back on, it places', async () => {
@@ -296,11 +297,14 @@ describe('quote_requests off-state, from a package (Constitution XVII)', () => {
         expect(await belowMinimumLines()).toEqual([
           expect.objectContaining({ productId: SEED_PRODUCT_101_ID, kind: 'pieces', minimum: 10 }),
         ]);
+        // Issue #167 — and the agreed price itself cannot be confirmed, which
+        // refuses the placement ahead of the minimums (fail-closed).
         const refused = await place();
-        expect(refused.statusCode, refused.body).toBe(422);
-        expect((refused.json() as { error: { code: string } }).error.code).toBe(
-          ERROR_CODES.PRODUCT_BELOW_MINIMUM_QUANTITY,
-        );
+        expect(refused.statusCode, refused.body).toBe(410);
+        expect((refused.json() as { error: { code: string; details?: { code?: string } } }).error).toMatchObject({
+          code: ERROR_CODES.QUOTE_VALIDITY_ENDED,
+          details: { code: 'unavailable' },
+        });
       });
 
       expect(await belowMinimumLines()).toEqual([]);
@@ -663,12 +667,6 @@ describe('quote_requests off-state, from a package (Constitution XVII)', () => {
         .execute(`update "${table}" set custom_field_values = ?::jsonb where id = ?`, [JSON.stringify(values), id]);
     };
 
-    const systemNotes = async (orderId: string): Promise<unknown[]> => {
-      const response = await h.app.inject({ method: 'GET', url: `/api/v1/admin/orders/${orderId}/comments`, cookies: admin });
-      expect(response.statusCode, response.body).toBe(200);
-      return (response.json() as { data: Array<{ systemNote: unknown }> }).data.filter((c) => c.systemNote !== null);
-    };
-
     const carrySkipEvents = async (quoteRequestId: string): Promise<number> => {
       const rows = (await h
         .em()
@@ -767,21 +765,17 @@ describe('quote_requests off-state, from a package (Constitution XVII)', () => {
       await reactor.idle();
     });
 
+    // Issue #167 — while off, nothing can confirm the quote's agreed prices, so
+    // the basket converted from it is refused outright (fail-closed): there is
+    // no Order for a value to be carried into or a note to be recorded on.
     it.each(['deactivated', 'platform-unavailable'] as const)(
-      'while %s a basket converted from a request places an Order that carries nothing and records nothing',
+      'while %s a basket converted from a request is refused, so nothing is carried or recorded',
       async (axis) => {
         await quoteInBasket(`off_${axis}_${RUN}`);
-        let orderId = '';
-        let during: Record<string, unknown> = {};
         await withModuleOff('quote_requests', axis, async () => {
-          orderId = (await whenOrderCreatedSettled(h, () => checkOutBasket(h))).id;
-          during = await valuesOf('orders', orderId);
-          expect(Object.hasOwn(during, ORDER_KEY)).toBe(false);
-          expect(await systemNotes(orderId)).toEqual([]);
+          await expect(checkOutBasket(h)).rejects.toThrow(/checkOutBasket: 410 .*QUOTE_VALIDITY_ENDED/);
         });
         await reactor.idle();
-        expect(await valuesOf('orders', orderId)).toEqual(during);
-        expect(await systemNotes(orderId)).toEqual([]);
       },
     );
 

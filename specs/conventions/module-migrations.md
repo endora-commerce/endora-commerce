@@ -64,7 +64,9 @@ number", never pick a number, never edit an execution list.
    accesses stood in 28 migration files, 4 of them undeclared and 37 of them writes.
    `check:module-boundary` now judges them, under two rules with two ledgers:
    **R1** is item 4 with its predicate widened from `references` to every statement
-   `sqlTableAccesses` recognises, and **R2** is that a migration owned by `A` may not
+   `sqlTableAccesses` recognises — DML, knex builders and, since issue #108, DDL against an
+   existing table (`create index … on`, `alter table`, `drop table`, `drop index`,
+   `comment on`, triggers), which counts as a write — and **R2** is that a migration owned by `A` may not
    **write** a table owned by `B` *whether or not R1 holds* — a declaration is an
    ordering-and-presence fact and a write is an ownership fact, so seeding, reseeding and
    correcting a module's rows is that module's own migration's job. Kernel-owned tables are

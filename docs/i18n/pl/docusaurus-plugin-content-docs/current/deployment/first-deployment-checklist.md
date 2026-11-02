@@ -165,7 +165,9 @@ nich nie dawał żadnego błędu. Obie sprawy zostały od tego czasu naprawione,
   analityczne i marketingowe). Gdy nie jest ustawiony, odświeżanie po cichu nic nie robi, a endpoint
   storefrontu odpowiada 401: zmiany treści nie pojawiają się, dopóki pamięć podręczna sama nie
   wygaśnie. Zmienna jest teraz w `deploy/.env.prod.example` i trafia do **obu** kontenerów —
-  backendu i storefrontu — z tą samą wartością, bo inaczej problem się nie zamyka.
+  backendu i storefrontu — z tą samą wartością, bo inaczej problem się nie zamyka. Dwie różne
+  wartości backend zapisuje w logu jako `[storefront-revalidate] refused` ze statusem `401`,
+  najwyżej raz na minutę.
 
 **Do zrobienia (inżynier).** Wygeneruj `REVALIDATE_SECRET` (`openssl rand -hex 32`) i wpisz go do
 `deploy/.env`. Upewnij się, że `API_DOMAIN` to prawdziwa publiczna domena API.

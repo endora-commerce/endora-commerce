@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
+import { setupTestDb, type FirstBootTestDb } from '../../helpers/test-db.js';
 import type { CommandActor } from '@endora-commerce/platform/commands';
 import { DefaultChannelReconciler } from '@endora-commerce/platform/composition';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
@@ -26,6 +26,12 @@ import { makeSetSystemDefaultChannelCommand } from '../../../../packages/modules
  * `CommandBus.run`, which forks its own EM and commits outside it. The bus's own
  * contract — one audit row, one event, all-or-nothing — is covered end to end in
  * `test/contract/sales_channels/admin-set-default.contract.test.ts`.
+ *
+ * Each case arranges the whole `sales_channels` table — two rows, and nothing
+ * the reconciler could pick instead — so the file runs on a database of its
+ * own with no channel in it, `setupTestDb({ firstBoot })`, rather than emptying the
+ * shared table and trusting a rollback to put the platform's default back
+ * (issue #115).
  */
 const ACTOR: CommandActor = {
   actorAdminUserId: null,
@@ -34,10 +40,10 @@ const ACTOR: CommandActor = {
 };
 
 describe('moving the system-default flag (D-51) [real DB]', () => {
-  let db: TestDb;
+  let db: FirstBootTestDb;
 
   beforeAll(async () => {
-    db = await setupTestDb();
+    db = await setupTestDb({ firstBoot: 'default_flag_move' });
   });
 
   afterAll(async () => {
@@ -51,14 +57,7 @@ describe('moving the system-default flag (D-51) [real DB]', () => {
   /** Two channels: `default` holds the flag, `shop-b` is the promotion target. */
   async function seedTwoChannels(): Promise<{ def: SalesChannel; other: SalesChannel }> {
     const em = db.em();
-    // Release the quote-request attributions first (issue #266): a quote
-    // request records the channel it was raised on, and
-    // `quote_requests_sales_channel_fk` is `on delete restrict`, so an RFQ
-    // another file raised on the system-default channel would refuse this wipe.
-    // Inside this file's transaction, which is rolled back after each case.
-    await em.execute('update "quote_requests" set "sales_channel_id" = null');
-    for (const c of await em.find(SalesChannel, {})) em.remove(c);
-    await em.flush();
+    expect(await em.count(SalesChannel, {})).toBe(0);
 
     const def = em.create(SalesChannel, {
       code: 'default',

@@ -12,7 +12,7 @@ import { listAddresses, createAddress } from '../../../lib/api/organization';
 import { listDeliveryMethods, listPaymentMethods } from '../../../lib/api/methods';
 import { CheckoutForm } from '../../../components/checkout/CheckoutForm';
 import { listCountries } from '../../../lib/api/dictionary';
-import { placeOrder, previewOrderTotal } from '../../../lib/api/orders';
+import { placeOrder, previewOrderTotal, type QuoteCommitmentRefusal } from '../../../lib/api/orders';
 import { BelowMinimumSummary } from '../../../components/checkout/BelowMinimumSummary';
 import {
   canPlaceOrder,
@@ -26,6 +26,7 @@ import { PaymentMethods } from '../../../components/checkout/PaymentMethods';
 import { ShippingMethods } from '../../../components/checkout/ShippingMethods';
 import { AddressSection } from '../../../components/checkout/AddressSection';
 import { PlaceOrderButton } from '../../../components/checkout/PlaceOrderButton';
+import { QuoteValidityNotice } from '../../../components/checkout/QuoteValidityNotice';
 import { blockTitle, placeOrderBlock } from '../../../lib/checkout/place-order-gate';
 import { selectablePaymentMethods } from '../../../lib/checkout/payment-method-eligibility';
 import { tForLocale } from '../../../lib/i18n/messages';
@@ -187,7 +188,12 @@ export default async function CheckoutPage({
   // delivery and a payment method, so it is asked with the ones the page preselects; the lines
   // do not depend on which. A preview that cannot be read falls back to the cart view's own
   // flags — advisory either way, since placement binds (contract §8).
-  const belowMinimumLines = await readBelowMinimumLines({
+  //
+  // Issue #167 — the same preview says whether the basket is priced at a quote placement will no
+  // longer honour (its validity ended, or it no longer applies). The cart view cannot tell: it
+  // has no word of the quote's state. Without a preview there is no verdict, and placement's own
+  // refusal reaches the buyer on the failure page in their language.
+  const { belowMinimumLines, quoteCommitmentRefusal } = await readCheckoutVerdict({
     session,
     ctx,
     cart,
@@ -200,6 +206,7 @@ export default async function CheckoutPage({
     deliveryMethodCount: deliveryMethods.length,
     paymentMethodCount: paymentMethods.length,
     belowMinimum: !canPlaceOrder({ belowMinimumLines }),
+    quoteEnded: quoteCommitmentRefusal !== null,
   });
 
   // Feature 036 (US2) — the buyer may pick a saved address or enter a new one,
@@ -227,6 +234,7 @@ export default async function CheckoutPage({
         locale={locale}
       />
       {params.error ? <p className="b2b-auth__error">{params.error}</p> : null}
+      <QuoteValidityNotice id={QUOTE_ENDED_NOTICE_ID} refusal={quoteCommitmentRefusal} locale={locale} />
       <BelowMinimumSummary id={BELOW_MINIMUM_SUMMARY_ID} rows={belowMinimumRows} locale={locale} />
 
       <CheckoutForm action={submitAction} className="b2b-auth__form">
@@ -351,7 +359,13 @@ export default async function CheckoutPage({
             label={tr('commerce.checkout.placeOrder')}
             pendingLabel={tr('commerce.checkout.placingOrder')}
             title={blockTitle(placeOrderBlockReason, tr, me?.organization?.moderationMessage ?? null)}
-            describedBy={placeOrderBlockReason === 'below-minimum' ? BELOW_MINIMUM_SUMMARY_ID : undefined}
+            describedBy={
+              placeOrderBlockReason === 'below-minimum'
+                ? BELOW_MINIMUM_SUMMARY_ID
+                : placeOrderBlockReason === 'quote-ended'
+                  ? QUOTE_ENDED_NOTICE_ID
+                  : undefined
+            }
           />
         </div>
       </CheckoutForm>
@@ -360,6 +374,7 @@ export default async function CheckoutPage({
 }
 
 const BELOW_MINIMUM_SUMMARY_ID = 'checkout-below-minimum';
+const QUOTE_ENDED_NOTICE_ID = 'checkout-quote-ended';
 
 /** The method the checkout section preselects: the buyer's default when offered, else the first. */
 function preselectedId(methods: ReadonlyArray<{ id: string }>, preferredId: string | null): string | null {
@@ -369,22 +384,31 @@ function preselectedId(methods: ReadonlyArray<{ id: string }>, preferredId: stri
 
 /**
  * Feature 155 — the preview's `belowMinimumLines`, or the cart view's own flags when the
- * preview cannot be asked (no method to ask it with) or does not answer.
+ * preview cannot be asked (no method to ask it with) or does not answer. Issue #167 — and the
+ * preview's `quoteCommitmentRefusal`, `null` without a preview.
  */
-async function readBelowMinimumLines(input: {
+async function readCheckoutVerdict(input: {
   session: string;
   ctx: Awaited<ReturnType<typeof getServerContext>>['ctx'];
   cart: CartSummary;
   deliveryMethodId: string | null;
   paymentMethodId: string | null;
-}): Promise<CheckoutBelowMinimumLine[]> {
+}): Promise<{
+  belowMinimumLines: CheckoutBelowMinimumLine[];
+  quoteCommitmentRefusal: QuoteCommitmentRefusal | null;
+}> {
   if (input.deliveryMethodId !== null && input.paymentMethodId !== null) {
     const preview = await previewOrderTotal(
       input.session,
       { deliveryMethodId: input.deliveryMethodId, paymentMethodId: input.paymentMethodId },
       input.ctx,
     ).catch(() => null);
-    if (preview !== null) return preview.belowMinimumLines ?? [];
+    if (preview !== null) {
+      return {
+        belowMinimumLines: preview.belowMinimumLines ?? [],
+        quoteCommitmentRefusal: preview.quoteCommitmentRefusal ?? null,
+      };
+    }
   }
   const lines: CheckoutBelowMinimumLine[] = [];
   for (const item of input.cart.items) {
@@ -402,7 +426,7 @@ async function readBelowMinimumLines(input: {
       });
     }
   }
-  return lines;
+  return { belowMinimumLines: lines, quoteCommitmentRefusal: null };
 }
 
 async function readJar(): Promise<CartCookieJar> {
