@@ -389,7 +389,9 @@ function refuseIfExpired(row: Asset, retentionDays: number | undefined, now: Dat
       409,
       ERROR_CODES.ASSET_NO_PREVIOUS_VERSION,
       'The previous version is past its retention and can no longer be restored.',
-      { restorableUntil: restorableUntil.toISOString() },
+      // Issue #86 — the token picks the retention sentence; the base one says
+      // there is no previous version, which is not what happened.
+      { code: 'retention_expired', restorableUntil: restorableUntil.toISOString() },
     );
   }
 }

@@ -101,6 +101,8 @@ export class FoldersService {
           409,
           ERROR_CODES.ASSET_FOLDER_NAME_CONFLICT,
           `A folder named "${input.name}" already exists in this location.`,
+          // Issue #86 — the name both bundle sentences quote.
+          { name: input.name },
         );
       }
       throw e;
@@ -154,7 +156,8 @@ export class FoldersService {
         throw new HttpError(
           409,
           ERROR_CODES.ASSET_FOLDER_NAME_CONFLICT,
-          `A folder with this name already exists at the target location.`,
+          `A folder named "${f.name}" already exists at the target location.`,
+          { name: f.name },
         );
       }
       throw e;
@@ -252,6 +255,9 @@ export class FoldersService {
         409,
         ERROR_CODES.ASSET_FOLDER_NOT_EMPTY,
         `Folder is not empty (${childFolders.length} sub-folder(s), ${visibleCount} asset(s)).`,
+        // Issue #86 — the counts both bundle sentences name; visible-only,
+        // like the message (`specs/166-asset-reference-visibility/` R-10).
+        { subfolderCount: childFolders.length, assetCount: visibleCount },
       );
     }
     for (const a of rehomed) a.folderId = parentId;
