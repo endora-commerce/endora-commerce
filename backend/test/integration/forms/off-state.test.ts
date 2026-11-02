@@ -260,8 +260,11 @@ describe('forms off-state (Constitution XVII)', () => {
           scope: 'all',
           value: code === 'forms.captcha_provider' ? 'hcaptcha' : 'k',
         });
-        expect(write.statusCode, `${code}: ${write.body}`).toBeGreaterThanOrEqual(400);
-        expect((write.json() as { error: { code: string } }).error.code, write.body).not.toBe('VALIDATION_FAILED');
+        // The refusal the settings service gives an absent owner, as the shared harness asserts it.
+        expect(
+          { status: write.statusCode, code: (write.json() as { error?: { code?: string } }).error?.code },
+          `${code}: ${write.body}`,
+        ).toEqual({ status: 400, code: 'MODULE_SETTING_READ_ONLY' });
       }
       if (axis === 'deactivated') {
         // The one control that must never gate on the module's own presence.
