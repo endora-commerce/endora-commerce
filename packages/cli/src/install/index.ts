@@ -1331,7 +1331,7 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
             reason:
               'not from here: there is no checkout of the platform repository above this ' +
               'directory and this build of the CLI carries no reference storefront — ' +
-              '`endora new storefront` adds it later',
+              '`endora install <dir> --only storefront --revalidate-secret <value>` adds it later',
           },
         },
       );
@@ -1484,8 +1484,11 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
     refusals.add(
       `the storefront cannot be written from here: ${noStorefront}` +
         (writesTree
-          ? ' Pass `--no-storefront` to write the instance alone — the storefront can be added ' +
-            'later with `endora new storefront <dir>`.'
+          ? ' Pass `--no-storefront` to write the instance alone. The storefront can be added ' +
+            'later, from a place that can write it, with `endora install <dir> --only ' +
+            'storefront --revalidate-secret <value>` (and `--api-url`, `--storefront-url`): ' +
+            "the value is the REVALIDATE_SECRET the API's `.env` holds, which the storefront " +
+            'must share.'
           : ''),
     );
   }
@@ -2170,6 +2173,15 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
         chosen.subset &&
         (dryRun || readTargetEnv(targetDir).has('REVALIDATE_SECRET')),
       storefrontToldToApi: storefrontUrl !== undefined,
+      // Issue #112 — a whole-instance run without the storefront is not a subset, so
+      // `secretInInstance` never covers it, and nothing generates the value for it.
+      storefrontLater:
+        standsUpApi && storefrontDir === null && !chosen.subset
+          ? options.revalidateSecret !== undefined ||
+            (readTargetEnv(targetDir).get('REVALIDATE_SECRET') ?? '').trim() !== ''
+            ? 'secret-held'
+            : 'secret-empty'
+          : null,
     })) {
       say(line);
     }
@@ -2460,6 +2472,12 @@ function closing(input: {
   readonly secretInInstance: boolean;
   /** Whether `--storefront-url` was given, so the API already knows where it is. */
   readonly storefrontToldToApi: boolean;
+  /**
+   * A whole-instance run that wrote no storefront (`--no-storefront`): whether the
+   * instance's `.env` holds a `REVALIDATE_SECRET`, for the storefront added later.
+   * `null` for every other run.
+   */
+  readonly storefrontLater: 'secret-held' | 'secret-empty' | null;
 }): readonly string[] {
   const has = (component: Component): boolean => input.selection.components.includes(component);
   const api = has('api');
@@ -2628,6 +2646,30 @@ function closing(input: {
           'is decided at the API it talks to.',
       );
     }
+  }
+  // Issue #112 — the storefront this run did not write, and the one value it
+  // will have to share with the API. `--only storefront` is the way back because
+  // it refuses to write a storefront without `--revalidate-secret`; run through
+  // the instance's own CLI, it is also the instance's release.
+  if (input.storefrontLater !== null) {
+    const instanceEnv = join(input.targetDir, '.env');
+    lines.push(
+      '',
+      input.storefrontLater === 'secret-held'
+        ? `No storefront was written. REVALIDATE_SECRET is in ${instanceEnv}; it is not ` +
+            'printed here. To add the storefront later, set STOREFRONT_BASE_URL there to its ' +
+            'origin, restart the API, and give the storefront the same value:'
+        : `No storefront was written, and REVALIDATE_SECRET in ${instanceEnv} is empty: the ` +
+            'API asks no storefront to refresh a cached page until it holds a value. To add ' +
+            'the storefront later, set REVALIDATE_SECRET there to a value of your own (for ' +
+            "example `openssl rand -hex 32`) and STOREFRONT_BASE_URL to the storefront's " +
+            'origin, restart the API, and give the storefront the same value:',
+      `  \`cd ${input.targetDir} && ${pnpm} exec endora install ${input.targetDir}-storefront ` +
+        `--only storefront --api-url ${input.apiOrigin} --storefront-url ${input.storefrontOrigin} ` +
+        '--revalidate-secret <the same value>`',
+      '  With two different values the storefront refuses every refresh, and the API logs ' +
+        'each refusal as a warning.',
+    );
   }
   // 138 FR-020 — what crosses a machine boundary, said once and under one
   // heading. Each of the four is a fact nothing on this machine can check: the

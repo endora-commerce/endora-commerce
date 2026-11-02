@@ -999,6 +999,11 @@ describe('FR-160 — the storefront is a sibling, copied from the checkout or fr
     expect((error as Error).message).toContain('--no-storefront');
     expect((error as Error).message).toContain('carries no packaged reference storefront');
     expect(existsSync(join(root, 'acme-shop'))).toBe(false);
+    // Issue #112 — the way back names the secret the two sides must share, and the
+    // command that refuses to write a storefront without it.
+    expect((error as Error).message).toContain('REVALIDATE_SECRET');
+    expect((error as Error).message).toContain('--only storefront');
+    expect((error as Error).message).toContain('--revalidate-secret');
   });
 
   it('outside a checkout, the reference the CLI carries is written as the sibling storefront', async () => {
@@ -1979,6 +1984,65 @@ describe('138 FR-020 — the closing block is about this machine, and says what 
     expect(text).toContain('Sign in as owner@example.com');
     expect(text).toContain('What the other machines owe this one');
     expect(text).toContain(`REVALIDATE_SECRET is in ${join(root, 'acme-shop', '.env')}`);
+  });
+
+  /**
+   * Issue #112. A plain `--no-storefront` run is not a subset (`selection.ts`), so the
+   * `REVALIDATE_SECRET` line above never reached it, and nothing generates the value:
+   * the API's revalidator is then a no-op, and a storefront added later with a secret
+   * of its own is refused on every refresh. The block says so, and prints the one
+   * command that adds the storefront — which must be a command `install` accepts.
+   */
+  it('#112 — `--no-storefront` names the empty secret and the command that adds a storefront', async () => {
+    const root = checkoutFixture();
+    const target = join(root, 'acme-shop');
+    const result = await runInstall(options(root, { run: recorder().run }));
+    const text = closingOf(result);
+    expect(text).not.toContain('What the other machines owe this one');
+    expect(text).toContain(`REVALIDATE_SECRET in ${join(target, '.env')} is empty`);
+    expect(text).toContain('STOREFRONT_BASE_URL');
+    // Nothing generated it, so the file holds no value an operator could copy.
+    expect(readFileSync(join(target, '.env'), 'utf8')).not.toMatch(/^REVALIDATE_SECRET=.+$/m);
+
+    const command = /`(cd \S+ && pnpm exec endora install [^`]+)`/.exec(text)?.[1];
+    expect(command, text).toBeDefined();
+    expect(command).toContain(`cd ${target} && `);
+    expect(command).toContain('--only storefront');
+    expect(command).toContain('--revalidate-secret <the same value>');
+    const argv = command!.slice(command!.indexOf('install ') + 'install '.length).split(' ');
+    const flag = (name: string): string => argv[argv.indexOf(name) + 1]!;
+    const storefrontDir = argv[0]!;
+    expect(storefrontDir).toBe(`${target}-storefront`);
+
+    // The printed command, run: it writes the storefront with the value it was given.
+    await runInstall({
+      dir: storefrontDir,
+      cwd: root,
+      only: [flag('--only')],
+      apiUrl: flag('--api-url'),
+      storefrontUrl: flag('--storefront-url'),
+      revalidateSecret: 'chosen-by-the-operator',
+      nonInteractive: true,
+      portInUse: NO_PORT_TAKEN,
+      packagedReferenceDir: NO_PACKAGED_REFERENCE,
+      run: recorder().run,
+    } as Parameters<typeof runInstall>[0]);
+    expect(readFileSync(join(storefrontDir, '.env'), 'utf8')).toMatch(/^REVALIDATE_SECRET=chosen-by-the-operator$/m);
+    expect(readFileSync(join(storefrontDir, '.env'), 'utf8')).toContain(
+      `BACKEND_BASE_URL=${flag('--api-url')}\n`,
+    );
+  });
+
+  it('#112 — `--no-storefront` over a `.env` that already holds the secret says where it is', async () => {
+    const root = checkoutFixture();
+    const target = join(root, 'acme-shop');
+    mkdirSync(target, { recursive: true });
+    writeFileSync(join(target, '.env'), 'REVALIDATE_SECRET=mine\n', 'utf8');
+    const text = closingOf(await runInstall(options(root, { run: recorder().run })));
+    expect(text).toContain(`REVALIDATE_SECRET is in ${join(target, '.env')}`);
+    expect(text).not.toContain('is empty');
+    expect(text).toContain('--only storefront');
+    expect(text).not.toContain('mine');
   });
 
   it('all three — no such heading: nothing is on another machine', async () => {

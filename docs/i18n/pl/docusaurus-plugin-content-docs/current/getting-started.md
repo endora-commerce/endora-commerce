@@ -276,8 +276,10 @@ rzecz — `admin/dist`. Adres API trafia do `admin/.env` jako `VITE_API_BASE_URL
 statycznych, który na nieznane ścieżki odpowiada plikiem `index.html`.
 
 **Sam sklep dostaje sekret — nigdy nowy.** `REVALIDATE_SECRET` to jedna wartość przechowywana na
-dwóch maszynach. Instalacja z `api` i bez sklepu generuje ją raz (albo zapisuje tę, którą podasz),
-umieszcza w `.env` instancji, mówi, w którym pliku, i jej nie wypisuje. Skopiuj ją stamtąd do
+dwóch maszynach. Instalacja, której `--only` wymienia `api`, a nie `storefront`, generuje ją raz
+(albo zapisuje tę, którą podasz), umieszcza w `.env` instancji, mówi, w którym pliku, i jej nie
+wypisuje. Instalacja całej instancji z `--no-storefront` nie generuje jej wcale — zobacz
+[Dodanie sklepu później](#sklep). Skopiuj ją stamtąd do
 `--revalidate-secret` na maszynie sklepu. `--sales-channel <code>` wskazuje kanał sprzedaży,
 w którym sprzedaje sklep; pominięta oznacza `default` — kod, z którym platforma tworzy swój
 domyślny kanał.
@@ -358,7 +360,8 @@ z nich nie da się sprawdzić z jednej maszyny, bo druga strona każdego jest gd
    samego wydania co API i z tą samą listą `--module`, jeśli API ją dostało.
 5. **API i sklep mają jeden `REVALIDATE_SECRET`**, a `STOREFRONT_BASE_URL` w API to adres sklepu:
    ta para pozwala API poprosić sklep o odświeżenie strony z cache. Przy dwóch różnych wartościach
-   sklep odrzuca każde odświeżenie i nic tego nie zgłasza.
+   sklep odrzuca każde odświeżenie, a API zapisuje każdą odmowę w logu jako ostrzeżenie — zobacz
+   [Dodanie sklepu później](#sklep).
 
 ## Wszystkie flagi
 
@@ -455,20 +458,35 @@ pnpm run build && pnpm run start
 `start` serwuje to, co zbudowało `build`, na porcie `PORT` z pliku `.env` sklepu; jeśli sklep nie
 został zbudowany, mówi, żeby uruchomić `pnpm run build`.
 
-**Dodanie sklepu później** to `endora new storefront <dir>`, uruchamiane z dowolnego miejsca. Sklep
-i instancja muszą mieć jeden wspólny sekret, `REVALIDATE_SECRET` — klucz, którym backend prosi
-sklep o odświeżenie strony z cache. Gdy instalator zapisuje oba drzewa, generuje tę wartość raz
-i zapisuje ją w obu. Gdy sklep dochodzi później, nic tego za Ciebie nie zrobi:
+**Dodanie sklepu później.** Sklep i instancja muszą mieć jeden wspólny sekret,
+`REVALIDATE_SECRET` — klucz, którym backend prosi sklep o odświeżenie strony z cache. Gdy
+instalator zapisuje oba drzewa, generuje tę wartość raz i zapisuje ją w obu. Instalacja
+z `--no-storefront` nie generuje jej wcale, zostawia `REVALIDATE_SECRET` w `.env` instancji pusty,
+a jej tekst końcowy mówi o tym i wypisuje poniższe polecenie. Gdy sklep dochodzi później, nic nie
+uzgodni tej wartości za Ciebie:
 
 1. Wybierz jedną wartość (na przykład `openssl rand -hex 32`).
-2. Ustaw ją jako `REVALIDATE_SECRET` w pliku `.env` instancji i ustaw tam `STOREFRONT_BASE_URL` na
-   adres sklepu.
-3. Przekaż sklepowi tę samą wartość — `endora new storefront <dir> --revalidate-secret <value>` —
-   albo wpisz ją w jego własnym `.env`.
+2. Ustaw ją jako `REVALIDATE_SECRET` w pliku `.env` instancji, ustaw tam `STOREFRONT_BASE_URL` na
+   adres sklepu i uruchom API ponownie.
+3. Zapisz sklep z tą samą wartością — z katalogu instancji, żeby był z tego samego wydania:
+
+   ```bash
+   pnpm exec endora install ../my-shop-storefront --only storefront \
+     --api-url http://localhost:3001 --storefront-url http://localhost:3000 \
+     --revalidate-secret "$REVALIDATE_SECRET"
+   ```
+
+   Bez `--revalidate-secret` polecenie odmawia zapisania sklepu. `endora new storefront <dir>
+   --revalidate-secret <value>` to alternatywa niższego poziomu: kopiuje sklep i rozwiązuje jego
+   dane wejściowe, ale go nie instaluje.
 
 Bez kroku 2 backend po prostu nie prosi sklepu o odświeżanie, a strony zmieniają się dopiero po
-wygaśnięciu cache. Przy dwóch różnych wartościach sklep odrzuca każde odświeżenie i nic tego nie
-zgłasza.
+wygaśnięciu cache. Przy dwóch różnych wartościach sklep odrzuca każde odświeżenie, a API zapisuje
+w logu ostrzeżenie `[storefront-revalidate] refused: REVALIDATE_SECRET differs between the backend
+and the storefront` ze statusem `401` — sama wartość nigdy nie trafia do logu. Sklep, do którego
+nie da się dotrzeć, jest zapisywany tak samo, jako `[storefront-revalidate] failed`. Każde
+ostrzeżenie trafia do logu najwyżej raz na minutę dla danego sklepu i statusu; następne niesie
+licznik `suppressed` powtórzeń wstrzymanych w międzyczasie.
 
 ## Z Twojego komputera na produkcję
 
