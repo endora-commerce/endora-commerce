@@ -395,7 +395,14 @@ const modules = [
       'module-reference/payments',
     ],
   },
-  { type: 'doc', id: 'module-reference/pim-connector', label: 'pim_connector', key: 'pim_connector' },
+  {
+    type: 'category',
+    label: 'PIM connector shared layer', key: 'pim_connector',
+    link: { type: 'doc', id: 'modules/pim_connector' },
+    items: [
+      'module-reference/pim-connector',
+    ],
+  },
   {
     type: 'category',
     label: 'Price books', key: 'price_lists',
