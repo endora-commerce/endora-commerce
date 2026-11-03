@@ -119,20 +119,24 @@ overwritten on import shares the **path grammar**, so the admin controls and the
 validation stay identical across connectors:
 
 ```text
-attribute.<key>[.<locale>]
-attribute.<key>.<channel-uuid>[.<locale>]
-seo.(metaTitle|metaDescription|metaKeywords).<locale>
+name
+description
+attribute.<key>
+seo.(metaTitle|metaDescription|metaKeywords)
 gallery.<index>
 attachment.<asset-uuid>
 price.<price-list-uuid>.<currency>
 category.<category-uuid>
-name[.<locale>]
-description[.<locale>]
 ```
 
-`canonicalisePimFieldPath()` normalises the segments — locale casing to `ll_RR`,
-UUIDs to lower case, currency to upper case — and returns `null` for anything outside
-the grammar. A connector's field-protection service calls it before persisting a
+A path names a **whole field**. Since feature 170 a protection keeps every scope of the field —
+Global, each channel and each channel × language — so the locale and channel segments of the
+earlier grammar (`name.<locale>`, `attribute.<key>.<channel-uuid>.<locale>`,
+`seo.metaTitle.<locale>`) are outside it.
+
+`canonicalisePimFieldPath()` normalises the segments — UUIDs to lower case, currency to upper
+case — and returns `null` for anything outside the grammar, a path with a locale or channel
+segment included. A connector's field-protection service calls it before persisting a
 protection row, and `isValidPimFieldPath()` is the same judgement as a predicate.
 
 ## Writing a connector

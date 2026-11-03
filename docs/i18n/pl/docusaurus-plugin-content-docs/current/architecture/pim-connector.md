@@ -118,19 +118,24 @@ przy imporcie, korzystają ze wspólnej **składni ścieżek**, dzięki czemu ko
 administracyjnym i walidacja są takie same we wszystkich konektorach:
 
 ```text
-attribute.<key>[.<locale>]
-attribute.<key>.<channel-uuid>[.<locale>]
-seo.(metaTitle|metaDescription|metaKeywords).<locale>
+name
+description
+attribute.<key>
+seo.(metaTitle|metaDescription|metaKeywords)
 gallery.<index>
 attachment.<asset-uuid>
 price.<price-list-uuid>.<currency>
 category.<category-uuid>
-name[.<locale>]
-description[.<locale>]
 ```
 
-`canonicalisePimFieldPath()` normalizuje segmenty — wielkość liter kodu języka do `ll_RR`, UUID do
-małych liter, walutę do wielkich — i zwraca `null` dla wszystkiego, co nie pasuje do składni.
+Ścieżka wskazuje **całe pole**. Od funkcji 170 ochrona obejmuje każdy zakres pola — globalny,
+każdy kanał i każdy kanał × język — dlatego segmenty języka i kanału z wcześniejszej składni
+(`name.<locale>`, `attribute.<key>.<channel-uuid>.<locale>`, `seo.metaTitle.<locale>`) do niej nie
+należą.
+
+`canonicalisePimFieldPath()` normalizuje segmenty — UUID do małych liter, walutę do wielkich — i
+zwraca `null` dla wszystkiego, co nie pasuje do składni, także dla ścieżki z segmentem języka lub
+kanału.
 Usługa ochrony pól w konektorze wywołuje ją przed zapisaniem wiersza ochrony, a
 `isValidPimFieldPath()` to ta sama ocena w postaci predykatu.
 
