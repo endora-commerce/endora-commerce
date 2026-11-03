@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { CustomerAccountReadPort } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -29,7 +30,7 @@ describe('OrderReadPort.findIdsByBusinessIdLike', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
-    port = new OrderReadService(h.em);
+    port = new OrderReadService(h.em, h.container.resolve<CustomerAccountReadPort>('customerAccountReadPort'));
     await seedOrdersForInvoiceTests(h.em());
     sample = await h.em().findOneOrFail(
       Order,

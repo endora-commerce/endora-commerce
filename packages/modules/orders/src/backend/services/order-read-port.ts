@@ -1,5 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
+  CustomerAccountReadPort,
+  OrderCustomerContext,
   OrderItemRecord,
   OrderReadPort,
   OrderRecord,
@@ -8,6 +10,7 @@ import type {
 import { Order } from '../entities/order.entity.js';
 import { OrderStatus } from '../entities/order-status.entity.js';
 import { OrderItem } from '../entities/order-item.entity.js';
+import { OrderAccessService } from './order-access-service.js';
 
 /**
  * The row-level read model `orders` publishes (feature 075, Phase P).
@@ -23,10 +26,37 @@ import { OrderItem } from '../entities/order-item.entity.js';
  * figure straight to a payment provider.
  */
 export class OrderReadService implements OrderReadPort {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  readonly #access: OrderAccessService;
+
+  /**
+   * `customerAccountRead` is what {@link findByIdForCustomer} asks for the
+   * caller's role; it is handed to the same `OrderAccessService` that
+   * `OrderService` scopes its reads with, so there is one rule, not two.
+   */
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    customerAccountRead: CustomerAccountReadPort,
+  ) {
+    this.#access = new OrderAccessService(customerAccountRead);
+  }
 
   async findById(id: string): Promise<OrderRecord | null> {
     const order = await this.emFactory().findOne(Order, { id });
+    return order ? toOrderRecord(order) : null;
+  }
+
+  /**
+   * The customer-scoped lookup (issue #669). The `where` comes from
+   * `OrderAccessService` — the one home of the regular-member / organization-
+   * admin rule that `OrderService.getById` uses — so a consumer serving an
+   * order-scoped resource and `GET /api/v1/orders/:id` cannot disagree.
+   */
+  async findByIdForCustomer(
+    id: string,
+    customer: Pick<OrderCustomerContext, 'customerAccountId' | 'organizationId'>,
+  ): Promise<OrderRecord | null> {
+    const where = await this.#access.scopedWhere(customer, { id });
+    const order = await this.emFactory().findOne(Order, where);
     return order ? toOrderRecord(order) : null;
   }
 

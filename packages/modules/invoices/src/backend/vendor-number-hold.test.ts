@@ -118,6 +118,7 @@ function orderItem(): OrderItemRecord {
 function readPort(order: OrderRecord, items: OrderItemRecord[]): OrderReadPort {
   return {
     findById: async () => order,
+    findByIdForCustomer: async () => order,
     findByIds: async () => [order],
     listAll: async () => [order],
     listItems: async () => items,

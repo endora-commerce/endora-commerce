@@ -72,6 +72,7 @@ function fakeEmFactory(channel: unknown): PaymentEmailNotifierDeps['emFactory'] 
 function orderReadPort(order: OrderRecord | null): OrderReadPort {
   return {
     findById: async () => order,
+    findByIdForCustomer: async () => order,
     findByIds: async () => (order ? [order] : []),
     listAll: async () => (order ? [order] : []),
     listItems: async () => [],
