@@ -9,6 +9,7 @@ import { registerSeoRoutes, type SeoRoutesDeps } from './routes.js';
  * resolver is asked anything.
  */
 const metaResolver = {
+  readScoped: vi.fn(async () => ({})),
   resolveWithSources: vi.fn(async () => ({ resolved: {}, sources: {} })),
   getOverride: vi.fn(async () => null),
   upsertOverride: vi.fn(async () => ({ id: '00000000-0000-4000-8000-000000000009' })),
@@ -63,8 +64,41 @@ describe('SEO meta editor — a malformed entity id (163 S-5)', () => {
   });
 
   it('a well-formed id still reaches the resolver', async () => {
-    const res = await app.inject({ method: 'GET', url: `${URL}/00000000-0000-4000-8000-000000000001` });
+    const res = await app.inject({ method: 'GET', url: `/api/v1/admin/seo/meta/category/00000000-0000-4000-8000-000000000001` });
     expect(res.statusCode, res.body).toBe(200);
     expect(metaResolver.getOverride).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * Feature 170 (T120, FR-093) — route order: the static product GET answers a product, never the
+ * parametric route; a category still reaches the parametric one. The generic product writes are
+ * refused before the resolver is asked anything.
+ */
+describe('SEO meta editor — the static product route (170)', () => {
+  const ID = '00000000-0000-4000-8000-000000000001';
+
+  it('answers GET …/product/:id from the static route', async () => {
+    const res = await app.inject({ method: 'GET', url: `${URL}/${ID}?channelId=00000000-0000-4000-8000-000000000002` });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(metaResolver.readScoped).toHaveBeenCalledWith(ID, { level: 'channel', channelId: '00000000-0000-4000-8000-000000000002' });
+    expect(metaResolver.getOverride).not.toHaveBeenCalled();
+  });
+
+  it('refuses a language without a channel on the static route', async () => {
+    const res = await app.inject({ method: 'GET', url: `${URL}/${ID}?languageCode=pl-PL` });
+    expect(res.statusCode, res.body).toBe(422);
+    expect(metaResolver.readScoped).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['PUT', { title: 'x' }],
+    ['DELETE', undefined],
+  ] as const)('refuses the generic product %s with 422 VALIDATION_FAILED', async (method, payload) => {
+    const res = await app.inject({ method, url: `${URL}/${ID}`, ...(payload ? { payload } : {}) });
+    expect(res.statusCode, res.body).toBe(422);
+    expect(res.json()).toMatchObject({ error: { code: 'VALIDATION_FAILED' } });
+    expect(metaResolver.upsertOverride).not.toHaveBeenCalled();
+    expect(metaResolver.deleteOverride).not.toHaveBeenCalled();
   });
 });

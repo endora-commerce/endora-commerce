@@ -2,6 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import {
   ERROR_CODES,
   adminCrawlerFilePreviewQuerySchema,
+  scopeFromRequest,
+  scopeRequestSchema,
   seoEntityTypeSchema,
   seoMetaScopeQuerySchema,
   upsertSeoMetaOverrideRequestSchema,
@@ -343,6 +345,40 @@ export async function registerSeoRoutes(
   // channel → language → the rule), `sources` says which scope each field came
   // from; `override` is the row at exactly the address.
 
+  // Feature 170 (FR-093, `contracts/seo-ports.md` §4) — a product's metadata at one scope, on
+  // `catalog:read`: whoever may read the product may read its SEO. A static route, so Fastify
+  // answers it before the parametric one below, which stays on `catalog:write` for categories
+  // and CMS pages. The scope is the editor's (`scoped-values-api.md` §1): neither half = Global,
+  // a channel = Channel, both = Channel × language; a language alone, a channel the product is
+  // not sold in or a language the channel does not offer is `422`. `scoped` is each field's view
+  // at that scope; `resolved` is what the storefront would show there, the derived value filling
+  // what no row holds.
+  app.get<{ Params: { entityId: string } }>(
+    '/api/v1/admin/seo/meta/product/:entityId',
+    { preHandler: requireAdmin('catalog:read') },
+    async (request) => {
+      assertEntityId(request.params.entityId);
+      const query = scopeRequestSchema.parse(request.query ?? {});
+      const parsed = scopeFromRequest(query);
+      if (!parsed.ok) {
+        throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'A product has no language-only scope; name a sales channel.', {
+          field: 'scope',
+          reason: parsed.reason,
+        });
+      }
+      const { scope } = parsed;
+      const entityId = request.params.entityId;
+      const scoped = await metaResolver.readScoped(entityId, scope);
+      const { resolved, sources } = await metaResolver.resolveWithSources({
+        entityType: 'product',
+        entityId,
+        channelId: scope.level === 'global' ? null : scope.channelId,
+        locale: scope.level === 'channel_language' ? scope.languageCode : null,
+      });
+      return { data: { scope, scoped, resolved, sources } };
+    },
+  );
+
   app.get<{
     Params: { entityType: string; entityId: string };
   }>(
@@ -385,6 +421,7 @@ export async function registerSeoRoutes(
     async (request) => {
       assertEntityId(request.params.entityId);
       const entityType = seoEntityTypeSchema.parse(request.params.entityType);
+      refuseProductWrite(entityType);
       const body = upsertSeoMetaOverrideRequestSchema.parse(request.body);
       const row = await metaResolver.upsertOverride({
         entityType,
@@ -420,11 +457,26 @@ export async function registerSeoRoutes(
     async (request, reply) => {
       assertEntityId(request.params.entityId);
       const entityType = seoEntityTypeSchema.parse(request.params.entityType);
+      refuseProductWrite(entityType);
       const scope = seoMetaScopeQuerySchema.parse(request.query ?? {});
       await metaResolver.deleteOverride({ entityType, entityId: request.params.entityId, ...scope });
       return reply.status(204).send();
     },
   );
+}
+
+/**
+ * Feature 170 (R21, FR-094) — product metadata is written only through `catalog`'s save, which
+ * carries it to `seoProductMetaWritePort` inside its own Command: one audit path for a product. The
+ * generic editor keeps writing category and CMS-page rows.
+ */
+function refuseProductWrite(entityType: string): void {
+  if (entityType === 'product') {
+    throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'Product SEO is saved with the product, in the product editor.', {
+      field: 'entityType',
+      reason: 'product_seo_saved_with_product',
+    });
+  }
 }
 
 const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

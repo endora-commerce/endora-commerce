@@ -44,10 +44,10 @@ describe('buildRuleMeta', () => {
 });
 
 /**
- * Feature 163 (T114, T117a) — the per-field walk channel × language → channel →
- * language → derived, and the addressing rule of a request. The `[PG]` cases in
- * `backend/test/integration/seo/meta-channel-scope.test.ts` cover the same through
- * the route and the table.
+ * Feature 163 (T114, T117a), rewritten by 170 — the per-field walk channel × language →
+ * channel → Global → derived, and the addressing rule of a request. The `[PG]` cases are in
+ * `backend/test/contract/seo/product-meta-read-relaxed.test.ts` (route, scope refusals) and
+ * `backend/test/integration/seo/product-meta-three-levels-migration.test.ts` (the table's shapes).
  */
 const C1 = '00000000-0000-4000-8000-0000000000c1';
 const C2 = '00000000-0000-4000-8000-0000000000c2';

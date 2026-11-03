@@ -112,18 +112,20 @@ export function seoMetaAddress(request: SeoMetaScopeRequest): SeoMetaOverrideAdd
 function scopeChain(
   rows: readonly SeoMetaOverride[],
   channelId: string | null,
-  languageCode: string,
+  languageCode: string | null,
 ): Array<{ row: SeoMetaOverride; source: Exclude<SeoProductMetaSource, 'derived'> }> {
   const chain: Array<{ row: SeoMetaOverride; source: Exclude<SeoProductMetaSource, 'derived'> }> = [];
   if (channelId !== null) {
-    const cxl = rows.find((r) => r.salesChannelId === channelId && sameLanguage(r.locale ?? null, languageCode));
-    if (cxl) chain.push({ row: cxl, source: 'set' });
+    if (languageCode !== null) {
+      const cxl = rows.find((r) => r.salesChannelId === channelId && sameLanguage(r.locale ?? null, languageCode));
+      if (cxl) chain.push({ row: cxl, source: 'set' });
+    }
     const c = rows.find((r) => r.salesChannelId === channelId && (r.locale ?? null) === null);
-    if (c) chain.push({ row: c, source: 'inherited_channel' });
+    if (c) chain.push({ row: c, source: languageCode === null ? 'set' : 'inherited_channel' });
   }
   // Feature 170 (FR-010) — the Global row, never a Language-only one.
   const g = rows.find((r) => (r.salesChannelId ?? null) === null && (r.locale ?? null) === null);
-  if (g) chain.push({ row: g, source: 'inherited_global' });
+  if (g) chain.push({ row: g, source: channelId === null ? 'set' : 'inherited_global' });
   return chain;
 }
 
@@ -136,7 +138,7 @@ function scopeChain(
 export function walkSeoScopes(
   rows: readonly SeoMetaOverride[],
   channelId: string | null,
-  languageCode: string,
+  languageCode: string | null,
   fallback: SeoProductMetaValues,
 ): SeoProductMetaValues & { sources: Record<SeoProductMetaField, SeoProductMetaSource> } {
   const chain = scopeChain(rows, channelId, languageCode);
@@ -188,7 +190,9 @@ export class MetaTagResolverService implements SeoProductMetaPort {
       entityType: input.entityType,
       entityId: input.entityId,
     });
-    const walked = walkSeoScopes(rows, address.channelId, locale, {
+    // A product walks from its own address (G, C or C×L); a category or CMS page has no channel.
+    const walkLanguage = input.entityType === 'product' ? address.locale : locale;
+    const walked = walkSeoScopes(rows, address.channelId, walkLanguage, {
       title: rule.title,
       description: rule.description,
       ogTitle: rule.openGraph.title,

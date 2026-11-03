@@ -1,3 +1,5 @@
+import type { EntityManager } from '@mikro-orm/postgresql';
+import type { SeoProductMetaWritePort } from '@endora-commerce/contracts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   setupBackendServer,
@@ -7,15 +9,17 @@ import {
 import { Product } from '../../helpers/package-entities.js';
 
 /**
- * T235 — admin can read the resolved meta for a product (rule-derived by
- * default), set an override, and watch `source` flip to `'override'`. The
- * resolver also accepts a per-locale override and falls back to the rule
- * for any field the override leaves null.
+ * T235 — admin can read the resolved meta for a product (rule-derived by default), and an
+ * override flips `source` to `'override'`; a field the override leaves empty falls back to the
+ * rule. Since feature 170 the product read is the static `GET …/seo/meta/product/:id` at a scope
+ * (Global here) and the override is written through `seoProductMetaWritePort`, the path catalog's
+ * save takes — the generic product `PUT` is refused (`product-meta-read-relaxed.test.ts`).
  */
 
 describe('Admin SEO meta override', () => {
   let h: BackendServerHandle;
   let productId: string;
+  const admin = { b2b_session: 'stub-admin-session' };
 
   beforeAll(async () => {
     h = await setupBackendServer();
@@ -24,70 +28,57 @@ describe('Admin SEO meta override', () => {
   });
 
   afterAll(async () => {
+    await h.em().getConnection().execute(
+      `delete from seo_meta_overrides where entity_type = 'product' and entity_id = ? and sales_channel_id is null and locale is null`,
+      [productId],
+    );
     await teardownBackendServer(h);
   });
 
-  it('returns rule-derived meta when no override exists', async () => {
-    const res = await h.app.inject({
-      method: 'GET',
-      url: `/api/v1/admin/seo/meta/product/${productId}?locale=en-US`,
-      cookies: { b2b_session: 'stub-admin-session' },
-    });
-    expect(res.statusCode).toBe(200);
-    const body = res.json() as {
-      data: {
-        resolved: { title: string; source: string; locale: string };
-        override: unknown;
-      };
+  type Body = {
+    data: {
+      resolved: { title: string; description: string; openGraph: { title: string }; source: string };
+      scoped: Record<string, { source: string; value: string | null }>;
     };
+  };
+
+  it('returns rule-derived meta at Global when no override exists', async () => {
+    const res = await h.app.inject({ method: 'GET', url: `/api/v1/admin/seo/meta/product/${productId}`, cookies: admin });
+    expect(res.statusCode, res.body).toBe(200);
+    const body = res.json() as Body;
     expect(body.data.resolved.source).toBe('rule');
-    expect(body.data.resolved.locale).toBe('en-US');
     expect(body.data.resolved.title.length).toBeGreaterThan(0);
-    expect(body.data.override).toBeNull();
+    expect(body.data.scoped['title']).toMatchObject({ source: 'absent', value: null });
   });
 
-  it('upserts an override and the resolver flips to source=override', async () => {
-    const putRes = await h.app.inject({
-      method: 'PUT',
-      url: `/api/v1/admin/seo/meta/product/${productId}`,
-      cookies: { b2b_session: 'stub-admin-session' },
-      payload: {
-        locale: 'en-US',
-        title: 'Hand-tuned title',
-        description: 'Hand-tuned description.',
-      },
+  it('an override written through the port flips the resolver to source=override', async () => {
+    const port = h.container.resolve<SeoProductMetaWritePort<EntityManager>>('seoProductMetaWritePort');
+    await h.em().fork().transactional(async (em) => {
+      await port.applyWithin(em, {
+        productId,
+        scope: { level: 'global' },
+        changes: {
+          title: { op: 'set', value: 'Hand-tuned title' },
+          description: { op: 'set', value: 'Hand-tuned description.' },
+        },
+      });
     });
-    expect(putRes.statusCode).toBe(200);
 
-    const getRes = await h.app.inject({
-      method: 'GET',
-      url: `/api/v1/admin/seo/meta/product/${productId}?locale=en-US`,
-      cookies: { b2b_session: 'stub-admin-session' },
-    });
-    const body = getRes.json() as {
-      data: {
-        resolved: {
-          title: string;
-          description: string;
-          openGraph: { title: string };
-          source: string;
-        };
-        override: { title: string };
-      };
-    };
+    const res = await h.app.inject({ method: 'GET', url: `/api/v1/admin/seo/meta/product/${productId}`, cookies: admin });
+    const body = res.json() as Body;
     expect(body.data.resolved.source).toBe('override');
     expect(body.data.resolved.title).toBe('Hand-tuned title');
     expect(body.data.resolved.description).toBe('Hand-tuned description.');
     // OG title was not overridden, so falls back to the rule (product name).
     expect(body.data.resolved.openGraph.title).not.toBe('Hand-tuned title');
-    expect(body.data.override.title).toBe('Hand-tuned title');
+    expect(body.data.scoped['title']).toMatchObject({ source: 'set', value: 'Hand-tuned title' });
   });
 
-  it('returns 404 when entity does not exist', async () => {
+  it('returns 404 when the product does not exist', async () => {
     const res = await h.app.inject({
       method: 'GET',
-      url: `/api/v1/admin/seo/meta/product/00000000-0000-4000-8000-000000000000?locale=en-US`,
-      cookies: { b2b_session: 'stub-admin-session' },
+      url: `/api/v1/admin/seo/meta/product/00000000-0000-4000-8000-000000000000`,
+      cookies: admin,
     });
     expect(res.statusCode).toBe(404);
   });
