@@ -240,7 +240,10 @@ describe('155 — a refused order request leaves the basket alone and names the 
     });
   });
 
-  describe('D3/D4 — the product is named in the language of the sentence', () => {
+  // Feature 170 (FR-030) — the sentence follows the request's language; the product is named by
+  // its effective text at the basket's (channel, language). The system-default channel offers
+  // en-US alone, so a Polish request reads the en-US text there: the Global name, A.nameEn.
+  describe('D3/D4 — the sentence in the request language, the product named at the basket scope', () => {
     it('admin create: an admin whose stored language is English, sending Accept-Language: pl, reads English with the English name', async () => {
       await setAdminLanguage('en');
       const res = await adminCreate([{ productId: A.id, quantity: 5 }], { 'accept-language': 'pl' });
@@ -249,20 +252,20 @@ describe('155 — a refused order request leaves the basket alone and names the 
       expect(errorOf(res).details).toMatchObject({ productName: A.nameEn });
     });
 
-    it('admin create: an admin whose stored language is Polish, sending no header, reads Polish with the Polish name', async () => {
+    it('admin create: an admin whose stored language is Polish, sending no header, reads Polish naming the product at the basket scope', async () => {
       await setAdminLanguage('pl');
       const res = await adminCreate([{ productId: A.id, quantity: 5 }]);
       expect(res.statusCode, res.body).toBe(422);
-      expect(errorOf(res).message).toBe(PL_SENTENCE(A.namePl));
-      expect(errorOf(res).details).toMatchObject({ productName: A.namePl });
+      expect(errorOf(res).message).toBe(PL_SENTENCE(A.nameEn));
+      expect(errorOf(res).details).toMatchObject({ productName: A.nameEn });
       await setAdminLanguage(null);
     });
 
-    it('API intake: Accept-Language `en;q=0.2,pl;q=0.9` reads Polish with the Polish name', async () => {
+    it('API intake: Accept-Language `en;q=0.2,pl;q=0.9` reads Polish naming the product at the basket scope', async () => {
       const res = await intake([{ sku: A.sku, quantity: 5 }], { 'accept-language': 'en;q=0.2,pl;q=0.9' });
       expect(res.statusCode, res.body).toBe(422);
-      expect(errorOf(res).message).toBe(PL_SENTENCE(A.namePl));
-      expect(errorOf(res).details).toMatchObject({ productName: A.namePl });
+      expect(errorOf(res).message).toBe(PL_SENTENCE(A.nameEn));
+      expect(errorOf(res).details).toMatchObject({ productName: A.nameEn });
     });
   });
 });

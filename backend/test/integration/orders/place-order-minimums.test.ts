@@ -305,7 +305,9 @@ describe('155 — placement and the checkout preview refuse below-minimum lines 
     expect((await basketLines()).length).toBe(3);
   });
 
-  it('D3/D4 — a Polish placement refusal names every product in Polish, as the preview does', async () => {
+  // Feature 170 (FR-030) — the sentence is Polish; each product is named at the basket's (channel,
+  // language). The system-default channel offers en-US alone, so the names are the Global ones.
+  it('D3/D4 — a Polish placement refusal names every product at the basket scope, as the preview does', async () => {
     await seed([
       { productId: A.id, quantity: 5 },
       { productId: B.id, quantity: 3 },
@@ -315,11 +317,11 @@ describe('155 — placement and the checkout preview refuse below-minimum lines 
     expect(res.statusCode, res.body).toBe(422);
     const error = errorOf(res);
     const named = error.details?.['productName'];
-    expect([A.namePl, B.namePl]).toContain(named);
+    expect([A.nameEn, B.nameEn]).toContain(named);
     expect(error.message).toBe(`Minimalna ilość zamówienia produktu „${String(named)}” to 10 szt.`);
     const lines = (error.details?.['lines'] ?? []) as BelowMinimumLine[];
-    expect(lines.map((l) => l.productName).sort()).toEqual([A.namePl, B.namePl].sort());
-    expect((await preview('pl')).map((l) => l.productName).sort()).toEqual([A.namePl, B.namePl].sort());
+    expect(lines.map((l) => l.productName).sort()).toEqual([A.nameEn, B.nameEn].sort());
+    expect((await preview('pl')).map((l) => l.productName).sort()).toEqual([A.nameEn, B.nameEn].sort());
   });
 
   it('the preview lists the same lines, and an empty list for a valid basket', async () => {

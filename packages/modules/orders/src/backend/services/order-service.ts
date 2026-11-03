@@ -324,7 +324,10 @@ export interface OrderServiceNeighbourPorts {
    * (channel, language) to its Organization refuses the placement with the
    * unknown-id 404, as a line whose product is gone does.
    */
-  readonly catalogProductAvailability: Pick<CatalogProductAvailabilityPort, 'filterAvailable' | 'effectiveOrderRules'>;
+  readonly catalogProductAvailability: Pick<
+    CatalogProductAvailabilityPort,
+    'filterAvailable' | 'effectiveOrderRules' | 'effectiveTexts'
+  >;
   /** `null` ⇒ `payment_methods` is not effectively present. */
   readonly paymentMethodRead: () => PaymentMethodReadPort | null;
   /** `null` ⇒ `delivery_methods` is not effectively present. */
@@ -1441,23 +1444,29 @@ export class OrderService {
     // Feature 163 (FR-006) — the lines whose product is no longer available
     // in the basket's channel are reported as placement will refuse them.
     const basketChannel = await this.emFactory().findOne(SalesChannel, { id: basketChannelId });
+    const basketLanguage = basketChannel
+      ? resolveScopeLanguage(
+          {
+            id: basketChannel.id,
+            languages: basketChannel.languages,
+            defaultLanguage: basketChannel.defaultLanguage,
+          },
+          options.language,
+        )
+      : null;
     const catalogue = await readBasketCatalogue(this.neighbours.catalogProductRead, items, (products) =>
       availableOnly(this.neighbours.catalogProductAvailability, products, {
         channelId: basketChannelId,
-        languageCode: basketChannel
-          ? resolveScopeLanguage(
-              {
-                id: basketChannel.id,
-                languages: basketChannel.languages,
-                defaultLanguage: basketChannel.defaultLanguage,
-              },
-              options.language,
-            )
-          : null,
+        languageCode: basketLanguage,
         organizationId: ctx.organizationId,
       }),
     );
     const productById = new Map(catalogue.products.map((p) => [p.id, p]));
+    const namesAtBasket = await this.#namesAt(
+      catalogue.products.map((p) => p.id),
+      basketChannel ? basketChannelId : null,
+      basketLanguage,
+    );
 
     // Feature 155 (FR-008, FR-036, FR-037; research R19) — the lines placement
     // will refuse, judged by the same rule with the quote source assessed by the
@@ -1469,7 +1478,7 @@ export class OrderService {
     );
     const belowMinimumLines = belowMinimumLinesOf(
       evaluateBasketMinimums(cart, items, catalogue, quoteSource.honoursExemptions),
-      (productId) => this.#productName(productById, productId, options.language),
+      (productId) => this.#productName(productById, productId, namesAtBasket),
     );
     // Issue #167 — the quote prices placement will refuse, by the same rule.
     const quoteCommitmentRefusal = await this.#quoteCommitmentRefusal(
@@ -1903,21 +1912,29 @@ export class OrderService {
       // then the evaluation. A line whose product record is gone refuses the
       // placement (FR-037, fail-closed). Nothing has been written, so the
       // rollback releases the lock and leaves the basket as it was.
+      const orderLanguage = resolveScopeLanguage(
+        {
+          id: orderChannel.id,
+          languages: orderChannel.languages,
+          defaultLanguage: orderChannel.defaultLanguage,
+        },
+        options?.language,
+      );
       const catalogue = await readBasketCatalogue(this.neighbours.catalogProductRead, items, (products) =>
         availableOnly(this.neighbours.catalogProductAvailability, products, {
           channelId: orderChannel.id,
-          languageCode: resolveScopeLanguage(
-            {
-              id: orderChannel.id,
-              languages: orderChannel.languages,
-              defaultLanguage: orderChannel.defaultLanguage,
-            },
-            options?.language,
-          ),
+          languageCode: orderLanguage,
           organizationId: ctx.organizationId,
         }),
       );
       const productById = new Map(catalogue.products.map((p) => [p.id, p]));
+      // Feature 170 (FR-030, FR-032) — the names the order's lines snapshot, at the order's
+      // (channel, language): C×L → C → Global. Read once, never re-resolved afterwards.
+      const namesAtOrder = await this.#namesAt(
+        catalogue.products.map((p) => p.id),
+        orderChannel.id,
+        orderLanguage,
+      );
       const quoteSource = await this.#vouchedQuoteRequestSource(
         tx,
         ctx.organizationId,
@@ -1939,7 +1956,7 @@ export class OrderService {
       if (quoteCommitment !== null) throw quoteCommitmentEnded(quoteCommitment);
       assertBasketMeetsMinimums(
         evaluateBasketMinimums(cart, items, catalogue, quoteSource.honoursExemptions),
-        (productId) => this.#productName(productById, productId, options?.language),
+        (productId) => this.#productName(productById, productId, namesAtOrder),
       );
 
       // A cart line is ordered at its stored unit price — copied onto the order
@@ -2144,7 +2161,8 @@ export class OrderService {
               fulfilmentStrategy: p.fulfilmentStrategy ?? null,
               fulfilmentStrategyWarehouseOrder: p.fulfilmentStrategyWarehouseOrder ?? null,
               sku: p.sku,
-              name: p.name, // 170-shim: Global name
+              // Feature 170 (FR-030) — a stock refusal names the product as the order does.
+              name: namesAtOrder.get(p.id) || p.name,
             },
           ]),
         );
@@ -2489,8 +2507,7 @@ export class OrderService {
         // Feature 043 — when the line was ordered as a packaging unit, append
         // the unit name to the snapshot name so every order-derived document
         // shows it, and keep a structured snapshot for programmatic use.
-        // 170-shim: the Global name; the snapshot at the order's (C, L) is S2's (`effectiveTexts`, T05x).
-        const baseName = product ? product.name : '';
+        const baseName = product ? namesAtOrder.get(product.id) || product.name : '';
         const snapshotName = item.packagingUnitName
           ? `${baseName} (${item.packagingUnitName})`
           : baseName;
@@ -3043,18 +3060,33 @@ export class OrderService {
   }
 
   /**
-   * The name a minimum refusal gives a product: in `language`, the language the
-   * envelope translates the sentence around it into (feature 155, D3/D4). The id
-   * when the record is gone.
+   * The name a minimum refusal gives a product: its effective name at the basket's (channel,
+   * language) (feature 170, FR-030), else its Global name; the id when the record is gone.
    */
   #productName(
     productById: ReadonlyMap<string, { name: string }>,
     productId: string,
-    _language: string | undefined,
+    namesAtScope: ReadonlyMap<string, string>,
   ): string {
     const product = productById.get(productId);
-    // 170-shim: the Global name; the effective name at the order's (C, L) is S2's (`effectiveTexts`).
-    return (product ? product.name : '') || productId;
+    return namesAtScope.get(productId) || (product ? product.name : '') || productId;
+  }
+
+  /**
+   * Feature 170 (FR-030) — product id → its effective name at (`channelId`, `languageCode`), as
+   * `catalog` answers it. No channel: no entry (the caller keeps the Global name, FR-031).
+   */
+  async #namesAt(
+    productIds: readonly string[],
+    channelId: string | null,
+    languageCode: string | null,
+  ): Promise<Map<string, string>> {
+    if (productIds.length === 0 || channelId === null) return new Map();
+    const texts = await this.neighbours.catalogProductAvailability.effectiveTexts([...new Set(productIds)], {
+      channelId,
+      languageCode,
+    });
+    return new Map([...texts].map(([id, text]) => [id, text.name]));
   }
 
   private anyValue(blob: Record<string, string>): string {
