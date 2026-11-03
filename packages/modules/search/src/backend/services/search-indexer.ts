@@ -342,15 +342,16 @@ export async function awaitIndexTask(
 /**
  * Feature 170 (code review, note 5) — what one indexing run reads once and every channel batch
  * of the run shares: the searchable select attributes and, per language, their option labels.
- * A run is one {@link SearchIndexer.reindexAllChannels}, one {@link SearchIndexer.ensureQuerySettings}
- * or one incremental upsert; the next run reads them again, so a relabelled option reaches it.
+ * A run is one {@link SearchIndexer.reindexAllChannels}, one {@link SearchIndexer.ensureQuerySettings},
+ * one category-subtree reindex or one incremental upsert; the next run reads them again, so a
+ * relabelled option reaches it.
  */
-interface IndexingRun {
+export interface IndexingRun {
   searchableOptionAttributes?: Promise<CatalogAttributeView[]>;
   readonly optionLabels: Map<string, Map<string, Map<string, string>>>;
 }
 
-function newIndexingRun(): IndexingRun {
+export function newIndexingRun(): IndexingRun {
   return { optionLabels: new Map() };
 }
 
@@ -510,7 +511,7 @@ export class SearchIndexer {
    * Returns the channel codes that were touched so callers can log a
    * one-line summary.
    */
-  async upsertProduct(em: EntityManager, productId: string): Promise<string[]> {
+  async upsertProduct(em: EntityManager, productId: string, run: IndexingRun = newIndexingRun()): Promise<string[]> {
     const product = await this.products.findById(productId);
     if (!product) return [];
 
@@ -526,7 +527,7 @@ export class SearchIndexer {
     const categories = categoryRows.map((r) => ({ id: r.categoryId, slug: r.slug }));
     // Feature 170 — the override rows and searchable attributes once; the texts per channel below.
     const allLanguages = [...new Set(channels.flatMap((channel) => indexLanguagesOf(channel)))];
-    const textInputs = await this.textInputs(em, allLanguages, [productId], newIndexingRun());
+    const textInputs = await this.textInputs(em, allLanguages, [productId], run);
 
     const touched: string[] = [];
     for (const channel of channels) {
@@ -567,8 +568,10 @@ export class SearchIndexer {
    */
   async reindexCategorySubtree(em: EntityManager, categoryId: string): Promise<number> {
     const productIds = await this.categories.listProductIdsInSubtree(categoryId);
+    // One run for the whole subtree: the option labels are read once, not once per product.
+    const run = newIndexingRun();
     for (const productId of productIds) {
-      await this.upsertProduct(em, productId);
+      await this.upsertProduct(em, productId, run);
     }
     return productIds.length;
   }

@@ -94,7 +94,10 @@ function indexer(loads: { listByFlag: number }): SearchIndexer {
       findById: async () => product,
       listValueOverridesByProductIds: async () => [],
     },
-    categories: { listAssignmentsForProducts: async () => [] },
+    categories: {
+      listAssignmentsForProducts: async () => [],
+      listProductIdsInSubtree: async () => [PRODUCT_ID, PRODUCT_ID, PRODUCT_ID],
+    },
     channelMembership: {
       listEntityIdsForChannel: async () => ({ entityIds: [PRODUCT_ID], total: 1 }),
       listChannelsForEntity: async () => channels.map((c) => ({ id: c.id })),
@@ -146,6 +149,12 @@ describe('SearchIndexer — option labels per indexing run', () => {
   it('an incremental upsert reads them once for every channel language', async () => {
     const loads = { listByFlag: 0 };
     await indexer(loads).upsertProduct(em, PRODUCT_ID);
+    expect(loads.listByFlag).toBe(1);
+  });
+
+  it('a category-subtree reindex of three products reads them once', async () => {
+    const loads = { listByFlag: 0 };
+    expect(await indexer(loads).reindexCategorySubtree(em, 'category')).toBe(3);
     expect(loads.listByFlag).toBe(1);
   });
 });
