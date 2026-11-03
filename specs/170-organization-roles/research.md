@@ -212,6 +212,10 @@ change on upgrade); no permission (option C — leaves a shared checkout input e
 
 ## R-9 — Caching on hot paths (FR-080–FR-082)
 
+**Status: refined by R-15 and R-16** — no shared Redis layer, no per-account entry, and assignment
+commands do not drop the cache. The obligations below (bounded staleness, write-path drop, never
+fall open) stand; the mechanism is R-16's.
+
 **Decision.** Two-layer cache of **`(organizationId) → { roleId → granted codes }`** following
 `packages/platform/src/kernel/sales-channels/sales-channel-access-cache.ts`
 (`specs/154-sales-channel-access/` research R-6): per-process LRU with a 30-second age bound, Redis
@@ -292,7 +296,8 @@ the same or a later release.
 first declared in P2, so FR-023 grants them to *Member* then; the same P2 migration reads
 `requires_cart_approval` *at that moment* — an Organization may flip it between P1 and P2 — withholds
 the two codes where it is true, and only then drops the column. If P1 and P2 ship in one release
-the two migrations simply run back to back.
+the two migrations simply run back to back. *(Refined by R-18: P1 and P2 ship together, so the
+exception is written by `organizations`' M2 and the column is dropped by M4 in WP-12.)*
 
 ## Preliminary Constitution Check *(the plan restates it as the gate)*
 
@@ -381,9 +386,10 @@ rejected (FR-082).
 kernel's `SalesChannelAccessCache`: a per-process LRU (cap 4096 Organizations, entries older than
 **30 s** ignored), a generation counter so a fill that raced an invalidation is answered and not
 stored, PostgreSQL as source, and a Redis pub/sub channel `b2b:organization-roles:changed`
-carrying `{ organizationId }`. Every role command and every assignment command drops the local
-entry **after commit** and publishes; every composed process subscribes in an `onBoot` hook on the
-`redisSubscriber` connection, exactly as `custom_fields` does
+carrying `{ organizationId }`. Every `organization_role.*` command drops the local entry **after
+commit** and publishes; assignment commands drop nothing, because the cache holds roles and their
+grants, never assignments (R-15; `contracts/commands-audit-events.md` §5). Every composed process
+subscribes in an `onBoot` hook on the `redisSubscriber` connection, exactly as `custom_fields` does
 (`packages/modules/custom_fields/src/backend/index.ts:201-202`). No shared Redis value layer.
 
 **Rationale.** The source read is one indexed query returning at most 52 rows (FR-004's 50 custom
@@ -426,8 +432,8 @@ never offered it, and reinstalling the module would grant it to nobody there. Pe
 "has **this** *Member* been offered this code?" is exactly FR-023's. Computing rather than
 reconciling also means a *Member* row created by any path — the M2 trigger (R-28), a test fixture's
 raw insert — is correct with empty arrays, and lets R-18 express FR-071's exception as data. The
-spec's Key Entity reads *"platform-wide record"*; the behaviour the FRs require is unchanged, and the
-product owner should align that one Key Entities line when the spec is next touched.
+spec's Key Entity read *"platform-wide record"* and was aligned with this entry on 2026-11-03; the
+behaviour the FRs require is unchanged.
 
 **Alternatives rejected.** *Platform-wide `organization_permission_first_seen` table* — the defect
 above. *A boot reconciler appending new codes to every Member row* — correct, but a write at boot on
@@ -564,6 +570,8 @@ gate 12, double-audit shape. *Sequential bus runs* — not atomic.
 
 ## R-23 — Delivery: one integration branch, deprecate then delete
 
+**Status: accepted by owner ruling PR-1 (2026-11-03)** — see `plan.md` § *Plan-phase owner rulings*. WP-00 goes to `master` first and waits for #656.
+
 **Decision.** P1 and P2 are built on an integration branch `feat/170-organization-roles` cut from
 `origin/master` after WP-00 merges. Every work package branches from it and merges back into it; the
 integration branch reaches `master` once, after WP-13. P3 gets its own integration branch later.
@@ -656,6 +664,8 @@ is not in the tree after WP-12.
 
 ## R-28 — Both predefined roles exist by construction; an account without a role is a *Member*
 
+**Status: accepted by owner ruling PR-2 (2026-11-03)** — both triggers are built (WP-02a, WP-02b).
+
 **Decision.** Two database rules, each in the migration of the module that owns the table it fires on:
 
 - **M2 (`organizations`)** installs `after insert on organizations for each row` →
@@ -747,9 +757,9 @@ screen.
 | --- | --- | --- |
 | #647, #654, #659 (cart approval CTA, refusal codes, pending edit) | merged | Baseline behaviour of WP-00's oracle and WP-04 |
 | #656 (#648, placement gate, `ORDER_CART_APPROVAL_REQUIRED`, `cart-approval-policy.ts`) | open | **Blocks WP-00** (the oracle must record placement outcomes) and **WP-04** (rewrites `approvalSubmissionRequired`) |
-| #655 (#651, approval e-mails) | open | **Blocks WP-04**'s FR-035 recipient change (`cart-approval-emails.ts`) |
+| #655 (#651, approval e-mails) | open; **merged 2026-11-03** | **Blocks WP-04**'s FR-035 recipient change (`cart-approval-emails.ts`) |
 | #670 (#665, clone/reorder through the order read scope) | merged | WP-07 swaps the admin test inside `OrderAccessService` only; clone and reorder follow it |
-| #680 (#669, invoices via `OrderReadPort.findByIdForCustomer`) | open | WP-07: FR-049's "its documents" holds through the order scope once #680 lands; WP-07's colleague-invoice test needs it |
+| #680 (#669, invoices via `OrderReadPort.findByIdForCustomer`) | open; **merged 2026-11-03** | WP-07: FR-049's "its documents" holds through the order scope once #680 lands; WP-07's colleague-invoice test needs it |
 | #674 (#666, storefront module presence in nav) | merged | WP-09 builds the account nav on `storefront/lib/module-gate.ts` |
 | #653 | resolved by this feature | WP-06 (`quick_order.one_click`) |
 | #667 (invitation role label) | resolved by this feature | WP-03 |

@@ -17,9 +17,11 @@ precedent; its contract survives as `packages/modules/admin_roles/` and
 `specs/conventions/module-admin-surfaces.md`), feature 027 cart approval (pre-migration; today's
 behaviour is in `packages/modules/carts/docs/carts.md` § *Lifecycle*), feature 056 organization
 hierarchy and roll-up (pre-migration; `packages/modules/organizations/docs/organization-hierarchy.md`),
-`specs/154-sales-channel-access/` (the per-Organization two-layer cache this feature's permission
-reads follow), issues #619 (merged in #647), #648, #649, #650, #651, **#653**, **#665** (clone-to-quote order
-scope), **#667** (invitation role label), **#668** (organization addresses).
+`specs/154-sales-channel-access/` (the per-Organization cache whose obligations — bounded staleness,
+write-path drop, never fall open — this feature's permission reads meet; the mechanism is a
+per-process cache with a pub/sub drop, `research.md` R-16), issues #619 (merged in #647), #648, #649,
+#650, #651, **#653**, **#665** (clone-to-quote order scope), **#667** (invitation role label),
+**#668** (organization addresses).
 
 **Design decisions and rejected alternatives**: [`research.md`](./research.md). This file states
 behaviour; `research.md` states why, and what the plan has to build.
@@ -394,21 +396,23 @@ When the operator switches it back on, every role holds again exactly what it he
 - **FR-021**: Each declaration MUST carry a label and a one-sentence description in English and
   Polish, and whether the permission is **member-default** (granted to *Member* when it first
   becomes known).
-- **FR-022**: This feature MUST declare these permissions:
+- **FR-022**: This feature MUST declare these permissions, each in the phase shown. The nine **P2**
+  codes ship in the P1+P2 release; the two **P3** codes MUST NOT be declared before P3, which
+  introduces the internal RFQ approval they govern (OR-2, FR-042–FR-046; `research.md` R-30):
 
-  | Code | Owner | Label (EN) | Member-default |
-  | --- | --- | --- | --- |
-  | `carts.create` | carts | Create and edit carts | yes |
-  | `carts.approve` | carts | Approve and reject colleagues' carts | no |
-  | `carts.order_without_approval` | carts | Place orders without approval | yes (FR-071) |
-  | `quote_requests.create` | quote_requests | Create quote requests | yes |
-  | `quote_requests.approve` | quote_requests | Approve quote requests | no |
-  | `quote_requests.send_without_approval` | quote_requests | Send quote requests without approval (OR-2) | yes |
-  | `shopping_lists.create` | shopping_lists | Create and edit shopping lists | yes |
-  | `shopping_lists.convert` | shopping_lists | Convert shopping lists into quote requests and carts | yes |
-  | `quick_order.one_click` | quick_order | One-click purchase (OR-1) | yes (FR-071) |
-  | `orders.view_organization` | orders | View the organization's orders (OR-5) | no |
-  | `addresses.manage` | addresses | Manage organization addresses (OR-8) | yes |
+  | Code | Owner | Label (EN) | Member-default | Phase |
+  | --- | --- | --- | --- | --- |
+  | `carts.create` | carts | Create and edit carts | yes | P2 |
+  | `carts.approve` | carts | Approve and reject colleagues' carts | no | P2 |
+  | `carts.order_without_approval` | carts | Place orders without approval | yes (FR-071) | P2 |
+  | `quote_requests.create` | quote_requests | Create quote requests | yes | P2 |
+  | `shopping_lists.create` | shopping_lists | Create and edit shopping lists | yes | P2 |
+  | `shopping_lists.convert` | shopping_lists | Convert shopping lists into quote requests and carts | yes | P2 |
+  | `quick_order.one_click` | quick_order | One-click purchase (OR-1) | yes (FR-071) | P2 |
+  | `orders.view_organization` | orders | View the organization's orders (OR-5) | no | P2 |
+  | `addresses.manage` | addresses | Manage organization addresses (OR-8) | yes | P2 |
+  | `quote_requests.approve` | quote_requests | Approve quote requests | no | **P3** |
+  | `quote_requests.send_without_approval` | quote_requests | Send quote requests without approval (OR-2) | yes | **P3** |
 
 - **FR-023**: When a permission becomes known to the platform for the first time (its module is
   installed), it MUST be granted to every Organization's *Member* role if it is member-default, and
@@ -445,7 +449,8 @@ When the operator switches it back on, every role holds again exactly what it he
 - **FR-040**: Creating a quote request — from scratch, by resubmitting, from a cart or from a
   shopping list — MUST require `quote_requests.create`.
 - **FR-041**: A member whose role holds `quote_requests.approve` MUST see every quote request of the
-  Organization (with today's roll-up reach).
+  Organization (with today's roll-up reach). Until P3 declares that code, only *Administrator* sees
+  every quote request of the Organization, as today (`research.md` R-30).
 - **FR-042**: A quote request created by a member whose role lacks
   `quote_requests.send_without_approval` MUST enter a state *awaiting internal approval* that the
   seller does not see, list or count.
@@ -553,8 +558,10 @@ When the operator switches it back on, every role holds again exactly what it he
 - **Member role assignment**: each Customer account holds a reference to one role of its
   Organization (replacing the `role` enum).
 - **Invitation**: names a role of the inviting Organization (replacing the `role` enum).
-- **Permission first-seen ledger**: the platform-wide record of which permission codes have already
-  been granted to *Member* by FR-023, so it never happens twice.
+- **Permission first-seen ledger**: per Organization, the record on its *Member* role of which
+  member-default permission codes that *Member* has already been offered by FR-023, so it never
+  happens twice; a code not yet offered is held implicitly (`research.md` R-17, `data-model.md` §1
+  `member_defaults_offered`).
 
 ## Impact
 

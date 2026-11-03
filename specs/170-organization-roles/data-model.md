@@ -55,8 +55,8 @@ Invariants the Commands hold:
 
 ```
 custom:        created ──(update)*──▶ deleted (with replacement when held, FR-024)
-member:        created by seeder/M2 ──(update permissions)*        never deleted
-administrator: created by seeder/M2                                 never changed
+member:        created by the R-28 trigger/M2 ──(update permissions)*   never deleted
+administrator: created by the R-28 trigger/M2                          never changed
 ```
 
 ## 2. `customer_accounts.organization_role_id` — new column, owned by `customer_accounts`
@@ -156,11 +156,13 @@ defaults (FR-010–FR-012), and — until P3 — Organization-wide RFQ visibilit
 
 | Event | Emitted by | Payload | Consumers |
 | --- | --- | --- | --- |
-| `organization_role.permissions_changed.v1` | `organization_role.update` | `{ organizationId, roleId, added: string[], removed: string[] }` | `carts` (FR-034), cache drop |
+| `organization_role.permissions_changed.v1` | `organization_role.update` | `{ organizationId, roleId, added: string[], removed: string[] }` | `carts` (FR-034) |
 | `customer_account.organization_role_changed.v1` | `customer_account.change_role` (also as a child of `organization_role.delete`) | `{ organizationId, customerAccountId, fromRoleId, toRoleId }` | `carts` (FR-034) |
 
 Both are in-process `EventBus` events, buffered by the Command and dispatched once on commit
-(Principle XIII). The cross-process cache drop is the separate Redis publish of R-16.
+(Principle XIII). The cache drop is not an event consumer: the `organizations` service that ran an
+`organization_role.*` Command drops and publishes after commit (R-16,
+`contracts/commands-audit-events.md` §5).
 
 ## 8. P3 additions (outline; detailed in P3's own plan pass)
 
