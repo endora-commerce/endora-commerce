@@ -25,7 +25,7 @@ import {
   X,
 } from 'lucide-react';
 import { ProductsBulkEditDialog } from '../components/ProductsBulkEditDialog.js';
-import { resolveProductName, type ProductLabel } from '../lib/product-labels.js';
+import type { ProductLabel } from '../lib/product-labels.js';
 import { ArchivedPill, ProductStatusPill } from '../components/ProductStatusPills.js';
 import {
   BULK_EDIT_HARD_MAX,
@@ -48,7 +48,8 @@ interface AdminProduct {
   status: 'active' | 'inactive';
   /** Archived is its own fact, independent of `status`. */
   archivedAt?: string | null;
-  name: Record<string, string>;
+  /** The Global name (feature 170: one text per product, no per-language map). */
+  name: string;
   visibility: string;
   attributeValues: Record<string, unknown>;
   updatedAt: string;
@@ -171,7 +172,7 @@ export function ProductsList(): ReactNode {
   const bulkEditLabels = useMemo(() => {
     const wanted = new Set(bulkEditProductIds);
     const labels: Record<string, ProductLabel> = {};
-    for (const r of rows) if (wanted.has(r.id)) labels[r.id] = { name: resolveProductName(r.name), sku: r.sku };
+    for (const r of rows) if (wanted.has(r.id)) labels[r.id] = { name: r.name, sku: r.sku };
     return labels;
   }, [bulkEditProductIds, rows]);
   const [selectionError, setSelectionError] = useState<string | null>(null);
@@ -850,22 +851,8 @@ export function ProductsList(): ReactNode {
                               maxWidth: 360,
                             }}
                           >
-                            {pickName(r.name)}
+                            {r.name}
                           </div>
-                          {r.name['pl-PL'] && r.name['pl-PL'] !== r.name['en-US'] ? (
-                            <div
-                              className="b2b-muted"
-                              style={{
-                                fontSize: 12,
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                maxWidth: 360,
-                              }}
-                            >
-                              🇵🇱 {r.name['pl-PL']}
-                            </div>
-                          ) : null}
                         </div>
                       </div>
                     </td>
@@ -965,10 +952,6 @@ function Chip(props: {
       ) : null}
     </button>
   );
-}
-
-function pickName(name: Record<string, string>): string {
-  return name['en-US'] ?? Object.values(name)[0] ?? '';
 }
 
 function humanizeVisibility(v: string): string {

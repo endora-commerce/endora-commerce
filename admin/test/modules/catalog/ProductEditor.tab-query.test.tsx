@@ -38,7 +38,7 @@ const PRODUCT = {
   slug: 'tab-sku',
   type: 'simple',
   status: 'inactive',
-  name: { 'en-US': 'Drill' },
+  name: 'Drill',
   description: {},
   visibility: 'public',
   attributeValues: {},

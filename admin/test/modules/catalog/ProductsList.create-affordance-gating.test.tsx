@@ -121,7 +121,7 @@ const ONE_ROW = {
       slug: 'gate-sku',
       type: 'simple',
       status: 'active',
-      name: { 'en-US': 'Gated widget' },
+      name: 'Gated widget',
       visibility: 'public',
       attributeValues: {},
       updatedAt: '2026-09-08T10:00:00.000Z',

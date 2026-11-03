@@ -89,7 +89,7 @@ const row = (id: string, name: string): unknown => ({
   slug: name.toLowerCase().replace(/\s/g, '-'),
   type: 'simple',
   status: 'active',
-  name: { 'en-US': name },
+  name,
   visibility: 'public',
   attributeValues: {},
   updatedAt: '2026-05-15T10:00:00.000Z',

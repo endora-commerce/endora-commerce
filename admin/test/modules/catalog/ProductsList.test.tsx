@@ -112,7 +112,7 @@ const productRow = (id: string, sku: string, name: string): unknown => ({
   slug: sku.toLowerCase(),
   type: 'simple',
   status: 'active',
-  name: { 'en-US': name },
+  name,
   visibility: 'public',
   attributeValues: {},
   updatedAt: '2026-05-15T10:00:00.000Z',
