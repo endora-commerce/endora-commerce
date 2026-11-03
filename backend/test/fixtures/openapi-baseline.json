@@ -1036,6 +1036,15 @@
         }
       }
     },
+    "/api/v1/admin/catalog/attributes/{idOrKey}/scope-change-preview": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/catalog/bulk-operations": {
       "get": {
         "responses": {
@@ -1209,6 +1218,15 @@
         }
       }
     },
+    "/api/v1/admin/catalog/products/{id}/archive": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/catalog/products/{id}/attribute-set-preview": {
       "post": {
         "responses": {
@@ -1352,8 +1370,67 @@
         }
       }
     },
+    "/api/v1/admin/catalog/products/{id}/restore": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/catalog/products/{id}/scope-context": {
       "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/catalog/products/{id}/scope-overview": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/catalog/products/{id}/scopes": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/catalog/products/{id}/url-keys": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/catalog/products/{id}/url-redirects/{redirectId}": {
+      "delete": {
         "responses": {
           "200": {
             "description": "OK"
@@ -1418,6 +1495,22 @@
         }
       },
       "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/catalog/products/{productId}/gallery/channel-roles": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
         "responses": {
           "200": {
             "description": "OK"
@@ -8220,6 +8313,15 @@
         }
       }
     },
+    "/api/v1/catalog/products/resolve/{key}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/catalog/products/{idOrSlug}": {
       "get": {
         "responses": {
@@ -9359,6 +9461,15 @@
     },
     "/api/v1/storefront/cms/brand-tokens": {
       "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/storefront/cms/contact-form": {
+      "post": {
         "responses": {
           "200": {
             "description": "OK"
