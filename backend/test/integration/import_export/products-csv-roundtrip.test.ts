@@ -84,7 +84,7 @@ describe('170 — products CSV export and re-import is a no-op [integration]', (
     expect(imported.statusCode, imported.body).toBe(200);
     const report = (imported.json() as { data: { errors: unknown[]; fieldErrors?: unknown[] } }).data;
     expect(report.errors).toEqual([]);
-    expect(report.fieldErrors ?? []).toEqual([]);
+    expect(report.fieldErrors ?? [], JSON.stringify(report.fieldErrors)).toEqual([]);
     expect(await state()).toEqual(before);
   });
 });
