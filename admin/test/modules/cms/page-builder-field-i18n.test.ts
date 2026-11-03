@@ -81,6 +81,8 @@ const NEW_AND_RESHAPED: ReadonlyArray<readonly [string, string]> = [
   ['catalog.ProductSlider', 'catalog'],
   ['blog.LatestPosts', 'blog'],
   ['newsletter.Signup', 'newsletter'],
+  // Feature 170 (T052): the form block, whose labels are the `forms` bundle's.
+  ['forms.Form', 'forms'],
 ];
 
 const PL = shippedBundles('pl') as Record<string, Record<string, string>>;

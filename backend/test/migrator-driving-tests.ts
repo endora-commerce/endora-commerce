@@ -69,4 +69,11 @@ export const MIGRATOR_DRIVING_TESTS: readonly MigratorDrivingTest[] = [
       'the statuses and assignees survive, then down again to assert the single assignee comes ' +
       'back. The migration is the thing under test.',
   },
+  {
+    path: 'test/integration/forms/migration.test.ts',
+    reason:
+      'Feature 170 T013: runs the forms init migration down — asserting the four tables are ' +
+      'gone — and up again in place. Nothing references the forms tables, so the class is ' +
+      'replayed directly rather than through migrator.down().',
+  },
 ];

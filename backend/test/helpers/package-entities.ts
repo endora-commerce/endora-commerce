@@ -147,6 +147,10 @@ import type { CrmOrderStatusMapping as CrmOrderStatusMappingRow } from '../../..
 import type { CrmStatusPropagation as CrmStatusPropagationRow } from '../../../packages/modules/crm/src/backend/entities/crm-status-propagation.entity.js';
 import type { CrmTag as CrmTagRow } from '../../../packages/modules/crm/src/backend/entities/crm-tag.entity.js';
 import type { CrmValueCountingStatus as CrmValueCountingStatusRow } from '../../../packages/modules/crm/src/backend/entities/crm-value-counting-status.entity.js';
+import type { Form as FormRow } from '../../../packages/modules/forms/src/backend/entities/form.entity.js';
+import type { FormVersion as FormVersionRow } from '../../../packages/modules/forms/src/backend/entities/form-version.entity.js';
+import type { FormEntry as FormEntryRow } from '../../../packages/modules/forms/src/backend/entities/form-entry.entity.js';
+import type { FormEntryNote as FormEntryNoteRow } from '../../../packages/modules/forms/src/backend/entities/form-entry-note.entity.js';
 import type { Task as TaskRow } from '../../../packages/modules/tasks/src/backend/entities/task.entity.js';
 import type { TaskAssignee as TaskAssigneeRow } from '../../../packages/modules/tasks/src/backend/entities/task-assignee.entity.js';
 import type { TaskTagAssignment as TaskTagAssignmentRow } from '../../../packages/modules/tasks/src/backend/entities/task-tag-assignment.entity.js';
@@ -1080,6 +1084,10 @@ export const CrmStatusPropagation = classNamed<CrmStatusPropagationRow>(installe
 export const CrmTag = classNamed<CrmTagRow>(installedModuleEntities, 'crm', 'CrmTag');
 export const CrmValueCountingStatus = classNamed<CrmValueCountingStatusRow>(installedModuleEntities, 'crm', 'CrmValueCountingStatus');
 // `tasks` — every class of the module (`specs/165-task-management/` T014).
+export const Form = classNamed<FormRow>(installedModuleEntities, 'forms', 'Form');
+export const FormVersion = classNamed<FormVersionRow>(installedModuleEntities, 'forms', 'FormVersion');
+export const FormEntry = classNamed<FormEntryRow>(installedModuleEntities, 'forms', 'FormEntry');
+export const FormEntryNote = classNamed<FormEntryNoteRow>(installedModuleEntities, 'forms', 'FormEntryNote');
 export const Task = classNamed<TaskRow>(installedModuleEntities, 'tasks', 'Task');
 export const TaskAssignee = classNamed<TaskAssigneeRow>(installedModuleEntities, 'tasks', 'TaskAssignee');
 export const TaskTagAssignment = classNamed<TaskTagAssignmentRow>(installedModuleEntities, 'tasks', 'TaskTagAssignment');
@@ -1112,6 +1120,10 @@ export type CrmOrderStatusMapping = CrmOrderStatusMappingRow;
 export type CrmStatusPropagation = CrmStatusPropagationRow;
 export type CrmTag = CrmTagRow;
 export type CrmValueCountingStatus = CrmValueCountingStatusRow;
+export type Form = FormRow;
+export type FormVersion = FormVersionRow;
+export type FormEntry = FormEntryRow;
+export type FormEntryNote = FormEntryNoteRow;
 export type Task = TaskRow;
 export type TaskAssignee = TaskAssigneeRow;
 export type TaskTagAssignment = TaskTagAssignmentRow;

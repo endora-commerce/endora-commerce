@@ -187,6 +187,35 @@ describe('an absent owner (US4, FR-015)', () => {
   });
 });
 
+/**
+ * `specs/170-forms-module/` US10-2: a stored `forms.Form` while `forms` is absent. The block is a
+ * first-party one (`@endora-commerce/cms-components`), owned by `forms` through its name, so the
+ * one presence rule withdraws it; what it would draw while present is `forms-block.test.tsx`'s.
+ */
+describe('a stored forms.Form while forms is absent (170 US10-2)', () => {
+  const formBlock = {
+    type: 'forms.Form',
+    props: { id: 'form-1', formId: '3b0c9f0e-2d1a-4c5b-8e7f-6a5b4c3d2e1f', fieldLook: 'boxed', size: 'm' },
+  };
+
+  it('is a block the storefront knows, so its withdrawal is the presence rule and not an unknown type', () => {
+    expect(defaultPageBuilderConfig.components?.['forms.Form']).toBeDefined();
+  });
+
+  it('renders nothing of the block, and the rest of the page unchanged', () => {
+    const page = [text('t1', 'before-the-form'), formBlock, text('t2', 'after-the-form')];
+    const withoutForm = ssr([text('t1', 'before-the-form'), text('t2', 'after-the-form')], { absent: ['forms'] });
+    const html = ssr(page, { absent: ['forms'] });
+    // The empty, hidden placeholder every withdrawn block leaves (`MissingComponentPlaceholder`
+    // outside preview) is all that stands where the form was.
+    expect(html.replace('<span aria-hidden="true" class="cmsc:hidden"></span>', '')).toBe(withoutForm);
+    expect(html).toContain('before-the-form');
+    expect(html).toContain('after-the-form');
+    expect(html).not.toContain('forms.Form');
+    expect(html).not.toContain('Missing CMS component');
+  });
+});
+
 describe('a local block (US5)', () => {
   it('renders, though no installed package and no presence entry names its owner', () => {
     const html = ssr([{ type: 'overlay_crm.Banner', props: { id: 'o1', text: 'hello' } }], {

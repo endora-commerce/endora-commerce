@@ -878,6 +878,39 @@ export const ERROR_CODES = {
   ADMIN_FEEDBACK_NOT_CONFIGURED: 'ADMIN_FEEDBACK_NOT_CONFIGURED',
   /** The relay could not be reached in time, refused the message, or redirected. */
   ADMIN_FEEDBACK_DELIVERY_FAILED: 'ADMIN_FEEDBACK_DELIVERY_FAILED',
+
+  // Forms (`specs/170-forms-module/`, research R-25) — the spellings of
+  // `FORMS_ERROR_CODES`. Each is declared by the `forms` module's manifest and
+  // joins this block in the change that adds its first raise site.
+  /** No such form (or form version) — a malformed id answers the same. */
+  FORM_NOT_FOUND: 'FORM_NOT_FOUND',
+  /** Another form already uses this key. */
+  FORM_KEY_TAKEN: 'FORM_KEY_TAKEN',
+  /** The definition breaks a publish rule; `details.issues` lists `{ code, elementId, path }`. */
+  FORM_DEFINITION_INVALID: 'FORM_DEFINITION_INVALID',
+  /** The form changed since the caller read it (`expectedRevision`, R-26). */
+  FORM_REVISION_CONFLICT: 'FORM_REVISION_CONFLICT',
+  /** The form has entries; deleting it needs the confirmation (`details.entryCount`). */
+  FORM_HAS_ENTRIES: 'FORM_HAS_ENTRIES',
+  /**
+   * The form takes no submission now; `details.code` says why: `closed`, `not_yet_open`, `full`,
+   * `sign_in_required` or `unavailable` (a draft, a deleted form or one that never existed).
+   */
+  FORM_NOT_ACCEPTING: 'FORM_NOT_ACCEPTING',
+  /** A submission body over the 256 KiB limit (FR-036). */
+  FORM_SUBMISSION_TOO_LARGE: 'FORM_SUBMISSION_TOO_LARGE',
+  /** Some answers break the rules of the served version; `details.fields` lists `{ fieldKey, code, message }`. */
+  FORM_SUBMISSION_INVALID: 'FORM_SUBMISSION_INVALID',
+  /** No such entry — or one outside the caller's organisations, or a malformed id: all answered the same. */
+  FORM_ENTRY_NOT_FOUND: 'FORM_ENTRY_NOT_FOUND',
+  /** The entry is no longer in the status the caller named (`expectedStatus`); `details.status` is its status now. */
+  FORM_ENTRY_STATUS_CONFLICT: 'FORM_ENTRY_STATUS_CONFLICT',
+  /** A write that removes entries across organisations — deleting a form with entries, changing its retention — needs an unrestricted administrator. */
+  FORM_SCOPE_REQUIRED: 'FORM_SCOPE_REQUIRED',
+  /** The CAPTCHA provider did not verify the submission, or no CAPTCHA response was sent (feature 170, R-14). */
+  FORM_CAPTCHA_FAILED: 'FORM_CAPTCHA_FAILED',
+  /** The CAPTCHA provider could not be reached to verify a submission; retryable (feature 170, R-14). */
+  FORM_CAPTCHA_UNAVAILABLE: 'FORM_CAPTCHA_UNAVAILABLE',
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];

@@ -1319,6 +1319,95 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       '`details.code` token. The noun is the custom-field definition and its carry option, and the ' +
       'judgement is `custom_fields`\' own definition Command (D-121 T1).',
   },
+  FORM_NOT_FOUND: {
+    to: 'forms',
+    reason:
+      'Minted with the `forms` module (`specs/170-forms-module/`, User Story 1), which did not exist ' +
+      'when the prefix chain was deleted: a form that does not exist, or a malformed form id, which ' +
+      'answers the same.',
+  },
+  FORM_KEY_TAKEN: {
+    to: 'forms',
+    reason:
+      'Minted with the `forms` module (`specs/170-forms-module/`, User Story 1), which did not exist ' +
+      'when the prefix chain was deleted: a form key another form already holds; keys are unique and ' +
+      'name a form in exports and webhooks.',
+  },
+  FORM_DEFINITION_INVALID: {
+    to: 'forms',
+    reason:
+      'Minted with the `forms` module (`specs/170-forms-module/`, User Story 1), which did not exist ' +
+      'when the prefix chain was deleted: a publish refused by the definition rules, with each broken ' +
+      'rule named by its element in `details.issues`.',
+  },
+  FORM_REVISION_CONFLICT: {
+    to: 'forms',
+    reason:
+      'Minted with the `forms` module (`specs/170-forms-module/`, User Story 1), which did not exist ' +
+      'when the prefix chain was deleted: a write naming a revision of the form that another write has ' +
+      'already moved past (optimistic concurrency, R-26).',
+  },
+  FORM_HAS_ENTRIES: {
+    to: 'forms',
+    reason:
+      'Minted with the `forms` module (`specs/170-forms-module/`, User Story 1), which did not exist ' +
+      'when the prefix chain was deleted: deleting a form that has entries without the confirmation ' +
+      'that deletes them with it (FR-013).',
+  },
+  FORM_NOT_ACCEPTING: {
+    to: 'forms',
+    reason:
+      'Minted with the `forms` module (`specs/170-forms-module/`, User Story 2), which did not exist ' +
+      'when the prefix chain was deleted: a submission to a form that takes none now — closed, not yet ' +
+      'open, full, signed-in only, or unavailable — named by the `details.code` token.',
+  },
+  FORM_SUBMISSION_TOO_LARGE: {
+    to: 'forms',
+    reason:
+      'Minted with the `forms` module (`specs/170-forms-module/`, User Story 2), which did not exist ' +
+      'when the prefix chain was deleted: a form submission whose body is over the 256 KiB limit (FR-036).',
+  },
+  FORM_SUBMISSION_INVALID: {
+    to: 'forms',
+    reason:
+      'Minted with the `forms` module (`specs/170-forms-module/`, User Story 3), which did not ' +
+      'exist when the prefix chain was deleted: a form submission whose answers break the rules of ' +
+      'the version it was sent to, each named by its field in `details.fields` (FR-034).',
+  },
+  FORM_ENTRY_NOT_FOUND: {
+    to: 'forms',
+    reason:
+      'Minted with the `forms` module (`specs/170-forms-module/`, User Story 4), which did not ' +
+      'exist when the prefix chain was deleted: an entry that does not exist, or one outside the ' +
+      'caller\'s organisations, which answers the same (FR-046).',
+  },
+  FORM_ENTRY_STATUS_CONFLICT: {
+    to: 'forms',
+    reason:
+      'Minted with the `forms` module (`specs/170-forms-module/`, User Story 4), which did not ' +
+      'exist when the prefix chain was deleted: a status change or its undo naming a status the ' +
+      'entry has already left (R-16).',
+  },
+  FORM_SCOPE_REQUIRED: {
+    to: 'forms',
+    reason:
+      'Minted with the `forms` module (`specs/170-forms-module/`, User Story 4), which did not ' +
+      'exist when the prefix chain was deleted: deleting a form with entries, or changing its ' +
+      'retention, by an administrator confined to some organisations — both remove entries of every ' +
+      'organisation.',
+  },
+  FORM_CAPTCHA_FAILED: {
+    to: 'forms',
+    reason:
+      'Minted with the `forms` module (`specs/170-forms-module/`, User Story 6), which did not exist ' +
+      'when the prefix chain was deleted: a form submission whose CAPTCHA response the configured provider did not verify, or that carried none (FR-042).',
+  },
+  FORM_CAPTCHA_UNAVAILABLE: {
+    to: 'forms',
+    reason:
+      'Minted with the `forms` module (`specs/170-forms-module/`, User Story 6), which did not exist ' +
+      'when the prefix chain was deleted: a form submission refused because the CAPTCHA provider could not be reached to verify it; retryable (FR-042).',
+  },
 };
 
 /**

@@ -8,7 +8,10 @@ import type {
   CmsProductSummary,
 } from '@endora-commerce/cms-components';
 import { CatalogPreviewProvider as CmsCatalogPreviewProvider } from '@endora-commerce/cms-components';
-import { apiClient } from '@endora-commerce/admin-kit/lib';
+import type { FormBlockData, FormEditorNote } from '@endora-commerce/cms-components/utils/catalog-preview-bridge';
+import type { PublicFormDefinition } from '@endora-commerce/contracts';
+import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import {
   mapAdminProductToCmsSummary,
   pickAdminLocalizedName,
@@ -145,7 +148,41 @@ async function fetchAdminBlogPosts(query: { limit: number; categorySlug?: string
   );
 }
 
-function createAdminCatalogPreviewApi(): CatalogPreviewApi {
+/** The admin preview of a form: its public read, and the form's status. */
+type AdminFormPreview = PublicFormDefinition & { status: 'draft' | 'published' | 'closed' };
+
+/**
+ * Feature 170 (`specs/170-forms-module/` contracts/blocks-and-storefront.md §3, §6, US2-3) — the
+ * canvas's read of a `forms.Form` block's form, through the `forms` module's admin preview over
+ * HTTP (`cms` gains no dependency on `forms`): the published version, or the working copy of a
+ * draft, so the editor sees the form they placed — with a note saying a shopper would not see a
+ * draft, that a form is closed, that it is gone, or that the editor may not view forms.
+ */
+export async function fetchAdminFormRead(
+  formId: string,
+  notes: Readonly<Record<FormEditorNote, string>>,
+): Promise<FormBlockData> {
+  const path = (source: 'published' | 'working') =>
+    `/api/v1/admin/forms/${encodeURIComponent(formId)}/preview?source=${source}`;
+  const noted = (code: FormEditorNote) => ({ code, message: notes[code] });
+  try {
+    const published = (await apiClient.get<{ data: AdminFormPreview }>(path('published'))).data;
+    if (published.status === 'draft') {
+      const working = (await apiClient.get<{ data: AdminFormPreview }>(path('working'))).data;
+      const { status: _status, ...read } = working;
+      return { ...read, editorNote: noted('draft') };
+    }
+    const { status, ...read } = published;
+    return status === 'closed' ? { ...read, editorNote: noted('closed') } : read;
+  } catch (error) {
+    if (error instanceof ApiError && (error.status === 403 || error.status === 404)) {
+      return { formId, availability: 'unavailable', editorNote: noted(error.status === 403 ? 'forbidden' : 'not_found') };
+    }
+    throw error;
+  }
+}
+
+function createAdminCatalogPreviewApi(formNotes: Readonly<Record<FormEditorNote, string>>): CatalogPreviewApi {
   return {
     async fetchProductsBySlugs(slugs: string[]): Promise<CmsProductSummary[]> {
       if (slugs.length === 0) return [];
@@ -184,10 +221,19 @@ function createAdminCatalogPreviewApi(): CatalogPreviewApi {
     },
 
     fetchBlogPosts: fetchAdminBlogPosts,
+    fetchForm: (formId: string) => fetchAdminFormRead(formId, formNotes),
   };
 }
 
 export function AdminCatalogPreviewProvider({ children }: { children: ReactNode }): React.ReactElement {
-  const api = useMemo(() => createAdminCatalogPreviewApi(), []);
+  const t = useTranslation('cms');
+  const draft = t('blocks.form.note.draft');
+  const closed = t('blocks.form.note.closed');
+  const notFound = t('blocks.form.note.notFound');
+  const forbidden = t('blocks.form.note.forbidden');
+  const api = useMemo(
+    () => createAdminCatalogPreviewApi({ draft, closed, not_found: notFound, forbidden }),
+    [draft, closed, notFound, forbidden],
+  );
   return <CmsCatalogPreviewProvider api={api}>{children}</CmsCatalogPreviewProvider>;
 }

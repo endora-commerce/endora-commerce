@@ -101,6 +101,9 @@
   "sidebar.main.category.dictionaries": {
     "message": "Słowniki"
   },
+  "sidebar.main.category.forms": {
+    "message": "Formularze"
+  },
   "sidebar.main.category.google_analytics": {
     "message": "Google Analytics"
   },

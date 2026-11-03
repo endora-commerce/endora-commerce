@@ -49,6 +49,7 @@ of the platform, not of what happens to be written.
 | [Document templates](./document-templates.md) | Design the PDF documents the platform produces — the product comparison, the invoice and the quote request — in the Page Builder, per document type, language and sales channel | @endora-commerce/mod-document-templates |
 | `email` | _no page yet_ | @endora-commerce/mod-email |
 | `erp_connector` | _no page yet_ | @endora-commerce/mod-erp-connector |
+| [Forms](./forms.md) | A form builder — forms with sections, conditional logic and translations, placed on pages with the Form block, with stored entries, notes, CSV export, e-mail notifications, retention and a webhook event | @endora-commerce/mod-forms |
 | [Google Analytics](./google-analytics.md) | Google Analytics 4 for the storefront — per-channel Measurement ID, Enhanced Ecommerce, a custom-events builder and optional server-side tagging | @endora-commerce/mod-google-analytics |
 | [Google Tag Manager](./google-tag-manager.md) | Google Tag Manager containers per sales channel, with a documented commerce dataLayer and an optional server-side relay | @endora-commerce/mod-google-tag-manager |
 | [import_export](./import_export.md) | CSV import / export for bulk-edit entities | @endora-commerce/mod-import-export |

@@ -62,7 +62,8 @@ export const RESERVED_TOP_LEVEL_SEGMENTS: readonly string[] = [
   'catalog',
   'checkout',
   'compare',
-  // Feature 169 — `app/forms/contact/route.ts`, the contact form's handler.
+  // Feature 169 — `app/forms/contact/route.ts`, the contact form's handler; feature 170 —
+  // `app/forms/submit/route.ts`, the `forms.Form` block's handler.
   'forms',
   'invitations',
   'kontakt',

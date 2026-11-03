@@ -6,6 +6,7 @@ import { blockDataKey, type BlockDataRequest, type BlockDataValue } from '../uti
 import {
   fetchBlogPosts,
   fetchCategoryTree,
+  fetchForm,
   fetchProductsBySlugs,
   fetchProductsList,
   filterCategories,
@@ -22,6 +23,7 @@ export interface BlockDataState<T> {
 /** The editor-preview read of one request, through the preview API when one is registered. */
 async function fetchBlockData(request: BlockDataRequest): Promise<BlockDataValue> {
   if (request.kind === 'products-by-slugs') return fetchProductsBySlugs([...request.slugs]);
+  if (request.kind === 'form') return fetchForm(request.formId);
   if (request.kind === 'blog-posts') {
     return fetchBlogPosts({
       limit: request.limit,
@@ -44,7 +46,7 @@ async function fetchBlockData(request: BlockDataRequest): Promise<BlockDataValue
 }
 
 /**
- * The data of one data-driven block (catalogue or blog).
+ * The data of one data-driven block (catalogue, blog or form).
  *
  * **Provided data wins, and is synchronous.** When a `CatalogPreviewProvider`
  * above carries `data`, the answer is read from it during render — on the

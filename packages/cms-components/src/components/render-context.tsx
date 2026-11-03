@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, type ReactNode } from 'react';
+import type { FormFieldErrorCode } from '@endora-commerce/contracts';
 
 export interface CmsRenderEmbeds {
   blocks: Record<string, ReactNode>;
@@ -96,6 +97,66 @@ export interface CmsContactFormText {
   fieldEmail?: string;
 }
 
+/**
+ * Feature 170 (`specs/170-forms-module/` contracts/blocks-and-storefront.md §4) — the built-in
+ * words of `forms.Form` in the rendered page's language (the storefront's `forms` catalogue
+ * namespace). Strings only, with `{n}` placeholders, because the storefront's server component
+ * hands them to a client component and a function does not cross that boundary.
+ */
+export interface CmsFormsText {
+  submit: string;
+  required: string;
+  optional: string;
+  errorSummary: string;
+  /** `{n}`: how many fields need attention. */
+  errorSummaryCount: string;
+  accepted: string;
+  unavailable: string;
+  rateLimited: string;
+  tooLarge: string;
+  captchaFailed: string;
+  captchaUnavailable: string;
+  needsJavaScript: string;
+  truncatedAnswers: string;
+  closed: string;
+  notYetOpen: string;
+  full: string;
+  signIn: string;
+  signInLink: string;
+  selectPlaceholder: string;
+  countryPlaceholder: string;
+  fieldErrors: Record<FormFieldErrorCode, string>;
+  addressParts: Record<'street' | 'line2' | 'postalCode' | 'city' | 'country', string>;
+}
+
+/**
+ * What `forms.Form` needs from the page beyond its block data (contracts/blocks-and-storefront.md
+ * §4): the words, the countries in the page language, the viewer, and the page context hidden
+ * fields carry — computed by the storefront **on the server**, so a shopper without JavaScript
+ * posts them too (research R-11). `attempt` is a refused no-JS submission's answers and errors,
+ * read from the `forms_attempt` cookie only when the URL's `formsAttempt` matches (research R-10).
+ */
+export interface CmsFormsContext {
+  text: CmsFormsText;
+  /** The dictionary's countries, labelled in the page language. */
+  countries: readonly { code: string; label: string }[];
+  viewerSignedIn: boolean;
+  /** The sign-in path, with a `returnTo` to this page. */
+  signInPath: string;
+  pageContext: {
+    pageUrl: string;
+    pageTitle: string;
+    referrer: string;
+    query: Readonly<Record<string, string>>;
+  };
+  attempt: {
+    blockId: string;
+    errors: { fieldKey: string; code: string; message: string }[];
+    answers: Record<string, string | string[]>;
+    truncated: boolean;
+  } | null;
+}
+
 export interface CmsRenderContextValue {
   embeds: CmsRenderEmbeds;
   assets: Record<string, CmsRenderAsset>;
@@ -116,6 +177,8 @@ export interface CmsRenderContextValue {
   localizePath?: (path: string) => string;
   /** Feature 169 — the contact form's words in the page language; absent: English. */
   contactFormText?: CmsContactFormText;
+  /** Feature 170 — what `forms.Form` reads from the page; absent (the editor): English, no context. */
+  forms?: CmsFormsContext;
 }
 
 const emptyValue: CmsRenderContextValue = {
@@ -135,6 +198,7 @@ export function CmsRenderProvider({
   pageNavigationText,
   localizePath,
   contactFormText,
+  forms,
   children,
 }: {
   embeds: CmsRenderEmbeds;
@@ -146,6 +210,7 @@ export function CmsRenderProvider({
   pageNavigationText?: CmsPageNavigationText;
   localizePath?: (path: string) => string;
   contactFormText?: CmsContactFormText;
+  forms?: CmsFormsContext;
   children: ReactNode;
 }) {
   return (
@@ -160,6 +225,7 @@ export function CmsRenderProvider({
         ...(pageNavigationText !== undefined ? { pageNavigationText } : {}),
         ...(localizePath !== undefined ? { localizePath } : {}),
         ...(contactFormText !== undefined ? { contactFormText } : {}),
+        ...(forms !== undefined ? { forms } : {}),
       }}
     >
       {children}
@@ -207,4 +273,9 @@ export function useCmsRenderLocalizePath(): (path: string) => string {
 /** Feature 169 — the contact form's words in the page language, or `undefined` (English). */
 export function useCmsRenderContactFormText(): CmsContactFormText | undefined {
   return useContext(CmsRenderContext).contactFormText;
+}
+
+/** Feature 170 — what `forms.Form` reads from the page, or `undefined` (the editor). */
+export function useCmsRenderForms(): CmsFormsContext | undefined {
+  return useContext(CmsRenderContext).forms;
 }

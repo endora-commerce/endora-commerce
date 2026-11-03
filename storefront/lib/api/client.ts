@@ -77,13 +77,20 @@ export class StorefrontApiError extends Error {
    */
   readonly detail: string;
   readonly requestId?: string;
+  /**
+   * The envelope's `details`, as the backend sent them — what a caller acting on a refusal needs
+   * beyond its code (feature 170: the refused answers of `FORM_SUBMISSION_INVALID`, the reason of
+   * `FORM_NOT_ACCEPTING`). Absent when the envelope carried none.
+   */
+  readonly details?: unknown;
 
-  constructor(status: number, code: string, message: string, requestId?: string) {
+  constructor(status: number, code: string, message: string, requestId?: string, details?: unknown) {
     super(`${code}: ${message}`);
     this.status = status;
     this.code = code;
     this.detail = message;
     if (requestId !== undefined) this.requestId = requestId;
+    if (details !== undefined) this.details = details;
   }
 }
 

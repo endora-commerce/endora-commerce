@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { CmsBlogPostCard } from '../schema/blog-types.js';
 import type { CmsCategoryNode, CmsProductSummary } from '../schema/catalog-types.js';
+import type { PublicFormDefinition } from '@endora-commerce/contracts';
 import {
   blockDataKey,
+  blockDataOwnerOf,
   blockDataRequestOf,
   collectBlockDataRequests,
+  formBlockDataRequest,
   resolveBlockData,
   type BlockDataSource,
 } from './block-data.js';
@@ -337,5 +340,85 @@ describe('the blog-posts kind (T066)', () => {
     const { fetchBlogPosts: _omitted, ...withoutBlog } = sourceOf();
     const data = await resolveBlockData(requests, withoutBlog);
     expect(data).toEqual({});
+  });
+});
+
+/**
+ * `specs/170-forms-module/` T048 — the `form` kind (contracts/blocks-and-storefront.md §3): a
+ * `forms.Form` block declares the public read of its form, owned by `forms`, so the form is in the
+ * server HTML; with no form picked it declares nothing, and with `forms` absent or no form reader
+ * the read is skipped and the block renders nothing.
+ */
+describe('the form kind (T048)', () => {
+  const FORM_ID = '3b0c9f0e-2d1a-4c5b-8e7f-6a5b4c3d2e1f';
+  const OTHER_ID = '5d0c9f0e-2d1a-4c5b-8e7f-6a5b4c3d2e1f';
+  const UNAVAILABLE: PublicFormDefinition = { formId: FORM_ID, availability: 'unavailable' };
+
+  it('is declared from the forms.Form props, and not without a form', () => {
+    expect(blockDataRequestOf('forms.Form', { formId: FORM_ID })).toEqual({ kind: 'form', formId: FORM_ID });
+    expect(blockDataRequestOf('forms.Form', { formId: '' })).toBeNull();
+    expect(blockDataRequestOf('forms.Form', {})).toBeNull();
+    expect(formBlockDataRequest({ formId: '  ' })).toBeNull();
+  });
+
+  it('is owned by forms', () => {
+    expect(blockDataOwnerOf({ kind: 'form', formId: FORM_ID })).toBe('forms');
+  });
+
+  it('is read once per form, wherever and however often the form is placed', async () => {
+    const reads: string[] = [];
+    const requests = collectBlockDataRequests([
+      {
+        content: [
+          { type: 'forms.Form', props: { id: 'a', formId: FORM_ID } },
+          { type: 'cms.Section', props: { content: [{ type: 'forms.Form', props: { id: 'b', formId: FORM_ID } }] } },
+          { type: 'forms.Form', props: { id: 'c', formId: OTHER_ID } },
+        ],
+      },
+    ]);
+    expect(requests).toHaveLength(2);
+    const data = await resolveBlockData(
+      requests,
+      sourceOf({
+        fetchForm: async (formId) => {
+          reads.push(formId);
+          return { ...UNAVAILABLE, formId };
+        },
+      }),
+    );
+    expect(reads.sort()).toEqual([FORM_ID, OTHER_ID].sort());
+    expect(data[blockDataKey({ kind: 'form', formId: FORM_ID })]).toEqual(UNAVAILABLE);
+  });
+
+  it('skips the read while forms is absent, and asks it nothing', async () => {
+    let reads = 0;
+    const requests = collectBlockDataRequests([{ content: [{ type: 'forms.Form', props: { formId: FORM_ID } }] }]);
+    const data = await resolveBlockData(
+      requests,
+      sourceOf({
+        isModulePresent: (moduleId) => moduleId !== 'forms',
+        fetchForm: async () => {
+          reads += 1;
+          return UNAVAILABLE;
+        },
+      }),
+    );
+    expect(reads).toBe(0);
+    expect(data).toEqual({});
+  });
+
+  it('skips the read when the source has no form reader, and leaves a failed read out', async () => {
+    const requests = collectBlockDataRequests([{ content: [{ type: 'forms.Form', props: { formId: FORM_ID } }] }]);
+    expect(await resolveBlockData(requests, sourceOf())).toEqual({});
+    expect(
+      await resolveBlockData(
+        requests,
+        sourceOf({
+          fetchForm: async () => {
+            throw new Error('forms is down');
+          },
+        }),
+      ),
+    ).toEqual({});
   });
 });

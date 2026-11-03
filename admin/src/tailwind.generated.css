@@ -44,6 +44,7 @@
 @import "@endora-commerce/mod-delivery-methods/tailwind.css";
 @import "@endora-commerce/mod-dictionaries/tailwind.css";
 @import "@endora-commerce/mod-document-templates/tailwind.css";
+@import "@endora-commerce/mod-forms/tailwind.css";
 @import "@endora-commerce/mod-google-analytics/tailwind.css";
 @import "@endora-commerce/mod-import-export/tailwind.css";
 @import "@endora-commerce/mod-inventory/tailwind.css";

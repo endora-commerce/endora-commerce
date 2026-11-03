@@ -7,6 +7,7 @@ import {
   type CustomerAccountAdminSearchCriteria,
   type CustomerAccountAdminSearchPort,
   type CustomerAccountAdminSearchResult,
+  type CustomerAccountAnonymizedEventV1,
   type CustomerAccountLifecycleWritePort,
   type CustomerAccountRecord,
   type CustomerAccountStandaloneCreateInput,
@@ -103,6 +104,15 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
      * and refuses without it.
      */
     private readonly commandBus?: CommandBus,
+    /**
+     * `customer_account.anonymized.v1` (`specs/170-forms-module/` research
+     * R-17) — announced by {@link anonymize} after its flush and its audit row,
+     * only on the transition. A callback rather than the bus: `index.ts` binds
+     * it to a bus scope it reads per call and awaits, so a subscriber's work
+     * (forms erasing the account's entries) runs within the sweep step. Absent,
+     * nothing is announced — the hand-built test services pass none.
+     */
+    private readonly emitAnonymized?: (payload: CustomerAccountAnonymizedEventV1) => Promise<void>,
   ) {}
 
   /**
@@ -456,6 +466,13 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
     // The sweep runs on a timer, so there is no operator to attribute it to.
     await this.#record('customer_account.anonymized', account.id, null, before, {
       anonymizedAt: account.anonymizedAt.toISOString(),
+    });
+    // Ids only — never the e-mail or a name the scrub just removed.
+    await this.emitAnonymized?.({
+      eventId: randomUUID(),
+      occurredAt: account.anonymizedAt.toISOString(),
+      customerAccountId: account.id,
+      organizationId: account.organizationId,
     });
     return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
   }

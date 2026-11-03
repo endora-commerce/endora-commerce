@@ -63,6 +63,8 @@ function previewApi(): CatalogPreviewApi & Record<keyof CatalogPreviewApi, Retur
       { id: 'c1', name: 'Power Tools', slug: 'power-tools', sortOrder: 0, productCount: 4, children: [] },
     ]),
     fetchBlogPosts: vi.fn(async () => []),
+    // Feature 170 — the form block's read; no block of this document asks for it.
+    fetchForm: vi.fn(async (formId: string) => ({ formId, availability: 'unavailable' as const })),
   };
 }
 

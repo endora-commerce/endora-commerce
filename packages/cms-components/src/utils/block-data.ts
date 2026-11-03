@@ -1,6 +1,7 @@
 import type { CmsBlogPostCard } from '../schema/blog-types.js';
 import type { CmsCategoryNode, CmsProductSummary } from '../schema/catalog-types.js';
 import { filterCategories } from './catalog-fetch.js';
+import type { FormBlockData } from './catalog-preview-bridge.js';
 
 /**
  * What a data-driven block needs before it can render, declared as data.
@@ -14,7 +15,8 @@ import { filterCategories } from './catalog-fetch.js';
  * from `CatalogPreviewProvider`'s `data` under {@link blockDataKey}.
  *
  * The request kinds are a closed union (`specs/163-page-builder-marketing-pages/`
- * research R-15): the catalogue's three and `blog-posts`. Each kind has an
+ * research R-15): the catalogue's three, `blog-posts`, and `form` — the public
+ * read of a `forms.Form` block's form (`specs/170-forms-module/` research R-8). Each kind has an
  * owner module ({@link blockDataOwnerOf}); a request whose owner is absent is
  * skipped, so a switched-off module costs the page nothing.
  *
@@ -41,7 +43,8 @@ export type BlockDataRequest =
       readonly parentSlug: string;
       readonly maxDepth?: number;
     }
-  | { readonly kind: 'blog-posts'; readonly limit: number; readonly categorySlug?: string };
+  | { readonly kind: 'blog-posts'; readonly limit: number; readonly categorySlug?: string }
+  | { readonly kind: 'form'; readonly formId: string };
 
 /** One category as the category blocks render it. */
 export interface CatalogCategoryItem {
@@ -51,8 +54,8 @@ export interface CatalogCategoryItem {
   depth: number;
 }
 
-/** One resolved answer: products, categories or blog post cards. */
-export type BlockDataValue = CmsProductSummary[] | CatalogCategoryItem[] | CmsBlogPostCard[];
+/** One resolved answer: products, categories, blog post cards or a form's public read. */
+export type BlockDataValue = CmsProductSummary[] | CatalogCategoryItem[] | CmsBlogPostCard[] | FormBlockData;
 
 /**
  * Resolved answers, keyed by {@link blockDataKey}. Plain JSON, so it
@@ -73,6 +76,11 @@ export interface BlockDataSource {
   /** The newest published posts of the request's channel. Absent: `blog-posts` requests are skipped. */
   fetchBlogPosts?: (query: { limit: number; categorySlug?: string }) => Promise<CmsBlogPostCard[]>;
   /**
+   * A form's public read (`GET /api/v1/storefront/forms/:formId`) — viewer-independent, so it is
+   * read anonymously. Absent: `form` requests are skipped and the block renders nothing.
+   */
+  fetchForm?: (formId: string) => Promise<FormBlockData>;
+  /**
    * Whether a module is present for this request (both activation axes). A
    * request whose owner answers `false` is skipped and its owner is not asked.
    * Absent: every owner is taken as present, as an unread presence degrades open.
@@ -81,8 +89,10 @@ export interface BlockDataSource {
 }
 
 /** The module that answers a request kind. */
-export function blockDataOwnerOf(request: BlockDataRequest): 'catalog' | 'blog' {
-  return request.kind === 'blog-posts' ? 'blog' : 'catalog';
+export function blockDataOwnerOf(request: BlockDataRequest): 'catalog' | 'blog' | 'forms' {
+  if (request.kind === 'blog-posts') return 'blog';
+  if (request.kind === 'form') return 'forms';
+  return 'catalog';
 }
 
 type BlockProps = Readonly<Record<string, unknown>>;
@@ -152,6 +162,12 @@ export function blogPostsDataRequest(props: {
   return { kind: 'blog-posts', limit, ...(categorySlug ? { categorySlug } : {}) };
 }
 
+/** The request of a `forms.Form` block: its form's public read, or `null` while no form is picked. */
+export function formBlockDataRequest(props: { formId?: string | undefined }): BlockDataRequest | null {
+  const formId = props.formId?.trim() ?? '';
+  return formId === '' ? null : { kind: 'form', formId };
+}
+
 /**
  * The declarations, keyed by the block name a stored document carries. A block
  * absent from this map shows no fetched data and costs the server nothing.
@@ -193,6 +209,7 @@ const DECLARATIONS: Readonly<Record<string, (props: BlockProps) => BlockDataRequ
       limit: typeof props['limit'] === 'number' ? props['limit'] : undefined,
       categorySlug: text(props['categorySlug']),
     }),
+  'forms.Form': (props) => formBlockDataRequest({ formId: text(props['formId']) }),
 };
 
 /** What the block `type` with these stored props needs, or `null` for a block that needs nothing. */
@@ -222,6 +239,8 @@ export function blockDataKey(request: BlockDataRequest): string {
       ]);
     case 'blog-posts':
       return JSON.stringify(['blog-posts', request.categorySlug ?? null, request.limit]);
+    case 'form':
+      return JSON.stringify(['form', request.formId]);
   }
 }
 
@@ -337,13 +356,17 @@ export async function resolveBlockData(
     | { readonly kind: 'product'; readonly slug: string }
     | { readonly kind: 'list'; readonly key: string; readonly request: BlockDataRequest & { kind: 'products-list' } }
     | { readonly kind: 'tree' }
-    | { readonly kind: 'posts'; readonly key: string; readonly request: BlockDataRequest & { kind: 'blog-posts' } };
+    | { readonly kind: 'posts'; readonly key: string; readonly request: BlockDataRequest & { kind: 'blog-posts' } }
+    | { readonly kind: 'form'; readonly key: string; readonly formId: string };
 
   const isPresent = source.isModulePresent ?? (() => true);
   const fetchBlogPosts = source.fetchBlogPosts;
+  const fetchForm = source.fetchForm;
   const requests = allRequests.filter(
     (request) =>
-      isPresent(blockDataOwnerOf(request)) && (request.kind !== 'blog-posts' || fetchBlogPosts !== undefined),
+      isPresent(blockDataOwnerOf(request)) &&
+      (request.kind !== 'blog-posts' || fetchBlogPosts !== undefined) &&
+      (request.kind !== 'form' || fetchForm !== undefined),
   );
 
   const slugs = new Set<string>();
@@ -353,6 +376,7 @@ export async function resolveBlockData(
     if (request.kind === 'products-by-slugs') for (const slug of request.slugs) slugs.add(slug);
     else if (request.kind === 'products-list') units.push({ kind: 'list', key: blockDataKey(request), request });
     else if (request.kind === 'blog-posts') units.push({ kind: 'posts', key: blockDataKey(request), request });
+    else if (request.kind === 'form') units.push({ kind: 'form', key: blockDataKey(request), formId: request.formId });
     else needsTree = true;
   }
   for (const slug of slugs) units.push({ kind: 'product', slug });
@@ -378,6 +402,8 @@ export async function resolveBlockData(
       const { limit, categorySlug } = unit.request;
       const posts = await fetchBlogPosts!({ limit, ...(categorySlug !== undefined ? { categorySlug } : {}) });
       data[unit.key] = posts.slice(0, limit).map(toPostCard);
+    } else if (unit.kind === 'form') {
+      data[unit.key] = await fetchForm!(unit.formId);
     } else {
       tree = await source.fetchCategoryTree();
     }

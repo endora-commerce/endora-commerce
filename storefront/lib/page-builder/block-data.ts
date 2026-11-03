@@ -6,6 +6,7 @@ import {
 } from '@endora-commerce/cms-components/utils/block-data';
 import { listBlogPosts } from '../api/blog';
 import { getCategoryTree, getProductBySlug, listProducts } from '../api/catalog';
+import { getPublicForm } from '../api/forms';
 import { StorefrontApiError, type RequestContext } from '../api/client';
 import type { ModulePresenceSet } from '../api/module-presence';
 
@@ -15,7 +16,7 @@ import type { ModulePresenceSet } from '../api/module-presence';
  * (Constitution VII).
  *
  * `ProductGrid`, `ProductSlider`, `ProductCard`, `CategoryList`,
- * `CategoryGrid` and `blog.LatestPosts` each declare what they need
+ * `CategoryGrid`, `blog.LatestPosts` and `forms.Form` each declare what they need
  * (`@endora-commerce/cms-components/utils/block-data`); this is the
  * storefront's half — where the answers come from, and **as whom**.
  *
@@ -84,5 +85,7 @@ function blockDataSource(ctx: RequestContext, modules: ModulePresenceSet | undef
     fetchCategoryTree: async () => await getCategoryTree(ctx),
     // Cards carry no price and nothing about the viewer: the channel and language ride on the read.
     fetchBlogPosts: async (query) => await listBlogPosts(query, ctx),
+    // Feature 170 — a form's public read is the same for every viewer: anonymous, shared, tagged.
+    fetchForm: async (formId) => await getPublicForm(formId, ctx),
   };
 }

@@ -170,6 +170,10 @@ const MIGRATED_MODULES: readonly string[] = [
   // (feature 134, T069), taking its codes and their `MINTED_ERROR_CODES`
   // entries with it.
   'erp_connector',
+  // Feature 170 (`specs/170-forms-module/`): mints its codes with the module, one
+  // `MINTED_ERROR_CODES` entry each and nothing in the frozen capture — the
+  // shape of `tasks` above.
+  'forms',
   // `infakt` was here — its two codes were minted with it — and left this
   // repository with them (feature 134, T069).
   'inventory',

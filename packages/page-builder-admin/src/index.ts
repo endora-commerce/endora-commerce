@@ -121,3 +121,5 @@ export {
   withNewsletterAttributePick,
 } from './chrome/NewsletterPickers.js';
 export type { NewsletterAttributePick } from './chrome/NewsletterPickers.js';
+// Feature 170 (FR-004): the form of a `forms.Form` block, picked from the forms the editor may see.
+export { FormPickerControl, createFormPickerField } from './chrome/FormPickers.js';

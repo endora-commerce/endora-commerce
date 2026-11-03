@@ -299,3 +299,8 @@ export * from './environment-inputs.js';
 export * from './admin-search.js';
 // Document templates — Page Builder layouts of generated PDFs (specs/152-compare-pdf-template/).
 export * from './document-templates.js';
+// Forms (`specs/170-forms-module/`): the form definition, the admin and public API shapes, the
+// events — and, beside them, the one evaluator of visibility and validation that the backend, the
+// storefront renderer and the admin preview all run (research R-5).
+export * from './forms.js';
+export * from './forms-logic.js';

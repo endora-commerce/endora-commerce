@@ -54,6 +54,9 @@ import { registerModule as registerProjects } from '@endora-commerce/mod-project
 // `tasks` offers the Task record type to `admin_search`'s registry
 // (`specs/163-projects-and-tasks/`, User Story 11).
 import { registerModule as registerTasks } from '@endora-commerce/mod-tasks/backend';
+// `forms` offers `forms.entry.submitted.v1` to `webhooks`' registry
+// (`specs/170-forms-module/`), by its published specifier like the rest.
+import { registerModule as registerForms } from '@endora-commerce/mod-forms/backend';
 
 /**
  * **A contribution to a registry that was never registered is dropped**
@@ -281,6 +284,10 @@ const COMPOSERS: Readonly<
       settingWriteValidatorRegistry: { register: () => {} },
       emailDefaultsPort: { register: () => {} },
     }),
+  // `forms` offers `forms.entry.submitted.v1` to `webhooks`' registry
+  // (`specs/170-forms-module/` contracts/events-and-webhook.md §1). It has no
+  // other boot hook.
+  forms: (withOwner, ownerNames) => compose('forms', registerForms, ownerNames, withOwner),
   inventory: (withOwner, ownerNames) =>
     compose('inventory', registerInventory, ownerNames, withOwner, {
       countryReferenceRegistry: { register: () => {} },

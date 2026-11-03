@@ -258,6 +258,14 @@ const modules = [
   },
   {
     type: 'category',
+    label: 'Forms', key: 'forms',
+    link: { type: 'doc', id: 'modules/forms' },
+    items: [
+      'module-reference/forms',
+    ],
+  },
+  {
+    type: 'category',
     label: 'Google Analytics', key: 'google_analytics',
     link: { type: 'doc', id: 'modules/google-analytics' },
     items: [
