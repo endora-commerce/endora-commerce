@@ -10,6 +10,7 @@ import { ADMIN_PREFERENCES_DEFAULTS, ADMIN_PRODUCT_SELECTION_MAX } from '@endora
 import type { Bundle } from '@endora-commerce/admin-kit/i18n';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
+import { orgSalesChannels } from './org-sales-channels';
 
 /**
  * Feature 145, User Story 1 (FR-020, FR-022…FR-024, FR-026): on Create order,
@@ -209,7 +210,7 @@ const sessionWithPageSize = (): AdminMe => ({
 const kitClient = (
   await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>('@endora-commerce/admin-kit/lib')
 ).apiClient;
-const CUSTOMER = { id: 'cust-1', email: 'jan@acme.test', firstName: 'Jan', lastName: 'Kowalski', organizationName: 'Acme' };
+const CUSTOMER = { id: 'cust-1', email: 'jan@acme.test', firstName: 'Jan', lastName: 'Kowalski', organizationName: 'Acme', organizationId: 'org-1' };
 const ORG_ADDRESS = {
   id: 'addr-1',
   recipientName: 'Acme HQ',
@@ -241,8 +242,8 @@ beforeEach(() => {
       const row = catalog.find((p) => p.id === path.slice(LIST_PATH.length + 1));
       return row ? Promise.resolve({ data: row }) : Promise.reject(new Error('not found'));
     }
-    if (path.startsWith('/api/v1/admin/sales-channels')) {
-      return Promise.resolve({ items: [{ id: 'chan-1', code: 'CH', name: { 'en-US': 'Channel 1' }, active: true }] });
+    if (path.endsWith('/sales-channels')) {
+      return Promise.resolve(orgSalesChannels([{ id: 'chan-1', code: 'CH', name: { 'en-US': 'Channel 1' }, active: true }]));
     }
     if (path.startsWith('/api/v1/admin/payment-methods')) {
       return Promise.resolve({ data: [{ id: 'pay-1', code: 'PM', name: { 'en-US': 'Payment 1' }, status: 'active' }] });
@@ -258,8 +259,12 @@ beforeEach(() => {
   });
 });
 
-/** Opened with the customer and the channel chosen, so **Items** shows at once. */
-function renderPage(): void {
+/**
+ * Opened with the customer and the channel chosen, so **Items** shows as soon
+ * as the customer's Organization's channels are read and the link's channel is
+ * found among them (issue #515).
+ */
+async function renderPage(): Promise<void> {
   // <StrictMode>, as the admin renders (admin-shell's AdminRoot): its dev
   // double-mount is what an effect cleared only in cleanup does not survive.
   renderWithI18n(
@@ -273,6 +278,7 @@ function renderPage(): void {
     </StrictMode>,
     BUNDLE,
   );
+  await screen.findByText(CORE['orderCreate.items.empty']!);
 }
 
 type User = ReturnType<typeof userEvent.setup>;
@@ -334,8 +340,8 @@ async function pickOption(user: User, comboLabel: string, optionLabel: string): 
 // ---------------------------------------------------------------- cases
 
 describe('OrderCreatePage — Browse products and the quick search (US1)', () => {
-  it('starts with no lines and an empty state, and has no per-row product search', () => {
-    renderPage();
+  it('starts with no lines and an empty state, and has no per-row product search', async () => {
+    await renderPage();
     expect(screen.getByText(CORE['orderCreate.items.empty']!)).toBeInTheDocument();
     expect(screen.queryByLabelText('product-0')).toBeNull();
     expect(screen.getByRole('button', { name: 'Browse products' })).toBeEnabled();
@@ -344,7 +350,7 @@ describe('OrderCreatePage — Browse products and the quick search (US1)', () =>
 
   it('opens on Active with the order rules: grouped and inactive shown with a reason, archived not offered (sc. 1, 7)', async () => {
     const user = userEvent.setup();
-    renderPage();
+    await renderPage();
     const dialog = await openPicker(user);
 
     expect(within(dialog).getByRole('tab', { name: /^Active/ }).getAttribute('aria-selected')).toBe('true');
@@ -373,7 +379,7 @@ describe('OrderCreatePage — Browse products and the quick search (US1)', () =>
 
   it('adds 5 + 3 ticked across a page change and a filter change as 8 priced lines in tick order (sc. 2, 3)', async () => {
     const user = userEvent.setup();
-    renderPage();
+    await renderPage();
     const dialog = await openPicker(user);
 
     const firstPage = ['Widget 01', 'Widget 02', 'Widget 03', 'Widget 04', 'Widget 05'];
@@ -402,7 +408,7 @@ describe('OrderCreatePage — Browse products and the quick search (US1)', () =>
 
   it('re-prices the line and the summary when a quantity changes (sc. 4)', async () => {
     const user = userEvent.setup();
-    renderPage();
+    await renderPage();
     await addThroughPicker(user, ['Widget 01', 'Widget 02']);
     await waitFor(() => expect(summaryTotal()).toBe(money(20)));
 
@@ -422,7 +428,7 @@ describe('OrderCreatePage — Browse products and the quick search (US1)', () =>
 
   it('re-prices with the lines unchanged when the delivery and then the payment method change (FR-023)', async () => {
     const user = userEvent.setup();
-    renderPage();
+    await renderPage();
     await addThroughPicker(user, ['Widget 01', 'Widget 02']);
     await waitFor(() => expect(summaryTotal()).toBe(money(20)));
     const items = [
@@ -445,7 +451,7 @@ describe('OrderCreatePage — Browse products and the quick search (US1)', () =>
 
   it('a product already a line can be picked again, as a line of its own (feature 159, N-31)', async () => {
     const user = userEvent.setup();
-    renderPage();
+    await renderPage();
     await addThroughPicker(user, ['Widget 01']);
 
     const dialog = await openPicker(user);
@@ -466,7 +472,7 @@ describe('OrderCreatePage — Browse products and the quick search (US1)', () =>
 
   it('adds nothing on cancel and keeps the existing lines (sc. 10)', async () => {
     const user = userEvent.setup();
-    renderPage();
+    await renderPage();
     await addThroughPicker(user, ['Widget 01']);
 
     const dialog = await openPicker(user);
@@ -482,7 +488,7 @@ describe('OrderCreatePage — Browse products and the quick search (US1)', () =>
     );
     catalogPageSize = 500;
     const user = userEvent.setup();
-    renderPage();
+    await renderPage();
     const dialog = await openPicker(user);
 
     await user.click(within(dialog).getByRole('checkbox', { name: 'Select all selectable products on this page' }));
@@ -497,7 +503,7 @@ describe('OrderCreatePage — Browse products and the quick search (US1)', () =>
 
   it('appends one line from the quick search by SKU, under the same rules (sc. 8, FR-020)', async () => {
     const user = userEvent.setup();
-    renderPage();
+    await renderPage();
     await addThroughPicker(user, ['Widget 01']);
     const quick = screen.getByRole('combobox', { name: CORE['orderCreate.items.quickSearch']! });
 
@@ -541,7 +547,7 @@ describe('OrderCreatePage — Browse products and the quick search (US1)', () =>
       a05: 'SOME_FUTURE_CODE',
     };
     const user = userEvent.setup();
-    renderPage();
+    await renderPage();
     await pickOption(user, 'paymentMethodId', 'Payment 1');
     await pickOption(user, 'deliveryMethodId', 'Delivery 1');
     await addThroughPicker(user, ['Widget 01', 'Widget 02', 'Widget 03', 'Widget 04', 'Widget 05', 'Widget 06']);
@@ -570,7 +576,7 @@ describe('OrderCreatePage — Browse products and the quick search (US1)', () =>
     'marks a line with quantity %s, leaves it out of the preview and blocks submit',
     async (bad) => {
       const user = userEvent.setup();
-      renderPage();
+      await renderPage();
       await pickOption(user, 'paymentMethodId', 'Payment 1');
       await pickOption(user, 'deliveryMethodId', 'Delivery 1');
       await addThroughPicker(user, ['Widget 01', 'Widget 02']);
@@ -597,7 +603,7 @@ describe('OrderCreatePage — Browse products and the quick search (US1)', () =>
       return Promise.resolve({ data: { id: 'new-order-1' } });
     });
     const user = userEvent.setup();
-    renderPage();
+    await renderPage();
     await addThroughPicker(user, ['Widget 01', 'Widget 02']);
 
     expect(await screen.findByText(CORE['orderCreate.preview.error']!)).toBeInTheDocument();
@@ -610,7 +616,7 @@ describe('OrderCreatePage — Browse products and the quick search (US1)', () =>
 
   it('creates the order with exactly the visible lines and quantities (FR-026)', async () => {
     const user = userEvent.setup();
-    renderPage();
+    await renderPage();
     await pickOption(user, 'paymentMethodId', 'Payment 1');
     await pickOption(user, 'deliveryMethodId', 'Delivery 1');
     await addThroughPicker(user, ['Widget 01', 'Widget 02', 'Widget 03']);

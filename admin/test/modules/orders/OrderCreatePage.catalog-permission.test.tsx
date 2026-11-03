@@ -7,6 +7,7 @@ import { MemoryRouter } from 'react-router-dom';
 import type { Bundle } from '@endora-commerce/admin-kit/i18n';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
+import { orgSalesChannels } from './org-sales-channels';
 
 /**
  * Feature 145 QA — two host-level assertions the shared-component suites cannot make.
@@ -72,12 +73,12 @@ beforeEach(() => {
         counts: { all: 2, active: 2, inactive: 0, archived: 0 },
       });
     }
-    if (path.startsWith('/api/v1/admin/sales-channels')) {
-      return Promise.resolve({ items: [{ id: 'chan-1', code: 'CH', name: { 'en-US': 'Channel 1' }, active: true }] });
+    if (path.endsWith('/sales-channels')) {
+      return Promise.resolve(orgSalesChannels([{ id: 'chan-1', code: 'CH', name: { 'en-US': 'Channel 1' }, active: true }]));
     }
     if (path.includes('/addresses')) return Promise.resolve({ data: { personal: [], organization: [] } });
     if (path === '/api/v1/admin/customers/cust-1') {
-      return Promise.resolve({ data: { id: 'cust-1', email: 'j@a.test', firstName: 'Jan', lastName: 'K', organizationName: 'Acme' } });
+      return Promise.resolve({ data: { id: 'cust-1', email: 'j@a.test', firstName: 'Jan', lastName: 'K', organizationName: 'Acme', organizationId: 'org-1' } });
     }
     return Promise.resolve({ data: [] });
   });
