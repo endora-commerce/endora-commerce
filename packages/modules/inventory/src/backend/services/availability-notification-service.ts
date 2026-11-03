@@ -364,7 +364,7 @@ export class AvailabilityNotificationService {
       items: rows.map((r) => {
         const p = productById.get(r.productId);
         const productName = p
-          ? p.name || p.sku /* 170-shim: Global name */
+          ? p.name || p.sku /* the operator list: Global (FR-031) */
           : '—';
         const email =
           r.email ??
@@ -415,7 +415,7 @@ export class AvailabilityNotificationService {
 
     const product = await this.catalogProducts.findById(input.productId);
     const productName = product
-      ? product.name || product.sku /* 170-shim: Global name */
+      ? product.name || product.sku /* 170-shim: Global name — blocked: subscriptions store no channel or language (T054) */
       : 'product';
     const customerIds = Array.from(
       new Set(rows.map((r) => r.customerAccountId).filter((id): id is string => typeof id === 'string')),

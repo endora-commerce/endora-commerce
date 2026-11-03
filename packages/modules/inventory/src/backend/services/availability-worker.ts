@@ -79,7 +79,7 @@ export class AvailabilityWorker {
       customerIds.length > 0 ? await this.customerAccounts.findByIds(customerIds) : [];
     const emailById = new Map(customers.map((c) => [c.id, c.email]));
 
-    const productName = product.name || product.sku /* 170-shim: Global name */;
+    const productName = product.name || product.sku /* 170-shim: Global name — blocked: subscriptions store no channel or language (T054) */;
     const now = new Date();
 
     for (const sub of subscriptions) {
