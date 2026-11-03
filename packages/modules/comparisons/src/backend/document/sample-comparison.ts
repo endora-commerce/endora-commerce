@@ -7,13 +7,19 @@ import type { ComparisonDocumentData } from '@endora-commerce/contracts';
  * the viewer, prices for an organisation, and a placeholder share address.
  * Names are the effective string in the preview's language (feature 170: one name per (C, L)).
  */
+/** The sample product's name per preview language (the effective string a reader would get). */
+const SAMPLE_NAMES: Readonly<Record<string, (n: number) => string>> = {
+  'en-US': (n) => `Sample product ${n}`,
+  'pl-PL': (n) => `Przykładowy produkt ${n}`,
+};
+
 export function sampleComparisonData(language: string): ComparisonDocumentData {
-  const polish = language.toLowerCase().startsWith('pl');
+  const nameOf = language.toLowerCase().startsWith('pl') ? SAMPLE_NAMES['pl-PL']! : SAMPLE_NAMES['en-US']!;
   const at = '2026-10-17T09:00:00.000Z';
   const product = (n: number, over: Partial<ComparisonDocumentData['view']['products'][number]> = {}) => ({
     id: `00000000-0000-4000-8000-00000000c0${n}0`,
     sku: `SAMPLE-${n}00`,
-    name: polish ? `Przykładowy produkt ${n}` : `Sample product ${n}`,
+    name: nameOf(n),
     slug: `sample-product-${n}`,
     type: 'simple' as const,
     primaryAssetUrl: null,

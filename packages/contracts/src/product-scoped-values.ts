@@ -105,9 +105,13 @@ const audienceValueSchema = z
     allowedOrganizationIds: z.array(uuidSchema).max(SCOPED_AUDIENCE_ORGANIZATIONS_MAX),
   })
   .strict();
+/**
+ * The roles keyed by the camelCase name of the gallery label (`baseImage` = `base_image`,
+ * Principle VI: API keys are camelCase; the label spelling stays a value).
+ */
 const galleryRolesView = z.object({
-  base_image: scopedFieldViewSchema(uuidSchema),
-  small_image: scopedFieldViewSchema(uuidSchema),
+  baseImage: scopedFieldViewSchema(uuidSchema),
+  smallImage: scopedFieldViewSchema(uuidSchema),
   thumbnail: scopedFieldViewSchema(uuidSchema),
 });
 const seoView = z.object({
@@ -292,8 +296,8 @@ export const scopedValueChangesSchema = z
           .optional(),
         roles: z
           .object({
-            base_image: scopedWrite(uuidSchema),
-            small_image: scopedWrite(uuidSchema),
+            baseImage: scopedWrite(uuidSchema),
+            smallImage: scopedWrite(uuidSchema),
             thumbnail: scopedWrite(uuidSchema),
           })
           .strict()

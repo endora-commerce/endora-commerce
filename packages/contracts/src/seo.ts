@@ -515,7 +515,8 @@ export interface SeoProductMetaPort {
 export type SeoProductMetaOwnValue = { own: string | { empty: true } } | { inherited: true };
 
 /**
- * Container name: `seoProductMetaWritePort`. Owner: `seo` (feature 170, FR-091).
+ * Owner: `seo` (feature 170, FR-091). Its container name, `seoProductMetaWritePort`, is published with its
+ * registration in T121 (stream S2); until then no module provides it and catalog does not resolve it.
  *
  * Writes product metadata **on the caller's EntityManager**: no fork, no flush, no audit entry,
  * no event — `catalog`'s save Command commits or rolls the rows back with its own. `catalog`

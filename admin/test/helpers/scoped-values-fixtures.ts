@@ -60,7 +60,7 @@ export function scopedValuesResponse(
     attributes: [],
     gallery: {
       items: [],
-      roles: { base_image: scopedField<string>(null), small_image: scopedField<string>(null), thumbnail: scopedField<string>(null) },
+      roles: { baseImage: scopedField<string>(null), smallImage: scopedField<string>(null), thumbnail: scopedField<string>(null) },
     },
     attachments: [],
     packagingUnits: [],

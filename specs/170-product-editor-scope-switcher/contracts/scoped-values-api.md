@@ -45,7 +45,7 @@ type ScopedValuesResponse = { data: {
   gallery: { items: Array<{ id; assetId; url; position;
                             altText: ScopedFieldView<string>; hidden: ScopedFieldView<boolean>;
                             assetAltText: string | null /* derived fallback in the scope's language */ }>;
-             roles: Record<'base_image' | 'small_image' | 'thumbnail', ScopedFieldView<string /* item id */>> };
+             roles: Record<'baseImage' | 'smallImage' | 'thumbnail', ScopedFieldView<string /* item id */>> }; // camelCase keys of the labels (Principle VI)
   attachments: Array<{ id; assetId; typeId; position; fileName;
                        name: ScopedFieldView<string>; description: ScopedFieldView<string>;
                        hidden: ScopedFieldView<boolean> }>;
@@ -93,7 +93,7 @@ type SaveScopedValuesRequest = {
     urlKey?: ScopedWrite<string>; confirmTakeover?: string[];   // 163 FR-072, operator only
     attributes?: Record<string, ScopedWrite<unknown>>;
     gallery?: { items?: Record<uuid, { altText?: ScopedWrite<string>; hidden?: ScopedWrite<boolean> }>;
-                roles?: Partial<Record<GalleryLabel, ScopedWrite<uuid>>> };
+                roles?: Partial<Record<'baseImage' | 'smallImage' | 'thumbnail', ScopedWrite<uuid>>> };
     attachments?: Record<uuid, { name?: ScopedWrite<string>; description?: ScopedWrite<string>;
                                  hidden?: ScopedWrite<boolean> }>;
     packagingUnits?: Record<uuid, { name?: ScopedWrite<string> }>;

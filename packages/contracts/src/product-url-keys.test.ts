@@ -87,7 +87,7 @@ describe('putProductUrlKeysRequestSchema (170: Channel and Channel × language k
     expect(putProductUrlKeysRequestSchema.safeParse({ channelKeys: [{ channelId: C, key: 'Bohrer' }] }).success).toBe(false);
   });
 
-  it.each(['//host', '/\\host', '..', 'a%2fb', 'a:b', 'a b', 'ŻÓŁW'])('refuses the key %s', (key) => {
+  it.each(['//host', '/\\host', '..', 'a%2fb', 'a:b', 'a b', '\u017b\u00d3\u0141W'])('refuses the key %s', (key) => {
     expect(putProductUrlKeysRequestSchema.safeParse({ channelKeys: [{ channelId: C, key }] }).success).toBe(false);
   });
 
