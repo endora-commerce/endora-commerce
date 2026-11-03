@@ -650,7 +650,7 @@ export class PriceBookReads {
         (row.variantId !== null && !variant) ||
         (row.categoryId !== null && (!category || category.deletedAt !== null));
       const labels: PriceBookRowLabels = {
-        productName: product ? product.name /* 168-shim: Global text */ : null,
+        productName: product ? product.name /* 170-shim: Global text */ : null,
         productSku: product?.sku ?? null,
         variantLabel: variant ? variantLabel(variant.variantAttributeValues) : null,
         variantSku: variant?.sku ?? null,

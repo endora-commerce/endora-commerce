@@ -108,7 +108,7 @@ function scopeChain(
     const c = rows.find((r) => r.salesChannelId === channelId && (r.locale ?? null) === null);
     if (c) chain.push({ row: c, source: 'inherited_channel' });
   }
-  // Feature 168 (FR-010) — the Global row, never a Language-only one. 168-shim: the empty override
+  // Feature 170 (FR-010) — the Global row, never a Language-only one. 170-shim: the empty override
   // (`''`) → derived value rule of round 6 is T121's.
   const g = rows.find((r) => (r.salesChannelId ?? null) === null && (r.locale ?? null) === null);
   if (g) chain.push({ row: g, source: 'inherited_global' });
@@ -239,8 +239,8 @@ export class MetaTagResolverService implements SeoProductMetaPort {
   }
 
   /**
-   * Feature 168 (`contracts/seo-ports.md` §1) — each field's view at one scope.
-   * 168-shim: no scope validation (`422 SCOPE_INVALID`) yet — T121's.
+   * Feature 170 (`contracts/seo-ports.md` §1) — each field's view at one scope.
+   * 170-shim: no scope validation (`422 SCOPE_INVALID`) yet — T121's.
    */
   async readScoped(productId: string, scope: ScopeRef): Promise<Record<SeoProductMetaField, ScopedFieldView<string>>> {
     const rows = await this.emFactory().find(SeoMetaOverride, { entityType: 'product', entityId: productId });
@@ -351,7 +351,7 @@ export function buildRuleMeta(
   locale: string,
 ): { title: string; description: string; openGraph: ResolvedMeta['openGraph'] } {
   if (entityType === 'product' && source.product) {
-    // 168-shim: the Global texts; the derived fallback at (C, L) through `effectiveTexts` is T121's.
+    // 170-shim: the Global texts; the derived fallback at (C, L) through `effectiveTexts` is T121's.
     const name = source.product.name;
     const description = source.product.description ?? '';
     return {

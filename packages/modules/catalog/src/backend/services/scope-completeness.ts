@@ -46,7 +46,7 @@ export const SCOPE_COMPLETENESS_GATE_SETTING = 'catalog.scope_completeness_gate'
 
 /** Everything {@link checkCompleteness} reads about one product. */
 export interface CompletenessFacts {
-  /** Feature 168 — the Global name, one string. */
+  /** Feature 170 — the Global name, one string. */
   name: string;
   /** The global URL key (`products.slug`). */
   slug: string;
@@ -76,7 +76,7 @@ function hasValue(value: unknown): boolean {
 const TEXT_LEVELS: readonly ScopeLevel[] = ['G', 'C', 'CL'];
 
 /**
- * Feature 168 (R16, FR-095, FR-096) — the field's effective value at (C, L) along C×L → C → G,
+ * Feature 170 (R16, FR-095, FR-096) — the field's effective value at (C, L) along C×L → C → G,
  * restricted to its scope set: a Global value satisfies every (C, L); an empty override at C×L
  * or C does not.
  */

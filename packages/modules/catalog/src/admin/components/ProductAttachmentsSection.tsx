@@ -92,7 +92,7 @@ export function AttachmentsSection({ productId }: { productId: string }): ReactN
             name: a.name,
             description: a.description,
             position: a.position,
-            // 168-shim: 163's per-scope maps are gone from the DTO; S3 moves these to `ScopedField`.
+            // 170-shim: 163's per-scope maps are gone from the DTO; S3 moves these to `ScopedField`.
             nameTranslations: {},
             descriptionTranslations: {},
             hiddenInChannels: [],

@@ -131,7 +131,7 @@ takeovers, orphan rows removed) are listed in before / after.
 
 **Undo (FR-074).** The audit `before` is a complete, valid `changes` body for the same scope (each cell's prior
 `set` / `empty` / `inherit`); re-applying it through this route restores the save as one. No editor Undo button.
-No restore UI in 168 (owner round 6); "Restore this save" on the audit entry is a named follow-up.
+No restore UI in 170 (owner round 6); "Restore this save" on the audit entry is a named follow-up.
 
 **Version and immediate actions (R7).** Only the Save, copy and other scoped-value / product-row writes bump the
 version. Immediate actions (structural operations, price-book rows, channel membership, stock) never do, so a

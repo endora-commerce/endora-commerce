@@ -3,7 +3,7 @@ import { isoDateTimeSchema, uuidSchema } from './common.js';
 import { storefrontPagePath, type ChannelUrlFacts } from './storefront-language-path.js';
 
 /**
- * Feature 163, rewritten by feature 168 (`specs/168-product-editor-scope-switcher/contracts/
+ * Feature 163, rewritten by feature 170 (`specs/170-product-editor-scope-switcher/contracts/
  * url-keys.md`, research R12) — product URL keys at Global (`products.slug`), Channel and
  * Channel × language, their redirects per (channel, language), and the one helper that composes
  * a product URL.
@@ -85,7 +85,7 @@ export function productDefaultPath(key: string): string {
 export const productUrlKeySourceSchema = z.enum(['channel_language', 'channel', 'global']);
 export type ProductUrlKeySource = z.infer<typeof productUrlKeySourceSchema>;
 
-/** A redirect answers at one (channel, language) (feature 168, `url-keys.md` §4). */
+/** A redirect answers at one (channel, language) (feature 170, `url-keys.md` §4). */
 export const productUrlRedirectSchema = z.object({
   id: uuidSchema,
   channelId: uuidSchema,

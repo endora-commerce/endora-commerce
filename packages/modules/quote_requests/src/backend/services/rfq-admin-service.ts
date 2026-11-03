@@ -803,7 +803,7 @@ export class RfqAdminService {
             em.create(QuoteRequestItem, {
               quoteRequestId: rfq.id,
               productId: product.id,
-              productName: row?.productName ?? lineNames.get(product.id) ?? product.name /* 168-shim: Global name */,
+              productName: row?.productName ?? lineNames.get(product.id) ?? product.name /* 170-shim: Global name */,
               productSlug: product.slug,
               variantId,
               variantLabel:
@@ -1073,7 +1073,7 @@ export class RfqAdminService {
         em.create(QuoteRequestItem, {
           quoteRequestId: rfq.id,
           productId: product.id,
-          productName: lineNames.get(product.id) ?? product.name /* 168-shim: Global name */,
+          productName: lineNames.get(product.id) ?? product.name /* 170-shim: Global name */,
           productSlug: product.slug,
           variantId: lineInput.variantId ?? null,
           quantity: lineInput.quantity,

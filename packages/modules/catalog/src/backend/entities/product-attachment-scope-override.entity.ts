@@ -3,7 +3,7 @@ import { GlobalEntity } from '@endora-commerce/platform/tenancy';
 import { randomUUID } from 'crypto';
 
 /**
- * ProductAttachmentScopeOverride — feature 168 (`specs/168-product-editor-scope-switcher/data-model.md` §7).
+ * ProductAttachmentScopeOverride — feature 170 (`specs/170-product-editor-scope-switcher/data-model.md` §7).
  *
  * One override of one field of a product attachment at a Channel (`languageCode` `null`) or Channel × language
  * scope. The row's **presence** is the override; `value` is `{ "v": <value> }`, and `{ "v": null }`

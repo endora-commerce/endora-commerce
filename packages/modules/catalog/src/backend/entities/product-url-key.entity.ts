@@ -2,8 +2,8 @@ import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
 import { GlobalEntity } from '@endora-commerce/platform/tenancy';
 
 /**
- * ProductUrlKey — feature 163, rewritten by feature 168
- * (`specs/168-product-editor-scope-switcher/data-model.md` §5, `contracts/url-keys.md`).
+ * ProductUrlKey — feature 163, rewritten by feature 170
+ * (`specs/170-product-editor-scope-switcher/data-model.md` §5, `contracts/url-keys.md`).
  *
  * A product's URL key at one sales channel (`languageCode` `null` — the Channel key) or at one
  * sales channel × language. The Global key stays `products.slug`. A key text belongs to at most

@@ -81,7 +81,7 @@ export interface ScopeOverviewInput {
     status: ProductScopeStatus;
     archivedAt: Date | null;
     window: PublicationWindow;
-    /** Feature 168 — the Global name and description, one string each. */
+    /** Feature 170 — the Global name and description, one string each. */
     name: string;
     description: string | null;
     attributeValues: Record<string, unknown>;

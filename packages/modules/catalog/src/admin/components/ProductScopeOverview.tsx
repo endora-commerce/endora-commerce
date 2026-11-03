@@ -210,7 +210,7 @@ export function ProductScopeOverview({ productId }: ProductScopeOverviewProps): 
     );
   }
 
-  // 168-shim: the Language row is gone (FR-010, FR-100); T132 removes it from this view.
+  // 170-shim: the Language row is gone (FR-010, FR-100); T132 removes it from this view.
   const languageColumnOf = (_code: string): string[] => [];
 
   /** A language's own values, with their resets — rendered in a body cell, never a header (D11). */

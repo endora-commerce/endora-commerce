@@ -193,7 +193,7 @@ export const GallerySection = forwardRef<GallerySectionHandle, GallerySectionPro
             assetId: g.assetId,
             position: g.position,
             labels: g.labels as GalleryLabel[],
-            // 168-shim: the Global alt text is one string now and the channel lists are gone; S3
+            // 170-shim: the Global alt text is one string now and the channel lists are gone; S3
             // moves the gallery's scoped fields to `ScopedField` on the scoped-values save.
             altText: {},
             hiddenInChannels: [],

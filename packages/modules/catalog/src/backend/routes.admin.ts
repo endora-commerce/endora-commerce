@@ -1474,7 +1474,7 @@ export async function registerCatalogAdminRoutes(
       },
     );
 
-    // Feature 168 (`contracts/scoped-values-api.md` §6) — 163's `GET` / `PUT …/gallery/channel-roles`
+    // Feature 170 (`contracts/scoped-values-api.md` §6) — 163's `GET` / `PUT …/gallery/channel-roles`
     // are retired; gallery roles at C and C×L are scoped fields of `PUT …/scoped-values`.
 
     app.delete<{ Params: { productId: string; itemId: string } }>(
@@ -2132,7 +2132,7 @@ function serializeAdminAttribute(
     // Feature 061 (additive) — id of the backing product-host Custom Field
     // definition (adminAttributeResponseSchema.customFieldDefinitionId).
     customFieldDefinitionId: a.customFieldDefinitionId,
-    // Feature 168 (R15) — the scope flag the attribute editor edits and the levels it derives.
+    // Feature 170 (R15) — the scope flag the attribute editor edits and the levels it derives.
     scopable: a.scopable,
     scopeLevels: [...a.scopeLevels],
     createdAt: a.createdAt.toISOString(),

@@ -10,7 +10,7 @@ import {
 import type { ScopeLevel } from './product-scope-model.js';
 
 /**
- * Feature 022, rewritten by feature 168 (R1) — the override-table adapter over `resolveScoped`.
+ * Feature 022, rewritten by feature 170 (R1) — the override-table adapter over `resolveScoped`.
  * The chain itself is tested in `product-scope-model.test.ts`; this file holds the adapter: row
  * shape, `{ v: null }` as the empty override, key filtering, and the context → scope mapping.
  */

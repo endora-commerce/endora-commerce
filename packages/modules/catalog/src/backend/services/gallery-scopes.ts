@@ -51,10 +51,10 @@ export function effectiveGallery<T extends { id: string; labels: readonly Galler
 }
 
 /**
- * Feature 168 (data-model §6) — the role holders and hidden items of a page's products at one
+ * Feature 170 (data-model §6) — the role holders and hidden items of a page's products at one
  * channel, read from `gallery_role_scope_overrides` and `gallery_item_scope_overrides`.
  *
- * 168-shim: the **Channel** rows only, and a Global-hidden item is not yet dropped; the full
+ * 170-shim: the **Channel** rows only, and a Global-hidden item is not yet dropped; the full
  * C×L → C → G chain (Global `hidden`, Channel × language rows, an empty role override meaning
  * "no image") is T041's rewrite on the scoped store adapters.
  */
@@ -98,7 +98,7 @@ export async function loadGalleryChannelOverrides(
 }
 
 /**
- * The scope overview's media rows (163 T118c, feature 168 data-model §6): every (field, channel,
+ * The scope overview's media rows (163 T118c, feature 170 data-model §6): every (field, channel,
  * language) at which the product's gallery holds an override.
  */
 export async function loadMediaScopedFields(

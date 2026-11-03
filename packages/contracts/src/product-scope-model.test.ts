@@ -14,7 +14,7 @@ import {
 } from './product-scope-model.js';
 
 /**
- * Feature 168 (`specs/168-product-editor-scope-switcher/`, research R1, data-model §0 and
+ * Feature 170 (`specs/170-product-editor-scope-switcher/`, research R1, data-model §0 and
  * §9) — the one scope vocabulary and the one resolver (FR-010…FR-015, FR-109).
  */
 

@@ -68,8 +68,8 @@ export async function loadEffectiveKeys(
     const own = rowsByProduct.get(product.id) ?? [];
     const keys = new Map<string, string>();
     for (const languageCode of channel.languages) {
-      // Feature 168 (`contracts/url-keys.md` §1) — the C×L key, else the Channel key, else the slug.
-      // 168-shim: the rest of this file (current holder, redirect target) is T039's rewrite.
+      // Feature 170 (`contracts/url-keys.md` §1) — the C×L key, else the Channel key, else the slug.
+      // 170-shim: the rest of this file (current holder, redirect target) is T039's rewrite.
       const clKey = own.find(
         (row) => row.languageCode !== null && sameLanguage(row.languageCode, languageCode),
       );

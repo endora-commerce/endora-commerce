@@ -93,10 +93,10 @@ export function inventoryPromptTools(deps: InventoryPromptToolsDeps): PromptActi
       });
       const current = level?.onHand ?? 0;
       return {
-        headline: `Set stock of "${(product.name || product.sku) /* 168-shim: Global name */}" in warehouse "${warehouse.name}" to ${params.quantity}`,
+        headline: `Set stock of "${(product.name || product.sku) /* 170-shim: Global name */}" in warehouse "${warehouse.name}" to ${params.quantity}`,
         current: { onHand: current },
         affectedCount: 1,
-        sample: [{ id: product.id, label: (product.name || product.sku) /* 168-shim: Global name */ }],
+        sample: [{ id: product.id, label: (product.name || product.sku) /* 170-shim: Global name */ }],
       };
     },
     execute: async (params, ctx: ToolContext) => {

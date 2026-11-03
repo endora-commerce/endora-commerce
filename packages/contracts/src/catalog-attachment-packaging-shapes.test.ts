@@ -10,7 +10,7 @@ import {
 } from './catalog.js';
 
 /**
- * Feature 163, rewritten by feature 168 (`contracts/scoped-values-api.md` §6, `readers.md` §2) —
+ * Feature 163, rewritten by feature 170 (`contracts/scoped-values-api.md` §6, `readers.md` §2) —
  * the attachment and packaging-unit routes keep their collection operations and Global values;
  * every per-scope sub-field (163's translation maps and hidden-channel lists) is gone from them —
  * those scopes are written through `PUT …/products/:id/scoped-values`.

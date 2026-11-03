@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { effectiveScopedValue, effectiveSystemText, type OverrideRow } from '../src/index.js';
 
-// Issue #384, rewritten by feature 168 (R1) — the one chain the storefront's catalog and search
+// Issue #384, rewritten by feature 170 (R1) — the one chain the storefront's catalog and search
 // reads share: C×L → C → Global, an empty override answering "nothing".
 describe('effectiveSystemText at (channel, language)', () => {
   const channelId = 'channel-a';

@@ -10,13 +10,13 @@ import {
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 
 /**
- * Feature 168 (`specs/168-product-editor-scope-switcher/data-model.md` §1–§7, research R18, R22;
+ * Feature 170 (`specs/170-product-editor-scope-switcher/data-model.md` §1–§7, research R18, R22;
  * FR-020, FR-026, SC-002, US2 #7) — the four catalog migrations of the three-level scope model,
  * run on a database holding 163-model rows.
  *
  * The migrations have already run against the template, so each test first runs their `down`
  * in reverse order (a structure-only `down`: it restores the 163 shape and none of its data),
- * seeds the rows `up` meets on a database deployed before 168, and runs every `up` in order.
+ * seeds the rows `up` meets on a database deployed before 170, and runs every `up` in order.
  * Everything happens in **one transaction the test rolls back** (PostgreSQL DDL is
  * transactional), as `product-status-drop-draft-migration.test.ts` does. The statements come
  * off the shipped classes rather than being copied here.
@@ -34,7 +34,7 @@ const ORDER: MigrationClass[] = [
   Migration20261030T113908CatalogScopeModelMedia,
 ] as unknown as MigrationClass[];
 
-describe('catalog scope model migrations (168 T015)', () => {
+describe('catalog scope model migrations (170 T015)', () => {
   let db: TestDb;
   let em: EntityManager;
 

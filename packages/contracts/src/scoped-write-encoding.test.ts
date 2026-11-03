@@ -14,7 +14,7 @@ import {
 } from './scoped-write-encoding.js';
 
 /**
- * Feature 168 — the one write encoding of scoped product values (`contracts/write-encoding.md`,
+ * Feature 170 — the one write encoding of scoped product values (`contracts/write-encoding.md`,
  * FR-110…FR-113, FR-118, SC-014). Runs the shared case table purely, plus the codec's own
  * properties.
  */
@@ -124,7 +124,7 @@ describe('CSV codec', () => {
   it('round-trips every text: decode(encode(x)) = x (property, text and value columns)', () => {
     const alphabet = ['N', 'U', 'L', 'I', 'H', 'E', 'R', 'T', '\\', "'", '=', '+', '-', '@', '\t', '\r', ' ', 'a', 'ż', '"', ','];
     const fixed = ['NULL', 'INHERIT', '\\NULL', '\\\\INHERIT', "'NULL", "''", "'", '=', '-5', '\\', 'NULL ', ' INHERIT'];
-    let seed = 168;
+    let seed = 170;
     const next = () => {
       seed = (seed * 1103515245 + 12345) % 2 ** 31;
       return seed;

@@ -27,7 +27,7 @@ Removed: `name`, `description`, `localizedNames`, `searchableOptions`, text valu
 language that turns live needs no reindex of text; option labels per L from the attribute read model. Settings:
 `searchableAttributes: ['sku', 'texts', 'attributes']`, filterable unchanged. The 163 "index not yet reindexed"
 fallback (`search-availability.ts`) is extended: an index whose searchable set lacks `texts` is reindexed by the
-plugin's boot check, and until then queried without `attributesToSearchOn` (pre-168 behaviour), logged.
+plugin's boot check, and until then queried without `attributesToSearchOn` (pre-170 behaviour), logged.
 
 ## 3. Query
 

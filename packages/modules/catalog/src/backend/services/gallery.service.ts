@@ -58,7 +58,7 @@ export class GalleryService {
      */
     private readonly assets?: AssetReadPort,
     /**
-     * Feature 163 (FR-014) — which channels the product is a member of. Unused since feature 168
+     * Feature 163 (FR-014) — which channels the product is a member of. Unused since feature 170
      * retired the per-channel media writes on this route; kept so the composition root's
      * signature does not move before T041 rewrites the service.
      */
@@ -104,7 +104,7 @@ export class GalleryService {
     return this.#fetchAllForProduct(em, productId);
   }
 
-  // Feature 168 (`contracts/scoped-values-api.md` §6) — 163's `GET` / `PUT …/gallery/channel-roles`
+  // Feature 170 (`contracts/scoped-values-api.md` §6) — 163's `GET` / `PUT …/gallery/channel-roles`
   // are retired: a role at C or C×L is the scoped field `galleryRole:<label>` of the save Command.
 
   /**

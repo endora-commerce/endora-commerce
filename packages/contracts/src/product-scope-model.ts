@@ -1,5 +1,5 @@
 /**
- * Feature 168 (`specs/168-product-editor-scope-switcher/`; research R1, data-model §0 and §9) —
+ * Feature 170 (`specs/170-product-editor-scope-switcher/`; research R1, data-model §0 and §9) —
  * the one scope vocabulary of product data and the one resolver every store feeds.
  *
  * Three levels, widest first: **Global** (the product row), **Channel** (a sales channel, no

@@ -46,7 +46,7 @@ export class ProductAttachment {
   position: number = 0;
 
   /**
-   * Feature 168 (data-model §7) — hidden at Global. Channel and Channel × language values of the
+   * Feature 170 (data-model §7) — hidden at Global. Channel and Channel × language values of the
    * name, description and hidden flag live in `product_attachment_scope_overrides`.
    */
   @Property({ type: 'boolean' })

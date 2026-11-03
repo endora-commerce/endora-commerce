@@ -1130,7 +1130,7 @@ export function ProductEditor(): ReactNode {
 
           {activeTab === 'seo' && id ? <ProductUrlKeysPanel productId={id} /> : null}
           {activeTab === 'seo' && id ? (
-            // 168-shim: interim props until S3 mounts the SEO section at the editor scope (T125).
+            // 170-shim: interim props until S3 mounts the SEO section at the editor scope (T125).
             <AdminZone
               name="product.editor.seo"
               props={{

@@ -1,5 +1,5 @@
 /**
- * 168-shim — 163's channel-roles shape, kept for this editor until S3 rewrites the gallery on the
+ * 170-shim — 163's channel-roles shape, kept for this editor until S3 rewrites the gallery on the
  * scoped-values save (`galleryRole:<label>`); the backend route it called is retired.
  */
 export interface GalleryChannelRoles {

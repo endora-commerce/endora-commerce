@@ -49,16 +49,16 @@ import { ProductUrlRedirect } from '../entities/product-url-redirect.entity.js';
 
 const LOCK_PREFIX = 'catalog.url-key:';
 
-// --- 168-shim: the 163 planner's own shapes ------------------------------------------
+// --- 170-shim: the 163 planner's own shapes ------------------------------------------
 //
-// Feature 168 replaced the language keys with Channel and Channel × language keys
-// (`specs/168-product-editor-scope-switcher/contracts/url-keys.md`). Until T039 rewrites this
+// Feature 170 replaced the language keys with Channel and Channel × language keys
+// (`specs/170-product-editor-scope-switcher/contracts/url-keys.md`). Until T039 rewrites this
 // planner on that model (one helper, `lockAndCheck`, the exclusion constraint), the 163 planner
 // runs on its own request shape: Channel × language keys only, no language keys. A Channel key
 // (`languageCode` absent) is refused `422 VALIDATION_FAILED` here, and redirects are written per
 // (channel, language) of the product's member channels.
 
-/** 168-shim — the 163 planner's request: Channel × language keys, `key: null` = inherit. */
+/** 170-shim — the 163 planner's request: Channel × language keys, `key: null` = inherit. */
 export interface LegacyUrlKeysRequest {
   globalKey?: string;
   languageKeys?: Array<{ languageCode: string; key: string | null }>;
@@ -66,7 +66,7 @@ export interface LegacyUrlKeysRequest {
   confirmTakeover?: Array<{ languageCode: string | null; key: string }>;
 }
 
-/** 168-shim — a key written by an integration: `channelId: null` = a language key (refused). */
+/** 170-shim — a key written by an integration: `channelId: null` = a language key (refused). */
 export interface ProductUrlKeyWrite {
   languageCode: string;
   channelId: string | null;
@@ -74,7 +74,7 @@ export interface ProductUrlKeyWrite {
   key: string | null;
 }
 
-/** 168-shim — the 168 PUT body as the 163 planner reads it. */
+/** 170-shim — the 170 PUT body as the 163 planner reads it. */
 export function legacyRequestOf(request: PutProductUrlKeysRequest): LegacyUrlKeysRequest {
   const channelKeys = (request.channelKeys ?? []).map((entry) => {
     if (entry.languageCode == null) {
@@ -318,7 +318,7 @@ export function planUrlKeyWrite(state: UrlKeyWriteState, request: LegacyUrlKeysR
     ownRowKeyIn(languageCode, key) || (key === newSlug && !hasLanguageKey(languageCode));
 
   const name = (productId: string): string => state.productNames.get(productId) ?? productId;
-  // 168-shim: `confirmTakeover` names keys only (R21), so a confirmation covers every language.
+  // 170-shim: `confirmTakeover` names keys only (R21), so a confirmation covers every language.
   const confirmed = (_languageCode: string | null, key: string): boolean =>
     (request.confirmTakeover ?? []).some((entry) => entry.key === key);
 
@@ -564,7 +564,7 @@ function displayName(product: Pick<Product, 'name' | 'sku'>): string {
   return product.name?.trim() ? product.name : product.sku;
 }
 
-/** 168-shim: a Channel key row (no language) is not a row the 163 planner can read; none is written yet. */
+/** 170-shim: a Channel key row (no language) is not a row the 163 planner can read; none is written yet. */
 function toKeyRow(row: ProductUrlKey): UrlKeyRow {
   return { productId: row.productId, languageCode: row.languageCode ?? '', channelId: row.salesChannelId, key: row.key };
 }
@@ -854,7 +854,7 @@ export class UrlKeyService {
       }
     }
     if (plan.slug !== null) product.slug = plan.slug;
-    // 168-shim: a redirect answers at one (channel, language) now — the planner's language (or
+    // 170-shim: a redirect answers at one (channel, language) now — the planner's language (or
     // every language, for a former Global key) at each member channel offering it.
     const inserted = plan.insertRedirects.flatMap((row) =>
       [...memberChannels].flatMap(([salesChannelId, languages]) =>

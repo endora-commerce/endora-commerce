@@ -3,7 +3,7 @@ import { GlobalEntity } from '@endora-commerce/platform/tenancy';
 import { randomUUID } from 'crypto';
 
 /**
- * GalleryItemScopeOverride — feature 168 (`specs/168-product-editor-scope-switcher/data-model.md` §6a).
+ * GalleryItemScopeOverride — feature 170 (`specs/170-product-editor-scope-switcher/data-model.md` §6a).
  *
  * One override of one field of a gallery item at a Channel (`languageCode` `null`) or Channel × language
  * scope. The row's **presence** is the override; `value` is `{ "v": <value> }`, and `{ "v": null }`

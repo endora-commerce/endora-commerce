@@ -243,7 +243,7 @@ export class CatalogBulkImportService implements CatalogBulkImportPort {
           if (!product) continue;
           if (row.status !== undefined) product.status = row.status;
           if (row.visibility !== undefined) product.visibility = row.visibility;
-          // 168-shim: the Global name and description cells only; every other scoped cell, and the
+          // 170-shim: the Global name and description cells only; every other scoped cell, and the
           // per-cell refusals of the write encoding, are T083 / T084's (after US2's save service).
           for (const cell of row.cells ?? []) {
             if (cell.scope.level !== 'global') continue;
@@ -292,7 +292,7 @@ export class CatalogBulkImportService implements CatalogBulkImportPort {
     bySku: ReadonlyMap<string, Product>,
     errors: BulkImportRowError[],
   ): Promise<{ apply: () => Promise<string[]> } | null> {
-    // 168-shim: the status cells at Channel / Channel × language (`ProductImportRow.cells`), as 163's
+    // 170-shim: the status cells at Channel / Channel × language (`ProductImportRow.cells`), as 163's
     // scoped-status columns were; `NULL` is refused (a status takes no empty value), `INHERIT` removes.
     const cells = rows.flatMap((row, index) =>
       (row.cells ?? [])
@@ -305,7 +305,7 @@ export class CatalogBulkImportService implements CatalogBulkImportPort {
     }
     const channelIdOf = (scope: ScopeRef): string => (scope.level === 'global' ? '' : scope.channelId);
     const channelIds = [...new Set(cells.map(({ cell }) => channelIdOf(cell.scope)))];
-    // 168-shim: a products file still names channels by code (in `channelId`) until T081.
+    // 170-shim: a products file still names channels by code (in `channelId`) until T081.
     const isUuid = (value: string): boolean => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
     const channels = await em.find(SalesChannel, {
       $or: [{ id: { $in: channelIds.filter(isUuid) } }, { code: { $in: channelIds.filter((id) => !isUuid(id)) } }],

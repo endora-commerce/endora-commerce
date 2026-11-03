@@ -430,7 +430,7 @@ export class ProductLinkService {
     );
     // Feature 163 (R28) — a tile links to the target's effective key at (C, L).
     const effectiveKeys = await loadEffectiveKeys(em, visibleTargets, { id: channel.id, languages: [scopeLanguage] });
-    // Feature 168 — the tile's name at the request's (C, L): C×L → C → Global.
+    // Feature 170 — the tile's name at the request's (C, L): C×L → C → Global.
     const overrideCtx = { channelId: channel.id, languageCode: scopeLanguage };
 
     const out: StorefrontLinkSummary[] = [];

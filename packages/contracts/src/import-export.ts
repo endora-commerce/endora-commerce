@@ -37,7 +37,7 @@ export interface BulkImportReport {
   imported: number;
   errors: BulkImportRowError[];
   /**
-   * Feature 168 (`contracts/import-profiles-and-csv.md` §2.3) — products imports only: the
+   * Feature 170 (`contracts/import-profiles-and-csv.md` §2.3) — products imports only: the
    * per-column count of `NULL` and `INHERIT` cells (shown before "Apply" after a dry run), the
    * run warnings (unmapped source locales, FR-041) and the per-row field errors (refusals of the
    * write encoding; the row's other fields apply).
@@ -80,13 +80,13 @@ export const importExportEntitiesResponseSchema = z.object({
 });
 export type ImportExportEntitiesResponse = z.infer<typeof importExportEntitiesResponseSchema>;
 
-// --- Import profiles (feature 168, `contracts/import-profiles-and-csv.md` §1, data-model §11) ---
+// --- Import profiles (feature 170, `contracts/import-profiles-and-csv.md` §1, data-model §11) ---
 
 /** The most mapping entries one import profile holds, and targets per entry (data-model §11). */
 export const IMPORT_PROFILE_ENTRIES_MAX = 100;
 export const IMPORT_PROFILE_TARGETS_MAX = 16;
 
-/** The only entity with a locale mapping in 168. */
+/** The only entity with a locale mapping in 170. */
 export const importProfileEntitySchema = z.enum(['products']);
 
 const importProfileMappingSchema = z

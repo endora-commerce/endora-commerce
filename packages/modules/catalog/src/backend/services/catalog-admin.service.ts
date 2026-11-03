@@ -1267,7 +1267,7 @@ export class CatalogAdminService {
    * duplicated product is obviously a clone in lists. Empty locales are
    * left untouched.
    */
-  /** Feature 168 — the copy's Global name. Scoped name overrides are not copied (168-shim: US2 decides). */
+  /** Feature 170 — the copy's Global name. Scoped name overrides are not copied (170-shim: US2 decides). */
   private suffixCopyName(name: string): string {
     return name.trim() === '' ? name : `${name} (copy)`.slice(0, 255);
   }

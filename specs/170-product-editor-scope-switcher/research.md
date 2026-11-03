@@ -1,7 +1,7 @@
 # Research: three-level product scope model and one scope switcher
 
-**Feature**: `specs/168-product-editor-scope-switcher/` | **Spec**: `spec.md` (clarify rounds 1–5, exhausted)
-**Measured on**: `feat/168-product-editor-scope-switcher` rebased on `origin/master` (2026-10-30).
+**Feature**: `specs/170-product-editor-scope-switcher/` | **Spec**: `spec.md` (clarify rounds 1–5, exhausted)
+**Measured on**: `feat/170-product-editor-scope-switcher` rebased on `origin/master` (2026-10-30).
 **Amends**: `specs/163-product-data-scopes/` (research R1–R30 there; cited as 163 R#).
 
 Every decision below is stated as **Decision → Rationale → Rejected alternatives**. Owner decisions recorded in
@@ -125,7 +125,7 @@ multi-column row can say "inherit" only with one flag per column. The `window_ov
   tests — the admin API, the CSV import and the `pim_connector` contract — which is SC-014's "one shared test
   table".
 
-Every 168 write path uses it: the save request (`contracts/scoped-values-api.md`), the copy Command, the catalog
+Every 170 write path uses it: the save request (`contracts/scoped-values-api.md`), the copy Command, the catalog
 scope write port used by connectors (`contracts/pim-locale-mapping.md`), the CSV import and export
 (`contracts/import-profiles-and-csv.md`) and the bulk scoped-status payload. 163's `null` = inherit is changed in
 place (FR-116): `PatchProductScopesRequest`, `ProductScopeWriteInput`, `ScopedStatusCell`, the gallery role
@@ -197,7 +197,7 @@ packaging units), price-book rows (`price_lists`), channel membership (`sales_ch
 and never part of the Save, and they do not bump the version token (R7).
 
 **Undo (FR-074, owner round 6).** The audit entry's `before` is a complete, valid `changes` body; re-applying it
-through the save route restores the save. No restore UI in 168; "Restore this save" is a named follow-up.
+through the save route restores the save. No restore UI in 170; "Restore this save" is a named follow-up.
 
 ## R6 — "Copy this value to other channels in the same language" (FR-086)
 
@@ -341,7 +341,7 @@ for the three checks before writing the port (tasks T119, T121).
   verify). The spec's list (crm, orders, search, seo, comparisons, returns, pwa, projects, quote_requests, admin-kit,
   assets_library, page-builder-admin, platform, catalog) differs: **returns, pwa, projects** read no product text
   map (they consume snapshots or `effectiveNames`; projects' hits are its own dictionary); **assets_library**'s
-  `altText` map is the **asset's own** alt text — not a product value, out of 168 (FR-117) and kept as the gallery
+  `altText` map is the **asset's own** alt text — not a product value, out of 170 (FR-117) and kept as the gallery
   alt's derived fallback; **inventory, carts, price_lists, product_feeds, quick_order, cms, audit_logs** were
   missing from the spec's list.
 
@@ -359,7 +359,7 @@ attributes (`attributesToSearchOn`). Display fields for hits are read from `text
 `searchableAttributes = ['sku', 'texts', 'attributes']`; a settings change forces a reindex (release note).
 
 **Index size (the measurement FR-033 asks for).** Per document: `base + Σ_{L ∈ C.languages} T(L)` where `T(L)` ≈
-|name| + |description| + |searchable text attributes| + |option labels| in L. Before 168 a document carried
+|name| + |description| + |searchable text attributes| + |option labels| in L. Before 170 a document carried
 `T(default)` once plus `|name|` per live language (`localizedNames`). So the growth factor is ≈ `k` (the number of
 channel languages) on the text part: a 2-language channel ~2×, a 4-language channel ~4× of the text payload.
 Descriptions dominate (~0.5–4 KB each). At the perf fixture size (163 SC-004) with 2 languages that is an
@@ -571,7 +571,7 @@ the exact statement order is fixed in `data-model.md` §1–§8; the notable poi
   (`resolveScopeLanguage`, 163 R7); no CHECK.
 - Editor preferences: emptied, then CHECK `last_channel_id is not null or last_language_code is null`.
 
-**Follow-up (not 168):** `seo_meta_overrides` rows of a deleted product stay (polymorphic, no FK) — listed with
+**Follow-up (not 170):** `seo_meta_overrides` rows of a deleted product stay (polymorphic, no FK) — listed with
 R20's follow-ups.
 
 ## R15 — User attribute flag (FR-012)
@@ -661,4 +661,4 @@ Grep of `packages/contracts/src` for `null`-means-inherit / fall-back semantics 
 | 7 | CMS page translation fields — **blank** (not `null`) inherits the page's own field | `cms.ts:24-31` | **new** (the opposite polarity of FR-110: `""` = inherit) |
 
 Excluded as not inheritance: column-picker `null` = default-visible set (`orders.ts:662`,
-`saved-list-views.ts:84`). Each row stays as it is in 168; the plan lists them for the owner's follow-up issues.
+`saved-list-views.ts:84`). Each row stays as it is in 170; the plan lists them for the owner's follow-up issues.

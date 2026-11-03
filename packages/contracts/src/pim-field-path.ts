@@ -1,6 +1,6 @@
 /**
- * Owner: `pim_connector`. Canonical form of a shared field-protection path. Feature 168
- * (`specs/168-product-editor-scope-switcher/contracts/pim-locale-mapping.md` §3, FR-046): a path
+ * Owner: `pim_connector`. Canonical form of a shared field-protection path. Feature 170
+ * (`specs/170-product-editor-scope-switcher/contracts/pim-locale-mapping.md` §3, FR-046): a path
  * names a whole field; the locale and channel segments of the 089 grammar are invalid, because
  * protection removes every scope of the field.
  */

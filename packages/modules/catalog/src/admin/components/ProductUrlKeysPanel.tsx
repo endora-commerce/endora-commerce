@@ -58,7 +58,7 @@ function invalidKeys(body: NonNullable<ReturnType<typeof urlKeysChanges>>): stri
 
 function sourceLabel(source: ProductUrlKeys['effective'][number]['source'], t: Translate): string {
   if (source === 'channel_language') return t('productEditor.urlKeys.source.channelLanguage');
-  // 168-shim: a Channel key reuses the language label until S3 rewrites the panel.
+  // 170-shim: a Channel key reuses the language label until S3 rewrites the panel.
   if (source === 'channel') return t('productEditor.urlKeys.source.language');
   return t('productEditor.urlKeys.source.global');
 }
@@ -352,7 +352,7 @@ export function ProductUrlKeysPanel({ productId }: ProductUrlKeysPanelProps): Re
         {draft.channelKeys.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t('productEditor.urlKeys.channelsEmpty')}</p>
         ) : null}
-        {/* 168-shim: Channel keys (no language) are not listed until S3 rewrites this panel. */}
+        {/* 170-shim: Channel keys (no language) are not listed until S3 rewrites this panel. */}
         {draft.channelKeys
           .flatMap((row) => (row.languageCode === null ? [] : [{ ...row, languageCode: row.languageCode }]))
           .map((row) => {

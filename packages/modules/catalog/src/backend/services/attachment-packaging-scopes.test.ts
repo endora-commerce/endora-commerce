@@ -6,7 +6,7 @@ import {
 } from './attachment-packaging-scopes.js';
 
 /**
- * Feature 163 (FR-078, FR-079, FR-080, FR-081; data-model §8), moved to the 168 override tables —
+ * Feature 163 (FR-078, FR-079, FR-080, FR-081; data-model §8), moved to the 170 override tables —
  * the pieces of the attachment and packaging-unit scope reads that need no database.
  */
 describe('assertProductChannelMembers', () => {
@@ -38,7 +38,7 @@ describe('assertProductChannelMembers', () => {
 });
 
 describe('loadAttachmentPackagingScopedFields', () => {
-  it('reads the overview fields of one product in one statement from the 168 override tables', async () => {
+  it('reads the overview fields of one product in one statement from the 170 override tables', async () => {
     const statements: string[] = [];
     const em = {
       execute: async (sql: string) => {

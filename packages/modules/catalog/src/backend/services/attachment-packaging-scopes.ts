@@ -13,7 +13,7 @@ import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kerne
  * one writer here, run only on the caller's `em` inside the caller's audited Command.
  */
 
-// Feature 168 — 163's per-channel attachment writes are retired; Channel and Channel × language
+// Feature 170 — 163's per-channel attachment writes are retired; Channel and Channel × language
 // values of an attachment are scoped fields of the save Command (`product_attachment_scope_overrides`).
 
 // --- Reads --------------------------------------------------------------------------
@@ -25,7 +25,7 @@ export async function loadAttachmentsHiddenInChannel(
   channelId: string,
 ): Promise<Set<string>> {
   const rows = await em.execute<Array<{ attachment_id: string }>>(
-    // 168-shim: the Channel rows only; the C×L → C → G chain (Global `hidden`) is T041's.
+    // 170-shim: the Channel rows only; the C×L → C → G chain (Global `hidden`) is T041's.
     `select attachment_id::text as attachment_id
        from product_attachment_scope_overrides
       where product_id = ? and sales_channel_id = ? and language_code is null

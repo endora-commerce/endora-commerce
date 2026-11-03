@@ -1,21 +1,21 @@
 # Quickstart: verifying the three-level scope model and the scope switcher
 
-For a reviewer or builder checking 168 end to end on a dev stack. Commands follow `AGENTS.md`; which backend test
+For a reviewer or builder checking 170 end to end on a dev stack. Commands follow `AGENTS.md`; which backend test
 command to use is `specs/conventions/backend-test-suite.md`'s.
 
 ## 0. Prepare
 
 ```bash
-git worktree add ../wt-168 -b <branch> origin/master     # or the feature worktree
-bash ../wt-168/scripts/setup-worktree.sh
-cd ../wt-168 && pnpm run build:packages
+git worktree add ../wt-170 -b <branch> origin/master     # or the feature worktree
+bash ../wt-170/scripts/setup-worktree.sh
+cd ../wt-170 && pnpm run build:packages
 pnpm run dev:infra                                        # Postgres, Redis, Meilisearch
 pnpm run setup                                            # db:fresh then module:install --all (runs every installHook)
 ```
 
-**Migration clean-run on a 163-model database (SC-002).** Before pulling 168: `pnpm run setup` on `origin/master`,
+**Migration clean-run on a 163-model database (SC-002).** Before pulling 170: `pnpm run setup` on `origin/master`,
 load the demo data with `pnpm --filter backend run cli demo seed` (163-model rows: name maps in three languages, language URL keys, locale-only SEO rows, 163
-channel tables). Then check out 168, `pnpm run build:packages`, `pnpm --filter backend run migration:up`. Expect: no error; `products.name` is `text`; the four
+channel tables). Then check out 170, `pnpm run build:packages`, `pnpm --filter backend run migration:up`. Expect: no error; `products.name` is `text`; the four
 `*_scope_overrides` tables exist; `seo_meta_overrides` holds no product locale-only row;
 `import_profiles` exists. Re-run migrate: nothing to do (FR-026). Automated by
 `backend/test/integration/catalog/scope-model-migration.test.ts` and

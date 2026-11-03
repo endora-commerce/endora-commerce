@@ -446,6 +446,6 @@ export class CartAdminService {
 }
 
 function anyLocaleName(product: CatalogProductRecord): string {
-  // 168-shim: the operator's view shows the Global name (`contracts/readers.md` §1, G).
+  // 170-shim: the operator's view shows the Global name (`contracts/readers.md` §1, G).
   return product.name || product.id;
 }

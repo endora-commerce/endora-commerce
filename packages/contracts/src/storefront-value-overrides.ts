@@ -2,7 +2,7 @@ import type { ScopeLevel } from './product-scope-model.js';
 import { resolveAttribute, type OverrideRow } from './product-value-resolver.js';
 
 /**
- * Issue #384, rewritten by feature 168 (research R1) — the effective Name, Description or
+ * Issue #384, rewritten by feature 170 (research R1) — the effective Name, Description or
  * attribute a storefront read shows at the request's (channel, language), given the override
  * rows it already holds.
  *

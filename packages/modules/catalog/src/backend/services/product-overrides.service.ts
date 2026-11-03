@@ -183,7 +183,7 @@ export class ProductOverridesService {
         );
       }
       const scope = getAttributeScope(e.attributeKey, attrRow ?? null);
-      // 168-shim: this 163 route is retired by the scoped-values save (US2); it keeps working on the flag.
+      // 170-shim: this 163 route is retired by the scoped-values save (US2); it keeps working on the flag.
       if (!deleting && !scope.scopable) {
         throw new HttpError(
           422,

@@ -673,7 +673,7 @@ export function searchHitSummary(
     sku: product.sku,
     type: product.type,
     name:
-      // 168-shim: the chain at the request's (C, L); S2's `texts.<L>` rewrite replaces it.
+      // 170-shim: the chain at the request's (C, L); S2's `texts.<L>` rewrite replaces it.
       effectiveSystemText(
         overrides,
         'name',

@@ -94,7 +94,7 @@ export function urlKeyErrorMessage(err: unknown, t: Translate): string | null {
  */
 export interface UrlKeysDraft {
   globalKey: string;
-  /** 168-shim: always empty — there is no Language key any more (FR-010); S3 rewrites this panel. */
+  /** 170-shim: always empty — there is no Language key any more (FR-010); S3 rewrites this panel. */
   languageKeys: Record<string, string>;
   /** `languageCode` `null` = the Channel key. */
   channelKeys: Array<{ channelId: string; languageCode: string | null; key: string }>;

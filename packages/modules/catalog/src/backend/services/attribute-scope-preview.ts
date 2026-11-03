@@ -36,7 +36,7 @@ export interface OrphanedSlots {
   channelLanguage: boolean;
 }
 
-/** The slots the resolver reads for an attribute's scope set (feature 168, `attributeScopeSet`). */
+/** The slots the resolver reads for an attribute's scope set (feature 170, `attributeScopeSet`). */
 function readable(levels: readonly ScopeLevel[]): OrphanedSlots {
   return { channel: levels.includes('C'), channelLanguage: levels.includes('CL') };
 }
@@ -71,7 +71,7 @@ export class AttributeScopePreviewService {
     // has no preview, so they answer as an unknown attribute does.
     const attribute = await this.attributeRead.getByIdOrKey(idOrKey);
     if (!attribute) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Attribute "${idOrKey}" not found.`);
-    // 168-shim: the value-type half of the preview (text → non-text orphans C×L rows) is T113's.
+    // 170-shim: the value-type half of the preview (text → non-text orphans C×L rows) is T113's.
     const current: AttributeScope = { scopable: attribute.scopable };
     const next = parseScopeChangeQuery(query, current);
     const slots = slotsOrphanedByScopeChange(

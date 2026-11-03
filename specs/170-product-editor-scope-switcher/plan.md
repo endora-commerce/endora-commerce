@@ -1,7 +1,7 @@
 # Implementation Plan: three-level product scope model and one scope switcher for the product editor
 
-**Branch**: `feat/168-product-editor-scope-switcher` (rebased on `origin/master` 2026-10-30) | **Date**: 2026-10-30 |
-**Spec**: `specs/168-product-editor-scope-switcher/spec.md` (clarify rounds 1–5; exhausted)
+**Branch**: `feat/170-product-editor-scope-switcher` (rebased on `origin/master` 2026-10-30) | **Date**: 2026-10-30 |
+**Spec**: `specs/170-product-editor-scope-switcher/spec.md` (clarify rounds 1–5; exhausted)
 **Input**: Feature specification above; issue #523; amends shipped `specs/163-product-data-scopes/`.
 **Artifacts**: `research.md` (R0–R20), `data-model.md`, `contracts/` (10 documents), `quickstart.md`, `tasks.md`.
 
@@ -121,7 +121,7 @@ FR-070, FR-074, new FR-094, US7, US10, SC-008):
 | Q1 | An empty override of one of the **five SEO fields** → the storefront uses the **derived value** (title from the effective name, description from the effective description), as when no SEO value exists. An empty **image alt text** → literally `alt=""` (decorative), never the asset library's alt text | `seoProductMetaPort.resolveForProduct` (T121, tested T119, T057); storefront PDP (T075, tested T061) |
 | Q2 | The Save covers the **product row and every scoped field**. Structural operations (variants, bundle slots, links, images, attachments, packaging units: add / remove / reorder), **price-book rows, channel membership and warehouse stock** stay **immediate, individually audited actions**, labelled "applies immediately" | US7 (T107, T146, T147); version-token rule R7 (T144, T145) |
 | Q3 | The product export uses **no import profile**: Global + per-scope columns, exact on re-import (FR-043; column grammar of `contracts/import-profiles-and-csv.md` §2.1 — the spec's `sklep_pl:pl` is an illustration, the plan keeps `name@<channel code>/<language>`) | T081, T087 |
-| Q4 | The audit entry holds the **complete before-state, re-appliable through the API**; **no restore UI** in 168; "Restore this save" is a named follow-up | T103 (re-application test), T142 (follow-up text) |
+| Q4 | The audit entry holds the **complete before-state, re-appliable through the API**; **no restore UI** in 170; "Restore this save" is a named follow-up | T103 (re-application test), T142 (follow-up text) |
 | Q5 | `/seo` keeps categories and CMS pages; its **product mode is replaced by a link** to the editor's SEO tab (FR-094) | T126, tested T148 |
 | Q6 | (owner confirmation 2026-10-30, resolving the security review's request in R13a) The connector port **keeps `status`, the publication window and the URL key writable**, as in 163, with the same validation and gate as the editor; `audience`, `product.*`, SEO, gallery roles, hidden flags, minimum order quantity and returnable stay refused `not_supported`. The other two review notes stand as recorded: no reserved-word list for URL keys (keys live under `/p/`, R12) and no copy rate limit (R21) | `contracts/pim-locale-mapping.md` §4; T083 |
 
@@ -195,7 +195,7 @@ number of channel languages (R11) and needs one reindex on upgrade.
 ### Documentation (this feature)
 
 ```text
-specs/168-product-editor-scope-switcher/
+specs/170-product-editor-scope-switcher/
 ├── spec.md, design-audit.md, checklists/requirements.md
 ├── plan.md            # this file
 ├── research.md        # R0–R20
@@ -304,10 +304,10 @@ artefacts together (AGENTS.md *traps*). Each is idempotent and has a clean-run t
    tasks, and a grep task for `'{"en-US"` literals in SQL fixtures.
 2. **Breadth of the type change.** `CatalogProductRecord.name` crosses 17 modules; a stream that rebases late meets
    compile errors in files it does not own. Mitigation: the type change lands in Phase 2 together with a
-   **compile-only** shim per reader file (the Global string, marked `// 168-shim`) so the tree compiles at C1; S2
-   replaces each shim with the proper (C, L) read; the FR-034 test forbids `168-shim` at the final gate.
+   **compile-only** shim per reader file (the Global string, marked `// 170-shim`) so the tree compiles at C1; S2
+   replaces each shim with the proper (C, L) read; the FR-034 test forbids `170-shim` at the final gate.
 3. **Search reindex.** New document shape; until reindexed, the boot check reindexes and the query falls back to
-   the pre-168 search (logged). Release note + operator step.
+   the pre-170 search (logged). Release note + operator step.
 4. **Atomic save across two modules.** The SEO write port must never fork or flush; a test asserts a thrown SEO
    write rolls back catalog rows and writes no audit entry (SC-007).
 5. **URL-key rule rewrite.** The 163 rule table is replaced wholesale; concurrency covered by a two-connection test
@@ -358,7 +358,7 @@ R9, `data-model.md` §0 and §9, `contracts/scoped-values-api.md`, `contracts/wr
   in the path; every `changes` object is `.strict()` with bounded keys and lengths (R21); migrations follow R22's
   backfill-before-constraint order.
 - Readers resolve through `effectiveTexts` / `effectivePackagingUnitNames` at the document's (C, L), or use the
-  Global string where there is no channel. No `pick*` over a product map survives, and no `168-shim`.
+  Global string where there is no channel. No `pick*` over a product map survives, and no `170-shim`.
 - Each module migrates its own tables; do not edit 163's migrations; regenerate and commit
   `composer:generate` / `manifests:generate` / lockfile in the same commit as a migration.
 - Owner decisions of round 6 are binding: SEO empty → derived value, alt empty → `alt=""`; immediate actions are

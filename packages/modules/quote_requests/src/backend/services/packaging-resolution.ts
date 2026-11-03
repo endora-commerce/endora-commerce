@@ -91,7 +91,7 @@ export function resolveLinePackaging(
 
   const fromUnit = (unit: PackagingUnitCandidate): ResolvedPackaging => ({
     packagingUnitId: unit.id,
-    // 168-shim: the Global unit name; S2 snapshots it at (C, L) with `effectivePackagingUnitNames`.
+    // 170-shim: the Global unit name; S2 snapshots it at (C, L) with `effectivePackagingUnitNames`.
     packagingUnitName: unit.name,
     packagingUnitBaseQuantity: unit.baseQuantity,
   });

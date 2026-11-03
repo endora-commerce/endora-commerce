@@ -656,7 +656,7 @@ export class CartService {
           belowMinimumOutcome(
             index,
             rejection,
-            outcomeNames.get(resolved.product.id) ?? resolved.product.name, // 168-shim: Global text
+            outcomeNames.get(resolved.product.id) ?? resolved.product.name, // 170-shim: Global text
           ),
         );
         continue;
@@ -813,7 +813,7 @@ export class CartService {
     const names = new Map(
       resolvedLines.map(({ resolved }) => [
         resolved.product.id,
-        effective.get(resolved.product.id) ?? resolved.product.name, // 168-shim: Global text
+        effective.get(resolved.product.id) ?? resolved.product.name, // 170-shim: Global text
       ]),
     );
     const refusal = minimumRefusal(violations, names, 'index');
@@ -1050,7 +1050,7 @@ export class CartService {
       packagingUnit && input.salesChannelId
         ? await this.#channelDefaultLanguage(input.salesChannelId)
         : scopeLanguage;
-    // 168-shim: the Global unit name; S2 resolves it at the line's (C, L) with
+    // 170-shim: the Global unit name; S2 resolves it at the line's (C, L) with
     // `effectivePackagingUnitNames` (`contracts/readers.md` §1).
     void unitLanguage;
     const packagingUnitName = packagingUnit ? packagingUnit.name : null;

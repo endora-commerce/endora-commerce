@@ -13,7 +13,7 @@ product values only** (FR-117); other `null`-means-inherit fields are the follow
 | A value | the value | the text; a leading backslash before `NULL` / `INHERIT` escapes (§3) |
 
 This differs from JSON Merge Patch (`null` = remove the member) and from Magento's `__EMPTY__VALUE__`; the API
-documentation must say so (FR-115). After 168 ships, adding a token is additive; changing an existing meaning is
+documentation must say so (FR-115). After 170 ships, adding a token is additive; changing an existing meaning is
 a breaking, versioned change (FR-111, Constitution II).
 
 ## 2. TypeScript surface
@@ -87,7 +87,7 @@ multiselect = nothing selected), and every row of §3a (FR-118). Imported by:
 
 ## 5. Where 163's `null` = inherit changes in place (FR-116)
 
-| 163 shape | 168 |
+| 163 shape | 170 |
 | --- | --- |
 | `patchProductScopesRequestSchema` channel fields `null` = inherit | `scopedWrite(...)`; `status: null` refused, `minOrderQuantity: null` = no minimum, `window: null` = open window override |
 | `ProductScopeWriteInput` (connector port) `value: null` = inherit | replaced by v2 input (`pim-locale-mapping.md` §4) |

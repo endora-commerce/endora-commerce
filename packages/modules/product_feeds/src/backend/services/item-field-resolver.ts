@@ -168,7 +168,7 @@ function resolveSource(
       return { value: item.productType, issues: [] };
     case 'name':
     case 'description': {
-      // 168-shim: one string per item now (FR-014); the per-language pick moves to S2's reader.
+      // 170-shim: one string per item now (FR-014); the per-language pick moves to S2's reader.
       const text = field.sourceKind === 'name' ? item.name : item.description;
       return { value: text ?? '', issues: [] };
     }

@@ -36,7 +36,7 @@ export function productMetaOf(
   const meta = new Map<string, ProductMeta>();
   for (const p of products) {
     meta.set(p.id, {
-      name: effectiveNames.get(p.id) || p.name, // 168-shim: Global text
+      name: effectiveNames.get(p.id) || p.name, // 170-shim: Global text
       slug: available.has(p.id) ? (effectiveKeys.get(p.id) ?? p.slug) : null,
       sku: p.sku,
     });

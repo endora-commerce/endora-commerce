@@ -213,7 +213,7 @@ export class ComparisonService {
     _channelDefaultLanguage: string | undefined,
     attributeDefs: ReadonlyArray<{ key: string; scopeLevels?: readonly ScopeLevel[] }>,
   ): Promise<{ names: Map<string, string>; values: Map<string, Record<string, unknown>> }> {
-    // Feature 168 — the chain at (C, L): C×L → C → Global (`contracts/readers.md` §1).
+    // Feature 170 — the chain at (C, L): C×L → C → Global (`contracts/readers.md` §1).
     const names = new Map<string, string>();
     const values = new Map<string, Record<string, unknown>>();
     if (products.length === 0 || languageCode === null) return { names, values };

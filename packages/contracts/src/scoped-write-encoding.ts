@@ -1,5 +1,5 @@
 /**
- * Feature 168 (`specs/168-product-editor-scope-switcher/contracts/write-encoding.md`; research R3;
+ * Feature 170 (`specs/170-product-editor-scope-switcher/contracts/write-encoding.md`; research R3;
  * FR-110…FR-118) — the **one** write encoding of scoped product values, for JSON (the admin API,
  * the connector port) and CSV (import and export).
  *

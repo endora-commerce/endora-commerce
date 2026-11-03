@@ -113,7 +113,7 @@ export function createCatalogProductScopeWritePort(
 ): CatalogProductScopeWritePort {
   return {
     async applyScopes(productId, input, options) {
-      // 168-shim: port v2 (`contracts/pim-locale-mapping.md` §4) on the 163 writers — `status` and
+      // 170-shim: port v2 (`contracts/pim-locale-mapping.md` §4) on the 163 writers — `status` and
       // `window` through the scopes PATCH, `urlKey` at C×L through the URL-key import mode; every
       // other cell is refused `not_supported` until T083 lands the allowlist on the save service.
       const { request, urlKeys, refused } = toScopesPatch(input);
@@ -133,7 +133,7 @@ export function createCatalogProductScopeWritePort(
   };
 }
 
-/** 168-shim — the v2 cells the 163 writers can take, and the refused rest. */
+/** 170-shim — the v2 cells the 163 writers can take, and the refused rest. */
 export function toScopesPatch(input: ProductScopedWriteInput): {
   request: PatchProductScopesRequest;
   urlKeys: ProductUrlKeyWrite[];

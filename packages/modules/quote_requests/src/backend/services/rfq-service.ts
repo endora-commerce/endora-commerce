@@ -595,7 +595,7 @@ export class RfqService {
       // unit's, beside its id; a line naming no unit stores plain pieces.
       // Feature 163 (FR-017 d, N2) — the name is the one the buyer saw: the
       // effective name at the request's (channel, language).
-      const baseName = lineNames.get(product.id) ?? product.name /* 168-shim: Global name */;
+      const baseName = lineNames.get(product.id) ?? product.name /* 170-shim: Global name */;
       const productName = unit.packagingUnitName ? `${baseName} (${unit.packagingUnitName})` : baseName;
       const item = em.create(QuoteRequestItem, {
         quoteRequestId: rfq.id,
@@ -784,7 +784,7 @@ export class RfqService {
         // FR-035 — packaging stored with the name suffix `createForCustomer`
         // writes; feature 155 (FR-026) — the catalogue unit's, beside its id;
         // feature 163 — the effective name at the request's (channel, language).
-        const baseName = lineNames.get(product.id) ?? product.name /* 168-shim: Global name */;
+        const baseName = lineNames.get(product.id) ?? product.name /* 170-shim: Global name */;
         return {
           quoteRequestId: rfq.id,
           productId: product.id,
@@ -1618,7 +1618,7 @@ export class RfqService {
  */
 function productNames(products: Iterable<CatalogProductRecord>, _language: string | undefined): Map<string, string> {
   const out = new Map<string, string>();
-  for (const product of products) out.set(product.id, product.name); // 168-shim: Global text
+  for (const product of products) out.set(product.id, product.name); // 170-shim: Global text
   return out;
 }
 

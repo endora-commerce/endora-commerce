@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { galleryItemSchema, updateGalleryItemRequestSchema } from './catalog.js';
 
 /**
- * Feature 163, rewritten by feature 168 (`contracts/scoped-values-api.md` §6) — the gallery item
+ * Feature 163, rewritten by feature 170 (`contracts/scoped-values-api.md` §6) — the gallery item
  * route keeps position and labels; alt text, the hidden flag and the channel roles are scoped
  * fields written through `PUT …/products/:id/scoped-values`.
  */

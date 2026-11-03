@@ -198,7 +198,7 @@ export async function assertCartChangeMeetsMinimums(
   }
   const refusal = minimumRefusal(
     [violation],
-    new Map([[product.id, product.name]]), // 168-shim: Global text
+    new Map([[product.id, product.name]]), // 170-shim: Global text
     'cartItemId',
   );
   if (refusal === null) return;
@@ -404,7 +404,7 @@ export async function assertCartMeetsMinimums(
   const names = new Map(
     violations.map((v) => {
       const product = productsById.get(v.productId);
-      return [v.productId, product !== undefined ? product.name : v.productId]; // 168-shim: Global text
+      return [v.productId, product !== undefined ? product.name : v.productId]; // 170-shim: Global text
     }),
   );
   const refusal = minimumRefusal(violations as OrderMinimumBelowViolation[], names, 'cartItemId');

@@ -1,7 +1,7 @@
 import { Migration } from '@mikro-orm/migrations';
 
 /**
- * Feature 168 (`specs/168-product-editor-scope-switcher/data-model.md` §1–§3, §10; research R18,
+ * Feature 170 (`specs/170-product-editor-scope-switcher/data-model.md` §1–§3, §10; research R18,
  * R22) — the texts of the three-level scope model.
  *
  * `products.name` / `.description` become the **Global** text (one value, no language),

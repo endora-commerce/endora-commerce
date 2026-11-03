@@ -103,7 +103,7 @@ const duplicateFeedBodySchema = duplicateProductFeedRequestSchema.extend({
  * the SKU is the last resort because it always identifies the row.
  */
 function pickProductName(name: string, sku: string): string {
-  // 168-shim: the Global name (`contracts/readers.md` §1, admin preview = G).
+  // 170-shim: the Global name (`contracts/readers.md` §1, admin preview = G).
   return name.trim() || sku;
 }
 

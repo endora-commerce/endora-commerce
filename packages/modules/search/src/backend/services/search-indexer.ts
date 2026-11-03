@@ -918,7 +918,7 @@ function buildDocument(
   // Name / Description through the four-step fallback chain so
   // per-(channel, language) overrides are visible in search. When not
   // supplied (legacy callers), fall back to plain locale-pick.
-  // 168-shim: the per-language index shape (`texts.<L>`, `contracts/search-index.md`) is S2's (T063+).
+  // 170-shim: the per-language index shape (`texts.<L>`, `contracts/search-index.md`) is S2's (T063+).
   void locale;
   let name = product.name;
   let description = product.description ?? '';
@@ -1031,7 +1031,7 @@ function localizedNamesOf(
   const rows: OverrideRow[] = (resolverInputs?.overrides ?? [])
     .filter((o) => o.channelId === resolverInputs?.channelId)
     .map((o) => ({ attributeKey: o.attributeKey, channelId: o.channelId, languageCode: o.languageCode ?? null, value: o.value }));
-  // 168-shim: the chain at (C, L) per live language; S2 replaces `localizedNames` with `texts`.
+  // 170-shim: the chain at (C, L) per live language; S2 replaces `localizedNames` with `texts`.
   for (const language of liveLanguages) {
     out[language] = resolverInputs
       ? (effectiveSystemText(rows, 'name', { channelId: resolverInputs.channelId, languageCode: language }, product.name) ??

@@ -681,7 +681,7 @@ function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormPro
   // flags; a system attribute's are fixed (`getAttributeScope`) and read-only.
   const storedScope = attribute ? scopeFlagsOf(attribute) : { channelScoped: false, languageScoped: false };
   const systemAttribute = attribute ? isSystemAttributeKey(attribute.key) : false;
-  // 168-shim: the two 163 flags are one `scopable` flag now (R15); T113 rewrites this form.
+  // 170-shim: the two 163 flags are one `scopable` flag now (R15); T113 rewrites this form.
   const initialScope: AttributeScopeFlags | null =
     systemAttribute && attribute
       ? { channelScoped: getAttributeScope(attribute.key).scopable, languageScoped: getAttributeScope(attribute.key).scopable }

@@ -95,7 +95,7 @@ export function resetRequestFor(input: {
     if (level === 'channel_language') {
       return { kind: 'urlKeys', body: { channelKeys: [{ channelId, languageCode, key: { inherit: true } }] } };
     }
-    // 168-shim: there is no Language key any more (FR-010); T132 drops this branch.
+    // 170-shim: there is no Language key any more (FR-010); T132 drops this branch.
     return null;
   }
   return null;

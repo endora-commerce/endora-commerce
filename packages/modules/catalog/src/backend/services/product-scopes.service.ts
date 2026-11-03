@@ -68,7 +68,7 @@ interface ChannelAuditEntry {
   status?: ProductScopeStatus | null;
   window?: { from: string | null; until: string | null } | null;
   audience?: AudienceRule | null;
-  /** 168-shim: the audit still speaks 163's `null` = inherit; T040 moves it to the write encoding. */
+  /** 170-shim: the audit still speaks 163's `null` = inherit; T040 moves it to the write encoding. */
   minOrderQuantityOverridden?: boolean;
   minOrderQuantity?: number | null;
   returnable?: boolean | null;
@@ -210,7 +210,7 @@ function writesAt(raw: unknown): boolean {
 }
 
 /**
- * Feature 168 (`contracts/write-encoding.md` §5, FR-116) — `inherit` → `null` (the override goes),
+ * Feature 170 (`contracts/write-encoding.md` §5, FR-116) — `inherit` → `null` (the override goes),
  * `set` → the value; `empty` is refused for a field that takes no empty override
  * (`422 SCOPED_VALUE_INVALID`, `not_emptyable`).
  */

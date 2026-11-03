@@ -2203,7 +2203,7 @@ export class CatalogQueryService {
     // FR-077 (R15) — the product's own alt text at the scope language, else the
     // asset's alt text through the existing pick.
     const scopeLanguage = this.#availabilityScope(ctx).languageCode;
-    // 168-shim: the Global alt text only; the C×L → C chain and the empty override (`alt=""`) are T035 / T061.
+    // 170-shim: the Global alt text only; the C×L → C chain and the empty override (`alt=""`) are T035 / T061.
     void scopeLanguage;
     const altTextOf = (item: GalleryItem, asset: AssetRecord): string | null =>
       item.altText ?? (asset.altText ? this.pickLang(asset.altText, ctx.preferredLanguage, channel) : null);
@@ -2378,7 +2378,7 @@ export class CatalogQueryService {
           {
             id: row.id,
             position: row.position,
-            // 168-shim: the Global text; the attachment chain at (C, L) is T041's.
+            // 170-shim: the Global text; the attachment chain at (C, L) is T041's.
             name: row.name,
             description: row.description ?? null,
             type: { id: t.id, code: t.code, name: t.name },
@@ -2504,7 +2504,7 @@ export class CatalogQueryService {
       if (packagingUnits.length > 0) {
         detail.packagingUnits = packagingUnits.map((u) => ({
           id: u.id,
-          // 168-shim: the Global name; the packaging chain at (C, L) is T041's.
+          // 170-shim: the Global name; the packaging chain at (C, L) is T041's.
           name: u.name,
           baseQuantity: u.baseQuantity,
           position: u.position,
@@ -3392,7 +3392,7 @@ export class CatalogQueryService {
     channel: CatalogResolvedChannel,
     preferredLanguage: string | undefined,
   ): StorefrontOverrideContext {
-    // Feature 168 — the chain runs at the request's resolved (C, L): C×L → C → Global.
+    // Feature 170 — the chain runs at the request's resolved (C, L): C×L → C → Global.
     return { channelId: channel.id, languageCode: scopeLanguageOf(channel, preferredLanguage) };
   }
 

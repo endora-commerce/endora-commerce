@@ -181,7 +181,7 @@ export class TaskReferenceService {
     const labels = new Map<string, string>();
     const orderFacts = new Map<string, RecordReferenceOrder>();
     for (const product of products) {
-      labels.set(`product:${product.id}`, product.name /* 168-shim: Global text */);
+      labels.set(`product:${product.id}`, product.name /* 170-shim: Global text */);
     }
     for (const order of orders) {
       labels.set(`order:${order.id}`, order.businessId);

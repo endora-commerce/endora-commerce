@@ -53,7 +53,7 @@ export interface AudienceRule {
 
 /**
  * A `product_channel_scopes` row. Every `null` inherits the global value, except the
- * minimum order quantity, whose override is the flag (feature 168, data-model §4).
+ * minimum order quantity, whose override is the flag (feature 170, data-model §4).
  */
 export interface ProductChannelScopeRecord {
   productId: string;
@@ -65,7 +65,7 @@ export interface ProductChannelScopeRecord {
   /** `null` = inherit the whole global rule. */
   audience: AudienceRule | null;
   /**
-   * Feature 168 (data-model §4) — whether the channel overrides the global minimum. When
+   * Feature 170 (data-model §4) — whether the channel overrides the global minimum. When
    * it does, {@link minOrderQuantity} `null` = **no minimum in this channel**.
    */
   minOrderQuantityOverridden: boolean;
@@ -368,7 +368,7 @@ export interface CatalogProductAvailabilityPort {
     channelId: string,
   ): Promise<Map<string, ChannelAvailability>>;
   /**
-   * Feature 168 (FR-030, `contracts/readers.md` §2) — the effective name and description
+   * Feature 170 (FR-030, `contracts/readers.md` §2) — the effective name and description
    * per id at (channel, language) along C×L → C → G; an empty description override
    * answers `null`. `languageCode` `null` = the channel's default language (an
    * operator, N2). Applies no availability: an id not found is absent.
@@ -378,7 +378,7 @@ export interface CatalogProductAvailabilityPort {
     scope: { channelId: string; languageCode: string | null },
   ): Promise<Map<string, EffectiveProductTexts>>;
   /**
-   * Feature 168 — the effective packaging-unit name per unit id at (channel, language);
+   * Feature 170 — the effective packaging-unit name per unit id at (channel, language);
    * `null` = an empty override (nothing shown). Basket and quote snapshots take it at
    * the line's scope and never re-resolve it.
    */
@@ -415,7 +415,7 @@ export interface ProductScopedWriteCell {
 }
 
 /**
- * Feature 168 — what an integration writes through {@link CatalogProductScopeWritePort} (v2):
+ * Feature 170 — what an integration writes through {@link CatalogProductScopeWritePort} (v2):
  * only the named (field, scope) cells are touched (FR-044), so writing Global values removes
  * no operator override.
  */
@@ -495,7 +495,7 @@ export interface ProductScopedWriteResult {
 }
 
 /**
- * Container name: `catalogProductScopeWritePort`. Owner: `catalog` (R17, feature 168 v2).
+ * Container name: `catalogProductScopeWritePort`. Owner: `catalog` (R17, feature 170 v2).
  *
  * Scoped writes for imports and connectors: one Command per product, per-cell tolerant (the
  * refused cells are reported, the rest applied), the same `validateScopedWrite` refusals as
@@ -580,7 +580,7 @@ export const productScopesSchema = z.object({
           nonMemberOrganizationIds: z.array(uuidSchema),
         })
         .nullable(),
-      /** Feature 168 — whether the channel overrides the minimum; then `minOrderQuantity` `null` = none here. */
+      /** Feature 170 — whether the channel overrides the minimum; then `minOrderQuantity` `null` = none here. */
       minOrderQuantityOverridden: z.boolean(),
       minOrderQuantity: z.number().int().nullable(),
       returnable: z.boolean().nullable(),
@@ -606,7 +606,7 @@ export type ProductScopesResponse = z.infer<typeof productScopesResponseSchema>;
 
 /**
  * §2 — `PATCH /api/v1/admin/catalog/products/:id/scopes`, in the one write encoding
- * (feature 168, `contracts/write-encoding.md` §5, FR-116): absent or `""` = no change,
+ * (feature 170, `contracts/write-encoding.md` §5, FR-116): absent or `""` = no change,
  * `{ inherit: true }` = use inherited (deletes the override), `null` = the empty override
  * where the field takes one — `minOrderQuantity: null` = no minimum in this channel,
  * `window: null` = an open window override; `status`, `audience` and `returnable` refuse
@@ -671,7 +671,7 @@ export const scopeIncompleteDetailsSchema = z.object({
 });
 export type ScopeIncompleteDetails = z.infer<typeof scopeIncompleteDetailsSchema>;
 
-/** Feature 168 (FR-010) — there is no Language scope: an override sits at C or C×L. */
+/** Feature 170 (FR-010) — there is no Language scope: an override sits at C or C×L. */
 export const scopeLevelSchema = z.enum(['channel_language', 'channel']);
 
 /** §3 — `GET /api/v1/admin/catalog/products/:id/scope-overview`. */
