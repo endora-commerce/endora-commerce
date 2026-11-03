@@ -1,4 +1,4 @@
-import { apiMutate, extractSessionCookieValue } from './mutations';
+import { apiGetAuthed, apiMutate, extractSessionCookieValue } from './mutations';
 import { StorefrontApiError, type RequestContext } from './client';
 import { withModuleAbsence } from './module-absence';
 import { backendBaseUrl } from '../env.mjs';
@@ -111,6 +111,20 @@ export interface CartSummary {
   couponDroppedThisRead?: { code: string; reason: string } | null;
   /** Feature 027 — surfaced for client-side activity-bookkeeping displays. */
   lastActivityAt?: string | null;
+  /**
+   * Issue #650 — the rejection of the buyer's previous basket on this channel.
+   * A rejection closes the basket, so the one read here is a new one and its
+   * own `approvalStatus` cannot say it; `null` once the buyer has sent a basket
+   * again or ordered since.
+   */
+  previousRejection?: CartPreviousRejection | null;
+}
+
+/** Issue #650 — `CartSummary.previousRejection`. */
+export interface CartPreviousRejection {
+  cartId: string;
+  rejectedAt: string;
+  reason: string | null;
 }
 
 export interface CartCookieJar {
@@ -530,6 +544,81 @@ export async function listOrganizationCarts(
     throw new Error(`organization/carts list failed with HTTP ${res.status}`);
   }
   return (await res.json()) as OrgCartsListResponse;
+}
+
+/** Issue #650 — one line of {@link OrgCartDetail}, at the price stored on it. */
+export interface OrgCartDetailLine {
+  id: string;
+  productId: string;
+  variantId: string | null;
+  displayName: string | null;
+  productSku: string | null;
+  quantity: number;
+  unitPrice: { amount: number; currency: string };
+  lineTotal: { amount: number; currency: string };
+}
+
+/** `GET /api/v1/organization/carts/:id` — `orgCartDetailViewSchema` in the contracts. */
+export interface OrgCartDetail extends Omit<OrgCartSummary, 'ownerCustomerAccountId'> {
+  ownerCustomerAccountId: string | null;
+  approvedAt: string | null;
+  rejectedAt: string | null;
+  rejectedReason: string | null;
+  items: OrgCartDetailLine[];
+}
+
+/**
+ * Issue #650 — one cart of the caller's Organization, for its administrator.
+ * `null` for a cart that does not exist or is another Organization's — the API
+ * answers both with the same 404. Any other refusal throws its
+ * `StorefrontApiError`.
+ */
+export async function getOrganizationCart(
+  jar: CartCookieJar,
+  cartId: string,
+  ctx?: RequestContext,
+): Promise<OrgCartDetail | null> {
+  try {
+    return await apiGetAuthed<OrgCartDetail>({
+      path: `/api/v1/organization/carts/${encodeURIComponent(cartId)}`,
+      sessionCookie: jar.session ?? '',
+      ...(ctx ? { ctx } : {}),
+    });
+  } catch (err) {
+    if (err instanceof StorefrontApiError && err.status === 404) return null;
+    throw err;
+  }
+}
+
+/** Issue #650 — approve a pending cart of the caller's Organization. */
+export async function approveOrganizationCart(
+  jar: CartCookieJar,
+  cartId: string,
+  ctx?: RequestContext,
+): Promise<void> {
+  await apiMutate({
+    method: 'POST',
+    path: `/api/v1/organization/carts/${encodeURIComponent(cartId)}/approve`,
+    body: {},
+    rawCookieHeader: combineCookies(jar) || null,
+    ...(ctx ? { ctx } : {}),
+  });
+}
+
+/** Issue #650 — reject a pending cart of the caller's Organization; the reason is required. */
+export async function rejectOrganizationCart(
+  jar: CartCookieJar,
+  cartId: string,
+  reason: string,
+  ctx?: RequestContext,
+): Promise<void> {
+  await apiMutate({
+    method: 'POST',
+    path: `/api/v1/organization/carts/${encodeURIComponent(cartId)}/reject`,
+    body: { reason },
+    rawCookieHeader: combineCookies(jar) || null,
+    ...(ctx ? { ctx } : {}),
+  });
 }
 
 /**

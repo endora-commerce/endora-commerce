@@ -88,6 +88,10 @@ export const commerce = defineMessages({
     'commerce.cart.approval.rejectedWithReason':
       'Your cart was rejected by an organization administrator. Reason: {reason}',
     'commerce.cart.approval.policyOn': 'Your organization requires cart approval before checkout.',
+    'commerce.cart.approval.previousRejected':
+      'Your previous cart was rejected by an organization administrator.',
+    'commerce.cart.approval.previousRejectedWithReason':
+      'Your previous cart was rejected by an organization administrator. Reason: {reason}',
     'commerce.cart.upsells.heading': 'You might also need',
     'commerce.cart.banner.qrCreated': "We've sent your cart to sales as a new quote request.",
     'commerce.cart.banner.listAdded': 'Saved line to your "{list}" list.',
@@ -306,6 +310,10 @@ export const commerce = defineMessages({
     'commerce.cart.approval.rejectedWithReason':
       'Twój koszyk został odrzucony przez administratora organizacji. Powód: {reason}',
     'commerce.cart.approval.policyOn': 'Twoja organizacja wymaga akceptacji koszyka przed realizacją.',
+    'commerce.cart.approval.previousRejected':
+      'Twój poprzedni koszyk został odrzucony przez administratora organizacji.',
+    'commerce.cart.approval.previousRejectedWithReason':
+      'Twój poprzedni koszyk został odrzucony przez administratora organizacji. Powód: {reason}',
     'commerce.cart.upsells.heading': 'Możesz też potrzebować',
     'commerce.cart.banner.qrCreated': 'Twój koszyk został wysłany do działu sprzedaży jako nowe zapytanie ofertowe.',
     'commerce.cart.banner.listAdded': 'Pozycja została zapisana na liście „{list}”.',

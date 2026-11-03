@@ -404,6 +404,7 @@ export function registerModule(ctx: ModuleContext): void {
       cartService,
       cartApprovalService: cradle.cartApprovalService,
       customerAccounts: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+      catalogProducts: lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
       visibilityService: new CartOrganizationVisibilityService(
         emFactory,
         lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
