@@ -49,7 +49,7 @@ function roles(): CachedOrganizationRoles {
     [MEMBER_ROLE, { id: MEMBER_ROLE, kind: 'member' as const, permissions: new Set<string>(), memberDefaultsOffered: new Set<string>() }],
     [
       CUSTOM_ROLE,
-      { id: CUSTOM_ROLE, kind: 'custom' as const, permissions: new Set(['carts.approve', 'quote_requests.create']), memberDefaultsOffered: new Set<string>() },
+      { id: CUSTOM_ROLE, kind: 'custom' as const, name: 'Buyer', permissions: new Set(['carts.approve', 'quote_requests.create']), memberDefaultsOffered: new Set<string>() },
     ],
   ]);
 }
@@ -191,5 +191,15 @@ describe('rolesHolding and predefinedRoleId', () => {
     expect(await service.predefinedRoleId(ORG, 'administrator')).toBe(ADMIN_ROLE);
     expect(await service.predefinedRoleId(ORG, 'member')).toBe(MEMBER_ROLE);
     await expect(service.predefinedRoleId(OTHER_ORG, 'member')).rejects.toMatchObject({ statusCode: 404 });
+  });
+});
+
+describe('findRole (WP-02b)', () => {
+  it("answers a role of the Organization — name for a custom role, null for a predefined one — and null for another Organization's", async () => {
+    const { service } = port();
+    expect(await service.findRole(ORG, CUSTOM_ROLE)).toEqual({ id: CUSTOM_ROLE, kind: 'custom', name: 'Buyer' });
+    expect(await service.findRole(ORG, ADMIN_ROLE)).toEqual({ id: ADMIN_ROLE, kind: 'administrator', name: null });
+    expect(await service.findRole(OTHER_ORG, CUSTOM_ROLE)).toBeNull();
+    expect(await service.findRole(ORG, '00000000-0000-4000-8000-0000000000ff')).toBeNull();
   });
 });
