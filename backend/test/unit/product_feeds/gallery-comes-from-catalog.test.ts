@@ -114,8 +114,9 @@ describe('product_feeds — gallery items come from the catalog port', () => {
 
     expect(listForProducts).toHaveBeenCalledTimes(1);
     // Feature 163 (MED-1 = A) — asked in the feed's channel, so an image hidden there
-    // never reaches the feed.
-    expect(listForProducts).toHaveBeenCalledWith([PRODUCT_A, PRODUCT_B], scope.salesChannelId);
+    // never reaches the feed; feature 170 — and at the feed's language, so an image hidden at
+    // (C, L) does not either.
+    expect(listForProducts).toHaveBeenCalledWith([PRODUCT_A, PRODUCT_B], scope.salesChannelId, 'en');
     expect(items[0]?.imageUrls).toEqual(['https://cdn.test/a.png', 'https://cdn.test/b.png']);
     expect(items[1]?.imageUrls).toEqual(['https://cdn.test/b.png']);
   });

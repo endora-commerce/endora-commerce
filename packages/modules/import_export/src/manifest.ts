@@ -182,7 +182,7 @@ export const manifest = defineModuleManifest({
       targetRoute: '/import-export',
       requiredPermission: 'catalog:write',
       // Feature 170 — the Import profiles section lives on this screen (no route of its own).
-      keywords: ['import', 'export', 'center', 'profile', 'profil', 'mapping', 'mapowanie'],
+      keywords: ['import', 'export', 'center', 'profile', 'mapping'],
       keywordsKey: 'actions.openCenter.keywords',
       weight: 220,
     },
