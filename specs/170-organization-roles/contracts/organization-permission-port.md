@@ -112,7 +112,7 @@ administrator-kind role".
 | Value | `Map<roleId, { kind, permissions: ReadonlySet<string>, memberDefaultsOffered: ReadonlySet<string> }>` |
 | Local layer | LRU, cap 4096, entries older than **30 000 ms** ignored; generation counter against racing fills |
 | Source | one `select id, kind, permissions, member_defaults_offered from organization_roles where organization_id = $1` under `withSystemScope` |
-| Drop | every role Command and every assignment Command, **after commit**: local drop, then `PUBLISH b2b:organization-roles:changed {"organizationId": "…"}` |
+| Drop | every `organization_role.*` Command, **after commit**: local drop, then `PUBLISH b2b:organization-roles:changed {"organizationId": "…"}`; assignment Commands drop nothing — assignments are not cached (R-15, `commands-audit-events.md` §5) |
 | Subscribe | `onBoot` in `organizations`, on the cradle's `redisSubscriber`, dropping the local entry |
 | Redis down | publish failure is logged and swallowed; the 30 s bound holds. Never falls open: a miss reads PostgreSQL |
 

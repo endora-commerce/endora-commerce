@@ -434,10 +434,13 @@ automated test; it is checked in the `quickstart.md` §2 walk-through (T116).
 1. **R-16 vs `contracts/commands-audit-events.md` §5** — R-16 says every *assignment* Command also
    drops the cache and publishes; §5 says only the three `organization_role.*` Commands do, because
    assignments are not cached (R-15). The contract is the later refinement; T041/T045 follow §5
-   (no drop on assignment). R-16's sentence should be aligned.
+   (no drop on assignment). *Aligned 2026-11-03*: R-16, R-9's status line and
+   `contracts/organization-permission-port.md` §4 now say the same as §5.
 2. **Spec Key Entity "Permission first-seen ledger … platform-wide"** — superseded by R-17's
-   per-*Member* `member_defaults_offered`; the spec line still needs aligning (already noted in R-17).
+   per-*Member* `member_defaults_offered`. *Aligned 2026-11-03*: the Key Entity now describes the
+   per-*Member* ledger.
 3. **FR-022 lists the two P3 codes** while R-30 forbids declaring them in P2; the coverage table
-   records them as deferred.
+   records them as deferred. *Aligned 2026-11-03*: FR-022 carries a Phase column (nine P2, two P3)
+   and FR-041 states its P2 form (R-30).
 4. Adjustments A-1 (addresses declaration in WP-03), A-2 (PL with EN per WP), A-3 (no upgrade page)
    and A-4 (only #656 still open) are recorded in plan.md.

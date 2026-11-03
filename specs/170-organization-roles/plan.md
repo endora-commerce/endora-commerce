@@ -365,12 +365,13 @@ and WP-10 drafting alongside.
 | FR-014 | all | the WP-00 oracle replayed (FR-072) |
 | FR-014a | 03 | address writes need `addresses.manage`; the list stays open |
 | FR-020, FR-021 | 01 | permission-inventory organization describe: cross-vocabulary, foreign declarer, labels |
-| FR-022 | 04–07, 02a | inventory: every code declared and enforced |
+| FR-022 | 04–07, 02a | inventory: every P2 code declared and enforced; the two P3 codes are declared by P3a (R-30) |
 | FR-023 | 02a | *Member*'s implicit defaults; an un-ticked code never returns across off/on and uninstall/reinstall |
 | FR-024, US 6 | 02b | delete with holders is atomic, one entry per child; a delete with no holders needs no replacement |
 | FR-030–FR-035 | 04 | gates per route; approval judged by the permission; approvers; self-approval refused; cascade events; e-mail recipients |
 | FR-040 | 05 (+04, 06) | every creation path, from a cart (04) and from a list (06) included |
-| FR-041–FR-046 | P3a | — |
+| FR-041 | 05, P3a | P2 form (05): only *Administrator* sees every quote request (R-30); permission form: P3a |
+| FR-042–FR-046 | P3a | — |
 | FR-047, FR-048 | 06 (+04) | list writes; composite conversions |
 | FR-049 | 07 | colleague order list, read, reorder, clone, returns and invoices only with the permission; otherwise 404 |
 | FR-050, FR-051 | 06, 10 | eligibility reasons; placement refused before any basket write; button hidden |
