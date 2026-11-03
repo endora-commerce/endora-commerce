@@ -121,8 +121,12 @@ export class CustomerAccount {
    * production write passes it — the write ports require it — so the trigger
    * serves fixtures that create the entity directly. The value such a row gets
    * is in the database, not on this instance, until it is re-read.
+   *
+   * `nullable: true` is the ORM's side of that bargain, not the column's: the
+   * column is `NOT NULL`, and without the flag MikroORM refuses to flush an
+   * instance that leaves the property for the trigger to fill.
    */
-  @Property({ type: 'uuid' })
+  @Property({ type: 'uuid', nullable: true })
   organizationRoleId!: string;
 
   @Property({ type: 'datetime', nullable: true })
