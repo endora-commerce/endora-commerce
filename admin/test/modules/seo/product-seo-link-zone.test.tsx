@@ -16,7 +16,7 @@ import { adminSession, modulePresence, withSession } from '../../helpers/render-
  * routes enforce (`catalog:write`, the `open-seo` action's own gate). The link opens the
  * SEO screen with this product selected (owner decision UX-4 = A).
  *
- * The link is `seo`'s contribution to `product.editor.seo.after`, so `catalog` never
+ * The link is `seo`'s contribution to the interim `product.editor.seo` zone, so `catalog` never
  * names `seo` (`check:admin-zones`' `foreign-module-id`): the zone renderer's presence
  * and permission filters are what hide it.
  */

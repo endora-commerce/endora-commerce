@@ -660,7 +660,7 @@
   "errors.FIELD_NOT_AT_SCOPE": "Części tych pól nie można ustawić w tym zakresie. Pola takie jak odbiorcy, okno publikacji, minimalna ilość zamówienia czy atrybut nietekstowy ustawia się dla całego kanału sprzedaży, a nie dla jednego z jego języków. Przełącz się na zakres, który dane pole obsługuje, i zapisz ponownie.",
   "errors.SCOPED_VALUE_INVALID": "Części tych wartości nie można zapisać w obecnej postaci: pole wymagane nie może pozostać puste, pole wyboru lub pole tak/nie wymaga wartości, zakres globalny nie ma skąd dziedziczyć albo element nie należy już do tego produktu. Popraw oznaczone pola i zapisz ponownie.",
   "errors.GLOBAL_ONLY_FIELD": "Część tych pól jest taka sama we wszystkich kanałach sprzedaży i językach. Aby je zmienić, przełącz się na zakres globalny.",
-  "errors.URL_KEY_TAKEN": "Ten klucz URL jest już używany przez inny produkt w tym samym języku. Wybierz inny klucz URL.",
+  "errors.URL_KEY_TAKEN": "Ten klucz URL jest już używany przez inny produkt w tym kanale sprzedaży. Klucz URL należy do jednego produktu w kanale, we wszystkich językach. Wybierz inny klucz URL.",
   "errors.URL_KEY_REDIRECT_TAKEOVER_REQUIRED": "Ten klucz URL nadal przekierowuje do innego produktu. Potwierdź, że chcesz go przejąć — tamten produkt straci to przekierowanie.",
   "errors.URL_REDIRECT_NOT_FOUND": "To przekierowanie już nie istnieje. Odśwież stronę, aby zobaczyć aktualne przekierowania produktu.",
   "auditLog.product.update": "Zaktualizowano produkt",

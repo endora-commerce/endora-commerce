@@ -660,7 +660,7 @@
   "errors.FIELD_NOT_AT_SCOPE": "Some of these fields cannot be set at this scope. A field such as the audience, the publication window, the minimum order quantity or a non-text attribute is set for a whole sales channel, not for one of its languages. Switch to the scope the field accepts and save again.",
   "errors.SCOPED_VALUE_INVALID": "Some of these values cannot be saved as they are: a required field cannot be left empty, a choice or a yes/no field needs a value, the global scope has nothing to inherit from, or an item no longer belongs to this product. Correct the marked fields and save again.",
   "errors.GLOBAL_ONLY_FIELD": "Some of these fields are the same in every sales channel and language. Switch to the global scope to change them.",
-  "errors.URL_KEY_TAKEN": "This URL key is already used by another product in the same language. Choose a different URL key.",
+  "errors.URL_KEY_TAKEN": "This URL key is already used by another product in this sales channel. A URL key belongs to one product per channel, in every language. Choose a different URL key.",
   "errors.URL_KEY_REDIRECT_TAKEOVER_REQUIRED": "This URL key still redirects to another product. Confirm that you want to take it over; the other product will lose that redirect.",
   "errors.URL_REDIRECT_NOT_FOUND": "This redirect no longer exists. Refresh the page to see the product's current redirects.",
   "auditLog.product.update": "Product updated",

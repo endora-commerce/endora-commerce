@@ -187,3 +187,5 @@ export type {
 } from './record-history/RecordHistory.js';
 export { CursorPagination } from './record-history/CursorPagination.js';
 export type { CursorPaginationProps } from './record-history/CursorPagination.js';
+export { ScopedField, ScopedFieldGrid } from './scoped-field/ScopedField.js';
+export type { ScopedFieldControlProps, ScopedFieldProps } from './scoped-field/ScopedField.js';
