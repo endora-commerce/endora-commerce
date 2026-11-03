@@ -47,8 +47,8 @@ describe('catalog scope model migrations (170 T015)', () => {
   afterEach(async () => db.rollbackTx());
   afterAll(async () => db.close());
 
-  async function run(Class: MigrationClass, direction: 'up' | 'down'): Promise<void> {
-    const m = new (Class as unknown as new (driver: unknown, config: unknown) => InstanceType<MigrationClass>)(
+  async function run(migrationClass: MigrationClass, direction: 'up' | 'down'): Promise<void> {
+    const m = new (migrationClass as unknown as new (driver: unknown, config: unknown) => InstanceType<MigrationClass>)(
       em.getDriver(),
       em.config,
     );
@@ -57,10 +57,10 @@ describe('catalog scope model migrations (170 T015)', () => {
     em.clear();
   }
   const downAll = async () => {
-    for (const Class of [...ORDER].reverse()) await run(Class, 'down');
+    for (const migrationClass of [...ORDER].reverse()) await run(migrationClass, 'down');
   };
   const upAll = async () => {
-    for (const Class of ORDER) await run(Class, 'up');
+    for (const migrationClass of ORDER) await run(migrationClass, 'up');
   };
 
   const rows = <T>(sql: string, params: unknown[] = []): Promise<T[]> => em.execute(sql, params) as Promise<T[]>;
