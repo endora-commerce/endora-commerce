@@ -26,7 +26,13 @@ describe('isActiveContent', () => {
   ])('refuses %s declared %s', (filename, mimeType) => {
     expect(isActiveContent({ filename, mimeType })).toBe(true);
     expect(() => refuseActiveContent({ filename, mimeType })).toThrowError(
-      expect.objectContaining({ statusCode: 415, code: 'ASSET_UPLOAD_TYPE_NOT_ALLOWED' }),
+      expect.objectContaining({
+        statusCode: 415,
+        code: 'ASSET_UPLOAD_TYPE_NOT_ALLOWED',
+        // Issue #623: the token picks the asset library's attachment sentence,
+        // not its generic "cannot be uploaded to the asset library" one.
+        details: { code: 'attachment_active_content' },
+      }),
     );
   });
 

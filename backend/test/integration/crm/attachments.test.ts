@@ -378,6 +378,53 @@ describe('crm attachments', () => {
       expect(await list(opportunity.id)).toEqual([]);
     });
 
+    /**
+     * Issue #623: the refusal carries `details.code: 'attachment_active_content'`,
+     * which picks the asset library's attachment sentence. Without it the
+     * envelope answered the library's generic "cannot be uploaded to the asset
+     * library", which names the wrong place and none of the refused types.
+     * An administrator's language is the stored preference, not a header.
+     */
+    it('says, in English and Polish, that the file cannot be an attachment and which types are refused', async () => {
+      const setLanguage = async (preferredLanguage: 'en' | 'pl' | null) => {
+        const res = await h.app.inject({
+          method: 'PATCH',
+          url: '/api/v1/admin/me/preferred-language',
+          cookies: CRM_ADMIN,
+          payload: { preferredLanguage },
+        });
+        expect(res.statusCode, res.body).toBe(200);
+      };
+      const opportunity = await createCrmOpportunity(h);
+      const file = await asset({ filename: 'page.html', mimeType: 'text/html' });
+      const refuse = () => call('POST', `/opportunities/${opportunity.id}/attachments`, { assetId: file.id });
+      try {
+        await setLanguage('en');
+        const en = await refuse();
+        expect(en.statusCode, en.body).toBe(415);
+        const enError = en.json().error as { code: string; message: string; details?: unknown };
+        expect(enError.code).toBe(ERROR_CODES.ASSET_UPLOAD_TYPE_NOT_ALLOWED);
+        expect(enError.details).toEqual({ code: 'attachment_active_content' });
+        expect(enError.message).toBe(
+          'HTML, SVG, XML and JavaScript files cannot be attachments: a browser would open and run them.',
+        );
+
+        await setLanguage('pl');
+        const pl = await refuse();
+        expect(pl.statusCode, pl.body).toBe(415);
+        const plError = pl.json().error as { code: string; message: string };
+        expect(plError.code).toBe(ERROR_CODES.ASSET_UPLOAD_TYPE_NOT_ALLOWED);
+        expect(plError.message).toBe(
+          'Pliki HTML, SVG, XML i JavaScript nie mogą być załącznikami: przeglądarka by je otworzyła i uruchomiła.',
+        );
+        expect(plError.message).not.toBe(enError.message);
+        expect(plError.message).not.toMatch(/biblioteki zasobów|cannot be|\{/);
+      } finally {
+        // The preference outlives this file in a single-fork run.
+        await setLanguage(null);
+      }
+    });
+
     it('hands the link out as a download, never as a page to render', async () => {
       const opportunity = await createCrmOpportunity(h);
       const file = await asset();
