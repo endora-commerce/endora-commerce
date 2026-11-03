@@ -11,6 +11,7 @@
  */
 
 import { z } from 'zod';
+import { ERROR_CODES } from './errors.js';
 import { isoDateTimeSchema, productVisibilitySchema, uuidSchema } from './common.js';
 import { PRODUCT_DESCRIPTION_MAX, PRODUCT_NAME_MAX, productStatusSchema, productTypeSchema } from './catalog.js';
 import { ORDER_MINIMUM_MAX } from './order-minimums.js';
@@ -428,3 +429,13 @@ export type ScopedValueInvalidDetails = z.infer<typeof scopedValueInvalidDetails
 
 /** `422 GLOBAL_ONLY_FIELD` details. */
 export const globalOnlyFieldDetailsSchema = z.object({ fields: z.array(z.string()) });
+
+/**
+ * The `details` each scoped-values refusal carries (`contracts/error-codes.md`): the one table a
+ * client reads a refusal's shape from.
+ */
+export const scopedValuesErrorDetailsSchemas = {
+  [ERROR_CODES.FIELD_NOT_AT_SCOPE]: fieldNotAtScopeDetailsSchema,
+  [ERROR_CODES.SCOPED_VALUE_INVALID]: scopedValueInvalidDetailsSchema,
+  [ERROR_CODES.GLOBAL_ONLY_FIELD]: globalOnlyFieldDetailsSchema,
+} as const;

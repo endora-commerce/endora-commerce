@@ -16,6 +16,7 @@
 
 import { z } from 'zod';
 import { isoDateTimeSchema, uuidSchema } from './common.js';
+import { ERROR_CODES } from './errors.js';
 import { pimLocaleMappingEntrySchema, pimLocaleTagSchema, sameSourceLocale } from './pim-locale-mapping.js';
 
 /** One rejected row of a bulk import. `index` is 0-based over the rows the caller passed. */
@@ -146,3 +147,10 @@ export const productsImportQuerySchema = z
 /** `404 IMPORT_PROFILE_NOT_FOUND` / `409 IMPORT_PROFILE_NAME_TAKEN` details. */
 export const importProfileNotFoundDetailsSchema = z.object({ profileId: uuidSchema });
 export const importProfileNameTakenDetailsSchema = z.object({ name: z.string() });
+
+/** The `details` each import-profile refusal carries (`contracts/error-codes.md`); `null` = none. */
+export const importProfileErrorDetailsSchemas = {
+  [ERROR_CODES.IMPORT_PROFILE_REQUIRED]: null,
+  [ERROR_CODES.IMPORT_PROFILE_NOT_FOUND]: importProfileNotFoundDetailsSchema,
+  [ERROR_CODES.IMPORT_PROFILE_NAME_TAKEN]: importProfileNameTakenDetailsSchema,
+} as const;

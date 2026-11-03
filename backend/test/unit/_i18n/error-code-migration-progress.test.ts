@@ -123,6 +123,10 @@ const MIGRATED_MODULES: readonly string[] = [
   // `TASK_*` codes were created after the chain was deleted, so
   // `MINTED_ERROR_CODES` accounts for them.
   'tasks',
+  // Minted by `specs/170-product-editor-scope-switcher/`: `import_export`'s first codes are the
+  // three `IMPORT_PROFILE_*` refusals, created after the chain was deleted, so
+  // `MINTED_ERROR_CODES` accounts for them.
+  'import_export',
   // Minted with the module (`specs/163-projects-and-tasks/`): its `PROJECT_*`
   // codes were created after the chain was deleted, so `MINTED_ERROR_CODES`
   // accounts for each in the change that first raises it.
