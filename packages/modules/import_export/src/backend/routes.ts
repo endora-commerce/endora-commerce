@@ -1,16 +1,28 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { z } from 'zod';
+import {
+  ERROR_CODES,
+  createImportProfileRequestSchema,
+  importProfileListQuerySchema,
+  updateImportProfileRequestSchema,
+  uuidSchema,
+} from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { ImportExportService } from './services/import-export-service.js';
+import type { ImportProfileService } from './services/import-profile.service.js';
 import type { RequireAdminAnyFactory, RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 export interface ImportExportRoutesDeps {
   service: ImportExportService;
+  profiles: ImportProfileService;
   requireAdmin: RequireAdminFactory;
   requireAdminAny: RequireAdminAnyFactory;
 }
 
 const FILENAME_RE = /^[a-z][a-z0-9_]*$/;
+const profileParams = z.object({ id: uuidSchema });
+/** A profile body: at most 100 entries x 16 targets of short strings fit well under this. */
+const PROFILE_BODY_LIMIT = 256 * 1024;
 
 type EntityRequest = FastifyRequest<{ Params: { entity: string } }>;
 
@@ -18,7 +30,7 @@ export async function registerImportExportRoutes(
   app: FastifyInstance,
   deps: ImportExportRoutesDeps,
 ): Promise<void> {
-  const { service, requireAdmin, requireAdminAny } = deps;
+  const { service, profiles, requireAdmin, requireAdminAny } = deps;
 
   /**
    * Holding one of the codes an entity of the centre is gated by — the owning
@@ -143,4 +155,42 @@ export async function registerImportExportRoutes(
       return { data: report };
     },
   );
+
+  /**
+   * Feature 170 (`contracts/import-profiles-and-csv.md` §1; FR-048) — import profiles. Every
+   * route, reads included, is `catalog:write`: a profile decides where an import writes, so it is
+   * part of the write (no new permission code). The any-of gate first, like every route of the
+   * centre, then the literal code so the permission inventory reads it.
+   */
+  const profilesBase = '/api/v1/admin/import-export/profiles';
+
+  app.get(profilesBase, { preHandler: [anyImportExportCode, requireAdmin('catalog:write')] }, async (request) => {
+    const query = importProfileListQuerySchema.parse(request.query ?? {});
+    return { data: await profiles.list(query) };
+  });
+
+  app.get(`${profilesBase}/:id`, { preHandler: [anyImportExportCode, requireAdmin('catalog:write')] }, async (request) => {
+    const { id } = profileParams.parse(request.params);
+    return { data: await profiles.get(id) };
+  });
+
+  app.post(profilesBase, { preHandler: [anyImportExportCode, requireAdmin('catalog:write')], bodyLimit: PROFILE_BODY_LIMIT }, async (request, reply) => {
+    const body = createImportProfileRequestSchema.parse(request.body ?? {});
+    const data = await profiles.create(body);
+    reply.status(201);
+    return { data };
+  });
+
+  app.patch(`${profilesBase}/:id`, { preHandler: [anyImportExportCode, requireAdmin('catalog:write')], bodyLimit: PROFILE_BODY_LIMIT }, async (request) => {
+    const { id } = profileParams.parse(request.params);
+    const body = updateImportProfileRequestSchema.parse(request.body ?? {});
+    return { data: await profiles.update(id, body) };
+  });
+
+  app.delete(`${profilesBase}/:id`, { preHandler: [anyImportExportCode, requireAdmin('catalog:write')] }, async (request, reply) => {
+    const { id } = profileParams.parse(request.params);
+    await profiles.delete(id);
+    reply.status(204);
+    return null;
+  });
 }

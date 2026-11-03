@@ -28,5 +28,5 @@
   "rolledBack": "Rolled back: {count} row(s) failed. No changes applied.",
   "uploading": "Uploading…",
   "actions.importProducts.keywords": "upload",
-  "actions.openCenter.keywords": "center"
+  "actions.openCenter.keywords": "center, profile, import profile, mapping, locale mapping"
 }

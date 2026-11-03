@@ -12,7 +12,11 @@ import type {
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { lazyPort } from '@endora-commerce/platform/kernel';
 import type { RequireAdminAnyFactory, RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { EntityManager } from '@mikro-orm/postgresql';
+import type { CommandBus } from '@endora-commerce/platform/commands';
 import { ImportExportService } from './services/import-export-service.js';
+import { ImportProfileService } from './services/import-profile.service.js';
+import { ImportProfile } from './entities/import-profile.entity.js';
 import { registerImportExportRoutes } from './routes.js';
 
 /**
@@ -20,11 +24,9 @@ import { registerImportExportRoutes } from './routes.js';
  * T122).
  *
  * Nothing about it is unusual, which is worth one sentence rather than none:
- * the module took two arguments, both roots passed both, neither consumed its
- * handle, and it owns no entity and no migration. Deleting the directory now
- * leaves nothing behind at all, so it does not appear in the residue ledger —
- * the fourth module in the transition to reach that state, after
- * `health_checks`, `audit_logs` and `google_tag_manager`.
+ * the module took two arguments, both roots passed both, and neither consumed its
+ * handle. Feature 170 gave it its first entity and migration (import profiles,
+ * `import_profiles`), so it now leaves that table behind when removed.
  *
  * The one thing to preserve is the `text/csv` body parser. It is registered
  * inside `ctx.routes`, which hands this module an **encapsulated** Fastify
@@ -39,6 +41,9 @@ export interface ImportExportCradle {
   readonly requireAdmin: RequireAdminFactory;
   readonly requireAdminAny: RequireAdminAnyFactory;
   readonly importExportService: ImportExportService;
+  readonly importProfileService: ImportProfileService;
+  readonly emFactory: () => EntityManager;
+  readonly commandBus: CommandBus;
 }
 
 export function registerModule(ctx: ModuleContext): void {
@@ -70,10 +75,17 @@ export function registerModule(ctx: ModuleContext): void {
           }),
       )
       .singleton(),
+
+    /** Feature 170 (FR-048) — import profiles; every write a Command (Constitution XIII). */
+    importProfileService: ctx
+      .asFunction(
+        ({ emFactory, commandBus }: ImportExportCradle) => new ImportProfileService({ emFactory, commandBus }),
+      )
+      .singleton(),
   });
 
   ctx.routes(async (app) => {
-    const { importExportService, requireAdmin, requireAdminAny } =
+    const { importExportService, importProfileService, requireAdmin, requireAdminAny } =
       ctx.cradle<ImportExportCradle>();
     // A raw `text/csv` body, so `POST /admin/import/:entity` needs no multipart
     // machinery. Scoped to this module's context by `ctx.routes`.
@@ -84,6 +96,7 @@ export function registerModule(ctx: ModuleContext): void {
     }
     await registerImportExportRoutes(app, {
       service: importExportService,
+      profiles: importProfileService,
       requireAdmin,
       requireAdminAny,
     });
@@ -92,17 +105,7 @@ export function registerModule(ctx: ModuleContext): void {
 
 
 /**
- * This module owns **no persisted entity**, and says so with an empty array
- * rather than by omission (D-168).
- *
- * The two are not the same thing to the platform. When the package is
- * *installed*, `src/packages/package-runtime.ts` reads `exported['entities']`
- * and answers a missing export with `[]` — so "this module has no table" and
- * "somebody forgot the array" arrive at the host as the same silence, and the
- * only symptom of the second is a query against a table nobody created. The
- * declaration is what makes the first case a statement.
- *
- * A first entity added here goes in this array in the same merge request, and
- * `test/unit/packages/module-package-entity-surface.test.ts` is what says so.
+ * The module's persisted entity classes (D-168). Feature 170 added the first, the import
+ * profile, together with the module's first migration (`./migrations`).
  */
-export const entities: readonly never[] = [];
+export const entities = [ImportProfile];

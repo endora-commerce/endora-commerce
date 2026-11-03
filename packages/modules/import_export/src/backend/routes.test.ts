@@ -31,12 +31,18 @@ async function harness(held: readonly string[]) {
     (url: string, options: { preHandler: Guard | Guard[] }, handler: Handler) => {
       routes.set(`${method} ${url}`, { preHandler: options.preHandler, handler });
     };
-  const app = { get: record('GET'), post: record('POST') } as unknown as FastifyInstance;
+  const app = {
+    get: record('GET'),
+    post: record('POST'),
+    patch: record('PATCH'),
+    delete: record('DELETE'),
+  } as unknown as FastifyInstance;
   const anyOf: string[][] = [];
   const forbidden = (message: string) => new HttpError(403, ERROR_CODES.FORBIDDEN, message);
   const service = new ImportExportService({} as ConstructorParameters<typeof ImportExportService>[0]);
   await registerImportExportRoutes(app, {
     service,
+    profiles: {} as Parameters<typeof registerImportExportRoutes>[1]['profiles'],
     requireAdmin: (code) => async () => {
       if (code !== undefined && !held.includes(code)) throw forbidden(code);
     },
