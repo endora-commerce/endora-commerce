@@ -206,7 +206,8 @@ describe('170 — products CSV import, the shared encoding cases [integration]',
       }
       expect(report.fieldErrors ?? []).toEqual([]);
       expect(view.value).toBeNull();
-      expect(view.source).toBe('set_empty');
+      // At Global an empty value is no value (`absent`); below it, an empty override (`set_empty`).
+      expect(view.source).toBe(c.level === 'G' ? 'absent' : 'set_empty');
     });
   });
 });
