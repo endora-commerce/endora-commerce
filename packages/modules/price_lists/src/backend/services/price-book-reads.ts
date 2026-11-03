@@ -503,7 +503,6 @@ export class PriceBookReads {
           this.deps.catalogProductRead.pageProductsByAdminName({
             membership: priceBookMembership(bookId, productKinds),
             ...(query.search ? { search: query.search } : {}),
-            language,
             offset: productOffset,
             limit: productLimit,
             withTotal: !countsLines,
