@@ -12,6 +12,9 @@ import { SCOPED_WRITE_CASES, SCOPED_WRITE_CASE_FIELDS } from './scoped-write-enc
 import { productScopedWriteInputSchema } from './product-scopes.js';
 import { validateScopedWrite } from './scoped-write-encoding.js';
 
+/** A plain source value, written as the explicit op the planner takes. */
+const set = (value: unknown) => ({ op: 'set' as const, value });
+
 /**
  * Feature 170 (`contracts/pim-locale-mapping.md` §1–§4; FR-040…FR-047; spec US4) — the mapping
  * contract shared by every PIM connector and the CSV import profiles, and the planner that turns
@@ -45,10 +48,10 @@ const mapping = (over: Partial<PimLocaleMapping> = {}): PimLocaleMapping => ({
 });
 
 const source = (over: Partial<PimSourceValues> = {}): PimSourceValues => ({
-  global: { 'attribute:weight': 12 },
+  global: { 'attribute:weight': set(12) },
   perLocale: [
-    { locale: 'pl_PL', sourceChannel: null, values: { name: 'Wiertarka', description: 'Opis' } },
-    { locale: 'de_DE', sourceChannel: null, values: { name: 'Bohrmaschine' } },
+    { locale: 'pl_PL', sourceChannel: null, values: { name: set('Wiertarka'), description: set('Opis') } },
+    { locale: 'de_DE', sourceChannel: null, values: { name: set('Bohrmaschine') } },
   ],
   ...over,
 });
@@ -113,8 +116,8 @@ describe('planLocaleWrites (§2)', () => {
       source: {
         global: {},
         perLocale: [
-          { locale: 'pl_PL', sourceChannel: 'ecommerce', values: { name: 'Sklepowa' } },
-          { locale: 'pl_PL', sourceChannel: 'print', values: { name: 'Drukowana' } },
+          { locale: 'pl_PL', sourceChannel: 'ecommerce', values: { name: set('Sklepowa') } },
+          { locale: 'pl_PL', sourceChannel: 'print', values: { name: set('Drukowana') } },
         ],
       },
       mapping: m,
@@ -132,7 +135,7 @@ describe('planLocaleWrites (§2)', () => {
       entries: [{ sourceLocale: 'pl_PL', sourceChannel: 'ecommerce', targets: [{ channelId: B2B, languageCode: 'pl-PL' }] }],
     });
     const plan = planLocaleWrites({
-      source: { global: {}, perLocale: [{ locale: 'pl_PL', sourceChannel: 'print', values: { name: 'x' } }] },
+      source: { global: {}, perLocale: [{ locale: 'pl_PL', sourceChannel: 'print', values: { name: set('x') } }] },
       mapping: m,
       validScopes,
     });
@@ -167,10 +170,10 @@ describe('planLocaleWrites (§2)', () => {
   it('US4 #8 / rule 2: the source language for Global writes Global, and its mapped targets too', () => {
     const plan = planLocaleWrites({
       source: {
-        global: { 'attribute:weight': 12 },
+        global: { 'attribute:weight': set(12) },
         perLocale: [
-          { locale: 'en_US', sourceChannel: null, values: { name: 'Drill' } },
-          { locale: 'pl_PL', sourceChannel: null, values: { name: 'Wiertarka' } },
+          { locale: 'en_US', sourceChannel: null, values: { name: set('Drill') } },
+          { locale: 'pl_PL', sourceChannel: null, values: { name: set('Wiertarka') } },
         ],
       },
       mapping: mapping({
@@ -194,7 +197,7 @@ describe('planLocaleWrites (§2)', () => {
 
   it('the source language for Global without an entry writes Global only and is not unmapped', () => {
     const plan = planLocaleWrites({
-      source: { global: {}, perLocale: [{ locale: 'en_US', sourceChannel: null, values: { name: 'Drill' } }] },
+      source: { global: {}, perLocale: [{ locale: 'en_US', sourceChannel: null, values: { name: set('Drill') } }] },
       mapping: mapping({ sourceLanguageForGlobal: 'en_US', entries: [] }),
       validScopes,
     });
@@ -204,7 +207,7 @@ describe('planLocaleWrites (§2)', () => {
 
   it('rule 6: a field without a C×L level is written at the target channel, never at C×L', () => {
     const plan = planLocaleWrites({
-      source: { global: {}, perLocale: [{ locale: 'pl_PL', sourceChannel: null, values: { status: 'active', 'attribute:size': 3 } }] },
+      source: { global: {}, perLocale: [{ locale: 'pl_PL', sourceChannel: null, values: { status: set('active'), 'attribute:size': set(3) } }] },
       mapping: mapping({ entries: [{ sourceLocale: 'pl_PL', sourceChannel: null, targets: [{ channelId: B2B, languageCode: 'pl-PL' }] }] }),
       validScopes,
       fieldLevels: (field) => (field === 'attribute:size' ? ['G', 'C'] : undefined),
@@ -220,8 +223,8 @@ describe('planLocaleWrites (§2)', () => {
       source: {
         global: {},
         perLocale: [
-          { locale: 'pl', sourceChannel: null, values: { name: 'z pl' } },
-          { locale: 'pl_PL', sourceChannel: null, values: { name: 'z pl_PL' } },
+          { locale: 'pl', sourceChannel: null, values: { name: set('z pl') } },
+          { locale: 'pl_PL', sourceChannel: null, values: { name: set('z pl_PL') } },
         ],
       },
       mapping: mapping({
@@ -302,5 +305,14 @@ describe('the shared encoding cases through the connector input (§4, SC-014)', 
     expect(productScopedWriteInputSchema.safeParse({ cells: Array(2001).fill(cell) }).success).toBe(false);
     expect(productScopedWriteInputSchema.safeParse({ cells: [{ ...cell, field: 'name.pl' }] }).success).toBe(false);
     expect(productScopedWriteInputSchema.safeParse({ cells: [{ ...cell, scope: { languageCode: 'pl' } }] }).success).toBe(false);
+  });
+
+  it('never reads an op-shaped source value as an op: a set of { op: "empty" } stays a set', () => {
+    const plan = planLocaleWrites({
+      source: { global: { 'attribute:payload': set({ op: 'empty' }) }, perLocale: [] },
+      mapping: { sourceLanguageForGlobal: null, entries: [] },
+      validScopes: { channels: [] },
+    });
+    expect(plan.writes).toEqual([{ scope: { level: 'global' }, field: 'attribute:payload', op: { op: 'set', value: { op: 'empty' } } }]);
   });
 });

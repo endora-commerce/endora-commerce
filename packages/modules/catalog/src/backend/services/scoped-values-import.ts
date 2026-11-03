@@ -105,7 +105,15 @@ const raw = (op: ScopedWriteOp<unknown>): unknown => (op.op === 'set' ? op.value
 /** One allowlisted cell as the save's `changes` body, or `null` when the path names no such field. */
 export function cellChanges(field: string, op: ScopedWriteOp<unknown>): Record<string, unknown> | null {
   const value = raw(op);
-  if (field === 'name' || field === 'description' || field === 'status' || field === 'window' || field === 'urlKey') {
+  if (
+    field === 'name' ||
+    field === 'description' ||
+    field === 'status' ||
+    field === 'window' ||
+    field === 'urlKey' ||
+    field === 'minOrderQuantity' ||
+    field === 'returnable'
+  ) {
     return { [field]: value };
   }
   const attribute = /^attribute:([a-z0-9_]{1,64})$/.exec(field);
@@ -173,6 +181,12 @@ export function planIntegrationCells(
   state: ScopedProductState,
   cells: readonly ProductScopedWriteCell[],
   trustedGlobal?: ScopedValueChanges,
+  /**
+   * `connector` — the PIM port's allowlist (R13a); `import` — the products file, which also writes
+   * `minOrderQuantity` and `returnable` (coordinator decision, S1 block 2: the CSV grammar covers
+   * every scoped product value; the connector exclusions apply to the PIM port only).
+   */
+  path: 'connector' | 'import' = 'connector',
 ): PlannedIntegration {
   const refused: ProductScopedWriteResult['refused'] = [];
   const byScope = new Map<string, { scope: ScopeRef; changes: Record<string, unknown> }>();
@@ -191,7 +205,9 @@ export function planIntegrationCells(
 
   for (const [index, cell] of cells.entries()) {
     const refuse = (code: ProductScopedWriteRefusalCode) => refused.push({ index, scope: cell.scope, field: cell.field, code });
-    const changes = integrationWritableField(cell.field) ? cellChanges(cell.field, cell.op) : null;
+    const writable =
+      integrationWritableField(cell.field) || (path === 'import' && (cell.field === 'minOrderQuantity' || cell.field === 'returnable'));
+    const changes = writable ? cellChanges(cell.field, cell.op) : null;
     if (changes === null) {
       refuse('not_supported');
       continue;
@@ -218,6 +234,11 @@ export function planIntegrationCells(
     try {
       // `""` is "no change" in the write encoding: such a cell plans nothing and counts nowhere.
       if (planScopedSave(state, scope, parsed.data).cells.length === 0) continue;
+      // A stored `''` Global description is "no description" (S2 block 2 review): re-importing
+      // `NULL` there writes nothing.
+      if (cell.field === 'description' && scope.level === 'global' && cell.op.op === 'empty' && (state.product.description ?? '') === '') {
+        continue;
+      }
     } catch (error) {
       refuse(refusalOf(error));
       continue;
@@ -253,7 +274,7 @@ export async function runScopedImport(
   deps: ScopedImportDeps,
   productId: string,
   cells: readonly ProductScopedWriteCell[],
-  options: { source: string; extras?: ScopedImportExtras },
+  options: { source: string; extras?: ScopedImportExtras; path?: 'connector' | 'import' },
 ): Promise<ScopedImportResult> {
   const command: Command<ScopedImportResult> = {
     action: 'product.scoped_values.import',
@@ -262,7 +283,7 @@ export async function runScopedImport(
     run: async ({ em }) => {
       await bumpScopeVersion(em, productId);
       const state = await loadScopedState(em, productId, deps);
-      const planned = planIntegrationCells(state, cells, trustedChangesOf(state, options.extras));
+      const planned = planIntegrationCells(state, cells, trustedChangesOf(state, options.extras), options.path ?? 'connector');
       const audit: { before: Record<string, unknown>; after: Record<string, unknown> } = { before: {}, after: {} };
       for (const plan of planned.plans) {
         const states = auditStates(plan, ownValues(state, plan));
@@ -334,7 +355,7 @@ export async function planScopedImport(
   extras?: ScopedImportExtras,
 ): Promise<ProductScopedWriteResult> {
   const state = await loadScopedState(em, productId, deps);
-  const planned = planIntegrationCells(state, cells, trustedChangesOf(state, extras));
+  const planned = planIntegrationCells(state, cells, trustedChangesOf(state, extras), 'import');
   return {
     applied: planned.accepted + planned.urlKeyCells.length,
     refused: planned.refused,

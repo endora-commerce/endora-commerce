@@ -2902,24 +2902,29 @@ export interface ProductImportCell extends ProductScopedWriteCell {
   column?: string;
 }
 
+/** One own value of a {@link ScopedValuesExport} cell: deliberately empty, a text, or a non-text value. */
+export type ScopedExportValue =
+  | { kind: 'empty' }
+  | { kind: 'text'; text: string }
+  /** A minimum order quantity, a returnable flag, a number, date-less non-text or multiselect attribute value. */
+  | { kind: 'value'; value: number | boolean | string[] };
+
 /**
  * Feature 170 (`contracts/import-profiles-and-csv.md` §3; FR-043, FR-114) — the scoped columns of
  * a products export: one per (field, scope) at which any product holds an own value, and each
- * product's own values there. Fields: `name`, `description`, `status`, `urlKey` and every
- * `attribute:<key>`; scopes C and C×L (the Global values are the products' own records).
+ * product's own values there. Fields: `name`, `description`, `status`, `urlKey`, every
+ * `attribute:<key>`, and at C `minOrderQuantity` and `returnable`; scopes C and C×L (the Global
+ * values are the products' own records). Orphans are not exported.
  */
 export interface ScopedValuesExport {
   /** In a stable order: field, then channel code, then the channel scope before its languages. */
   columns: Array<{ field: FieldPath; channelId: string; channelCode: string; languageCode: string | null }>;
-  /**
-   * Product id → column key ({@link scopedValueColumn}) → the own value there: the value, or
-   * `{ empty: true }` for a deliberately empty one. A scope that inherits is absent.
-   */
-  values: Record<string, Record<string, unknown>>;
+  /** Product id → column key ({@link scopedColumn}) → the own value there. A scope that inherits is absent (`INHERIT`). */
+  values: Record<string, Record<string, ScopedExportValue>>;
 }
 
 /** The products-file column of a scope: `<field>@<channel code>` or `<field>@<channel code>/<language>`. */
-export function scopedValueColumn(field: string, channelCode: string, languageCode: string | null): string {
+export function scopedColumn(field: string, channelCode: string, languageCode: string | null): string {
   return languageCode === null ? `${field}@${channelCode}` : `${field}@${channelCode}/${languageCode}`;
 }
 
@@ -2966,7 +2971,10 @@ export interface CatalogBulkImportPort {
    * one row's failure leaves the others applied. An unknown SKU is a row error; each refused cell
    * a field error (the codes of `ProductScopedWriteRefusalCode`, or `URL_KEY_TAKEN` for a key
    * another product holds), the row's other cells applying. The integration allowlist of
-   * `integrationWritableField` applies to the cells, and `status` / `visibility` write Global.
+   * `integrationWritableField` applies to the cells, widened for the products file by
+   * `minOrderQuantity` and `returnable` at G and C (the CSV grammar covers every scoped product
+   * value; multiselect attributes are `attribute:<key>` cells). `status` / `visibility` write
+   * Global. A stored `''` Global description counts as none: an empty cell there writes nothing.
    * `dryRun` validates every row and cell the same way and writes nothing (URL keys are checked
    * for grammar only).
    */

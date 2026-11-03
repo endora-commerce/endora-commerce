@@ -63,8 +63,12 @@ export const pimLocaleMappingSchema = z
   .strict();
 export type PimLocaleMapping = z.infer<typeof pimLocaleMappingSchema>;
 
-/** A source value: a plain value (= set) or an already decoded op. */
-export type PimSourceValue = unknown;
+/**
+ * A source value, always an explicit op (`{ op: 'set', value }`, `{ op: 'empty' }`,
+ * `{ op: 'inherit' }`). The planner never inspects a value's shape: a custom-field value that
+ * happens to look like an op stays a value of a `set` (S2 block 2 review).
+ */
+export type PimSourceValue = ScopedWriteOp<unknown>;
 
 export interface PimSourceValues {
   /** Non-localizable attributes and fields — always written to Global (FR-047). */
@@ -87,15 +91,8 @@ export interface LocaleWritePlan {
   skipped: Array<{ scope: ScopeRef; reason: 'not_a_member' | 'language_not_offered' }>;
 }
 
-function isOp(raw: unknown): raw is ScopedWriteOp<unknown> {
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return false;
-  const op = (raw as { op?: unknown }).op;
-  if (op === 'set') return 'value' in raw && Object.keys(raw).length === 2;
-  return (op === 'empty' || op === 'inherit') && Object.keys(raw).length === 1;
-}
-
 function toOp(raw: PimSourceValue): ScopedWriteOp<unknown> {
-  return isOp(raw) ? raw : { op: 'set', value: raw };
+  return raw;
 }
 
 function baseOf(tag: string): string {
