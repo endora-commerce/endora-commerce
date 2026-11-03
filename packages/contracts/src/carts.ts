@@ -249,6 +249,27 @@ const couponDroppedThisReadSchema = z
   })
   .nullable();
 
+/**
+ * Issue #650 — the rejection of the buyer's previous basket on this channel.
+ *
+ * A rejection closes the basket it rejects (`status = 'rejected'`), so the
+ * buyer's next cart read is a new active basket whose own `approvalStatus` is
+ * `not_required` and can never say `rejected_by_org_admin`. Without this the
+ * buyer was never told. It is answered while (a) the buyer has a rejected
+ * basket on the channel — the most recent one is answered — and
+ * (b) the current basket has not been sent for approval since. A basket
+ * ordered or converted to a quote request after the rejection ends it too.
+ * `null` otherwise, and always `null` for an anonymous basket.
+ */
+export const cartPreviousRejectionSchema = z.object({
+  /** The rejected basket. */
+  cartId: uuidSchema,
+  rejectedAt: isoDateTimeSchema,
+  /** The reason the administrator gave; `null` only for a row stored without one. */
+  reason: z.string().nullable(),
+});
+export type CartPreviousRejection = z.infer<typeof cartPreviousRejectionSchema>;
+
 export const cartFullPayloadSchema = z.object({
   id: uuidSchema.nullable(),
   customerAccountId: uuidSchema.nullable(),
@@ -275,6 +296,11 @@ export const cartFullPayloadSchema = z.object({
   createdAt: isoDateTimeSchema.nullable(),
   updatedAt: isoDateTimeSchema.nullable(),
   lastActivityAt: isoDateTimeSchema.nullable(),
+  /**
+   * Issue #650 — see {@link cartPreviousRejectionSchema}. Additive: a reply
+   * without the key parses as `null`.
+   */
+  previousRejection: cartPreviousRejectionSchema.nullable().default(null),
 });
 export type CartFullPayload = z.infer<typeof cartFullPayloadSchema>;
 
@@ -447,6 +473,44 @@ export type OrgCartDetailPayload = z.infer<typeof orgCartDetailPayloadSchema>;
 
 export const orgCartDetailResponseSchema = z.object({ data: orgCartDetailPayloadSchema });
 export type OrgCartDetailResponse = z.infer<typeof orgCartDetailResponseSchema>;
+
+/**
+ * Issue #650 — one line of {@link orgCartDetailViewSchema}: what the
+ * administrator is approving, at the price stored on the line.
+ */
+export const orgCartDetailLineSchema = z.object({
+  id: uuidSchema,
+  productId: uuidSchema,
+  variantId: uuidSchema.nullable(),
+  /** The product's name in the response language, the packaging unit appended; `null` when the product is gone. */
+  displayName: z.string().nullable(),
+  productSku: z.string().nullable(),
+  quantity: z.number().int().positive(),
+  unitPrice: moneySchema,
+  lineTotal: moneySchema,
+});
+export type OrgCartDetailLine = z.infer<typeof orgCartDetailLineSchema>;
+
+/**
+ * `GET /api/v1/organization/carts/:id` — the Organization administrator's view
+ * of one cart, as the route answers it (issue #650 added `items`).
+ *
+ * {@link orgCartDetailPayloadSchema} above is not this route's shape and never
+ * was: the route has answered the summary fields plus the approval timestamps
+ * since feature 027. It is left as published rather than changed under its
+ * consumers.
+ */
+export const orgCartDetailViewSchema = orgCartSummarySchema.extend({
+  ownerCustomerAccountId: uuidSchema.nullable(),
+  approvedAt: isoDateTimeSchema.nullable(),
+  rejectedAt: isoDateTimeSchema.nullable(),
+  rejectedReason: z.string().nullable(),
+  items: z.array(orgCartDetailLineSchema),
+});
+export type OrgCartDetailView = z.infer<typeof orgCartDetailViewSchema>;
+
+export const orgCartDetailViewResponseSchema = z.object({ data: orgCartDetailViewSchema });
+export type OrgCartDetailViewResponse = z.infer<typeof orgCartDetailViewResponseSchema>;
 
 export const setCartApprovalPolicySchema = z.object({
   requiresCartApproval: z.boolean(),
