@@ -2,7 +2,7 @@
 
 **Feature Branch**: `spec/organization-roles`
 **Created**: 2026-11-03
-**Status**: Draft — owner rulings OR-1 to OR-8 recorded 2026-11-03; no open questions; `plan.md` and `tasks.md` merged (#683), implementation not started
+**Status**: Draft — owner rulings OR-1 to OR-8 recorded 2026-11-03; oracle rulings PR-3 to PR-7 (`plan.md`) recorded 2026-11-03 from the WP-00 oracle (#689); one plan-level `[NEEDS CLARIFICATION]` (`research.md` R-35, login merge); `plan.md` and `tasks.md` merged (#683), implementation not started
 **Input**: Owner request (translated from Polish): *"Customers should be able, within their
 Organization, to define their own Roles and assign them to Organization Members. Roles carry
 permissions over the actions an Organization member can perform. The Organization Administrator
@@ -151,7 +151,8 @@ one inside it succeeds.
 ### User Story 2 — Nothing changes for anybody on upgrade (Priority: P1)
 
 An instance upgrades. Every existing Organization now has the two predefined roles; every former
-`organization_admin` holds *Administrator*, every former `regular_user` holds *Member*, every pending
+`organization_admin` holds *Administrator*, every former `regular_user` holds *Member* (a personal
+Organization's individual excepted: *Administrator*, FR-070a), every pending
 invitation names the matching role, and *Member*'s permissions in each Organization reproduce what a
 regular user of that Organization could do the day before — including whether their carts needed
 approval.
@@ -161,8 +162,10 @@ every shop that did not ask for it.
 
 **Independent Test**: seed Organizations with and without cart approval, members of both kinds and
 pending invitations of both kinds; run the upgrade; replay one request per gated action per member
-and compare the outcome with the pre-upgrade outcome. Every outcome is identical except the #653
-bypass, which is now closed (FR-072).
+and compare the outcome with the pre-upgrade outcome. Every outcome is identical except the rows the
+design deliberately changes, each listed by request with its old and new outcome — the #653 bypass
+closed, the personal Organization's member now an administrator, refusal codes that now name the
+permission, expired invitations no longer listed (FR-072).
 
 **Acceptance Scenarios**:
 
@@ -180,6 +183,9 @@ bypass, which is now closed (FR-072).
 5. **Given** an Organization member who was a `regular_user`, **When** the upgrade runs, **Then**
    they see only their own orders, as before — *Member* is not granted *View the organization's
    orders* (OR-5).
+6. **Given** a personal (B2C) Organization whose individual was a `regular_user`, **When** the
+   upgrade runs, **Then** they hold *Administrator*, and the storefront still offers them no
+   Members, Roles or Carts-to-approve screen (FR-070a).
 
 ---
 
@@ -326,8 +332,12 @@ When the operator switches it back on, every role holds again exactly what it he
   `CANNOT_DEMOTE_LAST_ADMIN` / `CANNOT_REMOVE_LAST_ADMIN` refusals. The operator's existing
   *recover administrator access* action (promote a member) stays the repair for an Organization that
   has lost its administrator some other way.
-- **Personal (B2C) organizations** have exactly one member, who holds *Administrator*; they cannot
-  invite (unchanged), so no Roles screen is offered there.
+- **Personal (B2C) organizations** have exactly one member, who holds *Administrator* — on upgrade
+  and for every personal Organization created afterwards (FR-070a); they cannot invite (unchanged),
+  so no Roles screen is offered there. What is hidden for a personal Organization is hidden because
+  the Organization is personal, not because of the member's role.
+- **Guests.** An anonymous visitor keeps the guest basket exactly as today; organization permissions
+  judge signed-in members only (FR-030).
 - **Organization hierarchy and roll-up.** Permissions are always those of the member's role in
   their own Organization. Roll-up (a head-office login acting across its subtree) widens *where* a
   permission reaches exactly as it widens the administrator's reach today; it never adds a
@@ -385,6 +395,9 @@ When the operator switches it back on, every role holds again exactly what it he
 
 - **FR-010**: Managing members (changing roles, removing members), managing invitations and managing
   roles MUST be reserved to the *Administrator* role and MUST NOT be grantable to another role.
+- **FR-010a** *(PR-7)*: The Organization's list of pending invitations MUST list only invitations
+  that are neither accepted, revoked nor expired, and a role's count of pending invitations MUST
+  count the same set (#689's oracle recorded expired invitations in the list).
 - **FR-011**: Setting the Organization's MFA policy MUST stay reserved to the *Administrator* role.
 - **FR-012**: Managing Organization-scoped one-click defaults for other members MUST stay reserved to
   the *Administrator* role.
@@ -437,7 +450,8 @@ When the operator switches it back on, every role holds again exactly what it he
 
 - **FR-030**: Adding to, changing or emptying a cart, applying a coupon, and building a cart from a
   quote request, a shopping list or a quick-order list MUST require `carts.create`. Reading one's own
-  cart MUST NOT.
+  cart MUST NOT. The permission is checked for a **signed-in member** only: an anonymous visitor
+  MUST keep adding to and editing the guest basket as today (PR-4).
 - **FR-031**: A cart of a member whose role lacks `carts.order_without_approval` MUST be submitted
   for approval and approved before an order can be placed from it; every other member's cart MUST
   NOT require approval. The Organization-wide *requires cart approval* switch MUST be removed.
@@ -532,15 +546,27 @@ When the operator switches it back on, every role holds again exactly what it he
 **Migration and contracts**
 
 - **FR-070**: The upgrade MUST create both predefined roles for every Organization and assign
-  *Administrator* to every `organization_admin`, *Member* to every `regular_user`, including deleted
-  and blocked accounts and every pending, expired or accepted invitation.
+  *Administrator* to every `organization_admin`, *Member* to every `regular_user` (a personal
+  Organization's member excepted, FR-070a), including deleted and blocked accounts and every pending,
+  expired or accepted invitation.
+- **FR-070a** *(PR-3)*: A personal Organization's member MUST hold *Administrator*: the upgrade MUST
+  assign it whatever the legacy role, and every path that creates or moves an account into a
+  personal Organization — self-registration, federated sign-in, the operator's detach — MUST assign
+  it. The storefront MUST NOT offer a personal Organization the Members, Roles or Carts-to-approve
+  screens, and this MUST be decided by the Organization being personal, never by the role. The
+  operator's deleting or blocking of a personal Organization's member MUST NOT be refused as leaving
+  the Organization without an administrator.
 - **FR-071**: For each Organization, *Member* MUST receive every member-default permission, except
   that an Organization that required cart approval MUST NOT receive `carts.order_without_approval`
   or `quick_order.one_click`. Carts' approval states MUST NOT change.
-- **FR-072**: After the upgrade, the outcome of every gated action for every existing member MUST
-  equal its outcome before the upgrade, with the single intended exception of one-click purchase in
-  an Organization that required cart approval (#653). (The removal of the `role` field changes the
-  API shape, not any member's outcome.)
+- **FR-072**: After the upgrade, the outcome of every gated action for every existing member — its
+  status **and** its error code or observed result — MUST equal its outcome before the upgrade,
+  except the outcomes this feature deliberately changes, each listed by request with its old and new
+  outcome (`contracts/migration-and-replay.md` §6.1, PR-5): one-click purchase by a member of an
+  Organization that required cart approval (#653, PR-6); every outcome of a personal Organization's
+  member, whose refusals become an administrator's answers (FR-070a, PR-3); refusals that now carry
+  the permission's code; and expired invitations no longer listed (FR-010a, PR-7). (The removal of the
+  `role` field changes the API shape, not any member's outcome.)
 - **FR-073**: The legacy `role` field MUST be removed from every request and response in the same
   release (OR-4): responses carry the member's role (id, name, kind) and effective permissions, and
   requests name a role by its id. A request that still sends `role` MUST be refused as invalid
@@ -605,6 +631,11 @@ Measured on `origin/master` at `75b069175`, excluding tests, docs, `dist/` and m
 > members can no longer buy with one click** — that was a way round approval (#653). Its
 > administrator can grant it back to a role.
 >
+> **Individual (B2C) customers** — the sole member of a personal Organization — now hold
+> *Administrator* of it, as do individuals who register after the upgrade. The storefront still shows
+> them no Members, Roles or approval screens. The pending-invitations list no longer shows expired
+> invitations.
+>
 > The *requires cart approval* switch is gone from the storefront's Organization settings and from
 > the Admin UI. It is replaced by the *Place orders without approval* permission on each role.
 >
@@ -615,8 +646,12 @@ Measured on `origin/master` at `75b069175`, excluding tests, docs, `dist/` and m
 > `role`; a request that still sends `role` is refused. `PATCH
 > /api/v1/organization/policies/cart-approval` and the operator's cart-approval-policy endpoints are
 > removed. A custom storefront that tests `role === 'organization_admin'` must be changed in the same
-> upgrade: test `organizationRole.kind === 'administrator'` for administrator-only screens, and
-> `permissions` for everything else.
+> upgrade: test `organizationRole.kind === 'administrator'` for administrator-only screens — and,
+> for the organization-management ones (members, roles, carts to approve), also
+> `!organization.isPersonal`, because a personal Organization's member is an administrator — and
+> `permissions` for everything else. Refusals of the organization carts endpoints now answer
+> `403 ORGANIZATION_PERMISSION_REQUIRED` instead of `403 FORBIDDEN`, and an administrator's
+> *submit for approval* answers `CART_APPROVAL_NOT_REQUIRED` instead of `CART_APPROVAL_SELF_SUBMIT`.
 >
 > **Colleagues' orders.** Seeing every order of the Organization is now the permission *View the
 > organization's orders*. Administrators hold it; *Member* does not, as before. Grant it to any role
@@ -636,7 +671,8 @@ Measured on `origin/master` at `75b069175`, excluding tests, docs, `dist/` and m
 - **SC-001**: An administrator can create a role with a chosen set of permissions and assign it to
   a member in under 2 minutes, without help.
 - **SC-002**: After the upgrade, 100% of a replay of every gated action by every seeded member
-  produces the pre-upgrade outcome, except one-click in approval-requiring Organizations.
+  produces the pre-upgrade outcome, except the listed expected differences, each of which produces
+  exactly its listed new outcome (FR-072).
 - **SC-003**: 100% of the permission codes declared in the release (FR-022's P2 codes in P1+P2; the
   P3 codes when P3 ships) are enforced by the backend, so a request bypassing the storefront is
   refused exactly as the hidden button implies.

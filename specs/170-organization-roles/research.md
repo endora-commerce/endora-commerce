@@ -130,12 +130,21 @@ no new value; the storefront reads `permissions` to hide add-to-cart.
 **Rationale.** A member without `carts.create` (a quote-only or list-only role) must still be able
 to open pages that read the basket count; refusing the read would break every page header.
 
+**Guests (owner ruling PR-4, 2026-11-03).** `carts.create` judges a **signed-in customer** only. An
+anonymous visitor keeps the guest basket exactly as today — `POST /api/v1/cart/items` answers `200`
+and mints the anonymous token — and the storefront keeps offering add-to-cart to a signed-out
+visitor. R-35 records the guard shape.
+
 ## R-6 — One-click (OR-1, OR-6, #653)
 
 **Decision.** `quick_order` declares `quick_order.one_click`. `OneClickService.eligibility`
 (`quick_order/src/backend/services/one-click-service.ts:71-88`) gains two reasons,
 `permission_required` and `cart_approval_required`, checked before the setting and defaults
-reasons; `placeOneClick` refuses on the same predicate before the working basket is written. The
+reasons; `placeOneClick` refuses on the same predicate before the working basket is written. The two
+codes are judged in FR-050's order, `quick_order.one_click` first, by both answers: a member lacking
+both — B's *Member* after the upgrade (FR-071) — reads `permission_required`, and placement is
+refused naming `quick_order.one_click` (pinned by PR-6's table, `contracts/migration-and-replay.md`
+§6.1 rows 23–24). The
 external order API (`packages/modules/orders/src/backend/services/order-api-intake-service.ts`) is not a member action and stays
 exempt.
 
@@ -483,7 +492,7 @@ so every step below sees the previous step's tables.
 | --- | --- | --- | --- | --- |
 | M1 | core (platform) | `audit_actor_customer_account` | WP-01 | `audit_log_entries.actor_customer_account_id uuid null` (R-21) |
 | M2 | `organizations` | `organization_roles` | WP-02a | Create `organization_roles`; insert the two predefined rows for **every** Organization (including suspended and personal ones); install the R-28 `after insert` trigger; FR-071 marker (R-18); add `organization_invitations.organization_role_id`, backfill from `role` (`organization_admin` → administrator row, else member row), `not null`, composite FK |
-| M3 | `customer_accounts` | `organization_role_assignment` | WP-02b | Add `customer_accounts.organization_role_id`, backfill from `role` for **every** row (deleted and blocked included, FR-070), install the R-28 `before insert` default trigger, `not null`, composite FK `(organization_id, organization_role_id) → organization_roles (organization_id, id)` |
+| M3 | `customer_accounts` | `organization_role_assignment` | WP-02b | Add `customer_accounts.organization_role_id`, backfill from `role` for **every** row (deleted and blocked included, FR-070) — a personal Organization's account → *Administrator* whatever its `role` (PR-3, R-34) — install the R-28 `before insert` default trigger, `not null`, composite FK `(organization_id, organization_role_id) → organization_roles (organization_id, id)` |
 | M4 | `organizations` | `drop_legacy_role_columns` | WP-12 | Drop `organizations.requires_cart_approval` and `organization_invitations.role` |
 | M5 | `customer_accounts` | `drop_legacy_role_column` | WP-12 | Drop `customer_accounts.role` and its index |
 
@@ -653,8 +662,10 @@ opens.
    runs the `down()` statements of M5, M4, M3, M2 in that order to reach the pre-170 schema, inserts
    the same population with raw SQL in the old shape, runs the `up()` statements of M2–M5 (the
    pattern of `backend/test/integration/orders/new-to-paid-edge-migration.test.ts`), boots the test
-   server, replays the same requests and asserts the **same table**,
-   with exactly one row allowed to differ: one-click in an approval-requiring Organization (#653).
+   server, replays the same requests and asserts the **same table**, except the rows of the
+   expected-differences table (R-36; `contracts/migration-and-replay.md` §6.1), each of which must
+   equal its stated `after`. *(Originally "exactly one row allowed to differ"; the recorded oracle
+   showed four more families the design changes, ruled on as PR-3, PR-5 and PR-7.)*
    It then runs M2–M5 `up()` a second time and asserts nothing changed (FR-074).
 
 The oracle's request list is the source of the replay's; WP-13 imports it.
@@ -676,7 +687,9 @@ is not in the tree after WP-12.
   `Organization` directly — with nothing to remember. Application code that needs the new
   Organization's role ids in the same transaction reads them after the flush.
 - **M3 (`customer_accounts`)** installs `before insert on customer_accounts for each row when
-  (new.organization_role_id is null)` → set it to the Organization's `member` row. It is the
+  (new.organization_role_id is null)` → set it to the Organization's `administrator` row when the
+  Organization is personal (PR-3, R-34) or the legacy `role` is `organization_admin`, else its
+  `member` row. It is the
   database's statement of the default the entity carries today (`role = 'regular_user'`,
   `customer-account.entity.ts:100`). Production paths always pass the role explicitly — the write
   port's input requires it — so the rule exists for the **50** files that `em.create(CustomerAccount,
@@ -765,3 +778,141 @@ screen.
 | #653 | resolved by this feature | WP-06 (`quick_order.one_click`) |
 | #667 (invitation role label) | resolved by this feature | WP-03 |
 | #668 (organization addresses) | resolved by this feature | WP-03 (`addresses.manage`) |
+
+## R-34 — A personal Organization's member is its *Administrator* (owner ruling PR-3, 2026-11-03)
+
+**Decision.** The spec's *Edge Cases* stand: a personal (B2C) Organization's sole member holds
+*Administrator*. The WP-00 oracle showed today's code disagrees — `createStandalone` and the
+federated sign-in name no role, so the entity default `regular_user` applies — and the upgrade
+changes that:
+
+- **Upgrade.** M3 maps every account of a personal Organization to *Administrator* whatever its
+  `role`; the R-28 default trigger does the same for an account inserted without a role
+  (`contracts/migration-and-replay.md` §3). M3 does not rewrite the legacy `role` column.
+- **Every path into a personal Organization assigns *Administrator*.** Self-registration
+  (`customer_accounts` `createStandalone`, `services/customer-account-lifecycle-ports.ts`), the
+  federated sign-in's account creation (`customer_accounts/src/backend/index.ts`),
+  `ensureForCustomerAccount` (`organizations/services/personal-organization-service.ts`) and the
+  operator's detach (`customers` `unassign` → `detachToPersonalOrganization`). The provisioning
+  answers — `PersonalOrganizationProvisionApi.provisionFor` and
+  `personalOrganizationPort.provisionPersonalOrganization` (`organizations/src/ports/index.ts`) —
+  carry `administratorRoleId`, read by `organizations` **on the caller's `EntityManager`** after the
+  R-28 trigger has inserted the row: self-registration and federated sign-in create the
+  Organization and the account in one transaction, which a read through the cache on another
+  connection would not see.
+- **Moving an account between Organizations sets its role in the same write**, because the
+  composite FK refuses the old Organization's role (data-model §2). The account write port's
+  `setOrganization`, `detachToPersonalOrganization` and `attachToOrganization` take
+  `organizationRoleId`. Destination personal → *Administrator*. Destination a company (the
+  operator's assign) → the target's predefined role of the kind the account held (*Administrator*
+  stays *Administrator*, anyone else becomes *Member*; a custom role does not travel), resolved by
+  `organizationRoleReadPort.predefinedRoleId` (`contracts/organization-permission-port.md` §1) —
+  today's outcome, since the legacy enum travels unchanged.
+
+**What relied on the role to stay hidden, and what gates it now.** Measured on `origin/master` at
+`75b069175`:
+
+| Surface | Hidden for a personal Organization today because | After |
+| --- | --- | --- |
+| Storefront account nav *Members* (`storefront/app/(account)/layout.tsx`, `isAdmin`) and the pages under `app/(account)/organization/{members,carts}` | the member is `regular_user` | gated by `organization.isPersonal` (already on `/api/v1/me`): *Members*, *Roles* and *Carts to approve* are not rendered and the pages redirect to `/account` (WP-09) |
+| Role routes (`/api/v1/organizations/mine/roles…`) | — (new) | `404` for a personal Organization (`storefront-api.md`, unchanged) |
+| Invitation create; operator direct add | role first, then `isPersonal` (`invitation-service.ts`, `routes.admin.ts`) | `isPersonal` → `422 VALIDATION_FAILED`, now the first refusal, checked before the role id is resolved |
+| Members list, invitations list, organization carts, MFA policy, Organization one-click defaults | the role | answered as for any administrator — harmless for a single-member Organization (oracle rows 1–8 of §6.1) |
+| Removing or demoting oneself | the role | the last-administrator guard (`409 CANNOT_REMOVE_LAST_ADMIN` / `CANNOT_DEMOTE_LAST_ADMIN`) |
+| Operator deletion, blocking and unassign of a customer (`customers` `customer-{deletion,moderation,org-assignment}-service.ts`, `ORG_OWNER_DEPLETION`) | a `regular_user` is never the last administrator | **would refuse deleting or blocking every B2C customer.** The depletion guards apply to company Organizations only (`isPersonal` from `organizationDetailsPort`); a personal Organization's depletion is its intended end (`anonymizeIfOrphaned`) |
+| Moderation e-mail recipient (`organization-moderation-service.ts`, first administrator) | personal Organizations never enter moderation (`requireStatus: 'pending_verification'`) | unchanged |
+| Colleague reach (orders, RFQs, organization carts, invoices) | the role | widened to the Organization — a no-op with one member |
+| Admin UI *Roles* tab | — (new) | hidden for a personal Organization (T094, unchanged) |
+
+A custom storefront that gates organization-management screens on
+`organizationRole.kind === 'administrator'` must also test `!organization.isPersonal` (spec
+*Upgrade note*).
+
+**Rationale.** The spec's invariant *"an Organization always has at least one active member holding
+Administrator"* is structural in this feature (last-administrator guards on every seam); a personal
+Organization with no administrator would be the one Organization kind that violates it. Its member
+transacts only for themselves, so "may do everything in their Organization" is the honest statement
+of what they can already do. Hiding management surfaces is a property of the Organization's kind,
+not of the member's role, and is now gated by that fact.
+
+**Alternatives rejected.** *Keep `regular_user` → Member, as recorded* — every personal Organization
+would sit below the last-administrator invariant, and its *Member* role would govern a B2C buyer with
+no screen anyone could edit it from. *Hide the personal surfaces by role* — conflates the tenant's
+kind with the member's authority; it is exactly what left today's personal Organizations
+administrator-less. *Answer `404` on every member and invitation route for a personal Organization,
+as the role routes do* — more surface changed for no visible gain, since the storefront offers none of
+them; a possible follow-up, not needed for PR-3.
+
+## R-35 — The guard judges signed-in customers only where a route admits guests (owner ruling PR-4, 2026-11-03)
+
+**Decision.** `organizationPermissionPreHandler(getPort, code, options?: { guests?: 'refuse' | 'pass' })`.
+The default `'refuse'` keeps R-20's rule: a non-customer actor gets the platform's `401` (a second
+line behind `requireCustomer`). `'pass'` lets every non-customer actor through **unjudged**, to the
+route's own handling exactly as today, and judges a customer actor — impersonation included. It is
+declared with `'pass'` on precisely the routes that admit a guest today: `POST /api/v1/cart/items`,
+`PATCH`/`DELETE /api/v1/cart/items/:itemId`, `POST`/`DELETE /api/v1/cart/coupon`, and any batch-add
+or empty-cart route that admits one (`contracts/storefront-api.md` §5). `GET /api/v1/cart` stays
+ungated (R-5). On the storefront, add-to-cart and cart editing are offered to a signed-out visitor;
+for a signed-in member they follow `can(session, 'carts.create')`.
+
+**Rationale.** PR-4: the guest basket belongs to no Organization and no role, so there is nothing to
+judge; the oracle's blocked and deleted members, who are anonymous, prove today's `200`. Keeping the
+default `'refuse'` keeps every other guard fail-closed; the option is opt-in per route.
+
+**Alternatives rejected.** *A second guard function* — two names for one rule, and a call site that
+picks the wrong one fails open. *Moving `carts.create` into the handler* — R-20's consumer checklist
+(a route gate is a `preHandler`, never a handler check), and the inventory reads pre-handlers.
+
+**[NEEDS CLARIFICATION — PR-4 follow-on]** The login merge (`carts` `cart-service.ts`, feature 037)
+moves a guest basket's lines into the member's basket at sign-in. For a member whose role lacks
+`carts.create`, that merge is a cart write the gate would otherwise refuse. **Recommendation**: the
+merge is judged by `carts.create` and skipped (the guest basket left as it was) for a member lacking
+it; WP-04 implements it with a test once the owner confirms. The oracle has no login-merge row, so
+FR-072 is unaffected either way.
+
+## R-36 — Expected differences are stated per row, by oracle request id (owner rulings PR-5, PR-6, 2026-11-03)
+
+**Decision.** WP-13's replay compares every row's whole `{ status, code }` with the oracle, except
+the rows of an explicit table, `contracts/migration-and-replay.md` §6.1 — 26 rows in five families —
+each of which must equal its stated `after`. The table is a WP-13 fixture
+(`backend/test/fixtures/organization-roles/expected-differences.ts`) checked on every merge request
+by a service-free unit test against the frozen oracle. The F4 rows are exactly the two
+`oneClickInApprovalOrg` rows (PR-6).
+
+Three orderings the table depends on are pinned here, so each `after` is determined:
+
+1. **Approve and reject check the cart's state before self-approval.** `CART_APPROVAL_NOT_PENDING`
+   stays first in `cart-approval-service.ts`; `CART_APPROVAL_SELF_APPROVE` refuses only a pending
+   cart of one's own (rows 5–6).
+2. **Inviting into a personal Organization is refused before the role id is resolved** (rows 9–10).
+3. **One-click judges `quick_order.one_click` before `carts.order_without_approval`**, both in the
+   eligibility reason and in the placement refusal (R-6; rows 23–24).
+
+`CART_APPROVAL_SELF_SUBMIT` becomes unreachable (row 22): WP-04 stops raising it and removes it from
+`carts`' manifest `errorCodes` and bundles; WP-12 deletes it from `packages/contracts/src/errors.ts`
+with the other legacy symbols.
+
+**Rationale.** FR-055 makes `403 FORBIDDEN` and `403 ORGANIZATION_PERMISSION_REQUIRED`
+distinguishable on purpose; a status-only comparison would let any unintended code change through.
+Keying by request id makes each difference reviewable, and checking `before` against the oracle
+stops the table from drifting.
+
+**Alternatives rejected.** *Status-only comparison* — above. *Editing `PRE_UPGRADE_OUTCOMES`* — it
+would erase the record of today's behaviour, which is the oracle's only purpose (R-27). *Tagging the
+oracle rows* — the oracle is frozen once #689 merges and describes today, not the design.
+
+## R-37 — The pending-invitations list excludes expired invitations (owner ruling PR-7, 2026-11-03)
+
+**Decision.** An invitation is **pending** iff it is neither accepted (`consumedAt`), revoked
+(`revokedAt`) nor expired (`expiresAt <= now`, the acceptance path's own test in
+`organizations/services/invitation-service.ts`). `InvitationService.listPending` — behind
+`GET /api/v1/organizations/mine/invitations` — and `OrganizationRoleView.pendingInvitationCount` use
+that one predicate (FR-010a). Unchanged: revoking an expired invitation, and FR-024's deletion moving
+every invitation of the deleted role, expired ones included (the FK does not distinguish them).
+
+**Rationale.** An expired invitation cannot be accepted; listing it as pending tells the
+administrator a colleague is about to join who cannot. The oracle recorded it (§6.1 rows 25–26).
+
+**Alternatives rejected.** *List expired invitations with a status* — a new response field and UI
+nobody asked for. *A sweep that deletes expired invitations* — destructive, and loses the audit
+trail of who was invited.
