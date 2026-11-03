@@ -51,6 +51,9 @@ a failing test (marked **RED**) in the same phase, and every FR is traced to a t
 
 - **Empty packaging-unit name override** (at C or C×L): basket, quote and order snapshots keep the **Global** name. Turn the `it.todo` in `carts/effective-text-lines` and `quote_requests/effective-text-snapshot` into a test of that rule.
 - **Back-in-stock e-mail** (T067 buyer half): shows the **Global** name in 170. Storing channel + language on `availability_notifications` is a **follow-up issue** (endora-commerce/endora-commerce#696), not 170. The `it.todo` in `inventory/effective-text-alerts` becomes a Global-name test and the follow-up is listed in spec *Out of scope / follow-ups*.
+- **Products CSV columns** include `minOrderQuantity`, `returnable` and multiselect attributes at G and C (from the
+  write standard FR-110..115; MOQ `NULL` = no minimum, multiselect `NULL` = none selected). The connector
+  exclusion list applies to the PIM port only. `contracts/import-profiles-and-csv.md` §2.1 gets these columns.
 - Builder `SendMessage` is not available in stream runs: mid-run notes go into the block report.
 
 ## Format
