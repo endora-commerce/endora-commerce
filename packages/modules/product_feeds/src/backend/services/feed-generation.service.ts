@@ -924,7 +924,7 @@ export class FeedGenerationService {
       let current = byId.get(id);
       let guard = 0;
       while (current && guard < 20) {
-        chain.unshift(pickLocalizedName(current.name, languageCode));
+        chain.unshift(localizedText(current.name, languageCode));
         current = current.parentCategoryId ? byId.get(current.parentCategoryId) : undefined;
         guard += 1;
       }
@@ -1084,7 +1084,7 @@ export function buildLanguageChain(
   return chain;
 }
 
-function pickLocalizedName(map: Record<string, string>, languageCode: string): string {
+function localizedText(map: Record<string, string>, languageCode: string): string {
   const direct = map[languageCode];
   if (typeof direct === 'string' && direct !== '') return direct;
   const first = Object.values(map).find((v) => typeof v === 'string' && v !== '');
@@ -1092,6 +1092,6 @@ function pickLocalizedName(map: Record<string, string>, languageCode: string): s
 }
 
 function pickChannelName(channel: SalesChannel, languageCode: string): string {
-  return pickLocalizedName(channel.name ?? {}, languageCode) || channel.code;
+  return localizedText(channel.name ?? {}, languageCode) || channel.code;
 }
 
