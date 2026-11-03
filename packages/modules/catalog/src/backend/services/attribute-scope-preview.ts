@@ -2,8 +2,9 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
   attributeScopeSet,
-  type AttributeScope,
+  attributeValueTypeSchema,
   type AttributeScopeChangePreviewResponse,
+  type AttributeValueType,
   type ScopeLevel,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -11,9 +12,11 @@ import type { CatalogAttributeReadService } from './catalog-attribute-read.servi
 
 /**
  * Feature 163 (`specs/163-product-data-scopes/`) — the FR-090 preview of a change to a
- * user-defined attribute's scope flags,
- * `GET /api/v1/admin/catalog/attributes/:idOrKey/scope-change-preview`
- * (`contracts/admin-scopes-api.md` §6, research R27).
+ * user-defined attribute's scope, on feature 170's one flag and its value type (R15, FR-012):
+ * `GET /api/v1/admin/catalog/attributes/:idOrKey/scope-change-preview?scopable=&valueType=`
+ * (`contracts/admin-scopes-api.md` §6, research R27). The scope set is derived from both — a
+ * scopable text attribute {G, C, C×L}, a scopable non-text one {G, C}, a non-scopable one {G} —
+ * so scopable → not scopable orphans every override and text → non-text the C×L ones.
  *
  * A read only. The attribute update itself is unchanged and keeps every
  * `product_value_overrides` row; the resolver skips the ones the new flags no longer
@@ -51,13 +54,34 @@ export function slotsOrphanedByScopeChange(current: readonly ScopeLevel[], next:
   };
 }
 
-/** The requested flag: `"true"` / `"false"`; absent keeps the attribute's current flag. */
-export function parseScopeChangeQuery(query: Record<string, unknown>, current: AttributeScope): AttributeScope {
-  const raw = query['scopable'];
-  if (raw === undefined) return current;
-  if (raw === 'true') return { scopable: true };
-  if (raw === 'false') return { scopable: false };
-  throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, '"scopable" must be "true" or "false".', { field: 'scopable' });
+/** What the scope set is derived from (feature 170, `attributeScopeSet`). */
+export interface AttributeScopeInput {
+  scopable: boolean;
+  valueType: AttributeValueType;
+}
+
+/**
+ * The requested scope: `scopable` `"true"` / `"false"` and `valueType` one of the attribute value
+ * types; an absent parameter keeps the attribute's current one.
+ */
+export function parseScopeChangeQuery(query: Record<string, unknown>, current: AttributeScopeInput): AttributeScopeInput {
+  const rawScopable = query['scopable'];
+  let scopable = current.scopable;
+  if (rawScopable === 'true') scopable = true;
+  else if (rawScopable === 'false') scopable = false;
+  else if (rawScopable !== undefined) {
+    throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, '"scopable" must be "true" or "false".', { field: 'scopable' });
+  }
+  const rawType = query['valueType'];
+  let valueType = current.valueType;
+  if (rawType !== undefined) {
+    const parsed = attributeValueTypeSchema.safeParse(rawType);
+    if (!parsed.success) {
+      throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, '"valueType" is not an attribute value type.', { field: 'valueType' });
+    }
+    valueType = parsed.data;
+  }
+  return { scopable, valueType };
 }
 
 export class AttributeScopePreviewService {
@@ -71,13 +95,9 @@ export class AttributeScopePreviewService {
     // has no preview, so they answer as an unknown attribute does.
     const attribute = await this.attributeRead.getByIdOrKey(idOrKey);
     if (!attribute) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Attribute "${idOrKey}" not found.`);
-    // 170-shim: the value-type half of the preview (text → non-text orphans C×L rows) is T113's.
-    const current: AttributeScope = { scopable: attribute.scopable };
+    const current: AttributeScopeInput = { scopable: attribute.scopable, valueType: attribute.valueType };
     const next = parseScopeChangeQuery(query, current);
-    const slots = slotsOrphanedByScopeChange(
-      attributeScopeSet({ scopable: current.scopable, valueType: attribute.valueType }),
-      attributeScopeSet({ scopable: next.scopable, valueType: attribute.valueType }),
-    );
+    const slots = slotsOrphanedByScopeChange(attributeScopeSet(current), attributeScopeSet(next));
     if (!slots.channel && !slots.channelLanguage) return { orphanedOverrides: 0, byChannel: [] };
 
     const slotCondition =

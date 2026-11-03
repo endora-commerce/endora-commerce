@@ -549,8 +549,8 @@ describe('URL-key uniqueness and redirects (spec 163, T100)', () => {
         payload: {
           sku: `U162-${run}-${products.length}`,
           type: 'simple',
-          name: { 'en-US': name },
-          description: { 'en-US': '' },
+          name: name,
+          description: '',
           categoryIds: [],
           attributeValues: {},
           visibility: 'public',

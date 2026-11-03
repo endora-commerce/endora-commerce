@@ -190,7 +190,8 @@ describe('POST /products/bulk-update — fields.scopedStatus (spec 163, T073)', 
           channels: [{ channelId: b2c, languageStatuses: [{ languageCode: 'de-DE', status: 'inactive' }] }],
         });
         expect(audits[0]!.state_before).toMatchObject({
-          channels: [{ channelId: b2c, languageStatuses: [{ languageCode: 'de-DE', status: null }] }],
+          // Feature 170 (FR-074, FR-116) — no own value before: `{ inherit: true }`.
+          channels: [{ channelId: b2c, languageStatuses: [{ languageCode: 'de-DE', status: { inherit: true } }] }],
         });
         expect(events.seen.filter((e) => e.productId === id)).toEqual([{ productId: id, changedFields: ['scopedStatus'] }]);
       }
@@ -329,8 +330,8 @@ describe('POST /products/bulk-update — fields.scopedStatus (spec 163, T073)', 
     it('a channel-row undo deletes a row the edit created and keeps the row’s other overrides', async () => {
       const ids = await seedProducts(60, 'chq');
       await conn().execute(
-        `insert into product_channel_scopes (product_id, sales_channel_id, status, min_order_quantity, created_at, updated_at)
-         values (?, ?, null, 5, now(), now())`,
+        `insert into product_channel_scopes (product_id, sales_channel_id, status, min_order_quantity_overridden, min_order_quantity, created_at, updated_at)
+         values (?, ?, null, true, 5, now(), now())`,
         [ids[0], b2b],
       );
       const res = await bulk(ids, { scopedStatus: { channelId: b2b, languageCode: null, value: 'inactive' } });

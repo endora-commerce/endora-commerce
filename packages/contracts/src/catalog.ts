@@ -439,9 +439,11 @@ export const productDetailSchema = productSummarySchema.extend({
           url: z.string(),
         }),
         /**
-         * Feature 163 (FR-077) — the image's alt text at the request's scope language:
-         * the product's own, else the asset's; `null` = none. Optional so other
-         * builders of the DTO keep compiling; `catalog` always emits it.
+         * Feature 163 (FR-077), feature 170 (`data-model.md` §6, T035) — the image's alt text
+         * at the request's (channel, language): its override there, else its Global alt text,
+         * else the asset's. `''` = an empty override — a decorative image, rendered `alt=""`;
+         * `null` = none at all. Optional so other builders of the DTO keep compiling;
+         * `catalog` always emits it.
          */
         altText: z.string().nullable().optional(),
       }),
@@ -1817,10 +1819,14 @@ export const createGalleryItemRequestSchema = z
   .strict();
 export type CreateGalleryItemRequest = z.infer<typeof createGalleryItemRequestSchema>;
 
+/**
+ * Feature 170 (`contracts/scoped-values-api.md` §6) — a collection operation only: the item's
+ * position. Its roles (`galleryRole:<label>`), alt text and hidden flag are scoped fields, written
+ * at every scope, Global included, through `PUT …/products/:id/scoped-values`.
+ */
 export const updateGalleryItemRequestSchema = z
   .object({
     position: z.number().int().nonnegative().optional(),
-    labels: z.array(galleryLabelSchema).optional(),
   })
   .strict();
 export type UpdateGalleryItemRequest = z.infer<typeof updateGalleryItemRequestSchema>;
@@ -1918,11 +1924,14 @@ export const createAttachmentRequestSchema = z
   .strict();
 export type CreateAttachmentRequest = z.infer<typeof createAttachmentRequestSchema>;
 
+/**
+ * Feature 170 (`contracts/scoped-values-api.md` §6) — the attachment's type and position. Its
+ * name, description and hidden flag are scoped fields, written at every scope, Global included,
+ * through `PUT …/products/:id/scoped-values`.
+ */
 export const updateAttachmentRequestSchema = z
   .object({
     attachmentTypeId: uuidSchema.optional(),
-    name: z.string().min(1).max(160).optional(),
-    description: z.string().nullable().optional(),
     position: z.number().int().nonnegative().optional(),
   })
   .strict();
@@ -1968,9 +1977,13 @@ export const createPackagingUnitRequestSchema = z
   .strict();
 export type CreatePackagingUnitRequest = z.infer<typeof createPackagingUnitRequestSchema>;
 
+/**
+ * Feature 170 (`contracts/scoped-values-api.md` §6) — base quantity, default flag, position and
+ * minimum. The unit's name is a scoped field, written at every scope, Global included, through
+ * `PUT …/products/:id/scoped-values`.
+ */
 export const updatePackagingUnitRequestSchema = z
   .object({
-    name: z.string().trim().min(1).max(160).optional(),
     baseQuantity: z.number().int().positive().optional(),
     isDefault: z.boolean().optional(),
     position: z.number().int().nonnegative().optional(),

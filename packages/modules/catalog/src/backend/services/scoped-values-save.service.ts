@@ -71,7 +71,41 @@ export interface ScopedSavePlan {
   changedFields: string[];
 }
 
+/** The spec of a removal of an attribute that is no longer in the product's set (FR-101). */
+const REMOVAL_SPEC: FieldScopeSpec = { levels: ['C', 'CL'], required: false, emptyable: true };
+
 const GLOBAL_ONLY_SPEC: FieldScopeSpec = { levels: ['G'], required: false, emptyable: true };
+
+/** The families whose stores hold C×L rows: an `inherit` there removes a row whatever the field's scope set now is. */
+const ROW_STORE_FAMILIES: ReadonlySet<Family> = new Set(['value', 'gallery', 'galleryRole', 'attachment', 'packagingUnit']);
+
+/**
+ * FR-101 (163 FR-015) — a save that only removes overrides: every named cell is
+ * `{ inherit: true }` and no global-only field is named. Such a save may name an orphaned scope.
+ */
+export function isRemovalOnly(changes: ScopedValueChanges): boolean {
+  let cells = 0;
+  let removals = 0;
+  const leaf = (raw: unknown) => {
+    if (raw === undefined) return;
+    cells += 1;
+    if (toScopedWriteOp(raw as never)?.op === 'inherit') removals += 1;
+  };
+  const record = (value: Record<string, unknown> | undefined) => {
+    for (const raw of Object.values(value ?? {})) leaf(raw);
+  };
+  if (Object.values(changes.product ?? {}).some((value) => value !== undefined)) return false;
+  for (const key of ['name', 'description', 'status', 'window', 'audience', 'minOrderQuantity', 'returnable', 'urlKey'] as const) {
+    leaf(changes[key]);
+  }
+  record(changes.attributes);
+  for (const item of Object.values(changes.gallery?.items ?? {})) record(item);
+  record(changes.gallery?.roles);
+  for (const attachment of Object.values(changes.attachments ?? {})) record(attachment);
+  for (const unit of Object.values(changes.packagingUnits ?? {})) record(unit);
+  record(changes.seo as Record<string, unknown> | undefined);
+  return cells > 0 && cells === removals;
+}
 
 const SCOPE_KEY = (scope: ScopeRef): string =>
   scope.level === 'global' ? 'G' : scope.level === 'channel' ? `C:${scope.channelId}` : `CL:${scope.channelId}/${scope.languageCode}`;
@@ -128,6 +162,12 @@ export function planScopedSave(state: ScopedProductState, scope: ScopeRef, chang
   for (const [key, raw] of Object.entries(changes.attributes ?? {})) {
     const view = state.attributes.get(key);
     if (!view) {
+      // FR-101 — removing an override of an attribute that left the set (or was deleted).
+      const op = raw === undefined ? undefined : toScopedWriteOp(raw as never);
+      if (op?.op === 'inherit' && state.valueOverrides.some((row) => row.attributeKey === key)) {
+        add({ path: `attribute:${key}`, family: 'value', field: key, spec: REMOVAL_SPEC, raw, bodyPath: ['attributes', key] });
+        continue;
+      }
       // Unknown, or not in the product's attribute set: one answer for both (R21).
       if (raw !== undefined) subjectInvalid.push({ field: `attribute:${key}`, scope, reason: 'invalid' });
       continue;
@@ -183,8 +223,12 @@ export function planScopedSave(state: ScopedProductState, scope: ScopeRef, chang
     add({ path, family: 'packagingUnit', field: 'name', subjectId: unitId, spec: sets['packagingUnit:name'], raw: entry.name, bodyPath: ['packagingUnits', unitId, 'name'] });
   }
 
-  // Step 2 — every changed field supported at the scope's level (FR-012).
-  const notHere = cells.filter((cell) => !cell.spec.levels.includes(level));
+  // Step 2 — every changed field supported at the scope's level (FR-012). An `inherit` in a row
+  // store is a removal, always allowed (FR-101): it takes away an orphan the scope set no longer
+  // reads, or nothing.
+  const notHere = cells.filter(
+    (cell) => !cell.spec.levels.includes(level) && !(cell.op.op === 'inherit' && ROW_STORE_FAMILIES.has(cell.family)),
+  );
   if (notHere.length > 0) {
     throw new HttpError(422, ERROR_CODES.FIELD_NOT_AT_SCOPE, 'Some fields cannot be set at this scope.', {
       fields: notHere.map((cell) => ({ field: cell.path, levels: [...cell.spec.levels] })),
@@ -304,11 +348,18 @@ function setPath(target: Record<string, unknown>, path: readonly string[], value
 export function ownValues(state: ScopedProductState, plan: ScopedSavePlan): Map<string, unknown> {
   const views = scopedViews(state, plan.scope);
   const out = new Map<string, unknown>();
+  const level = levelOf(plan.scope);
+  const orphaned = isOrphanedScope(state, plan.scope);
   const encode = (view: { source: string; ownValue?: unknown }) =>
     view.source === 'set' ? view.ownValue : view.source === 'set_empty' || plan.scope.level === 'global' ? null : { inherit: true };
   for (const cell of plan.cells) {
     if (cell.family === 'product') {
       out.set(cell.path, globalOnlyValue(state, cell.field));
+      continue;
+    }
+    if ((orphaned || !cell.spec.levels.includes(level)) && ROW_STORE_FAMILIES.has(cell.family)) {
+      // FR-101 — a removal the views cannot see (they read valid scopes only): the row as stored.
+      out.set(cell.path, storedOwnValue(state, plan.scope, cell));
       continue;
     }
     let view: { source: string; ownValue?: unknown } | undefined;
@@ -329,6 +380,40 @@ export function ownValues(state: ScopedProductState, plan: ScopedSavePlan): Map<
     out.set(cell.path, view ? encode(view) : null);
   }
   return out;
+}
+
+/** A scope the views do not read: a channel the product is not a member of, or a language it does not offer. */
+function isOrphanedScope(state: ScopedProductState, scope: ScopeRef): boolean {
+  if (scope.level === 'global') return false;
+  const channel = state.members.find((member) => member.id === scope.channelId);
+  if (!channel) return true;
+  return scope.level === 'channel_language' && !channel.languages.some((language) => sameLang(language, scope.languageCode));
+}
+
+/** The own value a row store holds for `cell` at `scope`, in the write encoding (`{ inherit: true }` = no row). */
+function storedOwnValue(state: ScopedProductState, scope: ScopeRef, cell: PlannedCell): unknown {
+  if (scope.level === 'global') return null;
+  const languageCode = scope.level === 'channel_language' ? scope.languageCode : null;
+  const at = (row: { languageCode?: string | null; value: { v: unknown } } | undefined) =>
+    row === undefined ? { inherit: true } : (row.value?.v ?? null);
+  const here = <R extends { languageCode?: string | null }>(row: R, channelId: string) =>
+    channelId === scope.channelId && sameLang(row.languageCode ?? null, languageCode);
+  switch (cell.family) {
+    case 'value':
+      return at(state.valueOverrides.find((row) => row.attributeKey === cell.field && here(row, row.channelId)));
+    case 'gallery':
+      return at(state.galleryOverrides.find((row) => row.galleryItemId === cell.subjectId && row.field === cell.field && here(row, row.salesChannelId)));
+    case 'attachment':
+      return at(state.attachmentOverrides.find((row) => row.attachmentId === cell.subjectId && row.field === cell.field && here(row, row.salesChannelId)));
+    case 'packagingUnit':
+      return at(state.packagingOverrides.find((row) => row.packagingUnitId === cell.subjectId && here(row, row.salesChannelId)));
+    case 'galleryRole': {
+      const row = state.roleOverrides.find((r) => r.label === cell.field && here(r, r.salesChannelId));
+      return row === undefined ? { inherit: true } : (row.galleryItemId ?? null);
+    }
+    default:
+      return { inherit: true };
+  }
 }
 
 function globalOnlyValue(state: ScopedProductState, field: string): unknown {

@@ -1412,10 +1412,7 @@ export async function registerCatalogAdminRoutes(
       },
     );
 
-    app.patch<{
-      Params: { productId: string; itemId: string };
-      Querystring: { replace?: string };
-    }>(
+    app.patch<{ Params: { productId: string; itemId: string } }>(
       '/api/v1/admin/catalog/products/:productId/gallery/:itemId',
       {
         preHandler: requireAdmin('catalog:write'),
@@ -1423,15 +1420,10 @@ export async function registerCatalogAdminRoutes(
       },
       async (request) => {
         const body = updateGalleryItemRequestSchema.parse(request.body);
-        // One audit entry per request (FR-080): the service's Command writes it — the
-        // `gallery_item.update` one for a position-only body, `product.media.update`
-        // when the body carries alt text, the hidden channels or the labels (feature 163).
-        const item = await gallery.update(
-          request.params.productId,
-          request.params.itemId,
-          body,
-          { replaceConflictingLabels: request.query.replace === 'true' },
-        );
+        // One audit entry per request (FR-080): the service's `gallery_item.update` Command
+        // writes it. Feature 170 (§6) — the position only; roles, alt text and the hidden
+        // flag are scoped fields of `PUT …/scoped-values`.
+        const item = await gallery.update(request.params.productId, request.params.itemId, body);
         return { data: item };
       },
     );

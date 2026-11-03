@@ -19,6 +19,7 @@ import type { ScopeCompletenessGate } from '../services/scope-completeness.js';
 import {
   auditStates,
   bumpScopeVersion,
+  isRemovalOnly,
   ownValues,
   planScopedSave,
   writeScopedSave,
@@ -86,7 +87,8 @@ export function scopedValuesSaveCommand(
       // Step 0 — the version compare-and-set, before any read (R7).
       await bumpScopeVersion(em, productId, body.version);
       const state = await loadScopedState(em, productId, deps);
-      const scope = resolveRequestScope(state.members, body.scope);
+      const removalOnly = isRemovalOnly(body.changes);
+      const scope = resolveRequestScope(state.members, body.scope, { removalOnly });
       const plan = planScopedSave(state, scope, body.changes);
       if (plan.cells.length === 0) {
         return { result: { state, scope, changedFields: [], warnings: [] }, skipAudit: true };

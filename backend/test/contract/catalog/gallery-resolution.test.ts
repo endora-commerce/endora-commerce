@@ -43,8 +43,8 @@ describe('Gallery-aware asset resolution (T096 + T097)', () => {
       payload: {
         sku: `GAL-RES-${suffix}`,
         type: 'simple',
-        name: { 'en-US': `Gallery resolution ${suffix}` },
-        description: { 'en-US': 'desc' },
+        name: `Gallery resolution ${suffix}`,
+        description: 'desc',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',

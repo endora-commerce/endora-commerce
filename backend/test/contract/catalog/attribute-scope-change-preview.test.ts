@@ -16,7 +16,8 @@ import { seedProductScopesAdmins } from '../../helpers/product-scopes-admins.js'
  * `GET /api/v1/admin/catalog/attributes/:idOrKey/scope-change-preview`
  * (`specs/163-product-data-scopes/contracts/admin-scopes-api.md` §6, research R27).
  *
- * - a narrowing counts, per channel, the overrides it would orphan;
+ * - a narrowing counts, per channel, the overrides it would orphan — feature 170 (R15): the one
+ *   `scopable` flag and the value type (`?valueType=`, text → non-text orphans the C×L rows);
  * - a widening reports 0;
  * - the attribute update that follows still retains every row (FR-015).
  *
@@ -78,8 +79,8 @@ describe('Attribute scope-change preview (spec 163, FR-090)', () => {
       payload: {
         sku: `SAP-${run}-${randomUUID().slice(0, 6)}`,
         type: 'simple',
-        name: { 'en-US': 'Preview probe' },
-        description: { 'en-US': 'Preview probe' },
+        name: 'Preview probe',
+        description: 'Preview probe',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',
@@ -164,6 +165,21 @@ describe('Attribute scope-change preview (spec 163, FR-090)', () => {
     expect(data.orphanedOverrides).toBe(5);
     expect(data.byChannel.find((r) => r.channelId === c1)?.count).toBe(4);
     expect(data.byChannel.find((r) => r.channelId === c2)?.count).toBe(1);
+  });
+
+  // Feature 170 (T042, R15): a scopable text attribute turning non-text keeps {G, C}, so the
+  // C×L rows are what it orphans.
+  it('text \u2192 non-text counts the C\u00d7L rows only; an unknown value type is 400', async () => {
+    const key = `sap_type_${run}`;
+    await createAttribute(key, true);
+    await seed(key);
+    const data = await preview(key, '?valueType=number');
+    expect(data.orphanedOverrides).toBe(4);
+    expect(data.byChannel.find((r) => r.channelId === c1)?.count).toBe(3);
+    expect(data.byChannel.find((r) => r.channelId === c2)?.count).toBe(1);
+    expect(await preview(key, '?valueType=string')).toEqual({ orphanedOverrides: 0, byChannel: [] });
+    const bad = await h.app.inject({ method: 'GET', url: url(key, '?valueType=colour'), ...admin });
+    expect(bad.statusCode).toBe(400);
   });
 
   it('a widening reports 0', async () => {

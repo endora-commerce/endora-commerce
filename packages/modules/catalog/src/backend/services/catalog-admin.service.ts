@@ -1259,11 +1259,11 @@ export class CatalogAdminService {
   }
 
   /**
-   * Multilingual `name`: tag every locale with a "(copy)" suffix so the
-   * duplicated product is obviously a clone in lists. Empty locales are
-   * left untouched.
+   * Feature 170 — the copy's Global name with a "(copy)" suffix, so the duplicate is obviously a
+   * clone in lists. Like every other Channel and Channel × language override (scope rows, value
+   * overrides, URL keys), its scoped names are not copied (170-shim: the spec does not say whether
+   * a duplicate copies scoped values — a product question in the S1 block 2 report).
    */
-  /** Feature 170 — the copy's Global name. Scoped name overrides are not copied (170-shim: US2 decides). */
   private suffixCopyName(name: string): string {
     return name.trim() === '' ? name : `${name} (copy)`.slice(0, 255);
   }

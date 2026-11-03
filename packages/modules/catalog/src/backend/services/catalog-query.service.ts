@@ -19,8 +19,8 @@ import { ProductPackagingUnit } from '../entities/product-packaging-unit.entity.
 import { BundleSlot } from '../entities/bundle-slot.entity.js';
 import { BundleSlotOption } from '../entities/bundle-slot-option.entity.js';
 import { resolvePrimaryAssetUrls } from './primary-asset-url.js';
-import { effectiveGallery, loadGalleryChannelOverrides } from './gallery-scopes.js';
-import { loadAttachmentsHiddenInChannel } from './attachment-packaging-scopes.js';
+import { effectiveGallery, loadGalleryScopes } from './gallery-scopes.js';
+import { loadAttachmentsAtScope, loadPackagingUnitNamesAtScope } from './attachment-packaging-scopes.js';
 import { viewerOrganizationFor } from './viewer-organization.js';
 import { channelUrlFactsOf } from './channel-url-facts.js';
 import {
@@ -984,8 +984,14 @@ export class CatalogQueryService {
     // Primary asset — for listings prefer the gallery's Thumbnail (US3),
     // then Base Image, then any first gallery item, finally the legacy
     // product_assets row. Resolution chain pinned by T096; run over the gallery as
-    // the request's channel shows it (feature 163, FR-076).
-    const assetUrlByProduct = await resolvePrimaryAssetUrls(em, this.#requireAssets(), productIds, channelId);
+    // the request's (channel, language) shows it (feature 163 FR-076, feature 170).
+    const assetUrlByProduct = await resolvePrimaryAssetUrls(
+      em,
+      this.#requireAssets(),
+      productIds,
+      channelId,
+      this.#availabilityScope(ctx).languageCode,
+    );
 
     const ids = [...productIds];
     const catRows = await em.execute<{ product_id: string; slug: string }[]>(
@@ -2163,8 +2169,11 @@ export class CatalogQueryService {
     // Feature 002 US3 — eager-load gallery + attachments for the PDP.
     // Gallery: items + label bridge zipped per item; Asset urls
     // resolved into a flat shape the storefront can render directly.
-    // Feature 163 (FR-076, R14) — the gallery as the request's channel shows it:
-    // hidden items dropped, each role at its channel holder (`effectiveGallery`).
+    // Feature 163 (FR-076, R14), feature 170 (data-model §6) — the gallery as the request's
+    // (channel, language) shows it: hidden items dropped, each role at its scope holder
+    // (`effectiveGallery`), each alt text at the scope.
+    const scopeLanguage = this.#availabilityScope(ctx).languageCode;
+    const readScope = { channelId: channel.id, languageCode: scopeLanguage };
     const storedGalleryItems = await em.find(
       GalleryItem,
       { productId: product.id },
@@ -2181,7 +2190,7 @@ export class CatalogQueryService {
     }
     const galleryOverrides =
       storedGalleryItems.length > 0
-        ? (await loadGalleryChannelOverrides(em, [product.id], channel.id)).get(product.id)
+        ? (await loadGalleryScopes(em, [product.id], readScope)).get(product.id)
         : undefined;
     const galleryItems = effectiveGallery(
       storedGalleryItems.map((item) => ({ id: item.id, item, labels: globalLabelsByItem.get(item.id) ?? [] })),
@@ -2200,27 +2209,35 @@ export class CatalogQueryService {
       storedGalleryItems.filter((item) => galleryOverrides?.hidden.has(item.id)).map((item) => item.assetId),
     );
     const assets = allAssets.filter((asset) => !hiddenAssetIds.has(asset.id));
-    // FR-077 (R15) — the product's own alt text at the scope language, else the
-    // asset's alt text through the existing pick.
-    const scopeLanguage = this.#availabilityScope(ctx).languageCode;
-    // 170-shim: the Global alt text only; the C×L → C chain and the empty override (`alt=""`) are T035 / T061.
-    void scopeLanguage;
+    // FR-077 (R15), feature 170 (T035) — the image's alt text at (C, L): its override there
+    // (`''` for an empty one: a decorative image, rendered `alt=""`), else its Global alt
+    // text, else the asset's alt text through the existing pick; `null` = none.
     const altTextOf = (item: GalleryItem, asset: AssetRecord): string | null =>
-      item.altText ?? (asset.altText ? this.pickLang(asset.altText, ctx.preferredLanguage, channel) : null);
+      galleryOverrides?.altText.get(item.id) ??
+      item.altText ??
+      (asset.altText ? this.pickLang(asset.altText, ctx.preferredLanguage, channel) : null);
 
     // Attachments + their types, eager-loaded in two queries.
-    // Feature 163 (FR-078, R16) — an attachment hidden in the request's channel is
-    // neither listed nor named here (its asset is not even read).
+    // Feature 163 (FR-078, R16), feature 170 (data-model §7) — each attachment's name,
+    // description and hidden flag at (C, L); a hidden one is neither listed nor named
+    // here (its asset is not even read).
     const storedAttachmentRows = await em.find(
       ProductAttachment,
       { productId: product.id },
       { orderBy: { position: 'asc', id: 'asc' } },
     );
-    const hiddenAttachments =
-      storedAttachmentRows.length > 0
-        ? await loadAttachmentsHiddenInChannel(em, product.id, channel.id)
-        : new Set<string>();
-    const attachmentRows = storedAttachmentRows.filter((row) => !hiddenAttachments.has(row.id));
+    const attachmentsAtScope = await loadAttachmentsAtScope(
+      em,
+      product.id,
+      storedAttachmentRows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        description: row.description ?? null,
+        hidden: row.hidden === true,
+      })),
+      readScope,
+    );
+    const attachmentRows = storedAttachmentRows.filter((row) => attachmentsAtScope.get(row.id)?.hidden !== true);
     const attachmentTypeIds = [...new Set(attachmentRows.map((a) => a.attachmentTypeId))];
     const attachmentTypesById = new Map<string, AttachmentType>();
     if (attachmentTypeIds.length > 0) {
@@ -2378,9 +2395,10 @@ export class CatalogQueryService {
           {
             id: row.id,
             position: row.position,
-            // 170-shim: the Global text; the attachment chain at (C, L) is T041's.
-            name: row.name,
-            description: row.description ?? null,
+            name: attachmentsAtScope.get(row.id)?.name ?? row.name,
+            description: attachmentsAtScope.has(row.id)
+              ? attachmentsAtScope.get(row.id)!.description
+              : (row.description ?? null),
             type: { id: t.id, code: t.code, name: t.name },
             asset: {
               id: a.id,
@@ -2502,10 +2520,11 @@ export class CatalogQueryService {
         { orderBy: { position: 'asc', name: 'asc' } },
       );
       if (packagingUnits.length > 0) {
+        // Feature 170 (data-model §7) — each unit's name at (C, L); `''` for an empty override.
+        const unitNames = await loadPackagingUnitNamesAtScope(em, product.id, packagingUnits, readScope);
         detail.packagingUnits = packagingUnits.map((u) => ({
           id: u.id,
-          // 170-shim: the Global name; the packaging chain at (C, L) is T041's.
-          name: u.name,
+          name: unitNames.get(u.id) ?? u.name,
           baseQuantity: u.baseQuantity,
           position: u.position,
           isDefault: u.isDefault,
@@ -2562,7 +2581,13 @@ export class CatalogQueryService {
     // Primary asset url via gallery thumb chain -> base_image -> first item
     // -> legacy product_assets first row. One helper, shared with `toSummary`
     // and `ProductLinkService`, so the chain and the port call have one home.
-    const assetUrlByProduct = await resolvePrimaryAssetUrls(em, this.#requireAssets(), ids, channel.id);
+    const assetUrlByProduct = await resolvePrimaryAssetUrls(
+      em,
+      this.#requireAssets(),
+      ids,
+      channel.id,
+      this.#availabilityScope(ctx).languageCode,
+    );
 
     const resolvedPrices = await this.#listingPricesFor(products, ctx);
     // Issue #384 — one statement for every child's override rows on this channel.

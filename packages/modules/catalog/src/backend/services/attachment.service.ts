@@ -309,8 +309,6 @@ export class AttachmentService {
         }
         row.attachmentTypeId = req.attachmentTypeId;
       }
-      if (req.name !== undefined) row.name = req.name;
-      if (req.description !== undefined) row.description = req.description;
       if (req.position !== undefined) row.position = req.position;
       const after = attachmentProjection(row);
       // A request that changes nothing writes and announces nothing.

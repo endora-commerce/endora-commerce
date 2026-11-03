@@ -31,8 +31,8 @@ describe('admin product variants read (161)', () => {
       payload: {
         sku: `VR-${suffix}`,
         type: 'configurable',
-        name: { 'en-US': `Variant read ${suffix}` },
-        description: { 'en-US': '' },
+        name: `Variant read ${suffix}`,
+        description: '',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',

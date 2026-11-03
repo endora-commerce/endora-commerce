@@ -61,8 +61,8 @@ describe('catalog outbound webhooks — product.created / updated / archived', (
   const productRequest = (sku: string, type: 'simple' | 'configurable' = 'simple') => ({
     sku,
     type,
-    name: { 'en-US': `Webhook product ${sku}` },
-    description: { 'en-US': 'Never in a payload' },
+    name: `Webhook product ${sku}`,
+    description: 'Never in a payload',
     categoryIds: [],
     attributeValues: {},
     visibility: 'public',
@@ -203,7 +203,7 @@ describe('catalog outbound webhooks — product.created / updated / archived', (
     const subscription = await storeWebhookSubscription(h, [PRODUCT_UPDATED]);
     capture.clear();
 
-    await patchProduct(product.id, { name: { 'en-US': 'A renamed product, not in the payload' } });
+    await patchProduct(product.id, { name: 'A renamed product, not in the payload' });
 
     const delivered = jobsFor(product.id).filter((job) => job.webhookId === subscription);
     expect(delivered).toHaveLength(1);

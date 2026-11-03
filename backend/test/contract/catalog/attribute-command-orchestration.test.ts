@@ -396,8 +396,8 @@ describe('attribute command orchestration (feature 061, T017)', () => {
         payload: {
           sku: 'ORCH-IN-USE-001',
           type: 'simple',
-          name: { 'en-US': 'In-use probe product' },
-          description: { 'en-US': 'desc' },
+          name: 'In-use probe product',
+          description: 'desc',
           categoryIds: [],
           visibility: 'public',
           attributeSetId: defaultSetId,

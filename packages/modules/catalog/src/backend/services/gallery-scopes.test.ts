@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { effectiveGallery, type GalleryChannelOverrides } from './gallery-scopes.js';
+import { effectiveGallery, resolveGalleryScope, type GalleryScopeOverrides } from './gallery-scopes.js';
 
 /**
  * Feature 163 (FR-076, data-model §7, R14) — the gallery in one sales channel: the
@@ -12,8 +12,8 @@ const items = [
   { id: 'life', labels: [] },
 ];
 
-function overrides(partial: Partial<GalleryChannelOverrides> = {}): GalleryChannelOverrides {
-  return { roles: new Map(), hidden: new Set(), ...partial };
+function overrides(partial: Partial<GalleryScopeOverrides> = {}): GalleryScopeOverrides {
+  return { roles: new Map(), hidden: new Set(), altText: new Map(), ...partial };
 }
 
 describe('effectiveGallery', () => {
@@ -58,5 +58,64 @@ describe('effectiveGallery', () => {
       { id: 'b', labels: [], position: 1, assetId: 'y' },
     ];
     expect(effectiveGallery(rich, overrides()).map((item) => item.assetId)).toEqual(['x', 'y']);
+  });
+
+  it('an empty role override (no image) takes the role off every item (feature 170, data-model §6b)', () => {
+    const gallery = effectiveGallery(items, overrides({ roles: new Map([['base_image', null]]) }));
+    expect(gallery.find((item) => item.id === 'hero')?.labels).toEqual(['thumbnail']);
+  });
+});
+
+describe('resolveGalleryScope (feature 170, C\u00d7L \u2192 C \u2192 G)', () => {
+  const C = 'c1';
+  const stored = [
+    { id: 'hero', hidden: false },
+    { id: 'side', hidden: true },
+    { id: 'life', hidden: false },
+  ];
+  const row = (galleryItemId: string, field: string, languageCode: string | null, v: unknown) => ({
+    galleryItemId,
+    channelId: C,
+    languageCode,
+    field,
+    value: { v },
+  });
+  const itemRows = [
+    row('hero', 'hidden', 'pl-PL', true),
+    row('side', 'hidden', null, false),
+    row('life', 'alt_text', null, 'Channel alt'),
+    row('life', 'alt_text', 'pl-PL', null),
+    row('hero', 'alt_text', 'pl-PL', 'Polish alt'),
+  ];
+  const roleRows = [
+    { label: 'base_image' as const, channelId: C, languageCode: null, galleryItemId: 'life' },
+    { label: 'thumbnail' as const, channelId: C, languageCode: 'pl-PL', galleryItemId: null },
+  ];
+
+  it('at Global, only the Global hidden flag applies', () => {
+    const out = resolveGalleryScope({ items: stored, itemRows, roleRows, scope: { channelId: null, languageCode: null } });
+    expect([...out.hidden]).toEqual(['side']);
+    expect(out.roles.size).toBe(0);
+    expect(out.altText.size).toBe(0);
+  });
+
+  it('at C, the Channel rows override the Global hidden flag, alt text and roles', () => {
+    const out = resolveGalleryScope({ items: stored, itemRows, roleRows, scope: { channelId: C, languageCode: null } });
+    expect([...out.hidden]).toEqual([]);
+    expect(out.altText).toEqual(new Map([['life', 'Channel alt']]));
+    expect(out.roles).toEqual(new Map([['base_image', 'life']]));
+  });
+
+  it("at C\u00d7L, the pair's rows win, an empty alt override is '' and an empty role holds nothing", () => {
+    const out = resolveGalleryScope({ items: stored, itemRows, roleRows, scope: { channelId: C, languageCode: 'pl-pl' } });
+    expect([...out.hidden]).toEqual(['hero']);
+    expect(out.altText).toEqual(new Map([['life', ''], ['hero', 'Polish alt']]));
+    expect(out.roles).toEqual(new Map([['base_image', 'life'], ['thumbnail', null]]));
+  });
+
+  it('rows of another language never apply', () => {
+    const out = resolveGalleryScope({ items: stored, itemRows, roleRows, scope: { channelId: C, languageCode: 'en-US' } });
+    expect([...out.hidden]).toEqual([]);
+    expect(out.altText).toEqual(new Map([['life', 'Channel alt']]));
   });
 });

@@ -34,23 +34,22 @@ import { loadAttachmentPackagingScopedFields } from './attachment-packaging-scop
 /**
  * Feature 163 (`specs/163-product-data-scopes/`) — the scope overview of one product,
  * `GET /api/v1/admin/catalog/products/:id/scope-overview` (`contracts/admin-scopes-api.md`
- * §3; US4, FR-015, FR-041).
+ * §3; US4, FR-015, FR-041), on feature 170's three levels (FR-010, FR-100, FR-101).
  *
- * A read: channels × languages, each cell's effective status and where it comes from,
- * the fields overridden at the cell, at the channel row and at the language column, and
- * every override the resolution ignores (orphans, FR-015) with the reason.
+ * A read: channels × languages, each cell's effective status and where it comes from, the
+ * fields overridden at the cell (C×L) and at the whole channel (C), and every override the
+ * resolution ignores (orphans, FR-015) with the reason. There is no Language level (FR-010):
+ * an override sits at C or at C×L, and the Global value is the product's own.
  *
  * Field names are the owning write's: `status`, `window`, `audience`,
  * `minOrderQuantity`, `returnable` (the scopes PATCH), `name`, `description`,
  * `attribute:<key>` (the value overrides — the spelling `ScopeMissingValue` uses) and
  * `urlKey` (the URL keys). A cell lists each field once, at the level that wins there
- * (C × L, then C, then L — FR-008).
+ * (C×L, then C — FR-013).
  *
- * The **language** level of a per-language baseline (`products.name`,
- * `products.description`, a language-scoped attribute's value) is a value in a language
- * other than the platform's default one: the default language's value is the global
- * value, as the resolver reports it (`resolveAttribute`). A language URL key is always a
- * language override of the global `products.slug`.
+ * Every orphan listed can be removed (FR-101): the scopes PATCH and `PUT …/url-keys` remove at
+ * any scope, and `PUT …/scoped-values` accepts an `{ inherit: true }`-only save at an orphaned
+ * scope (`resolveRequestScope`'s `removalOnly`).
  *
  * Status is shown as stored; "available" is composed from the shared rule's pieces
  * (`isOn`, `effectiveStatus`, `effectiveWindow`, `isInsideWindow`) and the product's
@@ -106,13 +105,14 @@ export interface ScopeOverviewInput {
    * tables: the gallery (`media:roles`, `media:hidden`, `media:altText`), the
    * attachments (`attachments:hidden`, `attachments:name`, `attachments:description`),
    * the packaging units (`packagingUnits:name`) and SEO (`seo:<field>`). The level is
-   * the shape: a channel alone, a language alone, or both. Absent = none.
+   * the shape: a channel alone (C) or a channel and a language (C×L); a Global row (SEO) is
+   * not an override cell. Absent = none.
    */
   scopedFields?: ReadonlyArray<ScopedField>;
   now: Date;
 }
 
-/** One override held outside the scope and value tables, at a channel, a language, or both. */
+/** One override held outside the scope and value tables, at a channel (C) or a channel and a language (C×L). */
 export interface ScopedField {
   field: string;
   channelId: string | null;
@@ -162,8 +162,9 @@ function levelsOf(attributeKey: string, attributeLevels: ReadonlyMap<string, rea
 export function buildScopeOverview(input: ScopeOverviewInput): ScopeOverview {
   const channelById = new Map(input.channels.map((channel) => [channel.id, channel]));
   const isMember = (channelId: string): boolean => channelById.get(channelId)?.isMember === true;
+  // Languages compare case-insensitively: a row keeps the spelling it was written in.
   const offers = (channelId: string, languageCode: string): boolean =>
-    channelById.get(channelId)?.languages.includes(languageCode) === true;
+    channelById.get(channelId)?.languages.some((code) => sameLanguage(code, languageCode)) === true;
 
   const orphans: Orphan[] = [];
 

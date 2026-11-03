@@ -35,8 +35,8 @@ describe('Admin packaging units contract (043)', () => {
       payload: {
         sku: `PKG-${suffix}`,
         type,
-        name: { 'en-US': `Packaging parent ${suffix}` },
-        description: { 'en-US': '' },
+        name: `Packaging parent ${suffix}`,
+        description: '',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',

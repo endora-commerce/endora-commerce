@@ -323,7 +323,7 @@ describe('GET /api/v1/catalog/products — a page is cut from the rows that matc
       const parent = PARENT_OF[slug];
       const category = em.create(Category, {
         ...(parent !== undefined ? { parentCategoryId: categoryIdBySlug.get(parent)! } : {}),
-        name: { 'en-US': `Issue 151 ${slug}` },
+        name: `Issue 151 ${slug}`,
         slug,
       });
       await em.persistAndFlush(category);

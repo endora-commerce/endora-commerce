@@ -76,8 +76,8 @@ describe('PDP metadata per channel × language (spec 163, T115)', () => {
     await sql(
       `insert into products (id, sku, slug, type, status, name, description, visibility, allowed_organization_ids,
                              created_at, updated_at)
-       values (?, ?, ?, 'simple', 'active', '{"en-US":"Impact drill","pl-PL":"Wiertarka udarowa"}'::jsonb,
-               '{"en-US":"A drill.","pl-PL":"Wiertarka."}'::jsonb, 'public', '[]'::jsonb, now(), now())`,
+       values (?, ?, ?, 'simple', 'active', 'Impact drill',
+               'A drill.', 'public', '[]'::jsonb, now(), now())`,
       [productId, `PS163-${run}`, `pdp-seo-${run}`],
     );
     for (const channel of [b2b, b2c]) {

@@ -73,8 +73,8 @@ describe('Issue #384 — public product reads honour channel value overrides', (
       payload: {
         sku: `OVR-384-${Date.now()}`,
         type: 'simple',
-        name: { 'pl-PL': 'Zestaw bazowy', 'en-US': 'Baseline kit' },
-        description: { 'pl-PL': 'Opis bazowy', 'en-US': 'Baseline description' },
+        name: 'Zestaw bazowy',
+        description: 'Opis bazowy',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',
@@ -93,8 +93,8 @@ describe('Issue #384 — public product reads honour channel value overrides', (
       payload: {
         sku: `OVR-384-GRP-${Date.now()}`,
         type: 'grouped',
-        name: { 'pl-PL': 'Grupa', 'en-US': 'Group' },
-        description: { 'pl-PL': 'Grupa', 'en-US': 'Group' },
+        name: 'Grupa',
+        description: 'Grupa',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',
@@ -112,8 +112,8 @@ describe('Issue #384 — public product reads honour channel value overrides', (
       payload: {
         sku: `OVR-384-BDL-${Date.now()}`,
         type: 'bundle',
-        name: { 'pl-PL': 'Pakiet', 'en-US': 'Bundle' },
-        description: { 'pl-PL': 'Pakiet', 'en-US': 'Bundle' },
+        name: 'Pakiet',
+        description: 'Pakiet',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',

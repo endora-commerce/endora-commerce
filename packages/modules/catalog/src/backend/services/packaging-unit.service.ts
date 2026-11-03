@@ -143,7 +143,6 @@ export class PackagingUnitService {
     const unit = await this.#audited('packaging_unit.update', unitId, async (em) => {
       const u = await this.#findOwned(em, productId, unitId);
       const before = unitProjection(u);
-      if (req.name !== undefined) u.name = req.name.trim();
       if (req.baseQuantity !== undefined) u.baseQuantity = req.baseQuantity;
       if (req.position !== undefined) u.position = req.position;
       if (req.isDefault !== undefined) u.isDefault = req.isDefault;

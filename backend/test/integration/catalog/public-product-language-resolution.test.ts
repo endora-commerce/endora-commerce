@@ -32,8 +32,8 @@ describe('US1 — public product language resolution', () => {
       payload: {
         sku: `PUB-BOTH-${Date.now()}`,
         type: 'simple',
-        name: { 'pl-PL': 'Klucz nasadowy', 'en-US': 'Socket wrench' },
-        description: { 'pl-PL': 'Opis PL', 'en-US': 'Description EN' },
+        name: 'Klucz nasadowy',
+        description: 'Opis PL',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',
@@ -50,8 +50,8 @@ describe('US1 — public product language resolution', () => {
       payload: {
         sku: `PUB-PL-ONLY-${Date.now()}`,
         type: 'simple',
-        name: { 'pl-PL': 'Tylko polski' },
-        description: { 'pl-PL': 'Tylko opis' },
+        name: 'Tylko polski',
+        description: 'Tylko opis',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',

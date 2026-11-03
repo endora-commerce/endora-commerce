@@ -81,7 +81,7 @@ describe('External catalog reads (062 / T013)', () => {
     await h.salesChannels.cache.invalidate('ext-read');
 
     const category = em.create(Category, {
-      name: { 'en-US': 'External widgets' },
+      name: 'External widgets',
       slug: 'external-widgets',
     });
     await em.persistAndFlush(category);

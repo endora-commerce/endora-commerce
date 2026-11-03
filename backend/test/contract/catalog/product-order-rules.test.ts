@@ -62,8 +62,8 @@ describe('155 — catalogue writes of minOrderQuantity and returnable [contract]
       payload: {
         sku: `MOQ-${RUN}-${suffix}`,
         type,
-        name: { 'en-US': `Order rules ${RUN} ${suffix}` },
-        description: { 'en-US': 'desc' },
+        name: `Order rules ${RUN} ${suffix}`,
+        description: 'desc',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',

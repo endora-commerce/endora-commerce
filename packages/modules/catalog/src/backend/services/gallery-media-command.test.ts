@@ -7,13 +7,12 @@ import { GalleryItem } from '../entities/gallery-item.entity.js';
 import { GalleryItemLabel } from '../entities/gallery-item-label.entity.js';
 
 /**
- * Feature 163, checkpoint F (B-1, S-4) — every gallery write of an item's labels or of
- * the gallery's order runs inside the Command `product.media.update` on the product:
- * the label rows and the positions are written on the Command's own `em`, under the
- * product row lock and in its transaction, and the one audit entry's `before` names
- * the labels (or the order) the write replaced. A write that changes nothing writes
- * no audit entry. The SQL itself is exercised against Postgres by the `[PG]`
- * `backend/test/contract/catalog/media-scopes.test.ts`.
+ * Feature 163, checkpoint F (B-1, S-4) — the gallery's order is written inside the Command
+ * `product.media.update` on the product: the positions are written on the Command's own `em`,
+ * under the product row lock and in its transaction, and the one audit entry's `before` names
+ * the order the write replaced. A write that changes nothing writes no audit entry. Feature 170
+ * (`contracts/scoped-values-api.md` §6): an item's roles left the item PATCH for the
+ * scoped-values save, so the PATCH is a position write (`gallery_item.update`).
  */
 
 const PRODUCT = '11111111-1111-4111-8111-111111111111';
@@ -124,60 +123,14 @@ function harness(labels: Array<{ item: string; label: string }> = []) {
   return { service, recorded, outside, labelsOf, items };
 }
 
-const KEEP = { replaceConflictingLabels: false };
-const SWAP = { replaceConflictingLabels: true };
-
-describe('gallery labels and order under the product.media.update Command (163 B-1, S-4)', () => {
-  it('a labels-only PATCH writes the labels inside one product.media.update entry naming them before and after', async () => {
+describe('gallery order under the product.media.update Command (163 B-1, S-4)', () => {
+  it('a PATCH carries the position only: one gallery_item.update entry, no label row written (feature 170, §6)', async () => {
     const h = harness([{ item: ITEM_A, label: 'base_image' }]);
-    const dto = await h.service.update(PRODUCT, ITEM_A, { labels: ['base_image', 'thumbnail'] }, KEEP);
-    expect(dto.labels).toEqual(['base_image', 'thumbnail']);
+    await h.service.update(PRODUCT, ITEM_B, { position: 3 });
     expect(h.recorded).toHaveLength(1);
-    expect(h.recorded[0]).toMatchObject({
-      action: 'product.media.update',
-      objectType: 'product',
-      objectId: PRODUCT,
-      audited: true,
-      before: { itemId: ITEM_A, labels: ['base_image'] },
-      after: { itemId: ITEM_A, labels: ['base_image', 'thumbnail'], changedFields: ['media'] },
-    });
+    expect(h.recorded[0]).toMatchObject({ action: 'gallery_item.update', before: { position: 1 }, after: { position: 3 } });
+    expect(h.labelsOf(ITEM_A)).toEqual(['base_image']);
     expect(h.outside).toEqual([]);
-  });
-
-  it('position and labels in one body are one entry, and no label row is written after the Command', async () => {
-    // Feature 170: alt text left this route for the scoped-values save.
-    const h = harness();
-    await h.service.update(PRODUCT, ITEM_B, { position: 3, labels: ['small_image'] }, KEEP);
-    expect(h.recorded).toHaveLength(1);
-    expect(h.recorded[0]).toMatchObject({
-      action: 'product.media.update',
-      before: { labels: [] },
-      after: { labels: ['small_image'], position: 3 },
-    });
-    expect(h.outside).toEqual([]);
-    expect(h.labelsOf(ITEM_B)).toEqual(['small_image']);
-  });
-
-  it('a swap with ?replace=true moves the label inside the Command', async () => {
-    const h = harness([{ item: ITEM_A, label: 'thumbnail' }]);
-    await h.service.update(PRODUCT, ITEM_B, { labels: ['thumbnail'] }, SWAP);
-    expect(h.labelsOf(ITEM_A)).toEqual([]);
-    expect(h.labelsOf(ITEM_B)).toEqual(['thumbnail']);
-    expect(h.outside).toEqual([]);
-  });
-
-  it('a label conflict without ?replace=true is refused from inside the Command, writing nothing', async () => {
-    const h = harness([{ item: ITEM_A, label: 'thumbnail' }]);
-    await expect(h.service.update(PRODUCT, ITEM_B, { labels: ['thumbnail'] }, KEEP)).rejects.toMatchObject({
-      statusCode: 409,
-    });
-    expect(h.outside).toEqual([]);
-  });
-
-  it('re-sending the labels an item holds writes no audit entry', async () => {
-    const h = harness([{ item: ITEM_A, label: 'thumbnail' }]);
-    await h.service.update(PRODUCT, ITEM_A, { labels: ['thumbnail'] }, KEEP);
-    expect(h.recorded.filter((r) => r.audited)).toEqual([]);
   });
 
   it('a reorder is one product.media.update entry with the order before and after, written inside it', async () => {

@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { AssetReadPort, GalleryLabel } from '@endora-commerce/contracts';
-import { effectiveGallery, loadGalleryChannelOverrides, type GalleryChannelOverrides } from './gallery-scopes.js';
+import { effectiveGallery, loadGalleryScopes, type GalleryScopeOverrides } from './gallery-scopes.js';
 
 /**
  * "Which image represents this product" — resolved once, in one place
@@ -46,10 +46,10 @@ import { effectiveGallery, loadGalleryChannelOverrides, type GalleryChannelOverr
  * Both statements order by `product_id` first, which is what lets a page-wide
  * call take the same first row per product that a one-id call took.
  *
- * **Per channel (feature 163, FR-076).** The chain runs over the gallery as the
- * card's channel shows it (`effectiveGallery`): a hidden item is never a candidate,
- * and a role is its channel holder's. One statement more per page, and only for a
- * page whose products have a gallery.
+ * **Per scope (feature 163 FR-076, feature 170).** The chain runs over the gallery as
+ * the card's (channel, language) shows it (`effectiveGallery`): a hidden item is never
+ * a candidate, and a role is its scope holder's. Three statements more per page, and
+ * only for a page whose products have a gallery.
  */
 
 interface CandidateRow {
@@ -72,6 +72,11 @@ export async function resolvePrimaryAssetUrls(
    * (`effectiveGallery`). `null` = the global gallery (no channel to ask about).
    */
   channelId: string | null,
+  /**
+   * Feature 170 — the card's scope language: with it, the C×L → C → G chain of each item's
+   * `hidden` flag and each role; `null` = the Channel level.
+   */
+  languageCode: string | null = null,
 ): Promise<Map<string, string | null>> {
   const result = new Map<string, string | null>();
   for (const id of productIds) result.set(id, null);
@@ -89,11 +94,11 @@ export async function resolvePrimaryAssetUrls(
       order by gi.product_id, gi.position asc, gi.id asc`,
     ids,
   );
-  // Only a page with a gallery asks about the channel's overrides of it.
+  // Only a page with a gallery asks about the scope's overrides of it.
   const overrides =
     galleryRows.length > 0
-      ? await loadGalleryChannelOverrides(em, [...new Set(galleryRows.map((row) => row.product_id))], channelId)
-      : new Map<string, GalleryChannelOverrides>();
+      ? await loadGalleryScopes(em, [...new Set(galleryRows.map((row) => row.product_id))], { channelId, languageCode })
+      : new Map<string, GalleryScopeOverrides>();
 
   // One product's items in gallery order, each with its global labels.
   const itemsByProduct = new Map<string, Array<{ id: string; assetId: string; labels: GalleryLabel[] }>>();

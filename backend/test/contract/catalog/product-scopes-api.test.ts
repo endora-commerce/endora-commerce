@@ -73,8 +73,8 @@ describe('Product scopes — GET|PATCH /admin/catalog/products/:id/scopes (spec 
       payload: {
         sku: `SCOPES-${run}-${randomUUID().slice(0, 6)}`,
         type: 'simple',
-        name: { 'en-US': 'Scopes probe', 'pl-PL': 'Sonda zakresów' },
-        description: { 'en-US': 'Scopes probe' },
+        name: 'Scopes probe',
+        description: 'Scopes probe',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',
@@ -288,16 +288,19 @@ describe('Product scopes — GET|PATCH /admin/catalog/products/:id/scopes (spec 
 
       const audits = await auditRows(productId);
       expect(audits).toHaveLength(1);
+      // Feature 170 (FR-074, FR-116) — the before-state is in the write encoding: a scope that
+      // held no own value is `{ inherit: true }`, so re-sending it restores the row exactly.
+      const inherit = { inherit: true };
       expect(audits[0]!.state_before).toEqual({
         channels: [
           {
             channelId: b2b,
-            status: null,
-            window: null,
-            audience: null,
-            minOrderQuantity: null,
-            returnable: null,
-            languageStatuses: [{ languageCode: 'de-DE', status: null }],
+            status: inherit,
+            window: inherit,
+            audience: inherit,
+            minOrderQuantity: inherit,
+            returnable: inherit,
+            languageStatuses: [{ languageCode: 'de-DE', status: inherit }],
           },
         ],
       });
@@ -326,7 +329,12 @@ describe('Product scopes — GET|PATCH /admin/catalog/products/:id/scopes (spec 
 
       const second = await patch(productId, {
         channels: [
-          { channelId: b2b, status: 'active', returnable: null, languageStatuses: [{ languageCode: 'pl-PL', status: 'inactive' }] },
+          {
+            channelId: b2b,
+            status: 'active',
+            returnable: { inherit: true },
+            languageStatuses: [{ languageCode: 'pl-PL', status: 'inactive' }],
+          },
         ],
         global: { publishUntil: '2027-01-01T00:00:00.000Z' },
       });
@@ -340,14 +348,22 @@ describe('Product scopes — GET|PATCH /admin/catalog/products/:id/scopes (spec 
       expect(restored.data).toEqual(snapshot.data);
     });
 
-    it('"use inherited" on the last override deletes the row (FR-012)', async () => {
+    it('"use inherited" ({ inherit: true }) on the last override deletes the row (FR-012, FR-116)', async () => {
       const productId = await createProduct();
       await patch(productId, { channels: [{ channelId: b2b, status: 'inactive', languageStatuses: [{ languageCode: 'de-DE', status: 'inactive' }] }] });
       expect(await scopeRowCounts(productId)).toEqual({ channel: 1, language: 1 });
+      const inherit = { inherit: true };
       const res = await patch(productId, {
-        channels: [{ channelId: b2b, status: null, languageStatuses: [{ languageCode: 'de-DE', status: null }] }],
+        channels: [{ channelId: b2b, status: inherit, languageStatuses: [{ languageCode: 'de-DE', status: inherit }] }],
       });
       expect(res.statusCode).toBe(200);
+      expect(await scopeRowCounts(productId)).toEqual({ channel: 0, language: 0 });
+    });
+
+    it('a status takes no empty value: null is refused (FR-113), nothing written', async () => {
+      const productId = await createProduct();
+      const res = await patch(productId, { channels: [{ channelId: b2b, status: null }] });
+      expect(res.statusCode).toBe(422);
       expect(await scopeRowCounts(productId)).toEqual({ channel: 0, language: 0 });
     });
 
@@ -463,7 +479,7 @@ describe('Product scopes — GET|PATCH /admin/catalog/products/:id/scopes (spec 
 
       const refused = await patch(productId, { channels: [{ channelId: b2c, status: 'active' }] });
       expect(refused.statusCode).toBe(422);
-      const removed = await patch(productId, { channels: [{ channelId: b2c, status: null }] });
+      const removed = await patch(productId, { channels: [{ channelId: b2c, status: { inherit: true } }] });
       expect(removed.statusCode).toBe(200);
       expect(await scopeRowCounts(productId)).toEqual({ channel: 0, language: 0 });
     });

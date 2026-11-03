@@ -49,8 +49,8 @@ describe('Admin Gallery contract (T055)', () => {
       payload: {
         sku: `GAL-PARENT-${suffix}`,
         type: 'simple',
-        name: { 'en-US': `Gallery parent ${suffix}` },
-        description: { 'en-US': '' },
+        name: `Gallery parent ${suffix}`,
+        description: '',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',
@@ -204,7 +204,7 @@ describe('Admin Gallery contract (T055)', () => {
     );
   });
 
-  it('PATCH updates labels with same conflict semantics', async () => {
+  it('PATCH refuses labels; the Global role moves through the scoped-values save (feature 170, §6)', async () => {
     const productId = await createProduct('F');
     const assetA = await seedAsset('image');
     const assetB = await seedAsset('image');
@@ -224,26 +224,29 @@ describe('Admin Gallery contract (T055)', () => {
     });
     const bId = (b.json() as { data: { id: string } }).data.id;
 
-    // Try to give B the label 'base_image' without replace=true → 409.
-    const conflict = await h.app.inject({
+    // A role is a scoped field: the item PATCH carries the position only.
+    const refused = await h.app.inject({
       method: 'PATCH',
       url: `/api/v1/admin/catalog/products/${productId}/gallery/${bId}`,
       payload: { labels: ['base_image'] },
       cookies: adminCookie,
     });
-    expect(conflict.statusCode).toBe(409);
-    expect((conflict.json() as { error: { code: string } }).error.code).toBe(
-      ERROR_CODES.GALLERY_LABEL_ALREADY_TAKEN,
-    );
+    expect(refused.statusCode).toBe(400);
 
-    // With ?replace=true → swap.
-    const swap = await h.app.inject({
-      method: 'PATCH',
-      url: `/api/v1/admin/catalog/products/${productId}/gallery/${bId}?replace=true`,
-      payload: { labels: ['base_image'] },
+    const read = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/catalog/products/${productId}/scoped-values`,
       cookies: adminCookie,
     });
-    expect(swap.statusCode).toBe(200);
+    expect(read.statusCode, read.body).toBe(200);
+    const version = (read.json() as { data: { version: string } }).data.version;
+    const save = await h.app.inject({
+      method: 'PUT',
+      url: `/api/v1/admin/catalog/products/${productId}/scoped-values`,
+      payload: { scope: {}, version, changes: { gallery: { roles: { baseImage: bId } } } },
+      cookies: adminCookie,
+    });
+    expect(save.statusCode, save.body).toBe(200);
     const list = await h.app.inject({
       method: 'GET',
       url: `/api/v1/admin/catalog/products/${productId}/gallery`,

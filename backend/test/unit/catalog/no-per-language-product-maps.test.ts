@@ -169,16 +169,8 @@ const ALLOWLIST: ReadonlyArray<{ file: string; reason: string }> = [
     reason: "non-product map: an attachment type's own name per language (readers.md 'Not readers'), matched by `row.name[` — S3's file",
   },
   {
-    file: 'packages/modules/catalog/src/backend/services/attachment-packaging-scopes.ts',
-    reason: "S1 — catalog backend 170-shim, rewritten in US2 / US3 (T035, T040-T047); not S2's file",
-  },
-  {
-    file: 'packages/modules/catalog/src/backend/services/attribute-scope-preview.ts',
-    reason: "S1 — catalog backend 170-shim, rewritten in US2 / US3 (T035, T040-T047); not S2's file",
-  },
-  {
     file: 'packages/modules/catalog/src/backend/services/catalog-admin.service.ts',
-    reason: "S1 — catalog backend 170-shim, rewritten in US2 / US3 (T035, T040-T047); not S2's file",
+    reason: "S1 — the duplicate's scoped names are not copied: a product question (S1 block 2 report), not a task yet",
   },
   {
     file: 'packages/modules/catalog/src/backend/services/catalog-bulk-import.service.ts',
@@ -189,16 +181,8 @@ const ALLOWLIST: ReadonlyArray<{ file: string; reason: string }> = [
     reason: "S1 — catalog backend 170-shim, rewritten in US2 / US3 (T035, T040-T047); not S2's file — also drops `CatalogAdminNamePageQuery.language`",
   },
   {
-    file: 'packages/modules/catalog/src/backend/services/catalog-query.service.ts',
-    reason: "S1 — catalog backend 170-shim, rewritten in US2 / US3 (T035, T040-T047); not S2's file — the public gallery's empty alt override (T035)",
-  },
-  {
     file: 'packages/modules/catalog/src/backend/services/catalog-write-ports.ts',
     reason: "S1 — catalog backend 170-shim, rewritten in US2 / US3 (T035, T040-T047); not S2's file — port v2 (T083)",
-  },
-  {
-    file: 'packages/modules/catalog/src/backend/services/gallery-scopes.ts',
-    reason: "S1 — catalog backend 170-shim, rewritten in US2 / US3 (T035, T040-T047); not S2's file",
   },
   {
     file: 'packages/modules/catalog/src/backend/services/product-overrides.service.ts',

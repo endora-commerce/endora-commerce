@@ -285,64 +285,14 @@ export class GalleryService {
     return (await this.#fetchOne(em, id))!;
   }
 
-  async update(
-    productId: string,
-    itemId: string,
-    req: UpdateGalleryItemRequest,
-    options: GalleryServiceOptions,
-  ): Promise<GalleryItemDto> {
-    if (req.labels !== undefined) {
-      await this.#updateScoped(productId, itemId, req, options);
-    } else {
-      await this.#updatePosition(productId, itemId, req);
-    }
-    return (await this.#fetchOne(this.emFactory(), itemId))!;
-  }
-
   /**
-   * Feature 163 (FR-076, FR-077) — an item write carrying alt text, the hidden set or
-   * the labels: the Command `product.media.update` (one audit entry: the item's
-   * position, alt text, hidden channels and labels before and after),
-   * `product.updated.v1` `['media']` after commit. A new hidden channel must be one the
-   * product is a member of (FR-014); removing one never asks (FR-015).
-   *
-   * Checkpoint F (B-1) — the labels are replaced on the Command's own `em`, under the
-   * product row lock and in its transaction, so a label conflict rolls the whole write
-   * back. With `?replace=true` a label taken from another item is that item's loss: the
-   * entry restores this item, not the other one's label.
+   * Feature 170 (`contracts/scoped-values-api.md` §6) — a collection operation: the item's
+   * position (`gallery_item.update`, one audit entry). Roles, alt text and the hidden flag are
+   * scoped fields of `PUT …/products/:id/scoped-values`.
    */
-  async #updateScoped(
-    productId: string,
-    itemId: string,
-    req: UpdateGalleryItemRequest,
-    options: GalleryServiceOptions,
-  ): Promise<void> {
-    const requestedLabels = req.labels === undefined ? undefined : this.#normalizeAndValidateLabels(req.labels);
-    await this.#runMediaCommand(productId, async (em) => {
-      const item = await em.findOne(GalleryItem, { id: itemId, productId });
-      if (!item) {
-        throw new HttpError(
-          404,
-          ERROR_CODES.GALLERY_ITEM_NOT_FOUND,
-          `Gallery item ${itemId} not found under Product ${productId}.`,
-        );
-      }
-      const labelsBefore = (await em.find(GalleryItemLabel, { galleryItemId: itemId })).map((l) => l.label);
-      const labelsAfter = requestedLabels ?? labelsBefore;
-      const before = itemProjection(item, labelsBefore);
-
-      if (req.position !== undefined) item.position = req.position;
-      const after = itemProjection(item, labelsAfter);
-      if (JSON.stringify(before) === JSON.stringify(after)) return null;
-      if (requestedLabels !== undefined && JSON.stringify(before['labels']) !== JSON.stringify(after['labels'])) {
-        await em.execute(`delete from gallery_item_labels where gallery_item_id = ?`, [itemId]);
-        if (requestedLabels.length > 0) {
-          await this.#applyLabels(em, productId, itemId, requestedLabels, options);
-        }
-      }
-      await em.flush();
-      return { before, after };
-    });
+  async update(productId: string, itemId: string, req: UpdateGalleryItemRequest): Promise<GalleryItemDto> {
+    await this.#updatePosition(productId, itemId, req);
+    return (await this.#fetchOne(this.emFactory(), itemId))!;
   }
 
   async #updatePosition(productId: string, itemId: string, req: UpdateGalleryItemRequest): Promise<void> {
@@ -604,11 +554,6 @@ export class GalleryService {
       updatedAt: item.updatedAt.toISOString(),
     };
   }
-}
-
-/** The audit projection of one item's media write (FR-080): enough to restore it by re-sending. */
-function itemProjection(item: GalleryItem, labels: readonly GalleryLabel[]): Record<string, unknown> {
-  return { itemId: item.id, position: item.position, labels: [...labels].sort() };
 }
 
 /**

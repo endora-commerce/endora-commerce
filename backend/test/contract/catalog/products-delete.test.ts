@@ -32,8 +32,8 @@ describe('Feature 032 — DELETE /admin/catalog/products/:id', () => {
       payload: {
         sku,
         type: 'simple',
-        name: { 'en-US': sku },
-        description: { 'en-US': 'desc' },
+        name: sku,
+        description: 'desc',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',

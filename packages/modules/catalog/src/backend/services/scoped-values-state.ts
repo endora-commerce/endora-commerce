@@ -162,6 +162,13 @@ export async function loadScopedState(
 export function resolveRequestScope(
   members: readonly ScopeChannel[],
   request: { channelId?: string | null | undefined; languageCode?: string | null | undefined },
+  /**
+   * FR-101 (163 FR-015) — the write only removes overrides (`{ inherit: true }` in every cell):
+   * an orphaned scope — a channel the product left, a language the channel dropped — is
+   * accepted as named, so the overview's orphan deletion keeps working. A value there is still
+   * `SCOPE_INVALID`.
+   */
+  options: { removalOnly?: boolean } = {},
 ): ScopeRef {
   const parsed = scopeFromRequest(request);
   if (!parsed.ok) {
@@ -170,6 +177,10 @@ export function resolveRequestScope(
   const scope = parsed.scope;
   if (scope.level === 'global') return scope;
   const channel = members.find((member) => member.id === scope.channelId);
+  if (options.removalOnly === true) {
+    const spelling = channel?.languages.find((language) => scope.level === 'channel_language' && sameLanguage(language, scope.languageCode));
+    if (!channel || (scope.level === 'channel_language' && spelling === undefined)) return scope;
+  }
   if (!channel) {
     throw new HttpError(422, ERROR_CODES.SCOPE_INVALID, 'The product is not a member of this sales channel.', {
       channelId: scope.channelId,

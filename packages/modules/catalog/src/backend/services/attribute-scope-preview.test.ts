@@ -10,8 +10,8 @@ import {
 /**
  * Feature 163, Phase 9 (T071), on feature 170's one flag (R15) — the FR-090 preview of an
  * attribute's scope change. A row becomes orphaned when the current scope set lets the resolver
- * read it and the requested one does not: a C row needs `C`, a C×L row `CL`. Text → non-text value
- * type changes are T113's half.
+ * read it and the requested one does not: a C row needs `C`, a C×L row `CL`. A text → non-text
+ * value-type change orphans the C×L rows (feature 170 T042, R15).
  */
 
 const C1 = '00000000-0000-4000-8000-0000000000c1';
@@ -43,15 +43,28 @@ describe('slotsOrphanedByScopeChange (FR-090, 170 R15)', () => {
 });
 
 describe('parseScopeChangeQuery', () => {
+  const current = { scopable: true, valueType: 'string' as const };
+
   it('reads "true"/"false"; an absent flag keeps the current one', () => {
-    expect(parseScopeChangeQuery({ scopable: 'false' }, { scopable: true })).toEqual({ scopable: false });
-    expect(parseScopeChangeQuery({}, { scopable: true })).toEqual({ scopable: true });
+    expect(parseScopeChangeQuery({ scopable: 'false' }, current)).toEqual({ scopable: false, valueType: 'string' });
+    expect(parseScopeChangeQuery({}, current)).toEqual(current);
+  });
+
+  it('reads a requested value type; an absent one keeps the current type (T042)', () => {
+    expect(parseScopeChangeQuery({ valueType: 'number' }, current)).toEqual({ scopable: true, valueType: 'number' });
+    expect(parseScopeChangeQuery({ scopable: 'false', valueType: 'select' }, current)).toEqual({
+      scopable: false,
+      valueType: 'select',
+    });
   });
 
   it('refuses anything else with VALIDATION_FAILED', () => {
-    expect(() => parseScopeChangeQuery({ scopable: 'yes' }, { scopable: true })).toThrow(HttpError);
-    expect(() => parseScopeChangeQuery({ scopable: '1' }, { scopable: true })).toThrow(
+    expect(() => parseScopeChangeQuery({ scopable: 'yes' }, current)).toThrow(HttpError);
+    expect(() => parseScopeChangeQuery({ scopable: '1' }, current)).toThrow(
       expect.objectContaining({ statusCode: 400, code: 'VALIDATION_FAILED' }),
+    );
+    expect(() => parseScopeChangeQuery({ valueType: 'colour' }, current)).toThrow(
+      expect.objectContaining({ statusCode: 400, code: 'VALIDATION_FAILED', details: { field: 'valueType' } }),
     );
   });
 });
@@ -113,5 +126,29 @@ describe('AttributeScopePreviewService.preview', () => {
     expect(sql[0]!.params).toContain('color');
     // A non-text scopable attribute holds C rows only: the channel slot is what goes.
     expect(sql[0]!.sql).toMatch(/language_code is null/);
+  });
+
+  it('a text \u2192 non-text value-type change counts the C\u00d7L rows only (T042, R15)', async () => {
+    const sql: Array<{ sql: string; params: unknown[] }> = [];
+    const out = await service({
+      attribute: { key: 'material', scopable: true, valueType: 'string' },
+      rows: [{ channel_id: C1, n: '2' }],
+      sql,
+    }).preview('material', { valueType: 'select' });
+    expect(out).toEqual({ orphanedOverrides: 2, byChannel: [{ channelId: C1, count: 2 }] });
+    expect(sql).toHaveLength(1);
+    expect(sql[0]!.sql).toMatch(/language_code is not null/);
+  });
+
+  it('a non-text \u2192 text change, or a change between two non-text types, orphans nothing', async () => {
+    for (const [from, to] of [
+      ['number', 'string'],
+      ['number', 'date'],
+    ] as const) {
+      const sql: Array<{ sql: string; params: unknown[] }> = [];
+      const out = await service({ attribute: { key: 'k', scopable: true, valueType: from }, sql }).preview('k', { valueType: to });
+      expect(out).toEqual({ orphanedOverrides: 0, byChannel: [] });
+      expect(sql).toHaveLength(0);
+    }
   });
 });

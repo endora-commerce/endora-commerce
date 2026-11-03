@@ -29,8 +29,8 @@ describe('US1 — translate language-scoped Name', () => {
       payload: {
         sku: `TRANSL-${Date.now()}`,
         type: 'simple',
-        name: { 'pl-PL': 'Wiertarka', 'en-US': 'Drill' },
-        description: { 'pl-PL': 'Opis', 'en-US': 'Description' },
+        name: 'Wiertarka',
+        description: 'Opis',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',

@@ -31,8 +31,8 @@ describe('PATCH /admin/catalog/products/:id — audited via Command Bus [real DB
       payload: {
         sku,
         type: 'simple',
-        name: { 'en-US': 'Original name' },
-        description: { 'en-US': 'desc' },
+        name: 'Original name',
+        description: 'desc',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',

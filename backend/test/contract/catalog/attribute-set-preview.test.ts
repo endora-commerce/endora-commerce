@@ -40,8 +40,8 @@ describe('Admin AttributeSet preview contract — feature 012 (T020)', () => {
       payload: {
         sku: 'PREVIEW-TEST-001',
         type: 'simple',
-        name: { 'en-US': 'Preview test 1' },
-        description: { 'en-US': 'desc' },
+        name: 'Preview test 1',
+        description: 'desc',
         categoryIds: [],
         attributeValues: { color: 'red' },
         visibility: 'public',

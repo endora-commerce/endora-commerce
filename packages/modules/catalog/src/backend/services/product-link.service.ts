@@ -393,6 +393,7 @@ export class ProductLinkService {
       this.#requireAssets(),
       targetIds,
       channel.id,
+      scopeLanguage,
     );
 
     // Who sees a tile's price is the display-mode chain's decision, applied in
