@@ -1213,6 +1213,11 @@ Code-versus-spec defects in shipped 163, resolved here:
   migration (FR-021…FR-025, removed round 2: no live data).
 - Each PIM connector's own locale-mapping configuration screen (external dependency, FR-045).
 - Per-scope (per-channel or per-language) field protection (FR-046, round 3).
+- **Named follow-up — back-in-stock e-mail per scope** (endora-commerce/endora-commerce#696): storing the
+  subscription's channel and language so the buyer e-mail shows the effective name; 170 shows the Global name
+  (owner, 2026-11-03).
+- **Named follow-up — CSV column grammar**: `minOrderQuantity`, `returnable` and multiselect attribute columns are
+  part of the products CSV at G and C (coordinator ruling 2026-11-03 from the write standard, FR-110..115).
 - An interim fix of F1 / F2 on the old per-language model (FR-001, removed round 3).
 - Moving the completeness-gate setting onto the product editor.
 - **Named follow-ups — `null = inherit` outside scoped product values** (FR-117, round 5; measured 2026-10-30
