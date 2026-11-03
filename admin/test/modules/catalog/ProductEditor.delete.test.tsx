@@ -10,6 +10,7 @@ import {
   modulePresence,
   renderWithSession,
 } from '../../helpers/render-with-session';
+import { scopedValuesResponse } from '../../helpers/scoped-values-fixtures';
 
 const getSpy = vi.fn();
 const deleteSpy = vi.fn();
@@ -45,10 +46,6 @@ vi.mock('react-router-dom', async () => {
     useNavigate: () => navigateSpy,
   };
 });
-
-vi.mock('../../../../packages/modules/catalog/src/admin/components/ProductScopeEditor', () => ({
-  ProductScopeEditor: vi.fn(() => null),
-}));
 
 const { ProductEditor } = await import('../../../../packages/modules/catalog/src/admin/pages/ProductEditor');
 
@@ -105,6 +102,8 @@ const MOCK_PRODUCT = {
 
 function primeGets(): void {
   getSpy.mockImplementation((path: string) => {
+    if (path.includes('/scoped-values')) return Promise.resolve(scopedValuesResponse({ product: { ...scopedValuesResponse().data.product, sku: MOCK_PRODUCT.sku, attributeSetId: MOCK_PRODUCT.attributeSetId } }));
+    if (path.endsWith('/editor-preference')) return Promise.resolve({ data: null });
     if (path.includes('/catalog/categories')) return Promise.resolve({ data: [] });
     if (path.includes('/attribute-sets')) {
       return Promise.resolve({

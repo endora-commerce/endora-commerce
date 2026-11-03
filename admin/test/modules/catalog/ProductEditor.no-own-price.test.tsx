@@ -10,6 +10,7 @@ import {
   modulePresence,
   renderWithSession,
 } from '../../helpers/render-with-session';
+import { scopedValuesResponse } from '../../helpers/scoped-values-fixtures';
 
 /**
  * Feature 160 (FR-042, FR-043; `plan.md` *What P1 leaves ready for P2* item 5,
@@ -40,10 +41,6 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
     },
   };
 });
-
-vi.mock('../../../../packages/modules/catalog/src/admin/components/ProductScopeEditor', () => ({
-  ProductScopeEditor: vi.fn(() => null),
-}));
 
 const { ProductEditor } = await import('../../../../packages/modules/catalog/src/admin/pages/ProductEditor');
 
@@ -89,6 +86,8 @@ describe('ProductEditor — a product has no price of its own (160 FR-042, FR-04
   beforeEach(() => {
     getSpy.mockReset();
     getSpy.mockImplementation((path: string) => {
+      if (path.includes('/scoped-values')) return Promise.resolve(scopedValuesResponse({ product: { ...scopedValuesResponse().data.product, sku: MOCK_PRODUCT.sku, attributeSetId: MOCK_PRODUCT.attributeSetId } }));
+      if (path.endsWith('/editor-preference')) return Promise.resolve({ data: null });
       if (path.includes('/attribute-sets')) {
         return Promise.resolve({
           data: [{ id: SET_ID, code: 'default', name: { 'en-US': 'Default' }, isSystem: true }],

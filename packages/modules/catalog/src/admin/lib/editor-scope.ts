@@ -110,3 +110,10 @@ export function scopeShortWords(scope: ScopeRef, valid: ValidScopes, t: Translat
   if (scope.level === 'channel') return channelName(valid, scope.channelId);
   return scopeInWords(scope, valid, t, adminLanguage);
 }
+
+/** A stable string key of a scope, for comparing and memoising. */
+export function scopeKey(scope: ScopeRef): string {
+  if (scope.level === 'global') return 'G';
+  if (scope.level === 'channel') return `C:${scope.channelId}`;
+  return `CL:${scope.channelId}:${scope.languageCode.toLowerCase()}`;
+}

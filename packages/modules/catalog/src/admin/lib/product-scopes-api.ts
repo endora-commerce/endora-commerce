@@ -1,51 +1,12 @@
-import type {
-  PatchProductScopesRequest,
-  PatchProductScopesResponse,
-  ProductScopes,
-  ScopeMissingValue,
-} from '@endora-commerce/contracts';
-import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
-import type { ScopeContext } from '../components/ProductScopeEditor.js';
+import type { ScopeMissingValue } from '@endora-commerce/contracts';
+import { ApiError } from '@endora-commerce/admin-kit/lib';
 
 /**
- * Feature 163 (T088) — the product editor's calls to `…/scopes`, made the way
- * `ProductScopeEditor` already calls `…/scope-context` and `…/value-overrides`: through
- * the admin kit's client (`contracts/admin-scopes-api.md` §1–§2).
+ * Feature 163 (T088) — scope refusals and completeness gate pairs in the operator's words.
+ * Feature 170: the editor's reads and writes moved to `scoped-values-api.ts`; the removed
+ * `…/scope-context` route is no longer called (channel names come from the read's
+ * `validScopes`).
  */
-
-const productPath = (productId: string): string =>
-  `/api/v1/admin/catalog/products/${encodeURIComponent(productId)}`;
-
-/** §1 — the global values and every channel the product is in or has rows for. */
-export async function getProductScopes(productId: string): Promise<ProductScopes> {
-  const res = await apiClient.get<{ data: ProductScopes }>(`${productPath(productId)}/scopes`);
-  return res.data;
-}
-
-/** §2 — one Command, one audit entry; an absent key is untouched, `null` inherits. */
-export function patchProductScopes(
-  productId: string,
-  body: PatchProductScopesRequest,
-): Promise<PatchProductScopesResponse> {
-  return apiClient.patch<PatchProductScopesResponse>(`${productPath(productId)}/scopes`, body);
-}
-
-/** The member channels with their names and languages (feature 022). */
-export async function getProductScopeContext(productId: string): Promise<ScopeContext> {
-  const res = await apiClient.get<{ data: ScopeContext }>(`${productPath(productId)}/scope-context`);
-  return res.data;
-}
-
-/**
- * Names of the organizations the scopes answer carries (owner decision U1), keyed by id.
- * No status: the answer does not carry it, and the picker's chip shows none without one.
- */
-export type OrganizationLabels = Record<string, { name: string }>;
-
-/** A short, stable stand-in for an organization whose name could not be read. */
-export function shortId(id: string): string {
-  return id.slice(0, 8);
-}
 
 type Translate = (key: string, params?: Record<string, string>) => string;
 
@@ -67,26 +28,6 @@ export function describeIncompletePair(
     language: pair.languageCode.toUpperCase(),
     missing: pair.missing.map((m) => describeMissingValue(m, t)).join(', '),
   });
-}
-
-/** A completeness refusal (`422 SCOPE_INCOMPLETE`) — the one refusal the page Save names by scope. */
-export function isScopeIncomplete(err: unknown): boolean {
-  return err instanceof ApiError && err.envelope.error.code === 'SCOPE_INCOMPLETE';
-}
-
-/**
- * Channel names for a gate message, from the product's member channels. A gate pair is
- * always a member channel; a channel the read cannot name gets its short id.
- */
-export async function loadChannelNamer(productId: string): Promise<(channelId: string) => string> {
-  const names = new Map<string, string>();
-  try {
-    const context = await getProductScopeContext(productId);
-    for (const c of context.channels) names.set(c.id, c.name);
-  } catch {
-    // The message still names the language and the values; the channel falls back to its id.
-  }
-  return (channelId: string): string => names.get(channelId) ?? shortId(channelId);
 }
 
 /**

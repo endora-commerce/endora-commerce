@@ -25,7 +25,13 @@ export interface ScopedFieldControlProps<T> {
   value: T | null;
   readOnly: boolean;
   onChange(value: T | null): void;
-  inputProps: { id: string; 'aria-describedby': string | undefined; 'aria-invalid': true | undefined };
+  inputProps: {
+    id: string;
+    'aria-describedby': string | undefined;
+    'aria-invalid': true | undefined;
+    /** Set on a required field: the visible asterisk is `aria-hidden`, so the control says it. */
+    'aria-required'?: true | undefined;
+  };
 }
 
 export interface ScopedFieldProps<T> {
@@ -273,7 +279,10 @@ export function ScopedField<T>(props: ScopedFieldProps<T>): ReactNode {
     );
   }
 
-  const describedBy = [source ? srcId : null, missing ? missingId : null, error ? errId : null].filter(Boolean).join(' ') || undefined;
+  const noteId = `${id}-note`;
+  const describedBy =
+    [note ? noteId : null, source ? srcId : null, missing ? missingId : null, error ? errId : null].filter(Boolean).join(' ') ||
+    undefined;
   const ownEmpty = !atGlobal && mode === 'own' && isEmpty(value);
 
   return (
@@ -281,13 +290,12 @@ export function ScopedField<T>(props: ScopedFieldProps<T>): ReactNode {
       <div className={headClass}>
         <label htmlFor={id} className="text-sm font-medium">
           {label}
-          {required ? (
-            <>
-              <span aria-hidden="true"> *</span>{' '}
-              <span className="sr-only">{t('scopedField.required')}</span>
-            </>
-          ) : null}
         </label>
+        {required ? (
+          <span aria-hidden="true" className="text-sm font-medium" title={t('scopedField.required')}>
+            *
+          </span>
+        ) : null}
         {badges}
         {headExtra ? <span className="ml-auto">{headExtra}</span> : null}
         {!atGlobal && !readOnly ? (
@@ -310,11 +318,16 @@ export function ScopedField<T>(props: ScopedFieldProps<T>): ReactNode {
           value,
           readOnly: !editable,
           onChange: change,
-          inputProps: { id, 'aria-describedby': describedBy, 'aria-invalid': error ? true : undefined },
+          inputProps: {
+            id,
+            'aria-describedby': describedBy,
+            'aria-invalid': error ? true : undefined,
+            ...(required ? { 'aria-required': true as const } : {}),
+          },
         })}
       </div>
       <div className="flex flex-col gap-0.5 text-xs text-muted-foreground">
-        {note ? <div>{note}</div> : null}
+        {note ? <div id={noteId}>{note}</div> : null}
         {source ? (
           <p id={srcId} className="m-0 inline-flex items-center gap-1">
             {source.icon}

@@ -149,11 +149,13 @@ describe('PackagingUnitsEditor — minimum units (155)', () => {
     await screen.findByText(messageText);
 
     const loadsBefore = getSpy.mock.calls.length;
-    const name = screen.getByDisplayValue('Paleta');
-    await user.clear(name);
-    await user.type(name, 'Pallet');
+    // Feature 170 — the unit's name is a scoped value saved by the editor's Save; another
+    // immediate write of the row is its base quantity.
+    const quantity = screen.getByDisplayValue('480');
+    await user.clear(quantity);
+    await user.type(quantity, '500');
     await user.tab();
-    await waitFor(() => expect(patchSpy).toHaveBeenCalledWith(`${BASE}/${UNIT.id}`, { name: 'Pallet' }));
+    await waitFor(() => expect(patchSpy).toHaveBeenCalledWith(`${BASE}/${UNIT.id}`, { baseQuantity: 500 }));
     await waitFor(() => expect(getSpy.mock.calls.length).toBeGreaterThan(loadsBefore));
 
     const cell = input;

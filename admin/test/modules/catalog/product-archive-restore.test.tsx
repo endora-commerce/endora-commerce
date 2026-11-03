@@ -12,6 +12,7 @@ import {
 import { installOffsetParentShim } from '../../helpers/layout-shim';
 import core from '../../../../packages/modules/_i18n/i18n/en.json';
 import catalog from '../../../../packages/modules/catalog/i18n/en.json';
+import { scopedField, scopedValuesResponse } from '../../helpers/scoped-values-fixtures';
 
 /**
  * Feature 163, Phase 15a (T156u; FR-010, FR-019, FR-053; spec Session 2026-10-25,
@@ -30,6 +31,7 @@ import catalog from '../../../../packages/modules/catalog/i18n/en.json';
 const getSpy = vi.fn();
 const postSpy = vi.fn();
 const patchSpy = vi.fn();
+const putSpy = vi.fn();
 
 vi.mock('@endora-commerce/admin-kit/lib', async () => {
   const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
@@ -40,16 +42,12 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
     apiClient: {
       get: (...args: unknown[]) => getSpy(...args),
       post: (...args: unknown[]) => postSpy(...args),
-      put: vi.fn(),
+      put: (...args: unknown[]) => putSpy(...args),
       patch: (...args: unknown[]) => patchSpy(...args),
       delete: vi.fn(),
     },
   };
 });
-
-vi.mock('../../../../packages/modules/catalog/src/admin/components/ProductScopeEditor', () => ({
-  ProductScopeEditor: vi.fn(() => null),
-}));
 
 // The focus assertions measure the dialog's focus trap, not jsdom's layout.
 installOffsetParentShim();
@@ -89,6 +87,16 @@ function product(overrides: { status?: 'active' | 'inactive'; archivedAt?: strin
 
 let current: unknown = product();
 
+/** Feature 170 — the editor reads the product through `GET …/scoped-values` (T023 fixture). */
+function scopedRead(p: unknown) {
+  const row = p as { sku: string; status: 'active' | 'inactive'; archivedAt: string | null };
+  const base = scopedValuesResponse();
+  return scopedValuesResponse({
+    product: { ...base.data.product, sku: row.sku, attributeSetId: SET_ID, archivedAt: row.archivedAt },
+    fields: { name: scopedField('Oak chair', { required: true }), status: scopedField<'active' | 'inactive'>(row.status) },
+  });
+}
+
 function primeGets(): void {
   getSpy.mockImplementation((path: string) => {
     if (path.includes('/catalog/categories')) return Promise.resolve({ data: [] });
@@ -96,6 +104,8 @@ function primeGets(): void {
       return Promise.resolve({ data: [{ id: SET_ID, code: 'default', name: { 'en-US': 'Default' }, isSystem: true }] });
     }
     if (path === `/api/v1/admin/catalog/products/${PRODUCT_ID}`) return Promise.resolve({ data: current });
+    if (path.startsWith(`/api/v1/admin/catalog/products/${PRODUCT_ID}/scoped-values`)) return Promise.resolve(scopedRead(current));
+    if (path.endsWith('/editor-preference')) return Promise.resolve({ data: null });
     return Promise.resolve({ data: [] });
   });
 }
@@ -123,6 +133,7 @@ beforeEach(() => {
   getSpy.mockReset();
   postSpy.mockReset();
   patchSpy.mockReset();
+  putSpy.mockReset();
   current = product();
   primeGets();
 });
@@ -268,17 +279,20 @@ describe('ProductEditor — an archived product and Restore (FR-019, O-5)', () =
     expect(screen.getByRole('button', { name: tr('productEditor.action.archive') })).toBeInTheDocument();
   });
 
-  it('saving with status Active sends the status only and leaves the product archived', async () => {
-    patchSpy.mockResolvedValue({ data: current });
+  it('saving a status sends the status only and leaves the product archived', async () => {
+    // Feature 170 — the one Save is `PUT …/scoped-values` with the staged cells only.
+    putSpy.mockImplementation(async (path: string) =>
+      path.endsWith('/scoped-values') ? { ...scopedRead(current), warnings: [] } : { data: null },
+    );
     const user = userEvent.setup();
     renderEditor();
     await screen.findByTestId('product-archived-notice');
-    await user.click(screen.getByRole('button', { name: /Save/ }));
-    await waitFor(() => expect(patchSpy).toHaveBeenCalledTimes(1));
-    const [, body] = patchSpy.mock.calls[0] as [string, Record<string, unknown>];
-    expect(body['status']).toBe('active');
-    expect(body).not.toHaveProperty('archived');
-    expect(body).not.toHaveProperty('archivedAt');
+    await user.selectOptions(await statusSelect(), 'inactive');
+    await user.click(screen.getByRole('button', { name: /^Save/ }));
+    await waitFor(() => expect(putSpy).toHaveBeenCalledWith(expect.stringMatching(/\/scoped-values$/), expect.anything()));
+    const [, body] = putSpy.mock.calls.find(([path]) => String(path).endsWith('/scoped-values')) as [string, { changes: Record<string, unknown> }];
+    expect(body.changes).toEqual({ status: 'inactive' });
+    expect(patchSpy).not.toHaveBeenCalled();
     expect(postSpy).not.toHaveBeenCalled();
     expect(await screen.findByTestId('product-archived-notice')).toBeInTheDocument();
   });

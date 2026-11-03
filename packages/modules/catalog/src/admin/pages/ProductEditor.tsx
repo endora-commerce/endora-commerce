@@ -1,1160 +1,1461 @@
 import {
   useCallback,
+  useContext,
   useEffect,
   useMemo,
+  useReducer,
   useRef,
   useState,
-  type FormEvent,
+  type KeyboardEvent,
   type ReactNode,
 } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Archive, ArchiveRestore, ChevronDown, ChevronLeft, Copy, Lock, RotateCw, Save, Trash2 } from 'lucide-react';
 import {
-  Archive,
-  ArchiveRestore,
-  Trash2,
-  ChevronLeft,
-  Copy,
-  Eye,
-  FileText as FileTextIcon,
-  Globe,
-  Image as ImageIcon,
-  CircleDollarSign,
-  Layers,
-  LayoutGrid,
-  Link as LinkIcon,
-  Paperclip,
-  Save,
-  SlidersHorizontal,
-  Store as StoreIcon,
-  Warehouse as WarehouseIcon,
-} from 'lucide-react';
+  ERROR_CODES,
+  type ScopeMissingValue,
+  type ScopeRef,
+  type ScopeWarning,
+  type ScopedWriteOp,
+  type UrlKeyRedirectTakeoverRequiredDetails,
+} from '@endora-commerce/contracts';
 import { ApiError, apiClient, useAuth, useUnsavedChangesPrompt, cn } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
-import { ModalDialog, StickyFormActions, CategoryTreePicker, ProductPicker } from '@endora-commerce/admin-kit/components';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  Input,
+  Label,
+  Select,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@endora-commerce/admin-kit/ui';
+import { ModalDialog, ProductPicker, StickyFormActions } from '@endora-commerce/admin-kit/components';
+import { AppLanguageContext, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
 import { ProductInventoryTab } from '../components/ProductInventoryTab.js';
 import { PackagingUnitsEditor } from '../components/PackagingUnitsEditor.js';
 import { ProductOrderRulesCard } from '../components/ProductOrderRulesCard.js';
 import { ProductAttributesTab } from '../components/ProductAttributesTab.js';
 import { ProductScopeOverview } from '../components/ProductScopeOverview.js';
-import { ProductUrlKeysPanel } from '../components/ProductUrlKeysPanel.js';
-import { GallerySection, type GallerySectionHandle } from '../components/ProductGallerySection.js';
+import { GallerySection } from '../components/ProductGallerySection.js';
 import { AttachmentsSection } from '../components/ProductAttachmentsSection.js';
 import { ArchivedPill, ProductStatusPill } from '../components/ProductStatusPills.js';
+import { ProductScopeBar } from '../components/ProductScopeBar.js';
+import { DetailsTab } from '../components/editor/DetailsTab.js';
+import { EditorField, ProductEditorContextProvider, fieldDomId, type ProductEditorContextValue } from '../components/editor/editor-context.js';
+import { ImmediateBadge, SectionHeading } from '../components/editor/ImmediateBadge.js';
+import { TextControl } from '../components/editor/scoped-controls.js';
+import { useConfirmRemoval } from '../components/editor/confirm-removal.js';
+import { ProductCreateForm } from './ProductCreateForm.js';
+import { describeIncompletePair } from '../lib/product-scopes-api.js';
+import { takeoverDetails, urlKeyErrorMessage, describeKeyInLanguage } from '../lib/product-url-keys-api.js';
 import {
-  ProductScopeEditor,
-  type ProductScopeEditorHandle,
-} from '../components/ProductScopeEditor.js';
-import { checkWindowInputs, isoToLocalInput } from '../lib/product-scope-drafts.js';
+  initialEditorState,
+  fieldViewAt,
+  scopeToRequest,
+  scopedEditorReducer,
+  stagedToChanges,
+  type ImmediateFamily,
+  type ScopedEditorState,
+} from '../lib/scoped-editor-store.js';
+import { getEditorPreference, getScopedValues, putEditorPreference, saveScopedValues } from '../lib/scoped-values-api.js';
 import {
-  describeIncompletePair,
-  getProductScopes,
-  isScopeIncomplete,
-  loadChannelNamer,
-  scopeSaveErrorMessage,
-} from '../lib/product-scopes-api.js';
-import type { ScopeWarning } from '@endora-commerce/contracts';
-
-const LOCALES = ['en-US', 'pl-PL'] as const;
-type Locale = (typeof LOCALES)[number];
-
-const PRODUCT_TYPES = [
-  'simple',
-  'configurable',
-  'grouped',
-  'bundle',
-  'virtual',
-] as const;
-const VISIBILITIES = ['public', 'logged_in_only', 'organization_restricted'] as const;
-const STATUSES = ['active', 'inactive'] as const;
+  channelName,
+  languageName,
+  parentScope,
+  sameScope,
+  scopeFromSearch,
+  scopeInWords,
+  scopeKey,
+  scopeShortWords,
+  searchWithScope,
+  widerScope,
+  type ValidScopes,
+} from '../lib/editor-scope.js';
 
 /**
- * The tabs `?tab=` may open (review D3: the bulk scoped-status result links to
- * `?tab=scopes`) — those every saved product shows. A type-dependent or zone-counted
- * tab, or an unknown value, opens Details.
+ * The product editor (feature 173, US5–US7; `contracts/editor-ui.md`).
+ *
+ * One scope switcher sets the scope of the whole editor; the scope lives in the URL
+ * (`?scope=global|channel|cl&channel=…&language=…&tab=…&field=…`). The editor reads the scope in
+ * one request (`GET …/scoped-values`), stages every change of that scope in one store and writes
+ * them with one Save (`PUT …/scoped-values`) — the product row's global-only fields at Global
+ * included. Structural operations (variants, images, attachments, packaging units, links, prices,
+ * membership, stock) run at once as their own audited Commands, carry an "Applies immediately"
+ * badge, and neither stage nor clear the staged changes.
+ *
+ * Switching scope (the switcher, an "Edit at …" jump, browser Back) with staged changes asks
+ * Save / Discard / Stay first.
  */
-const LINKABLE_TABS = new Set([
+
+const TAB_IDS = [
   'details',
   'attributes',
   'pricing',
+  'variants',
+  'composite',
   'media',
   'inventory',
   'attachments',
   'links',
+  'channels',
   'scopes',
   'seo',
-]);
+] as const;
+type TabId = (typeof TAB_IDS)[number];
 
-interface AdminProduct {
-  id: string;
-  sku: string;
-  slug: string;
-  type: 'simple' | 'configurable' | 'grouped' | 'bundle' | 'virtual';
-  status: 'active' | 'inactive';
-  /**
-   * Set by Archive, cleared by Restore, and by nothing else:
-   * archived state is independent of `status` at every scope.
-   */
-  archivedAt?: string | null;
-  name: Record<string, string>;
-  description: Record<string, string>;
-  visibility: 'public' | 'logged_in_only' | 'organization_restricted';
-  attributeValues: Record<string, unknown>;
-  attributeSetId: string;
-  categoryIds?: string[];
-}
+/** Tabs whose content is the same at every scope (§6): outside Global they show a notice. */
+const GLOBAL_ONLY_TABS = new Set<TabId>(['pricing', 'variants', 'composite', 'links', 'channels']);
 
-interface AdminAttributeSet {
-  id: string;
-  code: string;
-  name: Record<string, string>;
-  isSystem: boolean;
-}
+const GLOBAL: ScopeRef = { level: 'global' };
+const PRODUCT_PATH = (id: string): string => `/api/v1/admin/catalog/products/${encodeURIComponent(id)}`;
 
-interface AdminCategory {
-  id: string;
-  parentCategoryId: string | null;
-  name: Record<string, string>;
-  slug: string;
-  sortOrder: number;
-}
+type Translate = (key: string, params?: Record<string, string>) => string;
 
-/**
- * Order-insensitive JSON snapshot of the editable form fields, used to detect
- * unsaved changes (object keys + array members are sorted so re-ordering alone
- * never reads as a change).
- */
-function stableSnapshot(values: Record<string, unknown>): string {
-  return JSON.stringify(values, (_key, value) => {
-    if (Array.isArray(value)) return [...value].sort();
-    if (value && typeof value === 'object') {
-      return Object.fromEntries(
-        Object.entries(value as Record<string, unknown>).sort(([a], [b]) =>
-          a.localeCompare(b),
-        ),
-      );
-    }
-    return value;
-  });
-}
+type FormError =
+  | { kind: 'validation'; count: number }
+  | { kind: 'conflict' }
+  | { kind: 'seo' }
+  | { kind: 'message'; text: string };
+
+type Guard = { kind: 'switch' | 'url'; target: ScopeRef; note?: string; field?: string; tab?: string } | { kind: 'leave' };
 
 export function ProductEditor(): ReactNode {
-  const t = useTranslation('catalog');
   const params = useParams<{ id: string }>();
+  if (params.id === 'new') return <ProductCreateForm />;
+  if (!params.id) return null;
+  return <ScopedProductEditor key={params.id} productId={params.id} />;
+}
+
+/** A field whose `empty` the server refuses outside `view.required` (data-model §9, R21). */
+function refusesEmpty(path: string, state: ScopedEditorState): boolean {
+  if (path.startsWith('product:')) return true;
+  if (path === 'status' || path === 'returnable' || path === 'audience') return true;
+  if (/^(gallery|attachment):[^:]+:hidden$/.test(path)) return true;
+  if (state.scope.level === 'global' && (/^attachment:[^:]+:name$/.test(path) || /^packagingUnit:[^:]+:name$/.test(path))) return true;
+  if (path.startsWith('attribute:') && state.data) {
+    const attr = state.data.attributes.find((a) => `attribute:${a.key}` === path);
+    if (attr && ['enum', 'select', 'boolean'].includes(attr.valueType)) return true;
+  }
+  return false;
+}
+
+function errorOf(err: unknown): { status: number; code: string; message: string; details?: Record<string, unknown> } | null {
+  if (!(err instanceof ApiError)) return null;
+  const e = err.envelope.error as { code: string; message: string; details?: Record<string, unknown> };
+  return { status: err.status, code: e.code, message: e.message, ...(e.details ? { details: e.details } : {}) };
+}
+
+/** The tab a field lives on; a scope-map link without a field opens Details. */
+/**
+ * A translated lead, then the server's sentence as detail (final design review): the envelope's
+ * message is in the request language only when the backend has that code's translation, so it is
+ * never the whole of what the operator reads.
+ */
+function withServerDetail(lead: string, err: unknown): string {
+  const detail = errorOf(err)?.message;
+  return detail && detail !== lead ? `${lead} ${detail}` : lead;
+}
+
+function tabOfField(field: string | undefined): TabId {
+  return field?.startsWith('attribute:') ? 'attributes' : 'details';
+}
+
+function familyOfPath(path: string): ImmediateFamily | null {
+  if (path.startsWith('gallery')) return 'gallery';
+  if (path.startsWith('attachment:')) return 'attachments';
+  if (path.startsWith('packagingUnit:')) return 'packagingUnits';
+  return null;
+}
+
+function ScopedProductEditor({ productId }: { productId: string }): ReactNode {
+  const t = useTranslation('catalog') as Translate;
+  // The admin's language names languages (`Intl.DisplayNames`); a screen mounted without the
+  // shell's provider (a test) falls back to English.
+  const adminLanguage = useContext(AppLanguageContext)?.language ?? 'en';
   const navigate = useNavigate();
-  const isNew = params.id === 'new';
-  const id = isNew ? null : params.id ?? null;
-
-  // Feature 091 / P7a, Z15 — the Channels tab's button is a count of its own
-  // body. Declared here rather than beside the tab table because the table is
-  // built below an early return and a hook may not be.
-  const channelContributions = useAdminZone('product.editor.channels', {
-    productId: id ?? '',
-  });
-
-  // Archive / Restore write the catalogue (FR-019): an operator without
-  // `catalog:write` is not offered either.
+  const [searchParams, setSearchParams] = useSearchParams();
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('catalog:write');
+  const readOnly = !canWrite;
 
-  const [loading, setLoading] = useState(!isNew);
-  const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
-  // Feature 163 (US6, G-2) — what the completeness check reported on the last Save.
+  const channelContributions = useAdminZone('product.editor.channels', { productId });
+  const seoContributions = useAdminZone('product.editor.seo', {
+    productId,
+    scope: GLOBAL,
+    scopeLabel: '',
+    parentScopeLabel: null,
+    view: null,
+    staged: new Map(),
+    onStage: () => undefined,
+    readOnly: true,
+    errors: {},
+    version: null,
+  });
+
+  const urlScope = scopeFromSearch(searchParams);
+  const urlKey = urlScope ? scopeKey(urlScope) : '';
+  const [state, dispatch] = useReducer(scopedEditorReducer, urlScope ?? GLOBAL, initialEditorState);
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  /** The scope the last load was started for; the URL effect compares against it. */
+  const loadedKeyRef = useRef<string | null>(null);
+  const requestRef = useRef(0);
+  /** Set when the editor itself moves the URL after the guard has been passed. */
+  const skipGuardRef = useRef(false);
+  const pendingNoteRef = useRef<string | null>(null);
+  const prefTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** The last valid-scope list, kept while a scope loads so the switcher stays usable. */
+  const validRef = useRef<ValidScopes | null>(null);
+
+  const [announcement, setAnnouncement] = useState('');
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<FormError | null>(null);
   const [gateWarning, setGateWarning] = useState<string | null>(null);
-  // The product's archived state, read with the product and
-  // moved only by the Archive / Restore actions below, never by Save.
-  const [archivedAt, setArchivedAt] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+  const [guard, setGuard] = useState<Guard | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [takeovers, setTakeovers] = useState<UrlKeyRedirectTakeoverRequiredDetails['takeovers'] | null>(null);
+  const [archivedOverride, setArchivedOverride] = useState<string | null | undefined>(undefined);
   const [archiveDialog, setArchiveDialog] = useState<'archive' | 'restore' | null>(null);
   const [archiving, setArchiving] = useState(false);
   const [archiveError, setArchiveError] = useState<string | null>(null);
-  const [categories, setCategories] = useState<AdminCategory[]>([]);
-  const [sku, setSku] = useState('');
-  const [type, setType] = useState<'simple' | 'configurable' | 'grouped' | 'bundle' | 'virtual'>('simple');
-  const [status, setStatus] = useState<'active' | 'inactive'>('inactive');
-  const [visibility, setVisibility] = useState<AdminProduct['visibility']>('public');
-  const [name, setName] = useState<Record<Locale, string>>({ 'en-US': '', 'pl-PL': '' });
-  const [description, setDescription] = useState<Record<Locale, string>>({
-    'en-US': '',
-    'pl-PL': '',
-  });
-  const [categoryIds, setCategoryIds] = useState<string[]>([]);
-  const [searchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<string>(() => {
-    const linked = searchParams.get('tab');
-    return !isNew && linked !== null && LINKABLE_TABS.has(linked) ? linked : 'details';
-  });
-  // Feature 002 (T034) — Attribute Set selector
-  const [attributeSets, setAttributeSets] = useState<AdminAttributeSet[]>([]);
-  const [attributeSetId, setAttributeSetId] = useState<string>('');
-  // Feature 172 — the set the product is saved with: content attributes are
-  // edited on their own screen against it, not against an unsaved choice.
-  const [savedAttributeSetId, setSavedAttributeSetId] = useState<string | undefined>(undefined);
-  // Editable attribute values keyed by attribute `key` (Attributes tab).
-  const [attrValues, setAttrValues] = useState<Record<string, unknown>>({});
-  // Feature 163 (FR-023) — the global publication window, as `datetime-local`
-  // values in the operator's zone. `loadedWindow` is what the server holds, so
-  // the page PATCH carries the window only when it changed.
-  const [publishFrom, setPublishFrom] = useState('');
-  const [publishUntil, setPublishUntil] = useState('');
-  const [loadedWindow, setLoadedWindow] = useState({ from: '', until: '' });
-  const [windowError, setWindowError] = useState<'order' | 'invalidDate' | null>(null);
-  // Feature 023 — imperative handle on the scope-editor so the page Save
-  // can flush every pending channel-scoped override in a single PATCH.
-  const scopeEditorRef = useRef<ProductScopeEditorHandle | null>(null);
-  // Media tab — page-Save flushes staged gallery label/order edits via this
-  // imperative handle (mirrors the scope-editor pattern above).
-  const galleryRef = useRef<GallerySectionHandle | null>(null);
+  const [duplicating, setDuplicating] = useState(false);
+  const [wholeProductDialog, setWholeProductDialog] = useState<'duplicate' | 'delete' | null>(null);
+  const [wholeProductError, setWholeProductError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [categories, setCategories] = useState<Array<{ id: string; parentCategoryId: string | null; name: Record<string, string>; slug: string; sortOrder: number }>>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [attributeSets, setAttributeSets] = useState<Array<{ id: string; code: string; isSystem: boolean }>>([]);
 
-  // Unsaved-changes guard — a stable snapshot of the editable fields is taken
-  // on load (and re-taken after each save via refresh()); the form is "dirty"
-  // whenever the live values diverge from it.
-  const initialSnapshotRef = useRef<string>('');
-  const currentSnapshot = stableSnapshot({
-    sku,
-    type,
-    status,
-    visibility,
-    name,
-    description,
-    categoryIds,
-    attributeSetId,
-    attrValues,
-    publishFrom,
-    publishUntil,
-  });
-  // Review D4 — the gallery's staged edits are unsaved changes too. The gallery stays
-  // mounted once its tab is opened (hidden on the other tabs), so its staging survives a
-  // tab switch and the page Save still writes it.
-  const [galleryDirty, setGalleryDirty] = useState(false);
-  const [galleryOpened, setGalleryOpened] = useState(false);
+  if (state.data) validRef.current = state.data.validScopes;
+  const valid: ValidScopes = state.data?.validScopes ?? validRef.current ?? { channels: [] };
+  const words = (scope: ScopeRef, v: ValidScopes = valid): string => scopeInWords(scope, v, t, adminLanguage);
+  const scopeLabel = scopeShortWords(state.scope, valid, t, adminLanguage);
+  const parentLabel = scopeShortWords(parentScope(state.scope), valid, t, adminLanguage);
+  /** `key.one|few|many|other` by the admin language's plural rules (PL needs few / many). */
+  const plural = (key: string, count: number, params: Record<string, string> = {}): string =>
+    t(`${key}.${new Intl.PluralRules(adminLanguage).select(count)}`, { count: String(count), ...params });
+
+  // The live region is cleared first, so the same sentence twice is announced twice (WCAG 4.1.3).
+  const announceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const announce = useCallback((text: string): void => {
+    setAnnouncement('');
+    if (announceTimerRef.current) clearTimeout(announceTimerRef.current);
+    announceTimerRef.current = setTimeout(() => setAnnouncement(text), 50);
+  }, []);
+  useEffect(
+    () => (): void => {
+      if (announceTimerRef.current) clearTimeout(announceTimerRef.current);
+    },
+    [],
+  );
+  /** The scope the last successful read opened; a different one is announced once its data is in. */
+  const announcedScopeRef = useRef<string | null>(null);
+
+  // The reference lists the Details tab picks from (global, read once). A failed read is an
+  // error with a retry, never an empty list (final design review): "No categories" would be a lie.
+  const [referenceError, setReferenceError] = useState(false);
+  const referenceRequest = useRef(0);
+  const loadReference = useCallback((): void => {
+    const request = ++referenceRequest.current;
+    setCategoriesLoading(true);
+    setReferenceError(false);
+    void Promise.allSettled([
+      apiClient.get<{ data: typeof categories }>('/api/v1/admin/catalog/categories'),
+      apiClient.get<{ data: typeof attributeSets }>('/api/v1/admin/catalog/attribute-sets'),
+    ]).then(([cats, sets]) => {
+      if (request !== referenceRequest.current) return;
+      if (cats.status === 'fulfilled') setCategories(cats.value.data ?? []);
+      if (sets.status === 'fulfilled') setAttributeSets(sets.value.data ?? []);
+      setReferenceError(cats.status === 'rejected' || sets.status === 'rejected');
+      setCategoriesLoading(false);
+    });
+  }, []);
   useEffect(() => {
-    if (activeTab === 'media') setGalleryOpened(true);
-  }, [activeTab]);
-  const dirty =
-    !loading &&
-    ((initialSnapshotRef.current !== '' && currentSnapshot !== initialSnapshotRef.current) || galleryDirty);
-  useUnsavedChangesPrompt(dirty);
+    loadReference();
+    return (): void => {
+      referenceRequest.current += 1;
+    };
+  }, [loadReference]);
 
-  // Read through a ref so a language switch does not re-load the product (and drop edits).
-  const tRef = useRef(t);
-  tRef.current = t;
-  const refresh = useCallback(async (): Promise<void> => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [cats, sets] = await Promise.all([
-        apiClient.get<{ data: AdminCategory[] }>('/api/v1/admin/catalog/categories'),
-        apiClient.get<{ data: AdminAttributeSet[] }>(
-          '/api/v1/admin/catalog/attribute-sets',
-        ),
-      ]);
-      setCategories(cats.data);
-      setAttributeSets(sets.data);
-      // Pick the system Default as the initial selection for new Products.
-      const defaultSet = sets.data.find((s) => s.code === 'default');
-      if (isNew && defaultSet) setAttributeSetId(defaultSet.id);
-      if (isNew) {
-        // Baseline for a brand-new product matches the useState defaults.
-        initialSnapshotRef.current = stableSnapshot({
-          sku: '',
-          type: 'simple',
-          status: 'inactive',
-          visibility: 'public',
-          name: { 'en-US': '', 'pl-PL': '' },
-          description: { 'en-US': '', 'pl-PL': '' },
-          categoryIds: [],
-          attributeSetId: defaultSet?.id ?? '',
-          attrValues: {},
-          publishFrom: '',
-          publishUntil: '',
-        });
-      }
-      if (id) {
-        const res = await apiClient.get<{ data: AdminProduct }>(
-          `/api/v1/admin/catalog/products/${id}`,
-        );
-        const p = res.data;
-        setSku(p.sku);
-        setType(p.type);
-        setStatus(p.status);
-        setArchivedAt(p.archivedAt ?? null);
-        setVisibility(p.visibility);
-        const loadedName = {
-          'en-US': p.name['en-US'] ?? '',
-          'pl-PL': p.name['pl-PL'] ?? '',
-        };
-        setName(loadedName);
-        const loadedDescription = {
-          'en-US': p.description['en-US'] ?? '',
-          'pl-PL': p.description['pl-PL'] ?? '',
-        };
-        setDescription(loadedDescription);
-        setAttrValues(p.attributeValues ?? {});
-        setAttributeSetId(p.attributeSetId);
-        setSavedAttributeSetId(p.attributeSetId);
-        setCategoryIds(p.categoryIds ?? []);
-        // Feature 163 — the global window is read from the scopes answer (the
-        // product answer does not carry it). A failed read leaves the fields
-        // empty and unchanged, so nothing is sent for them on save.
-        let loadedFrom = '';
-        let loadedUntil = '';
-        try {
-          const scopes = await getProductScopes(id);
-          loadedFrom = isoToLocalInput(scopes?.global?.publishFrom ?? null);
-          loadedUntil = isoToLocalInput(scopes?.global?.publishUntil ?? null);
-        } catch {
-          // Best effort — the rest of the editor stays usable.
-        }
-        setPublishFrom(loadedFrom);
-        setPublishUntil(loadedUntil);
-        setLoadedWindow({ from: loadedFrom, until: loadedUntil });
-        setWindowError(null);
-        // Capture the loaded state as the clean baseline for dirty-tracking.
-        initialSnapshotRef.current = stableSnapshot({
-          sku: p.sku,
-          type: p.type,
-          status: p.status,
-          visibility: p.visibility,
-          name: loadedName,
-          description: loadedDescription,
-          categoryIds: p.categoryIds ?? [],
-          attributeSetId: p.attributeSetId,
-          attrValues: p.attributeValues ?? {},
-          publishFrom: loadedFrom,
-          publishUntil: loadedUntil,
-        });
-      }
-    } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : tRef.current('productEditor.error.load'));
-    } finally {
-      setLoading(false);
-    }
-  }, [id, isNew]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  const handleSave = useCallback(
-    async (e: FormEvent): Promise<void> => {
-      e.preventDefault();
-      setError(null);
-      setInfo(null);
+  // --- Loading a scope --------------------------------------------------------------------
+  const load = useCallback(
+    async (requested: ScopeRef, options: { note?: string | null; field?: string | null } = {}): Promise<void> => {
+      const request = ++requestRef.current;
+      loadedKeyRef.current = scopeKey(requested);
+      dispatch({ type: 'switching', scope: requested });
+      setLoadError(null);
+      setFormError(null);
       setGateWarning(null);
-      const trimmedName: Record<string, string> = {};
-      const trimmedDescription: Record<string, string> = {};
-      for (const l of LOCALES) {
-        if (name[l]) trimmedName[l] = name[l];
-        if (description[l]) trimmedDescription[l] = description[l];
-      }
-      if (Object.keys(trimmedName).length === 0) {
-        setError(t('productEditor.error.nameRequired'));
-        return;
-      }
-      // The Attributes-tab edits. A product has no price of its own: prices
-      // are set in price books (feature 160), so nothing else is added here.
-      const attributeValues: Record<string, unknown> = { ...attrValues };
-      // Feature 163 (FR-023) — the window travels only when it changed, and
-      // a window that does not start before it ends is refused here, beside
-      // its fields, without a request.
-      let windowPatch: { publishFrom: string | null; publishUntil: string | null } | null = null;
-      if (publishFrom !== loadedWindow.from || publishUntil !== loadedWindow.until) {
-        const check = checkWindowInputs(publishFrom, publishUntil);
-        if (!check.ok) {
-          setWindowError(check.reason);
-          return;
-        }
-        windowPatch = { publishFrom: check.from, publishUntil: check.until };
-      }
-      setWindowError(null);
-      try {
-        if (isNew) {
-          const res = await apiClient.post<{ data: AdminProduct }>(
-            '/api/v1/admin/catalog/products',
-            {
-              sku,
-              type,
-              // A new product is `inactive` unless the operator chose otherwise
-              // (FR-010, Q1-d); the selector's value is sent, not assumed.
-              status,
-              name: trimmedName,
-              description: trimmedDescription,
-              categoryIds,
-              attributeValues,
-              visibility,
-              ...(attributeSetId ? { attributeSetId } : {}),
-            },
-          );
-          navigate(`/catalog/products/${res.data.id}`);
-        } else if (id) {
-          // Feature 023 — page-Save commits the per-language baseline (the product
-          // PATCH) and the drafts staged in the ProductScopeEditor panel and the
-          // gallery. Feature 163 (US6 #3): the PATCH goes first and alone — when the
-          // completeness gate refuses it (`422 SCOPE_INCOMPLETE`) nothing else is
-          // written, so "not saved, still in the form" is true of the whole change.
-          const saved = await apiClient.patch<{ data: AdminProduct; warnings?: ScopeWarning[] }>(
-            `/api/v1/admin/catalog/products/${id}`,
-            {
-              sku: sku.trim(),
-              status,
-              name: trimmedName,
-              description: trimmedDescription,
-              categoryIds,
-              attributeValues,
-              visibility,
-              ...(attributeSetId ? { attributeSetId } : {}),
-              ...(windowPatch ?? {}),
-            },
-          );
-          await Promise.all([
-            scopeEditorRef.current?.flushOverrides() ?? Promise.resolve(),
-            galleryRef.current?.flushGallery() ?? Promise.resolve(),
-          ]);
-          // The status change was saved; where it switched the product on with values
-          // missing (`warn` mode) the page says what, by channel and language — instead
-          // of "Saved.", which would read as "nothing left to do".
-          const completeness = (saved.warnings ?? []).filter(
-            (w): w is Extract<ScopeWarning, { kind: 'completeness' }> => w.kind === 'completeness',
-          );
-          if (completeness.length > 0) {
-            const channelName = await loadChannelNamer(id);
-            setGateWarning(
-              t('productEditor.scopeControls.warning.incomplete', {
-                details: completeness.map((w) => describeIncompletePair(w, channelName, t)).join('; '),
-              }),
-            );
-          } else {
-            setInfo(t('productEditor.saved'));
+      let target = requested;
+      let reason: string | null = null;
+      for (;;) {
+        try {
+          const res = await getScopedValues(productId, target);
+          if (request !== requestRef.current) return;
+          dispatch({ type: 'loaded', data: res.data });
+          const opened = res.data.scope;
+          if (!sameScope(opened, requested)) {
+            loadedKeyRef.current = scopeKey(opened);
+            setSearchParams((prev) => searchWithScope(prev, opened), { replace: true });
           }
-          await refresh();
-        }
-      } catch (err) {
-        if (id && isScopeIncomplete(err)) {
-          // `refuse` mode: nothing in this request was saved; the edits stay in the form.
-          const channelName = await loadChannelNamer(id);
-          setError(
-            scopeSaveErrorMessage(
-              err,
-              channelName,
-              t,
-              'productEditor.scopeControls.error.generic',
-              'productEditor.statusGate.refused',
-            ),
-          );
+          const openedWords = scopeInWords(opened, res.data.validScopes, t, adminLanguage);
+          const note = reason ? t('productEditor.scope.openedAt', { scope: openedWords, reason }) : (options.note ?? null);
+          // After the data is in (not when the switch starts): the scope, Global included.
+          const previous = announcedScopeRef.current;
+          announcedScopeRef.current = scopeKey(opened);
+          const switched = previous !== null && previous !== scopeKey(opened);
+          const where = switched
+            ? opened.level === 'global'
+              ? t('productEditor.scope.loadedAt', { scope: openedWords })
+              : t('productEditor.scope.banner', { scope: openedWords })
+            : null;
+          const spoken = [note, where].filter(Boolean).join(' ');
+          if (spoken) announce(spoken);
+          if (prefTimerRef.current) clearTimeout(prefTimerRef.current);
+          prefTimerRef.current = setTimeout(() => void putEditorPreference(productId, opened), 500);
+          if (options.field) {
+            const field = options.field;
+            setTimeout(() => document.getElementById(fieldDomId(field))?.focus(), 0);
+          }
+          return;
+        } catch (err) {
+          if (request !== requestRef.current) return;
+          const e = errorOf(err);
+          const wider = widerScope(target);
+          if (e?.code === ERROR_CODES.SCOPE_INVALID && wider) {
+            reason ??=
+              e.details?.['reason'] === 'language_not_offered'
+                ? t('productEditor.scope.reason.languageNotOffered')
+                : t('productEditor.scope.reason.notMember');
+            target = wider;
+            continue;
+          }
+          setLoadError(e?.message ?? t('productEditor.error.load'));
           return;
         }
-        const windowRefused =
-          err instanceof ApiError &&
-          (err.envelope.error as { details?: { field?: unknown } }).details?.field === 'window';
-        setError(
-          windowRefused
-            ? t('productEditor.error.publishWindow')
-            : err instanceof ApiError
-              ? err.envelope.error.message
-              : t('productEditor.error.save'),
-        );
       }
     },
-    [isNew, id, sku, status, type, name, description, categoryIds, attrValues, attributeSetId, visibility, navigate, refresh, publishFrom, publishUntil, loadedWindow, t],
+    [productId, setSearchParams, t, adminLanguage, announce],
   );
 
-  const handleAttrChange = useCallback((key: string, value: unknown): void => {
-    setAttrValues((prev) => ({ ...prev, [key]: value }));
-  }, []);
+  // No scope in the URL: the preference seeds it (Global when there is none), replacing the entry.
+  useEffect(() => {
+    if (urlScope) return undefined;
+    let cancelled = false;
+    void getEditorPreference(productId)
+      .catch(() => null)
+      .then((pref) => {
+        if (!cancelled) setSearchParams((prev) => searchWithScope(prev, pref ?? GLOBAL), { replace: true });
+      });
+    return (): void => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlKey, productId]);
 
-  // Swapping the Attribute Set drops the values whose keys are not in the
-  // newly-selected set, so the save payload doesn't carry orphan keys left
-  // over from the previous set.
-  const handleAttributeSetChange = useCallback(
-    async (newSetId: string): Promise<void> => {
-      setAttributeSetId(newSetId);
-      if (!newSetId) return;
-      try {
-        const res = await apiClient.get<{ data: { attributes: { key: string }[] } }>(
-          `/api/v1/admin/catalog/attribute-sets/${newSetId}`,
-        );
-        const allowed = new Set(res.data.attributes.map((a) => a.key));
-        setAttrValues((prev) => {
-          const next: Record<string, unknown> = {};
-          for (const [k, v] of Object.entries(prev)) {
-            if (allowed.has(k)) {
-              next[k] = v;
-            }
-          }
-          return next;
-        });
-      } catch {
-        // Non-fatal — the backend tolerates round-tripped keys, so leaving
-        // the values untouched on a fetch failure still saves correctly.
-      }
+  // The URL is the truth: a scope it names that is not the loaded one is loaded — through the
+  // switch guard when there are staged changes (browser Back / Forward).
+  useEffect(() => {
+    if (!urlScope) return;
+    if (scopeKey(urlScope) === loadedKeyRef.current) return;
+    if (!skipGuardRef.current && loadedKeyRef.current !== null && stateRef.current.staged.size > 0) {
+      setGuard({ kind: 'url', target: urlScope });
+      return;
+    }
+    skipGuardRef.current = false;
+    const note = pendingNoteRef.current;
+    pendingNoteRef.current = null;
+    void load(urlScope, { note, field: searchParams.get('field') });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlKey]);
+
+  useEffect(
+    () => (): void => {
+      if (prefTimerRef.current) clearTimeout(prefTimerRef.current);
     },
     [],
   );
 
-  const handleDeleteProduct = useCallback(async (): Promise<void> => {
-    if (!id) return;
-    if (!confirm(t('productEditor.deleteConfirm'))) return;
+  // A staged change of a subject an immediate action removed is dropped and said (§3).
+  useEffect(() => {
+    if (state.dropped.length === 0) return;
+    const family = familyOfPath(state.dropped[0]!);
+    announce(
+      t(
+        family === 'attachments'
+          ? 'productEditor.immediate.droppedAttachment'
+          : family === 'packagingUnits'
+            ? 'productEditor.immediate.droppedPackagingUnit'
+            : 'productEditor.immediate.droppedImage',
+      ),
+    );
+  }, [state.dropped, t, announce]);
+
+  useUnsavedChangesPrompt(state.staged.size > 0);
+
+  // "Saved N changes" belongs to the last save: a new staged edit clears it.
+  useEffect(() => {
+    if (state.staged.size > 0) setInfo(null);
+  }, [state.staged.size]);
+
+  const go = useCallback(
+    (next: ScopeRef, note?: string, field?: string, tab?: string): void => {
+      pendingNoteRef.current = note ?? null;
+      skipGuardRef.current = true;
+      setSearchParams((prev) => {
+        const sp = searchWithScope(prev, next);
+        sp.delete('field');
+        if (field) sp.set('field', field);
+        if (tab) sp.set('tab', tab);
+        return sp;
+      });
+    },
+    [setSearchParams],
+  );
+
+  const requestScope = useCallback(
+    (next: ScopeRef, note?: string, field?: string, tab?: string): void => {
+      if (sameScope(next, stateRef.current.scope)) {
+        if (tab) {
+          setSearchParams((prev) => {
+            const sp = new URLSearchParams(prev);
+            sp.set('tab', tab);
+            sp.delete('field');
+            return sp;
+          });
+        }
+        if (field) setTimeout(() => document.getElementById(fieldDomId(field))?.focus(), 0);
+        return;
+      }
+      if (stateRef.current.staged.size > 0) {
+        setGuard({ kind: 'switch', target: next, ...(note ? { note } : {}), ...(field ? { field } : {}), ...(tab ? { tab } : {}) });
+        return;
+      }
+      go(next, note, field, tab);
+    },
+    [go, setSearchParams],
+  );
+
+  const refreshFamily = useCallback(
+    async (family: ImmediateFamily): Promise<void> => {
+      const scope = stateRef.current.scope;
+      try {
+        const res = await getScopedValues(productId, scope);
+        if (sameScope(stateRef.current.scope, scope)) dispatch({ type: 'refreshFamily', family, data: res.data });
+      } catch {
+        // The structural change is done; the list refreshes on the next read.
+      }
+    },
+    [productId],
+  );
+
+  // The copy (§8) bumped the version: the next Save sends it; staged cells stay (R7).
+  const afterCopy = useCallback(
+    (version: string, fieldLabel: string, count: number): void => {
+      dispatch({ type: 'version', version });
+      announce(plural('productEditor.copy.done', count, { field: fieldLabel }));
+    },
+    // `plural` reads `t` and the admin language only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [announce, t, adminLanguage],
+  );
+
+  // --- Save --------------------------------------------------------------------------------
+  const save = useCallback(
+    async (confirmTakeover?: string[]): Promise<boolean> => {
+      const s = stateRef.current;
+      if (!s.data || s.version === null || s.staged.size === 0 || readOnly) return false;
+      const parent = scopeShortWords(parentScope(s.scope), s.data.validScopes, t, adminLanguage);
+      const errors: Record<string, string> = {};
+      for (const [path, op] of s.staged) {
+        if (op.op !== 'empty') continue;
+        if (fieldViewAt(s.data, path)?.required || refusesEmpty(path, s)) {
+          errors[path] =
+            s.scope.level === 'global'
+              ? t('productEditor.save.error.requiredEmpty')
+              : t('productEditor.save.error.requiredEmptyScoped', { scope: parent });
+        }
+      }
+      if (Object.keys(errors).length > 0) {
+        dispatch({ type: 'errors', errors });
+        setFormError({ kind: 'validation', count: Object.keys(errors).length });
+        const first = Object.keys(errors)[0]!;
+        setTimeout(() => document.getElementById(fieldDomId(first))?.focus(), 0);
+        return false;
+      }
+      setSaving(true);
+      setFormError(null);
+      setGateWarning(null);
+      setInfo(null);
+      try {
+        const changes = stagedToChanges(s.staged);
+        const res = await saveScopedValues(productId, {
+          scope: scopeToRequest(s.scope),
+          version: s.version,
+          changes: confirmTakeover ? { ...changes, confirmTakeover } : changes,
+        });
+        const count = s.staged.size;
+        dispatch({ type: 'loaded', data: res.data });
+        setTakeovers(null);
+        const completeness = (res.warnings ?? []).filter(
+          (w): w is Extract<ScopeWarning, { kind: 'completeness' }> => w.kind === 'completeness',
+        );
+        if (completeness.length > 0) {
+          const name = (id: string): string => channelName(res.data.validScopes, id);
+          setGateWarning(
+            t('productEditor.scopeControls.warning.incomplete', {
+              details: completeness.map((w) => describeIncompletePair(w, name, t)).join('; '),
+            }),
+          );
+        } else {
+          setInfo(plural('productEditor.save.saved', count, { scope: scopeInWords(s.scope, s.data.validScopes, t, adminLanguage) }));
+        }
+        return true;
+      } catch (err) {
+        handleSaveError(err, s);
+        return false;
+      } finally {
+        setSaving(false);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [productId, readOnly, t, adminLanguage],
+  );
+
+  function handleSaveError(err: unknown, s: ScopedEditorState): void {
+    const e = errorOf(err);
+    if (!e) {
+      setFormError({ kind: 'message', text: t('productEditor.error.save') });
+      return;
+    }
+    const takeover = takeoverDetails(err);
+    if (takeover) {
+      setTakeovers(takeover.takeovers);
+      return;
+    }
+    if (e.code === ERROR_CODES.VERSION_CONFLICT) {
+      setFormError({ kind: 'conflict' });
+      return;
+    }
+    if (e.code === 'MODULE_DISABLED') {
+      setFormError({ kind: 'seo' });
+      return;
+    }
+    if (e.code === ERROR_CODES.SKU_ALREADY_EXISTS) {
+      dispatch({ type: 'errors', errors: { 'product:sku': t('errors.SKU_ALREADY_EXISTS') } });
+      setFormError({ kind: 'validation', count: 1 });
+      setTimeout(() => document.getElementById(fieldDomId('product:sku'))?.focus(), 0);
+      return;
+    }
+    if (e.code === ERROR_CODES.URL_KEY_TAKEN) {
+      dispatch({ type: 'errors', errors: { urlKey: urlKeyErrorMessage(err, t) ?? t('errors.URL_KEY_TAKEN') } });
+      setFormError({ kind: 'validation', count: 1 });
+      setTimeout(() => document.getElementById(fieldDomId('urlKey'))?.focus(), 0);
+      return;
+    }
+    if (e.code === ERROR_CODES.SCOPE_INCOMPLETE && Array.isArray(e.details?.['pairs'])) {
+      const pairs = e.details['pairs'] as Array<{ channelId: string; languageCode: string; missing: ScopeMissingValue[] }>;
+      const name = (id: string): string => channelName(s.data?.validScopes ?? { channels: [] }, id);
+      setFormError({
+        kind: 'message',
+        text: t('productEditor.statusGate.refused', { details: pairs.map((p) => describeIncompletePair(p, name, t)).join('; ') }),
+      });
+      return;
+    }
+    const fields = e.details?.['fields'];
+    if (Array.isArray(fields) && fields.length > 0) {
+      const errors: Record<string, string> = {};
+      const gone: string[] = [];
+      let download = false;
+      for (const entry of fields as Array<string | { field: string; reason?: string }>) {
+        // The Global-only family answers `product.<key>`; the editor's path is `product:<key>`.
+        const raw = typeof entry === 'string' ? `product:${entry}` : entry.field;
+        const field = raw.startsWith('product.') ? `product:${raw.slice('product.'.length)}` : raw;
+        const reason =
+          typeof entry === 'string'
+            ? 'global_only'
+            : (entry.reason ?? (e.code === ERROR_CODES.FIELD_NOT_AT_SCOPE ? 'not_at_scope' : 'invalid'));
+        if (field === 'product:downloadAssetId' || field === 'product:downloadUrl') download = true;
+        else if (field === 'product:attributeSetId' || field === 'product:categoryIds') {
+          // A Global-only reference that names nothing: the field's own words, the change kept.
+          errors[field] = reason === 'subject_not_found' ? t(`productEditor.save.reason.${field.replace(':', '.')}`) : t(`productEditor.save.reason.${reason}`);
+        } else if (reason === 'subject_not_found') gone.push(field);
+        else errors[field] = t(`productEditor.save.reason.${reason}`);
+      }
+      if (gone.length > 0) dispatch({ type: 'dropPaths', paths: gone });
+      if (download && Object.keys(errors).length === 0) {
+        // The download rules have no field in the editor (virtual products, feature 002).
+        setFormError({ kind: 'message', text: t('productEditor.save.error.download') });
+        return;
+      }
+      if (Object.keys(errors).length > 0) {
+        dispatch({ type: 'errors', errors });
+        setFormError({ kind: 'validation', count: Object.keys(errors).length });
+        const first = Object.keys(errors)[0]!;
+        setTimeout(() => document.getElementById(fieldDomId(first))?.focus(), 0);
+      } else {
+        setFormError({ kind: 'message', text: t('productEditor.save.error.subjectGone') });
+      }
+      return;
+    }
+    setFormError({ kind: 'message', text: e.message });
+  }
+
+  const reloadDiscarding = (): void => {
+    dispatch({ type: 'discard' });
+    setFormError(null);
+    // The Reload button goes with the alert: focus the panel the fresh values are in.
+    void load(stateRef.current.scope, { note: t('productEditor.save.reloaded') }).then(() =>
+      document.getElementById('product-tabpanel')?.focus(),
+    );
+  };
+
+  // The copy dialog's conflict reloads through the same path as Save's (a stable handle for the context).
+  const reloadDiscardingRef = useRef(reloadDiscarding);
+  reloadDiscardingRef.current = reloadDiscarding;
+
+  const dropSeoChanges = (): void => {
+    dispatch({ type: 'dropPaths', paths: [...stateRef.current.staged.keys()].filter((p) => p.startsWith('seo:')) });
+    setFormError(null);
+    announce(t('productEditor.save.seoDropped'));
+  };
+
+  // --- Guard -------------------------------------------------------------------------------
+  const proceed = (g: Guard): void => {
+    setGuard(null);
+    if (g.kind === 'leave') {
+      navigate('/catalog/products');
+      return;
+    }
+    if (g.kind === 'url') {
+      skipGuardRef.current = false;
+      void load(g.target, { field: searchParams.get('field') });
+      return;
+    }
+    go(g.target, g.note, g.field, g.tab);
+  };
+  const stay = (g: Guard): void => {
+    setGuard(null);
+    // Back / Forward moved the URL: put the current scope back (§11, Stay re-pushes the URL).
+    if (g.kind === 'url') setSearchParams((prev) => searchWithScope(prev, stateRef.current.scope));
+  };
+
+  // --- Whole-product actions (each applies at once, at every scope) -------------------------
+  const handleDelete = async (): Promise<void> => {
+    if (deleting) return;
+    setDeleting(true);
+    setWholeProductError(null);
     try {
-      await apiClient.delete<void>(`/api/v1/admin/catalog/products/${id}`);
+      await apiClient.delete<void>(PRODUCT_PATH(productId));
       navigate('/catalog/products');
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.error.delete'));
+      setWholeProductError(withServerDetail(t('productEditor.error.delete'), err));
+    } finally {
+      setDeleting(false);
     }
-  }, [id, navigate, t]);
-
-  const [duplicating, setDuplicating] = useState(false);
-  const handleDuplicate = useCallback(async (): Promise<void> => {
-    if (!id || duplicating) return;
-    if (!confirm(t('productEditor.duplicateConfirm'))) return;
+  };
+  /** FR-119: the copy takes every scope except status and URL keys; the dialog says so. */
+  const handleDuplicate = async (): Promise<void> => {
+    if (duplicating) return;
     setDuplicating(true);
-    setError(null);
+    setWholeProductError(null);
     try {
-      const res = await apiClient.post<{ data: AdminProduct }>(
-        `/api/v1/admin/catalog/products/${id}/duplicate`,
-        {},
-      );
+      const res = await apiClient.post<{ data: { id: string } }>(`${PRODUCT_PATH(productId)}/duplicate`, {});
       navigate(`/catalog/products/${res.data.id}`);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.error.duplicate'));
+      setWholeProductError(withServerDetail(t('productEditor.error.duplicate'), err));
     } finally {
       setDuplicating(false);
     }
-  }, [id, duplicating, navigate, t]);
-
-  // Archive / Restore take effect at once, through their own
-  // routes; they touch `archivedAt` only, so the form's unsaved edits (status
-  // included) are neither sent nor lost.
-  const handleArchiveAction = useCallback(async (): Promise<void> => {
-    if (!id || archiveDialog === null || archiving) return;
+  };
+  // The dialog a Product menu item asked for, opened once the menu has handed focus back to its
+  // trigger (`onCloseAutoFocus`), so the dialog's focus trap starts from the trigger and returns
+  // there. A bare `setTimeout` raced the menu's own focus return on a slow machine.
+  const pendingWholeProductDialog = useRef<'duplicate' | 'delete' | 'archive' | null>(null);
+  const openWholeProductDialog = (kind: 'duplicate' | 'delete' | 'archive'): void => {
+    setWholeProductError(null);
+    setArchiveError(null);
+    pendingWholeProductDialog.current = kind;
+  };
+  const afterProductMenuClosed = (): void => {
+    const kind = pendingWholeProductDialog.current;
+    pendingWholeProductDialog.current = null;
+    if (kind === null) return;
+    // The menu focuses its trigger right after this handler returns.
+    setTimeout(() => {
+      if (kind === 'archive') setArchiveDialog('archive');
+      else setWholeProductDialog(kind);
+    }, 0);
+  };
+  const handleArchiveAction = async (): Promise<void> => {
+    if (archiveDialog === null || archiving) return;
     setArchiving(true);
     setArchiveError(null);
     try {
-      const res = await apiClient.post<{ data: AdminProduct }>(
-        `/api/v1/admin/catalog/products/${id}/${archiveDialog}`,
-        {},
-      );
-      setArchivedAt(res.data.archivedAt ?? null);
+      const res = await apiClient.post<{ data: { archivedAt?: string | null } }>(`${PRODUCT_PATH(productId)}/${archiveDialog}`, {});
+      setArchivedOverride(res.data.archivedAt ?? null);
       setInfo(t(archiveDialog === 'archive' ? 'productEditor.archive.done' : 'productEditor.restore.done'));
-      setError(null);
       setArchiveDialog(null);
     } catch (err) {
       setArchiveError(
-        err instanceof ApiError
-          ? err.envelope.error.message
-          : t(archiveDialog === 'archive' ? 'productEditor.archive.failed' : 'productEditor.restore.failed'),
+        withServerDetail(t(archiveDialog === 'archive' ? 'productEditor.archive.failed' : 'productEditor.restore.failed'), err),
       );
     } finally {
       setArchiving(false);
     }
-  }, [id, archiveDialog, archiving, t]);
+  };
 
-  if (loading)
-    return (
-      <div className="b2b-page b2b-page--wide">
-        <div style={{ padding: 32, color: 'var(--fg-muted)', fontSize: 13 }}>{t('productEditor.loading')}</div>
-      </div>
+  // --- Tabs ------------------------------------------------------------------------------------
+  const data = state.data;
+  const type = data?.product.type ?? null;
+  const tabLabel = (id: TabId): string =>
+    id === 'composite' ? t(type === 'grouped' ? 'productEditor.tab.grouped' : 'productEditor.tab.bundle') : t(`productEditor.tab.${id}`);
+  const visibleTabs = TAB_IDS.filter((id) => {
+    if (id === 'variants') return type === 'configurable';
+    if (id === 'composite') return type === 'grouped' || type === 'bundle';
+    if (id === 'channels') return channelContributions.length > 0;
+    if (id === 'seo') return seoContributions.length > 0;
+    return true;
+  });
+  const requestedTab = searchParams.get('tab') as TabId | null;
+  const activeTab: TabId =
+    requestedTab && (TAB_IDS as readonly string[]).includes(requestedTab) && (visibleTabs.includes(requestedTab) || type === null)
+      ? requestedTab
+      : 'details';
+  const selectTab = (id: TabId, focus = false): void => {
+    setSearchParams(
+      (prev) => {
+        const sp = new URLSearchParams(prev);
+        sp.set('tab', id);
+        sp.delete('field');
+        return sp;
+      },
+      { replace: true },
     );
+    if (focus) setTimeout(() => document.getElementById(`product-tab-${id}`)?.focus(), 0);
+  };
+  const onTabKey = (event: KeyboardEvent<HTMLButtonElement>): void => {
+    const index = visibleTabs.indexOf(activeTab);
+    let next = index;
+    if (event.key === 'ArrowRight') next = (index + 1) % visibleTabs.length;
+    else if (event.key === 'ArrowLeft') next = (index - 1 + visibleTabs.length) % visibleTabs.length;
+    else if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = visibleTabs.length - 1;
+    else return;
+    event.preventDefault();
+    selectTab(visibleTabs[next]!, true);
+  };
 
-  const tabs: Array<{ id: string; label: string; icon: ReactNode; show: boolean }> = [
-    { id: 'details', label: 'Details', icon: <FileTextIcon size={14} />, show: true },
-    { id: 'attributes', label: 'Attributes', icon: <SlidersHorizontal size={14} />, show: !isNew },
-    { id: 'pricing', label: t('productEditor.tab.pricing'), icon: <CircleDollarSign size={14} />, show: !isNew },
-    {
-      id: 'variants',
-      label: 'Variants',
-      icon: <Layers size={14} />,
-      show: !isNew && type === 'configurable',
+  const missingText = useCallback(
+    (fieldPath: string): string | undefined => {
+      const c = state.data?.completeness;
+      if (!c || c.level !== 'channel_language') return undefined;
+      return (c.missing as string[]).includes(fieldPath)
+        ? t('productEditor.completeness.missingHere', { scope: scopeInWords(state.scope, state.data!.validScopes, t, adminLanguage) })
+        : undefined;
     },
-    {
-      id: 'composite',
-      label: type === 'grouped' ? 'Grouped items' : 'Bundle slots',
-      icon: <Layers size={14} />,
-      show: !isNew && (type === 'grouped' || type === 'bundle'),
-    },
-    { id: 'media', label: 'Media', icon: <ImageIcon size={14} />, show: !isNew },
-    { id: 'inventory', label: 'Inventory', icon: <WarehouseIcon size={14} />, show: !isNew },
-    { id: 'attachments', label: 'Attachments', icon: <Paperclip size={14} />, show: !isNew },
-    { id: 'links', label: 'Related', icon: <LinkIcon size={14} />, show: !isNew },
-    // Feature 091 / P7a, Z15 — the tab body is a zone, so the button is shown
-    // by counting it. `useAdminZone` has already applied both presence axes and
-    // each contributor's permission, so its length is the honest answer to "is
-    // there anything behind this tab" — and a tab that opens on an empty panel
-    // is worse than no tab. The label stays this screen's own word for the
-    // place (Z14); what it stops knowing is which module fills it.
-    {
-      id: 'channels',
-      label: 'Channels',
-      icon: <StoreIcon size={14} />,
-      show: !isNew && channelContributions.length > 0,
-    },
-    // Feature 163 (US4) — channels × languages for this product, beside the channels it is in.
-    { id: 'scopes', label: t('productEditor.tab.scopes'), icon: <LayoutGrid size={14} />, show: !isNew },
-    { id: 'seo', label: 'SEO', icon: <Globe size={14} />, show: !isNew },
-  ];
-  const visibleTabs = tabs.filter((t) => t.show);
+    [state.data, state.scope, t, adminLanguage],
+  );
 
-  return (
-    <div className="b2b-page b2b-page--wide">
-      <div className="b2b-page-head">
-        <div className="b2b-grow">
-          <button
-            type="button"
-            className="b2b-page-head__back"
-            onClick={(): void => { navigate('/catalog/products'); }}
+  // --- Completeness summary (§9, FR-097), from saved values -------------------------------
+  const fieldLabel = (path: string): string => {
+    if (path === 'name') return t('productEditor.field.name');
+    if (path === 'urlKey') return t('productEditor.field.urlKey');
+    const key = path.replace(/^attribute:/, '');
+    const attr = state.data?.attributes.find((a) => a.key === key);
+    const label = attr ? (Object.entries(attr.label).find(([code]) => code.split('-')[0] === adminLanguage)?.[1] ?? Object.values(attr.label)[0]) : undefined;
+    return label ?? key;
+  };
+  const fieldHref = (path: string): string => {
+    const sp = new URLSearchParams(searchParams);
+    sp.set('tab', path.startsWith('attribute:') ? 'attributes' : 'details');
+    sp.set('field', path);
+    return `?${sp.toString()}`;
+  };
+  const openField = (path: string): void => {
+    const tab: TabId = path.startsWith('attribute:') ? 'attributes' : 'details';
+    selectTab(tab);
+    setTimeout(() => document.getElementById(fieldDomId(path))?.focus(), 0);
+  };
+  const completenessNode = ((): ReactNode => {
+    const c = state.data?.completeness;
+    if (!c || !state.data) return null;
+    const linkClass = 'text-primary underline underline-offset-2 max-lg:inline-flex max-lg:min-h-11 max-lg:items-center';
+    const fieldLink = (path: string, text: string): ReactNode => (
+      <a
+        key={path}
+        href={fieldHref(path)}
+        data-own-unsaved-guard=""
+        className={linkClass}
+        onClick={(e): void => {
+          e.preventDefault();
+          openField(path);
+        }}
+      >
+        {text}
+      </a>
+    );
+    const joined = (items: ReactNode[]): ReactNode[] => items.flatMap((item, i) => (i === 0 ? [item] : [', ', item]));
+    let body: ReactNode = null;
+    if (c.level === 'channel_language' && c.missing.length > 0) {
+      body = (
+        <>
+          {t('productEditor.completeness.here')} {joined(c.missing.map((m) => fieldLink(m, fieldLabel(m))))}
+        </>
+      );
+    } else if (c.level === 'channel' && c.missing.length > 0) {
+      const channelId = state.scope.level === 'global' ? null : state.scope.channelId;
+      body = (
+        <>
+          {t('productEditor.completeness.channel')}{' '}
+          {joined(
+            c.missing.map((m) =>
+              fieldLink(
+                m.field,
+                t('productEditor.completeness.fieldLanguages', {
+                  field: fieldLabel(m.field),
+                  languages: m.languages.map((code) => languageName(state.data!.validScopes, channelId, code, adminLanguage)).join(', '),
+                }),
+              ),
+            ),
+          )}
+        </>
+      );
+    } else if (c.level === 'global' && c.incompleteScopes > 0) {
+      body = (
+        <>
+          {plural('productEditor.completeness.global', c.incompleteScopes)} —{' '}
+          <a
+            href={`?${(() => {
+              const sp = new URLSearchParams(searchParams);
+              sp.set('tab', 'scopes');
+              return sp.toString();
+            })()}`}
+            className={linkClass}
+            data-own-unsaved-guard=""
+            onClick={(e): void => {
+              e.preventDefault();
+              selectTab('scopes');
+            }}
           >
-            <ChevronLeft size={14} /> Products
-          </button>
-          <div className="b2b-page-head__title">
-            <span>{isNew ? 'New product' : pickName(name) || sku}</span>
-            {!isNew ? <ProductStatusPill status={status} archived={Boolean(archivedAt)} /> : null}
-            {!isNew && archivedAt ? <ArchivedPill /> : null}
+            {t('productEditor.scope.scopeMap')}
+          </a>
+        </>
+      );
+    }
+    if (!body) return null;
+    return (
+      <p className="m-0 inline-flex flex-wrap items-center gap-x-1 text-destructive" data-testid="completeness-summary">
+        <span className="sr-only">{t('productEditor.completeness.region')}: </span>
+        {body}
+      </p>
+    );
+  })();
+
+  const contextValue = useMemo<ProductEditorContextValue>(
+    () => ({
+      productId,
+      state,
+      dispatch,
+      readOnly,
+      scopeLabel,
+      parentScopeLabel: parentLabel,
+      jumpTo: (scope, field) => requestScope(scope, undefined, field),
+      refreshFamily,
+      missingText,
+      afterCopy,
+      reloadDiscarding: () => reloadDiscardingRef.current(),
+    }),
+    [productId, state, readOnly, scopeLabel, parentLabel, requestScope, refreshFamily, missingText, afterCopy],
+  );
+
+  const archivedAt = archivedOverride !== undefined ? archivedOverride : (data?.product.archivedAt ?? null);
+  const status = data?.fields.status;
+  const statusValue = (status?.value ?? 'inactive') as 'active' | 'inactive';
+  const statusSource =
+    !status || state.scope.level === 'global' || status.source === 'set' || status.source === 'set_empty'
+      ? null
+      : status.source === 'inherited_channel'
+        ? t('productEditor.statusSource.from', { scope: parentLabel })
+        : t('productEditor.statusSource.from', { scope: t('productEditor.scope.global') });
+  const title = data?.fields.name.value || data?.product.sku || '';
+  const stagedCount = state.staged.size;
+  const atGlobal = state.scope.level === 'global';
+
+  const globalOnlyNotice = (
+    <Alert className="mb-4" data-testid="global-only-tab-notice">
+      <Lock className="size-4" aria-hidden="true" />
+      <AlertDescription>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="flex-1">{t('productEditor.globalOnlyTab.body', { scope: words(state.scope) })}</span>
+          {!readOnly ? (
+            <Button type="button" variant="outline" size="sm" className="max-lg:min-h-11" onClick={(): void => requestScope(GLOBAL)}>
+              {t('productEditor.globalOnlyTab.editAtGlobal')}
+            </Button>
+          ) : null}
+        </div>
+      </AlertDescription>
+    </Alert>
+  );
+
+  const seoStaged = new Map<string, ScopedWriteOp<string>>();
+  for (const [path, op] of state.staged) if (path.startsWith('seo:')) seoStaged.set(path.slice(4), op as ScopedWriteOp<string>);
+  const seoErrors: Record<string, string> = {};
+  for (const [path, message] of Object.entries(state.errors)) if (path.startsWith('seo:')) seoErrors[path.slice(4)] = message;
+
+  const panel = (): ReactNode => {
+    if (!data && loadError) {
+      return (
+        <div className="flex flex-col items-start gap-3 py-6" data-testid="editor-load-error">
+          <p role="alert" className="m-0 text-sm text-destructive">
+            {loadError}
+          </p>
+          <Button type="button" variant="outline" size="sm" className="max-lg:min-h-11" onClick={(): void => void load(state.scope)}>
+            <RotateCw size={14} aria-hidden="true" /> {t('productEditor.error.retry')}
+          </Button>
+        </div>
+      );
+    }
+    if (!data) {
+      return (
+        <div className="space-y-3" data-testid="editor-skeleton">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="h-16 animate-pulse rounded-md bg-muted motion-reduce:animate-none" />
+          ))}
+        </div>
+      );
+    }
+    // Global-only tabs outside Global: the notice, then the content read-only (FR-081). The
+    // zone-backed tabs (Pricing, Channels) belong to their contributors, which take no read-only
+    // flag, so they show the notice alone.
+    const structuralReadOnly = readOnly || !atGlobal;
+    if (GLOBAL_ONLY_TABS.has(activeTab) && !atGlobal && (activeTab === 'pricing' || activeTab === 'channels')) return globalOnlyNotice;
+    const notice = GLOBAL_ONLY_TABS.has(activeTab) && !atGlobal ? globalOnlyNotice : null;
+    switch (activeTab) {
+      case 'details':
+        return (
+          <DetailsTab
+            attributeSets={attributeSets}
+            categories={categories}
+            categoriesLoading={categoriesLoading}
+            referenceError={referenceError}
+            onRetryReference={loadReference}
+          />
+        );
+      case 'attributes':
+        return <ProductAttributesTab />;
+      case 'pricing':
+        return (
+          <div className="b2b-col" style={{ gap: 16 }}>
+            <SectionHeading title={t('productEditor.tab.pricing')} immediate={!readOnly} />
+            <AdminZone name="product.editor.pricing.before" props={{ productId }} />
+            <AdminZone name="product.editor.pricing.after" props={{ productId }} />
           </div>
-          {!isNew ? (
-            <div className="b2b-page-head__sub">
-              <span className="b2b-mono">{sku}</span> · <span style={{ textTransform: 'capitalize' }}>{type}</span>
+        );
+      case 'variants':
+        return (
+          <>
+            {notice}
+            <VariantsSection productId={productId} readOnly={structuralReadOnly} />
+          </>
+        );
+      case 'composite':
+        return (
+          <>
+            {notice}
+            {type === 'grouped' ? (
+              <GroupedItemsSection productId={productId} readOnly={structuralReadOnly} />
+            ) : (
+              <BundleSlotsSection productId={productId} readOnly={structuralReadOnly} />
+            )}
+          </>
+        );
+      case 'media':
+        return (
+          <>
+            <AdminZone name="product.editor.field.after" props={{ productId, fieldPath: 'gallery', scope: state.scope, languageCodes: null }} />
+            <GallerySection />
+          </>
+        );
+      case 'inventory':
+        return (
+          <div className="b2b-col" style={{ gap: 16 }}>
+            {atGlobal ? null : globalOnlyNotice}
+            <section aria-labelledby="product-stock-heading" className="space-y-2">
+              <SectionHeading id="product-stock-heading" title={t('productEditor.stock.title')} immediate={!structuralReadOnly} />
+              {structuralReadOnly ? (
+                // Stock outside Global (or without catalog:write) is shown, not edited: the panel
+                // has no read-only mode of its own, so its controls are disabled as a group.
+                <fieldset disabled className="m-0 min-w-0 border-0 p-0" data-testid="stock-read-only">
+                  <ProductInventoryTab productId={productId} />
+                </fieldset>
+              ) : (
+                <ProductInventoryTab productId={productId} />
+              )}
+            </section>
+            <ProductOrderRulesCard productType={type ?? 'simple'} />
+            {type === 'simple' || type === 'configurable' ? (
+              <PackagingUnitsEditor
+                productId={productId}
+                canWrite={canWrite}
+                atGlobal={atGlobal}
+                onChanged={(): Promise<void> => refreshFamily('packagingUnits')}
+                renderName={(unit): ReactNode => (
+                  <EditorField<string>
+                    fieldPath={`packagingUnit:${unit.id}:name`}
+                    label={t('packagingUnits.nameFor', { quantity: String(unit.baseQuantity) })}
+                    textField
+                    render={(p): ReactNode => <TextControl {...p} maxLength={160} />}
+                  />
+                )}
+              />
+            ) : null}
+          </div>
+        );
+      case 'attachments':
+        return (
+          <>
+            <AdminZone name="product.editor.field.after" props={{ productId, fieldPath: 'attachments', scope: state.scope, languageCodes: null }} />
+            <AttachmentsSection />
+          </>
+        );
+      case 'links':
+        return (
+          <>
+            {notice}
+            <ProductLinksSection productId={productId} readOnly={structuralReadOnly} />
+          </>
+        );
+      case 'channels':
+        return (
+          <div className="space-y-2">
+            <SectionHeading title={t('productEditor.tab.channels')} immediate={!readOnly} />
+            <AdminZone name="product.editor.channels" props={{ productId }} />
+          </div>
+        );
+      case 'scopes':
+        return (
+          <ProductScopeOverview
+            productId={productId}
+            links={{
+              href: (scope, field): string => {
+                const sp = searchWithScope(searchParams, scope);
+                sp.set('tab', tabOfField(field));
+                sp.delete('field');
+                if (field) sp.set('field', field);
+                return `?${sp.toString()}`;
+              },
+              open: (scope, field): void => requestScope(scope, undefined, field, tabOfField(field)),
+              words: (scope): string => scopeShortWords(scope, valid, t, adminLanguage),
+            }}
+          />
+        );
+      case 'seo':
+        return (
+          <AdminZone
+            name="product.editor.seo"
+            props={{
+              productId,
+              scope: state.scope,
+              scopeLabel,
+              parentScopeLabel: atGlobal ? null : parentLabel,
+              view: data.seo,
+              staged: seoStaged,
+              onStage: (field: string, op: ScopedWriteOp<string> | undefined): void =>
+                dispatch({ type: 'stage', path: `seo:${field}`, op }),
+              readOnly,
+              errors: seoErrors,
+              version: state.version,
+            }}
+          />
+        );
+    }
+  };
+
+  const guardOpen = guard !== null;
+  return (
+    <ProductEditorContextProvider value={contextValue}>
+      <div className="b2b-page b2b-page--wide">
+        <div className="b2b-page-head">
+          <div className="b2b-grow">
+            <button
+              type="button"
+              className="b2b-page-head__back"
+              onClick={(): void => {
+                if (stateRef.current.staged.size > 0) setGuard({ kind: 'leave' });
+                else navigate('/catalog/products');
+              }}
+            >
+              <ChevronLeft size={14} /> {t('productEditor.back')}
+            </button>
+            <div className="b2b-page-head__title">
+              <span>{title}</span>
+              {data ? <ProductStatusPill status={statusValue} archived={Boolean(archivedAt)} /> : null}
+              {statusSource ? <span className="text-xs text-muted-foreground">{statusSource}</span> : null}
+              {archivedAt ? <ArchivedPill /> : null}
+            </div>
+            {data ? (
+              <div className="b2b-page-head__sub">
+                <span className="b2b-mono">{data.product.sku}</span> · <span>{t(`productEditor.type.${data.product.type}`)}</span>
+              </div>
+            ) : null}
+          </div>
+          {canWrite ? (
+            <div className="flex items-start gap-2">
+              {/* The whole-product actions (FR-084, §11): one menu, captioned; each applies at once. */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="b2b-btn b2b-btn--default max-lg:min-h-11"
+                    aria-describedby="product-whole-caption"
+                    disabled={!data}
+                  >
+                    {t('productEditor.wholeProduct.menu')} <ChevronDown size={14} aria-hidden="true" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" aria-labelledby="product-whole-caption" onCloseAutoFocus={afterProductMenuClosed}>
+                  <p aria-hidden="true" className="m-0 px-2 py-1.5 text-xs text-muted-foreground">
+                    {t('productEditor.wholeProduct.caption')}
+                  </p>
+                  <DropdownMenuItem className="max-lg:min-h-11" onSelect={(): void => openWholeProductDialog('duplicate')}>
+                    <Copy size={14} aria-hidden="true" /> {t('productEditor.action.duplicate')}
+                  </DropdownMenuItem>
+                  {!archivedAt ? (
+                    <DropdownMenuItem className="max-lg:min-h-11" onSelect={(): void => openWholeProductDialog('archive')}>
+                      <Archive size={14} aria-hidden="true" /> {t('productEditor.action.archive')}
+                    </DropdownMenuItem>
+                  ) : null}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem className="max-lg:min-h-11" destructive onSelect={(): void => openWholeProductDialog('delete')}>
+                    <Trash2 size={14} aria-hidden="true" /> {t('productEditor.action.delete')}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <span id="product-whole-caption" className="sr-only">
+                {t('productEditor.wholeProduct.caption')}
+              </span>
+              {/* Below 1024 px StickyFormActions is the bottom bar, so Save sits there (§11). */}
+              <StickyFormActions className="b2b-page-head__actions">
+                <button
+                  type="button"
+                  className="b2b-btn b2b-btn--primary max-lg:min-h-11 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                  // aria-disabled, not disabled: focus stays on Save after it has saved (WCAG 2.4.3).
+                  aria-disabled={stagedCount === 0 || saving || !data}
+                  aria-describedby="product-save-note"
+                  onClick={(): void => {
+                    if (stagedCount === 0 || saving || !data) return;
+                    void save();
+                  }}
+                >
+                  <Save size={14} aria-hidden="true" />
+                  {saving
+                    ? t('productEditor.save.saving')
+                    : stagedCount > 0
+                      ? plural('productEditor.save.actionCount', stagedCount)
+                      : t('productEditor.save.action')}{' '}
+                  <span className="sr-only">{t('productEditor.save.atScope', { scope: words(state.scope) })}</span>
+                </button>
+                <span id="product-save-note" className="text-xs text-muted-foreground">
+                  {stagedCount === 0 ? t('productEditor.save.noChanges') : ''}
+                </span>
+              </StickyFormActions>
             </div>
           ) : null}
         </div>
-        <StickyFormActions className="b2b-page-head__actions">
-          {!isNew ? (
-            <>
-              <button type="button" className="b2b-btn b2b-btn--default b2b-btn--sm">
-                <Eye size={13} /> Preview
-              </button>
-              <button
-                type="button"
-                className="b2b-btn b2b-btn--default b2b-btn--sm"
-                onClick={(): void => void handleDuplicate()}
-                disabled={duplicating}
-              >
-                <Copy size={13} /> {duplicating ? 'Duplicating…' : 'Duplicate'}
-              </button>
-              {/* Reversible, so not styled as danger. Restore lives in the archived
-                  notice, beside the sentence that explains it. */}
-              {canWrite && !archivedAt ? (
-                <button
-                  type="button"
-                  className="b2b-btn b2b-btn--default b2b-btn--sm"
-                  onClick={(): void => {
-                    setArchiveError(null);
-                    setArchiveDialog('archive');
-                  }}
-                >
-                  <Archive size={13} aria-hidden="true" /> {t('productEditor.action.archive')}
-                </button>
-              ) : null}
-              <button
-                type="button"
-                className="b2b-btn b2b-btn--danger b2b-btn--sm"
-                onClick={(): void => void handleDeleteProduct()}
-              >
-                <Trash2 size={13} /> {t('productEditor.action.delete')}
-              </button>
-            </>
-          ) : null}
-          <button
-            type="button"
-            className="b2b-btn b2b-btn--primary"
-            onClick={(e): void => {
-              void handleSave(e as unknown as FormEvent);
-            }}
-          >
-            <Save size={14} /> Save
-          </button>
-        </StickyFormActions>
-      </div>
 
-      {error ? (
-        <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      {info ? (
-        <Alert variant="success" className="mb-4">
-          <AlertDescription>{info}</AlertDescription>
-        </Alert>
-      ) : null}
-      {/* Mounted before it has text, so the gate's warning is announced when it arrives. */}
-      <div role="status">
-        {gateWarning ? (
-          <Alert variant="warning" role="none" className="mb-4" data-testid="product-gate-warning">
-            <AlertDescription>{gateWarning}</AlertDescription>
+        <ProductScopeBar
+          scope={state.scope}
+          validScopes={state.data?.validScopes ?? validRef.current}
+          scopeWords={words(state.scope)}
+          readOnly={readOnly}
+          adminLanguage={adminLanguage}
+          onRequestScope={(next, note): void => requestScope(next, note)}
+          onOpenScopeMap={(): void => selectTab('scopes')}
+          completeness={completenessNode}
+        />
+
+        <p role="status" className="sr-only" data-testid="editor-announcer">
+          {announcement}
+        </p>
+
+        {formError ? (
+            <Alert variant="destructive" className="mb-4" data-testid="product-save-error" id="product-save-error" tabIndex={-1}>
+              <AlertDescription>
+                {formError.kind === 'validation' ? (
+                  plural('productEditor.save.error.fields', formError.count)
+                ) : formError.kind === 'conflict' ? (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="flex-1">{t('productEditor.save.error.conflict')}</span>
+                    <Button type="button" variant="outline" size="sm" className="max-lg:min-h-11" onClick={reloadDiscarding}>
+                      {t('productEditor.save.reloadDiscarding')}
+                    </Button>
+                  </div>
+                ) : formError.kind === 'seo' ? (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="flex-1">{t('productEditor.save.error.seoOff')}</span>
+                    <Button type="button" variant="outline" size="sm" className="max-lg:min-h-11" onClick={dropSeoChanges}>
+                      {t('productEditor.save.removeSeoChanges')}
+                    </Button>
+                  </div>
+                ) : (
+                  formError.text
+                )}
+              </AlertDescription>
+            </Alert>
+          ) : null}
+        <div role="status">
+          {info ? (
+            <Alert variant="success" role="none" className="mb-4" data-testid="product-save-info">
+              <AlertDescription>{info}</AlertDescription>
+            </Alert>
+          ) : null}
+        </div>
+        <div role="status">
+          {gateWarning ? (
+            <Alert variant="warning" role="none" className="mb-4" data-testid="product-gate-warning">
+              <AlertDescription>{gateWarning}</AlertDescription>
+            </Alert>
+          ) : null}
+        </div>
+        {archivedAt ? (
+          <Alert variant="warning" role="status" className="mb-4" data-testid="product-archived-notice">
+            <AlertDescription>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="flex-1">
+                  <strong>{t('productEditor.archived.title')}</strong> {t('productEditor.archived.body')}
+                </span>
+                {canWrite ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="max-lg:min-h-11"
+                    onClick={(): void => {
+                      setArchiveError(null);
+                      setArchiveDialog('restore');
+                    }}
+                  >
+                    <ArchiveRestore size={13} aria-hidden="true" /> {t('productEditor.action.restore')}
+                  </Button>
+                ) : null}
+              </div>
+            </AlertDescription>
           </Alert>
         ) : null}
-      </div>
-      {/* Said where the operator looks first: archived
-          means unavailable everywhere, whatever the status, and only Restore
-          brings the product back. A standing state, so `status`, not `alert`. */}
-      {!isNew && archivedAt ? (
-        <Alert variant="warning" role="status" className="mb-4" data-testid="product-archived-notice">
-          <AlertDescription>
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="flex-1">
-                <strong>{t('productEditor.archived.title')}</strong>{' '}
-                {t('productEditor.archived.body')}
-              </span>
-              {canWrite ? (
+
+        <div className="b2b-card">
+          <div style={{ padding: '4px 4px 0', overflow: 'hidden' }}>
+            <div className="b2b-tabs-scroll">
+              <div className="b2b-tabs" role="tablist" aria-label={t('productEditor.tabs.label')}>
+                {visibleTabs.map((id) => {
+                  const selected = activeTab === id;
+                  return (
+                    <button
+                      key={id}
+                      id={`product-tab-${id}`}
+                      type="button"
+                      role="tab"
+                      aria-selected={selected}
+                      aria-controls="product-tabpanel"
+                      tabIndex={selected ? 0 : -1}
+                      className={cn('b2b-tab', selected && 'is-active')}
+                      onClick={(): void => selectTab(id)}
+                      onKeyDown={onTabKey}
+                    >
+                      {tabLabel(id)}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+          <div
+            className="b2b-card__body"
+            role="tabpanel"
+            id="product-tabpanel"
+            aria-labelledby={`product-tab-${activeTab}`}
+            aria-busy={state.busy && !loadError}
+            tabIndex={-1}
+          >
+            {panel()}
+          </div>
+        </div>
+
+        {guardOpen && guard ? (
+          <ModalDialog
+            title={t('productEditor.guard.title', { scope: words(state.scope) })}
+            onClose={(): void => stay(guard)}
+            busy={saving}
+            dismissOnScrim={false}
+            aria-describedby="product-guard-body"
+            footer={
+              <>
+                <Button type="button" variant="outline" disabled={saving} onClick={(): void => stay(guard)}>
+                  {t('productEditor.guard.stay')}
+                </Button>
                 <Button
                   type="button"
                   variant="outline"
-                  size="sm"
+                  disabled={saving}
                   onClick={(): void => {
-                    setArchiveError(null);
-                    setArchiveDialog('restore');
+                    dispatch({ type: 'discard' });
+                    proceed(guard);
                   }}
                 >
-                  <ArchiveRestore size={13} aria-hidden="true" /> {t('productEditor.action.restore')}
+                  {t('productEditor.guard.discard')}
                 </Button>
-              ) : null}
-            </div>
-          </AlertDescription>
-        </Alert>
-      ) : null}
-
-      {archiveDialog !== null ? (
-        <ModalDialog
-          title={t(archiveDialog === 'archive' ? 'productEditor.archive.confirmTitle' : 'productEditor.restore.confirmTitle')}
-          onClose={(): void => setArchiveDialog(null)}
-          busy={archiving}
-          aria-describedby="product-archive-confirm-body"
-          footer={
-            <>
-              <Button type="button" variant="outline" disabled={archiving} onClick={(): void => setArchiveDialog(null)}>
-                {t('productEditor.archive.cancel')}
-              </Button>
-              <Button
-                type="button"
-                disabled={archiving}
-                aria-busy={archiving || undefined}
-                onClick={(): void => {
-                  void handleArchiveAction();
-                }}
-              >
-                {t(archiveDialog === 'archive' ? 'productEditor.archive.confirm' : 'productEditor.restore.confirm')}
-              </Button>
-            </>
-          }
-        >
-          <p id="product-archive-confirm-body" className="text-sm">
-            {t(archiveDialog === 'archive' ? 'productEditor.archive.confirmBody' : 'productEditor.restore.confirmBody')}
-          </p>
-          {archiveError ? (
-            <p role="alert" className="mt-3 text-sm text-destructive">
-              {archiveError}
+                <Button
+                  type="button"
+                  disabled={saving}
+                  aria-busy={saving || undefined}
+                  onClick={(): void => {
+                    void save().then((ok) => {
+                      if (ok) {
+                        proceed(guard);
+                        return;
+                      }
+                      setGuard(null);
+                      setTimeout(() => document.getElementById('product-save-error')?.focus(), 0);
+                    });
+                  }}
+                >
+                  {t('productEditor.guard.save')}
+                </Button>
+              </>
+            }
+          >
+            <p id="product-guard-body" className="text-sm">
+              {plural(guard.kind === 'leave' ? 'productEditor.guard.bodyLeave' : 'productEditor.guard.body', stagedCount)}
             </p>
-          ) : null}
-        </ModalDialog>
-      ) : null}
+          </ModalDialog>
+        ) : null}
 
-      <div className="b2b-card">
-        <div style={{ padding: '4px 4px 0', overflow: 'hidden' }}>
-          <div className="b2b-tabs-scroll">
-          <div className="b2b-tabs" role="tablist">
-            {visibleTabs.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                role="tab"
-                aria-selected={activeTab === t.id}
-                className={cn('b2b-tab', activeTab === t.id && 'is-active')}
-                onClick={(): void => setActiveTab(t.id)}
-              >
-                {t.icon}
-                {t.label}
-              </button>
-            ))}
-          </div>
-          </div>
-        </div>
+        {takeovers ? (
+          <ModalDialog
+            title={t('productEditor.urlKeys.takeover.title')}
+            busy={saving}
+            onClose={(): void => setTakeovers(null)}
+            footer={
+              <>
+                <Button type="button" variant="outline" disabled={saving} onClick={(): void => setTakeovers(null)}>
+                  {t('productEditor.urlKeys.cancel')}
+                </Button>
+                <Button type="button" disabled={saving} onClick={(): void => void save(takeovers.map((k) => k.key))}>
+                  {t('productEditor.urlKeys.takeover.confirm')}
+                </Button>
+              </>
+            }
+          >
+            <p className="text-sm">{t('productEditor.urlKeys.takeover.body')}</p>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+              {takeovers.map((k) => (
+                <li key={`${k.languageCode ?? ''}|${k.key}`}>
+                  {t('productEditor.urlKeys.takeover.item', {
+                    product: k.losingProductName,
+                    key: describeKeyInLanguage(k.key, k.languageCode, t),
+                  })}
+                </li>
+              ))}
+            </ul>
+          </ModalDialog>
+        ) : null}
 
-        <div className="b2b-card__body">
-          {activeTab === 'details' ? (
-            <form id="product-details-form" onSubmit={handleSave}>
-              <div className="b2b-col" style={{ gap: 18 }}>
-                {/* Feature 023 — per-Sales-Channel + per-Language scope
-                    editor. Sole editor for system Name + Description on
-                    existing products: at Channel = Global it writes the
-                    per-language baseline on `products`; at a specific
-                    channel it writes a `product_value_overrides` row. */}
-                {/* Feature 091 / P4b — the product editor's own zone mounts,
-                    now with contributors. The zone names a **place**; nothing
-                    here refers to a module, and the two PIM connectors each
-                    render one control out of their own packages.
+        {wholeProductDialog !== null ? (
+          <ModalDialog
+            title={t(wholeProductDialog === 'duplicate' ? 'productEditor.duplicateTitle' : 'productEditor.deleteTitle', { product: title })}
+            onClose={(): void => setWholeProductDialog(null)}
+            busy={duplicating || deleting}
+            aria-describedby="product-whole-confirm-body"
+            footer={
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={duplicating || deleting}
+                  onClick={(): void => setWholeProductDialog(null)}
+                >
+                  {t('productEditor.archive.cancel')}
+                </Button>
+                <Button
+                  type="button"
+                  variant={wholeProductDialog === 'delete' ? 'destructive' : 'default'}
+                  disabled={duplicating || deleting}
+                  aria-busy={duplicating || deleting || undefined}
+                  onClick={(): void => void (wholeProductDialog === 'duplicate' ? handleDuplicate() : handleDelete())}
+                >
+                  {wholeProductDialog === 'duplicate'
+                    ? duplicating
+                      ? t('productEditor.action.duplicating')
+                      : t('productEditor.duplicateAction')
+                    : t('productEditor.deleteAction')}
+                </Button>
+              </>
+            }
+          >
+            <p id="product-whole-confirm-body" className="text-sm">
+              {t(wholeProductDialog === 'duplicate' ? 'productEditor.duplicateConfirm' : 'productEditor.deleteConfirm')}
+              {stagedCount > 0
+                ? ` ${t(wholeProductDialog === 'duplicate' ? 'productEditor.duplicateUnsaved' : 'productEditor.deleteUnsaved')}`
+                : null}
+            </p>
+            {wholeProductError ? (
+              <p role="alert" className="mt-3 text-sm text-destructive">
+                {wholeProductError}
+              </p>
+            ) : null}
+          </ModalDialog>
+        ) : null}
 
-                    One mount per field, not one per field and locale: the
-                    zone's props carry `languageCodes` and the fan-out is the
-                    contributor's decision, which is what the two
-                    `LOCALES.map(...)` loops this replaced were doing on a
-                    foreign module's behalf. */}
-                {id ? (
-                  <AdminZone name="product.editor.details.before" props={{ productId: id }} />
-                ) : null}
-                {id ? (
-                  <div className="flex flex-wrap gap-x-4 gap-y-1">
-                    <AdminZone
-                      name="product.editor.field.after"
-                      props={{ productId: id, fieldPath: 'name', languageCodes: LOCALES }}
-                    />
-                    <AdminZone
-                      name="product.editor.field.after"
-                      props={{ productId: id, fieldPath: 'description', languageCodes: LOCALES }}
-                    />
-                  </div>
-                ) : null}
-
-                {id ? (
-                  <ProductScopeEditor
-                    ref={scopeEditorRef}
-                    productId={id}
-                    baselineName={name}
-                    baselineDescription={description}
-                    globalStatus={status}
-                    onBaselineNameChange={(next): void =>
-                      setName({
-                        'en-US': next['en-US'] ?? '',
-                        'pl-PL': next['pl-PL'] ?? '',
-                      })
-                    }
-                    onBaselineDescriptionChange={(next): void =>
-                      setDescription({
-                        'en-US': next['en-US'] ?? '',
-                        'pl-PL': next['pl-PL'] ?? '',
-                      })
-                    }
-                  />
-                ) : null}
-
-                <div>
-                  <div className="b2b-label">{t('productEditor.section.identity')}</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-                    <div>
-                      <Label htmlFor="sku">{t('productEditor.field.sku')}</Label>
-                      <Input
-                        id="sku"
-                        value={sku}
-                        onChange={(e): void => setSku(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="ptype">{t('productEditor.field.type')}</Label>
-                      <Select
-                        id="ptype"
-                        value={type}
-                        onChange={(e): void =>
-                          setType(
-                            e.target.value as
-                              | 'simple'
-                              | 'configurable'
-                              | 'grouped'
-                              | 'bundle'
-                              | 'virtual',
-                          )
-                        }
-                        disabled={!isNew}
-                      >
-                        {PRODUCT_TYPES.map((pt) => (
-                          <option key={pt} value={pt}>
-                            {pt}
-                          </option>
-                        ))}
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="pvis">{t('productEditor.field.visibility')}</Label>
-                      <Select
-                        id="pvis"
-                        value={visibility}
-                        onChange={(e): void =>
-                          setVisibility(e.target.value as AdminProduct['visibility'])
-                        }
-                      >
-                        {VISIBILITIES.map((v) => (
-                          <option key={v} value={v}>
-                            {v}
-                          </option>
-                        ))}
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="pattrset">{t('productEditor.field.attributeSet')}</Label>
-                      <Select
-                        id="pattrset"
-                        value={attributeSetId}
-                        onChange={(e): void => void handleAttributeSetChange(e.target.value)}
-                      >
-                        {attributeSets.length === 0 ? (
-                          <option value="">{t('productEditor.attributeSet.loading')}</option>
-                        ) : (
-                          attributeSets.map((s) => (
-                            <option key={s.id} value={s.id}>
-                              {s.code}
-                              {s.isSystem ? t('productEditor.attributeSet.systemSuffix') : ''}
-                            </option>
-                          ))
-                        )}
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="pstatus">{t('productEditor.field.status')}</Label>
-                      <Select
-                        id="pstatus"
-                        value={status}
-                        aria-describedby={
-                          !isNew && archivedAt ? 'pstatus-help pstatus-archived' : 'pstatus-help'
-                        }
-                        onChange={(e): void =>
-                          setStatus(e.target.value as AdminProduct['status'])
-                        }
-                      >
-                        {STATUSES.map((s) => (
-                          <option key={s} value={s}>
-                            {t(`productEditor.statusValue.${s}`)}
-                          </option>
-                        ))}
-                      </Select>
-                      <p id="pstatus-help" className="b2b-help">{t('productEditor.field.status.help')}</p>
-                      {/* O-5 — setting Active does not restore an archived product. */}
-                      {!isNew && archivedAt ? (
-                        <p id="pstatus-archived" className="b2b-help">
-                          {t('productEditor.field.status.archivedNote')}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Feature 163 (FR-023) — the global publication window. A channel
-                    may set its own in the scope controls above. No constraint
-                    attributes: the check is ours and translated, never a
-                    browser bubble. */}
-                {id ? (
-                  <div>
-                    <div className="b2b-label">{t('productEditor.field.publishWindow')}</div>
-                    <div className="b2b-row" style={{ gap: 12, flexWrap: 'wrap' }}>
-                      <div>
-                        <Label htmlFor="ppublish-from">{t('productEditor.field.publishFrom')}</Label>
-                        <Input
-                          id="ppublish-from"
-                          type="datetime-local"
-                          value={publishFrom}
-                          aria-describedby={windowError ? 'ppublish-help ppublish-error' : 'ppublish-help'}
-                          aria-invalid={windowError === 'invalidDate' ? true : undefined}
-                          onKeyDown={(e): void => {
-                            if (e.key === 'Enter') e.preventDefault();
-                          }}
-                          onChange={(e): void => {
-                            setPublishFrom(e.target.value);
-                            setWindowError(null);
-                          }}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="ppublish-until">{t('productEditor.field.publishUntil')}</Label>
-                        <Input
-                          id="ppublish-until"
-                          type="datetime-local"
-                          value={publishUntil}
-                          aria-describedby={windowError ? 'ppublish-help ppublish-error' : 'ppublish-help'}
-                          aria-invalid={windowError ? true : undefined}
-                          onKeyDown={(e): void => {
-                            if (e.key === 'Enter') e.preventDefault();
-                          }}
-                          onChange={(e): void => {
-                            setPublishUntil(e.target.value);
-                            setWindowError(null);
-                          }}
-                        />
-                      </div>
-                    </div>
-                    <p id="ppublish-help" className="b2b-help">
-                      {t('productEditor.field.publishWindow.help')}
-                    </p>
-                    {windowError ? (
-                      <p id="ppublish-error" role="alert" className="text-sm text-destructive" style={{ margin: 0 }}>
-                        {windowError === 'order'
-                          ? t('productEditor.scopeControls.window.invalidOrder')
-                          : t('productEditor.scopeControls.window.invalidDate')}
-                      </p>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                {/* Feature 023 — on existing products the
-                    ProductScopeEditor panel above is the sole editor for
-                    Name + Description. On NEW products the panel cannot
-                    render yet (it needs a productId), so we keep the
-                    per-locale inputs here as the create-time entry
-                    surface; switch them off as soon as the product
-                    exists. */}
-                {isNew ? (
-                  <>
-                    <hr className="b2b-hr" />
-                    <div>
-                      <div className="b2b-label">{t('productEditor.section.localizedContent')}</div>
-                      <p className="b2b-help" style={{ marginTop: 0, marginBottom: 12 }}>
-                        {t('productEditor.section.localizedContent.help')}
-                      </p>
-                      <div className="b2b-col" style={{ gap: 18 }}>
-                        {LOCALES.map((l) => (
-                          <div key={l} className="b2b-col" style={{ gap: 8 }}>
-                            <div>
-                              <Label htmlFor={`name-${l}`}>{t('productEditor.field.localizedName', { locale: l })}</Label>
-                              <Input
-                                id={`name-${l}`}
-                                value={name[l]}
-                                onChange={(e): void =>
-                                  setName((prev) => ({ ...prev, [l]: e.target.value }))
-                                }
-                              />
-                            </div>
-                            <div>
-                              <Label htmlFor={`desc-${l}`}>{t('productEditor.field.localizedDescription', { locale: l })}</Label>
-                              <textarea
-                                id={`desc-${l}`}
-                                rows={3}
-                                className="b2b-field"
-                                value={description[l]}
-                                onChange={(e): void =>
-                                  setDescription((prev) => ({ ...prev, [l]: e.target.value }))
-                                }
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                ) : null}
-
-                <hr className="b2b-hr" />
-
-                <div>
-                  <div className="b2b-label">
-                    {t('productEditor.section.categories')}
-                    {id ? (
-                      <AdminZone
-                        name="product.editor.field.after"
-                        props={{ productId: id, fieldPath: 'categories', languageCodes: null }}
-                      />
-                    ) : null}
-                  </div>
-                  <CategoryTreePicker
-                    categories={categories}
-                    selectedIds={categoryIds}
-                    onChange={setCategoryIds}
-                    loading={loading}
-                  />
-                  <p className="b2b-help">{t('productEditor.section.categories.help')}</p>
-                </div>
-              </div>
-            </form>
-          ) : null}
-
-          {activeTab === 'attributes' && id ? (
-            <ProductAttributesTab
-              productId={id}
-              attributeSetId={attributeSetId}
-              savedAttributeSetId={savedAttributeSetId}
-              values={attrValues}
-              onChange={handleAttrChange}
-            />
-          ) : null}
-
-          {activeTab === 'pricing' && id ? (
-            <div className="b2b-col" style={{ gap: 16 }}>
-              {/* Feature 091 / P4b — each connected PIM contributes one panel
-                  here, listing the prices its import could write on this
-                  product. A contributor with no binding over the product
-                  renders nothing, which is every product until one is bound. */}
-              <AdminZone name="product.editor.pricing.before" props={{ productId: id }} />
-              {/* Feature 091 / P7a — the end of the Pricing tab. Feature 160
-                  removed `price_lists`' linked-lists panel with the old model;
-                  P2's base-price zone contributes here. */}
-              <AdminZone name="product.editor.pricing.after" props={{ productId: id }} />
-            </div>
-          ) : null}
-
-          {activeTab === 'variants' && id ? <VariantsSection productId={id} /> : null}
-
-          {activeTab === 'composite' && id ? (
-            type === 'grouped' ? (
-              <GroupedItemsSection productId={id} />
-            ) : (
-              <BundleSlotsSection productId={id} />
-            )
-          ) : null}
-
-          {activeTab === 'media' && id ? (
-            <AdminZone
-              name="product.editor.field.after"
-              props={{ productId: id, fieldPath: 'gallery', languageCodes: null }}
-            />
-          ) : null}
-          {(activeTab === 'media' || galleryOpened) && id ? (
-            <div hidden={activeTab !== 'media'}>
-              <GallerySection ref={galleryRef} productId={id} onDirtyChange={setGalleryDirty} />
-            </div>
-          ) : null}
-
-          {activeTab === 'inventory' && id ? (
-            <div className="b2b-col" style={{ gap: 16 }}>
-              <ProductInventoryTab productId={id} />
-              {/* Feature 155 — returnable for every type; the minimum gates itself (D5). */}
-              <ProductOrderRulesCard productId={id} productType={type} />
-              {type === 'simple' || type === 'configurable' ? (
-                <PackagingUnitsEditor productId={id} canWrite={canWrite} />
-              ) : null}
-            </div>
-          ) : null}
-
-          {activeTab === 'attachments' && id ? (
-            <>
-              <AdminZone
-                name="product.editor.field.after"
-                props={{ productId: id, fieldPath: 'attachments', languageCodes: null }}
-              />
-              <AttachmentsSection productId={id} />
-            </>
-          ) : null}
-
-          {activeTab === 'links' && id ? <ProductLinksSection productId={id} /> : null}
-
-          {activeTab === 'channels' && id ? (
-            <AdminZone name="product.editor.channels" props={{ productId: id }} />
-          ) : null}
-
-          {activeTab === 'scopes' && id ? <ProductScopeOverview productId={id} /> : null}
-
-          {activeTab === 'seo' && id ? <ProductUrlKeysPanel productId={id} /> : null}
-          {activeTab === 'seo' && id ? (
-            // 170-shim: interim props until S3 mounts the SEO section at the editor scope (T125).
-            <AdminZone
-              name="product.editor.seo"
-              props={{
-                productId: id,
-                scope: { level: 'global' },
-                scopeLabel: '',
-                parentScopeLabel: null,
-                view: null,
-                staged: new Map(),
-                onStage: () => undefined,
-                readOnly: true,
-                errors: {},
-              }}
-            />
-          ) : null}
-        </div>
+        {archiveDialog !== null ? (
+          <ModalDialog
+            title={t(archiveDialog === 'archive' ? 'productEditor.archive.confirmTitle' : 'productEditor.restore.confirmTitle')}
+            onClose={(): void => setArchiveDialog(null)}
+            busy={archiving}
+            aria-describedby="product-archive-confirm-body"
+            footer={
+              <>
+                <Button type="button" variant="outline" disabled={archiving} onClick={(): void => setArchiveDialog(null)}>
+                  {t('productEditor.archive.cancel')}
+                </Button>
+                <Button type="button" disabled={archiving} aria-busy={archiving || undefined} onClick={(): void => void handleArchiveAction()}>
+                  {t(archiveDialog === 'archive' ? 'productEditor.archive.confirm' : 'productEditor.restore.confirm')}
+                </Button>
+              </>
+            }
+          >
+            <p id="product-archive-confirm-body" className="text-sm">
+              {t(archiveDialog === 'archive' ? 'productEditor.archive.confirmBody' : 'productEditor.restore.confirmBody')}
+            </p>
+            {archiveError ? (
+              <p role="alert" className="mt-3 text-sm text-destructive">
+                {archiveError}
+              </p>
+            ) : null}
+          </ModalDialog>
+        ) : null}
       </div>
-    </div>
+    </ProductEditorContextProvider>
   );
 }
 
-function pickName(name: Record<string, string>): string {
-  return name['en-US'] ?? Object.values(name)[0] ?? '';
-}
 
 // ---------------------------------------------------------------------------
 // Variants section (T054) — admin CRUD for ProductVariants under a
@@ -1172,8 +1473,9 @@ interface AdminVariant {
   updatedAt: string;
 }
 
-function VariantsSection({ productId }: { productId: string }): ReactNode {
+function VariantsSection({ productId, readOnly = false }: { productId: string; readOnly?: boolean }): ReactNode {
   const t = useTranslation('catalog');
+  const { ask, dialog: removalDialog } = useConfirmRemoval();
   const [variants, setVariants] = useState<AdminVariant[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1239,7 +1541,7 @@ function VariantsSection({ productId }: { productId: string }): ReactNode {
 
   const handleDelete = useCallback(
     async (variantId: string, sku: string): Promise<void> => {
-      if (!confirm(t('productEditor.variants.deleteConfirm', { sku }))) return;
+      if (!(await ask(t('productEditor.variants.deleteConfirm', { sku })))) return;
       try {
         await apiClient.delete<void>(
           `/api/v1/admin/catalog/products/${productId}/variants/${variantId}`,
@@ -1250,13 +1552,13 @@ function VariantsSection({ productId }: { productId: string }): ReactNode {
         setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.variants.error.delete'));
       }
     },
-    [productId, refresh, t],
+    [productId, refresh, ask, t],
   );
 
   return (
     <Card className="mt-4">
       <CardHeader>
-        <CardTitle>{t('productEditor.variants.title')}</CardTitle>
+        <CardTitle>{t('productEditor.variants.title')}{readOnly ? null : <ImmediateBadge />}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {error ? (
@@ -1281,7 +1583,7 @@ function VariantsSection({ productId }: { productId: string }): ReactNode {
                 <TableHead>{t('productEditor.variants.column.sku')}</TableHead>
                 <TableHead>{t('productEditor.variants.column.attributes')}</TableHead>
                 <TableHead>{t('productEditor.variants.column.stock')}</TableHead>
-                <TableHead className="w-[1%] whitespace-nowrap">{t('productEditor.variants.column.actions')}</TableHead>
+                {readOnly ? null : <TableHead className="w-[1%] whitespace-nowrap">{t('productEditor.variants.column.actions')}</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1294,24 +1596,28 @@ function VariantsSection({ productId }: { productId: string }): ReactNode {
                       .join(', ') || '—'}
                   </TableCell>
                   <TableCell>{v.stockLevel ?? '—'}</TableCell>
-                  <TableCell>
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => void handleDelete(v.id, v.sku)}
-                    >
-                      {t('productEditor.variants.action.delete')}
-                    </Button>
-                  </TableCell>
+                  {readOnly ? null : (
+                    <TableCell>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        className="max-lg:min-h-11"
+                        onClick={() => void handleDelete(v.id, v.sku)}
+                      >
+                        {t('productEditor.variants.action.delete')}
+                      </Button>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         )}
 
-        <CreateVariantInline onCreate={handleCreate} />
+        {readOnly ? null : <CreateVariantInline onCreate={handleCreate} />}
       </CardContent>
+      {removalDialog}
     </Card>
   );
 }
@@ -1401,21 +1707,19 @@ interface AdminProductSummary {
   slug: string;
   status: 'active' | 'inactive';
   archivedAt?: string | null;
-  name: Record<string, string>;
+  /** Feature 173 — the Global name, one string (`contracts/readers.md` §2). */
+  name: string;
 }
 
-function pickProductName(
-  name: Record<string, string> | undefined | null,
-  fallback: string,
-): string {
-  if (!name) return fallback;
-  return name['en-US'] ?? Object.values(name)[0] ?? fallback;
+function pickProductName(name: string | undefined | null, fallback: string): string {
+  return typeof name === 'string' && name !== '' ? name : fallback;
 }
 
 const TARGETS_BATCH_PAGE_SIZE = 200;
 
-function ProductLinksSection({ productId }: { productId: string }): ReactNode {
+function ProductLinksSection({ productId, readOnly = false }: { productId: string; readOnly?: boolean }): ReactNode {
   const t = useTranslation('catalog');
+  const { ask, dialog: removalDialog } = useConfirmRemoval();
   const [links, setLinks] = useState<AdminProductLink[]>([]);
   const [targetsById, setTargetsById] = useState<Map<string, AdminProductSummary>>(
     () => new Map(),
@@ -1487,7 +1791,7 @@ function ProductLinksSection({ productId }: { productId: string }): ReactNode {
 
   const handleDelete = useCallback(
     async (linkId: string): Promise<void> => {
-      if (!confirm(t('productEditor.links.removeConfirm'))) return;
+      if (!(await ask(t('productEditor.links.removeConfirm')))) return;
       try {
         await apiClient.delete(`/api/v1/admin/catalog/products/${productId}/links/${linkId}`);
         setInfo(t('productEditor.links.success.remove'));
@@ -1496,7 +1800,7 @@ function ProductLinksSection({ productId }: { productId: string }): ReactNode {
         setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.links.error.delete'));
       }
     },
-    [productId, refresh, t],
+    [productId, refresh, ask, t],
   );
 
   const byKind = useMemo(() => {
@@ -1515,7 +1819,7 @@ function ProductLinksSection({ productId }: { productId: string }): ReactNode {
   return (
     <Card className="mt-4">
       <CardHeader>
-        <CardTitle>{t('productEditor.links.title')}</CardTitle>
+        <CardTitle>{t('productEditor.links.title')}{readOnly ? null : <ImmediateBadge />}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {error ? (
@@ -1547,7 +1851,7 @@ function ProductLinksSection({ productId }: { productId: string }): ReactNode {
                         <TableHead>{t('productEditor.links.column.target')}</TableHead>
                         <TableHead>{t('productEditor.links.column.sku')}</TableHead>
                         <TableHead>{t('productEditor.links.column.position')}</TableHead>
-                        <TableHead className="w-[1%] whitespace-nowrap">{t('productEditor.links.column.actions')}</TableHead>
+                        {readOnly ? null : <TableHead className="w-[1%] whitespace-nowrap">{t('productEditor.links.column.actions')}</TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1591,16 +1895,19 @@ function ProductLinksSection({ productId }: { productId: string }): ReactNode {
                               {target?.sku ?? '—'}
                             </TableCell>
                             <TableCell>{link.position}</TableCell>
-                            <TableCell>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => void handleDelete(link.id)}
-                              >
-                                {t('productEditor.links.action.remove')}
-                              </Button>
-                            </TableCell>
+                            {readOnly ? null : (
+                              <TableCell>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  className="max-lg:min-h-11"
+                                  variant="destructive"
+                                  onClick={() => void handleDelete(link.id)}
+                                >
+                                  {t('productEditor.links.action.remove')}
+                                </Button>
+                              </TableCell>
+                            )}
                           </TableRow>
                         );
                       })}
@@ -1612,8 +1919,9 @@ function ProductLinksSection({ productId }: { productId: string }): ReactNode {
           </div>
         )}
 
-        <CreateProductLinkInline onCreate={handleCreate} sourceProductId={productId} />
+        {readOnly ? null : <CreateProductLinkInline onCreate={handleCreate} sourceProductId={productId} />}
       </CardContent>
+      {removalDialog}
     </Card>
   );
 }
@@ -1690,8 +1998,9 @@ interface AdminGroupedItem {
   position: number;
 }
 
-function GroupedItemsSection({ productId }: { productId: string }): ReactNode {
+function GroupedItemsSection({ productId, readOnly = false }: { productId: string; readOnly?: boolean }): ReactNode {
   const t = useTranslation('catalog');
+  const { ask, dialog: removalDialog } = useConfirmRemoval();
   const [items, setItems] = useState<AdminGroupedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1739,7 +2048,7 @@ function GroupedItemsSection({ productId }: { productId: string }): ReactNode {
 
   const handleDelete = useCallback(
     async (itemId: string): Promise<void> => {
-      if (!confirm(t('productEditor.grouped.removeConfirm'))) return;
+      if (!(await ask(t('productEditor.grouped.removeConfirm')))) return;
       try {
         await apiClient.delete(
           `/api/v1/admin/catalog/products/${productId}/grouped-items/${itemId}`,
@@ -1750,13 +2059,13 @@ function GroupedItemsSection({ productId }: { productId: string }): ReactNode {
         setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.grouped.error.delete'));
       }
     },
-    [productId, refresh, t],
+    [productId, refresh, ask, t],
   );
 
   return (
     <Card className="mt-4">
       <CardHeader>
-        <CardTitle>{t('productEditor.grouped.title')}</CardTitle>
+        <CardTitle>{t('productEditor.grouped.title')}{readOnly ? null : <ImmediateBadge />}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {error ? (
@@ -1781,7 +2090,7 @@ function GroupedItemsSection({ productId }: { productId: string }): ReactNode {
                 <TableHead>{t('productEditor.grouped.column.child')}</TableHead>
                 <TableHead>{t('productEditor.grouped.column.quantity')}</TableHead>
                 <TableHead>{t('productEditor.grouped.column.position')}</TableHead>
-                <TableHead className="w-[1%] whitespace-nowrap">{t('productEditor.grouped.column.actions')}</TableHead>
+                {readOnly ? null : <TableHead className="w-[1%] whitespace-nowrap">{t('productEditor.grouped.column.actions')}</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1790,24 +2099,28 @@ function GroupedItemsSection({ productId }: { productId: string }): ReactNode {
                   <TableCell className="font-mono text-xs">{item.childProductId}</TableCell>
                   <TableCell>{item.quantity}</TableCell>
                   <TableCell>{item.position}</TableCell>
-                  <TableCell>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => void handleDelete(item.id)}
-                    >
-                      {t('productEditor.grouped.action.remove')}
-                    </Button>
-                  </TableCell>
+                  {readOnly ? null : (
+                    <TableCell>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="max-lg:min-h-11"
+                        variant="destructive"
+                        onClick={() => void handleDelete(item.id)}
+                      >
+                        {t('productEditor.grouped.action.remove')}
+                      </Button>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         )}
 
-        <CreateGroupedItemInline onCreate={handleCreate} />
+        {readOnly ? null : <CreateGroupedItemInline onCreate={handleCreate} />}
       </CardContent>
+      {removalDialog}
     </Card>
   );
 }
@@ -1887,8 +2200,9 @@ interface AdminBundleSlot {
   }>;
 }
 
-function BundleSlotsSection({ productId }: { productId: string }): ReactNode {
+function BundleSlotsSection({ productId, readOnly = false }: { productId: string; readOnly?: boolean }): ReactNode {
   const t = useTranslation('catalog');
+  const { ask, dialog: removalDialog } = useConfirmRemoval();
   const [slots, setSlots] = useState<AdminBundleSlot[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1941,7 +2255,7 @@ function BundleSlotsSection({ productId }: { productId: string }): ReactNode {
 
   const handleDeleteSlot = useCallback(
     async (slotId: string): Promise<void> => {
-      if (!confirm(t('productEditor.bundle.removeSlotConfirm'))) return;
+      if (!(await ask(t('productEditor.bundle.removeSlotConfirm')))) return;
       try {
         await apiClient.delete(
           `/api/v1/admin/catalog/products/${productId}/bundle-slots/${slotId}`,
@@ -1952,7 +2266,7 @@ function BundleSlotsSection({ productId }: { productId: string }): ReactNode {
         setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.bundle.error.deleteSlot'));
       }
     },
-    [productId, refresh, t],
+    [productId, refresh, ask, t],
   );
 
   const handleAddOption = useCallback(
@@ -1974,7 +2288,7 @@ function BundleSlotsSection({ productId }: { productId: string }): ReactNode {
 
   const handleRemoveOption = useCallback(
     async (slotId: string, optionId: string): Promise<void> => {
-      if (!confirm(t('productEditor.bundle.removeOptionConfirm'))) return;
+      if (!(await ask(t('productEditor.bundle.removeOptionConfirm')))) return;
       try {
         await apiClient.delete(
           `/api/v1/admin/catalog/products/${productId}/bundle-slots/${slotId}/options/${optionId}`,
@@ -1985,13 +2299,13 @@ function BundleSlotsSection({ productId }: { productId: string }): ReactNode {
         setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.bundle.error.deleteOption'));
       }
     },
-    [productId, refresh, t],
+    [productId, refresh, ask, t],
   );
 
   return (
     <Card className="mt-4">
       <CardHeader>
-        <CardTitle>{t('productEditor.bundle.title')}</CardTitle>
+        <CardTitle>{t('productEditor.bundle.title')}{readOnly ? null : <ImmediateBadge />}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {error ? (
@@ -2018,13 +2332,15 @@ function BundleSlotsSection({ productId }: { productId: string }): ReactNode {
                 onAddOption={handleAddOption}
                 onRemoveOption={handleRemoveOption}
                 onDeleteSlot={handleDeleteSlot}
+                readOnly={readOnly}
               />
             ))}
           </div>
         )}
 
-        <CreateBundleSlotInline onCreate={handleCreateSlot} />
+        {readOnly ? null : <CreateBundleSlotInline onCreate={handleCreateSlot} />}
       </CardContent>
+      {removalDialog}
     </Card>
   );
 }
@@ -2034,7 +2350,9 @@ function BundleSlotCard({
   onAddOption,
   onRemoveOption,
   onDeleteSlot,
+  readOnly = false,
 }: {
+  readOnly?: boolean;
   slot: AdminBundleSlot;
   onAddOption: (slotId: string, optionProductId: string) => Promise<void>;
   onRemoveOption: (slotId: string, optionId: string) => Promise<void>;
@@ -2056,14 +2374,17 @@ function BundleSlotCard({
             })}
           </span>
         </h3>
-        <Button
-          type="button"
-          size="sm"
-          variant="destructive"
-          onClick={() => void onDeleteSlot(slot.id)}
-        >
-          {t('productEditor.bundle.action.deleteSlot')}
-        </Button>
+        {readOnly ? null : (
+          <Button
+            type="button"
+            size="sm"
+            className="max-lg:min-h-11"
+            variant="destructive"
+            onClick={() => void onDeleteSlot(slot.id)}
+          >
+            {t('productEditor.bundle.action.deleteSlot')}
+          </Button>
+        )}
       </div>
       <div className="mt-2">
         {slot.options.length === 0 ? (
@@ -2075,7 +2396,7 @@ function BundleSlotCard({
                 <TableHead>{t('productEditor.bundle.column.optionProductId')}</TableHead>
                 <TableHead>{t('productEditor.bundle.column.defaultQuantity')}</TableHead>
                 <TableHead>{t('productEditor.bundle.column.position')}</TableHead>
-                <TableHead className="w-[1%] whitespace-nowrap">{t('productEditor.bundle.column.actions')}</TableHead>
+                {readOnly ? null : <TableHead className="w-[1%] whitespace-nowrap">{t('productEditor.bundle.column.actions')}</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -2084,43 +2405,48 @@ function BundleSlotCard({
                   <TableCell className="font-mono text-xs">{opt.optionProductId}</TableCell>
                   <TableCell>{opt.defaultQuantity}</TableCell>
                   <TableCell>{opt.position}</TableCell>
-                  <TableCell>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => void onRemoveOption(slot.id, opt.id)}
-                    >
-                      {t('productEditor.bundle.action.removeOption')}
-                    </Button>
-                  </TableCell>
+                  {readOnly ? null : (
+                    <TableCell>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="max-lg:min-h-11"
+                        variant="destructive"
+                        onClick={() => void onRemoveOption(slot.id, opt.id)}
+                      >
+                        {t('productEditor.bundle.action.removeOption')}
+                      </Button>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         )}
       </div>
+      {readOnly ? null : (
       <div className="mt-3 flex items-end gap-2">
-        <div className="flex-1 space-y-1">
-          <Label htmlFor={`opt-${slot.id}`}>{t('productEditor.bundle.column.optionProductId')}</Label>
-          <ProductPicker
-            id={`opt-${slot.id}`}
-            mode="select"
-            value={optionId || null}
-            onChange={(v): void => setOptionId(v ?? '')}
-          />
+          <div className="flex-1 space-y-1">
+            <Label htmlFor={`opt-${slot.id}`}>{t('productEditor.bundle.column.optionProductId')}</Label>
+            <ProductPicker
+              id={`opt-${slot.id}`}
+              mode="select"
+              value={optionId || null}
+              onChange={(v): void => setOptionId(v ?? '')}
+            />
+          </div>
+          <Button
+            type="button"
+            onClick={() => {
+              void onAddOption(slot.id, optionId).then(() => {
+                setOptionId('');
+              });
+            }}
+          >
+            {t('productEditor.bundle.action.addOption')}
+          </Button>
         </div>
-        <Button
-          type="button"
-          onClick={() => {
-            void onAddOption(slot.id, optionId).then(() => {
-              setOptionId('');
-            });
-          }}
-        >
-          {t('productEditor.bundle.action.addOption')}
-        </Button>
-      </div>
+      )}
     </div>
   );
 }

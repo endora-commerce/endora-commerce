@@ -109,60 +109,16 @@ function scan(file: string, source: string): Site[] {
  */
 const ALLOWLIST: ReadonlyArray<{ file: string; reason: string }> = [
   {
-    file: 'packages/modules/catalog/src/admin/components/AttachmentScopesDialog.tsx',
-    reason: 'S3 — catalog admin editor, removed in US5 after the prototype gate (T143)',
-  },
-  {
-    file: 'packages/modules/catalog/src/admin/components/PackagingUnitsEditor.tsx',
-    reason: 'S3 — catalog admin editor, removed in US5 after the prototype gate (T143)',
-  },
-  {
-    file: 'packages/modules/catalog/src/admin/components/ProductAttachmentsSection.tsx',
-    reason: 'S3 — catalog admin editor, removed in US5 after the prototype gate (T143)',
-  },
-  {
-    file: 'packages/modules/catalog/src/admin/components/ProductAttributesTab.tsx',
-    reason: 'S3 — catalog admin editor, removed in US5 after the prototype gate (T143)',
-  },
-  {
-    file: 'packages/modules/catalog/src/admin/components/ProductGallerySection.tsx',
-    reason: 'S3 — catalog admin editor, removed in US5 after the prototype gate (T143)',
-  },
-  {
-    file: 'packages/modules/catalog/src/admin/components/ProductScopeEditor.tsx',
-    reason: 'S3 — catalog admin editor, removed in US5 after the prototype gate (T143)',
-  },
-  {
     file: 'packages/modules/catalog/src/admin/components/ProductScopeOverview.tsx',
-    reason: 'S3 — catalog admin editor, removed in US5 after the prototype gate (T143)',
-  },
-  {
-    file: 'packages/modules/catalog/src/admin/components/ProductUrlKeysPanel.tsx',
-    reason: 'S3 — catalog admin editor, removed in US5 after the prototype gate (T143)',
+    reason: 'S3 — catalog admin, removed by T127 / T132 (US12)',
   },
   {
     file: 'packages/modules/catalog/src/admin/lib/attribute-scope.ts',
-    reason: 'S3 — catalog admin editor, removed in US5 after the prototype gate (T143)',
-  },
-  {
-    file: 'packages/modules/catalog/src/admin/lib/media-scopes.ts',
-    reason: 'S3 — catalog admin editor, removed in US5 after the prototype gate (T143)',
-  },
-  {
-    file: 'packages/modules/catalog/src/admin/lib/product-url-keys-api.ts',
-    reason: 'S3 — catalog admin editor, removed in US5 after the prototype gate (T143)',
-  },
-  {
-    file: 'packages/modules/catalog/src/admin/lib/scope-overview.ts',
-    reason: 'S3 — catalog admin editor, removed in US5 after the prototype gate (T143)',
+    reason: 'S3 — catalog admin, removed by T113 (US9)',
   },
   {
     file: 'packages/modules/catalog/src/admin/pages/AttributesManager.tsx',
-    reason: 'S3 — catalog admin editor, removed in US5 after the prototype gate (T143)',
-  },
-  {
-    file: 'packages/modules/catalog/src/admin/pages/ProductEditor.tsx',
-    reason: 'S3 — catalog admin editor, removed in US5 after the prototype gate (T143)',
+    reason: 'S3 — catalog admin, removed by T113 (US9)',
   },
   {
     file: 'packages/modules/catalog/src/admin/pages/AttachmentTypesPage.tsx',

@@ -8,6 +8,7 @@ import {
   modulePresence,
   renderWithSession,
 } from '../../helpers/render-with-session';
+import { scopedValuesResponse } from '../../helpers/scoped-values-fixtures';
 
 /**
  * The product editor's Channels tab is a zone, and its **button** is counted
@@ -61,10 +62,6 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
     },
   };
 });
-
-vi.mock('../../../../packages/modules/catalog/src/admin/components/ProductScopeEditor', () => ({
-  ProductScopeEditor: vi.fn(() => null),
-}));
 
 const { ProductEditor } = await import('../../../../packages/modules/catalog/src/admin/pages/ProductEditor');
 
@@ -139,6 +136,8 @@ describe('ProductEditor — the Channels tab is counted, not named', () => {
   beforeEach(() => {
     getSpy.mockReset();
     getSpy.mockImplementation((path: string) => {
+      if (path.includes('/scoped-values')) return Promise.resolve(scopedValuesResponse({ product: { ...scopedValuesResponse().data.product, sku: MOCK_PRODUCT.sku, attributeSetId: MOCK_PRODUCT.attributeSetId } }));
+      if (path.endsWith('/editor-preference')) return Promise.resolve({ data: null });
       if (path.includes('/attribute-sets')) {
         return Promise.resolve({
           data: [
