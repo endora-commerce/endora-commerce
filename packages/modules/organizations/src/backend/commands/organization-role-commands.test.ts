@@ -114,8 +114,14 @@ class MemoryRoleStore implements OrganizationRoleStore {
   async remove(row: OrganizationRoleRow) {
     this.rows.delete(row.id);
   }
-  async holders(_organizationId: string, roleId: string) {
-    return { members: 0, invitations: this.invitations.get(roleId) ?? 0 };
+  async countInvitations(_organizationId: string, roleId: string) {
+    return this.invitations.get(roleId) ?? 0;
+  }
+  async moveInvitations(_organizationId: string, fromRoleId: string, to: OrganizationRoleRow) {
+    const count = this.invitations.get(fromRoleId) ?? 0;
+    this.invitations.delete(fromRoleId);
+    this.invitations.set(to.id, (this.invitations.get(to.id) ?? 0) + count);
+    return Array.from({ length: count }, (_, i) => `invitation-${i + 1}`);
   }
 }
 
@@ -125,13 +131,30 @@ function setup(present = new Set(['carts', 'quick_order', 'orders'])) {
     manifests: () => MANIFESTS,
     isModulePresent: (moduleId) => present.has(moduleId),
   });
-  const deps = { catalogue, store: () => store, reservedNames: RESERVED };
+  /** `customer_accounts`' role Command port: the holders it reports, and the children it builds. */
+  const holders = new Map<string, string[]>();
+  const accounts = {
+    holdersOf: async (_organizationId: string, roleId: string) => holders.get(roleId) ?? [],
+    changeRole: (input: { organizationId: string; customerAccountId: string; roleId: string }) => ({
+      action: 'customer_account.change_role',
+      objectType: 'organization',
+      objectId: input.organizationId,
+      run: async () => ({ result: { ...input, fromRoleId: 'held', toRoleId: input.roleId } }),
+    }),
+  };
+  const deps = { catalogue, store: () => store, reservedNames: RESERVED, accounts };
+  const children: Array<{ action: string; objectId: string; input?: unknown }> = [];
   const ctx: CommandContext = {
     em: {} as EntityManager,
     actor: { actorAdminUserId: null, impersonatedCustomerAccountId: null, actorCustomerAccountId: 'acct', kind: 'customer' },
+    run: async <TChild>(child: Command<TChild>): Promise<TChild> => {
+      const outcome = await child.run(ctx);
+      children.push({ action: child.action, objectId: child.objectId, input: outcome.result });
+      return outcome.result;
+    },
   };
   const run = <T>(command: Command<T>): Promise<CommandOutcome<T>> => command.run(ctx);
-  return { store, deps, run, present };
+  return { store, deps, run, present, holders, children };
 }
 
 async function refusal(promise: Promise<unknown>): Promise<{ statusCode: number; code: string; details?: unknown }> {
@@ -399,24 +422,47 @@ describe('organization_role.delete', () => {
     expect(outcome.after).toEqual({ deletedRoleId: role.id, replacementRoleId: null, reassignedInvitations: [] });
   });
 
-  it('refuses a held role — with or without a replacement until the reassignment children exist (WP-02b)', async () => {
-    const { deps, run, store } = setup();
-    const role = store.seed({ organizationId: ORG, kind: 'custom', name: 'Buyers', nameNormalized: 'buyers' });
-    store.invitations.set(role.id, 1);
-    for (const replacementRoleId of [undefined, store.roleOf(ORG, 'member').id]) {
-      const error = await refusal(
-        run(
-          makeDeleteOrganizationRoleCommand(deps, {
-            organizationId: ORG,
-            roleId: role.id,
-            expectedVersion: 1,
-            ...(replacementRoleId ? { replacementRoleId } : {}),
-          }),
-        ),
-      );
+  it('refuses a held role without a replacement (FR-024)', async () => {
+    const { deps, run, store, holders } = setup();
+    const byInvitation = store.seed({ organizationId: ORG, kind: 'custom', name: 'Buyers', nameNormalized: 'buyers' });
+    store.invitations.set(byInvitation.id, 1);
+    const byMember = store.seed({ organizationId: ORG, kind: 'custom', name: 'Sellers', nameNormalized: 'sellers' });
+    holders.set(byMember.id, ['account-1']);
+    for (const role of [byInvitation, byMember]) {
+      const error = await refusal(run(makeDeleteOrganizationRoleCommand(deps, { organizationId: ORG, roleId: role.id, expectedVersion: 1 })));
       expect(error).toMatchObject({ statusCode: 422, code: ERROR_CODES.ORGANIZATION_ROLE_REPLACEMENT_REQUIRED });
+      expect(store.rows.has(role.id)).toBe(true);
     }
-    expect(store.rows.has(role.id)).toBe(true);
+  });
+
+  it('moves every holder to the replacement — one change_role child per account, the invitations with them (R-22, FR-065)', async () => {
+    const { deps, run, store, holders, children } = setup();
+    const role = store.seed({ organizationId: ORG, kind: 'custom', name: 'Buyers', nameNormalized: 'buyers' });
+    const member = store.roleOf(ORG, 'member');
+    holders.set(role.id, ['account-1', 'account-2', 'account-3']);
+    store.invitations.set(role.id, 2);
+    const outcome = await run(
+      makeDeleteOrganizationRoleCommand(deps, { organizationId: ORG, roleId: role.id, expectedVersion: 1, replacementRoleId: member.id }),
+    );
+    expect(outcome.result).toEqual({ reassignedMembers: 3, reassignedInvitations: 2 });
+    expect(children.map((c) => [c.action, c.objectId])).toEqual([
+      ['customer_account.change_role', ORG],
+      ['customer_account.change_role', ORG],
+      ['customer_account.change_role', ORG],
+    ]);
+    expect(children.map((c) => (c.input as { customerAccountId: string; toRoleId: string }).customerAccountId)).toEqual([
+      'account-1',
+      'account-2',
+      'account-3',
+    ]);
+    expect(store.rows.has(role.id)).toBe(false);
+    expect(store.invitations.get(member.id)).toBe(2);
+    expect(outcome.before).toMatchObject({ memberCount: 3, invitationCount: 2 });
+    expect(outcome.after).toEqual({
+      deletedRoleId: role.id,
+      replacementRoleId: member.id,
+      reassignedInvitations: ['invitation-1', 'invitation-2'],
+    });
   });
 
   it('refuses a replacement equal to the deleted role, and one of another Organization', async () => {
