@@ -123,6 +123,15 @@ w tym kanale nie zostanie zamówiony (ani zamieniony na zapytanie ofertowe); w p
 także dla koszyka anonimowego, ma wartość `null`. Pozycje odrzuconego koszyka nie są kopiowane do
 nowego.
 
+Składanie zamówienia egzekwuje akceptację: koszyk członka, który nie jest `approved` — nigdy
+nieprzekazany, czekający na administratora albo odrzucony — zostaje odrzucony przy składaniu
+zamówienia z kodem `409 ORDER_CART_APPROVAL_REQUIRED`, zanim cokolwiek zostanie zarezerwowane lub
+zapisane; koszyk pozostaje bez zmian. Reguła jest ta sama, którą stosuje przekazanie do akceptacji:
+organizacja wymaga akceptacji koszyków, a właściciel koszyka nie jest jej administratorem. Obowiązuje
+niezależnie od tego, co pokazuje storefront — zarówno dla `POST /api/v1/orders`, jak i dla strony
+kasy. Strona modułu zamówień, w części *Akceptacja koszyka przy składaniu zamówienia*, wymienia
+komunikaty.
+
 ### E-maile o akceptacji
 
 Każdy krok akceptacji wysyła e-mail, gdy krok zostanie już zapisany:

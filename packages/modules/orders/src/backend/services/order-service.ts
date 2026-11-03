@@ -167,6 +167,7 @@ import type {
   AddressReadPort,
   CartReadPort,
   CatalogProductAvailabilityPort,
+  CartApprovalStatus,
   CatalogProductReadPort,
   CustomerAccountReadPort,
   DeliveryMethodReadPort,
@@ -432,6 +433,25 @@ function quoteCommitmentEnded(reason: QuoteCommitmentRefusal): HttpError {
         ? 'The quote these prices were agreed on is no longer in force; ask for a new quote before ordering.'
         : 'Prices agreed on a quote cannot be confirmed at the moment; remove the quoted items to order at current prices.',
     { code: reason },
+  );
+}
+
+/**
+ * Issue #648 — the refusal of a basket that awaits its Organization's approval,
+ * with a token per approval state, so the buyer is told what to do next.
+ */
+function cartApprovalRequired(cart: { id: string; approvalStatus: CartApprovalStatus }): HttpError {
+  const token =
+    cart.approvalStatus === 'pending'
+      ? 'cart_approval_pending'
+      : cart.approvalStatus === 'rejected_by_org_admin'
+        ? 'cart_approval_rejected'
+        : 'cart_approval_not_submitted';
+  return new HttpError(
+    409,
+    ERROR_CODES.ORDER_CART_APPROVAL_REQUIRED,
+    'This basket must be approved by your organization before the order can be placed.',
+    { code: token, cartId: cart.id, approvalStatus: cart.approvalStatus },
   );
 }
 
@@ -1812,6 +1832,20 @@ export class OrderService {
           'The basket belongs to a different sales channel than this order.',
           { cartSalesChannelId: cart.salesChannelId, requestSalesChannelId: orderChannel.id },
         );
+      }
+
+      // Issue #648 — a basket its Organization's cart-approval policy applies to
+      // is ordered only once approved. `carts` judges it (the policy, the
+      // self-approval exemption of the Organization administrator, the basket's
+      // approval state); a refusal lands here, before anything is reserved or
+      // written, so the basket survives as it was. A working basket is exempt:
+      // its lines are an administrator's, an API client's or a one-click buy's,
+      // never the member's basket the approval was asked for.
+      if (
+        !workingBasketId &&
+        (await this.neighbours.cartPlacementApply.awaitsApproval({ cart, organizationId: ctx.organizationId }))
+      ) {
+        throw cartApprovalRequired(cart);
       }
 
       // Feature 155 (FR-008, FR-036, FR-037; research R19; threats F2, F3) —

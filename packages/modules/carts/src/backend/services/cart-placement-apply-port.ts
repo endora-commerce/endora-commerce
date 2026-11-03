@@ -2,6 +2,7 @@ import { unitPriceHalfUp } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   CartCustomerContext,
+  CartRecord,
   CartWithItems,
   CatalogProductReadPort,
 } from '@endora-commerce/contracts';
@@ -11,6 +12,7 @@ import type { CartLinePriceDrift, CartPlacementApplyPort } from '../../ports/ind
 import { toCartItemRecord, toCartRecord } from './cart-read-port.js';
 import { agreementOf, storedPriceDiffers, type CartLinePricing } from './cart-line-pricing.js';
 import { discardWorkingBasketOn } from './working-basket.js';
+import { basketAwaitsApproval, type CartApprovalPolicyReads } from './cart-approval-policy.js';
 
 /**
  * `cartPlacementApplyPort` — the basket half of order placement, run on the
@@ -45,7 +47,16 @@ export class CartPlacementApplyService implements CartPlacementApplyPort {
     /** The same pricing chain `CartService` stores a line's price from. */
     private readonly linePricing: CartLinePricing,
     private readonly catalogProducts: CatalogProductReadPort,
+    /** Issue #648 — the reads the cart-approval policy is judged from. */
+    private readonly approvalPolicy: CartApprovalPolicyReads,
   ) {}
+
+  awaitsApproval(input: {
+    cart: Pick<CartRecord, 'customerAccountId' | 'approvalStatus'>;
+    organizationId: string;
+  }): Promise<boolean> {
+    return basketAwaitsApproval(this.approvalPolicy, input);
+  }
 
   async readActiveForPlacement(
     em: EntityManager,

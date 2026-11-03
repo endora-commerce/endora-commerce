@@ -33,7 +33,7 @@
  * No entity class leaves by this door, type-only included (D-168).
  */
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CartCustomerContext, CartWithItems } from '@endora-commerce/contracts';
+import type { CartCustomerContext, CartRecord, CartWithItems } from '@endora-commerce/contracts';
 
 /**
  * Container name: `cartPlacementApplyPort`. Owner: `carts`.
@@ -156,6 +156,19 @@ export interface CartPlacementApplyPort {
    * with no orderable price keeps what it holds.
    */
   refreshLinePrices(input: { cartId: string; organizationId: string | null }): Promise<void>;
+  /**
+   * Issue #648 — whether the basket still awaits its Organization's approval,
+   * so it may not be ordered yet: `organizationId` requires cart approval, the
+   * basket's owner is not that Organization's administrator (the self-approval
+   * exemption) and the basket is not `approved`. The rule
+   * `POST /api/v1/cart/submit-for-approval` applies, read for placement, which
+   * asks it about the basket {@link readActiveForPlacement} returned before
+   * anything is reserved or written.
+   */
+  awaitsApproval(input: {
+    cart: Pick<CartRecord, 'customerAccountId' | 'approvalStatus'>;
+    organizationId: string;
+  }): Promise<boolean>;
 }
 
 /** One line {@link CartPlacementApplyPort.findPriceDrift} reports. */

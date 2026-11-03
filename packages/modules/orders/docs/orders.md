@@ -106,6 +106,26 @@ payment and shipping adapters' validators are given that channel id too, where
 they were given none. An instance that set the minimum platform-wide, or not at
 all, sees no change.
 
+## Cart approval at placement
+
+In an Organization that requires cart approval, a member's basket is ordered only
+once the Organization administrator has approved it. Placement asks the Carts
+module before anything is reserved or written, and refuses a basket the policy
+applies to that is not `approved` with `409 ORDER_CART_APPROVAL_REQUIRED`;
+`details` carries `cartId`, `approvalStatus` and a `code` naming the state:
+
+| `details.code` | Basket | Sentence (English) |
+| --- | --- | --- |
+| `cart_approval_not_submitted` | never sent for approval | *"Your organization requires baskets to be approved before ordering. Send this basket for approval first."* |
+| `cart_approval_pending` | awaiting the administrator | *"This basket is awaiting approval by your organization administrator. You can place the order once it is approved."* |
+| `cart_approval_rejected` | rejected | *"Your organization administrator rejected this basket, so it cannot be ordered."* |
+
+The basket is kept as it was. Unaffected: the Organization administrator's own
+basket (they need no approval), every basket of an Organization that does not
+require approval, and orders placed from a working basket — admin order
+creation, one-click buy and the external order API — which do not place the
+member's basket.
+
 ## Method allow-lists at placement
 
 An Organization can be restricted to a subset of delivery and payment methods

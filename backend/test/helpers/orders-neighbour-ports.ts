@@ -171,6 +171,11 @@ export function orderServiceNeighbours(
         base.organizationDetails,
       ),
       base.catalogProductRead,
+      // Issue #648 — the reads the cart-approval gate is judged from.
+      {
+        organizations: base.organizationDetails,
+        customerAccounts: new CustomerAccountReadService(emFactory, twoFactorEnrolmentsFor(emFactory, 'customer')),
+      },
     ),
     cartRead: new CartReadService(emFactory),
     // An accessor, because `invoices` is switchable. A rig that wants the
