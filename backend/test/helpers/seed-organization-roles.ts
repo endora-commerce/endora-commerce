@@ -52,8 +52,9 @@ export async function seedCustomOrganizationRole(
        ("id","organization_id","kind","name","name_normalized","description","permissions","created_at","updated_at")
      values (?, ?, 'custom', ?, lower(btrim(?)), ?, ?::text[], now(), now())`,
     // A Postgres array literal, not a JS array: the driver expands an array
-    // binding into a comma list, which `?::text[]` then refuses as a
-    // malformed literal. Codes are `[a-z0-9_.]`, so nothing needs quoting.
+    // binding into a list of scalars, which `?::text[]` refuses
+    // ("malformed array literal"). Codes are `<module>.<action>` in lower
+    // snake case, so they need no quoting inside the literal.
     [id, input.organizationId, name, name, input.description ?? null, `{${[...input.permissions].sort().join(',')}}`],
   );
   return id;
