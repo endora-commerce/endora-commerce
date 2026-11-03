@@ -1,4 +1,9 @@
 {
+  "module.name": "Listy zakupowe",
   "errors.SHOPPING_LIST_CANNOT_DELETE_DEFAULT": "Domyślna lista zakupowa to ta, na której zapisują się nowe produkty, dlatego nie można jej usunąć. Opróżnij ją, jeśli nie potrzebujesz już jej zawartości, albo najpierw ustaw jako domyślną inną listę — wtedy tę będzie można usunąć.",
-  "errors.SHOPPING_LIST_CANNOT_DELETE_LAST": "To Twoja jedyna lista zakupowa, a na koncie zawsze musi pozostać co najmniej jedna. Najpierw utwórz kolejną listę, a potem tę będzie można usunąć."
+  "errors.SHOPPING_LIST_CANNOT_DELETE_LAST": "To Twoja jedyna lista zakupowa, a na koncie zawsze musi pozostać co najmniej jedna. Najpierw utwórz kolejną listę, a potem tę będzie można usunąć.",
+  "organizationPermissions.shopping_lists.create.label": "Tworzenie i edycja list zakupowych",
+  "organizationPermissions.shopping_lists.create.description": "Tworzenie, zmiana nazwy i usuwanie list zakupowych, dodawanie, zmiana i usuwanie ich pozycji, wybór listy domyślnej oraz zapisywanie pozycji koszyka na liście.",
+  "organizationPermissions.shopping_lists.convert.label": "Zamiana list zakupowych na zapytania ofertowe i koszyki",
+  "organizationPermissions.shopping_lists.convert.description": "Przenoszenie listy zakupowej lub wybranych jej pozycji do koszyka albo do zapytania ofertowego; wymaga też uprawnienia do utworzenia tego koszyka lub zapytania."
 }

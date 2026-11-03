@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type { OrganizationPermissionPort } from '@endora-commerce/contracts';
 import type { ShoppingListService } from './services/shopping-list-service.js';
 import { registerShoppingListRoutes } from './routes.js';
 
@@ -34,6 +35,11 @@ export interface ShoppingListsModuleOptions {
     organizationId: string;
   };
   /**
+   * `organizations`' permission port, behind a thunk resolved per request
+   * (`specs/170-organization-roles/`, FR-047, FR-048).
+   */
+  organizationPermissions: () => OrganizationPermissionPort;
+  /**
    * Feature 027 — exposes the ShoppingListService back to commerceModule so
    * its `/api/v1/cart/items/:itemId/save-to-shopping-list` endpoint can
    * push lines into a list (cross-module call through this public
@@ -58,6 +64,7 @@ export function shoppingListsModule(options: ShoppingListsModuleOptions) {
       emFactory: options.emFactory,
       requireCustomer: options.requireCustomer,
       resolveCustomerContext: options.resolveCustomerContext,
+      organizationPermissions: options.organizationPermissions,
     });
   };
 }
