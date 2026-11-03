@@ -59,10 +59,51 @@ wpis dziennika audytu `customer_account.authentication_throttled`. Jeśli Redis
 nie odpowie w ciągu trzech sekund, próba jest odrzucana z **503
 `CUSTOMER_AUTHENTICATION_UNAVAILABLE`**.
 
+## Role w organizacji
+
+Każde konto ma dokładnie jedną **rolę w organizacji**, rolę własnej
+Organizacji: *Administrator*, *Członek* albo rolę niestandardową zdefiniowaną
+przez administratorów Organizacji (same role, ich uprawnienia i trasy należą do
+modułu `organizations`). Przypisanie pilnuje baza danych: konto nie może
+wskazywać roli innej Organizacji, a roli, którą ma jeszcze jakiekolwiek konto —
+także zablokowane lub usunięte — nie da się usunąć.
+
+- **Nowe konta.** Osoba rejestrująca firmę jest jej *Administratorem*. Klient
+  indywidualny (B2C) jest *Administratorem* własnej, osobistej Organizacji — po
+  samodzielnej rejestracji i po pierwszym logowaniu przez zewnętrznego dostawcę
+  tożsamości. Zaproszony członek otrzymuje rolę wskazaną w zaproszeniu.
+- **Przeniesienie konta.** Gdy operator przypisuje klienta do innej firmy,
+  klient zostaje jej *Administratorem*, jeśli administrował firmą, z której
+  przychodzi, a w przeciwnym razie jej *Członkiem*; rola niestandardowa nie
+  przechodzi. Klient przenoszony z własnej osobistej Organizacji zostaje
+  *Członkiem*. Odłączenie klienta od firmy przywraca go jako *Administratora*
+  jego osobistej Organizacji.
+- **Ostatni administrator.** Organizacja zachowuje co najmniej jednego
+  aktywnego administratora: degradacja lub usunięcie ostatniego jest odrzucane
+  z **409 `CANNOT_DEMOTE_LAST_ADMIN`** / **409 `CANNOT_REMOVE_LAST_ADMIN`**.
+  Zablokowany administrator się nie liczy. Gdy dwóch administratorów w tej
+  samej chwili rezygnuje z tej roli, uda się to tylko jednemu.
+- **Następne żądanie.** Sesja odczytuje konto przy każdym żądaniu, więc zmiana
+  roli obowiązuje od najbliższego żądania członka, na każdym serwerze.
+
+Zmiany ról są poleceniami (Commands), a każde jest zapisywane w dzienniku
+audytu przy Organizacji:
+
+| Akcja | Kiedy |
+| --- | --- |
+| `customer_account.change_role` | Konto przechodzi do innej roli — także raz na członka, gdy usuwana jest rola, którą ma, a jej członkowie przechodzą do roli zastępczej |
+| `customer_account.remove_member` | Członek zostaje usunięty z Organizacji |
+| `customer_account.promote_organization_admin` | Operator przywraca dostęp Organizacji, która została bez administratora |
+
+Po zatwierdzeniu zmiany roli ogłaszane jest też zdarzenie
+`customer_account.organization_role_changed.v1`.
+
 ## Encje
 
-`CustomerAccount` (e-mail, passwordHash, rola), `PasswordResetToken`. Rola to wyliczenie
-`organization_admin | regular_user`.
+`CustomerAccount` (e-mail, passwordHash, organizationRoleId), `PasswordResetToken`.
+`organizationRoleId` wskazuje rolę konta w organizacji. Starsze, dwuwartościowe
+pole `role` (`organization_admin | regular_user`) jest nadal utrzymywane zgodnie
+z nią, dopóki platforma z niego nie zrezygnuje, i zostanie usunięte.
 
 ## Punkty rozszerzenia
 
