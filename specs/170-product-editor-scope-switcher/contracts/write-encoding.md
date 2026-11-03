@@ -60,7 +60,9 @@ verbatim. `decode(encode(x)) = x` for every text `x` (property test).
 
 ## 3a. Formula-injection guard (FR-118, owner round 7)
 
-Applies to **text columns** only (never to columns whose field is numeric, boolean or date).
+Applies to **text columns** only (never to columns whose field is numeric, boolean or date). An option column
+(select, enum, multiselect) counts as text here: its values are text a PIM sync can create (C2/C3 security review,
+2026-11-03). A multiselect cell is guarded once, at its start — a spreadsheet reads a formula only there.
 
 | Direction | Rule |
 | --- | --- |

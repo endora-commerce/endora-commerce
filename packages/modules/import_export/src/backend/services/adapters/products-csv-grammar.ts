@@ -65,11 +65,17 @@ export interface ProductsHeaderContext {
   attributes: ReadonlyMap<string, GrammarAttribute>;
 }
 
-/** How a column's cells read: a text column takes the formula guard (FR-118); a value column does not. */
+/**
+ * How a column's cells read. A text column is read verbatim (never trimmed); a guarded column
+ * takes the formula guard both ways (FR-118). Every text column is guarded, and so is an option
+ * column (select, enum, multiselect): its values are text a PIM sync can create (C2/C3 security
+ * review). Numbers, prices, booleans, dates and the status are neither.
+ */
 export interface FieldInfo {
   field: FieldPath;
   spec: FieldScopeSpec;
   text: boolean;
+  guarded: boolean;
   valueType: AttributeValueType | 'text' | 'status';
 }
 
@@ -91,6 +97,11 @@ const VALUE_FIELDS: Readonly<Record<string, FieldInfo['valueType']>> = {
   returnable: 'boolean',
 };
 
+/** Whether an attribute's cells take the formula guard: text and option values do. */
+export function isGuardedAttributeType(valueType: AttributeValueType): boolean {
+  return valueType === 'string' || valueType === 'select' || valueType === 'enum' || valueType === 'multiselect';
+}
+
 function fieldInfo(field: string, ctx: ProductsHeaderContext): FieldInfo | string {
   if (field.startsWith('attribute:')) {
     const key = field.slice('attribute:'.length);
@@ -100,12 +111,19 @@ function fieldInfo(field: string, ctx: ProductsHeaderContext): FieldInfo | strin
       field: field as FieldPath,
       spec: attributeFieldSpec(def),
       text: def.valueType === 'string',
+      guarded: isGuardedAttributeType(def.valueType),
       valueType: def.valueType,
     };
   }
   const spec = (PRODUCT_FIELD_SCOPE_SETS as Record<string, FieldScopeSpec>)[field]!;
   const valueType = VALUE_FIELDS[field];
-  return { field: field as FieldPath, spec, text: valueType === undefined, valueType: valueType ?? 'text' };
+  return {
+    field: field as FieldPath,
+    spec,
+    text: valueType === undefined,
+    guarded: valueType === undefined,
+    valueType: valueType ?? 'text',
+  };
 }
 
 const levelOf = (scope: ScopeRef): ScopeLevel =>
