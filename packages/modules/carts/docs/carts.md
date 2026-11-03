@@ -89,6 +89,29 @@ another Organization answers `404`, as an unknown one does; a member who is not
 an administrator is refused with `403`. Switching the policy off returns every
 pending or approved basket of the Organization to `not_required`.
 
+### Approval e-mails
+
+Each approval step sends an e-mail, after the step has been saved:
+
+| E-mail (template code) | Sent when | To |
+| --- | --- | --- |
+| Cart sent for approval (`cart_approval_requested`) | A member sends a basket for approval | Every administrator of the member's Organization — one message each. A blocked, deleted or anonymised administrator is not told. |
+| Cart approved (`cart_approved`) | An administrator approves the basket | The member who owns the basket, naming who approved it |
+| Cart rejected (`cart_rejected`) | An administrator rejects the basket | The member who owns the basket, with the reason the administrator gave |
+
+- The messages are written in the default language of the store (sales channel)
+  the basket belongs to, and in English when the store has none. A customer
+  account does not record a language of its own, so the store's language is
+  the one the platform knows for its reader.
+- The subject and body of each message ship in English and Polish and can be
+  edited per language and per store, or switched off, on the e-mail templates
+  screen (group *carts*). The messages carry no link: the reader signs in to
+  their account to act.
+- A message that cannot be sent — no mail server, the template switched off,
+  the recipient's mail server refusing it — never undoes or fails the approval
+  step. It is written to the server log as *"the cart approval e-mail was not
+  sent"*, with the cart, the template code and the reason.
+
 ## Public surface
 
 ### Storefront (buyer)
@@ -375,9 +398,11 @@ surfaces `couponDroppedThisRead`. Wiring into the read path is a follow-up.
   `CartPricingRecompute`, which runs `CartLinePricing.orderablePrices`; the
   result is kept in `CartRecomputeCache` (30 s Redis TTL), which every cart write
   invalidates. The mutation answers return the stored `unitPrice`.
-- **Email dispatch** — submit-for-approval / approve / reject / abandonment
-  e-mails are scaffolded in the service surfaces; dedicated templates are a
-  follow-up.
+- **Email dispatch** — the submit-for-approval / approve / reject e-mails go
+  out through `transactional_emails` (see *Approval e-mails*). The abandonment
+  e-mail is the `cartAbandonmentNotifier` contribution point, which a
+  deployment supplies; without one the sweep flips the status and sends
+  nothing.
 - **Abandonment scheduler** — the worker is constructed in production
   composition but not yet wired to a cron / BullMQ schedule. The ops CLI
   `pnpm run cli carts abandonment-sweep`, run in the root of an instance, runs
