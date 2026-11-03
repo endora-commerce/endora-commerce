@@ -1,4 +1,5 @@
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
+import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   CopyScopedValueRequest,
@@ -67,6 +68,8 @@ export class ScopedValuesService {
     try {
       result = await this.commandBus.run(command);
     } catch (error) {
+      // `seo` off while the save names SEO fields: the port's 503 passes through unchanged.
+      rethrowIfModuleDisabled(error);
       if (error instanceof ScopedSaveNothingChanged) {
         result = error.result;
       } else if (error instanceof UniqueConstraintViolationException && body.changes.product?.sku !== undefined) {
