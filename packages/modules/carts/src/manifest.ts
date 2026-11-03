@@ -199,7 +199,11 @@ export const manifest = defineModuleManifest({
     // `quote_requests`' code: the noun is the quote request.
     { code: 'CART_APPROVAL_NOT_REQUIRED' },
     { code: 'CART_APPROVAL_ALREADY_SUBMITTED' },
-    { code: 'CART_APPROVAL_SELF_SUBMIT' },
+    // `specs/170-organization-roles/` (R-36) — `CART_APPROVAL_SELF_SUBMIT` left
+    // with the rule it named: a buyer whose role lets them order without
+    // approval is refused as `CART_APPROVAL_NOT_REQUIRED`. What replaced it is
+    // the approver deciding on their own pending cart.
+    { code: 'CART_APPROVAL_SELF_APPROVE' },
     { code: 'CART_APPROVAL_NOT_PENDING' },
     { code: 'CART_ALREADY_TERMINAL' },
   ],
@@ -229,19 +233,52 @@ export const manifest = defineModuleManifest({
   // now reads every shape, blanks comments and regex literals, and reports an
   // argument it cannot resolve instead of dropping it.
   //
-  // D-173 adds the third, and it is not this module's own code: the admin
-  // proxy for the per-Organization `requires_cart_approval` policy is gated on
-  // `customers:manage`, whose core `PERMISSION_CATALOGUE` row names
-  // `customers` — a module an operator can switch off, while this one declares
-  // itself non-deactivatable. Declaring it here makes this module a second
-  // *owner*, in the shape issue #213 gave `integrations:manage`, so the code
-  // stays grantable on `/admin-roles` while this surface is on. The label —
-  // *"Manage customer organizations"* — reads as a sentence about that
-  // endpoint, so the code is shared rather than replaced.
+  // D-173 added a third, `customers:manage`, as a second owner of that code for
+  // the operator's proxy of the per-Organization cart-approval policy.
+  // `specs/170-organization-roles/` (OR-3) removed the policy and the proxy
+  // with it, so the code is back to its one owner, `customers`.
   permissions: [
     { code: 'carts:read', label: 'View customer carts' },
     { code: 'carts:reject', label: 'Reject a cart pending organization approval' },
-    { code: 'customers:manage', label: 'Manage customer organizations' },
+  ],
+  /**
+   * What a member's organization role may do with carts
+   * (`specs/170-organization-roles/`, FR-021, FR-022, OR-3; research R-4, R-5).
+   * The buyer vocabulary, never an operator code: these are granted by an
+   * Organization's administrator on the storefront, not on `/admin-roles`.
+   *
+   * - `carts.create` gates every basket mutation and every builder of a basket
+   *   (`routes.ts`), and the sign-in merge of a guest basket (PR-12). Reading
+   *   the basket stays open (R-5); a guest is not judged (PR-4).
+   * - `carts.approve` gates the Organization's carts — list, read, approve and
+   *   reject (`routes.organization.ts`) — and names who is told a cart waits.
+   * - `carts.order_without_approval` is the approval rule itself: a buyer
+   *   whose role lacks it submits their basket for approval and cannot place it
+   *   until approved (`services/cart-approval-policy.ts`). It replaced the
+   *   per-Organization `requires_cart_approval` switch; migration M2 withholds
+   *   it from the *Member* role of an Organization that had the switch on
+   *   (FR-071), which is why it is a member default.
+   */
+  organizationPermissions: [
+    {
+      code: 'carts.create',
+      label: 'Create and edit carts',
+      description:
+        'Add products to a cart, change quantities, apply coupons and build carts from quotes, lists and quick order.',
+      memberDefault: true,
+    },
+    {
+      code: 'carts.approve',
+      label: "Approve and reject colleagues' carts",
+      description: "See the organization's carts and approve or reject the ones sent for approval.",
+      memberDefault: false,
+    },
+    {
+      code: 'carts.order_without_approval',
+      label: 'Place orders without approval',
+      description: 'Order a cart directly, without sending it for approval first.',
+      memberDefault: true,
+    },
   ],
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
@@ -253,7 +290,7 @@ export const manifest = defineModuleManifest({
       name: 'Cart sent for approval',
       group: 'carts',
       description:
-        'Sent to each administrator of the Organization when a member sends a cart for approval.',
+        'Sent to each member of the Organization who approves carts when a member sends a cart for approval.',
       variables: [
         { key: 'buyer.name', label: 'Buyer name', sampleValue: 'Anna Kowalska' },
         { key: 'buyer.email', label: 'Buyer e-mail', sampleValue: 'anna.kowalska@example.com' },
@@ -265,7 +302,7 @@ export const manifest = defineModuleManifest({
       code: 'cart_approved',
       name: 'Cart approved',
       group: 'carts',
-      description: 'Sent to the buyer when an administrator of their Organization approves their cart.',
+      description: 'Sent to the buyer when a member of their Organization who approves carts approves their cart.',
       variables: [
         { key: 'approver.name', label: 'Approved by', sampleValue: 'Jan Nowak' },
         { key: 'buyer.name', label: 'Buyer name', sampleValue: 'Anna Kowalska' },
@@ -279,7 +316,7 @@ export const manifest = defineModuleManifest({
       name: 'Cart rejected',
       group: 'carts',
       description:
-        'Sent to the buyer when an administrator of their Organization rejects their cart, with the reason.',
+        'Sent to the buyer when a member of their Organization who approves carts rejects their cart, with the reason.',
       variables: [
         { key: 'rejector.name', label: 'Rejected by', sampleValue: 'Jan Nowak' },
         { key: 'reason', label: 'Rejection reason', sampleValue: 'Over the monthly budget' },

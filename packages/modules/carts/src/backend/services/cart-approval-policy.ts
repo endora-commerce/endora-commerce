@@ -1,38 +1,42 @@
-import type {
-  CartApprovalStatus,
-  CustomerAccountReadPort,
-  OrganizationDetailsPort,
-} from '@endora-commerce/contracts';
+import type { CartApprovalStatus, OrganizationPermissionPort } from '@endora-commerce/contracts';
 
-/** The two reads the approval policy is judged from. */
+/** The one read the approval rule is judged from. */
 export interface CartApprovalPolicyReads {
-  /** `organizations`' read model — the Organization's `requiresCartApproval`. */
-  readonly organizations: Pick<OrganizationDetailsPort, 'findById'>;
-  /** `customer_accounts`' read model — the buyer's role. */
-  readonly customerAccounts: Pick<CustomerAccountReadPort, 'findById'>;
+  /** `organizations`' permission port — the buyer's `carts.order_without_approval`. */
+  readonly permissions: Pick<OrganizationPermissionPort, 'can'>;
 }
 
 /**
- * Whether `buyer`'s basket must be approved before it is ordered (issues #619,
- * #648): their Organization requires cart approval and they are not its
- * administrator. The one statement of the rule — submit-for-approval refuses on
- * it, the cart's primary call to action reads it, and placement refuses a basket
- * it applies to that is not `approved`.
+ * Whether `buyer`'s basket must be approved before it is ordered: their role
+ * does not hold `carts.order_without_approval` (`specs/170-organization-roles/`,
+ * OR-3; research R-4, which replaced the Organization's `requires_cart_approval`
+ * flag and the administrator exemption — an administrator holds every code).
+ * The one statement of the rule: submit-for-approval refuses on it, the cart's
+ * primary call to action reads it, and placement refuses a basket it applies
+ * to that is not `approved` (issues #619, #648).
+ *
+ * A buyer whose role cannot be found fails closed — `can` answers `false` — so
+ * their basket needs approval.
  */
 export async function approvalSubmissionRequired(
   reads: CartApprovalPolicyReads,
   buyer: { customerAccountId: string; organizationId: string },
 ): Promise<boolean> {
-  const org = await reads.organizations.findById(buyer.organizationId);
-  if (!org?.requiresCartApproval) return false;
-  const account = await reads.customerAccounts.findById(buyer.customerAccountId);
-  return account !== null && account !== undefined && account.role !== 'organization_admin';
+  return !(await reads.permissions.can(
+    { customerAccountId: buyer.customerAccountId, organizationId: buyer.organizationId },
+    'carts.order_without_approval',
+  ));
 }
 
 /**
  * Issue #648 — whether a basket still awaits approval and so may not be placed:
- * the policy applies to its owner and it is not `approved`. A basket with no
+ * the rule applies to its owner and it is not `approved`. A basket with no
  * owner (an anonymous one) is never placed and is not this rule's to refuse.
+ *
+ * Judged on the owner's permission **now**, never on the stored approval state
+ * alone (research R-25): a `pending` basket whose owner has since gained the
+ * code is placeable even if the cascade that returns it to `not_required`
+ * never ran.
  */
 export async function basketAwaitsApproval(
   reads: CartApprovalPolicyReads,

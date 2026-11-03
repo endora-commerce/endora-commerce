@@ -10,6 +10,7 @@ import {
   type CartBatchLineInput,
   type CartBatchLineOutcome,
   type CartMergeOutcome,
+  type OrganizationPermissionPort,
   type ProductAudience,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -196,6 +197,13 @@ export class CartService {
      * unit's name is snapshotted. Absent (some rigs) = the global name.
      */
     private readonly channelReads?: Pick<SalesChannelResolutionPort, 'getById'>,
+    /**
+     * `specs/170-organization-roles/` owner ruling PR-12 — `organizations`'
+     * permission port, read lazily by the composition: the sign-in merge is a
+     * cart write by the signed-in member and is judged against `carts.create`.
+     * Absent (rigs that never merge) fails closed: no guest basket is merged.
+     */
+    private readonly permissions?: Pick<OrganizationPermissionPort, 'can'>,
   ) {
     this.#linePricing = new CartLinePricing(
       this.pricingService,
@@ -1184,6 +1192,14 @@ export class CartService {
    *     the source row is still flipped to `completed` + detokenised
    *     (cleanup), no audit row is written.
    *   - `noop_no_anon`   — no cart for the supplied token; no DB change.
+   *   - `skipped_permission` — the member's role lacks `carts.create`
+   *     (`specs/170-organization-roles/` owner ruling PR-12, FR-030a): the
+   *     guest basket is left exactly as it was — `active`, its token and its
+   *     lines — and nothing is audited. Judged after the source basket is
+   *     located and before any merge write, so a member who could not have
+   *     built the basket signed in does not carry it in by signing in. The
+   *     destination is the member's basket as `noop_no_anon` answers it, the
+   *     one `GET /api/v1/cart` would read.
    *
    * Coupons on the source cart are NOT carried to the destination
    * (R-05 / FR-010 — the destination's existing `appliedPromotionCode`
@@ -1215,6 +1231,16 @@ export class CartService {
         movedLineCount: 0,
         summedLineCount: 0,
         destinationCartId: destForNoop.id,
+      };
+    }
+
+    if (!(await this.#mayCreateCarts(ctx))) {
+      const destForSkip = await this.#getOrCreateForCustomerOn(em, ctx);
+      return {
+        outcome: 'skipped_permission',
+        movedLineCount: 0,
+        summedLineCount: 0,
+        destinationCartId: destForSkip.id,
       };
     }
 
@@ -1297,6 +1323,19 @@ export class CartService {
       summedLineCount,
       destinationCartId: customerCart.id,
     };
+  }
+
+  /**
+   * Whether the signing-in member's role holds `carts.create` (PR-12). A port
+   * refusal propagates: the login hook's caller decides what a failed merge
+   * costs the login (feature 037 FR-007), not this read.
+   */
+  async #mayCreateCarts(ctx: CustomerContext): Promise<boolean> {
+    if (!this.permissions) return false;
+    return this.permissions.can(
+      { customerAccountId: ctx.customerAccountId, organizationId: ctx.organizationId ?? '' },
+      'carts.create',
+    );
   }
 
   /**

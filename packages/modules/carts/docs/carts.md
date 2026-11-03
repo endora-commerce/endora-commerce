@@ -14,7 +14,7 @@ module with a full lifecycle (`active` / `abandoned` / `completed` /
 `rejected`), an orthogonal approval sub-state, sales-channel scoping,
 last-activity bookkeeping, coupon application against the Promotions module,
 up-sell suggestions, three conversions (Cart ↔ Quote Request, Shopping List
-→ Cart), Organization-Administrator visibility + approval gate, an
+→ Cart), an approval gate judged by the members' organization roles, an
 abandonment sweep, and a platform-admin observability surface.
 
 ## One basket per store
@@ -39,13 +39,13 @@ The channel-access rule applies to baskets like to every storefront call: an ano
         │                                            ▼                 │
         │                                  [ active / pending ]        │
         │                                            │                 │
-        │                                            ├──(org-admin     │
+        │                                            ├──(approver      │
         │                                            │   approve)──▶   │
         │                                            │  [ active /     │
         │                                            │   approved ]    │
         │                                            │     │           │
         │                                            ▼     ▼           │
-        │  (org-admin reject)                  [ rejected / rejected_by_org_admin ]
+        │  (approver reject)                   [ rejected / rejected_by_org_admin ]
         │
         ▼
 [ abandoned ] ◀──(sweep: last_activity_at < threshold)── [ active / * ]
@@ -77,32 +77,59 @@ moves it back one step, in the same transaction as the change and with an
 - an `approved` cart drops back to `pending`, so the changed basket is approved
   again before it is ordered;
 - a `pending` cart returns to `not_required` — the state it was submitted from —
-  so the administrator never approves contents other than those submitted. It
-  leaves the administrator's pending list, approving or rejecting it answers
+  so the approver never approves contents other than those submitted. It
+  leaves the approvers' pending list, approving or rejecting it answers
   `CART_APPROVAL_NOT_PENDING`, and the buyer is offered **Submit for approval**
   (`primaryCta: 'submit_for_approval'`) again.
 
 A rejected cart is closed (`status: 'rejected'`) and cannot be submitted again,
 so a `pending` cart was always submitted from `not_required`.
 
-Self-approval exemption: a cart created by an Organization Administrator
-is born with `approval_status='not_required'` regardless of the per-Org
-policy flag.
+### Approval by role
 
-Primary action: for a member of an Organization that requires cart approval, a
-basket not yet sent reads `primaryCta: 'submit_for_approval'`, a sent one
-`awaiting_approval` and an approved one `checkout`. An Organization
-Administrator's own basket, and every basket of an Organization that requires
-no approval, reads `checkout`.
+Whether a basket must be approved, who approves it and who may fill one at all
+are three permissions of the member's organization role (the Organization's
+administrator edits the roles on the storefront; *Administrator* holds every
+permission):
 
-Who acts on a member's basket: an Organization Administrator lists, reads,
-approves and rejects the baskets of every member of their own Organization, and
-the member who owns an approved basket places the order from it. A basket of
-another Organization answers `404`, as an unknown one does; a member who is not
-an administrator is refused with `403`. Switching the policy off returns every
-pending or approved basket of the Organization to `not_required`.
+| Permission | Code | Default for *Member* | What it decides |
+| --- | --- | --- | --- |
+| Create and edit carts | `carts.create` | yes | Adding, changing and removing lines, applying and removing a coupon, building a basket from a quote request, a shopping list or quick order, and merging a guest basket at sign-in |
+| Approve and reject colleagues' carts | `carts.approve` | no | Listing and reading the Organization's carts, and approving or rejecting the ones sent for approval |
+| Place orders without approval | `carts.order_without_approval` | yes | Ordering a basket directly; a member whose role lacks it sends the basket for approval first |
 
-On the storefront the administrator does this under **Organization → Carts**
+These replace the Organization's *Cart approval* switch: an Organization that had
+it on keeps the same behaviour after the upgrade, because its *Member* role does
+not receive *Place orders without approval* (nor *One-click ordering*). To
+require approval for some members only, give them a role without
+*Place orders without approval*.
+
+- A member without *Create and edit carts* is refused every basket change with
+  `403 ORGANIZATION_PERMISSION_REQUIRED`, naming the permission; reading the
+  basket (`GET /api/v1/cart`) still works, so page headers keep their basket
+  count. A visitor who is not signed in keeps the guest basket exactly as
+  before. When such a member signs in, their guest basket is **not** merged —
+  it stays as it was, with its lines — and the sign-in itself succeeds.
+- A member without *Place orders without approval* reads
+  `primaryCta: 'submit_for_approval'` on a basket not yet sent,
+  `awaiting_approval` on a sent one and `checkout` on an approved one; everyone
+  else reads `checkout`. Sending a basket for approval when the role holds the
+  permission is refused with `422 CART_APPROVAL_NOT_REQUIRED` (an administrator
+  included).
+- A holder of *Approve and reject colleagues' carts* lists, reads, approves and
+  rejects the baskets of every member of their own Organization, as an
+  administrator did before; the member who owns an approved basket places the
+  order from it. A basket of another Organization answers `404`, as an unknown
+  one does; a member without the permission is refused with
+  `403 ORGANIZATION_PERMISSION_REQUIRED`. A basket that is not awaiting approval
+  is `422 CART_APPROVAL_NOT_PENDING` whoever owns it, and nobody approves or
+  rejects their own pending basket: `422 CART_APPROVAL_SELF_APPROVE`.
+- When a role gains *Place orders without approval*, or a member moves to a role
+  that holds it, the member's baskets awaiting approval return to
+  `not_required` (audited as `approval_policy_reset`). A role losing it leaves
+  an approved basket approved.
+
+On the storefront the approver does this under **Organization → Carts**
 (`/organization/carts`): the list can be narrowed to the carts awaiting
 approval, and each cart opens on its own page (`/organization/carts/<id>`) with
 its owner, lines, total and the time it was sent. A pending cart offers
@@ -122,11 +149,11 @@ for an anonymous basket, it is `null`. The rejected basket's lines are not
 copied into the new one.
 
 Placement enforces the approval: a member's basket that is not `approved` —
-never sent, awaiting the administrator, or rejected — is refused when the order
-is placed, with `409 ORDER_CART_APPROVAL_REQUIRED`, before anything is reserved
-or written; the basket is kept as it was. The rule is the one submission applies:
-the Organization requires cart approval and the basket's owner is not its
-administrator. This holds whatever the storefront shows, for
+never sent, awaiting an approver, or rejected — is refused when the order is
+placed, with `409 ORDER_CART_APPROVAL_REQUIRED`, before anything is reserved or
+written; the basket is kept as it was. The rule is the one submission applies,
+read when the order is placed: the basket's owner lacks *Place orders without
+approval*. This holds whatever the storefront shows, for
 `POST /api/v1/orders` and the checkout page alike. The Orders module page,
 under *Cart approval at placement*, lists the sentences.
 
@@ -136,9 +163,9 @@ Each approval step sends an e-mail, after the step has been saved:
 
 | E-mail (template code) | Sent when | To |
 | --- | --- | --- |
-| Cart sent for approval (`cart_approval_requested`) | A member sends a basket for approval | Every administrator of the member's Organization — one message each. A blocked, deleted or anonymised administrator is not told. |
-| Cart approved (`cart_approved`) | An administrator approves the basket | The member who owns the basket, naming who approved it |
-| Cart rejected (`cart_rejected`) | An administrator rejects the basket | The member who owns the basket, with the reason the administrator gave |
+| Cart sent for approval (`cart_approval_requested`) | A member sends a basket for approval | Every member of the Organization whose role holds *Approve and reject colleagues' carts* (administrators included) — one message each, never the sender. A blocked, deleted or anonymised member is not told. |
+| Cart approved (`cart_approved`) | An approver approves the basket | The member who owns the basket, naming who approved it |
+| Cart rejected (`cart_rejected`) | An approver rejects the basket | The member who owns the basket, with the reason the approver gave |
 
 - The messages are written in the default language of the store (sales channel)
   the basket belongs to, and in English when the store has none. A customer
@@ -147,7 +174,7 @@ Each approval step sends an e-mail, after the step has been saved:
 - The subject and body of each message ship in English and Polish and can be
   edited per language and per store, or switched off, on the e-mail templates
   screen (group *carts*). The messages carry no link: the reader signs in to
-  their account to act — an administrator under **Organization → Carts**
+  their account to act — an approver under **Organization → Carts**
   (`/organization/carts`), a buyer on their cart page.
 - A message that cannot be sent — no mail server, the template switched off,
   the recipient's mail server refusing it — never undoes or fails the approval
@@ -160,33 +187,39 @@ Each approval step sends an e-mail, after the step has been saved:
 
 | Verb + Path | Purpose |
 | --- | --- |
-| `GET /api/v1/cart` | The active cart of the request's sales channel (lazy-create); the payload includes `status`, `approvalStatus`, `salesChannelId`, `grandTotal`, `discount`, `primaryCta`, `droppedLines`, `couponDroppedThisRead`, `lastActivityAt`, `previousRejection` |
-| `POST /api/v1/cart/items` | Add line item (200-line cap enforced) |
-| `PATCH /api/v1/cart/items/:itemId` | Update quantity (accepts `0` to delete) |
-| `DELETE /api/v1/cart/items/:itemId` | Remove line |
+| `GET /api/v1/cart` | The active cart of the request's sales channel (lazy-create); the payload includes `status`, `approvalStatus`, `salesChannelId`, `grandTotal`, `discount`, `primaryCta`, `droppedLines`, `couponDroppedThisRead`, `lastActivityAt`, `previousRejection`. Not gated by any permission |
+| `POST /api/v1/cart/items` | Add line item (200-line cap enforced) — `carts.create` for a signed-in member; a guest is not judged |
+| `PATCH /api/v1/cart/items/:itemId` | Update quantity (accepts `0` to delete) — as above |
+| `DELETE /api/v1/cart/items/:itemId` | Remove line — as above |
 | `POST /api/v1/cart/items/:itemId/save-to-shopping-list` | Push line to a Purchase List |
 | `POST /api/v1/cart/touch` | Explicit page-open ping; bumps `last_activity_at` and reactivates an abandoned cart |
 | `GET /api/v1/cart/upsells?limit=N` | Up-sell strip from Catalog `product_links` (kind = `up_sell`) |
-| `POST /api/v1/cart/coupon` | Apply (or replace, or clear) the active coupon code; 422 `CART_COUPON_REJECTED` with reason on rejection |
-| `DELETE /api/v1/cart/coupon` | Alias for `POST {code: null}` |
+| `POST /api/v1/cart/coupon` | Apply (or replace, or clear) the active coupon code; 422 `CART_COUPON_REJECTED` with reason on rejection — `carts.create` for a signed-in member; a guest is not judged |
+| `DELETE /api/v1/cart/coupon` | Alias for `POST {code: null}` — as above |
 | `POST /api/v1/cart/convert-to-quote-request` | Cart → Quote Request; source cart becomes `completed` with `converted_to_quote_request_id` set |
-| `POST /api/v1/cart/from-quote-request/:qrId` | Quote Request → Cart; lines re-priced at the customer's current prices |
-| `POST /api/v1/cart/from-shopping-list/:listId` | Shopping List → Cart; lines re-priced |
+| `POST /api/v1/cart/from-quote-request/:qrId` | Quote Request → Cart; lines re-priced at the customer's current prices — `carts.create` |
+| `POST /api/v1/cart/from-shopping-list/:listId` | Shopping List → Cart; lines re-priced — `carts.create` |
+| `POST /api/v1/cart/submit-for-approval` | Buyer submits cart for approval. Refused with `422 CART_APPROVAL_NOT_REQUIRED` when the buyer's role holds `carts.order_without_approval`, `422 CART_APPROVAL_ALREADY_SUBMITTED` for a cart already sent, and for a basket below a minimum — see *Order minimums* |
 
-### Storefront (Organization Administrator)
+A refusal for a missing permission is `403 ORGANIZATION_PERMISSION_REQUIRED`,
+naming the permission in `details.permission` and its translated name in
+`details.permissionLabel`.
+
+### Storefront (approvers)
 
 | Verb + Path | Purpose |
 | --- | --- |
 | `GET /api/v1/organization/carts` | List every cart in the caller's Organization |
 | `GET /api/v1/organization/carts/:id` | Detail of a member's cart, with its lines (`items`: name, SKU, quantity, unit price and line total as stored) |
-| `PATCH /api/v1/organization/policies/cart-approval` | Toggle `requires_cart_approval` for the Organization |
-| `POST /api/v1/cart/submit-for-approval` | Buyer submits cart for Org-Admin approval. Refused with `422 CART_APPROVAL_NOT_REQUIRED` when the policy is off, `422 CART_APPROVAL_SELF_SUBMIT` for Org-Admins themselves, `422 CART_APPROVAL_ALREADY_SUBMITTED` for a cart already sent, and for a basket below a minimum — see *Order minimums* |
-| `POST /api/v1/organization/carts/:id/approve` | Approve a pending cart; a cart not awaiting approval is `422 CART_APPROVAL_NOT_PENDING` |
-| `POST /api/v1/organization/carts/:id/reject` | Reject a pending cart with a required reason; a cart not awaiting approval is `422 CART_APPROVAL_NOT_PENDING` |
+| `POST /api/v1/organization/carts/:id/approve` | Approve a pending cart; a cart not awaiting approval is `422 CART_APPROVAL_NOT_PENDING`, one's own pending cart `422 CART_APPROVAL_SELF_APPROVE` |
+| `POST /api/v1/organization/carts/:id/reject` | Reject a pending cart with a required reason; refused as approve is |
 
-Role gate: `CustomerAccount.role === 'organization_admin'` for every
-`organization/*` route. Foreign-organization carts return 404
-(anti-enumeration symmetry).
+Gate: the organization permission `carts.approve` on every `organization/*`
+route. Foreign-organization carts return 404 (anti-enumeration symmetry). The
+Organization's *Cart approval* switch (`PATCH /api/v1/organization/policies/cart-approval`)
+and its operator proxy (`GET`/`PATCH /api/v1/admin/organizations/:id/cart-approval-policy`,
+with the panel on the admin's organization detail) are removed: approval is
+decided by the roles.
 
 ### Admin
 
@@ -276,6 +309,11 @@ quantities, and merged and moved lines take the price the customer may order
 them at; the anonymous cart cookie is invalidated atomically. The source
 anonymous cart's `status` flips to `'completed'` (not `'abandoned'`) so the
 sweep does not later fire a stray abandonment notification for it.
+
+A member whose role lacks *Create and edit carts* (`carts.create`) is not
+merged: the outcome is `skipped_permission`, no line moves, nothing is audited,
+and the guest basket stays `active` with its token and its lines. The sign-in
+succeeds and reports no merge.
 
 ## Abandonment sweep
 

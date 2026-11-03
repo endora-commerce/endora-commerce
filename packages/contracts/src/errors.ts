@@ -213,12 +213,20 @@ export const ERROR_CODES = {
   CART_PRICE_CHANGED: 'CART_PRICE_CHANGED',
   // Issue #86 — the cart-approval and admin-reject refusals, raised as
   // `VALIDATION_FAILED` with a machine token as the message until then.
-  /** The Organization does not require cart approval, so the cart is not sent for it. */
+  /**
+   * The buyer's role holds `carts.order_without_approval`, so the cart is not
+   * sent for approval (`specs/170-organization-roles/`; was: the Organization
+   * requires no approval).
+   */
   CART_APPROVAL_NOT_REQUIRED: 'CART_APPROVAL_NOT_REQUIRED',
   /** The cart has already been sent for approval (`details.approvalStatus`). */
   CART_APPROVAL_ALREADY_SUBMITTED: 'CART_APPROVAL_ALREADY_SUBMITTED',
-  /** An Organization administrator orders directly; their own cart is not sent for approval. */
-  CART_APPROVAL_SELF_SUBMIT: 'CART_APPROVAL_SELF_SUBMIT',
+  /**
+   * An approver may not approve or reject their own pending cart
+   * (`specs/170-organization-roles/` FR-032, R-36; `details.cartId`). A cart that
+   * is not pending is refused `CART_APPROVAL_NOT_PENDING` first.
+   */
+  CART_APPROVAL_SELF_APPROVE: 'CART_APPROVAL_SELF_APPROVE',
   /** The cart is not awaiting approval, so it cannot be approved or rejected (`details.approvalStatus`). */
   CART_APPROVAL_NOT_PENDING: 'CART_APPROVAL_NOT_PENDING',
   /** The cart is already completed or rejected, so it cannot be rejected (`details.status`). */

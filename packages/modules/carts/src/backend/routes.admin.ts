@@ -2,11 +2,9 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
   adminCartsListQuerySchema,
   adminRejectCartSchema,
-  setCartApprovalPolicySchema,
   ERROR_CODES,
 } from '@endora-commerce/contracts';
 import type { CartAdminService } from './services/cart-admin-service.js';
-import type { CartApprovalService } from './services/cart-approval-service.js';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
@@ -17,18 +15,16 @@ import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
  *   - GET    /api/v1/admin/carts/:id              carts:read
  *   - GET    /api/v1/admin/carts/:id/audit        carts:read
  *   - POST   /api/v1/admin/carts/:id/reject       carts:reject
- *   - GET    /api/v1/admin/organizations/:id/cart-approval-policy   customers:manage
- *   - PATCH  /api/v1/admin/organizations/:id/cart-approval-policy   customers:manage
+ *
+ * The operator's proxy for the per-Organization cart-approval policy
+ * (`GET`/`PATCH /api/v1/admin/organizations/:id/cart-approval-policy`) is
+ * removed with the policy (`specs/170-organization-roles/`, OR-3): approval is
+ * a role's `carts.order_without_approval`, which the Organization's
+ * administrator grants.
  */
 
 export interface CartsAdminRoutesDeps {
   cartAdminService: CartAdminService;
-  /**
-   * Feature 027 US4 — platform-admin proxy for the per-Organization
-   * `requires_cart_approval` policy. Optional so legacy compositions
-   * still build; production wires it.
-   */
-  cartApprovalService?: CartApprovalService;
   requireAdmin: RequireAdminFactory;
   /**
    * Resolves the admin user id from the authenticated session. Used as
@@ -98,71 +94,4 @@ export async function registerCartsAdminRoutes(
       return cartAdminService.reject(request.params.id, adminUserId, body.reason);
     },
   );
-
-  /**
-   * Feature 027 US4 — admin proxy for the per-Organization
-   * `requires_cart_approval` policy. Same semantics as the Org-Admin
-   * self-service route under `/api/v1/organization/policies/cart-approval`
-   * but the actor is a platform admin (and consequently the audit
-   * row's actor_type is `platform_admin`).
-   */
-  if (deps.cartApprovalService) {
-    /**
-     * The read half, added by feature 091's P7b
-     * (`contracts/admin-component-contribution.md` §10.5).
-     *
-     * This module owned the `PATCH` and no `GET`, so the panel that rendered
-     * the toggle took its initial value as a prop from `organizations`' detail
-     * payload. As an `organization.detail.after` contribution it has no such
-     * prop — the other three contributors want neither it nor the request — so
-     * it reads its own state here.
-     *
-     * **`customers:manage`, the same code as the `PATCH`**, so read and write
-     * agree on one code: an operator who can see the toggle can use it, which
-     * is what a contribution's `requiredPermission` exists to guarantee. The
-     * response is the `PATCH`'s own `cartApprovalPolicyResponseSchema` shape,
-     * for the same reason one code is better than two.
-     */
-    app.get<{ Params: { id: string } }>(
-      '/api/v1/admin/organizations/:id/cart-approval-policy',
-      { preHandler: requireAdmin('customers:manage') },
-      async (request) => {
-        const org = await deps.cartApprovalService!.getPolicyByAdmin(request.params.id);
-        return {
-          data: {
-            organizationId: org.id,
-            requiresCartApproval: org.requiresCartApproval,
-            updatedAt: org.updatedAt.toISOString(),
-          },
-        };
-      },
-    );
-
-    app.patch<{ Params: { id: string } }>(
-      '/api/v1/admin/organizations/:id/cart-approval-policy',
-      {
-        preHandler: requireAdmin('customers:manage'),
-        schema: { body: setCartApprovalPolicySchema },
-      },
-      async (request) => {
-        const adminUserId = resolveAdminUserId(request);
-        if (!adminUserId) {
-          throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
-        }
-        const body = setCartApprovalPolicySchema.parse(request.body);
-        const org = await deps.cartApprovalService!.setPolicyByAdmin(
-          request.params.id,
-          adminUserId,
-          body.requiresCartApproval,
-        );
-        return {
-          data: {
-            organizationId: org.id,
-            requiresCartApproval: org.requiresCartApproval,
-            updatedAt: org.updatedAt.toISOString(),
-          },
-        };
-      },
-    );
-  }
 }

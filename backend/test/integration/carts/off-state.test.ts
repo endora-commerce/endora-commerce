@@ -139,7 +139,8 @@ describe('carts off-state, from a package (Constitution XVII)', () => {
           method: 'GET',
           url,
           cookies: { b2b_session: org.actors[key]!.cookie },
-          headers: { 'accept-language': 'en' },
+          // The fixture Organization is bound to `pl_retail`, not to the default store.
+          headers: { 'accept-language': 'en', 'x-sales-channel': 'pl_retail' },
         });
         expect(res.statusCode, `${url}: ${res.body}`).toBe(200);
         return res.json() as Record<string, unknown>;
