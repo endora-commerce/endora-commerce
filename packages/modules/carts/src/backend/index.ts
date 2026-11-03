@@ -11,6 +11,7 @@ import type {
   CatalogProductUrlKeyReadPort,
   CatalogProductReadPort,
   CustomerAccountReadPort,
+  EmailDefaultsRegistryPort,
   LinePricesPort,
   OrderQuoteSourcePort,
   ProductDisplayModePort,
@@ -20,6 +21,7 @@ import type {
   PromotionCodePort,
   QuoteRequestReadPort,
   RfqCustomerPort,
+  TransactionalEmailSender,
 } from '@endora-commerce/contracts';
 import type { CartPlacementApplyPort } from '../ports/index.js';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -42,6 +44,15 @@ import { CartConversionService } from './services/cart-conversion-service.js';
 import { CartAdminService } from './services/cart-admin-service.js';
 import { CartAuditService } from './services/cart-audit-service.js';
 import { CartApprovalService } from './services/cart-approval-service.js';
+import { createCartApprovalEmailDispatch } from './services/cart-approval-emails.js';
+import {
+  CART_APPROVAL_REQUESTED_DEFAULT,
+  CART_APPROVAL_REQUESTED_EMAIL_CODE,
+  CART_APPROVED_DEFAULT,
+  CART_APPROVED_EMAIL_CODE,
+  CART_REJECTED_DEFAULT,
+  CART_REJECTED_EMAIL_CODE,
+} from './email-templates/cart-approval-defaults.js';
 import { CartOrganizationVisibilityService } from './services/cart-organization-visibility-service.js';
 import { CartRecomputeCache } from './services/cart-recompute-cache.js';
 import { CartPricingRecompute } from './services/cart-pricing-recompute.js';
@@ -144,6 +155,11 @@ export interface CartsCradle {
   readonly cartAbandonmentNotifier:
     | ConstructorParameters<typeof CartAbandonmentWorker>[0]['dispatchNotification']
     | undefined;
+  /**
+   * `transactional_emails`' late-bound sender, read per send (issue #651). It
+   * answers `undefined` until that module has announced it.
+   */
+  readonly transactionalEmailSenderAccessor: () => TransactionalEmailSender | undefined;
   readonly cartService: CartService;
   readonly cartAuditService: CartAuditService;
   readonly cartApprovalService: CartApprovalService;
@@ -204,6 +220,21 @@ export function registerModule(ctx: ModuleContext): void {
             lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
             lazyPort<OrderQuoteSourcePort>(ctx, 'orderQuoteSourcePort'),
             lazyPort<CatalogProductAvailabilityPort>(ctx, 'catalogProductAvailabilityPort'),
+            // Issue #651 — the submit / approve / reject e-mails. The service
+            // calls them after its flush and absorbs what they raise, so a
+            // message that does not go out never fails the transition.
+            createCartApprovalEmailDispatch({
+              sender: () => ctx.cradle<CartsCradle>().transactionalEmailSenderAccessor(),
+              customerAccounts: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+              organizations: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
+              channelLanguage: async (salesChannelId) =>
+                (
+                  await lazyPort<SalesChannelResolutionPort>(ctx, 'salesChannelResolutionPort').getById(
+                    salesChannelId,
+                  )
+                )?.defaultLanguage ?? null,
+              log: (message, context) => ctx.log.warn(context, message),
+            }),
           ),
       )
       .singleton(),
@@ -431,6 +462,22 @@ export function registerModule(ctx: ModuleContext): void {
         return null;
       },
     });
+  });
+
+  /**
+   * The default subject and body of the three cart-approval e-mails this
+   * module declares in its manifest (issue #651) — a **contribution** hook,
+   * as every module that owns a transactional e-mail registers its own.
+   *
+   * `ctx.onBoot` rather than a registration: the registry is read once, by
+   * `transactional_emails`' boot reconciler inside its plugin body, which runs
+   * after every boot hook.
+   */
+  ctx.onBoot(() => {
+    const defaults = lazyPort<EmailDefaultsRegistryPort>(ctx, 'emailDefaultsPort');
+    defaults.register(CART_APPROVAL_REQUESTED_EMAIL_CODE, CART_APPROVAL_REQUESTED_DEFAULT, 'carts');
+    defaults.register(CART_APPROVED_EMAIL_CODE, CART_APPROVED_DEFAULT, 'carts');
+    defaults.register(CART_REJECTED_EMAIL_CODE, CART_REJECTED_DEFAULT, 'carts');
   });
 }
 
