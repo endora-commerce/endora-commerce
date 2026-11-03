@@ -131,7 +131,11 @@ function OrganizationRolesPanel({
     [refresh, onRolesChanged],
   );
 
-  const showHistory = isVisible({ module: 'audit_logs', requiredPermission: 'audit_log:read' });
+  // The link is offered only to an operator who may open the audit log, so it
+  // never leads to a 403. Gated on the code alone: naming the audit module here
+  // would be a cross-module id `check:admin-zones` refuses, and that module is
+  // `nonDeactivatable`, so its presence cannot close anyway.
+  const showHistory = isVisible({ requiredPermission: 'audit_log:read' });
   const hasCustom = roles.some((r) => r.kind === 'custom');
 
   return (
