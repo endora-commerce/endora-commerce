@@ -17,7 +17,7 @@ import { PRODUCT_DESCRIPTION_MAX, PRODUCT_NAME_MAX, productStatusSchema, product
 import { ORDER_MINIMUM_MAX } from './order-minimums.js';
 import { SCOPED_SOURCES, type ScopeRef, type ScopedSource } from './product-scope-model.js';
 import { fieldPathSchema, scopeMissingValueSchema, scopeRequestSchema, scopeWarningSchema } from './product-scopes.js';
-import { productSlugSchema, URL_KEY_TAKEOVER_MAX } from './product-url-keys.js';
+import { PRODUCT_URL_KEY_MAX, productSlugSchema, URL_KEY_TAKEOVER_MAX } from './product-url-keys.js';
 import { scopedWrite } from './scoped-write-encoding.js';
 
 // --- Bounds (R21) -----------------------------------------------------------------------------
@@ -54,6 +54,29 @@ const attributeKeySchema = z
   .refine((key) => !FORBIDDEN_RECORD_KEYS.has(key), 'reserved key');
 
 /** An absolute `http:` / `https:` URL — the only image URLs product SEO accepts (R21). */
+/**
+ * A record of at most `max` keys, every key matching `keySchema` and none reserved — checked on
+ * the raw object **before** any entry is parsed (R21, C1 review), so an oversized body is refused
+ * without parsing it and a `__proto__` own key (as `JSON.parse` produces it) is refused rather
+ * than silently dropped when the parsed record is assembled.
+ */
+function boundedRecord<K extends z.ZodType<string>, V extends z.ZodType>(keySchema: K, valueSchema: V, max: number) {
+  return z
+    .unknown()
+    .superRefine((raw, ctx) => {
+      if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return;
+      const keys = Object.keys(raw);
+      if (keys.length > max) {
+        ctx.addIssue({ code: 'custom', message: `At most ${max} keys.` });
+        return;
+      }
+      for (const key of keys) {
+        if (FORBIDDEN_RECORD_KEYS.has(key)) ctx.addIssue({ code: 'custom', path: [key], message: 'reserved key' });
+      }
+    })
+    .pipe(z.record(keySchema, valueSchema));
+}
+
 export const httpUrlSchema = z
   .string()
   .max(SEO_PRODUCT_META_MAX.ogImageUrl)
@@ -282,18 +305,23 @@ export const scopedValueChangesSchema = z
     audience: scopedWrite(audienceValueSchema),
     minOrderQuantity: scopedWrite(z.number().int().min(1).max(ORDER_MINIMUM_MAX)),
     returnable: scopedWrite(z.boolean()),
-    urlKey: scopedWrite(z.string().transform((raw) => raw.normalize('NFC').toLowerCase()).pipe(productSlugSchema)),
+    urlKey: scopedWrite(
+      z
+        .string()
+        .max(PRODUCT_URL_KEY_MAX)
+        .transform((raw) => raw.normalize('NFC').toLowerCase())
+        .pipe(productSlugSchema),
+    ),
     /** Honoured only by interactive `catalog:write` routes (163 FR-072). */
     confirmTakeover: z.array(productSlugSchema).max(URL_KEY_TAKEOVER_MAX).optional(),
-    attributes: z.record(attributeKeySchema, scopedWrite(attributeValue)).optional(),
+    attributes: boundedRecord(attributeKeySchema, scopedWrite(attributeValue), SCOPED_SAVE_CELLS_MAX).optional(),
     gallery: z
       .object({
-        items: z
-          .record(
-            uuidKeySchema,
-            z.object({ altText: scopedWrite(textValue(255)), hidden: scopedWrite(z.boolean()) }).strict(),
-          )
-          .optional(),
+        items: boundedRecord(
+          uuidKeySchema,
+          z.object({ altText: scopedWrite(textValue(255)), hidden: scopedWrite(z.boolean()) }).strict(),
+          SCOPED_SAVE_CELLS_MAX,
+        ).optional(),
         roles: z
           .object({
             baseImage: scopedWrite(uuidSchema),
@@ -305,19 +333,22 @@ export const scopedValueChangesSchema = z
       })
       .strict()
       .optional(),
-    attachments: z
-      .record(
-        uuidKeySchema,
-        z
-          .object({
-            name: scopedWrite(z.string().min(1).max(160)),
-            description: scopedWrite(textValue(4000)),
-            hidden: scopedWrite(z.boolean()),
-          })
-          .strict(),
-      )
-      .optional(),
-    packagingUnits: z.record(uuidKeySchema, z.object({ name: scopedWrite(z.string().min(1).max(160)) }).strict()).optional(),
+    attachments: boundedRecord(
+      uuidKeySchema,
+      z
+        .object({
+          name: scopedWrite(z.string().min(1).max(160)),
+          description: scopedWrite(textValue(4000)),
+          hidden: scopedWrite(z.boolean()),
+        })
+        .strict(),
+      SCOPED_SAVE_CELLS_MAX,
+    ).optional(),
+    packagingUnits: boundedRecord(
+      uuidKeySchema,
+      z.object({ name: scopedWrite(z.string().min(1).max(160)) }).strict(),
+      SCOPED_SAVE_CELLS_MAX,
+    ).optional(),
     seo: z
       .object({
         title: scopedWrite(textValue(SEO_PRODUCT_META_MAX.title)),
@@ -388,7 +419,15 @@ export const copyScopedValueResponseSchema = z.object({
   data: z.object({
     /** Targets that hold an own value the copy overwrites. */
     overwrites: z.array(
-      z.object({ channelId: uuidSchema, currentValue: z.union([z.object({ empty: z.literal(true) }), z.unknown()]) }),
+      z.object({
+        channelId: uuidSchema,
+        /**
+         * The target's own value: the stored value (a text — copy is limited to {G,C,CL} text
+         * fields, R21) or the empty-override marker. Typed as the union so a client narrows on
+         * `typeof currentValue === 'string'`.
+         */
+        currentValue: z.union([z.string(), z.object({ empty: z.literal(true) }).strict()]),
+      }),
     ),
     /** Cells written; 0 on a dry run. */
     applied: z.number().int().nonnegative(),

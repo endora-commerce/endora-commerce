@@ -23,10 +23,13 @@ import { storefrontPagePath, type ChannelUrlFacts } from './storefront-language-
  * 160 characters — the column width). Global, channel and channel × language keys
  * all share it. Every writer normalises to NFC and lower case first ({@link normaliseUrlKey}).
  */
+/** The longest URL key or slug (`varchar(160)`). */
+export const PRODUCT_URL_KEY_MAX = 160;
+
 export const productSlugSchema = z
   .string()
   .min(1)
-  .max(160)
+  .max(PRODUCT_URL_KEY_MAX)
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'must be kebab-case');
 export type ProductSlug = z.infer<typeof productSlugSchema>;
 

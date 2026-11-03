@@ -532,7 +532,12 @@ export type SeoProductMetaOwnValue = { own: string | { empty: true } } | { inher
  * **Owner off:** resolving this port throws `ModuleDisabledError` (503).
  */
 export interface SeoProductMetaWritePort<EM = unknown> {
-  /** The current own values of the named fields at `scope`, for the caller's audit before-state. */
+  /**
+   * The current own values of the named fields at `scope`, for the caller's audit before-state:
+   * one entry per named field — `{ own: text }`, `{ own: { empty: true } }` for an empty override,
+   * `{ inherited: true }` for no own value there; `own` is never `null`
+   * (`contracts/seo-ports.md` §2).
+   */
   readWithin(
     em: EM,
     input: { productId: string; scope: ScopeRef; fields: SeoProductMetaField[] },

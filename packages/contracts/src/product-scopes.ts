@@ -434,7 +434,7 @@ export const fieldPathSchema = z
   .string()
   .max(128)
   .regex(
-    /^(name|description|status|window|audience|minOrderQuantity|returnable|urlKey|seo:(title|description|ogTitle|ogDescription|ogImageUrl)|attribute:[a-z0-9_]{1,64}|gallery:[0-9a-f-]{36}:(altText|hidden)|galleryRole:(base_image|small_image|thumbnail)|attachment:[0-9a-f-]{36}:(name|description|hidden)|packagingUnit:[0-9a-f-]{36}:name)$/,
+    /^(name|description|status|window|audience|minOrderQuantity|returnable|urlKey|seo:(title|description|ogTitle|ogDescription|ogImageUrl)|attribute:[a-z0-9_]{1,64}|gallery:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:(altText|hidden)|galleryRole:(base_image|small_image|thumbnail)|attachment:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:(name|description|hidden)|packagingUnit:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:name)$/,
     'field path',
   )
   .transform((path) => path as FieldPath);

@@ -26,9 +26,15 @@ product editor is absent").
 
 ```ts
 export interface SeoProductMetaWritePort<EM = unknown> {
-  /** Current own values of the named fields at `scope`, for the caller's audit before-state. */
+  /**
+   * Current own values of the named fields at `scope`, for the caller's audit before-state: one entry per
+   * named field (the record is `Partial` because only the named fields are present). An own text is
+   * `{ own: string }`, an empty override (`''` in the column) `{ own: { empty: true } }`, no own value at
+   * this scope `{ inherited: true }`. `own` is never `null` (C1 review, 2026-11-03).
+   */
   readWithin(em: EM, input: { productId; scope: ScopeRef; fields: SeoProductMetaField[] }):
-    Promise<Record<SeoProductMetaField, { own: string | null | { empty: true } } | { inherited: true }>>;
+    Promise<Partial<Record<SeoProductMetaField, SeoProductMetaOwnValue>>>;
+  // type SeoProductMetaOwnValue = { own: string | { empty: true } } | { inherited: true };
   /**
    * Apply `changes` on the caller's EntityManager: no fork, no flush, no audit entry, no event — the caller's
    * Command commits or rolls back the rows with its own (FR-091). Refuses (throws HttpError 422

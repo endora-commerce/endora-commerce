@@ -39,7 +39,22 @@ export type ScopedWrite<T> = T | null | InheritMarker;
 export function scopedWrite<S extends z.ZodType>(valueSchema: S) {
   return z.preprocess(
     (raw) => (raw === '' ? undefined : raw),
-    z.union([z.null(), inheritMarkerSchema, valueSchema]).optional(),
+    z
+      .union([z.null(), inheritMarkerSchema, valueSchema])
+      .optional()
+      // C1 review — an object naming `inherit` that is not exactly `{ inherit: true }` is a
+      // malformed marker, refused even when a permissive value schema would accept it as a value.
+      .refine((value) => !looksLikeMalformedMarker(value), { message: 'Malformed inherit marker.' }),
+  );
+}
+
+function looksLikeMalformedMarker(raw: unknown): boolean {
+  return (
+    typeof raw === 'object' &&
+    raw !== null &&
+    !Array.isArray(raw) &&
+    Object.prototype.hasOwnProperty.call(raw, 'inherit') &&
+    !isInheritMarker(raw)
   );
 }
 
