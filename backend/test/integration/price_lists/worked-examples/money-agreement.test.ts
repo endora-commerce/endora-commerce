@@ -21,6 +21,7 @@ import {
   type BackendServerHandle,
 } from '../../../helpers/test-server.js';
 import { ADMIN_COOKIE, setSellerSettings } from '../../invoices/helpers.js';
+import { emptyCustomerBasket } from '../../../helpers/customer-basket.js';
 
 /**
  * `specs/pricing/worked-examples.md` §10.17 (issue #417, owner ruling of
@@ -393,7 +394,7 @@ describe('worked examples — §10.17 and §10.18 every document an order produc
       const methods = { deliveryMethodId: SEED_DELIVERY_METHOD_ID, paymentMethodId: SEED_PAYMENT_METHOD_ID };
 
       // The cart, empty: a vector that failed before placement leaves its lines behind.
-      await h.cartService()?.clearForCustomer({
+      await emptyCustomerBasket(h, {
         ...CUSTOMER_COOKIES[SESSION.b2b_session]!,
         salesChannelId: await systemDefaultSalesChannelId(h.em()),
       });

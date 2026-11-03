@@ -7,6 +7,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { TEST_CUSTOMER_EMPTY_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { emptyCustomerBasket } from '../../helpers/customer-basket.js';
 
 /**
  * Feature 053 — FR-010: a null-channel cart must not reach pricing or checkout
@@ -62,6 +63,36 @@ describe('a basket carries the channel it is created on (feature 053 / FR-010, 1
     };
     const cart = await h.cartService()!.getOrCreateForCustomer(ctx);
     expect(cart.salesChannelId).toBe(other.id);
-    await h.cartService()!.clearForCustomer(ctx);
+    await emptyCustomerBasket(h, ctx);
+  });
+
+  it('the fixture reset empties the basket of the one channel it names (issue #601)', async () => {
+    const def = await h.salesChannels.resolver.getSystemDefault();
+    const onOther = {
+      customerAccountId: TEST_CUSTOMER_EMPTY_ID,
+      organizationId: TEST_ORGANIZATION_ID,
+      salesChannelId: other.id,
+    };
+    const onDefault = { ...onOther, salesChannelId: def.id };
+    const cartService = h.cartService()!;
+
+    const otherBasket = await cartService.getOrCreateForCustomer(onOther);
+    const defaultBasket = await cartService.getOrCreateForCustomer(onDefault);
+
+    await emptyCustomerBasket(h, onOther);
+
+    const stored = (await h
+      .em()
+      .getConnection()
+      .execute(`select "id", "status" from "carts" where "id" in (?, ?)`, [
+        otherBasket.id,
+        defaultBasket.id,
+      ])) as Array<{ id: string; status: string }>;
+    // The basket is gone, not closed: no `completed` basket without an order is left behind.
+    expect(stored).toEqual([{ id: defaultBasket.id, status: 'active' }]);
+    expect((await cartService.getOrCreateForCustomer(onOther)).id).not.toBe(otherBasket.id);
+
+    await emptyCustomerBasket(h, onOther);
+    await emptyCustomerBasket(h, onDefault);
   });
 });

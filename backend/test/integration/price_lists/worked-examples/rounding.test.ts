@@ -12,6 +12,7 @@ import {
 import { SEED_PRODUCT_101_ID, SEED_PRODUCT_102_ID } from '../../../helpers/seed-catalog.js';
 import { CUSTOMER_COOKIES, TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../../helpers/test-actors.js';
 import { seedPriceBookSql } from '../../../helpers/price-book-sql.js';
+import { emptyCustomerBasket } from '../../../helpers/customer-basket.js';
 
 /**
  * `specs/pricing/worked-examples.md` §10.16 and §10.18 (owner ruling of
@@ -66,7 +67,7 @@ describe('worked examples — §10.16 and §10.18 an x.xx50 unit price agrees on
   }, 5 * 60_000);
 
   afterAll(async () => {
-    await h.cartService()?.clearForCustomer({ ...CUSTOMER_COOKIES[SESSION.b2b_session]!, salesChannelId: retailId });
+    await emptyCustomerBasket(h, { ...CUSTOMER_COOKIES[SESSION.b2b_session]!, salesChannelId: retailId });
     await teardownBackendServer(h);
   });
 

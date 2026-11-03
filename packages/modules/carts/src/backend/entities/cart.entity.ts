@@ -22,9 +22,9 @@ import { randomUUID } from 'crypto';
  * unique per channel, not swept, not listed. Placement completes it against
  * the order (`completed_order_id`) or removes it when it refuses.
  *
- * Legacy `converted` was migrated to `completed` by migration 050. Mass
- * code in the repo that previously wrote `'converted'` now writes
- * `'completed'` (CartService.clearForCustomer).
+ * Legacy `converted` was migrated to `completed` by migration 050; the
+ * quote-request conversion, which wrote `'converted'`, now writes
+ * `'completed'` beside `converted_to_quote_request_id`.
  *
  * `approval_status` is the orthogonal sub-state that gates checkout when
  * the Organization's `requires_cart_approval` policy is `true`. Self-
@@ -133,9 +133,14 @@ export class Cart {
    *
    * Nullable, and it stays nullable. It cannot be backfilled — no surviving
    * record says which order emptied which historical cart — and
-   * `status = 'completed'` does not imply it: `CartService.clearForCustomer`,
-   * the anonymous-merge source and the quote-request conversion all reach
-   * `completed` without an order.
+   * `status = 'completed'` does not imply it. Two paths reach `completed`
+   * without an order, and each leaves its own record of why: the
+   * quote-request conversion sets {@link convertedToQuoteRequestId}, and the
+   * source basket of an anonymous-into-customer merge is left with neither a
+   * customer nor an {@link anonymousCartToken}. Every basket an order is placed
+   * from — the customer's own or a `working` one — is completed against the
+   * order. No other path reaches `completed`: the published write port has no
+   * operation that empties a basket and closes it without an order (issue #601).
    */
   @Property({ type: 'uuid', nullable: true })
   completedOrderId?: string | null;

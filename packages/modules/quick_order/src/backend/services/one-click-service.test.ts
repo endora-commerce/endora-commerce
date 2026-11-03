@@ -134,12 +134,12 @@ describe('OneClickService.place', () => {
   });
 
   it('writes the product into a working basket and places the order from it with the resolved defaults (#169)', async () => {
-    const clearForCustomer = vi.fn(async () => undefined);
+    const replaceItemsForCustomer = vi.fn(async () => undefined);
     const addItems = vi.fn(async () => ({ cart: { id: 'working-1', status: 'working' }, items: [], outcomes: [] }));
     const placeOrder = vi.fn(
       async () => ({ id: 'o-1', status: 'new', nextAction: null }) as unknown as PlacedOrderRecord,
     );
-    const cart = { clearForCustomer, addItems } as unknown as CartWritePort;
+    const cart = { replaceItemsForCustomer, addItems } as unknown as CartWritePort;
     const placement = { placeOrder } as unknown as OrderPlacementPort;
 
     const svc = new OneClickService(prefStub(FULL_DEFAULTS), cart, placement, async () => true, catalogOf());
@@ -151,9 +151,9 @@ describe('OneClickService.place', () => {
     );
 
     expect(order.id).toBe('o-1');
-    // Issue #169 — the buyer's active basket is never cleared: the line goes
+    // Issue #169 — the buyer's active basket is never re-seeded: the line goes
     // into a working basket, and the order is placed from that one.
-    expect(clearForCustomer).not.toHaveBeenCalled();
+    expect(replaceItemsForCustomer).not.toHaveBeenCalled();
     // Feature 155 (D3/D4) — both refusals name the product in the response's language.
     // The basket is the one of the channel the order is placed on
     // (`specs/154-sales-channel-access/`, contracts/basket-attribution.md §1).

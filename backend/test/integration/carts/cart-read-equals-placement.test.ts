@@ -14,6 +14,7 @@ import { cartWritePortOf } from '../../helpers/orders-neighbour-ports.js';
 import { TEST_CUSTOMER_EMPTY_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { systemDefaultSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
 import { createTieredProduct, TIER_UNIT_PRICE } from '../../helpers/tiered-product-fixture.js';
+import { emptyCustomerBasket } from '../../helpers/customer-basket.js';
 
 /**
  * Issue #168 — `GET /api/v1/cart` shows exactly the price placement charges.
@@ -107,7 +108,7 @@ describe('#168 — the cart read shows the price placement charges', () => {
 
   afterAll(async () => {
     await h.em().nativeDelete(PriceDisplayModeOverride, { scope: 'product', targetId: hiddenProductId });
-    await h.cartService()?.clearForCustomer(customer);
+    await emptyCustomerBasket(h, customer);
     await teardownBackendServer(h);
   });
 

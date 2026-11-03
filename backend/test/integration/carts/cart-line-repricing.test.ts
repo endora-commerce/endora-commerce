@@ -17,6 +17,7 @@ import {
   TIER_UNIT_PRICE,
   TIER_VOLUME_PRICE,
 } from '../../helpers/tiered-product-fixture.js';
+import { emptyCustomerBasket } from '../../helpers/customer-basket.js';
 
 /**
  * A cart line is ordered at its stored unit price, so that price is the price
@@ -104,7 +105,7 @@ describe('cart line repricing', () => {
     await cartService.updateItem({ customer }, itemId, 10);
     expect(await storedLine(itemId)).toEqual({ quantity: 10, unitPrice: '5.00' });
 
-    await cartService.clearForCustomer(customer);
+    await emptyCustomerBasket(h, customer);
   });
 
   it('a seed without an agreement — a reorder — stores the current price, not the copied one', async () => {
@@ -113,7 +114,7 @@ describe('cart line repricing', () => {
     ]);
     expect(await storedLine(seeded.items[0]!.id)).toEqual({ quantity: 10, unitPrice: TIER_UNIT_PRICE });
 
-    await h.cartService()!.clearForCustomer(customer);
+    await emptyCustomerBasket(h, customer);
   });
 
   it('refuses a product no price list and no price of its own applies to', async () => {
