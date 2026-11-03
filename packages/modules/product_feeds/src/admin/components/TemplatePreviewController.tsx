@@ -43,11 +43,12 @@ export interface TemplatePreviewControllerProps {
 interface AdminProductSummary {
   id: string;
   sku: string;
-  name: Record<string, string>;
+  /** Feature 170 (FR-031) — the Global name; the admin list answers no per-language map. */
+  name: string;
 }
 
-function pickName(name: Record<string, string>, fallback: string): string {
-  return name['en-US']?.trim() || Object.values(name).find((v) => v.trim() !== '') || fallback;
+function productLabel(name: string, fallback: string): string {
+  return name.trim() || fallback;
 }
 
 export function TemplatePreviewController(props: TemplatePreviewControllerProps): ReactNode {
@@ -184,7 +185,7 @@ function ProductPickerDrawer(props: {
     (product) =>
       needle === '' ||
       normalize(product.sku).includes(needle) ||
-      normalize(pickName(product.name, product.sku)).includes(needle),
+      normalize(productLabel(product.name, product.sku)).includes(needle),
   );
 
   return (
@@ -227,12 +228,12 @@ function ProductPickerDrawer(props: {
                       props.onPick({
                         productId: product.id,
                         sku: product.sku,
-                        name: pickName(product.name, product.sku),
+                        name: productLabel(product.name, product.sku),
                       })
                     }
                   >
                     <span className="block text-sm font-medium">
-                      {pickName(product.name, product.sku)}
+                      {productLabel(product.name, product.sku)}
                     </span>
                     <span className="b2b-mono block text-xs text-muted-foreground">
                       {product.sku}

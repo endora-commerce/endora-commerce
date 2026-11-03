@@ -6,6 +6,7 @@ import {
   type CatalogCategoryRecord,
   type CatalogGalleryPort,
   type CatalogProductReadPort,
+  type CatalogProductAvailabilityPort,
   type CatalogProductUrlKeyReadPort,
   type CatalogProductRecord,
   type CatalogProductVariantRecord,
@@ -211,6 +212,12 @@ export interface FeedGenerationDeps {
   catalogGallery: CatalogGalleryPort;
   /** Feature 167 (FR-033) — each product's effective URL key per channel language. */
   catalogUrlKeys: Pick<CatalogProductUrlKeyReadPort, 'effectiveKeys'>;
+  /**
+   * Feature 170 (FR-030, `contracts/readers.md` §1) — each product's effective name and
+   * description at the feed's (channel, language). Absent (a rig that wires none), the Global
+   * texts.
+   */
+  catalogTexts?: Pick<CatalogProductAvailabilityPort, 'effectiveTexts'>;
   selection: ProductSelectionService;
   runs: FeedRunService;
   artefactStore: ArtefactStorePort;
@@ -766,6 +773,13 @@ export class FeedGenerationService {
     // Feature 167 (FR-033) — a feed line links the product on its key in the feed's
     // language; the global slug only where the product has none there.
     const urlKeys = await this.deps.catalogUrlKeys.effectiveKeys(productIds, salesChannelId);
+    // Feature 170 (FR-030) — the texts a feed line carries, at the feed's (channel, language).
+    const texts = this.deps.catalogTexts
+      ? await this.deps.catalogTexts.effectiveTexts(productIds, {
+          channelId: salesChannelId,
+          languageCode: prepared.context.languageCode,
+        })
+      : new Map<string, { name: string; description: string | null }>();
     const feedLanguage = feedLinkLanguage(prepared.context).toLowerCase();
     const urlKeyOf = (productId: string, slug: string): string => {
       for (const [language, key] of urlKeys.get(productId) ?? []) {
@@ -864,8 +878,8 @@ export class FeedGenerationService {
         productId: product.id,
         slug: urlKeyOf(product.id, product.slug),
         productType: product.type,
-        name: product.name,
-        description: product.description,
+        name: texts.get(product.id)?.name || product.name,
+        description: texts.has(product.id) ? texts.get(product.id)!.description : product.description,
         attributes: product.attributeValues,
         // One registry since feature 061 — the same map answers both.
         customFields: product.attributeValues,

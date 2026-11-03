@@ -99,11 +99,11 @@ const duplicateFeedBodySchema = duplicateProductFeedRequestSchema.extend({
 
 /**
  * A product name for the preview sample. The sample exists so an operator can
- * recognise what a rule selected, so any localized value beats an empty string;
- * the SKU is the last resort because it always identifies the row.
+ * recognise what a rule selected; an admin preview has no buyer scope, so it is
+ * the Global name (feature 170, FR-031), and the SKU the last resort because it
+ * always identifies the row.
  */
-function pickProductName(name: string, sku: string): string {
-  // 170-shim: the Global name (`contracts/readers.md` §1, admin preview = G).
+function sampleProductLabel(name: string, sku: string): string {
   return name.trim() || sku;
 }
 
@@ -180,7 +180,7 @@ export async function registerProductFeedsAdminRoutes(
             sample: sample.map((item) => ({
               id: item.id,
               sku: item.sku,
-              name: pickProductName(item.name, item.sku),
+              name: sampleProductLabel(item.name, item.sku),
             })),
           },
         });

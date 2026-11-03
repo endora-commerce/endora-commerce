@@ -77,7 +77,10 @@ export interface FeedItemSource {
   readonly slug: string;
   /** `products.type` — simple / configurable / grouped / bundle / virtual (FR-003). */
   readonly productType: string;
-  /** 170-shim: the Global texts; S2 feeds the effective texts at the feed's (C, L) (`effectiveTexts`). */
+  /**
+   * Feature 170 (FR-030) — the effective texts at the feed's (channel, language), as
+   * `catalogProductAvailabilityPort.effectiveTexts` answers them; `null` = no description there.
+   */
   readonly name: string;
   readonly description: string | null;
   readonly attributes: Readonly<Record<string, unknown>>;
