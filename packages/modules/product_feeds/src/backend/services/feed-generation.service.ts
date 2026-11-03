@@ -827,7 +827,12 @@ export class FeedGenerationService {
     // that stops and records why.
     // Feature 163 (FR-076, owner decision MED-1 = A) — the gallery as the feed's channel
     // shows it: an image hidden there never reaches the feed.
-    const galleryRows = await this.deps.catalogGallery.listForProducts(productIds, salesChannelId);
+    // Feature 170 — and at the feed's language: an item hidden at (C, L) never reaches it.
+    const galleryRows = await this.deps.catalogGallery.listForProducts(
+      productIds,
+      salesChannelId,
+      prepared.context.languageCode,
+    );
     const publicUrls = await this.deps.resolvePublicImageUrls([
       ...new Set(galleryRows.map((r) => r.assetId)),
     ]);

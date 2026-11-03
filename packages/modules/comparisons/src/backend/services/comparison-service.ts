@@ -614,14 +614,17 @@ export class ComparisonService {
     // Feature 163 — whether each column can still be acquired here, now, by
     // this reader, as `catalog` answers it; no status is tested in this module
     // (FR-002). An administrator reads it as the public would.
+    // Feature 170 — the reader's language in the channel, shared by availability and
+    // the gallery's base image (`null` = the Channel level).
+    const viewerLanguageCode = comparisonScopeLanguage(
+      viewerSalesChannelId,
+      viewer.kind === 'buyer' ? viewer.languageTag : undefined,
+    );
     const availableHere =
       visibleProductIds.length > 0
         ? await this.availability.filterAvailable(visibleProductIds, {
             channelId: viewerSalesChannelId,
-            languageCode: comparisonScopeLanguage(
-              viewerSalesChannelId,
-              viewer.kind === 'buyer' ? viewer.languageTag : undefined,
-            ),
+            languageCode: viewerLanguageCode,
             audience: viewer.kind === 'buyer' ? viewer.audience : ANONYMOUS_PRODUCT_AUDIENCE,
           })
         : new Set<string>();
@@ -696,7 +699,8 @@ export class ComparisonService {
       shownProductIds.length > 0
         ? // Feature 163 (FR-076, owner decision MED-1 = A) — the base image as the
           // viewer's resolved channel shows it: an image hidden there is not served.
-          await this.catalogGallery.baseImageUrls(shownProductIds, viewerSalesChannelId)
+          // Feature 170 — and at the reader's language (C×L → C → Global).
+          await this.catalogGallery.baseImageUrls(shownProductIds, viewerSalesChannelId, viewerLanguageCode)
         : new Map<string, string | null>();
 
     // Comparable attribute definitions (catalog adapter port — Constitution I).

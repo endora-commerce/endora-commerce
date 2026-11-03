@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { setupBackendServer, teardownBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
@@ -23,7 +24,10 @@ describe('170 — comparison columns at the reader (channel, language) [integrat
   let saw: MinimumProductFixture;
   const GLOBAL = `Drill X ${RUN}`;
 
-  async function columnName(code: Code, productId: string): Promise<unknown> {
+  let pictured: MinimumProductFixture;
+  const IMAGE_URL = `https://cdn.example.test/s170-cmp-${RUN}.jpg`;
+
+  async function column(code: Code, productId: string): Promise<{ name: unknown; primaryAssetUrl: unknown } | undefined> {
     const add = await h.app.inject({
       method: 'POST',
       url: '/api/v1/comparisons/me/products',
@@ -34,9 +38,13 @@ describe('170 — comparison columns at the reader (channel, language) [integrat
     expect(add.statusCode, add.body).toBe(200);
     const res = await h.app.inject({ method: 'GET', url: '/api/v1/comparisons/me', cookies: BUYER, headers: on(code) });
     expect(res.statusCode, res.body).toBe(200);
-    return (res.json() as { data: { products: Array<{ id: string; name: unknown }> } }).data.products.find(
-      (p) => p.id === productId,
-    )?.name;
+    return (
+      res.json() as { data: { products: Array<{ id: string; name: unknown; primaryAssetUrl: unknown }> } }
+    ).data.products.find((p) => p.id === productId);
+  }
+
+  async function columnName(code: Code, productId: string): Promise<unknown> {
+    return (await column(code, productId))?.name;
   }
 
   beforeAll(async () => {
@@ -50,11 +58,30 @@ describe('170 — comparison columns at the reader (channel, language) [integrat
       { field: 'name', scope: { level: 'channel_language', channelId: vipId, languageCode: 'pl-PL' }, value: `Wiertarka X Pro ${RUN}` },
     ]);
     await seedScopedValues(em, saw.id, [{ field: 'name', scope: { level: 'channel', channelId: vipId }, value: `Saw Pro ${RUN}` }]);
+    // The base image of `pictured` is held by nobody at VIP x pl-PL (an empty role override), and by
+    // the Global holder everywhere else.
+    pictured = await createMinimumProduct(em, { sku: `S170-CP-${RUN}`, nameEn: `Pictured ${RUN}`, namePl: `Pictured ${RUN}`, channelIds: [vipId, retailId] });
+    const assetId = randomUUID();
+    await em.execute(
+      `insert into assets (id, kind, filename, mime_type, size_bytes, storage_url, created_at, updated_at)
+       values (?, 'image', 'test.jpg', 'image/jpeg', 1024, ?, now(), now())`,
+      [assetId, IMAGE_URL],
+    );
+    const attached = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/catalog/products/${pictured.id}/gallery`,
+      payload: { assetId, labels: ['base_image'] },
+      cookies: { b2b_session: 'stub-admin-session' },
+    });
+    expect(attached.statusCode, attached.body).toBe(201);
+    await seedScopedValues(em, pictured.id, [
+      { field: 'galleryRole:base_image', scope: { level: 'channel_language', channelId: vipId, languageCode: 'pl-PL' }, value: 'empty' },
+    ]);
   });
 
   afterAll(async () => {
     if (!h) return;
-    await clearValueOverrides(h.em(), [drill.id, saw.id]);
+    await clearValueOverrides(h.em(), [drill.id, saw.id, pictured.id]);
     await teardownBackendServer(h);
   });
 
@@ -68,5 +95,10 @@ describe('170 — comparison columns at the reader (channel, language) [integrat
 
   it('names a column by the Global name on a channel without the translation (US3 #1)', async () => {
     expect(await columnName('pl_retail', drill.id)).toBe(GLOBAL);
+  });
+
+  it("shows the base image at the reader's language: none where the role is emptied at C x L", async () => {
+    expect((await column('pl_b2b_vip', pictured.id))?.primaryAssetUrl).toBeNull();
+    expect((await column('pl_retail', pictured.id))?.primaryAssetUrl).toBe(IMAGE_URL);
   });
 });

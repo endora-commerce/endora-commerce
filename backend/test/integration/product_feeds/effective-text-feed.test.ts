@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { seedPriceBookSql } from '../../helpers/price-book-sql.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { setupBackendServer, teardownBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
@@ -17,6 +18,9 @@ import { seedScopedValues } from '../../helpers/scoped-values.js';
 const ADMIN = { cookies: { b2b_session: 'stub-admin-session' } };
 const PUBLISHING_STATUSES = ['completed', 'completed_with_warnings'];
 const DRILL_ID = '00000000-0000-4000-8000-0000000c1701';
+const HIDDEN_URL = 'https://cdn.example.test/s170-feed-hidden-at-cxl.jpg';
+/** The feed links the image by its permalink, which carries the stored file's stem. */
+const HIDDEN_MARK = 's170-feed-hidden-at-cxl';
 
 describe('170 — feed lines at the feed (channel, language) [integration]', () => {
   let h: BackendServerHandle;
@@ -53,6 +57,24 @@ describe('170 — feed lines at the feed (channel, language) [integration]', () 
     await seedScopedValues(em, DRILL_ID, [
       { field: 'name', scope: { level: 'channel_language', channelId: vipId, languageCode: 'pl-PL' }, value: 'Wiertarka X Pro' },
       { field: 'description', scope: { level: 'channel_language', channelId: vipId, languageCode: 'pl-PL' }, value: 'Wiertarka udarowa.' },
+    ]);
+    // A second gallery image, hidden at VIP x pl-PL only (the feed's scope below).
+    const assetId = randomUUID();
+    await conn.execute(
+      `insert into assets (id, kind, filename, mime_type, size_bytes, storage_url, created_at, updated_at)
+       values (?, 'image', 'hidden.jpg', 'image/jpeg', 1024, ?, now(), now())`,
+      [assetId, HIDDEN_URL],
+    );
+    const attached = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/catalog/products/${DRILL_ID}/gallery`,
+      payload: { assetId, labels: [] },
+      ...ADMIN,
+    });
+    expect(attached.statusCode, attached.body).toBe(201);
+    const itemId = (attached.json() as { data: { id: string } }).data.id;
+    await seedScopedValues(em, DRILL_ID, [
+      { field: `gallery:${itemId}:hidden`, scope: { level: 'channel_language', channelId: vipId, languageCode: 'pl-PL' }, value: true },
     ]);
     priceListId = await seedPriceBookSql(em, {
       name: 'Feed 170 book',
@@ -110,5 +132,10 @@ describe('170 — feed lines at the feed (channel, language) [integration]', () 
     expect(document).toContain('Drill X');
     expect(document).not.toContain('Wiertarka X Pro');
     expect(document).toContain('A drill.');
+  });
+
+  it("leaves out a gallery image hidden at the feed's (channel, language), and keeps it elsewhere", async () => {
+    expect(await feedDocument(vipId)).not.toContain(HIDDEN_MARK);
+    expect(await feedDocument(retailId)).toContain(HIDDEN_MARK);
   });
 });

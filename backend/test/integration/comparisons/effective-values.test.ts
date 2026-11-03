@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { setupBackendServer, teardownBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
@@ -56,16 +57,40 @@ describe('163 — comparisons show effective names [integration]', () => {
         attributeKey,
         product.id,
       ]);
-    const patch = await h.app.inject({
-      method: 'PATCH',
-      url: `/api/v1/admin/catalog/products/${product.id}/value-overrides`,
-      payload: {
-        upserts: [{ attributeKey, channelId: channel.id, languageCode: language, value: { v: `Brass ${RUN}` } }],
-        deletes: [],
-      },
+    // Feature 170 — the override is written through the one save, `PUT …/scoped-values`, which
+    // binds an attribute key to the product's attribute set (R21): the product gets a set of its
+    // own holding the attribute.
+    const conn = em.getConnection();
+    const [definition] = await conn.execute<Array<{ id: string }>>(
+      `select id from custom_field_definitions where key = ?`,
+      [attributeKey],
+    );
+    const attributeSetId = randomUUID();
+    await conn.execute(
+      `insert into attribute_sets (id, code, name, is_system, created_at, updated_at)
+       values (?, ?, '{"en-US":"S163 CMP"}'::jsonb, false, now(), now())`,
+      [attributeSetId, `s163_cmp_${RUN}`],
+    );
+    await conn.execute(
+      `insert into attribute_set_attributes (attribute_set_id, custom_field_definition_id, position) values (?, ?, 0)`,
+      [attributeSetId, definition!.id],
+    );
+    await conn.execute(`update products set attribute_set_id = ? where id = ?`, [attributeSetId, product.id]);
+    const scope = { channelId: channel.id, languageCode: language };
+    const read = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/catalog/products/${product.id}/scoped-values?${new URLSearchParams(scope).toString()}`,
       cookies: ADMIN,
     });
-    expect(patch.statusCode, patch.body).toBe(200);
+    expect(read.statusCode, read.body).toBe(200);
+    const { version } = (read.json() as { data: { version: string } }).data;
+    const save = await h.app.inject({
+      method: 'PUT',
+      url: `/api/v1/admin/catalog/products/${product.id}/scoped-values`,
+      payload: { scope, version, changes: { attributes: { [attributeKey]: `Brass ${RUN}` } } },
+      cookies: ADMIN,
+    });
+    expect(save.statusCode, save.body).toBe(200);
   }, 60_000);
 
   afterAll(async () => {
