@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import { CategoryTreePicker, OrganizationPickerMulti, ScopedFieldGrid, type ScopedFieldControlProps } from '@endora-commerce/admin-kit/components';
 import { Input } from '@endora-commerce/admin-kit/ui';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useContext } from 'react';
+import { AppLanguageContext, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
 import { PRODUCT_NAME_MAX } from '@endora-commerce/contracts';
 import { EditorField, globalOnlyView, useProductEditor } from './editor-context.js';
@@ -38,6 +39,7 @@ function Section({ title, children }: { title: string; children: ReactNode }): R
 
 export function DetailsTab({ attributeSets, categories, categoriesLoading }: DetailsTabProps): ReactNode {
   const t = useTranslation('catalog');
+  const adminLanguage = useContext(AppLanguageContext)?.language ?? 'en';
   const ctx = useProductEditor();
   const data = ctx.state.data;
   if (!data) return null;
@@ -47,7 +49,10 @@ export function DetailsTab({ attributeSets, categories, categoriesLoading }: Det
   const orgName = new Map(data.organizations.map((o) => [o.id, o.name]));
   const categoryName = (id: string): string => {
     const category = categories.find((c) => c.id === id);
-    return category ? (category.name['en-US'] ?? Object.values(category.name)[0] ?? category.slug) : id.slice(0, 8);
+    if (!category) return id.slice(0, 8);
+    // The admin's language first ("pl" reads "pl-PL"), then any name, then the slug.
+    const own = Object.entries(category.name).find(([code]) => code === adminLanguage || code.split('-')[0] === adminLanguage);
+    return own?.[1] ?? Object.values(category.name)[0] ?? category.slug;
   };
 
   return (
@@ -171,7 +176,13 @@ export function DetailsTab({ attributeSets, categories, categoriesLoading }: Det
             p.readOnly ? (
               <Input {...p.inputProps} readOnly value={(p.value ?? []).map(categoryName).join('; ')} />
             ) : (
-              <div id={p.inputProps.id} tabIndex={-1} aria-describedby={p.inputProps['aria-describedby']}>
+              <div
+                id={p.inputProps.id}
+                role="group"
+                aria-labelledby={`${p.inputProps.id}-label`}
+                tabIndex={-1}
+                aria-describedby={p.inputProps['aria-describedby']}
+              >
                 <CategoryTreePicker
                   categories={[...categories]}
                   selectedIds={p.value ?? []}

@@ -168,6 +168,42 @@ describe('ScopedField (feature 170, FR-060…FR-065)', () => {
     expect(control).toHaveAccessibleDescription(expect.stringContaining('Name is required.'));
   });
 
+  it('ticking "Use value from" on an own value shows the parent value read-only when the read carries it (round 8)', () => {
+    renderEn(
+      <Harness
+        view={{ ...view({ value: 'Wiertarka', ownValue: 'Wiertarka', source: 'set' }), inheritedValue: { value: 'Drill PL', level: 'C' } } as ScopedFieldView<string>}
+      />,
+    );
+    fireEvent.click(screen.getByRole('checkbox'));
+    const control = screen.getByLabelText('Name');
+    expect(control).toHaveAttribute('readonly');
+    expect(control).toHaveValue('Drill PL');
+  });
+
+  it('ticking on an own value without inheritedValue keeps the empty control and the save note', () => {
+    renderEn(<Harness view={view({ value: 'Wiertarka', ownValue: 'Wiertarka', source: 'set' })} />);
+    fireEvent.click(screen.getByRole('checkbox'));
+    expect(screen.getByLabelText('Name')).toHaveValue('');
+  });
+
+  it('the checkbox is described by the source line', () => {
+    renderEn(<Harness />);
+    expect(screen.getByRole('checkbox')).toHaveAccessibleDescription(expect.stringContaining('Inherited from Global'));
+  });
+
+  it('an inherited control sits in a wrapper that styles read-only controls (dashed, sunken)', () => {
+    renderEn(<Harness />);
+    const wrapper = screen.getByLabelText('Name').parentElement!;
+    expect(wrapper.className).toContain('[&_[readonly]]:border-dashed');
+  });
+
+  it('own empty: the hatching uses a colour, not raw HSL channels', () => {
+    renderEn(<Harness view={view({ value: null, ownValue: null, source: 'set_empty' })} />);
+    const wrapper = screen.getByLabelText('Name').parentElement!;
+    expect(wrapper.className).toContain('hsl(var(--muted-foreground)');
+    expect(wrapper.className).not.toContain('var(--muted)_');
+  });
+
   it('renders its Polish copy from the core bundle', () => {
     render(
       <TranslationProvider language="pl" initialBundle={shippedCoreBundle('pl')}>

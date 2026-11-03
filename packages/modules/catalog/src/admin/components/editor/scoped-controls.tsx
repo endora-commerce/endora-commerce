@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Input, Select } from '@endora-commerce/admin-kit/ui';
+import { Input, Select, Textarea } from '@endora-commerce/admin-kit/ui';
 import type { ScopedFieldControlProps } from '@endora-commerce/admin-kit/components';
 
 /**
@@ -40,9 +40,8 @@ export function TextareaControl({
   rows = 4,
 }: ScopedFieldControlProps<string> & { rows?: number }): ReactNode {
   return (
-    <textarea
+    <Textarea
       {...inputProps}
-      className="b2b-field"
       rows={rows}
       readOnly={readOnly}
       value={value ?? ''}
@@ -167,30 +166,35 @@ export function WindowControl({
   const emit = (next: WindowValue): void => onChange(next.from === null && next.until === null ? null : next);
   return (
     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-      <label className="flex flex-col gap-1 text-xs">
-        <span>{fromLabel}</span>
+      {/* One name per input: the field label plus its bound (`aria-labelledby`), never two labels. */}
+      <div className="flex flex-col gap-1 text-xs">
+        <span id={`${inputProps.id}-from-label`}>{fromLabel}</span>
         <Input
           id={inputProps.id}
+          aria-labelledby={`${inputProps.id}-label ${inputProps.id}-from-label`}
           aria-describedby={inputProps['aria-describedby']}
           aria-invalid={inputProps['aria-invalid']}
+          aria-required={inputProps['aria-required']}
           type="datetime-local"
           readOnly={readOnly}
           value={isoToLocalInput(current.from)}
           onChange={(e): void => emit({ ...current, from: localInputToIso(e.target.value) })}
         />
-      </label>
-      <label className="flex flex-col gap-1 text-xs">
-        <span>{untilLabel}</span>
+      </div>
+      <div className="flex flex-col gap-1 text-xs">
+        <span id={`${inputProps.id}-until-label`}>{untilLabel}</span>
         <Input
           id={`${inputProps.id}-until`}
+          aria-labelledby={`${inputProps.id}-label ${inputProps.id}-until-label`}
           aria-describedby={inputProps['aria-describedby']}
           aria-invalid={inputProps['aria-invalid']}
+          aria-required={inputProps['aria-required']}
           type="datetime-local"
           readOnly={readOnly}
           value={isoToLocalInput(current.until)}
           onChange={(e): void => emit({ ...current, until: localInputToIso(e.target.value) })}
         />
-      </label>
+      </div>
     </div>
   );
 }

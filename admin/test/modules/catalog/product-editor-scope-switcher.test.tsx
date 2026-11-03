@@ -49,7 +49,7 @@ describe('the scope switcher (feature 170, US5)', () => {
     expect(language).toBeDisabled();
     expect(screen.getByText(en['productEditor.scope.pickChannelFirst']!)).toBeInTheDocument();
     expect(screen.getByTestId('scope-words')).toHaveTextContent(en['productEditor.scope.global']!);
-    // The live region is in the DOM from the first render, and empty at Global (WCAG 4.1.3).
+    // The banner is empty at Global; the editor announces the scope after its data loads.
     expect(banner()).toBeEmptyDOMElement();
   });
 

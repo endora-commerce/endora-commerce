@@ -10,7 +10,7 @@ import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 export function ImmediateBadge(): ReactNode {
   const t = useTranslation('catalog');
   return (
-    <span className="ml-2 inline-flex items-center gap-1 rounded-md border border-sky-500/40 px-2 py-0.5 text-xs font-medium text-sky-800 dark:text-sky-200">
+    <span className="ml-2 inline-flex items-center gap-1 rounded-md border border-[var(--info)]/40 bg-[var(--info-soft)] px-2 py-0.5 text-xs font-medium text-[var(--info-soft-fg)]">
       <Zap className="size-3" aria-hidden="true" />
       {t('productEditor.immediate.badge')}
     </span>

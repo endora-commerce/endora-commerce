@@ -133,7 +133,7 @@ describe('immediate actions beside staged changes (feature 170, US7 #7)', () => 
     expect(screen.getByRole('button', { name: /^Save 1 change/ })).toBeEnabled();
     removeImage(/Remove Image 2/);
     await waitFor(() => expect(screen.getByTestId('editor-announcer')).toHaveTextContent(en['productEditor.immediate.droppedImage']!));
-    expect(screen.getByRole('button', { name: new RegExp(`^${en['productEditor.save.action']}`) })).toBeDisabled();
+    expect(screen.getByRole('button', { name: new RegExp(`^${en['productEditor.save.action']}`) })).toHaveAttribute('aria-disabled', 'true');
   });
 
   it('offers the structural controls at Global only', async () => {

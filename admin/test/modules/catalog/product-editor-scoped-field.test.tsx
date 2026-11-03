@@ -124,7 +124,8 @@ describe('fields at a scope (feature 170, US6)', () => {
 
   it('the publication window at Channel × language says it is set per channel and jumps there (FR-082)', async () => {
     const view = renderEditor(ProductEditor, { url: `${atChannel.replace('scope=channel', 'scope=cl')}&language=pl-PL` });
-    const field = await screen.findByLabelText(en['productEditor.field.publishWindow']!, { exact: false });
+    // One name per input: the field label plus its bound (the window has two inputs).
+    const field = await screen.findByLabelText(`${en['productEditor.field.publishWindow']!} ${en['productEditor.field.publishFrom']!}`);
     expect(field).toHaveAttribute('readonly');
     const panel = screen.getByRole('tabpanel');
     expect(within(panel).getAllByText('Set per channel').length).toBeGreaterThan(0);

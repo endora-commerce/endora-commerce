@@ -34,11 +34,37 @@ export interface ScopedFieldControlProps<T> {
   };
 }
 
+/**
+ * The parent's effective value, carried by the read for every non-Global field (spec round 8):
+ * what the field shows read-only right after "Use value from <parent>" is ticked on an own
+ * value. `level` is where that value is set (`G` Global, `C` the channel). Absent on a read that
+ * does not carry it yet — the field then shows an empty read-only control and the save note.
+ */
+export interface ScopedInheritedValue<T> {
+  value: T | null;
+  level: 'G' | 'C';
+}
+
+export type ScopedFieldViewWithParent<T> = ScopedFieldView<T> & { inheritedValue?: ScopedInheritedValue<T> | null };
+
+/**
+ * Read-only and inherited controls: dashed border, sunken background, muted text (prototype
+ * `.ctl[readonly]`). Applied by the wrapper so every control a caller renders gets it; a
+ * non-native control opts in with `aria-readonly="true"`.
+ */
+const READ_ONLY_CONTROLS =
+  '[&_[readonly]]:border-dashed [&_[readonly]]:bg-secondary [&_[readonly]]:text-muted-foreground [&_[readonly]]:cursor-default ' +
+  '[&_[aria-readonly=true]]:border-dashed [&_[aria-readonly=true]]:bg-secondary [&_[aria-readonly=true]]:text-muted-foreground';
+
+/** "Set, empty here" (prototype `.ctl.is-own-empty`): diagonal stripes in a visible token. */
+const OWN_EMPTY_HATCHING =
+  'rounded-md [background:repeating-linear-gradient(-45deg,transparent,transparent_6px,hsl(var(--muted-foreground)/0.14)_6px,hsl(var(--muted-foreground)/0.14)_12px)]';
+
 export interface ScopedFieldProps<T> {
   id: string;
   label: string;
   fieldPath: string;
-  view: ScopedFieldView<T>;
+  view: ScopedFieldViewWithParent<T>;
   scope: ScopeRef;
   scopeLabel: string;
   /** "Global" at Channel, the channel's name at Channel × language. */
@@ -137,7 +163,7 @@ export function ScopedField<T>(props: ScopedFieldProps<T>): ReactNode {
     return (
       <div className={cn('grid grid-rows-subgrid row-span-3 gap-1', wide && 'md:col-span-2')} data-field={props.fieldPath}>
         <div className={headClass}>
-          <label htmlFor={id} className="text-sm font-medium">
+          <label htmlFor={id} id={`${id}-label`} className="text-sm font-medium">
             {label}
           </label>
           <span className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs text-muted-foreground">
@@ -145,7 +171,7 @@ export function ScopedField<T>(props: ScopedFieldProps<T>): ReactNode {
             {notHere ? levelsText : t('scopedField.globalOnly')}
           </span>
         </div>
-        <div>
+        <div className={READ_ONLY_CONTROLS}>
           {renderControl({
             value: view.value,
             readOnly: true,
@@ -183,7 +209,7 @@ export function ScopedField<T>(props: ScopedFieldProps<T>): ReactNode {
   const stagedValue = staged?.op === 'set' ? staged.value : staged?.op === 'empty' ? null : undefined;
   let value: T | null;
   if (stagedValue !== undefined) value = stagedValue;
-  else if (mode === 'stagedInherit') value = null;
+  else if (mode === 'stagedInherit') value = view.inheritedValue ? view.inheritedValue.value : null;
   else if (mode === 'own') value = view.source === 'set_empty' ? null : ((view.ownValue ?? view.value) as T | null);
   else value = view.value;
 
@@ -231,7 +257,8 @@ export function ScopedField<T>(props: ScopedFieldProps<T>): ReactNode {
         ? { icon: <CircleSlash className="size-3" aria-hidden="true" />, text: t('scopedField.source.noValueAbove') }
         : { icon: <Link2 className="size-3" aria-hidden="true" />, text: t('scopedField.source.inheritedFrom', { scope: inheritedFrom }) };
   } else if (mode === 'stagedInherit') {
-    source = { icon: <Link2 className="size-3" aria-hidden="true" />, text: t('scopedField.source.willInherit', { scope: parentScopeLabel }) };
+    const from = view.inheritedValue ? (view.inheritedValue.level === 'C' ? parentScopeLabel : t('scopedField.scope.global')) : parentScopeLabel;
+    source = { icon: <Link2 className="size-3" aria-hidden="true" />, text: t('scopedField.source.willInherit', { scope: from }) };
   } else if (isEmpty(value)) {
     const base = t('scopedField.source.setEmpty');
     source = { icon: <CircleSlash className="size-3" aria-hidden="true" />, text: emptyMeaning ? `${base} — ${emptyMeaning}` : base };
@@ -288,7 +315,7 @@ export function ScopedField<T>(props: ScopedFieldProps<T>): ReactNode {
   return (
     <div className={cn('grid grid-rows-subgrid row-span-3 gap-1', wide && 'md:col-span-2')} data-field={props.fieldPath}>
       <div className={headClass}>
-        <label htmlFor={id} className="text-sm font-medium">
+        <label htmlFor={id} id={`${id}-label`} className="text-sm font-medium">
           {label}
         </label>
         {required ? (
@@ -299,10 +326,11 @@ export function ScopedField<T>(props: ScopedFieldProps<T>): ReactNode {
         {badges}
         {headExtra ? <span className="ml-auto">{headExtra}</span> : null}
         {!atGlobal && !readOnly ? (
-          <label className="flex w-full items-center gap-2 text-xs text-muted-foreground">
+          <label className="flex min-h-6 max-lg:min-h-11 w-full cursor-pointer items-center gap-2 py-0.5 text-xs text-muted-foreground">
             <input
               type="checkbox"
               className="size-4"
+              aria-describedby={source ? srcId : undefined}
               checked={mode === 'inherit' || mode === 'stagedInherit'}
               onChange={(e): void => onUseParent(e.target.checked)}
             />
@@ -313,7 +341,7 @@ export function ScopedField<T>(props: ScopedFieldProps<T>): ReactNode {
           </label>
         ) : null}
       </div>
-      <div className={cn(ownEmpty && 'rounded-md [background:repeating-linear-gradient(135deg,transparent,transparent_6px,var(--muted)_6px,var(--muted)_8px)]')}>
+      <div className={cn(READ_ONLY_CONTROLS, ownEmpty && OWN_EMPTY_HATCHING)}>
         {renderControl({
           value,
           readOnly: !editable,

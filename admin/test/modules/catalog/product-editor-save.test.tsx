@@ -74,14 +74,14 @@ describe('one Save of the current scope (feature 170, US7)', () => {
     renderEditor(ProductEditor, { url: AT_C });
     await stageName();
     fireEvent.change(screen.getByLabelText(en['productEditor.field.description']!), { target: { value: 'New text' } });
-    expect(screen.getByRole('button', { name: /^Save 2 change/ })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /^Save 2 change/ })).not.toHaveAttribute('aria-disabled', 'true');
     fireEvent.click(screen.getByRole('tab', { name: en['productEditor.tab.media']! }));
     fireEvent.click(await screen.findByRole('tab', { name: en['productEditor.tab.details']! }));
     expect(await screen.findByLabelText(en['productEditor.field.name']!)).toHaveValue('Wiertarka');
     fireEvent.click(screen.getByRole('button', { name: /^Save 2 change/ }));
     await waitFor(() => expect(scopedPuts()).toHaveLength(1));
     expect((scopedPuts()[0]![1] as { changes: unknown }).changes).toEqual({ name: 'Wiertarka', description: 'New text' });
-    expect(await screen.findByRole('button', { name: new RegExp(`^${en['productEditor.save.action']}`) })).toBeDisabled();
+    expect(await screen.findByRole('button', { name: new RegExp(`^${en['productEditor.save.action']}`) })).toHaveAttribute('aria-disabled', 'true');
   });
 
   it('a scope switch with staged changes asks first; Stay keeps scope and changes (FR-075)', async () => {

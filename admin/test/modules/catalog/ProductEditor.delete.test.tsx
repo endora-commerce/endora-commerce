@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ApiError } from '@endora-commerce/admin-kit/lib';
@@ -55,6 +55,9 @@ const BUNDLE_KEYS = [
   'productEditor.loading',
   'productEditor.action.delete',
   'productEditor.deleteConfirm',
+  'productEditor.deleteTitle',
+  'productEditor.deleteAction',
+  'productEditor.wholeProduct.menu',
   'productEditor.section.identity',
   'productEditor.field.sku',
   'productEditor.field.status',
@@ -117,6 +120,15 @@ function primeGets(): void {
   });
 }
 
+/** Delete lives in the "Product" menu and asks in a dialog, not `window.confirm` (feature 170, §11). */
+async function deleteThroughMenu(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+  await user.click(await screen.findByRole('button', { name: /productEditor\.wholeProduct\.menu/ }));
+  await user.click(await screen.findByRole('menuitem', { name: /productEditor\.action\.delete/ }));
+  const dialog = await screen.findByRole('dialog');
+  expect(dialog).toHaveAccessibleDescription(/productEditor\.deleteConfirm/);
+  await user.click(within(dialog).getByRole('button', { name: /productEditor\.deleteAction/ }));
+}
+
 describe('ProductEditor — delete product (feature 032)', () => {
   beforeEach(() => {
     getSpy.mockReset();
@@ -124,7 +136,6 @@ describe('ProductEditor — delete product (feature 032)', () => {
     navigateSpy.mockReset();
     primeGets();
     deleteSpy.mockResolvedValue(undefined);
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
   });
 
   afterEach(() => {
@@ -141,8 +152,7 @@ describe('ProductEditor — delete product (feature 032)', () => {
       </MemoryRouter>,
     );
 
-    const deleteBtn = await screen.findByRole('button', { name: /productEditor\.action\.delete/i });
-    await user.click(deleteBtn);
+    await deleteThroughMenu(user);
 
     await waitFor(() => {
       expect(deleteSpy).toHaveBeenCalledWith(`/api/v1/admin/catalog/products/${PRODUCT_ID}`);
@@ -169,7 +179,7 @@ describe('ProductEditor — delete product (feature 032)', () => {
       </MemoryRouter>,
     );
 
-    await user.click(await screen.findByRole('button', { name: /productEditor\.action\.delete/i }));
+    await deleteThroughMenu(user);
 
     expect(await screen.findByText(/blocked by orders/)).toBeInTheDocument();
   });

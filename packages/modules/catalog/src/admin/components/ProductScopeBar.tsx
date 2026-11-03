@@ -11,9 +11,8 @@ import { languageName, type ValidScopes } from '../lib/editor-scope.js';
  * combobox past eight options), a language select by name, the scope in words with a link to
  * the scope map, the banner of a non-Global scope and the read-only line.
  *
- * The banner's `role="status"` region is in the DOM from the first render and empty; its text
- * is set after mount and only when the scope changes, so a re-render does not re-announce it
- * (WCAG 4.1.3). Picking a scope here asks the page (`onRequestScope`), which runs the switch
+ * The banner is visual: the editor's own live region announces the new scope after its data
+ * has loaded (WCAG 4.1.3), so the switch is not announced twice or before the fields are in. Picking a scope here asks the page (`onRequestScope`), which runs the switch
  * guard before anything changes.
  */
 
@@ -108,6 +107,7 @@ export function ProductScopeBar(props: ProductScopeBarProps): ReactNode {
           ) : (
             <Select
               id={channelId}
+              className="max-lg:min-h-11"
               value={currentChannelId}
               disabled={noChannels}
               aria-describedby={noChannels ? hintId : undefined}
@@ -125,6 +125,7 @@ export function ProductScopeBar(props: ProductScopeBarProps): ReactNode {
           <Label htmlFor={languageId}>{t('productEditor.scope.languageSelect')}</Label>
           <Select
             id={languageId}
+            className="max-lg:min-h-11"
             value={currentLanguage}
             disabled={scope.level === 'global'}
             aria-describedby={scope.level === 'global' ? `${languageId}-hint` : undefined}
@@ -152,7 +153,7 @@ export function ProductScopeBar(props: ProductScopeBarProps): ReactNode {
           </span>
           <button
             type="button"
-            className="inline-flex items-center gap-1 self-start text-sm text-primary underline underline-offset-2"
+            className="inline-flex items-center gap-1 self-start text-sm text-primary underline underline-offset-2 max-lg:min-h-11"
             onClick={onOpenScopeMap}
           >
             <LayoutGrid className="size-3.5" aria-hidden="true" />
@@ -169,11 +170,12 @@ export function ProductScopeBar(props: ProductScopeBarProps): ReactNode {
         className={
           scope.level === 'global'
             ? 'hidden'
-            : 'mt-3 flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100'
+            : 'mt-3 flex items-center gap-2 rounded-md border border-[var(--warn)]/40 bg-[var(--warn-soft)] px-3 py-2 text-sm text-[var(--warn-soft-fg)]'
         }
       >
         <TriangleAlert className="size-4 shrink-0" aria-hidden="true" />
-        <span role="status" data-testid="scope-banner-live">
+        {/* Not a live region: the editor announces the scope once its data has loaded. */}
+        <span data-testid="scope-banner-live">
           {bannerText}
         </span>
       </div>
