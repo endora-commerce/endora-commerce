@@ -51,7 +51,10 @@ export async function seedCustomOrganizationRole(
     `insert into "organization_roles"
        ("id","organization_id","kind","name","name_normalized","description","permissions","created_at","updated_at")
      values (?, ?, 'custom', ?, lower(btrim(?)), ?, ?::text[], now(), now())`,
-    [id, input.organizationId, name, name, input.description ?? null, [...input.permissions].sort()],
+    // A Postgres array literal, not a JS array: the driver expands an array
+    // binding into a comma list, which `?::text[]` then refuses as a
+    // malformed literal. Codes are `[a-z0-9_.]`, so nothing needs quoting.
+    [id, input.organizationId, name, name, input.description ?? null, `{${[...input.permissions].sort().join(',')}}`],
   );
   return id;
 }

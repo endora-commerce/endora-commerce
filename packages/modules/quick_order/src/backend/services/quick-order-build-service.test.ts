@@ -4,6 +4,7 @@ import {
   QUICK_ORDER_BUILD_MAX_ITEMS,
   type CartBatchLineOutcome,
   type CartWritePort,
+  type OrganizationPermissionPort,
   type RfqCustomerPort,
 } from '@endora-commerce/contracts';
 import { QuickOrderBuildService, type QuickOrderBuildLineInput } from './quick-order-build-service.js';
@@ -20,7 +21,33 @@ const A = '00000000-0000-4000-8000-0000000000a1';
 const D = '00000000-0000-4000-8000-0000000000d1';
 const RED = '00000000-0000-4000-8000-0000000000e1';
 
-function doubles(outcomes: CartBatchLineOutcome[] = []) {
+/**
+ * `specs/170-organization-roles/` — a permission port answering from a fixed
+ * set of held codes, refusing as the real one does (`403
+ * ORGANIZATION_PERMISSION_REQUIRED` naming the code).
+ */
+function permissionsHolding(held: readonly string[]): OrganizationPermissionPort {
+  const can = vi.fn(async (_subject: unknown, code: string) => held.includes(code));
+  return {
+    can,
+    assert: vi.fn(async (subject, code) => {
+      if (!(await can(subject, code))) {
+        throw Object.assign(new Error(`permission ${code} required`), {
+          statusCode: 403,
+          code: ERROR_CODES.ORGANIZATION_PERMISSION_REQUIRED,
+          details: { permission: code },
+        });
+      }
+    }),
+    isAdministrator: async () => false,
+    effective: async () => ({ role: { id: 'role-1', kind: 'custom' }, permissions: [...held] }),
+    rolesHolding: async () => [],
+  };
+}
+
+const HOLDS_BOTH = ['carts.create', 'quote_requests.create'];
+
+function doubles(outcomes: CartBatchLineOutcome[] = [], permissions = permissionsHolding(HOLDS_BOTH)) {
   const addItems = vi.fn(async () => ({
     cart: { id: 'cart-1' },
     items: [],
@@ -33,7 +60,7 @@ function doubles(outcomes: CartBatchLineOutcome[] = []) {
   const createForCustomer = vi.fn(async () => ({ id: 'rfq-1', businessId: 'RFQ-1' }));
   const cart = { addItems, addItem, getOrCreateForCustomer } as unknown as CartWritePort;
   const rfq = { createForCustomer } as unknown as RfqCustomerPort;
-  return { service: new QuickOrderBuildService(cart, rfq), addItems, addItem, getOrCreateForCustomer, createForCustomer };
+  return { service: new QuickOrderBuildService(cart, rfq, permissions), permissions, addItems, addItem, getOrCreateForCustomer, createForCustomer };
 }
 
 const ITEMS: QuickOrderBuildLineInput[] = [
@@ -204,4 +231,64 @@ describe('QuickOrderBuildService — the item bound (FR-038)', () => {
     await service.build(BUYER, { target: 'cart', items });
     expect(addItems).toHaveBeenCalledTimes(1);
   });
+});
+
+/**
+ * `specs/170-organization-roles/` WP-06 (T085; FR-030, FR-040, R-26) — a
+ * buyer's build is judged by the target's create permission: `cart` needs
+ * `carts.create`, `quote_request` needs `quote_requests.create`. The target is
+ * in the body, so the judgement is the build's own, through `assert`, before
+ * anything is resolved or written. The operator's on-behalf build is gated by
+ * operator permissions only and is not judged here (R-26).
+ */
+describe('QuickOrderBuildService — organization permissions', () => {
+  it.each([
+    ['cart', 'carts.create', ['quote_requests.create']],
+    ['quote_request', 'quote_requests.create', ['carts.create']],
+  ] as const)('refuses a buyer building %s without %s, before any port call', async (target, code, held) => {
+    const { service, addItems, createForCustomer } = doubles([], permissionsHolding(held));
+    await expect(service.build(BUYER, { target, items: ITEMS })).rejects.toMatchObject({
+      statusCode: 403,
+      code: ERROR_CODES.ORGANIZATION_PERMISSION_REQUIRED,
+      details: { permission: code },
+    });
+    expect(addItems).not.toHaveBeenCalled();
+    expect(createForCustomer).not.toHaveBeenCalled();
+  });
+
+  it('judges the permission before the item bound, so a refused member learns nothing about the request', async () => {
+    const { service } = doubles([], permissionsHolding([]));
+    const items = Array.from({ length: QUICK_ORDER_BUILD_MAX_ITEMS + 1 }, () => ({ productId: D, quantity: 1 }));
+    await expect(service.build(BUYER, { target: 'cart', items })).rejects.toMatchObject({
+      statusCode: 403,
+      code: ERROR_CODES.ORGANIZATION_PERMISSION_REQUIRED,
+    });
+  });
+
+  it.each([
+    ['cart', 'carts.create'],
+    ['quote_request', 'quote_requests.create'],
+  ] as const)('judges the buyer it builds for, for %s with %s', async (target, code) => {
+    const { service, permissions } = doubles([{ index: 0, status: 'added' }, { index: 1, status: 'added' }]);
+    await service.build({ ...BUYER, organizationRoleId: 'role-7' }, { target, items: ITEMS }, { language: 'pl' });
+    expect(permissions.assert).toHaveBeenCalledWith(
+      { customerAccountId: 'cust-1', organizationId: 'org-1', organizationRoleId: 'role-7' },
+      code,
+      { language: 'pl' },
+    );
+  });
+
+  it.each(['cart', 'quote_request'] as const)(
+    'does not judge the operator’s on-behalf build of %s (R-26)',
+    async (target) => {
+      const { service, permissions, addItems, createForCustomer } = doubles(
+        [{ index: 0, status: 'added' }, { index: 1, status: 'added' }],
+        permissionsHolding([]),
+      );
+      await service.build(BUYER, { target, items: ITEMS }, { actor: 'operator' });
+      expect(permissions.assert).not.toHaveBeenCalled();
+      expect(permissions.can).not.toHaveBeenCalled();
+      expect(addItems.mock.calls.length + createForCustomer.mock.calls.length).toBe(1);
+    },
+  );
 });
