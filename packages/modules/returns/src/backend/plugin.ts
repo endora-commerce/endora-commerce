@@ -8,7 +8,7 @@ import type {
   PaymentRefundPort,
 } from '@endora-commerce/contracts';
 import type { EventBus } from '@endora-commerce/platform/events';
-import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
+import type { PlatformLogger, SettingsReadPort } from '@endora-commerce/platform/kernel';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { RETURNS_SETTING_CODES } from '../manifest.js';
 import { ReturnStatusGraphService } from './services/return-status-graph-service.js';
@@ -52,6 +52,11 @@ export interface ReturnsModuleOptions {
   auditLog: AuditPort;
   /** Best-effort customer notifications on authorize/reject. */
   notifier?: ReturnNotifier;
+  /**
+   * The module's logger. The saved-view service writes its actor-≠-owner trail
+   * through it (`specs/147-saved-views/` research R-18, S-11; #312).
+   */
+  log?: PlatformLogger;
 }
 
 /**
@@ -128,7 +133,7 @@ export function returnsModule(
   const reasonService = new ReturnReasonService(emFactory, options.auditLog);
   const attachmentService = new ReturnAttachmentService(emFactory);
   const listService = new ReturnListService({ emFactory, graphService, transitions });
-  const listViewService = new ReturnListViewService(emFactory);
+  const listViewService = new ReturnListViewService(emFactory, options.log);
   const exportService = new ReturnExportService(listService);
 
   const authorizationService = new ReturnAuthorizationService({

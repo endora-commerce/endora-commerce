@@ -9,10 +9,12 @@ import {
 import { OrderListViewService } from '../../../../packages/modules/orders/src/backend/services/order-list-view-service.js';
 import { ProductListViewService } from '../../../../packages/modules/catalog/src/backend/services/product-list-view-service.js';
 import { QuoteRequestListViewService } from '../../../../packages/modules/quote_requests/src/backend/services/quote-request-list-view-service.js';
+import { ReturnListViewService } from '../../../../packages/modules/returns/src/backend/services/return-list-view-service.js';
 import { TaskListViewService } from '../../../../packages/modules/tasks/src/backend/services/saved-view-service.js';
 import { savedViewActor as orderSavedViewActor } from '../../../../packages/modules/orders/src/backend/saved-view-actor.js';
 import { savedViewActor as productSavedViewActor } from '../../../../packages/modules/catalog/src/backend/saved-view-actor.js';
 import { savedViewActor as quoteRequestSavedViewActor } from '../../../../packages/modules/quote_requests/src/backend/saved-view-actor.js';
+import { savedViewActor as returnSavedViewActor } from '../../../../packages/modules/returns/src/backend/saved-view-actor.js';
 import { savedViewActor as taskSavedViewActor } from '../../../../packages/modules/tasks/src/backend/saved-view-actor.js';
 import { resolveTenantContext } from '@endora-commerce/platform/composition';
 import { runWithTenantContext, type TenantContext } from '../../../src/tenancy/tenant-context.js';
@@ -163,6 +165,29 @@ const ADAPTERS: ListAdapter[] = [
         `insert into quote_request_list_saved_views
            (id, owner_admin_user_id, name, shared, filters, sort, visible_columns, created_at, updated_at)
          values (?, ?, ?, ?, '{}'::jsonb, null, null, now(), now())`,
+        [id, row.ownerAdminUserId, row.name, row.shared],
+      );
+      return id;
+    },
+  },
+  {
+    // Issue #312: the Returns list. Its table predates the rules, as the order
+    // list's does, so it carries no unique index and keeps rows saved before
+    // them — names, duplicates and all.
+    label: 'returns',
+    table: 'return_list_saved_views',
+    conflictCode: 'RETURN_SAVED_VIEW_NAME_TAKEN',
+    holdsLegacyDuplicates: true,
+    // Same narrow cast as orders': the return list requires `sort`.
+    make: (emFactory, log) =>
+      new ReturnListViewService(emFactory, log) as unknown as SavedViewServiceUnderTest,
+    actor: returnSavedViewActor,
+    async seedRaw(em, row) {
+      const id = randomUUID();
+      await em.execute(
+        `insert into return_list_saved_views
+           (id, owner_admin_user_id, name, shared, filters, sort, visible_columns, created_at, updated_at)
+         values (?, ?, ?, ?, '{}'::jsonb, '{"field":"submittedAt","dir":"desc"}'::jsonb, null, now(), now())`,
         [id, row.ownerAdminUserId, row.name, row.shared],
       );
       return id;

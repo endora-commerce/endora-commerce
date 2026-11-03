@@ -34,7 +34,9 @@ Trasy administracyjne są chronione przez `returns:read` (odczyt) i `returns:wri
 | `GET\|POST /api/v1/admin/returns/:id/settlement` | administrator | Wstępne wypełnienie / wykonanie rozliczenia |
 | `GET\|POST /api/v1/admin/returns/:id/comments` | administrator | Lista / dodanie komentarza (widoczność i powiadomienie) |
 | `GET\|POST /api/v1/admin/returns/:id/shipments` + `/:shipmentId/receive` | administrator | Przesyłki zwrotne |
-| `…/statuses`, `…/transitions`, `…/reasons`, `…/delivery-methods`, `…/list-views` | administrator | Konfiguracja i zapisane widoki |
+| `GET\|POST /api/v1/admin/returns/list-views` | administrator | Własne zapisane widoki wywołującego i wszystkie udostępnione / zapisanie widoku |
+| `PATCH\|DELETE /api/v1/admin/returns/list-views/:id` | administrator | Zmiana / usunięcie zapisanego widoku (właściciel albo administrator platformy w przypadku widoku udostępnionego) |
+| `…/statuses`, `…/transitions`, `…/reasons`, `…/delivery-methods` | administrator | Konfiguracja |
 
 ## Statusy i przejścia (konfigurowalne)
 
@@ -74,6 +76,21 @@ trafia do dziennika audytu.
   potrzebna naprawa to ponowne włączenie modułu. To co innego niż wdrożenie, które w ogóle **nie
   ma** integracji zwrotów z operatorem płatności — tam rozliczenie nadal kończy się stanem
   `pending_manual`, aby człowiek wypłacił pieniądze ręcznie, bo nie ma czego włączyć.
+- **Zapisane widoki na liście zwrotów** — kontrolka *Zapisane widoki* nad listą zapisuje jej filtry
+  statusu, rodzaju i numeru RMA oraz sortowanie (lista nie ma wyboru kolumn), prywatnie albo jako
+  widok udostępniony każdemu administratorowi, który może otworzyć listę. Cztery trasy `list-views`
+  wymagają `returns:read` i podlegają tym samym regułom co zapisane widoki list zamówień, produktów
+  i zapytań ofertowych: nazwa jest przycinana, ma od 1 do 160 znaków i nie zawiera znaków
+  sterujących ani formatujących; jeden administrator nie może mieć dwóch widoków, których nazwy
+  różnią się tylko wielkością liter lub spacjami na brzegach (`409 RETURN_SAVED_VIEW_NAME_TAKEN`);
+  `filters` jest ograniczone do 8 KB, `visibleColumns` do 64 pozycji po 64 znaki, a `sort.field` do
+  64 znaków; `shared` i `sort` są wymagane przy tworzeniu. Prywatny widok innego administratora i
+  identyfikator, który nie jest UUID, dają `404`; widok udostępniony zmienia lub usuwa jego
+  właściciel albo administrator, którego dostęp nie jest ograniczony do zbioru organizacji (w
+  przeciwnym razie `403`). Pozycje listy zawierają `ownedByCaller` i `canModify`, a `DELETE`
+  odpowiada `{ data: { deleted: <id> } }`. Widoki zapisane przed wprowadzeniem tych reguł zachowują
+  nazwy w zapisanej postaci — także puste i zdublowane — dopóki właściciel ich nie zmieni lub nie
+  usunie; zmiana, która nie dotyczy nazwy, nigdy nie jest z tego powodu odrzucana.
 
 ## Produkty podlegające zwrotowi
 

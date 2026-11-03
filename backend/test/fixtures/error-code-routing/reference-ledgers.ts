@@ -739,6 +739,16 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'reused: the request is well formed, and the sentence has to tell the admin to pick ' +
       'another name.',
   },
+  RETURN_SAVED_VIEW_NAME_TAKEN: {
+    to: 'returns',
+    reason:
+      'Minted for the refusal a saved view on the return list earns when its owner already holds ' +
+      'a view there whose name differs only by case or surrounding spaces (#312, the rules of ' +
+      '`specs/147-saved-views/` FR-022). The noun is a return-list saved view, `returns`\' own ' +
+      'row, and the one raise site is `return-list-view-service.ts`. `VALIDATION_FAILED` is not ' +
+      'reused: the request is well formed, and the sentence has to tell the admin to pick ' +
+      'another name.',
+  },
   RFQ_SAVED_VIEW_NAME_TAKEN: {
     to: 'quote_requests',
     reason:

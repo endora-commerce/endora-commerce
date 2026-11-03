@@ -491,36 +491,9 @@ export const bulkTransitionResultSchema = z.object({
 });
 export type BulkTransitionResult = z.infer<typeof bulkTransitionResultSchema>;
 
-export const returnSavedViewSortSchema = z.object({
-  field: z.string(),
-  dir: z.enum(['asc', 'desc']),
-});
-
-export const returnSavedViewSchema = z.object({
-  id: uuidSchema,
-  name: z.string(),
-  shared: z.boolean(),
-  filters: z.record(z.string(), z.unknown()),
-  sort: returnSavedViewSortSchema,
-  visibleColumns: z.array(z.string()).nullable(),
-});
-export type ReturnSavedViewDto = z.infer<typeof returnSavedViewSchema>;
-
-export const returnSavedViewCreateSchema = z.object({
-  name: z.string().min(1).max(200),
-  shared: z.boolean().optional(),
-  filters: z.record(z.string(), z.unknown()),
-  sort: returnSavedViewSortSchema,
-  visibleColumns: z.array(z.string()).optional(),
-});
-
-export const returnSavedViewUpdateSchema = z.object({
-  name: z.string().min(1).max(200).optional(),
-  shared: z.boolean().optional(),
-  filters: z.record(z.string(), z.unknown()).optional(),
-  sort: returnSavedViewSortSchema.optional(),
-  visibleColumns: z.array(z.string()).nullable().optional(),
-});
+// Saved list views on the return list (#312) use the shared shapes in
+// `saved-list-views.ts`: `createReturnSavedViewRequestSchema`,
+// `updateReturnSavedViewRequestSchema` and `savedListViewSchema`.
 
 // ---------------------------------------------------------------------------
 // --- ports -----------------------------------------------------------------

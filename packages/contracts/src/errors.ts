@@ -224,6 +224,10 @@ export const ERROR_CODES = {
   // returnable at purchase (owned and raised by `returns`; complaints are
   // never refused by it).
   RETURN_LINE_NOT_RETURNABLE: 'RETURN_LINE_NOT_RETURNABLE',
+  // Saved list views (#312, the rules of `specs/147-saved-views/` FR-022) — an
+  // admin already holds a view on the return list whose name differs only by
+  // case or surrounding spaces.
+  RETURN_SAVED_VIEW_NAME_TAKEN: 'RETURN_SAVED_VIEW_NAME_TAKEN',
 
   // Credit Limit
   CREDIT_LIMIT_NOT_GRANTED: 'CREDIT_LIMIT_NOT_GRANTED',

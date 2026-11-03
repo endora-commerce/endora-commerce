@@ -144,6 +144,7 @@ export function registerModule(ctx: ModuleContext): void {
         return returnsModule({
           emFactory,
           eventBus,
+          log: ctx.log,
           auditLog: auditLogService,
           settingsService: lazyPort<ReturnsModuleOptions['settingsService']>(
             ctx,

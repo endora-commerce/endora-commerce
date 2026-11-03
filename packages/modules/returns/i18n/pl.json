@@ -25,6 +25,7 @@
   "settlement.replacement": "Wymiana",
   "settlement.repair": "Naprawa",
   "nav.returns.label": "Zwroty",
+  "errors.RETURN_SAVED_VIEW_NAME_TAKEN": "Masz już zapisany widok o tej nazwie na liście zwrotów. Wybierz inną nazwę.",
   "errors.RETURN_LINE_NOT_RETURNABLE": "Produktu „{productName}” nie można zwrócić. Nadal możesz złożyć reklamację.",
   "actions.openReturns.keywords": "zwroty, reklamacje",
   "actions.returnStatusConfig.keywords": "statusy zwrotów"
