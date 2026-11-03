@@ -1,7 +1,7 @@
 # Contract: `organizationPermissionPort`, the route guard and the refusal
 
 **Normative for**: WP-01 (types), WP-02a (implementation), every consumer in Wave 2. Decisions:
-research R-7, R-15, R-16, R-20, R-25.
+research R-7, R-15, R-16, R-20, R-25, R-34, R-35.
 
 ## 1. Types — `packages/contracts/src/organization-roles.ts` (new)
 
@@ -38,16 +38,31 @@ export interface OrganizationPermissionPort {
   rolesHolding(organizationId: string, code: string): Promise<readonly string[]>;
 }
 
-/** The route guard (R-20). Plain function: no Fastify import, port resolved per request. */
+/** Container name `organizationRoleReadPort`. Owner: `organizations`; registered beside the port above (WP-02a). */
+export interface OrganizationRoleReadPort {
+  /** The id of the Organization's predefined role of `kind`; read through the role cache (R-16). */
+  predefinedRoleId(organizationId: string, kind: 'administrator' | 'member'): Promise<string>;
+}
+
+/** The route guard (R-20, R-35). Plain function: no Fastify import, port resolved per request. */
 export function organizationPermissionPreHandler(
   getPort: () => OrganizationPermissionPort,
   code: string,
+  options?: { guests?: 'refuse' | 'pass' },   // default 'refuse'
 ): (request: { actor: Actor; responseLanguage?: () => Promise<string> }) => Promise<void>;
 ```
 
-`organizationPermissionPreHandler` throws the platform's `401` when `request.actor.kind !==
-'customer'` (the guard is always declared after `requireCustomer`, so this is a second line, not the
-first), builds the subject from the actor, and calls `assert`.
+With `guests: 'refuse'` (the default) `organizationPermissionPreHandler` throws the platform's `401`
+when `request.actor.kind !== 'customer'` (the guard is declared after `requireCustomer`, so this is a
+second line, not the first). With `guests: 'pass'` — only on routes that admit a guest today
+(owner ruling PR-4, `storefront-api.md` §5) — a non-customer actor passes **unjudged** to the
+route's own handling. In both modes a customer actor (impersonation included) is judged: the guard
+builds the subject from the actor and calls `assert`.
+
+`organizationRoleReadPort.predefinedRoleId` reads committed rows. A caller that has just created the
+Organization in its own open transaction — self-registration and federated sign-in — takes the
+*Administrator* id from the provisioning answer instead (`PersonalOrganizationProvisionApi.provisionFor`
+→ `administratorRoleId`, read on the caller's `EntityManager`; research R-34).
 
 `ActorCustomer` (`packages/contracts/src/actor.ts`) gains `organizationRoleId?: string | null`; the
 auth hook fills it (R-15). `CustomerSessionAccount` (the `customerOrgResolver` answer) gains

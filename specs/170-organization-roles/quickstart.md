@@ -77,7 +77,8 @@ pnpm --filter backend exec vitest run test/integration/organizations/roles-upgra
 ```
 
 Green means every pre-upgrade outcome recorded by WP-00's oracle is reproduced after the migration,
-except one-click in approval-requiring Organizations.
+except the 26 rows of the expected-differences table (`contracts/migration-and-replay.md` §6.1),
+each of which reaches exactly its stated new outcome.
 
 ## 8. Checks to run before the integration MR
 

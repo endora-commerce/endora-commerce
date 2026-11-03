@@ -72,12 +72,17 @@ Entity property `CustomerAccount.organizationRoleId` replaces `role`
   `organizations` (`test/unit/db/fk-dependency-drift.test.ts` stays green without a manifest change).
 - `on delete restrict` is what makes FR-024 structural: a role cannot be deleted while an account
   — deleted and blocked ones included — still references it. The delete Command reassigns first.
+- **A personal Organization's account holds its *Administrator* role** (owner ruling PR-3,
+  research R-34): M3 maps it so whatever its legacy `role`, and self-registration, the federated
+  sign-in, `ensureForCustomerAccount` and the operator's detach assign it.
 - Moving an account to another Organization (`customers`' org assignment, detach to a personal
   Organization) sets the role in the same write; the composite FK refuses a role of the old
-  Organization.
+  Organization. Personal destination → *Administrator*; company destination → the target's
+  predefined role of the kind the account held (a custom role does not travel → *Member*), R-34.
 - **Default.** A `before insert` trigger (M3, R-28) fills a missing `organization_role_id` with the
-  Organization's role of kind `administrator` when `new.role = 'organization_admin'`, else `member`;
-  M5 redefines it to `member` only. Production writes always pass the id; the write port's input
+  Organization's role of kind `administrator` when the Organization is personal or
+  `new.role = 'organization_admin'`, else `member`; M5 redefines it to *Administrator* for a personal
+  Organization, else `member`. Production writes always pass the id; the write port's input
   requires it.
 - `role` (`varchar(32)`, indexed) is kept, `@deprecated`, until WP-12's M5 drops it; between WP-02b
   and WP-12 every assignment dual-writes both (R-23).
@@ -89,7 +94,11 @@ Entity property `CustomerAccount.organizationRoleId` replaces `role`
 | `organization_role_id` | `uuid` | no | composite FK `(organization_id, organization_role_id)` → `organization_roles (organization_id, id)`, `on delete restrict` |
 
 Every invitation — pending, expired, revoked, accepted (FR-070) — is backfilled by M2. Accepting an
-invitation creates the account with that role id. Deleting a role moves pending invitations to the
+invitation creates the account with that role id.
+
+**Pending** means `consumed_at is null and revoked_at is null and expires_at > now()` — the one
+predicate behind the invitations list and `OrganizationRoleView.pendingInvitationCount` (FR-010a,
+owner ruling PR-7, research R-37). Today's list omits the expiry term. Deleting a role moves pending invitations to the
 replacement in the same Command (FR-024); expired and accepted ones are moved too, because the FK
 does not distinguish them. `role` is dropped by M4.
 
