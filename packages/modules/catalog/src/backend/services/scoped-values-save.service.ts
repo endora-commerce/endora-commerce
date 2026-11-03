@@ -26,6 +26,7 @@ import { GalleryRoleScopeOverride } from '../entities/gallery-role-scope-overrid
 import { ProductAttachmentScopeOverride } from '../entities/product-attachment-scope-override.entity.js';
 import { ProductPackagingUnitScopeOverride } from '../entities/product-packaging-unit-scope-override.entity.js';
 import { ProductValueOverride } from '../entities/product-value-override.entity.js';
+import { reconcileProductCategories } from './product-global-field-rules.js';
 import { toChannelRecord, writeChannelScopeRow, writeLanguageScopeRow, type ScopeRowSet } from './product-scopes.service.js';
 import { GALLERY_ROLE_KEYS, scopedViews } from './scoped-values-read.service.js';
 import type { ScopedProductState } from './scoped-values-state.js';
@@ -480,7 +481,7 @@ export async function writeScopedSave(
       writeGlobal(state, cell);
     }
     const categories = byFamily('product').find((cell) => cell.field === 'categoryIds');
-    if (categories && categories.op.op === 'set') await replaceCategories(em, product.id, categories.op.value as string[]);
+    if (categories && categories.op.op === 'set') await reconcileProductCategories(em, product.id, categories.op.value as string[]);
     em.persist(product);
   }
 
@@ -518,7 +519,8 @@ export async function writeScopedSave(
   if (scope.level !== 'global') {
     const languageCode = scope.level === 'channel_language' ? scope.languageCode : null;
     for (const cell of byFamily('value')) {
-      const key = cell.path.startsWith('attribute:') ? cell.field : cell.field;
+      // `name`, `description` or an attribute key: the override row's `attribute_key` either way.
+      const key = cell.field;
       const row = state.valueOverrides.find(
         (r) => r.attributeKey === key && r.channelId === scope.channelId && sameLang(r.languageCode ?? null, languageCode),
       );
@@ -721,14 +723,4 @@ async function writeGlobalRole(em: EntityManager, state: ScopedProductState, cel
   if (cell.op.op === 'set') {
     em.persist(em.create(GalleryItemLabel, { galleryItemId: cell.op.value as string, label, productId: state.product.id }));
   }
-}
-
-async function replaceCategories(em: EntityManager, productId: string, categoryIds: readonly string[]): Promise<void> {
-  await em.execute(`delete from product_categories where product_id = ?`, [productId]);
-  const ids = [...new Set(categoryIds)];
-  if (ids.length === 0) return;
-  await em.execute(
-    `insert into product_categories (product_id, category_id) values ${ids.map(() => '(?, ?)').join(', ')}`,
-    ids.flatMap((id) => [productId, id]),
-  );
 }

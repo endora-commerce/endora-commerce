@@ -1,3 +1,4 @@
+import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   CopyScopedValueRequest,
@@ -61,7 +62,15 @@ export class ScopedValuesService {
     const command = scopedValuesSaveCommand(this.deps, productId, body, completeness);
     let result: ScopedValuesSaveResult;
     if (this.commandBus) {
-      result = await this.commandBus.run(command);
+      try {
+        result = await this.commandBus.run(command);
+      } catch (error) {
+        // A SKU taken between the step-3a check and the write (code review 1): the same answer.
+        if (error instanceof UniqueConstraintViolationException && body.changes.product?.sku !== undefined) {
+          throw new HttpError(409, ERROR_CODES.SKU_ALREADY_EXISTS, 'This SKU already exists.', { field: 'product.sku' });
+        }
+        throw error;
+      }
     } else {
       result = await this.emFactory().transactional(async (em) => {
         const outcome = await command.run({
