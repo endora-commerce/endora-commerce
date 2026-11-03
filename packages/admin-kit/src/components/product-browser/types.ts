@@ -15,7 +15,11 @@ export interface ProductBrowserItem {
   id: string;
   sku: string;
   slug: string;
-  name: Record<string, string>;
+  /**
+   * Feature 170 (FR-031, `contracts/readers.md` §1) — the product's Global name, one string:
+   * the admin list has no channel, so it answers no per-language map.
+   */
+  name: string;
   status: ProductBrowserStatus;
   type: ProductBrowserType;
   /**

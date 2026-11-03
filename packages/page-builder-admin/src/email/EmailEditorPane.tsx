@@ -243,9 +243,18 @@ function toAbsoluteStorefrontUrl(pathOrUrl: string): string {
   return pathOrUrl;
 }
 
-function pickName(name: Record<string, string> | string, fallback: string): string {
+/**
+ * A category's name in the editor's language: categories keep their per-language map (feature 170,
+ * `contracts/readers.md` "Not readers"); a product's name is one Global string, read as it is.
+ */
+function pickCategoryName(name: Record<string, string> | string, fallback: string): string {
   if (typeof name === 'string') return name || fallback;
   return name['pl-PL'] ?? name['en-US'] ?? Object.values(name)[0] ?? fallback;
+}
+
+/** Feature 170 (FR-031) — the product's Global name, else the fallback. */
+function productTitle(name: string, fallback: string): string {
+  return name || fallback;
 }
 
 async function resolveProductForCard(slug: string): Promise<{
@@ -263,7 +272,7 @@ async function resolveProductForCard(slug: string): Promise<{
   params.set('q', slug);
   params.set('pageSize', '10');
   const res = await apiClient.get<{
-    data: Array<{ id: string; slug: string; name: Record<string, string> | string; sku: string }>;
+    data: Array<{ id: string; slug: string; name: string; sku: string }>;
   }>(`/api/v1/admin/catalog/products?${params.toString()}`);
   const product = res.data.find((p) => p.slug === slug) ?? res.data[0];
   if (!product) {
@@ -297,7 +306,7 @@ async function resolveProductForCard(slug: string): Promise<{
   return {
     productId: product.id,
     productSlug: product.slug,
-    title: pickName(product.name, product.slug),
+    title: productTitle(product.name, product.slug),
     sku: product.sku,
     imageSrc,
     href: toAbsoluteStorefrontUrl(`/p/${product.slug}`),
@@ -344,7 +353,7 @@ async function resolveCategoryForGrid(slug: string): Promise<{
   return {
     categoryId: category.id,
     categorySlug: category.slug,
-    title: pickName(category.name, category.slug),
+    title: pickCategoryName(category.name, category.slug),
     href: toAbsoluteStorefrontUrl(`/c/${category.slug}`),
     imageSrc,
   };

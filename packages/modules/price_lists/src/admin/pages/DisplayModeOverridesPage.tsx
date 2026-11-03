@@ -35,11 +35,14 @@ interface CategoryRow {
   slug: string;
   name: Record<string, string>;
 }
-/** A product as `/api/v1/admin/catalog/products` answers it: `name` by language tag. */
+/**
+ * A product as `/api/v1/admin/catalog/products` answers it: the Global `name`, one string
+ * (feature 170, FR-031 — an admin list has no channel).
+ */
 interface ProductRow {
   id: string;
   sku: string;
-  name: Record<string, string>;
+  name: string;
 }
 
 /**
@@ -140,7 +143,7 @@ export function DisplayModeOverridesPage(): ReactNode {
       return cat ? localizedName(cat.name, cat.slug) : row.targetId;
     }
     const product = products[row.targetId];
-    return product ? localizedName(product.name, product.sku) : row.targetId;
+    return product ? product.name || product.sku : row.targetId;
   };
 
   const subtitleFor = (row: DisplayModeOverrideRow): string => {
@@ -546,7 +549,7 @@ function AddOverrideDialog(props: {
     } else if (scope === 'category') {
       for (const c of Object.values(cats)) rows.push({ id: c.id, label: localizedName(c.name, c.slug), subtitle: c.slug });
     } else {
-      for (const p of Object.values(products)) rows.push({ id: p.id, label: localizedName(p.name, p.sku), subtitle: p.sku });
+      for (const p of Object.values(products)) rows.push({ id: p.id, label: p.name || p.sku, subtitle: p.sku });
     }
     rows.sort((a, b) => a.label.localeCompare(b.label));
     const q = normalize(search);

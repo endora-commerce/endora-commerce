@@ -7,14 +7,13 @@ import type { ProductBrowserItem } from './types.js';
  */
 
 /**
- * The name a product is shown under: `en-US`, else the first locale present, else
- * the slug, else the SKU. The browser shows `pl-PL` as its own second line, so it
- * is deliberately not preferred here.
+ * The name a product is shown under: its Global name (feature 170, FR-031 — the admin list
+ * has no channel, so it answers one string), else the slug, else the SKU.
  */
 export function productDisplayName(
   item: Pick<ProductBrowserItem, 'name'> & { slug?: string | undefined; sku?: string | undefined },
 ): string {
-  return item.name['en-US'] ?? Object.values(item.name)[0] ?? item.slug ?? item.sku ?? '';
+  return item.name || item.slug || item.sku || '';
 }
 
 /** A whole number of at least 1, or `null` when the input is not one. */

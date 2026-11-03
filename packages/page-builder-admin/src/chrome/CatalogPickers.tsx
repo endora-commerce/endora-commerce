@@ -36,7 +36,8 @@ function slugsKey(slugs: string[]): string {
 interface AdminProduct {
   id: string;
   slug: string;
-  name: Record<string, string> | string;
+  /** Feature 170 (FR-031) — the Global name; the admin list answers no per-language map. */
+  name: string;
   sku: string;
   status?: string;
 }
@@ -49,9 +50,18 @@ interface AdminCategory {
   sortOrder: number;
 }
 
-function pickName(name: Record<string, string> | string, fallback: string): string {
+/**
+ * A category's name in the editor's language: categories keep their per-language map (feature 170,
+ * `contracts/readers.md` "Not readers"); a product's name is one Global string, read as it is.
+ */
+function pickCategoryName(name: Record<string, string> | string, fallback: string): string {
   if (typeof name === 'string') return name || fallback;
   return name['pl-PL'] ?? name['en-US'] ?? Object.values(name)[0] ?? fallback;
+}
+
+/** Feature 170 (FR-031) — the product's Global name, else the fallback. */
+function productTitle(name: string, fallback: string): string {
+  return name || fallback;
 }
 
 function flattenCategories(categories: AdminCategory[]): { slug: string; label: string }[] {
@@ -67,7 +77,7 @@ function flattenCategories(categories: AdminCategory[]): { slug: string; label: 
     return nodes.flatMap((cat) => {
       const prefix = level > 0 ? `${'—'.repeat(level)} ` : '';
       return [
-        { slug: cat.slug, label: `${prefix}${pickName(cat.name, cat.slug)}` },
+        { slug: cat.slug, label: `${prefix}${pickCategoryName(cat.name, cat.slug)}` },
         ...walk(cat.id, level + 1),
       ];
     });
@@ -259,7 +269,7 @@ function ProductSearchModal({
                       />
                       <span className="min-w-0">
                         <span className="block truncate text-sm font-medium">
-                          {pickName(product.name, product.slug)}
+                          {productTitle(product.name, product.slug)}
                         </span>
                         <span className="block font-mono text-xs text-muted-foreground">
                           {product.sku} · {product.slug}
@@ -496,7 +506,7 @@ function ProductSlugsFieldControl({
         const next: Record<string, string> = {};
         for (const product of res.data) {
           if (selected.includes(product.slug)) {
-            next[product.slug] = `${pickName(product.name, product.slug)} (${product.sku})`;
+            next[product.slug] = `${productTitle(product.name, product.slug)} (${product.sku})`;
           }
         }
         for (const slug of selected) {
@@ -671,7 +681,7 @@ export function SingleProductFieldControl({
         const product = res.data.find((p) => p.slug === selected);
         if (!cancelled) {
           setSelectedLabel(
-            product ? `${pickName(product.name, product.slug)} (${product.sku})` : selected,
+            product ? `${productTitle(product.name, product.slug)} (${product.sku})` : selected,
           );
         }
       } catch {

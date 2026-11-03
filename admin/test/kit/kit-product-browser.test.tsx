@@ -76,14 +76,14 @@ function product(
   en: string,
   status: Item['status'],
   type: Item['type'],
-  pl?: string,
   archivedAt: string | null = null,
 ): Row {
   return {
     id,
     sku: `SKU-${id.toUpperCase()}`,
     slug: id,
-    name: pl ? { 'en-US': en, 'pl-PL': pl } : { 'en-US': en },
+    // Feature 170 (FR-031): the admin list answers the Global name as one string.
+    name: en,
     status,
     type,
     archivedAt,
@@ -106,10 +106,10 @@ const CATALOG: Row[] = [
   product('i1', 'Old widget', 'inactive', 'simple'),
   ...Array.from({ length: 24 }, (_, i) =>
     i === 0
-      ? product('a01', 'Widget 01', 'active', 'simple', 'Widżet 01')
+      ? product('a01', 'Widget 01', 'active', 'simple')
       : product(`a${pad(i + 1)}`, `Widget ${pad(i + 1)}`, 'active', 'simple'),
   ),
-  product('x1', 'Retired widget', 'active', 'simple', undefined, '2026-10-20T00:00:00.000Z'),
+  product('x1', 'Retired widget', 'active', 'simple', '2026-10-20T00:00:00.000Z'),
 ];
 
 const PATH = '/api/v1/admin/catalog/products';
@@ -133,7 +133,7 @@ function serve(catalog: readonly Row[], url: string): unknown {
       (q === '' ||
         p.sku.toLowerCase().includes(q) ||
         p.slug.includes(q) ||
-        Object.values(p.name).some((n) => n.toLowerCase().includes(q))),
+        p.name.toLowerCase().includes(q)),
   );
   const live = matches.filter((p) => p.archivedAt == null);
   const archived = matches.filter((p) => p.archivedAt != null);
@@ -399,7 +399,7 @@ describe('requests and filters (B1, B2)', () => {
 // ---------------------------------------------------------------- B3, B14
 
 describe('columns (B3, B14)', () => {
-  it('shows product with the pl second line, SKU, translated status and type, in a scroll container', async () => {
+  it("shows the product's one Global name, SKU, translated status and type, in a scroll container", async () => {
     useCatalog();
     const user = userEvent.setup();
     const { container } = renderHarness(<Harness />);
@@ -409,13 +409,11 @@ describe('columns (B3, B14)', () => {
       expect(within(dialog).getByRole('columnheader', { name: header })).toBeTruthy();
     }
     const row = screen.getByText('Widget 01').closest('tr')!;
-    expect(within(row).getByText('Widżet 01')).toBeTruthy();
     expect(within(row).getByText('SKU-A01')).toBeTruthy();
     expect(within(row).getByText('Active')).toBeTruthy();
     expect(within(row).getByText('Simple')).toBeTruthy();
-    // A product with no different Polish name has no second line.
-    const plain = screen.getByText('Widget 02').closest('tr')!;
-    expect(within(plain).getAllByText(/Widget 02|Widżet 02/)).toHaveLength(1);
+    // Feature 170 (FR-031): one name, no per-language second line.
+    expect(within(row).getAllByText(/Widget 01/)).toHaveLength(1);
     expect(dialog.querySelector('.b2b-table-scroll table')).not.toBeNull();
     expectNoRawKeys(container);
   });
@@ -679,7 +677,7 @@ describe('confirm (B6, B10)', () => {
       id: 'a01',
       sku: 'SKU-A01',
       slug: 'a01',
-      name: { 'en-US': 'Widget 01', 'pl-PL': 'Widżet 01' },
+      name: 'Widget 01',
       status: 'active',
       type: 'simple',
       archivedAt: null,

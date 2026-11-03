@@ -46,7 +46,7 @@ function coreBundle(language: 'en' | 'pl'): Bundle {
   };
 }
 
-const PRODUCT = { id: IDS.products.P1, sku: 'P1', name: { 'en-US': 'Screws 0200', 'pl-PL': 'Wkręty 0200' } };
+const PRODUCT = { id: IDS.products.P1, sku: 'P1', name: 'Screws 0200' };
 
 function answer(url: string): unknown {
   if (url.includes('/display-mode-overrides?scope=category')) {
@@ -114,12 +114,13 @@ describe('DisplayModeOverridesPage — names in the admin language', () => {
     expect(await within(await screen.findByRole('table')).findByText('Wkręty')).toBeInTheDocument();
   });
 
-  it('names a product override in the admin language, with its SKU', async () => {
+  // Feature 170 (FR-031): the product's Global name, whatever the admin language.
+  it('names a product override by its Global name, with its SKU', async () => {
     const user = userEvent.setup();
     mount('pl');
     await user.click(await screen.findByRole('button', { name: 'Produkt' }));
     const table = await screen.findByRole('table');
-    expect(await within(table).findByText('Wkręty 0200')).toBeInTheDocument();
+    expect(await within(table).findByText('Screws 0200')).toBeInTheDocument();
     expect(within(table).getByText('P1')).toBeInTheDocument();
   });
 });
