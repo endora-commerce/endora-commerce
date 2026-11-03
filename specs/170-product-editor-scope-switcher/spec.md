@@ -262,6 +262,16 @@ Owner decisions on 2026-10-30 arising from the pre-build security and schema rev
   starting with `=`, `+`, `-`, `@`, tab or CR; import strips that prefix; a literal leading apostrophe is
   escaped so export → re-import stays a no-op (FR-114 holds); strictly numeric columns are untouched.
 
+
+### Session 2026-11-03 (round 8, from the build)
+
+- Q: Does duplicating a product copy its Channel and Channel × language values? → A: **Yes, every scope**
+  (FR-119). URL keys are never copied (they stay unique per channel); the copy gets a fresh Global key as today.
+- Q: What does a basket, quote or order show for a packaging unit whose name is deliberately empty at C or C×L?
+  → A: **The Global name** on the snapshot.
+- Q: Which product name does the back-in-stock e-mail show? → A: **The Global name** in 170; per-scope is the
+  follow-up endora-commerce/endora-commerce#696.
+
 ## Amendments to 163 (2026-10-29, extended 2026-10-30)
 
 163 is shipped on `master`. The following parts of `specs/163-product-data-scopes/spec.md` are **reversed or
@@ -990,6 +1000,10 @@ therefore a schema change, not a data-preserving move.
 - **FR-083**: Staged changes MUST survive tab switches (fixes F5); the unsaved-changes prompt MUST consider
   every staged change on every tab.
 - **FR-084**: Archive / Restore, Duplicate and Delete MUST stay global actions and say so.
+- **FR-119**: Duplicate MUST copy the product's values at every scope (Global, Channel, Channel × language),
+  including deliberately empty overrides and inherit states, for every scoped field family (texts, attributes,
+  SEO, gallery, attachment and packaging values, roles, hidden, MOQ, audience, publication window, returnable),
+  as one audited Command. URL keys MUST NOT be copied beyond the existing fresh Global key (round 8).
 
 #### User attributes and translation convenience (US9)
 
