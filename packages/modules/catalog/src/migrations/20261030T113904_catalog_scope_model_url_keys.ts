@@ -12,9 +12,18 @@ import { Migration } from '@mikro-orm/migrations';
  * `btree_gist` (an extension shipped with PostgreSQL; plan *Complexity Tracking*). The slug and
  * redirect halves of the rule are `UrlKeyService.lockAndCheck`'s (T039).
  *
+ * C1 review (amended in place; unreleased): the key text carries `productSlugSchema`'s grammar
+ * as a CHECK on both tables; the exclusion constraint is `deferrable initially immediate`, so a
+ * re-key from one product to another inside one transaction is checked at its end; and every
+ * unique that names `language_code` compares `lower(language_code)`, so two spellings of one
+ * language are one language (writers also store the channel's own spelling, T039).
+ *
  * Idempotent: the recreation runs only while the 163 shape (a nullable `sales_channel_id`) is
  * there. `down` restores the 163 tables, empty — not a data-preserving `down` (R18).
  */
+/** `productSlugSchema`'s grammar (`packages/contracts/src/product-url-keys.ts`), verbatim. */
+const KEY_GRAMMAR = `"key" ~ '^[a-z0-9]+(-[a-z0-9]+)*$'`;
+
 export class Migration20261030T113904CatalogScopeModelUrlKeys extends Migration {
   override async up(): Promise<void> {
     this.addSql(`create extension if not exists btree_gist;`);
@@ -35,17 +44,19 @@ export class Migration20261030T113904CatalogScopeModelUrlKeys extends Migration 
         "created_at" timestamptz not null default now(),
         "updated_at" timestamptz not null default now(),
         constraint "product_url_keys_pkey" primary key ("id"),
+        constraint "product_url_keys_key_grammar" check (${KEY_GRAMMAR}),
         constraint "product_url_keys_one_product_per_channel_key"
           exclude using gist ("sales_channel_id" with =, "key" with =, "product_id" with <>)
+          deferrable initially immediate
       );`);
     this.addSql(`create unique index if not exists "product_url_keys_channel_key_unique"
       on "product_url_keys" ("sales_channel_id", "key") where "language_code" is null;`);
     this.addSql(`create unique index if not exists "product_url_keys_channel_language_key_unique"
-      on "product_url_keys" ("sales_channel_id", "language_code", "key") where "language_code" is not null;`);
+      on "product_url_keys" ("sales_channel_id", lower("language_code"), "key") where "language_code" is not null;`);
     this.addSql(`create unique index if not exists "product_url_keys_product_channel_unique"
       on "product_url_keys" ("product_id", "sales_channel_id") where "language_code" is null;`);
     this.addSql(`create unique index if not exists "product_url_keys_product_channel_language_unique"
-      on "product_url_keys" ("product_id", "sales_channel_id", "language_code") where "language_code" is not null;`);
+      on "product_url_keys" ("product_id", "sales_channel_id", lower("language_code")) where "language_code" is not null;`);
     // The partial uniques do not serve unqualified reads: per-product reads and cascades, and the
     // Global-key check against every row key.
     this.addSql(`create index if not exists "product_url_keys_product_idx" on "product_url_keys" ("product_id");`);
@@ -58,10 +69,11 @@ export class Migration20261030T113904CatalogScopeModelUrlKeys extends Migration 
         "language_code" varchar(16) not null,
         "key" varchar(160) not null,
         "created_at" timestamptz not null default now(),
-        constraint "product_url_redirects_pkey" primary key ("id")
+        constraint "product_url_redirects_pkey" primary key ("id"),
+        constraint "product_url_redirects_key_grammar" check (${KEY_GRAMMAR})
       );`);
     this.addSql(`create unique index if not exists "product_url_redirects_channel_language_key_unique"
-      on "product_url_redirects" ("sales_channel_id", "language_code", "key");`);
+      on "product_url_redirects" ("sales_channel_id", lower("language_code"), "key");`);
     this.addSql(`create index if not exists "product_url_redirects_product_idx" on "product_url_redirects" ("product_id");`);
   }
 

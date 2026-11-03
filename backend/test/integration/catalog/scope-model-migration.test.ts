@@ -371,6 +371,44 @@ describe('catalog scope model migrations (170 T015)', () => {
     await em.execute(insertKey, [randomUUID(), s.drill, s.c, 'pl-PL', 'shared-key']);
     await em.execute(insertKey, [randomUUID(), s.drill, s.c, 'de-DE', 'shared-key']);
     await expectRefused(insertKey, [randomUUID(), s.polish, s.c, null, 'shared-key'], /exclusion constraint|conflicting key/);
+
+    // C1 review — the exclusion constraint is deferrable (initially immediate), so a re-key from
+    // one product to another inside one transaction succeeds when checked at the end.
+    const [deferral] = await rows<{ condeferrable: boolean; condeferred: boolean }>(
+      `select condeferrable, condeferred from pg_constraint where conname = 'product_url_keys_one_product_per_channel_key'`,
+    );
+    expect(deferral).toEqual({ condeferrable: true, condeferred: false });
+    await em.execute('set constraints "product_url_keys_one_product_per_channel_key" deferred');
+    await em.execute(insertKey, [randomUUID(), s.polish, s.c, null, 'shared-key']);
+    await em.execute(`delete from "product_url_keys" where "product_id" = ? and "key" = 'shared-key'`, [s.drill]);
+    await em.execute('set constraints "product_url_keys_one_product_per_channel_key" immediate');
+
+    // C1 review — the key grammar of `productSlugSchema` is a database rule on both tables.
+    for (const bad of ['Upper-Case', 'two words', 'trailing-', '-leading', 'a--b', 'ł', '../x', '']) {
+      await expectRefused(insertKey, [randomUUID(), s.drill, s.c, 'pl-PL', bad], /check constraint/);
+      await expectRefused(
+        `insert into "product_url_redirects" ("id", "product_id", "sales_channel_id", "language_code", "key", "created_at")
+         values (?, ?, ?, 'pl-PL', ?, now())`,
+        [randomUUID(), s.drill, s.c, bad],
+        /check constraint/,
+      );
+    }
+
+    // C1 review — a language differing only in case is the same language: the uniques compare
+    // `lower(language_code)`, so a second key of one product at `PL-pl` is refused.
+    await em.execute(insertKey, [randomUUID(), s.drill, s.c, 'pl-PL', 'case-key']);
+    await expectRefused(insertKey, [randomUUID(), s.drill, s.c, 'PL-pl', 'case-key-2'], /duplicate key|unique/);
+    await em.execute(
+      `insert into "product_url_redirects" ("id", "product_id", "sales_channel_id", "language_code", "key", "created_at")
+       values (?, ?, ?, 'pl-PL', 'old-case-key', now())`,
+      [randomUUID(), s.drill, s.c],
+    );
+    await expectRefused(
+      `insert into "product_url_redirects" ("id", "product_id", "sales_channel_id", "language_code", "key", "created_at")
+       values (?, ?, ?, 'PL-PL', 'old-case-key', now())`,
+      [randomUUID(), s.polish, s.c],
+      /duplicate key|unique/,
+    );
   });
 
   it('moves the media scopes to the override tables with composite FKs and type checks (§6, §7)', async () => {
