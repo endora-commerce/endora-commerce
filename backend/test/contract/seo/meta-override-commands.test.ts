@@ -86,7 +86,7 @@ describe('SEO meta overrides as Commands (spec 163, T114a)', () => {
     );
     await sql(
       `insert into products (id, sku, slug, type, status, name, description, created_at, updated_at)
-       values (?, ?, ?, 'simple', 'active', '{"en-US":"Seo command"}'::jsonb, '{}'::jsonb, now(), now())`,
+       values (?, ?, ?, 'simple', 'active', 'Seo command', null, now(), now())`,
       [productId, `SC163-${run}`, `seo-command-${run}`],
     );
     await sql(`insert into sales_channel_products (sales_channel_id, product_id) values (?, ?)`, [channelId, productId]);
