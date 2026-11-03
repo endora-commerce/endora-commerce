@@ -23,51 +23,88 @@ channel tables). Then check out 170, `pnpm run build:packages`, `pnpm --filter b
 
 ## 1. Model (US2)
 
-Seeded by the rewritten catalog demo: product "Drill X" in channels **B2B PL** (pl) and **Sklep PL** (pl), Global
-name "Drill X".
+The demo's two channels, both offering `pl-PL` and `en-US`: **`pl_retail`** (PL Retail, the system default, public)
+and **`pl_b2b_vip`** (PL B2B VIP, prices after sign-in). `pnpm --filter backend run cli demo seed` gives the scope
+product **Drill X** (`DEMO-DRILL-X`, sold on both) these texts — the composition step *"the scope product's Channel
+and Channel × language texts"*:
+
+| Scope | name | description |
+| --- | --- | --- |
+| Global | Drill X | Cordless drill X: 18 V, two speeds, keyless chuck. |
+| `pl_retail` (Channel) | — inherits Global | — inherits Global |
+| `pl_retail` × pl-PL | **Wiertarka X** (own) | **Wiertarka akumulatorowa X: …** (own) |
+| `pl_retail` × en-US | — inherits Global | — inherits Global |
+| `pl_b2b_vip` (Channel) | **Drill X Pro** (own) | — inherits Global |
+| `pl_b2b_vip` × pl-PL | **Wiertarka X Pro** (own) | **empty** (deliberately, `{"v": null}`) |
+| `pl_b2b_vip` × en-US | — inherits "Drill X Pro" | — inherits Global |
+
+`$RETAIL` and `$VIP` below are the two channels' ids (`GET /api/v1/admin/sales-channels`), `$P` Drill X's id.
 
 ```bash
-# B2B PL × pl override
+curl "$ADMIN/api/v1/admin/catalog/products/$P/scoped-values?channelId=$RETAIL&languageCode=pl-PL"  # name.source = set, "Wiertarka X"
+curl "$ADMIN/api/v1/admin/catalog/products/$P/scoped-values?channelId=$RETAIL&languageCode=en-US"  # name.source = inherited_global, "Drill X"
+curl "$ADMIN/api/v1/admin/catalog/products/$P/scoped-values?channelId=$VIP&languageCode=en-US"     # name.source = inherited_channel, "Drill X Pro"
+curl "$ADMIN/api/v1/admin/catalog/products/$P/scoped-values?channelId=$VIP&languageCode=pl-PL"     # description.source = set_empty
+# Retail × en-US override
 curl -X PUT -H 'content-type: application/json' $ADMIN/api/v1/admin/catalog/products/$P/scoped-values \
-  -d '{"scope":{"channelId":"'$B2B'","languageCode":"pl"},"version":"'$V'","changes":{"name":"Wiertarka X"}}'
-curl "$ADMIN/api/v1/admin/catalog/products/$P/scoped-values?channelId=$B2B&languageCode=pl"   # name.source = set
-curl "$ADMIN/api/v1/admin/catalog/products/$P/scoped-values?channelId=$SKLEP&languageCode=pl" # inherited_global, "Drill X"
+  -d '{"scope":{"channelId":"'$RETAIL'","languageCode":"en-US"},"version":"'$V'","changes":{"name":"Drill X (retail)"}}'
 ```
 
-- `{"languageCode":"pl"}` without a channel → `422 VALIDATION_FAILED` (US2 #4).
-- `{"channelId":"$B2B"}` + `"changes":{"name":"Drill X B2B"}` → accepted, resolves at B2B PL × every language (US2 #5).
+- `{"languageCode":"pl-PL"}` without a channel → `422 VALIDATION_FAILED` (US2 #4).
+- `{"channelId":"$VIP"}` + `"changes":{"name":"Drill X Pro 2"}` → accepted, resolves at `pl_b2b_vip` × en-US
+  (which inherits) and not at `pl_b2b_vip` × pl-PL, which keeps its own "Wiertarka X Pro" (US2 #5).
 - `"changes":{"audience":{…}}` at C×L → `422 FIELD_NOT_AT_SCOPE` (US2 #8).
-- `"changes":{"description":null}` at B2B PL × pl → description `set_empty`; Sklep PL × pl still the Global description (US2 #9).
+- `"changes":{"description":null}` at `pl_retail` × pl-PL → description `set_empty`; `pl_retail` × en-US still the
+  Global description (US2 #9) — the seeded `pl_b2b_vip` × pl-PL row is the same state.
+- `"changes":{"description":{"inherit":true}}` at `pl_b2b_vip` × pl-PL → back to the Global description.
 - `"changes":{"name":null}` → `422 SCOPED_VALUE_INVALID` `required_empty` (US6 #8).
 
 ## 2. Readers (US3)
 
-Storefront at Sklep PL with `Accept-Language: pl` → PDP, listing, search, compare, basket line show "Drill X"; at
-B2B PL → "Wiertarka X". Search at Sklep PL for "drill" with a Polish shopper and a product whose Polish name is
-"Wiertarka X": not found (FR-033). `pnpm --filter backend exec vitest run
-backend/test/unit/catalog/no-per-language-product-maps.test.ts` prints its read line and passes.
+Storefront on `pl_retail` with `Accept-Language: en-US` → PDP, listing, search, compare and basket line show "Drill
+X"; with `pl-PL` → "Wiertarka X"; on `pl_b2b_vip`, signed in as `buyer@demo-org.example`, `en-US` → "Drill X Pro"
+and `pl-PL` → "Wiertarka X Pro" with no description. Search on `pl_retail` for "drill" as a Polish shopper: Drill X
+is not found, its Polish name being "Wiertarka X" (FR-033); "wiertarka" finds it, and "drill" in `en-US` finds it.
+`pnpm --filter backend exec vitest run backend/test/unit/catalog/no-per-language-product-maps.test.ts` prints its
+read line and passes.
 
 ## 3. PIM and CSV (US4)
 
-- Create an import profile (Import / export → Import profiles): `pl_PL → [B2B PL × pl, Sklep PL × pl]`, source
-  language for Global `en_US`.
-- Import a file with `sku,name[en_US],name[pl_PL],name[de_DE],description@B2B-PL/pl` and rows using empty, `NULL`,
-  `INHERIT`, `\NULL`: report shows one `unmapped_locale` warning for `de_DE`; the Polish name at both targets; the
-  description cell semantics per `contracts/write-encoding.md`.
+- Create an import profile (Import / export → Import profiles): `pl_PL → [pl_retail × pl-PL, pl_b2b_vip × pl-PL]`,
+  source language for Global `en_US`.
+- Import `specs/170-product-editor-scope-switcher/fixtures/demo-scoped-import.csv` (dry run first) — three demo
+  products, a locale column per source language and per-scope columns at Channel and at Channel × language:
+
+  ```csv
+  sku,name[en_US],name[pl_PL],name[de_DE],name@pl_b2b_vip,description@pl_retail/pl-PL,description@pl_b2b_vip/pl-PL
+  DEMO-DRILL-X,Drill X,Wiertarka X,Bohrmaschine X,Drill X Pro,Wiertarka akumulatorowa X: 18 V.,NULL
+  DEMO-BOLTS-0001,,Śruby 0001,Schrauben 0001,INHERIT,INHERIT,
+  DEMO-WRENCHES-0002,Wrenches 0002,,,Wrenches 0002 VIP,\NULL,INHERIT
+  ```
+
+  Expect: the dry run's per-column counts (`name@pl_b2b_vip`: 1 `INHERIT`; `description@pl_retail/pl-PL`:
+  1 `INHERIT`; `description@pl_b2b_vip/pl-PL`: 1 `NULL`, 1 `INHERIT`) and **one** `unmapped_locale` warning for
+  `de_DE` naming 2 products. After Apply: `name[pl_PL]` lands at both pl-PL targets (Drill X's VIP × pl-PL name
+  becomes "Wiertarka X"); `DEMO-BOLTS-0001` keeps its Global name (empty cell = no change) and inherits at the VIP
+  channel and at retail × pl-PL; `DEMO-WRENCHES-0002`'s retail × pl-PL description is the text `NULL` (`\NULL`), its
+  VIP × pl-PL description inherits; Drill X's VIP × pl-PL description stays deliberately empty. Cell semantics per
+  `contracts/write-encoding.md`; the file is held to the header grammar and the demo's channels by
+  `backend/test/unit/catalog/quickstart-import-fixture.test.ts`.
 - Export products, re-import the file unchanged with any profile: report 0 changes (FR-114).
 
 ## 4. Editor (US5–US12)
 
-Open `/catalog/products/$P`:
+Open `/catalog/products/$P` (Drill X):
 
-1. Switch to B2B PL × Polish — the banner reads "Changes apply only to B2B PL × Polish", every tab shows values at
-   that scope with sources; there is no other scope selector anywhere (SC-006).
-2. Name: untick "Use value from B2B PL", type "Wiertarka X2", switch to Sklep PL → Save / Discard / Stay dialog.
+1. Switch to PL B2B VIP × Polish — the banner reads "Changes apply only to PL B2B VIP × Polish", every tab shows
+   values at that scope with sources (name own, description deliberately empty); there is no other scope selector
+   anywhere (SC-006).
+2. Name: untick "Use value from PL B2B VIP", type "Wiertarka X2", switch to PL Retail → Save / Discard / Stay dialog.
    Save → one audit entry (Audit log, object Product) listing every changed field with scope.
 3. Stage an SEO title and an alt text, Save → both written, one audit entry. Switch SEO off on `/platform/modules`,
    reload → no SEO tab, no error.
 4. As an admin with `catalog:read` only: every control read-only, no Save / Archive / Duplicate / Delete, SEO visible.
-5. Scopes tab: "Edit at B2B PL × Polish" opens the editor there; a cell's "URL key" link focuses the field.
+5. Scopes tab: "Edit at PL B2B VIP × Polish" opens the editor there; a cell's "URL key" link focuses the field.
 
 ## 5. Tests to run (targeted; full suite is CI's)
 

@@ -35,9 +35,17 @@ a failing test (marked **RED**) in the same phase, and every FR is traced to a t
   `scope-write-port` v1 (T082), the `scope-overview` contract test of the Language row (T127/T132), `url-keys-api`
   over language keys (T030); admin `PackagingUnitsEditor.translations`, `product-media-scopes`,
   `product-scope-overview`, `product-url-keys-panel` (S3 after T143).
-- **T024 is half done**: the seeds load in the new model (Global strings) and the three demo suites are green;
-  the demo *content* the plan names (channels "B2B PL" and "Sklep PL", C×L translations, an import-ready product
-  set) is waiting on a decision — see the coordinator report.
+- **T024 demo content** (owner, 2026-11-03): the demo keeps its two channels, `pl_retail` and `pl_b2b_vip` (both
+  pl-PL + en-US); "B2B PL" and "Sklep PL" are not added. `catalog`'s demo seeds the scope product **Drill X**
+  (`DEMO-DRILL-X`, Global texts only, `demo-drills-x` so the bridge files it under Drills); the composition step
+  *"the scope product's Channel and Channel × language texts"* sells it on the VIP channel too and writes five
+  `product_value_overrides` rows — own values at C and C×L, one deliberately empty description, every other scope
+  inheriting; `price_lists`' demo prices it (349.00 PLN). The import-ready CSV is
+  `fixtures/demo-scoped-import.csv`, held to the §2.1 grammar and the demo's channels by
+  `backend/test/unit/catalog/quickstart-import-fixture.test.ts`. Quickstart §1–§4 use the existing channels. The
+  migration's structure-only `down` is the owner's decision (plan Q7).
+- **The spec's illustrative channel names** ("B2B PL", "Sklep PL", e.g. US2 scenarios, T050's text,
+  `contracts/editor-ui.md` §2's wording example) stay as illustrations; tests and the demo use the two demo codes.
 
 ## Format
 
@@ -112,8 +120,8 @@ suite is CI's. Every migration task regenerates and commits `composer:generate`,
 - [x] T021 (S1) Make catalog's backend compile on the new contracts: every map read in `packages/modules/catalog/src/backend/**` replaced by the Global string or a call the US2 / US3 tasks will rewrite, each marked `// 170-shim` (list the files in the commit body)
 - [x] T022 (S1) Make every other workspace member compile: the reader files of `contracts/readers.md` §1, `packages/modules/catalog/src/admin/**`, `packages/admin-kit`, `packages/page-builder-admin`, `storefront` — Global string, each marked `// 170-shim`; `pnpm -r run typecheck` green
 - [x] T023 (S1) Test helpers: `backend/test/helpers/` product factories take a string `name` / `description` and accept scoped rows per family (`seedScopedValues(productId, { field, scope, value | 'empty' })`); `admin/test/helpers/` builder for `ScopedValuesResponse`; grep `backend/test/helpers` for name maps
-- [ ] T024 (S1) Rewrite the catalog demo seeders in `packages/modules/catalog/src/backend/demo/` to the new model (Global strings; channels B2B PL and Sklep PL, both Polish; C×L translations; an import-ready product set for `quickstart.md`) (FR-020, SC-002); `pnpm --filter backend run check:demo-data-budget`; green proof that every seed loads in the new model: `pnpm --filter backend exec vitest run test/integration/demo/demo-shop.test.ts test/integration/demo/demo-instance-shape.test.ts test/integration/demo/demo-reset-after-use.test.ts` [PG]
-- [ ] T025 (S1) **Checkpoint C1**: `pnpm -r run typecheck`, `pnpm -r run lint`, contracts tests, T015 green; hand the catalog `i18n/{en,pl}.json` bundles to S3; contracts, migrations and the review outcomes of `plan.md` *Pre-build reviews* frozen (a later contract change is a coordinated commit by S1)
+- [x] T024 (S1) Rewrite the catalog demo seeders in `packages/modules/catalog/src/backend/demo/` to the new model (Global strings; ~~channels B2B PL and Sklep PL, both Polish~~ the existing `pl_retail` and `pl_b2b_vip` channels — owner, 2026-11-03; C×L and Channel translations in all three states on Drill X; an import-ready CSV for `quickstart.md` §3) (FR-020, SC-002); `pnpm --filter backend run check:demo-data-budget`; green proof that every seed loads in the new model: `pnpm --filter backend exec vitest run test/integration/demo/demo-shop.test.ts test/integration/demo/demo-instance-shape.test.ts test/integration/demo/demo-reset-after-use.test.ts` [PG]
+- [x] T025 (S1) **Checkpoint C1**: `pnpm -r run typecheck`, `pnpm -r run lint`, contracts tests, T015 green; hand the catalog `i18n/{en,pl}.json` bundles to S3; contracts, migrations and the review outcomes of `plan.md` *Pre-build reviews* frozen (a later contract change is a coordinated commit by S1)
 
 ---
 
