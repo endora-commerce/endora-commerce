@@ -75,8 +75,7 @@ function attribute(overrides: Record<string, unknown> = {}): Record<string, unkn
     isVisibleOnProductPage: true,
     massEditable: false,
     quickSearchable: false,
-    channelScoped: true,
-    languageScoped: true,
+    scopable: true,
     ...overrides,
   };
 }
@@ -134,20 +133,21 @@ beforeEach(() => {
 afterEach(() => vi.clearAllMocks());
 
 describe('narrowing (pure)', () => {
-  it('a flag going from on to off narrows; turning one on does not', () => {
-    const both = { channelScoped: true, languageScoped: true };
-    expect(isScopeNarrowing(both, { channelScoped: false, languageScoped: true })).toBe(true);
-    expect(isScopeNarrowing(both, { channelScoped: true, languageScoped: false })).toBe(true);
-    expect(isScopeNarrowing({ channelScoped: false, languageScoped: false }, both)).toBe(false);
-    expect(isScopeNarrowing(both, both)).toBe(false);
+  it('scopable going off narrows; a text type going non-text narrows its C x L slot; widening does not', () => {
+    const text = { scopable: true, valueType: 'string' };
+    expect(isScopeNarrowing(text, { scopable: false, valueType: 'string' })).toBe(true);
+    expect(isScopeNarrowing(text, { scopable: true, valueType: 'number' })).toBe(true);
+    expect(isScopeNarrowing({ scopable: false, valueType: 'string' }, text)).toBe(false);
+    expect(isScopeNarrowing(text, text)).toBe(false);
+    expect(isScopeNarrowing({ scopable: true, valueType: 'number' }, { scopable: true, valueType: 'string' })).toBe(false);
   });
 });
 
-describe('AttributesManager — scope flags (FR-090)', () => {
-  it('shows the two flags of a user-defined attribute as they are stored', async () => {
+describe('AttributesManager — the scopable flag (feature 170, FR-012, R15)', () => {
+  it('shows the one scopable flag of a user-defined attribute as it is stored', async () => {
     const group = await openEdit();
+    expect(within(group).getAllByRole('checkbox')).toHaveLength(1);
     expect((within(group).getByRole('checkbox', { name: /per sales channel/i }) as HTMLInputElement).checked).toBe(true);
-    expect((within(group).getByRole('checkbox', { name: /per language/i }) as HTMLInputElement).checked).toBe(true);
   });
 
   it('a narrowing asks the preview first and confirms with the count, total and per channel', async () => {
@@ -157,7 +157,7 @@ describe('AttributesManager — scope flags (FR-090)', () => {
     await user.click(screen.getByRole('button', { name: /^save$/i }));
 
     const dialog = await screen.findByRole('dialog', { name: /material/i });
-    expect(getSpy).toHaveBeenCalledWith(`${PREVIEW_PREFIX}?channelScoped=false&languageScoped=true`);
+    expect(getSpy).toHaveBeenCalledWith(`${PREVIEW_PREFIX}?scopable=false&valueType=string`);
     expect(dialog.textContent).toMatch(/7/);
     expect(within(dialog).getByText(/B2B shop/).textContent).toMatch(/5/);
     // A channel the admin cannot name is shown by a short id, never dropped.
@@ -167,7 +167,7 @@ describe('AttributesManager — scope flags (FR-090)', () => {
     await user.click(within(dialog).getByRole('button', { name: /narrow the scope/i }));
     await waitFor(() => expect(patchSpy).toHaveBeenCalledTimes(1));
     expect(patchedPath()).toBe('/api/v1/admin/catalog/attributes/material');
-    expect(patchSpy.mock.calls[0]?.[1]).toMatchObject({ channelScoped: false, languageScoped: true });
+    expect(patchSpy.mock.calls[0]?.[1]).toMatchObject({ scopable: false });
   });
 
   it('Save says it is busy while the narrowing preview loads, so it cannot ask twice (D18)', async () => {
@@ -196,7 +196,7 @@ describe('AttributesManager — scope flags (FR-090)', () => {
   it('cancel sends nothing', async () => {
     const user = userEvent.setup();
     const group = await openEdit();
-    await user.click(within(group).getByRole('checkbox', { name: /per language/i }));
+    await user.click(within(group).getByRole('checkbox', { name: /per sales channel/i }));
     await user.click(screen.getByRole('button', { name: /^save$/i }));
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByRole('button', { name: /cancel/i }));
@@ -208,7 +208,7 @@ describe('AttributesManager — scope flags (FR-090)', () => {
     const user = userEvent.setup();
     preview = { orphanedOverrides: 0, byChannel: [] };
     const group = await openEdit();
-    await user.click(within(group).getByRole('checkbox', { name: /per language/i }));
+    await user.click(within(group).getByRole('checkbox', { name: /per sales channel/i }));
     await user.click(screen.getByRole('button', { name: /^save$/i }));
     const dialog = await screen.findByRole('dialog');
     expect(dialog.textContent).toMatch(/no values/i);
@@ -216,12 +216,12 @@ describe('AttributesManager — scope flags (FR-090)', () => {
 
   it('a widening saves without the preview', async () => {
     const user = userEvent.setup();
-    primeGets([attribute({ channelScoped: false, languageScoped: false })]);
+    primeGets([attribute({ scopable: false })]);
     const group = await openEdit();
     await user.click(within(group).getByRole('checkbox', { name: /per sales channel/i }));
     await user.click(screen.getByRole('button', { name: /^save$/i }));
     await waitFor(() => expect(patchSpy).toHaveBeenCalledTimes(1));
-    expect(patchSpy.mock.calls[0]?.[1]).toMatchObject({ channelScoped: true, languageScoped: false });
+    expect(patchSpy.mock.calls[0]?.[1]).toMatchObject({ scopable: true });
     expect(getSpy.mock.calls.some(([p]) => String(p).startsWith(PREVIEW_PREFIX))).toBe(false);
     expect(screen.queryByRole('dialog')).toBeNull();
   });
@@ -245,8 +245,7 @@ describe('AttributesManager — scope flags (FR-090)', () => {
   it('says nothing about scope while the attribute answer does not carry the flags', async () => {
     const user = userEvent.setup();
     const bare = attribute();
-    delete bare['channelScoped'];
-    delete bare['languageScoped'];
+    delete bare['scopable'];
     primeGets([bare]);
     render(wrap(<AttributesManager />));
     const row = (await screen.findByText('material')).closest('tr') as HTMLElement;

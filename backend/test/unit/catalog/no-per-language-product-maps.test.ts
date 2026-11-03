@@ -109,14 +109,6 @@ function scan(file: string, source: string): Site[] {
  */
 const ALLOWLIST: ReadonlyArray<{ file: string; reason: string }> = [
   {
-    file: 'packages/modules/catalog/src/admin/lib/attribute-scope.ts',
-    reason: 'S3 — catalog admin, removed by T113 (US9)',
-  },
-  {
-    file: 'packages/modules/catalog/src/admin/pages/AttributesManager.tsx',
-    reason: 'S3 — catalog admin, removed by T113 (US9)',
-  },
-  {
     file: 'packages/modules/catalog/src/admin/pages/AttachmentTypesPage.tsx',
     reason: "non-product map: an attachment type's own name per language (readers.md 'Not readers'), matched by `row.name[` — S3's file",
   },

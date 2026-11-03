@@ -5,13 +5,7 @@ import { ApiError, apiClient, useAuth } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { ModalDialog } from '@endora-commerce/admin-kit/components';
 import { AppLanguageContext, useTranslation } from '@endora-commerce/admin-kit/i18n';
-import {
-  isScopeNarrowing,
-  previewAttributeScopeChange,
-  scopeFlagsOf,
-  type AttributeScopeFlags,
-  type AttributeScopePreview,
-} from '../lib/attribute-scope.js';
+import { isScopeNarrowing, previewAttributeScopeChange, scopableOf, type AttributeScopePreview } from '../lib/attribute-scope.js';
 import { pickLocalized } from '../lib/scope-overview.js';
 
 // Feature 002 (T035) — DB-level value types. Foundation 001 had
@@ -66,11 +60,10 @@ interface AdminAttribute {
   /** Feature 061 — backing product-host custom-field definition (read-only, additive). */
   customFieldDefinitionId?: string;
   /**
-   * Feature 023 / 163 (FR-090) — may the value differ per sales channel / per language.
-   * Optional: the form shows them only when the answer carries both.
+   * Feature 173 (FR-012, R15) — may the value differ per sales channel (and, for text, per
+   * channel and language). Optional: the form shows it only when the answer carries it.
    */
-  channelScoped?: boolean;
-  languageScoped?: boolean;
+  scopable?: boolean;
 }
 
 /** A narrowing waiting for the operator's confirmation (FR-090). */
@@ -180,7 +173,7 @@ export function AttributesManager(): ReactNode {
       ...(input.valueType === 'number' || input.valueType === 'price'
         ? { displayAsSlider: input.displayAsSlider }
         : {}),
-      ...(input.scope ? { channelScoped: input.scope.channelScoped, languageScoped: input.scope.languageScoped } : {}),
+      ...(input.scopable !== null ? { scopable: input.scopable } : {}),
     };
   };
 
@@ -231,15 +224,17 @@ export function AttributesManager(): ReactNode {
   // unused, so the count is shown and confirmed before anything is sent.
   const handleEditSave = useCallback(
     async (attr: AdminAttribute, input: AttributeFormValues): Promise<void> => {
-      const current = scopeFlagsOf(attr);
-      if (!current || !input.scope || !isScopeNarrowing(current, input.scope)) {
+      const stored = scopableOf(attr);
+      const current = stored === null ? null : { scopable: stored, valueType: attr.valueType };
+      const next = input.scopable === null ? null : { scopable: input.scopable, valueType: input.valueType };
+      if (!current || !next || !isScopeNarrowing(current, next)) {
         await saveEdit(attr, input);
         return;
       }
       setError(null);
       try {
         const [preview, channels] = await Promise.all([
-          previewAttributeScopeChange(attr.key, input.scope),
+          previewAttributeScopeChange(attr.key, next),
           apiClient
             .get<{ items?: Array<{ id: string; code: string; name: Record<string, string> | string }> }>(
               '/api/v1/admin/sales-channels',
@@ -636,8 +631,8 @@ interface AttributeFormValues {
   quickSearchable: boolean;
   isPromoRule: boolean;
   isPriceRule: boolean;
-  /** Feature 163 (FR-090) — `null` when the form does not show the flags. */
-  scope: AttributeScopeFlags | null;
+  /** Feature 173 (R15) — `null` when the form does not show the flag. */
+  scopable: boolean | null;
 }
 
 interface AttributeFormProps {
@@ -677,18 +672,16 @@ function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormPro
   const isNumeric = valueType === 'number' || valueType === 'price';
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('catalog:write');
-  // Feature 163 (FR-090) — shown on create, and on edit when the answer carries both
-  // flags; a system attribute's are fixed (`getAttributeScope`) and read-only.
-  const storedScope = attribute ? scopeFlagsOf(attribute) : { channelScoped: false, languageScoped: false };
+  // Feature 173 (FR-012, R15) — one flag, shown on create and on edit when the answer
+  // carries it; a system attribute's is fixed (`getAttributeScope`) and read-only.
   const systemAttribute = attribute ? isSystemAttributeKey(attribute.key) : false;
-  // 170-shim: the two 163 flags are one `scopable` flag now (R15); T113 rewrites this form.
-  const initialScope: AttributeScopeFlags | null =
-    systemAttribute && attribute
-      ? { channelScoped: getAttributeScope(attribute.key).scopable, languageScoped: getAttributeScope(attribute.key).scopable }
-      : storedScope;
-  const [channelScoped, setChannelScoped] = useState(initialScope?.channelScoped ?? false);
-  const [languageScoped, setLanguageScoped] = useState(initialScope?.languageScoped ?? false);
-  const showScope = initialScope !== null;
+  const initialScopable: boolean | null = attribute
+    ? systemAttribute
+      ? getAttributeScope(attribute.key).scopable
+      : scopableOf(attribute)
+    : false;
+  const [scopable, setScopable] = useState(initialScopable ?? false);
+  const showScope = initialScopable !== null;
   const scopeEditable = showScope && !systemAttribute && canWrite;
   const scopeHelpId = useId();
 
@@ -710,7 +703,7 @@ function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormPro
     quickSearchable: isContent ? false : quickSearchable,
     isPromoRule: isContent ? false : isPromoRule,
     isPriceRule: isContent ? false : isPriceRule,
-    scope: scopeEditable && !isContent ? { channelScoped, languageScoped } : null,
+    scopable: scopeEditable && !isContent ? scopable : null,
   });
 
   const reset = (): void => {
@@ -727,8 +720,7 @@ function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormPro
     setQuickSearchable(false);
     setIsPromoRule(false);
     setIsPriceRule(false);
-    setChannelScoped(false);
-    setLanguageScoped(false);
+    setScopable(false);
   };
 
   return (
@@ -866,20 +858,8 @@ function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormPro
         <fieldset className="space-y-2" aria-describedby={scopeHelpId}>
           <legend className="text-sm font-medium">{t('attributes.scope.legend')}</legend>
           <label className="flex items-center gap-2 text-sm">
-            <Checkbox
-              checked={channelScoped}
-              disabled={!scopeEditable}
-              onChange={(e): void => setChannelScoped(e.target.checked)}
-            />
-            {t('attributes.scope.channelScoped')}
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox
-              checked={languageScoped}
-              disabled={!scopeEditable}
-              onChange={(e): void => setLanguageScoped(e.target.checked)}
-            />
-            {t('attributes.scope.languageScoped')}
+            <Checkbox checked={scopable} disabled={!scopeEditable} onChange={(e): void => setScopable(e.target.checked)} />
+            {t('attributes.scope.scopable')}
           </label>
           <p id={scopeHelpId} className="text-xs text-muted-foreground">
             {systemAttribute
