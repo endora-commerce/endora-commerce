@@ -1,5 +1,9 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { ZodError } from 'zod';
 import {
+  SCOPED_VALUES_BODY_LIMIT,
+  saveScopedValuesRequestSchema,
+  scopedValuesQuerySchema,
   PRICE_FIELDS_REFUSED_ON_PRODUCTS,
   PRICE_FIELDS_REFUSED_ON_VARIANTS,
   assignAttributesRequestSchema,
@@ -62,6 +66,7 @@ import type { GroupedService } from './services/grouped.service.js';
 import type { BundleService } from './services/bundle.service.js';
 import type { ProductScopeContextService } from './services/product-scope-context.service.js';
 import type { ProductEditorPreferencesService } from './services/product-editor-preferences.service.js';
+import type { ScopedValuesService } from './services/scoped-values.service.js';
 import type { ProductListViewService } from './services/product-list-view-service.js';
 import type { ProductValueResolverService } from './services/product-value-resolver.service.js';
 import type { ProductOverridesService } from './services/product-overrides.service.js';
@@ -201,6 +206,12 @@ export interface CatalogAdminDeps {
    * routes are NOT registered.
    */
   productScopesService?: ProductScopesService;
+  /**
+   * Feature 170 — the editor's one read and one save of a scope
+   * (`GET|PUT /admin/catalog/products/:id/scoped-values`). When omitted, the two
+   * routes are NOT registered.
+   */
+  scopedValuesService?: ScopedValuesService;
   /**
    * Feature 163 — the product's scope overview
    * (`GET /admin/catalog/products/:id/scope-overview`, US4). When omitted, the
@@ -909,6 +920,39 @@ export async function registerCatalogAdminRoutes(
       },
     );
   }
+  // Feature 170 (`contracts/scoped-values-api.md` §2–§3) — one read per scope switch and one
+  // atomic save of a scope. The body is parsed after the gate; a reserved record key
+  // (`constructor`, `prototype`; `__proto__` is already refused by the body parser) is
+  // `422 SCOPED_VALUE_INVALID`, never silently dropped (R21).
+  if (deps.scopedValuesService) {
+    const scopedSvc = deps.scopedValuesService;
+    app.get<{ Params: { id: string } }>(
+      '/api/v1/admin/catalog/products/:id/scoped-values',
+      { preHandler: requireAdmin('catalog:read') },
+      async (request) => {
+        const query = scopedValuesQuerySchema.parse(request.query ?? {});
+        return { data: await scopedSvc.read(request.params.id, query) };
+      },
+    );
+    app.put<{ Params: { id: string } }>(
+      '/api/v1/admin/catalog/products/:id/scoped-values',
+      { preHandler: requireAdmin('catalog:write'), bodyLimit: SCOPED_VALUES_BODY_LIMIT },
+      async (request) => {
+        const parsed = saveScopedValuesRequestSchema.safeParse(request.body);
+        if (!parsed.success) {
+          const reserved = parsed.error.issues.filter((issue) => issue.message === 'reserved key');
+          if (reserved.length > 0) {
+            throw new HttpError(422, ERROR_CODES.SCOPED_VALUE_INVALID, 'A record key is reserved.', {
+              fields: reserved.map((issue) => ({ field: issue.path.map(String).join('.'), scope: { level: 'global' }, reason: 'invalid' })),
+            });
+          }
+          throw new ZodError(parsed.error.issues);
+        }
+        return scopedSvc.save(request.params.id, parsed.data);
+      },
+    );
+  }
+
   // Feature 163 — the scope overview (§3) and the attribute scope-flag change
   // preview (§6). Both are reads behind `catalog:read`; the writes they lead to
   // stay on their owning routes and gates.
