@@ -45,7 +45,7 @@ function read(scope: ScopeRef) {
     product: { ...base.data.product, attributeSetId: SET_A, categoryIds: [] },
     fields: {
       window: scopedField({ from: null, until: null }, { levels: ['G', 'C'], supportedHere: scope.level !== 'channel_language' }),
-      name: scopedField('Drill', { source: scope.level === 'global' ? 'set' : 'inherited_global', ownValue: scope.level === 'global' ? 'Drill' : undefined, required: true }),
+      name: scopedField('Drill', scope.level === 'global' ? { source: 'set', ownValue: 'Drill', required: true } : { source: 'inherited_global', required: true }),
     },
   });
 }
