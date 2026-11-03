@@ -200,6 +200,8 @@ export {
   type CmsReferenceRegistryPort,
   type CmsPageRecord,
   type CmsPageReadPort,
+  type CmsReservedSegmentContributor,
+  type CmsReservedSegmentRegistryPort,
   type CmsPageStorefrontLink,
   type CmsPageStorefrontLinkScope,
   type CmsSeededBlock,

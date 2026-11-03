@@ -97,7 +97,8 @@ describe('Blog dictionary boundary', () => {
   function baseCategory(slug: string, languages: string[]) {
     return {
       parentId: null,
-      name: { 'en-US': slug },
+      // Feature 171 — a category is named in every language it is in.
+      name: Object.fromEntries(languages.map((language) => [language, slug])),
       slug,
       salesChannelIds: [channelId],
       languages,

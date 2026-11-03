@@ -107,6 +107,12 @@ export const contributions: AdminContributions = {
       component: () => import('./pages/BlogTagListPage.js'),
       requiredPermission: READ_PERMISSION,
     },
+    {
+      // Feature 171 — the addresses the blog is served at, per sales channel.
+      path: '/blog/addresses',
+      component: () => import('./pages/BlogAddressesPage.js'),
+      requiredPermission: READ_PERMISSION,
+    },
   ],
   nav: [
     {
@@ -142,6 +148,14 @@ export const contributions: AdminContributions = {
       icon: 'Newspaper',
       section: 'content',
       weight: 800,
+      requiredPermission: READ_PERMISSION,
+    },
+    {
+      to: '/blog/addresses',
+      labelKey: 'nav.blogAddresses.label',
+      icon: 'Newspaper',
+      section: 'content',
+      weight: 850,
       requiredPermission: READ_PERMISSION,
     },
   ],

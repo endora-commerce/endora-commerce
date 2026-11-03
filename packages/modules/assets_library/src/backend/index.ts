@@ -131,6 +131,29 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   });
 
+  /**
+   * Feature 171 (US6, research R9) — an administrator's author avatar is a use of the
+   * asset. `admin_users` cannot contribute the descriptor itself: this module depends
+   * on it, so the edge would be a cycle. The descriptor is registered here and reads
+   * through the port `admin_users` publishes; `admin_users` is non-deactivatable, and a
+   * deleted administrator holds no avatar.
+   */
+  ctx.onBoot(() => {
+    ctx.cradle<AssetsLibraryCradle>().assetsLibrary.handle.referenceRegistry.register({
+      ownerModuleId: 'admin_users',
+      async findReferences(assetIds: string[]) {
+        if (assetIds.length === 0) return [];
+        const admins = await lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort').findByAvatarAssetIds(assetIds);
+        return admins.map((admin) => ({
+          assetId: admin.avatarAssetId!,
+          kind: 'admin_user_avatar',
+          entityId: admin.id,
+          label: `Administrator "${`${admin.firstName} ${admin.lastName}`.trim() || admin.email}"`,
+        }));
+      },
+    });
+  });
+
   // ---------------------------------------------------------------------------
   // Feature 075, Phase P — the published surface.
   //

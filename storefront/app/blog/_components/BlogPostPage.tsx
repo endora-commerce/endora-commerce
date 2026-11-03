@@ -7,6 +7,7 @@ import { BlogPostBody } from './BlogPostBody';
 import { RelatedPostsStrip } from './RelatedPostsStrip';
 import { RelatedProductsStrip } from './RelatedProductsStrip';
 import { TagChipStrip } from './TagChipStrip';
+import { AuthorBox } from './AuthorBox';
 
 function formatDate(iso: string | null, locale: string): string | null {
   if (!iso) return null;
@@ -52,10 +53,20 @@ export function BlogPostPage({
           '@context': 'https://schema.org',
           '@type': 'BlogPosting',
           headline: post.name,
-          url: absoluteUrl(post.breadcrumb[post.breadcrumb.length - 1]?.url ?? `/blog/${post.slug}`),
+          url: absoluteUrl(post.url ?? post.breadcrumb[post.breadcrumb.length - 1]?.url ?? `/blog/${post.slug}`),
           ...(post.publishedAt !== null ? { datePublished: post.publishedAt } : {}),
           ...(post.metaDescription !== null ? { description: post.metaDescription } : {}),
           ...(post.tags.length > 0 ? { keywords: post.tags.map((tag) => tag.name).join(', ') } : {}),
+          // Feature 171 (US7) — the author, as a person.
+          ...(post.author
+            ? {
+                author: {
+                  '@type': 'Person',
+                  name: post.author.name,
+                  ...(post.author.avatarUrl ? { image: post.author.avatarUrl } : {}),
+                },
+              }
+            : {}),
         }}
       />
       <Breadcrumbs locale={locale} crumbs={post.breadcrumb.map((c) => ({ href: c.url, label: c.name }))} />
@@ -76,6 +87,7 @@ export function BlogPostPage({
         <BlogPostBody content={post.content} language={language} />
       </div>
 
+      {post.author ? <AuthorBox author={post.author} locale={locale} /> : null}
       <TagChipStrip tags={post.tags} />
       <RelatedPostsStrip posts={post.relatedPosts} locale={locale} />
       <RelatedProductsStrip products={relatedProducts} locale={locale} salesChannelCode={salesChannelCode} />

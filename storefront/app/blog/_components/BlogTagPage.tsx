@@ -5,7 +5,6 @@ import { Pagination } from './Pagination';
 import { PostCard } from './PostCard';
 import { tForLocale } from '../../../lib/i18n/messages';
 
-const BLOG_PREFIX = '/blog';
 
 export function BlogTagPage({
   payload,
@@ -41,7 +40,7 @@ export function BlogTagPage({
       )}
 
       <Pagination
-        basePath={`${BLOG_PREFIX}/tag/${tag.code}`}
+        basePath={tag.url ?? `/blog/tag/${tag.code}`}
         page={posts.pagination.page}
         totalPages={posts.pagination.totalPages}
         locale={locale}

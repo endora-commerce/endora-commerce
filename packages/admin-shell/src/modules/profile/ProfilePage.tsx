@@ -6,6 +6,7 @@ import {
   useTranslation,
 } from '@endora-commerce/admin-kit/i18n';
 import type { SupportedAdminLanguage } from '@endora-commerce/admin-kit/i18n';
+import { AssetFieldPicker, ContentLanguageTabs } from '@endora-commerce/admin-kit/components';
 
 /**
  * ProfilePage — feature 010 admin polish.
@@ -34,13 +35,32 @@ export function ProfilePage(): ReactNode {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  // Feature 171 (US6) — the public author profile: an avatar and a biography per
+  // content language, shown beside the posts the administrator writes.
+  const [avatarAssetId, setAvatarAssetId] = useState<string | null>(null);
+  const [bio, setBio] = useState<Record<string, string>>({});
+  const [contentLanguages, setContentLanguages] = useState<Array<{ code: string; label: string }>>([]);
+  // The language whose text is on screen; every language's text stays in `bio`.
+  const [bioLanguage, setBioLanguage] = useState<string | null>(null);
 
   useEffect(() => {
     if (me) {
       setFirstName(me.adminUser.firstName);
       setLastName(me.adminUser.lastName);
+      setAvatarAssetId(me.adminUser.avatarAssetId ?? null);
+      setBio(me.adminUser.bio ?? {});
     }
   }, [me]);
+
+  useEffect(() => {
+    void apiClient
+      .get<{ data: { languages: Array<{ code: string; label: string }> } }>('/api/v1/i18n/config')
+      .then((config) => {
+        setContentLanguages(config.data.languages);
+        setBioLanguage((current) => current ?? config.data.languages[0]?.code ?? null);
+      })
+      .catch(() => setContentLanguages([]));
+  }, []);
 
   if (!me) {
     return <div className="b2b-page">{t('profile.loading')}</div>;
@@ -61,6 +81,8 @@ export function ProfilePage(): ReactNode {
       const body: Record<string, unknown> = {};
       if (firstName !== me.adminUser.firstName) body['firstName'] = firstName;
       if (lastName !== me.adminUser.lastName) body['lastName'] = lastName;
+      if (avatarAssetId !== (me.adminUser.avatarAssetId ?? null)) body['avatarAssetId'] = avatarAssetId;
+      if (!sameBio(bio, me.adminUser.bio ?? {})) body['bio'] = bio;
       if (changingPassword) {
         body['password'] = password;
         body['currentPassword'] = currentPassword;
@@ -179,6 +201,48 @@ export function ProfilePage(): ReactNode {
                 />
               </div>
             </div>
+          </div>
+        </div>
+
+        <div className="b2b-card" style={{ marginBottom: 16 }}>
+          <div className="b2b-card__head"><h2>{t('profile.authorTitle')}</h2></div>
+          <div className="b2b-card__body">
+            <div className="b2b-help" style={{ marginBottom: 12 }}>{t('profile.authorHelp')}</div>
+            <div style={{ marginBottom: 12 }}>
+              <label className="b2b-label" htmlFor="me-avatar">{t('profile.field.avatar')}</label>
+              <AssetFieldPicker
+                id="me-avatar"
+                value={avatarAssetId ?? ''}
+                // The picker answers '' when the image is cleared: no avatar.
+                onChange={(assetId): void => setAvatarAssetId(assetId === '' ? null : assetId)}
+                acceptMimePrefix="image/"
+                allowUpload
+              />
+            </div>
+            <div style={{ marginBottom: 8 }}>
+              <ContentLanguageTabs
+                languages={contentLanguages.map((language) => language.code)}
+                activeLanguage={bioLanguage}
+                onChange={setBioLanguage}
+              />
+            </div>
+            {bioLanguage !== null ? (
+              <div style={{ marginBottom: 12 }}>
+                <label className="b2b-label" htmlFor="me-bio">
+                  {t('profile.field.bio', {
+                    language: contentLanguages.find((language) => language.code === bioLanguage)?.label ?? bioLanguage,
+                  })}
+                </label>
+                <textarea
+                  id="me-bio"
+                  className="b2b-field"
+                  rows={5}
+                  maxLength={2000}
+                  value={bio[bioLanguage] ?? ''}
+                  onChange={(e): void => setBio((current) => ({ ...current, [bioLanguage]: e.target.value }))}
+                />
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -354,4 +418,11 @@ function LanguageSection(): ReactNode {
       </div>
     </div>
   );
+}
+
+/** Whether two biographies say the same, ignoring languages left blank. */
+function sameBio(a: Record<string, string>, b: Record<string, string>): boolean {
+  const filled = (bio: Record<string, string>) =>
+    JSON.stringify(Object.entries(bio).filter(([, text]) => text.trim() !== '').sort(([x], [y]) => x.localeCompare(y)));
+  return filled(a) === filled(b);
 }

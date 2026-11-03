@@ -24,6 +24,8 @@ function admin(overrides: Partial<AdminUserRecord>): AdminUserRecord {
     twoFactorEnabled: false,
     lastLoginAt: null,
     preferredLanguage: null,
+    avatarAssetId: null,
+    bio: null,
     deletedAt: null,
     ...overrides,
   } as AdminUserRecord;

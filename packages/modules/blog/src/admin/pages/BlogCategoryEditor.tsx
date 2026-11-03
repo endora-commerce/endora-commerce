@@ -11,6 +11,7 @@ import {
   usePageBuilderEditorSettingsPanel,
 } from '@endora-commerce/page-builder-admin';
 import { blogClient } from '../api/blog-client.js';
+import { UrlKeysPanel } from '../components/UrlKeysPanel.js';
 import { blogEditorProblem, type BlogEditorProblem } from '../components/editor-validation.js';
 
 interface FormState {
@@ -21,6 +22,23 @@ interface FormState {
   metaDescription: string;
   metaKeywords: string;
   mainImageAssetId: string;
+}
+
+/** The fields a category holds per language. */
+type LanguageFields = Pick<FormState, 'name' | 'metaTitle' | 'metaDescription' | 'metaKeywords'>;
+
+/** A language's fields as last saved (the name falls back to English for display). */
+function savedFields(category: BlogCategoryDetail, language: string): LanguageFields {
+  return {
+    name: pickValue(category.name, language) || pickValue(category.name, 'en-US'),
+    metaTitle: pickValue(category.metaTitle, language),
+    metaDescription: pickValue(category.metaDescription, language),
+    metaKeywords: pickValue(category.metaKeywords, language),
+  };
+}
+
+function languageFieldsOf(form: FormState): LanguageFields {
+  return { name: form.name, metaTitle: form.metaTitle, metaDescription: form.metaDescription, metaKeywords: form.metaKeywords };
 }
 
 const blankForm: FormState = {
@@ -76,6 +94,12 @@ export function BlogCategoryEditor(): ReactNode {
   // request is sent only then, so saving a slug does not rewrite an untouched
   // description.
   const [descriptionDirty, setDescriptionDirty] = useState(false);
+  /**
+   * The unsaved edits of the languages not on screen — their fields when changed and
+   * their description when touched — kept across a language switch and saved
+   * together with the language on screen.
+   */
+  const [stash, setStash] = useState<Record<string, { fields?: LanguageFields; description?: Data }>>({});
   const [error, setError] = useState<string | null>(null);
   // Which field a refused save was about, so the field itself says so.
   const [problem, setProblem] = useState<BlogEditorProblem | null>(null);
@@ -86,15 +110,13 @@ export function BlogCategoryEditor(): ReactNode {
     (loaded: BlogCategoryDetail, language: string | null) => {
       const lang = language ?? loaded.languages[0] ?? 'en-US';
       setForm({
-        name: pickValue(loaded.name, lang) || pickValue(loaded.name, 'en-US'),
         slug: loaded.slug,
         enabled: loaded.enabled,
-        metaTitle: pickValue(loaded.metaTitle, lang),
-        metaDescription: pickValue(loaded.metaDescription, lang),
-        metaKeywords: pickValue(loaded.metaKeywords, lang),
         mainImageAssetId: loaded.mainImageAssetId ?? '',
+        ...savedFields(loaded, lang),
       });
       setParentId(loaded.parentId);
+      setStash({});
     },
     [],
   );
@@ -133,20 +155,36 @@ export function BlogCategoryEditor(): ReactNode {
   }, [isNew]);
 
   /**
-   * Another language's fields and description, read from the category as it
-   * was last saved. Done where the language is chosen rather than in an effect
-   * over `category`, so a save that answers with a new `category` never puts
-   * the stored description back under the one being edited.
+   * Another language's fields and description: its unsaved edits when it has any,
+   * else what was last saved. The language being left keeps its own unsaved edits in
+   * the stash; the fields every language shares are not touched. Done where the
+   * language is chosen rather than in an effect over `category`, so a save that
+   * answers with a new `category` never puts the stored description back under the
+   * one being edited.
    */
   const switchLanguage = useCallback(
     (language: string) => {
+      const leaving = activeLanguage;
       setActiveLanguage(language);
       if (!category) return;
-      reloadFormFromCategory(category, language);
-      setDraftDescription(descriptionFor(category, language));
-      setDescriptionDirty(false);
+      const next = { ...stash };
+      if (leaving && leaving !== language) {
+        const fields = languageFieldsOf(form);
+        const changed = JSON.stringify(fields) !== JSON.stringify(savedFields(category, leaving));
+        const kept = { ...next[leaving] };
+        if (changed) kept.fields = fields;
+        else delete kept.fields;
+        if (descriptionDirty && draftDescription) kept.description = draftDescription;
+        if (kept.fields || kept.description) next[leaving] = kept;
+        else delete next[leaving];
+      }
+      const arriving = next[language];
+      setStash(next);
+      setForm((f) => ({ ...f, ...(arriving?.fields ?? savedFields(category, language)) }));
+      setDraftDescription(arriving?.description ?? descriptionFor(category, language));
+      setDescriptionDirty(Boolean(arriving?.description));
     },
-    [category, reloadFormFromCategory],
+    [activeLanguage, category, descriptionDirty, draftDescription, form, stash],
   );
 
   const refuse = useCallback(
@@ -206,41 +244,49 @@ export function BlogCategoryEditor(): ReactNode {
     setSaving(true);
     setError(null);
     const lang = activeLanguage ?? 'en-US';
+    // Every language with unsaved fields, the one on screen included.
+    const fieldsByLanguage: Record<string, LanguageFields> = {
+      ...Object.fromEntries(
+        Object.entries(stash).flatMap(([language, kept]) => (kept.fields ? [[language, kept.fields]] : [])),
+      ),
+      [lang]: languageFieldsOf(form),
+    };
+    const perLanguage = (key: keyof LanguageFields): Record<string, string> =>
+      Object.fromEntries(Object.entries(fieldsByLanguage).map(([language, fields]) => [language, fields[key]]));
+    // Every touched description, the one on screen included.
+    const descriptions: Record<string, Data> = {
+      ...Object.fromEntries(
+        Object.entries(stash).flatMap(([language, kept]) => (kept.description ? [[language, kept.description]] : [])),
+      ),
+      ...(descriptionDirty && draftDescription ? { [lang]: draftDescription } : {}),
+    };
     try {
       let updated = await blogClient.patchCategory(category.id, {
-        name: { ...category.name, [lang]: form.name },
+        name: { ...category.name, ...perLanguage('name') },
         slug: form.slug,
         enabled: form.enabled,
         salesChannelIds: scope.salesChannelIds,
         languages: scope.languages,
         mainImageAssetId: form.mainImageAssetId || null,
-        metaTitle: { ...(category.metaTitle ?? {}), [lang]: form.metaTitle },
-        metaDescription: {
-          ...(category.metaDescription ?? {}),
-          [lang]: form.metaDescription,
-        },
-        metaKeywords: {
-          ...(category.metaKeywords ?? {}),
-          [lang]: form.metaKeywords,
-        },
+        metaTitle: { ...(category.metaTitle ?? {}), ...perLanguage('metaTitle') },
+        metaDescription: { ...(category.metaDescription ?? {}), ...perLanguage('metaDescription') },
+        metaKeywords: { ...(category.metaKeywords ?? {}), ...perLanguage('metaKeywords') },
         version: category.version,
       });
       // The fields are stored from here on, whatever the description request does.
       setCategory(updated);
-      if (descriptionDirty && activeLanguage && draftDescription) {
+      if (Object.keys(descriptions).length > 0) {
         updated = await blogClient.putCategoryDescription(category.id, {
           description: {
             schema_version: updated.description?.schema_version ?? 1,
-            languages: {
-              ...(updated.description?.languages ?? {}),
-              [activeLanguage]: draftDescription,
-            },
+            languages: { ...(updated.description?.languages ?? {}), ...descriptions },
           },
           version: updated.version,
         });
         setCategory(updated);
         setDescriptionDirty(false);
       }
+      setStash({});
       setInfo(t('messages.saved'));
       return true;
     } catch (err) {
@@ -347,7 +393,7 @@ export function BlogCategoryEditor(): ReactNode {
               structuredClone(
                 language === activeLanguage && draftDescription
                   ? draftDescription
-                  : (descriptionFor(category, language) ?? emptyCanvas()),
+                  : (stash[language]?.description ?? descriptionFor(category, language) ?? emptyCanvas()),
               )
             }
             resource={{ type: 'blog_category', id: category.id }}
@@ -414,6 +460,20 @@ export function BlogCategoryEditor(): ReactNode {
               </label>
             </CardContent>
           </Card>
+
+          {category && activeLanguage ? (
+            <UrlKeysPanel
+              kind="category"
+              entityId={category.id}
+              language={activeLanguage}
+              // The keys' save bumps the category's version; the form's edits stay.
+              onSaved={() =>
+                void blogClient
+                  .getCategory(category.id)
+                  .then((fresh) => setCategory((c) => (c ? { ...c, version: fresh.version } : fresh)))
+              }
+            />
+          ) : null}
 
           <ScopePicker value={scope} onChange={setScope} />
 

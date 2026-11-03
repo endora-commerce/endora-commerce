@@ -227,3 +227,12 @@ describe('the generated llms.txt base — a page this storefront does not serve 
     }
   });
 });
+
+describe('the generated llms.txt base — a page served under another address (feature 171)', () => {
+  it('links the blog where the operator put it, under its own title', () => {
+    process.env['NEXT_PUBLIC_SITE_URL'] = 'https://shop.example';
+    const base = renderLlmsTxtBase({ shopName: 'Shop', unservedPaths: [], servedAt: { '/blog': '/aktualnosci' } });
+    expect(base).toContain('- [Blog](https://shop.example/aktualnosci)');
+    expect(linkedAddresses(base)).not.toContain('https://shop.example/blog');
+  });
+});

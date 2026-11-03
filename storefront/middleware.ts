@@ -11,6 +11,7 @@ import {
 } from './lib/service-unavailable';
 import { readRobotsPolicy } from './lib/seo/crawler-policy';
 import { readChannelIdentity, type ChannelIdentity } from './lib/channel/channel-identity';
+import { blogRouteDecision, readBlogRouting } from './lib/blog/blog-routing';
 import { SALES_CHANNEL_REQUEST_HEADER } from './lib/channel/channel-header';
 import { closedStoreRedirect } from './lib/channel/closed-store';
 import {
@@ -132,10 +133,11 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   });
   // Asked together: none waits for another, so a document costs one round of
   // latency however many questions the middleware has for the backend.
-  const [policy, reachability, identity] = await Promise.all([
+  const [policy, reachability, identity, blogRouting] = await Promise.all([
     readRobotsPolicy(channelCode),
     decision === 'ask' ? backendReachability() : Promise.resolve(null),
     identityOf(channelCode),
+    readBlogRouting(channelCode),
   ]);
   const directive = robotsDirective(policy);
   // Written or deleted on every request, so the layout never reads a value a
@@ -217,6 +219,23 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   requestHeaders.set(LANGUAGE_REQUEST_HEADER, parsed.languageCode);
   requestHeaders.set(LANGUAGE_PREFIX_REQUEST_HEADER, parsed.prefix);
   requestHeaders.set('x-pathname', parsed.logicalPath);
+
+  // Feature 171 — the operator's blog prefix of this language, mapped onto the
+  // fixed `app/blog` route; `/blog` and a former prefix move to the current one.
+  const blog = blogRouteDecision(parsed.logicalPath, blogRouting, parsed.languageCode);
+  if (blog?.kind === 'redirect') {
+    const location = localizePath(`${blog.path}${request.nextUrl.search}`, state(parsed.languageCode));
+    const response = NextResponse.redirect(new URL(location, request.url), 301);
+    // A property of the channel's settings, which an operator can change: bounded, as a 308 is.
+    response.headers.set('Cache-Control', 'public, max-age=3600');
+    return withRobots(response, directive);
+  }
+  if (blog?.kind === 'rewrite') {
+    const rewritten = request.nextUrl.clone();
+    rewritten.pathname = blog.path;
+    return withRobots(NextResponse.rewrite(rewritten, { request: { headers: requestHeaders } }), directive);
+  }
+
   if (parsed.prefix === '') {
     return withRobots(NextResponse.next({ request: { headers: requestHeaders } }), directive);
   }

@@ -339,13 +339,6 @@ const MISFILED_INTEGRATION_TESTS: Readonly<Record<string, MisfiledIntegrationTes
       'The same three objects again — `defineModuleWorker`, the registry cache and a fake ' +
       'worker — asserting that no boot-time resume loop reintroduces itself.',
   },
-  'test/integration/blog/url-prefix-validation.test.ts': {
-    scope: 'unit',
-    reason:
-      '`BlogSettingsResolver.assertValidPrefix`, a static method, called directly. Its own ' +
-      'header explains that the contract-shaped version — driving it through the Settings ' +
-      'admin surface — was deferred, so what stands is a unit test of one validator.',
-  },
   // The three `test/integration/inpost/` entries that stood here were retired by feature
   // 134's T030, and they are the first to be retired by the mechanism this ledger did not
   // anticipate. It expected each entry to be drained by a move *within* `backend/test/`,

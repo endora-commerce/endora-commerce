@@ -32,6 +32,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | `admin_roles` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `auth` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `customer_accounts` | tylko bramkowanie | rozwiązuje `customerAccountReadPort`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |
+| `assets_library` | nie | degrades-without `assetReadPort` — administrator nie może ustawić avatara autora, gdy biblioteka jest wyłączona; ustawiony już avatar zostaje i wraca razem z biblioteką. Reszta profilu nadal się zapisuje. |
 | `mfa` | nie | degrades-without `mfaEnrolmentStatePort` — pokazuje „brak drugiego składnika” dla każdego administratora na /admin-users, /admin/me i w odpowiedzi logowania. To prawda, gdy MFA jest wyłączone — logowanie administratora nie pyta wtedy o drugi składnik — i nie oznacza, że nikt go nie zarejestrował. |
 | `mfa` | nie | degrades-without `mfaLoginPort` — logowanie administratora przestaje pytać o drugi składnik i nie oferuje przycisku Google/Microsoft. Każdy administrator ma hasło, które inny administrator może zresetować, więc nikt nie traci dostępu. |
 

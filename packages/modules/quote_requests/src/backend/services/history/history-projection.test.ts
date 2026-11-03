@@ -95,6 +95,8 @@ function adminRecord(id: string, extra: Partial<AdminUserRecord> = {}): AdminUse
     twoFactorEnabled: true,
     lastLoginAt: new Date(),
     preferredLanguage: null,
+    avatarAssetId: null,
+    bio: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,

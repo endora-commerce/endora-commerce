@@ -315,6 +315,24 @@ through the `adminAuthenticationThrottlePort` port
 comparison in one `verify(attempt, check)` call. The attempt carries the client
 address and the verified value of the known-device cookie.
 
+## Author profile
+
+Feature 171. Every administrator can keep a public **author profile** on their own profile
+page — an **avatar** (an image from the library, the same in every language) and an
+**about me** text per content language, up to 2000 characters each. The blog shows them
+beside the posts that name the administrator as their author: the name, the avatar and the
+text in the reader's language (else the channel's default language).
+
+- `PATCH /api/v1/admin/me` and `PATCH /api/v1/admin/admin-users/:id` (the latter with
+  `admin_users:manage`) take `avatarAssetId` (`null` clears it) and `bio`
+  (`{ "<language>": "<text>" }`, `null` clears it). An avatar that names no live library
+  asset is refused with `422 ADMIN_USER_AVATAR_NOT_FOUND`; while the asset library is
+  switched off an avatar cannot be set (`MODULE_DISABLED`), and the rest of the profile
+  still saves. The change is part of the `admin_user.update` audit entry.
+- The library counts an avatar as a use of the image (*Administrator "…"*), so it cannot
+  be deleted while an administrator shows it. A deleted administrator holds none.
+- Nothing else about the administrator — e-mail, role, status — reaches the storefront.
+
 ## Admin UI preferences
 
 Every administrator's layout of the Admin UI is kept on the server, with their account: the
