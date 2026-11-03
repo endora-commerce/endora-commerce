@@ -17,6 +17,7 @@ import {
 } from './transactional-email-helper.js';
 import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import { loadArrangedOrderLines } from './order-line-order.js';
+import { OrderAccessService } from './order-access-service.js';
 
 export interface ReorderUnavailableItem {
   productId: string;
@@ -51,6 +52,8 @@ interface ReorderContext {
  * cart-repopulate pattern from RfqService.convertToOrder.
  */
 export class OrderReorderService {
+  readonly #access: OrderAccessService;
+
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly cartWrite: CartWritePort,
@@ -59,7 +62,9 @@ export class OrderReorderService {
     private readonly resolveReorderEnabled?: (salesChannelId: string) => Promise<boolean>,
     private readonly mailer?: EmailMailerPort,
     private readonly getTransactionalEmailSender?: () => TransactionalEmailSender | undefined,
-  ) {}
+  ) {
+    this.#access = new OrderAccessService(customerAccountRead);
+  }
 
   async reorder(
     orderId: string,
@@ -72,7 +77,11 @@ export class OrderReorderService {
     // auditing is the `carts` module's, where it always belonged. Reading an
     // order and sending a message is all that is left on this side.
     const em = this.emFactory();
-    const order = await em.findOne(Order, { id: orderId, organizationId: ctx.organizationId });
+    // Issue #665 — resolved through the rule the read applies: a regular member
+    // reaches only the orders they placed. The operator route passes the
+    // order's placer, who is always in scope.
+    const where = await this.#access.scopedWhere(ctx, { id: orderId });
+    const order = await em.findOne(Order, where);
     if (!order) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
 
     const enabled = this.resolveReorderEnabled ? await this.resolveReorderEnabled(order.salesChannelId) : true;

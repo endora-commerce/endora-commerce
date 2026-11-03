@@ -2,18 +2,14 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
   type CreateQuoteRequest,
+  type CustomerAccountReadPort,
   type RfqCustomerPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
 import { Order } from '../entities/order.entity.js';
+import { OrderAccessService, type OrderScopeContext } from './order-access-service.js';
 import { loadArrangedOrderLines } from './order-line-order.js';
-
-interface CloneContext {
-  customerAccountId: string;
-  organizationId: string;
-  isOrgAdmin?: boolean;
-}
 
 /**
  * Feature 155 (FR-012, FR-030; `contracts/quote-requests-api.md` §3) — who is
@@ -42,14 +38,23 @@ export interface CloneOptions {
  * isolation: orders only maps line items and calls the port.
  */
 export class OrderCloneToQuoteService {
+  readonly #access: OrderAccessService;
+
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly getRfqService: () => RfqCustomerPort | null,
-  ) {}
+    customerAccountRead: CustomerAccountReadPort,
+  ) {
+    this.#access = new OrderAccessService(customerAccountRead);
+  }
 
+  /**
+   * `ctx` is whoever the request is created for: the buyer on the storefront
+   * route, the order's placer on the operator route.
+   */
   async clone(
     orderId: string,
-    ctx: CloneContext,
+    ctx: OrderScopeContext,
     options: CloneOptions = {},
   ): Promise<{ quoteRequestId: string }> {
     const rfq = this.getRfqService();
@@ -59,7 +64,13 @@ export class OrderCloneToQuoteService {
       throw new ModuleDisabledError('quote_requests');
     }
     const em = this.emFactory();
-    const order = await em.findOne(Order, { id: orderId, organizationId: ctx.organizationId });
+    // Issue #665 — the order is resolved through the rule the read applies
+    // (`OrderAccessService`): a regular member reaches only the orders they
+    // placed, an organization admin every order of the Organization. Anything
+    // else is answered as an order that does not exist, as `GET /orders/:id`
+    // answers it. The operator route passes the order's placer, who is always
+    // in scope, so its behaviour is unchanged.
+    const order = await em.findOne(Order, await this.#access.scopedWhere(ctx, { id: orderId }));
     if (!order) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
 
     // Feature 159 — the lines in the order's display order.
@@ -85,7 +96,10 @@ export class OrderCloneToQuoteService {
       {
         customerAccountId: ctx.customerAccountId,
         organizationId: ctx.organizationId,
-        isOrgAdmin: ctx.isOrgAdmin ?? true,
+        // Issue #665 — `createForCustomer` reads no role, and the request is
+        // the caller's own. Stated as `false`, as every other creating caller
+        // states it: a missing value must never be read as "admin".
+        isOrgAdmin: false,
       },
       input,
       options.actor === 'operator'
