@@ -10,8 +10,8 @@ import { Asset } from '../entities/asset.entity.js';
 /**
  * The folder answers that follow the reader
  * (`specs/166-asset-reference-visibility/` R-10, `contracts/admin-api.md` §1.1).
- * On the wire the refusals' sentences are translated and carry no number, so
- * the counts of the untranslated fallback are measured here; the outcomes —
+ * The `cancel` refusal's counts are in `details` and both bundle sentences name
+ * them (issue #86); they are measured here, on the message and on `details`; the outcomes —
  * what is deleted, moved and audited — are measured by
  * `backend/test/integration/assets_library/folder-delete-references.test.ts`.
  * The evaluator is faked: its own rule is `asset-visibility.test.ts`'s.
@@ -61,6 +61,8 @@ describe('FoldersService.deleteFolder — counts follow the reader (R-10)', () =
       statusCode: 409,
       code: ERROR_CODES.ASSET_FOLDER_NOT_EMPTY,
       message: 'Folder is not empty (0 sub-folder(s), 1 asset(s)).',
+      // Issue #86 — the counts the bundle sentences name, visible-only too.
+      details: { subfolderCount: 0, assetCount: 1 },
     });
     expect(em.flush).not.toHaveBeenCalled();
   });
@@ -69,6 +71,7 @@ describe('FoldersService.deleteFolder — counts follow the reader (R-10)', () =
     const em = fakeEm([row(VISIBLE), row(HIDDEN_1), row(HIDDEN_2)]);
     await expect(folders(em, []).deleteFolder(FOLDER, 'cancel')).rejects.toMatchObject({
       message: 'Folder is not empty (0 sub-folder(s), 3 asset(s)).',
+      details: { subfolderCount: 0, assetCount: 3 },
     });
   });
 
