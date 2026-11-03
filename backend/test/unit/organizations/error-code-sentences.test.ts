@@ -10,6 +10,7 @@ import {
   maxDepthRefusal,
   unreadablePathRefusal,
 } from '../../../../packages/modules/organizations/src/backend/services/organization-tree-service.js';
+import { permissionRequiredRefusal } from '../../../../packages/modules/organizations/src/backend/services/organization-role-permission-port.js';
 
 /**
  * D-129's remaining sweep, MR 7 — the sentences `organizations` gained when its
@@ -203,6 +204,59 @@ describe('the six untokened organizations codes', () => {
     });
 
     for (const language of LANGUAGES) {
+      it(`answers ${code} with a sentence that needs nothing filled (${language})`, () => {
+        const sentence = bundle(language)[`errors.${code}`];
+        expect(sentence, `errors.${code} missing from ${language}.json`).toBeTypeOf('string');
+        expect(sentence).not.toMatch(/\{\w+\}/);
+      });
+    }
+  }
+});
+
+/**
+ * `specs/170-organization-roles/` WP-02a, T035 — the seven role and permission
+ * codes, declared by this module's manifest and translated in its bundle.
+ *
+ * `ORGANIZATION_PERMISSION_REQUIRED` is the one with a placeholder: its raise
+ * carries `details: { permission, permissionLabel }`, and both sentences name
+ * `{permissionLabel}` — so the refusal is rendered here from the real raise, in
+ * both languages, and must leave nothing unfilled (FR-055,
+ * `contracts/organization-permission-port.md` §3). The other six carry no
+ * scalar `details` a sentence could read, so they must need nothing filled.
+ */
+describe('the organization role and permission codes (feature 170)', () => {
+  const codes = [
+    'ORGANIZATION_PERMISSION_REQUIRED',
+    'ORGANIZATION_ROLE_NAME_TAKEN',
+    'ORGANIZATION_ROLE_STALE',
+    'ORGANIZATION_ROLE_LIMIT_REACHED',
+    'ORGANIZATION_ROLE_PROTECTED',
+    'ORGANIZATION_ROLE_REPLACEMENT_REQUIRED',
+    'ORGANIZATION_PERMISSION_UNKNOWN',
+  ] as const;
+
+  for (const code of codes) {
+    it(`routes ${code} to this module's bundle`, () => {
+      expect(DECLARED_ERROR_TRANSLATION_TARGETS[code]).toEqual({
+        moduleId: 'organizations',
+        key: `errors.${code}`,
+      });
+    });
+  }
+
+  for (const language of LANGUAGES) {
+    it(`renders ORGANIZATION_PERMISSION_REQUIRED with the permission's label (${language})`, () => {
+      const refusal = permissionRequiredRefusal('carts.approve', 'Approve carts');
+      expect(refusal.statusCode).toBe(403);
+      expect(tokenOf(refusal.details)).toBeUndefined();
+      const sentence = bundle(language)['errors.ORGANIZATION_PERMISSION_REQUIRED'];
+      expect(sentence).toBeTypeOf('string');
+      const rendered = interpolate(sentence!, paramsOf(refusal.details));
+      expect(rendered).toContain('Approve carts');
+      expect(rendered).not.toMatch(/\{\w+\}/);
+    });
+
+    for (const code of codes.filter((c) => c !== 'ORGANIZATION_PERMISSION_REQUIRED')) {
       it(`answers ${code} with a sentence that needs nothing filled (${language})`, () => {
         const sentence = bundle(language)[`errors.${code}`];
         expect(sentence, `errors.${code} missing from ${language}.json`).toBeTypeOf('string');

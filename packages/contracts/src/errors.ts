@@ -150,6 +150,22 @@ export const ERROR_CODES = {
   ORGANIZATION_HAS_CHILDREN: 'ORGANIZATION_HAS_CHILDREN',
   // Feature 056 — a re-parent would create a cycle or exceed the depth bound.
   ORGANIZATION_TREE_INVALID: 'ORGANIZATION_TREE_INVALID',
+  // Feature 170 — organization roles and permissions (`specs/170-organization-roles/`,
+  // `contracts/organization-permission-port.md` §3). Declared by `organizations`.
+  // A member's role lacks the organization permission a buyer action needs (403).
+  ORGANIZATION_PERMISSION_REQUIRED: 'ORGANIZATION_PERMISSION_REQUIRED',
+  // A custom role's name is another role's, or a predefined role's label (409).
+  ORGANIZATION_ROLE_NAME_TAKEN: 'ORGANIZATION_ROLE_NAME_TAKEN',
+  // A role write carried an `expectedVersion` that is no longer current (409).
+  ORGANIZATION_ROLE_STALE: 'ORGANIZATION_ROLE_STALE',
+  // The Organization already holds the maximum number of custom roles (422).
+  ORGANIZATION_ROLE_LIMIT_REACHED: 'ORGANIZATION_ROLE_LIMIT_REACHED',
+  // An edit, rename or delete a predefined role does not allow (409).
+  ORGANIZATION_ROLE_PROTECTED: 'ORGANIZATION_ROLE_PROTECTED',
+  // Deleting a role somebody holds needs a different replacement role (422).
+  ORGANIZATION_ROLE_REPLACEMENT_REQUIRED: 'ORGANIZATION_ROLE_REPLACEMENT_REQUIRED',
+  // A submitted permission code no module declares (422).
+  ORGANIZATION_PERMISSION_UNKNOWN: 'ORGANIZATION_PERMISSION_UNKNOWN',
   EMAIL_ALREADY_REGISTERED: 'EMAIL_ALREADY_REGISTERED',
   EMAIL_ALREADY_IN_ORGANIZATION: 'EMAIL_ALREADY_IN_ORGANIZATION',
   EMAIL_BELONGS_TO_ANOTHER_ORGANIZATION: 'EMAIL_BELONGS_TO_ANOTHER_ORGANIZATION',

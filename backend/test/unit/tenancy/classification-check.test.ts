@@ -102,6 +102,26 @@ describe('the scan scope', () => {
 });
 
 /**
+ * `specs/170-organization-roles/` WP-02a, T029 — the role table is
+ * organization-scoped (Principle XI; data-model §1): read through the global
+ * filter, so a request naming another Organization's role finds nothing
+ * (FR-005). Read from the real source file, so a role entity that lost or
+ * changed its classification is red here and not only in the whole-tree count.
+ */
+describe('OrganizationRole (feature 170)', () => {
+  it('is classified @OrgScoped and nothing else', () => {
+    const file = new URL(
+      '../../../../packages/modules/organizations/src/backend/entities/organization-role.entity.ts',
+      import.meta.url,
+    );
+    const findings = analyzeSource(readFileSync(file, 'utf8'), file.pathname);
+    expect(findings).toEqual([
+      expect.objectContaining({ className: 'OrganizationRole', classifications: ['OrgScoped'] }),
+    ]);
+  });
+});
+
+/**
  * SC-002 — one analysis, two hosts, one finding set
  * (`specs/101-endora-check/contracts/package-scope-layout.md` §6).
  *

@@ -24,7 +24,7 @@ The plan put two decisions to the owner before decomposition; both are **resolve
 
 The WP-00 oracle (`backend/test/fixtures/organization-roles/pre-upgrade-outcomes.ts`, recorded by
 today's code) surfaced five rows the plan as written would have changed silently. Each is
-**resolved**; `tasks.md` T117–T125 and the edited tasks carry them out.
+**resolved**; `tasks.md` T117–T129 and the edited tasks carry them out.
 
 - **PR-3 — A personal Organization's member holds *Administrator*.** Today `createStandalone` and
   the federated sign-in leave the individual a `regular_user`; the spec (*Edge Cases*) is kept, and
@@ -35,9 +35,8 @@ today's code) surfaced five rows the plan as written would have changed silently
   the role (research R-34). FR-072 gains the exception: the personal Organization's rows change.
 - **PR-4 — The guest basket is unchanged.** `P(carts.create)` judges a signed-in customer only; an
   anonymous visitor keeps adding to the guest basket (`POST /api/v1/cart/items` → `200`). The guard
-  takes `{ guests: 'pass' }` on the routes that admit guests today (research R-35). Open follow-on:
-  the login merge for a member lacking `carts.create` (R-35, `[NEEDS CLARIFICATION]`; recommendation:
-  judged, and skipped).
+  takes `{ guests: 'pass' }` on the routes that admit guests today (research R-35). The sign-in merge
+  of a guest basket is ruled by PR-12.
 - **PR-5 — Changed refusal codes are expected differences, listed per row.** WP-13 does not compare
   statuses only: `contracts/migration-and-replay.md` §6 holds a table keyed by oracle request id with
   the old and new `{ status, code }` of every row the design knowingly changes (26 rows, five
@@ -46,6 +45,24 @@ today's code) surfaced five rows the plan as written would have changed silently
   `oneClickInApprovalOrg`. Confirmed; recorded in `contracts/migration-and-replay.md` §5 and §6.
 - **PR-7 — The pending-invitations list excludes expired invitations.** `listPending` filters only
   consumed and revoked today; FR-010a fixes it inside this feature, in WP-03 (research R-37).
+
+The owner then confirmed five design decisions the rulings above needed (2026-11-03), binding as well:
+
+- **PR-8 — One-click judges `quick_order.one_click` first** (FR-050's order), in the eligibility
+  reason and the placement refusal alike; a member lacking both reads `permission_required`
+  (research R-6, R-36; §6.1 rows 23–24).
+- **PR-9 — Approve and reject check "not pending" before "own cart"**: `CART_APPROVAL_NOT_PENDING`
+  first, `CART_APPROVAL_SELF_APPROVE` only for one's own pending cart (R-36; §6.1 rows 5–6).
+- **PR-10 — A personal Organization's administrator routes answer as for any administrator.**
+  Members and invitations lists, organization carts, the MFA policy and Organization one-click
+  defaults answer normally; only the storefront hides them, by `isPersonal`. This is deliberate: the
+  routes do **not** answer `404` (only the role routes do, as designed) (R-34).
+- **PR-11 — Moving an account to a company Organization keeps the kind**: *Administrator* stays
+  *Administrator*, anyone else becomes *Member*; a custom role does not travel (R-34).
+- **PR-12 — The sign-in merge of a guest basket is judged against `carts.create`.** For a member
+  whose role lacks it the merge is skipped: the guest basket is not merged and stays as it was
+  (FR-030a; research R-35; tasks T126–T129). No oracle row covers sign-in, so the expected-differences
+  table is unchanged.
 
 **Decomposition adjustments made by `/speckit.tasks`** (each keeps the plan's file-disjointness;
 the *Owns* columns below are read with them applied):
@@ -119,9 +136,8 @@ upgrade except the rows of the expected-differences table (FR-072, PR-5; `contra
 re-gated endpoints, 5 migrations; 155 legacy references in 59 non-test files plus 79 test files and
 6 shared helpers to convert (research R-14, measured at `d31bab44b`)
 
-Research R-14 to R-33 record the plan-phase decisions, R-34 to R-37 the oracle rulings PR-3 to
-PR-7. **One `[NEEDS CLARIFICATION]`** is open, a follow-on of PR-4 (R-35): whether the login merge of
-a guest basket is judged by `carts.create`. It blocks no package before WP-04, and no oracle row.
+No `NEEDS CLARIFICATION` remains. Research R-14 to R-33 record the plan-phase decisions, R-34 to
+R-37 the oracle rulings PR-3 to PR-12.
 
 ## Constitution Check
 
@@ -299,8 +315,8 @@ integration branch.
 
 | WP | Title | Owns | Depends on (to merge) | Size |
 | --- | --- | --- | --- | --- |
-| **WP-03** | Members, invitations, session, addresses, reserved capabilities | `organizations`: `routes.members.ts`, `routes.customer.ts` (`/me`, the `addresses.manage` gates), `routes.public.ts` (login), `routes.admin.ts` (operator member endpoints), `services/invitation-service.ts` (roleId API, last-admin invite rule), `email-templates/invitation.ts` (#667), `services/organization-moderation-service.ts`, `services/organization-context-service.ts`, `i18n/{en,pl}.json`; `addresses`: `src/manifest.ts` and `i18n/*` (declares `addresses.manage`, R-8b, A-1); `customers`: `services/customer-{org-assignment,deletion,moderation}-service.ts`, `routes.admin.ts` (impersonation response, RFQ list call), `routes.self.ts`; `mfa`: `services/account-identity.ts`, `routes.org.ts`; tests: `backend/test/contract/organizations/*` (6, plus `personal-organization-administrator.contract.test.ts` new, PR-3), `backend/test/integration/customers/personal-organization-depletion.test.ts` (new, PR-3), `backend/test/integration/organizations/{customer-subtree-rollup,invitation-email,invite-and-scope,membership-shapes,moderation-email-language,moderation-notification-scope,unreadable-path-fails-closed}.test.ts`, `backend/test/unit/organizations/moderation-email-language.test.ts`, `organizations/src/backend/email-templates/*.test.ts` (2), `backend/test/integration/customers/customer-moderation-service.test.ts`, `backend/test/unit/customers/customer-detail-channels-port.test.ts`, `backend/test/integration/mfa/*` (4), `mfa/src/backend/services/account-identity.test.ts` | WP-02b | L |
-| **WP-04** | Carts (OR-3) | `carts`: `manifest.ts` (3 codes), `i18n/*`, `routes.ts` (gates, convert-to-quote included), `routes.organization.ts` (approvers; policy endpoint removed), `routes.admin.ts` (policy endpoints removed), `services/cart-approval-{service,policy,emails}.ts`, `services/organization-cart-reach.ts`, `entities/cart.entity.ts` (comment), `index.ts` (subscribers, port wiring), `src/admin/**` (zone removed), `docs/carts.md`; tests: `backend/test/contract/carts/*` (4, plus `guest-basket-unchanged.contract.test.ts` new, PR-4), `backend/test/integration/carts/*` (4, plus new), `backend/test/unit/carts/cross-module-ports.unit.test.ts`, `admin/test/modules/carts/cart-approval-policy-zone.test.tsx` (deleted), `admin/test/modules/organizations/organization-detail-after.two-contributors.test.tsx` | WP-02b; **#656 merged** (#655 merged, A-4) | L |
+| **WP-03** | Members, invitations, session, addresses, reserved capabilities | `organizations`: `routes.members.ts`, `routes.customer.ts` (`/me`, the `addresses.manage` gates), `routes.public.ts` (login), `routes.admin.ts` (operator member endpoints), `services/invitation-service.ts` (roleId API, last-admin invite rule), `email-templates/invitation.ts` (#667), `services/organization-moderation-service.ts`, `services/organization-context-service.ts`, `i18n/{en,pl}.json`; `addresses`: `src/manifest.ts` and `i18n/*` (declares `addresses.manage`, R-8b, A-1); `customers`: `services/customer-{org-assignment,deletion,moderation}-service.ts`, `routes.admin.ts` (impersonation response, RFQ list call), `routes.self.ts`; `mfa`: `services/account-identity.ts`, `routes.org.ts`; tests: `backend/test/contract/organizations/*` (6, plus `personal-organization-administrator.contract.test.ts` and `login-cart-merge-skipped.contract.test.ts` new, PR-3, PR-12), `backend/test/integration/customers/personal-organization-depletion.test.ts` (new, PR-3), `backend/test/integration/organizations/{customer-subtree-rollup,invitation-email,invite-and-scope,membership-shapes,moderation-email-language,moderation-notification-scope,unreadable-path-fails-closed}.test.ts`, `backend/test/unit/organizations/moderation-email-language.test.ts`, `organizations/src/backend/email-templates/*.test.ts` (2), `backend/test/integration/customers/customer-moderation-service.test.ts`, `backend/test/unit/customers/customer-detail-channels-port.test.ts`, `backend/test/integration/mfa/*` (4), `mfa/src/backend/services/account-identity.test.ts` | WP-02b | L |
+| **WP-04** | Carts (OR-3) | `carts`: `manifest.ts` (3 codes), `i18n/*`, `routes.ts` (gates, convert-to-quote included), `routes.organization.ts` (approvers; policy endpoint removed), `routes.admin.ts` (policy endpoints removed), `services/cart-approval-{service,policy,emails}.ts`, `services/organization-cart-reach.ts`, `entities/cart.entity.ts` (comment), `index.ts` (subscribers, port wiring), `src/admin/**` (zone removed), `docs/carts.md`, `services/cart-service.ts` (the sign-in merge gate, PR-12); tests: `backend/test/contract/carts/*` (4, plus `guest-basket-unchanged.contract.test.ts` new, PR-4), `backend/test/integration/carts/*` (4, plus `merge-on-login-permission.test.ts` new, PR-12, and other new), `backend/test/unit/carts/cross-module-ports.unit.test.ts`, `admin/test/modules/carts/cart-approval-policy-zone.test.tsx` (deleted), `admin/test/modules/organizations/organization-detail-after.two-contributors.test.tsx` | WP-02b; **#656 merged** (#655 merged, A-4) | L |
 | **WP-05** | Quote requests, P2 part | `quote_requests`: `manifest.ts` (`quote_requests.create`), `i18n/*`, `index.ts` (customer context without `isOrgAdmin`), `services/rfq-service.ts` (visibility through `isAdministrator`, R-30), `routes.customer.ts` (gates), docs; tests: `backend/test/integration/quote_requests/*` (8), `backend/test/contract/quote_requests/pdf-export.test.ts`, `quote_requests/src/backend/**/*.test.ts` (4), `packages/contracts/src/quote-requests.test.ts` | WP-02b | M |
 | **WP-06** | Shopping lists and quick order (OR-1, OR-6, #653) | `shopping_lists`: `manifest.ts`, `i18n/*`, routes, `services/shopping-list-service.ts`, docs; `quick_order`: `manifest.ts`, `i18n/*`, `services/{one-click-service,quick-order-build-service}.ts`, `routes.preferences.ts`, `routes.admin.ts`, customer routes, docs; tests: `quick_order/src/backend/services/{quick-order-build-service,one-click-service}.test.ts`, `backend/test/contract/shopping_lists/default-list-on-customer-create.test.ts`, new one-click and list-gate tests | WP-02b; **WP-04 merged** (`carts.order_without_approval` must be declared for the inventory) | M |
 | **WP-07** | Orders (OR-5) | `orders`: `manifest.ts`, `i18n/*`, `services/order-access-service.ts`, `services/order-clone-to-quote-service.ts`, docs; tests: `backend/test/integration/orders/{order-access-service,buyer-order-actions-scope}.test.ts`, `orders/src/backend/services/order-buyer-action-scope.test.ts`, a new colleague-documents test | WP-02b (#680, the invoices leg, merged — A-4) | S |
@@ -401,6 +417,7 @@ and WP-10 drafting alongside.
 | FR-022 | 04–07, 02a | inventory: every P2 code declared and enforced; the two P3 codes are declared by P3a (R-30) |
 | FR-023 | 02a | *Member*'s implicit defaults; an un-ticked code never returns across off/on and uninstall/reinstall |
 | FR-024, US 6 | 02b | delete with holders is atomic, one entry per child; a delete with no holders needs no replacement |
+| FR-030a | 04, 03 (+01) | the sign-in merge is skipped for a member lacking `carts.create`; the login keeps the anonymous-cart cookie (PR-12) |
 | FR-030–FR-035 | 04 | gates per route; a guest still adds to the guest basket (PR-4); approval judged by the permission; approvers; self-approval refused; cascade events; e-mail recipients |
 | FR-040 | 05 (+04, 06) | every creation path, from a cart (04) and from a list (06) included |
 | FR-041 | 05, P3a | P2 form (05): only *Administrator* sees every quote request (R-30); permission form: P3a |
@@ -476,7 +493,8 @@ pre-research check, and why each verdict stands:
   the owner, never an edit of either table.
 - The oracle rulings land in named packages: PR-3 in WP-02b (T117, T118), WP-03 (T119, T120) and
   WP-09 (T097/T098, the `isPersonal` nav gate); PR-4 in WP-01 (the guard's `guests` option,
-  T007/T013) and WP-04 (T121, T073); PR-7 in WP-03 (T122, T123); PR-5 and PR-6 in WP-13 (T124,
+  T007/T013) and WP-04 (T121, T073); PR-12 in WP-01 (T015, the outcome value), WP-04 (T126, T127)
+  and WP-03 (T128, T129); PR-7 in WP-03 (T122, T123); PR-5 and PR-6 in WP-13 (T124,
   T125, T112).
 - Never assign a migration number: scaffold with `migration:new` and commit the regenerated
   registries (`contracts/migration-and-replay.md` §1).

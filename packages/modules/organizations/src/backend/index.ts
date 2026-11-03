@@ -21,7 +21,9 @@ import type {
   OrganizationCartApprovalWritePort,
   OrganizationDetailsPort,
   OrganizationInheritancePort,
+  OrganizationPermissionPort,
   OrganizationRestrictionPort,
+  OrganizationRoleReadPort,
   OrganizationTaxProfilePort,
   PermissionReadPort,
   PersonalOrganizationPort,
@@ -35,7 +37,7 @@ import type { AuditPort, SalesChannelMembershipPort } from '@endora-commerce/pla
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { EventBus } from '@endora-commerce/platform/events';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
-import { lazyPort } from '@endora-commerce/platform/kernel';
+import { effectiveState, lazyPort } from '@endora-commerce/platform/kernel';
 import type { OrganizationReadPort } from '@endora-commerce/platform/kernel';
 import type {
   RequireAdminAnyFactory,
@@ -52,7 +54,7 @@ import {
 import { createAdminTenantScopePort } from './services/admin-tenant-scope.js';
 import { createOrganizationAdminSearchProvider } from './admin-search-provider.js';
 import { OrganizationAdminSearchService } from './services/organization-admin-search.service.js';
-import { orgConstraintFor } from '@endora-commerce/platform/tenancy';
+import { orgConstraintFor, withSystemScope } from '@endora-commerce/platform/tenancy';
 import { OrganizationContextService } from './services/organization-context-service.js';
 import {
   OrganizationDetailsService,
@@ -74,6 +76,24 @@ import { OrgRegistrationNotifier } from './services/org-registration-notifier.js
 import type { OrganizationsTranslate } from './services/organizations-prose.js';
 import { makeSetCartApprovalPolicyCommand } from './commands/set-cart-approval-policy.command.js';
 import { Organization } from './entities/organization.entity.js';
+import { OrganizationRole } from './entities/organization-role.entity.js';
+import {
+  OrganizationRoleCache,
+  type CachedOrganizationRoles,
+  type OrganizationRolePublisher,
+  type OrganizationRoleSubscriber,
+} from './services/organization-role-cache.js';
+import {
+  OrganizationRoleCatalogue,
+  type OrganizationPermissionManifestEntry,
+} from './services/organization-role-catalogue.js';
+import { legacyPredefinedRoleKind } from './services/organization-role-legacy.js';
+import { OrganizationRolePermissionService } from './services/organization-role-permission-port.js';
+import {
+  OrganizationRoleService,
+  translatePermissionText,
+  type ModuleTranslate,
+} from './services/organization-role-service.js';
 import { ViesClient } from './integrations/vies-client.js';
 import { MinisterstwoFinansowClient } from './integrations/ministerstwo-finansow-client.js';
 import type { OrganizationEventBus } from './services/registration-service.js';
@@ -279,6 +299,19 @@ export interface OrganizationsCradle {
   readonly organizationModerationService: OrganizationModerationService;
   readonly organizationRegistrationNotifier: OrgRegistrationNotifier;
   readonly organizations: ReturnType<typeof organizationsModule>;
+  /**
+   * Feature 170 (`specs/170-organization-roles/` WP-02a, research R-16). The
+   * composition's two Redis connections, typed by the halves the role cache
+   * uses, and the resolved manifest registry the permission catalogue reads —
+   * core manifests plus the deployment's overlay modules, a host input as it is
+   * for `admin_roles`' operator catalogue.
+   */
+  readonly redis: OrganizationRolePublisher;
+  readonly redisSubscriber: OrganizationRoleSubscriber;
+  readonly resolvedModuleRegistry: readonly OrganizationPermissionManifestEntry[];
+  readonly organizationRoleCatalogue: OrganizationRoleCatalogue;
+  readonly organizationRoleCache: OrganizationRoleCache;
+  readonly organizationRoleService: OrganizationRoleService;
 }
 
 export function registerModule(ctx: ModuleContext): void {
@@ -374,6 +407,139 @@ export function registerModule(ctx: ModuleContext): void {
       )
       .singleton(),
   );
+
+  /**
+   * Feature 170 — organization roles (`specs/170-organization-roles/` WP-02a;
+   * `contracts/organization-permission-port.md`; research R-15, R-16, R-20).
+   *
+   * Another module's bundle, for the labels of the organization permissions it
+   * declares (R-31). Resolved per call, so the gate stays live.
+   */
+  const moduleTranslate: ModuleTranslate = (moduleId, key, language) =>
+    lazyPort<AdminI18nTranslatePort>(ctx, 'adminI18nService').translate(moduleId, key, language);
+
+  /**
+   * The permission port's implementation. Both port names below are this one
+   * class over the shared cache; it holds no state of its own.
+   *
+   * The account fallback answers for a subject whose actor carries no role id.
+   * Until WP-02b gives accounts their `organization_role_id` (migration M3) no
+   * actor carries one, so it maps the account's legacy role — M3's own mapping,
+   * in `organization-role-legacy.ts` — onto this Organization's predefined
+   * role. WP-02b turns it into a read of the account's role id (T046).
+   */
+  const permissionService = ({
+    organizationRoleCache,
+    organizationRoleCatalogue,
+    emFactory,
+  }: OrganizationsCradle): OrganizationRolePermissionService =>
+    new OrganizationRolePermissionService({
+      cache: organizationRoleCache,
+      catalogue: organizationRoleCatalogue,
+      resolveAccountRoleId: async (subject) => {
+        if (!subject.organizationId) return null;
+        const account = await lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort').findInOrganization(
+          subject.customerAccountId,
+          subject.organizationId,
+          { activeOnly: true },
+        );
+        if (!account) return null;
+        const organization = await withSystemScope(
+          "organization roles: whether the subject's own Organization is personal, for the role fallback",
+          () => emFactory().findOne(Organization, { id: subject.organizationId }),
+        );
+        if (!organization) return null;
+        const kind = legacyPredefinedRoleKind(account, organization.isPersonal);
+        for (const role of (await organizationRoleCache.get(subject.organizationId)).values()) {
+          if (role.kind === kind) return role.id;
+        }
+        return null;
+      },
+      permissionLabel: (code, language) =>
+        translatePermissionText(
+          moduleTranslate,
+          organizationRoleCatalogue,
+          code,
+          'label',
+          supportedLanguageOf(language),
+        ),
+    });
+
+  ctx.di.register({
+    organizationRoleCatalogue: ctx
+      .asFunction(
+        ({ resolvedModuleRegistry }: OrganizationsCradle) =>
+          new OrganizationRoleCatalogue({
+            manifests: () => resolvedModuleRegistry,
+            // Both axes, read at call time: a module flip needs no cache drop.
+            isModulePresent: (moduleId) => effectiveState.isPresent(moduleId),
+          }),
+      )
+      .singleton(),
+
+    organizationRoleCache: ctx
+      .asFunction(
+        ({ emFactory, redis }: OrganizationsCradle) =>
+          new OrganizationRoleCache({
+            publisher: redis,
+            // The only read of the roles outside a request's own scope: keyed by
+            // the Organization the caller already resolved, and needed for a
+            // subject the request does not scope to (a cascade's recipients).
+            loader: (organizationId) =>
+              withSystemScope("organization roles: the role cache reads one Organization's roles", async () => {
+                const rows = await emFactory().find(OrganizationRole, { organizationId });
+                const roles: CachedOrganizationRoles = new Map(
+                  rows.map((row) => [
+                    row.id,
+                    {
+                      id: row.id,
+                      kind: row.kind,
+                      permissions: new Set(row.permissions),
+                      memberDefaultsOffered: new Set(row.memberDefaultsOffered),
+                    },
+                  ]),
+                );
+                return roles;
+              }),
+          }),
+      )
+      .singleton(),
+
+    organizationRoleService: ctx
+      .asFunction(
+        (cradleValue: OrganizationsCradle) =>
+          new OrganizationRoleService({
+            emFactory: cradleValue.emFactory,
+            commandBus: cradleValue.commandBus,
+            cache: cradleValue.organizationRoleCache,
+            catalogue: cradleValue.organizationRoleCatalogue,
+            permissions: permissionService(cradleValue),
+            customerAccountRead: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+            translate: moduleTranslate,
+          }),
+      )
+      .singleton(),
+  });
+
+  ctx.di.providePort<OrganizationPermissionPort>(
+    'organizationPermissionPort',
+    ctx.asFunction(permissionService).singleton(),
+  );
+  ctx.di.providePort<OrganizationRoleReadPort>(
+    'organizationRoleReadPort',
+    ctx.asFunction(permissionService).singleton(),
+  );
+
+  /**
+   * Every composed process drops its role-cache entry when another announces a
+   * role change (R-16). On the composition's one subscriber connection, as
+   * `custom_fields` does; this module is non-deactivatable, so the hook needs
+   * no presence probe (`specs/conventions/module-activation.md` item 3).
+   */
+  ctx.onBoot(async () => {
+    const { organizationRoleCache, redisSubscriber } = ctx.cradle<OrganizationsCradle>();
+    await organizationRoleCache.start(redisSubscriber);
+  });
 
   ctx.di.register({
     // Production contributes nothing and reaches the real registries.
@@ -514,6 +680,9 @@ export function registerModule(ctx: ModuleContext): void {
             resolveCustomerContext: (req: FastifyRequest) =>
               cradle().customerContextResolver(req),
             onLogin: (input) => cradle().organizationsLoginHook(input),
+            roleService: cradle().organizationRoleService,
+            organizationPermissions: () =>
+              lazyPort<OrganizationPermissionPort>(ctx, 'organizationPermissionPort'),
             // Registered unconditionally. Before T138 each of these four was an
             // optional argument, and an omitted one silently removed a route
             // surface: no `restrictionService` meant no storefront preflight,
@@ -983,6 +1152,7 @@ export const entities = [
   OrganizationDeliveryMethodLink,
   OrganizationInvitation,
   OrganizationPaymentMethodLink,
+  OrganizationRole,
   OrganizationSalesRepAssignment,
   OrganizationTaxIdValidation,
   OrganizationWarehouseLink,

@@ -55,6 +55,8 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | `customers:manage` | Manage customer organizations | — |
 | `customers:read` | View customers | — |
 | `organizations:assign-sales-rep` | Assign sales representatives to organizations | — |
+| `organizations:manage-roles` | Manage organization roles | `organizations:read-roles` |
+| `organizations:read-roles` | View organization roles | — |
 
 ## Paleta poleceń
 

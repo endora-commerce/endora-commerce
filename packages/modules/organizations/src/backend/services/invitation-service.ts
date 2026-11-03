@@ -12,6 +12,7 @@ import {
 import { HttpError } from '@endora-commerce/platform/http';
 import { Organization } from '../entities/organization.entity.js';
 import { OrganizationInvitation } from '../entities/organization-invitation.entity.js';
+import { OrganizationRole } from '../entities/organization-role.entity.js';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { currentSalesChannel } from '@endora-commerce/platform/kernel';
@@ -125,12 +126,24 @@ export class InvitationService {
       );
     }
 
+    // Feature 170 (WP-02a) — the role reference beside the legacy enum, both
+    // written (research R-23): the Organization's predefined role of the kind
+    // the legacy value names. WP-03 replaces `role` in this API with `roleId`.
+    const organizationRole = await em.findOne(OrganizationRole, {
+      organizationId: actor.organizationId,
+      kind: role === 'organization_admin' ? 'administrator' : 'member',
+    });
+    if (!organizationRole) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
+    }
+
     const rawToken = randomBytes(32).toString('base64url');
     const invitation = em.create(OrganizationInvitation, {
       organizationId: actor.organizationId,
       invitedByCustomerAccountId: actor.customerAccountId ?? null,
       email: invitedEmail,
       role,
+      organizationRoleId: organizationRole.id,
       tokenHash: sha256Hex(rawToken),
       expiresAt: new Date(Date.now() + INVITATION_TTL_DAYS * 24 * 60 * 60 * 1_000),
     });

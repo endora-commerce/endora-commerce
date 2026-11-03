@@ -251,6 +251,9 @@ const COMPOSERS: Readonly<
       salesChannelBridgeRegistry: { register: () => {} },
       emailDefaultsPort: { register: () => {} },
       countryReferenceRegistry: { register: () => {} },
+      // Feature 170 — the role cache's cross-process drop listens on the
+      // composition's subscriber connection, which every instance has.
+      redisSubscriber: { subscribe: async () => 1, on: () => undefined },
     }),
   // `customers` offers the Customer record type to the same registry, from its
   // only boot hook.

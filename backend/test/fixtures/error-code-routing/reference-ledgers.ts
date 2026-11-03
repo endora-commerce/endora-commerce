@@ -1094,6 +1094,55 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'approved. The raise site is `orders`\' placement, which asks `carts` through ' +
       '`CartPlacementApplyPort.awaitsApproval`; the noun is the order being placed.',
   },
+  ORGANIZATION_PERMISSION_REQUIRED: {
+    to: 'organizations',
+    reason:
+      'Minted by feature 170 (`specs/170-organization-roles/` WP-02a, ' +
+      '`contracts/organization-permission-port.md` §3) for the refusal of a buyer action the member\'s organization role does not allow (403, `details: { permission, permissionLabel }`). Raised by `organizations`\' permission port on behalf of every module that gates an action on an organization permission: what a role allows is that module\'s rule, whichever module\'s action it refuses. ' +
+      'The noun is the organization\'s role, which `organizations` owns.',
+  },
+  ORGANIZATION_ROLE_NAME_TAKEN: {
+    to: 'organizations',
+    reason:
+      'Minted by feature 170 (`specs/170-organization-roles/` WP-02a, ' +
+      '`contracts/organization-permission-port.md` §3) for a custom role named like another role of the organization, or like a predefined role\'s label in a shipped language (409, research R-29). ' +
+      'The noun is the organization\'s role, which `organizations` owns.',
+  },
+  ORGANIZATION_ROLE_STALE: {
+    to: 'organizations',
+    reason:
+      'Minted by feature 170 (`specs/170-organization-roles/` WP-02a, ' +
+      '`contracts/organization-permission-port.md` §3) for a role write whose `expectedVersion` is no longer the stored one (409, R-29). ' +
+      'The noun is the organization\'s role, which `organizations` owns.',
+  },
+  ORGANIZATION_ROLE_LIMIT_REACHED: {
+    to: 'organizations',
+    reason:
+      'Minted by feature 170 (`specs/170-organization-roles/` WP-02a, ' +
+      '`contracts/organization-permission-port.md` §3) for the 51st custom role of an organization (422, FR-004). ' +
+      'The noun is the organization\'s role, which `organizations` owns.',
+  },
+  ORGANIZATION_ROLE_PROTECTED: {
+    to: 'organizations',
+    reason:
+      'Minted by feature 170 (`specs/170-organization-roles/` WP-02a, ' +
+      '`contracts/organization-permission-port.md` §3) for an edit, rename or delete a predefined role does not allow (409, US 6.3). ' +
+      'The noun is the organization\'s role, which `organizations` owns.',
+  },
+  ORGANIZATION_ROLE_REPLACEMENT_REQUIRED: {
+    to: 'organizations',
+    reason:
+      'Minted by feature 170 (`specs/170-organization-roles/` WP-02a, ' +
+      '`contracts/organization-permission-port.md` §3) for deleting a role somebody holds without a different replacement role (422, FR-024). ' +
+      'The noun is the organization\'s role, which `organizations` owns.',
+  },
+  ORGANIZATION_PERMISSION_UNKNOWN: {
+    to: 'organizations',
+    reason:
+      'Minted by feature 170 (`specs/170-organization-roles/` WP-02a, ' +
+      '`contracts/organization-permission-port.md` §3) for a submitted organization-permission code no module declares (422). ' +
+      'The noun is the organization\'s role, which `organizations` owns.',
+  },
   ORDER_DELIVERY_METHOD_UNAVAILABLE: {
     to: 'orders',
     reason:

@@ -328,6 +328,11 @@ so it is a migration of `name_search`, not an edit.
 - `20260717T151403_organizations_personal_organizations.ts` — adds `organizations.is_personal`
   and backfills a personal organization for every pre-existing no-org
   customer account (see "Personal organizations" below).
+- `20261103T173304_organizations_organization_roles.ts` — creates `organization_roles`, gives
+  every organization its Administrator and Member roles (and a trigger that does
+  so for every new one), withholds the two cart-approval codes from Member where the
+  organization required cart approval, and gives every invitation a role reference
+  (see "Roles" below).
 
 ### Personal organizations (B2C)
 
@@ -369,6 +374,80 @@ This means:
 Company (B2B) organizations are unaffected — the single-member invariant
 (`assertMembershipAllowed`) only rejects adding a second member to a
 personal org.
+
+## Roles
+
+Every organization has roles, and every member holds exactly one of them. A role
+is a set of **organization permissions** — buyer actions such as *create carts*
+or *approve carts* — each declared by the module whose action it gates, in that
+module's manifest (`organizationPermissions`). Organization permissions are a
+different vocabulary from the operator permissions of `/admin-roles`
+(`<module>.<action>` against `<area>:<action>`), and the two never mix.
+
+- **Administrator** — predefined. Holds every permission of every module that is
+  switched on, including permissions added later, and is the only role that may
+  manage members, invitations and roles. It cannot be edited or deleted.
+- **Member** — predefined. The default role of a new member. Its permissions can
+  be changed but it cannot be renamed or deleted. A permission a module declares
+  as *member default* is held by Member from the moment that module is first
+  offered to the organization; once an administrator saves Member without it, it
+  is not granted again.
+- **Custom roles** — up to 50 per organization, each with a name unique within
+  the organization (compared without regard to case, and never one of the
+  predefined names in any shipped language) and an optional description.
+
+Both predefined roles are created together with the organization, whichever
+path creates it (a database trigger). A personal (B2C) organization has the two
+roles too, but no role management: its sole member is its Administrator.
+
+A permission of a module that is switched off is not held by anybody, and is not
+shown in the editor; a role that granted it keeps the grant, so switching the
+module back on restores it. Role changes take effect on the next request: each
+process caches an organization's roles for at most 30 seconds and drops the
+entry as soon as any process announces a change.
+
+Every role change is a Command — `organization_role.create`,
+`organization_role.update`, `organization_role.delete` — audited against the
+organization, naming the member or the operator who made it, with the role's
+name, kind and sorted permission list before and after. Saving a role without
+changing it records nothing.
+
+| Verb + Path | Audience | Purpose |
+| --- | --- | --- |
+| `GET /api/v1/organizations/mine/roles` | org administrator | Every role with its member and pending-invitation counts (pending: not accepted, revoked or expired) |
+| `GET /api/v1/organizations/mine/roles/:id` | org administrator | One role |
+| `POST /api/v1/organizations/mine/roles` | org administrator | Create a custom role (`{ name, description?, permissions }`) |
+| `PATCH /api/v1/organizations/mine/roles/:id` | org administrator | Edit a role (`{ expectedVersion, name?, description?, permissions? }`) |
+| `DELETE /api/v1/organizations/mine/roles/:id` | org administrator | Delete a custom role (`{ expectedVersion, replacementRoleId? }`) |
+| `GET /api/v1/organizations/mine/permission-catalogue` | org administrator | The permissions on offer, grouped by module, in the request language |
+| `GET /api/v1/organizations/mine/role` | customer | The member's own role and what it allows |
+| `GET /api/v1/admin/organizations/:id/roles` | admin (`organizations:read-roles` or `organizations:manage-roles`) | As the storefront list |
+| `GET /api/v1/admin/organizations/:id/permission-catalogue` | admin (`organizations:read-roles` or `organizations:manage-roles`) | As the storefront catalogue |
+| `POST /api/v1/admin/organizations/:id/roles` | admin (`organizations:manage-roles`) | Create a custom role |
+| `PATCH /api/v1/admin/organizations/:id/roles/:roleId` | admin (`organizations:manage-roles`) | Edit a role |
+| `DELETE /api/v1/admin/organizations/:id/roles/:roleId` | admin (`organizations:manage-roles`) | Delete a custom role |
+
+Every request body is strict: a body that still sends the old `role` field is
+refused with `400 VALIDATION_FAILED`. A role of another organization, and every
+role route of a personal organization, answers `404`. The refusals are
+`409 ORGANIZATION_ROLE_NAME_TAKEN`, `409 ORGANIZATION_ROLE_STALE` (the role
+changed since it was read), `422 ORGANIZATION_ROLE_LIMIT_REACHED`,
+`409 ORGANIZATION_ROLE_PROTECTED`, `422 ORGANIZATION_ROLE_REPLACEMENT_REQUIRED`
+and `422 ORGANIZATION_PERMISSION_UNKNOWN`. A buyer action refused for lack of a
+permission answers `403 ORGANIZATION_PERMISSION_REQUIRED`, naming the permission
+and its label in `details`.
+
+Other modules ask whether a member may do something through
+`organizationPermissionPort` (`can`, `assert`, `isAdministrator`, `effective`,
+`rolesHolding`), and gate their routes with `organizationPermissionPreHandler`
+from `@endora-commerce/contracts`. `organizationRoleReadPort.predefinedRoleId`
+answers an organization's Administrator or Member role id.
+
+**Still being built.** Roles exist and can be managed, but members are not yet
+assigned to them one by one: until that lands, a member counts as holding
+Administrator when they are the organization's administrator (or the member of a
+personal organization) and Member otherwise, and a custom role that anybody —
+member or invitation — holds cannot be deleted yet.
 
 ## Global search
 

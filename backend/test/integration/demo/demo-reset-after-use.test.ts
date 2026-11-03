@@ -119,6 +119,10 @@ const KEPT_REFERENCES: Readonly<Record<string, string>> = {
   // it was made for, whether or not either still exists.
   'audit_log_entries.object_id': 'append-only audit trail',
   'audit_log_entries.impersonated_customer_account_id': 'append-only audit trail',
+  // The customer who acted for themselves (`specs/170-organization-roles/`
+  // migration M1): the demo buyer's own writes name them, as they name an
+  // impersonated one.
+  'audit_log_entries.actor_customer_account_id': 'append-only audit trail',
   // A log of messages that were really sent, and of bell entries an
   // administrator was really shown.
   'email_deliveries.document_id': 'delivery log of messages already sent',
@@ -623,6 +627,10 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
       organization_id: organizationId,
       invited_by_customer_account_id: customerAccountId,
       role: 'regular_user',
+      // Left to the database: M2's default trigger names the Organization's
+      // own Member role (`specs/170-organization-roles/` WP-02a). A filler uuid
+      // would name no role, and the composite foreign key refuses it.
+      organization_role_id: null,
     });
     await add('organization_sales_rep_assignments', { organization_id: organizationId });
     // Feature 154 — the demo seed binds its organisation to the default channel

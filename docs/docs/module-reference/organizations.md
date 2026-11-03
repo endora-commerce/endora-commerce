@@ -55,6 +55,8 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | `customers:manage` | Manage customer organizations | — |
 | `customers:read` | View customers | — |
 | `organizations:assign-sales-rep` | Assign sales representatives to organizations | — |
+| `organizations:manage-roles` | Manage organization roles | `organizations:read-roles` |
+| `organizations:read-roles` | View organization roles | — |
 
 ## Command palette
 
