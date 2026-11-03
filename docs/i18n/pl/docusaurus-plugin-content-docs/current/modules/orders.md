@@ -16,13 +16,31 @@ Trasy administracyjne są chronione przez `orders:read` (odczyt) i `orders:write
 | Metoda i ścieżka | Kto | Przeznaczenie |
 | --- | --- | --- |
 | `POST /api/v1/orders` | klient | Złożenie zamówienia z aktywnego koszyka |
-| `GET /api/v1/orders` | klient | Lista zamówień ograniczona rolą (zwykły użytkownik lub administrator organizacji) |
+| `GET /api/v1/orders` | klient | Lista zamówień: własne albo całej organizacji z uprawnieniem `orders.view_organization` (zob. niżej) |
 | `GET /api/v1/orders/:id` | klient | Szczegóły zamówienia |
 | `GET /api/v1/orders/:id/invoice` | klient | Pobranie faktury PDF |
 | `GET /api/v1/admin/orders` | administrator | Lista wszystkich zamówień (we wszystkich organizacjach) |
 | `GET /api/v1/admin/orders/:id` | administrator | Szczegóły zamówienia (bez ograniczenia do klienta) |
 | `POST /api/v1/admin/orders/:id/status` | administrator | Zmiana statusu (audytowana) |
 | `POST /api/v1/admin/orders/:id/payment-status` | administrator | Zmiana statusu płatności (audytowana) |
+
+## Kto widzi zamówienie współpracownika
+
+Kupujący widzi zamówienia, które sam złożył. Każde inne zamówienie jego organizacji — na liście,
+na stronie szczegółów i w każdej akcji, która czyta zamówienie jako źródło (ponowienie zamówienia,
+utworzenie z niego zapytania ofertowego, jego faktury) — wymaga uprawnienia organizacji
+**Wyświetlanie zamówień organizacji** (`orders.view_organization`), które deklaruje ten moduł:
+
+| Rola | Czy je ma |
+| --- | --- |
+| *Administrator* | zawsze (domyślnie ma każde uprawnienie) |
+| *Członek* | nie, chyba że administrator organizacji nada je tej roli |
+| rola własna | gdy rola je nadaje |
+
+Bez tego uprawnienia zamówienie współpracownika odpowiada `404`, dokładnie tak jak zamówienie innej
+organizacji, nigdy `403`. Z nim zasięgiem jest organizacja; logowanie centrali z włączonym
+roll-upem obejmuje także jej poddrzewo — roll-up poszerza zasięg, ale nigdy nie nadaje uprawnienia.
+Zwroty nie są poszerzane: zwrot rozpoczyna kupujący, który złożył zamówienie.
 
 ## Który kanał sprzedaży zapisuje zamówienie
 
@@ -793,9 +811,10 @@ szablon platformy.
 
 - **Adaptery płatności** — zobacz moduł `payment_methods`. `placeOrder` rozpoczyna płatność przez
   `PaymentAdapterRegistry`; nowe metody rejestrują adapter zamiast zmieniać usługę zamówień.
-- **Zakres dostępu** — `order-access-service.ts` to jedyne miejsce egzekwujące regułę dostępu dla
-  zwykłego użytkownika, administratora organizacji i administratora platformy; nowe rodzaje
-  użytkowników dodaje się właśnie tam.
+- **Zakres dostępu** — `order-access-service.ts` to jedyne miejsce egzekwujące zakres zamówień
+  kupującego (własne albo całej organizacji z `orders.view_organization`, o które pyta
+  `organizationPermissionPort`); przechodzą przez nie lista, szczegóły, ponowienie zamówienia,
+  utworzenie zapytania ofertowego i `OrderReadPort.findByIdForCustomer`.
 - **Panele na ekranie zamówienia** — strefa panelu administracyjnego `order.detail.after` jest
   osadzona raz, na końcu ekranu zamówienia, pod jego zakładkami, i przekazuje wkładowi
   `{ orderId }`. Moduł dodaje panel, deklarując `zoneComponent('order.detail.after', …)` we
