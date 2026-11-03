@@ -2,6 +2,8 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
 import {
   SCOPED_VALUES_BODY_LIMIT,
+  SCOPED_VALUES_COPY_BODY_LIMIT,
+  copyScopedValueRequestSchema,
   productEditorPreferenceRequestSchema,
   saveScopedValuesRequestSchema,
   scopedValuesQuerySchema,
@@ -861,6 +863,12 @@ export async function registerCatalogAdminRoutes(
         }
         return scopedSvc.save(request.params.id, parsed.data);
       },
+    );
+    // Feature 170 (T115; §4, FR-086) — "Copy to other channels": one Command, one audit entry.
+    app.post<{ Params: { id: string } }>(
+      '/api/v1/admin/catalog/products/:id/scoped-values/copy',
+      { preHandler: requireAdmin('catalog:write'), bodyLimit: SCOPED_VALUES_COPY_BODY_LIMIT },
+      async (request) => scopedSvc.copy(request.params.id, copyScopedValueRequestSchema.parse(request.body)),
     );
   }
 

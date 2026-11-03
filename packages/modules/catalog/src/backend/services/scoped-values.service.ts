@@ -1,13 +1,25 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { SaveScopedValuesRequest, SaveScopedValuesResponse, ScopedValuesData } from '@endora-commerce/contracts';
+import type {
+  CopyScopedValueRequest,
+  CopyScopedValueResponse,
+  SaveScopedValuesRequest,
+  SaveScopedValuesResponse,
+  ScopedValuesData,
+} from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 
-import { scopedValuesSaveCommand, type ScopedValuesCommandDeps, type ScopedValuesSaveResult } from '../commands/scoped-values.commands.js';
+import {
+  planCopy,
+  scopedValuesCopyCommand,
+  scopedValuesSaveCommand,
+  type ScopedValuesCommandDeps,
+  type ScopedValuesSaveResult,
+} from '../commands/scoped-values.commands.js';
 import { ScopedValuesReadService, type ScopedValuesReadDeps } from './scoped-values-read.service.js';
 import { ERROR_CODES, toScopeChannel, type ScopeRef } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { Product } from '../entities/product.entity.js';
-import { assertProductId, loadScopedState, resolveRequestScope } from './scoped-values-state.js';
+import { assertProductId, loadScopedState, readScopeVersion, resolveRequestScope } from './scoped-values-state.js';
 
 /**
  * Feature 170 (T036–T038) — the editor's one read and one save (`contracts/scoped-values-api.md`
@@ -62,5 +74,26 @@ export class ScopedValuesService {
     const em = this.emFactory().fork();
     const state = await loadScopedState(em, productId, this.deps);
     return { data: await this.#read.project(state, result.scope), warnings: result.warnings };
+  }
+
+  /**
+   * Feature 170 (T115; §4, FR-086) — "Copy to other channels". A dry run plans the copy on a read
+   * (the version compared, never bumped) and lists the overwrites; a copy is one Command
+   * `product.scoped_values.copy_to_channels`.
+   */
+  async copy(productId: string, body: CopyScopedValueRequest): Promise<CopyScopedValueResponse> {
+    assertProductId(productId);
+    if (body.dryRun === true) {
+      const em = this.emFactory().fork();
+      const state = await loadScopedState(em, productId, this.deps);
+      const version = await readScopeVersion(em, productId);
+      if (version !== body.version) {
+        throw new HttpError(409, ERROR_CODES.VERSION_CONFLICT, 'The product changed since it was read.', { currentVersion: version });
+      }
+      return { data: { overwrites: planCopy(state, body).overwrites, applied: 0, version } };
+    }
+    if (!this.commandBus) throw new Error('ScopedValuesService: the copy needs the command bus.');
+    const result = await this.commandBus.run(scopedValuesCopyCommand(this.deps, productId, body));
+    return { data: { overwrites: result.overwrites, applied: result.applied, version: result.version } };
   }
 }
