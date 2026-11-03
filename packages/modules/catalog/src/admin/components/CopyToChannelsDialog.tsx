@@ -137,7 +137,7 @@ export function CopyToChannelsDialog(props: CopyToChannelsDialogProps): ReactNod
           <Button type="button" variant="outline" disabled={copying} onClick={onClose}>
             {t('productEditor.copy.cancel')}
           </Button>
-          <Button type="button" aria-disabled={canCopy ? undefined : true} aria-busy={copying || undefined} onClick={runCopy}>
+          <Button type="button" className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50" aria-disabled={canCopy ? undefined : true} aria-busy={copying || undefined} onClick={runCopy}>
             {plural('productEditor.copy.confirm', toChannelIds.length)}
           </Button>
         </>

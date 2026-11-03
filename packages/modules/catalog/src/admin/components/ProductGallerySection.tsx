@@ -140,6 +140,7 @@ export function GallerySection(): ReactNode {
                       // aria-disabled, not disabled: the pressed button keeps focus while the move runs.
                       aria-disabled={busy || index === 0 ? true : undefined}
                       data-move="up"
+                      className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
                       aria-label={t('productEditor.gallery.moveUp', { item: name })}
                       onClick={(): void => move(index, index - 1)}
                     >
@@ -151,6 +152,7 @@ export function GallerySection(): ReactNode {
                       size="sm"
                       aria-disabled={busy || index === items.length - 1 ? true : undefined}
                       data-move="down"
+                      className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
                       aria-label={t('productEditor.gallery.moveDown', { item: name })}
                       onClick={(): void => move(index, index + 1)}
                     >

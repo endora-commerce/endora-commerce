@@ -100,6 +100,9 @@ describe('copy to other channels (feature 170, T116, FR-086)', () => {
       }),
     );
     expect(await within(dialog).findByText(en['productEditor.copy.overwrites']!)).toBeInTheDocument();
+    // One dry run per selection: StrictMode mounts the effect twice, a re-render loop would be more.
+    await new Promise((r) => setTimeout(r, 100));
+    expect(api.post.mock.calls.filter(([path]) => path === COPY).length).toBeLessThanOrEqual(2);
     const overwritten = within(dialog).getByRole('list', { name: en['productEditor.copy.overwrites']! });
     expect(overwritten).toHaveTextContent('B2B VIP');
     expect(overwritten).toHaveTextContent('Wiertarka VIP');
