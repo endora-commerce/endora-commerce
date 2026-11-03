@@ -19,7 +19,7 @@ describe('price books — attribute eligibility', () => {
   let h: BackendServerHandle;
   let f: PricingFixture;
 
-  async function setFlags(key: string, flags: { isPriceRule?: boolean; languageScoped?: boolean; channelScoped?: boolean }) {
+  async function setFlags(key: string, flags: { isPriceRule?: boolean; scopable?: boolean }) {
     const em = h.em().fork();
     const extension = await findAttributeExtensionByKey(em, key);
     if (!extension) throw new Error(`attribute ${key} missing`);
@@ -38,8 +38,8 @@ describe('price books — attribute eligibility', () => {
 
   afterEach(async () => {
     await f.clearBooks();
-    await setFlags('color', { isPriceRule: true, languageScoped: false, channelScoped: false });
-    await setFlags('material', { isPriceRule: false, languageScoped: false, channelScoped: false });
+    await setFlags('color', { isPriceRule: true, scopable: false });
+    await setFlags('material', { isPriceRule: false, scopable: false });
     await setFlags('internal_sku_notes', { isPriceRule: false });
   });
 
@@ -51,10 +51,8 @@ describe('price books — attribute eligibility', () => {
     await expect(everyoneRow(['material', 'steel'])).rejects.toMatchObject({ statusCode: 400 });
   });
 
-  it('refuses a row on a language-scoped or a channel-scoped attribute', async () => {
-    await setFlags('material', { isPriceRule: true, languageScoped: true });
-    await expect(everyoneRow(['material', 'steel'])).rejects.toMatchObject({ statusCode: 400 });
-    await setFlags('material', { languageScoped: false, channelScoped: true });
+  it('refuses a row on a scopable attribute (170: one flag)', async () => {
+    await setFlags('material', { isPriceRule: true, scopable: true });
     await expect(everyoneRow(['material', 'steel'])).rejects.toMatchObject({ statusCode: 400 });
   });
 
@@ -72,9 +70,9 @@ describe('price books — attribute eligibility', () => {
     expect(await f.amount('guest', f.products.P1)).toBe('120.0000');
   });
 
-  it('an attribute that becomes language-scoped stops its rows too', async () => {
+  it('an attribute that becomes scopable stops its rows too', async () => {
     await f.book({ audience: 'everyone', rows: [{ attribute: ['color', 'red'], fixed: '120' }] });
-    await setFlags('color', { languageScoped: true });
+    await setFlags('color', { scopable: true });
     expect(await f.amount('guest', f.products.P1)).toBe('100.0000');
   });
 });

@@ -73,8 +73,9 @@ describe('GET /api/v1/catalog/products — the derived summary (feature 163)', (
     const em = h.em();
     const retail = await em.findOneOrFail(SalesChannel, { code: 'pl_retail' });
     for (const [key, description] of [
-      ['described', { 'en-US': LONG_EN, 'pl-PL': SHORT_PL }],
-      ['empty', { 'en-US': '' }],
+      // Feature 170: the Global description, one string.
+      ['described', LONG_EN],
+      ['empty', ''],
     ] as const) {
       const sku = `${SKU_PREFIX}-${key}`;
       const product = em.create(Product, {
@@ -83,7 +84,7 @@ describe('GET /api/v1/catalog/products — the derived summary (feature 163)', (
         type: 'simple',
         status: 'active',
         name: `Summary ${key}`,
-        description: { ...description },
+        description,
         visibility: 'public',
         allowedOrganizationIds: [],
         attributeValues: { defaultPrice: 10 },
@@ -97,6 +98,16 @@ describe('GET /api/v1/catalog/products — the derived summary (feature 163)', (
           retail.id,
           product.id,
         ]);
+      // Feature 170: the Polish text is the (channel, language) override of the Global one.
+      if (key === 'described') {
+        await em
+          .getConnection()
+          .execute(
+            `insert into product_value_overrides (id, product_id, attribute_key, channel_id, language_code, value, created_at, updated_at)
+             values (gen_random_uuid(), ?, 'description', ?, 'pl-PL', ?::jsonb, now(), now())`,
+            [product.id, retail.id, JSON.stringify({ v: SHORT_PL })],
+          );
+      }
     }
   });
 

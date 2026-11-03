@@ -25,7 +25,7 @@ import {
  * to write. The service runs it inside the Command's transaction after taking the
  * per-key advisory locks, so a refusal here is a refusal of the whole request with
  * nothing written. The `[PG]` tests (`backend/test/integration/catalog/url-key-uniqueness.test.ts`,
- * `backend/test/contract/catalog/url-keys-api.test.ts`) cover the same rows through
+ * `backend/test/integration/catalog/url-keys-three-levels.test.ts`, T030) cover the same rows through
  * the database and the route.
  */
 

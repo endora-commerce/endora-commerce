@@ -274,7 +274,7 @@ describe('completeness gate (spec 163, T078)', () => {
       await asSystem(() =>
         port<CatalogProductScopeWritePort>('catalogProductScopeWritePort').applyScopes(
           scoped,
-          { status: [{ channelId: b2c.id, languageCode: null, value: 'active' }] },
+          { cells: [{ scope: { level: 'channel', channelId: b2c.id }, field: 'status', op: { op: 'set', value: 'active' } }] },
           { source: `163-gate-${RUN}` },
         ),
       );

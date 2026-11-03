@@ -149,20 +149,20 @@ describe('CatalogBulkImportService — one Command per run [real DB]', () => {
 
   it('rolls back the whole product run when one SKU does not resolve', async () => {
     const target = await h.em().findOneOrFail(Product, { sku: 'EXAMPLE-BLUE-002' });
-    const beforeName = target.name['en-US'];
+    const beforeName = target.name;
     const beforeAudit = await auditCount('catalog.products.import');
 
     const report = await run('unknown sku', () =>
       service.importProducts([
-        { sku: 'EXAMPLE-BLUE-002', name: { 'en-US': 'About to be reverted' } },
-        { sku: 'BI-NO-SUCH-SKU', name: { 'en-US': 'Will fail' } },
+        { sku: 'EXAMPLE-BLUE-002', cells: [{ scope: { level: 'global' }, field: 'name', op: { op: 'set', value: 'About to be reverted' } }] },
+        { sku: 'BI-NO-SUCH-SKU', cells: [{ scope: { level: 'global' }, field: 'name', op: { op: 'set', value: 'Will fail' } }] },
       ]),
     );
 
     expect(report.imported).toBe(0);
     expect(report.errors).toEqual([{ index: 1, reason: 'unknown sku: BI-NO-SUCH-SKU' }]);
     const reloaded = await h.em().findOneOrFail(Product, { sku: 'EXAMPLE-BLUE-002' });
-    expect(reloaded.name['en-US']).toBe(beforeName);
+    expect(reloaded.name).toBe(beforeName);
     expect(await auditCount('catalog.products.import')).toBe(beforeAudit);
   });
 
@@ -175,16 +175,18 @@ describe('CatalogBulkImportService — one Command per run [real DB]', () => {
           sku: 'EXAMPLE-SIMPLE-001',
           status: 'active',
           visibility: 'public',
-          name: { 'en-US': 'Bulk renamed' },
-          description: { 'en-US': 'Bulk described.' },
+          cells: [
+            { scope: { level: 'global' }, field: 'name', op: { op: 'set', value: 'Bulk renamed' } },
+            { scope: { level: 'global' }, field: 'description', op: { op: 'set', value: 'Bulk described.' } },
+          ],
         },
       ]),
     );
 
     expect(report).toEqual({ imported: 1, errors: [] });
     const reloaded = await h.em().findOneOrFail(Product, { sku: 'EXAMPLE-SIMPLE-001' });
-    expect(reloaded.name['en-US']).toBe('Bulk renamed');
-    expect(reloaded.description['en-US']).toBe('Bulk described.');
+    expect(reloaded.name).toBe('Bulk renamed');
+    expect(reloaded.description).toBe('Bulk described.');
     expect(await auditCount('catalog.products.import')).toBe(beforeAudit + 1);
   });
 

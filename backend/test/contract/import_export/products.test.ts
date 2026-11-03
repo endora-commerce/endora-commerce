@@ -66,13 +66,13 @@ describe('Import/Export — products', () => {
     expect(body.data.errors).toEqual([]);
 
     const reloaded = await h.em().findOneOrFail(Product, { sku: 'EXAMPLE-SIMPLE-001' });
-    expect(reloaded.name['en-US']).toBe('Renamed example');
-    expect(reloaded.description['en-US']).toBe('An updated description.');
+    expect(reloaded.name).toBe('Renamed example');
+    expect(reloaded.description).toBe('An updated description.');
   });
 
   it('rolls back the whole batch when any row fails validation', async () => {
     const before = await h.em().findOneOrFail(Product, { sku: 'EXAMPLE-BLUE-002' });
-    const beforeName = before.name['en-US'];
+    const beforeName = before.name;
 
     const csv = [
       'sku,status,visibility,name_en,description_en',
@@ -99,6 +99,6 @@ describe('Import/Export — products', () => {
     expect(body.data.errors[0]?.reason).toContain('NO-SUCH-SKU');
 
     const reloaded = await h.em().findOneOrFail(Product, { sku: 'EXAMPLE-BLUE-002' });
-    expect(reloaded.name['en-US']).toBe(beforeName);
+    expect(reloaded.name).toBe(beforeName);
   });
 });

@@ -27,9 +27,10 @@ describe('Admin attribute response — scope flags (spec 163, T095b)', () => {
     await teardownBackendServer(h);
   });
 
-  function flagsOf(body: unknown): { channelScoped: boolean | undefined; languageScoped: boolean | undefined } {
+  // Feature 170 (R15): one flag, and the scope set it derives with the value type.
+  function flagsOf(body: unknown): { scopable: boolean | undefined; scopeLevels: string[] | undefined } {
     const data = adminAttributeResponseSchema.parse((body as { data: unknown }).data);
-    return { channelScoped: data.channelScoped, languageScoped: data.languageScoped };
+    return { scopable: data.scopable, scopeLevels: data.scopeLevels };
   }
 
   it('create, read, list and update answer the stored flags', async () => {
@@ -45,29 +46,28 @@ describe('Admin attribute response — scope flags (spec 163, T095b)', () => {
         isSearchable: false,
         isFilterable: false,
         isVariantAxis: false,
-        channelScoped: true,
-        languageScoped: false,
+        scopable: true,
       },
     });
     expect(created.statusCode).toBe(201);
-    expect(flagsOf(created.json())).toEqual({ channelScoped: true, languageScoped: false });
+    expect(flagsOf(created.json())).toEqual({ scopable: true, scopeLevels: ['G', 'C', 'CL'] });
 
     const read = await h.app.inject({ method: 'GET', url: `/api/v1/admin/catalog/attributes/${key}`, ...admin });
     expect(read.statusCode).toBe(200);
-    expect(flagsOf(read.json())).toEqual({ channelScoped: true, languageScoped: false });
+    expect(flagsOf(read.json())).toEqual({ scopable: true, scopeLevels: ['G', 'C', 'CL'] });
 
     const list = await h.app.inject({ method: 'GET', url: '/api/v1/admin/catalog/attributes', ...admin });
     expect(list.statusCode).toBe(200);
     const row = (list.json() as { data: Array<{ key: string }> }).data.find((a) => a.key === key);
-    expect(flagsOf({ data: row })).toEqual({ channelScoped: true, languageScoped: false });
+    expect(flagsOf({ data: row })).toEqual({ scopable: true, scopeLevels: ['G', 'C', 'CL'] });
 
     const updated = await h.app.inject({
       method: 'PATCH',
       url: `/api/v1/admin/catalog/attributes/${key}`,
       ...admin,
-      payload: { languageScoped: true },
+      payload: { scopable: false },
     });
     expect(updated.statusCode).toBe(200);
-    expect(flagsOf(updated.json())).toEqual({ channelScoped: true, languageScoped: true });
+    expect(flagsOf(updated.json())).toEqual({ scopable: false, scopeLevels: ['G'] });
   });
 });

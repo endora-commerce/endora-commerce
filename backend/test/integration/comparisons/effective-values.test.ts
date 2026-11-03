@@ -43,8 +43,7 @@ describe('163 — comparisons show effective names [integration]', () => {
         isComparable: true,
         isVariantAxis: false,
         isVisibleOnProductPage: true,
-        channelScoped: true,
-        languageScoped: true,
+        scopable: true,
       },
       cookies: ADMIN,
     });

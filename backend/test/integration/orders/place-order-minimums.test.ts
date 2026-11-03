@@ -210,7 +210,7 @@ describe('155 — placement and the checkout preview refuse below-minimum lines 
       .execute(`update "stock_levels" set "on_hand" = 100000 where "product_id" = ?`, [SEED_PRODUCT_101_ID]);
     const p101 = await em.findOneOrFail(Product, { id: SEED_PRODUCT_101_ID }, { filters: false });
     previousMinimumOf101 = p101.minOrderQuantity ?? null;
-    nameOf101 = Object.values(p101.name as Record<string, string>)[0] ?? '';
+    nameOf101 = p101.name;
 
     // Before the rule exists: a quote for 101 × 5, and an order of 101 × 5.
     await setProductMinimum(em, SEED_PRODUCT_101_ID, null);

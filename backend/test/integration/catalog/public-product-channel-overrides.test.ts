@@ -60,8 +60,7 @@ describe('Issue #384 — public product reads honour channel value overrides', (
         isFilterable: false,
         isVariantAxis: false,
         isVisibleOnProductPage: true,
-        channelScoped: true,
-        languageScoped: false,
+        scopable: true,
       },
       cookies: { b2b_session: 'stub-admin-session' },
     });

@@ -118,8 +118,7 @@ describe('163 — listing over effective names [integration]', () => {
           isFilterable: true,
           isVariantAxis: false,
           isVisibleOnProductPage: true,
-          channelScoped: true,
-          languageScoped: false,
+          scopable: true,
         },
         cookies: ADMIN,
       });

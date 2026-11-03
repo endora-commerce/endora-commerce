@@ -141,6 +141,7 @@ function channelRow(
     status: null,
     window: null,
     audience: null,
+    minOrderQuantityOverridden: false,
     minOrderQuantity: null,
     returnable: null,
     ...fields,

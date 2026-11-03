@@ -336,7 +336,7 @@ describe('catalogProductFilterPort — the sellable selection scan [integration]
 async function seedProducts(em: EntityManager): Promise<Record<string, string>> {
   const base = {
     type: 'simple' as const,
-    description: {},
+    description: null,
     attributeSetId: SET_ID,
     attributeValues: {},
   };
