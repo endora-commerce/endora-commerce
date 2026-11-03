@@ -40,8 +40,8 @@ import {
 /**
  * Feature 170 (T036; `contracts/scoped-values-api.md` §2) — `GET …/products/:id/scoped-values`:
  * every scoped field of the product at one scope, with its source, in **one** request per scope
- * switch (FR-109). Orphaned rows never contribute. `seo` is `null` until US10 wires
- * `seoProductMetaPort.readScoped`.
+ * switch (FR-109). Orphaned rows never contribute. `seo` is `seo`'s own view at the scope
+ * (`seoProductMetaPort.readScoped`, US10), `null` while `seo` is off.
  */
 
 /** The camelCase role keys of the API (Principle VI) for the stored labels. */
@@ -57,6 +57,24 @@ export interface ScopedValuesReadDeps {
   languages?: Pick<LanguageReadPort, 'list'>;
   assets?: Pick<AssetReadPort, 'findByIds'>;
   organizations?: Pick<OrganizationDetailsPort, 'findByIds'>;
+  /**
+   * Feature 170 (T123, FR-090, FR-092) — `seo`'s view of the product's metadata at one scope
+   * (`seoProductMetaPort.readScoped`), `null` while `seo` is not effectively present. Absent = no
+   * SEO block.
+   */
+  readSeo?: ReadSeoProductScoped;
+}
+
+/** `seo`'s five fields at one scope, or `null` while `seo` is off (presence decided by the wiring). */
+export type ReadSeoProductScoped = (productId: string, scope: ScopeRef) => Promise<ScopedValuesData['seo']>;
+
+/** The scope is one the product sells at now — `seo`'s scoped read refuses any other (422). */
+function isLiveScope(state: ScopedProductState, scope: ScopeRef): boolean {
+  if (scope.level === 'global') return true;
+  const channel = state.members.find((member) => member.id === scope.channelId);
+  if (!channel) return false;
+  if (scope.level === 'channel') return true;
+  return channel.languages.some((code) => code.toLowerCase() === scope.languageCode.toLowerCase());
 }
 
 /** One field's view at `scope` (FR-109): the effective value, its source and the own value. */
@@ -336,7 +354,8 @@ export class ScopedValuesReadService {
       gallery: views.gallery,
       attachments: views.attachments,
       packagingUnits: views.packagingUnits,
-      seo: null,
+      // An orphaned scope (a removal-only save's answer) has no SEO view: seo refuses that scope.
+      seo: this.deps.readSeo && isLiveScope(state, scope) ? await this.deps.readSeo(product.id, scope) : null,
       completeness: completenessSummary(state, scope),
       organizations,
     };
