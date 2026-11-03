@@ -208,7 +208,7 @@ describe.skipIf(!shouldRun)('price surface — SC-005', () => {
     await sql(
       `insert into "products" ("id", "sku", "slug", "type", "status", "name", "description", "visibility", "attribute_values", "created_at", "updated_at")
        select gen_random_uuid(), 'SURF-' || ? || '-' || g, 'surf-' || ? || '-' || g, 'simple', 'active',
-              '{"en-US":"x"}'::jsonb, '{"en-US":"x"}'::jsonb, 'public',
+              'x', 'x', 'public',
               jsonb_build_object('color', case when g % 2 = 0 then 'red' else 'blue' end), now(), now()
          from generate_series(1, ?) g`,
       [stamp, stamp, productCount],
