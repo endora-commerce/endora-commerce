@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { I18nConfigResponse, ResolvedMegamenu } from '@endora-commerce/contracts';
 import type { MeResult } from '../lib/api/account';
+import type { ModulePresenceSet } from '../lib/api/module-presence';
 import { tForLocale } from '../lib/i18n/messages';
 import { format } from '../lib/i18n/format';
 import { REFERENCE_BRAND_MARK, REFERENCE_BRAND_NAME } from '../lib/theme/reference-brand';
@@ -42,8 +43,17 @@ export function Header(props: {
   megamenu?: ResolvedMegamenu | null;
   /** Logged-in customer + organization, or null when signed out. */
   user?: MeResult | null;
+  /**
+   * The request's effective enabled-set. Required, so no caller can render the
+   * module-owned icons without asking: a module that is off contributes no
+   * header element (Constitution XVII item 5, issue #666).
+   */
+  modules: ModulePresenceSet;
 }): ReactNode {
   const t = tForLocale(props.locale);
+  const showShoppingList = props.modules.isPresent('shopping_lists');
+  const showQuoteRequest = props.modules.isPresent('quote_requests');
+  const showCompare = props.modules.isPresent('comparisons');
   // Handed to client components (shopping-list heart badge, search
   // autocomplete) that fetch from the browser, so it must be the
   // public, build-time-baked `NEXT_PUBLIC_API_BASE_URL` — never the
@@ -141,21 +151,27 @@ export function Header(props: {
             />
           </LocalizedForm>
           <div className="industria-header__actions">
-            <ShoppingListHeartBadge
-              apiBase={apiBaseUrl}
-              loggedIn={Boolean(props.user)}
-              ariaLabel={t('chrome.header.shoppingList')}
-            />
-            <RfqDraftBadge
-              ariaLabel={t('chrome.header.quoteRequest')}
-              itemsAriaLabelTemplate={t('chrome.header.quoteRequestItems')}
-            />
-            <CompareCounterLink
-              href="/compare"
-              ariaLabel={t('chrome.header.compare')}
-              icon={<CompareIcon />}
-              salesChannelCode={props.salesChannelCode}
-            />
+            {showShoppingList ? (
+              <ShoppingListHeartBadge
+                apiBase={apiBaseUrl}
+                loggedIn={Boolean(props.user)}
+                ariaLabel={t('chrome.header.shoppingList')}
+              />
+            ) : null}
+            {showQuoteRequest ? (
+              <RfqDraftBadge
+                ariaLabel={t('chrome.header.quoteRequest')}
+                itemsAriaLabelTemplate={t('chrome.header.quoteRequestItems')}
+              />
+            ) : null}
+            {showCompare ? (
+              <CompareCounterLink
+                href="/compare"
+                ariaLabel={t('chrome.header.compare')}
+                icon={<CompareIcon />}
+                salesChannelCode={props.salesChannelCode}
+              />
+            ) : null}
             <CartCounterBadge
               initialCount={props.cartItemCount ?? 0}
               emptyAriaLabel={t('nav.cart')}
@@ -202,12 +218,14 @@ export function Header(props: {
                 </small>
               </span>
             </LocalizedLink>
-            <CompareCounterLink
-              href="/compare"
-              ariaLabel={t('chrome.header.compare')}
-              icon={<CompareIcon />}
-              salesChannelCode={props.salesChannelCode}
-            />
+            {showCompare ? (
+              <CompareCounterLink
+                href="/compare"
+                ariaLabel={t('chrome.header.compare')}
+                icon={<CompareIcon />}
+                salesChannelCode={props.salesChannelCode}
+              />
+            ) : null}
             <CartCounterBadge
               initialCount={props.cartItemCount ?? 0}
               emptyAriaLabel={t('nav.cart')}

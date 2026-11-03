@@ -1364,9 +1364,11 @@ select:focus-visible {
 @layer components {
   /* Fixed bottom tab bar — primary thumb navigation (design §01). On
      desktop it is `md:hidden`; the wrapper sets --m-tabbar-h so the page
-     reserves matching bottom padding (rule above). */
+     reserves matching bottom padding (rule above). One equal column per
+     rendered tab: a tab whose module is off is not rendered (issue #666), and
+     the rest share the bar rather than leave a gap. */
   .m-tabbar {
-    @apply fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-line bg-surface md:hidden;
+    @apply fixed inset-x-0 bottom-0 z-40 grid grid-flow-col auto-cols-fr border-t border-line bg-surface md:hidden;
     padding-bottom: var(--m-safe-bottom);
   }
   .m-tabbar__item {
