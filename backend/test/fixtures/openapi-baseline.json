@@ -1522,6 +1522,15 @@
         }
       }
     },
+    "/api/v1/admin/catalog/products/{id}/scoped-values/copy": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/catalog/products/{id}/scopes": {
       "get": {
         "responses": {
