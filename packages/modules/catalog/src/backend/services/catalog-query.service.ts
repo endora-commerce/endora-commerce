@@ -2091,8 +2091,8 @@ export class CatalogQueryService {
   }
 
   /**
-   * The product page's read (R28): an id; else a **current** key of the request's
-   * language L (any channel's key of L counts — `findCurrentKeyHolder`); else a
+   * The product page's read (R28): an id; else the product whose effective key at the
+   * request's (C, L) it is (`findCurrentKeyHolder`, feature 170); else a
    * product's global key, the stable handle CMS product blocks store. Never a
    * redirect: the storefront resolves a URL through `resolve` and reads by id.
    */
@@ -2104,7 +2104,7 @@ export class CatalogQueryService {
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
     const product = isUuid
       ? await em.findOne(Product, { id: idOrSlug })
-      : ((await findCurrentKeyHolder(em, idOrSlug, this.#availabilityScope(ctx).languageCode)) ??
+      : ((await findCurrentKeyHolder(em, idOrSlug, channel.id, this.#availabilityScope(ctx).languageCode)) ??
         (await em.findOne(Product, { slug: idOrSlug })));
     if (!product || product.deletedAt) {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');

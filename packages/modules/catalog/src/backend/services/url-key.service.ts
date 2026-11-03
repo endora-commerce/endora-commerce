@@ -1,544 +1,117 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import {
   ERROR_CODES,
+  URL_REDIRECTS_PER_CHANNEL_MAX,
+  normaliseUrlKey,
   productPath,
-  type ProductUrlKeysResponse,
-  type PutProductUrlKeysRequest,
-  type UrlKeyWriteOutcome,
-  type UrlKeyRedirectTakeoverRequiredDetails,
-  type UrlKeyTakenDetails,
+  productSlugSchema,
   sameLanguage,
   toScopeChannel,
+  type ProductUrlKeysResponse,
+  type PutProductUrlKeysRequest,
+  type ScopeChannel,
+  type ScopeRef,
+  type UrlKeyRedirectTakeoverRequiredDetails,
+  type UrlKeyTakenDetails,
+  type UrlKeyWriteOutcome,
 } from '@endora-commerce/contracts';
 import type { Command, CommandBus, CommandEvent } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
-import { SalesChannel, effectiveState } from '@endora-commerce/platform/kernel';
+import { effectiveState } from '@endora-commerce/platform/kernel';
 import { Product } from '../entities/product.entity.js';
 import { ProductUrlKey } from '../entities/product-url-key.entity.js';
-import { channelUrlFactsOf } from './channel-url-facts.js';
 import { ProductUrlRedirect } from '../entities/product-url-redirect.entity.js';
+import { channelUrlFactsOf } from './channel-url-facts.js';
 
 /**
- * Feature 163 (`specs/163-product-data-scopes/`) — a product's URL keys per language
- * and per sales channel × language, and the redirects their changes leave behind
- * (`contracts/url-keys-and-redirects.md` §1–§3, data-model §5, research R11, R29).
+ * Feature 170 (T039; `contracts/url-keys.md`, research R12) — URL keys at Global (`products.slug`),
+ * Channel and Channel × language, and the redirects per (channel, language).
  *
- * **The invariant** (FR-070, FR-072, SC-008): in no language does one key belong to
- * two products, current or redirecting. A product's keys in L are its rows of L
- * (any channel, orphans included) plus its global key (`products.slug`) where it has
- * no language key of L; a language-less redirect counts in every language. No set
- * of indexes expresses that, so every write runs as one Command that first locks the
- * product row, then takes `pg_advisory_xact_lock(hashtextextended('catalog.url-key:'
- * || key, 0))` for every key it can touch **in sorted order** (no deadlock between two
- * writers), and only then reads the other products' rows — two writers of one key are
- * serialised and the second sees the first's commit.
+ * **The one writer.** Every key writer — the product create and duplicate slug, the scoped-values
+ * save, `PUT …/url-keys`, the CSV import and the connector port — goes through this service:
+ * {@link UrlKeyService.lockAndCheck} for a key write, {@link UrlKeyService.allocateSlug} for a new
+ * product's slug. Both take the advisory lock of every key they touch (sorted, `lock_timeout` 5 s)
+ * and decide under it. Nothing else writes `product_url_keys`, `product_url_redirects` or
+ * `products.slug` (`backend/test/unit/catalog/url-key-writer-ownership.test.ts`, T149).
  *
- * The rules live in {@link planUrlKeyWrite}, a pure function the Command runs inside
- * its transaction: a refusal is a refusal of the whole request with nothing written.
- * Each write is one audit entry whose `before` is itself a valid request restoring
- * every key it touched, plus every redirect row it removed (another product's
- * included); `after` holds the keys and the redirect rows it inserted (R29 — no
- * single-write undo, Q-D → A). `product.updated.v1` follows with `['urlKeys']`.
- *
- * Without a `CommandBus` (a composition that wires none, such as a unit rig) every write
- * still runs as one transaction, so the locks hold, but it is **not audited** and
- * announces no `product.updated.v1`.
+ * Invariants (§2): a key text belongs to at most one product per channel across all its
+ * languages, orphans included (row vs row: the exclusion constraint; slug vs row and redirects:
+ * here); a product's slug equals no other product's slug, row key or redirect; a redirect never
+ * points at a product whose key it is in that channel, and at most
+ * {@link URL_REDIRECTS_PER_CHANNEL_MAX} exist per (product, channel), oldest dropped.
  */
 
 const LOCK_PREFIX = 'catalog.url-key:';
+const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// --- 170-shim: the 163 planner's own shapes ------------------------------------------
-//
-// Feature 170 replaced the language keys with Channel and Channel × language keys
-// (`specs/170-product-editor-scope-switcher/contracts/url-keys.md`). Until T039 rewrites this
-// planner on that model (one helper, `lockAndCheck`, the exclusion constraint), the 163 planner
-// runs on its own request shape: Channel × language keys only, no language keys. A Channel key
-// (`languageCode` absent) is refused `422 VALIDATION_FAILED` here, and redirects are written per
-// (channel, language) of the product's member channels.
-
-/** 170-shim — the 163 planner's request: Channel × language keys, `key: null` = inherit. */
-export interface LegacyUrlKeysRequest {
-  globalKey?: string;
-  languageKeys?: Array<{ languageCode: string; key: string | null }>;
-  channelKeys?: Array<{ channelId: string; languageCode: string; key: string | null }>;
-  confirmTakeover?: Array<{ languageCode: string | null; key: string }>;
+/** One key write at one scope. */
+export interface UrlKeyWrite {
+  scope: ScopeRef;
+  op: { op: 'set'; key: string } | { op: 'inherit' };
 }
 
-/** 170-shim — a key written by an integration: `channelId: null` = a language key (refused). */
-export interface ProductUrlKeyWrite {
-  languageCode: string;
-  channelId: string | null;
-  /** `null` = use inherited. */
-  key: string | null;
-}
-
-/** 170-shim — the 170 PUT body as the 163 planner reads it. */
-export function legacyRequestOf(request: PutProductUrlKeysRequest): LegacyUrlKeysRequest {
-  const channelKeys = (request.channelKeys ?? []).map((entry) => {
-    if (entry.languageCode == null) {
-      throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'Channel keys without a language arrive with T039.', {
-        field: 'channelKeys',
-        channelId: entry.channelId,
-      });
-    }
-    return { channelId: entry.channelId, languageCode: entry.languageCode, key: typeof entry.key === 'string' ? entry.key : null };
-  });
-  return {
-    ...(request.globalKey !== undefined ? { globalKey: request.globalKey } : {}),
-    ...(channelKeys.length > 0 ? { channelKeys } : {}),
-    ...(request.confirmTakeover ? { confirmTakeover: request.confirmTakeover.map((key) => ({ languageCode: null, key })) } : {}),
-  };
-}
-
-// --- Pure planner ------------------------------------------------------------------
-
-export interface UrlKeyRow {
-  productId: string;
-  languageCode: string;
-  /** `null` = the language key. */
-  channelId: string | null;
-  key: string;
-}
-
-export interface UrlRedirectRow {
-  id: string;
-  productId: string;
-  /** `null` = a former global key, redirecting in every language (H1). */
-  languageCode: string | null;
-  key: string;
-}
-
-/** Another product whose global key is one of the touched keys. */
-export interface OtherProductSlug {
-  productId: string;
-  slug: string;
-  /** The languages in which it has a language key — where its slug is *not* its key. */
-  languageKeyLanguages: readonly string[];
-}
-
-/** Everything {@link planUrlKeyWrite} needs, read in the transaction after the locks. */
-export interface UrlKeyWriteState {
-  productId: string;
-  slug: string;
-  ownKeys: readonly UrlKeyRow[];
-  ownRedirects: readonly UrlRedirectRow[];
-  /** Other live products' key rows whose key is a touched key. */
-  otherKeys: readonly UrlKeyRow[];
-  /** Other products — soft-deleted ones included — whose global key is a touched key. */
-  otherSlugs: readonly OtherProductSlug[];
-  /** Other products' redirects whose key is a touched key. */
-  otherRedirects: readonly UrlRedirectRow[];
-  /** Display names for the products a refusal may name. */
-  productNames: ReadonlyMap<string, string>;
-  /** Every language some sales channel offers, in the channels' spelling. */
-  channelLanguages: readonly string[];
-  /** The product's member channels → their languages. */
-  memberChannels: ReadonlyMap<string, readonly string[]>;
+/** How {@link UrlKeyService.lockAndCheck} answers a taken key (§3). */
+export interface UrlKeyCheckOptions {
+  /**
+   * `interactive` (an operator on a `catalog:write` route): a taken key refuses the call, and a
+   * key held by another product's redirect is taken over when `confirmTakeover` names it.
+   * `integration` (CSV, connector): a taken key is skipped and reported, never taken over;
+   * `confirmTakeover` is ignored.
+   */
+  mode: 'interactive' | 'integration';
+  confirmTakeover?: readonly string[];
 }
 
 export interface UrlRedirectAuditRow {
-  id?: string;
+  id: string;
   productId: string;
-  languageCode: string | null;
+  channelId: string;
+  languageCode: string;
   key: string;
 }
 
-/** The audit projection: the PUT body's shape with every touched key explicit, plus redirect rows. */
-export interface UrlKeyAuditState {
-  globalKey?: string;
-  languageKeys: Array<{ languageCode: string; key: string | null }>;
-  channelKeys: Array<{ channelId: string; languageCode: string; key: string | null }>;
-  redirects: UrlRedirectAuditRow[];
-  [key: string]: unknown;
-}
+type KeyList = Array<{ channelId: string; languageCode: string | null; key: string }>;
 
-export interface UrlKeyWritePlan {
-  /** The new global key; `null` = unchanged. */
-  slug: string | null;
-  /** Scopes whose key changes; `next: null` deletes the row. */
-  keyRows: Array<{ languageCode: string; channelId: string | null; next: string | null }>;
-  insertRedirects: Array<{ languageCode: string | null; key: string }>;
-  /** The product's own rows and other products' rows taken over. */
-  deleteRedirects: UrlRedirectRow[];
-  before: UrlKeyAuditState;
-  after: UrlKeyAuditState;
+/** What a key write changed, for the caller's audit before / after (R21). */
+export interface UrlKeySideEffects {
   changed: boolean;
+  before: { slug: string; keys: KeyList; redirectsDeleted: UrlRedirectAuditRow[] };
+  after: { slug: string; keys: KeyList; redirectsInserted: UrlRedirectAuditRow[] };
+  /** Integration mode: the writes that were not made, each with its holder. */
+  issues: Array<Extract<UrlKeyWriteOutcome, { written: false }>['issue']>;
 }
 
-interface ScopeOp {
+/** A key written by an integration (CSV, connector): `channelId` `null` = Global; `languageCode` `null` = the Channel key. */
+export interface ProductUrlKeyWrite {
   channelId: string | null;
-  languageCode: string;
-  prev: string | null;
-  next: string | null;
+  languageCode: string | null;
+  /** `null` = inherit (remove the own key). */
+  key: string | null;
 }
 
-const lower = (value: string): string => value.toLowerCase();
+// --- Locks ---------------------------------------------------------------------------
 
 /**
- * Every key a PUT can touch, sorted and once: the keys it writes, the keys it
- * replaces at each named scope, the current and the requested global key. These
- * are the advisory locks the Command takes, and the keys whose holders it reads.
- */
-export function urlKeysToLock(
-  slug: string,
-  ownKeys: readonly UrlKeyRow[],
-  request: LegacyUrlKeysRequest,
-): string[] {
-  const keys = new Set<string>([slug]);
-  if (request.globalKey !== undefined) keys.add(request.globalKey);
-  for (const entry of request.languageKeys ?? []) {
-    if (entry.key !== null) keys.add(entry.key);
-    const prev = ownKeys.find((row) => row.channelId === null && sameLanguage(row.languageCode, entry.languageCode));
-    if (prev) keys.add(prev.key);
-  }
-  for (const entry of request.channelKeys ?? []) {
-    if (entry.key !== null) keys.add(entry.key);
-    const prev = ownKeys.find(
-      (row) => row.channelId === entry.channelId && sameLanguage(row.languageCode, entry.languageCode),
-    );
-    if (prev) keys.add(prev.key);
-  }
-  return [...keys].sort();
-}
-
-/**
- * The other products whose global key is a touched key, as the planner reads them.
- * `products.slug` is unique across soft-deleted rows too, so a deleted product is kept
- * — its global key stays taken — but its language keys no longer count, which makes
- * that key taken in **every** language (Phase 16 review: without it the planner said
- * "free" and the flush answered a unique violation as a 500).
- */
-export function otherProductSlugs(
-  products: ReadonlyArray<{ id: string; slug: string; deletedAt?: Date | null }>,
-  languageKeys: readonly UrlKeyRow[],
-): OtherProductSlug[] {
-  return products.map((product) => ({
-    productId: product.id,
-    slug: product.slug,
-    languageKeyLanguages:
-      product.deletedAt != null
-        ? []
-        : languageKeys
-            .filter((row) => row.productId === product.id && row.channelId === null)
-            .map((row) => row.languageCode),
-  }));
-}
-
-function collectScopeOps(state: UrlKeyWriteState, request: LegacyUrlKeysRequest): ScopeOp[] {
-  const ops: ScopeOp[] = [];
-  const seen = new Set<string>();
-  const spelling = (requested: string, offered: readonly string[] | undefined, channelId: string | null): string =>
-    offered?.find((code) => sameLanguage(code, requested)) ??
-    state.ownKeys.find((row) => row.channelId === channelId && sameLanguage(row.languageCode, requested))?.languageCode ??
-    requested;
-
-  for (const entry of request.languageKeys ?? []) {
-    const id = `*|${lower(entry.languageCode)}`;
-    if (seen.has(id)) {
-      throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'A language is named more than once.', {
-        field: 'languageKeys',
-        languageCode: entry.languageCode,
-      });
-    }
-    seen.add(id);
-    const offered = state.channelLanguages.some((code) => sameLanguage(code, entry.languageCode));
-    if (entry.key !== null && !offered) {
-      throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'No sales channel offers this language.', {
-        field: 'languageKeys',
-        languageCode: entry.languageCode,
-      });
-    }
-    const languageCode = spelling(entry.languageCode, state.channelLanguages, null);
-    const prev = state.ownKeys.find((row) => row.channelId === null && sameLanguage(row.languageCode, languageCode));
-    ops.push({ channelId: null, languageCode, prev: prev?.key ?? null, next: entry.key });
-  }
-
-  for (const entry of request.channelKeys ?? []) {
-    const id = `${entry.channelId}|${lower(entry.languageCode)}`;
-    if (seen.has(id)) {
-      throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'A channel and language are named more than once.', {
-        field: 'channelKeys',
-        channelId: entry.channelId,
-        languageCode: entry.languageCode,
-      });
-    }
-    seen.add(id);
-    const languages = state.memberChannels.get(entry.channelId);
-    // FR-014 for a value; removing an orphaned override is always allowed (FR-015).
-    if (entry.key !== null) {
-      if (languages === undefined) {
-        throw new HttpError(422, ERROR_CODES.SCOPE_INVALID, 'The product is not a member of this sales channel.', {
-          channelId: entry.channelId,
-          reason: 'not_a_member',
-        });
-      }
-      if (!languages.some((code) => sameLanguage(code, entry.languageCode))) {
-        throw new HttpError(422, ERROR_CODES.SCOPE_INVALID, 'The sales channel does not offer this language.', {
-          channelId: entry.channelId,
-          languageCode: entry.languageCode,
-          reason: 'language_not_offered',
-        });
-      }
-    }
-    const languageCode = spelling(entry.languageCode, languages, entry.channelId);
-    const prev = state.ownKeys.find(
-      (row) => row.channelId === entry.channelId && sameLanguage(row.languageCode, languageCode),
-    );
-    ops.push({ channelId: entry.channelId, languageCode, prev: prev?.key ?? null, next: entry.key });
-  }
-  return ops;
-}
-
-/**
- * What a URL-keys PUT writes (data-model §5's table). Pure; throws the request's
- * refusal as an `HttpError` — `URL_KEY_TAKEN` (every holder) before
- * `URL_KEY_REDIRECT_TAKEOVER_REQUIRED` (every unconfirmed losing product), so an
- * operator is never asked to confirm a write that would be refused anyway.
- */
-export function planUrlKeyWrite(state: UrlKeyWriteState, request: LegacyUrlKeysRequest): UrlKeyWritePlan {
-  const ops = collectScopeOps(state, request);
-  const newSlug = request.globalKey ?? state.slug;
-  const slugChanged = newSlug !== state.slug;
-
-  const finalRows: UrlKeyRow[] = [
-    ...state.ownKeys.filter(
-      (row) => !ops.some((op) => op.channelId === row.channelId && sameLanguage(op.languageCode, row.languageCode)),
-    ),
-    ...ops
-      .filter((op) => op.next !== null)
-      .map((op) => ({ productId: state.productId, languageCode: op.languageCode, channelId: op.channelId, key: op.next! })),
-  ];
-  const hasLanguageKey = (languageCode: string): boolean =>
-    finalRows.some((row) => row.channelId === null && sameLanguage(row.languageCode, languageCode));
-  const ownRowKeyIn = (languageCode: string, key: string): boolean =>
-    finalRows.some((row) => row.key === key && sameLanguage(row.languageCode, languageCode));
-  const isOwnCurrent = (languageCode: string, key: string): boolean =>
-    ownRowKeyIn(languageCode, key) || (key === newSlug && !hasLanguageKey(languageCode));
-
-  const name = (productId: string): string => state.productNames.get(productId) ?? productId;
-  // 170-shim: `confirmTakeover` names keys only (R21), so a confirmation covers every language.
-  const confirmed = (_languageCode: string | null, key: string): boolean =>
-    (request.confirmTakeover ?? []).some((entry) => entry.key === key);
-
-  /** Other products holding `key` as a current key in `languageCode` (`null` = in any language). */
-  const otherCurrent = (languageCode: string | null, key: string): Array<{ productId: string; languageCode: string | null }> => {
-    const out: Array<{ productId: string; languageCode: string | null }> = [];
-    for (const row of state.otherKeys) {
-      if (row.key !== key) continue;
-      if (languageCode === null || sameLanguage(row.languageCode, languageCode)) {
-        out.push({ productId: row.productId, languageCode: languageCode ?? row.languageCode });
-      }
-    }
-    for (const other of state.otherSlugs) {
-      if (other.slug !== key) continue;
-      if (languageCode === null || !other.languageKeyLanguages.some((code) => sameLanguage(code, languageCode))) {
-        out.push({ productId: other.productId, languageCode });
-      }
-    }
-    return out;
-  };
-  /** Other products' redirects with `key` in `languageCode` — a language-less one counts in every language. */
-  const otherRedirects = (languageCode: string | null, key: string): UrlRedirectRow[] =>
-    state.otherRedirects.filter(
-      (row) =>
-        row.key === key &&
-        (languageCode === null || row.languageCode === null || sameLanguage(row.languageCode, languageCode)),
-    );
-
-  const conflicts = new Map<string, UrlKeyTakenDetails['conflicts'][number]>();
-  const takeovers = new Map<string, UrlKeyRedirectTakeoverRequiredDetails['takeovers'][number]>();
-  const taken = new Map<string, UrlRedirectRow>();
-  const ownDeletes = new Map<string, UrlRedirectRow>();
-  const candidates: Array<{ languageCode: string; key: string; forced: boolean }> = [];
-
-  /** `key` becomes one of the product's keys in `languageCode` (`null` = in every language). */
-  const claim = (languageCode: string | null, key: string): void => {
-    for (const holder of otherCurrent(languageCode, key)) {
-      conflicts.set(`${holder.languageCode ?? '*'}|${key}|${holder.productId}`, {
-        channelId: null,
-        languageCode: holder.languageCode,
-        key,
-        heldByProductId: holder.productId,
-        heldByProductName: name(holder.productId),
-      });
-    }
-    for (const row of otherRedirects(languageCode, key)) {
-      if (confirmed(row.languageCode, key)) {
-        taken.set(row.id, row);
-      } else {
-        takeovers.set(row.id, {
-          channelId: null,
-          languageCode: row.languageCode,
-          key,
-          losingProductId: row.productId,
-          losingProductName: name(row.productId),
-        });
-      }
-    }
-  };
-  const dropOwnRedirect = (languageCode: string, key: string): void => {
-    for (const row of state.ownRedirects) {
-      if (row.languageCode !== null && row.key === key && sameLanguage(row.languageCode, languageCode)) {
-        ownDeletes.set(row.id, row);
-      }
-    }
-  };
-
-  for (const op of ops) {
-    if (op.prev === op.next) continue;
-    if (op.next !== null) {
-      claim(op.languageCode, op.next);
-      // The product's own redirect of this language becomes current again (no self-redirect);
-      // its own language-less redirect stays, serving every other language (H1).
-      dropOwnRedirect(op.languageCode, op.next);
-      if (op.prev !== null) {
-        candidates.push({ languageCode: op.languageCode, key: op.prev, forced: false });
-      } else if (op.channelId === null && !slugChanged) {
-        // The first language key: the global key becomes a redirect in L only (FR-072 consequence 1).
-        candidates.push({ languageCode: op.languageCode, key: state.slug, forced: false });
-      }
-    } else {
-      if (op.channelId === null) {
-        // "Use inherited": the global key is the product's key in L again — checked as a
-        // write of it, unless no channel offers L (an orphan's removal is always allowed).
-        if (state.channelLanguages.some((code) => sameLanguage(code, op.languageCode))) claim(op.languageCode, newSlug);
-        dropOwnRedirect(op.languageCode, newSlug);
-      }
-      candidates.push({ languageCode: op.languageCode, key: op.prev!, forced: false });
-    }
-  }
-
-  if (slugChanged) {
-    claim(null, newSlug);
-    for (const row of state.ownRedirects) {
-      if (row.key !== newSlug) continue;
-      if (row.languageCode === null) {
-        // Its own language-less redirect written back: replaced per language in which the
-        // product holds a language or channel × language key (there the slug is not its key).
-        ownDeletes.set(row.id, row);
-        const held = new Map<string, string>();
-        for (const own of finalRows) held.set(lower(own.languageCode), own.languageCode);
-        for (const languageCode of held.values()) candidates.push({ languageCode, key: newSlug, forced: true });
-      } else if (!hasLanguageKey(row.languageCode)) {
-        ownDeletes.set(row.id, row);
-      }
-    }
-  }
-
-  if (conflicts.size > 0) {
-    throw new HttpError(409, ERROR_CODES.URL_KEY_TAKEN, 'This URL key is already used by another product.', {
-      conflicts: [...conflicts.values()],
-    } satisfies UrlKeyTakenDetails);
-  }
-  if (takeovers.size > 0) {
-    throw new HttpError(
-      409,
-      ERROR_CODES.URL_KEY_REDIRECT_TAKEOVER_REQUIRED,
-      "This URL key redirects to another product; confirm taking it over.",
-      { takeovers: [...takeovers.values()] } satisfies UrlKeyRedirectTakeoverRequiredDetails,
-    );
-  }
-
-  const inserts = new Map<string, { languageCode: string | null; key: string }>();
-  const ownRedirectStays = (languageCode: string | null, key: string): boolean =>
-    state.ownRedirects.some(
-      (row) =>
-        row.key === key &&
-        !ownDeletes.has(row.id) &&
-        (languageCode === null ? row.languageCode === null : row.languageCode !== null && sameLanguage(row.languageCode, languageCode)),
-    );
-  const freeOfOthers = (languageCode: string, key: string): boolean =>
-    otherCurrent(languageCode, key).length === 0 && otherRedirects(languageCode, key).every((row) => taken.has(row.id));
-  const addRedirect = (candidate: { languageCode: string; key: string; forced: boolean }): void => {
-    if (candidate.forced ? ownRowKeyIn(candidate.languageCode, candidate.key) : isOwnCurrent(candidate.languageCode, candidate.key)) {
-      return;
-    }
-    if (ownRedirectStays(candidate.languageCode, candidate.key)) return;
-    if (!freeOfOthers(candidate.languageCode, candidate.key)) return;
-    inserts.set(`${lower(candidate.languageCode)}|${candidate.key}`, {
-      languageCode: candidate.languageCode,
-      key: candidate.key,
-    });
-  };
-  for (const candidate of candidates) addRedirect(candidate);
-
-  if (slugChanged) {
-    // The old global key: one language-less redirect when no other product holds it in any
-    // language; otherwise one per language where it is free, none where it is taken (HIGH-2).
-    const old = state.slug;
-    const othersHold =
-      otherCurrent(null, old).length > 0 || otherRedirects(null, old).some((row) => !taken.has(row.id));
-    if (!othersHold) {
-      if (!ownRedirectStays(null, old)) inserts.set(`*|${old}`, { languageCode: null, key: old });
-    } else {
-      const languages = new Map<string, string>();
-      for (const code of state.channelLanguages) languages.set(lower(code), code);
-      for (const languageCode of languages.values()) addRedirect({ languageCode, key: old, forced: false });
-    }
-  }
-
-  const deleteRedirects = [...ownDeletes.values(), ...taken.values()];
-  const keyRows = ops
-    .filter((op) => op.prev !== op.next)
-    .map((op) => ({ languageCode: op.languageCode, channelId: op.channelId, next: op.next }));
-  const insertRedirects = [...inserts.values()];
-
-  const projection = (
-    pick: 'prev' | 'next',
-  ): Pick<UrlKeyAuditState, 'languageKeys' | 'channelKeys'> & { globalKey?: string } => ({
-    ...(request.globalKey !== undefined ? { globalKey: pick === 'prev' ? state.slug : newSlug } : {}),
-    languageKeys: ops
-      .filter((op) => op.channelId === null)
-      .map((op) => ({ languageCode: op.languageCode, key: op[pick] })),
-    channelKeys: ops
-      .filter((op) => op.channelId !== null)
-      .map((op) => ({ channelId: op.channelId!, languageCode: op.languageCode, key: op[pick] })),
-  });
-
-  return {
-    slug: slugChanged ? newSlug : null,
-    keyRows,
-    insertRedirects,
-    deleteRedirects,
-    before: {
-      ...projection('prev'),
-      redirects: deleteRedirects.map((row) => ({
-        id: row.id,
-        productId: row.productId,
-        languageCode: row.languageCode,
-        key: row.key,
-      })),
-    },
-    after: {
-      ...projection('next'),
-      redirects: insertRedirects.map((row) => ({ productId: state.productId, ...row })),
-    },
-    changed: slugChanged || keyRows.length > 0 || insertRedirects.length > 0 || deleteRedirects.length > 0,
-  };
-}
-
-// --- Database helpers shared with the product write paths ----------------------------
-
-/**
- * Take the advisory lock of every key, in sorted order. Must run inside the caller's
- * transaction: the locks are released when it ends.
+ * Take the advisory lock of every key, in sorted order, with a 5 s `lock_timeout`. Must run inside
+ * the caller's transaction: the locks are released when it ends.
  */
 export async function lockUrlKeys(em: EntityManager, keys: readonly string[]): Promise<void> {
-  for (const key of [...new Set(keys)].sort()) {
+  const sorted = [...new Set(keys)].sort();
+  if (sorted.length === 0) return;
+  await em.execute(`set local lock_timeout = '5s'`);
+  for (const key of sorted) {
     await em.execute('select pg_advisory_xact_lock(hashtextextended(?, 0))', [`${LOCK_PREFIX}${key}`]);
   }
 }
 
 /**
- * Whether `key` is free to become a **new** product's global key (A-11): not a
- * product's global key (any product — `products.slug` is unique), and not a current
- * or redirecting key of a live product in any language. Used by slug allocation on
- * create and duplicate, which holds the key's lock while it decides.
+ * Whether `key` is free to become a **new** product's slug (§2.2): no product's slug (soft-deleted
+ * ones included — the column is unique), no live product's row key in any channel, no redirect.
  */
 export async function isUrlKeyFree(em: EntityManager, key: string): Promise<boolean> {
-  const rows = (await em.execute(
+  const rows = await em.execute<unknown[]>(
     `select 1 from "products" where "slug" = ?
      union all
      select 1 from "product_url_keys" k join "products" p on p."id" = k."product_id"
@@ -547,31 +120,65 @@ export async function isUrlKeyFree(em: EntityManager, key: string): Promise<bool
      select 1 from "product_url_redirects" where "key" = ?
      limit 1`,
     [key, key, key],
-  )) as unknown[];
+  );
   return rows.length === 0;
 }
 
-// --- The service ---------------------------------------------------------------------
-
-const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** A `:id` that is not a UUID names no product: 404, before Postgres refuses the cast as a 500. */
-function assertProductIdShape(productId: string): void {
-  if (!UUID_SHAPE.test(productId)) throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
+/**
+ * {@link UrlKeyService.allocateSlug} as a function, for the product create and duplicate paths that
+ * hold no service instance: the free-looking candidates (at most `limit`) are locked together in
+ * sorted order and re-checked under the locks in the given order; the first still free wins.
+ */
+export async function allocateFreeSlug(em: EntityManager, candidates: readonly string[], limit = candidates.length): Promise<string | null> {
+  const probes: string[] = [];
+  for (const candidate of candidates) {
+    if (probes.length >= limit) break;
+    if (!probes.includes(candidate) && (await isUrlKeyFree(em, candidate))) probes.push(candidate);
+  }
+  if (probes.length === 0) return null;
+  await lockUrlKeys(em, probes);
+  for (const candidate of probes) if (await isUrlKeyFree(em, candidate)) return candidate;
+  return null;
 }
 
-function displayName(product: Pick<Product, 'name' | 'sku'>): string {
-  return product.name?.trim() ? product.name : product.sku;
+// --- Pure helpers --------------------------------------------------------------------
+
+export interface KeyRowLike {
+  salesChannelId: string;
+  languageCode: string | null;
+  key: string;
 }
 
-/** 170-shim: a Channel key row (no language) is not a row the 163 planner can read; none is written yet. */
-function toKeyRow(row: ProductUrlKey): UrlKeyRow {
-  return { productId: row.productId, languageCode: row.languageCode ?? '', channelId: row.salesChannelId, key: row.key };
+/** P's effective key at (C, L): its C×L row → its C row → the slug (§1). */
+export function effectiveKeyAt(rows: readonly KeyRowLike[], slug: string, channelId: string, languageCode: string): string {
+  const cl = rows.find((row) => row.salesChannelId === channelId && row.languageCode != null && sameLanguage(row.languageCode, languageCode));
+  if (cl) return cl.key;
+  const c = rows.find((row) => row.salesChannelId === channelId && row.languageCode == null);
+  return c?.key ?? slug;
 }
 
-function toRedirectRow(row: ProductUrlRedirect): UrlRedirectRow {
-  return { id: row.id, productId: row.productId, languageCode: row.languageCode ?? null, key: row.key };
+/** P's keys in channel C (§1): every row of C (orphans included), plus the slug where some language of C uses it. */
+export function keysInChannel(rows: readonly KeyRowLike[], slug: string, channel: ScopeChannel | undefined, channelId: string): Set<string> {
+  const keys = new Set(rows.filter((row) => row.salesChannelId === channelId).map((row) => row.key));
+  if (channel && channel.languages.some((languageCode) => effectiveKeyAt(rows, slug, channelId, languageCode) === slug)) keys.add(slug);
+  return keys;
 }
+
+const display = (product: Pick<Product, 'name' | 'sku'>): string => (product.name?.trim() ? product.name : product.sku);
+
+/** A residual constraint violation is a taken key — never a 500, never the constraint's name. */
+function isKeyViolation(err: unknown): boolean {
+  const code = (err as { code?: unknown })?.code ?? (err as { cause?: { code?: unknown } })?.cause?.code;
+  return code === '23P01' || code === '23505';
+}
+
+const keyRowsOf = (rows: readonly ProductUrlKey[]): KeyRowLike[] =>
+  rows.map((row) => ({ salesChannelId: row.salesChannelId, languageCode: row.languageCode ?? null, key: row.key }));
+
+const keyList = (list: readonly KeyRowLike[]): KeyList =>
+  list
+    .map((row) => ({ channelId: row.salesChannelId, languageCode: row.languageCode, key: row.key }))
+    .sort((a, b) => a.channelId.localeCompare(b.channelId) || (a.languageCode ?? '').localeCompare(b.languageCode ?? ''));
 
 function urlKeysUpdatedEvent(
   productId: string,
@@ -582,94 +189,316 @@ function urlKeysUpdatedEvent(
   };
 }
 
-/**
- * The import-mode issue for a "taken" refusal of `write` (FR-093), or `null` when
- * the refusal is of another kind and refuses the whole call.
- */
-function takenIssue(
-  err: unknown,
-  write: ProductUrlKeyWrite,
-): Extract<UrlKeyWriteOutcome, { written: false }>['issue'] | null {
-  if (!(err instanceof HttpError)) return null;
-  const details = (err.details ?? {}) as Partial<UrlKeyTakenDetails & UrlKeyRedirectTakeoverRequiredDetails>;
-  if (err.code === ERROR_CODES.URL_KEY_TAKEN && details.conflicts?.[0]) {
-    const conflict = details.conflicts[0];
-    return {
-      languageCode: write.languageCode,
-      channelId: write.channelId,
-      key: conflict.key,
-      heldByProductId: conflict.heldByProductId,
-      kind: 'current',
-    };
-  }
-  if (err.code === ERROR_CODES.URL_KEY_REDIRECT_TAKEOVER_REQUIRED && details.takeovers?.[0]) {
-    const takeover = details.takeovers[0];
-    return {
-      languageCode: write.languageCode,
-      channelId: write.channelId,
-      key: takeover.key,
-      heldByProductId: takeover.losingProductId,
-      kind: 'redirect',
-    };
-  }
-  return null;
+interface Conflict {
+  holderId: string;
+  key: string;
+  channelId: string | null;
+  languageCode: string | null;
+  kind: 'current' | 'redirect';
 }
 
-/** An integration's keys as the PUT body the planner reads. */
-export function importRequest(entries: readonly ProductUrlKeyWrite[]): LegacyUrlKeysRequest {
-  const languageKeys = entries
-    .filter((entry) => entry.channelId === null)
-    .map((entry) => ({ languageCode: entry.languageCode, key: entry.key }));
-  const channelKeys = entries
-    .filter((entry): entry is ProductUrlKeyWrite & { channelId: string } => entry.channelId !== null)
-    .map((entry) => ({ channelId: entry.channelId, languageCode: entry.languageCode, key: entry.key }));
-  return {
-    ...(languageKeys.length > 0 ? { languageKeys } : {}),
-    ...(channelKeys.length > 0 ? { channelKeys } : {}),
-  };
-}
-
-/**
- * Import mode (FR-093), pure: each key is admitted only if the keys admitted before
- * it plus this one plan without a "taken" refusal; a refused key is reported with
- * its holder and left out, so the product keeps its previous key there. Any other
- * refusal is thrown — it refuses the whole call. Never passes `confirmTakeover`.
- */
-export function admitImportKeys(
-  state: UrlKeyWriteState,
-  writes: readonly ProductUrlKeyWrite[],
-): { accepted: ProductUrlKeyWrite[]; outcomes: UrlKeyWriteOutcome[] } {
-  const accepted: ProductUrlKeyWrite[] = [];
-  const outcomes: UrlKeyWriteOutcome[] = [];
-  for (const write of writes) {
-    try {
-      planUrlKeyWrite(state, importRequest([...accepted, write]));
-      accepted.push(write);
-      outcomes.push({ written: true });
-    } catch (err) {
-      const issue = takenIssue(err, write);
-      if (issue === null) throw err;
-      outcomes.push({ written: false, issue });
-    }
-  }
-  return { accepted, outcomes };
-}
+// --- The service ---------------------------------------------------------------------
 
 export class UrlKeyService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly membership: SalesChannelMembershipPort,
+    private readonly membership: Pick<SalesChannelMembershipPort, 'listChannelsForEntity' | 'filterEntityIdsInChannel'>,
     private readonly commandBus?: CommandBus,
-    /**
-     * Whether `seo` is effectively present: it decides whether redirects are part
-     * of the answer (Q-C, Constitution XVII). Writes never ask it.
-     */
+    /** Whether `seo` is effectively present: it decides whether redirects are listed (Q-C). Writes never ask. */
     private readonly seoPresent: () => boolean = () => effectiveState.isPresent('seo'),
   ) {}
 
-  /** `GET /admin/catalog/products/:id/url-keys` (§1). */
+  /**
+   * §3 — the one key write. On the caller's `em`, inside the caller's transaction: locks, checks
+   * and writes. A taken key throws (`interactive`) or is reported and skipped (`integration`);
+   * every other refusal (`SCOPE_INVALID`, the grammar) throws in both modes.
+   */
+  async lockAndCheck(
+    em: EntityManager,
+    productId: string,
+    writes: readonly UrlKeyWrite[],
+    options: UrlKeyCheckOptions,
+  ): Promise<UrlKeySideEffects> {
+    // command-coverage-ignore: runs only on the caller's Command `em` (the scoped-values save,
+    // PUT …/url-keys, the import and connector Commands).
+    const product = await em.findOne(Product, { id: productId });
+    if (!product || product.deletedAt) throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
+    const [members, ownRows, ownRedirects] = await Promise.all([
+      this.membership.listChannelsForEntity('product', productId),
+      em.find(ProductUrlKey, { productId }),
+      em.find(ProductUrlRedirect, { productId }),
+    ]);
+    const channels = new Map(members.map((channel) => [channel.id, toScopeChannel(channel)]));
+    const confirm = new Set(options.mode === 'interactive' ? (options.confirmTakeover ?? []).map(normaliseUrlKey) : []);
+
+    // The planned state: own rows and slug after every write; languages in the channel's spelling.
+    const slugBefore = product.slug;
+    const beforeRows = keyRowsOf(ownRows);
+    const rows: KeyRowLike[] = keyRowsOf(ownRows);
+    let slug = slugBefore;
+    for (const write of writes) {
+      const key = write.op.op === 'set' ? normaliseUrlKey(write.op.key) : null;
+      if (key !== null && !productSlugSchema.safeParse(key).success) {
+        throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'A URL key must be lower-case words joined by hyphens.', { field: 'urlKey' });
+      }
+      if (write.scope.level === 'global') {
+        if (key === null) {
+          throw new HttpError(422, ERROR_CODES.SCOPED_VALUE_INVALID, 'The Global URL key cannot inherit.', {
+            fields: [{ field: 'urlKey', scope: write.scope, reason: 'inherit_at_global' }],
+          });
+        }
+        slug = key;
+        continue;
+      }
+      const channelId = write.scope.channelId;
+      const channel = channels.get(channelId);
+      let languageCode: string | null = null;
+      if (write.scope.level === 'channel_language') {
+        const wanted = write.scope.languageCode;
+        languageCode = channel?.languages.find((code) => sameLanguage(code, wanted)) ?? wanted;
+      }
+      const index = rows.findIndex(
+        (row) =>
+          row.salesChannelId === channelId &&
+          (languageCode === null ? row.languageCode === null : row.languageCode !== null && sameLanguage(row.languageCode, languageCode)),
+      );
+      if (key === null) {
+        // Removing an own key is always allowed, an orphan's included (163 FR-015).
+        if (index !== -1) rows.splice(index, 1);
+        continue;
+      }
+      const offered = channel !== undefined && (languageCode === null || channel.languages.some((code) => sameLanguage(code, languageCode)));
+      if (!offered) {
+        throw new HttpError(
+          422,
+          ERROR_CODES.SCOPE_INVALID,
+          channel ? 'The sales channel does not offer this language.' : 'The product is not a member of this sales channel.',
+          { channelId, ...(languageCode ? { languageCode } : {}), reason: channel ? 'language_not_offered' : 'not_a_member' },
+        );
+      }
+      if (index !== -1) rows[index] = { ...rows[index]!, key };
+      else rows.push({ salesChannelId: channelId, languageCode, key });
+    }
+
+    // Lock every key the write touches: both slugs, every outgoing and newly effective key, every new row key.
+    const touched = new Set<string>([slugBefore, slug, ...rows.map((row) => row.key)]);
+    for (const [channelId, channel] of channels) {
+      for (const languageCode of channel.languages) {
+        touched.add(effectiveKeyAt(beforeRows, slugBefore, channelId, languageCode));
+        touched.add(effectiveKeyAt(rows, slug, channelId, languageCode));
+      }
+    }
+    await lockUrlKeys(em, [...touched]);
+
+    // Under the locks: the keys P newly holds — the slug anywhere, and per channel every key it did not hold there.
+    const conflicts: Conflict[] = [];
+    if (slug !== slugBefore) {
+      for (const holder of await this.#slugConflicts(em, productId, slug)) conflicts.push({ ...holder, key: slug });
+    }
+    for (const [channelId, channel] of channels) {
+      const held = keysInChannel(beforeRows, slugBefore, channel, channelId);
+      for (const key of keysInChannel(rows, slug, channel, channelId)) {
+        if (held.has(key)) continue;
+        for (const holder of await this.#channelConflicts(em, productId, channelId, key)) conflicts.push({ ...holder, key, channelId });
+      }
+    }
+
+    if (options.mode === 'integration' && conflicts.length > 0) {
+      const blocked = new Set(conflicts.map((conflict) => conflict.key));
+      const kept = writes.filter((write) => !(write.op.op === 'set' && blocked.has(normaliseUrlKey(write.op.key))));
+      const issues = conflicts.map((conflict) => ({
+        channelId: conflict.channelId,
+        languageCode: conflict.languageCode,
+        key: conflict.key,
+        heldByProductId: conflict.holderId,
+        kind: conflict.kind,
+      }));
+      if (kept.length === writes.length) {
+        // The conflict comes from a key that only becomes effective (an `inherit`): nothing is written.
+        const keys = keyList(beforeRows);
+        return { changed: false, before: { slug: slugBefore, keys, redirectsDeleted: [] }, after: { slug: slugBefore, keys, redirectsInserted: [] }, issues };
+      }
+      const retried = await this.lockAndCheck(em, productId, kept, options);
+      return { ...retried, issues: [...issues, ...retried.issues] };
+    }
+    const current = conflicts.filter((conflict) => conflict.kind === 'current');
+    if (current.length > 0) {
+      const names = await this.#names(em, current.map((conflict) => conflict.holderId));
+      const details: UrlKeyTakenDetails = {
+        conflicts: current.map((conflict) => ({
+          channelId: conflict.channelId,
+          languageCode: conflict.languageCode,
+          key: conflict.key,
+          heldByProductId: conflict.holderId,
+          heldByProductName: names.get(conflict.holderId) ?? conflict.holderId,
+        })),
+      };
+      throw new HttpError(409, ERROR_CODES.URL_KEY_TAKEN, 'This URL key is used by another product.', details);
+    }
+    const redirectConflicts = conflicts.filter((conflict) => conflict.kind === 'redirect');
+    const unconfirmed = redirectConflicts.filter((conflict) => !confirm.has(conflict.key));
+    if (unconfirmed.length > 0) {
+      const names = await this.#names(em, unconfirmed.map((conflict) => conflict.holderId));
+      const details: UrlKeyRedirectTakeoverRequiredDetails = {
+        takeovers: unconfirmed.map((conflict) => ({
+          channelId: conflict.channelId,
+          languageCode: conflict.languageCode,
+          key: conflict.key,
+          losingProductId: conflict.holderId,
+          losingProductName: names.get(conflict.holderId) ?? conflict.holderId,
+        })),
+      };
+      throw new HttpError(409, ERROR_CODES.URL_KEY_REDIRECT_TAKEOVER_REQUIRED, 'This URL key redirects to another product; confirm to take it over.', details);
+    }
+
+    // Apply. Takeovers first: another product's redirects for the confirmed keys go (listed in the audit).
+    const deleted: UrlRedirectAuditRow[] = [];
+    for (const conflict of redirectConflicts) {
+      const lost = await em.find(ProductUrlRedirect, {
+        key: conflict.key,
+        productId: conflict.holderId,
+        ...(conflict.channelId ? { salesChannelId: conflict.channelId } : {}),
+      });
+      for (const row of lost) {
+        if (deleted.some((d) => d.id === row.id)) continue;
+        deleted.push({ id: row.id, productId: row.productId, channelId: row.salesChannelId, languageCode: row.languageCode, key: row.key });
+        em.remove(row);
+      }
+    }
+
+    // P's redirects: one per pair whose effective key moved from k0, unless k0 is still one of P's keys in C.
+    const inserted: UrlRedirectAuditRow[] = [];
+    const live = [...ownRedirects];
+    for (const [channelId, channel] of channels) {
+      const after = keysInChannel(rows, slug, channel, channelId);
+      for (const languageCode of channel.languages) {
+        const k0 = effectiveKeyAt(beforeRows, slugBefore, channelId, languageCode);
+        const k1 = effectiveKeyAt(rows, slug, channelId, languageCode);
+        if (k0 === k1 || after.has(k0)) continue;
+        if (live.some((row) => row.salesChannelId === channelId && sameLanguage(row.languageCode, languageCode) && row.key === k0)) continue;
+        const row = em.create(ProductUrlRedirect, { id: randomUUID(), productId, salesChannelId: channelId, languageCode, key: k0, createdAt: new Date() });
+        em.persist(row);
+        live.push(row);
+        inserted.push({ id: row.id, productId, channelId, languageCode, key: k0 });
+      }
+    }
+    // No self-redirect (§2.3): a redirect of P whose key is one of P's keys in its channel goes.
+    for (const row of [...live]) {
+      if (!keysInChannel(rows, slug, channels.get(row.salesChannelId), row.salesChannelId).has(row.key)) continue;
+      em.remove(row);
+      live.splice(live.indexOf(row), 1);
+      const fresh = inserted.findIndex((i) => i.id === row.id);
+      if (fresh !== -1) inserted.splice(fresh, 1);
+      else deleted.push({ id: row.id, productId, channelId: row.salesChannelId, languageCode: row.languageCode, key: row.key });
+    }
+    // The cap per (product, channel): the oldest beyond it go, listed in the audit.
+    for (const channelId of new Set(live.map((row) => row.salesChannelId))) {
+      const list = live
+        .filter((row) => row.salesChannelId === channelId)
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b.id.localeCompare(a.id));
+      for (const row of list.slice(URL_REDIRECTS_PER_CHANNEL_MAX)) {
+        em.remove(row);
+        deleted.push({ id: row.id, productId, channelId, languageCode: row.languageCode, key: row.key });
+      }
+    }
+
+    // The key rows and the slug.
+    for (const row of ownRows) {
+      const next = rows.find((r) => r.salesChannelId === row.salesChannelId && sameLanguage(r.languageCode, row.languageCode ?? null));
+      if (!next) em.remove(row);
+      else if (next.key !== row.key) {
+        row.key = next.key;
+        row.updatedAt = new Date();
+        em.persist(row);
+      }
+    }
+    for (const next of rows) {
+      if (ownRows.some((row) => row.salesChannelId === next.salesChannelId && sameLanguage(row.languageCode ?? null, next.languageCode))) continue;
+      em.persist(em.create(ProductUrlKey, { id: randomUUID(), productId, salesChannelId: next.salesChannelId, languageCode: next.languageCode, key: next.key }));
+    }
+    if (slug !== slugBefore) product.slug = slug;
+    try {
+      await em.flush();
+    } catch (err) {
+      if (isKeyViolation(err)) throw new HttpError(409, ERROR_CODES.URL_KEY_TAKEN, 'This URL key is used by another product.', { conflicts: [] });
+      throw err;
+    }
+    const changed =
+      slug !== slugBefore || JSON.stringify(keyList(beforeRows)) !== JSON.stringify(keyList(rows)) || inserted.length > 0 || deleted.length > 0;
+    return {
+      changed,
+      before: { slug: slugBefore, keys: keyList(beforeRows), redirectsDeleted: deleted },
+      after: { slug, keys: keyList(rows), redirectsInserted: inserted },
+      issues: [],
+    };
+  }
+
+  /** §2.2 — another product holding `key` as its slug, a row key (any channel) or a redirect. */
+  async #slugConflicts(em: EntityManager, productId: string, key: string): Promise<Array<Omit<Conflict, 'key'>>> {
+    const rows = await em.execute<Array<{ product_id: string; channel_id: string | null; language_code: string | null; kind: 'current' | 'redirect' }>>(
+      `select id::text as product_id, null::text as channel_id, null::text as language_code, 'current' as kind from products where slug = ? and id <> ?
+       union all
+       select k.product_id::text, k.sales_channel_id::text, k.language_code, 'current' from product_url_keys k
+         join products p on p.id = k.product_id where k.key = ? and k.product_id <> ? and p.deleted_at is null
+       union all
+       select r.product_id::text, r.sales_channel_id::text, r.language_code, 'redirect' from product_url_redirects r where r.key = ? and r.product_id <> ?`,
+      [key, productId, key, productId, key, productId],
+    );
+    return rows.map((row) => ({ holderId: row.product_id, channelId: row.channel_id, languageCode: row.language_code, kind: row.kind }));
+  }
+
+  /** §3 — `key` taken in channel C by another product: one of its rows in C, its slug where C uses it, or its redirect in C. */
+  async #channelConflicts(
+    em: EntityManager,
+    productId: string,
+    channelId: string,
+    key: string,
+  ): Promise<Array<Omit<Conflict, 'key' | 'channelId'>>> {
+    const out: Array<Omit<Conflict, 'key' | 'channelId'>> = [];
+    const rows = await em.execute<Array<{ product_id: string; language_code: string | null }>>(
+      `select k.product_id::text as product_id, k.language_code from product_url_keys k
+         join products p on p.id = k.product_id
+        where k.sales_channel_id = ? and k.key = ? and k.product_id <> ? and p.deleted_at is null`,
+      [channelId, key, productId],
+    );
+    for (const row of rows) out.push({ holderId: row.product_id, languageCode: row.language_code, kind: 'current' });
+    const slugHolders = await em.find(Product, { slug: key, id: { $ne: productId }, deletedAt: null });
+    if (slugHolders.length > 0) {
+      const members = new Set(await this.membership.filterEntityIdsInChannel(channelId, 'product', slugHolders.map((p) => p.id)));
+      for (const holder of slugHolders) {
+        if (!members.has(holder.id)) continue;
+        const channel = (await this.membership.listChannelsForEntity('product', holder.id)).find((c) => c.id === channelId);
+        const holderRows = keyRowsOf(await em.find(ProductUrlKey, { productId: holder.id, salesChannelId: channelId }));
+        if (keysInChannel(holderRows, holder.slug, channel ? toScopeChannel(channel) : undefined, channelId).has(key)) {
+          out.push({ holderId: holder.id, languageCode: null, kind: 'current' });
+        }
+      }
+    }
+    const redirects = await em.execute<Array<{ product_id: string; language_code: string }>>(
+      `select product_id::text as product_id, language_code from product_url_redirects where sales_channel_id = ? and key = ? and product_id <> ?`,
+      [channelId, key, productId],
+    );
+    for (const row of redirects) out.push({ holderId: row.product_id, languageCode: row.language_code, kind: 'redirect' });
+    return out;
+  }
+
+  async #names(em: EntityManager, ids: readonly string[]): Promise<Map<string, string>> {
+    const products = await em.find(Product, { id: { $in: [...new Set(ids)] } }, { fields: ['id', 'name', 'sku'] });
+    return new Map(products.map((product) => [product.id, display(product)]));
+  }
+
+  /**
+   * A free slug for a **new** product (create, duplicate): the free-looking candidates are locked
+   * together in sorted order — the order every key writer locks in — and re-checked under the
+   * locks in the given order; the first still free wins. `null` = none is free.
+   */
+  allocateSlug(em: EntityManager, candidates: readonly string[]): Promise<string | null> {
+    return allocateFreeSlug(em, candidates);
+  }
+
+  /** `GET /admin/catalog/products/:id/url-keys` (§5). */
   async read(productId: string): Promise<ProductUrlKeysResponse['data']> {
-    assertProductIdShape(productId);
+    if (!UUID_SHAPE.test(productId)) throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     const em = this.emFactory();
     const product = await em.findOne(Product, { id: productId, deletedAt: null });
     if (!product) throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
@@ -679,52 +508,36 @@ export class UrlKeyService {
       em.find(ProductUrlRedirect, { productId }),
     ]);
     const memberById = new Map(members.map((channel) => [channel.id, channel]));
-    const channelKeys = [...keyRows].sort(
-      (a, b) =>
-        a.salesChannelId.localeCompare(b.salesChannelId) || (a.languageCode ?? '').localeCompare(b.languageCode ?? ''),
-    );
-
+    const rows = keyRowsOf(keyRows);
     const effective: ProductUrlKeysResponse['data']['effective'] = [];
     for (const channel of [...members].sort((a, b) => a.code.localeCompare(b.code))) {
       for (const languageCode of toScopeChannel(channel).languages) {
-        const clKey = channelKeys.find(
-          (row) => row.salesChannelId === channel.id && row.languageCode !== null && sameLanguage(row.languageCode, languageCode),
-        );
-        const cKey = channelKeys.find((row) => row.salesChannelId === channel.id && row.languageCode === null);
-        const [key, source] = clKey
-          ? [clKey.key, 'channel_language' as const]
-          : cKey
-            ? [cKey.key, 'channel' as const]
-            : [product.slug, 'global' as const];
+        const key = effectiveKeyAt(rows, product.slug, channel.id, languageCode);
+        const cl = rows.find((row) => row.salesChannelId === channel.id && row.languageCode != null && sameLanguage(row.languageCode, languageCode));
+        const c = rows.find((row) => row.salesChannelId === channel.id && row.languageCode == null);
         effective.push({
           channelId: channel.id,
           languageCode,
           key,
-          source,
+          source: cl ? 'channel_language' : c ? 'channel' : 'global',
           url: productPath({ key, languageCode, channel: channelUrlFactsOf(channel) }),
         });
       }
     }
-
-    // Q-C: the redirect list is `seo`'s surface — omitted while it is off. The rows
-    // stay, keep reserving their keys, and come back with it (FR-111).
-    const listRedirects = this.seoPresent();
     return {
       globalKey: product.slug,
-      channelKeys: channelKeys.map((row) => {
-        const channel = memberById.get(row.salesChannelId);
+      channelKeys: keyList(rows).map((row) => {
+        const channel = memberById.get(row.channelId);
         return {
-          channelId: row.salesChannelId,
-          languageCode: row.languageCode,
-          key: row.key,
+          ...row,
           orphaned:
             !channel ||
-            (row.languageCode !== null &&
-              !toScopeChannel(channel).languages.some((code) => sameLanguage(code, row.languageCode))),
+            (row.languageCode !== null && !toScopeChannel(channel).languages.some((code) => sameLanguage(code, row.languageCode))),
         };
       }),
       effective,
-      ...(listRedirects
+      // Q-C: the redirect list is `seo`'s surface — omitted while it is off; the rows stay and keep reserving.
+      ...(this.seoPresent()
         ? {
             redirects: redirects
               .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.key.localeCompare(b.key))
@@ -740,221 +553,61 @@ export class UrlKeyService {
     };
   }
 
-  /** `PUT /admin/catalog/products/:id/url-keys` (§2) — answers the keys as `read` does. */
+  /** `PUT /admin/catalog/products/:id/url-keys` (API; §3) — interactive, takeover by confirmation. */
   async update(productId: string, request: PutProductUrlKeysRequest): Promise<ProductUrlKeysResponse['data']> {
-    assertProductIdShape(productId);
-    await this.#run(this.#updateCommand(productId, request));
+    if (!UUID_SHAPE.test(productId)) throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
+    const writes: UrlKeyWrite[] = [];
+    if (request.globalKey !== undefined) writes.push({ scope: { level: 'global' }, op: { op: 'set', key: request.globalKey } });
+    for (const entry of request.channelKeys ?? []) {
+      const scope: ScopeRef = entry.languageCode
+        ? { level: 'channel_language', channelId: entry.channelId, languageCode: entry.languageCode }
+        : { level: 'channel', channelId: entry.channelId };
+      writes.push({ scope, op: typeof entry.key === 'string' ? { op: 'set', key: entry.key } : { op: 'inherit' } });
+    }
+    await this.#run(this.#writeCommand(productId, writes, { mode: 'interactive', confirmTakeover: request.confirmTakeover ?? [] }));
     return this.read(productId);
   }
 
-  /** `DELETE /admin/catalog/products/:id/url-redirects/:redirectId` (§3). */
+  /**
+   * An integration's keys (CSV, connector; §3): a taken key is not written and comes back as an
+   * issue naming the holder; a redirect is never taken over. One Command per call.
+   */
+  async importKeys(productId: string, writes: readonly ProductUrlKeyWrite[], source: string): Promise<UrlKeyWriteOutcome[]> {
+    if (!UUID_SHAPE.test(productId)) throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
+    if (writes.length === 0) return [];
+    const keyWrites: UrlKeyWrite[] = writes.map((write) => {
+      const scope: ScopeRef =
+        write.channelId === null
+          ? { level: 'global' }
+          : write.languageCode
+            ? { level: 'channel_language', channelId: write.channelId, languageCode: write.languageCode }
+            : { level: 'channel', channelId: write.channelId };
+      return { scope, op: write.key === null ? { op: 'inherit' } : { op: 'set', key: write.key } };
+    });
+    const effects = await this.#run(this.#writeCommand(productId, keyWrites, { mode: 'integration' }, source));
+    return writes.map((write) => {
+      const issue = effects.issues.find((i) => write.key !== null && i.key === normaliseUrlKey(write.key));
+      return issue ? { written: false as const, issue } : { written: true as const };
+    });
+  }
+
+  /** `DELETE /admin/catalog/products/:id/url-redirects/:redirectId` (Command `product.url_redirect.delete`). */
   async deleteRedirect(productId: string, redirectId: string): Promise<void> {
     if (!UUID_SHAPE.test(productId) || !UUID_SHAPE.test(redirectId)) {
       throw new HttpError(404, ERROR_CODES.URL_REDIRECT_NOT_FOUND, 'Redirect not found.', { redirectId });
     }
-    await this.#run(this.#deleteRedirectCommand(productId, redirectId));
-  }
-
-  async #run<T>(command: Command<T>): Promise<T> {
-    if (this.commandBus) return this.commandBus.run(command);
-    return this.emFactory().transactional(async (em) => {
-      const outcome = await command.run({
-        em,
-        actor: { actorAdminUserId: null, impersonatedCustomerAccountId: null, kind: 'system' },
-      });
-      return outcome.result;
-    });
-  }
-
-  /**
-   * Inside a Command's transaction: lock the product row (one writer per product),
-   * take every touched key's advisory lock in sorted order, then read the state the
-   * planner decides on. `keys` must cover every key any request planned against it
-   * can touch.
-   */
-  async #lockAndLoad(
-    em: EntityManager,
-    productId: string,
-    keysFor: (slug: string, ownKeys: readonly UrlKeyRow[]) => string[],
-  ): Promise<{ product: Product; ownKeyEntities: ProductUrlKey[]; state: UrlKeyWriteState }> {
-    const locked = (await em.execute(
-      `select "id" from "products" where "id" = ? and "deleted_at" is null for update`,
-      [productId],
-    )) as unknown[];
-    if (locked.length === 0) throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
-    const product = await em.findOneOrFail(Product, { id: productId });
-    const ownKeyEntities = await em.find(ProductUrlKey, { productId });
-    const ownKeys = ownKeyEntities.map(toKeyRow);
-    const keys = keysFor(product.slug, ownKeys);
-    await lockUrlKeys(em, keys);
-
-    const [ownRedirects, otherKeys, otherRedirects, otherSlugProducts, channels, members] = await Promise.all([
-      em.find(ProductUrlRedirect, { productId }),
-      em.find(ProductUrlKey, { key: { $in: keys }, productId: { $ne: productId } }),
-      em.find(ProductUrlRedirect, { key: { $in: keys }, productId: { $ne: productId } }),
-      // Deleted products included: `products.slug` is unique across them (`otherProductSlugs`).
-      em.find(Product, { slug: { $in: keys }, id: { $ne: productId } }),
-      em.find(SalesChannel, {}),
-      this.membership.listChannelsForEntity('product', productId),
-    ]);
-    const holderIds = [...new Set([...otherKeys.map((row) => row.productId), ...otherRedirects.map((row) => row.productId)])];
-    const holders = holderIds.length === 0 ? [] : await em.find(Product, { id: { $in: holderIds } });
-    const liveHolders = new Set(holders.filter((p) => p.deletedAt == null).map((p) => p.id));
-    const liveSlugProductIds = otherSlugProducts.filter((p) => p.deletedAt == null).map((p) => p.id);
-    const slugLanguageKeys =
-      liveSlugProductIds.length === 0
-        ? []
-        : await em.find(ProductUrlKey, { productId: { $in: liveSlugProductIds }, salesChannelId: null });
-    const channelLanguages = new Map<string, string>();
-    for (const channel of channels) {
-      for (const code of toScopeChannel(channel).languages) if (!channelLanguages.has(lower(code))) channelLanguages.set(lower(code), code);
-    }
-    return {
-      product,
-      ownKeyEntities,
-      state: {
-        productId,
-        slug: product.slug,
-        ownKeys,
-        ownRedirects: ownRedirects.map(toRedirectRow),
-        otherKeys: otherKeys.filter((row) => liveHolders.has(row.productId)).map(toKeyRow),
-        otherSlugs: otherProductSlugs(otherSlugProducts, slugLanguageKeys.map(toKeyRow)),
-        otherRedirects: otherRedirects.map(toRedirectRow),
-        productNames: new Map([...holders, ...otherSlugProducts].map((p) => [p.id, displayName(p)])),
-        channelLanguages: [...channelLanguages.values()],
-        memberChannels: new Map(members.map((channel) => [channel.id, toScopeChannel(channel).languages])),
-      },
-    };
-  }
-
-  /** Writes a plan the planner answered; answers the redirect rows it inserted. */
-  async #applyPlan(
-    em: EntityManager,
-    productId: string,
-    product: Product,
-    ownKeyEntities: readonly ProductUrlKey[],
-    plan: UrlKeyWritePlan,
-    memberChannels: ReadonlyMap<string, readonly string[]>,
-  ): Promise<UrlRedirectAuditRow[]> {
-    if (plan.deleteRedirects.length > 0) {
-      await em.nativeDelete(ProductUrlRedirect, { id: { $in: plan.deleteRedirects.map((row) => row.id) } });
-    }
-    for (const { languageCode, channelId, next } of plan.keyRows) {
-      const row = ownKeyEntities.find(
-        (entity) => entity.salesChannelId === channelId && sameLanguage(entity.languageCode, languageCode),
-      );
-      if (next === null) {
-        if (row) em.remove(row);
-      } else if (row) {
-        row.key = next;
-      } else if (channelId !== null) {
-        em.persist(
-          em.create(ProductUrlKey, { id: randomUUID(), productId, languageCode, salesChannelId: channelId, key: next }),
-        );
-      }
-    }
-    if (plan.slug !== null) product.slug = plan.slug;
-    // 170-shim: a redirect answers at one (channel, language) now — the planner's language (or
-    // every language, for a former Global key) at each member channel offering it.
-    const inserted = plan.insertRedirects.flatMap((row) =>
-      [...memberChannels].flatMap(([salesChannelId, languages]) =>
-        languages
-          .filter((code) => row.languageCode === null || sameLanguage(code, row.languageCode))
-          .map((languageCode) => ({ id: randomUUID(), productId, salesChannelId, languageCode, key: row.key })),
-      ),
-    );
-    for (const row of inserted) em.persist(em.create(ProductUrlRedirect, row));
-    await em.flush();
-    return inserted;
-  }
-
-  #updateCommand(productId: string, body: PutProductUrlKeysRequest): Command<{ changed: boolean }> {
-    const request = legacyRequestOf(body);
-    return {
-      action: 'product.url_keys.update',
-      objectType: 'product',
-      objectId: productId,
-      run: async ({ em }) => {
-        const { product, ownKeyEntities, state } = await this.#lockAndLoad(em, productId, (slug, ownKeys) =>
-          urlKeysToLock(slug, ownKeys, request),
-        );
-        const plan = planUrlKeyWrite(state, request);
-        if (!plan.changed) return { result: { changed: false }, skipAudit: true };
-        const inserted = await this.#applyPlan(em, productId, product, ownKeyEntities, plan, state.memberChannels);
-        return {
-          result: { changed: true },
-          before: plan.before,
-          after: { ...plan.after, redirects: inserted, changedFields: ['urlKeys'] },
-        };
-      },
-      event: ({ changed }) => (changed ? urlKeysUpdatedEvent(productId) : undefined),
-    };
-  }
-
-  /**
-   * `catalogProductScopeWritePort.applyScopes(…).urlKeys` (contract §5, FR-093) —
-   * an integration's keys, in import mode: each key the operator's write would
-   * refuse as **taken** (another product's current key, or another product's
-   * redirect) is not written and comes back as an issue naming the holder, and the
-   * product keeps its previous key at that scope. A redirect is never taken over
-   * and nothing asks for confirmation — that is an operator's act (FR-072). Every
-   * other refusal (a channel the product is not in, a language no channel offers)
-   * refuses the call, as the admin write does.
-   *
-   * One Command for the call: the accepted keys are written together, one audit
-   * entry, `product.updated.v1` with `['urlKeys']` when anything changed.
-   */
-  async importKeys(productId: string, writes: readonly ProductUrlKeyWrite[], source: string): Promise<UrlKeyWriteOutcome[]> {
-    assertProductIdShape(productId);
-    if (writes.length === 0) return [];
-    return this.#run(this.#importCommand(productId, writes, source));
-  }
-
-  #importCommand(
-    productId: string,
-    writes: readonly ProductUrlKeyWrite[],
-    source: string,
-  ): Command<UrlKeyWriteOutcome[]> {
-    let changed = false;
-    return {
-      action: 'product.url_keys.update',
-      objectType: 'product',
-      objectId: productId,
-      run: async ({ em }) => {
-        const full = importRequest(writes);
-        const { product, ownKeyEntities, state } = await this.#lockAndLoad(em, productId, (slug, ownKeys) =>
-          urlKeysToLock(slug, ownKeys, full),
-        );
-        const { accepted, outcomes } = admitImportKeys(state, writes);
-        if (accepted.length === 0) return { result: outcomes, skipAudit: true };
-        const plan = planUrlKeyWrite(state, importRequest(accepted));
-        if (!plan.changed) return { result: outcomes, skipAudit: true };
-        const inserted = await this.#applyPlan(em, productId, product, ownKeyEntities, plan, state.memberChannels);
-        changed = true;
-        return {
-          result: outcomes,
-          before: plan.before,
-          after: { ...plan.after, redirects: inserted, changedFields: ['urlKeys'], source },
-        };
-      },
-      event: () => (changed ? urlKeysUpdatedEvent(productId) : undefined),
-    };
-  }
-
-  #deleteRedirectCommand(productId: string, redirectId: string): Command<{ id: string }> {
-    return {
+    await this.#run<{ id: string }>({
       action: 'product.url_redirect.delete',
       objectType: 'product',
       objectId: productId,
       run: async ({ em }) => {
         const row = await em.findOne(ProductUrlRedirect, { id: redirectId, productId });
-        if (!row) {
-          throw new HttpError(404, ERROR_CODES.URL_REDIRECT_NOT_FOUND, 'Redirect not found.', { redirectId });
-        }
+        if (!row) throw new HttpError(404, ERROR_CODES.URL_REDIRECT_NOT_FOUND, 'Redirect not found.', { redirectId });
         const before = {
           id: row.id,
           productId: row.productId,
-          languageCode: row.languageCode ?? null,
+          channelId: row.salesChannelId,
+          languageCode: row.languageCode,
           key: row.key,
           createdAt: row.createdAt.toISOString(),
         };
@@ -962,6 +615,32 @@ export class UrlKeyService {
         await em.flush();
         return { result: { id: row.id }, before, after: null };
       },
+    });
+  }
+
+  #writeCommand(productId: string, writes: readonly UrlKeyWrite[], options: UrlKeyCheckOptions, source?: string): Command<UrlKeySideEffects> {
+    return {
+      action: 'product.url_keys.update',
+      objectType: 'product',
+      objectId: productId,
+      run: async ({ em }) => {
+        const effects = await this.lockAndCheck(em, productId, writes, options);
+        if (!effects.changed) return { result: effects, skipAudit: true };
+        return {
+          result: effects,
+          before: { ...effects.before },
+          after: { ...effects.after, changedFields: ['urlKeys'], ...(source ? { source } : {}) },
+        };
+      },
+      event: (effects) => (effects.changed ? urlKeysUpdatedEvent(productId) : undefined),
     };
+  }
+
+  async #run<T>(command: Command<T>): Promise<T> {
+    if (this.commandBus) return this.commandBus.run(command);
+    return this.emFactory().transactional(async (em) => {
+      const outcome = await command.run({ em, actor: { actorAdminUserId: null, impersonatedCustomerAccountId: null, kind: 'system' } });
+      return outcome.result;
+    });
   }
 }

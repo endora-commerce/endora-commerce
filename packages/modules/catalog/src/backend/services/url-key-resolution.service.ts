@@ -19,20 +19,15 @@ import { channelUrlFactsOf } from './channel-url-facts.js';
 import { inIdChunks } from './sql-id-arrays.js';
 
 /**
- * Feature 163 (`specs/163-product-data-scopes/`) — which product a URL key names
- * at (sales channel C, language L), and what a product's keys are where it is read
- * (`contracts/url-keys-and-redirects.md` §1, §4, §6; data-model §5; research R12,
- * R28).
+ * Feature 163, rewritten by feature 170 (T039; `contracts/url-keys.md` §4, research R12) — which
+ * product a URL key names at (sales channel C, language L), and what a product's keys are where it
+ * is read.
  *
- * A key is valid only in its own language (K1): at (C, L) the keys of L resolve —
- * a product's current keys in L serve it or redirect to its effective key there,
- * its redirect keys in L redirect — and nothing else does. Every redirect target
- * is the path {@link productPath} builds for the product's effective key at
- * (C, L), the one helper every emitted product URL goes through.
- *
- * `catalog` owns the redirect rows; `seo` owns whether they are **served**
- * (research R12, Q-C): with `seo` not effectively present a redirect key answers
- * exactly what a key of no product answers. Current keys keep serving.
+ * At (C, L): (1) a product of C whose **effective** key at (C, L) is `k` serves it; (2) else a
+ * redirect `(C, L, k)` answers 308 to the product's effective path there — served only while `seo`
+ * is effectively present (163 Q-C, FR-111); (3) else a key of a product of C at another of C's
+ * languages answers a temporary redirect to its key at L (feature 167); else not found. Every
+ * redirect target is {@link productPath} over the effective key.
  */
 
 /**
@@ -69,7 +64,6 @@ export async function loadEffectiveKeys(
     const keys = new Map<string, string>();
     for (const languageCode of channel.languages) {
       // Feature 170 (`contracts/url-keys.md` §1) — the C×L key, else the Channel key, else the slug.
-      // 170-shim: the rest of this file (current holder, redirect target) is T039's rewrite.
       const clKey = own.find(
         (row) => row.languageCode !== null && sameLanguage(row.languageCode, languageCode),
       );
@@ -82,46 +76,45 @@ export async function loadEffectiveKeys(
 }
 
 /**
- * The live product holding `key` as a **current** key in `languageCode`: a URL-key
- * row of that language (any channel, orphans included), or the global key of a
- * product with no language key for it (FR-070). Uniqueness per language (Phase 16)
- * makes the answer at most one product. Never a redirect.
+ * The live product whose **effective** key at (C, L) is `key` (§4.1): a C×L row of L, a C row of
+ * a product with no C×L row at L, or the slug of a product with neither. Membership of C is the
+ * caller's (the reachability check). §2.1 makes the answer at most one product.
  */
 export async function findCurrentKeyHolder(
   em: EntityManager,
   key: string,
+  channelId: string,
   languageCode: string,
 ): Promise<Product | null> {
-  const rows = await em.find(ProductUrlKey, { key }, { fields: ['productId', 'languageCode'] });
-  const holderIds = [...new Set(rows.filter((row) => sameLanguage(row.languageCode, languageCode)).map((row) => row.productId))];
-  if (holderIds.length > 0) {
-    const holders = await em.find(Product, { id: { $in: holderIds }, deletedAt: null });
-    if (holders[0]) return holders[0];
+  const rows = await em.find(ProductUrlKey, { key, salesChannelId: channelId }, { fields: ['productId', 'languageCode', 'salesChannelId', 'key'] });
+  for (const productId of new Set(rows.map((row) => row.productId))) {
+    const own = await em.find(ProductUrlKey, { productId, salesChannelId: channelId }, { fields: ['productId', 'languageCode', 'salesChannelId', 'key'] });
+    const product = await em.findOne(Product, { id: productId, deletedAt: null });
+    if (!product) continue;
+    const effective = (await loadEffectiveKeysFromRows(own, product.slug, channelId, languageCode));
+    if (effective === key) return product;
   }
   const bySlug = await em.findOne(Product, { slug: key, deletedAt: null });
   if (!bySlug) return null;
-  const languageKeys = await em.find(
-    ProductUrlKey,
-    { productId: bySlug.id, salesChannelId: null },
-    { fields: ['languageCode'] },
-  );
-  return languageKeys.some((row) => sameLanguage(row.languageCode, languageCode)) ? null : bySlug;
+  const own = await em.find(ProductUrlKey, { productId: bySlug.id, salesChannelId: channelId }, { fields: ['productId', 'languageCode', 'salesChannelId', 'key'] });
+  return (await loadEffectiveKeysFromRows(own, bySlug.slug, channelId, languageCode)) === key ? bySlug : null;
 }
 
-/**
- * The product a redirect key of `languageCode` points at: a redirect row of that
- * language, else a language-less one (a former global key — it redirects in every
- * language, whatever language keys its product holds; H1).
- */
-async function findRedirectTarget(
-  em: EntityManager,
-  key: string,
+async function loadEffectiveKeysFromRows(
+  rows: ReadonlyArray<Pick<ProductUrlKey, 'languageCode' | 'key'>>,
+  slug: string,
+  _channelId: string,
   languageCode: string,
-): Promise<Product | null> {
-  const rows = await em.find(ProductUrlRedirect, { key });
-  const row =
-    rows.find((r) => r.languageCode != null && sameLanguage(r.languageCode, languageCode)) ??
-    rows.find((r) => r.languageCode == null);
+): Promise<string> {
+  const cl = rows.find((row) => row.languageCode != null && sameLanguage(row.languageCode, languageCode));
+  const c = rows.find((row) => row.languageCode == null);
+  return cl?.key ?? c?.key ?? slug;
+}
+
+/** The product a redirect `(C, L, key)` points at (§4.2). */
+async function findRedirectTarget(em: EntityManager, key: string, channelId: string, languageCode: string): Promise<Product | null> {
+  const rows = await em.find(ProductUrlRedirect, { key, salesChannelId: channelId });
+  const row = rows.find((r) => sameLanguage(r.languageCode, languageCode));
   if (!row) return null;
   return em.findOne(Product, { id: row.productId, deletedAt: null });
 }
@@ -151,10 +144,10 @@ export class UrlKeyResolutionService {
     const languageCode = resolveScopeLanguage(channel, ctx.preferredLanguage);
     const em = this.emFactory();
 
-    let product = await findCurrentKeyHolder(em, key, languageCode);
+    let product = await findCurrentKeyHolder(em, key, channel.id, languageCode);
     // A redirect is served only while `seo` is present; otherwise it is a key of
     // no product, and answers exactly that (FR-111).
-    if (!product && this.seoPresent()) product = await findRedirectTarget(em, key, languageCode);
+    if (!product && this.seoPresent()) product = await findRedirectTarget(em, key, channel.id, languageCode);
     // Feature 167 (FR-024, research R-9) — a current key of the product in another
     // **channel** language (channel order; a language the channel does not serve is
     // not considered, XII). It is never served under L (K1): it redirects to the
@@ -164,7 +157,7 @@ export class UrlKeyResolutionService {
     if (!product) {
       for (const other of channel.languages) {
         if (other === languageCode) continue;
-        product = await findCurrentKeyHolder(em, key, other);
+        product = await findCurrentKeyHolder(em, key, channel.id, other);
         if (product) {
           crossLanguage = true;
           break;

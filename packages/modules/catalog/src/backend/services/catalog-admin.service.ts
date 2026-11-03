@@ -85,7 +85,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import { Category } from '../entities/category.entity.js';
 import { Product } from '../entities/product.entity.js';
 import { ProductUrlRedirect } from '../entities/product-url-redirect.entity.js';
-import { isUrlKeyFree, lockUrlKeys } from './url-key.service.js';
+import { allocateFreeSlug } from './url-key.service.js';
 import { ProductVariant } from '../entities/product-variant.entity.js';
 import { ProductChannelScope } from '../entities/product-channel-scope.entity.js';
 import { ProductChannelLanguageScope } from '../entities/product-channel-language-scope.entity.js';
@@ -1244,17 +1244,10 @@ export class CatalogAdminService {
    */
   private async allocateUniqueSlug(em: EntityManager, source: string): Promise<string> {
     const root = this.slugify(source);
-    const probes: string[] = [];
-    for (let i = 0; i < 1000 && probes.length < SLUG_CANDIDATE_LOCKS; i += 1) {
-      const candidate = i === 0 ? root : this.slugify(`${root}-${i + 1}`);
-      if (!probes.includes(candidate) && (await isUrlKeyFree(em, candidate))) probes.push(candidate);
-    }
-    if (probes.length > 0) {
-      await lockUrlKeys(em, probes);
-      for (const candidate of probes) {
-        if (await isUrlKeyFree(em, candidate)) return candidate;
-      }
-    }
+    const candidates = Array.from({ length: 1000 }, (_, i) => (i === 0 ? root : this.slugify(`${root}-${i + 1}`)));
+    // Feature 170 (T039) — the URL-key service's allocation: probe, lock in sorted order, re-check.
+    const slug = await allocateFreeSlug(em, candidates, SLUG_CANDIDATE_LOCKS);
+    if (slug !== null) return slug;
     throw new HttpError(
       409,
       ERROR_CODES.VALIDATION_FAILED,
