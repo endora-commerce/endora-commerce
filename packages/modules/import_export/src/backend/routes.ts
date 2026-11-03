@@ -3,13 +3,13 @@ import { z } from 'zod';
 import {
   ERROR_CODES,
   createImportProfileRequestSchema,
+  importChannelTargetListResponseSchema,
   importProfileListQuerySchema,
   productsImportQuerySchema,
   updateImportProfileRequestSchema,
   uuidSchema,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
-import { importChannelTargetListResponseSchema } from './channel-targets.js';
 import type { ImportExportService } from './services/import-export-service.js';
 import type { ImportProfileService } from './services/import-profile.service.js';
 import type { RequireAdminAnyFactory, RequireAdminFactory } from '@endora-commerce/platform/kernel';

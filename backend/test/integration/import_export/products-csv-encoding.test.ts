@@ -5,6 +5,7 @@ import type { ScopedValuesResponse } from '@endora-commerce/contracts';
 import { SCOPED_WRITE_CASES, type ScopedWriteCase } from '../../../../packages/contracts/src/scoped-write-encoding.cases.js';
 import { setupBackendServer, teardownBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
 import { createImportProfile } from '../../helpers/import-profile.js';
+import { scopedValuesFixture, type ScopedValuesFixture } from '../../helpers/scoped-values-fixture.js';
 import { serializeCsv } from '../../../../packages/modules/import_export/src/backend/services/csv-codec.js';
 
 /**
@@ -17,9 +18,10 @@ import { serializeCsv } from '../../../../packages/modules/import_export/src/bac
  *
  * The `minOrderQuantity`, `returnable` and multiselect columns (coordinator ruling 2026-11-03,
  * §2.1): their refusals run here, end to end; their parser side is
- * `packages/modules/import_export/src/backend/services/adapters/products.adapter.test.ts`; what
- * catalog stores for them is S1's acceptance (T084) and stays `todo` here. The C / C×L text
- * writes depend on `catalog`'s `ProductImportRow` v2 writer (T084, S1).
+ * `packages/modules/import_export/src/backend/services/adapters/products.adapter.test.ts`. The
+ * remaining rows are read back from catalog too. The encoding passes `-5` and `'5` through as a
+ * value (`set`), and catalog then refuses them as a minimum order quantity (`invalid`): the
+ * stored outcome is a field error, not a stored `-5`.
  */
 const ADMIN = { cookies: { b2b_session: 'stub-admin-session' } };
 const FIELDS = new Set(['name', 'description', 'status']);
@@ -144,7 +146,67 @@ describe('170 — products CSV import, the shared encoding cases [integration]',
     expect(report.fieldErrors).toEqual([{ rowNumber: 2, column, code: c.expect }]);
   });
 
-  for (const c of valueCases.filter((c) => !refusals.includes(c))) {
-    it.todo(`${c.name} — catalog stores the ${c.field} cell (S1, T084)`);
-  }
+  describe('the minimum order quantity and multiselect rows, read back from catalog', () => {
+    let fx: ScopedValuesFixture;
+    let channel = '';
+    let code = '';
+    let multi = '';
+
+    beforeAll(async () => {
+      fx = scopedValuesFixture(() => h);
+      channel = await fx.channel(['pl-PL']);
+      code = (await fx.sql<{ code: string }>(`select code from sales_channels where id = ?`, [channel]))[0]!.code;
+      multi = await fx.attribute({ key: 'multi', valueType: 'multiselect', scopable: true, options: ['red', 'blue'] });
+    });
+
+    afterAll(async () => {
+      if (fx) await fx.cleanup();
+    });
+
+    const stored = valueCases.filter((c) => !refusals.includes(c));
+
+    it('covers every remaining CSV row of the shared table', () => {
+      expect(stored.map((c) => c.name).sort()).toEqual([
+        'csv: NULL minimum order quantity = no minimum',
+        'csv: NULL multiselect = nothing selected',
+        'csv: a numeric column keeps a quote',
+        'csv: a numeric column keeps its minus',
+      ]);
+    });
+
+    it.each(stored.map((c) => [c.name, c] as const))('%s', async (_name, c) => {
+      const isMulti = c.field === 'attribute:multi';
+      const id = await fx.product({ channels: [channel] });
+      const scope = c.level === 'C' ? { channelId: channel } : {};
+      const seed = isMulti ? { attributes: { [multi]: ['red'] } } : { minOrderQuantity: 3 };
+      await fx.save(id, scope, seed);
+      const base = isMulti ? `attribute:${multi}` : 'minOrderQuantity';
+      const column = c.level === 'C' ? `${base}@${code}` : base;
+      const sku = (await fx.sql<{ sku: string }>(`select sku from products where id = ?`, [id]))[0]!.sku;
+      const res = await h.app.inject({
+        method: 'POST',
+        url: `/api/v1/admin/import/products?profileId=${profileId}`,
+        ...ADMIN,
+        headers: { 'content-type': 'text/csv' },
+        payload: serializeCsv([
+          ['sku', column],
+          [sku, c.csv!],
+        ]),
+      });
+      expect(res.statusCode, res.body).toBe(200);
+      const report = (res.json() as { data: { fieldErrors?: Array<{ rowNumber: number; column: string; code: string }> } }).data;
+      const data = await fx.read(id, scope);
+      const view = isMulti ? data.attributes.find((a) => a.key === multi)!.view : data.fields.minOrderQuantity;
+
+      if (typeof c.expect === 'object' && c.expect.op === 'set') {
+        // The encoding hands catalog the value; catalog refuses it as a minimum.
+        expect(report.fieldErrors).toEqual([expect.objectContaining({ rowNumber: 2, column, code: 'invalid' })]);
+        expect(view).toMatchObject({ value: 3, source: 'set' });
+        return;
+      }
+      expect(report.fieldErrors ?? []).toEqual([]);
+      expect(view.value).toBeNull();
+      expect(view.source).toBe('set_empty');
+    });
+  });
 });

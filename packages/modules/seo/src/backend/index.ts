@@ -5,7 +5,6 @@ import type {
   CatalogProductReadPort,
   CatalogProductUrlKeyReadPort,
   CmsPageReadPort,
-  SeoMetaWritePort,
   SeoProductMetaPort,
   SeoProductMetaWritePort,
   SettingWriteValidatorRegistryPort,
@@ -179,23 +178,6 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.providePort<SeoProductMetaWritePort<EntityManager>>(
     'seoProductMetaWritePort',
     ctx.asFunction((): SeoProductMetaWritePort<EntityManager> => createSeoProductMetaWritePort()).singleton(),
-  );
-
-  ctx.di.providePort<SeoMetaWritePort>(
-    'seoMetaWritePort',
-    ctx
-      .asFunction(({ seoMetaResolver }: SeoCradle): SeoMetaWritePort => ({
-        async upsertProductMeta(input) {
-          await seoMetaResolver.upsertOverride({
-            entityType: 'product',
-            entityId: input.productId,
-            locale: input.locale,
-            ...(input.title !== undefined ? { title: input.title } : {}),
-            ...(input.description !== undefined ? { description: input.description } : {}),
-          });
-        },
-      }))
-      .singleton(),
   );
 
   /**

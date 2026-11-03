@@ -2,13 +2,13 @@ import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   CreateImportProfileRequest,
+  ImportChannelTarget,
   ImportProfile as ImportProfileView,
   UpdateImportProfileRequest,
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { toScopeChannel } from '@endora-commerce/contracts';
-import type { ImportChannelTarget } from '../channel-targets.js';
 import { ImportProfile } from '../entities/import-profile.entity.js';
 import {
   createImportProfileCommand,

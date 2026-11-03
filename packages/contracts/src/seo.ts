@@ -439,29 +439,6 @@ export const adminCrawlerFilePreviewResponseSchema = z.object({
 export type AdminCrawlerFilePreviewResponse = z.infer<typeof adminCrawlerFilePreviewResponseSchema>;
 
 /**
- * Container name: `seoMetaWritePort`. Owner: `seo`.
- *
- * Narrow write surface for PIM importers (feature 089 / FR-029): upsert product
- * meta overrides by locale — the language rows. Feature 163 added channel and
- * channel × language rows; this port writes none of them, so an import never
- * touches an operator's channel override (FR-091).
- *
- * **Owner off:** resolving this port throws `ModuleDisabledError` (503).
- *
- * @deprecated Feature 170: no module calls it, and with no Language scope any call naming a locale
- * answers `422 SCOPE_INVALID`. Product SEO is written through {@link SeoProductMetaWritePort}
- * inside catalog's Commands. Deleted together with `seo`'s `providePort` (stream S2).
- */
-export interface SeoMetaWritePort {
-  upsertProductMeta(input: {
-    productId: string;
-    locale: string;
-    title?: string | null;
-    description?: string | null;
-  }): Promise<void>;
-}
-
-/**
  * Feature 170 (`specs/170-product-editor-scope-switcher/contracts/seo-ports.md`; research R9,
  * R21) — product metadata at the three product scopes: Global (no channel, no locale),
  * Channel (channel, no locale) and Channel × language. There is no locale-only product row any

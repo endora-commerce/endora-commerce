@@ -1,5 +1,6 @@
 import type {
   CreateImportProfileRequest,
+  ImportChannelTargetListResponse,
   ImportProfile,
   UpdateImportProfileRequest,
 } from '@endora-commerce/contracts';
@@ -42,19 +43,9 @@ export interface ChannelLanguageTarget {
   languageCode: string;
 }
 
-/**
- * One channel of `GET /api/v1/admin/import-export/channel-targets` — id, code and languages only.
- * Mirrors the backend's `importChannelTargetSchema` until the contracts package carries it.
- */
-interface ImportChannelTarget {
-  id: string;
-  code: string;
-  languages: string[];
-}
-
 /** Every channel × each language it offers, in one read. */
 export async function listChannelLanguageTargets(): Promise<ChannelLanguageTarget[]> {
-  const res = await apiClient.get<{ data: ImportChannelTarget[] }>('/api/v1/admin/import-export/channel-targets');
+  const res = await apiClient.get<ImportChannelTargetListResponse>('/api/v1/admin/import-export/channel-targets');
   return res.data.flatMap((channel) =>
     channel.languages.map((languageCode) => ({
       channelId: channel.id,
