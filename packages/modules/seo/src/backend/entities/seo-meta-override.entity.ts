@@ -13,6 +13,14 @@ import { randomUUID } from 'crypto';
  * row. One row per address: three partial unique indexes in the migration
  * (`meta_override_channel_scope`), which no decorator expresses, and a check
  * that at least one half is set. Only products take a channel.
+ *
+ * Feature 170 (`specs/170-product-editor-scope-switcher/data-model.md` §8) — a **product** row
+ * sits at Global (neither half), Channel (`salesChannelId` only) or Channel × language (both);
+ * there is no Language-only product row any more (FR-010), and the scope check of
+ * `product_meta_three_levels` refuses one. Category and CMS-page rows keep their language rows.
+ * On a product row a column holding `null` inherits (at Global: no value) and `''` is a
+ * deliberately empty override, for which the storefront uses the derived value. One Global row
+ * per product is a partial unique index of that migration.
  */
 @GlobalEntity()
 @Entity({ tableName: 'seo_meta_overrides' })
@@ -40,11 +48,11 @@ export class SeoMetaOverride {
   @Index()
   entityId!: string;
 
-  /** `null` = the channel row (all of the channel's languages). */
+  /** `null` = the channel row (all of the channel's languages), or a product's Global row. */
   @Property({ type: 'string', length: 10, nullable: true })
   locale: string | null = null;
 
-  /** `null` = a language row, for every channel. */
+  /** `null` = a category / CMS-page language row, or a product's Global row. */
   @Property({ type: 'uuid', fieldName: 'sales_channel_id', nullable: true })
   salesChannelId: string | null = null;
 

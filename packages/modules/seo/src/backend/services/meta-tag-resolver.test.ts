@@ -88,14 +88,41 @@ describe('walkSeoScopes', () => {
   });
 });
 
+describe('walkSeoScopes — empty overrides (170, owner round 6)', () => {
+  it('an empty override stops the fallback and yields the derived value', () => {
+    const rows = [row({ salesChannelId: C1, locale: 'pl-PL', title: '' }), row({ title: 'G', description: '' })];
+    const walked = walkSeoScopes(rows, C1, 'pl-PL', fallback);
+    expect(walked.title).toBe(fallback.title);
+    expect(walked.description).toBe(fallback.description);
+    expect(walked.sources.title).toBe('set_empty');
+    expect(walked.sources.description).toBe('set_empty');
+  });
+
+  it('reads a product Language-only row as nothing (FR-010)', () => {
+    const walked = walkSeoScopes([row({ locale: 'pl-PL', title: 'language row' })], C1, 'pl-PL', fallback);
+    expect(walked.title).toBe(fallback.title);
+    expect(walked.sources.title).toBe('derived');
+  });
+});
+
 describe('seoMetaAddress', () => {
-  it('reads neither half as the en-US language row, as before feature 163', () => {
+  it('reads a product request naming neither half as the Global row (170, FR-010)', () => {
     expect(seoMetaAddress({ entityType: 'product', entityId: 'p' })).toEqual({
       entityType: 'product',
       entityId: 'p',
       channelId: null,
-      locale: 'en-US',
+      locale: null,
     });
+  });
+
+  it('refuses a product Language-only address: there is no Language scope (170, FR-010)', () => {
+    expect(() => seoMetaAddress({ entityType: 'product', entityId: 'p', locale: 'pl-PL' })).toThrow(
+      expect.objectContaining({ statusCode: 422 }),
+    );
+  });
+
+  it('keeps the en-US language row for a category or CMS page naming neither half', () => {
+    expect(seoMetaAddress({ entityType: 'category', entityId: 'c' })).toMatchObject({ channelId: null, locale: 'en-US' });
   });
 
   it('keeps a channel row without a locale', () => {

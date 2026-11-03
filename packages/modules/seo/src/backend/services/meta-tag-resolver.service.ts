@@ -76,8 +76,12 @@ function sameLanguage(a: string | null, b: string): boolean {
 }
 
 /**
- * The address a request names. Neither half keeps today's meaning, the `en-US`
- * language row; a channel is a product's alone (`422 VALIDATION_FAILED`).
+ * The address a request names (feature 170, `data-model.md` §8). A **product** sits at three
+ * levels: Global (neither half), Channel (a channel) and Channel × language (both); a
+ * Language-only product address does not exist any more (FR-010) and is refused
+ * `422 SCOPE_INVALID`. A category or CMS page keeps its language rows, and naming neither half
+ * keeps their old meaning, the `en-US` language row; a channel is a product's alone
+ * (`422 VALIDATION_FAILED`).
  */
 export function seoMetaAddress(request: SeoMetaScopeRequest): SeoMetaOverrideAddress {
   const channelId = request.channelId ?? null;
@@ -87,11 +91,20 @@ export function seoMetaAddress(request: SeoMetaScopeRequest): SeoMetaOverrideAdd
       field: 'channelId',
     });
   }
+  if (request.entityType === 'product') {
+    if (channelId === null && locale !== null) {
+      throw new HttpError(422, ERROR_CODES.SCOPE_INVALID, 'A product has no language-only scope; name a sales channel.', {
+        languageCode: locale,
+        reason: 'language_without_channel',
+      });
+    }
+    return { entityType: 'product', entityId: request.entityId, channelId, locale };
+  }
   return {
     entityType: request.entityType,
     entityId: request.entityId,
     channelId,
-    locale: channelId === null && locale === null ? FALLBACK_LOCALE : locale,
+    locale: locale === null ? FALLBACK_LOCALE : locale,
   };
 }
 
@@ -108,14 +121,18 @@ function scopeChain(
     const c = rows.find((r) => r.salesChannelId === channelId && (r.locale ?? null) === null);
     if (c) chain.push({ row: c, source: 'inherited_channel' });
   }
-  // Feature 170 (FR-010) — the Global row, never a Language-only one. 170-shim: the empty override
-  // (`''`) → derived value rule of round 6 is T121's.
+  // Feature 170 (FR-010) — the Global row, never a Language-only one.
   const g = rows.find((r) => (r.salesChannelId ?? null) === null && (r.locale ?? null) === null);
   if (g) chain.push({ row: g, source: 'inherited_global' });
   return chain;
 }
 
-/** Each field from the most specific row that sets it, else the fallback (FR-075). */
+/**
+ * Each field from the most specific row that holds it, else the fallback (FR-075). A row holding
+ * `''` — a deliberately empty override — stops the walk like any own value, and the field takes the
+ * derived fallback, its source `set_empty` (feature 170, owner round 6): an operator who empties
+ * the SEO title gets the product-name title, never a blank `<title>`.
+ */
 export function walkSeoScopes(
   rows: readonly SeoMetaOverride[],
   channelId: string | null,
@@ -127,8 +144,14 @@ export function walkSeoScopes(
   const sources = {} as Record<SeoProductMetaField, SeoProductMetaSource>;
   for (const field of FIELDS) {
     const hit = chain.find(({ row }) => row[field] != null);
-    sources[field] = hit ? hit.source : 'derived';
-    if (hit) (values as Record<SeoProductMetaField, string | null>)[field] = hit.row[field] ?? null;
+    if (hit === undefined) {
+      sources[field] = 'derived';
+    } else if (hit.row[field] === '') {
+      sources[field] = 'set_empty';
+    } else {
+      sources[field] = hit.source;
+      (values as Record<SeoProductMetaField, string | null>)[field] = hit.row[field] ?? null;
+    }
   }
   return { ...values, sources };
 }
@@ -239,10 +262,19 @@ export class MetaTagResolverService implements SeoProductMetaPort {
   }
 
   /**
-   * Feature 170 (`contracts/seo-ports.md` §1) — each field's view at one scope.
-   * 170-shim: no scope validation (`422 SCOPE_INVALID`) yet — T121's.
+   * Feature 170 (`contracts/seo-ports.md` §1) — each field's view at one scope. A channel the
+   * product is not sold in, or a language the channel does not offer, is `422 SCOPE_INVALID`,
+   * never an empty view.
    */
   async readScoped(productId: string, scope: ScopeRef): Promise<Record<SeoProductMetaField, ScopedFieldView<string>>> {
+    if (scope.level !== 'global') {
+      await this.#checkScope({
+        entityType: 'product',
+        entityId: productId,
+        channelId: scope.channelId,
+        locale: scope.level === 'channel_language' ? scope.languageCode : null,
+      });
+    }
     const rows = await this.emFactory().find(SeoMetaOverride, { entityType: 'product', entityId: productId });
     const global = rows.find((r) => (r.salesChannelId ?? null) === null && (r.locale ?? null) === null);
     const out = {} as Record<SeoProductMetaField, ScopedFieldView<string>>;
