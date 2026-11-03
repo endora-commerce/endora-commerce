@@ -172,9 +172,12 @@ export default async function HomePage({
               <LocalizedLink href="/catalog" className="btn btn--dark btn--lg">
                 {t('chrome.shared.browseCatalog')} <ArrowRightIcon />
               </LocalizedLink>
-              <LocalizedLink href="/quick-order" className="btn btn--outline btn--lg">
-                <LightningIcon /> {t('chrome.home.hero.quickOrderCsv')}
-              </LocalizedLink>
+              {/* Issue #666 — its page answers not-found while `quick_order` is off. */}
+              {modules.isPresent('quick_order') ? (
+                <LocalizedLink href="/quick-order" className="btn btn--outline btn--lg">
+                  <LightningIcon /> {t('chrome.home.hero.quickOrderCsv')}
+                </LocalizedLink>
+              ) : null}
             </div>
             <div className="grid grid-cols-4 gap-[24px] max-[720px]:grid-cols-2">
               {[

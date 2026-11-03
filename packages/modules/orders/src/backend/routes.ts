@@ -1388,7 +1388,8 @@ export async function registerOrderRoutes(
     { preHandler: requireCustomer },
     async (request) => {
       const ctx = resolveCustomerContext(request);
-      await orderService.getById(request.params.id, ctx); // authorize ownership/scope
+      // Issue #665 — the service resolves the order through the read scope and
+      // answers 404 for one outside it.
       const result = await deps.orderReorderService.reorder(request.params.id, {
         customerAccountId: ctx.customerAccountId,
         organizationId: ctx.organizationId,
@@ -1443,7 +1444,8 @@ export async function registerOrderRoutes(
     { preHandler: requireCustomer },
     async (request) => {
       const ctx = resolveCustomerContext(request);
-      await orderService.getById(request.params.id, ctx); // authorize ownership
+      // Issue #665 — the service resolves the order through the read scope and
+      // answers 404 for one outside it.
       // Feature 155 — the buyer's clone: no actor, so a minimum refuses it (US4 #5a).
       // Feature 163 — its lines are judged at the request's channel and scope language.
       const languageTag = firstLanguageTag(request.headers['accept-language']);

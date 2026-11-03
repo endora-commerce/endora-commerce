@@ -396,7 +396,11 @@ describe('order refusals carry their own code and sentence (issue #86)', () => {
      */
     it('MODULE_DISABLED naming quote_requests when the quote desk is absent', async () => {
       const orderId = await orderIn('completed');
-      const service = new OrderCloneToQuoteService(() => h.em().fork(), () => null);
+      const service = new OrderCloneToQuoteService(
+        () => h.em().fork(),
+        () => null,
+        { findById: async () => null } as never,
+      );
       await expect(
         service.clone(orderId, { customerAccountId: TEST_CUSTOMER_ID, organizationId: TEST_ORGANIZATION_ID }),
       ).rejects.toMatchObject({

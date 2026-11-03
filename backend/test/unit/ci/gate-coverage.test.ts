@@ -226,6 +226,14 @@ const SCRIPTS_NO_JOB_RUNS: Readonly<Record<string, Verdict>> = {
       'into the site tree. A pipeline that ran it would repair the staleness it is meant to ' +
       'report and go green on a commit nobody can reproduce.',
   },
+  'backend::docs:translations:pin': {
+    kind: 'produces',
+    coveredBy: 'backend::check:docs-translations',
+    reason:
+      'It rewrites the translation pins under `docs/translation-cache/` to the current English ' +
+      'bodies (issue #671). A pipeline that ran it would mark every stale translation fresh — ' +
+      'repairing exactly the drift `check:docs-translations` exists to report.',
+  },
   'backend::manifest-index:generate': {
     kind: 'produces',
     coveredBy: 'backend::overlay:check',

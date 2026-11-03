@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderToString } from 'react-dom/server';
+import type { ModulePresenceSet } from '../../lib/api/module-presence';
 
 /**
  * Issue #85 — the storefront's chrome speaks the shop's language: the header
@@ -8,6 +9,8 @@ import { renderToString } from 'react-dom/server';
  * on the server in `en-US` and `pl-PL`.
  */
 const POLISH = /[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/;
+/** Every module present: the presence gates are `test/account/module-presence-nav.test.tsx`'s. */
+const ALL_PRESENT: ModulePresenceSet = { isPresent: () => true, presentIds: [], absentIds: [] };
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/',
@@ -47,6 +50,7 @@ function header(locale: string): string {
         cartItemCount={0}
         megamenu={null}
         user={null}
+        modules={ALL_PRESENT}
       />,
     ),
   );
@@ -95,7 +99,7 @@ describe('Header', () => {
 
 describe('Footer', () => {
   it('is in English for an English shop', () => {
-    const html = clean(renderToString(<Footer locale="en-US" />));
+    const html = clean(renderToString(<Footer locale="en-US" modules={ALL_PRESENT} />));
     expect(html).toContain('>Shop</h5>');
     expect(html).toContain('>Catalog</a>');
     expect(html).toContain('>Fasteners</a>');
@@ -111,7 +115,7 @@ describe('Footer', () => {
   });
 
   it('is in Polish for a Polish shop', () => {
-    const html = clean(renderToString(<Footer locale="pl-PL" />));
+    const html = clean(renderToString(<Footer locale="pl-PL" modules={ALL_PRESENT} />));
     expect(html).toContain('>Sklep</h5>');
     expect(html).toContain('>Katalog</a>');
     expect(html).toContain('>Łączniki</a>');
@@ -125,7 +129,7 @@ describe('Footer', () => {
   });
 
   it('keeps the operator’s support links as they were given', () => {
-    const html = renderToString(<Footer locale="en-US" cmsLinks={[{ path: 'faq', title: 'Pytania' }]} />);
+    const html = renderToString(<Footer locale="en-US" modules={ALL_PRESENT} cmsLinks={[{ path: 'faq', title: 'Pytania' }]} />);
     expect(html).toContain('>Pytania</a>');
     expect(html).not.toContain('Help center');
   });
@@ -157,7 +161,7 @@ describe('the smaller chrome labels', () => {
   it('names the mobile tab bar from the labels it is given', () => {
     const labels = { home: 'Start', quoteRequest: 'Q', quickOrder: 'QO', cart: 'K', account: 'A' };
     const html = renderToString(
-      <MobileTabBar labels={{ ...labels, navigation: tForLocale('pl-PL')('chrome.mobileTabBar.label') }} />,
+      <MobileTabBar present={{ quoteRequests: true, quickOrder: true }} labels={{ ...labels, navigation: tForLocale('pl-PL')('chrome.mobileTabBar.label') }} />,
     );
     expect(html).toContain('aria-label="Nawigacja mobilna"');
   });

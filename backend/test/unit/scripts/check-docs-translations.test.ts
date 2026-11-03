@@ -18,8 +18,8 @@ import {
 import {
   defaultTranslationCacheLayout,
   docIdFromSourcePath,
+  cacheEntryPath,
   hashSourceBody,
-  materializeTranslation,
   materializedDocPath,
   writeCacheEntry,
   type TranslationCacheEntry,
@@ -103,6 +103,19 @@ function baseInput(
   };
 }
 
+/** Write the Polish page where Docusaurus reads it — the translation itself. */
+function writeMaterialized(
+  root: string,
+  locale: string,
+  sourcePath: string,
+  content: string,
+): string {
+  const target = materializedDocPath(locale, docIdFromSourcePath(sourcePath), layout(root));
+  mkdirSync(dirname(target), { recursive: true });
+  writeFileSync(target, content, 'utf8');
+  return target;
+}
+
 function seedTranslation(
   root: string,
   source: DocsTranslationSource,
@@ -114,11 +127,10 @@ function seedTranslation(
     sourcePath: source.sourcePath,
     sourceHash: hashSourceBody(english),
     locale,
-    content: `---\ntitle: Sample\n---\n\n${polishBody}\n`,
     meta: { provider: 'manual', updatedAt: '2026-09-17T08:00:00.000Z' },
   };
   writeCacheEntry(entry, layout(root));
-  materializeTranslation(entry, layout(root));
+  writeMaterialized(root, locale, source.sourcePath, `---\ntitle: Sample\n---\n\n${polishBody}\n`);
   return entry;
 }
 
@@ -134,11 +146,10 @@ function seedTranslationVerbatim(
     sourcePath: source.sourcePath,
     sourceHash: hashSourceBody(english),
     locale,
-    content: polish,
     meta: { provider: 'manual', updatedAt: '2026-09-17T08:00:00.000Z' },
   };
   writeCacheEntry(entry, layout(root));
-  materializeTranslation(entry, layout(root));
+  writeMaterialized(root, locale, source.sourcePath, polish);
   return entry;
 }
 
@@ -164,15 +175,91 @@ describe('check-docs-translations', () => {
         sourcePath: source.sourcePath,
         sourceHash: hashSourceBody(`${english}\nChanged.`),
         locale: 'pl',
-        content: '---\ntitle: Sample\n---\n\nWitamy.\n',
         meta: { provider: 'manual', updatedAt: '2026-09-17T08:00:00.000Z' },
       };
       writeCacheEntry(entry, layout(root));
-      materializeTranslation(entry, layout(root));
+      writeMaterialized(root, 'pl', source.sourcePath, '---\ntitle: Sample\n---\n\nWitamy.\n');
 
       const result = checkDocsTranslations(baseInput(root, [source]));
       expect(result.findings.map((finding) => finding.kind)).toEqual(['stale-translation']);
       expect(result.findings[0]?.detail).toBe('stale-translation:docs/docs/intro.md');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('reports missing-translation when the pin is fresh but no page is materialised', () => {
+    const root = mkdtempSync(join(tmpdir(), 'docs-check-'));
+    try {
+      const source = writeEnglish(root, 'docs/docs/intro.md', 'Welcome.');
+      writeCacheEntry(
+        {
+          sourcePath: source.sourcePath,
+          sourceHash: hashSourceBody(readFileSync(source.absolutePath, 'utf8')),
+          locale: 'pl',
+          meta: { provider: 'manual', updatedAt: '2026-09-17T08:00:00.000Z' },
+        },
+        layout(root),
+      );
+      const result = checkDocsTranslations(baseInput(root, [source]));
+      expect(result.findings.map((finding) => finding.detail)).toEqual([
+        'missing-translation:docs/docs/intro.md',
+      ]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  // --- Issue #671: the pin is the whole of the cache entry -----------------------------------
+
+  it('reads the materialised page as the translation — a Polish-only edit needs no re-pin (#671)', () => {
+    const root = mkdtempSync(join(tmpdir(), 'docs-check-pin-'));
+    try {
+      const source = writeEnglish(root, 'docs/docs/intro.md', 'Welcome.');
+      seedTranslation(root, source, 'Witamy.');
+      // A wording fix to the Polish page alone: the English body did not move, so
+      // the pin is still true and nothing else holds a copy that could disagree.
+      writeMaterialized(root, 'pl', source.sourcePath, '---\ntitle: Sample\n---\n\nWitajcie.\n');
+      expect(checkDocsTranslations(baseInput(root, [source])).findings).toEqual([]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('reports malformed-pin for an entry that still duplicates the page (#671)', () => {
+    const root = mkdtempSync(join(tmpdir(), 'docs-check-pin-'));
+    try {
+      const source = writeEnglish(root, 'docs/docs/intro.md', 'Welcome.');
+      const entry = seedTranslation(root, source, 'Witamy.');
+      // What a branch cut before #671 merges back in: a fresh hash, plus the page.
+      writeFileSync(
+        cacheEntryPath('pl', source.sourcePath, layout(root)),
+        `${JSON.stringify({ ...entry, content: '---\ntitle: Sample\n---\n\nWitamy.\n' }, null, 2)}\n`,
+        'utf8',
+      );
+      const result = checkDocsTranslations(baseInput(root, [source]));
+      expect(result.findings.map((finding) => finding.detail)).toEqual([
+        'malformed-pin:docs/docs/intro.md:unexpected-key:content',
+      ]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('reports malformed-pin for a pin left with merge-conflict markers (#671)', () => {
+    const root = mkdtempSync(join(tmpdir(), 'docs-check-pin-'));
+    try {
+      const source = writeEnglish(root, 'docs/docs/intro.md', 'Welcome.');
+      seedTranslation(root, source, 'Witamy.');
+      writeFileSync(
+        cacheEntryPath('pl', source.sourcePath, layout(root)),
+        '{\n<<<<<<< HEAD\n  "sourceHash": "a",\n=======\n  "sourceHash": "b",\n>>>>>>> other\n}\n',
+        'utf8',
+      );
+      const result = checkDocsTranslations(baseInput(root, [source]));
+      expect(result.findings.map((finding) => finding.detail)).toEqual([
+        'malformed-pin:docs/docs/intro.md:invalid-json',
+      ]);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

@@ -35,7 +35,7 @@ export default async function AccountLayout({
   }
 
   const isAdmin = me.customerAccount.role === 'organization_admin';
-  const { locale } = await getServerContext();
+  const { locale, modules } = await getServerContext();
   const t = tForLocale(locale);
 
   return (
@@ -59,13 +59,27 @@ export default async function AccountLayout({
           these features — and the Organization pages — are shown only to
           org-bound customers (feature 040, FR-003).
         */}
+        {/*
+          Constitution XVII item 5 (issue #666) — a link to a module's pages is
+          rendered only while that module is present. `orders`, `organizations`
+          and `addresses` declare `activation.nonDeactivatable`, so their links
+          stay unconditional; the four below can be switched off.
+        */}
         {me.organization ? (
           <>
             <LocalizedLink href="/orders">{t('account.nav.orders')}</LocalizedLink>
-            <LocalizedLink href="/returns">{t('account.nav.returns')}</LocalizedLink>
-            <LocalizedLink href="/quote-requests">{t('account.nav.quoteRequests')}</LocalizedLink>
-            <LocalizedLink href="/shopping-lists">{t('account.nav.shoppingLists')}</LocalizedLink>
-            <LocalizedLink href="/quick-order">{t('account.nav.quickOrder')}</LocalizedLink>
+            {modules.isPresent('returns') ? (
+              <LocalizedLink href="/returns">{t('account.nav.returns')}</LocalizedLink>
+            ) : null}
+            {modules.isPresent('quote_requests') ? (
+              <LocalizedLink href="/quote-requests">{t('account.nav.quoteRequests')}</LocalizedLink>
+            ) : null}
+            {modules.isPresent('shopping_lists') ? (
+              <LocalizedLink href="/shopping-lists">{t('account.nav.shoppingLists')}</LocalizedLink>
+            ) : null}
+            {modules.isPresent('quick_order') ? (
+              <LocalizedLink href="/quick-order">{t('account.nav.quickOrder')}</LocalizedLink>
+            ) : null}
             <LocalizedLink href="/organization">{t('account.nav.organization')}</LocalizedLink>
             <LocalizedLink href="/organization/addresses">{t('account.nav.organizationAddresses')}</LocalizedLink>
             {isAdmin ? <LocalizedLink href="/organization/members">{t('account.nav.members')}</LocalizedLink> : null}

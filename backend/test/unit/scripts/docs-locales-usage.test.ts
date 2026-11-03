@@ -11,6 +11,7 @@ const DOCS_I18N_SCRIPTS = [
   'backend/scripts/check-docs-translations.ts',
   'backend/scripts/lib/docs-translation-cache.ts',
   'backend/scripts/lib/docs-translation-sources.ts',
+  'backend/scripts/pin-docs-translations.ts',
 ] as const;
 
 function stripComments(source: string): string {
