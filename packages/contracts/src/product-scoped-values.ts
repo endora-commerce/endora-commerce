@@ -129,7 +129,7 @@ export type ScopedFieldView<T> = {
   value: T | null;
   source: ScopedSource;
   ownValue?: T | null;
-  inheritedValue?: { value: T | null; source: InheritedSource };
+  inheritedValue?: { value: T | null; source: InheritedSource } | undefined;
   levels: Array<'G' | 'C' | 'CL'>;
   supportedHere: boolean;
   required: boolean;
