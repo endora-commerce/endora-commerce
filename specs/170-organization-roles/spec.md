@@ -2,7 +2,7 @@
 
 **Feature Branch**: `spec/organization-roles`
 **Created**: 2026-11-03
-**Status**: Draft — awaiting owner answers (see *Questions for the owner*)
+**Status**: Draft — owner rulings OR-1 to OR-7 recorded 2026-11-03; one open question (Q-7)
 **Input**: Owner request (translated from Polish): *"Customers should be able, within their
 Organization, to define their own Roles and assign them to Organization Members. Roles carry
 permissions over the actions an Organization member can perform. The Organization Administrator
@@ -18,7 +18,8 @@ precedent; its contract survives as `packages/modules/admin_roles/` and
 behaviour is in `packages/modules/carts/docs/carts.md` § *Lifecycle*), feature 056 organization
 hierarchy and roll-up (pre-migration; `packages/modules/organizations/docs/organization-hierarchy.md`),
 `specs/154-sales-channel-access/` (the per-Organization two-layer cache this feature's permission
-reads follow), issues #619 (merged in #647), #648, #649, #650, #651, **#653**.
+reads follow), issues #619 (merged in #647), #648, #649, #650, #651, **#653**, **#665** (clone-to-quote order
+scope), **#667** (invitation role label), **#668** (organization addresses).
 
 **Design decisions and rejected alternatives**: [`research.md`](./research.md). This file states
 behaviour; `research.md` states why, and what the plan has to build.
@@ -60,81 +61,59 @@ them away entirely.
   one-click buy; a member whose role does not cannot — the one-click eligibility answers *disabled*
   with a reason, and the storefront hides the button. This is how issue **#653** (one-click buy
   bypasses cart approval) is resolved; #653 is otherwise left unfixed until this feature lands.
+- **OR-2 (Q-1) — "Approving RFQs" is an internal approval before the request reaches the seller.**
+  Option B, mirroring carts: a member whose role lacks **"Send quote requests without approval"**
+  (`quote_requests.send_without_approval`) submits into a state *awaiting internal approval* that
+  the seller does not see; a holder of **"Approve quote requests"** approves (the request is then
+  sent to the seller) or rejects it with a reason. FR-040–FR-046.
+- **OR-3 (Q-2) — The Organization's *requires cart approval* switch is replaced** by the permission
+  **"Place orders without approval"** (`carts.order_without_approval`). Anyone whose role holds
+  **"Approve carts"** may approve, not only the administrator. The switch and its two screens are
+  removed. `research.md` R-4.
+- **OR-4 (Q-3) — No versioning and no compatibility window.** The project is still at a stage where
+  it may break freely: the legacy `role` field is removed from every request and response in the
+  same release that introduces roles, and there is no removal phase. FR-073, *Upgrade note*,
+  `research.md` R-8.
+- **OR-5 (Q-4) — "View the organization's orders" is a permission now**
+  (`orders.view_organization`), grantable to any role, held implicitly by *Administrator*, not
+  member-default. It is not on the reserved list. Every path that reaches a colleague's order honours
+  it, including clone-to-quote (issue **#665**, being fixed separately: it skipped the order scope and
+  defaulted `isOrgAdmin ?? true`). FR-013, FR-049.
+- **OR-6 (Q-5) — One-click purchase also requires "Place orders without approval".** FR-050.
+- **OR-7 (Q-6) — Operator codes** `organizations:read-roles` (*View organization roles*) and
+  `organizations:manage-roles` (*Manage organization roles*), owned by `organizations`; assigning a
+  role to a member stays under `customers:manage`. FR-060–FR-062.
 
 ## Questions for the owner
 
-Each question carries the architect's recommendation. The spec is written on the recommendation;
-an answer that differs changes the requirements named under it.
+### Q-7 — Should managing the Organization's addresses be a permission? (issue #668)
 
-### Q-1 — What does "approving RFQs" mean? `[NEEDS CLARIFICATION]`
-
-Read against `packages/modules/quote_requests/` there is **no buyer-side approval in the RFQ flow
-today**. A buyer's `POST /api/v1/quote-requests` creates the request already submitted
-(`Pending`) to the seller; the **seller** approves it (`POST /api/v1/admin/quote-requests/:id/approve`
-→ `Approved`); the buyer **accepts or rejects a revision** the seller proposes
-(`accept-revision` / `reject-revision`) and converts an approved request into a cart. A regular user
-does all of that for their own requests; an administrator also sees and acts on every colleague's.
+Today any member can create, edit and delete the Organization's shared delivery and billing
+addresses (`/organization/addresses`, routes in
+`packages/modules/organizations/src/backend/routes.customer.ts`, written through `addresses`'
+`addressServicePort`). A change there affects every colleague's checkout.
 
 | Option | Meaning | Consequences |
 | --- | --- | --- |
-| **A** | *Act on colleagues' quote requests*: a holder sees every quote request of the Organization and may accept or reject the seller's offer on any of them. Everyone still acts on their own. | Small — a visibility rule and a gate on two existing actions. No new state. Does **not** let an Organization stop a member from committing to a quote. |
-| **B** *(recommended)* | *Internal approval before the request reaches the seller*, mirroring carts: a member whose role lacks a second permission, **"Send quote requests without approval"**, submits into a new state *awaiting internal approval*, invisible to the seller; a holder of "Approve quote requests" approves (it is then sent) or rejects it with a reason. Member's initial set holds "send without approval", so nothing changes on upgrade. | Medium-large — a new buyer-side state, its e-mails, the seller's list and counters must not see unsent requests, an approval queue screen. It is the reading under which "approve RFQs" means for quotes what "approve carts" means for carts, and it gives a purchasing department a real control. |
-| **C** | *Committing to the seller's quote needs approval*: accepting a seller's offer requires the permission; a member without it can negotiate but an approver accepts. | Changes today's behaviour unless Member keeps the permission; then it restricts nobody until an Organization edits Member. Needs its own org-wide visibility rule. |
+| **A** *(recommended)* | A permission **"Manage organization addresses"** (`addresses.manage`), declared by `addresses` (the owner of the write), held implicitly by *Administrator*, **member-default**. Reading addresses stays open to every member. | No behaviour change on upgrade (FR-072 holds); an Organization that wants to lock addresses down removes it from *Member*. Small, delivered with P2. |
+| **B** | The same permission, **not** member-default. | Members lose address editing on upgrade — the first FR-072 exception that is not a bug fix; needs its own upgrade-note line. |
+| **C** | No permission; stays open. | Nothing to build; #668 closed as intended behaviour. |
 
-**Recommendation: B**, delivered in its own phase (P3) after the mechanism and the cart
-permissions, so the owner's answer does not hold up the rest. If the owner prefers the smaller
-change, A is self-contained and B can follow later without undoing it. FR-040–FR-046 are written
-for B; under A they reduce to FR-040, FR-041 and FR-046.
+The spec is written on **A** (FR-022, FR-014a). Under B only the member-default column changes;
+under C both lines are deleted.
 
-### Q-2 — Replace the Organization's *requires cart approval* switch with a permission?
+## Resolved questions *(kept for the record; rulings above)*
 
-**Recommendation: yes** — a permission **"Place orders without approval"** (owned by `carts`).
-A member who may create carts but whose role lacks it must submit each cart for approval; anyone
-whose role holds **"Approve carts"** may approve, not only the administrator. The switch is
-removed, and its two screens (the storefront policy page, the operator's policy panel) with it.
-The migration reproduces today's behaviour exactly (FR-071). Keeping the switch beside the
-permissions was evaluated and rejected: two levers answering one question ("must this person's
-cart be approved?") either have to be combined by a rule an administrator cannot see, or one of
-them is dead. Full analysis: `research.md` R-4.
-
-### Q-3 — How is the breaking contract change shipped?
-
-**Recommendation: one release of overlap.** The release that ships this feature **adds** the new
-fields (the member's role as a reference, the effective permission list) and keeps the old `role`
-field on every response, derived (`organization_admin` for the Administrator role, `regular_user`
-for every other role), and still accepts `role` on the requests that took it, mapped to the two
-predefined roles. The **following** breaking-change release removes `role`. The upgrade note
-(*Upgrade note*) says both halves. The alternative — removing `role` in the same release — is
-cheaper to build and is what the repository has done for internal-only shapes, but `role` is on
-the login response and on `/api/v1/me`, which every storefront fork and integration reads.
-Full analysis: `research.md` R-8.
-
-### Q-4 — Who sees colleagues' orders?
-
-Today only the administrator sees every order of the Organization; the six permissions requested
-do not mention it. **Recommendation: leave it reserved to the Administrator in this feature**
-(FR-013) and offer *"View the organization's orders"* as a follow-up permission if customers ask.
-Approvers see the carts and quote requests they approve (FR-033, FR-042), which is what their
-permission needs; widening order visibility is a separate privacy decision.
-
-### Q-5 — Does one-click purchase also need "Place orders without approval"?
-
-OR-1 makes one-click a permission of its own. A one-click purchase is by its nature an order placed
-without anyone approving it, so an administrator who grants one-click to a role that must have its
-carts approved re-opens #653 by configuration. **Recommendation: yes — one-click is available only
-to a member whose role holds both** (FR-050). The role editor says so beside the one-click
-permission. If the owner wants one-click to stand alone, FR-050's second clause is dropped and the
-editor shows a warning instead.
-
-### Q-6 — Operator permission codes for an Organization's roles
-
-**Recommendation: two new operator codes owned by `organizations`** — `organizations:read-roles`
-(*View organization roles*) and `organizations:manage-roles` (*Manage organization roles*) —
-rather than reusing `customers:read` / `customers:manage`. Defining what a customer's members may
-do is a support action with its own risk (an operator could grant a whole Organization one-click
-purchase); a platform that delegates customer-record editing to a broad support team must be able
-to keep this narrower. **Assigning** a role to a member stays under the existing
-`customers:manage`, beside the other member operations it already gates (FR-062).
+- **Q-1** — Options were A (act on colleagues' RFQs), B (internal approval before sending), C
+  (committing to the seller's quote needs approval). Recommendation B. **Resolved 2026-11-03: B (OR-2).**
+- **Q-2** — Replace the switch with a permission. Recommendation yes. **Resolved 2026-11-03: yes (OR-3).**
+- **Q-3** — Contract change shipping. Recommendation was one release of overlap. **Resolved
+  2026-11-03: no versioning, no window; `role` removed in the same release (OR-4).**
+- **Q-4** — Colleagues' orders. Recommendation was Administrator-only for now. **Resolved
+  2026-11-03: a grantable `orders.view_organization` permission now (OR-5).**
+- **Q-5** — One-click also needs "Place orders without approval". Recommendation yes. **Resolved
+  2026-11-03: yes (OR-6).**
+- **Q-6** — Operator codes. Recommendation two new codes. **Resolved 2026-11-03: as recommended (OR-7).**
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -196,8 +175,12 @@ bypass, which is now closed (FR-072).
    *One-click purchase*, and every cart that was `pending` or `approved` before stays exactly so.
 3. **Given** a pending invitation as `regular_user`, **When** the upgrade runs and the invitee later
    accepts, **Then** the new account holds *Member*.
-4. **Given** a client that still sends and reads the legacy `role` field, **When** it runs against
-   the upgraded instance during the overlap release (Q-3), **Then** it keeps working unchanged.
+4. **Given** a client that sends or reads the removed `role` field, **When** it runs against the
+   upgraded instance, **Then** a request carrying `role` is refused as invalid and no response
+   carries it (OR-4); the upgrade note tells the client author what to read and send instead.
+5. **Given** an Organization member who was a `regular_user`, **When** the upgrade runs, **Then**
+   they see only their own orders, as before — *Member* is not granted *View the organization's
+   orders* (OR-5).
 
 ---
 
@@ -254,7 +237,7 @@ but lacking *Place orders without approval* — and the storefront rendering for
    one-click eligibility, **Then** it answers disabled with reason *permission required* and the
    button is not rendered; a direct placement call is refused before any basket is written.
 2. **Given** a member whose role holds *One-click purchase* but not *Place orders without approval*
-   (Q-5 recommendation), **When** eligibility is asked, **Then** it answers disabled with reason
+   (OR-6), **When** eligibility is asked, **Then** it answers disabled with reason
    *cart approval required*.
 3. **Given** a member holding both, **When** they buy with one click, **Then** the order is placed as
    today.
@@ -275,6 +258,9 @@ hand, but the feature works without it.
 
 1. **Given** the invite form, **When** the administrator opens the role list, **Then** it offers
    every role of the Organization, *Member* preselected.
+1a. **Given** an invitation naming a role, **When** its e-mail is rendered, **Then** the role label is
+   the role's own — the translated name of a predefined role in the e-mail's language, the custom
+   role's name verbatim — and never a hard-coded English string (#667).
 2. **Given** an invitation naming a custom role, **When** that role is deleted before acceptance,
    **Then** the invitation names the replacement role chosen at deletion (FR-024), and the
    invitee is told nothing has changed for them except the role.
@@ -392,18 +378,22 @@ When the operator switches it back on, every role holds again exactly what it he
 - **FR-007**: A member's effective permissions MUST be exactly the permissions of their role whose
   declaring module is present (both activation axes), or every present permission for the
   Administrator role.
+- **FR-008**: Wherever a role is shown to a person — the invitation e-mail, the members list, the
+  account page, the operator's screens — its label MUST come from the role: the translated name of a
+  predefined role in the reader's language, a custom role's own name verbatim (#667).
 
-**Reserved administrator capabilities**
+**Reserved administrator capabilities** *(never grantable; colleagues' orders are not on this list since OR-5)*
 
 - **FR-010**: Managing members (changing roles, removing members), managing invitations and managing
   roles MUST be reserved to the *Administrator* role and MUST NOT be grantable to another role.
 - **FR-011**: Setting the Organization's MFA policy MUST stay reserved to the *Administrator* role.
 - **FR-012**: Managing Organization-scoped one-click defaults for other members MUST stay reserved to
   the *Administrator* role.
-- **FR-013**: Seeing every colleague's **orders** MUST stay reserved to the *Administrator* role
-  (Q-4).
-- **FR-014**: Behaviour not gated by a permission in this feature (for example editing the
-  Organization's addresses) MUST be unchanged for every role.
+- **FR-013**: *(Superseded by OR-5.)* Seeing every colleague's orders is **not** reserved; it is the
+  grantable permission `orders.view_organization` (FR-049), held implicitly by *Administrator*.
+- **FR-014**: Behaviour not gated by a permission in this feature MUST be unchanged for every role.
+- **FR-014a** *(Q-7, written on option A)*: Creating, editing and deleting the Organization's shared
+  addresses MUST require `addresses.manage`; reading them MUST NOT (#668).
 
 **Permission vocabulary**
 
@@ -422,10 +412,12 @@ When the operator switches it back on, every role holds again exactly what it he
   | `carts.order_without_approval` | carts | Place orders without approval | yes (FR-071) |
   | `quote_requests.create` | quote_requests | Create quote requests | yes |
   | `quote_requests.approve` | quote_requests | Approve quote requests | no |
-  | `quote_requests.send_without_approval` | quote_requests | Send quote requests without approval (Q-1 = B only) | yes |
+  | `quote_requests.send_without_approval` | quote_requests | Send quote requests without approval (OR-2) | yes |
   | `shopping_lists.create` | shopping_lists | Create and edit shopping lists | yes |
   | `shopping_lists.convert` | shopping_lists | Convert shopping lists into quote requests and carts | yes |
   | `quick_order.one_click` | quick_order | One-click purchase (OR-1) | yes (FR-071) |
+  | `orders.view_organization` | orders | View the organization's orders (OR-5) | no |
+  | `addresses.manage` | addresses | Manage organization addresses (Q-7, option A) | yes |
 
 - **FR-023**: When a permission becomes known to the platform for the first time (its module is
   installed), it MUST be granted to every Organization's *Member* role if it is member-default, and
@@ -438,7 +430,7 @@ When the operator switches it back on, every role holds again exactly what it he
   each with its label and description in the viewer's language; a grant of an absent module's
   permission MUST be kept unchanged by any save.
 
-**Carts (Q-2)**
+**Carts (OR-3)**
 
 - **FR-030**: Adding to, changing or emptying a cart, applying a coupon, and building a cart from a
   quote request, a shopping list or a quick-order list MUST require `carts.create`. Reading one's own
@@ -457,7 +449,7 @@ When the operator switches it back on, every role holds again exactly what it he
 - **FR-035**: The cart-approval e-mails MUST address the submitter and the approver who acted, and
   the "cart submitted" e-mail MUST go to every member who may approve it.
 
-**Quote requests (Q-1, written for option B)**
+**Quote requests (OR-2)**
 
 - **FR-040**: Creating a quote request — from scratch, by resubmitting, from a cart or from a
   shopping list — MUST require `quote_requests.create`.
@@ -484,7 +476,15 @@ When the operator switches it back on, every role holds again exactly what it he
 - **FR-048**: Converting a list (or selected lines) MUST require `shopping_lists.convert` plus the
   target's create permission (Edge Cases, *Composite actions*).
 
-**One-click purchase (OR-1, Q-5)**
+**Orders (OR-5)**
+
+- **FR-049**: Listing and reading colleagues' orders, and every action that reads a colleague's
+  order as its source — reorder, clone to quote request (#665), returns started from it, its
+  documents — MUST require `orders.view_organization` (or *Administrator*), with the reach the
+  administrator has today (own Organization; subtree for a roll-up login). Without it a member
+  sees and acts on only the orders they placed.
+
+**One-click purchase (OR-1, OR-6)**
 
 - **FR-050**: One-click purchase MUST require `quick_order.one_click` **and**
   `carts.order_without_approval`. The eligibility answer MUST be *disabled* with reason
@@ -507,7 +507,7 @@ When the operator switches it back on, every role holds again exactly what it he
 - **FR-058**: The account page MUST show the member their role and a plain-language list of what it
   allows.
 
-**Operator side (Q-6)**
+**Operator side (OR-7)**
 
 - **FR-060**: The operator MUST be able to view an Organization's roles with
   `organizations:read-roles` and create, edit and delete them with `organizations:manage-roles`,
@@ -535,10 +535,12 @@ When the operator switches it back on, every role holds again exactly what it he
   or `quick_order.one_click`. Carts' approval states MUST NOT change.
 - **FR-072**: After the upgrade, the outcome of every gated action for every existing member MUST
   equal its outcome before the upgrade, with the single intended exception of one-click purchase in
-  an Organization that required cart approval (#653).
-- **FR-073**: During the overlap release (Q-3) every response that carried `role` MUST still carry
-  it, derived from the role kind, and every request that accepted `role` MUST still accept it,
-  mapped to the predefined roles; the new fields MUST be present beside it.
+  an Organization that required cart approval (#653). (The removal of the `role` field changes the
+  API shape, not any member's outcome.)
+- **FR-073**: The legacy `role` field MUST be removed from every request and response in the same
+  release (OR-4): responses carry the member's role (id, name, kind) and effective permissions, and
+  requests name a role by its id. A request that still sends `role` MUST be refused as invalid
+  rather than silently ignored.
 - **FR-074**: The upgrade MUST be repeatable without effect on an Organization already migrated.
 
 **Performance**
@@ -579,7 +581,8 @@ Measured on `origin/master` at `75b069175`, excluding tests, docs, `dist/` and m
 | `quote_requests` | 2 / 4 | `index.ts` customer context, `rfq-service.ts` visibility; create paths gated; option B adds a state, history kinds and e-mails |
 | `quick_order` | 3 / 4 | `routes.preferences.ts`, `quick-order-build-service.ts`; `one-click-service.ts` eligibility and placement (OR-1, #653); manifest declares one permission |
 | `shopping_lists` | 1 / 1 | `shopping-list-service.ts`; write and convert routes gated; manifest declares two permissions |
-| `orders` | 2 / 3 | `order-access-service.ts`, `order-clone-to-quote-service.ts` |
+| `orders` | 2 / 3 | `order-access-service.ts` (colleagues' orders → `orders.view_organization`), `order-clone-to-quote-service.ts` (honours the same permission once #665's scope fix lands); manifest declares one permission |
+| `addresses` | 0 / 0 | Q-7 option A: manifest declares `addresses.manage`; the write routes in `organizations/routes.customer.ts` enforce it (#668) |
 | `mfa` | 2 / 2 | `account-identity.ts`, `routes.org.ts` — *Administrator* check |
 | `storefront` | 9 / 33 | `(account)/layout.tsx`, `organization/members`, `organization/carts`, `organization/settings/cart-approval` (removed), `lib/api/{account,cart,organization}.ts`, `lib/i18n/messages/account.ts`, `CartApprovalBanner.tsx`; new `organization/roles` pages; permission-aware buttons on PDP, cart, quick order, quote requests, shopping lists |
 | `demo-composition` (counted above), `backend/scripts/acceptance/instance-actor-scope.ts`, `backend/test/helpers/` (seed-commerce, seed-credit-limit, seed-organizations, seed-roles, test-server, admin-search-fixtures) | outside the count | Seeds and fixtures build roles instead of enum values |
@@ -599,14 +602,19 @@ Measured on `origin/master` at `75b069175`, excluding tests, docs, `dist/` and m
 > The *requires cart approval* switch is gone from the storefront's Organization settings and from
 > the Admin UI. It is replaced by the *Place orders without approval* permission on each role.
 >
-> **API.** `role` (`organization_admin` | `regular_user`) on the login response, `/api/v1/me`, the
-> member and invitation endpoints and the operator's organization endpoints is **deprecated**: it is
-> still returned and still accepted in this release, derived from the role kind, and will be removed
-> in the next breaking-change release. Read `organizationRole` (`{ id, name, kind }`) and
-> `permissions` instead, and send `roleId` instead of `role`. `PATCH
+> **API — breaking, with no compatibility window.** `role` (`organization_admin` | `regular_user`)
+> is **removed** from the login response, `/api/v1/me`, the member and invitation endpoints, the
+> impersonation response and the operator's organization endpoints, in this release. Read
+> `organizationRole` (`{ id, name, kind }`) and `permissions` instead, and send `roleId` instead of
+> `role`; a request that still sends `role` is refused. `PATCH
 > /api/v1/organization/policies/cart-approval` and the operator's cart-approval-policy endpoints are
-> removed. A custom storefront that hides buttons by `role === 'organization_admin'` keeps working
-> for administrators but should read `permissions`.
+> removed. A custom storefront that tests `role === 'organization_admin'` must be changed in the same
+> upgrade: test `organizationRole.kind === 'administrator'` for administrator-only screens, and
+> `permissions` for everything else.
+>
+> **Colleagues' orders.** Seeing every order of the Organization is now the permission *View the
+> organization's orders*. Administrators hold it; *Member* does not, as before. Grant it to any role
+> that should see colleagues' orders.
 >
 > **Operator roles.** Two new operator permissions, `organizations:read-roles` and
 > `organizations:manage-roles`, gate the new Roles tab. *Platform administrator* has them; grant

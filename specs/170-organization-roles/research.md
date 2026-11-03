@@ -89,7 +89,7 @@ create a custom copy and reassign every member to change anything, which is the 
 *Administrator with an explicit list* — needs a data migration per new permission, and a missed one
 is an administrator who cannot do something.
 
-## R-4 — Replace `requiresCartApproval` with `carts.order_without_approval` (Q-2)
+## R-4 — Replace `requiresCartApproval` with `carts.order_without_approval` (owner ruling OR-3, 2026-11-03)
 
 **Decision.** Replace. The rule "must this buyer's basket be approved?" becomes
 `!can(buyer, 'carts.order_without_approval')`. That one predicate replaces
@@ -130,7 +130,7 @@ no new value; the storefront reads `permissions` to hide add-to-cart.
 **Rationale.** A member without `carts.create` (a quote-only or list-only role) must still be able
 to open pages that read the basket count; refusing the read would break every page header.
 
-## R-6 — One-click (OR-1, Q-5, #653)
+## R-6 — One-click (OR-1, OR-6, #653)
 
 **Decision.** `quick_order` declares `quick_order.one_click`. `OneClickService.eligibility`
 (`quick_order/src/backend/services/one-click-service.ts:71-88`) gains two reasons,
@@ -139,7 +139,7 @@ reasons; `placeOneClick` refuses on the same predicate before the working basket
 external order API (`packages/modules/orders/src/backend/services/order-api-intake-service.ts`) is not a member action and stays
 exempt.
 
-**Rationale.** OR-1. The conjunction with `carts.order_without_approval` (Q-5) makes "approval
+**Rationale.** OR-1. The conjunction with `carts.order_without_approval` (OR-6) makes "approval
 cannot be bypassed" a property of the platform rather than of every Organization's configuration.
 Migration: Member gets `quick_order.one_click` only where it gets `carts.order_without_approval`
 (FR-071) — granting it in an approval-requiring Organization would migrate the bug.
@@ -168,22 +168,43 @@ order*), never by a renamed boolean.
 **Rationale.** One rule, one home. Sixty `=== 'organization_admin'` comparisons are sixty copies of
 the rule; FR-072 is only provable if they become calls to one predicate.
 
-## R-8 — Contract versioning (Q-3)
+## R-8 — Contract change (owner ruling OR-4, 2026-11-03)
 
-**Decision.** One release of overlap. Responses keep `role` (derived) beside the new
-`organizationRole: { id, name, kind }` and `permissions: string[]`; requests accept `roleId` or the
-legacy `role` (mapped to the predefined roles; both present and disagreeing is a `400`). The release
-after removes `role`. The changeset is a `minor` for `@endora-commerce/contracts` (D-225: `major` is
-refused in `0.x`) and names the old and the new field. Every path stays under `/api/v1`.
+**Decision.** No versioning and no compatibility window. In the release that ships roles, `role` is
+removed from every request and response that carried it (login, `/api/v1/me`, member list,
+invitations, operator member and impersonation shapes); responses carry
+`organizationRole: { id, name, kind }` and `permissions: string[]`, requests send `roleId`, and a
+request still sending `role` is refused by schema validation (strict object) rather than ignored.
+The changeset is a `minor` for `@endora-commerce/contracts` (D-225: `major` is refused in `0.x`)
+and names the old and the new field; the upgrade note carries the migration for client authors.
+Every path stays under `/api/v1`.
 
-**Rationale.** Principle II requires a breaking change to be versioned. In this repository's
-`0.x` lockstep series the version is the release number plus an upgrade note, and the deprecation
-window is what makes it survivable for a storefront fork that reads `role` on the login response.
+**Rationale.** The owner ruled that the project is still at a stage where it may break freely. In
+this repository's `0.x` lockstep series a `minor` already takes every caret dependent out of range,
+so the release number plus the upgrade note is the versioning Principle II asks for.
 
-**Alternatives rejected.** *`/api/v2` for the affected routes* — the affected surface is the login
-response and `/me`, which every route's client reads; a parallel v2 would double the session
-surface for one field. *Hard switch in one release* — cheaper, and acceptable if the owner rules
-that no external client reads `role`.
+**Alternatives rejected.** *One release of overlap* (the architect's original recommendation) —
+ruled out by the owner; it would have cost a derived field and a request mapping for one release.
+*`/api/v2` for the affected routes* — doubles the session surface for one field.
+
+## R-8a — Colleagues' orders (owner ruling OR-5, 2026-11-03)
+
+**Decision.** `orders` declares `orders.view_organization` (not member-default; *Administrator*
+implicitly). `OrderAccessService.scopedWhere` / `scopedWhereWithEm`
+(`packages/modules/orders/src/backend/services/order-access-service.ts`) ask the permission port for
+this code instead of `role === 'organization_admin'`, keeping today's reliance on the tenant filter
+for the org/subtree predicate. Every reader of a colleague's order goes through that scope —
+including clone-to-quote, whose missing scope and `isOrgAdmin ?? true` default are issue #665
+(being fixed separately now; this feature then swaps its admin test for the permission).
+
+## R-8b — Organization addresses (open question Q-7, #668)
+
+**Recommendation.** `addresses.manage`, declared by `addresses` (it owns the entity and the write
+behind `addressServicePort`), enforced by the route seam in
+`packages/modules/organizations/src/backend/routes.customer.ts`, member-default so FR-072 holds.
+Rejected: declaring it in `organizations` (it would name another module's action, against R-2's
+"`<module>` segment is the declarer"); not member-default (a behaviour change on upgrade nobody
+asked for in this feature).
 
 ## R-9 — Caching on hot paths (FR-080–FR-082)
 
@@ -229,14 +250,16 @@ Permission labels and descriptions in the declaring module's bundle, delivered t
 backend's catalogue endpoint for the request language, because the set depends on the instance's
 modules (`specs/conventions/module-i18n.md`). Predefined role names are keys, not stored text. The
 operator Roles tab uses the `organizations` admin bundle. The `organization_invitation` e-mail's
-`roleLabel` variable carries the translated predefined name or the custom name verbatim.
+`roleLabel` variable carries the translated predefined name or the custom name verbatim — the
+label comes from the role, never from a hard-coded English string as it does today in
+`invitation-service.ts:188` and `email-templates/invitation.ts:30` (#667).
 
 ## R-12 — Storefront UX outline (for `endora-commerce-designer`)
 
 - `/organization/roles` (administrators): table — name, kind badge, members, permissions count;
   *New role*. Administrator row: "All permissions", no actions. Member row: *Edit permissions*.
 - `/organization/roles/new`, `/organization/roles/[id]`: name, description, permissions grouped by
-  module as checkboxes with descriptions; Q-5's note beside one-click; *Delete* opens a dialog with
+  module as checkboxes with descriptions; OR-6's note beside one-click; *Delete* opens a dialog with
   a replacement-role select (Member preselected) and the count of members and invitations moved.
 - `/organization/members`: role column as a select of the Organization's roles; invite form with
   the same select, Member preselected.
@@ -252,13 +275,13 @@ The UX laws (`.claude/skills/ux-laws/SKILL.md`) apply; the designer owns the fin
 
 | Phase | Content | Size |
 | --- | --- | --- |
-| **P1 — Mechanism** | Contracts (additive), roles entity + commands + catalogue + port + cache, assignment column, invitations, migration and first-seen ledger, last-admin, every `organization_admin` comparison replaced by *is Administrator* (no behaviour change), storefront Roles and Members screens, operator Roles tab and codes, docs EN+PL | L |
-| **P2 — Commerce permissions** | `carts.*` (flag removed, approvers), `quick_order.one_click` (#653), `shopping_lists.*`, `quote_requests.create`; storefront buttons | M–L |
-| **P3 — RFQ approval** | Per Q-1 (B: internal approval state, e-mails, queue; A: visibility + gate) | B: L, A: S |
-| **P4 — Removal** | Next breaking-change release: drop legacy `role` from contracts, `requires_cart_approval` already gone | S |
+| **P1 — Mechanism** | Contracts (breaking: `role` removed, OR-4), roles entity + commands + catalogue + port + cache, assignment column, invitations, migration and first-seen ledger, last-admin, every `organization_admin` comparison replaced by *is Administrator* (no behaviour change), storefront Roles and Members screens, operator Roles tab and codes, docs EN+PL | L |
+| **P2 — Commerce permissions** | `carts.*` (flag removed, approvers), `quick_order.one_click` (#653), `shopping_lists.*`, `quote_requests.create`, `orders.view_organization` (incl. clone-to-quote after #665), `addresses.manage` if Q-7 = A/B; storefront buttons | M–L |
+| **P3 — RFQ approval** | OR-2: internal approval state, `quote_requests.send_without_approval`, e-mails, approval queue, seller-side invisibility | L |
 
-P1 is independently releasable (two predefined roles, nothing grantable yet but *Member*'s list is
-inert until P2 gates on it); P2 is the first release with user-visible permissions; P3 can ship in
+There is no removal phase (OR-4). P1 is releasable on its own (two predefined roles, nothing
+grantable yet but *Member*'s list is inert until P2 gates on it), but since it already carries the
+breaking contract change it is best released together with P2; P2 is the first release with user-visible permissions; P3 can ship in
 the same or a later release.
 
 **FR-071's exception belongs to P2's migration, not P1's.** The `carts` and `quick_order` codes are
@@ -272,7 +295,7 @@ the two migrations simply run back to back.
 | Principle | Verdict |
 | --- | --- |
 | I Modular (NN) | Pass — permissions declared by their owners; `organizations` owns the mechanism behind a port; no module reads another's tables (R-1) |
-| II API-first | Pass — contracts first; breaking change versioned by overlap + upgrade note (R-8, Q-3) |
+| II API-first | Pass — contracts first; breaking change versioned as a `0.x` minor with an upgrade note, no window, per owner ruling OR-4 (R-8) |
 | III TDD (NN) | Plan obligation — every FR maps to a test; FR-072 by a before/after replay |
 | IV Minimal deps | Pass — no new dependency |
 | XI Multi-tenant (NN) | Pass — roles Organization-scoped and tenant-filtered; no no-organization path (FR-005) |

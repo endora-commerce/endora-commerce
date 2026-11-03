@@ -13,9 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain — **one remains, by design**: Q-1 (meaning of
-      "approving RFQs"), which changes the scope of FR-040–FR-046. The spec is written on the
-      recommendation (B) and states what reduces under A.
+- [x] No [NEEDS CLARIFICATION] markers remain — Q-1 resolved by owner ruling OR-2 (2026-11-03)
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -34,11 +32,17 @@
 ## Notes
 
 - *Implementation detail* is read as this repository's specs read it (`specs/164-admin-user-preferences/`,
-  `specs/147-saved-views/`): the *Context*, *Questions for the owner* and *Impact* sections cite files,
-  endpoints and fields as grounding, and the *Upgrade note* names the API fields an upgrader must
-  change. Requirements and success criteria state behaviour; the mechanism is in `research.md`.
+  `specs/147-saved-views/`): the *Context*, *Owner rulings*, *Questions for the owner* and *Impact*
+  sections cite files, endpoints and fields as grounding, and the *Upgrade note* names the API fields
+  an upgrader must change. Requirements and success criteria state behaviour; the mechanism is in
+  `research.md`.
 - FR-022 names permission codes because they are user-visible configuration (role editor, upgrade
   note, custom-module authors), not because they prescribe storage.
-- Q-2 to Q-6 carry recommendations the spec is written on; an answer that differs edits the FRs each
-  question names. Only Q-1 is marked `[NEEDS CLARIFICATION]`.
-- Owner ruling OR-1 (one-click permission, resolving #653) recorded 2026-11-03.
+- Owner rulings recorded 2026-11-03: OR-1 (one-click permission, #653); OR-2 to OR-7 resolve Q-1 to
+  Q-6 (Q-1 = B, Q-2 = yes, Q-3 = no versioning and no compatibility window, Q-4 = grantable
+  `orders.view_organization` now, Q-5 = yes, Q-6 = as recommended). P4 removed.
+- One open question remains, **Q-7** (organization addresses as `addresses.manage`, #668). It is a
+  recommendation-backed question, not a `[NEEDS CLARIFICATION]` marker: the spec is written on
+  option A and states what changes under B or C. It must be answered before `/speckit.plan`.
+- Issues referenced: #665 (clone-to-quote order scope; FR-049), #667 (invitation role label; FR-008),
+  #668 (addresses; Q-7, FR-014a).
