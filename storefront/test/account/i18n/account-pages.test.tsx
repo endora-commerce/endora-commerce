@@ -57,7 +57,11 @@ vi.mock('../../../lib/session', () => ({
   clearSessionCookie: async () => undefined,
 }));
 vi.mock('../../../lib/server-context', () => ({
-  getServerContext: async () => ({ locale, ctx: { locale } }),
+  getServerContext: async () => ({
+    locale,
+    ctx: { locale },
+    modules: { isPresent: () => true, presentIds: [], absentIds: [] },
+  }),
 }));
 vi.mock('../../../lib/api/account', () => ({
   getMe: async () => me,

@@ -1,6 +1,6 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
@@ -9,9 +9,9 @@ import {
   cacheEntryPath,
   docIdFromSourcePath,
   isCacheHit,
-  materializeTranslation,
   materializedDocPath,
   readCacheEntry,
+  readCacheEntryResult,
   sourceKeyOf,
   writeCacheEntry,
   type TranslationCacheEntry,
@@ -32,7 +32,6 @@ function sampleEntry(overrides: Partial<TranslationCacheEntry> = {}): Translatio
     sourcePath: 'docs/docs/intro.md',
     sourceHash: hashSourceBody('---\ntitle: Intro\n---\n\nWelcome.\n'),
     locale: 'pl',
-    content: '---\ntitle: Wstęp\n---\n\nWitamy.\n',
     meta: {
       provider: 'manual',
       updatedAt: '2026-09-17T08:00:00.000Z',
@@ -95,14 +94,69 @@ describe('docs-translation-cache', () => {
     expect(isCacheHit(null, english)).toBe(false);
   });
 
-  it('materializes translated markdown to the i18n docs tree', () => {
+  it('writes the pin only — never a copy of the translated page (issue #671)', () => {
     const root = mkdtempSync(join(tmpdir(), 'docs-cache-'));
     try {
       const paths = layout(root);
       const entry = sampleEntry();
-      const target = materializeTranslation(entry, paths);
-      expect(target).toBe(materializedDocPath('pl', 'intro', paths));
-      expect(readFileSync(target, 'utf8')).toBe(entry.content);
+      writeCacheEntry(entry, paths);
+      const written = JSON.parse(
+        readFileSync(cacheEntryPath('pl', entry.sourcePath, paths), 'utf8'),
+      ) as Record<string, unknown>;
+      expect(Object.keys(written).sort()).toEqual(['locale', 'meta', 'sourceHash', 'sourcePath']);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('reports an entry carrying anything beyond the pin as malformed', () => {
+    const root = mkdtempSync(join(tmpdir(), 'docs-cache-'));
+    try {
+      const paths = layout(root);
+      const entry = sampleEntry();
+      const path = cacheEntryPath('pl', entry.sourcePath, paths);
+      const write = (value: unknown): void => {
+        mkdirSync(dirname(path), { recursive: true });
+        writeFileSync(path, typeof value === 'string' ? value : JSON.stringify(value), 'utf8');
+      };
+
+      expect(readCacheEntryResult('pl', entry.sourcePath, paths)).toEqual({ kind: 'absent' });
+
+      write(entry);
+      expect(readCacheEntryResult('pl', entry.sourcePath, paths)).toEqual({ kind: 'pin', entry });
+
+      // The pre-#671 shape: the whole translated page duplicated into the pin.
+      write({ ...entry, content: '---\ntitle: Wstęp\n---\n\nWitamy.\n' });
+      expect(readCacheEntryResult('pl', entry.sourcePath, paths)).toEqual({
+        kind: 'malformed',
+        reason: 'unexpected-key:content',
+      });
+
+      write({ ...entry, sourceHash: 'not-a-digest' });
+      expect(readCacheEntryResult('pl', entry.sourcePath, paths)).toEqual({
+        kind: 'malformed',
+        reason: 'invalid-field:sourceHash',
+      });
+
+      write({ ...entry, sourcePath: 'docs/docs/other.md' });
+      expect(readCacheEntryResult('pl', entry.sourcePath, paths)).toEqual({
+        kind: 'malformed',
+        reason: 'invalid-field:sourcePath',
+      });
+
+      write({ ...entry, locale: 'de' });
+      expect(readCacheEntryResult('pl', entry.sourcePath, paths)).toEqual({
+        kind: 'malformed',
+        reason: 'invalid-field:locale',
+      });
+
+      // An unresolved merge conflict left in the file.
+      write('<<<<<<< HEAD\n{}\n=======\n{}\n>>>>>>> branch\n');
+      expect(readCacheEntryResult('pl', entry.sourcePath, paths)).toEqual({
+        kind: 'malformed',
+        reason: 'invalid-json',
+      });
+      expect(() => readCacheEntry('pl', entry.sourcePath, paths)).toThrow(/invalid-json/);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

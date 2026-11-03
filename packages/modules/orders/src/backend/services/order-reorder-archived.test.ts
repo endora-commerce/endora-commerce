@@ -75,7 +75,7 @@ describe('OrderReorderService — archived is archivedAt (spec 163)', () => {
       fakeEm(),
       cartWrite,
       catalogProductRead,
-      {} as CustomerAccountReadPort,
+      { findById: async () => null } as unknown as CustomerAccountReadPort,
     );
 
     const result = await service.reorder(ORDER.id, {

@@ -323,6 +323,7 @@ export default async function RootLayout({
                   megamenu={megamenu}
                   user={me}
                   salesChannelCode={ctx.salesChannelCode}
+                  modules={modules}
                 />
                 <Hook code="header.bottom" />
               </>
@@ -351,6 +352,7 @@ export default async function RootLayout({
           <Hook code="footer.before" />
           <Footer
             locale={locale}
+            modules={modules}
             top={<Hook code="footer.top" />}
             bottom={<Hook code="footer.bottom" />}
             copyright={<Hook code="footer.copyright" />}
@@ -361,6 +363,10 @@ export default async function RootLayout({
               it never covers content (globals.css). */}
           <MobileTabBar
             cartItemCount={cartItemCount}
+            present={{
+              quoteRequests: modules.isPresent('quote_requests'),
+              quickOrder: modules.isPresent('quick_order'),
+            }}
             labels={{
               navigation: t('chrome.mobileTabBar.label'),
               home: t('nav.home'),

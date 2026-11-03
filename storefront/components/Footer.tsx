@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { LocalizedAnchor, LocalizedForm } from '../lib/i18n/localized-link';
 import { tForLocale } from '../lib/i18n/messages';
+import type { ModulePresenceSet } from '../lib/api/module-presence';
 import { format } from '../lib/i18n/format';
 import { REFERENCE_BRAND_MARK, REFERENCE_BRAND_NAME } from '../lib/theme/reference-brand';
 
@@ -57,6 +58,12 @@ function EndoraCommerceMark(props: { className?: string }): ReactNode {
 export function Footer(props: {
   /** The page's locale; the footer's copy is rendered in it. */
   locale: string;
+  /**
+   * The request's effective enabled-set. Required, so no caller can render the
+   * module-owned links without asking: a module that is off contributes no
+   * footer link (Constitution XVII item 5, issue #666).
+   */
+  modules: ModulePresenceSet;
   cmsLinks?: Array<{ path: string; title: string }>;
   top?: ReactNode;
   bottom?: ReactNode;
@@ -100,7 +107,9 @@ export function Footer(props: {
               {t('chrome.shared.category.electronics')}
             </LocalizedAnchor>
             <LocalizedAnchor className={COL_LINK} href="/c/safety">{t('chrome.shared.category.safety')}</LocalizedAnchor>
-            <LocalizedAnchor className={COL_LINK} href="/quick-order">{t('nav.quickOrder')}</LocalizedAnchor>
+            {props.modules.isPresent('quick_order') ? (
+              <LocalizedAnchor className={COL_LINK} href="/quick-order">{t('nav.quickOrder')}</LocalizedAnchor>
+            ) : null}
           </div>
 
           <div>
@@ -108,12 +117,16 @@ export function Footer(props: {
             <LocalizedAnchor className={COL_LINK} href="/account">{t('chrome.footer.myAccount')}</LocalizedAnchor>
             <LocalizedAnchor className={COL_LINK} href="/orders">{t('chrome.footer.orders')}</LocalizedAnchor>
             <LocalizedAnchor className={COL_LINK} href="/invoices">{t('chrome.footer.invoices')}</LocalizedAnchor>
-            <LocalizedAnchor className={COL_LINK} href="/quote-requests">
-              {t('chrome.footer.quoteRequests')}
-            </LocalizedAnchor>
-            <LocalizedAnchor className={COL_LINK} href="/shopping-lists">
-              {t('chrome.footer.shoppingLists')}
-            </LocalizedAnchor>
+            {props.modules.isPresent('quote_requests') ? (
+              <LocalizedAnchor className={COL_LINK} href="/quote-requests">
+                {t('chrome.footer.quoteRequests')}
+              </LocalizedAnchor>
+            ) : null}
+            {props.modules.isPresent('shopping_lists') ? (
+              <LocalizedAnchor className={COL_LINK} href="/shopping-lists">
+                {t('chrome.footer.shoppingLists')}
+              </LocalizedAnchor>
+            ) : null}
             <LocalizedAnchor className={COL_LINK} href="/credit-limit">{t('chrome.shared.creditLimit')}</LocalizedAnchor>
           </div>
 

@@ -614,6 +614,7 @@ export function commerceModule(options: OrdersModuleOptions) {
     const orderCloneToQuoteService = new OrderCloneToQuoteService(
       options.emFactory,
       () => options.getRfqService?.() ?? null,
+      options.customerAccountRead,
     );
     const orderCreationAdminService = new OrderCreationAdminService(
       options.emFactory,
