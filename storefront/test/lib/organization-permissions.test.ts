@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { can, isAdministrator } from '../../lib/organization-permissions';
+import { can, isAdministrator, type OrganizationPermissionSession } from '../../lib/organization-permissions';
 
 /**
  * `specs/170-organization-roles/` WP-01 (T011) — the storefront's one reading of
@@ -35,12 +35,11 @@ describe('storefront organization permission helpers', () => {
     expect(isAdministrator(administrator)).toBe(true);
     expect(isAdministrator(member)).toBe(false);
     // A custom role holding every code is still not the administrator (FR-010, US 5.3).
-    expect(
-      isAdministrator({
-        organizationRole: { id: 'r-custom', name: 'Everything', kind: 'custom' },
-        permissions: ['carts.approve', 'carts.create', 'orders.view_organization'],
-      }),
-    ).toBe(false);
+    const everything = {
+      organizationRole: { id: 'r-custom', name: 'Everything', kind: 'custom' as const },
+      permissions: ['carts.approve', 'carts.create', 'orders.view_organization'],
+    };
+    expect(isAdministrator(everything)).toBe(false);
   });
 
   it.each([
@@ -52,7 +51,7 @@ describe('storefront organization permission helpers', () => {
   });
 
   it('both answer false for a session that carries no role (a backend older than the field)', () => {
-    const roleless = { email: 'a@example.test' };
+    const roleless: OrganizationPermissionSession = {};
     expect(can(roleless, 'carts.create')).toBe(false);
     expect(isAdministrator(roleless)).toBe(false);
     expect(can({ organizationRole: null, permissions: null }, 'carts.create')).toBe(false);
