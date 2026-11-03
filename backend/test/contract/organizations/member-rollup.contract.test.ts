@@ -56,6 +56,10 @@ describe('admin set member roll-up capability (T032)', () => {
     });
     expect(on.statusCode).toBe(200);
     expect((on.json() as { data: { subtreeRollupEnabled: boolean } }).data.subtreeRollupEnabled).toBe(true);
+    // `specs/170-organization-roles/` FR-008, FR-073 — the member names its role, not the legacy enum.
+    const onMember = (on.json() as { data: Record<string, unknown> }).data;
+    expect(onMember['organizationRole']).toMatchObject({ kind: 'administrator', name: 'Administrator' });
+    expect(onMember).not.toHaveProperty('role');
 
     const em = h.em();
     em.clear();
