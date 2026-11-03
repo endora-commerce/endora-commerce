@@ -54,9 +54,9 @@
     "@endora-commerce/platform": "workspace:*",
     "@fastify/rate-limit": "^10.3.0",
     "@types/node": "^22.9.0",
-    "fastify": "^5.12.5",
+    "fastify": "^5.12.8",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.11",
+    "vitest": "^4.1.12",
     "zod": "^4.2.0"
   }
 }

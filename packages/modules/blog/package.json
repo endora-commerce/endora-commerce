@@ -102,12 +102,12 @@
     "@puckeditor/core": "^0.23.0",
     "@types/node": "^22.9.0",
     "@types/react": "^19.2.14",
-    "fastify": "^5.12.5",
+    "fastify": "^5.12.8",
     "ioredis": "^5.10.1",
     "react": "^19.2.5",
     "react-router-dom": "^7.18.2",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.11",
+    "vitest": "^4.1.12",
     "zod": "^4.2.0"
   }
 }

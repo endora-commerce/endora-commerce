@@ -82,10 +82,10 @@
     "@types/node": "^22.9.0",
     "@types/react": "^19.2.14",
     "exceljs": "^4.4.0",
-    "fastify": "^5.12.5",
+    "fastify": "^5.12.8",
     "react": "^19.2.5",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.11",
+    "vitest": "^4.1.12",
     "zod": "^4.2.0"
   }
 }

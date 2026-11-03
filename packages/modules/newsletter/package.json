@@ -107,13 +107,13 @@
     "@types/react": "^19.2.14",
     "bullmq": "^5.76.1",
     "echarts": "^6.1.0",
-    "fastify": "^5.12.5",
+    "fastify": "^5.12.8",
     "ioredis": "^5.10.1",
     "nodemailer": "^10.1.4",
     "react": "^19.2.5",
     "react-router-dom": "^7.18.2",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.11",
+    "vitest": "^4.1.12",
     "zod": "^4.2.0"
   }
 }
