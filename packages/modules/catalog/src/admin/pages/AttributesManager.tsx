@@ -16,10 +16,15 @@ import { pickLocalized } from '../lib/scope-overview.js';
 
 // Feature 002 (T035) — DB-level value types. Foundation 001 had
 // the original 5 (string, number, boolean, enum, date); 002 adds
-// `multiselect` and `price`. The presentation hint
+// `multiselect` and `price`; 061 keeps the legacy `select` (dropdown
+// single-select, vs `enum` = pill). The presentation hint
 // `displayAsSlider` is honored only when valueType ∈ (number, price).
-const VALUE_TYPES = ['string', 'number', 'boolean', 'enum', 'multiselect', 'price'] as const;
+const VALUE_TYPES = ['string', 'number', 'boolean', 'enum', 'select', 'multiselect', 'price'] as const;
 type ValueType = (typeof VALUE_TYPES)[number];
+
+/** Select-style types carry a list of options (backend `SELECT_STYLE_VALUE_TYPES`). */
+const isOptionType = (valueType: ValueType): boolean =>
+  valueType === 'enum' || valueType === 'select' || valueType === 'multiselect';
 
 interface AdminAttribute {
   id: string;
@@ -170,9 +175,9 @@ export function AttributesManager(): ReactNode {
 
   const handleCreate = useCallback(
     async (input: AttributeFormValues): Promise<void> => {
-      // enumValues required for both `enum` (single-select) and `multiselect`.
+      // enumValues required for `enum` / `select` (single-select) and `multiselect`.
       const enumValues =
-        input.valueType === 'enum' || input.valueType === 'multiselect'
+        isOptionType(input.valueType)
           ? input.enumValues
               .split(',')
               .map((s) => s.trim())
@@ -363,7 +368,7 @@ export function AttributesManager(): ReactNode {
               onSubmit={(input): Promise<void> => handleEditSave(editingAttr, input)}
               onCancel={(): void => setEditingId(null)}
             />
-            {editingAttr.valueType === 'enum' || editingAttr.valueType === 'multiselect' ? (
+            {isOptionType(editingAttr.valueType) ? (
               <AttributeOptionsEditor
                 attribute={editingAttr}
                 onError={setError}
@@ -500,7 +505,7 @@ interface AttributeFormProps {
 /**
  * Shared create/edit form. In `edit` mode the `key` and `valueType` are locked
  * (immutable server-side) while the label and flags stay editable; enum /
- * multiselect options are managed by the separate {@link AttributeOptionsEditor}.
+ * select / multiselect options are managed by the separate {@link AttributeOptionsEditor}.
  */
 function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormProps): ReactNode {
   const t = useTranslation('catalog');
@@ -633,9 +638,9 @@ function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormPro
           <span className="font-mono">{attribute.customFieldDefinitionId}</span>
         </p>
       ) : null}
-      {/* Options of an existing enum/multiselect are edited below via the
+      {/* Options of an existing select-style attribute are edited below via the
           dedicated editor; the comma input is for initial creation only. */}
-      {!isEdit && (valueType === 'enum' || valueType === 'multiselect') ? (
+      {!isEdit && isOptionType(valueType) ? (
         <div className="space-y-2">
           <Label htmlFor="aenum">{t('attributes.field.enumValues')}</Label>
           <Input
@@ -759,7 +764,7 @@ interface OptionsEditorProps {
 }
 
 /**
- * Add / rename / remove the selectable options of an enum or multiselect
+ * Add / rename / remove the selectable options of an enum, select or multiselect
  * attribute. Each mutation hits the per-option endpoints and reloads the local
  * list; `onChanged` lets the parent refresh the attribute's `enumValues` cell.
  */
