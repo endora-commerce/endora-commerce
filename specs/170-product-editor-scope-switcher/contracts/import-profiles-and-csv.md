@@ -34,10 +34,18 @@ returns the report. Caps: 10 MiB file, 50 000 rows, 500 columns. Each product ro
 | Column | Meaning |
 | --- | --- |
 | `sku` | key (unchanged) |
-| `name`, `description`, `urlKey`, `status`, `attribute:<key>`, and the other Global fields of today's file | Global value |
+| `name`, `description`, `urlKey`, `status`, `minOrderQuantity`, `returnable`, `attribute:<key>`, and the other Global fields of today's file | Global value |
 | `<field>@<channel code>` | the Channel scope |
 | `<field>@<channel code>/<language>` | the C×L scope (only for fields whose set has CL) |
 | `<field>[<locale>]`, `<field>[<locale>\|<source channel>]` | a source-locale value, mapped by the profile (`pim-locale-mapping.md` §2); the profile's `sourceLanguageForGlobal` locale writes Global |
+
+`minOrderQuantity` and `returnable` (levels G, C) and multiselect attributes (`attribute:<key>`, levels per the
+attribute) follow the write standard (FR-110…FR-115; coordinator ruling 2026-11-03): they are **value** columns —
+no formula guard, typed on import (`minOrderQuantity` a number, `returnable` `true` / `false`, a multiselect its
+option values joined with `|`); `NULL` on `minOrderQuantity` = no minimum, `NULL` on a multiselect = none selected,
+`NULL` on `returnable` is refused `not_emptyable`; a `@<channel>/<language>` column of either Global field is a file
+error. The PIM connector exclusion list (`pim-locale-mapping.md` §4) applies to the connector port only, not to the
+CSV.
 
 One anchored header grammar (R14) — channel and source-channel codes `^[A-Za-z0-9_.-]{1,100}$`; a header
 matching nothing, two headers equal after normalisation, an unknown channel code or a language the channel does
