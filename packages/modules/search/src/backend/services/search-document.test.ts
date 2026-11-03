@@ -117,3 +117,20 @@ describe('sortableAttributesFor', () => {
     expect(sortableAttributesFor(['pl-PL', 'en-US'])).toEqual(['createdAt', 'texts.pl-PL.name', 'texts.en-US.name']);
   });
 });
+
+describe('queryLanguageOf (R21)', () => {
+  it('answers a language the channel offers', async () => {
+    const { queryLanguageOf } = await import('./search-query.service.js');
+    const channel = { id: 'c', code: 'c', defaultCurrency: 'PLN', defaultLanguage: 'pl-PL', languages: ['pl-PL', 'en-US'] };
+    expect(queryLanguageOf(channel, 'en-US')).toBe('en-US');
+    expect(queryLanguageOf(channel, 'de-DE')).toBe('pl-PL');
+  });
+
+  it('refuses a language that is not a tag before it reaches a field path', async () => {
+    const { queryLanguageOf } = await import('./search-query.service.js');
+    for (const defaultLanguage of ['pl-PL.name:asc', 'x"y', 'pl PL']) {
+      const channel = { id: 'c', code: 'c', defaultCurrency: 'PLN', defaultLanguage, languages: [] };
+      expect(() => queryLanguageOf(channel, undefined), defaultLanguage).toThrow();
+    }
+  });
+});
