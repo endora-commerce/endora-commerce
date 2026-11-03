@@ -50,7 +50,7 @@ a failing test (marked **RED**) in the same phase, and every FR is traced to a t
 ## Owner decisions after C1 (2026-11-03)
 
 - **Empty packaging-unit name override** (at C or C×L): basket, quote and order snapshots keep the **Global** name. Turn the `it.todo` in `carts/effective-text-lines` and `quote_requests/effective-text-snapshot` into a test of that rule.
-- **Back-in-stock e-mail** (T067 buyer half): shows the **Global** name in 170. Storing channel + language on `availability_notifications` is a **follow-up issue**, not 170. The `it.todo` in `inventory/effective-text-alerts` becomes a Global-name test and the follow-up is listed in spec *Out of scope / follow-ups*.
+- **Back-in-stock e-mail** (T067 buyer half): shows the **Global** name in 170. Storing channel + language on `availability_notifications` is a **follow-up issue** (endora-commerce/endora-commerce#696), not 170. The `it.todo` in `inventory/effective-text-alerts` becomes a Global-name test and the follow-up is listed in spec *Out of scope / follow-ups*.
 - Builder `SendMessage` is not available in stream runs: mid-run notes go into the block report.
 
 ## Format
