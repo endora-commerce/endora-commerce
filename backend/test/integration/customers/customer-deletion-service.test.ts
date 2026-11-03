@@ -23,6 +23,7 @@ import {
 // transitive parent ambiguous and the ORM refuses to initialise.
 import { CustomerAccountReadService } from '../../../../packages/modules/customer_accounts/dist/backend/services/customer-account-ports.js';
 import { twoFactorEnrolmentsFor } from '../../helpers/two-factor-enrolments.js';
+import { predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 
 /**
  * Feature 040, US7 — soft-delete, restore within window, and the permanent
@@ -57,8 +58,10 @@ describe('CustomerDeletionService', () => {
       {
         ensureForCustomerAccount: async (id) =>
           toOrganizationRecord(await personalOrgs.ensureForCustomerAccountId(id)),
-        provisionPersonalOrganization: async (id) =>
-          toOrganizationRecord(await personalOrgs.provisionPersonalOrganizationFor(id)),
+        provisionPersonalOrganization: async (id) => {
+          const org = await personalOrgs.provisionPersonalOrganizationFor(id);
+          return { ...toOrganizationRecord(org), administratorRoleId: await predefinedRoleIdOf(em, org.id, 'administrator') };
+        },
         anonymizeIfOrphaned: async (id) => {
           const org = await personalOrgs.anonymizeIfOrphaned(id);
           return org ? toOrganizationRecord(org) : null;
@@ -202,10 +205,15 @@ describe('CustomerDeletionService', () => {
     });
     await em.persistAndFlush(company);
     const member = await makeCustomer();
+    // The role moves with the Organization: the composite foreign key refuses
+    // the old one (`specs/170-organization-roles/` WP-02b).
+    const companyMember = await predefinedRoleIdOf(em, company.id, 'member');
     member.organizationId = company.id;
+    member.organizationRoleId = companyMember;
     // A second admin keeps the org non-orphaned and satisfies the last-admin guard.
     const other = await makeCustomer();
     other.organizationId = company.id;
+    other.organizationRoleId = companyMember;
     await em.flush();
 
     await svc.softDelete(member.id, actor);

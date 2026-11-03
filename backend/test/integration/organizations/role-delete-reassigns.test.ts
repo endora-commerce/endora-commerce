@@ -102,8 +102,8 @@ describe('organization_role.delete with holders', () => {
   async function auditSince(since: Date): Promise<Array<{ action: string; object_type: string; object_id: string }>> {
     return sql(
       `select "action","object_type","object_id" from "audit_log_entries"
-        where "created_at" >= ? and "action" in ('organization_role.delete','customer_account.change_role')
-        order by "created_at", "action"`,
+        where "acted_at" >= ? and "action" in ('organization_role.delete','customer_account.change_role')
+        order by "acted_at", "action"`,
       [since],
     );
   }

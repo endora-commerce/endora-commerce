@@ -11,6 +11,7 @@ import {
   TEST_ORGANIZATION_ID,
 } from './test-actors.js';
 import { bindOrganizationsToFixtureChannelsSql } from './sales-channel-access.js';
+import { predefinedRoleIdOf } from './seed-organization-roles.js';
 
 /**
  * Seeds the Organization + CustomerAccount rows that back the stub-session
@@ -98,6 +99,7 @@ export async function seedOtherTestCustomer(
       firstName: 'Stub',
       lastName: 'Other',
       role: 'regular_user',
+      organizationRoleId: await predefinedRoleIdOf(em, organizationId, 'member'),
       emailVerifiedAt: new Date(),
     }),
   );
@@ -132,6 +134,7 @@ export async function seedTestOrganizations(em: EntityManager): Promise<void> {
     firstName: 'Stub',
     lastName: 'Customer',
     role: 'organization_admin',
+    organizationRoleId: await predefinedRoleIdOf(em, TEST_ORGANIZATION_ID, 'administrator'),
     emailVerifiedAt: new Date(),
   });
   const rfq = em.create(CustomerAccount, {
@@ -142,6 +145,7 @@ export async function seedTestOrganizations(em: EntityManager): Promise<void> {
     firstName: 'Stub',
     lastName: 'RFQ',
     role: 'regular_user',
+    organizationRoleId: await predefinedRoleIdOf(em, TEST_ORGANIZATION_ID, 'member'),
     emailVerifiedAt: new Date(),
   });
   const empty = em.create(CustomerAccount, {
@@ -152,6 +156,7 @@ export async function seedTestOrganizations(em: EntityManager): Promise<void> {
     firstName: 'Stub',
     lastName: 'Empty',
     role: 'regular_user',
+    organizationRoleId: await predefinedRoleIdOf(em, TEST_ORGANIZATION_ID, 'member'),
     emailVerifiedAt: new Date(),
   });
   await em.persistAndFlush([admin, rfq, empty]);

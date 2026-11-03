@@ -9,6 +9,7 @@ import type { AuditLogService } from '@endora-commerce/platform/composition';
 import type { CommandBus } from '../../src/commands/index.js';
 import type { PersonalOrganizationProvisionApi } from '@endora-commerce/mod-organizations/ports';
 import { PersonalOrganizationService } from '../../../packages/modules/organizations/src/backend/services/personal-organization-service.js';
+import { predefinedRoleIdOn } from '../../../packages/modules/organizations/src/backend/services/organization-role-store.js';
 // **`dist`, not `src`** (feature 146): these value-import `customer_accounts`'
 // `CustomerAccount` entity, and `QuoteRequestAccountPolicy` is
 // `@TransitivelyScoped('CustomerAccount', …)`. A second, source-evaluated class
@@ -93,7 +94,12 @@ export function personalOrganizationProvisionFor(
     write: new Proxy({} as CustomerAccountMemberWritePort, { get: unreachable }),
   });
   return {
-    provisionFor: async (em, input) => ({ id: (await service.provisionFor(em, input)).id }),
+    // The answer carries the new Organization's Administrator role, read on
+    // the caller's `em` as the real seam does (`specs/170-organization-roles/` R-34).
+    provisionFor: async (em, input) => {
+      const org = await service.provisionFor(em, input);
+      return { id: org.id, administratorRoleId: await predefinedRoleIdOn(em, org.id, 'administrator') };
+    },
   };
 }
 
