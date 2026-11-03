@@ -29,6 +29,7 @@ import { ProductChannelLanguageScope } from '../entities/product-channel-languag
 import { ProductChannelScope } from '../entities/product-channel-scope.entity.js';
 import { globalScopeFields } from './product-availability.service.js';
 import type { ScopeCompletenessGate } from './scope-completeness.js';
+import { bumpScopeVersion } from './scoped-values-state.js';
 
 /**
  * Feature 163 (`specs/163-product-data-scopes/`) — a product's scoped values per
@@ -859,6 +860,8 @@ export class ProductScopesService {
       objectType: 'product',
       objectId: productId,
       run: async ({ em }) => {
+        // Feature 170 (R7) — a scope write is Save-overwritable: it moves the editor's version.
+        await bumpScopeVersion(em, productId);
         // The write lock serialises concurrent scope writes on one product, so the
         // rows read below — and the audit `before` built from them — are the true
         // predecessor of this write, and two first writes cannot race to one PK.

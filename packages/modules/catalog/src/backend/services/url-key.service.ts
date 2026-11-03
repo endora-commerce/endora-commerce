@@ -24,6 +24,7 @@ import { Product } from '../entities/product.entity.js';
 import { ProductUrlKey } from '../entities/product-url-key.entity.js';
 import { ProductUrlRedirect } from '../entities/product-url-redirect.entity.js';
 import { channelUrlFactsOf } from './channel-url-facts.js';
+import { bumpScopeVersion } from './scoped-values-state.js';
 
 /**
  * Feature 170 (T039; `contracts/url-keys.md`, research R12) — URL keys at Global (`products.slug`),
@@ -624,6 +625,8 @@ export class UrlKeyService {
       objectType: 'product',
       objectId: productId,
       run: async ({ em }) => {
+        // Feature 170 (R7) — a key write is Save-overwritable: it moves the editor's version.
+        await bumpScopeVersion(em, productId);
         const effects = await this.lockAndCheck(em, productId, writes, options);
         if (!effects.changed) return { result: effects, skipAudit: true };
         return {

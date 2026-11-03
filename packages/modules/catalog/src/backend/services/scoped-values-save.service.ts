@@ -43,24 +43,7 @@ import type { ScopedProductState } from './scoped-values-state.js';
 
 // --- Version (R7) -----------------------------------------------------------------------------
 
-/**
- * The **one** writer of `products.scope_version`: `+ 1`, conditioned on `expected` when the
- * caller holds a version (the save, the copy). Runs as the first statement of the Command, so
- * the row lock it takes serialises every later read of the transaction. A stale `expected` is
- * `409 VERSION_CONFLICT`; an unknown or deleted product `404 PRODUCT_NOT_FOUND`.
- */
-export async function bumpScopeVersion(em: EntityManager, productId: string, expected?: string): Promise<string> {
-  const rows = await em.execute<Array<{ v: string }>>(
-    expected === undefined
-      ? `update products set scope_version = scope_version + 1 where id = ? and deleted_at is null returning scope_version::text as v`
-      : `update products set scope_version = scope_version + 1 where id = ? and deleted_at is null and scope_version = ?::bigint returning scope_version::text as v`,
-    expected === undefined ? [productId] : [productId, expected],
-  );
-  if (rows[0]) return rows[0].v;
-  const [exists] = await em.execute<Array<{ id: string }>>(`select id from products where id = ? and deleted_at is null`, [productId]);
-  if (!exists) throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
-  throw new HttpError(409, ERROR_CODES.VERSION_CONFLICT, 'The product was saved by someone else; reload it and try again.');
-}
+export { bumpScopeVersion } from './scoped-values-state.js';
 
 // --- The plan ---------------------------------------------------------------------------------
 

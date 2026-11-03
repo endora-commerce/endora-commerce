@@ -86,6 +86,7 @@ import { Category } from '../entities/category.entity.js';
 import { Product } from '../entities/product.entity.js';
 import { ProductUrlRedirect } from '../entities/product-url-redirect.entity.js';
 import { allocateFreeSlug } from './url-key.service.js';
+import { bumpScopeVersion } from './scoped-values-state.js';
 import { ProductVariant } from '../entities/product-variant.entity.js';
 import { ProductChannelScope } from '../entities/product-channel-scope.entity.js';
 import { ProductChannelLanguageScope } from '../entities/product-channel-language-scope.entity.js';
@@ -640,6 +641,8 @@ export class CatalogAdminService {
     }
     // Feature 155 (FR-001, D5) — refused before anything on the row changes.
     assertOrderMinimumAllowed(product.type, req.minOrderQuantity);
+    // Feature 170 (R7) — a product-row write is Save-overwritable: it moves the editor's version.
+    await bumpScopeVersion(em, id);
     const stateBefore: Record<string, unknown> = {
       sku: product.sku,
       name: product.name,
