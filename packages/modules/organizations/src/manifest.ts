@@ -336,6 +336,17 @@ export const manifest = defineModuleManifest({
     },
     { code: 'customers:read', label: 'View customers' },
     { code: 'customers:manage', label: 'Manage customer organizations' },
+    // Feature 170 (`specs/170-organization-roles/` `contracts/operator-api.md`
+    // §1, owner ruling OR-7) — an Organization's roles on the operator's
+    // *Roles* tab. Assigning a role to a member stays `customers:manage`
+    // (FR-062). No palette action: the tab lives on `/organizations/:id`, a
+    // detail screen no action can target.
+    { code: 'organizations:read-roles', label: 'View organization roles' },
+    {
+      code: 'organizations:manage-roles',
+      label: 'Manage organization roles',
+      requires: ['organizations:read-roles'],
+    },
   ],
   settings,
   /**
@@ -558,5 +569,18 @@ export const manifest = defineModuleManifest({
     { code: 'ORGANIZATION_TAX_ID_EXISTS' },
     { code: 'ORGANIZATION_TREE_INVALID', tokens: ['cycle', 'max_depth_exceeded', 'path_unreadable'] },
     { code: 'ORG_OWNER_DEPLETION' },
+    // Feature 170 (`contracts/organization-permission-port.md` §3). The first is
+    // raised by this module's permission port on behalf of every module that
+    // gates a buyer action on an organization permission: the rule — what a
+    // role allows — is this module's, whichever module's action it refuses, the
+    // shape `ORG_OWNER_DEPLETION` set above. Its sentence names
+    // `{permissionLabel}`, which the raise always fills.
+    { code: 'ORGANIZATION_PERMISSION_REQUIRED' },
+    { code: 'ORGANIZATION_ROLE_NAME_TAKEN' },
+    { code: 'ORGANIZATION_ROLE_STALE' },
+    { code: 'ORGANIZATION_ROLE_LIMIT_REACHED' },
+    { code: 'ORGANIZATION_ROLE_PROTECTED' },
+    { code: 'ORGANIZATION_ROLE_REPLACEMENT_REQUIRED' },
+    { code: 'ORGANIZATION_PERMISSION_UNKNOWN' },
   ],
 });

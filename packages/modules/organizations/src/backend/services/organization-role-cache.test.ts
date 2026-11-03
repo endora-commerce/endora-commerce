@@ -5,6 +5,7 @@ import {
   OrganizationRoleCache,
   type CachedOrganizationRoles,
 } from './organization-role-cache.js';
+import type { Command } from '@endora-commerce/platform/commands';
 import { runRoleCommandAndAnnounce } from './organization-role-service.js';
 
 /**
@@ -188,7 +189,11 @@ describe('the drop follows the commit (commands-audit-events.md §5)', () => {
   it('drops and announces after a Command resolves', async () => {
     const h = harness();
     await h.cache.get(ORG_A);
-    const result = await runRoleCommandAndAnnounce({ run: async () => 'done' }, h.cache, ORG_A, {
+    const bus = {
+      run: async <R>(command: Command<R>): Promise<R> =>
+        (await command.run({ em: {} as never, actor: { actorAdminUserId: null, impersonatedCustomerAccountId: null, kind: 'system' } })).result,
+    };
+    const result = await runRoleCommandAndAnnounce(bus, h.cache, ORG_A, {
       action: 'organization_role.create',
       objectType: 'organization',
       objectId: ORG_A,
@@ -205,7 +210,11 @@ describe('the drop follows the commit (commands-audit-events.md §5)', () => {
     await h.cache.get(ORG_A);
     await expect(
       runRoleCommandAndAnnounce(
-        { run: async () => Promise.reject(new Error('rolled back')) },
+        {
+          run: async <R>(): Promise<R> => {
+            throw new Error('rolled back');
+          },
+        },
         h.cache,
         ORG_A,
         { action: 'organization_role.update', objectType: 'organization', objectId: ORG_A, run: async () => ({ result: null }) },

@@ -10,6 +10,7 @@ import type {
   CustomerPasswordResetPort,
   CustomerRolePort,
   EmailMailerPort,
+  OrganizationPermissionPort,
 } from '@endora-commerce/contracts';
 import type { EventBus } from '@endora-commerce/platform/events';
 import type { OrganizationModerationService } from './services/organization-moderation-service.js';
@@ -30,6 +31,9 @@ import { registerOrganizationsStorefrontRoutes } from './routes.storefront.js';
 import { OrganizationContextService } from './services/organization-context-service.js';
 import { registerMembersRoutes } from './routes.members.js';
 import { registerOrganizationsAdminRoutes } from './routes.admin.js';
+import { registerOrganizationRoleRoutes } from './routes.roles.js';
+import { registerOrganizationAdminRoleRoutes } from './routes.admin-roles.js';
+import type { OrganizationRoleService } from './services/organization-role-service.js';
 import { OrganizationTreeService } from './services/organization-tree-service.js';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { RequireAdminAnyFactory } from '@endora-commerce/platform/kernel';
@@ -59,6 +63,13 @@ export interface OrganizationsModuleOptions {
    */
   customerAccountRead: CustomerAccountReadPort;
   customerAccountWrite: CustomerAccountMemberWritePort;
+  /**
+   * Feature 170 (`specs/170-organization-roles/` WP-02a) — role management and
+   * this module's own permission port, behind the storefront and operator role
+   * routes. The port is a thunk, resolved per request.
+   */
+  roleService: OrganizationRoleService;
+  organizationPermissions: () => OrganizationPermissionPort;
   emFactory: () => EntityManager;
   eventBus: EventBus;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
@@ -255,6 +266,12 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       exposeTestProbe: options.exposeTestProbe ?? false,
       latestInvitationToken,
     });
+    await registerOrganizationRoleRoutes(app, {
+      roleService: options.roleService,
+      organizationPermissions: options.organizationPermissions,
+      requireCustomer: options.requireCustomer,
+      resolveCustomerContext: options.resolveCustomerContext,
+    });
     if (options.requireAdmin) {
       if (!options.auditLogService) {
         throw new Error('organizationsModule: auditLogService is required when requireAdmin is set');
@@ -294,6 +311,11 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
               treeService: new OrganizationTreeService(options.emFactory),
             }
           : {}),
+      });
+      await registerOrganizationAdminRoleRoutes(app, {
+        roleService: options.roleService,
+        requireAdmin: options.requireAdmin,
+        requireAdminAny: options.requireAdminAny,
       });
     }
   };

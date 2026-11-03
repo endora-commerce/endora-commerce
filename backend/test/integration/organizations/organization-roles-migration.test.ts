@@ -45,7 +45,7 @@ describe('M2 — organization_roles', () => {
       [
         id,
         `Roles ${id.slice(0, 8)}`,
-        options.isPersonal ? null : `roles-${id.slice(0, 13)}`,
+        `${options.isPersonal ? 'personal' : 'roles'}-${id.slice(0, 13)}`,
         options.status ?? 'active',
         `/${id}/`,
         options.isPersonal ?? false,

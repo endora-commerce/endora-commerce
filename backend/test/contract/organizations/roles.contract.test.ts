@@ -20,6 +20,7 @@ import {
 } from '../../helpers/test-actors.js';
 import { seedOtherTestOrganization } from '../../helpers/seed-organizations.js';
 import { seedRoleScopingFixture } from '../../helpers/seed-roles.js';
+import { bindOrganizationsToFixtureChannelsSql } from '../../helpers/sales-channel-access.js';
 
 /**
  * The storefront role routes (`specs/170-organization-roles/` WP-02a, T028;
@@ -83,9 +84,9 @@ describe('storefront organization roles', () => {
     const personalAccount = randomUUID();
     await em.getConnection().execute(
       `insert into "organizations"
-         ("id","name","status","vat_status","registered_address","path","is_personal","created_at","updated_at")
-       values (?, 'Personal roles test', 'active', 'not_vat_payer', '{}'::jsonb, ?, true, now(), now())`,
-      [personalOrg, `/${personalOrg}/`],
+         ("id","name","tax_id","status","vat_status","registered_address","path","is_personal","created_at","updated_at")
+       values (?, 'Personal roles test', ?, 'active', 'vat_payer', '{}'::jsonb, ?, true, now(), now())`,
+      [personalOrg, `personal-${personalOrg.slice(0, 13)}`, `/${personalOrg}/`],
     );
     await em.getConnection().execute(
       `insert into "customer_accounts"
@@ -93,6 +94,8 @@ describe('storefront organization roles', () => {
        values (?, ?, ?, 'x', 'Per', 'Sonal', 'organization_admin', now(), now())`,
       [personalAccount, personalOrg, `${personalAccount.slice(0, 8)}@roles-personal.example`],
     );
+    // Feature 154 — an Organization with no sales channel may not use the store at all.
+    await bindOrganizationsToFixtureChannelsSql(em, [personalOrg]);
     CUSTOMER_COOKIES[PERSONAL_COOKIE] = { customerAccountId: personalAccount, organizationId: personalOrg };
   });
 
@@ -212,7 +215,7 @@ describe('storefront organization roles', () => {
       const rows = (await h.em().getConnection().execute(
         `select "action","object_type","object_id","actor_customer_account_id","state_after"
            from "audit_log_entries" where "action" = 'organization_role.create' and "object_id" = ?
-          order by "created_at" desc limit 5`,
+          order by "acted_at" desc limit 5`,
         [TEST_ORGANIZATION_ID],
       )) as Array<{ object_type: string; actor_customer_account_id: string | null; state_after: { role: { id: string } } }>;
       const entry = rows.find((r) => r.state_after?.role?.id === created.id);

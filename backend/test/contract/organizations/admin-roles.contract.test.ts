@@ -73,9 +73,9 @@ describe('operator organization roles', () => {
     personalOrganizationId = randomUUID();
     await h.em().getConnection().execute(
       `insert into "organizations"
-         ("id","name","status","vat_status","registered_address","path","is_personal","created_at","updated_at")
-       values (?, 'Personal operator roles test', 'active', 'not_vat_payer', '{}'::jsonb, ?, true, now(), now())`,
-      [personalOrganizationId, `/${personalOrganizationId}/`],
+         ("id","name","tax_id","status","vat_status","registered_address","path","is_personal","created_at","updated_at")
+       values (?, 'Personal operator roles test', ?, 'active', 'vat_payer', '{}'::jsonb, ?, true, now(), now())`,
+      [personalOrganizationId, `personal-${personalOrganizationId.slice(0, 13)}`, `/${personalOrganizationId}/`],
     );
   }, 90_000);
 
@@ -143,7 +143,7 @@ describe('operator organization roles', () => {
     const entries = (await h.em().getConnection().execute(
       `select "action","object_type","object_id","actor_admin_user_id","actor_customer_account_id"
          from "audit_log_entries" where "object_id" = ? and "action" like 'organization_role.%'
-        order by "created_at"`,
+        order by "acted_at"`,
       [TEST_ORGANIZATION_ID],
     )) as Array<{ action: string; object_type: string; actor_admin_user_id: string | null; actor_customer_account_id: string | null }>;
     const mine = entries.filter((e) => e.actor_admin_user_id === TEST_ADMIN_ID).map((e) => e.action);
