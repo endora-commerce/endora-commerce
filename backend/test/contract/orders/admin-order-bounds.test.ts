@@ -41,7 +41,7 @@ interface CatalogReadSlice {
 interface CartServiceSlice {
   addItem(...args: unknown[]): Promise<unknown>;
   addItems(...args: unknown[]): Promise<unknown>;
-  clearForCustomer(...args: unknown[]): Promise<unknown>;
+  getOrCreateForCustomer(...args: unknown[]): Promise<unknown>;
 }
 
 describe('155 — admin create-order and preview: the item bound [contract]', () => {
@@ -89,7 +89,9 @@ describe('155 — admin create-order and preview: the item bound [contract]', ()
       vi.spyOn(cradle().catalogProductReadPort, 'findByIds'),
       vi.spyOn(cradle().cartService, 'addItem'),
       vi.spyOn(cradle().cartService, 'addItems'),
-      vi.spyOn(cradle().cartService, 'clearForCustomer'),
+      // The way the write port's `getOrCreateForCustomer` and
+      // `replaceItemsForCustomer` reach a customer's basket.
+      vi.spyOn(cradle().cartService, 'getOrCreateForCustomer'),
     ];
     return {
       calls: () => spies.reduce((n, spy) => n + spy.mock.calls.length, 0),

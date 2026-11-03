@@ -460,10 +460,12 @@ describe('recursive folder delete refuses in-use assets (#535)', () => {
         expect(response.statusCode, `${who}: ${response.body}`).toBe(409);
         expect((response.json() as Refusal).error.code, who).toBe(ERROR_CODES.ASSET_FOLDER_NOT_EMPTY);
       }
-      // The wire sentence is translated and carries no count, so it is W's word
-      // for word; the visible-only count of the untranslated fallback is
-      // measured in `folders.service.test.ts`.
-      expect((forB.json() as Refusal).error.message).toBe((forW.json() as Refusal).error.message);
+      // The counts are on the wire (issue #86): `details` and both bundle
+      // sentences name them, so B is told of the one file B sees and W of all
+      // three.
+      expect((forB.json() as Refusal).error.details).toEqual({ subfolderCount: 0, assetCount: 1 });
+      expect((forW.json() as Refusal).error.details).toEqual({ subfolderCount: 0, assetCount: 3 });
+      expect((forB.json() as Refusal).error.message).not.toBe((forW.json() as Refusal).error.message);
       expect(await folderExists(mixed)).toBe(true);
     });
 

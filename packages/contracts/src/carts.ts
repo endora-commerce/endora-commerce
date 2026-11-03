@@ -851,6 +851,19 @@ export type CartBatchLineOutcome =
       error: { status: number; code: string; message: string; details?: unknown };
     };
 
+/**
+ * The cart writes `carts` publishes to other modules.
+ *
+ * There is deliberately no operation that empties a buyer's basket and closes
+ * it without an order. `clearForCustomer` did exactly that — every line
+ * deleted, the basket marked `completed` with no `completed_order_id` — and was
+ * removed in issue #601: once #169 moved its callers off it, it was only the
+ * next module's way back to a finished basket that produced nothing. A module
+ * that places an order for a customer writes the lines into a working basket
+ * (`addItems` with `workingBasket`) and leaves the active one alone; one that
+ * means to re-seed the active basket calls `replaceItemsForCustomer`, which
+ * keeps it active.
+ */
 export interface CartWritePort {
   getOrCreateForCustomer(ctx: CartCustomerContext): Promise<CartRecord>;
   addItem(
@@ -923,7 +936,6 @@ export interface CartWritePort {
       language?: string;
     },
   ): Promise<CartWithItems & { outcomes: CartBatchLineOutcome[] }>;
-  clearForCustomer(ctx: CartCustomerContext): Promise<void>;
   /**
    * Clear the customer's active cart and seed it with these lines, creating
    * the cart when there is none. The single-active-cart model admin

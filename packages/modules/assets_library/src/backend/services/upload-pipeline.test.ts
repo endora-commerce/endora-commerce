@@ -112,6 +112,8 @@ describe('UploadPipeline — documents a browser would run are refused', () => {
     await expect(p.run(filename, mime, HTML)).rejects.toMatchObject({
       statusCode: 415,
       code: 'ASSET_UPLOAD_TYPE_NOT_ALLOWED',
+      // Issue #86 — the token picks the sentence naming the refused types.
+      details: { code: 'active_content' },
     });
     expect(p.puts).toHaveLength(0);
   });
@@ -247,7 +249,12 @@ describe('UploadPipeline.stage — type policy', () => {
     const s = stager({ allowedTypes: ['image/png'], maxFileSizeMb: 0 });
     await expect(
       s.stage('notes.txt', 'text/plain', Readable.from([Buffer.from('hello')])),
-    ).rejects.toMatchObject({ statusCode: 415, code: 'ASSET_UPLOAD_TYPE_NOT_ALLOWED' });
+    ).rejects.toMatchObject({
+      statusCode: 415,
+      code: 'ASSET_UPLOAD_TYPE_NOT_ALLOWED',
+      // Issue #86 — the type and the allowed list the bundle sentences name.
+      details: { code: 'not_allowed_by_policy', fileType: 'text/plain', allowedTypes: 'image/png' },
+    });
     expect(s.puts).toHaveLength(0);
   });
 
@@ -256,6 +263,7 @@ describe('UploadPipeline.stage — type policy', () => {
     await expect(s.stage('notes.txt', 'text/plain', Readable.from([TINY_PNG]))).rejects.toMatchObject({
       statusCode: 415,
       code: 'ASSET_UPLOAD_TYPE_NOT_ALLOWED',
+      details: { code: 'not_allowed_by_policy', fileType: 'image/png', allowedTypes: 'text/plain' },
     });
     expect(s.puts).toHaveLength(0);
   });

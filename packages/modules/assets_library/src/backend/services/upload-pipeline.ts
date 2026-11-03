@@ -117,7 +117,23 @@ function refuseActiveDocument(): never {
     415,
     ERROR_CODES.ASSET_UPLOAD_TYPE_NOT_ALLOWED,
     'HTML, XHTML, XML and JavaScript files cannot be uploaded to the media library.',
+    // Issue #86 — the token picks the sentence that names the refused types;
+    // the base sentence is the one `crm` and `projects` raise without one.
+    { code: 'active_content' },
   );
+}
+
+/**
+ * 415 for a type `assets.allowed_file_types` does not list. `details` carries
+ * the refused type and the allowed list as scalars, because only scalar
+ * members become the bundle sentence's `{placeholder}` values (issue #86).
+ */
+function notAllowedByPolicy(message: string, fileType: string, allowedTypes: readonly string[]): HttpError {
+  return new HttpError(415, ERROR_CODES.ASSET_UPLOAD_TYPE_NOT_ALLOWED, message, {
+    code: 'not_allowed_by_policy',
+    fileType,
+    allowedTypes: allowedTypes.join(', ') || '(none)',
+  });
 }
 
 /**
@@ -221,10 +237,11 @@ export class UploadPipeline {
     if (
       !isAllowed(policy.allowedTypes, input.declaredMime, ext)
     ) {
-      throw new HttpError(
-        415,
-        ERROR_CODES.ASSET_UPLOAD_TYPE_NOT_ALLOWED,
-        `File type "${input.declaredMime || ext || 'unknown'}" is not allowed by the active policy. Allowed: ${policy.allowedTypes.join(', ') || '(none)'}.`,
+      const fileType = input.declaredMime || ext || 'unknown';
+      throw notAllowedByPolicy(
+        `File type "${fileType}" is not allowed by the active policy. Allowed: ${policy.allowedTypes.join(', ') || '(none)'}.`,
+        fileType,
+        policy.allowedTypes,
       );
     }
 
@@ -240,10 +257,10 @@ export class UploadPipeline {
       sniffedMime !== input.declaredMime &&
       !isAllowed(policy.allowedTypes, sniffedMime, ext)
     ) {
-      throw new HttpError(
-        415,
-        ERROR_CODES.ASSET_UPLOAD_TYPE_NOT_ALLOWED,
+      throw notAllowedByPolicy(
         `File content reports type "${sniffedMime}", which is not allowed by the active policy. Allowed: ${policy.allowedTypes.join(', ') || '(none)'}.`,
+        sniffedMime,
+        policy.allowedTypes,
       );
     }
 

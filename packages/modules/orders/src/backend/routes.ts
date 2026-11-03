@@ -318,9 +318,10 @@ export async function registerOrderRoutes(
       // refused — never silently overridden, because a client that believes it
       // is on another channel has a defect worth hearing about. The refusal is
       // here, ahead of the placement transaction, so nothing is written and the
-      // basket survives. 422 with a `details.code`, the shape
-      // `order_below_minimum` already gives a body that parses and cannot be
-      // honoured. The comparison ignores case: a UUID is the same id in either,
+      // basket survives. 422 with a `details.code`, the shape the minimum
+      // order value refusal gave a body that parses and cannot be honoured
+      // until it got a code of its own (`ORDER_BELOW_MINIMUM_VALUE`, issue
+      // #86). The comparison ignores case: a UUID is the same id in either,
       // and a client echoing one in upper case has named the same channel.
       //
       // **What else holds, and where.** This makes the order's channel and the

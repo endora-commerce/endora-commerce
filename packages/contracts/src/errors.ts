@@ -195,11 +195,40 @@ export const ERROR_CODES = {
    * the buyer reviews it before placing again.
    */
   CART_PRICE_CHANGED: 'CART_PRICE_CHANGED',
+  // Issue #86 — the cart-approval and admin-reject refusals, raised as
+  // `VALIDATION_FAILED` with a machine token as the message until then.
+  /** The Organization does not require cart approval, so the cart is not sent for it. */
+  CART_APPROVAL_NOT_REQUIRED: 'CART_APPROVAL_NOT_REQUIRED',
+  /** The cart has already been sent for approval (`details.approvalStatus`). */
+  CART_APPROVAL_ALREADY_SUBMITTED: 'CART_APPROVAL_ALREADY_SUBMITTED',
+  /** An Organization administrator orders directly; their own cart is not sent for approval. */
+  CART_APPROVAL_SELF_SUBMIT: 'CART_APPROVAL_SELF_SUBMIT',
+  /** The cart is not awaiting approval, so it cannot be approved or rejected (`details.approvalStatus`). */
+  CART_APPROVAL_NOT_PENDING: 'CART_APPROVAL_NOT_PENDING',
+  /** The cart is already completed or rejected, so it cannot be rejected (`details.status`). */
+  CART_ALREADY_TERMINAL: 'CART_ALREADY_TERMINAL',
   STOCK_UNAVAILABLE: 'STOCK_UNAVAILABLE',
   PROMOTION_INVALID: 'PROMOTION_INVALID',
   ORGANIZATION_SUSPENDED: 'ORGANIZATION_SUSPENDED',
   ORDER_NOT_FOUND: 'ORDER_NOT_FOUND',
   ORDER_NOT_CANCELLABLE: 'ORDER_NOT_CANCELLABLE',
+  // Issue #86 — order-path refusals raised as `VALIDATION_FAILED` with an
+  // English sentence until then.
+  /**
+   * The chosen delivery method cannot be used for this order: not active, not
+   * usable on this surface, outside the Organization's allow-list
+   * (`details.code = 'delivery_method_not_allowed_for_organization'`) or not
+   * offered in the order's sales channel (`'delivery_method_not_in_sales_channel'`).
+   */
+  ORDER_DELIVERY_METHOD_UNAVAILABLE: 'ORDER_DELIVERY_METHOD_UNAVAILABLE',
+  /** The payment twin of `ORDER_DELIVERY_METHOD_UNAVAILABLE`, with the `payment_method_…` tokens. */
+  ORDER_PAYMENT_METHOD_UNAVAILABLE: 'ORDER_PAYMENT_METHOD_UNAVAILABLE',
+  /** The basket is below the channel's minimum order value (`details.minimum`, `subtotal`, `currency`). */
+  ORDER_BELOW_MINIMUM_VALUE: 'ORDER_BELOW_MINIMUM_VALUE',
+  /** The order is in a terminal status, so it takes no more comments. */
+  ORDER_COMMENTS_CLOSED: 'ORDER_COMMENTS_CLOSED',
+  /** The order has no lines, so there is nothing to copy into a quote request. */
+  ORDER_CLONE_NO_LINES: 'ORDER_CLONE_NO_LINES',
   /** 422 — the basket handed to placement belongs to another sales channel (feature 154). */
   ORDER_SALES_CHANNEL_MISMATCH: 'ORDER_SALES_CHANNEL_MISMATCH',
   // Saved list views (`specs/147-saved-views/`, FR-022) — an admin already
@@ -224,6 +253,10 @@ export const ERROR_CODES = {
   // returnable at purchase (owned and raised by `returns`; complaints are
   // never refused by it).
   RETURN_LINE_NOT_RETURNABLE: 'RETURN_LINE_NOT_RETURNABLE',
+  // Saved list views (#312, the rules of `specs/147-saved-views/` FR-022) — an
+  // admin already holds a view on the return list whose name differs only by
+  // case or surrounding spaces.
+  RETURN_SAVED_VIEW_NAME_TAKEN: 'RETURN_SAVED_VIEW_NAME_TAKEN',
 
   // Credit Limit
   CREDIT_LIMIT_NOT_GRANTED: 'CREDIT_LIMIT_NOT_GRANTED',

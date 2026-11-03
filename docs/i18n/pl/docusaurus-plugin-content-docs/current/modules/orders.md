@@ -111,7 +111,8 @@ wcale, nie zauważy zmiany.
 
 Organizację można ograniczyć do wybranych metod dostawy i płatności (zob. moduł `organizations`,
 *Ograniczenia handlowe organizacji*). Złożenie zamówienia i oba podglądy odrzucają metodę spoza niepustej
-listy odpowiedzią `400 VALIDATION_FAILED`:
+listy odpowiedzią `400 ORDER_DELIVERY_METHOD_UNAVAILABLE` (metoda dostawy) albo
+`400 ORDER_PAYMENT_METHOD_UNAVAILABLE` (metoda płatności), a `error.details.code` podaje powód:
 
 | `error.details.code` | Zawiera też | Znaczenie |
 | --- | --- | --- |
@@ -144,7 +145,7 @@ listy odpowiedzią `400 VALIDATION_FAILED`:
 Metodę dostawy lub płatności można także ograniczyć do kanałów sprzedaży (zobacz moduły
 `delivery_methods` i `payment_methods`, *Kanały sprzedaży*). Składanie zamówienia i oba podglądy
 odrzucają metodę, która nie jest dostępna w kanale **zamówienia**, odpowiedzią
-`400 VALIDATION_FAILED`:
+`400 ORDER_DELIVERY_METHOD_UNAVAILABLE` albo `400 ORDER_PAYMENT_METHOD_UNAVAILABLE`, jak wyżej:
 
 | `error.details.code` | Zawiera też | Znaczenie |
 | --- | --- | --- |
@@ -360,11 +361,13 @@ złożenie zamówienia niczego nie ogłasza.
   pominięte są zgłaszane z powodem — pominięte zamówienie nie zmieniło statusu) oraz
   `…/bulk/print-invoices`.
 - **Komentarze** — `…/:id/comments` dla administratora i klienta, z flagą widoczności dla klienta i
-  powiadomieniem; zablokowane w zamówieniach o statusie końcowym.
+  powiadomieniem; zablokowane w zamówieniach o statusie końcowym (`409 ORDER_COMMENTS_CLOSED`).
   Platforma zapisuje tu też wewnętrzne **notatki systemowe** o wartościach pól niestandardowych,
   których nie przeniesiono do zamówienia — zob. *Notatka systemowa* niżej.
 - **Ponowne zamówienie** — `…/:id/reorder` odtwarza koszyk (zależnie od ustawienia
-  `orders.reorder_enabled`); **kopia jako zapytanie ofertowe** — `…/:id/clone-to-quote`.
+  `orders.reorder_enabled`); **kopia jako zapytanie ofertowe** — `…/:id/clone-to-quote`
+  (zamówienie bez pozycji daje `409 ORDER_CLONE_NO_LINES`, a bez modułu `quote_requests` —
+  `503 MODULE_DISABLED`).
 
 ### Ekran tworzenia zamówienia
 
@@ -748,7 +751,9 @@ Migracja `20261016T082022_orders_order_item_returnable_at_purchase.ts` dodaje t�
 ## Ustawienia
 
 `orders.min_order_value` (liczba; dotyczy checkoutu i tworzenia zamówień w panelu; to kwota, więc
-ma najwyżej dwa miejsca po przecinku — więcej jest odrzucane z `400 AMOUNT_PRECISION_EXCEEDED`),
+ma najwyżej dwa miejsca po przecinku — więcej jest odrzucane z `400 AMOUNT_PRECISION_EXCEEDED`;
+zamówienie poniżej tej wartości jest odrzucane z `422 ORDER_BELOW_MINIMUM_VALUE`, a jego `details`
+zawierają `minimum`, `subtotal` i `currency`, kwoty jako stringi z dwoma miejscami po przecinku),
 `orders.reorder_enabled` (wartość logiczna), `orders.confirmation_recipients` (lista stringów) —
 wszystkie globalnie albo dla kanału sprzedaży. Do tego `order_confirmation_emails` dla każdej
 organizacji. E-mail z potwierdzeniem trafia do klienta, a w kopii do listy organizacji i listy z

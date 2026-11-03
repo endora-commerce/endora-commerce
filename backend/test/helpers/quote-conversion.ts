@@ -23,21 +23,22 @@ const ADMIN = { b2b_session: 'stub-admin-session' };
 
 /**
  * A Quote Request of the test Organization, priced by the operator and
- * accepted by the buyer: `Approved`, one line of the seeded product at
- * `agreedUnitPrice`.
+ * accepted by the buyer: `Approved`, one line of `productId` (the seeded
+ * product 101 unless named) at `agreedUnitPrice`.
  */
 export async function acceptedQuoteRequest(
   h: BackendServerHandle,
-  line: { quantity?: number; agreedUnitPrice?: number } = {},
+  line: { productId?: string; quantity?: number; agreedUnitPrice?: number } = {},
   customer: Record<string, string> = CUSTOMER,
 ): Promise<{ id: string; quantity: number; agreedUnitPrice: number }> {
+  const productId = line.productId ?? SEED_PRODUCT_101_ID;
   const quantity = line.quantity ?? 7;
   const agreedUnitPrice = line.agreedUnitPrice ?? 11.25;
   const created = await h.app.inject({
     method: 'POST',
     url: '/api/v1/quote-requests',
     cookies: customer,
-    payload: { items: [{ productId: SEED_PRODUCT_101_ID, quantity, desiredUnitPrice: 12 }] },
+    payload: { items: [{ productId, quantity, desiredUnitPrice: 12 }] },
   });
   if (created.statusCode !== 201) throw new Error(`acceptedQuoteRequest (create): ${created.statusCode} ${created.body}`);
   const rfq = (created.json() as { data: { id: string; version: number } }).data;
@@ -47,7 +48,7 @@ export async function acceptedQuoteRequest(
     url: `/api/v1/admin/quote-requests/${rfq.id}`,
     cookies: ADMIN,
     headers: { 'if-match': `"${rfq.version}"` },
-    payload: { items: [{ productId: SEED_PRODUCT_101_ID, quantity, agreedUnitPrice }] },
+    payload: { items: [{ productId, quantity, agreedUnitPrice }] },
   });
   if (priced.statusCode !== 200) throw new Error(`acceptedQuoteRequest (price): ${priced.statusCode} ${priced.body}`);
 

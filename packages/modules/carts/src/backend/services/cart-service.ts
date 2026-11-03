@@ -236,6 +236,19 @@ export class CartService {
   }
 
   /**
+   * The approval re-arm of a buyer's content change (issues #619, #649),
+   * staged on `em` beside the change so the caller's next flush writes both —
+   * see {@link CartApprovalService.reArmWithin}. A guest's basket has no
+   * approval to re-arm.
+   */
+  #reArmWithin(em: EntityManager, cart: Cart, actor: CartActor): void {
+    if (!this.approvalService || !actor.customer) return;
+    this.approvalService.reArmWithin(em, cart, {
+      customerAccountId: actor.customer.customerAccountId,
+    });
+  }
+
+  /**
    * The customer's active basket on `ctx.salesChannelId`, created on that
    * channel when there is none (FR-030). The unique index
    * `carts_one_active_per_customer_per_channel` is the "one active basket per
@@ -409,12 +422,6 @@ export class CartService {
     });
 
     await this.#writeLine(em, cart, actor, input, resolved);
-
-    if (this.approvalService && actor.customer) {
-      await this.approvalService.maybeReArm(cart, {
-        customerAccountId: actor.customer.customerAccountId,
-      });
-    }
 
     await this.#recordLineAdded(cart, actor, input);
     await this.#invalidateRecomputeCache(cart.id);
@@ -606,11 +613,6 @@ export class CartService {
     // The lines already written stay written, so the basket's bookkeeping
     // follows them even when a later line is about to be thrown.
     if (added > 0) {
-      if (this.approvalService && actor.customer) {
-        await this.approvalService.maybeReArm(cart, {
-          customerAccountId: actor.customer.customerAccountId,
-        });
-      }
       await this.#invalidateRecomputeCache(cart.id);
     }
     if (failure !== null) throw failure;
@@ -801,6 +803,7 @@ export class CartService {
       existing.currency = price.currency;
       existing.priceSource = price.priceSource;
       cart.lastActivityAt = new Date();
+      this.#reArmWithin(em, cart, actor);
       await em.flush();
       return;
     }
@@ -843,6 +846,7 @@ export class CartService {
     });
     em.persist(item);
     cart.lastActivityAt = new Date();
+    this.#reArmWithin(em, cart, actor);
     await em.flush();
   }
 
@@ -1068,13 +1072,10 @@ export class CartService {
       item.priceSource = price.priceSource;
     }
     cart.lastActivityAt = new Date();
+    // A quantity set to what it already was changes nothing to approve.
+    if (quantity !== oldQuantity) this.#reArmWithin(em, cart, actor);
     await em.flush();
     if (quantity <= 0) await this.#forgetSourceWhenEmptied(em, cart);
-    if (this.approvalService && actor.customer) {
-      await this.approvalService.maybeReArm(cart, {
-        customerAccountId: actor.customer.customerAccountId,
-      });
-    }
     if (this.auditService) {
       await this.auditService.record({
         cartId: cart.id,
@@ -1109,13 +1110,9 @@ export class CartService {
     const removedQuantity = item.quantity;
     em.remove(item);
     cart.lastActivityAt = new Date();
+    this.#reArmWithin(em, cart, actor);
     await em.flush();
     await this.#forgetSourceWhenEmptied(em, cart);
-    if (this.approvalService && actor.customer) {
-      await this.approvalService.maybeReArm(cart, {
-        customerAccountId: actor.customer.customerAccountId,
-      });
-    }
     if (this.auditService) {
       await this.auditService.record({
         cartId: cart.id,
@@ -1361,21 +1358,6 @@ export class CartService {
       item.priceSource = answer.priceSource;
     }
     return refused;
-  }
-
-  async clearForCustomer(ctx: CustomerContext): Promise<void> {
-    // command-coverage-ignore: empties the ephemeral cart — transient pre-order
-    // working state; the resulting order captures the audited final state.
-    const em = this.emFactory();
-    const cart = await em.findOne(Cart, {
-      customerAccountId: ctx.customerAccountId,
-      salesChannelId: ctx.salesChannelId,
-      status: 'active',
-    });
-    if (!cart) return;
-    await em.nativeDelete(CartItem, { cartId: cart.id });
-    cart.status = 'completed';
-    await em.flush();
   }
 
   /**

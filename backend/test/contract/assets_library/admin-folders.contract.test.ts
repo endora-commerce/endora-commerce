@@ -364,14 +364,18 @@ describe('admin folder CRUD (T053)', () => {
           payload: { ifNonEmpty: 'cancel' },
         });
         expect(r.statusCode, r.body).toBe(409);
-        const body = r.json() as { error: { code: string; message: string } };
+        const body = r.json() as { error: { code: string; message: string; details?: unknown } };
         expect(body.error.code).toBe('ASSET_FOLDER_NOT_EMPTY');
-        return body.error.message;
+        return body.error;
       };
-      // The wire sentence is translated and carries no count: the reader gets
-      // the administrator's word for word. The visible-only count of the
-      // untranslated fallback is measured in `folders.service.test.ts`.
-      expect(await refuse(reader.cookies)).toBe(await refuse(adminCookie));
+      // The counts are on the wire (issue #86): `details` and the sentence
+      // name them, and the reader is counted only the file it may see.
+      const forReader = await refuse(reader.cookies);
+      const forAdmin = await refuse(adminCookie);
+      expect(forReader.details).toEqual({ subfolderCount: 0, assetCount: 1 });
+      expect(forAdmin.details).toEqual({ subfolderCount: 0, assetCount: 2 });
+      expect(forReader.message).toContain('assets: 1');
+      expect(forAdmin.message).toContain('assets: 2');
 
       const tree = async (cookies: Record<string, string>) => {
         const r = await h.app.inject({ method: 'GET', url: '/api/v1/admin/assets/folders', cookies });

@@ -219,7 +219,15 @@ export class CartConversionService {
 
     const qrItems = await this.quoteRequests.listItems(qr.id);
     if (qrItems.length === 0) {
-      throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'quote_request_empty');
+      // Issue #86 — `quote_requests`' own code for a quote request with no
+      // lines, not `VALIDATION_FAILED` with the token `quote_request_empty`
+      // as the message the buyer read.
+      throw new HttpError(
+        422,
+        ERROR_CODES.RFQ_EMPTY,
+        'The quote request has no lines.',
+        { quoteRequestId: qr.id },
+      );
     }
 
     const productIds = Array.from(new Set(qrItems.map((it) => it.productId)));

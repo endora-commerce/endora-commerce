@@ -261,6 +261,19 @@ export const manifest = defineModuleManifest({
    * declares those five reasons as tokens, and the bundle holds one
    * `errors.ASSET_PERMALINK_INVALID.<reason>` sentence for each; the other six
    * pass no `details.code`.
+   *
+   * Issue #86 added three **literal** tokens and issue #623 a fourth, which is
+   * why they are not declared: `check:error-translations`' P6 reads a literal
+   * `details.code` off the raise, and a declaration is only required for a
+   * token it cannot spell. `ASSET_UPLOAD_TYPE_NOT_ALLOWED` is raised with
+   * `not_allowed_by_policy` (the `assets.allowed_file_types` refusals, beside
+   * `fileType` and `allowedTypes`) and `active_content` (the documents a
+   * browser would run); `crm`'s and `projects`' attachment refusals raise it
+   * with `attachment_active_content`, whose sentence lives here because the
+   * code is this module's. And
+   * `ASSET_NO_PREVIOUS_VERSION` is raised with `retention_expired` past
+   * `restorableUntil`, because the base sentence says there is no previous
+   * version at all.
    */
   errorCodes: [
     { code: 'ASSET_ACCESS_DENIED' },

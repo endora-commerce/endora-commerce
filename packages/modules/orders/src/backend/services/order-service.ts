@@ -979,10 +979,13 @@ export class OrderService {
         ? await adapter.validateUseOnAdmin(eligCtx)
         : await adapter.validateUseOnStorefront(eligCtx);
     if (!ok) {
+      // Issue #86 — its own code, not `VALIDATION_FAILED`, whose message the
+      // envelope never replaces: the buyer read this sentence in English.
       throw new HttpError(
         400,
-        ERROR_CODES.VALIDATION_FAILED,
+        ERROR_CODES.ORDER_PAYMENT_METHOD_UNAVAILABLE,
         'The selected payment method is not available for this order.',
+        { paymentMethodId: method.id },
       );
     }
   }
@@ -1031,10 +1034,12 @@ export class OrderService {
         ? await adapter.validateUseOnAdmin(eligCtx)
         : await adapter.validateUseOnStorefront(eligCtx);
     if (!ok) {
+      // Issue #86 — the payment twin's code, for the same reason.
       throw new HttpError(
         400,
-        ERROR_CODES.VALIDATION_FAILED,
+        ERROR_CODES.ORDER_DELIVERY_METHOD_UNAVAILABLE,
         'The selected shipping method is not available for this order.',
+        { deliveryMethodId: method.id },
       );
     }
   }
@@ -1370,13 +1375,9 @@ export class OrderService {
       paymentMethodId: req.paymentMethodId,
     });
     const deliveryMethod = await this.activeDeliveryMethod(req.deliveryMethodId);
-    if (!deliveryMethod) {
-      throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, 'Delivery method is not active.');
-    }
+    if (!deliveryMethod) throw deliveryMethodNotActive(req.deliveryMethodId);
     const paymentMethod = await this.activePaymentMethod(req.paymentMethodId);
-    if (!paymentMethod) {
-      throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, 'Payment method is not active.');
-    }
+    if (!paymentMethod) throw paymentMethodNotActive(req.paymentMethodId);
     if (req.salesChannelId) {
       await assertMethodsOfferedInChannel(this.neighbours, {
         salesChannelId: req.salesChannelId,
@@ -1909,11 +1910,19 @@ export class OrderService {
         if (min > 0) {
           const cartSubtotal = moneySum(items.map((it) => lineAmountHalfUp(it.unitPrice, it.quantity)));
           if (compareDecimals(cartSubtotal, min) < 0) {
+            // Issue #86 — its own code, not `VALIDATION_FAILED` with the token
+            // `order_below_minimum` in `details.code`: the envelope never
+            // replaces that code's message, so the buyer read this sentence
+            // in English. Two-decimal strings rather than numbers, as for
+            // `LIMIT_INSUFFICIENT`: the envelope substitutes a placeholder with
+            // `String(value)`, so `99.5` is what the buyer would read. The
+            // currency is the basket's, which is what the subtotal is in.
+            const minimum = roundHalfUp(min);
             throw new HttpError(
               422,
-              ERROR_CODES.VALIDATION_FAILED,
-              `Order total ${cartSubtotal} is below the minimum ${roundHalfUp(min)} for this sales channel.`,
-              { code: 'order_below_minimum', minimum: min, subtotal: Number(cartSubtotal) },
+              ERROR_CODES.ORDER_BELOW_MINIMUM_VALUE,
+              `Order total ${cartSubtotal} is below the minimum ${minimum} for this sales channel.`,
+              { minimum, subtotal: cartSubtotal, currency: items[0]!.currency },
             );
           }
         }
@@ -1944,13 +1953,9 @@ export class OrderService {
       });
 
       const deliveryMethod = await this.activeDeliveryMethod(req.deliveryMethodId);
-      if (!deliveryMethod) {
-        throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, 'Delivery method is not active.');
-      }
+      if (!deliveryMethod) throw deliveryMethodNotActive(req.deliveryMethodId);
       const paymentMethod = await this.activePaymentMethod(req.paymentMethodId);
-      if (!paymentMethod) {
-        throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, 'Payment method is not active.');
-      }
+      if (!paymentMethod) throw paymentMethodNotActive(req.paymentMethodId);
       // Feature 034 (US4/FR-015) — re-validate the selected method's adapter at
       // submit using the surface-appropriate validator. Admin (impersonated)
       // submissions use validateUseOnAdmin; customer submissions use
@@ -2977,4 +2982,28 @@ export class OrderService {
     const k = Object.keys(blob)[0];
     return k ? (blob[k] ?? '') : '';
   }
+}
+
+/**
+ * Issue #86 — a delivery method that is not active, or not there, is refused
+ * with the code the method gates use, not `VALIDATION_FAILED`: the envelope
+ * never replaces that code's message, so the buyer read it in English.
+ */
+function deliveryMethodNotActive(deliveryMethodId: string): HttpError {
+  return new HttpError(
+    400,
+    ERROR_CODES.ORDER_DELIVERY_METHOD_UNAVAILABLE,
+    'Delivery method is not active.',
+    { deliveryMethodId },
+  );
+}
+
+/** The payment twin of {@link deliveryMethodNotActive}. */
+function paymentMethodNotActive(paymentMethodId: string): HttpError {
+  return new HttpError(
+    400,
+    ERROR_CODES.ORDER_PAYMENT_METHOD_UNAVAILABLE,
+    'Payment method is not active.',
+    { paymentMethodId },
+  );
 }

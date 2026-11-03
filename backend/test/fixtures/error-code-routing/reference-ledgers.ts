@@ -739,6 +739,16 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'reused: the request is well formed, and the sentence has to tell the admin to pick ' +
       'another name.',
   },
+  RETURN_SAVED_VIEW_NAME_TAKEN: {
+    to: 'returns',
+    reason:
+      'Minted for the refusal a saved view on the return list earns when its owner already holds ' +
+      'a view there whose name differs only by case or surrounding spaces (#312, the rules of ' +
+      '`specs/147-saved-views/` FR-022). The noun is a return-list saved view, `returns`\' own ' +
+      'row, and the one raise site is `return-list-view-service.ts`. `VALIDATION_FAILED` is not ' +
+      'reused: the request is well formed, and the sentence has to tell the admin to pick ' +
+      'another name.',
+  },
   RFQ_SAVED_VIEW_NAME_TAKEN: {
     to: 'quote_requests',
     reason:
@@ -767,6 +777,43 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       '`carts`\' `CartService.addItem`, which an in-process caller of the cart write port ' +
       'reaches — every request schema in front of it already refuses the same quantity as a ' +
       'malformed request.',
+  },
+  CART_APPROVAL_NOT_REQUIRED: {
+    to: 'carts',
+    reason:
+      'Minted for the refusal to send a cart for approval when the Organization does not ' +
+      'require approval (issue #86). It was raised as `VALIDATION_FAILED` with the token ' +
+      '`approval_not_required` as its message, which the envelope never replaces, so the buyer ' +
+      'read the token. The one raise site is `carts`\' `CartApprovalService.submitForApproval`.',
+  },
+  CART_APPROVAL_ALREADY_SUBMITTED: {
+    to: 'carts',
+    reason:
+      'Minted for the refusal to send a cart for approval a second time (issue #86). It was ' +
+      'raised as `VALIDATION_FAILED` with the token `approval_already_initiated` as its message. ' +
+      'The one raise site is `carts`\' `CartApprovalService.submitForApproval`.',
+  },
+  CART_APPROVAL_SELF_SUBMIT: {
+    to: 'carts',
+    reason:
+      'Minted for the refusal of an Organization administrator sending their own cart for ' +
+      'approval (issue #86). It was raised as `VALIDATION_FAILED` with the token ' +
+      '`org_admin_self_submit` as its message. The one raise site is `carts`\' ' +
+      '`CartApprovalService.submitForApproval`.',
+  },
+  CART_APPROVAL_NOT_PENDING: {
+    to: 'carts',
+    reason:
+      'Minted for the refusal to approve or reject a cart that is not awaiting approval ' +
+      '(issue #86). It was raised as `VALIDATION_FAILED` with the token `approval_not_pending` ' +
+      'as its message. The raise sites are `carts`\' `CartApprovalService.approve` and `reject`.',
+  },
+  CART_ALREADY_TERMINAL: {
+    to: 'carts',
+    reason:
+      'Minted for the refusal to reject, in the admin, a cart that is already completed or ' +
+      'rejected (issue #86). It was raised as `VALIDATION_FAILED` with the token ' +
+      '`already_terminal` as its message. The one raise site is `carts`\' `CartAdminService.reject`.',
   },
   CART_PRODUCT_UNPRICED: {
     to: 'carts',
@@ -1038,6 +1085,45 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'Minted by feature 154 (`specs/154-sales-channel-access/`, FR-033) for the refusal order ' +
       'placement earns when the basket it is handed belongs to another sales channel. The raise ' +
       'site is `orders`\' placement; the noun is the order.',
+  },
+  ORDER_DELIVERY_METHOD_UNAVAILABLE: {
+    to: 'orders',
+    reason:
+      'Minted for the refusal of a delivery method that cannot be used for the order being ' +
+      'previewed or placed — not active, refused by its adapter, outside the Organization\'s ' +
+      'allow-list or not offered in the order\'s sales channel (issue #86). It was raised as ' +
+      '`VALIDATION_FAILED` with an English sentence the envelope never replaces. The noun is the ' +
+      'order\'s method choice and every raise site is `orders`\' (`OrderService`, both method ' +
+      'gates); `DELIVERY_METHOD_*` is the family `delivery_methods` would reach for.',
+  },
+  ORDER_PAYMENT_METHOD_UNAVAILABLE: {
+    to: 'orders',
+    reason:
+      'The payment twin of `ORDER_DELIVERY_METHOD_UNAVAILABLE` (issue #86), on the same ' +
+      'reasoning; `PAYMENT_METHOD_*` is the family `payment_methods` would reach for.',
+  },
+  ORDER_BELOW_MINIMUM_VALUE: {
+    to: 'orders',
+    reason:
+      'Minted for the refusal of an order whose basket is below the sales channel\'s minimum ' +
+      'order value (issue #86). It was raised as `VALIDATION_FAILED` with `details.code = ' +
+      '\'order_below_minimum\'` and an English sentence; `details` now carries the minimum, the ' +
+      'basket value and the currency the sentences name. The one raise site is ' +
+      '`OrderService.placeOrder`, and the setting is `orders.min_order_value`.',
+  },
+  ORDER_COMMENTS_CLOSED: {
+    to: 'orders',
+    reason:
+      'Minted for the refusal of a comment on an order in a terminal status (issue #86). It was ' +
+      'raised as `VALIDATION_FAILED` with an English sentence. The one raise site is ' +
+      '`OrderCommentService`, reached by the buyer and by an operator.',
+  },
+  ORDER_CLONE_NO_LINES: {
+    to: 'orders',
+    reason:
+      'Minted for the refusal to copy an order with no lines into a quote request (issue #86). ' +
+      'It was raised as `VALIDATION_FAILED` with an English sentence. The one raise site is ' +
+      '`OrderCloneToQuoteService.clone`; the noun is the order.',
   },
   ASSET_REPLACE_KIND_MISMATCH: {
     to: 'assets_library',

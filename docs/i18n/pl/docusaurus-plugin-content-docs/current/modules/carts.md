@@ -77,11 +77,34 @@ opróżniany ani zamykany. Koszyk roboczy kończy jako `completed` z `completed_
 jego zamówienie albo jest usuwany, gdy złożenie zamówienia zostanie odrzucone. Nie pojawia się na
 żadnej liście koszyków, w panelu koszyków klienta ani w wyszukiwaniu porzuconych koszyków.
 
-Ponowne wymaganie akceptacji: każda zmiana koszyka przez kupującego (dodanie, usunięcie, ilość,
-kupon) w koszyku `approved` po cichu przywraca `approval_status` do `pending`.
+Ponowne wymaganie akceptacji: każda zmiana zawartości koszyka przez kupującego (dodanie lub
+usunięcie pozycji, zmiana ilości, dodanie lub usunięcie kuponu) w koszyku objętym akceptacją cofa
+go o jeden krok — w tej samej transakcji co zmiana i z wpisem audytu
+`approval_resubmission_required`:
+
+- koszyk `approved` wraca do `pending`, więc zmieniony koszyk musi zostać ponownie zaakceptowany,
+  zanim zostanie z niego złożone zamówienie;
+- koszyk `pending` wraca do `not_required` — stanu, z którego został przekazany do akceptacji —
+  więc administrator nigdy nie akceptuje innej zawartości niż przekazana. Koszyk znika z listy
+  oczekujących administratora, jego akceptacja lub odrzucenie zwraca `CART_APPROVAL_NOT_PENDING`,
+  a kupujący ponownie widzi **Zgłoś do akceptacji** (`primaryCta: 'submit_for_approval'`).
+
+Odrzucony koszyk jest zamknięty (`status: 'rejected'`) i nie można go ponownie przekazać, więc
+koszyk `pending` zawsze został przekazany ze stanu `not_required`.
 
 Brak akceptowania własnych koszyków: koszyk utworzony przez administratora organizacji powstaje z
 `approval_status='not_required'`, niezależnie od ustawienia akceptacji w organizacji.
+
+Główna akcja: dla członka organizacji, która wymaga akceptacji koszyków, koszyk jeszcze nieprzekazany
+ma `primaryCta: 'submit_for_approval'`, przekazany — `awaiting_approval`, a zaakceptowany —
+`checkout`. Własny koszyk administratora organizacji oraz każdy koszyk organizacji, która nie wymaga
+akceptacji, ma `checkout`.
+
+Kto działa na koszyku członka: administrator organizacji wyświetla listę, szczegóły, akceptuje i
+odrzuca koszyki wszystkich członków swojej organizacji, a zamówienie z zaakceptowanego koszyka składa
+członek, do którego koszyk należy. Koszyk innej organizacji zwraca `404`, tak samo jak nieistniejący;
+członek, który nie jest administratorem, dostaje odmowę `403`. Wyłączenie wymogu akceptacji przywraca
+każdy oczekujący lub zaakceptowany koszyk organizacji do `not_required`.
 
 ## API publiczne
 
@@ -109,9 +132,9 @@ Brak akceptowania własnych koszyków: koszyk utworzony przez administratora org
 | `GET /api/v1/organization/carts` | Lista wszystkich koszyków w organizacji wywołującego |
 | `GET /api/v1/organization/carts/:id` | Szczegóły koszyka członka organizacji |
 | `PATCH /api/v1/organization/policies/cart-approval` | Włączenie lub wyłączenie `requires_cart_approval` dla organizacji |
-| `POST /api/v1/cart/submit-for-approval` | Kupujący przekazuje koszyk do akceptacji administratorowi organizacji (nic nie robi, gdy akceptacja jest wyłączona; odrzucane dla samych administratorów organizacji oraz dla koszyka poniżej minimum — zob. *Minimalne ilości zamówienia*) |
-| `POST /api/v1/organization/carts/:id/approve` | Akceptacja oczekującego koszyka |
-| `POST /api/v1/organization/carts/:id/reject` | Odrzucenie oczekującego koszyka z wymaganym powodem |
+| `POST /api/v1/cart/submit-for-approval` | Kupujący przekazuje koszyk do akceptacji administratorowi organizacji. Odrzucane z `422 CART_APPROVAL_NOT_REQUIRED`, gdy akceptacja jest wyłączona, z `422 CART_APPROVAL_SELF_SUBMIT` dla samych administratorów organizacji, z `422 CART_APPROVAL_ALREADY_SUBMITTED` dla koszyka już przekazanego oraz dla koszyka poniżej minimum — zob. *Minimalne ilości zamówienia* |
+| `POST /api/v1/organization/carts/:id/approve` | Akceptacja oczekującego koszyka; koszyk, który nie oczekuje na akceptację, daje `422 CART_APPROVAL_NOT_PENDING` |
+| `POST /api/v1/organization/carts/:id/reject` | Odrzucenie oczekującego koszyka z wymaganym powodem; koszyk, który nie oczekuje na akceptację, daje `422 CART_APPROVAL_NOT_PENDING` |
 
 Dostęp do każdej trasy `organization/*` wymaga `CustomerAccount.role === 'organization_admin'`.
 Koszyki innej organizacji zwracają 404 (tak samo jak nieistniejące, by nie ujawniać ich istnienia).
@@ -123,7 +146,7 @@ Koszyki innej organizacji zwracają 404 (tak samo jak nieistniejące, by nie uja
 | `GET /api/v1/admin/carts` | `carts:read` | Stronicowana lista koszyków w całej platformie (filtry: status, approvalStatus, organizacja, klient, kanał, data) |
 | `GET /api/v1/admin/carts/:id` | `carts:read` | Szczegóły koszyka tylko do odczytu |
 | `GET /api/v1/admin/carts/:id/audit` | `carts:read` | Historia zmian koszyka |
-| `POST /api/v1/admin/carts/:id/reject` | `carts:reject` | Awaryjne, ostateczne odrzucenie (wymaga powodu) |
+| `POST /api/v1/admin/carts/:id/reject` | `carts:reject` | Awaryjne, ostateczne odrzucenie (wymaga powodu); koszyk zrealizowany lub odrzucony daje `422 CART_ALREADY_TERMINAL` |
 
 ## Encje
 

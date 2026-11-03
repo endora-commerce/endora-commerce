@@ -183,7 +183,7 @@ The assignment is enforced where a buyer meets it:
   earlier release needs the same change in `lib/api/methods.ts`, or it is
   answered with the default channel's methods.
 - Placing an order, and previewing its total, refuses a method that is not
-  offered in the order's sales channel with `400 VALIDATION_FAILED` and
+  offered in the order's sales channel with `400 ORDER_PAYMENT_METHOD_UNAVAILABLE` and
   `details.code = "payment_method_not_in_sales_channel"`. That holds for a
   storefront checkout, for one-click buy, for an order an administrator creates
   on a customer's behalf (the channel chosen for the order) and for an API-key

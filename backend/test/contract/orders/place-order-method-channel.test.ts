@@ -172,7 +172,12 @@ describe('order placement — methods must be offered in the order’s sales cha
   ): void {
     expect(res.statusCode).toBe(400);
     const error = (res.json() as { error: { code: string; details: unknown } }).error;
-    expect(error.code).toBe(ERROR_CODES.VALIDATION_FAILED);
+    // Issue #86 — the method's own code; the token in `details.code` is unchanged.
+    expect(error.code).toBe(
+      code === 'delivery_method_not_in_sales_channel'
+        ? ERROR_CODES.ORDER_DELIVERY_METHOD_UNAVAILABLE
+        : ERROR_CODES.ORDER_PAYMENT_METHOD_UNAVAILABLE,
+    );
     expect(error.details).toMatchObject({ code, salesChannelId });
   }
 

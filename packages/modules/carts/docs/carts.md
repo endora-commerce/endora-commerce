@@ -69,12 +69,38 @@ working basket ends `completed` with `completed_order_id` naming its order, or
 is deleted when the placement is refused. It never appears in a cart list, in
 the customer's carts panel or in the abandonment sweep.
 
-Re-arm rule: any buyer-driven mutation (add/remove/quantity/coupon) on an
-`approved` cart silently drops `approval_status` back to `pending`.
+Re-arm rule: any buyer-driven content change (a line added or removed, a
+quantity changed, a coupon applied or removed) on a cart that is in approval
+moves it back one step, in the same transaction as the change and with an
+`approval_resubmission_required` audit entry:
+
+- an `approved` cart drops back to `pending`, so the changed basket is approved
+  again before it is ordered;
+- a `pending` cart returns to `not_required` — the state it was submitted from —
+  so the administrator never approves contents other than those submitted. It
+  leaves the administrator's pending list, approving or rejecting it answers
+  `CART_APPROVAL_NOT_PENDING`, and the buyer is offered **Submit for approval**
+  (`primaryCta: 'submit_for_approval'`) again.
+
+A rejected cart is closed (`status: 'rejected'`) and cannot be submitted again,
+so a `pending` cart was always submitted from `not_required`.
 
 Self-approval exemption: a cart created by an Organization Administrator
 is born with `approval_status='not_required'` regardless of the per-Org
 policy flag.
+
+Primary action: for a member of an Organization that requires cart approval, a
+basket not yet sent reads `primaryCta: 'submit_for_approval'`, a sent one
+`awaiting_approval` and an approved one `checkout`. An Organization
+Administrator's own basket, and every basket of an Organization that requires
+no approval, reads `checkout`.
+
+Who acts on a member's basket: an Organization Administrator lists, reads,
+approves and rejects the baskets of every member of their own Organization, and
+the member who owns an approved basket places the order from it. A basket of
+another Organization answers `404`, as an unknown one does; a member who is not
+an administrator is refused with `403`. Switching the policy off returns every
+pending or approved basket of the Organization to `not_required`.
 
 ## Public surface
 
@@ -102,9 +128,9 @@ policy flag.
 | `GET /api/v1/organization/carts` | List every cart in the caller's Organization |
 | `GET /api/v1/organization/carts/:id` | Detail (member-owned cart) |
 | `PATCH /api/v1/organization/policies/cart-approval` | Toggle `requires_cart_approval` for the Organization |
-| `POST /api/v1/cart/submit-for-approval` | Buyer submits cart for Org-Admin approval (no-op when policy off; refused for Org-Admins themselves, and for a basket below a minimum — see *Order minimums*) |
-| `POST /api/v1/organization/carts/:id/approve` | Approve a pending cart |
-| `POST /api/v1/organization/carts/:id/reject` | Reject a pending cart with a required reason |
+| `POST /api/v1/cart/submit-for-approval` | Buyer submits cart for Org-Admin approval. Refused with `422 CART_APPROVAL_NOT_REQUIRED` when the policy is off, `422 CART_APPROVAL_SELF_SUBMIT` for Org-Admins themselves, `422 CART_APPROVAL_ALREADY_SUBMITTED` for a cart already sent, and for a basket below a minimum — see *Order minimums* |
+| `POST /api/v1/organization/carts/:id/approve` | Approve a pending cart; a cart not awaiting approval is `422 CART_APPROVAL_NOT_PENDING` |
+| `POST /api/v1/organization/carts/:id/reject` | Reject a pending cart with a required reason; a cart not awaiting approval is `422 CART_APPROVAL_NOT_PENDING` |
 
 Role gate: `CustomerAccount.role === 'organization_admin'` for every
 `organization/*` route. Foreign-organization carts return 404
@@ -117,7 +143,7 @@ Role gate: `CustomerAccount.role === 'organization_admin'` for every
 | `GET /api/v1/admin/carts` | `carts:read` | Paginated platform-wide list (status / approvalStatus / org / customer / channel / date filters) |
 | `GET /api/v1/admin/carts/:id` | `carts:read` | Read-only cart detail |
 | `GET /api/v1/admin/carts/:id/audit` | `carts:read` | Cart-detail audit feed |
-| `POST /api/v1/admin/carts/:id/reject` | `carts:reject` | Emergency terminal reject (requires reason) |
+| `POST /api/v1/admin/carts/:id/reject` | `carts:reject` | Emergency terminal reject (requires reason); a completed or rejected cart is `422 CART_ALREADY_TERMINAL` |
 
 ## Entities
 

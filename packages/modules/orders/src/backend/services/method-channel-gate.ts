@@ -36,9 +36,10 @@ import { HttpError } from '@endora-commerce/platform/http';
  * not this gate's refusal to make: the caller has already resolved the method
  * through the same port, and an absent port refused the placement there.
  *
- * `400 VALIDATION_FAILED` with the sentence the adapter re-validation beside it
- * already answers for a method that is not usable for this order, plus a
- * `details.code` so a client can tell the reasons apart.
+ * `400 ORDER_DELIVERY_METHOD_UNAVAILABLE` / `ORDER_PAYMENT_METHOD_UNAVAILABLE`
+ * — the codes the adapter re-validation beside it answers for a method that is
+ * not usable for this order — with a `details.code` token so a client can tell
+ * the reasons apart, and which picks the token's own sentence (issue #86).
  */
 export interface MethodChannelReads {
   readonly deliveryMethodRead: () => Pick<DeliveryMethodReadPort, 'isAvailableInChannel'> | null;
@@ -62,7 +63,7 @@ export async function assertMethodsOfferedInChannel(
     if (offered === false) {
       throw new HttpError(
         400,
-        ERROR_CODES.VALIDATION_FAILED,
+        ERROR_CODES.ORDER_DELIVERY_METHOD_UNAVAILABLE,
         'The selected shipping method is not available for this order.',
         { code: 'delivery_method_not_in_sales_channel', deliveryMethodId, salesChannelId },
       );
@@ -76,7 +77,7 @@ export async function assertMethodsOfferedInChannel(
     if (offered === false) {
       throw new HttpError(
         400,
-        ERROR_CODES.VALIDATION_FAILED,
+        ERROR_CODES.ORDER_PAYMENT_METHOD_UNAVAILABLE,
         'The selected payment method is not available for this order.',
         { code: 'payment_method_not_in_sales_channel', paymentMethodId, salesChannelId },
       );

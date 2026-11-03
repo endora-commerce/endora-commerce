@@ -81,7 +81,7 @@ describe('orders — the placement engine reads its neighbours over ports (featu
       const res = await preview();
       expect(res.statusCode).toBe(400);
       expect((res.json() as { error: { code: string } }).error.code).toBe(
-        ERROR_CODES.VALIDATION_FAILED,
+        ERROR_CODES.ORDER_DELIVERY_METHOD_UNAVAILABLE,
       );
     });
   });

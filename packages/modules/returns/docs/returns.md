@@ -35,7 +35,9 @@ Admin routes are gated by `returns:read` (read) / `returns:write` (mutations).
 | `GET\|POST /api/v1/admin/returns/:id/settlement` | admin | Prefill / execute settlement |
 | `GET\|POST /api/v1/admin/returns/:id/comments` | admin | List / add comment (visibility + notify) |
 | `GET\|POST /api/v1/admin/returns/:id/shipments` + `/:shipmentId/receive` | admin | Return shipments |
-| `…/statuses`, `…/transitions`, `…/reasons`, `…/delivery-methods`, `…/list-views` | admin | Configuration + saved views |
+| `GET\|POST /api/v1/admin/returns/list-views` | admin | The caller's own saved views plus every shared one / save a view |
+| `PATCH\|DELETE /api/v1/admin/returns/list-views/:id` | admin | Change / delete a saved view (owner, or a platform admin for a shared one) |
+| `…/statuses`, `…/transitions`, `…/reasons`, `…/delivery-methods` | admin | Configuration |
 
 ## Status machine (configurable)
 
@@ -79,6 +81,23 @@ before/after events and is written to the audit log.
   distinct from a deployment that has **no** PSP refund integration at all,
   which still settles as `pending_manual` for a person to pay out by hand —
   there is nothing there to switch on.
+- **Saved views on the Returns list** — the *Saved views* control above the
+  list stores its status, kind and RMA-number filters and its sort (the list
+  has no column picker), privately or shared with every admin who can open the
+  list. The four `list-views` routes are gated by `returns:read` and follow the
+  same rules as the order, product and quote request lists' saved views: names
+  are trimmed, 1–160 characters, without control or format characters; one
+  admin cannot hold two views whose names differ only by case or surrounding
+  spaces (`409 RETURN_SAVED_VIEW_NAME_TAKEN`); `filters` is capped at 8 KB,
+  `visibleColumns` at 64 entries of 64 characters and `sort.field` at 64
+  characters; `shared` and `sort` are required on create. Another admin's
+  private view and an id that is not a UUID both answer `404`; a shared view
+  is changed or deleted by its owner or by an admin whose access is not
+  restricted to a set of organizations (`403` otherwise). List items carry
+  `ownedByCaller` and `canModify`, and `DELETE` answers `{ data: { deleted:
+  <id> } }`. Views saved before these rules keep their names as stored —
+  including blank names and duplicates — until their owner renames or deletes
+  them; a change that leaves the name alone is never refused for it.
 
 ## Returnable products
 

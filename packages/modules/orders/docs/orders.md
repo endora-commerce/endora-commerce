@@ -111,7 +111,9 @@ all, sees no change.
 An Organization can be restricted to a subset of delivery and payment methods
 (see the `organizations` module, *Per-organization commercial scoping*).
 Placement and both previews refuse a method outside a non-empty list with
-`400 VALIDATION_FAILED`:
+`400 ORDER_DELIVERY_METHOD_UNAVAILABLE` (a delivery method) or
+`400 ORDER_PAYMENT_METHOD_UNAVAILABLE` (a payment method), and
+`error.details.code` says why:
 
 | `error.details.code` | Also carries | Meaning |
 | --- | --- | --- |
@@ -146,7 +148,8 @@ Placement and both previews refuse a method outside a non-empty list with
 A delivery or payment method can also be restricted to sales channels (see the
 `delivery_methods` and `payment_methods` modules, *Sales channels*). Placement
 and both previews refuse a method that is not offered on **the order's** channel
-with `400 VALIDATION_FAILED`:
+with `400 ORDER_DELIVERY_METHOD_UNAVAILABLE` or `400 ORDER_PAYMENT_METHOD_UNAVAILABLE`,
+as above:
 
 | `error.details.code` | Also carries | Meaning |
 | --- | --- | --- |
@@ -377,11 +380,13 @@ that fails announces nothing.
 - **Bulk** — `POST …/bulk/status` (eligible orders move; skipped reported with
   reason — a skipped order has not moved) and `…/bulk/print-invoices`.
 - **Comments** — admin/customer `…/:id/comments` with customer-visibility +
-  notify flags; closed on terminal orders. The platform also writes internal
+  notify flags; closed on terminal orders (`409 ORDER_COMMENTS_CLOSED`). The platform also writes internal
   **system notes** here for custom-field values not carried into the order —
   see *The system note* below.
 - **Reorder** — `…/:id/reorder` rebuilds the cart (gated by
-  `orders.reorder_enabled`); **clone-to-quote** — `…/:id/clone-to-quote`.
+  `orders.reorder_enabled`); **clone-to-quote** — `…/:id/clone-to-quote` (an
+  order with no lines is `409 ORDER_CLONE_NO_LINES`; with `quote_requests` absent,
+  `503 MODULE_DISABLED`).
 
 ### The Create order screen
 
@@ -798,7 +803,9 @@ the column (nullable).
 ## Settings
 
 `orders.min_order_value` (number, gates Checkout + admin create; an amount, so
-at most two decimal places — more is refused with `400 AMOUNT_PRECISION_EXCEEDED`),
+at most two decimal places — more is refused with `400 AMOUNT_PRECISION_EXCEEDED`;
+an order below it is refused with `422 ORDER_BELOW_MINIMUM_VALUE`, whose `details`
+carry `minimum`, `subtotal` and `currency`, the amounts as two-decimal strings),
 `orders.reorder_enabled` (boolean), `orders.confirmation_recipients`
 (string list) — all global or per-sales-channel. Plus per-org
 `order_confirmation_emails`. The confirmation email CCs the customer + org

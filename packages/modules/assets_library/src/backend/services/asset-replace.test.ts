@@ -552,7 +552,11 @@ describe('restorePreviousVersion — past restorableUntil', () => {
     await expect(restore(h)).rejects.toMatchObject({
       statusCode: 409,
       code: 'ASSET_NO_PREVIOUS_VERSION',
-      details: { restorableUntil: new Date(Date.parse('2026-10-01T00:00:00Z') + 24 * 60 * 60 * 1000).toISOString() },
+      // Issue #86 — the token picks the bundle's retention sentence.
+      details: {
+        code: 'retention_expired',
+        restorableUntil: new Date(Date.parse('2026-10-01T00:00:00Z') + 24 * 60 * 60 * 1000).toISOString(),
+      },
     });
     expect(h.log.some((l) => l.startsWith('copy'))).toBe(false);
   });

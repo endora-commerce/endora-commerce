@@ -81,7 +81,7 @@ Przypisanie jest egzekwowane tam, gdzie spotyka je kupujący:
   `X-Sales-Channel`, a sklep utworzony z wcześniejszego wydania wymaga tej samej zmiany w
   `lib/api/methods.ts` — w przeciwnym razie otrzyma metody kanału domyślnego.
 - Złożenie zamówienia i podgląd jego sumy odrzucają metodę, która nie jest dostępna w kanale
-  sprzedaży zamówienia, odpowiedzią `400 VALIDATION_FAILED` z
+  sprzedaży zamówienia, odpowiedzią `400 ORDER_DELIVERY_METHOD_UNAVAILABLE` z
   `details.code = "delivery_method_not_in_sales_channel"`. Dotyczy to zakupu w sklepie, zakupu
   jednym kliknięciem, zamówienia tworzonego przez administratora w imieniu klienta (kanał wybrany
   dla zamówienia) oraz zamówienia złożonego kluczem API (kanał klucza). Formularz tworzenia

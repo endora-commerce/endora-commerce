@@ -36,7 +36,7 @@ function rig() {
   } as unknown as EntityManager;
   const service = new OrderApiIntakeService({
     emFactory: () => em,
-    cartService: { clearForCustomer: async () => undefined } as unknown as CartWritePort,
+    cartService: {} as unknown as CartWritePort,
     orderService: {
       placeOrder,
       assertMethodsAllowedForOrganization: async () => undefined,

@@ -66,7 +66,7 @@ describe('assertMethodsAllowedForOrganization', () => {
       }),
     );
     expect(refusal.statusCode).toBe(400);
-    expect(refusal.code).toBe('VALIDATION_FAILED');
+    expect(refusal.code).toBe('ORDER_DELIVERY_METHOD_UNAVAILABLE');
     expect(refusal.details).toEqual({
       code: DELIVERY_METHOD_NOT_ALLOWED_FOR_ORGANIZATION,
       deliveryMethodId: 'd-other',
@@ -83,7 +83,7 @@ describe('assertMethodsAllowedForOrganization', () => {
       }),
     );
     expect(refusal.statusCode).toBe(400);
-    expect(refusal.code).toBe('VALIDATION_FAILED');
+    expect(refusal.code).toBe('ORDER_PAYMENT_METHOD_UNAVAILABLE');
     expect(refusal.details).toEqual({
       code: PAYMENT_METHOD_NOT_ALLOWED_FOR_ORGANIZATION,
       paymentMethodId: 'p-other',
