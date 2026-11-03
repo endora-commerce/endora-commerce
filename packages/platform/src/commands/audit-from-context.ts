@@ -37,6 +37,7 @@ export function recordAuditFromContext(
     objectId: input.objectId,
     actorAdminUserId: actor?.actorAdminUserId ?? null,
     impersonatedCustomerAccountId: actor?.impersonatedCustomerAccountId ?? null,
+    actorCustomerAccountId: actor?.actorCustomerAccountId ?? null,
     stateBefore: input.stateBefore ?? null,
     stateAfter: input.stateAfter ?? null,
   });

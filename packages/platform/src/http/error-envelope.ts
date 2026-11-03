@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { ERROR_CODES, isAmountPrecisionIssue, isUnitPricePrecisionIssue, type ErrorCode, type ErrorEnvelope, type ModuleErrorCode, type SupportedLanguage } from '@endora-commerce/contracts';
+import { CustomerSessionRequiredError, ERROR_CODES, isAmountPrecisionIssue, isUnitPricePrecisionIssue, type ErrorCode, type ErrorEnvelope, type ModuleErrorCode, type SupportedLanguage } from '@endora-commerce/contracts';
 import { ZodError, type core as zodCore } from 'zod';
 import { hasZodFastifySchemaValidationErrors } from '@fastify/type-provider-zod';
 import { OrgWriteOutOfScopeError } from '../tenancy/tenant-context.js';
@@ -280,6 +280,21 @@ export function registerErrorEnvelope(app: FastifyInstance, options: ErrorEnvelo
         reply.header(name, value);
       }
       reply.status(error.statusCode).send(envelope);
+      return;
+    }
+
+    // The organization-permission guard's refusal of a request that carries no
+    // customer (`specs/170-organization-roles/`, research R-20). The guard is a
+    // plain function in `@endora-commerce/contracts`, which cannot construct
+    // `HttpError`, so it throws its own class; this is the same `401
+    // UNAUTHORIZED` `requireCustomer` answers, and silent like it. Recognised
+    // by class, never by its `statusCode` — that is not a claim this handler
+    // takes from an arbitrary thrown object.
+    if (error instanceof CustomerSessionRequiredError) {
+      const envelope: ErrorEnvelope = {
+        error: { code: ERROR_CODES.UNAUTHORIZED, message: error.message, requestId },
+      };
+      reply.status(401).send(envelope);
       return;
     }
 

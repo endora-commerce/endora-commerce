@@ -213,8 +213,8 @@ describe('CommandContext.run — child Commands in the parent transaction (featu
       objectId: 'org-1',
       async run(ctx) {
         seen.push(ctx);
-        const a = await ctx.run(leaf('child.a', { seen }));
-        const b = await ctx.run(leaf('child.b', { seen }));
+        const a = await ctx.run!(leaf('child.a', { seen }));
+        const b = await ctx.run!(leaf('child.b', { seen }));
         return { result: [a, b], after: { children: 2 } };
       },
     };
@@ -243,8 +243,8 @@ describe('CommandContext.run — child Commands in the parent transaction (featu
       objectType: 'organization',
       objectId: 'org-1',
       async run(ctx) {
-        await ctx.run(leaf('child.a'));
-        await ctx.run(leaf('child.b', { throws: true }));
+        await ctx.run!(leaf('child.a'));
+        await ctx.run!(leaf('child.b', { throws: true }));
         return { result: null };
       },
     };
@@ -260,8 +260,8 @@ describe('CommandContext.run — child Commands in the parent transaction (featu
       objectType: 'organization',
       objectId: 'org-1',
       async run(ctx) {
-        await ctx.run(leaf('child.noop', { skipAudit: true }));
-        await ctx.run(leaf('child.a'));
+        await ctx.run!(leaf('child.noop', { skipAudit: true }));
+        await ctx.run!(leaf('child.a'));
         return { result: null };
       },
     };
@@ -281,7 +281,7 @@ describe('CommandContext.run — child Commands in the parent transaction (featu
       objectType: 'organization',
       objectId: 'org-1',
       async run(ctx) {
-        await ctx.run(leaf('child.a', { event: 'child.changed' }));
+        await ctx.run!(leaf('child.a', { event: 'child.changed' }));
         timeline.push('child returned');
         return { result: null };
       },
@@ -301,7 +301,7 @@ describe('CommandContext.run — child Commands in the parent transaction (featu
       objectType: 'organization',
       objectId: 'org-1',
       async run(ctx) {
-        await ctx.run(leaf('child.a', { event: 'child.changed' }));
+        await ctx.run!(leaf('child.a', { event: 'child.changed' }));
         throw new Error('parent failed');
       },
     };
@@ -329,7 +329,7 @@ describe('CommandContext.run — child Commands in the parent transaction (featu
       objectType: 'organization',
       objectId: 'org-1',
       async run(ctx) {
-        await ctx.run(child);
+        await ctx.run!(child);
         return { result: null, skipAudit: true };
       },
     };
