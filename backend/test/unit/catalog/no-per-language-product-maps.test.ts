@@ -248,22 +248,6 @@ const ALLOWLIST: ReadonlyArray<{ file: string; reason: string }> = [
     file: 'packages/modules/quote_requests/src/admin/pages/RfqCreatePage.tsx',
     reason: "non-product map: a sales channel's name per language, through the kit's pickCategoryDisplayName",
   },
-  {
-    file: 'packages/modules/search/src/backend/plugin.ts',
-    reason: 'S2 — the texts.<L> index shape of search-index.md (T074); removed with that rewrite',
-  },
-  {
-    file: 'packages/modules/search/src/backend/services/search-availability.ts',
-    reason: 'S2 — the texts.<L> index shape of search-index.md (T074); removed with that rewrite',
-  },
-  {
-    file: 'packages/modules/search/src/backend/services/search-indexer.ts',
-    reason: 'S2 — the texts.<L> index shape of search-index.md (T074); removed with that rewrite',
-  },
-  {
-    file: 'packages/modules/search/src/backend/services/search-query.service.ts',
-    reason: 'S2 — the texts.<L> index shape of search-index.md (T074); removed with that rewrite',
-  },
 ];
 
 function walk(repoRoot: string): string[] {

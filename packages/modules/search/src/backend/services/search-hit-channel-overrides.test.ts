@@ -150,13 +150,15 @@ describe('search hit names honour channel value overrides (#384, 170 chain)', ()
     expect(card?.name).toBe('Baseline kit');
   });
 
-  it('answers the Global name for a product without rows, and the indexed name for one with none', async () => {
+  // Feature 170 (`contracts/search-index.md` §1) — the document carries no top-level name any
+  // more: a card is named from the hydrated record alone, never from what the index held.
+  it('answers the Global name for a product without rows, never a name from the index', async () => {
     const { service } = serviceWith(
-      [product('p1', 'Zestaw bazowy'), product('p2', '')],
+      [product('p1', 'Zestaw bazowy'), product('p2', 'Drugi')],
       [override('p1', CHANNEL.id, 'pl-PL', 'Opis', 'description')],
     );
-    const cards = await service.hydrateHits([hit('p1'), hit('p2', 'Indexed only')], ctx('en-US'));
-    expect(cards.map((c) => c.name)).toEqual(['Zestaw bazowy', 'Indexed only']);
+    const cards = await service.hydrateHits([hit('p1'), hit('p2')], ctx('en-US'));
+    expect(cards.map((c) => c.name)).toEqual(['Zestaw bazowy', 'Drugi']);
   });
 
   it("reads the page's override rows once, for the request's channel only", async () => {

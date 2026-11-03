@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SearchListProductsParams } from '@endora-commerce/contracts';
-import { SORTABLE_ATTRIBUTES } from './search-indexer.js';
+import { sortableAttributesFor } from './search-document.js';
 import { buildSort } from './search-query.service.js';
 
 /**
@@ -17,7 +17,11 @@ import { buildSort } from './search-query.service.js';
  *
  * This is the runtime half of the guarantee; the compile-time half is
  * `buildSort`'s return type, which cannot spell a field outside the constant.
+ *
+ * Feature 170 (`contracts/search-index.md`) — the name a document sorts by is the one in the
+ * shopper's language, `texts.<L>.name`; the indexer declares it for every channel language.
  */
+const L = 'pl-PL';
 
 const EVERY_SORT_TOKEN: Array<SearchListProductsParams['sort']> = [
   undefined,
@@ -34,13 +38,13 @@ const EVERY_SORT_TOKEN: Array<SearchListProductsParams['sort']> = [
   '-price',
 ];
 
-describe('buildSort ⇄ SORTABLE_ATTRIBUTES', () => {
+describe('buildSort ⇄ sortableAttributesFor', () => {
   it('emits only fields the index was told it may sort on', () => {
     for (const token of EVERY_SORT_TOKEN) {
-      for (const expression of buildSort(token)) {
+      for (const expression of buildSort(token, L)) {
         const field = expression.split(':')[0];
         expect(
-          SORTABLE_ATTRIBUTES as readonly string[],
+          sortableAttributesFor([L]),
           `sort=${String(token)} asks Meilisearch to sort on "${field}", which the indexer never declares sortable`,
         ).toContain(field);
       }
@@ -53,16 +57,16 @@ describe('buildSort ⇄ SORTABLE_ATTRIBUTES', () => {
     // and one the Postgres backend of the same route answers with
     // `createdAt desc`. Two backends behind one route may not disagree about
     // what a sort token means.
-    expect(buildSort('-createdAt')).toEqual(['createdAt:desc']);
+    expect(buildSort('-createdAt', L)).toEqual(['createdAt:desc']);
   });
 
   it('leaves relevance to the engine ranking rules', () => {
-    expect(buildSort(undefined)).toEqual([]);
-    expect(buildSort('relevance')).toEqual([]);
+    expect(buildSort(undefined, L)).toEqual([]);
+    expect(buildSort('relevance', L)).toEqual([]);
   });
 
-  it('sorts by name in both directions', () => {
-    expect(buildSort('name')).toEqual(['name:asc']);
-    expect(buildSort('-name')).toEqual(['name:desc']);
+  it("sorts by the name in the shopper's language, in both directions", () => {
+    expect(buildSort('name', L)).toEqual(['texts.pl-PL.name:asc']);
+    expect(buildSort('-name', 'en-US')).toEqual(['texts.en-US.name:desc']);
   });
 });

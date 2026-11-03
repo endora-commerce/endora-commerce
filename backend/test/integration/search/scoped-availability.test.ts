@@ -116,10 +116,8 @@ describe('163 — scoped availability on the Meilisearch path [integration]', ()
     expect(doc['publishFromMs']).toBe(0);
     expect(doc['publishUntilMs']).toBe(Number.MAX_SAFE_INTEGER);
     expect(doc['allowedOrganizationIds']).toEqual([]);
-    // T064 — the effective Name per live language, searched as `localizedNames.<L>`.
-    expect([on[0]!.nameEn, on[0]!.namePl]).toContain(
-      (doc['localizedNames'] as Record<string, string>)[channel.defaultLanguage],
-    );
+    // Feature 170 — the effective texts per channel language, searched as `texts.<L>.*`.
+    expect((doc['texts'] as Record<string, { name: string }>)[channel.defaultLanguage]?.name).toBe(on[0]!.nameEn);
     const restrictedDoc = (await index.getDocument(restricted.id)) as Record<string, unknown>;
     expect(restrictedDoc['visibility']).toBe('organization_restricted');
     await expect(index.getDocument(off.id)).rejects.toThrow();

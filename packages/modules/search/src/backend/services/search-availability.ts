@@ -49,21 +49,23 @@ export const AVAILABILITY_FILTERABLE_ATTRIBUTES = [
  * The settings a channel index still needs for this release's queries (code
  * review W1): the filterable set when any availability field is missing from
  * it — every query names them, and a refused filter sends the whole listing to
- * Postgres — and the searchable set when `localizedNames` is not searched.
- * `{}` when the index is up to date, so a boot leaves it alone: a settings
- * update re-indexes the corpus it lands on. Meilisearch's default searchable
- * list `['*']` searches every field.
+ * Postgres. `{}` when the index is up to date, so a boot leaves it alone: a
+ * settings update re-indexes the corpus it lands on. Meilisearch's default
+ * searchable list `['*']` searches every field.
+ *
+ * Feature 170 (`contracts/search-index.md` §2) — an index whose searchable set lacks `texts` was
+ * built before the language-keyed documents, so its documents carry no `texts` and a settings
+ * push cannot fix it: `{ reindex: true }`, and the boot check reindexes the channel (which writes
+ * every setting). Until then a query falls back to searching without `attributesToSearchOn`.
  */
 export function pendingAvailabilitySettings(
   current: { filterable: readonly string[]; searchable: readonly string[] },
   wanted: { filterable: string[]; searchable: string[] },
-): { filterable?: string[]; searchable?: string[] } {
-  const out: { filterable?: string[]; searchable?: string[] } = {};
+): { filterable?: string[]; reindex?: true } {
+  if (!current.searchable.includes('*') && !current.searchable.includes('texts')) return { reindex: true };
+  const out: { filterable?: string[] } = {};
   if (AVAILABILITY_FILTERABLE_ATTRIBUTES.some((field) => !current.filterable.includes(field))) {
     out.filterable = wanted.filterable;
-  }
-  if (!current.searchable.includes('*') && !current.searchable.includes('localizedNames')) {
-    out.searchable = wanted.searchable;
   }
   return out;
 }

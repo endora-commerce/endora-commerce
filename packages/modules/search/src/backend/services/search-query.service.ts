@@ -26,6 +26,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import { encodeCursor, decodeCursor } from '@endora-commerce/platform/http';
 import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import { availabilityFilter } from './search-availability.js';
+import { attributesToSearchOnFor, indexLanguagesOf, nameSortField } from './search-document.js';
 import {
   indexUidFor,
   type IndexedDocument,
@@ -76,6 +77,24 @@ export function searchScopeLanguage(channel: ResolvedSearchChannel, preferredLan
   return resolveScopeLanguage({ id: channel.id, languages, defaultLanguage: channel.defaultLanguage }, preferredLanguage);
 }
 
+/** A language tag as an index field path may carry it (R21): letters, digits and hyphens. */
+const FIELD_PATH_LANGUAGE = /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8}){0,3}$/;
+
+/**
+ * Feature 170 (`contracts/search-index.md` §3, R21) — the language whose `texts.<L>.*` a query
+ * reads: {@link searchScopeLanguage}, checked against the channel's own languages and the tag
+ * grammar **before** it is interpolated into a field path. A value that fails either is refused
+ * (it cannot come from the resolver; reaching here means a caller bypassed it).
+ */
+export function queryLanguageOf(channel: ResolvedSearchChannel, preferredLanguage: string | undefined): string {
+  const language = searchScopeLanguage(channel, preferredLanguage);
+  const offered = indexLanguagesOf({ languages: channel.languages ?? [], defaultLanguage: channel.defaultLanguage });
+  if (!offered.includes(language) || !FIELD_PATH_LANGUAGE.test(language)) {
+    throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, 'The search language is not one this channel offers.');
+  }
+  return language;
+}
+
 export interface SearchQueryContext {
   resolvedChannel: ResolvedSearchChannel;
   /** Who is asking (issue #227) — see the published `SearchQueryContext`. */
@@ -116,7 +135,7 @@ export interface SearchListResult {
 export interface DocumentHit
   extends Pick<
     IndexedDocument,
-    'id' | 'sku' | 'name' | 'slug' | 'type' | 'categorySlugs'
+    'id' | 'sku' | 'slug' | 'type' | 'categorySlugs'
   > {
   primaryAssetUrl?: string | null;
 }
@@ -229,6 +248,8 @@ export class SearchQueryService {
 
     const indexUid = indexUidFor(channel);
     const index = this.client.index<DocumentHit & { updatedAt: number }>(indexUid);
+    // Feature 170 (FR-033) — the one language this query reads texts in, validated first (R21).
+    const queryLanguage = queryLanguageOf(channel, ctx.preferredLanguage);
 
     const offset = decodeOffsetCursor(params.cursor) ?? 0;
     // Feature 163 (R8) — availability at (channel, L), the window at query time
@@ -237,20 +258,18 @@ export class SearchQueryService {
     const filter = [
       ...buildFilterExpression(params),
       availabilityFilter({
-        languageCode: searchScopeLanguage(channel, ctx.preferredLanguage),
+        languageCode: queryLanguage,
         audience: ctx.audience,
         nowMs: Date.now(),
       }),
     ];
-    const sort = buildSort(params.sort);
+    const sort = buildSort(params.sort, queryLanguage);
 
-    // Feature 163 (FR-017 b) — a query matches the Name shown in its language,
-    // `localizedNames.<L>`, beside the fields it always searched. An index not
-    // yet reindexed after the upgrade does not know the field; it is asked
-    // again without the restriction rather than refused (see below).
-    const searchOn = params.q
-      ? await this.#attributesToSearchOn(searchScopeLanguage(channel, ctx.preferredLanguage))
-      : null;
+    // Feature 170 (FR-033, `contracts/search-index.md` §3) — a query matches the texts of its
+    // language only, `texts.<L>.*`, beside the SKU and the searchable non-text attributes. An
+    // index not yet reindexed after the upgrade does not know the fields; it is asked again
+    // without the restriction rather than refused (see below), and that is logged.
+    const searchOn = params.q ? await this.#attributesToSearchOn(queryLanguage) : null;
     const runSearch = (restrict: boolean) =>
       index.search(params.q ?? '', {
         offset,
@@ -259,15 +278,7 @@ export class SearchQueryService {
         ...(filter.length > 0 ? { filter } : {}),
         ...(sort.length > 0 ? { sort } : {}),
         ...(restrict && searchOn ? { attributesToSearchOn: searchOn } : {}),
-        attributesToRetrieve: [
-          'id',
-          'sku',
-          'name',
-          'slug',
-          'type',
-          'categorySlugs',
-          'primaryAssetUrl',
-        ],
+        attributesToRetrieve: ['id', 'sku', 'slug', 'type', 'categorySlugs', 'primaryAssetUrl'],
       });
     let response: SearchResponse<DocumentHit & { updatedAt: number }>;
     try {
@@ -278,6 +289,10 @@ export class SearchQueryService {
         if (!(searchOn && err instanceof MeilisearchApiError && err.cause?.code === 'invalid_search_attributes_to_search_on')) {
           throw err;
         }
+        // Feature 170 (§2) — a pre-170 index, until the boot check reindexes it.
+        console.warn('[search] index without language-keyed texts; searching every field until it is reindexed', {
+          indexUid,
+        });
         response = await runSearch(false);
       }
     } catch (err) {
@@ -421,21 +436,16 @@ export class SearchQueryService {
   }
 
   /**
-   * Feature 163 — the fields a query searches: the Name in its language
-   * (`localizedNames.<L>`), the indexed default-language `name` (documents
-   * indexed before the upgrade carry nothing else), and the fields the index
-   * has always searched. Mirrors `SearchIndexer.attributeSettings`.
+   * Feature 170 (`contracts/search-index.md` §3) — the fields a query in `languageCode` searches:
+   * that language's texts, the SKU and the searchable attributes whose values are not text (a
+   * text attribute is searched in `texts.<L>.attributes`). Mirrors `SearchIndexer.textInputs`.
    */
   async #attributesToSearchOn(languageCode: string): Promise<string[]> {
     const attributes = this.attributeRead ? await this.attributeRead.listAll() : [];
-    return [
-      `localizedNames.${languageCode}`,
-      'name',
-      'sku',
-      'description',
-      'searchableOptions',
-      ...attributes.filter((a) => a.isSearchable).map((a) => `attributes.${a.key}`),
-    ];
+    return attributesToSearchOnFor(
+      languageCode,
+      attributes.filter((a) => a.isSearchable && a.valueType !== 'string').map((a) => a.key),
+    );
   }
 
   #requireAvailability(): Pick<CatalogProductAvailabilityPort, 'filterAvailable' | 'effectiveOrderRules'> {
@@ -600,13 +610,15 @@ export type SearchSortExpression = `${SortableAttribute}:${'asc' | 'desc'}`;
 
 export function buildSort(
   sort: SearchListProductsParams['sort'],
+  /** Feature 170 — the query's language, validated by {@link queryLanguageOf}: a name sorts in it. */
+  languageCode: string,
 ): SearchSortExpression[] {
   // `relevance` and the absent sort both leave the ordering to the engine's
   // ranking rules, which need no sortable attribute.
   if (sort === undefined || sort === 'relevance') return [];
   if (sort === '-createdAt') return ['createdAt:desc'];
-  if (sort === 'name') return ['name:asc'];
-  if (sort === '-name') return ['name:desc'];
+  if (sort === 'name') return [`${nameSortField(languageCode)}:asc`];
+  if (sort === '-name') return [`${nameSortField(languageCode)}:desc`];
   return [];
 }
 
@@ -672,14 +684,15 @@ export function searchHitSummary(
     id: product.id,
     sku: product.sku,
     type: product.type,
+    // Feature 170 (FR-030) — the card's name at the request's (C, L), C×L → C → Global, from the
+    // hydrated rows: never the index, which a stale document could have left behind.
     name:
-      // 170-shim: the chain at the request's (C, L); S2's `texts.<L>` rewrite replaces it.
       effectiveSystemText(
         overrides,
         'name',
         { channelId: channel.id, languageCode: scopeLanguageOf(channel, preferredLanguage) },
         product.name,
-      ) || hit.name,
+      ) ?? product.name,
     slug: inChannel.slug ?? product.slug,
     categorySlugs: hit.categorySlugs,
     primaryAssetUrl: hit.primaryAssetUrl ?? null,

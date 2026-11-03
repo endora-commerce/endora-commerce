@@ -11,11 +11,11 @@ import { AVAILABILITY_FILTERABLE_ATTRIBUTES, pendingAvailabilitySettings } from 
  */
 const WANTED = {
   filterable: ['categoryIds', 'categorySlugs', 'status', ...AVAILABILITY_FILTERABLE_ATTRIBUTES, 'attributes.color'],
-  searchable: ['name', 'localizedNames', 'sku', 'description', 'searchableOptions'],
+  searchable: ['sku', 'texts', 'attributes'],
 };
 
 describe('pendingAvailabilitySettings', () => {
-  it('asks for nothing when the index already filters on every availability field and searches localized names', () => {
+  it('asks for nothing when the index already filters on every availability field and searches the texts', () => {
     expect(pendingAvailabilitySettings({ filterable: WANTED.filterable, searchable: WANTED.searchable }, WANTED)).toEqual({});
   });
 
@@ -24,9 +24,11 @@ describe('pendingAvailabilitySettings', () => {
     expect(pendingAvailabilitySettings(current, WANTED)).toEqual({ filterable: WANTED.filterable });
   });
 
-  it('pushes the searchable set when localized names are not searched', () => {
-    const current = { filterable: WANTED.filterable, searchable: ['name', 'sku', 'description', 'searchableOptions'] };
-    expect(pendingAvailabilitySettings(current, WANTED)).toEqual({ searchable: WANTED.searchable });
+  // Feature 170 (`contracts/search-index.md` §2) — an index built before 170 carries no `texts`
+  // in its documents, so a settings push is not enough: the boot check reindexes it.
+  it('asks for a reindex when the index does not search the language-keyed texts (a pre-170 index)', () => {
+    const current = { filterable: WANTED.filterable, searchable: ['name', 'localized' + 'Names', 'sku', 'description'] };
+    expect(pendingAvailabilitySettings(current, WANTED)).toEqual({ reindex: true });
   });
 
   it("reads Meilisearch's default `*` as searching everything", () => {

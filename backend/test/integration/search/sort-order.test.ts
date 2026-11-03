@@ -5,10 +5,11 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { SearchIndexer } from '../../../../packages/modules/search/src/backend/services/search-indexer.js';
 import {
-  SearchIndexer,
-  SORTABLE_ATTRIBUTES,
-} from '../../../../packages/modules/search/src/backend/services/search-indexer.js';
+  indexLanguagesOf,
+  sortableAttributesFor,
+} from '../../../../packages/modules/search/src/backend/services/search-document.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { Product } from '../../helpers/package-entities.js';
 import { searchIndexerNeighbourPorts } from '../../helpers/search-indexer-ports.js';
@@ -39,22 +40,17 @@ const meilisearchKey = process.env['MEILISEARCH_API_KEY'] ?? 'devMasterKeyChange
  * The three seeded products in ascending order of the name the index carries
  * for this channel.
  *
- * That name is the channel's own default language — `pl_retail` resolves
- * `pl-PL` — which is also the language the response renders, so the order a
- * buyer sees is the order they were sorted by. Ascending, the three documents
- * read:
+ * Feature 170 — the name sorted on is `texts.<L>.name` in the request's language — `pl_retail`
+ * resolves `pl-PL` — which is also the language the response renders. The three carry no
+ * override, so it is their Global name. Ascending:
  *
- *   1. `Przykładowy duży produkt`
- *   2. `Przykładowy produkt niebieski`
- *   3. `Przykładowy produkt prosty`
- *
- * Meilisearch's string ordering is case-insensitive and folds diacritics, but
- * nothing here turns on that: the first difference between these three is
- * `duży` against `produkt`.
+ *   1. `Example blue product`
+ *   2. `Example large product`
+ *   3. `Example simple product`
  */
 const ASCENDING_BY_NAME = [
-  SEED_PRODUCT_103_SKU,
   SEED_PRODUCT_102_SKU,
+  SEED_PRODUCT_103_SKU,
   SEED_PRODUCT_101_SKU,
 ];
 
@@ -119,8 +115,9 @@ describe('catalog list — sorted on the Meilisearch backend', () => {
   it('declares the sortable attributes on the channel index', async () => {
     const client = new Meilisearch({ host: meilisearchHost, apiKey: meilisearchKey });
     const settings = await client.index(indexUid).getSettings();
+    const channel = await h.em().findOneOrFail(SalesChannel, { code: 'pl_retail' });
     expect([...(settings.sortableAttributes ?? [])].sort()).toEqual(
-      [...SORTABLE_ATTRIBUTES].sort(),
+      sortableAttributesFor(indexLanguagesOf(channel)).sort(),
     );
   });
 

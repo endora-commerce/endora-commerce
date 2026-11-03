@@ -391,7 +391,7 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
         // Feature 163 (code review W1) — once per process, on the first tick
         // the module is present: bring every existing channel index up to the
         // settings this release's queries name (the availability fields
-        // filterable, `localizedNames` searchable). Without it an index built
+        // filterable; an index without the 170 `texts` reindexed). Without it an index built
         // before the upgrade refuses every query's availability filter and the
         // listing falls back to Postgres until an operator reindexes. Bounded:
         // one settings read per channel index, an update only where a setting is
@@ -441,7 +441,7 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
                 try {
                   const channels = await indexer.ensureQuerySettings(options.emFactory());
                   if (channels.length > 0) {
-                    app.log.info({ channels }, 'search: brought pre-upgrade channel indexes up to the query settings');
+                    app.log.info({ channels }, 'search: brought pre-upgrade channel indexes up to the query settings (a pre-170 index is reindexed)');
                   }
                 } catch (err) {
                   rethrowIfModuleDisabled(err);
