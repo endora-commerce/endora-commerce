@@ -35,6 +35,7 @@ import { makeMoveCommand } from './commands/move.command.js';
 import { makeSetCreditModeCommand } from './commands/set-credit-mode.command.js';
 import { makeCreateOrganizationCommand } from './commands/create-organization.command.js';
 import { Organization } from './entities/organization.entity.js';
+import { predefinedRoleIdOn } from './services/organization-role-store.js';
 import type { RequireAdminAnyFactory } from '@endora-commerce/platform/kernel';
 import type { InvitationService } from './services/invitation-service.js';
 import {
@@ -771,6 +772,13 @@ export async function registerOrganizationsAdminRoutes(
         firstName: body.firstName,
         lastName: body.lastName,
         role,
+        // The predefined role the legacy value names (`specs/170-organization-roles/`
+        // WP-02b); WP-03 takes `roleId` in the body instead.
+        organizationRoleId: await predefinedRoleIdOn(
+          em,
+          org.id,
+          role === 'organization_admin' ? 'administrator' : 'member',
+        ),
       });
       if (deps.eventBus) {
         emitCustomerAccountCreated(deps.eventBus, customer.id, org.id);

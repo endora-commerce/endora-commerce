@@ -4,6 +4,7 @@ import type { OrganizationRoleKind } from '@endora-commerce/contracts';
 import { Organization } from '../entities/organization.entity.js';
 import { OrganizationInvitation } from '../entities/organization-invitation.entity.js';
 import { OrganizationRole } from '../entities/organization-role.entity.js';
+import { withSystemScope } from '@endora-commerce/platform/tenancy';
 
 /**
  * The persistence the `organization_role.*` Commands run over
@@ -39,13 +40,6 @@ export interface NewOrganizationRole {
   readonly permissions: string[];
 }
 
-export interface OrganizationRoleHolders {
-  /** Accounts holding the role, deleted and blocked ones included (the FK does not distinguish). */
-  readonly members: number;
-  /** Invitations naming the role, in any state (the FK does not distinguish). */
-  readonly invitations: number;
-}
-
 export interface OrganizationRoleStore {
   /**
    * The Organization, locked for the rest of the Command (`for update`) — which
@@ -59,7 +53,14 @@ export interface OrganizationRoleStore {
   create(values: NewOrganizationRole): Promise<OrganizationRoleRow>;
   save(row: OrganizationRoleRow): Promise<void>;
   remove(row: OrganizationRoleRow): Promise<void>;
-  holders(organizationId: string, roleId: string): Promise<OrganizationRoleHolders>;
+  /** Invitations naming the role, in any state — the foreign key does not distinguish them. */
+  countInvitations(organizationId: string, roleId: string): Promise<number>;
+  /**
+   * Moves every invitation naming `fromRoleId` — pending, expired, revoked and
+   * accepted alike (data-model §3) — to `to`, dual-writing the legacy `role`
+   * (research R-23), and answers the moved ids, sorted.
+   */
+  moveInvitations(organizationId: string, fromRoleId: string, to: OrganizationRoleRow): Promise<string[]>;
 }
 
 /** The store over a Command's `EntityManager`. */
@@ -97,14 +98,49 @@ export function entityManagerRoleStore(em: EntityManager): OrganizationRoleStore
     async remove(row) {
       await em.removeAndFlush(row as OrganizationRole);
     },
-    async holders(organizationId, roleId) {
-      return {
-        // `customer_accounts.organization_role_id` arrives with WP-02b (migration
-        // M3); until then no account can hold a role row, so only invitations
-        // can. WP-02b replaces this with `customerAccountRoleCommandPort.holdersOf`.
-        members: 0,
-        invitations: await em.count(OrganizationInvitation, { organizationId, organizationRoleId: roleId }),
-      };
+    async countInvitations(organizationId, roleId) {
+      return em.count(OrganizationInvitation, { organizationId, organizationRoleId: roleId });
+    },
+    async moveInvitations(organizationId, fromRoleId, to) {
+      const invitations = await em.find(
+        OrganizationInvitation,
+        { organizationId, organizationRoleId: fromRoleId },
+        { lockMode: LockMode.PESSIMISTIC_WRITE },
+      );
+      for (const invitation of invitations) {
+        invitation.organizationRoleId = to.id;
+        invitation.role = to.kind === 'administrator' ? 'organization_admin' : 'regular_user';
+      }
+      await em.flush();
+      return invitations.map((invitation) => invitation.id).sort();
     },
   };
+}
+
+/**
+ * The id of `organizationId`'s predefined role of `kind`, read on **this**
+ * `EntityManager` (`specs/170-organization-roles/` research R-34).
+ *
+ * For a caller that has just inserted the Organization in its own transaction
+ * — the personal organisation of a self-registration or a federated sign-in,
+ * a company's self-registration — the role row exists only inside that
+ * transaction (the `after insert` trigger of migration M2 wrote it), so the
+ * role cache, which reads committed rows on another connection, cannot answer.
+ * System-scoped and keyed by the one Organization: the caller may hold no
+ * tenant context yet (a self-registration is anonymous).
+ */
+export async function predefinedRoleIdOn(
+  em: EntityManager,
+  organizationId: string,
+  kind: 'administrator' | 'member',
+): Promise<string> {
+  const role = await withSystemScope(
+    "organization roles: a new Organization's predefined role, on the creating transaction",
+    () => em.findOne(OrganizationRole, { organizationId, kind }),
+  );
+  if (!role) {
+    // The insert trigger creates both rows with the Organization; their absence is a broken invariant.
+    throw new Error(`Organization ${organizationId} has no ${kind} role (FR-001).`);
+  }
+  return role.id;
 }

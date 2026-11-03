@@ -4,6 +4,7 @@ import {
   SUPPORTED_LANGUAGES,
   type CreateOrganizationRoleRequest,
   type CustomerAccountReadPort,
+  type CustomerAccountRoleCommandPort,
   type DeleteOrganizationRoleResponse,
   type OrganizationOwnRoleResponse,
   type OrganizationPermissionCatalogueResponse,
@@ -24,7 +25,6 @@ import { OrganizationInvitation } from '../entities/organization-invitation.enti
 import { OrganizationRole } from '../entities/organization-role.entity.js';
 import { effectiveCodes, type OrganizationRoleCatalogue } from './organization-role-catalogue.js';
 import type { OrganizationRoleCache } from './organization-role-cache.js';
-import { legacyPredefinedRoleKind } from './organization-role-legacy.js';
 import type { OrganizationRolePermissionService } from './organization-role-permission-port.js';
 import { roleNotFound } from './organization-role-rules.js';
 import { entityManagerRoleStore, type OrganizationRoleRow } from './organization-role-store.js';
@@ -53,6 +53,8 @@ export interface OrganizationRoleServiceDeps {
   readonly catalogue: OrganizationRoleCatalogue;
   readonly permissions: Pick<OrganizationRolePermissionService, 'effective'>;
   readonly customerAccountRead: Pick<CustomerAccountReadPort, 'listByOrganization'>;
+  /** The holders of a role and the Command that moves one (WP-02b, research R-22). */
+  readonly customerAccountRoles: Pick<CustomerAccountRoleCommandPort, 'changeRole' | 'holdersOf'>;
   readonly translate: ModuleTranslate;
 }
 
@@ -156,7 +158,7 @@ export class OrganizationRoleService {
       this.deps.cache,
       organizationId,
       makeDeleteOrganizationRoleCommand(
-        { catalogue: this.deps.catalogue, store: entityManagerRoleStore },
+        { catalogue: this.deps.catalogue, store: entityManagerRoleStore, accounts: this.deps.customerAccountRoles },
         {
           organizationId,
           roleId,
@@ -279,13 +281,10 @@ export class OrganizationRoleService {
     em: EntityManager,
     organization: Organization,
   ): Promise<{ members: Map<string, number>; pendingInvitations: Map<string, number> }> {
-    const roles = await em.find(OrganizationRole, { organizationId: organization.id });
-    const byKind = new Map(roles.filter((r) => r.kind !== 'custom').map((r) => [r.kind, r.id] as const));
     const members = new Map<string, number>();
-    // WP-02a: accounts carry only the legacy role (see `organization-role-legacy.ts`).
+    // The assignment itself (WP-02b): every live account holds exactly one role.
     for (const account of await this.deps.customerAccountRead.listByOrganization(organization.id, { activeOnly: true })) {
-      const roleId = byKind.get(legacyPredefinedRoleKind(account, organization.isPersonal));
-      if (roleId) members.set(roleId, (members.get(roleId) ?? 0) + 1);
+      members.set(account.organizationRoleId, (members.get(account.organizationRoleId) ?? 0) + 1);
     }
     // FR-010a, PR-7 — pending means not accepted, not revoked and not expired.
     const pending = await em.find(
