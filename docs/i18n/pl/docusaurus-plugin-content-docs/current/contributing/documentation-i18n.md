@@ -19,9 +19,9 @@ system — zobacz [Tłumaczenia panelu administracyjnego](./translations.md).
 
 `pnpm --filter backend run check:docs-translations` wylicza wszystkie angielskie źródła i dla
 każdego języka z `docs/locales.config.json` → `translateLocales` (w v1 tylko `pl`) oczekuje
-przypiętego wpisu w pamięci tłumaczeń (cache) oraz gotowego pliku markdown:
+przypięcia tłumaczenia oraz gotowego pliku markdown:
 
-| Warstwa | Źródło angielskie | Klucz `sourcePath` w cache |
+| Warstwa | Źródło angielskie | Klucz `sourcePath` przypięcia |
 | --- | --- | --- |
 | Strony witryny pisane ręcznie | `docs/docs/**/*.md` (bez kategorii generowanych) | ścieżka względem katalogu głównego repozytorium, np. `docs/docs/intro.md` |
 | Referencja modułów (generowana) | `docs/docs/module-reference/*.md` | `generated:module-reference/<slug>` |
@@ -80,45 +80,67 @@ plików, krok 3 to lokalna kontrola.
 
 1. **Zmień angielskie źródło** — stronę pisaną ręcznie w `docs/docs/` albo stronę w katalogu
    `docs/` modułu, w katalogu głównym jego pakietu (nie w `src/`).
-2. **Napisz lub zaktualizuj polską wersję** w tym samym pull requeście:
-   - Dodaj lub zaktualizuj wpis w `docs/translation-cache/pl/<sourceKey>.json` (ukośniki w
-     ścieżce źródłowej zamieniają się w `--`, np. `docs/docs/intro.md` →
-     `docs--docs--intro.md.json`).
-   - Ustaw `sourceHash` na sha256 znormalizowanej **treści** strony angielskiej (bez front
-     mattera YAML; zobacz `hashSourceBody()` w `backend/scripts/lib/docs-translation-cache.ts`).
-   - Ustaw `content` na pełny polski markdown (front matter i treść).
-   - Skopiuj `content` do pliku
-     `docs/i18n/pl/docusaurus-plugin-content-docs/current/<docId>.md` (np. własny
-     `docs/catalog.md` modułu `catalog` → `.../current/modules/catalog.md`).
+2. **Napisz lub zaktualizuj polską stronę** w tym samym pull requeście, w pliku
+   `docs/i18n/pl/docusaurus-plugin-content-docs/current/<docId>.md` (np. `docs/docs/intro.md` →
+   `.../current/intro.md`, własny `docs/catalog.md` modułu `catalog` →
+   `.../current/modules/catalog.md`). Ta strona jest tłumaczeniem — to z niej Docusaurus buduje
+   witrynę.
    - Jeśli zmieniasz etykietę **kategorii** paska bocznego albo tekst paska nawigacji lub stopki,
      dodaj odpowiedni identyfikator do pliku wskazanego w sekcji *Gdzie należy identyfikator
      komunikatu* powyżej. Wpis **dokumentu** w pasku bocznym nie wymaga identyfikatora.
-3. **Uruchom kontrolę kompletności**:
+3. **Przypnij stronę na nowo, a potem uruchom kontrolę kompletności**:
 
    ```bash
+   pnpm --filter backend run docs:translations:pin docs/docs/intro.md
    pnpm --filter backend run check:docs-translations
    ```
 
-   Kod wyjścia `0` oznacza, że każde źródło ma aktualny wpis w cache, gotowy plik, z którego
+   Polecenie przypinające zapisuje skrót tej treści strony angielskiej, z którą polska strona jest
+   teraz zgodna (sekcja *Przypięcia tłumaczeń* poniżej). Podaj strony, które przetłumaczyłeś —
+   ścieżką strony angielskiej albo kluczem przypięcia. Bez argumentów polecenie przypina na nowo
+   każdą stronę, której angielska treść się zmieniła. Przypięcie mówi kontroli, że tłumaczenie jest
+   aktualne, więc przypinaj tylko strony, które naprawdę zaktualizowałeś.
+
+   Kod wyjścia `0` oznacza, że każde źródło ma aktualne przypięcie, gotowy plik, z którego
    Docusaurus potrafi odczytać tytuł, a każdy identyfikator elementów stałych jest w pliku, który
    go odczytuje. Kod wyjścia `2` wypisuje zgłoszenia `missing-translation`, `stale-translation`,
-   `missing-sidebar-message`, `chrome-message-missing`, `chrome-message-inert` albo
-   `doc-title-unresolvable`.
+   `malformed-pin`, `missing-sidebar-message`, `chrome-message-missing`, `chrome-message-inert`
+   albo `doc-title-unresolvable`.
 
-### Postać wpisu w cache
+### Przypięcia tłumaczeń
+
+Przypięcie to mały plik JSON w `docs/translation-cache/<locale>/<sourceKey>.json`. Ukośniki w
+ścieżce źródłowej zamieniają się w `--`, np. `docs/docs/intro.md` → `docs--docs--intro.md.json`.
+Plik mówi, z której treści strony angielskiej powstało tłumaczenie, i nic poza tym:
 
 ```json
 {
   "sourcePath": "docs/docs/intro.md",
   "sourceHash": "<sha256 of English body>",
   "locale": "pl",
-  "content": "---\ntitle: Wstęp\n---\n\n…",
   "meta": {
     "provider": "manual",
     "updatedAt": "2026-09-17T12:00:00.000Z"
   }
 }
 ```
+
+`sourceHash` to sha256 znormalizowanej **treści** strony angielskiej, bez front mattera YAML
+(`hashSourceBody()` w `backend/scripts/lib/docs-translation-cache.ts`). Sama zmiana front mattera
+strony angielskiej nie sprawia więc, że tłumaczenie staje się nieaktualne. Przypięcia zapisuj
+poleceniem `docs:translations:pin`, a nie ręcznie. Polecenie odmawia i niczego nie zapisuje, gdy
+strona do przypięcia nie ma polskiej wersji, gdy treść polskiej strony jest treścią angielską albo
+gdy podana nazwa nie jest źródłem dokumentacji. Aktualnego przypięcia nie zmienia.
+
+Przypięcie zawierające cokolwiek innego kontrola zgłasza jako `malformed-pin`. Dotyczy to
+nierozwiązanego znacznika konfliktu oraz kopii całej strony w polu `content`, którą wpisy
+zawierały przed zgłoszeniem #671.
+
+**Rozwiązywanie konfliktu w przypięciu.** Dwie gałęzie, które zmieniają tę samą stronę angielską,
+są w konflikcie na jej `sourceHash`. Weź którąkolwiek stronę konfliktu, upewnij się, że polska
+strona odpowiada scalonej stronie angielskiej, i uruchom
+`pnpm --filter backend run docs:translations:pin <page>`. Skrót jest wyliczany, więc generuje się
+go na nowo, a nie scala.
 
 W polskim tekście zostaw bez zmian bloki kodu, kod w treści, adresy URL, ścieżki plików, polecenia
 CLI, literały JSON/YAML, metody i ścieżki HTTP oraz identyfikatory modułów.
@@ -142,8 +164,6 @@ zostawia. Jeśli potrzebnego terminu brakuje, dodaj jego wiersz w tym samym pull
 
 Po ponownym wygenerowaniu **ręcznie odwzoruj wersję polską** w `docs/i18n/pl/`:
 
-- wpisy w cache z kluczami `generated:module-reference/<slug>` (oraz ścieżką mapy modułów
-  względem katalogu głównego repozytorium),
 - gotowe pliki w `docs/i18n/pl/docusaurus-plugin-content-docs/current/module-reference/` oraz
   `.../modules/`,
 - identyfikator `sidebar.main.category.<key>` w
@@ -151,8 +171,12 @@ Po ponownym wygenerowaniu **ręcznie odwzoruj wersję polską** w `docs/i18n/pl/
   zadeklarowanej w ponownie wygenerowanym `docs/sidebars.modules.generated.js`. Nowe wpisy typu
   `doc` niczego nie wymagają — ich polska etykieta to tytuł gotowej strony.
 
-Nie zmieniaj wygenerowanych plików angielskich z myślą o wersji polskiej — aktualizuj drzewo i18n
-i cache.
+Następnie uruchom `docs:translations:pin` dla ponownie wygenerowanych stron. Ich przypięcia mają
+klucze `generated:module-reference/<slug>`, a mapy modułów — ścieżkę względem katalogu głównego
+repozytorium.
+
+Nie zmieniaj wygenerowanych plików angielskich z myślą o wersji polskiej. Aktualizuj drzewo i18n,
+a potem przypnij strony na nowo.
 
 `pnpm --filter backend run docs:collect` (kopiuje strony angielskie do `docs/docs/modules/`) nie
 zapisuje niczego po polsku; polską wersję językową w czasie budowania dostarczają pliki i18n
@@ -180,13 +204,15 @@ Kolejne języki się **dokłada** — bez przebudowy procesu. Aby dodać na przy
    `docs/i18n/de/docusaurus-plugin-content-docs/current.json`, a także `docs/i18n/de/code.json`,
    wyłącznie dla identyfikatorów emitowanych przez komponenty (sekcja *Gdzie należy identyfikator
    komunikatu* powyżej).
-4. Ręcznie napisz wpisy w `docs/translation-cache/de/` oraz gotowy markdown w
-   `docs/i18n/de/docusaurus-plugin-content-docs/current/` dla każdego angielskiego źródła (te same
-   warstwy i klucze co dla polskiego).
+4. Ręcznie napisz gotowy markdown w `docs/i18n/de/docusaurus-plugin-content-docs/current/` dla
+   każdego angielskiego źródła (te same warstwy co dla polskiego), a potem uruchom
+   `pnpm --filter backend run docs:translations:pin`, które zapisze przypięcia w
+   `docs/translation-cache/de/`.
 5. Uruchom `pnpm --filter backend run check:docs-translations` oraz
    `pnpm --filter docs run build` — oba muszą zakończyć się kodem `0`.
 
-Wszystkie miejsca, które z tego korzystają (`check-docs-translations.ts`, konfiguracja Docusaurus,
+Wszystkie miejsca, które z tego korzystają (`check-docs-translations.ts`,
+`pin-docs-translations.ts`, konfiguracja Docusaurus,
 przyszłe hooki), odczytują `loadDocsLocales()` z `docs/locales.config.json` — nie wpisuj kodów
 języków na stałe w skryptach.
 

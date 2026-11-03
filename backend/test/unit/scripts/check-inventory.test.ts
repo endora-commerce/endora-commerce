@@ -51,9 +51,10 @@ import {
   THEME_CLASSIC_NAVBAR_FILE,
 } from '../../../scripts/lib/docs-chrome-messages.js';
 import {
+  cacheEntryPath,
   defaultTranslationCacheLayout,
   hashSourceBody,
-  materializeTranslation,
+  materializedDocPath,
   writeCacheEntry,
 } from '../../../scripts/lib/docs-translation-cache.js';
 import {
@@ -2856,31 +2857,45 @@ function docsTranslationsFindingsOfKind(kind: DocsTranslationFindingKind): numbe
       layout,
       readTranslationFile: () => ({}),
     };
+    const materialize = (content: string): void => {
+      const target = materializedDocPath('pl', 'intro', layout);
+      mkdirSync(dirname(target), { recursive: true });
+      writeFileSync(target, content, 'utf8');
+    };
     const seedComplete = (content = '---\ntitle: Sample\n---\n\nWitamy.\n'): void => {
-      const entry = {
-        sourcePath,
-        sourceHash: hashSourceBody(readFileSync(absolutePath, 'utf8')),
-        locale: 'pl',
-        content,
-        meta: { provider: 'manual' as const, updatedAt: '2026-09-17T08:00:00.000Z' },
-      };
-      writeCacheEntry(entry, layout);
-      materializeTranslation(entry, layout);
+      writeCacheEntry(
+        {
+          sourcePath,
+          sourceHash: hashSourceBody(readFileSync(absolutePath, 'utf8')),
+          locale: 'pl',
+          meta: { provider: 'manual' as const, updatedAt: '2026-09-17T08:00:00.000Z' },
+        },
+        layout,
+      );
+      materialize(content);
     };
     const countOf = (input: DocsTranslationCheckInput): number =>
       checkDocsTranslations(input).findings.filter((finding) => finding.kind === kind).length;
 
     if (kind === 'stale-translation') {
       const english = readFileSync(absolutePath, 'utf8');
-      const entry = {
-        sourcePath,
-        sourceHash: hashSourceBody(`${english}\nChanged.`),
-        locale: 'pl',
-        content: '---\ntitle: Sample\n---\n\nWitamy.\n',
-        meta: { provider: 'manual' as const, updatedAt: '2026-09-17T08:00:00.000Z' },
-      };
-      writeCacheEntry(entry, layout);
-      materializeTranslation(entry, layout);
+      writeCacheEntry(
+        {
+          sourcePath,
+          sourceHash: hashSourceBody(`${english}\nChanged.`),
+          locale: 'pl',
+          meta: { provider: 'manual' as const, updatedAt: '2026-09-17T08:00:00.000Z' },
+        },
+        layout,
+      );
+      materialize('---\ntitle: Sample\n---\n\nWitamy.\n');
+    } else if (kind === 'malformed-pin') {
+      // Issue #671: the pre-fix entry shape — a fresh hash with the whole page
+      // duplicated beside it — as a branch cut before the fix would merge it.
+      seedComplete();
+      const pinFile = cacheEntryPath('pl', sourcePath, layout);
+      const pin = JSON.parse(readFileSync(pinFile, 'utf8')) as Record<string, unknown>;
+      writeFileSync(pinFile, JSON.stringify({ ...pin, content: 'Witamy.' }), 'utf8');
     } else if (kind === 'missing-sidebar-message') {
       // Feature 133 T008: the id is read from the file the plugin reads it
       // from, so the proof enters with `current.json` absent rather than
@@ -5524,6 +5539,9 @@ const CHECKS: readonly CheckEntry[] = [
     red: {
       'missing-translation': top(() => docsTranslationsFindingsOfKind('missing-translation')),
       'stale-translation': top(() => docsTranslationsFindingsOfKind('stale-translation')),
+      // Issue #671: the entry is the pin and nothing else, so a copy of the page
+      // merged back in from an older branch is a finding rather than ignored.
+      'malformed-pin': top(() => docsTranslationsFindingsOfKind('malformed-pin')),
       'missing-sidebar-message': top(() =>
         docsTranslationsFindingsOfKind('missing-sidebar-message'),
       ),
@@ -11869,8 +11887,8 @@ describe('every red proof enters at the top of the analysis', () => {
       // T010's root floor — the population one level above the discovery.
       'backend/scripts/check-divergence.ts': 9,
       'backend/scripts/check-doc-snippets.ts': 5,
-      // Six finding kinds. The first three are the artefact ones — missing
-      // cache/materialized file, stale hash or content drift, and a sidebar
+      // Seven finding kinds. The first four are the artefact ones — missing
+      // pin/materialized file, stale hash, a malformed pin, and a sidebar
       // message id absent from the file the plugin reads it from, which
       // feature 133 T008 moved from `code.json` to
       // `docusaurus-plugin-content-docs/current.json`. The other three are that
@@ -11880,8 +11898,11 @@ describe('every red proof enters at the top of the analysis', () => {
       // title is reachable at all. The count moved 3 → 6 in the same commit
       // that added them, because this ledger is derived *about* the check and
       // the batch that changes the check is the one that cannot see it go
-      // stale from its own targeted tests.
-      'backend/scripts/check-docs-translations.ts': 6,
+      // stale from its own targeted tests. Issue #671 moved it 6 → 7: the
+      // `content` copy left the entry, which retired "content drift" from
+      // `stale-translation` and added `malformed-pin` for an entry that still
+      // carries it.
+      'backend/scripts/check-docs-translations.ts': 7,
       // The two in-tree shapes — none and more than one — plus T034's two: a
       // package's persisted entity is in the population, and a package that
       // could not be enumerated stops the run instead of being credited with

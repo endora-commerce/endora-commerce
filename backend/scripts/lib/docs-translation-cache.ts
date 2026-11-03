@@ -5,12 +5,21 @@ import { fileURLToPath } from 'node:url';
 
 import { findRepoRoot } from './module-roots.js';
 
-/** One pinned translation entry under `docs/translation-cache/<locale>/`. */
+/**
+ * One translation pin under `docs/translation-cache/<locale>/`: the English
+ * source a translation was made from, and the hash of the English body it was
+ * made against.
+ *
+ * The pin is the whole entry (issue #671). The translation itself is the
+ * materialised page under `docs/i18n/<locale>/…`, which is what Docusaurus
+ * builds; an entry used to carry a second, byte-identical copy of that page as
+ * `content`, which carried no information and put the whole page on one JSON
+ * line, so any two branches editing the same page conflicted there.
+ */
 export interface TranslationCacheEntry {
   readonly sourcePath: string;
   readonly sourceHash: string;
   readonly locale: string;
-  readonly content: string;
   readonly meta: {
     readonly provider: 'manual';
     readonly updatedAt: string;
@@ -136,17 +145,107 @@ export function materializedDocPath(
   return join(layout.i18nDocsRoot(locale), `${docId}.md`);
 }
 
+/** What a pin file holds: nothing, a well-formed pin, or something else. */
+export type CacheEntryReadResult =
+  | { readonly kind: 'absent' }
+  | { readonly kind: 'pin'; readonly entry: TranslationCacheEntry }
+  | { readonly kind: 'malformed'; readonly reason: string };
+
+const PIN_KEYS: ReadonlySet<string> = new Set(['sourcePath', 'sourceHash', 'locale', 'meta']);
+const META_KEYS: ReadonlySet<string> = new Set(['provider', 'updatedAt']);
+const SHA256_HEX = /^[0-9a-f]{64}$/;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Validate a parsed pin against the file it was read from. Anything beyond the
+ * pin — the pre-#671 `content` copy above all — is malformed rather than
+ * ignored, so the duplicate cannot drift back in from a branch cut before it
+ * was removed.
+ */
+function parsePin(value: unknown, locale: string, sourcePath: string): CacheEntryReadResult {
+  if (!isRecord(value)) {
+    return { kind: 'malformed', reason: 'not-an-object' };
+  }
+  for (const key of Object.keys(value).sort()) {
+    if (!PIN_KEYS.has(key)) {
+      return { kind: 'malformed', reason: `unexpected-key:${key}` };
+    }
+  }
+  if (value['sourcePath'] !== sourcePath) {
+    return { kind: 'malformed', reason: 'invalid-field:sourcePath' };
+  }
+  if (value['locale'] !== locale) {
+    return { kind: 'malformed', reason: 'invalid-field:locale' };
+  }
+  const hash = value['sourceHash'];
+  if (typeof hash !== 'string' || !SHA256_HEX.test(hash)) {
+    return { kind: 'malformed', reason: 'invalid-field:sourceHash' };
+  }
+  const meta = value['meta'];
+  if (
+    !isRecord(meta) ||
+    Object.keys(meta).some((key) => !META_KEYS.has(key)) ||
+    meta['provider'] !== 'manual' ||
+    typeof meta['updatedAt'] !== 'string'
+  ) {
+    return { kind: 'malformed', reason: 'invalid-field:meta' };
+  }
+  return {
+    kind: 'pin',
+    entry: {
+      sourcePath,
+      sourceHash: hash,
+      locale,
+      meta: { provider: 'manual', updatedAt: meta['updatedAt'] },
+    },
+  };
+}
+
+export function readCacheEntryResult(
+  locale: string,
+  sourcePath: string,
+  layout: TranslationCacheLayout = defaultLayout(),
+): CacheEntryReadResult {
+  const path = cacheEntryPath(locale, sourcePath, layout);
+  if (!existsSync(path)) {
+    return { kind: 'absent' };
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(path, 'utf8'));
+  } catch {
+    return { kind: 'malformed', reason: 'invalid-json' };
+  }
+  return parsePin(parsed, locale, sourcePath);
+}
+
+/** The pin for a source, `null` when there is none; throws on a malformed one. */
 export function readCacheEntry(
   locale: string,
   sourcePath: string,
   layout: TranslationCacheLayout = defaultLayout(),
 ): TranslationCacheEntry | null {
-  const path = cacheEntryPath(locale, sourcePath, layout);
-  if (!existsSync(path)) {
-    return null;
+  const result = readCacheEntryResult(locale, sourcePath, layout);
+  if (result.kind === 'malformed') {
+    throw new Error(
+      `[docs-translation-cache] ${cacheEntryPath(locale, sourcePath, layout)} is malformed: ${result.reason}.`,
+    );
   }
-  const parsed = JSON.parse(readFileSync(path, 'utf8')) as TranslationCacheEntry;
-  return parsed;
+  return result.kind === 'pin' ? result.entry : null;
+}
+
+/** The exact bytes a pin is stored as — one key per line, so a re-pin is a one-line diff. */
+export function serializeCacheEntry(entry: TranslationCacheEntry): string {
+  const pin: TranslationCacheEntry = {
+    sourcePath: entry.sourcePath,
+    sourceHash: entry.sourceHash,
+    locale: entry.locale,
+    meta: { provider: entry.meta.provider, updatedAt: entry.meta.updatedAt },
+  };
+  return `${JSON.stringify(pin, null, 2)}\n`;
 }
 
 export function writeCacheEntry(
@@ -155,7 +254,7 @@ export function writeCacheEntry(
 ): void {
   const path = cacheEntryPath(entry.locale, entry.sourcePath, layout);
   mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, `${JSON.stringify(entry, null, 2)}\n`, 'utf8');
+  writeFileSync(path, serializeCacheEntry(entry), 'utf8');
 }
 
 /** True when an existing cache entry matches the current English source hash. */
@@ -167,16 +266,4 @@ export function isCacheHit(entry: TranslationCacheEntry | null, englishSource: s
   const left = Buffer.from(entry.sourceHash, 'utf8');
   const right = Buffer.from(currentHash, 'utf8');
   return left.length === right.length && timingSafeEqual(left, right);
-}
-
-/** Write cache entry content to the Docusaurus i18n docs tree. */
-export function materializeTranslation(
-  entry: TranslationCacheEntry,
-  layout: TranslationCacheLayout = defaultLayout(),
-): string {
-  const docId = docIdFromSourcePath(entry.sourcePath);
-  const target = materializedDocPath(entry.locale, docId, layout);
-  mkdirSync(dirname(target), { recursive: true });
-  writeFileSync(target, entry.content, 'utf8');
-  return target;
 }
