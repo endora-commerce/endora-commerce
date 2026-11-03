@@ -47,7 +47,15 @@ export function createSettingsView(
     const results = await settings.getMany(codes, null);
     const out = new Map<string, unknown>();
     for (const [code, result] of results) {
-      if (result.ok) out.set(code, result.value);
+      if (result.ok) {
+        out.set(code, result.value);
+      } else if (result.error === 'out_of_scope') {
+        // Every `assets.*` setting applies to all channels; one limited to some
+        // has no platform-wide answer, and saying "missing" would mislead.
+        throw new Error(
+          `Assets Library settings: "${code}" is limited to some sales channels and has no platform-wide value.`,
+        );
+      }
     }
     return out;
   }

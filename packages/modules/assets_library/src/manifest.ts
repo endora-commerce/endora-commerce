@@ -9,12 +9,12 @@ import {
  * setting under the `storage` group. The active adapter and per-adapter
  * configuration are read by `AdapterRegistry` on demand.
  *
- * Limitation (v1): the Settings schema currently lacks a `redactedRead` flag,
- * so credentials (`assets.s3.secretAccessKey`, `assets.gcs.serviceAccountJson`)
- * are stored plaintext. FR-022 asked for masking parity with existing
- * sensitive settings — there is no existing mechanism to inherit. A follow-up
- * change to spec 004's manifest schema will add `redactedRead`; until then,
- * operators must restrict admin Settings access to trusted users.
+ * The two credentials (`assets.s3.secret_access_key`,
+ * `assets.gcs.service_account_json`) are the `secret` value type (feature 043,
+ * issue #333): encrypted at rest and in the settings cache, never returned
+ * after saving. A value stored before they were — plaintext — still resolves,
+ * and is encrypted on its next save; the reconciler applies `string` → `secret`
+ * in place.
  */
 const settings = defineModuleSettingsManifest({
   moduleCode: 'assets_library',
@@ -49,14 +49,14 @@ const settings = defineModuleSettingsManifest({
     { code: 'assets.s3.bucket',           name: 'S3 — bucket',                            groupCode: 'storage', valueType: 'string', defaultValue: '' },
     { code: 'assets.s3.region',           name: 'S3 — region',                            groupCode: 'storage', valueType: 'string', defaultValue: '' },
     { code: 'assets.s3.access_key_id',    name: 'S3 — access key id',                     groupCode: 'storage', valueType: 'string', defaultValue: '' },
-    { code: 'assets.s3.secret_access_key', name: 'S3 — secret access key (sensitive)',    groupCode: 'storage', valueType: 'string', defaultValue: '' },
+    { code: 'assets.s3.secret_access_key', name: 'S3 — secret access key (sensitive)',    groupCode: 'storage', valueType: 'secret', defaultValue: '' },
     { code: 'assets.s3.endpoint',         name: 'S3 — custom endpoint (optional)',        groupCode: 'storage', valueType: 'string', defaultValue: '' },
     { code: 'assets.s3.prefix',           name: 'S3 — key prefix (optional)',             groupCode: 'storage', valueType: 'string', defaultValue: '' },
     { code: 'assets.s3.public_base_url',  name: 'S3 — public CDN base URL (optional)',    groupCode: 'storage', valueType: 'string', defaultValue: '' },
 
     // — GCS
     { code: 'assets.gcs.bucket',                name: 'GCS — bucket',                          groupCode: 'storage', valueType: 'string', defaultValue: '' },
-    { code: 'assets.gcs.service_account_json',  name: 'GCS — service-account JSON (sensitive)', groupCode: 'storage', valueType: 'string', defaultValue: '' },
+    { code: 'assets.gcs.service_account_json',  name: 'GCS — service-account JSON (sensitive)', groupCode: 'storage', valueType: 'secret', defaultValue: '' },
     { code: 'assets.gcs.prefix',                name: 'GCS — object prefix (optional)',         groupCode: 'storage', valueType: 'string', defaultValue: '' },
     { code: 'assets.gcs.public_base_url',       name: 'GCS — public CDN base URL (optional)',   groupCode: 'storage', valueType: 'string', defaultValue: '' },
 

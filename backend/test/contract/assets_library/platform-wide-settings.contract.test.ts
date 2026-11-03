@@ -114,6 +114,27 @@ describe('assets settings are read platform-wide (#333)', () => {
     expect(url).toBe('https://cdn.issue-333.example.test/ab/cd/file.png');
   });
 
+  it('keeps a saved S3 secret encrypted in the database and in the settings cache, and reads it as plaintext', async () => {
+    const code = 'assets.s3.secret_access_key';
+    // The Admin Settings write itself: a `secret` setting is stored as a
+    // ciphertext envelope, never as what the operator typed.
+    restores.push(await overrideAssetSetting(h, code, null));
+    await h.settings.adminService.setValueForAllChannels(code, 'issue-333-plaintext', null, {
+      actorAdminUserId: null,
+    });
+
+    const stored = await h.em().fork({ clear: true }).findOneOrFail(Setting, { code });
+    expect(JSON.stringify(stored.globalValue)).not.toContain('issue-333-plaintext');
+
+    const read = await h.settings.settingsService.getMany([code], null);
+    expect(read.get(code)).toEqual({ ok: true, value: 'issue-333-plaintext' });
+
+    // The read above went through the cache; what it holds is the envelope.
+    const cached = await h.settings.cache.get(code, null);
+    expect(cached.hit).toBe(true);
+    expect(JSON.stringify(cached)).not.toContain('issue-333-plaintext');
+  });
+
   it('answers the manifest default once the platform-wide value is cleared', async () => {
     await setGlobal('assets.allowed_file_types', ['png']);
     for (const restore of restores.splice(0).reverse()) await restore();

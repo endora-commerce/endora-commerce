@@ -54,7 +54,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | `assets.gcs.bucket` | GCS — bucket | `string` |
 | `assets.gcs.prefix` | GCS — object prefix (optional) | `string` |
 | `assets.gcs.public_base_url` | GCS — public CDN base URL (optional) | `string` |
-| `assets.gcs.service_account_json` | GCS — service-account JSON (sensitive) | `string` |
+| `assets.gcs.service_account_json` | GCS — service-account JSON (sensitive) | `secret` |
 | `assets.local.base_dir` | Local FS — base directory | `string` |
 | `assets.local.public_url_base` | Local FS — public URL base (no trailing slash) | `string` |
 | `assets.max_file_size_mb` | Max file size (MB; 0 = no cap) | `number` |
@@ -65,7 +65,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | `assets.s3.prefix` | S3 — key prefix (optional) | `string` |
 | `assets.s3.public_base_url` | S3 — public CDN base URL (optional) | `string` |
 | `assets.s3.region` | S3 — region | `string` |
-| `assets.s3.secret_access_key` | S3 — secret access key (sensitive) | `string` |
+| `assets.s3.secret_access_key` | S3 — secret access key (sensitive) | `secret` |
 | `assets.soft_delete_retention_days` | Soft-delete retention before hard-delete (days) | `number` |
 | `assets.storage.adapter` | Active storage adapter | `string` |
 

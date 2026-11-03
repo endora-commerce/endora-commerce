@@ -6,4 +6,6 @@
 
 A per-channel value stored for an `assets.*` setting is no longer read. The module used to take whichever such value it found as the answer for every channel, and it now answers with the platform-wide value, or the default when there is none. An instance that configured its storage or upload policy as a per-channel value must save the same values as the platform-wide value in Admin Settings before it upgrades, or the module falls back to the defaults: the local store under `var/assets`, any file type, no size limit.
 
+`assets.s3.secret_access_key` and `assets.gcs.service_account_json` are now the `secret` value type, as other modules' credentials are: Admin Settings stores them encrypted, never shows them again after saving, and the settings cache holds them encrypted too — the platform read caches what it resolves, so as plain strings they would have sat in Redis as plaintext. A value already stored keeps working and is encrypted the next time it is saved; the type changes in place at boot. Saving either one needs `SETTINGS_SECRET_ENCRYPTION_KEY`, which every secret setting already requires.
+
 The active storage adapter is still built once per process, so a change to the adapter or its credentials applies after a restart, as before.

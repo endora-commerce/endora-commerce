@@ -70,9 +70,10 @@ describe('platform-wide reads (#333)', () => {
     await view.privateUrlTtlSec();
     await view.softDeleteRetentionDays();
     await view.uploadPolicy();
-    // Neither cloud configuration is in the map; only the channel asked matters.
-    await view.s3Config().catch(() => undefined);
-    await view.gcsConfig().catch(() => undefined);
+    // Neither cloud configuration is in the map, so both refuse — what is
+    // asserted is the channel each read named.
+    await expect(view.s3Config()).rejects.toThrow('missing setting');
+    await expect(view.gcsConfig()).rejects.toThrow('missing setting');
     expect(getMany).toHaveBeenCalled();
     for (const [, salesChannelId] of getMany.mock.calls) expect(salesChannelId).toBeNull();
   });
@@ -90,6 +91,15 @@ describe('platform-wide reads (#333)', () => {
   it('refuses to guess a missing string setting', async () => {
     await expect(createSettingsView(portOver({}).port).localBaseDir())
       .rejects.toThrow('Assets Library settings: missing setting "assets.local.base_dir".');
+  });
+
+  it('names a setting limited to some sales channels rather than calling it missing', async () => {
+    const port: Pick<SettingsReadPort, 'getMany'> = {
+      getMany: async (codes) => new Map(codes.map((code) => [code, { ok: false, error: 'out_of_scope' } as const])),
+    };
+    await expect(createSettingsView(port).localBaseDir()).rejects.toThrow(
+      '"assets.local.base_dir" is limited to some sales channels and has no platform-wide value',
+    );
   });
 
   it('reads the S3 configuration in one batch', async () => {
