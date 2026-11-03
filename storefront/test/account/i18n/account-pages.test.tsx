@@ -275,13 +275,15 @@ describe('organization pages — the shop language (issue #85)', () => {
 
   it('renders the organization carts, with the statuses as words', async () => {
     const { default: Page } = await import('../../../app/(account)/organization/carts/page');
-    const { en, pl } = await both(() => Page());
+    const { en, pl } = await both(() => Page({ searchParams: Promise.resolve({}) }));
     expect(en).toContain('Every cart in the Acme organization');
-    expect(en).toContain('Owner Status Approval Items Total Last activity Submitted');
+    expect(en).toContain('Owner Status Approval Items Total Last activity Submitted Cart');
+    expect(en).toContain('All carts');
     expect(en).toContain('Active Awaiting approval');
     expect(en).not.toMatch(POLISH_DIACRITIC);
     expect(pl).toContain('Wszystkie koszyki organizacji Acme');
     expect(pl).toContain('Aktywny Oczekuje na akceptację');
+    expect(pl).toContain('Oczekujące na akceptację');
   });
 
   it('renders the cart-approval policy in both languages', async () => {
