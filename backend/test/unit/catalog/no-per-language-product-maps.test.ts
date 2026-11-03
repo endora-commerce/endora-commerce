@@ -113,10 +113,6 @@ const ALLOWLIST: ReadonlyArray<{ file: string; reason: string }> = [
     reason: "non-product map: an attachment type's own name per language (readers.md 'Not readers'), matched by `row.name[` — S3's file",
   },
   {
-    file: 'packages/modules/catalog/src/backend/services/catalog-admin.service.ts',
-    reason: "S1 — the duplicate's scoped names are not copied: a product question (S1 block 2 report), not a task yet",
-  },
-  {
     file: 'packages/modules/catalog/src/backend/services/catalog-bulk-import.service.ts',
     reason: "S1 — channel codes in a products file's cells and the deprecated exportScopedStatuses, removed once import_export's adapter resolves codes and reads exportScopedValues (T087, S2)",
   },
