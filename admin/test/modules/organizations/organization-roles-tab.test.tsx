@@ -7,7 +7,7 @@ import type {
   OrganizationPermissionCatalogueResponse,
   OrganizationRoleView,
 } from '@endora-commerce/contracts';
-import { adminSession, renderWithSession } from '../../helpers/render-with-session';
+import { adminSession, modulePresence, renderWithSession } from '../../helpers/render-with-session';
 import { expectNoAxeViolations } from '../../helpers/axe';
 
 /**
@@ -152,7 +152,7 @@ function renderTab(permissions: readonly string[], options: { isPersonal?: boole
     <MemoryRouter>
       <OrganizationRolesTab organizationId={ORG} isPersonal={options.isPersonal ?? false} />
     </MemoryRouter>,
-    { session: adminSession({ permissions }), bundle },
+    { session: adminSession({ permissions }), presence: modulePresence({ present: ['organizations', 'audit_logs'] }), bundle },
   );
 }
 
@@ -204,6 +204,8 @@ describe('OrganizationRolesTab — read-only with organizations:read-roles', () 
     expect(screen.queryByRole('button', { name: tr('roles.action.create') })).toBeNull();
     expect(screen.queryByRole('button', { name: tr('roles.action.edit') })).toBeNull();
     expect(screen.queryByRole('button', { name: tr('roles.action.delete') })).toBeNull();
+    // No History link either: the audit log is not this operator's to open.
+    expect(screen.queryByRole('link', { name: tr('roles.tab.history') })).toBeNull();
   });
 
   it('opens a role read-only: its permissions grouped by module, nothing to save', async () => {
