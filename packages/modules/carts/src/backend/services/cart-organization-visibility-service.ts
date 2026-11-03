@@ -10,6 +10,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
 import { cartTotalsByCart } from './cart-money.js';
+import { readOrganizationCarts } from './organization-cart-reach.js';
 
 /**
  * Organization-Administrator visibility surface (feature 027 US4).
@@ -54,11 +55,15 @@ export class CartOrganizationVisibilityService {
     const pageSize = Math.min(query.pageSize ?? 50, 100);
     const orderBy = this.sortClause(query.sort ?? 'last_activity_desc');
 
-    const [rows, totalCount] = await em.findAndCount(Cart, where, {
-      orderBy,
-      limit: pageSize,
-      offset: (page - 1) * pageSize,
-    });
+    // Issue #619 — a member's cart is outside the administrator's own customer
+    // filter; `where` names `organizationId`, so the read stays in the tenant.
+    const [rows, totalCount] = await readOrganizationCarts(organizationId, () =>
+      em.findAndCount(Cart, where, {
+        orderBy,
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
+      }),
+    );
 
     const ownerIds = Array.from(
       new Set(rows.map((r) => r.customerAccountId).filter((id): id is string => Boolean(id))),
@@ -100,8 +105,12 @@ export class CartOrganizationVisibilityService {
    */
   async getInOrganization(cartId: string, organizationId: string): Promise<Cart> {
     const em = this.emFactory();
-    const cart = await em.findOne(Cart, { id: cartId });
-    if (!cart || cart.organizationId !== organizationId) {
+    // Issue #619 — read across the administrator's own customer filter, inside
+    // the Organization; a working basket is not an Organization cart (#169).
+    const cart = await readOrganizationCarts(organizationId, () =>
+      em.findOne(Cart, { id: cartId, organizationId, status: { $ne: 'working' } }),
+    );
+    if (!cart) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'cart_not_found');
     }
     return cart;
