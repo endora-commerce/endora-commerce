@@ -59,7 +59,7 @@ const READ = {
 };
 
 function wrap(
-  options: { permissions?: readonly string[]; seo?: boolean; language?: 'en' | 'pl'; readOnly?: boolean; onStage?: (f: string, op: ScopedWriteOp<string> | undefined) => void } = {},
+  options: { permissions?: readonly string[]; seo?: boolean; language?: 'en' | 'pl'; readOnly?: boolean; version?: string; onStage?: (f: string, op: ScopedWriteOp<string> | undefined) => void } = {},
 ): ReactElement {
   const language = options.language ?? 'en';
   const bundle = (language === 'en' ? seoEn : seoPl) as Record<string, string>;
@@ -81,6 +81,7 @@ function wrap(
                   onStage: options.onStage ?? ((): void => undefined),
                   readOnly: options.readOnly ?? false,
                   errors: {},
+                  version: options.version ?? '1',
                 }}
               />,
               {
@@ -121,6 +122,16 @@ describe('ProductSeoSection (feature 170, US10)', () => {
     expect(screen.queryByRole('link')).toBeNull();
     // The first case pays the lazy zone / editor import; under a loaded runner that exceeds 5 s.
   }, 15_000);
+
+  it('reads again when the host\'s version moves (a Save or a copy), not on every render', async () => {
+    const view = render(wrap({ version: '1' }));
+    await screen.findByLabelText(seoEn['productSeo.field.title']);
+    const reads = get.mock.calls.length;
+    view.rerender(wrap({ version: '1' }));
+    expect(get.mock.calls.length).toBe(reads);
+    view.rerender(wrap({ version: '2' }));
+    await waitFor(() => expect(get.mock.calls.length).toBeGreaterThan(reads));
+  });
 
   it('#2 a change is staged through the host, never saved by the section', async () => {
     const onStage = vi.fn();

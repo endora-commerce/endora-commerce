@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { RotateCw } from 'lucide-react';
 import type { AdminZoneProps, ResolvedMeta, ScopeRef, ScopedFieldView } from '@endora-commerce/contracts';
 import { apiClient } from '@endora-commerce/admin-kit/lib';
@@ -54,19 +54,12 @@ function derivedOf(field: SeoField, resolved: ResolvedMeta): string | null {
 }
 
 export function ProductSeoSection(props: ProductSeoSectionProps): ReactNode {
-  const { productId, scope, scopeLabel, parentScopeLabel, view, staged, onStage, readOnly, errors } = props;
+  const { productId, scope, scopeLabel, parentScopeLabel, view, staged, onStage, readOnly, errors, version } = props;
   const t = useTranslation('seo');
   const [read, setRead] = useState<SeoProductRead | null>(null);
   const [failed, setFailed] = useState(false);
   const [reload, setReload] = useState(0);
   const scopeQuery = query(scope);
-  // A save or discard empties the staged cells: read again so the derived values follow.
-  const stagedCount = staged.size;
-  const hadStaged = useRef(false);
-  useEffect(() => {
-    if (hadStaged.current && stagedCount === 0) setReload((n) => n + 1);
-    hadStaged.current = stagedCount > 0;
-  }, [stagedCount]);
 
   const load = useCallback(async (): Promise<SeoProductRead> => {
     const res = await apiClient.get<{ data: SeoProductRead }>(
@@ -88,7 +81,8 @@ export function ProductSeoSection(props: ProductSeoSectionProps): ReactNode {
     return (): void => {
       cancelled = true;
     };
-  }, [load, reload, view]);
+    // A Save (or a copy) moves the product's version: read again so the derived values follow.
+  }, [load, reload, view, version]);
 
   if (failed && !read) {
     return (

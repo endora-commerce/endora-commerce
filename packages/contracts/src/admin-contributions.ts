@@ -611,6 +611,12 @@ export interface ProductEditorSeoZoneProps {
   readonly readOnly: boolean;
   /** Field → translated error message from the last save. */
   readonly errors: Readonly<Record<string, string>>;
+  /**
+   * The product's scope version (`scoped-values-api.md` R7) of the editor's last read, Save or
+   * copy; `null` before the first read. A change means saved values moved, so the zone re-reads
+   * what it derives from them.
+   */
+  readonly version: string | null;
 }
 
 /**
