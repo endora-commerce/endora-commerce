@@ -107,6 +107,25 @@ dostawy również otrzymują identyfikator tego kanału, którego wcześniej nie
 dostawały. Instancja, która ustawiła minimalną wartość ogólnie dla platformy albo
 wcale, nie zauważy zmiany.
 
+## Akceptacja koszyka przy składaniu zamówienia
+
+W organizacji, która wymaga akceptacji koszyków, zamówienie z koszyka członka można złożyć dopiero
+po akceptacji przez administratora organizacji. Zanim cokolwiek zostanie zarezerwowane lub zapisane,
+składanie zamówienia pyta moduł koszyków i odrzuca koszyk objęty tym wymogiem, który nie jest
+`approved`, z kodem `409 ORDER_CART_APPROVAL_REQUIRED`; `details` zawiera `cartId`, `approvalStatus`
+oraz `code` nazywający stan:
+
+| `details.code` | Koszyk | Komunikat (po polsku) |
+| --- | --- | --- |
+| `cart_approval_not_submitted` | nigdy nieprzekazany do akceptacji | *„Twoja organizacja wymaga akceptacji koszyka przed zamówieniem. Najpierw wyślij ten koszyk do akceptacji.”* |
+| `cart_approval_pending` | czeka na administratora | *„Ten koszyk czeka na akceptację administratora Twojej organizacji. Zamówienie złożysz, gdy koszyk zostanie zaakceptowany.”* |
+| `cart_approval_rejected` | odrzucony | *„Administrator Twojej organizacji odrzucił ten koszyk, więc nie można go zamówić.”* |
+
+Koszyk pozostaje bez zmian. Reguła nie dotyczy własnego koszyka administratora organizacji (nie
+potrzebuje on akceptacji), żadnego koszyka organizacji, która nie wymaga akceptacji, ani zamówień
+składanych z koszyka roboczego — tworzenia zamówienia w panelu administracyjnym, zakupu jednym
+kliknięciem i zewnętrznego API zamówień — które nie składają koszyka członka.
+
 ## Listy dozwolonych metod przy składaniu zamówienia
 
 Organizację można ograniczyć do wybranych metod dostawy i płatności (zob. moduł `organizations`,

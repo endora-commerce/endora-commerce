@@ -231,6 +231,14 @@ export const ERROR_CODES = {
   ORDER_CLONE_NO_LINES: 'ORDER_CLONE_NO_LINES',
   /** 422 — the basket handed to placement belongs to another sales channel (feature 154). */
   ORDER_SALES_CHANNEL_MISMATCH: 'ORDER_SALES_CHANNEL_MISMATCH',
+  /**
+   * 409 — the basket's Organization requires cart approval, its owner is not
+   * the Organization administrator and the basket is not `approved` (issue
+   * #648). `details: { code, cartId, approvalStatus }`, the token
+   * `cart_approval_not_submitted`, `cart_approval_pending` or
+   * `cart_approval_rejected`.
+   */
+  ORDER_CART_APPROVAL_REQUIRED: 'ORDER_CART_APPROVAL_REQUIRED',
   // Saved list views (`specs/147-saved-views/`, FR-022) — an admin already
   // holds a view on the order list whose name differs only by case or
   // surrounding spaces.

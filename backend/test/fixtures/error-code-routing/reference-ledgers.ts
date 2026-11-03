@@ -1086,6 +1086,14 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'placement earns when the basket it is handed belongs to another sales channel. The raise ' +
       'site is `orders`\' placement; the noun is the order.',
   },
+  ORDER_CART_APPROVAL_REQUIRED: {
+    to: 'orders',
+    reason:
+      'Minted by issue #648 for the refusal order placement earns when the basket it is handed ' +
+      'awaits its Organization\'s cart approval — the policy applies to its owner and it is not ' +
+      'approved. The raise site is `orders`\' placement, which asks `carts` through ' +
+      '`CartPlacementApplyPort.awaitsApproval`; the noun is the order being placed.',
+  },
   ORDER_DELIVERY_METHOD_UNAVAILABLE: {
     to: 'orders',
     reason:

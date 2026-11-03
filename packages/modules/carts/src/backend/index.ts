@@ -316,6 +316,11 @@ export function registerModule(ctx: ModuleContext): void {
               lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
             ),
             lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
+            // Issue #648 — placement refuses a basket that awaits approval.
+            {
+              organizations: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
+              customerAccounts: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+            },
           ),
       )
       .singleton(),

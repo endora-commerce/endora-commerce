@@ -89,6 +89,15 @@ another Organization answers `404`, as an unknown one does; a member who is not
 an administrator is refused with `403`. Switching the policy off returns every
 pending or approved basket of the Organization to `not_required`.
 
+Placement enforces the approval: a member's basket that is not `approved` —
+never sent, awaiting the administrator, or rejected — is refused when the order
+is placed, with `409 ORDER_CART_APPROVAL_REQUIRED`, before anything is reserved
+or written; the basket is kept as it was. The rule is the one submission applies:
+the Organization requires cart approval and the basket's owner is not its
+administrator. This holds whatever the storefront shows, for
+`POST /api/v1/orders` and the checkout page alike. The Orders module page,
+under *Cart approval at placement*, lists the sentences.
+
 ## Public surface
 
 ### Storefront (buyer)

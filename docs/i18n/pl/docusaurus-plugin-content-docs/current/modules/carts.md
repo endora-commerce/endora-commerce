@@ -94,6 +94,15 @@ członek, do którego koszyk należy. Koszyk innej organizacji zwraca `404`, tak
 członek, który nie jest administratorem, dostaje odmowę `403`. Wyłączenie wymogu akceptacji przywraca
 każdy oczekujący lub zaakceptowany koszyk organizacji do `not_required`.
 
+Składanie zamówienia egzekwuje akceptację: koszyk członka, który nie jest `approved` — nigdy
+nieprzekazany, czekający na administratora albo odrzucony — zostaje odrzucony przy składaniu
+zamówienia z kodem `409 ORDER_CART_APPROVAL_REQUIRED`, zanim cokolwiek zostanie zarezerwowane lub
+zapisane; koszyk pozostaje bez zmian. Reguła jest ta sama, którą stosuje przekazanie do akceptacji:
+organizacja wymaga akceptacji koszyków, a właściciel koszyka nie jest jej administratorem. Obowiązuje
+niezależnie od tego, co pokazuje storefront — zarówno dla `POST /api/v1/orders`, jak i dla strony
+kasy. Strona modułu zamówień, w części *Akceptacja koszyka przy składaniu zamówienia*, wymienia
+komunikaty.
+
 ## API publiczne
 
 ### Storefront (kupujący)

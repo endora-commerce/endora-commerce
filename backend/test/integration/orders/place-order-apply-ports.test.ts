@@ -119,6 +119,7 @@ describe('placeOrder — the T048 apply ports, against a live transaction', () =
         refreshLinePrices: (input) => real.cartPlacementApply.refreshLinePrices(input),
         readWorkingForPlacement: (em, ctx) => real.cartPlacementApply.readWorkingForPlacement(em, ctx),
         discardWorkingBasket: (input) => real.cartPlacementApply.discardWorkingBasket(input),
+        awaitsApproval: (input) => real.cartPlacementApply.awaitsApproval(input),
         completeForOrder: async (em, input) => {
           // Let the real completion write first: the point is that a *committed*
           // statement would survive, so the failure has to land after one.
@@ -205,6 +206,9 @@ describe('placeOrder — the T048 apply ports, against a live transaction', () =
         },
         discardWorkingBasket: async () => {
           throw new Error('unreachable: no working basket is named');
+        },
+        awaitsApproval: async () => {
+          throw new Error('unreachable: the read refuses first');
         },
         completeForOrder: async () => {
           throw new Error('unreachable: the read refuses first');

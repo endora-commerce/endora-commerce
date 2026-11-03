@@ -18,6 +18,7 @@ import { assertCartMeetsMinimums, toCartMinimumItem } from './cart-minimums.js';
 import { availableRecords, basketScopeLanguage, withBasketOrderRules } from './cart-availability.js';
 import { cartAudience } from './cart-service.js';
 import { readOrganizationCarts } from './organization-cart-reach.js';
+import { approvalSubmissionRequired } from './cart-approval-policy.js';
 
 /**
  * Approval-workflow state machine (feature 027 US4).
@@ -128,10 +129,10 @@ export class CartApprovalService {
    * on, read as a yes/no for the cart's primary call to action.
    */
   async submissionRequired(buyer: ApproveActor): Promise<boolean> {
-    const org = await this.organizations.findById(buyer.organizationId);
-    if (!org?.requiresCartApproval) return false;
-    const account = await this.customerAccounts.findById(buyer.customerAccountId);
-    return account !== null && account !== undefined && account.role !== 'organization_admin';
+    return approvalSubmissionRequired(
+      { organizations: this.organizations, customerAccounts: this.customerAccounts },
+      buyer,
+    );
   }
 
   /**

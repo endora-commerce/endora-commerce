@@ -664,6 +664,12 @@ export const manifest = defineModuleManifest({
     { code: 'ORDER_NOT_FOUND' },
     // Feature 154 — placement refuses a basket of another sales channel.
     { code: 'ORDER_SALES_CHANNEL_MISMATCH' },
+    // Issue #648 — placement refuses a basket that awaits its Organization's
+    // approval, with a token per approval state.
+    {
+      code: 'ORDER_CART_APPROVAL_REQUIRED',
+      tokens: ['cart_approval_not_submitted', 'cart_approval_pending', 'cart_approval_rejected'],
+    },
     { code: 'ORDER_SAVED_VIEW_NAME_TAKEN' },
     // Issue #86 — order-path refusals that were `VALIDATION_FAILED` with an
     // English sentence. The method pair keeps the `details.code` tokens its
