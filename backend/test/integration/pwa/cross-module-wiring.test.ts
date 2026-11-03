@@ -5,12 +5,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
 import { PWA_SETTING_CODES } from '@endora-commerce/contracts';
-import { Setting, SettingValue, SalesChannel } from '@endora-commerce/platform/kernel';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { overrideAssetSetting } from '../../helpers/crm-attachment-upload.js';
 import { TEST_ADMIN_ID, TEST_CUSTOMER_ID } from '../../helpers/test-actors.js';
 import { seedShippedOrder, RFQ_SHIPPED_ORDER_ID } from '../../helpers/seed-commerce.js';
 import { resolvePublicApiBaseUrl } from '../../../src/kernel/index.js';
@@ -50,6 +50,7 @@ import { resolvePublicApiBaseUrl } from '../../../src/kernel/index.js';
 describe('pwa — the cross-module ports, composed', () => {
   let h: BackendServerHandle;
   let assetsBaseDir: string;
+  let restoreBaseDir: (() => Promise<void>) | undefined;
   const adminCookie = { b2b_session: 'stub-admin-session' };
   const channelHeader = { 'x-sales-channel': 'default' };
 
@@ -62,17 +63,12 @@ describe('pwa — the cross-module ports, composed', () => {
     // The local storage adapter writes real bytes; give it somewhere of its
     // own, exactly as `assets_library`' own contract suite does.
     assetsBaseDir = await mkdtemp(join(tmpdir(), 'pwa-cross-module-'));
-    const em = h.em();
-    const setting = await em.findOneOrFail(Setting, { code: 'assets.local.base_dir' });
-    const channel = await em.findOneOrFail(SalesChannel, { code: 'default' });
-    const existing = await em.findOne(SettingValue, { setting });
-    if (existing) existing.value = assetsBaseDir;
-    else em.create(SettingValue, { setting, salesChannel: channel, value: assetsBaseDir });
-    await em.flush();
+    restoreBaseDir = await overrideAssetSetting(h, 'assets.local.base_dir', assetsBaseDir);
     h.assetsLibrary.adapters.invalidate();
   });
 
   afterAll(async () => {
+    await restoreBaseDir?.();
     await teardownBackendServer(h);
     await rm(assetsBaseDir, { recursive: true, force: true });
   });
