@@ -210,7 +210,7 @@ export interface OrganizationEffectivePermissions {
 }
 
 /**
- * Container name `organizationPermissionPort`. Owner: `organizations`.
+ * Container name: `organizationPermissionPort`. Owner: `organizations`.
  *
  * Reached with `lazyPort<OrganizationPermissionPort>(ctx, 'organizationPermissionPort')`
  * and never captured into a singleton. A subject whose role cannot be found in
@@ -236,7 +236,7 @@ export interface OrganizationPermissionPort {
   rolesHolding(organizationId: string, code: string): Promise<readonly string[]>;
 }
 
-/** Container name `organizationRoleReadPort`. Owner: `organizations`. */
+/** Container name: `organizationRoleReadPort`. Owner: `organizations`. */
 export interface OrganizationRoleReadPort {
   /**
    * The id of the Organization's predefined role of `kind`, read through the
