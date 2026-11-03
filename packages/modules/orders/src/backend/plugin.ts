@@ -622,6 +622,7 @@ export function commerceModule(options: OrdersModuleOptions) {
       orderService,
       options.addressService,
       options.customerAccountRead,
+      options.salesChannelMembership,
       options.mailer,
       options.getTransactionalEmailSender,
     );

@@ -12,6 +12,7 @@ import {
   SEED_PRODUCT_103_ID,
 } from '../../helpers/seed-catalog.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { addOrganizationChannels } from '../../helpers/sales-channel-access.js';
 import {
   PriceDisplayModeOverride,
   Product,
@@ -91,6 +92,9 @@ describe('Admin order preview — visibility and assortment codes (feature 145)'
     });
     expect(created.statusCode).toBe(201);
     channelB = (created.json() as { id: string }).id;
+    // Issue #515 — the preview judges only a channel the customer's
+    // Organization is assigned to; these cases are about B's assortment.
+    await addOrganizationChannels(h, TEST_ORGANIZATION_ID, ['preview-availability-b']);
 
     // Quote-only needs a resolved price whose mode is `none` — see
     // `test/integration/carts/cart-line-refusal-codes.test.ts`.
@@ -256,15 +260,16 @@ describe('Admin order preview — visibility and assortment codes (feature 145)'
     expect(data.messages).toHaveLength(1);
   });
 
-  it('sc. 14 — a salesChannelId naming no channel is 404 NOT_FOUND, never priced on another channel', async () => {
+  it('sc. 14 — a salesChannelId naming no channel is 422 ORDER_SALES_CHANNEL_NOT_ALLOWED, never priced on another channel', async () => {
     // An active channel exists (A and B both are): the removed fallback would
-    // have found one.
+    // have found one. Since issue #515 the answer is the one every channel
+    // outside the Organization's active set gets, as creating the order would.
     const res = await preview(MISSING_CHANNEL_ID, [PRICED]);
-    expect(res.statusCode).toBe(404);
-    // The code, not the sentence: the error envelope answers NOT_FOUND in the
-    // caller's language rather than with the thrower's English text.
+    expect(res.statusCode).toBe(422);
+    // The code, not the sentence: the error envelope answers in the caller's
+    // language rather than with the thrower's English text.
     const body = res.json() as { error: { code: string }; data?: unknown };
-    expect(body.error.code).toBe(ERROR_CODES.NOT_FOUND);
+    expect(body.error.code).toBe(ERROR_CODES.ORDER_SALES_CHANNEL_NOT_ALLOWED);
     expect(body.data).toBeUndefined();
   });
 
