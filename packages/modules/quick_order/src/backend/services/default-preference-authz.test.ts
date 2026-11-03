@@ -16,7 +16,7 @@ describe('canManagePreference', () => {
   });
 
   it('an Organization administrator manages own org and customers within it (FR-012)', () => {
-    const actor: PreferenceActor = { kind: 'organization_administrator', organizationId: 'org-1' };
+    const actor: PreferenceActor = { kind: 'administrator', organizationId: 'org-1' };
     expect(canManagePreference(actor, { scope: 'organization', scopeId: 'org-1' }, null)).toBe(true);
     expect(canManagePreference(actor, { scope: 'organization', scopeId: 'org-2' }, null)).toBe(false);
     expect(canManagePreference(actor, { scope: 'customer', scopeId: 'cust-1' }, 'org-1')).toBe(true);

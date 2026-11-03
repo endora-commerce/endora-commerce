@@ -49,7 +49,7 @@ async function resolveActor(
       organizationRoleId: actor.kind === 'customer' ? (actor.organizationRoleId ?? null) : null,
     }));
   return administrator
-    ? { kind: 'organization_administrator', organizationId }
+    ? { kind: 'administrator', organizationId }
     : { kind: 'customer', customerAccountId };
 }
 

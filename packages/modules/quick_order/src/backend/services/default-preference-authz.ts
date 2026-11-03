@@ -44,7 +44,7 @@ export function canManagePreference(
     case 'customer':
       return target.scope === 'customer' && target.scopeId === actor.customerAccountId;
 
-    case 'organization_administrator':
+    case 'administrator':
       if (target.scope === 'organization') return target.scopeId === actor.organizationId;
       return targetCustomerOrganizationId === actor.organizationId;
 

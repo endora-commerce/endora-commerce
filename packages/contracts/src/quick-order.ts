@@ -319,11 +319,12 @@ export interface PreferenceAuditContext {
 export type PreferenceActor =
   | { kind: 'customer'; customerAccountId: string }
   /**
-   * A member holding the Organization's *Administrator* role
-   * (`specs/170-organization-roles/` FR-012 — a reserved capability, not a
-   * permission), asked of `organizationPermissionPort.isAdministrator`.
+   * A member holding the Organization's *Administrator* role — a buyer, not
+   * the operator's `platform_admin`. Managing others' defaults is a reserved
+   * capability, not a permission (`specs/170-organization-roles/` FR-012),
+   * asked of `organizationPermissionPort.isAdministrator`.
    */
-  | { kind: 'organization_administrator'; organizationId: string }
+  | { kind: 'administrator'; organizationId: string }
   | { kind: 'salesperson'; assignedOrganizationIds: string[] }
   | { kind: 'platform_admin' };
 
