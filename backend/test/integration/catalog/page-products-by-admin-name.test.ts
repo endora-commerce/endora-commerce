@@ -67,8 +67,8 @@ describe('CatalogProductReadService.pageProductsByAdminName (161 G15)', () => {
     await teardownBackendServer(h);
   });
 
-  const page = (svc: CatalogProductReadService, query: { language: string | null; search?: string; offset?: number; limit?: number }) =>
-    svc.pageProductsByAdminName({ membership, language: query.language, ...(query.search ? { search: query.search } : {}), offset: query.offset ?? 0, limit: query.limit ?? 50 });
+  const page = (svc: CatalogProductReadService, query: { language?: string | null; search?: string; offset?: number; limit?: number }) =>
+    svc.pageProductsByAdminName({ membership, ...(query.search ? { search: query.search } : {}), offset: query.offset ?? 0, limit: query.limit ?? 50 });
 
   it('orders the members by the English key, then SKU, with the total; non-members absent', async () => {
     const answer = await page(port, { language: 'en' });
@@ -109,7 +109,7 @@ describe('CatalogProductReadService.pageProductsByAdminName (161 G15)', () => {
         [1, 2],
         [5, 50],
       ] as const) {
-        const query = { language: 'en', search, offset, limit };
+        const query = { search, offset, limit };
         expect(await page(dense, query), `${search} ${offset}`).toEqual(await page(sparse, query));
       }
     }
@@ -126,7 +126,7 @@ describe('CatalogProductReadService.pageProductsByAdminName (161 G15)', () => {
     const bulk = await seedBulkProductsSql(h.em(), { count: 3000, namePrefix: `Deep ${stamp}`, skuPrefix: `G15W-${stamp}`, words: ['Screw', 'Bolt', 'Nut'] });
     const deep = { sql: 'select m.id from unnest(?::uuid[]) as m(id)', params: [`{${bulk.join(',')}}`] };
     const at = (svc: CatalogProductReadService, search: string | undefined, offset: number) =>
-      svc.pageProductsByAdminName({ membership: deep, language: 'en', ...(search ? { search } : {}), offset, limit: 100 });
+      svc.pageProductsByAdminName({ membership: deep, ...(search ? { search } : {}), offset, limit: 100 });
     for (const [search, offset] of [
       [undefined, 2900],
       [undefined, 1500],
@@ -149,8 +149,8 @@ describe('CatalogProductReadService.pageProductsByAdminName (161 G15)', () => {
       return original(...args);
     };
     try {
-      await dense.pageProductsByAdminName({ membership, language: 'en', search: 'g15n', offset: 1, limit: 2 });
-      await port.pageProductsByAdminName({ membership, language: 'en', offset: 1, limit: 2 });
+      await dense.pageProductsByAdminName({ membership, search: 'g15n', offset: 1, limit: 2 });
+      await port.pageProductsByAdminName({ membership, offset: 1, limit: 2 });
     } finally {
       conn.execute = original;
     }

@@ -2667,7 +2667,7 @@ export interface CatalogProductReadPort {
   /**
    * Feature 161 (G15, `specs/161-price-book-editor/research.md` R14) — one page
    * of the products a caller's **membership seam** names, ordered by the stored
-   * admin name key of the admin language (`en`, `pl`; any other reads `en`),
+   * admin name key (feature 170: one key over the Global name, for every admin language),
    * then SKU, then id, and how many there are. `search` narrows to the products
    * whose stored search key (folded shown name and SKU) or one of whose
    * variants' SKU contains it — case- and accent-folded, taken literally. How
@@ -2700,8 +2700,6 @@ export interface CatalogProductMembership {
 export interface CatalogAdminNamePageQuery {
   readonly membership: CatalogProductMembership;
   readonly search?: string | null;
-  /** A language tag (`pl`, `pl-PL`); its primary subtag picks the key, `en` when it has none. */
-  readonly language: string | null;
   readonly offset: number;
   readonly limit: number;
   /** Default `true`. Without a search, `false` skips the count. */

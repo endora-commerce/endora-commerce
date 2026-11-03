@@ -265,7 +265,6 @@ export class CatalogProductReadService implements CatalogProductReadPort {
    */
   async pageProductsByAdminName(query: CatalogAdminNamePageQuery): Promise<{ ids: string[]; total: number | null }> {
     // Feature 170 (data-model §1, FR-031): one key over the Global name for every admin language.
-    // 170-shim: `query.language` is ignored until S2 drops it from the port.
     const key = `p."admin_name_key"`;
     const searchKey = `p."admin_search_key"`;
     const order = `${key}, p."sku", p."id"`;

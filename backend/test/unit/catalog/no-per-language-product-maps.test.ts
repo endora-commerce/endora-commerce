@@ -177,10 +177,6 @@ const ALLOWLIST: ReadonlyArray<{ file: string; reason: string }> = [
     reason: "S1 — channel codes in a products file's cells and the deprecated exportScopedStatuses, removed once import_export's adapter resolves codes and reads exportScopedValues (T087, S2)",
   },
   {
-    file: 'packages/modules/catalog/src/backend/services/catalog-product-read.service.ts',
-    reason: "S1 — catalog backend 170-shim, rewritten in US2 / US3 (T035, T040-T047); not S2's file — also drops `CatalogAdminNamePageQuery.language`",
-  },
-  {
     file: 'packages/modules/seo/src/admin/index.ts',
     reason: 'S3 — seo admin, rewritten in US10 (T122+)',
   },
