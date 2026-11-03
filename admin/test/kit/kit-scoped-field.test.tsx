@@ -171,7 +171,7 @@ describe('ScopedField (feature 170, FR-060…FR-065)', () => {
   it('ticking "Use value from" on an own value shows the parent value read-only and names the channel (round 8)', () => {
     renderEn(
       <Harness
-        view={{ ...view({ value: 'Wiertarka', ownValue: 'Wiertarka', source: 'set' }), inheritedValue: { value: 'Drill PL', source: 'inherited_channel' } }}
+        view={{ ...view({ value: 'Wiertarka', ownValue: 'Wiertarka', source: 'set' }), inheritedValue: { value: 'Drill PL', level: 'C' } }}
       />,
     );
     fireEvent.click(screen.getByRole('checkbox'));
@@ -184,7 +184,7 @@ describe('ScopedField (feature 170, FR-060…FR-065)', () => {
   it('a parent value that comes from Global names Global (round 8)', () => {
     renderEn(
       <Harness
-        view={{ ...view({ value: 'Wiertarka', ownValue: 'Wiertarka', source: 'set' }), inheritedValue: { value: 'Drill', source: 'inherited_global' } }}
+        view={{ ...view({ value: 'Wiertarka', ownValue: 'Wiertarka', source: 'set' }), inheritedValue: { value: 'Drill', level: 'G' } }}
       />,
     );
     fireEvent.click(screen.getByRole('checkbox'));
@@ -195,7 +195,7 @@ describe('ScopedField (feature 170, FR-060…FR-065)', () => {
   it('an empty parent stays empty and is not skipped to Global (round 8)', () => {
     renderEn(
       <Harness
-        view={{ ...view({ value: 'Wiertarka', ownValue: 'Wiertarka', source: 'set' }), inheritedValue: { value: null, source: 'inherited_channel' } }}
+        view={{ ...view({ value: 'Wiertarka', ownValue: 'Wiertarka', source: 'set' }), inheritedValue: { value: null, level: 'C' } }}
       />,
     );
     fireEvent.click(screen.getByRole('checkbox'));
@@ -203,10 +203,10 @@ describe('ScopedField (feature 170, FR-060…FR-065)', () => {
     expect(screen.getByLabelText('Name')).toHaveAccessibleDescription(expect.stringContaining('B2B PL'));
   });
 
-  it('no value at any scope above: the field says so after the tick (round 8)', () => {
+  it('no value at Global either: the field says so after the tick (round 8)', () => {
     renderEn(
       <Harness
-        view={{ ...view({ value: 'Wiertarka', ownValue: 'Wiertarka', source: 'set' }), inheritedValue: { value: null, source: 'absent' } }}
+        view={{ ...view({ value: 'Wiertarka', ownValue: 'Wiertarka', source: 'set' }), inheritedValue: { value: null, level: 'G' } }}
       />,
     );
     fireEvent.click(screen.getByRole('checkbox'));

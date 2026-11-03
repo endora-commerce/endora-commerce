@@ -36,9 +36,9 @@ export interface ScopedFieldControlProps<T> {
 
 /**
  * A field view as the read carries it. Every non-Global field holds `inheritedValue` (spec round
- * 8, `contracts/scoped-values-api.md` §2): the parent's effective value and where it comes from,
- * which the field shows read-only right after "Use value from <parent>" is ticked on an own
- * value. A view without it (an older read) falls back to an empty read-only control.
+ * 8, `contracts/scoped-values-api.md` §2): the parent's effective value, which the field shows
+ * read-only right after "Use value from <parent>" is ticked on an own value; `level` is where it is set (`G` Global, `C` the channel). A view without it (an older
+ * read) falls back to an empty read-only control.
  */
 export type ScopedFieldViewWithParent<T> = ScopedFieldView<T>;
 
@@ -253,10 +253,11 @@ export function ScopedField<T>(props: ScopedFieldProps<T>): ReactNode {
         : { icon: <Link2 className="size-3" aria-hidden="true" />, text: t('scopedField.source.inheritedFrom', { scope: inheritedFrom }) };
   } else if (mode === 'stagedInherit') {
     const parent = view.inheritedValue;
-    if (parent?.source === 'absent') {
+    if (parent?.level === 'G' && isEmpty(parent.value)) {
+      // Nothing at Global either: no value at any scope above.
       source = { icon: <CircleSlash className="size-3" aria-hidden="true" />, text: t('scopedField.source.noValueAbove') };
     } else {
-      const from = parent?.source === 'inherited_global' ? t('scopedField.scope.global') : parentScopeLabel;
+      const from = parent?.level === 'G' ? t('scopedField.scope.global') : parentScopeLabel;
       source = { icon: <Link2 className="size-3" aria-hidden="true" />, text: t('scopedField.source.willInherit', { scope: from }) };
     }
   } else if (isEmpty(value)) {
