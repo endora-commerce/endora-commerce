@@ -2,7 +2,7 @@
 
 **Feature Branch**: `spec/organization-roles`
 **Created**: 2026-11-03
-**Status**: Draft — owner rulings OR-1 to OR-8 recorded 2026-11-03; no open questions; ready for `/speckit.plan`
+**Status**: Draft — owner rulings OR-1 to OR-8 recorded 2026-11-03; no open questions; `plan.md` and `tasks.md` merged (#683), implementation not started
 **Input**: Owner request (translated from Polish): *"Customers should be able, within their
 Organization, to define their own Roles and assign them to Organization Members. Roles carry
 permissions over the actions an Organization member can perform. The Organization Administrator
@@ -109,6 +109,12 @@ them away entirely.
   B (the same, not member-default), C (no permission). Recommendation A. **Resolved 2026-11-03: A (OR-8).**
 
 ## User Scenarios & Testing *(mandatory)*
+
+*Priority* on a user story (P1, P2, P3) ranks the story's importance; it is **not** the delivery
+phase. The delivery phases are the P1+P2 release and P3 (internal RFQ approval, OR-2), defined by
+FR-022's *Phase* column and `plan.md` § *Delivery model*. Every user story here is delivered in the
+P1+P2 release — including User Story 8 (Priority: P3), whose behaviour FR-007 and FR-025 require
+there; P3 adds FR-040–FR-046, which no user story below covers.
 
 ### User Story 1 — An administrator defines a role and gives it to a member (Priority: P1)
 
@@ -394,8 +400,8 @@ When the operator switches it back on, every role holds again exactly what it he
   never by `organizations`, and MUST be a vocabulary separate from operator (Admin UI) permission
   codes: no string may be both.
 - **FR-021**: Each declaration MUST carry a label and a one-sentence description in English and
-  Polish, and whether the permission is **member-default** (granted to *Member* when it first
-  becomes known).
+  Polish, and whether the permission is **member-default** (granted to an Organization's *Member*
+  role when first offered to it, FR-023).
 - **FR-022**: This feature MUST declare these permissions, each in the phase shown. The nine **P2**
   codes ship in the P1+P2 release; the two **P3** codes MUST NOT be declared before P3, which
   introduces the internal RFQ approval they govern (OR-2, FR-042–FR-046; `research.md` R-30):
@@ -414,10 +420,12 @@ When the operator switches it back on, every role holds again exactly what it he
   | `quote_requests.approve` | quote_requests | Approve quote requests | no | **P3** |
   | `quote_requests.send_without_approval` | quote_requests | Send quote requests without approval (OR-2) | yes | **P3** |
 
-- **FR-023**: When a permission becomes known to the platform for the first time (its module is
-  installed), it MUST be granted to every Organization's *Member* role if it is member-default, and
-  to no custom role. It MUST NOT be granted again afterwards — an Organization's removal of it from
-  *Member* survives the module being switched off and on, and being uninstalled and reinstalled.
+- **FR-023**: When a member-default permission is first offered to the *Member* role of an
+  Organization (its module is installed, or the Organization is created while it is), it MUST be
+  granted to that *Member* role, and to no custom role. It MUST NOT be granted again afterwards — an
+  administrator's removal of it from *Member* survives the module being switched off and on, and
+  being uninstalled and reinstalled (`research.md` R-17, `data-model.md` §1
+  `member_defaults_offered`).
 - **FR-024**: Deleting a role that members or pending invitations hold MUST require a replacement
   role and MUST move all of them to it in the same operation; a role nobody holds MUST be deletable
   without one.
@@ -629,8 +637,9 @@ Measured on `origin/master` at `75b069175`, excluding tests, docs, `dist/` and m
   a member in under 2 minutes, without help.
 - **SC-002**: After the upgrade, 100% of a replay of every gated action by every seeded member
   produces the pre-upgrade outcome, except one-click in approval-requiring Organizations.
-- **SC-003**: 100% of the permissions declared in FR-022 are enforced by the backend, so a request
-  bypassing the storefront is refused exactly as the hidden button implies.
+- **SC-003**: 100% of the permission codes declared in the release (FR-022's P2 codes in P1+P2; the
+  P3 codes when P3 ships) are enforced by the backend, so a request bypassing the storefront is
+  refused exactly as the hidden button implies.
 - **SC-004**: Cart, checkout and placement response times do not regress by more than 5% at the
   95th percentile compared with the release before.
 - **SC-005**: A revoked permission stops working within 30 seconds on every server, and immediately

@@ -432,8 +432,9 @@ never offered it, and reinstalling the module would grant it to nobody there. Pe
 "has **this** *Member* been offered this code?" is exactly FR-023's. Computing rather than
 reconciling also means a *Member* row created by any path — the M2 trigger (R-28), a test fixture's
 raw insert — is correct with empty arrays, and lets R-18 express FR-071's exception as data. The
-spec's Key Entity read *"platform-wide record"* and was aligned with this entry on 2026-11-03; the
-behaviour the FRs require is unchanged.
+spec's Key Entity read *"platform-wide record"* and was aligned with this entry on 2026-11-03, and
+FR-023 (which read *"known to the platform for the first time"*) was aligned to *"first offered to
+the Member role of that Organization"* afterwards; the behaviour the FRs require is unchanged.
 
 **Alternatives rejected.** *Platform-wide `organization_permission_first_seen` table* — the defect
 above. *A boot reconciler appending new codes to every Member row* — correct, but a write at boot on
