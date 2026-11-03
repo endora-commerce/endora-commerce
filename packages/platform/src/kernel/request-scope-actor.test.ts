@@ -187,6 +187,7 @@ describe('a request is scoped to the actor its gate accepted', () => {
     expect(whileImpersonating.body.commandActor).toEqual({
       actorAdminUserId: 'admin-1',
       impersonatedCustomerAccountId: null,
+      actorCustomerAccountId: null,
       kind: 'admin',
     });
     expect(whileImpersonating.body.tenant.impersonation).toBeUndefined();
@@ -216,6 +217,8 @@ describe('a request is scoped to the actor its gate accepted', () => {
     expect(body.commandActor).toEqual({
       actorAdminUserId: 'admin-1',
       impersonatedCustomerAccountId: 'customer-1',
+      // The administrator acted, not the impersonated customer (feature 170, R-21).
+      actorCustomerAccountId: null,
       kind: 'customer',
     });
     await app.close();
