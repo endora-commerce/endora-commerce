@@ -53,8 +53,8 @@ razem z resztą zakresu przez `PUT …/products/:id/scoped-values`:
 }
 ```
 
-- **Nazwa** — wymagana: najwyżej 160 znaków, nigdy pusta, w każdym zakresie. Pusta nazwa w
-  zakresie globalnym jest odrzucana.
+- **Nazwa** — najwyżej 160 znaków. W zakresie globalnym jest wymagana, więc pusta nazwa jest tam
+  odrzucana; w kanale albo w kanale i języku `null` zapisuje celowo pustą nazwę.
 - **Opis** — najwyżej 4000 znaków; `null` zapisuje celowo pusty opis, który pozostaje tam pusty,
   nawet jeśli zakres nadrzędny ma opis.
 - **Ukrycie** — `true` albo `false`, w zakresie globalnym, w kanale albo w kanale i języku. Ukryty

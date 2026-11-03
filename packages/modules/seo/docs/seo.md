@@ -20,9 +20,10 @@ a sales channel's storefront as a whole.
 | `POST /api/v1/admin/seo/sitemap/:channelCode/regenerate` | admin (`catalog:write`) | Force a fresh build for that channel |
 | `GET /api/v1/admin/seo/sitemap/:channelCode/status` | admin (`catalog:write`) | Last-generated timestamp + size + URL count for that channel |
 | `GET /api/v1/admin/seo/sitemap/:channelCode/xml` | admin (`catalog:write`) | That channel's cached XML, inline or as a download (`?download=1`) |
-| `GET /api/v1/admin/seo/meta/:entityType/:entityId` | admin (`catalog:write`) | Resolved meta at a scope (`?locale=`, `?channelId=`) + the override row at exactly that scope |
-| `PUT /api/v1/admin/seo/meta/:entityType/:entityId` | admin (`catalog:write`) | Create or update the override at a scope (`locale`, `channelId` in the body) |
-| `DELETE /api/v1/admin/seo/meta/:entityType/:entityId` | admin (`catalog:write`) | Remove the override at a scope (`?locale=`, `?channelId=`); the next scope down applies again |
+| `GET /api/v1/admin/seo/meta/product/:id` | admin (`catalog:read`) | A product's metadata at a scope (`?channelId=`, `?languageCode=`): each field's own or inherited value, the resolved metadata and where each value came from |
+| `GET /api/v1/admin/seo/meta/:entityType/:entityId` | admin (`catalog:write`) | A category's or CMS page's resolved meta at a language (`?locale=`) + the override row there |
+| `PUT /api/v1/admin/seo/meta/:entityType/:entityId` | admin (`catalog:write`) | Create or update a category's or CMS page's override at a language (`locale` in the body); a product answers `422 VALIDATION_FAILED` |
+| `DELETE /api/v1/admin/seo/meta/:entityType/:entityId` | admin (`catalog:write`) | Remove a category's or CMS page's override at a language (`?locale=`); a product answers `422 VALIDATION_FAILED` |
 
 ## Search engine robots
 
@@ -531,46 +532,73 @@ text joined to the generated part, while a closed store serves the file above wi
 
 ## Meta-tag resolution
 
-An override sits at one of three **scopes**:
+### Products: Global, Channel, Channel × language
+
+A product's metadata — title, description, Open Graph title, description and image — follows the
+product scopes:
 
 | Scope | Addressed by | Applies to |
 | --- | --- | --- |
-| Language | `locale` | that language, in every sales channel |
+| Global | neither | every sales channel and language |
 | Sales channel | `channelId` | every language of that channel |
-| Sales channel × language | `channelId` and `locale` | that language in that channel |
+| Sales channel × language | `channelId` and `languageCode` | that language in that channel |
 
-A request naming neither is the `en-US` language override — what every request meant before
-scopes existed, so an existing caller keeps working. Only a product takes a sales channel scope:
-a `channelId` on a category or a CMS page is refused with `422 VALIDATION_FAILED`. Saving an
-override for a channel the product is not in, or for a language that channel does not offer, is
-refused with `422 SCOPE_INVALID`; removing one is always allowed, so an override left behind when
-a product leaves a channel can be cleaned up.
+There is no language-only product scope; the upgrade removes the product overrides that were
+stored per language only (see *Upgrading* below). Each field is resolved on its own, from the
+narrowest scope that holds it: Channel × language, then Channel, then Global, then the value
+derived from the product — its effective name and description at that channel and language. A
+field stored deliberately empty at a scope stops the chain there, and the page then uses the
+derived value.
 
-Each of the five fields — title, description, Open Graph title, description and image — is
-resolved on its own, from the most specific scope that sets it: sales channel × language, then
-sales channel, then language, then the value derived from the entity (Product name + description,
-Category name + auto-summary). A field one scope leaves empty is taken from the next. An override
-never answers for another language. Overrides written before scopes existed are language
-overrides, unchanged.
+**Edited in the product editor.** The product editor's SEO section shows each field at the
+editor's scope, with "Use value from *parent scope*", and saves it with the rest of the product
+in one Command (`product.scoped_values.save`) — one audit entry whose cells are named
+`seo:<field>@<scope>`. The title and the Open Graph title take at most 160 characters, the
+descriptions 400 and the image URL 2 048; an image URL is an `http(s)` URL without user
+information. A refused field refuses the whole save. The generic `PUT` and
+`DELETE /api/v1/admin/seo/meta/product/:id` answer `422 VALIDATION_FAILED`
+(`reason: product_seo_saved_with_product`); the SEO screen's editor links to the product editor
+for a product. While `seo` is switched off, a product save that names SEO fields is refused with
+`503 MODULE_DISABLED`; one that does not is unaffected. Duplicating a product copies its metadata
+at every scope.
+
+**Reading it.** `GET /api/v1/admin/seo/meta/product/:id` (`catalog:read`) answers, at the
+scope named by `channelId` and `languageCode`, each field's own value or its inheritance, the
+resolved metadata and the source of each value. A language without a channel is refused with
+`422 VALIDATION_FAILED`; a channel the product is not in, or a language the channel does not
+offer, with `422 SCOPE_INVALID`.
+
+**For other modules.** `seoProductMetaWritePort` reads and writes a product's metadata at any
+scope on the caller's transaction, without an audit entry of its own; `catalog`'s save and
+duplicate are its callers, and they check the scope first.
 
 **The product page serves them.** The storefront's product page takes its title, description and
-Open Graph tags from this resolution at the request's sales channel and language. Product
-overrides were stored but not shown on the page before this; they are shown now. While `seo` is
+Open Graph tags from this resolution at the request's sales channel and language. While `seo` is
 switched off the page shows the derived metadata, and every override comes back when the module
 is switched on.
 
-**In the admin.** The SEO screen's meta-tag editor loads a scope as soon as it is chosen — a
-product's own sales channels, then one of that channel's languages or the whole channel (**Load**
-reads it again). Leaving a scope with unsaved changes asks first, and **Use inherited** asks before
-it removes the override at exactly the scope shown. The product editor's SEO tab links to this
-screen with the product already selected (`/seo?entityType=product&entityId=<id>`). The link is this
-module's contribution to the product editor's admin zone `product.editor.seo.after`, so it is shown
-only while `seo` is switched on and the admin holds `catalog:write`.
+### Categories and CMS pages
+
+A category's or CMS page's override sits at a language (`locale`) and applies in every sales
+channel; a request naming no language is the `en-US` override. A `channelId` on a category or a
+CMS page is refused with `422 VALIDATION_FAILED`. Each field is resolved from the language's
+override, then from the value derived from the entity (Category name + auto-summary). An override
+never answers for another language.
+
+**In the admin.** The SEO screen's meta-tag editor loads a category's or a page's language as soon
+as it is chosen (**Load** reads it again). Leaving a language with unsaved changes asks first, and
+**Use inherited** asks before it removes the override shown.
 
 **Every change is audited.** Saving an override is one `seo_meta_override.upsert` entry in the
 audit log, removing one a `seo_meta_override.delete` entry, each with the whole override before
 and after. To put back an earlier version, save the values from the entry's *before* state.
 Removing an override that does not exist changes nothing and writes no entry.
+
+### Upgrading
+
+The upgrade deletes every product override stored for a language without a sales channel — there
+is no such scope any more. Category and CMS page overrides are unchanged. Re-enter at a channel
+and language, or at Global, any product metadata that only a language override held.
 
 Title and description are truncated at 60 / 160 characters with an ellipsis.
 The truncation lives in one helper so changes to the SEO budget happen in
@@ -581,14 +609,13 @@ one place.
 `SitemapGeneratorService.regenerate()` walks the channel's products, categories and CMS pages,
 stamps absolute URLs against the channel's storefront address, and writes the XML payload to the
 channel's `sitemap_cache` row. A product is listed once for every language it is live in on the
-channel, each URL on the product's URL key in that language — its key for that channel and
-language, else its language key, else its global key — with `?lang=<language>` for every language
-other than the channel's default.
+channel, each URL on the product's effective URL key there — its Channel × language key, else its
+Channel key, else its Global key — under the language's path prefix.
 
 The public route (`GET /catalog/sitemap.xml`) returns the cached payload;
 when the row is older than `staleAfterMs` (default 6 h) it regenerates
 inline. A product change that alters what a sitemap lists — its status (global, in a channel or
-in a language), its archiving, its publication window (including the moment a window opens or
+in a channel and language), its archiving, its publication window (including the moment a window opens or
 closes), its audience (global or per channel) or its URL keys — marks every channel's cached
 sitemap stale, so the next request rebuilds it. A
 `Cache-Control: public, max-age=3600` header is set on the
@@ -608,7 +635,9 @@ ever exposed to crawlers.
 ## Entities
 
 `SeoMetaOverride` (entityType, entityId, salesChannelId?, locale?, title?, description?,
-ogTitle?, ogDescription?, ogImageUrl?; at least one of `salesChannelId` and `locale`), `SitemapCache` (singleton key,
+ogTitle?, ogDescription?, ogImageUrl?). A product row has neither `salesChannelId` nor `locale`
+(Global), a `salesChannelId` (Channel) or both (Channel × language); a category or CMS page row has
+a `locale`. On a product row a `null` field inherits and `''` is deliberately empty. `SitemapCache` (singleton key,
 payload, urlCount, byteSize, generatedAt).
 An override's `ogImageUrl` is an `http(s)` URL or a path starting with a single `/`; any other
 value is refused with `400 VALIDATION_FAILED`.

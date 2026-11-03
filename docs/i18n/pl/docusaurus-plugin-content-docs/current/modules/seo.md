@@ -20,9 +20,10 @@ dowiadują się o całym sklepie danego kanału sprzedaży.
 | `POST /api/v1/admin/seo/sitemap/:channelCode/regenerate` | administrator (`catalog:write`) | Wymuszenie ponownego wygenerowania dla tego kanału |
 | `GET /api/v1/admin/seo/sitemap/:channelCode/status` | administrator (`catalog:write`) | Czas ostatniego wygenerowania, rozmiar i liczba adresów URL dla tego kanału |
 | `GET /api/v1/admin/seo/sitemap/:channelCode/xml` | administrator (`catalog:write`) | Zapisany XML tego kanału, do podglądu lub pobrania (`?download=1`) |
-| `GET /api/v1/admin/seo/meta/:entityType/:entityId` | administrator (`catalog:write`) | Wyznaczone meta tagi w danym zakresie (`?locale=`, `?channelId=`) i wiersz nadpisania dokładnie w tym zakresie |
-| `PUT /api/v1/admin/seo/meta/:entityType/:entityId` | administrator (`catalog:write`) | Utworzenie lub aktualizacja nadpisania w danym zakresie (`locale`, `channelId` w treści żądania) |
-| `DELETE /api/v1/admin/seo/meta/:entityType/:entityId` | administrator (`catalog:write`) | Usunięcie nadpisania w danym zakresie (`?locale=`, `?channelId=`); znów obowiązuje kolejny zakres |
+| `GET /api/v1/admin/seo/meta/product/:id` | administrator (`catalog:read`) | Metadane produktu w danym zakresie (`?channelId=`, `?languageCode=`): własna albo dziedziczona wartość każdego pola, wyznaczone metadane i źródło każdej wartości |
+| `GET /api/v1/admin/seo/meta/:entityType/:entityId` | administrator (`catalog:write`) | Wyznaczone meta tagi kategorii lub strony CMS w danym języku (`?locale=`) i wiersz nadpisania w tym języku |
+| `PUT /api/v1/admin/seo/meta/:entityType/:entityId` | administrator (`catalog:write`) | Utworzenie lub aktualizacja nadpisania kategorii lub strony CMS w danym języku (`locale` w treści żądania); dla produktu odpowiedź to `422 VALIDATION_FAILED` |
+| `DELETE /api/v1/admin/seo/meta/:entityType/:entityId` | administrator (`catalog:write`) | Usunięcie nadpisania kategorii lub strony CMS w danym języku (`?locale=`); dla produktu odpowiedź to `422 VALIDATION_FAILED` |
 
 ## Roboty wyszukiwarek
 
@@ -549,47 +550,72 @@ połączony z częścią generowaną, a zamknięty sklep serwuje powyższy plik 
 
 ## Wyznaczanie meta tagów
 
-Nadpisanie należy do jednego z trzech **zakresów**:
+### Produkty: zakres globalny, kanału, kanału × języka
+
+Metadane produktu — tytuł, opis, tytuł, opis i obraz Open Graph — podlegają zakresom produktu:
 
 | Zakres | Wskazywany przez | Obowiązuje |
 | --- | --- | --- |
-| Język | `locale` | w tym języku, we wszystkich kanałach sprzedaży |
+| Globalny | żadne z nich | we wszystkich kanałach sprzedaży i językach |
 | Kanał sprzedaży | `channelId` | we wszystkich językach tego kanału |
-| Kanał sprzedaży × język | `channelId` i `locale` | w tym języku w tym kanale |
+| Kanał sprzedaży × język | `channelId` i `languageCode` | w tym języku w tym kanale |
 
-Żądanie, które nie wskazuje żadnego z nich, dotyczy nadpisania dla języka `en-US` — tak jak każde
-żądanie przed wprowadzeniem zakresów, więc dotychczasowe integracje działają bez zmian. Zakres
-kanału sprzedaży ma tylko produkt: `channelId` dla kategorii lub strony CMS jest odrzucany z kodem
-`422 VALIDATION_FAILED`. Zapis nadpisania dla kanału, do którego produkt nie należy, albo dla
-języka, którego kanał nie oferuje, jest odrzucany z kodem `422 SCOPE_INVALID`; usunięcie jest
-zawsze możliwe, więc nadpisanie pozostawione po wyjęciu produktu z kanału da się sprzątnąć.
+Nie ma zakresu produktu dla samego języka; aktualizacja usuwa nadpisania produktów zapisane
+wyłącznie dla języka (zob. *Aktualizacja* niżej). Każde pole jest wyznaczane osobno, z
+najwęższego zakresu, który je zawiera: kanał × język, potem kanał, potem zakres globalny, a na
+końcu wartość wyprowadzona z produktu — jego obowiązująca nazwa i opis w tym kanale i języku. Pole
+zapisane w zakresie jako celowo puste zatrzymuje tam łańcuch, a strona używa wtedy wartości
+wyprowadzonej.
 
-Każde z pięciu pól — tytuł, opis, tytuł, opis i obraz Open Graph — jest wyznaczane osobno,
-z najbardziej szczegółowego zakresu, który je ustawia: kanał sprzedaży × język, potem kanał
-sprzedaży, potem język, a na końcu wartość wyprowadzona z encji (nazwa i opis produktu, nazwa
-kategorii i automatyczne podsumowanie). Pole puste w jednym zakresie jest brane z kolejnego.
-Nadpisanie nigdy nie obowiązuje w innym języku. Nadpisania zapisane przed wprowadzeniem zakresów
-są nadpisaniami dla języka, bez zmian.
+**Edycja w edytorze produktu.** Sekcja SEO edytora produktu pokazuje każde pole w zakresie
+edytora, z „Użyj wartości z *zakresu nadrzędnego*”, i zapisuje je razem z resztą produktu jednym
+poleceniem (`product.scoped_values.save`) — jednym wpisem w dzienniku zdarzeń, którego komórki
+mają nazwy `seo:<pole>@<zakres>`. Tytuł i tytuł Open Graph mają najwyżej 160 znaków, opisy 400, a
+adres obrazu 2 048; adres obrazu to adres `http(s)` bez danych użytkownika. Odrzucone pole odrzuca
+cały zapis. Ogólne `PUT` i `DELETE /api/v1/admin/seo/meta/product/:id` odpowiadają
+`422 VALIDATION_FAILED` (`reason: product_seo_saved_with_product`); edytor na ekranie SEO prowadzi
+w przypadku produktu do edytora produktu. Gdy moduł `seo` jest wyłączony, zapis produktu, który
+zawiera pola SEO, jest odrzucany z kodem `503 MODULE_DISABLED`; zapis bez nich działa bez zmian.
+Duplikowanie produktu kopiuje jego metadane we wszystkich zakresach.
+
+**Odczyt.** `GET /api/v1/admin/seo/meta/product/:id` (`catalog:read`) zwraca w zakresie
+wskazanym przez `channelId` i `languageCode` własną wartość albo dziedziczenie każdego pola,
+wyznaczone metadane i źródło każdej wartości. Język bez kanału jest odrzucany z kodem
+`422 VALIDATION_FAILED`; kanał, do którego produkt nie należy, albo język, którego kanał nie
+oferuje — z kodem `422 SCOPE_INVALID`.
+
+**Dla innych modułów.** `seoProductMetaWritePort` odczytuje i zapisuje metadane produktu w
+dowolnym zakresie, w transakcji wywołującego, bez własnego wpisu w dzienniku zdarzeń; wywołują go
+zapis i duplikowanie z modułu `catalog`, które najpierw sprawdzają zakres.
 
 **Strona produktu je wyświetla.** Strona produktu w sklepie bierze tytuł, opis i znaczniki Open
-Graph z tego wyznaczania, dla kanału sprzedaży i języka żądania. Wcześniej nadpisania produktów
-były zapisywane, ale strona ich nie pokazywała; teraz pokazuje. Gdy moduł `seo` jest wyłączony,
+Graph z tego wyznaczania, dla kanału sprzedaży i języka żądania. Gdy moduł `seo` jest wyłączony,
 strona pokazuje metadane wyprowadzone z produktu, a po ponownym włączeniu modułu wszystkie
 nadpisania wracają.
 
-**W panelu.** Edytor meta tagów na ekranie SEO wczytuje zakres od razu po jego wybraniu — kanały
-sprzedaży produktu, potem jeden z języków kanału albo cały kanał (**Załaduj** odczytuje go
-ponownie). Opuszczenie zakresu z niezapisanymi zmianami wymaga potwierdzenia, a **Użyj
-dziedziczonego** pyta przed usunięciem nadpisania dokładnie w pokazanym zakresie. Karta SEO w
-edytorze produktu prowadzi do tego ekranu z już wybranym produktem
-(`/seo?entityType=product&entityId=<id>`). Ten link to wkład modułu do strefy panelu
-`product.editor.seo.after` w edytorze produktu, więc jest widoczny tylko wtedy, gdy `seo` jest
-włączony, a administrator ma uprawnienie `catalog:write`.
+### Kategorie i strony CMS
+
+Nadpisanie kategorii lub strony CMS należy do języka (`locale`) i obowiązuje we wszystkich
+kanałach sprzedaży; żądanie bez języka dotyczy nadpisania `en-US`. `channelId` dla kategorii lub
+strony CMS jest odrzucany z kodem `422 VALIDATION_FAILED`. Każde pole jest wyznaczane z nadpisania
+dla języka, a potem z wartości wyprowadzonej z encji (nazwa kategorii i automatyczne
+podsumowanie). Nadpisanie nigdy nie obowiązuje w innym języku.
+
+**W panelu.** Edytor meta tagów na ekranie SEO wczytuje język kategorii lub strony od razu po jego
+wybraniu (**Załaduj** odczytuje go ponownie). Opuszczenie języka z niezapisanymi zmianami wymaga
+potwierdzenia, a **Użyj dziedziczonego** pyta przed usunięciem pokazanego nadpisania.
 
 **Każda zmiana trafia do dziennika zdarzeń.** Zapis nadpisania to jeden wpis
 `seo_meta_override.upsert`, usunięcie — jeden wpis `seo_meta_override.delete`, każdy z pełnym
 nadpisaniem przed zmianą i po niej. Aby przywrócić wcześniejszą wersję, zapisz wartości ze stanu
 *przed* tego wpisu. Usunięcie nieistniejącego nadpisania niczego nie zmienia i nie tworzy wpisu.
+
+### Aktualizacja
+
+Aktualizacja usuwa każde nadpisanie produktu zapisane dla języka bez kanału sprzedaży — takiego
+zakresu już nie ma. Nadpisania kategorii i stron CMS pozostają bez zmian. Metadane produktu, które
+były tylko w nadpisaniu dla języka, należy wprowadzić ponownie w kanale i języku albo w zakresie
+globalnym.
 
 Tytuł i opis są skracane do 60 / 160 znaków z wielokropkiem. Skracanie odbywa się w jednej funkcji
 pomocniczej, więc zmiany limitów SEO wprowadza się w jednym miejscu.
@@ -599,13 +625,13 @@ pomocniczej, więc zmiany limitów SEO wprowadza się w jednym miejscu.
 `SitemapGeneratorService.regenerate()` przechodzi przez produkty, kategorie i strony CMS kanału,
 buduje bezwzględne adresy URL względem adresu sklepu kanału i zapisuje treść XML w wierszu
 `sitemap_cache` kanału. Produkt pojawia się raz dla każdego języka, w którym jest dostępny
-w kanale, a każdy adres URL używa klucza URL produktu w tym języku — klucza dla tego kanału
-i języka, w przeciwnym razie klucza dla języka, a w ostatniej kolejności klucza globalnego —
-z `?lang=<język>` dla każdego języka innego niż domyślny język kanału.
+w kanale, a każdy adres URL używa obowiązującego tam klucza URL produktu — klucza kanału × języka,
+w przeciwnym razie klucza kanału, a w ostatniej kolejności klucza globalnego — z prefiksem ścieżki
+danego języka.
 
 Trasa publiczna (`GET /catalog/sitemap.xml`) zwraca treść z pamięci podręcznej; gdy wiersz jest
 starszy niż `staleAfterMs` (domyślnie 6 h), mapa jest generowana od razu w trakcie żądania. Zmiana
-produktu, która wpływa na zawartość mapy — jego status (globalny, w kanale lub w języku),
+produktu, która wpływa na zawartość mapy — jego status (globalny, w kanale lub w kanale i języku),
 archiwizacja, okno publikacji (również chwila, w której okno się otwiera lub zamyka), grupa
 odbiorców (globalna lub kanału) albo klucze URL — oznacza
 mapy wszystkich kanałów w pamięci podręcznej jako nieaktualne, więc następne żądanie buduje je od
@@ -626,7 +652,9 @@ klient.
 ## Encje
 
 `SeoMetaOverride` (entityType, entityId, salesChannelId?, locale?, title?, description?, ogTitle?,
-ogDescription?, ogImageUrl?; co najmniej jedno z `salesChannelId` i `locale`), `SitemapCache` (pojedynczy klucz, treść, urlCount, byteSize, generatedAt).
+ogDescription?, ogImageUrl?). Wiersz produktu nie ma ani `salesChannelId`, ani `locale` (zakres
+globalny), ma `salesChannelId` (kanał) albo oba (kanał × język); wiersz kategorii lub strony CMS ma
+`locale`. W wierszu produktu pole `null` dziedziczy, a `''` jest celowo puste. `SitemapCache` (pojedynczy klucz, treść, urlCount, byteSize, generatedAt).
 `ogImageUrl` nadpisania to adres `http(s)` albo ścieżka zaczynająca się od pojedynczego `/`; każda
 inna wartość jest odrzucana z `400 VALIDATION_FAILED`.
 

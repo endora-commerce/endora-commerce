@@ -55,8 +55,9 @@ fields, saved with the rest of the scope by `PUT …/products/:id/scoped-values`
 }
 ```
 
-- **Name** — required: at most 160 characters, never empty, at every scope. An empty
-  name at Global is refused.
+- **Name** — at most 160 characters. At Global it is required, so an empty name is
+  refused there; at a channel or a channel and language `null` stores a deliberately
+  empty name.
 - **Description** — at most 4000 characters; `null` stores a deliberately empty
   description, which stays empty there even though a parent scope has one.
 - **Hidden** — `true` or `false`, at Global, a channel, or a channel and language. A

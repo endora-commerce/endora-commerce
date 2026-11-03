@@ -101,11 +101,21 @@ frazami.
 ## Indeksator i subskrybent zdarzeń
 
 `SearchIndexer` zapisuje jeden dokument na produkt w indeksie kanału o nazwie
-`products_<channel_code>`. Dokument odzwierciedla produkt z katalogu (id, sku, name, description,
-type, status, slug, primaryAssetUrl, categoryIds, categorySlugs, attributes, searchableOptions,
-createdAt, updatedAt). Indeksator ustawia też w Meilisearch `searchableAttributes` i
-`filterableAttributes` na podstawie bieżących flag `product_attributes.is_searchable` i
-`is_filterable`, a `sortableAttributes` — na podstawie `SORTABLE_ATTRIBUTES` (zobacz *Sortowanie*).
+`products_<channel_code>`. Dokument odzwierciedla produkt z katalogu (id, sku, type, status, slug,
+primaryAssetUrl, categoryIds, categorySlugs, attributes, createdAt, updatedAt) i dla każdego języka
+oferowanego przez kanał zawiera `texts.<język>`: obowiązujące w tym kanale i języku `name` i
+`description` produktu (`''` dla celowo pustego nadpisania), jego przeszukiwalne atrybuty tekstowe i
+etykiety jego przeszukiwalnych opcji wyboru w tym języku. `attributes` zawiera tylko wartości
+atrybutów innych niż tekstowe. Indeksator ustawia też w Meilisearch `searchableAttributes` (`sku`,
+`texts`, `attributes`) i `filterableAttributes` na podstawie bieżących flag
+`product_attributes.is_searchable` i `is_filterable`, a `sortableAttributes` — na podstawie
+`SORTABLE_ATTRIBUTES` (zobacz *Sortowanie*).
+
+**Wyszukiwanie tylko w języku kupującego.** Zapytanie przeszukuje wyłącznie język kupującego:
+`texts.<L>.name`, `texts.<L>.description`, `texts.<L>.attributes` i `texts.<L>.options` oraz `sku` i
+przeszukiwalne atrybuty inne niż tekstowe, gdzie `L` to język żądania dopasowany do języków kanału
+sprzedaży (sprawdzany względem nich, zanim zostanie użyty). Zapytanie polskiego kupującego nigdy nie
+trafia w tekst angielski. Produkt wyłączony w danym kanale i języku nie jest zwracany.
 
 **Dokument nie zawiera ceny.** Ceny należą do oglądającego: ścieżka zapytań ustala je z cenników
 (`price_lists`) przy uzupełnianiu wyników, więc indeks nigdy nie decyduje o tym, ile płaci
@@ -145,16 +155,14 @@ Cztery sposoby sortowania z kontraktu listy produktów odpowiadają następując
 | `name` | `name:asc` |
 | `-name` | `name:desc` |
 
-Zindeksowane `name` jest ustalane w domyślnym języku kanału, czyli w języku, w którym domyślnie
-wyświetla się lista produktów, więc kolejność widziana przez kupującego to ta, według której
-posortowano wyniki.
+Nazwa jest sortowana w języku kupującego: sortowanie działa na `texts.<L>.name`, oznaczonym jako
+sortowalne dla każdego języka oferowanego przez kanał, więc kolejność widziana przez kupującego to
+kolejność nazw, które czyta.
 
 Nazwa *wyświetlana* na karcie wyniku nie pochodzi z indeksu. Każde trafienie jest przed udzieleniem
 odpowiedzi ponownie odczytywane z Postgresa, a karta dostaje tę nazwę, którą dla kanału sprzedaży i
-języka z żądania pokazuje karta na liście produktów katalogu: nadpisanie wartości dla kanału, jeśli
-obowiązuje (wiersze nadpisań kanału dla strony wyników są odczytywane raz), a w przeciwnym razie
-tekst bazowy w języku z żądania. Żądanie w języku innym niż domyślny język kanału jest więc nadal
-sortowane według nazwy w języku domyślnym.
+języka z żądania pokazuje karta na liście produktów katalogu: nazwę obowiązującą w tym miejscu
+(kanał × język → kanał → globalna).
 
 **Aktualizacja indeksu zbudowanego przed wprowadzeniem ustawień sortowania** wymaga ponownego
 zindeksowania: ustawienia nigdy nie były stosowane (`sortableAttributes` było `[]` w każdym indeksie,
@@ -167,15 +175,25 @@ instancji. Odświeżenie po
 `attribute.updated.v1` ponownie stosuje ustawienia, ale nie zapisuje dokumentów, więc przywraca
 sortowanie `name`, ale nie `-createdAt`.
 
-### `searchableOptions` — wyszukiwanie po listach opcji
+### Wyszukiwanie po listach opcji
 
 Dla atrybutów z flagą `isSearchable` ORAZ typem wartości wyboru (`select`, `enum`, `multiselect`)
-indeksator ustala etykietę opcji w danym języku i dodaje ją do pola dokumentu
-`searchableOptions: string[]`. Ustawienia Meilisearch obejmują `searchableOptions` w
-`searchableAttributes`, więc klient, który wpisze widoczny dla siebie tekst (np. „Czerwony”), znajdzie
-produkty, których surową wartością jest klucz opcji (np. „red”). Wyłączenie `isSearchable` usuwa
-etykiety opcji z `searchableOptions` przy następnym odświeżeniu, w zwykłym rytmie wyznaczanym przez
-zdarzenia.
+indeksator ustala etykiety opcji w każdym języku kanału i zapisuje je w `texts.<język>.options`,
+więc klient, który wpisze widoczny dla siebie tekst (np. „Czerwony”), znajdzie produkty, których
+surową wartością jest klucz opcji (np. „red”). Etykiety są odczytywane raz na przebieg indeksowania.
+Wyłączenie `isSearchable` usuwa etykiety opcji przy następnym odświeżeniu, w zwykłym rytmie
+wyznaczanym przez zdarzenia.
+
+### Aktualizacja do dokumentu z tekstami w językach (funkcja 170)
+
+Pola dokumentu `name`, `description`, `localizedNames` i `searchableOptions` oraz wartości tekstowe w
+`attributes` zastępuje `texts`. **Po aktualizacji uruchom jedno pełne ponowne indeksowanie**:
+okresowy przebieg w roli worker robi to sam (`search.reindex_interval_minutes`); w przeciwnym razie
+użyj akcji **Reindex products** w panelu administracyjnym albo `pnpm run cli search reindex`. Dopóki
+indeks nie zostanie ponownie zindeksowany — jego przeszukiwalne atrybuty nie obejmują jeszcze
+`texts` — sprawdzenie przy starcie wtyczki indeksuje go ponownie, a do tego czasu zapytania są
+obsługiwane jak dotąd, bez ograniczenia do języka, a w dzienniku pojawia się ostrzeżenie. Rozmiar
+indeksu rośnie wraz z liczbą języków oferowanych przez kanał.
 
 `SearchEventSubscriber` utrzymuje indeksy w zgodności z katalogiem:
 
@@ -200,7 +218,7 @@ Od wprowadzenia zakresów danych produktu (`specs/163-product-data-scopes/`) pro
 - zapytanie dodaje filtr dla języka żądania (pierwszy znacznik `Accept-Language` dopasowany do języków kanału, w przeciwnym razie język domyślny), okna w chwili zapytania i odbiorców wywołującego, więc strona jest wycinana wyłącznie z dostępnych trafień. Lista dozwolonych organizacji służy tylko do filtrowania i nigdy nie trafia do odpowiedzi;
 - przy uzupełnianiu wyników moduł `catalog` jest pytany ponownie (`filterAvailable`) o każde trafienie, więc nieaktualny dokument nie pokaże produktu, który nie jest już dostępny.
 
-Około minuty po pierwszym uruchomieniu po aktualizacji proces workera doprowadza ustawienia każdego istniejącego indeksu kanału do aktualnego stanu bez ponownego indeksowania: pięć pól dostępności staje się filtrowalnych, a `localizedNames` przeszukiwalne, więc zapytania nadal obsługuje indeks, zamiast przechodzić na PostgreSQL. Raz na uruchomienie odczytuje ustawienia każdego indeksu i zmienia je tylko tam, gdzie czegoś brakuje. Dokument zaindeksowany przed tą zmianą nadal nie ma nowych pól i jest obsługiwany jak dotąd. **Po aktualizacji uruchom ponowne indeksowanie każdego kanału sprzedaży** (operacja zbiorcza `search_reindex` albo opisane niżej polecenie CLI), aby filtry okna i języka działały dokładnie.
+Około minuty po pierwszym uruchomieniu po aktualizacji proces workera doprowadza ustawienia każdego istniejącego indeksu kanału do aktualnego stanu bez ponownego indeksowania: pięć pól dostępności staje się filtrowalnych, więc zapytania nadal obsługuje indeks, zamiast przechodzić na PostgreSQL. Raz na uruchomienie odczytuje ustawienia każdego indeksu i zmienia je tylko tam, gdzie czegoś brakuje. Dokument zaindeksowany przed tą zmianą nadal nie ma nowych pól i jest obsługiwany jak dotąd. **Po aktualizacji uruchom ponowne indeksowanie każdego kanału sprzedaży** (operacja zbiorcza `search_reindex` albo opisane niżej polecenie CLI), aby filtry okna i języka działały dokładnie.
 
 ### Gdy indeks nie odpowiada
 

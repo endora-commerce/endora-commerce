@@ -110,12 +110,25 @@ phrases.
 
 `SearchIndexer` writes one document per product into a per-channel
 index named `products_<channel_code>`. Document shape carries the
-catalog product surface (id, sku, name, description, type, status,
-slug, primaryAssetUrl, categoryIds, categorySlugs, attributes,
-searchableOptions, createdAt, updatedAt). The indexer also drives
-Meilisearch's `searchableAttributes` + `filterableAttributes` from the
-live `product_attributes.is_searchable` + `is_filterable` flags, and
-its `sortableAttributes` from `SORTABLE_ATTRIBUTES` (see *Sorting*).
+catalog product surface (id, sku, type, status, slug, primaryAssetUrl,
+categoryIds, categorySlugs, attributes, createdAt, updatedAt) and, per
+language the channel offers, `texts.<language>`: the product's effective
+`name` and `description` at that channel and language (`''` for a
+deliberately empty override), its searchable text attributes and the
+labels of its searchable select options in that language. `attributes`
+holds the non-text attribute values only. The indexer also drives
+Meilisearch's `searchableAttributes` (`sku`, `texts`, `attributes`) +
+`filterableAttributes` from the live `product_attributes.is_searchable` +
+`is_filterable` flags, and its `sortableAttributes` from
+`SORTABLE_ATTRIBUTES` (see *Sorting*).
+
+**Language-restricted match.** A query searches only the shopper's
+language: `texts.<L>.name`, `texts.<L>.description`, `texts.<L>.attributes`
+and `texts.<L>.options`, plus `sku` and the searchable non-text attributes,
+where `L` is the request's language resolved against the sales channel's
+languages (checked against them before it is used). A Polish shopper's query
+never matches English text. A product that is off at the channel and
+language is not returned.
 
 **A document carries no price.** Prices are the viewer's: the query path
 resolves them from the price books (`price_lists`) when it hydrates the hits,
@@ -158,18 +171,15 @@ The listing contract's four sorts map as follows:
 | `name` | `name:asc` |
 | `-name` | `name:desc` |
 
-The indexed `name` is resolved in the channel's own default language,
-which is the language the listing renders by default, so the order a
-buyer sees is the order they were sorted by.
+The name is sorted in the shopper's language: the sort runs on
+`texts.<L>.name`, declared sortable for every language the channel offers,
+so the order a buyer sees is the order of the names they read.
 
 The name a result card *shows* does not come from the index. Every hit
 is re-read from Postgres before the page is answered, and the card
 takes the name the catalogue's listing card shows for the request's
-sales channel and language: the channel's value override when one
-applies (the channel's override rows for the page are read once), else
-the baseline text in the request language. A request in a language
-other than the channel's default is therefore still sorted by the
-default-language name.
+sales channel and language: the effective name there (Channel × language
+→ Channel → Global).
 
 **Upgrading an index built before the sort settings were applied** needs a reindex: the
 settings were never applied (`sortableAttributes` was `[]` on every
@@ -183,17 +193,29 @@ in the root of the instance. An `attribute.updated.v1` refresh reapplies the
 settings but writes no documents, so it restores `name` sorting and
 not `-createdAt`.
 
-### `searchableOptions` — option-list search
+### Option-list search
 
 For attributes flagged `isSearchable` AND with a select-style
 `valueType` (`select`, `enum`, `multiselect`), the indexer resolves
-the per-locale option label and includes it in the document's
-`searchableOptions: string[]` field. Meilisearch settings include
-`searchableOptions` in `searchableAttributes` so a customer searching
-for the rendered text they see (e.g. "Czerwony") hits products whose
-raw value is the option key (e.g. "red"). Toggling `isSearchable` off
-removes the option labels from `searchableOptions` on the next refresh
-within the existing event-driven cadence.
+the option labels in each channel language and writes them to
+`texts.<language>.options`, so a customer searching for the rendered text
+they see (e.g. "Czerwony") hits products whose raw value is the option key
+(e.g. "red"). The labels are read once per indexing run. Toggling
+`isSearchable` off removes the option labels on the next refresh within
+the existing event-driven cadence.
+
+### Upgrading to the per-language document (feature 170)
+
+The document's `name`, `description`, `localizedNames` and
+`searchableOptions` fields, and the text values inside `attributes`, are
+replaced by `texts`. **Run one full reindex after the upgrade**: the
+periodic sweep in the worker role does it on its own
+(`search.reindex_interval_minutes`); otherwise use the admin **Reindex
+products** action or `pnpm run cli search reindex`. Until an index has been
+reindexed — its searchable attributes do not yet include `texts` — the
+plugin's boot check reindexes it, and in the meantime it is queried as
+before, without the language restriction, and a warning is logged. The
+index size grows with the number of languages a channel offers.
 
 `SearchEventSubscriber` keeps the indexes in sync:
 
@@ -219,7 +241,7 @@ Since product data scopes (`specs/163-product-data-scopes/`) a product can be sw
 - a query adds a filter for the request language (the first `Accept-Language` tag matched to the channel's languages, else its default), the window at the moment of the query, and the caller's audience, so a page is cut from available hits only. The allow-list is a filter input and is never retrieved into a response;
 - hydration asks `catalog` again (`filterAvailable`) for every hit, so a stale document cannot show a product that is no longer available.
 
-About a minute after the first start following the upgrade, the worker process brings every existing channel index's settings up to date without a reindex: the five availability fields become filterable and `localizedNames` searchable, so queries keep being answered by the index instead of falling back to PostgreSQL. It reads the settings of each index once per start and changes them only where one is missing. A document indexed before this change still has none of the new fields and is served as before. **After upgrading, run one reindex per sales channel** (the `search_reindex` bulk operation or the reindex CLI below) so the window and per-language filters become exact.
+About a minute after the first start following the upgrade, the worker process brings every existing channel index's settings up to date without a reindex: the five availability fields become filterable, so queries keep being answered by the index instead of falling back to PostgreSQL. It reads the settings of each index once per start and changes them only where one is missing. A document indexed before this change still has none of the new fields and is served as before. **After upgrading, run one reindex per sales channel** (the `search_reindex` bulk operation or the reindex CLI below) so the window and per-language filters become exact.
 
 ### When the index does not answer
 

@@ -13,8 +13,8 @@ informacja trafia aż do zamówienia i zapytania ofertowego.
 Jednostkami opakowania zarządza się w sekcji **Inventory** karty produktu (tylko produkty typu
 simple i configurable). Każda jednostka ma:
 
-- **nazwę** (tekst operatora, np. `Paleta`, `Karton`) — unikalną w obrębie produktu, opcjonalnie
-  przetłumaczoną na języki (zob. *Nazwa w języku* poniżej),
+- **nazwę** (tekst operatora, np. `Paleta`, `Karton`) — nazwa globalna jest unikalna w obrębie
+  produktu; kanał albo kanał i język mogą ją nadpisać (zob. *Nazwa w zakresie* poniżej),
 - **base quantity** (liczba całkowita ≥ 1) — ile sztuk mieści jednostka,
 - flagę **default** — jednostka wybrana domyślnie w storefroncie,
 - **position** — kolejność, w jakiej jednostki są wyświetlane,
@@ -44,36 +44,41 @@ Wszystko inne jest odrzucane z kodem `422 PACKAGING_UNIT_MISMATCH` — identyfik
 usunięty albo należący do innego produktu daje ten sam powód.
 
 **Dla klientów API:** nazwa przesłana bez identyfikatora jest porównywana wyłącznie z
-**globalną** nazwą jednostki, nigdy z jej tłumaczeniami (zob. *Nazwa w języku*). Pozycja,
+**globalną** nazwą jednostki, nigdy z nazwą kanału ani języka (zob. *Nazwa w zakresie*). Pozycja,
 która przesyła nazwę widzianą przez kupującego w przetłumaczonym storefroncie — `Pallet`, gdy
 nazwa globalna to `Paleta` — jest odrzucana z kodem `422 PACKAGING_UNIT_MISMATCH` (powód
 `name_unknown`). Należy przesłać `packagingUnitId` albo nazwę globalną.
 
-## Nazwa w języku
+## Nazwa w zakresie
 
-Nazwę jednostki można przetłumaczyć: `nameTranslations` przypisuje nazwę do języka, np.
-`{ "en-GB": "Pallet", "de-DE": "" }`. Podany język jest ustawiany, pusty tekst go usuwa, a język
-pominięty w żądaniu pozostaje bez zmian; każda nazwa ma najwyżej 160 znaków. Własne pole `name`
-jednostki pozostaje nazwą globalną: to ona musi być unikalna w obrębie produktu, z nią porównywana
-jest pozycja zapytania ofertowego przesłana bez identyfikatora i to ją podają komunikaty o
-niespełnionym minimum.
+Nazwa jednostki jest polem zakresu: ma wartość globalną i można ją nadpisać w kanale sprzedaży albo
+w kanale i języku. Zapisuje się ją razem z resztą zakresu przez `PUT …/products/:id/scoped-values`,
+np. `{ "changes": { "packagingUnits": { "<unitId>": { "name": "Pallet" } } } }` w zakresie
+`{ "channelId": "…", "languageCode": "en-US" }`. Każda nazwa ma najwyżej 160 znaków;
+`{ "inherit": true }` usuwa własną nazwę zakresu, a `null` zapisuje celowo pustą nazwę w kanale
+albo w kanale i języku. Nazwa globalna nie może być pusta. To ona musi być unikalna w obrębie
+produktu, z nią porównywana jest pozycja zapytania ofertowego przesłana bez identyfikatora i to ją
+podają komunikaty o niespełnionym minimum.
 
-Tam, gdzie kupujący widzi jednostkę, jej nazwa jest tłumaczeniem w języku żądania, a gdy go nie ma —
-nazwą globalną:
+Tam, gdzie kupujący widzi jednostkę, jej nazwa jest nazwą obowiązującą w kanale i języku żądania —
+kanał × język → kanał → globalna:
 
 - `packagingUnits[].name` na stronie produktu;
-- nazwa kopiowana do pozycji koszyka — w języku koszyka w jego kanale. Gdy administrator wskazuje
-  kanał w imieniu klienta, nazwa jest brana w domyślnym języku tego kanału, tak jak nazwa produktu
-  obok niej;
-- nazwa kopiowana do pozycji zapytania ofertowego kupującego — w języku żądania w kanale, w którym
+- nazwa kopiowana do pozycji koszyka — w kanale i języku koszyka. Gdy administrator wskazuje kanał
+  w imieniu klienta, nazwa jest brana w domyślnym języku tego kanału, tak jak nazwa produktu obok
+  niej;
+- nazwa kopiowana do pozycji zapytania ofertowego kupującego — w kanale i języku, w których
   zapytanie jest składane.
 
+Celowo pusta nazwa w danym zakresie nie daje pozycji bez nazwy: kopie w koszyku, zapytaniu
+ofertowym i zamówieniu zachowują wtedy nazwę globalną.
+
 Utworzenie lub zmiana jednostki trafia do dziennika zdarzeń raz, jako `packaging_unit.create` albo
-`packaging_unit.update`, ze stanem jednostki przed zmianą i po niej (produktem, nazwą,
-`nameTranslations`, base quantity, flagą default i minimum). Wysłanie zapisanego stanu sprzed
-zmiany (bez `productId`) tą samą ścieżką przywraca go. Zapis ogłasza zdarzenie `product.updated.v1`
-z `changedFields: ["packagingUnits"]`. Żądanie, które niczego nie zmienia, niczego nie zapisuje i
-niczego nie ogłasza.
+`packaging_unit.update`, ze stanem jednostki przed zmianą i po niej (produktem, nazwą globalną,
+base quantity, flagą default i minimum). Wysłanie zapisanego stanu sprzed zmiany (bez `productId`)
+tą samą ścieżką przywraca go. Zapis zakresu trafia do dziennika jako `product.scoped_values.save`.
+Oba ogłaszają zdarzenie `product.updated.v1`. Żądanie, które niczego nie zmienia, niczego nie
+zapisuje i niczego nie ogłasza. Usunięcie jednostki usuwa jej nadpisania we wszystkich zakresach.
 
 ## Dla kupującego
 
@@ -84,8 +89,8 @@ opakowania i zwykła pozycja z pojedynczymi sztukami tego samego produktu pozost
 
 ## Co dzieje się z nazwą jednostki
 
-Nazwa jednostki i base quantity są **kopiowane** do pozycji w chwili jej utworzenia — nazwa w
-języku pozycji, jak opisano wyżej — więc późniejsze
+Nazwa jednostki i base quantity są **kopiowane** do pozycji w chwili jej utworzenia — nazwa
+obowiązująca w kanale i języku pozycji, jak opisano wyżej — więc późniejsze
 zmiany (albo usunięcie) jednostek opakowania produktu nigdy nie zmieniają historycznych koszyków,
 zamówień ani zapytań ofertowych.
 
@@ -107,14 +112,16 @@ są sprawdzane dla wynikowej liczby sztuk.
 
 - Zarządzanie w panelu: `GET/POST /api/v1/admin/catalog/products/:id/packaging-units`,
   `PATCH/DELETE …/:unitId`, `PATCH …/packaging-units/reorder` (chronione przez `catalog:read` /
-  `catalog:write`). Tworzenie i aktualizacja przyjmują opcjonalne `nameTranslations` i opcjonalne
-  `minOrderUnits` (`1…1000000`
-  albo `null`, aby je usunąć); odpowiedź zawsze je zawiera. Wewnątrzprocesowy
+  `catalog:write`). Tworzenie przyjmuje nazwę globalną; aktualizacja przyjmuje base quantity,
+  flagę default, pozycję i opcjonalne `minOrderUnits` (`1…1000000` albo `null`, aby je usunąć) —
+  nazwę w dowolnym zakresie zapisuje `PUT …/scoped-values`. Odpowiedź zawsze zawiera
+  `minOrderUnits`. Wewnątrzprocesowy
   `CatalogPackagingPort`, używany przez konektory PIM, przyjmuje to samo opcjonalne pole i odrzuca
   wartość spoza zakresu z kodem `422 VALIDATION_FAILED`; zapisujący, który go nie wysyła, działa
   dalej.
 - Publiczne: szczegóły produktu (`GET /api/v1/catalog/products/:idOrSlug`) zawierają opcjonalną
-  tablicę `packagingUnits`; każda jednostka niesie nazwę w języku żądania i `minOrderUnits`
+  tablicę `packagingUnits`; każda jednostka niesie nazwę obowiązującą w kanale i języku żądania i
+  `minOrderUnits`
   (`null`, gdy minimum nie ma).
 - Koszyk: `POST /api/v1/cart/items` przyjmuje opcjonalne `packagingUnitId`; wynikowa ilość w pozycji
   to `baseQuantity × quantity`.
@@ -125,9 +132,10 @@ Tabela `product_packaging_units` (migracja
 `20260611T140412_catalog_product_packaging_units.ts`): `id`, `product_id` (klucz obcy → `products`,
 usuwany kaskadowo), `name`, `base_quantity` (`CHECK >= 1`), `position`, `is_default`, znaczniki
 czasu; `UNIQUE (product_id, name)`. Migracja `20261016T082008_catalog_order_rules.ts` dodaje
-`min_order_units` (dopuszcza `null`, `CHECK` 1–1 000 000), a migracja
-`20261026T084533_catalog_attachment_packaging_translations.ts` dodaje `name_translations` (jsonb,
-domyślnie `{}`). Dodatkowe kolumny z kopią danych, każdą dodaje moduł, do którego należy:
+`min_order_units` (dopuszcza `null`, `CHECK` 1–1 000 000). Migracja
+`20261030T113908_catalog_scope_model_media.ts` zastępuje nazwy w językach (`name_translations`)
+tabelą `product_packaging_unit_scope_overrides`: nazwą w kanale albo w kanale i języku, która
+wskazuje jednostkę razem z jej produktem i jest usuwana razem z jednostką, produktem i kanałem. Dodatkowe kolumny z kopią danych, każdą dodaje moduł, do którego należy:
 `cart_items` (`20260611T140413_carts_cart_item_packaging.ts`), `order_items`
 (`20260611T140414_orders_order_item_packaging.ts`), `quote_request_items`
 (`20260611T140415_quote_requests_qr_item_packaging.ts`; kolumnę `packaging_unit_id` tej tabeli
