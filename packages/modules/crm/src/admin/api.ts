@@ -127,7 +127,8 @@ export interface LinkableOrder {
 export interface MentionableProduct {
   id: string;
   sku: string;
-  name: Record<string, string>;
+  /** Feature 170 (FR-031) — the Global name; the admin catalogue answers no per-language map. */
+  name: string;
 }
 
 function appendSharedFilters(qs: URLSearchParams, params: OpportunityFilterParams): void {

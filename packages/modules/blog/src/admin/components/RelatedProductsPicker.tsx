@@ -10,12 +10,12 @@ interface AdminProduct {
   status: 'active' | 'inactive';
   /** Archived is its own fact, independent of `status`. */
   archivedAt?: string | null;
-  name: Record<string, string>;
+  /** Feature 170 (FR-031) — the Global name; the admin catalogue answers no per-language map. */
+  name: string;
 }
 
-function pickName(name: Record<string, string> | undefined | null, fallback: string): string {
-  if (!name) return fallback;
-  return name['en-US'] ?? Object.values(name)[0] ?? fallback;
+function productLabel(name: string | undefined | null, fallback: string): string {
+  return name || fallback;
 }
 
 interface RelatedProductsPickerProps {
@@ -59,7 +59,7 @@ export function RelatedProductsPicker({
   const candidates = allProducts.filter((product) => {
     if (value.includes(product.id)) return false;
     if (needle === '') return true;
-    const haystack = `${normalize(pickName(product.name, product.slug))} ${normalize(product.slug)} ${normalize(product.sku)}`;
+    const haystack = `${normalize(productLabel(product.name, product.slug))} ${normalize(product.slug)} ${normalize(product.sku)}`;
     return haystack.includes(needle);
   });
 
@@ -114,7 +114,7 @@ export function RelatedProductsPicker({
                   }`}
                 >
                   <span className="min-w-[8rem] flex-1 truncate font-medium">
-                    {product ? pickName(product.name, product.slug) : t('relatedProducts.unknown')}
+                    {product ? productLabel(product.name, product.slug) : t('relatedProducts.unknown')}
                   </span>
                   <Badge variant="outline" className="font-mono text-[10px]">
                     {product?.sku ?? id.slice(0, 8)}
@@ -198,7 +198,7 @@ export function RelatedProductsPicker({
                 className="w-full min-w-0 justify-start"
               >
                 <span className="mr-2 shrink-0 font-mono text-[10px]">{product.sku}</span>
-                <span className="min-w-0 truncate text-left">{pickName(product.name, product.slug)}</span>
+                <span className="min-w-0 truncate text-left">{productLabel(product.name, product.slug)}</span>
                 <Badge variant="outline" className="ml-auto shrink-0 text-[10px]">
                   {t(`productStatus.${product.status}`)}
                 </Badge>

@@ -34,11 +34,9 @@ const DOCUMENT_GROUP_PERMISSIONS: ReadonlyArray<{ code: string; needsOrganizatio
   { code: 'projects:read', needsOrganization: false },
 ];
 
-/** A Product's name in the language on screen, then any name it has, then its SKU. */
-function productLabel(name: Record<string, string>, sku: string, language: string): string {
-  const base = language.split('-')[0] ?? language;
-  const sameLanguage = Object.keys(name).find((locale) => locale === base || locale.startsWith(`${base}-`));
-  return name[language] || (sameLanguage ? name[sameLanguage] : undefined) || Object.values(name).find(Boolean) || sku;
+/** A Product's Global name (feature 170, FR-031 — an operator screen has no channel), else its SKU. */
+function productLabel(name: string, sku: string): string {
+  return name || sku;
 }
 
 /** Where a text's documents come from: its Opportunity, or — on the create form — the Organization chosen. */
@@ -63,7 +61,6 @@ export function useCrmReferences(scope: CrmReferenceScope): {
   lookups: ReferenceLookups;
 } {
   const { hasPermission } = useAuth();
-  const { language } = useAppLanguage();
   const { organizationId } = scope;
   const opportunityId = scope.opportunityId ?? null;
   const canWrite = hasPermission(WRITE_PERMISSION);
@@ -92,11 +89,11 @@ export function useCrmReferences(scope: CrmReferenceScope): {
       searchProducts: async (query) =>
         (await crmApi.searchProducts(query)).map((product) => ({
           id: product.id,
-          label: productLabel(product.name, product.sku, language),
+          label: productLabel(product.name, product.sku),
           description: product.sku,
         })),
     }),
-    [organizationId, opportunityId, language],
+    [organizationId, opportunityId],
   );
 
   return { kinds, lookups };

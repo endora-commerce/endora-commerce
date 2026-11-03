@@ -13,16 +13,16 @@ export function pickAdminLocalizedName(
 /**
  * A product of the admin catalogue API as a preview card's product. Feature
  * 163, T196: the card's summary is derived from the description by the rule
- * the storefront's listing uses (`productSummaryText`), in the language the
- * name is picked in, so a listing's "text under the product name" shows the
- * same line in the editor as on the page.
+ * the storefront's listing uses (`productSummaryText`), so a listing's "text
+ * under the product name" shows the same line in the editor as on the page.
+ * Feature 170 (FR-031): the editor has no channel, so both are the Global strings.
  */
 export function mapAdminProductToCmsSummary(product: {
   id: string;
   slug: string;
-  name: Record<string, string> | string;
+  name: string;
   sku: string;
-  description?: Record<string, string> | string | null;
+  description?: string | null;
 }): {
   id: string;
   slug: string;
@@ -37,11 +37,11 @@ export function mapAdminProductToCmsSummary(product: {
   return {
     id: product.id,
     slug: product.slug,
-    name: pickAdminLocalizedName(product.name, product.slug),
+    name: product.name || product.slug,
     sku: product.sku,
     primaryAssetUrl: null,
     price: null,
     stockLevel: null,
-    summary: description === null || description === undefined ? null : productSummaryText(pickAdminLocalizedName(description, '')),
+    summary: description === null || description === undefined ? null : productSummaryText(description),
   };
 }

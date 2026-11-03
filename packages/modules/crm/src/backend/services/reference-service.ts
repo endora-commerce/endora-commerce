@@ -208,7 +208,7 @@ export class ReferenceService {
     const labels = new Map<string, string>();
     const orderFacts = new Map<string, OpportunityReferenceOrder>();
     for (const product of products) {
-      labels.set(`product:${product.id}`, product.name /* 170-shim: Global text */);
+      labels.set(`product:${product.id}`, product.name /* Global name (FR-031) */);
     }
     for (const order of orders) {
       labels.set(`order:${order.id}`, order.businessId);
