@@ -315,6 +315,10 @@ edycji.
   `20260825T141659_customer_accounts_organization_required` w `customer_accounts`.
 - `20260717T151403_organizations_personal_organizations.ts` — dodaje `organizations.is_personal` i tworzy organizację prywatną
   dla każdego wcześniej istniejącego konta bez organizacji (zobacz „Organizacje prywatne” niżej).
+- `20261103T173304_organizations_organization_roles.ts` — tworzy `organization_roles`, daje każdej organizacji role
+  Administrator i Członek (oraz wyzwalacz, który robi to dla każdej nowej), odbiera roli Członek dwa kody akceptacji
+  koszyka tam, gdzie organizacja wymagała akceptacji koszyków, i daje każdemu zaproszeniu odwołanie do roli (zobacz
+  „Role” niżej).
 
 ### Organizacje prywatne (B2C)
 
@@ -350,6 +354,83 @@ przy samodzielnej rejestracji i przy logowaniu przez zewnętrznego dostawcę to�
 
 Organizacje firmowe (B2B) pozostają bez zmian — reguła jednoosobowości (`assertMembershipAllowed`)
 odrzuca tylko dodanie drugiego członka do organizacji prywatnej.
+
+## Role
+
+Każda organizacja ma role, a każdy członek ma dokładnie jedną z nich. Rola to
+zestaw **uprawnień organizacji** — działań kupującego, takich jak *tworzenie
+koszyków* czy *akceptowanie koszyków* — z których każde deklaruje moduł, którego
+działanie ono chroni, w swoim manifeście (`organizationPermissions`). Uprawnienia
+organizacji to inny słownik niż uprawnienia operatora z `/admin-roles`
+(`<moduł>.<działanie>` wobec `<obszar>:<działanie>`) i te dwa słowniki nigdy się
+nie mieszają.
+
+- **Administrator** — rola predefiniowana. Ma wszystkie uprawnienia wszystkich
+  włączonych modułów, także uprawnienia dodane później, i jako jedyna może
+  zarządzać członkami, zaproszeniami i rolami. Nie można jej edytować ani usunąć.
+- **Członek** — rola predefiniowana. Domyślna rola nowego członka. Jej
+  uprawnienia można zmieniać, ale nie można jej przemianować ani usunąć.
+  Uprawnienie, które moduł deklaruje jako *domyślne dla członka*, rola Członek
+  ma od chwili, gdy ten moduł zostanie po raz pierwszy zaoferowany organizacji;
+  gdy administrator zapisze rolę Członek bez niego, nie zostanie ono nadane
+  ponownie.
+- **Role własne** — do 50 w organizacji, każda z nazwą niepowtarzalną w obrębie
+  organizacji (porównywaną bez względu na wielkość liter i nigdy równą nazwie
+  roli predefiniowanej w żadnym z dostarczanych języków) i opcjonalnym opisem.
+
+Obie role predefiniowane powstają razem z organizacją, niezależnie od tego,
+która ścieżka ją tworzy (wyzwalacz w bazie danych). Organizacja prywatna (B2C)
+także ma obie role, ale nie ma zarządzania rolami: jej jedyny członek jest jej
+Administratorem.
+
+Uprawnienia modułu, który jest wyłączony, nie ma nikt i nie pokazuje go edytor;
+rola, która je nadawała, zachowuje to nadanie, więc ponowne włączenie modułu je
+przywraca. Zmiany ról obowiązują od następnego żądania: każdy proces przechowuje
+role organizacji w pamięci najwyżej 30 sekund i usuwa wpis, gdy tylko którykolwiek
+proces ogłosi zmianę.
+
+Każda zmiana roli to Komenda — `organization_role.create`,
+`organization_role.update`, `organization_role.delete` — audytowana na
+organizacji, ze wskazaniem członka lub operatora, który jej dokonał, oraz z
+nazwą, rodzajem i posortowaną listą uprawnień roli przed zmianą i po niej.
+Zapisanie roli bez zmian niczego nie rejestruje.
+
+| Metoda + ścieżka | Kto | Cel |
+| --- | --- | --- |
+| `GET /api/v1/organizations/mine/roles` | administrator organizacji | Wszystkie role z liczbą członków i oczekujących zaproszeń (oczekujące: nieprzyjęte, nieanulowane i niewygasłe) |
+| `GET /api/v1/organizations/mine/roles/:id` | administrator organizacji | Jedna rola |
+| `POST /api/v1/organizations/mine/roles` | administrator organizacji | Utworzenie roli własnej (`{ name, description?, permissions }`) |
+| `PATCH /api/v1/organizations/mine/roles/:id` | administrator organizacji | Edycja roli (`{ expectedVersion, name?, description?, permissions? }`) |
+| `DELETE /api/v1/organizations/mine/roles/:id` | administrator organizacji | Usunięcie roli własnej (`{ expectedVersion, replacementRoleId? }`) |
+| `GET /api/v1/organizations/mine/permission-catalogue` | administrator organizacji | Dostępne uprawnienia pogrupowane według modułów, w języku żądania |
+| `GET /api/v1/organizations/mine/role` | klient | Własna rola członka i to, na co pozwala |
+| `GET /api/v1/admin/organizations/:id/roles` | admin (`organizations:read-roles` lub `organizations:manage-roles`) | Jak lista w sklepie |
+| `GET /api/v1/admin/organizations/:id/permission-catalogue` | admin (`organizations:read-roles` lub `organizations:manage-roles`) | Jak katalog w sklepie |
+| `POST /api/v1/admin/organizations/:id/roles` | admin (`organizations:manage-roles`) | Utworzenie roli własnej |
+| `PATCH /api/v1/admin/organizations/:id/roles/:roleId` | admin (`organizations:manage-roles`) | Edycja roli |
+| `DELETE /api/v1/admin/organizations/:id/roles/:roleId` | admin (`organizations:manage-roles`) | Usunięcie roli własnej |
+
+Każde ciało żądania jest ścisłe: ciało, które wciąż wysyła dawne pole `role`, jest
+odrzucane z `400 VALIDATION_FAILED`. Rola innej organizacji oraz każda ścieżka ról
+organizacji prywatnej odpowiada `404`. Odmowy to
+`409 ORGANIZATION_ROLE_NAME_TAKEN`, `409 ORGANIZATION_ROLE_STALE` (rola zmieniła
+się od chwili odczytu), `422 ORGANIZATION_ROLE_LIMIT_REACHED`,
+`409 ORGANIZATION_ROLE_PROTECTED`, `422 ORGANIZATION_ROLE_REPLACEMENT_REQUIRED`
+i `422 ORGANIZATION_PERMISSION_UNKNOWN`. Działanie kupującego odrzucone z powodu
+braku uprawnienia odpowiada `403 ORGANIZATION_PERMISSION_REQUIRED`, z kodem
+uprawnienia i jego etykietą w `details`.
+
+Inne moduły pytają, czy członek może coś zrobić, przez
+`organizationPermissionPort` (`can`, `assert`, `isAdministrator`, `effective`,
+`rolesHolding`) i chronią swoje ścieżki funkcją `organizationPermissionPreHandler`
+z `@endora-commerce/contracts`. `organizationRoleReadPort.predefinedRoleId` podaje
+identyfikator roli Administrator lub Członek organizacji.
+
+**W budowie.** Role istnieją i można nimi zarządzać, ale członkowie nie są jeszcze
+do nich przypisywani pojedynczo: do tego czasu członek ma rolę Administrator, gdy
+jest administratorem organizacji (albo członkiem organizacji prywatnej), a w
+przeciwnym razie rolę Członek; roli własnej, którą ma ktokolwiek — członek lub
+zaproszenie — nie można jeszcze usunąć.
 
 ## Wyszukiwanie globalne
 
