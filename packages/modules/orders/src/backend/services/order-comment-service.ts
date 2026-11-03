@@ -109,8 +109,11 @@ export class OrderCommentService {
     if (graph.isTerminal(order.status)) {
       throw new HttpError(
         409,
-        ERROR_CODES.VALIDATION_FAILED,
+        // Issue #86 — its own code: under `VALIDATION_FAILED` this sentence
+        // was answered in English whatever the reader asked for.
+        ERROR_CODES.ORDER_COMMENTS_CLOSED,
         'Commenting is closed for completed or cancelled orders.',
+        { orderId },
       );
     }
     return order;

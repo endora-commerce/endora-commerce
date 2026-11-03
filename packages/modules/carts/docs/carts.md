@@ -102,9 +102,9 @@ policy flag.
 | `GET /api/v1/organization/carts` | List every cart in the caller's Organization |
 | `GET /api/v1/organization/carts/:id` | Detail (member-owned cart) |
 | `PATCH /api/v1/organization/policies/cart-approval` | Toggle `requires_cart_approval` for the Organization |
-| `POST /api/v1/cart/submit-for-approval` | Buyer submits cart for Org-Admin approval (no-op when policy off; refused for Org-Admins themselves, and for a basket below a minimum — see *Order minimums*) |
-| `POST /api/v1/organization/carts/:id/approve` | Approve a pending cart |
-| `POST /api/v1/organization/carts/:id/reject` | Reject a pending cart with a required reason |
+| `POST /api/v1/cart/submit-for-approval` | Buyer submits cart for Org-Admin approval. Refused with `422 CART_APPROVAL_NOT_REQUIRED` when the policy is off, `422 CART_APPROVAL_SELF_SUBMIT` for Org-Admins themselves, `422 CART_APPROVAL_ALREADY_SUBMITTED` for a cart already sent, and for a basket below a minimum — see *Order minimums* |
+| `POST /api/v1/organization/carts/:id/approve` | Approve a pending cart; a cart not awaiting approval is `422 CART_APPROVAL_NOT_PENDING` |
+| `POST /api/v1/organization/carts/:id/reject` | Reject a pending cart with a required reason; a cart not awaiting approval is `422 CART_APPROVAL_NOT_PENDING` |
 
 Role gate: `CustomerAccount.role === 'organization_admin'` for every
 `organization/*` route. Foreign-organization carts return 404
@@ -117,7 +117,7 @@ Role gate: `CustomerAccount.role === 'organization_admin'` for every
 | `GET /api/v1/admin/carts` | `carts:read` | Paginated platform-wide list (status / approvalStatus / org / customer / channel / date filters) |
 | `GET /api/v1/admin/carts/:id` | `carts:read` | Read-only cart detail |
 | `GET /api/v1/admin/carts/:id/audit` | `carts:read` | Cart-detail audit feed |
-| `POST /api/v1/admin/carts/:id/reject` | `carts:reject` | Emergency terminal reject (requires reason) |
+| `POST /api/v1/admin/carts/:id/reject` | `carts:reject` | Emergency terminal reject (requires reason); a completed or rejected cart is `422 CART_ALREADY_TERMINAL` |
 
 ## Entities
 

@@ -5,6 +5,7 @@ import {
   type RfqCustomerPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
+import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
 import { Order } from '../entities/order.entity.js';
 import { loadArrangedOrderLines } from './order-line-order.js';
 
@@ -53,7 +54,9 @@ export class OrderCloneToQuoteService {
   ): Promise<{ quoteRequestId: string }> {
     const rfq = this.getRfqService();
     if (!rfq) {
-      throw new HttpError(503, ERROR_CODES.VALIDATION_FAILED, 'Quote Requests module is not available.');
+      // Issue #86 — the platform's refusal for a module that is off, naming it,
+      // rather than `VALIDATION_FAILED` under a 503.
+      throw new ModuleDisabledError('quote_requests');
     }
     const em = this.emFactory();
     const order = await em.findOne(Order, { id: orderId, organizationId: ctx.organizationId });
@@ -62,7 +65,12 @@ export class OrderCloneToQuoteService {
     // Feature 159 — the lines in the order's display order.
     const items = (await loadArrangedOrderLines(em, orderId)).lines;
     if (items.length === 0) {
-      throw new HttpError(409, ERROR_CODES.VALIDATION_FAILED, 'Order has no line items to clone.');
+      throw new HttpError(
+        409,
+        ERROR_CODES.ORDER_CLONE_NO_LINES,
+        'Order has no line items to clone.',
+        { orderId },
+      );
     }
 
     const input: CreateQuoteRequest = {

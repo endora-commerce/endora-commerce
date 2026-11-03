@@ -149,7 +149,12 @@ describe('order placement honours the Organization method allow-lists', () => {
   ): void => {
     expect(res.statusCode, res.body).toBe(400);
     const { error } = res.json() as ErrorBody;
-    expect(error.code).toBe(ERROR_CODES.VALIDATION_FAILED);
+    // Issue #86 — the method's own code; the token in `details.code` is unchanged.
+    expect(error.code).toBe(
+      detailsCode.startsWith('delivery_')
+        ? ERROR_CODES.ORDER_DELIVERY_METHOD_UNAVAILABLE
+        : ERROR_CODES.ORDER_PAYMENT_METHOD_UNAVAILABLE,
+    );
     expect(error.details?.code).toBe(detailsCode);
   };
 

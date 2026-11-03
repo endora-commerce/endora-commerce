@@ -178,8 +178,8 @@ A bound key can never do more than the Organization's own buyers. The same
 domain code path places the order, so every entitlement applies identically:
 suspended organization ⇒ `423`; payment or delivery method outside the
 organization's allow-list ⇒ the same refusal as customer checkout
-(`400 VALIDATION_FAILED`, `error.details.code`
-`payment_method_not_allowed_for_organization` or
+(`400 ORDER_PAYMENT_METHOD_UNAVAILABLE` or `400 ORDER_DELIVERY_METHOD_UNAVAILABLE`,
+`error.details.code` `payment_method_not_allowed_for_organization` or
 `delivery_method_not_allowed_for_organization`); credit
 limit exceeded ⇒ the same credit-guard error; minimum order value, assortment,
 warehouse strategy, and automatic promotions all behave exactly as in the

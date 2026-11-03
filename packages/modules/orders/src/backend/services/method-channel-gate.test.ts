@@ -74,7 +74,7 @@ describe('assertMethodsOfferedInChannel', () => {
     );
 
     expect(error.statusCode).toBe(400);
-    expect(error.code).toBe(ERROR_CODES.VALIDATION_FAILED);
+    expect(error.code).toBe(ERROR_CODES.ORDER_DELIVERY_METHOD_UNAVAILABLE);
     expect(error.details).toEqual({
       code: 'delivery_method_not_in_sales_channel',
       deliveryMethodId: 'd1',
@@ -94,6 +94,7 @@ describe('assertMethodsOfferedInChannel', () => {
     );
 
     expect(error.statusCode).toBe(400);
+    expect(error.code).toBe(ERROR_CODES.ORDER_PAYMENT_METHOD_UNAVAILABLE);
     expect(error.details).toEqual({
       code: 'payment_method_not_in_sales_channel',
       paymentMethodId: 'p1',

@@ -163,8 +163,8 @@ Idempotency-Key: acme-order-1001
 Klucz powiązany nigdy nie może zrobić więcej niż kupujący z danej organizacji. Zamówienie składa ta
 sama ścieżka kodu domenowego, więc każda reguła działa identycznie: zawieszona organizacja ⇒ `423`;
 metoda płatności albo dostawy spoza listy dozwolonych dla organizacji ⇒ ta sama odmowa co w checkoucie
-klienta (`400 VALIDATION_FAILED`, `error.details.code`
-`payment_method_not_allowed_for_organization` albo
+klienta (`400 ORDER_PAYMENT_METHOD_UNAVAILABLE` albo `400 ORDER_DELIVERY_METHOD_UNAVAILABLE`,
+`error.details.code` `payment_method_not_allowed_for_organization` albo
 `delivery_method_not_allowed_for_organization`); przekroczony limit kredytowy ⇒ ten sam błąd zabezpieczenia limitu; minimalna wartość
 zamówienia, asortyment, strategia magazynowa i automatyczne promocje działają dokładnie tak jak w
 storefroncie. Nie ma parametru, który by to nadpisywał lub omijał.

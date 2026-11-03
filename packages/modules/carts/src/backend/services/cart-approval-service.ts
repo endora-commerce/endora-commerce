@@ -145,18 +145,35 @@ export class CartApprovalService {
     if (items.length === 0) {
       throw new HttpError(422, ERROR_CODES.CART_EMPTY, 'cart_empty');
     }
+    // Issue #86 — each refusal below has a code of its own: raised as
+    // `VALIDATION_FAILED` its token was the message, which the envelope never
+    // replaces, so the buyer read `approval_already_initiated` in every
+    // language and a client could not tell it from a malformed request.
     if (cart.approvalStatus !== 'not_required') {
-      throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'approval_already_initiated');
+      throw new HttpError(
+        422,
+        ERROR_CODES.CART_APPROVAL_ALREADY_SUBMITTED,
+        'This cart has already been sent for approval.',
+        { cartId: cart.id, approvalStatus: cart.approvalStatus },
+      );
     }
 
     const org = await this.organizations.findById(actor.organizationId);
     if (!org || !org.requiresCartApproval) {
-      throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'approval_not_required');
+      throw new HttpError(
+        422,
+        ERROR_CODES.CART_APPROVAL_NOT_REQUIRED,
+        'The organization does not require cart approval.',
+      );
     }
 
     const buyer = await this.customerAccounts.findById(actor.customerAccountId);
     if (buyer?.role === 'organization_admin') {
-      throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'org_admin_self_submit');
+      throw new HttpError(
+        422,
+        ERROR_CODES.CART_APPROVAL_SELF_SUBMIT,
+        'An organization administrator places orders directly; their own cart is not sent for approval.',
+      );
     }
 
     await assertCartMeetsMinimums(this.catalogProducts, {
@@ -216,7 +233,7 @@ export class CartApprovalService {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'cart_not_found');
     }
     if (cart.approvalStatus !== 'pending') {
-      throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'approval_not_pending');
+      throw notPending(cart);
     }
     cart.approvalStatus = 'approved';
     cart.approvedAt = new Date();
@@ -245,7 +262,7 @@ export class CartApprovalService {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'cart_not_found');
     }
     if (cart.approvalStatus !== 'pending') {
-      throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'approval_not_pending');
+      throw notPending(cart);
     }
     cart.approvalStatus = 'rejected_by_org_admin';
     cart.status = 'rejected';
@@ -384,4 +401,17 @@ export class CartApprovalService {
       toState: 'pending',
     });
   }
+}
+
+/**
+ * Issue #86 — approve and reject refuse a cart that is not awaiting approval
+ * with a code of their own, the cart's approval state in `details`.
+ */
+function notPending(cart: Cart): HttpError {
+  return new HttpError(
+    422,
+    ERROR_CODES.CART_APPROVAL_NOT_PENDING,
+    'This cart is not awaiting approval.',
+    { cartId: cart.id, approvalStatus: cart.approvalStatus },
+  );
 }
