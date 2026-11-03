@@ -4,14 +4,20 @@ import {
   type CatalogProductRecord,
   type ImportProfile,
   type ProductImportRow,
-  type ScopedStatusExport,
+  type ScopedValuesExport,
 } from '@endora-commerce/contracts';
+import { SCOPED_WRITE_CASES } from '../../../../../../contracts/src/scoped-write-encoding.cases.js';
 import type { ImportExportPorts } from '../adapter.js';
 import { productsAdapter } from './products.adapter.js';
-import { ProductsFileError, parseProductsHeader, PRODUCTS_CSV_COLUMNS_MAX } from './products-csv-grammar.js';
+import {
+  ProductsFileError,
+  parseProductsHeader,
+  PRODUCTS_CSV_COLUMNS_MAX,
+  PRODUCTS_REPORT_ERRORS_MAX,
+} from './products-csv-grammar.js';
 
 /**
- * Feature 170 (`specs/170-product-editor-scope-switcher/` T087; `contracts/import-profiles-and-csv.md`
+ * Feature 173 (`specs/173-product-editor-scope-switcher/` T087; `contracts/import-profiles-and-csv.md`
  * §2–§3, `write-encoding.md` §3, §3a; FR-040…FR-043, FR-110…FR-118) — the products file over fake
  * ports: the header grammar, the write encoding of every cell, the profile mapping, the report,
  * one port call per product and the dry run. The `[PG]` halves are
@@ -46,19 +52,26 @@ const PROFILE: ImportProfile = {
 
 interface Rig {
   ports: ImportExportPorts;
+  /** The rows each writing call carried, cells without their echoed `column`. */
   calls: ProductImportRow[][];
+  /** The same, for `dryRun` calls (validation only). */
+  dryCalls: ProductImportRow[][];
+  /** The `column` each written cell echoed, in call order. */
+  columns: Array<string | undefined>;
 }
 
 function rig(options: { products?: CatalogProductRecord[]; members?: Record<string, string[]> } = {}): Rig {
   const calls: ProductImportRow[][] = [];
+  const dryCalls: ProductImportRow[][] = [];
+  const columns: Array<string | undefined> = [];
   const products = options.products ?? [product('p1', 'A'), product('p2', 'B')];
   const members = options.members ?? { [VIP]: ['p1', 'p2'], [RETAIL]: ['p1'] };
-  const scoped: ScopedStatusExport = {
+  const scoped: ScopedValuesExport = {
     columns: [
-      { channelCode: 'pl_b2b_vip', languageCode: null },
-      { channelCode: 'pl_b2b_vip', languageCode: 'pl-PL' },
+      { field: 'status', channelId: VIP, channelCode: 'pl_b2b_vip', languageCode: null },
+      { field: 'status', channelId: VIP, channelCode: 'pl_b2b_vip', languageCode: 'pl-PL' },
     ],
-    values: { p1: { 'status@pl_b2b_vip': 'inactive' } },
+    values: { p1: { 'status@pl_b2b_vip': { kind: 'text', text: 'inactive' } } },
   };
   const ports = {
     catalogProducts: {
@@ -70,6 +83,8 @@ function rig(options: { products?: CatalogProductRecord[]; members?: Record<stri
         { key: 'material', valueType: 'string', scopable: true, isRequired: false },
         { key: 'weight', valueType: 'number', scopable: true, isRequired: false },
         { key: 'code', valueType: 'string', scopable: false, isRequired: false },
+        { key: 'multi', valueType: 'multiselect', scopable: true, isRequired: false },
+        { key: 'finish', valueType: 'select', scopable: true, isRequired: false },
       ],
     },
     catalogAvailability: {
@@ -83,14 +98,19 @@ function rig(options: { products?: CatalogProductRecord[]; members?: Record<stri
       ],
     },
     catalogBulkImport: {
-      exportScopedStatuses: async () => scoped,
-      importProducts: async (rows: readonly ProductImportRow[]) => {
-        calls.push([...rows]);
+      exportScopedValues: async () => scoped,
+      importProducts: async (rows: readonly ProductImportRow[], options?: { dryRun?: boolean }) => {
+        const stripped = rows.map((row) => {
+          if (row.cells === undefined) return row;
+          if (options?.dryRun !== true) for (const cell of row.cells) columns.push(cell.column);
+          return { ...row, cells: row.cells.map(({ column: _column, ...cell }) => cell) };
+        });
+        (options?.dryRun === true ? dryCalls : calls).push(stripped);
         return { imported: rows.length, errors: [] };
       },
     },
   } as unknown as ImportExportPorts;
-  return { ports, calls };
+  return { ports, calls, dryCalls, columns };
 }
 
 async function run(
@@ -144,6 +164,87 @@ describe('products file — header grammar (§2.1, R14)', () => {
   it('refuses more columns than the cap', () => {
     const header = ['sku', ...Array.from({ length: PRODUCTS_CSV_COLUMNS_MAX }, (_, i) => `attribute:material@c${i}`)];
     expect(parseProductsHeader(header, ctx).ok).toBe(false);
+  });
+});
+
+/**
+ * Coordinator ruling (2026-11-03, `import-profiles-and-csv.md` §2.1): the file carries
+ * `minOrderQuantity`, `returnable` and multiselect attribute columns at G and C. This is the
+ * parser side of the shared case rows for those fields (`write-encoding.md` §4) — what the
+ * adapter hands `catalog`; the catalog-side acceptance is S1's (T084).
+ */
+describe('products file — minimum order quantity, returnable and multiselect columns (§2.1)', () => {
+  const column = (field: string, level: string) =>
+    level === 'G' ? field : level === 'C' ? `${field}@pl_b2b_vip` : `${field}@pl_b2b_vip/pl-PL`;
+  const scopeOf = (level: string) => (level === 'G' ? { level: 'global' as const } : { level: 'channel' as const, channelId: VIP });
+  /** The typed value a decoded text becomes in the field's column. */
+  const typed = (field: string, text: string): unknown =>
+    field === 'minOrderQuantity' ? Number(text) : field === 'returnable' ? text === 'true' : text.split('|');
+  const cases = SCOPED_WRITE_CASES.filter(
+    (c) => c.csv !== undefined && ['minOrderQuantity', 'returnable', 'attribute:multi'].includes(c.field),
+  );
+
+  it('has case rows to run', () => {
+    expect(cases.length).toBeGreaterThanOrEqual(5);
+  });
+
+  it.each(cases.map((c) => [c.name, c] as const))('%s', async (_name, c) => {
+    const r = rig();
+    const header = column(c.field, c.level);
+    const report = await run(r, [{ sku: 'A', [header]: c.csv! }]);
+    expect(report.errors).toEqual([]);
+    const cells = r.calls[0]?.[0]?.cells ?? [];
+    if (typeof c.expect === 'string') {
+      if (c.expect === 'no_change') {
+        expect(cells).toEqual([]);
+        return;
+      }
+      expect(report.fieldErrors).toEqual([{ index: 0, column: header, code: c.expect }]);
+      expect(cells).toEqual([]);
+      return;
+    }
+    if (c.expect.op !== 'set') {
+      expect(report.fieldErrors ?? []).toEqual([]);
+      expect(cells).toEqual([{ scope: scopeOf(c.level), field: c.field, op: c.expect }]);
+      return;
+    }
+    const value = typed(c.field, c.expect.value as string);
+    if (typeof value === 'number' && !Number.isFinite(value)) {
+      // The decoded text is no number (`'5` keeps its quote in a value column): refused per cell.
+      expect(report.fieldErrors).toEqual([{ index: 0, column: header, code: 'invalid' }]);
+      return;
+    }
+    expect(cells).toEqual([{ scope: scopeOf(c.level), field: c.field, op: { op: 'set', value } }]);
+  });
+
+  it('reads a minimum order quantity, a returnable flag and a multiselect at G and C', async () => {
+    const r = rig();
+    await run(r, [
+      {
+        sku: 'A',
+        minOrderQuantity: '6',
+        'minOrderQuantity@pl_b2b_vip': 'NULL',
+        returnable: 'false',
+        'returnable@pl_b2b_vip': 'INHERIT',
+        'attribute:multi': 'red|blue',
+        'attribute:multi@pl_b2b_vip': 'NULL',
+      },
+    ]);
+    const VIP_C = { level: 'channel' as const, channelId: VIP };
+    expect(r.calls[0]![0]!.cells).toEqual([
+      { scope: { level: 'global' }, field: 'minOrderQuantity', op: { op: 'set', value: 6 } },
+      { scope: VIP_C, field: 'minOrderQuantity', op: { op: 'empty' } },
+      { scope: { level: 'global' }, field: 'returnable', op: { op: 'set', value: false } },
+      { scope: VIP_C, field: 'returnable', op: { op: 'inherit' } },
+      { scope: { level: 'global' }, field: 'attribute:multi', op: { op: 'set', value: ['red', 'blue'] } },
+      { scope: VIP_C, field: 'attribute:multi', op: { op: 'empty' } },
+    ]);
+  });
+
+  it('refuses a C x L column of minimum order quantity or returnable (their levels are G and C)', async () => {
+    const r = rig();
+    await expect(run(r, [{ sku: 'A', 'minOrderQuantity@pl_b2b_vip/pl-PL': '2' }])).rejects.toBeInstanceOf(ProductsFileError);
+    await expect(run(r, [{ sku: 'A', 'returnable@pl_b2b_vip/pl-PL': 'true' }])).rejects.toBeInstanceOf(ProductsFileError);
   });
 });
 
@@ -296,12 +397,20 @@ describe('products file — the run (§2)', () => {
       dryRun: true,
     });
     expect(r.calls).toEqual([]);
+    // catalog validates the row too (its own refusals join the report) and writes nothing.
+    expect(r.dryCalls).toHaveLength(1);
     expect(report.imported).toBe(1);
     expect(report.fieldErrors).toEqual([{ index: 0, column: 'name@pl_b2b_vip', code: 'required_empty' }]);
     expect(report.cellCounts).toEqual([
       { column: 'name@pl_b2b_vip', null: 1, inherit: 0 },
       { column: 'description@pl_b2b_vip', null: 0, inherit: 1 },
     ]);
+  });
+
+  it('names the file column on every cell it hands catalog, so catalog refusals point at it', async () => {
+    const r = rig();
+    await run(r, [{ sku: 'A', 'description@pl_b2b_vip': 'Kept', 'name@pl_retail/pl-PL': 'Nazwa' }]);
+    expect(r.columns).toEqual(['description@pl_b2b_vip', 'name@pl_retail/pl-PL']);
   });
 
   it('refuses the whole file for a header error before any port write', async () => {
@@ -321,16 +430,18 @@ describe('products file — export (§3, write-encoding §3a)', () => {
   it('writes tokens for inherited and empty scopes and guards every text column', async () => {
     const r = rig({
       products: [
-        product('p1', 'A', { name: '=HYPERLINK("x")', description: null as never }),
-        product('p2', 'B', { name: 'NULL', description: "'quoted" }),
+        product('p1', 'A', { name: '=HYPERLINK("x")', description: null as never, minOrderQuantity: null, returnable: true }),
+        product('p2', 'B', { name: 'NULL', description: "'quoted", minOrderQuantity: 6, returnable: false }),
       ],
     });
     const table = await productsAdapter(r.ports).exportTable!();
     expect(table.header).toEqual([
-      'id', 'sku', 'slug', 'type', 'status', 'visibility', 'name', 'description', 'status@pl_b2b_vip', 'status@pl_b2b_vip/pl-PL',
+      'id', 'sku', 'slug', 'type', 'status', 'visibility', 'name', 'description', 'minOrderQuantity', 'returnable',
+      'status@pl_b2b_vip', 'status@pl_b2b_vip/pl-PL',
     ]);
-    expect(table.rows[0]!.slice(6)).toEqual(["'=HYPERLINK(\"x\")", 'NULL', 'inactive', 'INHERIT']);
-    expect(table.rows[1]!.slice(6)).toEqual(['\\NULL', "''quoted", 'INHERIT', 'INHERIT']);
+    // No minimum is the deliberately empty value; numbers and booleans take no formula guard.
+    expect(table.rows[0]!.slice(6)).toEqual(["'=HYPERLINK(\"x\")", 'NULL', 'NULL', 'true', 'inactive', 'INHERIT']);
+    expect(table.rows[1]!.slice(6)).toEqual(['\\NULL', "''quoted", '6', 'false', 'INHERIT', 'INHERIT']);
   });
 
   it('round-trips every exported text cell through the import decoder (FR-114, FR-118)', async () => {
@@ -340,6 +451,116 @@ describe('products file — export (§3, write-encoding §3a)', () => {
     for (const [i, row] of table.rows.entries()) {
       expect(decodeCsvScopedCell(row[6]!, { column: 'text' })).toEqual({ kind: 'text', text: texts[i] });
     }
+  });
+});
+
+/**
+ * T087 export half: `CatalogBulkImportPort.exportScopedValues()`. A column appears where any
+ * product holds an own value; an absent entry is `INHERIT`; an empty own value is `NULL`; text
+ * columns are guarded, value columns are not; a multiselect joins with `|`.
+ */
+describe('products file — export of every scoped value (§3)', () => {
+  it('writes one column per (field, scope) holding an own value, with tokens and the guard', async () => {
+    const r = rig({ products: [product('p1', 'A'), product('p2', 'B')] });
+    (r.ports.catalogBulkImport as unknown as Record<string, unknown>).exportScopedValues = async () => ({
+      columns: [
+        { field: 'name', channelId: VIP, channelCode: 'pl_b2b_vip', languageCode: 'pl-PL' },
+        { field: 'description', channelId: VIP, channelCode: 'pl_b2b_vip', languageCode: null },
+        { field: 'status', channelId: VIP, channelCode: 'pl_b2b_vip', languageCode: null },
+        { field: 'attribute:material', channelId: RETAIL, channelCode: 'pl_retail', languageCode: null },
+        { field: 'minOrderQuantity', channelId: VIP, channelCode: 'pl_b2b_vip', languageCode: null },
+        { field: 'attribute:multi', channelId: VIP, channelCode: 'pl_b2b_vip', languageCode: null },
+      ],
+      values: {
+        p1: {
+          'name@pl_b2b_vip/pl-PL': { kind: 'text', text: '=SUM(A1)' },
+          'description@pl_b2b_vip': { kind: 'empty' },
+          'status@pl_b2b_vip': { kind: 'text', text: 'inactive' },
+          'minOrderQuantity@pl_b2b_vip': { kind: 'value', value: 12 },
+          'attribute:multi@pl_b2b_vip': { kind: 'value', value: ['red', 'blue'] },
+        },
+        p2: {
+          'attribute:material@pl_retail': { kind: 'text', text: 'INHERIT' },
+          'minOrderQuantity@pl_b2b_vip': { kind: 'empty' },
+        },
+      },
+    });
+    const table = await productsAdapter(r.ports).exportTable!();
+    expect(table.header.slice(10)).toEqual([
+      'name@pl_b2b_vip/pl-PL',
+      'description@pl_b2b_vip',
+      'status@pl_b2b_vip',
+      'attribute:material@pl_retail',
+      'minOrderQuantity@pl_b2b_vip',
+      'attribute:multi@pl_b2b_vip',
+    ]);
+    expect(table.rows[0]!.slice(10)).toEqual(["'=SUM(A1)", 'NULL', 'inactive', 'INHERIT', '12', 'red|blue']);
+    expect(table.rows[1]!.slice(10)).toEqual(['INHERIT', 'INHERIT', 'INHERIT', '\\INHERIT', 'NULL', 'INHERIT']);
+  });
+});
+
+/**
+ * C2/C3 security review (warn 1) — option values are text a PIM sync can create, so a select or
+ * multiselect cell takes the formula guard like any text cell: guarded on export, the guard
+ * stripped on import, and the two symmetric. A spreadsheet reads a formula only at the start of a
+ * cell, so one guard per cell covers a multiselect whose first element starts one; numbers and
+ * booleans stay unguarded.
+ */
+describe('products file — the formula guard on option values (FR-118)', () => {
+  it('guards a select and a multiselect cell on export', async () => {
+    const r = rig({ products: [product('p1', 'A')] });
+    (r.ports.catalogBulkImport as unknown as Record<string, unknown>).exportScopedValues = async () => ({
+      columns: [
+        { field: 'attribute:finish', channelId: VIP, channelCode: 'pl_b2b_vip', languageCode: null },
+        { field: 'attribute:multi', channelId: VIP, channelCode: 'pl_b2b_vip', languageCode: null },
+        { field: 'attribute:weight', channelId: VIP, channelCode: 'pl_b2b_vip', languageCode: null },
+      ],
+      values: {
+        p1: {
+          'attribute:finish@pl_b2b_vip': { kind: 'value', value: '=HYPERLINK("x")' },
+          'attribute:multi@pl_b2b_vip': { kind: 'value', value: ['@cmd', 'blue'] },
+          'attribute:weight@pl_b2b_vip': { kind: 'value', value: -5 },
+        },
+      },
+    });
+    const table = await productsAdapter(r.ports).exportTable!();
+    expect(table.rows[0]!.slice(10)).toEqual(["'=HYPERLINK(\"x\")", "'@cmd|blue", '-5']);
+  });
+
+  it('strips the guard from a select and a multiselect cell on import', async () => {
+    const r = rig();
+    await run(r, [{ sku: 'A', 'attribute:finish@pl_b2b_vip': "'=matte", 'attribute:multi@pl_b2b_vip': "'-red|blue" }]);
+    expect(r.calls[0]![0]!.cells).toEqual([
+      { scope: { level: 'channel', channelId: VIP }, field: 'attribute:finish', op: { op: 'set', value: '=matte' } },
+      { scope: { level: 'channel', channelId: VIP }, field: 'attribute:multi', op: { op: 'set', value: ['-red', 'blue'] } },
+    ]);
+  });
+});
+
+/**
+ * C2/C3 security review (warn 2) — within the file caps a report could still list millions of
+ * refusals. The report lists at most `PRODUCTS_REPORT_ERRORS_MAX` row errors and as many field
+ * errors, and says how many there were in `truncated`.
+ */
+describe('products file — the bounded report', () => {
+  it('lists at most the cap of row and field errors and counts the rest', async () => {
+    const r = rig();
+    const total = PRODUCTS_REPORT_ERRORS_MAX + 7;
+    const records = [
+      ...Array.from({ length: total }, () => ({ sku: '', 'name@pl_b2b_vip': 'x' })),
+      ...Array.from({ length: total }, (_, i) => ({ sku: `S${i}`, 'name@pl_b2b_vip': "'" })),
+    ];
+    const report = await run(r, records);
+    expect(report.errors).toHaveLength(PRODUCTS_REPORT_ERRORS_MAX);
+    expect(report.fieldErrors).toHaveLength(PRODUCTS_REPORT_ERRORS_MAX);
+    expect(report.truncated).toEqual({ errors: total, fieldErrors: total });
+  });
+
+  it('has no truncation entry when every refusal is listed', async () => {
+    const r = rig();
+    const report = await run(r, [{ sku: '', 'name@pl_b2b_vip': 'x' }]);
+    expect(report.errors).toHaveLength(1);
+    expect(report.truncated).toBeUndefined();
   });
 });
 

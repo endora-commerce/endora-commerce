@@ -22,7 +22,10 @@ import {
  * | `<field>@<channel code>/<language>` | the Channel × language scope (fields whose set has CL) |
  * | `<field>[<locale>]`, `<field>[<locale>\|<source channel>]` | a source-locale value, mapped by the profile |
  *
- * `<field>` is `name`, `description`, `urlKey`, `status` or `attribute:<key>`. Every header
+ * `<field>` is `name`, `description`, `urlKey`, `status`, `minOrderQuantity`, `returnable` or
+ * `attribute:<key>` (coordinator ruling 2026-11-03: the minimum order quantity, the returnable
+ * flag and multiselect attributes travel at G and C; MOQ `NULL` = no minimum, multiselect
+ * `NULL` = none selected). Every header
  * either matches exactly one rule or is a file error, and so is an unknown channel code, a
  * language the channel does not offer, an unknown attribute, a scope the field's set lacks, and
  * two headers naming the same column after normalisation (locale tags compare
@@ -31,7 +34,7 @@ import {
 
 /** Channel and source-channel codes (R14). */
 const CODE = '[A-Za-z0-9_.-]{1,100}';
-const FIELD = '(name|description|urlKey|status|attribute:[a-z0-9_]{1,64})';
+const FIELD = '(name|description|urlKey|status|minOrderQuantity|returnable|attribute:[a-z0-9_]{1,64})';
 const LANGUAGE = '([A-Za-z]{2,3}(?:-[A-Za-z]{2})?)';
 const LOCALE = '([A-Za-z]{2,3}(?:[_-][A-Za-z]{2})?)';
 const GLOBAL_COLUMN = new RegExp(`^${FIELD}$`);
@@ -81,6 +84,13 @@ export type HeaderParse = { ok: true; columns: ProductsColumn[] } | { ok: false;
 
 const EXPORT_ONLY = new Set(['id', 'slug', 'type']);
 
+/** The product fields whose cells are values, not text: no formula guard, typed on import. */
+const VALUE_FIELDS: Readonly<Record<string, FieldInfo['valueType']>> = {
+  status: 'status',
+  minOrderQuantity: 'number',
+  returnable: 'boolean',
+};
+
 function fieldInfo(field: string, ctx: ProductsHeaderContext): FieldInfo | string {
   if (field.startsWith('attribute:')) {
     const key = field.slice('attribute:'.length);
@@ -94,7 +104,8 @@ function fieldInfo(field: string, ctx: ProductsHeaderContext): FieldInfo | strin
     };
   }
   const spec = (PRODUCT_FIELD_SCOPE_SETS as Record<string, FieldScopeSpec>)[field]!;
-  return { field: field as FieldPath, spec, text: field !== 'status', valueType: field === 'status' ? 'status' : 'text' };
+  const valueType = VALUE_FIELDS[field];
+  return { field: field as FieldPath, spec, text: valueType === undefined, valueType: valueType ?? 'text' };
 }
 
 const levelOf = (scope: ScopeRef): ScopeLevel =>

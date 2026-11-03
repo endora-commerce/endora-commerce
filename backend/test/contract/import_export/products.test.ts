@@ -44,11 +44,13 @@ describe('Import/Export — products', () => {
     expect(res.headers['content-disposition']).toMatch(/products-\d{4}-\d{2}-\d{2}\.csv/);
     const body = res.body;
     const firstLine = body.split('\n')[0];
-    // Feature 163 (FR-092) — the fixed columns, then one `status@<channel code>[/<language>]`
-    // column per sales channel scope (`integration/catalog/bulk-import-scoped-status.test.ts`).
+    // Feature 170 (`import-profiles-and-csv.md` §2.1, §3) — the fixed Global columns, then one
+    // `<field>@<channel code>[/<language>]` column per (field, scope) holding an own value.
     const columns = firstLine!.split(',');
-    expect(columns.slice(0, 8)).toEqual(['id', 'sku', 'slug', 'type', 'status', 'visibility', 'name', 'description']);
-    for (const column of columns.slice(8)) expect(column).toMatch(/^status@[^/]+(\/.+)?$/);
+    expect(columns.slice(0, 10)).toEqual([
+      'id', 'sku', 'slug', 'type', 'status', 'visibility', 'name', 'description', 'minOrderQuantity', 'returnable',
+    ]);
+    for (const column of columns.slice(10)) expect(column).toMatch(/^[A-Za-z]+(:[a-z0-9_]+)?@[^/]+(\/.+)?$/);
     expect(body).toContain('EXAMPLE-SIMPLE-001');
   });
 

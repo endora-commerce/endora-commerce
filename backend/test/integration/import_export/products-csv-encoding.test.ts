@@ -15,9 +15,11 @@ import { serializeCsv } from '../../../../packages/modules/import_export/src/bac
  * field errors that write nothing. Each case runs on a product of its own, holding an own value
  * `Seeded` at the case's scope, and is read back through `GET …/scoped-values` at that scope.
  *
- * The CSV grammar of `import-profiles-and-csv.md` §2.1 has no `minOrderQuantity`, `returnable` or
- * multiselect columns at this commit; those case rows are `todo` (open question in the S2 block 2
- * report). The C / C×L text writes depend on `catalog`'s `ProductImportRow` v2 writer (T084, S1).
+ * The `minOrderQuantity`, `returnable` and multiselect columns (coordinator ruling 2026-11-03,
+ * §2.1): their refusals run here, end to end; their parser side is
+ * `packages/modules/import_export/src/backend/services/adapters/products.adapter.test.ts`; what
+ * catalog stores for them is S1's acceptance (T084) and stays `todo` here. The C / C×L text
+ * writes depend on `catalog`'s `ProductImportRow` v2 writer (T084, S1).
  */
 const ADMIN = { cookies: { b2b_session: 'stub-admin-session' } };
 const FIELDS = new Set(['name', 'description', 'status']);
@@ -121,7 +123,28 @@ describe('170 — products CSV import, the shared encoding cases [integration]',
     }
   });
 
-  for (const c of csvCases.filter((c) => !FIELDS.has(c.field))) {
-    it.todo(`${c.name} — no ${c.field} column in the products CSV grammar (§2.1)`);
+  const valueCases = csvCases.filter((c) => !FIELDS.has(c.field));
+  const refusals = valueCases.filter((c) => typeof c.expect === 'string' && c.expect !== 'no_change');
+
+  it.each(refusals.map((c) => [c.name, c] as const))('%s (a field error, nothing written)', async (_name, c) => {
+    const product = await seededProduct({ ...c, level: 'G' });
+    const column = columnOf(c);
+    const res = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/import/products?profileId=${profileId}`,
+      ...ADMIN,
+      headers: { 'content-type': 'text/csv' },
+      payload: serializeCsv([
+        ['sku', column],
+        [product.sku, c.csv!],
+      ]),
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    const report = (res.json() as { data: { fieldErrors?: Array<{ rowNumber: number; column: string; code: string }> } }).data;
+    expect(report.fieldErrors).toEqual([{ rowNumber: 2, column, code: c.expect }]);
+  });
+
+  for (const c of valueCases.filter((c) => !refusals.includes(c))) {
+    it.todo(`${c.name} — catalog stores the ${c.field} cell (S1, T084)`);
   }
 });
