@@ -1,9 +1,43 @@
 # Implementation Plan: Organization roles and permissions
 
-**Branch**: `plan/170-organization-roles` (this plan) → implementation on the integration branch
-`feat/170-organization-roles` | **Date**: 2026-11-03 | **Spec**: [spec.md](./spec.md)
+**Branch**: `plan/170-organization-roles` (this plan, merged in #681) → implementation on the
+integration branch `feat/170-organization-roles` | **Date**: 2026-11-03 | **Spec**: [spec.md](./spec.md)
+| **Tasks**: [tasks.md](./tasks.md)
 **Input**: Feature specification from `specs/170-organization-roles/spec.md` (merged in #664; owner
-rulings OR-1 to OR-8; no open questions)
+rulings OR-1 to OR-8; plan-phase rulings PR-1 and PR-2 below; no open questions)
+
+## Plan-phase owner rulings *(binding; recorded 2026-11-03, after #681 merged)*
+
+The plan put two decisions to the owner before decomposition; both are **resolved** and
+`tasks.md` is built on them.
+
+- **PR-1 — Integration branch: yes.** P1 and P2 are delivered on `feat/170-organization-roles`;
+  every work-package PR targets that branch, and one PR merges it to `master` at the end (after
+  WP-13). WP-00 (the behaviour oracle) goes to `master` first, on its own, and **depends on #656
+  being merged**. Research R-23, *Delivery model* item 1.
+- **PR-2 — The R-28 database triggers: accepted.** M2 installs the `after insert on organizations`
+  trigger that creates both predefined roles; M3 installs the `before insert on customer_accounts`
+  trigger that assigns the default role to an account inserted without one. Research R-28.
+
+**Decomposition adjustments made by `/speckit.tasks`** (each keeps the plan's file-disjointness;
+the *Owns* columns below are read with them applied):
+
+- **A-1 — `addresses.manage` is declared by WP-03, not WP-02a.** WP-03 is the package that
+  enforces it on `organizations/routes.customer.ts`; declaring it in Wave 1 would leave the
+  permission inventory's `unchecked-declaration` finding red on the integration branch from
+  WP-02a until WP-03 merges, contradicting *Delivery model* item 4. `addresses`' `manifest.ts` and
+  `i18n/*` move to WP-03's set; no other Wave 2 package touches `addresses`.
+- **A-2 — Polish module pages travel with their English edit.** `specs/conventions/module-documentation.md`
+  requires the PL page and its translation pin in the **same** merge request as the EN change
+  (`check:docs-translations`), so each work package that edits `packages/modules/<id>/docs/*.md`
+  updates `docs/i18n/pl/docusaurus-plugin-content-docs/current/modules/<id>.md` and re-pins it.
+  WP-11 keeps the site pages (`docs/docs/architecture/permissions.md` and its PL page) and a final
+  pin sweep.
+- **A-3 — No upgrade page in this feature.** `docs/docs/upgrading-an-instance.md` gains its
+  per-release section at release time, not on the feature branch; the spec's *Upgrade note* is
+  its source, and WP-12's consumer changeset carries the old → new field mapping now.
+- **A-4 — Gate status at tasks time.** #655 and #680 are **merged**; #656 is **open** and is the
+  only remaining external gate (WP-00 and WP-04).
 
 ## Summary
 
@@ -110,7 +144,7 @@ specs/170-organization-roles/
 │   ├── commands-audit-events.md
 │   └── migration-and-replay.md
 ├── checklists/requirements.md
-└── tasks.md                     # /speckit.tasks — not produced by this command
+└── tasks.md                     # /speckit.tasks
 ```
 
 ### Source code (what each area gains or loses)
@@ -170,7 +204,7 @@ backend/test/
 ├── helpers/seed-organization-roles.ts                              # NEW (WP-02b): custom-role seeding for Wave 2
 └── contract/admin_users/permission-inventory.test.ts               # + organization-permission describe (WP-01)
 
-docs/docs/upgrading-an-instance.md, docs/docs/architecture/permissions.md, docs/i18n/pl/…  # WP-11
+docs/docs/architecture/permissions.md, docs/i18n/pl/…  # WP-11 (no upgrade page, A-3)
 ```
 
 **Structure decision**: extend `organizations` and `customer_accounts`; no new module (research R-1:
@@ -222,7 +256,7 @@ changeset if the gate asks for one).
 | WP | Title | Owns | Depends on | Size |
 | --- | --- | --- | --- | --- |
 | **WP-01** | Contracts and platform, additive | `packages/contracts/src/{organization-roles.ts (new), modules.ts, actor.ts, errors.ts, index.ts}` and the `@deprecated` marks in `organizations.ts`, `customer-accounts.ts`, `common.ts`, `carts.ts`, `quote-requests.ts`, `admin.ts`; `packages/platform/src/commands/{command,command-bus,actor}.ts`, `kernel/audit/audit-log-entry.entity.ts`, `kernel/ports/audit.ts` and its writer, `composition/compose-app.ts`, core migration **M1**; `packages/modules/auth/src/backend/{plugin.ts,index.ts}`; `storefront/lib/organization-permissions.ts` (new); `backend/test/contract/admin_users/permission-inventory.test.ts` (organization-permission describe; an empty population passes) | WP-00 on `master` | M |
-| **WP-02a** | Roles in `organizations` | `organizations`: `entities/organization-role.entity.ts`, `services/organization-role-*.ts`, `commands/organization-role-*.command.ts`, `routes.roles.ts`, `routes.admin-roles.ts`, `index.ts`, `plugin.ts` (wiring only), `manifest.ts` (operator codes, error codes), `i18n/{en,pl}.json`, migration **M2** (table, trigger, FR-071 marker, invitations column, plus the dual-write in `services/invitation-service.ts` and `entities/organization-invitation.entity.ts`), `docs/organizations.md` (Roles section); `addresses`: `src/manifest.ts` and `i18n/*` (declares `addresses.manage`, R-8b) | WP-01 | L |
+| **WP-02a** | Roles in `organizations` | `organizations`: `entities/organization-role.entity.ts`, `services/organization-role-*.ts`, `commands/organization-role-*.command.ts`, `routes.roles.ts`, `routes.admin-roles.ts`, `index.ts`, `plugin.ts` (wiring only), `manifest.ts` (operator codes, error codes), `i18n/{en,pl}.json`, migration **M2** (table, trigger, FR-071 marker, invitations column, plus the dual-write in `services/invitation-service.ts` and `entities/organization-invitation.entity.ts`), `docs/organizations.md` (Roles section) | WP-01 | L |
 | **WP-02b** | Assignment in `customer_accounts` | `customer_accounts`: entity, migration **M3** (column, backfill, default trigger, composite FK), `commands/*` (change role, remove member, promote administrator — replacing `role-service.ts`), `services/customer-account-{ports,lifecycle-ports}.ts` (records carry `organizationRoleId`; `countAdministrators`; write port takes `organizationRoleId` and dual-writes `role`; `customerAccountRoleCommandPort`), `index.ts` (`customerOrgResolver` returns the role id), `docs/customer_accounts.md`; `organizations`: `services/registration-service.ts`, `services/personal-organization-service.ts`, `commands/create-organization.command.ts` (pass role ids), the reassignment children in `commands/organization-role-delete.command.ts`, `manifest.ts` (acknowledged edge); `packages/demo-composition/src/composition.ts`; `backend/scripts/acceptance/instance-actor-scope.ts`; shared helpers `backend/test/helpers/{seed-organizations,seed-commerce,seed-roles,seed-credit-limit,admin-search-fixtures,test-server}.ts` and `backend/test/helpers/seed-organization-roles.ts` (new); tests `backend/test/integration/customer_accounts/*` (3), `backend/test/unit/customer_accounts/password-verification-port.unit.test.ts`, `backend/test/integration/demo/demo-reset-after-use.test.ts` | WP-02a | L |
 
 WP-02a delivers the port reading `organizationRoleId` from the subject; WP-02b makes every subject
@@ -234,11 +268,11 @@ integration branch.
 
 | WP | Title | Owns | Depends on (to merge) | Size |
 | --- | --- | --- | --- | --- |
-| **WP-03** | Members, invitations, session, addresses, reserved capabilities | `organizations`: `routes.members.ts`, `routes.customer.ts` (`/me`, the `addresses.manage` gates), `routes.public.ts` (login), `routes.admin.ts` (operator member endpoints), `services/invitation-service.ts` (roleId API, last-admin invite rule), `email-templates/invitation.ts` (#667), `services/organization-moderation-service.ts`, `services/organization-context-service.ts`, `i18n/{en,pl}.json`; `customers`: `services/customer-{org-assignment,deletion,moderation}-service.ts`, `routes.admin.ts` (impersonation response, RFQ list call), `routes.self.ts`; `mfa`: `services/account-identity.ts`, `routes.org.ts`; tests: `backend/test/contract/organizations/*` (6), `backend/test/integration/organizations/{customer-subtree-rollup,invitation-email,invite-and-scope,membership-shapes,moderation-email-language,moderation-notification-scope,unreadable-path-fails-closed}.test.ts`, `backend/test/unit/organizations/moderation-email-language.test.ts`, `organizations/src/backend/email-templates/*.test.ts` (2), `backend/test/integration/customers/customer-moderation-service.test.ts`, `backend/test/unit/customers/customer-detail-channels-port.test.ts`, `backend/test/integration/mfa/*` (4), `mfa/src/backend/services/account-identity.test.ts` | WP-02b | L |
-| **WP-04** | Carts (OR-3) | `carts`: `manifest.ts` (3 codes), `i18n/*`, `routes.ts` (gates, convert-to-quote included), `routes.organization.ts` (approvers; policy endpoint removed), `routes.admin.ts` (policy endpoints removed), `services/cart-approval-{service,policy,emails}.ts`, `services/organization-cart-reach.ts`, `entities/cart.entity.ts` (comment), `index.ts` (subscribers, port wiring), `src/admin/**` (zone removed), `docs/carts.md`; tests: `backend/test/contract/carts/*` (4), `backend/test/integration/carts/*` (4, plus new), `backend/test/unit/carts/cross-module-ports.unit.test.ts`, `admin/test/modules/carts/cart-approval-policy-zone.test.tsx` (deleted), `admin/test/modules/organizations/organization-detail-after.two-contributors.test.tsx` | WP-02b; **#655 and #656 merged** | L |
+| **WP-03** | Members, invitations, session, addresses, reserved capabilities | `organizations`: `routes.members.ts`, `routes.customer.ts` (`/me`, the `addresses.manage` gates), `routes.public.ts` (login), `routes.admin.ts` (operator member endpoints), `services/invitation-service.ts` (roleId API, last-admin invite rule), `email-templates/invitation.ts` (#667), `services/organization-moderation-service.ts`, `services/organization-context-service.ts`, `i18n/{en,pl}.json`; `addresses`: `src/manifest.ts` and `i18n/*` (declares `addresses.manage`, R-8b, A-1); `customers`: `services/customer-{org-assignment,deletion,moderation}-service.ts`, `routes.admin.ts` (impersonation response, RFQ list call), `routes.self.ts`; `mfa`: `services/account-identity.ts`, `routes.org.ts`; tests: `backend/test/contract/organizations/*` (6), `backend/test/integration/organizations/{customer-subtree-rollup,invitation-email,invite-and-scope,membership-shapes,moderation-email-language,moderation-notification-scope,unreadable-path-fails-closed}.test.ts`, `backend/test/unit/organizations/moderation-email-language.test.ts`, `organizations/src/backend/email-templates/*.test.ts` (2), `backend/test/integration/customers/customer-moderation-service.test.ts`, `backend/test/unit/customers/customer-detail-channels-port.test.ts`, `backend/test/integration/mfa/*` (4), `mfa/src/backend/services/account-identity.test.ts` | WP-02b | L |
+| **WP-04** | Carts (OR-3) | `carts`: `manifest.ts` (3 codes), `i18n/*`, `routes.ts` (gates, convert-to-quote included), `routes.organization.ts` (approvers; policy endpoint removed), `routes.admin.ts` (policy endpoints removed), `services/cart-approval-{service,policy,emails}.ts`, `services/organization-cart-reach.ts`, `entities/cart.entity.ts` (comment), `index.ts` (subscribers, port wiring), `src/admin/**` (zone removed), `docs/carts.md`; tests: `backend/test/contract/carts/*` (4), `backend/test/integration/carts/*` (4, plus new), `backend/test/unit/carts/cross-module-ports.unit.test.ts`, `admin/test/modules/carts/cart-approval-policy-zone.test.tsx` (deleted), `admin/test/modules/organizations/organization-detail-after.two-contributors.test.tsx` | WP-02b; **#656 merged** (#655 merged, A-4) | L |
 | **WP-05** | Quote requests, P2 part | `quote_requests`: `manifest.ts` (`quote_requests.create`), `i18n/*`, `index.ts` (customer context without `isOrgAdmin`), `services/rfq-service.ts` (visibility through `isAdministrator`, R-30), `routes.customer.ts` (gates), docs; tests: `backend/test/integration/quote_requests/*` (8), `backend/test/contract/quote_requests/pdf-export.test.ts`, `quote_requests/src/backend/**/*.test.ts` (4), `packages/contracts/src/quote-requests.test.ts` | WP-02b | M |
 | **WP-06** | Shopping lists and quick order (OR-1, OR-6, #653) | `shopping_lists`: `manifest.ts`, `i18n/*`, routes, `services/shopping-list-service.ts`, docs; `quick_order`: `manifest.ts`, `i18n/*`, `services/{one-click-service,quick-order-build-service}.ts`, `routes.preferences.ts`, `routes.admin.ts`, customer routes, docs; tests: `quick_order/src/backend/services/{quick-order-build-service,one-click-service}.test.ts`, `backend/test/contract/shopping_lists/default-list-on-customer-create.test.ts`, new one-click and list-gate tests | WP-02b; **WP-04 merged** (`carts.order_without_approval` must be declared for the inventory) | M |
-| **WP-07** | Orders (OR-5) | `orders`: `manifest.ts`, `i18n/*`, `services/order-access-service.ts`, `services/order-clone-to-quote-service.ts`, docs; tests: `backend/test/integration/orders/{order-access-service,buyer-order-actions-scope}.test.ts`, `orders/src/backend/services/order-buyer-action-scope.test.ts`, a new colleague-documents test | WP-02b; **#680 merged** for the invoices leg | S |
+| **WP-07** | Orders (OR-5) | `orders`: `manifest.ts`, `i18n/*`, `services/order-access-service.ts`, `services/order-clone-to-quote-service.ts`, docs; tests: `backend/test/integration/orders/{order-access-service,buyer-order-actions-scope}.test.ts`, `orders/src/backend/services/order-buyer-action-scope.test.ts`, a new colleague-documents test | WP-02b (#680, the invoices leg, merged — A-4) | S |
 | **WP-08** | Admin UI | `organizations/src/admin/**` (`pages/OrganizationDetail.tsx`, `components/OrganizationRolesTab.tsx` new, `api/*`); admin tests under `admin/test/modules/organizations/` except the zone-contributor file | WP-02a (role endpoints), WP-03 (member endpoints) | M |
 
 ### Wave 3 — storefront, in parallel; may start during Wave 2 against the contracts and merge after its APIs
@@ -252,7 +286,7 @@ integration branch.
 
 | WP | Title | Owns | Depends on | Size |
 | --- | --- | --- | --- | --- |
-| **WP-11** | Documentation EN + PL | `docs/docs/upgrading-an-instance.md` (the spec's *Upgrade note*), `docs/docs/architecture/permissions.md` (organization permissions and the `organizationPermissions` field), the PL translations and pins of every module page touched in Waves 1–2 | Waves 1–3 | M |
+| **WP-11** | Documentation EN + PL | `docs/docs/architecture/permissions.md` (organization permissions and the `organizationPermissions` field) and its PL page and pin; a final `check:docs-translations` sweep over every module page touched in Waves 1–3 (each WP already shipped its own PL page, A-2). No upgrade page (A-3) | Waves 1–3 | S |
 | **WP-12** | Legacy removal | contracts: delete `organizationRoleSchema`, `OrganizationRole`, `CustomerAccountRole`, `countByOrganizationRole`, `RfqCustomerContext.isOrgAdmin`, the cart-policy schemas, `requiresCartApproval` on the details record and the write port; `organizations`: delete `commands/set-cart-approval-policy.command.ts`, the `organizationCartApprovalWritePort` registration, `Organization.requiresCartApproval`, the field in `services/organization-details-port.ts`; the entities' `role` properties; migrations **M4** and **M5**; every remaining test file naming the enum (the incidental fixtures under *Test allocation*); the consumer changeset | WP-03 … WP-10 | M |
 | **WP-13** | Upgrade replay and performance | `backend/test/integration/organizations/roles-upgrade-replay.test.ts` (new, R-27); the SC-004 comparison on the cart, checkout and placement paths with the existing `backend/test/perf/carts/` harness | WP-12 | M |
 
@@ -359,7 +393,7 @@ and WP-10 drafting alongside.
 | The default trigger hides a production path that forgets to pass a role id | low / medium | the write port's input requires the id; WP-02b asserts every production path passes it; the trigger is documented as the entity default's equivalent |
 | The cache serves a revoked grant beyond 30 s | low / high | the LRU age bound is independent of pub/sub; tests with the subscriber disabled (R-16) |
 | D-198: contract and integration suites do not run on merge requests into the integration branch either | high / medium | each WP pastes its local targeted run; the integration MR requires a full local `pnpm --filter backend run test` |
-| #655, #656 or #680 slip | medium / medium | only WP-00, WP-04 and WP-07 wait; everything else proceeds |
+| #656 slips (#655 and #680 merged, A-4) | medium / medium | only WP-00 and WP-04 wait; everything else proceeds |
 | Storefront work waits on design | medium / low | WP-09 and WP-10 implement against R-12's outline with the designer reviewing; the APIs do not wait |
 | Recorded read sizes move because file counts change | high / low | left alone inside the band; re-record only an entry the band refuses, by re-measuring (`specs/conventions/check-estate.md`) |
 
@@ -395,8 +429,8 @@ pre-research check, and why each verdict stands:
   because the oracle must be recorded by today's code.
 - Then cut `feat/170-organization-roles` and run Wave 1 **serially** (WP-01 → WP-02a → WP-02b).
 - Wave 2 runs up to six agents in parallel on the file sets above; respect the two merge-after
-  constraints (WP-06 after WP-04, WP-08 after WP-03) and the open-PR gates (#655 and #656 for WP-04,
-  #680 for WP-07).
+  constraints (WP-06 after WP-04, WP-08 after WP-03) and the one open-PR gate (#656 for WP-00 and
+  WP-04; #655 and #680 are merged).
 - Every package: a red test first for its FRs; `lazyPort` with a literal name; guards as
   `preHandler`s after `requireCustomer`; no bare `catch` around the port; the legacy read removed in
   the same change; dual-write until WP-12; the inventory over the owned files; the local targeted

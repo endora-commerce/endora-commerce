@@ -564,6 +564,8 @@ gate 12, double-audit shape. *Sequential bus runs* — not atomic.
 
 ## R-23 — Delivery: one integration branch, deprecate then delete
 
+**Status: accepted by owner ruling PR-1 (2026-11-03)** — see `plan.md` § *Plan-phase owner rulings*. WP-00 goes to `master` first and waits for #656.
+
 **Decision.** P1 and P2 are built on an integration branch `feat/170-organization-roles` cut from
 `origin/master` after WP-00 merges. Every work package branches from it and merges back into it; the
 integration branch reaches `master` once, after WP-13. P3 gets its own integration branch later.
@@ -656,6 +658,8 @@ is not in the tree after WP-12.
 
 ## R-28 — Both predefined roles exist by construction; an account without a role is a *Member*
 
+**Status: accepted by owner ruling PR-2 (2026-11-03)** — both triggers are built (WP-02a, WP-02b).
+
 **Decision.** Two database rules, each in the migration of the module that owns the table it fires on:
 
 - **M2 (`organizations`)** installs `after insert on organizations for each row` →
@@ -747,9 +751,9 @@ screen.
 | --- | --- | --- |
 | #647, #654, #659 (cart approval CTA, refusal codes, pending edit) | merged | Baseline behaviour of WP-00's oracle and WP-04 |
 | #656 (#648, placement gate, `ORDER_CART_APPROVAL_REQUIRED`, `cart-approval-policy.ts`) | open | **Blocks WP-00** (the oracle must record placement outcomes) and **WP-04** (rewrites `approvalSubmissionRequired`) |
-| #655 (#651, approval e-mails) | open | **Blocks WP-04**'s FR-035 recipient change (`cart-approval-emails.ts`) |
+| #655 (#651, approval e-mails) | open; **merged 2026-11-03** | **Blocks WP-04**'s FR-035 recipient change (`cart-approval-emails.ts`) |
 | #670 (#665, clone/reorder through the order read scope) | merged | WP-07 swaps the admin test inside `OrderAccessService` only; clone and reorder follow it |
-| #680 (#669, invoices via `OrderReadPort.findByIdForCustomer`) | open | WP-07: FR-049's "its documents" holds through the order scope once #680 lands; WP-07's colleague-invoice test needs it |
+| #680 (#669, invoices via `OrderReadPort.findByIdForCustomer`) | open; **merged 2026-11-03** | WP-07: FR-049's "its documents" holds through the order scope once #680 lands; WP-07's colleague-invoice test needs it |
 | #674 (#666, storefront module presence in nav) | merged | WP-09 builds the account nav on `storefront/lib/module-gate.ts` |
 | #653 | resolved by this feature | WP-06 (`quick_order.one_click`) |
 | #667 (invitation role label) | resolved by this feature | WP-03 |
