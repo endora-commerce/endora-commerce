@@ -89,13 +89,32 @@ another Organization answers `404`, as an unknown one does; a member who is not
 an administrator is refused with `403`. Switching the policy off returns every
 pending or approved basket of the Organization to `not_required`.
 
+On the storefront the administrator does this under **Organization → Carts**
+(`/organization/carts`): the list can be narrowed to the carts awaiting
+approval, and each cart opens on its own page (`/organization/carts/<id>`) with
+its owner, lines, total and the time it was sent. A pending cart offers
+**Approve cart**, and **Reject cart** behind a disclosure, which needs a reason
+of up to 2000 characters. The page confirms the answer, or names the refusal —
+for example a cart that was answered meanwhile (`CART_APPROVAL_NOT_PENDING`).
+
+What the buyer is told after a rejection: a rejection closes the basket
+(`status = 'rejected'`), so the buyer's next read is a new, empty basket whose
+own `approvalStatus` cannot say it was rejected. The cart answer therefore
+carries `previousRejection` — `{ cartId, rejectedAt, reason }` of the buyer's
+most recent rejected basket on that sales channel — and the storefront's cart
+page shows it, with the reason. It is answered while the current basket has not
+been sent for approval and no basket of the buyer's on the channel has been
+ordered (or converted to a quote request) since the rejection; otherwise, and
+for an anonymous basket, it is `null`. The rejected basket's lines are not
+copied into the new one.
+
 ## Public surface
 
 ### Storefront (buyer)
 
 | Verb + Path | Purpose |
 | --- | --- |
-| `GET /api/v1/cart` | The active cart of the request's sales channel (lazy-create); the payload includes `status`, `approvalStatus`, `salesChannelId`, `grandTotal`, `discount`, `primaryCta`, `droppedLines`, `couponDroppedThisRead`, `lastActivityAt` |
+| `GET /api/v1/cart` | The active cart of the request's sales channel (lazy-create); the payload includes `status`, `approvalStatus`, `salesChannelId`, `grandTotal`, `discount`, `primaryCta`, `droppedLines`, `couponDroppedThisRead`, `lastActivityAt`, `previousRejection` |
 | `POST /api/v1/cart/items` | Add line item (200-line cap enforced) |
 | `PATCH /api/v1/cart/items/:itemId` | Update quantity (accepts `0` to delete) |
 | `DELETE /api/v1/cart/items/:itemId` | Remove line |
@@ -113,7 +132,7 @@ pending or approved basket of the Organization to `not_required`.
 | Verb + Path | Purpose |
 | --- | --- |
 | `GET /api/v1/organization/carts` | List every cart in the caller's Organization |
-| `GET /api/v1/organization/carts/:id` | Detail (member-owned cart) |
+| `GET /api/v1/organization/carts/:id` | Detail of a member's cart, with its lines (`items`: name, SKU, quantity, unit price and line total as stored) |
 | `PATCH /api/v1/organization/policies/cart-approval` | Toggle `requires_cart_approval` for the Organization |
 | `POST /api/v1/cart/submit-for-approval` | Buyer submits cart for Org-Admin approval. Refused with `422 CART_APPROVAL_NOT_REQUIRED` when the policy is off, `422 CART_APPROVAL_SELF_SUBMIT` for Org-Admins themselves, `422 CART_APPROVAL_ALREADY_SUBMITTED` for a cart already sent, and for a basket below a minimum — see *Order minimums* |
 | `POST /api/v1/organization/carts/:id/approve` | Approve a pending cart; a cart not awaiting approval is `422 CART_APPROVAL_NOT_PENDING` |

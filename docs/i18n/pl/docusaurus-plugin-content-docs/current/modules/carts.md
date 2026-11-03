@@ -94,13 +94,30 @@ członek, do którego koszyk należy. Koszyk innej organizacji zwraca `404`, tak
 członek, który nie jest administratorem, dostaje odmowę `403`. Wyłączenie wymogu akceptacji przywraca
 każdy oczekujący lub zaakceptowany koszyk organizacji do `not_required`.
 
+W sklepie administrator robi to w sekcji **Organizacja → Koszyki** (`/organization/carts`): listę
+można zawęzić do koszyków oczekujących na akceptację, a każdy koszyk otwiera się na własnej stronie
+(`/organization/carts/<id>`) z właścicielem, pozycjami, sumą i czasem przesłania. Oczekujący koszyk
+oferuje **Zaakceptuj koszyk** oraz — za rozwijanym przełącznikiem — **Odrzuć koszyk**, które wymaga
+podania powodu o długości do 2000 znaków. Strona potwierdza decyzję albo nazywa odmowę — na
+przykład koszyk, w sprawie którego decyzja już zapadła (`CART_APPROVAL_NOT_PENDING`).
+
+Co kupujący dowiaduje się po odrzuceniu: odrzucenie zamyka koszyk (`status = 'rejected'`), więc przy
+następnym odczycie kupujący dostaje nowy, pusty koszyk, którego własny `approvalStatus` nie może
+powiedzieć, że został odrzucony. Dlatego odpowiedź koszyka zawiera `previousRejection` —
+`{ cartId, rejectedAt, reason }` ostatniego odrzuconego koszyka kupującego w danym kanale sprzedaży
+— a strona koszyka w sklepie pokazuje tę informację wraz z powodem. Pole jest wypełnione, dopóki
+bieżący koszyk nie zostanie przesłany do akceptacji i dopóki od odrzucenia żaden koszyk kupującego
+w tym kanale nie zostanie zamówiony (ani zamieniony na zapytanie ofertowe); w przeciwnym razie, a
+także dla koszyka anonimowego, ma wartość `null`. Pozycje odrzuconego koszyka nie są kopiowane do
+nowego.
+
 ## API publiczne
 
 ### Storefront (kupujący)
 
 | Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
-| `GET /api/v1/cart` | Aktywny koszyk kanału sprzedaży żądania (tworzony przy pierwszym odczycie); odpowiedź zawiera `status`, `approvalStatus`, `salesChannelId`, `grandTotal`, `discount`, `primaryCta`, `droppedLines`, `couponDroppedThisRead`, `lastActivityAt` |
+| `GET /api/v1/cart` | Aktywny koszyk kanału sprzedaży żądania (tworzony przy pierwszym odczycie); odpowiedź zawiera `status`, `approvalStatus`, `salesChannelId`, `grandTotal`, `discount`, `primaryCta`, `droppedLines`, `couponDroppedThisRead`, `lastActivityAt`, `previousRejection` |
 | `POST /api/v1/cart/items` | Dodanie pozycji (limit 200 pozycji) |
 | `PATCH /api/v1/cart/items/:itemId` | Zmiana ilości (`0` usuwa pozycję) |
 | `DELETE /api/v1/cart/items/:itemId` | Usunięcie pozycji |
@@ -118,7 +135,7 @@ każdy oczekujący lub zaakceptowany koszyk organizacji do `not_required`.
 | Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
 | `GET /api/v1/organization/carts` | Lista wszystkich koszyków w organizacji wywołującego |
-| `GET /api/v1/organization/carts/:id` | Szczegóły koszyka członka organizacji |
+| `GET /api/v1/organization/carts/:id` | Szczegóły koszyka członka organizacji wraz z pozycjami (`items`: nazwa, SKU, ilość, cena jednostkowa i wartość pozycji w zapisanej wysokości) |
 | `PATCH /api/v1/organization/policies/cart-approval` | Włączenie lub wyłączenie `requires_cart_approval` dla organizacji |
 | `POST /api/v1/cart/submit-for-approval` | Kupujący przekazuje koszyk do akceptacji administratorowi organizacji. Odrzucane z `422 CART_APPROVAL_NOT_REQUIRED`, gdy akceptacja jest wyłączona, z `422 CART_APPROVAL_SELF_SUBMIT` dla samych administratorów organizacji, z `422 CART_APPROVAL_ALREADY_SUBMITTED` dla koszyka już przekazanego oraz dla koszyka poniżej minimum — zob. *Minimalne ilości zamówienia* |
 | `POST /api/v1/organization/carts/:id/approve` | Akceptacja oczekującego koszyka; koszyk, który nie oczekuje na akceptację, daje `422 CART_APPROVAL_NOT_PENDING` |
