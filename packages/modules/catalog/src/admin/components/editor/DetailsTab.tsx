@@ -152,6 +152,8 @@ export function DetailsTab({ attributeSets, categories, categoriesLoading }: Det
         />
       </Section>
 
+      <hr className="b2b-hr" />
+
       <Section title={t('productEditor.section.categories')}>
         <EditorField<string[]>
           fieldPath="product:categoryIds"

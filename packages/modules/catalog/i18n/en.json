@@ -1485,5 +1485,6 @@
   "productEditor.visibility.organization_restricted": "Selected organizations",
   "productEditor.visibility.hidden": "Hidden",
   "productEditor.visibility.shown": "Shown",
-  "productEditor.wholeProduct.caption": "Whole product — applies to every scope"
+  "productEditor.wholeProduct.caption": "Whole product — applies to every scope",
+  "productEditor.error.skuRequired": "Enter a SKU."
 }

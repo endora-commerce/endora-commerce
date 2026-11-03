@@ -1485,5 +1485,6 @@
   "productEditor.visibility.organization_restricted": "Wybrane organizacje",
   "productEditor.visibility.hidden": "Ukryte",
   "productEditor.visibility.shown": "Widoczne",
-  "productEditor.wholeProduct.caption": "Cały produkt — dotyczy każdego zakresu"
+  "productEditor.wholeProduct.caption": "Cały produkt — dotyczy każdego zakresu",
+  "productEditor.error.skuRequired": "Wpisz SKU."
 }

@@ -70,6 +70,10 @@ export function ProductCreateForm(): ReactNode {
   const submit = async (event: FormEvent): Promise<void> => {
     event.preventDefault();
     setError(null);
+    if (sku.trim() === '') {
+      setError(t('productEditor.error.skuRequired'));
+      return;
+    }
     if (name.trim() === '') {
       setError(t('productEditor.error.nameRequired'));
       return;
@@ -96,7 +100,7 @@ export function ProductCreateForm(): ReactNode {
 
   return (
     <div className="b2b-page b2b-page--wide">
-      <form onSubmit={(e): void => void submit(e)}>
+      <form noValidate onSubmit={(e): void => void submit(e)}>
         <div className="b2b-page-head">
           <div className="b2b-grow">
             <button type="button" className="b2b-page-head__back" onClick={(): void => void navigate('/catalog/products')}>
@@ -123,7 +127,7 @@ export function ProductCreateForm(): ReactNode {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(14rem, 1fr))', gap: 12 }}>
               <div>
                 <Label htmlFor="sku">{t('productEditor.field.sku')}</Label>
-                <Input id="sku" value={sku} onChange={(e): void => setSku(e.target.value)} required />
+                <Input id="sku" value={sku} onChange={(e): void => setSku(e.target.value)} aria-required="true" />
               </div>
               <div>
                 <Label htmlFor="ptype">{t('productEditor.field.type')}</Label>
