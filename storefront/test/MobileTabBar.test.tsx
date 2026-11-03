@@ -28,10 +28,12 @@ const labels = {
   account: 'Account',
 };
 
+const present = { quoteRequests: true, quickOrder: true };
+
 describe('MobileTabBar', () => {
   it('renders all five tab captions', () => {
     currentPath = '/';
-    const html = renderToString(<MobileTabBar labels={labels} />);
+    const html = renderToString(<MobileTabBar labels={labels} present={present} />);
     for (const label of Object.values(labels)) {
       expect(html).toContain(label);
     }
@@ -39,21 +41,21 @@ describe('MobileTabBar', () => {
 
   it('marks the tab matching the current route as active', () => {
     currentPath = '/quote-request';
-    const html = renderToString(<MobileTabBar labels={labels} />);
+    const html = renderToString(<MobileTabBar labels={labels} present={present} />);
     expect(html).toContain('aria-current="page"');
     expect(html).toContain('is-active');
   });
 
   it('treats a quote-request route as the Quote tab', () => {
     currentPath = '/quote-request/success';
-    const html = renderToString(<MobileTabBar labels={labels} />);
+    const html = renderToString(<MobileTabBar labels={labels} present={present} />);
     expect(html).toContain('is-active');
   });
 
   it('shows the cart badge when the seeded count is positive', () => {
     currentPath = '/';
     const html = renderToString(
-      <MobileTabBar cartItemCount={5} labels={labels} />,
+      <MobileTabBar cartItemCount={5} labels={labels} present={present} />,
     );
     expect(html).toContain('m-tabbar__badge');
     expect(html).toContain('>5<');
@@ -62,7 +64,7 @@ describe('MobileTabBar', () => {
   it('hides the cart badge when the cart is empty', () => {
     currentPath = '/';
     const html = renderToString(
-      <MobileTabBar cartItemCount={0} labels={labels} />,
+      <MobileTabBar cartItemCount={0} labels={labels} present={present} />,
     );
     expect(html).not.toContain('m-tabbar__badge');
   });

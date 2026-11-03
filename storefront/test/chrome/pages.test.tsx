@@ -15,9 +15,14 @@ const POLISH = /[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/;
 
 let locale = 'en-US';
 let shop = { supportEmail: '', contactEmail: '', phone: '' };
+let absentModules: string[] = [];
 
 vi.mock('../../lib/server-context', () => ({
-  getServerContext: async () => ({ locale, ctx: { locale }, modules: {} }),
+  getServerContext: async () => ({
+    locale,
+    ctx: { locale },
+    modules: { isPresent: (id: string) => !absentModules.includes(id), presentIds: [], absentIds: absentModules },
+  }),
 }));
 vi.mock('../../lib/api/catalog', () => ({
   getCategoryTree: async () => [],
@@ -43,9 +48,20 @@ async function render(page: () => Promise<ReactNode>): Promise<string> {
 beforeEach(() => {
   locale = 'en-US';
   shop = { supportEmail: '', contactEmail: '', phone: '' };
+  absentModules = [];
 });
 
 describe('the built-in home page', () => {
+  // Issue #666 — the hero's quick-order call to action leads to a page that
+  // answers not-found while `quick_order` is off, so it goes with the module.
+  it('offers the quick-order call to action only while quick_order is present', async () => {
+    expect(await render(() => HomePage({}))).toContain('href="/quick-order"');
+    absentModules = ['quick_order'];
+    const html = await render(() => HomePage({}));
+    expect(html).not.toContain('href="/quick-order"');
+    expect(html).toContain('href="/catalog"');
+  });
+
   it('is in English for an English shop', async () => {
     const html = await render(() => HomePage({}));
     expect(html).toContain('Industrial components');

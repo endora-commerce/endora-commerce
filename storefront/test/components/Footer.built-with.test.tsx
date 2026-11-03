@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { renderToString } from 'react-dom/server';
+import type { ModulePresenceSet } from '../../lib/api/module-presence';
 import { Footer, BUILT_WITH_URL } from '../../components/Footer';
+
+const ALL_PRESENT: ModulePresenceSet = { isPresent: () => true, presentIds: [], absentIds: [] };
 
 /**
  * The footer credits the platform: "Built with ❤️ using Endora Commerce", where
@@ -9,7 +12,7 @@ import { Footer, BUILT_WITH_URL } from '../../components/Footer';
  * site's analytics from every other referral.
  */
 describe('Footer — the "built with" credit', () => {
-  const html = renderToString(<Footer locale="en-US" />);
+  const html = renderToString(<Footer locale="en-US" modules={ALL_PRESENT} />);
 
   it('says what the shop is built with', () => {
     expect(html).toContain('Built with');
@@ -47,7 +50,7 @@ describe('Footer — the "built with" credit', () => {
  */
 describe('Footer — where the "built with" credit sits', () => {
   const html = renderToString(
-    <Footer locale="en-US" bottom={<p>hook-bottom-slot</p>} copyright={<span>hook-copyright-slot</span>} />,
+    <Footer locale="en-US" modules={ALL_PRESENT} bottom={<p>hook-bottom-slot</p>} copyright={<span>hook-copyright-slot</span>} />,
   );
   const credit = html.indexOf('Built with');
 
