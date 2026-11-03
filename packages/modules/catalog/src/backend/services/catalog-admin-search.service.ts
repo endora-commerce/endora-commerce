@@ -14,8 +14,9 @@ import type {
  * inactive and archived ones included (FR-016) — with no channel or audience
  * filter, because the admin screens have none (research R-19). Only the
  * selected fields are matched, literally (`likeEscaped`, Postgres' default
- * `\` LIKE escape). A name matches in **any** language (one value of the
- * per-language map, never a key); `quickSearchAttributes` are the attributes
+ * `\` LIKE escape). A product matches on its Global name (feature 170,
+ * FR-031: one string); a category name matches in **any** language (one value
+ * of its per-language map, never a key); `quickSearchAttributes` are the attributes
  * this module flags `quickSearchable`, read through its own attribute port as
  * the storefront type-ahead does. Identifiers (SKU, slug) rank exact → prefix
  * → the rest, then most recent change, then id; `limit + 1` rows, no count.
@@ -34,11 +35,7 @@ export class CatalogAdminSearchService {
       : [];
     const matches: Array<(qb: Knex.QueryBuilder) => void> = [];
     if (fields.has('sku')) matches.push((qb) => qb.orWhereRaw('"sku" ilike ?', [contains]));
-    if (fields.has('name')) {
-      matches.push((qb) =>
-        qb.orWhereRaw('exists (select 1 from jsonb_each_text("name") n where n.value ilike ?)', [contains]),
-      );
-    }
+    if (fields.has('name')) matches.push((qb) => qb.orWhereRaw('"name" ilike ?', [contains]));
     if (fields.has('slug')) matches.push((qb) => qb.orWhereRaw('"slug" ilike ?', [contains]));
     for (const key of quickKeys) {
       matches.push((qb) => qb.orWhereRaw('"attribute_values"->>? ilike ?', [key, contains]));
@@ -48,7 +45,7 @@ export class CatalogAdminSearchService {
     const rows = await this.#page<{
       id: string;
       sku: string;
-      name: Record<string, string>;
+      name: string;
       type: string;
       status: string;
     }>('products', ['id', 'sku', 'name', 'type', 'status'], matches, identifiers, query);
@@ -57,7 +54,7 @@ export class CatalogAdminSearchService {
       rows: rows.slice(0, query.limit).map((r) => ({
         id: r.id,
         sku: r.sku,
-        name: parseJson(r.name),
+        name: r.name,
         type: r.type,
         status: r.status,
       })),

@@ -40,7 +40,8 @@ export interface CatalogAdminSearchQuery {
 export interface ProductAdminSearchRow {
   readonly id: string;
   readonly sku: string;
-  readonly name: Record<string, string>;
+  /** Feature 170 (FR-031) — the Global name, shown whatever the admin's language. */
+  readonly name: string;
   readonly type: string;
   readonly status: string;
 }
@@ -104,7 +105,7 @@ export function createProductAdminSearchProvider(deps: ProductAdminSearchProvide
           const statusKey = PRODUCT_ADMIN_SEARCH_STATUS_KEYS[row.status];
           return {
             id: row.id,
-            title: pickLocalizedName(row.name, query.language) ?? row.sku,
+            title: row.name !== '' ? row.name : row.sku,
             subtitle: `${row.sku} · ${row.type}`,
             status: {
               code: row.status,

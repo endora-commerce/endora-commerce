@@ -15,7 +15,9 @@ import {
 
 /**
  * `specs/150-admin-global-search/` T047 — the Product and Category providers:
- * each field, a name in any language shown in the admin's, drafts and inactive
+ * each field, a product's Global name (feature 170, FR-031: one string, shown
+ * whatever the admin's language), a category name in any language shown in the
+ * admin's, drafts and inactive
  * products found with their status, deleted ones never, quick-search
  * attributes limited to the flagged ones, and a category's parent path.
  */
@@ -45,7 +47,7 @@ describe('admin global search — Product and Category providers (spec 150)', ()
       over: {
         sku: string;
         slug?: string;
-        name?: Record<string, string>;
+        name?: string;
         status?: string;
         archivedAt?: Date;
         attributeValues?: Record<string, unknown>;
@@ -56,8 +58,8 @@ describe('admin global search — Product and Category providers (spec 150)', ()
         slug: over.slug ?? `item-${Math.random().toString(36).slice(2, 12)}`,
         type: 'simple',
         status: (over.status ?? 'active') as never,
-        name: over.name ?? { 'en-US': 'Item' },
-        description: { 'en-US': '' },
+        name: over.name ?? 'Item',
+        description: null,
         visibility: 'public',
         attributeValues: over.attributeValues ?? {},
         ...(over.archivedAt ? { archivedAt: over.archivedAt } : {}),
@@ -66,7 +68,7 @@ describe('admin global search — Product and Category providers (spec 150)', ()
       ids[key] = (row as { id: string }).id;
     };
     await product('sku', { sku: `SKU${T}-1` });
-    await product('name', { sku: `N-${T}`, name: { 'en-US': 'Plain chair', 'pl-PL': `Krzesło NAZWA${T}` } });
+    await product('name', { sku: `N-${T}`, name: `Krzesło NAZWA${T}` });
     await product('slug', { sku: `S-${T}`, slug: `slug${T}-red` });
     await product('quickSearchAttributes', { sku: `F-${T}`, attributeValues: { [`gs_flag_${T}`]: `FLAG${T}` } });
     await product('plain', { sku: `P-${T}`, attributeValues: { [`gs_plain_${T}`]: `HIDDEN${T}` } });
@@ -118,9 +120,9 @@ describe('admin global search — Product and Category providers (spec 150)', ()
     expect(await productIds(`HIDDEN${T}`, ['sku', 'name', 'slug', 'quickSearchAttributes'])).toEqual([]);
   });
 
-  it('matches a name in another language and shows the admin’s language', async () => {
+  it('matches the Global name and shows it whatever the admin’s language (170, FR-031)', async () => {
     const [en] = (await searchAsPlatform(product(), providerQuery(`NAZWA${T}`, ['name'], { language: 'en' }))).hits;
-    expect(en?.title).toBe('Plain chair');
+    expect(en?.title).toBe(`Krzesło NAZWA${T}`);
     const [pl] = (await searchAsPlatform(product(), providerQuery(`NAZWA${T}`, ['name'], { language: 'pl' }))).hits;
     expect(pl?.title).toBe(`Krzesło NAZWA${T}`);
     expect(pl?.targetRoute).toBe(`/catalog/products/${ids['name']}`);

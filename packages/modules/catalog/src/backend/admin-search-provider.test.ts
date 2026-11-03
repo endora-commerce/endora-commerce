@@ -89,10 +89,10 @@ describe('pickLocalizedName', () => {
 });
 
 describe('catalog admin search providers — mapping', () => {
-  it('maps a product to its screen, named in the admin language, with SKU, type and status', async () => {
+  it('maps a product to its screen, named by its Global name (170, FR-031), with SKU, type and status', async () => {
     const translate = vi.fn(async (key: string, language: string) => `${language}:${key}`);
     const search = vi.fn(async () => ({
-      rows: [{ id: 'p1', sku: 'CHAIR-RED', name: { 'en-US': 'Red chair', 'pl-PL': 'Czerwone krzesło' }, type: 'simple', status: 'inactive' }],
+      rows: [{ id: 'p1', sku: 'CHAIR-RED', name: 'Czerwone krzesło', type: 'simple', status: 'inactive' }],
       hasMore: false,
     }));
     const provider = createProductAdminSearchProvider({ search, translate });
