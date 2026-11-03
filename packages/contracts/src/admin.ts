@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { adminPreferencesSchema } from './admin-preferences.js';
 import { isoDateTimeSchema, uuidSchema } from './common.js';
+import { organizationRoleRefSchema } from './organization-roles.js';
 
 /**
  * Admin module contracts (US4) — AdminUser, AdminRole, Impersonation,
@@ -81,7 +82,13 @@ export const impersonationStartResponseSchema = z.object({
     email: z.string().email(),
     firstName: z.string(),
     lastName: z.string(),
+    /** @deprecated Read `organizationRole` (`specs/170-organization-roles/`, FR-062, FR-073). */
     role: z.enum(['organization_admin', 'regular_user']),
+    /**
+     * The impersonated member's role — whose permissions the impersonation acts
+     * under (spec *Impersonation*). Optional until the route fills it; replaces `role`.
+     */
+    organizationRole: organizationRoleRefSchema.optional(),
   }),
 });
 export type ImpersonationStartResponse = z.infer<typeof impersonationStartResponseSchema>;

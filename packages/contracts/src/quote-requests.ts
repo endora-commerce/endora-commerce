@@ -985,6 +985,9 @@ export interface RfqCustomerContext {
   /**
    * True when the account holds the org-admin role on the current
    * organisation (FR-011 — broader visibility).
+   *
+   * @deprecated Ask `organizationPermissionPort.isAdministrator` instead
+   * (`specs/170-organization-roles/`, research R-30); removed with the legacy enum.
    */
   isOrgAdmin: boolean;
 }

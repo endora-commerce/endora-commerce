@@ -809,6 +809,38 @@ export const ExclusiveCapabilitySchema = z.object({
 });
 export type ExclusiveCapability = z.infer<typeof ExclusiveCapabilitySchema>;
 
+/**
+ * The shape of an **organization permission** code (`specs/170-organization-roles/`,
+ * FR-020, research R-2): `<module>.<action>`, lower snake case, exactly one dot.
+ *
+ * The operator vocabulary is `<area>:<action>` (`permissions` below). Two
+ * shapes make a mix-up visible in review, and the permission inventory's
+ * `cross-vocabulary` finding makes it fail the build.
+ */
+export const ORGANIZATION_PERMISSION_CODE = /^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/;
+
+/**
+ * One organization permission a module declares — a buyer action its routes
+ * or services gate (`contracts/organization-permissions-manifest.md` §1).
+ *
+ * `label` and `description` are the English fallbacks; the translations live
+ * in the declaring module's own bundle under
+ * `organizationPermissions.<code>.label` and `.description`. `memberDefault`
+ * says whether an Organization's *Member* role holds the code from the moment
+ * it is first offered (FR-021, research R-17).
+ */
+export const moduleOrganizationPermissionDeclarationSchema = z
+  .object({
+    code: z.string().regex(ORGANIZATION_PERMISSION_CODE),
+    label: z.string().min(1).max(160),
+    description: z.string().min(1).max(500),
+    memberDefault: z.boolean(),
+  })
+  .strict();
+export type ModuleOrganizationPermissionDeclaration = z.infer<
+  typeof moduleOrganizationPermissionDeclarationSchema
+>;
+
 export const ModuleManifestSchema = z.object({
   id: z.string().regex(moduleIdRe),
   name: z.string().min(1).max(120),
@@ -883,6 +915,17 @@ export const ModuleManifestSchema = z.object({
    * when the module is enabled (feature 026).
    */
   permissions: z.array(modulePermissionDeclarationSchema).optional(),
+  /**
+   * The **organization** permissions this module declares — the buyer actions
+   * its routes and services gate (`specs/170-organization-roles/`, FR-020). A
+   * different vocabulary from `permissions` above, which is the operator's;
+   * the two never meet. Each code sits in this module's own namespace
+   * (`<id>.<action>`), which {@link defineModuleManifest} enforces.
+   *
+   * Absent means "this module gates no buyer action", which is true of most
+   * modules and is not a finding.
+   */
+  organizationPermissions: z.array(moduleOrganizationPermissionDeclarationSchema).optional(),
   /**
    * Per-module transactional email declarations (feature 047). Each entry is
    * reconciled into `transactional_emails` at boot; default subject/content are
@@ -1220,6 +1263,42 @@ function assertNonBindingRules(m: ModuleManifest): void {
  * condition it on, and adding one would be a self-certified exemption issued by
  * the measured party.
  */
+/**
+ * The organization-permission rules `defineModuleManifest` can decide from one
+ * manifest (`contracts/organization-permissions-manifest.md` §1; research R-2):
+ * the code's shape, its namespace, and no code twice. Whether a code is also an
+ * operator code, enforced somewhere and labelled in every language needs the
+ * whole tree, and is the permission inventory's.
+ */
+function assertOrganizationPermissionRules(m: ModuleManifest): void {
+  const seen = new Set<string>();
+  for (const declaration of m.organizationPermissions ?? []) {
+    const code = declaration.code;
+    if (!ORGANIZATION_PERMISSION_CODE.test(code)) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" declares organization permission ` +
+          `"${code}", which is not \`<module>.<action>\` in lower snake case ` +
+          `(${String(ORGANIZATION_PERMISSION_CODE)}) — the operator vocabulary is ` +
+          '`<area>:<action>`, and the two never meet.',
+      );
+    }
+    if (code.slice(0, code.indexOf('.')) !== m.id) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" declares organization permission ` +
+          `"${code}", which is outside its own namespace ("${m.id}.<action>") — a ` +
+          'code is declared by the module whose buyer action it gates.',
+      );
+    }
+    if (seen.has(code)) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" declares organization permission ` +
+          `"${code}" twice — one code has one label, one description and one default.`,
+      );
+    }
+    seen.add(code);
+  }
+}
+
 function assertErrorCodeRules(m: ModuleManifest): void {
   const seenCodes = new Set<string>();
   for (const declaration of m.errorCodes ?? []) {
@@ -1502,6 +1581,7 @@ export function defineModuleManifest(m: ModuleManifest): ModuleManifest {
   assertNonBindingRules(m);
   assertCapabilityRules(m);
   assertErrorCodeRules(m);
+  assertOrganizationPermissionRules(m);
   assertBlockRules(m);
   assertDemoRules(m);
   assertEnvironmentInputRules(m);

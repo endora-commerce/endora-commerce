@@ -55,6 +55,14 @@ export interface ActorCustomer {
    * that requires an Organization asserts it (`customerContextResolver`).
    */
   organizationId: string | null;
+  /**
+   * The member's organization role (`specs/170-organization-roles/`, research
+   * R-15). The auth hook reads the account behind the session once per request
+   * and stamps the role id it holds, so a permission check on the cart path
+   * costs no read of its own. `null` (or absent) when the resolver answers none
+   * — the permission port then reads the account itself.
+   */
+  organizationRoleId?: string | null;
   /** Non-null when a Supplier employee is acting on behalf of this Customer. */
   impersonatorAdminUserId: string | null;
 }

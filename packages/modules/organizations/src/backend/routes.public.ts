@@ -364,8 +364,12 @@ function serializeCustomerAccount(c: CustomerAccountRecord) {
  * cart id. See specs/037-cart-merge-on-login/contracts/cart-merge.md § 1.
  */
 function narrowCartMergeForHttp(internal: CartMergeOutcome): CartMergeOutcomePublic {
+  // `skipped_permission` (owner ruling PR-12, `specs/170-organization-roles/`)
+  // changed nothing the buyer sees in their own basket, so it is a `noop` here.
   const outcome =
-    internal.outcome === 'noop_empty' || internal.outcome === 'noop_no_anon'
+    internal.outcome === 'noop_empty' ||
+    internal.outcome === 'noop_no_anon' ||
+    internal.outcome === 'skipped_permission'
       ? 'noop'
       : internal.outcome;
   return { outcome, destinationCartId: internal.destinationCartId };

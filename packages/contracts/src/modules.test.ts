@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { CAPABILITY_KEYS } from './capabilities.js';
-import { defineModuleManifest, type ModuleManifest } from './modules.js';
+import {
+  ORGANIZATION_PERMISSION_CODE,
+  defineModuleManifest,
+  moduleOrganizationPermissionDeclarationSchema,
+  type ModuleManifest,
+} from './modules.js';
 
 /**
  * `specs/132-connector-family-discovery/contracts/module-capabilities.md` R4 —
@@ -171,5 +176,95 @@ describe('defineModuleManifest — capability declarations (feature 132, contrac
       expect(message).toContain('fixture_self_family');
       expect(message).toContain('pim-connector');
     });
+  });
+});
+
+/**
+ * `specs/170-organization-roles/` WP-01 (T008) — the `organizationPermissions`
+ * manifest field (`contracts/organization-permissions-manifest.md` §1; FR-020,
+ * research R-2). The vocabulary a buyer's role is built from is declared by the
+ * module whose action each code gates, in that module's own namespace.
+ */
+describe('defineModuleManifest — organization permission declarations (feature 170)', () => {
+  const declaration = (code: string) => ({
+    code,
+    label: 'Create and edit carts',
+    description: 'Add products to a cart and change it.',
+    memberDefault: true,
+  });
+
+  it('accepts a declaration in the module\'s own namespace', () => {
+    const parsed = manifest({
+      id: 'fixture_carts',
+      organizationPermissions: [declaration('fixture_carts.create'), { ...declaration('fixture_carts.approve'), memberDefault: false }],
+    });
+    expect(parsed.organizationPermissions?.map((d) => d.code)).toEqual([
+      'fixture_carts.create',
+      'fixture_carts.approve',
+    ]);
+  });
+
+  it('accepts a manifest that declares none — absent is most modules and is not a finding', () => {
+    expect(manifest({ id: 'fixture_silent' }).organizationPermissions).toBeUndefined();
+  });
+
+  it('spells a code `<module>.<action>` in lower snake case, never the operator `area:action` shape', () => {
+    expect(ORGANIZATION_PERMISSION_CODE.test('carts.order_without_approval')).toBe(true);
+    expect(ORGANIZATION_PERMISSION_CODE.test('carts:create')).toBe(false);
+    expect(ORGANIZATION_PERMISSION_CODE.test('Carts.create')).toBe(false);
+    expect(ORGANIZATION_PERMISSION_CODE.test('carts.create.extra')).toBe(false);
+    expect(ORGANIZATION_PERMISSION_CODE.test('carts')).toBe(false);
+  });
+
+  it('refuses a code that does not match ORGANIZATION_PERMISSION_CODE, naming module and code', () => {
+    let message = '';
+    try {
+      manifest({ id: 'fixture_carts', organizationPermissions: [declaration('fixture_carts:create')] });
+    } catch (err) {
+      message = (err as Error).message;
+    }
+    expect(message).toContain('fixture_carts');
+    expect(message).toContain('fixture_carts:create');
+  });
+
+  it('refuses a code whose prefix is not the manifest id (R-2), naming module and code', () => {
+    let message = '';
+    try {
+      manifest({ id: 'fixture_carts', organizationPermissions: [declaration('orders.view_organization')] });
+    } catch (err) {
+      message = (err as Error).message;
+    }
+    expect(message).toContain('fixture_carts');
+    expect(message).toContain('orders.view_organization');
+  });
+
+  it('refuses a prefix that merely starts with the manifest id', () => {
+    expect(() =>
+      manifest({ id: 'fixture_carts', organizationPermissions: [declaration('fixture_carts_extra.create')] }),
+    ).toThrow(/fixture_carts_extra\.create/);
+  });
+
+  it('refuses a duplicate code inside one manifest, naming module and code', () => {
+    let message = '';
+    try {
+      manifest({
+        id: 'fixture_carts',
+        organizationPermissions: [declaration('fixture_carts.create'), declaration('fixture_carts.create')],
+      });
+    } catch (err) {
+      message = (err as Error).message;
+    }
+    expect(message).toContain('fixture_carts');
+    expect(message).toContain('fixture_carts.create');
+  });
+
+  it('refuses an unknown key on a declaration, and an empty label or description', () => {
+    const valid = declaration('carts.create');
+    expect(moduleOrganizationPermissionDeclarationSchema.safeParse(valid).success).toBe(true);
+    expect(moduleOrganizationPermissionDeclarationSchema.safeParse({ ...valid, requires: [] }).success).toBe(false);
+    expect(moduleOrganizationPermissionDeclarationSchema.safeParse({ ...valid, label: '' }).success).toBe(false);
+    expect(moduleOrganizationPermissionDeclarationSchema.safeParse({ ...valid, description: '' }).success).toBe(false);
+    const { memberDefault: _omitted, ...withoutDefault } = valid;
+    expect(moduleOrganizationPermissionDeclarationSchema.safeParse(withoutDefault).success).toBe(false);
   });
 });

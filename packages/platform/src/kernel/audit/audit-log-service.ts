@@ -58,6 +58,9 @@ export class AuditLogService implements AuditPort {
       ...(input.impersonatedCustomerAccountId !== undefined
         ? { impersonatedCustomerAccountId: input.impersonatedCustomerAccountId }
         : {}),
+      ...(input.actorCustomerAccountId !== undefined
+        ? { actorCustomerAccountId: input.actorCustomerAccountId }
+        : {}),
       ...(input.stateBefore !== undefined ? { stateBefore: input.stateBefore } : {}),
       ...(input.stateAfter !== undefined ? { stateAfter: input.stateAfter } : {}),
       ...(input.ipAddress !== undefined ? { ipAddress: input.ipAddress } : {}),
