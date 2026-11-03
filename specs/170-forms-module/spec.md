@@ -305,11 +305,17 @@ follow the page's language, and the untranslated language falls back to the defa
 
 **Acceptance Scenarios**:
 
-1. **Given** a form, **When** the operator switches the builder to another storefront language,
-   **Then** they edit only the text of that language; structure, logic and validation are shared by
-   every language.
+1. **Given** a form, **When** the operator switches the builder's content language (in the
+   builder's header, shared by the *Fields*, *Settings* and *Notifications* tabs) to another
+   storefront language, **Then** they edit only the text of that language, each in its own place
+   in the builder; structure, logic and validation are shared by every language and are locked
+   there, with a note that they are edited in the default language.
 2. **Given** a text left untranslated, **When** the storefront renders that language, **Then** the
-   form's default-language text is shown, and the builder marks the language as incomplete.
+   form's default-language text is shown; in the builder that text's empty input shows the
+   default-language text as its placeholder, and the language switch marks the language as
+   incomplete with the number of missing texts and a way to go to the first one.
+   *(2026-11-03 owner review: the former *Translations* tab was replaced by this in-builder
+   language switch.)*
 3. **Given** validation errors, **When** they are shown to a shopper, **Then** built-in messages
    (required, invalid e-mail, too long, out of range…) are in the shopper's language, and an
    operator-written message overrides the built-in one where the operator set it.

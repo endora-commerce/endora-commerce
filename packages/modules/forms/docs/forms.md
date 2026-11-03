@@ -57,12 +57,17 @@ your storefronts serve). The form gets a **key** derived from the name — a sta
 by the export and by integrations. You can change the key, but every key is unique among forms.
 
 A new form is a **draft**: it is not available to shoppers until you publish it. The builder has
-five tabs.
+four tabs — *Fields*, *Settings*, *Notifications* and *Versions* — and, above them, the
+[content language](#translations) switch they share.
 
 ### Fields
 
+The *Form* card at the top holds the form's name — seen only by administrators — and the texts
+shoppers see around the fields: the title, the description and the text of the send button.
+
 Drag a field from the palette onto a section, or press it to add it to the section you are
-editing; every move is also possible with the keyboard. Sections are laid out in 1, 2 or 3
+editing; every move is also possible with the keyboard. Select a field to edit it in the panel
+beside the canvas, grouped into basics, validation, conditional logic and integrations. Sections are laid out in 1, 2 or 3
 columns, and each field takes a width in those columns. On a narrow screen the storefront stacks
 every field in one column.
 
@@ -173,11 +178,19 @@ listed in the platform's e-mail delivery log. The delivery records never hold th
 
 Every text you write — the title and description, labels, placeholders, help texts, option
 labels, content, consent texts, messages, the confirmation and the e-mail subject and text — can
-be written per storefront language. The *Translations* tab lists every text of the form beside
-its default-language original. Only texts can be edited there, so the form has the same fields,
-options and rules in every language. A language with missing texts is marked; a missing text
-falls back to the form's default language. Built-in texts — validation messages, the submit
-button, outcomes — come translated with the storefront.
+be written per storefront language. The **content language** switch at the top of the builder
+lists your storefront languages, the form's default language first; the *Fields*, *Settings* and
+*Notifications* tabs and the preview all follow it.
+
+In the default language you edit everything. In another language you edit only the texts, each
+where it sits in the builder: the fields, sections, the stored values of options, rules,
+validation and the other settings are locked, so the form has the same fields, options and rules
+in every language. An empty text shows the default-language text as its placeholder, because that
+is what shoppers see; clearing a text makes it fall back again.
+
+Next to the switch, each language with missing texts is marked with how many are missing; select
+the mark to open that language at its first missing text. Built-in texts — validation messages,
+the submit button, outcomes — come translated with the storefront.
 
 ## Placing a form on a page
 

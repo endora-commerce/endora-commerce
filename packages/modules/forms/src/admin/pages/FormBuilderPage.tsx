@@ -1,17 +1,32 @@
 import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { AlertCircle, Copy, Lock, Trash2, Unlock } from 'lucide-react';
-import type {
-  FormDefinition,
-  FormDefinitionIssue,
-  FormDefinitionIssueCode,
-  FormDetail,
-  FormFieldType,
+import { AlertCircle, CheckCircle2, Copy, History, Languages, Lock, MousePointerClick, Trash2, Unlock } from 'lucide-react';
+import {
+  FORMS_LIMITS,
+  textCompleteness,
+  type FormDefinition,
+  type FormDefinitionIssue,
+  type FormDefinitionIssueCode,
+  type FormDetail,
+  type FormFieldType,
 } from '@endora-commerce/contracts';
-import { StickyFormActions } from '@endora-commerce/admin-kit/components';
+import { ContentLanguageTabs, StickyFormActions } from '@endora-commerce/admin-kit/components';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { cn, useAuth } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, AlertTitle, Button, Input, Label, PageHeader } from '@endora-commerce/admin-kit/ui';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Input,
+  Label,
+  PageHeader,
+} from '@endora-commerce/admin-kit/ui';
 import { formsApi, type FormVersionItem } from '../api.js';
 import { BuilderCanvas } from '../components/BuilderCanvas.js';
 import { FieldInspector } from '../components/FieldInspector.js';
@@ -20,7 +35,7 @@ import { FormPreview } from '../components/FormPreview.js';
 import { DeleteFormDialog, FormStatusBadge, FormWarningList } from '../components/FormStatus.js';
 import { FormSettingsPanel } from '../components/FormSettingsPanel.js';
 import { NotificationsPanel } from '../components/NotificationsPanel.js';
-import { TranslationsPanel } from '../components/TranslationsPanel.js';
+import { TranslatableText } from '../components/TranslatableText.js';
 import {
   addSection,
   findField,
@@ -34,8 +49,10 @@ import {
   textOf,
 } from '../lib/definition-draft.js';
 import { definitionIssuesOf, errorMessage } from '../lib/errors.js';
+import { firstMissingText, placeOfText } from '../lib/text-catalogue.js';
 
-type Tab = 'fields' | 'settings' | 'notifications' | 'translations' | 'versions';
+type Tab = 'fields' | 'settings' | 'notifications' | 'versions';
+const TABS: readonly Tab[] = ['fields', 'settings', 'notifications', 'versions'];
 type Busy = 'save' | 'publish' | 'status' | null;
 
 interface Draft {
@@ -55,8 +72,17 @@ interface Draft {
  * element; the warnings (FR-018) are said and never block. The *Notifications* tab (User Story 5)
  * saves the recipients on its own and edits the confirmation e-mail in the draft; the *Settings*
  * tab (User Story 6) edits what follows a submission, the restrictions and the CAPTCHA switch in
- * the draft; the *Translations* tab (User Story 7) edits every text per storefront language, and
- * nothing else.
+ * the draft.
+ *
+ * **The content language** (User Story 7, FR-068; 2026-11-03 owner review, which replaced the
+ * *Translations* tab) is page state, chosen in the header with admin-kit's `ContentLanguageTabs` —
+ * the storefront languages, the form's default first — and shared by every tab: the canvas, the
+ * inspector, the settings, the confirmation e-mail and the preview all show and edit that
+ * language's texts. In the default language everything is editable; in another one only the texts
+ * are, and the structure is locked with a note saying where it is edited (one structure, texts per
+ * language — US7-1). Each incomplete language is marked beside the switch with the number of its
+ * missing texts — the contracts' `textCompleteness`, the rule of the server's `untranslated`
+ * warning (US7-2) — and the mark takes the operator to the first missing text, in reading order.
  */
 export function FormBuilderPage(): ReactNode {
   const t = useTranslation('forms');
@@ -67,6 +93,7 @@ export function FormBuilderPage(): ReactNode {
   const canWrite = hasPermission('forms:write');
   const nameId = useId();
   const tabsId = useId();
+  const formTextsId = useId();
 
   const [form, setForm] = useState<FormDetail | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -79,6 +106,9 @@ export function FormBuilderPage(): ReactNode {
   const [versions, setVersions] = useState<FormVersionItem[] | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [languages, setLanguages] = useState<readonly string[] | null>(null);
+  const [contentLanguage, setContentLanguage] = useState<string | null>(null);
+  /** A text to focus once the screen shows it (the *go to the first missing text* of the switch). */
+  const [focusText, setFocusText] = useState<string | null>(null);
 
   const adopt = useCallback((detail: FormDetail) => {
     setForm(detail);
@@ -102,7 +132,6 @@ export function FormBuilderPage(): ReactNode {
   }, [id, adopt]);
 
   useEffect(() => {
-    if ((tab !== 'notifications' && tab !== 'translations') || languages !== null) return undefined;
     let alive = true;
     formsApi
       .languages()
@@ -116,7 +145,14 @@ export function FormBuilderPage(): ReactNode {
     return () => {
       alive = false;
     };
-  }, [tab, languages]);
+  }, []);
+
+  useEffect(() => {
+    if (focusText === null) return;
+    const target = document.querySelector<HTMLElement>(`[data-text-id="${focusText}"]`);
+    target?.focus();
+    setFocusText(null);
+  }, [focusText]);
 
   useEffect(() => {
     if (tab !== 'versions') return undefined;
@@ -159,6 +195,17 @@ export function FormBuilderPage(): ReactNode {
     return keys;
   }, [form?.publishedDefinition]);
 
+  const defaultLanguage = form?.defaultLanguage ?? '';
+  // The storefront languages, the form's own first — it is always one it may be written in.
+  const contentLanguages = useMemo(
+    () => (defaultLanguage === '' ? [] : [defaultLanguage, ...(languages ?? []).filter((code) => code !== defaultLanguage)]),
+    [languages, defaultLanguage],
+  );
+  const completeness = useMemo(
+    () => (draft === null || defaultLanguage === '' ? [] : textCompleteness(draft.definition, contentLanguages, defaultLanguage)),
+    [draft, contentLanguages, defaultLanguage],
+  );
+
   if (loadFailed) {
     return (
       <div className="space-y-4">
@@ -171,11 +218,24 @@ export function FormBuilderPage(): ReactNode {
   }
   if (!form || !draft) return <p className="text-sm text-muted-foreground">{t('builder.loading')}</p>;
 
-  const language = form.defaultLanguage;
   const definition = draft.definition;
   const edit = (next: FormDefinition): void => setDraft({ ...draft, definition: next });
-  // The form's own language is always one it may be written in.
-  const storefrontLanguages = languages && languages.includes(language) ? languages : [language, ...(languages ?? [])];
+  const language = contentLanguage !== null && contentLanguages.includes(contentLanguage) ? contentLanguage : defaultLanguage;
+  const translating = language !== defaultLanguage;
+  const incomplete = completeness.filter((entry) => entry.missing.length > 0);
+  const activeMissing = completeness.find((entry) => entry.language === language)?.missing.length ?? 0;
+
+  /** Opens `code` and takes the operator to its first missing text, in the form's reading order. */
+  const goToMissing = (code: string): void => {
+    const missing = completeness.find((entry) => entry.language === code)?.missing ?? [];
+    const first = firstMissingText(definition, missing);
+    setContentLanguage(code);
+    if (first === null) return;
+    const place = placeOfText(first);
+    setTab(place.tab);
+    if (place.fieldId && findField(definition, place.fieldId)) setSelectedId(place.fieldId);
+    setFocusText(first);
+  };
 
   const save = async (): Promise<FormDetail | null> => {
     setBusy('save');
@@ -244,8 +304,8 @@ export function FormBuilderPage(): ReactNode {
   const addField = (sectionId: string, type: FormFieldType): void => {
     const field = newField(definition, type);
     let next = insertField(definition, sectionId, field);
-    if (isInputField(field)) next = setText(next, language, `fields.${field.id}.label`, t(`fieldTypes.${type}`));
-    if (type === 'section_break') next = setText(next, language, `fields.${field.id}.title`, t(`fieldTypes.${type}`));
+    if (isInputField(field)) next = setText(next, defaultLanguage, `fields.${field.id}.label`, t(`fieldTypes.${type}`));
+    if (type === 'section_break') next = setText(next, defaultLanguage, `fields.${field.id}.title`, t(`fieldTypes.${type}`));
     edit(next);
     setSelectedId(field.id);
   };
@@ -254,7 +314,7 @@ export function FormBuilderPage(): ReactNode {
   const elementName = (elementId: string | null): string => {
     if (elementId === null) return t('builder.formLevel');
     const field = findField(definition, elementId);
-    if (field) return textOf(definition, language, `fields.${field.id}.label`) || t(`fieldTypes.${field.type}`);
+    if (field) return textOf(definition, defaultLanguage, `fields.${field.id}.label`) || t(`fieldTypes.${field.type}`);
     const index = definition.sections.findIndex((section) => section.id === elementId);
     return index >= 0 ? t('canvas.section', { number: index + 1 }) : t('builder.formLevel');
   };
@@ -319,8 +379,60 @@ export function FormBuilderPage(): ReactNode {
         </Alert>
       ) : null}
 
-      <div role="tablist" aria-label={t('builder.tabs.label')} className="flex gap-2 border-b border-border">
-        {(['fields', 'settings', 'notifications', 'translations', 'versions'] as const).map((name) => (
+      {contentLanguages.length > 1 ? (
+        <Card>
+          <CardContent className="flex flex-wrap items-center gap-x-4 gap-y-2 p-3">
+            <span className="inline-flex items-center gap-2 text-sm font-medium">
+              <Languages size={16} aria-hidden="true" className="text-muted-foreground" />
+              {t('language.title')}
+            </span>
+            <ContentLanguageTabs
+              languages={contentLanguages}
+              activeLanguage={language}
+              onChange={(code) => setContentLanguage(code)}
+            />
+            {incomplete.length > 0 ? (
+              <ul className="flex flex-wrap items-center gap-1">
+                {incomplete.map((entry) => (
+                  <li key={entry.language}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-amber-700 dark:text-amber-400"
+                      aria-label={t('language.goToMissing', { language: entry.language, count: entry.missing.length })}
+                      onClick={() => goToMissing(entry.language)}
+                    >
+                      <AlertCircle size={14} aria-hidden="true" />
+                      {t('language.missing', { language: entry.language, count: entry.missing.length })}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <p aria-live="polite" className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+              {translating && activeMissing === 0 ? (
+                <>
+                  <CheckCircle2 size={14} aria-hidden="true" className="text-emerald-600" />
+                  <span>{t('language.complete', { language })}</span>
+                </>
+              ) : null}
+            </p>
+          </CardContent>
+          {translating ? (
+            <div className="flex flex-wrap items-center gap-2 border-t border-border bg-muted/40 px-3 py-2 text-sm">
+              <Lock size={14} aria-hidden="true" className="shrink-0 text-muted-foreground" />
+              <span className="flex-1">{t('language.structureLocked', { language, default: defaultLanguage })}</span>
+              <Button type="button" variant="outline" size="sm" onClick={() => setContentLanguage(defaultLanguage)}>
+                {t('language.switchToDefault', { language: defaultLanguage })}
+              </Button>
+            </div>
+          ) : null}
+        </Card>
+      ) : null}
+
+      <div role="tablist" aria-label={t('builder.tabs.label')} className="flex gap-2 overflow-x-auto border-b border-border">
+        {TABS.map((name) => (
           <button
             key={name}
             type="button"
@@ -330,7 +442,7 @@ export function FormBuilderPage(): ReactNode {
             aria-controls={`${tabsId}-${name}-panel`}
             onClick={() => setTab(name)}
             className={cn(
-              '-mb-px border-b-2 px-3 py-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              '-mb-px shrink-0 border-b-2 px-3 py-2 text-sm font-medium transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               tab === name ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground',
             )}
           >
@@ -341,21 +453,73 @@ export function FormBuilderPage(): ReactNode {
 
       {tab === 'fields' ? (
         <div role="tabpanel" id={`${tabsId}-fields-panel`} aria-labelledby={`${tabsId}-fields`} className="space-y-4">
-          <div className="max-w-md space-y-1">
-            <Label htmlFor={nameId}>{t('builder.name')}</Label>
-            <Input
-              id={nameId}
-              value={draft.name}
-              maxLength={200}
+          <Card role="region" aria-labelledby={`${formTextsId}-title`}>
+            <CardHeader className="p-4 pb-2">
+              <CardTitle>
+                <h2 id={`${formTextsId}-title`}>{t('builder.formCard')}</h2>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 p-4 pt-0 md:grid-cols-2">
+              <div className="space-y-1">
+                <Label htmlFor={nameId}>{t('builder.name')}</Label>
+                <Input
+                  id={nameId}
+                  value={draft.name}
+                  maxLength={200}
+                  disabled={writing || translating}
+                  aria-describedby={`${nameId}-hint`}
+                  onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+                />
+                <p id={`${nameId}-hint`} className="text-xs text-muted-foreground">
+                  {t('builder.nameHint')}
+                </p>
+              </div>
+              <TranslatableText
+                id={`${formTextsId}-form-title`}
+                label={t('builder.formTitle')}
+                definition={definition}
+                language={language}
+                defaultLanguage={defaultLanguage}
+                textId="form.title"
+                maxLength={FORMS_LIMITS.singleLineChars}
+                disabled={writing}
+                onChange={edit}
+              />
+              <TranslatableText
+                id={`${formTextsId}-form-description`}
+                label={t('builder.formDescription')}
+                definition={definition}
+                language={language}
+                defaultLanguage={defaultLanguage}
+                textId="form.description"
+                rows={2}
+                disabled={writing}
+                onChange={edit}
+              />
+              <TranslatableText
+                id={`${formTextsId}-submit`}
+                label={t('builder.submitLabel')}
+                definition={definition}
+                language={language}
+                defaultLanguage={defaultLanguage}
+                textId="form.submitLabel"
+                maxLength={FORMS_LIMITS.singleLineChars}
+                disabled={writing}
+                onChange={edit}
+              />
+            </CardContent>
+          </Card>
+
+          <div className="grid items-start gap-4 lg:grid-cols-[13rem_minmax(0,1fr)_22rem]">
+            <FieldPalette
+              onAdd={(type) => addField(targetSection(), type)}
               disabled={writing}
-              onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+              lockedFor={translating ? defaultLanguage : null}
             />
-          </div>
-          <div className="grid gap-4 lg:grid-cols-[12rem_minmax(0,1fr)_20rem]">
-            <FieldPalette onAdd={(type) => addField(targetSection(), type)} disabled={writing} />
             <BuilderCanvas
               definition={definition}
               language={language}
+              defaultLanguage={defaultLanguage}
               selectedId={selectedId}
               issues={issuesByElement}
               disabled={writing}
@@ -364,25 +528,29 @@ export function FormBuilderPage(): ReactNode {
               onAddField={addField}
               onAddSection={() => edit(addSection(definition, newSection()))}
             />
-            <div className="space-y-4">
-              {selectedId && findField(definition, selectedId) ? (
-                <FieldInspector
-                  definition={definition}
-                  fieldId={selectedId}
-                  language={language}
-                  publishedKeys={publishedKeys}
-                  issues={issues ?? []}
-                  disabled={writing}
-                  onChange={edit}
-                  onRemove={(fieldId) => {
-                    edit(removeField(definition, fieldId));
-                    setSelectedId(null);
-                  }}
-                />
-              ) : (
-                <p className="text-sm text-muted-foreground">{t('inspector.empty')}</p>
-              )}
-            </div>
+            {selectedId && findField(definition, selectedId) ? (
+              <FieldInspector
+                definition={definition}
+                fieldId={selectedId}
+                language={language}
+                defaultLanguage={defaultLanguage}
+                publishedKeys={publishedKeys}
+                issues={issues ?? []}
+                disabled={writing}
+                onChange={edit}
+                onRemove={(fieldId) => {
+                  edit(removeField(definition, fieldId));
+                  setSelectedId(null);
+                }}
+              />
+            ) : (
+              <Card className="border-dashed lg:sticky lg:top-4">
+                <CardContent className="flex flex-col items-center gap-2 p-6 text-center">
+                  <MousePointerClick size={24} aria-hidden="true" className="text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">{t('inspector.empty')}</p>
+                </CardContent>
+              </Card>
+            )}
           </div>
           <FormPreview formId={form.id} language={language} version={form.revision} stale={dirty} />
         </div>
@@ -391,21 +559,12 @@ export function FormBuilderPage(): ReactNode {
           <FormSettingsPanel
             form={form}
             definition={definition}
-            defaultLanguage={language}
+            language={language}
+            defaultLanguage={defaultLanguage}
             disabled={writing}
             onDefinitionChange={edit}
             // Retention is live and not part of the draft: the form takes the new revision.
             onSaved={(saved) => setForm(saved)}
-          />
-        </div>
-      ) : tab === 'translations' ? (
-        <div role="tabpanel" id={`${tabsId}-translations-panel`} aria-labelledby={`${tabsId}-translations`}>
-          <TranslationsPanel
-            definition={definition}
-            languages={storefrontLanguages}
-            defaultLanguage={language}
-            disabled={writing}
-            onDefinitionChange={edit}
           />
         </div>
       ) : tab === 'notifications' ? (
@@ -413,8 +572,8 @@ export function FormBuilderPage(): ReactNode {
           <NotificationsPanel
             form={form}
             definition={definition}
-            languages={storefrontLanguages}
-            defaultLanguage={language}
+            language={language}
+            defaultLanguage={defaultLanguage}
             disabled={writing}
             onDefinitionChange={edit}
             // The recipients are live and not part of the draft: the form takes the new revision and
@@ -423,22 +582,43 @@ export function FormBuilderPage(): ReactNode {
           />
         </div>
       ) : (
-        <div role="tabpanel" id={`${tabsId}-versions-panel`} aria-labelledby={`${tabsId}-versions`} className="space-y-2">
-          <h2 className="text-sm font-semibold">{t('versions.title')}</h2>
-          {versions === null ? null : versions.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t('versions.empty')}</p>
-          ) : (
-            <ul className="divide-y divide-border rounded-md border border-border">
-              {versions.map((version) => (
-                <li key={version.number} className="flex justify-between gap-2 px-3 py-2 text-sm">
-                  <span className="font-medium">{t('versions.item', { number: version.number })}</span>
-                  <span className="text-muted-foreground">
-                    {t('versions.publishedAt', { date: updated.format(new Date(version.publishedAt)) })}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+        <div role="tabpanel" id={`${tabsId}-versions-panel`} aria-labelledby={`${tabsId}-versions`}>
+          <Card>
+            <CardHeader className="p-4">
+              <CardTitle>
+                <h2>{t('versions.title')}</h2>
+              </CardTitle>
+              <CardDescription>
+                {form.publishedVersionNumber > 0 ? t('builder.liveVersion', { number: form.publishedVersionNumber }) : t('builder.notPublished')}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+              {versions === null ? null : versions.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 rounded-md border border-dashed border-border p-8 text-center">
+                  <History size={24} aria-hidden="true" className="text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">{t('versions.empty')}</p>
+                </div>
+              ) : (
+                <ul className="divide-y divide-border rounded-md border border-border">
+                  {versions.map((version) => (
+                    <li key={version.number} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
+                      <span className="inline-flex items-center gap-2 font-medium">
+                        {t('versions.item', { number: version.number })}
+                        {version.number === form.publishedVersionNumber ? (
+                          <span className="rounded-md border border-border px-1.5 py-0.5 text-xs font-normal text-muted-foreground">
+                            {t('versions.live')}
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className="text-muted-foreground">
+                        {t('versions.publishedAt', { date: updated.format(new Date(version.publishedAt)) })}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
         </div>
       )}
 

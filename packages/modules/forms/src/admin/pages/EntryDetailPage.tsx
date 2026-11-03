@@ -5,7 +5,7 @@ import { FORM_ENTRY_STATUSES, type FormEntryDetail, type FormEntryStatus } from 
 import { ModalDialog, adminLanguageToLocale, listScopeSalesChannels } from '@endora-commerce/admin-kit/components';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Label, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, Label, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
 import { entriesApi } from '../api.js';
 import { EntryAnswers, EntryConsents, EntryContext } from '../components/EntryAnswers.js';
 import { EntryStatusBadge } from '../components/EntryFilters.js';
@@ -29,6 +29,9 @@ type Change =
  * server's sentence. Notes are appended; the delete is behind a dialog and cannot be undone.
  *
  * An entry the reader's scope does not hold answers like a missing one, and is shown as such.
+ *
+ * Layout: two columns from `lg` — the answers and consents on the left (what was sent), the status,
+ * the details and the notes on the right (what is done with it) — stacking in that order below.
  */
 export function EntryDetailPage(): ReactNode {
   const t = useTranslation('forms');
@@ -134,43 +137,51 @@ export function EntryDetailPage(): ReactNode {
           ) : null
         }
       />
-      <div className="flex flex-wrap items-end gap-3">
-        {canWrite ? (
-          <div className="space-y-1">
-            <Label htmlFor={statusId}>{t('entry.status')}</Label>
-            <Select
-              id={statusId}
-              value={entry.status}
-              disabled={busy}
-              onChange={(event) => void moveTo(event.target.value as FormEntryStatus, entry.status, false)}
-            >
-              {FORM_ENTRY_STATUSES.map((status) => (
-                <option key={status} value={status}>
-                  {t(`entryStatus.${status}`)}
-                </option>
-              ))}
-            </Select>
-          </div>
-        ) : (
-          <EntryStatusBadge status={entry.status} />
-        )}
-        <div role="status" className="flex items-center gap-2 text-sm">
-          {change?.kind === 'changed' ? (
-            <>
-              <span>{t('entry.statusChanged', { status: t(`entryStatus.${change.to}`) })}</span>
-              <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => void moveTo(change.from, change.to, true)}>
-                {t('entry.undo')}
-              </Button>
-            </>
-          ) : null}
-          {change?.kind === 'undone' ? <span>{t('entry.undone')}</span> : null}
-          {change?.kind === 'failed' ? <span className="text-destructive">{change.message}</span> : null}
-        </div>
-      </div>
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="space-y-4">
           <EntryAnswers entry={entry} />
           <EntryConsents entry={entry} />
+        </div>
+        <div className="space-y-4">
+          <Card>
+            <CardContent className="space-y-2 p-4">
+              {canWrite ? (
+                <div className="space-y-1">
+                  <Label htmlFor={statusId}>{t('entry.status')}</Label>
+                  <Select
+                    id={statusId}
+                    value={entry.status}
+                    disabled={busy}
+                    onChange={(event) => void moveTo(event.target.value as FormEntryStatus, entry.status, false)}
+                  >
+                    {FORM_ENTRY_STATUSES.map((status) => (
+                      <option key={status} value={status}>
+                        {t(`entryStatus.${status}`)}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="text-muted-foreground">{t('entry.status')}</span>
+                  <EntryStatusBadge status={entry.status} />
+                </div>
+              )}
+              <div role="status" className="flex flex-wrap items-center gap-2 text-sm">
+                {change?.kind === 'changed' ? (
+                  <>
+                    <span>{t('entry.statusChanged', { status: t(`entryStatus.${change.to}`) })}</span>
+                    <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => void moveTo(change.from, change.to, true)}>
+                      {t('entry.undo')}
+                    </Button>
+                  </>
+                ) : null}
+                {change?.kind === 'undone' ? <span>{t('entry.undone')}</span> : null}
+                {change?.kind === 'failed' ? <span className="text-destructive">{change.message}</span> : null}
+              </div>
+            </CardContent>
+          </Card>
+          <EntryContext entry={entry} channelName={channelName} />
           <EntryNotes
             notes={entry.notes}
             canWrite={canWrite}
@@ -180,7 +191,6 @@ export function EntryDetailPage(): ReactNode {
             }}
           />
         </div>
-        <EntryContext entry={entry} channelName={channelName} />
       </div>
       {confirmDelete ? (
         <ModalDialog

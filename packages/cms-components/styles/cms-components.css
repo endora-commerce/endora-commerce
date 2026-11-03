@@ -3036,6 +3036,10 @@ textarea.cmsc-pb-form__control {
 .cmsc-pb-form__content > p {
   margin: 0;
 }
+/* The required marker follows the consent's text: its last paragraph runs on into it. */
+.cmsc-pb-form__consent-text > p:last-child {
+  display: inline;
+}
 .cmsc-pb-form__content {
   display: block;
 }
@@ -5690,7 +5694,9 @@ ul.cmsc-list--none {
     .cmsc-pb-signup,
     /* T150 (bug R7-1): the carousel's own text — filter bar, header lead, controls — and the product card. */
     .cmsc-pb-carousel,
-    .cmsc-pb-product-card
+    .cmsc-pb-product-card,
+    /* Feature 170: the form's labels, controls, consents and messages. */
+    .cmsc-pb-form
   ) {
   font-family: var(--cmsb-font-body, inherit);
 }

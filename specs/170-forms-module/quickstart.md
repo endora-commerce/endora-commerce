@@ -83,8 +83,9 @@ honeypot (`hp_extra`) → `201` and nothing stored. Eleven posts in ten minutes 
 
 ## 7. US7 — languages
 
-Switch the builder to *Polski*, translate the labels and messages; leave one label empty → the
-Translations tab marks *pl* incomplete and the storefront shows the English label there. Submit on
+Switch the builder's content language to *pl-PL*, translate the labels and messages; leave one
+label empty → its input shows the English label as a placeholder, the language switch marks *pl-PL*
+with one untranslated text, and the storefront shows the English label there. Submit on
 the Polish storefront → validation messages, confirmation and e-mail in Polish; country names in
 Polish.
 

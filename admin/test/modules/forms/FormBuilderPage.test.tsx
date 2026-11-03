@@ -139,6 +139,17 @@ describe('FormBuilderPage — fields', () => {
     expect(screen.getByRole('heading', { name: en('inspector.title', { type: en('fieldTypes.email') }) })).toBeTruthy();
   });
 
+  it('opens the Add field menu without locking the page scroll', async () => {
+    // A modal menu locks the body's scroll, which clips a long builder to the viewport and throws
+    // the operator back to the top of the page the moment the menu opens.
+    renderBuilder();
+    const section = await screen.findByRole('group', { name: en('canvas.section', { number: 1 }) });
+    await userEvent.click(within(section).getByRole('button', { name: en('canvas.addField') }));
+    await screen.findByRole('menuitem', { name: en('fieldTypes.email') });
+    expect(document.body.hasAttribute('data-scroll-locked')).toBe(false);
+    expect(document.body.style.pointerEvents).not.toBe('none');
+  });
+
   it('reorders fields within and between sections, and sections, with the keyboard alone — announced', async () => {
     renderBuilder();
     const first = en('canvas.section', { number: 1 });
@@ -312,24 +323,134 @@ describe('FormBuilderPage — notifications (User Story 5, T090)', () => {
   });
 });
 
-describe('FormBuilderPage — settings and translations (User Stories 6 and 7, T099, T103)', () => {
-  it('edits the restrictions on the Settings tab and a Polish text on the Translations tab, both saved with the form', async () => {
+describe('FormBuilderPage — settings (User Story 6, T099)', () => {
+  it('edits the restrictions on the Settings tab, saved with the form', async () => {
     renderBuilder();
     await screen.findByLabelText(en('builder.name'));
     await userEvent.click(screen.getByRole('tab', { name: en('builder.tabs.settings') }));
     const settings = screen.getByRole('tabpanel', { name: en('builder.tabs.settings') });
     await userEvent.click(within(settings).getByLabelText(en('settings.restrictions.signedInOnly')));
-
-    await userEvent.click(screen.getByRole('tab', { name: en('builder.tabs.translations') }));
-    const translations = screen.getByRole('tabpanel', { name: en('builder.tabs.translations') });
-    await userEvent.click(await within(translations).findByRole('tab', { name: 'pl-PL' }));
-    await userEvent.type(within(translations).getByRole('textbox', { name: new RegExp(en('translations.text.title')) }), 'Kontakt');
-
     await userEvent.click(screen.getByRole('button', { name: en('builder.save') }));
     await waitFor(() => expect(putSpy).toHaveBeenCalledTimes(1));
-    const saved = savedDefinition();
-    expect(saved.restrictions.signedInOnly).toBe(true);
-    expect(saved.texts['pl-PL']?.['form.title']).toBe('Kontakt');
-    expect(saved.texts[LANGUAGE]?.['form.title']).toBe('Contact');
+    expect(savedDefinition().restrictions.signedInOnly).toBe(true);
+  });
+});
+
+/**
+ * The content language (User Story 7, FR-068; 2026-11-03 owner review: the *Translations* tab was
+ * replaced by a language switch in the builder's header, shared by every tab). In the default
+ * language everything is edited as before; in another one only the texts are, the structure is
+ * locked, an empty text shows the default one as its placeholder, and the switch marks each
+ * incomplete language with the number of its missing texts.
+ */
+describe('FormBuilderPage — content language (User Story 7)', () => {
+  const POLISH = 'pl-PL';
+  const languageTab = (code: string) => screen.getByRole('tab', { name: code });
+
+  it('offers the storefront languages in the header, the default first and selected, and no Translations tab', async () => {
+    renderBuilder();
+    const strip = await screen.findByRole('tablist', { name: 'Content language' });
+    expect(within(strip).getAllByRole('tab').map((tab) => tab.textContent)).toEqual([LANGUAGE, POLISH]);
+    expect(languageTab(LANGUAGE)).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByRole('tab', { name: /Translations/ })).toBeNull();
+  });
+
+  it('locks the structure in another language and leaves only the texts editable (US7-1)', async () => {
+    renderBuilder();
+    await userEvent.click(await screen.findByRole('tab', { name: POLISH }));
+    expect(screen.getByText(en('language.structureLocked', { language: POLISH, default: LANGUAGE }))).toBeTruthy();
+    // The palette is gone, the canvas keeps its texts and nothing else.
+    expect(screen.queryByRole('button', { name: en('palette.add', { type: en('fieldTypes.phone') }) })).toBeNull();
+    const section = screen.getByRole('group', { name: en('canvas.section', { number: 1 }) });
+    expect(within(section).getByRole('button', { name: en('canvas.addField') })).toBeDisabled();
+    expect(within(section).getByLabelText(en('canvas.columns'))).toBeDisabled();
+    expect(within(section).getByLabelText(en('canvas.sectionTitle'))).toBeEnabled();
+    expect(screen.getByRole('button', { name: en('canvas.addSection') })).toBeDisabled();
+    expect(screen.getByRole('button', { name: en('reorder.itemHandle', { name: 'Name' }) })).toBeDisabled();
+    expect(screen.getByLabelText(en('builder.name'))).toBeDisabled();
+    expect(screen.getByLabelText(en('builder.formTitle'))).toBeEnabled();
+
+    await userEvent.click(within(section).getByRole('button', { name: en('canvas.edit', { name: 'Name' }) }));
+    expect(screen.getByLabelText(en('inspector.label'))).toBeEnabled();
+    expect(screen.getByLabelText(en('inspector.key'))).toBeDisabled();
+    expect(screen.getByLabelText(en('inspector.required'))).toBeDisabled();
+    expect(screen.getByRole('checkbox', { name: en('inspector.share') })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: en('inspector.remove') })).toBeNull();
+
+    await userEvent.click(screen.getByRole('tab', { name: en('builder.tabs.settings') }));
+    const settings = screen.getByRole('tabpanel', { name: en('builder.tabs.settings') });
+    expect(within(settings).getByLabelText(en('settings.spam.captcha'))).toBeDisabled();
+    expect(within(settings).getByLabelText(en('settings.restrictions.maxEntries'))).toBeDisabled();
+    expect(within(settings).getByLabelText(en('settings.restrictions.closedMessage'))).toBeEnabled();
+
+    await userEvent.click(screen.getByRole('tab', { name: en('builder.tabs.notifications') }));
+    const notifications = screen.getByRole('tabpanel', { name: en('builder.tabs.notifications') });
+    expect(within(notifications).getByLabelText(en('notifications.recipients.default'))).toBeDisabled();
+    expect(within(notifications).getByLabelText(en('notifications.confirmation.enabled'))).toBeDisabled();
+    expect(within(notifications).getByLabelText(en('notifications.confirmation.subject'))).toBeEnabled();
+  });
+
+  it('shows the default text as the placeholder of an empty translation; clearing a text brings the fallback back', async () => {
+    renderBuilder();
+    await userEvent.click(await screen.findByRole('tab', { name: POLISH }));
+    await userEvent.click(screen.getByRole('button', { name: en('canvas.edit', { name: 'Name' }) }));
+    const label = screen.getByLabelText(en('inspector.label'));
+    expect(label).toHaveValue('');
+    expect(label).toHaveAttribute('placeholder', 'Name');
+    expect(label).toHaveAccessibleDescription(en('language.fromDefault', { language: LANGUAGE }));
+
+    await userEvent.type(label, 'Imię');
+    expect(label).not.toHaveAccessibleDescription(en('language.fromDefault', { language: LANGUAGE }));
+    // The canvas speaks the language being edited.
+    expect(fieldsIn(en('canvas.section', { number: 1 }))).toEqual(['Imię', 'E-mail']);
+    await userEvent.click(screen.getByRole('button', { name: en('builder.save') }));
+    await waitFor(() => expect(putSpy).toHaveBeenCalledTimes(1));
+    expect(savedDefinition().texts[POLISH]?.['fields.f1.label']).toBe('Imię');
+    expect(savedDefinition().texts[LANGUAGE]?.['fields.f1.label']).toBe('Name');
+
+    await userEvent.clear(screen.getByLabelText(en('inspector.label')));
+    await userEvent.click(screen.getByRole('button', { name: en('builder.save') }));
+    await waitFor(() => expect(putSpy).toHaveBeenCalledTimes(2));
+    expect(savedDefinition().texts[POLISH]).not.toHaveProperty(['fields.f1.label']);
+  });
+
+  it('marks an incomplete language with its missing count and goes to the first missing text', async () => {
+    const form = detail();
+    renderBuilder(
+      detail({
+        definition: { ...form.definition, texts: { ...form.definition.texts, [POLISH]: { 'form.title': 'Kontakt' } } },
+      }),
+    );
+    // Four English texts, one of them in Polish.
+    const jump = await screen.findByRole('button', { name: en('language.goToMissing', { language: POLISH, count: 3 }) });
+    expect(jump).toHaveTextContent(en('language.missing', { language: POLISH, count: 3 }));
+    await userEvent.click(screen.getByRole('tab', { name: en('builder.tabs.settings') }));
+    await userEvent.click(jump);
+    expect(languageTab(POLISH)).toHaveAttribute('aria-selected', 'true');
+    // The first missing text in the form's order is the label of "Name": its field is opened and
+    // the text focused.
+    expect(screen.getByRole('tab', { name: en('builder.tabs.fields') })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('heading', { name: en('inspector.title', { type: en('fieldTypes.text') }) })).toBeTruthy();
+    expect(screen.getByLabelText(en('inspector.label'))).toHaveFocus();
+  });
+
+  it('says a language is complete, and renders the preview in the chosen language', async () => {
+    const form = detail();
+    renderBuilder(
+      detail({
+        definition: {
+          ...form.definition,
+          texts: {
+            ...form.definition.texts,
+            [POLISH]: { 'form.title': 'Kontakt', 'fields.f1.label': 'Imię', 'fields.f2.label': 'E-mail', 'fields.f3.label': 'Wiadomość' },
+          },
+        },
+      }),
+    );
+    await userEvent.click(await screen.findByRole('tab', { name: POLISH }));
+    expect(screen.getByText(en('language.complete', { language: POLISH }))).toBeTruthy();
+    await waitFor(() =>
+      expect(getSpy.mock.calls.some(([path]) => String(path).startsWith(`${API}/preview`) && String(path).includes(POLISH))).toBe(true),
+    );
   });
 });

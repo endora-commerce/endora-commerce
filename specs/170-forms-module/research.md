@@ -496,10 +496,11 @@ volumes demand it — revisit if one form exceeds ~100 000 entries).
 ### R-19 — Admin surfaces composed from admin-kit
 
 **Decision.** Routes `/forms` (list, landing), `/forms/new`, `/forms/:id` (builder: *Fields*,
-*Settings*, *Notifications*, *Translations*, live preview pane), `/forms/entries` (entries list,
+*Settings*, *Notifications*, *Versions*, live preview pane, and a content-language switch in its
+header — 2026-11-03 owner review: it replaced a *Translations* tab), `/forms/entries` (entries list,
 sidebar), `/forms/entries/:id`. Reused: `useGroupedReorder` (fields in sections, sections among
 themselves, keyboard + pointer + touch, announced — FR-015/FR-069), `ContentLanguageTabs`
-(per-language text editing), `CmsPagePicker` (confirmation page; hidden with a note when `cms` is
+(the builder's content-language switch), `CmsPagePicker` (confirmation page; hidden with a note when `cms` is
 absent), `CountrySelect`/`useCountriesQuery` (country subset), `Select`/`Input`/`Button`/
 `MultiSelect`, `ResponsiveTable`, `PaginationFooter`, `RowActionMenu`, `ModalDialog`,
 `StickyFormActions`. The palette→canvas insertion is a drop target per section driven by the same

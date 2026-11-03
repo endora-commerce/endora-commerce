@@ -1,3 +1,4 @@
+import { useState, type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -51,26 +52,31 @@ interface Harness {
 }
 
 function renderPanel(
-  options: { form?: FormDetail; definition?: FormDefinition; disabled?: boolean; permissions?: string[] } = {},
+  options: { form?: FormDetail; definition?: FormDefinition; disabled?: boolean; permissions?: string[]; language?: string } = {},
 ): Harness {
   let current = options.definition ?? SUBMITTER_DEFINITION;
   const onSaved = vi.fn();
-  const onDefinitionChange = vi.fn((next: FormDefinition) => {
-    current = next;
-    view.rerender(element());
-  });
-  const element = () => (
-    <NotificationsPanel
-      form={options.form ?? detail()}
-      definition={current}
-      languages={[LANGUAGE, 'pl-PL']}
-      defaultLanguage={LANGUAGE}
-      disabled={options.disabled ?? false}
-      onDefinitionChange={onDefinitionChange}
-      onSaved={onSaved}
-    />
-  );
-  const view = renderForms(element(), { permissions: options.permissions ?? ['forms:read', 'forms:write'] });
+  const onDefinitionChange = vi.fn();
+  // The builder's role: it holds the draft and hands each edit back to the panel.
+  function Host(): ReactNode {
+    const [draft, setDraft] = useState(current);
+    return (
+      <NotificationsPanel
+        form={options.form ?? detail()}
+        definition={draft}
+        language={options.language ?? LANGUAGE}
+        defaultLanguage={LANGUAGE}
+        disabled={options.disabled ?? false}
+        onDefinitionChange={(next) => {
+          current = next;
+          onDefinitionChange(next);
+          setDraft(next);
+        }}
+        onSaved={onSaved}
+      />
+    );
+  }
+  renderForms(<Host />, { permissions: options.permissions ?? ['forms:read', 'forms:write'] });
   return { onSaved, onDefinitionChange, latest: () => current };
 }
 
@@ -181,7 +187,7 @@ describe('NotificationsPanel — recipients', () => {
 });
 
 describe('NotificationsPanel — confirmation e-mail', () => {
-  it('turns the confirmation on with a summary and writes its subject and text per language (FR-058)', async () => {
+  it('turns the confirmation on with a summary and writes its subject in the default language (FR-058)', async () => {
     const user = userEvent.setup();
     const harness = renderPanel();
     const summary = screen.getByLabelText(en('notifications.confirmation.summary')) as HTMLInputElement;
@@ -192,8 +198,23 @@ describe('NotificationsPanel — confirmation e-mail', () => {
     expect(harness.latest().behaviour.confirmationEmail).toEqual({ enabled: true, includeSummary: true });
 
     await user.type(screen.getByLabelText(en('notifications.confirmation.subject')), 'Thanks');
-    await user.selectOptions(screen.getByLabelText(en('notifications.confirmation.language')), 'pl-PL');
-    await user.type(screen.getByLabelText(en('notifications.confirmation.subject')), 'Dzięki');
+    expect(harness.latest().texts[LANGUAGE]?.['email.confirmation.subject']).toBe('Thanks');
+  });
+
+  it('in another content language edits only the e-mail texts, falling back to the default ones (US7-1)', async () => {
+    const user = userEvent.setup();
+    const source = definition({
+      ...SUBMITTER_DEFINITION,
+      texts: { [LANGUAGE]: { 'email.confirmation.subject': 'Thanks' } },
+    });
+    const harness = renderPanel({ definition: source, language: 'pl-PL' });
+    const subject = screen.getByLabelText(en('notifications.confirmation.subject'));
+    expect(subject).toHaveAttribute('placeholder', 'Thanks');
+    expect(subject).toHaveAccessibleDescription(en('language.fromDefault', { language: LANGUAGE }));
+    expect(screen.getByLabelText(en('notifications.confirmation.enabled'))).toBeDisabled();
+    expect(screen.getByLabelText(en('notifications.recipients.default'))).toBeDisabled();
+    expect(screen.queryByRole('button', { name: en('notifications.recipients.save') })).toBeNull();
+    await user.type(subject, 'Dzięki');
     await user.type(screen.getByLabelText(en('notifications.confirmation.body')), 'Odpiszemy');
     const texts = harness.latest().texts;
     expect(texts[LANGUAGE]?.['email.confirmation.subject']).toBe('Thanks');

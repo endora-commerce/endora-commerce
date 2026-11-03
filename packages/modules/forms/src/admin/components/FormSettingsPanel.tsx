@@ -4,15 +4,17 @@ import { FORMS_LIMITS, type FormDefinition, type FormDetail, type FormRestrictio
 import { CmsPagePicker } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { useAuth, useModulePresence } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Checkbox, Input, Label, Textarea } from '@endora-commerce/admin-kit/ui';
+import { Lock } from 'lucide-react';
+import { Alert, AlertDescription, Button, Card, CardContent, Checkbox, Input, Label, Separator } from '@endora-commerce/admin-kit/ui';
 import { formsApi } from '../api.js';
-import { setText, textOf } from '../lib/definition-draft.js';
 import { errorMessage } from '../lib/errors.js';
+import { PanelSection } from './PanelSection.js';
+import { TranslatableText } from './TranslatableText.js';
 
 /**
  * The builder's *Settings* tab (`specs/170-forms-module/` User Story 6; FR-038, FR-042, FR-043,
- * contracts/admin-surfaces.md §4). Three groups, each editing the builder's draft — saved and
- * published with the form like every other part of it:
+ * contracts/admin-surfaces.md §4): one card of plain sections. Three groups edit the builder's
+ * draft — saved and published with the form like every other part of it:
  *
  * - **After sending** — a message (the operator's, in the default language; the built-in thanks
  *   when empty), another address, or a CMS page. The page picker is admin-kit's `CmsPagePicker` and
@@ -33,15 +35,20 @@ import { errorMessage } from '../lib/errors.js';
  *   be undone. It needs `forms:entries_write` (else read-only with a note), and the server refuses a
  *   scoped administrator with `FORM_SCOPE_REQUIRED`, whose sentence is shown as it arrives.
  *
- * The texts here are the default language's; every language's are on the *Translations* tab.
- * Principle IX: admin-kit's `Input`, `Textarea`, `Checkbox`, `Alert`, `Button` and `CmsPagePicker`;
- * the confirmation choice is native radios in a labelled group, the precedent of other modules.
+ * The texts here are the builder's content language's (User Story 7): in another language than the
+ * default only they are editable, every other setting is locked there (the default language's), so
+ * one structure serves every language; an empty text shows the default one as its placeholder.
+ * Principle IX: admin-kit's `Card`, `Section`, `Input`, `Textarea`, `Checkbox`, `Alert`, `Button`
+ * and `CmsPagePicker`; the confirmation choice is native radios in a labelled group, the precedent
+ * of other modules.
  */
 
 export interface FormSettingsPanelProps {
   readonly form: FormDetail;
   /** The builder's draft. */
   readonly definition: FormDefinition;
+  /** The content language whose texts are edited; defaults to the form's default language. */
+  readonly language?: string;
   readonly defaultLanguage: string;
   readonly disabled: boolean;
   readonly onDefinitionChange: (next: FormDefinition) => void;
@@ -79,7 +86,12 @@ function parseMaxEntries(raw: string): number | null | undefined {
 type Confirmation = FormDefinition['behaviour']['confirmation'];
 
 export function FormSettingsPanel(props: FormSettingsPanelProps): ReactNode {
-  const { form, definition, defaultLanguage, disabled, onDefinitionChange } = props;
+  const { form, definition, defaultLanguage, onDefinitionChange } = props;
+  const language = props.language ?? defaultLanguage;
+  const translating = language !== defaultLanguage;
+  // Every setting but a text is the structure's, edited in the default language only.
+  const disabled = props.disabled || translating;
+  const textsDisabled = props.disabled;
   const t = useTranslation('forms');
   const id = useId();
   const { isPresent } = useModulePresence();
@@ -101,8 +113,6 @@ export function FormSettingsPanel(props: FormSettingsPanelProps): ReactNode {
     onDefinitionChange({ ...definition, restrictions: { ...restrictions, ...change } });
   const setConfirmation = (next: Confirmation): void =>
     onDefinitionChange({ ...definition, behaviour: { ...definition.behaviour, confirmation: next } });
-  const text = (textId: string): string => textOf(definition, defaultLanguage, textId);
-  const writeText = (textId: string, value: string): void => onDefinitionChange(setText(definition, defaultLanguage, textId, value));
 
   const changeWindow = (bound: 'from' | 'until', raw: string): void => {
     if (bound === 'from') setFrom(raw);
@@ -120,247 +130,248 @@ export function FormSettingsPanel(props: FormSettingsPanelProps): ReactNode {
   const redirectInvalid = confirmation.type === 'redirect' && confirmation.url !== '' && !ABSOLUTE_URL.test(confirmation.url);
   const showsMessage = confirmation.type === 'message' || (confirmation.type === 'page' && !cmsPresent);
 
-  const messageInput = (textId: string, labelKey: string): ReactNode => (
-    <div className="space-y-1">
-      <Label htmlFor={`${id}-${textId}`}>{t(labelKey)}</Label>
-      <Input
-        id={`${id}-${textId}`}
-        value={text(textId)}
-        maxLength={FORMS_LIMITS.singleLineChars}
-        disabled={disabled}
-        aria-describedby={`${id}-message-hint`}
-        onChange={(event) => writeText(textId, event.target.value)}
-      />
-    </div>
+  const messageInput = (textId: string, labelKey: string, rows?: number, describedBy?: string): ReactNode => (
+    <TranslatableText
+      id={`${id}-${textId}`}
+      label={t(labelKey)}
+      definition={definition}
+      language={language}
+      defaultLanguage={defaultLanguage}
+      textId={textId}
+      disabled={textsDisabled}
+      onChange={onDefinitionChange}
+      {...(rows !== undefined ? { rows } : { maxLength: FORMS_LIMITS.singleLineChars })}
+      {...(describedBy !== undefined ? { describedBy } : {})}
+    />
   );
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
-      <section aria-labelledby={`${id}-confirmation`} className="space-y-4">
-        <div className="space-y-1">
-          <h2 id={`${id}-confirmation`} className="text-sm font-semibold">
-            {t('settings.confirmation.title')}
-          </h2>
-          <p id={`${id}-confirmation-description`} className="text-sm text-muted-foreground">
-            {t('settings.confirmation.description')}
+    <Card>
+      <CardContent className="space-y-6 p-6">
+        {translating ? (
+          <p className="flex items-start gap-2 rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
+            <Lock size={14} aria-hidden="true" className="mt-0.5 shrink-0" />
+            <span>{t('language.lockedShort', { language: defaultLanguage })}</span>
           </p>
-        </div>
-        <div
-          role="radiogroup"
-          aria-labelledby={`${id}-confirmation`}
-          aria-describedby={`${id}-confirmation-description`}
-          className="space-y-1"
-        >
-          {(['message', 'redirect', 'page'] as const).map((type) => (
-            <label key={type} htmlFor={`${id}-type-${type}`} className="flex min-h-9 items-center gap-2 text-sm">
-              <input
-                id={`${id}-type-${type}`}
-                type="radio"
-                name={`${id}-confirmation-type`}
-                value={type}
-                checked={confirmation.type === type}
+        ) : null}
+
+        <PanelSection titleId={`${id}-confirmation`} title={t('settings.confirmation.title')} description={t('settings.confirmation.description')}>
+          <div className="max-w-2xl space-y-4">
+            <div
+              role="radiogroup"
+              aria-labelledby={`${id}-confirmation`}
+              aria-describedby={`${id}-confirmation-description`}
+              className="flex flex-wrap gap-2"
+            >
+              {(['message', 'redirect', 'page'] as const).map((type) => (
+                <label
+                  key={type}
+                  htmlFor={`${id}-type-${type}`}
+                  className="flex min-h-10 cursor-pointer items-center gap-2 rounded-md border border-border px-3 text-sm has-[:checked]:border-primary has-[:checked]:bg-primary/5 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60"
+                >
+                  <input
+                    id={`${id}-type-${type}`}
+                    type="radio"
+                    name={`${id}-confirmation-type`}
+                    value={type}
+                    checked={confirmation.type === type}
+                    disabled={disabled}
+                    className="h-4 w-4 accent-primary"
+                    onChange={() =>
+                      setConfirmation(
+                        type === 'message'
+                          ? { type: 'message' }
+                          : type === 'redirect'
+                            ? { type: 'redirect', url: '' }
+                            : { type: 'page', cmsPageId: '' },
+                      )
+                    }
+                  />
+                  {t(`settings.confirmation.${type}`)}
+                </label>
+              ))}
+            </div>
+
+            {confirmation.type === 'redirect' ? (
+              <div className="space-y-1">
+                <Label htmlFor={`${id}-url`}>{t('settings.confirmation.url')}</Label>
+                <Input
+                  id={`${id}-url`}
+                  type="url"
+                  inputMode="url"
+                  value={confirmation.url}
+                  maxLength={FORMS_LIMITS.pageUrlChars}
+                  disabled={disabled}
+                  aria-invalid={redirectInvalid ? true : undefined}
+                  aria-describedby={redirectInvalid ? `${id}-url-hint ${id}-url-error` : `${id}-url-hint`}
+                  onChange={(event) => setConfirmation({ type: 'redirect', url: event.target.value.trim() })}
+                />
+                <p id={`${id}-url-hint`} className="text-xs text-muted-foreground">
+                  {t('settings.confirmation.urlHint')}
+                </p>
+                {redirectInvalid ? (
+                  <p id={`${id}-url-error`} className="text-sm text-destructive">
+                    {t('settings.confirmation.urlInvalid')}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+            {confirmation.type === 'page' ? (
+              cmsPresent ? (
+                <div className="space-y-1">
+                  <Label htmlFor={`${id}-page`}>{t('settings.confirmation.pageLabel')}</Label>
+                  <CmsPagePicker
+                    id={`${id}-page`}
+                    value={confirmation.cmsPageId === '' ? null : confirmation.cmsPageId}
+                    disabled={disabled}
+                    ariaLabel={t('settings.confirmation.pageLabel')}
+                    placeholder={t('settings.confirmation.pagePlaceholder')}
+                    onChange={(pageId) => setConfirmation({ type: 'page', cmsPageId: pageId ?? '' })}
+                  />
+                </div>
+              ) : (
+                <Alert>
+                  <AlertDescription>{t('settings.confirmation.cmsAbsent')}</AlertDescription>
+                </Alert>
+              )
+            ) : null}
+
+            {showsMessage ? (
+              <div className="space-y-1">
+                {messageInput('messages.success', 'settings.confirmation.messageText', 4, `${id}-success-hint`)}
+                <p id={`${id}-success-hint`} className="text-xs text-muted-foreground">
+                  {t('settings.confirmation.messageHint')}
+                </p>
+              </div>
+            ) : null}
+          </div>
+        </PanelSection>
+
+        <Separator />
+
+        <PanelSection titleId={`${id}-restrictions`} title={t('settings.restrictions.title')} description={t('settings.restrictions.description')}>
+          <div className="max-w-2xl space-y-5">
+            <div className="grid gap-4 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]">
+              <div className="space-y-1">
+                <Label htmlFor={`${id}-max`}>{t('settings.restrictions.maxEntries')}</Label>
+                <Input
+                  id={`${id}-max`}
+                  inputMode="numeric"
+                  value={maxEntries}
+                  disabled={disabled}
+                  aria-invalid={maxEntriesValue === undefined ? true : undefined}
+                  aria-describedby={maxEntriesValue === undefined ? `${id}-max-hint ${id}-max-error` : `${id}-max-hint`}
+                  onChange={(event) => {
+                    setMaxEntries(event.target.value);
+                    const parsed = parseMaxEntries(event.target.value);
+                    if (parsed !== undefined) setRestrictions({ maxEntries: parsed });
+                  }}
+                />
+                <p id={`${id}-max-hint`} className="text-xs text-muted-foreground">
+                  {t('settings.restrictions.maxEntriesHint')}
+                </p>
+                {maxEntriesValue === undefined ? (
+                  <p id={`${id}-max-error`} className="text-sm text-destructive">
+                    {t('settings.restrictions.maxEntriesInvalid', { max: String(MAX_ENTRIES) })}
+                  </p>
+                ) : null}
+              </div>
+              {messageInput('messages.full', 'settings.restrictions.fullMessage', undefined, `${id}-restrictions-description`)}
+            </div>
+
+            <div className="space-y-2">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label htmlFor={`${id}-from`}>{t('settings.restrictions.availableFrom')}</Label>
+                  <Input
+                    id={`${id}-from`}
+                    type="datetime-local"
+                    value={from}
+                    disabled={disabled}
+                    aria-describedby={`${id}-window-hint`}
+                    onChange={(event) => changeWindow('from', event.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor={`${id}-until`}>{t('settings.restrictions.availableUntil')}</Label>
+                  <Input
+                    id={`${id}-until`}
+                    type="datetime-local"
+                    value={until}
+                    disabled={disabled}
+                    aria-invalid={windowInvalid ? true : undefined}
+                    aria-describedby={windowInvalid ? `${id}-window-hint ${id}-window-error` : `${id}-window-hint`}
+                    onChange={(event) => changeWindow('until', event.target.value)}
+                  />
+                </div>
+              </div>
+              <p id={`${id}-window-hint`} className="text-xs text-muted-foreground">
+                {t('settings.restrictions.windowHint')}
+              </p>
+              {windowInvalid ? (
+                <p id={`${id}-window-error`} className="text-sm text-destructive">
+                  {t('settings.restrictions.windowInvalid')}
+                </p>
+              ) : null}
+              <div className="grid gap-4 sm:grid-cols-2">
+                {messageInput('messages.notYetOpen', 'settings.restrictions.notYetOpenMessage', undefined, `${id}-restrictions-description`)}
+                {messageInput('messages.closed', 'settings.restrictions.closedMessage', undefined, `${id}-restrictions-description`)}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex min-h-9 items-center gap-2">
+                <Checkbox
+                  id={`${id}-signed-in`}
+                  checked={restrictions.signedInOnly}
+                  disabled={disabled}
+                  onChange={(event) => setRestrictions({ signedInOnly: event.target.checked })}
+                />
+                <Label htmlFor={`${id}-signed-in`} className="font-normal">
+                  {t('settings.restrictions.signedInOnly')}
+                </Label>
+              </div>
+              {messageInput('messages.signIn', 'settings.restrictions.signInMessage', undefined, `${id}-restrictions-description`)}
+            </div>
+          </div>
+        </PanelSection>
+
+        <Separator />
+
+        <PanelSection titleId={`${id}-spam`} title={t('settings.spam.title')} description={t('settings.spam.description')}>
+          <div className="max-w-2xl space-y-3">
+            <div className="flex min-h-9 items-center gap-2">
+              <Checkbox
+                id={`${id}-captcha`}
+                checked={definition.behaviour.captchaRequired}
                 disabled={disabled}
-                className="h-4 w-4 accent-primary"
-                onChange={() =>
-                  setConfirmation(
-                    type === 'message'
-                      ? { type: 'message' }
-                      : type === 'redirect'
-                        ? { type: 'redirect', url: '' }
-                        : { type: 'page', cmsPageId: '' },
-                  )
+                onChange={(event) =>
+                  onDefinitionChange({ ...definition, behaviour: { ...definition.behaviour, captchaRequired: event.target.checked } })
                 }
               />
-              {t(`settings.confirmation.${type}`)}
-            </label>
-          ))}
-        </div>
-
-        {confirmation.type === 'redirect' ? (
-          <div className="space-y-1">
-            <Label htmlFor={`${id}-url`}>{t('settings.confirmation.url')}</Label>
-            <Input
-              id={`${id}-url`}
-              type="url"
-              inputMode="url"
-              value={confirmation.url}
-              maxLength={FORMS_LIMITS.pageUrlChars}
-              disabled={disabled}
-              aria-invalid={redirectInvalid ? true : undefined}
-              aria-describedby={redirectInvalid ? `${id}-url-hint ${id}-url-error` : `${id}-url-hint`}
-              onChange={(event) => setConfirmation({ type: 'redirect', url: event.target.value.trim() })}
-            />
-            <p id={`${id}-url-hint`} className="text-xs text-muted-foreground">
-              {t('settings.confirmation.urlHint')}
-            </p>
-            {redirectInvalid ? (
-              <p id={`${id}-url-error`} className="text-sm text-destructive">
-                {t('settings.confirmation.urlInvalid')}
-              </p>
+              <Label htmlFor={`${id}-captcha`} className="font-normal">
+                {t('settings.spam.captcha')}
+              </Label>
+            </div>
+            {captchaUnconfigured ? (
+              <Alert>
+                <AlertDescription>
+                  <span>{t('settings.spam.notConfigured')}</span>{' '}
+                  <Link to="/settings" className="font-medium underline underline-offset-2">
+                    {t('settings.spam.openSettings')}
+                  </Link>
+                </AlertDescription>
+              </Alert>
             ) : null}
           </div>
-        ) : null}
+        </PanelSection>
 
-        {confirmation.type === 'page' ? (
-          cmsPresent ? (
-            <div className="space-y-1">
-              <Label htmlFor={`${id}-page`}>{t('settings.confirmation.pageLabel')}</Label>
-              <CmsPagePicker
-                id={`${id}-page`}
-                value={confirmation.cmsPageId === '' ? null : confirmation.cmsPageId}
-                disabled={disabled}
-                ariaLabel={t('settings.confirmation.pageLabel')}
-                placeholder={t('settings.confirmation.pagePlaceholder')}
-                onChange={(pageId) => setConfirmation({ type: 'page', cmsPageId: pageId ?? '' })}
-              />
-            </div>
-          ) : (
-            <Alert>
-              <AlertDescription>{t('settings.confirmation.cmsAbsent')}</AlertDescription>
-            </Alert>
-          )
-        ) : null}
-
-        {showsMessage ? (
-          <div className="space-y-1">
-            <Label htmlFor={`${id}-success`}>{t('settings.confirmation.messageText')}</Label>
-            <Textarea
-              id={`${id}-success`}
-              rows={4}
-              value={text('messages.success')}
-              disabled={disabled}
-              aria-describedby={`${id}-success-hint`}
-              onChange={(event) => writeText('messages.success', event.target.value)}
-            />
-            <p id={`${id}-success-hint`} className="text-xs text-muted-foreground">
-              {t('settings.confirmation.messageHint')}
-            </p>
-          </div>
-        ) : null}
-      </section>
-
-      <div className="space-y-6">
-        <section aria-labelledby={`${id}-restrictions`} className="space-y-4">
-          <div className="space-y-1">
-            <h2 id={`${id}-restrictions`} className="text-sm font-semibold">
-              {t('settings.restrictions.title')}
-            </h2>
-            <p id={`${id}-message-hint`} className="text-sm text-muted-foreground">
-              {t('settings.restrictions.description')}
-            </p>
-          </div>
-
-          <div className="max-w-xs space-y-1">
-            <Label htmlFor={`${id}-max`}>{t('settings.restrictions.maxEntries')}</Label>
-            <Input
-              id={`${id}-max`}
-              inputMode="numeric"
-              value={maxEntries}
-              disabled={disabled}
-              aria-invalid={maxEntriesValue === undefined ? true : undefined}
-              aria-describedby={maxEntriesValue === undefined ? `${id}-max-hint ${id}-max-error` : `${id}-max-hint`}
-              onChange={(event) => {
-                setMaxEntries(event.target.value);
-                const parsed = parseMaxEntries(event.target.value);
-                if (parsed !== undefined) setRestrictions({ maxEntries: parsed });
-              }}
-            />
-            <p id={`${id}-max-hint`} className="text-xs text-muted-foreground">
-              {t('settings.restrictions.maxEntriesHint')}
-            </p>
-            {maxEntriesValue === undefined ? (
-              <p id={`${id}-max-error`} className="text-sm text-destructive">
-                {t('settings.restrictions.maxEntriesInvalid', { max: String(MAX_ENTRIES) })}
-              </p>
-            ) : null}
-          </div>
-          {messageInput('messages.full', 'settings.restrictions.fullMessage')}
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1">
-              <Label htmlFor={`${id}-from`}>{t('settings.restrictions.availableFrom')}</Label>
-              <Input
-                id={`${id}-from`}
-                type="datetime-local"
-                value={from}
-                disabled={disabled}
-                aria-describedby={`${id}-window-hint`}
-                onChange={(event) => changeWindow('from', event.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor={`${id}-until`}>{t('settings.restrictions.availableUntil')}</Label>
-              <Input
-                id={`${id}-until`}
-                type="datetime-local"
-                value={until}
-                disabled={disabled}
-                aria-invalid={windowInvalid ? true : undefined}
-                aria-describedby={windowInvalid ? `${id}-window-hint ${id}-window-error` : `${id}-window-hint`}
-                onChange={(event) => changeWindow('until', event.target.value)}
-              />
-            </div>
-          </div>
-          <p id={`${id}-window-hint`} className="text-xs text-muted-foreground">
-            {t('settings.restrictions.windowHint')}
-          </p>
-          {windowInvalid ? (
-            <p id={`${id}-window-error`} className="text-sm text-destructive">
-              {t('settings.restrictions.windowInvalid')}
-            </p>
-          ) : null}
-          {messageInput('messages.notYetOpen', 'settings.restrictions.notYetOpenMessage')}
-          {messageInput('messages.closed', 'settings.restrictions.closedMessage')}
-
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id={`${id}-signed-in`}
-              checked={restrictions.signedInOnly}
-              disabled={disabled}
-              onChange={(event) => setRestrictions({ signedInOnly: event.target.checked })}
-            />
-            <Label htmlFor={`${id}-signed-in`} className="font-normal">
-              {t('settings.restrictions.signedInOnly')}
-            </Label>
-          </div>
-          {messageInput('messages.signIn', 'settings.restrictions.signInMessage')}
-        </section>
-
-        <section aria-labelledby={`${id}-spam`} className="space-y-4">
-          <div className="space-y-1">
-            <h2 id={`${id}-spam`} className="text-sm font-semibold">
-              {t('settings.spam.title')}
-            </h2>
-            <p className="text-sm text-muted-foreground">{t('settings.spam.description')}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id={`${id}-captcha`}
-              checked={definition.behaviour.captchaRequired}
-              disabled={disabled}
-              onChange={(event) =>
-                onDefinitionChange({ ...definition, behaviour: { ...definition.behaviour, captchaRequired: event.target.checked } })
-              }
-            />
-            <Label htmlFor={`${id}-captcha`} className="font-normal">
-              {t('settings.spam.captcha')}
-            </Label>
-          </div>
-          {captchaUnconfigured ? (
-            <Alert>
-              <AlertDescription>
-                <span>{t('settings.spam.notConfigured')}</span>{' '}
-                <Link to="/settings" className="font-medium underline underline-offset-2">
-                  {t('settings.spam.openSettings')}
-                </Link>
-              </AlertDescription>
-            </Alert>
-          ) : null}
-        </section>
+        <Separator />
 
         <RetentionSettings form={form} disabled={disabled} onSaved={props.onSaved} />
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -431,85 +442,81 @@ function RetentionSettings(props: {
   };
 
   return (
-    <section aria-labelledby={`${id}-retention`} className="space-y-4">
-      <div className="space-y-1">
-        <h2 id={`${id}-retention`} className="text-sm font-semibold">
-          {t('settings.retention.title')}
-        </h2>
-        <p className="text-sm text-muted-foreground">{t('settings.retention.description')}</p>
-      </div>
-      <div className="flex items-center gap-2">
-        <Checkbox
-          id={`${id}-retention-enabled`}
-          checked={enabled}
-          disabled={readOnly}
-          onChange={(event) => {
-            setEnabled(event.target.checked);
-            setPending(null);
-            setStatus(null);
-          }}
-        />
-        <Label htmlFor={`${id}-retention-enabled`} className="font-normal">
-          {t('settings.retention.enabled')}
-        </Label>
-      </div>
-      {enabled ? (
-        <div className="max-w-xs space-y-1">
-          <Label htmlFor={`${id}-retention-days`}>{t('settings.retention.days')}</Label>
-          <Input
-            id={`${id}-retention-days`}
-            inputMode="numeric"
-            value={days}
+    <PanelSection titleId={`${id}-retention`} title={t('settings.retention.title')} description={t('settings.retention.description')}>
+      <div className="max-w-2xl space-y-3">
+        <div className="flex min-h-9 items-center gap-2">
+          <Checkbox
+            id={`${id}-retention-enabled`}
+            checked={enabled}
             disabled={readOnly}
-            aria-invalid={daysInvalid ? true : undefined}
-            aria-describedby={daysInvalid ? `${id}-retention-hint ${id}-retention-error` : `${id}-retention-hint`}
             onChange={(event) => {
-              setDays(event.target.value);
+              setEnabled(event.target.checked);
               setPending(null);
               setStatus(null);
             }}
           />
-          <p id={`${id}-retention-hint`} className="text-xs text-muted-foreground">
-            {t('settings.retention.daysHint', { max })}
-          </p>
-          {daysInvalid ? (
-            <p id={`${id}-retention-error`} className="text-sm text-destructive">
-              {t('settings.retention.daysInvalid', { max })}
-            </p>
-          ) : null}
+          <Label htmlFor={`${id}-retention-enabled`} className="font-normal">
+            {t('settings.retention.enabled')}
+          </Label>
         </div>
-      ) : null}
-      {!canManage ? <p className="text-sm text-muted-foreground">{t('settings.retention.readOnly')}</p> : null}
-      {pending ? (
-        <Alert variant="destructive">
-          <AlertDescription>
-            <p>{t('settings.retention.confirm', { count: String(pending.count) })}</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Button type="button" variant="destructive" size="sm" disabled={saving} onClick={() => void write(pending.retentionDays)}>
-                {t('settings.retention.confirmSave')}
-              </Button>
-              <Button type="button" variant="outline" size="sm" disabled={saving} onClick={() => setPending(null)}>
-                {t('settings.retention.cancel')}
-              </Button>
-            </div>
-          </AlertDescription>
-        </Alert>
-      ) : null}
-      {failure ? (
-        <Alert variant="destructive">
-          <AlertDescription>{failure}</AlertDescription>
-        </Alert>
-      ) : null}
-      <div className="flex flex-wrap items-center gap-2">
-        {readOnly || pending ? null : (
-          <Button type="button" disabled={saving || daysValue === undefined} onClick={() => void save()}>
-            {saving ? t('settings.retention.saving') : t('settings.retention.save')}
-          </Button>
-        )}
-        <p role="status" className="text-sm text-muted-foreground">
-          {status}
-        </p>
+        {enabled ? (
+          <div className="max-w-xs space-y-1">
+            <Label htmlFor={`${id}-retention-days`}>{t('settings.retention.days')}</Label>
+            <Input
+              id={`${id}-retention-days`}
+              inputMode="numeric"
+              value={days}
+              disabled={readOnly}
+              aria-invalid={daysInvalid ? true : undefined}
+              aria-describedby={daysInvalid ? `${id}-retention-hint ${id}-retention-error` : `${id}-retention-hint`}
+              onChange={(event) => {
+                setDays(event.target.value);
+                setPending(null);
+                setStatus(null);
+              }}
+            />
+            <p id={`${id}-retention-hint`} className="text-xs text-muted-foreground">
+              {t('settings.retention.daysHint', { max })}
+            </p>
+            {daysInvalid ? (
+              <p id={`${id}-retention-error`} className="text-sm text-destructive">
+                {t('settings.retention.daysInvalid', { max })}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+        {!canManage ? <p className="text-sm text-muted-foreground">{t('settings.retention.readOnly')}</p> : null}
+        {pending ? (
+          <Alert variant="destructive">
+            <AlertDescription>
+              <p>{t('settings.retention.confirm', { count: String(pending.count) })}</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button type="button" variant="destructive" size="sm" disabled={saving} onClick={() => void write(pending.retentionDays)}>
+                  {t('settings.retention.confirmSave')}
+                </Button>
+                <Button type="button" variant="outline" size="sm" disabled={saving} onClick={() => setPending(null)}>
+                  {t('settings.retention.cancel')}
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        ) : null}
+        {failure ? (
+          <Alert variant="destructive">
+            <AlertDescription>{failure}</AlertDescription>
+          </Alert>
+        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          {readOnly || pending ? null : (
+            <Button type="button" variant="outline" disabled={saving || daysValue === undefined} aria-busy={saving || undefined} onClick={() => void save()}>
+              {saving ? t('settings.retention.saving') : t('settings.retention.save')}
+            </Button>
+          )}
+          <p role="status" className="text-sm text-muted-foreground">
+            {status}
+          </p>
+        </div>
       </div>
-    </section>
+    </PanelSection>
   );
 }

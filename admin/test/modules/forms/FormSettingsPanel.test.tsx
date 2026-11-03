@@ -40,7 +40,14 @@ interface Harness {
 }
 
 function renderPanel(
-  options: { form?: FormDetail; definition?: FormDefinition; disabled?: boolean; present?: string[]; permissions?: string[] } = {},
+  options: {
+    form?: FormDetail;
+    definition?: FormDefinition;
+    disabled?: boolean;
+    present?: string[];
+    permissions?: string[];
+    language?: string;
+  } = {},
 ): Harness {
   const onSaved = vi.fn();
   let current = options.definition ?? definition();
@@ -52,6 +59,7 @@ function renderPanel(
       <FormSettingsPanel
         form={options.form ?? detail()}
         definition={draft}
+        language={options.language ?? LANGUAGE}
         defaultLanguage={LANGUAGE}
         disabled={options.disabled ?? false}
         onDefinitionChange={(next) => {
@@ -225,6 +233,27 @@ describe('FormSettingsPanel — read only', () => {
     expect(screen.getByLabelText(en('settings.restrictions.maxEntries'))).toBeDisabled();
     expect(screen.getByLabelText(en('settings.spam.captcha'))).toBeDisabled();
     expect(within(screen.getByRole('radiogroup', { name: en('settings.confirmation.title') })).getByLabelText(en('settings.confirmation.redirect'))).toBeDisabled();
+  });
+});
+
+describe('FormSettingsPanel — another content language (US7-1)', () => {
+  it('locks every setting that is not a text, and writes the messages in that language', async () => {
+    const source = definition({ texts: { [LANGUAGE]: { 'messages.closed': 'We are closed.' } } });
+    const harness = renderPanel({ definition: source, language: 'pl-PL', form: detail({ retentionDays: 30 }) });
+    expect(screen.getByText(en('language.lockedShort', { language: LANGUAGE }))).toBeTruthy();
+    expect(screen.getByLabelText(en('settings.restrictions.maxEntries'))).toBeDisabled();
+    expect(screen.getByLabelText(en('settings.spam.captcha'))).toBeDisabled();
+    expect(screen.getByLabelText(en('settings.restrictions.signedInOnly'))).toBeDisabled();
+    expect(within(screen.getByRole('radiogroup', { name: en('settings.confirmation.title') })).getByLabelText(en('settings.confirmation.redirect'))).toBeDisabled();
+    expect(screen.getByLabelText(en('settings.retention.days'))).toBeDisabled();
+    expect(screen.queryByRole('button', { name: en('settings.retention.save') })).toBeNull();
+
+    const closed = screen.getByLabelText(en('settings.restrictions.closedMessage'));
+    expect(closed).toHaveAttribute('placeholder', 'We are closed.');
+    await userEvent.type(closed, 'Zamknięte');
+    await userEvent.type(screen.getByLabelText(en('settings.confirmation.messageText')), 'Dziękujemy!');
+    expect(harness.latest().texts['pl-PL']).toEqual({ 'messages.closed': 'Zamknięte', 'messages.success': 'Dziękujemy!' });
+    expect(harness.latest().texts[LANGUAGE]).toEqual({ 'messages.closed': 'We are closed.' });
   });
 });
 

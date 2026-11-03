@@ -120,8 +120,10 @@ packages/modules/forms/                       # NEW module package (@endora-comm
     └── admin/
         ├── index.ts, api.ts
         ├── pages/{FormsListPage,FormCreatePage,FormBuilderPage,EntriesListPage,EntryDetailPage}.tsx
-        └── components/{FieldPalette,BuilderCanvas,FieldInspector,ConditionRuleEditor,TranslationsPanel,
+        └── components/{FieldPalette,BuilderCanvas,FieldInspector,ConditionRuleEditor,TranslatableText,
                         NotificationsPanel,FormSettingsPanel,FormPreview,EntryFilters,EntryAnswers,EntryNotes}.tsx
+                        (2026-11-03 owner review: TranslationsPanel replaced by the in-builder
+                        language switch and TranslatableText)
 
 packages/contracts/src/forms.ts, forms-logic.ts, forms-logic.fixtures.ts (+ tests), index.ts, errors.ts,
                      storefront-cache-tags.ts, customer-accounts.ts

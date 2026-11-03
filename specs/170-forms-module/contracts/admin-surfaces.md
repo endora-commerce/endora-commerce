@@ -52,13 +52,22 @@ is the designer's (A-17).
 - **Forms list** — `ResponsiveTable` (name, key, status badge, version, entries, updated, warning
   icons), `RowActionMenu` (open, duplicate, close/reopen, delete with `ModalDialog` stating entry
   deletion), create button.
-- **Builder** — tabs *Fields* / *Settings* (confirmation, restrictions, CAPTCHA, retention) /
-  *Notifications* (recipients, per-channel lists, confirmation e-mail) / *Translations*
-  (`ContentLanguageTabs`; per-language completeness), the field palette, the canvas
-  (`useGroupedReorder`), the field inspector (label, placeholder, help, required, default,
-  validation, width, key with a rename warning, "Share with integrations" with its disclosure),
-  `ConditionRuleEditor` (new, R-19), the live preview pane (`cms-components` `FormBlock`), publish
-  bar (`StickyFormActions`) showing refusal reasons next to the elements and the FR-018 warnings.
+- **Builder** — a content-language switch in the header (`ContentLanguageTabs` over the
+  storefront languages, the form's default first; each incomplete language marked with its
+  missing-text count from the contracts' `textCompleteness`, which takes the operator to the first
+  missing text), shared by the tabs *Fields* / *Settings* (confirmation, restrictions, CAPTCHA,
+  retention) / *Notifications* (recipients, per-channel lists, confirmation e-mail) / *Versions*;
+  a *Form* card (internal name, title, description, send button text), the field palette, the
+  canvas (`useGroupedReorder`; each section a card), the field inspector (a sticky card headed by
+  the field type; groups *Basics* — texts, required, width, key with a rename warning, options with
+  a stored value and a label, type settings —, *Validation*, *Conditional logic*
+  (`ConditionRuleEditor`, new, R-19) and *Integrations* — "Share with integrations" with its
+  disclosure), the live preview pane (`cms-components` `FormBlock`, in the content language),
+  publish bar (`StickyFormActions`) showing refusal reasons next to the elements and the FR-018
+  warnings. In another language than the default only texts are editable; every structural control
+  is disabled or hidden with a note, and an empty text shows the default one as its placeholder.
+  *(2026-11-03 owner review: this switch replaced the former Translations tab; the tab panels are
+  cards of admin-kit `Section`s.)*
 - **Entries list** — filters (form, status multi, date range, channel, search), `ResponsiveTable`,
   selection + bulk delete, export button (only with `forms:entries_export`, only with a form chosen).
 - **Entry detail** — answers with version labels, consents with shown texts, page, language, channel,

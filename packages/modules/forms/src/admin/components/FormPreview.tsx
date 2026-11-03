@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { FormBlock } from '@endora-commerce/cms-components/components/forms/FormBlock';
 import '@endora-commerce/cms-components/styles.css';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@endora-commerce/admin-kit/ui';
 import { formsApi, type FormPreview as FormPreviewRead } from '../api.js';
 
 /**
@@ -9,7 +10,8 @@ import { formsApi, type FormPreview as FormPreviewRead } from '../api.js';
  * own renderer** — `cms-components`' `FormBlock` — fed with the server's public read of the saved
  * working copy (`GET …/forms/:id/preview?source=working`), so the preview lays a form out exactly as
  * a page will and cannot drift from it. It reads again after every save (`version`); unsaved edits
- * are announced as such rather than guessed at.
+ * are announced as such rather than guessed at. It renders in the builder's content language, whose
+ * code its header shows (User Story 7).
  */
 export interface FormPreviewProps {
   readonly formId: string;
@@ -42,24 +44,29 @@ export function FormPreview({ formId, language, version, stale }: FormPreviewPro
   }, [formId, language, version]);
 
   return (
-    <section aria-label={t('preview.title')} className="space-y-2 rounded-lg border border-border bg-background p-4">
-      <h2 className="text-sm font-semibold">{t('preview.title')}</h2>
-      {stale ? (
-        <p className="text-xs text-muted-foreground">
-          {t('preview.stale')}
-        </p>
-      ) : null}
-      {state.kind === 'loading' ? <p className="text-sm text-muted-foreground">{t('preview.loading')}</p> : null}
-      {state.kind === 'error' ? <p className="text-sm text-destructive">{t('preview.loadError')}</p> : null}
-      {state.kind === 'ready' ? (
-        state.read.availability === 'unavailable' ? (
-          <p className="text-sm text-muted-foreground">{t('preview.unavailable')}</p>
-        ) : (
-          <div>
-            <FormBlock id="forms-preview" definition={state.read} />
-          </div>
-        )
-      ) : null}
-    </section>
+    <Card role="region" aria-labelledby="forms-preview-title">
+      <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0 border-b border-border p-4">
+        <div className="space-y-1">
+          <CardTitle>
+            <h2 id="forms-preview-title">{t('preview.title')}</h2>
+          </CardTitle>
+          {stale ? <CardDescription className="text-xs">{t('preview.stale')}</CardDescription> : null}
+        </div>
+        <Badge variant="outline">{language}</Badge>
+      </CardHeader>
+      <CardContent className="p-4" aria-busy={state.kind === 'loading' || undefined}>
+        {state.kind === 'loading' ? <p className="text-sm text-muted-foreground">{t('preview.loading')}</p> : null}
+        {state.kind === 'error' ? <p className="text-sm text-destructive">{t('preview.loadError')}</p> : null}
+        {state.kind === 'ready' ? (
+          state.read.availability === 'unavailable' ? (
+            <p className="text-sm text-muted-foreground">{t('preview.unavailable')}</p>
+          ) : (
+            <div className="mx-auto max-w-3xl">
+              <FormBlock id="forms-preview" definition={state.read} />
+            </div>
+          )
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }

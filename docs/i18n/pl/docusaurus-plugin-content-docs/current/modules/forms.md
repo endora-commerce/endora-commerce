@@ -59,12 +59,17 @@ identyfikator używany w eksporcie i przez integracje. Klucz można zmienić, al
 niepowtarzalny wśród formularzy.
 
 Nowy formularz jest **szkicem**: klienci go nie widzą, dopóki go nie opublikujesz. Kreator ma
-pięć kart.
+cztery karty — *Pola*, *Ustawienia*, *Powiadomienia* i *Wersje* — a nad nimi wspólny dla nich
+przełącznik [języka treści](#translations).
 
 ### Pola {#fields}
 
+Panel *Formularz* na górze zawiera nazwę formularza — widoczną tylko dla administratorów — oraz
+teksty, które klienci widzą wokół pól: tytuł, opis i tekst przycisku wysyłania.
+
 Przeciągnij pole z palety do sekcji albo naciśnij je, aby dodać je do sekcji, którą edytujesz;
-każdy ruch można też wykonać klawiaturą. Sekcja ma układ 1, 2 lub 3 kolumn, a każde pole zajmuje
+każdy ruch można też wykonać klawiaturą. Wybierz pole, aby edytować je w panelu obok układu
+formularza; jego ustawienia są podzielone na podstawowe, walidację, logikę warunkową i integracje. Sekcja ma układ 1, 2 lub 3 kolumn, a każde pole zajmuje
 w nich określoną szerokość. Na wąskim ekranie sklep układa wszystkie pola w jednej kolumnie.
 
 Rodzaje pól:
@@ -177,11 +182,19 @@ odpowiedzi.
 
 Każdy tekst, który piszesz — tytuł i opis, etykiety, teksty zastępcze, podpowiedzi, etykiety opcji,
 treści, teksty zgód, komunikaty, potwierdzenie oraz temat i treść e-maila — można napisać dla
-każdego języka sklepu. Karta *Tłumaczenia* pokazuje każdy tekst formularza obok jego oryginału
-w języku domyślnym. Można tam zmieniać tylko teksty, więc formularz ma te same pola, opcje i reguły
-w każdym języku. Język z brakującymi tekstami jest oznaczony; brakujący tekst jest pokazywany
-w języku domyślnym formularza. Teksty wbudowane — komunikaty sprawdzania, przycisk wysyłki,
-wyniki — są przetłumaczone razem ze sklepem.
+każdego języka sklepu. Przełącznik **języka treści** na górze kreatora pokazuje języki sklepów,
+zaczynając od języka domyślnego formularza; karty *Pola*, *Ustawienia* i *Powiadomienia* oraz
+podgląd zawsze pokazują wybrany język.
+
+W języku domyślnym edytujesz wszystko. W innym języku edytujesz tylko teksty, każdy w miejscu,
+w którym występuje w kreatorze: pola, sekcje, zapisywane wartości opcji, reguły, walidacja
+i pozostałe ustawienia są zablokowane, więc formularz ma te same pola, opcje i reguły w każdym
+języku. Pusty tekst pokazuje jako podpowiedź tekst w języku domyślnym, bo właśnie ten tekst widzą
+klienci; po wyczyszczeniu tekstu znów jest używany tekst domyślny.
+
+Obok przełącznika każdy język z brakującymi tekstami jest oznaczony liczbą braków; wybierz to
+oznaczenie, aby otworzyć ten język przy pierwszym brakującym tekście. Teksty wbudowane — komunikaty
+sprawdzania, przycisk wysyłki, wyniki — są przetłumaczone razem ze sklepem.
 
 ## Umieszczanie formularza na stronie {#placing-a-form-on-a-page}
 

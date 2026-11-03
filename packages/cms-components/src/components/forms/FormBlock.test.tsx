@@ -1,4 +1,7 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { renderToString } from 'react-dom/server';
@@ -232,6 +235,8 @@ const control = (host: HTMLElement, name: string) => host.querySelector<HTMLElem
 const labelFor = (host: HTMLElement, element: HTMLElement | null) =>
   element ? host.querySelector<HTMLLabelElement>(`label[for="${element.id}"]`) : null;
 
+const STYLESHEET = resolve(dirname(fileURLToPath(import.meta.url)), '../../../styles/cms-components.css');
+
 describe('FormBlock — the static render (T015)', () => {
   it.each([
     ['name', 'Name', 'INPUT', 'text'],
@@ -406,6 +411,19 @@ describe('FormBlock — the static render (T015)', () => {
       const style = element.getAttribute('style') ?? '';
       expect(style).not.toMatch(/color|background|#[0-9a-f]{3,8}\b|rgb|\d+px/i);
     }
+  });
+
+  it('writes in the brand’s body font, as every other block does', () => {
+    const css = readFileSync(STYLESHEET, 'utf8').replace(/\s+/g, ' ');
+    const rule = css.indexOf(') { font-family: var(--cmsb-font-body, inherit);');
+    const list = css.slice(css.lastIndexOf(':where(', rule) + ':where('.length, rule).replace(/\/\*.*?\*\//g, '');
+    expect(list.split(',').map((selector) => selector.trim())).toContain('.cmsc-pb-form');
+  });
+
+  it('keeps a consent’s required marker on the line of its text', () => {
+    // The text is a rich paragraph: a block paragraph would push the marker onto a line of its own.
+    const css = readFileSync(STYLESHEET, 'utf8').replace(/\s+/g, ' ');
+    expect(css).toMatch(/\.cmsc-pb-form__consent-text > p:last-child \{ display: inline; \}/);
   });
 
   it('falls back to English built-ins without a forms context (the editor)', () => {

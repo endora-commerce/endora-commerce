@@ -1,7 +1,7 @@
 import { useId, type ReactNode } from 'react';
 import type { FormEntryDetail } from '@endora-commerce/contracts';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { Card, CardContent } from '@endora-commerce/admin-kit/ui';
+import { Card, CardContent, CardHeader, CardTitle } from '@endora-commerce/admin-kit/ui';
 
 /**
  * What an entry says (`specs/170-forms-module/` US4-2, US1-6, FR-029): its answers in the labels and
@@ -39,15 +39,13 @@ function Region({ titleKey, children }: { readonly titleKey: string; readonly ch
   const t = useTranslation('forms');
   const titleId = useId();
   return (
-    <Card>
-      <CardContent className="space-y-3 pt-6">
-        <section aria-labelledby={titleId} className="space-y-3">
-          <h2 id={titleId} className="text-base font-semibold">
-            {t(titleKey)}
-          </h2>
-          {children}
-        </section>
-      </CardContent>
+    <Card role="region" aria-labelledby={titleId}>
+      <CardHeader className="p-4 pb-2">
+        <CardTitle>
+          <h2 id={titleId}>{t(titleKey)}</h2>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 p-4 pt-0">{children}</CardContent>
     </Card>
   );
 }

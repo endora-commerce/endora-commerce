@@ -1,7 +1,7 @@
 import { useId, useState, type FormEvent, type ReactNode } from 'react';
 import { FORMS_LIMITS } from '@endora-commerce/contracts';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { Alert, AlertDescription, Button, Card, CardContent, Label, Textarea } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Label, Textarea } from '@endora-commerce/admin-kit/ui';
 import type { EntryNote } from '../api.js';
 import { errorMessage } from '../lib/errors.js';
 
@@ -41,12 +41,14 @@ export function EntryNotes({ notes, canWrite, onAdd }: EntryNotesProps): ReactNo
   };
 
   return (
-    <Card>
-      <CardContent className="pt-6">
-        <section aria-labelledby={`${id}-title`} className="space-y-3">
-          <h2 id={`${id}-title`} className="text-base font-semibold">
-            {t('entry.notes')}
-          </h2>
+    <Card role="region" aria-labelledby={`${id}-title`}>
+      <CardHeader className="p-4 pb-2">
+        <CardTitle>
+          <h2 id={`${id}-title`}>{t('entry.notes')}</h2>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-4 pt-0">
+        <div className="space-y-3">
           {notes.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t('entry.noNotes')}</p>
           ) : (
@@ -83,7 +85,7 @@ export function EntryNotes({ notes, canWrite, onAdd }: EntryNotesProps): ReactNo
               </Button>
             </form>
           ) : null}
-        </section>
+        </div>
       </CardContent>
     </Card>
   );

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus } from 'lucide-react';
+import { ClipboardList, Plus, SearchX } from 'lucide-react';
 import { FORM_STATUSES, type FormStatus, type FormSummary } from '@endora-commerce/contracts';
 import {
   PaginationFooter,
@@ -12,7 +12,7 @@ import {
 } from '@endora-commerce/admin-kit/components';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, Input, Label, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, Input, Label, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
 import { formsApi } from '../api.js';
 import { DeleteFormDialog, FormStatusBadge, FormWarningList } from '../components/FormStatus.js';
 import { errorMessage } from '../lib/errors.js';
@@ -126,7 +126,7 @@ export function FormsListPage(): ReactNode {
         }
       />
       <Card>
-        <CardContent className="space-y-4 pt-6">
+        <CardHeader className="border-b border-border p-4">
           <div className="flex flex-wrap items-end gap-3">
             <div className="min-w-56 flex-1 space-y-1">
               <Label htmlFor={searchId}>{t('list.search')}</Label>
@@ -158,13 +158,18 @@ export function FormsListPage(): ReactNode {
                 ))}
               </Select>
             </div>
+            <p aria-live="polite" className="ml-auto self-center text-sm text-muted-foreground">
+              {load.kind === 'ready' ? t('list.count', { count: load.total }) : ''}
+            </p>
           </div>
+        </CardHeader>
+        <CardContent className="space-y-4 p-4" aria-busy={load.kind === 'loading' || undefined}>
           {actionError ? (
             <Alert variant="destructive">
               <AlertDescription>{actionError}</AlertDescription>
             </Alert>
           ) : null}
-          {load.kind === 'loading' ? <p className="text-sm text-muted-foreground">{t('list.loading')}</p> : null}
+          {load.kind === 'loading' ? <p className="py-6 text-center text-sm text-muted-foreground">{t('list.loading')}</p> : null}
           {load.kind === 'error' ? (
             <Alert variant="destructive">
               <AlertDescription>{t('list.loadError')}</AlertDescription>
@@ -176,7 +181,37 @@ export function FormsListPage(): ReactNode {
                 columns={columns}
                 data={load.items}
                 keyExtractor={(form) => form.id}
-                emptyState={<p className="py-6 text-center text-sm text-muted-foreground">{filtered ? t('list.emptyFiltered') : t('list.empty')}</p>}
+                emptyState={
+                  <div className="flex flex-col items-center gap-3 py-10 text-center">
+                    {filtered ? (
+                      <SearchX size={32} aria-hidden="true" className="text-muted-foreground" />
+                    ) : (
+                      <ClipboardList size={32} aria-hidden="true" className="text-muted-foreground" />
+                    )}
+                    <p className="text-sm text-muted-foreground">{filtered ? t('list.emptyFiltered') : t('list.empty')}</p>
+                    {filtered ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setQ('');
+                          setStatus('');
+                          setPage(1);
+                        }}
+                      >
+                        {t('list.clearFilters')}
+                      </Button>
+                    ) : canWrite ? (
+                      <Button asChild size="sm">
+                        <Link to="/forms/new">
+                          <Plus size={14} aria-hidden="true" />
+                          {t('list.create')}
+                        </Link>
+                      </Button>
+                    ) : null}
+                  </div>
+                }
                 {...(canWrite
                   ? {
                       renderActions: (form: FormSummary) => (
