@@ -174,7 +174,7 @@ describe('170 US2 — URL keys at G, C and C×L (T030)', () => {
     expect(Number(row!.n)).toBe(50);
   });
 
-  it.each(['//host', '/\\host', '..', '%2f', 'a:b', 'two words', ' lead', 'UPPER', 'żółw'])('refuses the key %j', async (bad) => {
+  it.each(['//host', '/\\host', '..', '%2f', 'a:b', 'two words', ' lead', 'UPPER', '\u017c\u00f3\u0142w'])('refuses the key %j', async (bad) => {
     const p = await fx.product({ channels: [channel] });
     const res = await putKeys(p, { channelKeys: [{ channelId: channel, languageCode: 'pl-PL', key: bad }] });
     expect(res.statusCode).toBe(400);
