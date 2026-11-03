@@ -142,7 +142,7 @@ const ALLOWLIST: ReadonlyArray<{ file: string; reason: string }> = [
   },
   {
     file: 'packages/modules/seo/src/backend/services/meta-tag-resolver.service.ts',
-    reason: 'S2 — the derived meta fallback at (C, L), deferred to US10 (T117-T121)',
+    reason: "non-product map: a category's name per language, for the category's derived meta (the product half reads effectiveTexts since T070)",
   },
   {
     file: 'packages/modules/quote_requests/src/admin/pages/RfqCreatePage.tsx',

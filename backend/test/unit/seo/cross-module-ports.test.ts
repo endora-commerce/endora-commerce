@@ -182,6 +182,7 @@ describe('seo — the meta-tag rule sources arrive over published read ports', (
       refusing('catalog categories'),
       refusing('cms'),
       refusing('sales channel membership'),
+      refusing('catalog product texts'),
     );
 
     // Feature 170 (FR-010) — a product has no language-only scope; naming neither half is Global.
@@ -212,6 +213,7 @@ describe('seo — the meta-tag rule sources arrive over published read ports', (
       catalogCategories,
       refusing('cms'),
       refusing('sales channel membership'),
+      refusing('catalog product texts'),
     );
 
     await expect(
@@ -233,6 +235,7 @@ describe('seo — the meta-tag rule sources arrive over published read ports', (
       refusing('catalog categories'),
       cmsPages,
       refusing('sales channel membership'),
+      refusing('catalog product texts'),
     );
 
     const meta = await service.resolve({

@@ -137,7 +137,7 @@ describe('GET /api/v1/catalog/sitemap.xml', () => {
     await conn.execute(
       `insert into products (id, sku, slug, type, status, name, description, visibility, allowed_organization_ids,
                              created_at, updated_at)
-       values (?, ?, ?, 'simple', 'active', '{"en-US":"Sitemap drill"}'::jsonb, '{}'::jsonb, 'public', '[]'::jsonb,
+       values (?, ?, ?, 'simple', 'active', 'Sitemap drill', null, 'public', '[]'::jsonb,
                now(), now())`,
       [productId, `SM163-${run}`, `drill-${run}`],
     );
@@ -147,7 +147,8 @@ describe('GET /api/v1/catalog/sitemap.xml', () => {
         method: 'PUT',
         url: `/api/v1/admin/catalog/products/${productId}/url-keys`,
         cookies: { b2b_session: 'stub-admin-session' },
-        payload: { languageKeys: [{ languageCode: 'pl-PL', key: `wiertarka-${run}` }] },
+        // Feature 170 — the Channel × language key (`contracts/url-keys.md`); no language-only key.
+        payload: { channelKeys: [{ channelId, languageCode: 'pl-PL', key: `wiertarka-${run}` }] },
       });
       expect(keys.statusCode, keys.body).toBe(200);
       const regen = await h.app.inject({

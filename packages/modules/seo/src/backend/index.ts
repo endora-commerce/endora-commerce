@@ -97,6 +97,8 @@ export function registerModule(ctx: ModuleContext): void {
             lazyPort<CmsPageReadPort>(ctx, 'cmsPageReadPort'),
             // Feature 163 — a channel-scoped override needs the product in the channel (FR-014).
             lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort'),
+            // Feature 170 — the derived metadata at (C, L) from the product's effective texts.
+            lazyPort<CatalogProductAvailabilityPort>(ctx, 'catalogProductAvailabilityPort'),
           ),
       )
       .singleton(),
