@@ -108,8 +108,7 @@ describe('PDP metadata at Global, Channel and Channel × language (spec 170, T12
     });
   });
 
-  /** PENDING T121 (S2) — `seo`'s 163 resolver serves the empty title; round 6's derived fallback lands with T121. */
-  it.skip('derives a field whose effective value is an empty override, and inherits the Channel description (PENDING T121)', async () => {
+  it('derives a field whose effective value is an empty override, and inherits the Channel description', async () => {
     expect(await pdpSeo(b2b, 'en-US')).toMatchObject({ metaTitle: 'Impact drill', metaDescription: 'Opis B2B' });
   });
 
@@ -117,11 +116,7 @@ describe('PDP metadata at Global, Channel and Channel × language (spec 170, T12
     expect(await pdpSeo(b2c, 'pl-PL')).toMatchObject({ metaTitle: 'Impact drill', metaDescription: 'A drill.' });
   });
 
-  /**
-   * PENDING T118 (S2) — a Global product row breaks 163's `seo_meta_overrides_scope_check`
-   * (locale or channel required) until `seo`'s three-level migration replaces it. Un-skip when it lands.
-   */
-  it.skip('serves the Global row on every channel and language no C or C\u00d7L row overrides (PENDING T118)', async () => {
+  it('serves the Global row on every channel and language no C or C\u00d7L row overrides', async () => {
     await seedMeta(null, null, { title: 'Wiertarka (G)', description: 'Opis globalny' });
     expect(await pdpSeo(b2c, 'en-US')).toMatchObject({ metaTitle: 'Wiertarka (G)', metaDescription: 'Opis globalny' });
     expect(await pdpSeo(b2b, 'pl-PL')).toMatchObject({ metaTitle: 'Wiertarka dla firm', metaDescription: 'Opis B2B' });

@@ -12,8 +12,8 @@ import { scopedValuesFixture, type ScopedValuesFixture } from '../../helpers/sco
  *   (`seoProductMetaPort.readScoped`), sources included;
  * - with `seo` off, the read answers `seo: null`, a save without SEO succeeds, and the rows `seo`
  *   holds come back unchanged when it is switched on again;
- * - a save **with** SEO while `seo` is off is `503 MODULE_DISABLED` and writes nothing — pending
- *   until catalog's save step 8 can resolve `seoProductMetaWritePort` (T121, S2).
+ * - a save **with** SEO while `seo` is off is `503 MODULE_DISABLED` and writes nothing (save
+ *   step 8 resolves `seoProductMetaWritePort`, `refuses-without`).
  */
 describe('170 US10 — the SEO block of the scoped read, and seo off (T122)', () => {
   let h: BackendServerHandle;
@@ -65,8 +65,7 @@ describe('170 US10 — the SEO block of the scoped read, and seo off (T122)', ()
     });
   });
 
-  /** PENDING T121 (S2) + save step 8 (T123) — `seoProductMetaWritePort` is not provided yet. */
-  it.skip('refuses a save with SEO while seo is off (503 MODULE_DISABLED) and writes nothing (PENDING T121)', async () => {
+  it('refuses a save with SEO while seo is off (503 MODULE_DISABLED) and writes nothing', async () => {
     await withModuleOff('seo', 'deactivated', async () => {
       const res = await fx.put(id, { channelId: channel, languageCode: 'pl-PL' }, { name: 'Nowa', seo: { title: 'Nowy' } });
       expect(res.statusCode, res.body).toBe(503);

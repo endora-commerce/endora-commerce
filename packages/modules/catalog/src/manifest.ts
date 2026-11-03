@@ -318,6 +318,21 @@ export const manifest = defineModuleManifest({
         'the edge back would close a cycle, and this module is non-deactivatable.',
     },
     {
+      // Feature 170 (T123, FR-091, SC-007; `contracts/scoped-values-api.md` §3 steps 4 and 8).
+      moduleId: 'seo',
+      name: 'seoProductMetaWritePort',
+      kind: 'refuses-without',
+      whenAbsent:
+        'a product save that changes SEO fields is refused while SEO is off; saves without SEO changes, and duplicates, are unaffected',
+      reason:
+        'Feature 170. The editor saves the product and its SEO fields as one Command: the SEO rows ' +
+        'are written on that Command\'s EntityManager, so an SEO refusal rolls the catalog rows back ' +
+        'and no audit entry is written. The port is resolved only when a save names an SEO cell, ' +
+        'and a duplicate probes `effectiveState.isPresent(\'seo\')` first and copies no metadata ' +
+        'while `seo` is off. Not `dependencies`: `seo` declares this module, and this module is ' +
+        'non-deactivatable.',
+    },
+    {
       moduleId: 'admin_search',
       name: 'adminSearchProviderRegistry',
       kind: 'contributes-to',

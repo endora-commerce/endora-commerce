@@ -47,12 +47,19 @@ describe('170 FR-119 — duplicate copies every scope (T151)', () => {
       ...view,
       value: view.value === null ? null : position.get(view.value),
       ownValue: view.ownValue === undefined || view.ownValue === null ? view.ownValue : position.get(view.ownValue),
+      ...(view.inheritedValue
+        ? { inheritedValue: { ...view.inheritedValue, value: view.inheritedValue.value === null ? null : position.get(view.inheritedValue.value) } }
+        : {}),
     });
     const { name, status: _status, urlKey: _urlKey, ...fields } = data.fields;
     return {
       validScopes: data.validScopes,
       // The copy's Global name carries "(copy)": compared where it is an own value, by source where inherited.
-      fields: data.scope.level === 'global' || name.source === 'inherited_global' ? { ...fields, nameSource: name.source } : { name, ...fields },
+      // Its inheritedValue at C is that Global name too: compared by level.
+      fields:
+        data.scope.level === 'global' || name.source === 'inherited_global'
+          ? { ...fields, nameSource: name.source }
+          : { name: name.inheritedValue?.level === 'G' ? { ...name, inheritedValue: { level: 'G' } } : name, ...fields },
       attributes: data.attributes,
       gallery: {
         items: data.gallery.items.map(({ id: _id, ...item }) => item),
@@ -208,11 +215,10 @@ describe('170 FR-119 — duplicate copies every scope (T151)', () => {
   });
 
   /**
-   * PENDING T121 (S2) — `seoProductMetaWritePort` is not provided yet, and the Global row needs
-   * T118's CHECK. Un-skip when S2's seo backend lands: the copy's SEO rows at G, C and C×L equal
-   * the source's, an empty override included, written through the port inside the Command.
+   * The copy's SEO rows at G, C and C×L equal the source's, an empty override included, written
+   * through `seo`'s write port inside the duplicate Command.
    */
-  it.skip('copies SEO values at every scope through seo’s write port (PENDING T121)', async () => {
+  it('copies SEO values at every scope through seo’s write port', async () => {
     const id = await fx.product({ channels: [a] });
     await fx.save(id, {}, { seo: { title: 'SEO G' } });
     await fx.save(id, C(a), { seo: { title: 'SEO C', description: null } });

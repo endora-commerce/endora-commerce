@@ -108,7 +108,7 @@ export function isRemovalOnly(changes: ScopedValueChanges): boolean {
   return cells > 0 && cells === removals;
 }
 
-const SCOPE_KEY = (scope: ScopeRef): string =>
+export const SCOPE_KEY = (scope: ScopeRef): string =>
   scope.level === 'global' ? 'G' : scope.level === 'channel' ? `C:${scope.channelId}` : `CL:${scope.channelId}/${scope.languageCode}`;
 
 const invalid = (fields: ScopedValueInvalidDetails['fields']): HttpError =>
@@ -482,7 +482,7 @@ export function auditStates(
 // --- The writers (step 7) ---------------------------------------------------------------------
 
 /** A failure-injection seam for the atomicity tests (T104): called before each family writer. */
-export type WriteProbe = (family: Family) => void;
+export type WriteProbe = (family: Family | 'seo') => void;
 
 /**
  * Step 7 — every planned cell written on the Command's `em`, in the fixed order product row →
