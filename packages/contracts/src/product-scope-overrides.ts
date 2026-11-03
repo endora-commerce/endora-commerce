@@ -17,39 +17,11 @@ export const attributeKeySchema = z.string().min(1).max(64);
 /** BCP-47-ish language code. The dictionary module governs the active list. */
 export const languageCodeSchema = z.string().min(1).max(16);
 
-/** Wrapped value column shape — `{ v: ... }` keeps the JSONB an object. */
-export const overrideValueSchema = z.object({ v: z.unknown() });
-
-// --- GET /admin/products/:id/value-overrides --------------------------------
-
-export const productValueOverrideSchema = z.object({
-  id: uuidSchema,
-  attributeKey: attributeKeySchema,
-  channelId: uuidSchema,
-  languageCode: languageCodeSchema.nullable(),
-  value: overrideValueSchema,
-  updatedAt: isoDateTimeSchema,
-});
-export type ProductValueOverride = z.infer<typeof productValueOverrideSchema>;
-
-export const productValueOverridesGetResponseSchema = z.object({
-  productId: uuidSchema,
-  overrides: z.array(productValueOverrideSchema),
-});
-export type ProductValueOverridesGetResponse = z.infer<
-  typeof productValueOverridesGetResponseSchema
->;
-
-// --- PATCH /admin/products/:id/value-overrides ------------------------------
-
-export const productValueOverrideUpsertSchema = z.object({
-  attributeKey: attributeKeySchema,
-  channelId: uuidSchema,
-  languageCode: languageCodeSchema.nullable(),
-  value: overrideValueSchema,
-});
-export type ProductValueOverrideUpsert = z.infer<typeof productValueOverrideUpsertSchema>;
-
+/**
+ * A removal of one override row, as the admin's scope overview names it. The `GET` / `PATCH
+ * …/value-overrides` routes and their schemas were removed by feature 170 (T043); this shape is
+ * kept while the admin imports it (S3).
+ */
 export const productValueOverrideDeleteSchema = z.object({
   attributeKey: attributeKeySchema,
   channelId: uuidSchema,
@@ -57,27 +29,7 @@ export const productValueOverrideDeleteSchema = z.object({
 });
 export type ProductValueOverrideDelete = z.infer<typeof productValueOverrideDeleteSchema>;
 
-export const productValueOverridesPatchRequestSchema = z.object({
-  upserts: z.array(productValueOverrideUpsertSchema).default([]),
-  deletes: z.array(productValueOverrideDeleteSchema).default([]),
-});
-export type ProductValueOverridesPatchRequest = z.infer<
-  typeof productValueOverridesPatchRequestSchema
->;
-
-export const productValueOverridesPatchResponseSchema = z.object({
-  productId: uuidSchema,
-  applied: z.object({
-    upserted: z.number().int().min(0),
-    deleted: z.number().int().min(0),
-  }),
-  overrides: z.array(productValueOverrideSchema),
-});
-export type ProductValueOverridesPatchResponse = z.infer<
-  typeof productValueOverridesPatchResponseSchema
->;
-
-// --- GET /admin/products/:id/scope-context ----------------------------------
+// --- GET /admin/products/:id/scope-context (removed by feature 170; kept while the admin imports it, S3)
 
 export const productScopeChannelSchema = z.object({
   id: uuidSchema,
