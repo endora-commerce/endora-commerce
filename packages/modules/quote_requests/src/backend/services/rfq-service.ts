@@ -25,6 +25,7 @@ import {
   type BuyerLinePricePort,
   type CreateForCustomerOptions,
   type OrderMinimumLine,
+  type OrganizationPermissionPort,
   withChannelOrderRules,
 } from '@endora-commerce/contracts';
 import type { EventBase, EventBus } from '@endora-commerce/platform/events';
@@ -106,12 +107,19 @@ export interface RfqEvents extends Record<string, EventBase> {
 }
 export type RfqEventBus = EventBus<RfqEvents>;
 
+/**
+ * Who is asking, on this module's customer routes.
+ *
+ * `organizationRoleId` is the role the actor carries (`specs/170-organization-roles/`,
+ * research R-15), handed to `organizationPermissionPort` so it need not read
+ * the account again; absent, the port reads it. Whether the caller sees every
+ * quote request of the Organization is **not** carried here: it is asked of
+ * the port where it is needed (research R-30), so no caller can state it.
+ */
 export interface CustomerContext {
   customerAccountId: string;
   organizationId: string;
-  /** True when the customer account holds the org-admin role on the
-   * current organization (FR-011 — broader visibility). */
-  isOrgAdmin: boolean;
+  organizationRoleId?: string | null;
 }
 
 export interface RfqServiceDeps {
@@ -196,6 +204,13 @@ export interface RfqServiceDeps {
    * refusal goes; the buyer's answer never carries it. Absent: not logged.
    */
   log?: PlatformLogger;
+  /**
+   * `organizations`' answer to "does this member hold the *Administrator*
+   * role?" — until P3, the one role that sees every quote request of its
+   * Organization (`specs/170-organization-roles/`, FR-041 in its P2 form,
+   * research R-30). A thunk resolved per call, never captured.
+   */
+  organizationPermissions: () => Pick<OrganizationPermissionPort, 'isAdministrator'>;
 }
 
 export class RfqService {
@@ -397,13 +412,46 @@ export class RfqService {
   // Read paths
   // -------------------------------------------------------------------------
 
+  /**
+   * The quote requests **the account itself** raised — `RfqCustomerPort`'s
+   * answer, which `customers` reads for a buyer's own list and for one
+   * customer's list in the Admin UI. Never widened to the Organization, whoever
+   * the account is: that is {@link listVisibleForCustomer}, this module's own
+   * storefront list.
+   */
   async listForCustomer(ctx: CustomerContext): Promise<QuoteRequestSummary[]> {
+    return this.#listSummaries(ctx, false);
+  }
+
+  /**
+   * `GET /api/v1/quote-requests` — the caller's own quote requests, or every
+   * quote request of its Organization when it holds the *Administrator* role
+   * (`specs/170-organization-roles/`, FR-041 P2 form, research R-30).
+   */
+  async listVisibleForCustomer(ctx: CustomerContext): Promise<QuoteRequestSummary[]> {
+    return this.#listSummaries(ctx, await this.#seesOrganization(ctx));
+  }
+
+  /**
+   * Whether the caller sees every quote request of its Organization: until P3,
+   * holding the *Administrator* role (research R-30) — asked of
+   * `organizationPermissionPort`, never of the legacy `role` column.
+   */
+  async #seesOrganization(ctx: CustomerContext): Promise<boolean> {
+    return this.deps.organizationPermissions().isAdministrator({
+      customerAccountId: ctx.customerAccountId,
+      organizationId: ctx.organizationId,
+      organizationRoleId: ctx.organizationRoleId ?? null,
+    });
+  }
+
+  async #listSummaries(ctx: CustomerContext, seesOrganization: boolean): Promise<QuoteRequestSummary[]> {
     const em = this.deps.emFactory();
-    // Feature 056 (T032) — an Organization Admin sees "their org(s)"; the org
-    // predicate is enforced by the always-on tenant filter (single-org, or the
-    // SUBTREE for a roll-up-enabled head-office login), so we do not pin
-    // `ctx.organizationId` here. A regular user still sees only their own RFQs.
-    const where = ctx.isOrgAdmin ? {} : { customerAccountId: ctx.customerAccountId };
+    // Feature 056 (T032) — an Organization's administrator sees "their org(s)";
+    // the org predicate is enforced by the always-on tenant filter (single-org,
+    // or the SUBTREE for a roll-up-enabled head-office login), so we do not pin
+    // `ctx.organizationId` here. Anyone else sees only their own RFQs.
+    const where = seesOrganization ? {} : { customerAccountId: ctx.customerAccountId };
     const rfqs = await em.find(QuoteRequest, where, { orderBy: { createdAt: 'desc' } });
     if (rfqs.length === 0) return [];
 
@@ -1305,7 +1353,9 @@ export class RfqService {
     if (rfq.organizationId !== ctx.organizationId) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Quote Request not found.');
     }
-    if (!ctx.isOrgAdmin && rfq.customerAccountId !== ctx.customerAccountId) {
+    // A colleague's request exists for the caller only if it sees the whole
+    // Organization (R-30); otherwise it is 404, never 403 (Principle XI).
+    if (rfq.customerAccountId !== ctx.customerAccountId && !(await this.#seesOrganization(ctx))) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Quote Request not found.');
     }
     return rfq;

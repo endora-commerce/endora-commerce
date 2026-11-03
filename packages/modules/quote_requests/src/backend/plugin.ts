@@ -13,6 +13,7 @@ import type {
   CustomFieldValuePort,
   OrderReadPort,
   OrganizationDetailsPort,
+  OrganizationPermissionPort,
   SalesRepAssignmentPort,
 } from '@endora-commerce/contracts';
 import { RfqService, type RfqEventBus, type RfqServiceDeps } from './services/rfq-service.js';
@@ -162,6 +163,12 @@ export interface QuoteRequestsModuleOptions {
    * through it (`specs/147-saved-views/` research R-18, S-11).
    */
   log?: PlatformLogger;
+  /**
+   * `organizations`' permission port, resolved per call
+   * (`specs/170-organization-roles/`): the customer routes' guards (FR-040)
+   * and the *Administrator*-only Organization-wide visibility (R-30).
+   */
+  organizationPermissions: () => OrganizationPermissionPort;
 }
 
 export interface QuoteRequestsModuleHandle {
@@ -213,6 +220,7 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
     negotiationPolicy: options.negotiationPolicy,
     businessId: businessIdGenerator,
     resolveTaxRate: options.resolveTaxRate,
+    organizationPermissions: options.organizationPermissions,
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
     ...(options.customFieldValues ? { customFieldValues: options.customFieldValues } : {}),
     ...(options.log ? { log: options.log } : {}),
@@ -264,6 +272,7 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
         rfqService,
         requireCustomer: options.requireCustomer,
         resolveCustomerContext: options.resolveCustomerContext,
+        organizationPermissions: options.organizationPermissions,
         ...(options.assertOrganizationCanTransact
           ? { assertOrganizationCanTransact: options.assertOrganizationCanTransact }
           : {}),

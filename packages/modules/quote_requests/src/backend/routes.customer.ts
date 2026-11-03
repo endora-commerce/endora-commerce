@@ -13,7 +13,9 @@ import {
   ERROR_CODES,
   firstLanguageTag,
   OrganizationCannotTransactError,
+  organizationPermissionPreHandler,
   type Actor,
+  type OrganizationPermissionPort,
 } from '@endora-commerce/contracts';
 import type { RfqService, CustomerContext } from './services/rfq-service.js';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -87,6 +89,12 @@ export interface QuoteRequestsCustomerDeps {
    * is not `active` (feature 026 US1 / US3).
    */
   assertOrganizationCanTransact?: (organizationId: string) => Promise<void>;
+  /**
+   * `organizations`' permission port, resolved on every request
+   * (`specs/170-organization-roles/`, FR-040): the route guards below judge
+   * the member's role through it.
+   */
+  organizationPermissions: () => OrganizationPermissionPort;
 }
 
 function parseIfMatch(request: FastifyRequest): number | null {
@@ -106,7 +114,18 @@ export async function registerQuoteRequestsCustomerRoutes(
   deps: QuoteRequestsCustomerDeps,
 ): Promise<void> {
   const { rfqService, requireCustomer, resolveCustomerContext } = deps;
-  const { assertOrganizationCanTransact } = deps;
+  const { assertOrganizationCanTransact, organizationPermissions } = deps;
+
+  // `specs/170-organization-roles/` FR-040 (`contracts/storefront-api.md` §5).
+  // Declared after `requireCustomer`, so an anonymous visitor is still 401;
+  // a member lacking the code is `403 ORGANIZATION_PERMISSION_REQUIRED`
+  // before the body is validated or the quote request is looked up.
+  const mayCreateQuoteRequest = organizationPermissionPreHandler(
+    organizationPermissions,
+    'quote_requests.create',
+  );
+  // Converting fills the buyer's basket, so it is the basket's code.
+  const mayFillCart = organizationPermissionPreHandler(organizationPermissions, 'carts.create');
 
   const guardCanTransact = async (organizationId: string): Promise<void> => {
     if (!assertOrganizationCanTransact) return;
@@ -128,7 +147,7 @@ export async function registerQuoteRequestsCustomerRoutes(
   // GET /api/v1/quote-requests — list visible Quote Requests for the caller
   app.get('/api/v1/quote-requests', { preHandler: requireCustomer }, async (request) => {
     const ctx = await resolveCustomerContext(request);
-    const data = await rfqService.listForCustomer(ctx);
+    const data = await rfqService.listVisibleForCustomer(ctx);
     return {
       data,
       pagination: { limit: 50, nextCursor: null, hasMore: false },
@@ -150,7 +169,7 @@ export async function registerQuoteRequestsCustomerRoutes(
   // POST /api/v1/quote-requests — create + submit a new Quote Request
   app.post(
     '/api/v1/quote-requests',
-    { preHandler: requireCustomer, schema: { body: createQuoteRequestSchema } },
+    { preHandler: [requireCustomer, mayCreateQuoteRequest], schema: { body: createQuoteRequestSchema } },
     async (request, reply) => {
       const ctx = await resolveCustomerContext(request);
       await guardCanTransact(ctx.organizationId);
@@ -232,7 +251,7 @@ export async function registerQuoteRequestsCustomerRoutes(
   // POST /api/v1/quote-requests/:id/convert-to-order — start checkout
   app.post<{ Params: { id: string } }>(
     '/api/v1/quote-requests/:id/convert-to-order',
-    { preHandler: requireCustomer },
+    { preHandler: [requireCustomer, mayFillCart] },
     async (request, reply) => {
       const ctx = await resolveCustomerContext(request);
       // Into the basket of the storefront the buyer converts on
@@ -250,7 +269,10 @@ export async function registerQuoteRequestsCustomerRoutes(
   // POST /api/v1/quote-requests/:id/resubmit — clone into a new Pending RFQ
   app.post<{ Params: { id: string } }>(
     '/api/v1/quote-requests/:id/resubmit',
-    { preHandler: requireCustomer, schema: { body: resubmitQuoteRequestSchema.optional() } },
+    {
+      preHandler: [requireCustomer, mayCreateQuoteRequest],
+      schema: { body: resubmitQuoteRequestSchema.optional() },
+    },
     async (request, reply) => {
       const ctx = await resolveCustomerContext(request);
       const body = resubmitQuoteRequestSchema.parse(request.body ?? {});

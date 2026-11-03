@@ -179,5 +179,7 @@
   "history.carryReason.audience_mismatch": "pole zapytania ofertowego jest widoczne dla klientów, a pole szansy sprzedażowej jest wewnętrzne",
   "history.carryReason.value_invalid": "wartość nie pasuje do pola zapytania ofertowego",
   "history.carryReasonUnknown": "nie udało się przenieść wartości",
-  "actions.openInbox.keywords": "zapytanie, oferta"
+  "actions.openInbox.keywords": "zapytanie, oferta",
+  "organizationPermissions.quote_requests.create.label": "Tworzenie zapytań ofertowych",
+  "organizationPermissions.quote_requests.create.description": "Wysyłanie zapytania ofertowego od zera lub ponownie, a także zamiana koszyka, listy zakupowej lub szybkiego zamówienia w zapytanie ofertowe."
 }
