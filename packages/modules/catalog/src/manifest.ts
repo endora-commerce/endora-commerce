@@ -679,6 +679,9 @@ export const manifest = defineModuleManifest({
         // product list and editor: "archive", "archived" and "restore" find
         // them, and the Polish words are under `keywordsKey` (issue #573).
         'archived restore',
+        // Feature 170 (FR-108) — the one scope switcher sets the editor's channel and language:
+        // "language" and "translation" find it; the Polish words are under `keywordsKey`.
+        'language translation',
       ],
       keywordsKey: 'actions.openProducts.keywords',
       weight: 200,
