@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { OrganizationPermissionPort } from '@endora-commerce/contracts';
 
 import { Cart, CartItem, Order, OrderItem } from '../../helpers/package-entities.js';
 import {
@@ -101,6 +102,7 @@ describe('Order reorder — current prices, and lines with none reported (#166)'
       cartWritePortOf(h),
       ports.catalogProductRead,
       ports.customerAccountRead,
+      h.container.resolve<OrganizationPermissionPort>('organizationPermissionPort'),
       async () => true,
     );
 

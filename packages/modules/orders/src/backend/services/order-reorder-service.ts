@@ -7,6 +7,7 @@ import type {
   CatalogProductReadPort,
   CustomerAccountReadPort,
   EmailMailerPort,
+  OrganizationPermissionPort,
   TransactionalEmailSender,
 } from '@endora-commerce/contracts';
 import { buildReorderCreatedEmail } from '../email-templates/reorder-created.js';
@@ -59,11 +60,13 @@ export class OrderReorderService {
     private readonly cartWrite: CartWritePort,
     private readonly catalogProductRead: CatalogProductReadPort,
     private readonly customerAccountRead: CustomerAccountReadPort,
+    /** The order read scope's question (`OrderAccessService`, FR-049). */
+    organizationPermissions: OrganizationPermissionPort,
     private readonly resolveReorderEnabled?: (salesChannelId: string) => Promise<boolean>,
     private readonly mailer?: EmailMailerPort,
     private readonly getTransactionalEmailSender?: () => TransactionalEmailSender | undefined,
   ) {
-    this.#access = new OrderAccessService(customerAccountRead);
+    this.#access = new OrderAccessService(organizationPermissions);
   }
 
   async reorder(

@@ -144,5 +144,7 @@
   "actions.openOrders.keywords": "orders, sales",
   "actions.newOrder.keywords": "order, new, create",
   "actions.orderStatusConfig.keywords": "statuses, lifecycle",
-  "emails.orderConfirmation.sample.shippingAddressText": "  Anna Nowak\n  1 Main Street"
+  "emails.orderConfirmation.sample.shippingAddressText": "  Anna Nowak\n  1 Main Street",
+  "organizationPermissions.orders.view_organization.label": "View the organization's orders",
+  "organizationPermissions.orders.view_organization.description": "See every order placed in the organization, and reorder, quote and download the documents of a colleague's order."
 }

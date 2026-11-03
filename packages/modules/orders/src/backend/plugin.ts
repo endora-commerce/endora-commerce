@@ -28,6 +28,7 @@ import { OrderExportService } from './services/order-export-service.js';
 import { OrderCommentService } from './services/order-comment-service.js';
 import { OrderReorderService } from './services/order-reorder-service.js';
 import { OrderCloneToQuoteService } from './services/order-clone-to-quote-service.js';
+import { OrderAccessService } from './services/order-access-service.js';
 import { OrderConfirmationService } from './services/order-confirmation-service.js';
 import { OrderCreationAdminService } from './services/order-creation-admin-service.js';
 import { CustomerOrderCancellationService } from './services/order-cancellation-service.js';
@@ -57,6 +58,7 @@ import type {
   OrderStatusRegistry,
   OrderTransitionPort,
   OrganizationDetailsPort,
+  OrganizationPermissionPort,
   OrganizationRestrictionPort,
   PaymentAdapterRegistryPort,
   PaymentMethodReadPort,
@@ -185,6 +187,12 @@ export interface OrdersModuleOptions {
    */
   catalogProductAvailability: Pick<CatalogProductAvailabilityPort, 'filterAvailable' | 'effectiveOrderRules'>;
   customerAccountRead: CustomerAccountReadPort;
+  /**
+   * `organizations` — the buyer's order read scope asks it whether the buyer
+   * holds `orders.view_organization` (`specs/170-organization-roles/` FR-049).
+   * `organizations` is non-deactivatable, so this is the port, not an accessor.
+   */
+  organizationPermissions: OrganizationPermissionPort;
   organizationDetails: OrganizationDetailsPort;
   /**
    * `organizations` — the per-Organization delivery- and payment-method
@@ -482,12 +490,15 @@ export function commerceModule(options: OrdersModuleOptions) {
       options.resolveOrderConfirmationRecipients,
     );
 
+    // The buyer's order read scope (FR-049), one instance for the list, the
+    // detail and every action reading an order by id.
+    const orderAccessService = new OrderAccessService(options.organizationPermissions);
     const orderService = new OrderService(
       options.emFactory,
       options.eventBus as OrderEventBus,
       options.auditLogService,
       options.creditLimit,
-      undefined,
+      orderAccessService,
       {
         paymentAdapters: options.paymentAdapterRegistry,
         orderStatusRegistry: options.paymentOrderStatusRegistry,
@@ -607,6 +618,7 @@ export function commerceModule(options: OrdersModuleOptions) {
       options.cartWritePort,
       options.catalogProductRead,
       options.customerAccountRead,
+      options.organizationPermissions,
       options.resolveReorderEnabled,
       options.mailer,
       options.getTransactionalEmailSender,
@@ -614,7 +626,7 @@ export function commerceModule(options: OrdersModuleOptions) {
     const orderCloneToQuoteService = new OrderCloneToQuoteService(
       options.emFactory,
       () => options.getRfqService?.() ?? null,
-      options.customerAccountRead,
+      options.organizationPermissions,
     );
     const orderCreationAdminService = new OrderCreationAdminService(
       options.emFactory,

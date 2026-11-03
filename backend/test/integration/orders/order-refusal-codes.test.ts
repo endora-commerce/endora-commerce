@@ -399,7 +399,7 @@ describe('order refusals carry their own code and sentence (issue #86)', () => {
       const service = new OrderCloneToQuoteService(
         () => h.em().fork(),
         () => null,
-        { findById: async () => null } as never,
+        { can: async () => false } as never,
       );
       await expect(
         service.clone(orderId, { customerAccountId: TEST_CUSTOMER_ID, organizationId: TEST_ORGANIZATION_ID }),
