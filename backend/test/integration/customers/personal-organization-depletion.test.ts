@@ -39,13 +39,23 @@ describe('customers — depletion guards are for company Organizations only (PR-
   }
 
   /** An account of `organizationId` holding its `kind` role; the legacy column as an individual's is today. */
-  async function account(organizationId: string, kind: 'administrator' | 'member'): Promise<string> {
+  async function account(
+    organizationId: string,
+    kind: 'administrator' | 'member',
+    options: { blocked?: boolean } = {},
+  ): Promise<string> {
     const id = randomUUID();
     await h.em().execute(
       `insert into "customer_accounts"
-         ("id","organization_id","email","password_hash","first_name","last_name","role","organization_role_id","created_at","updated_at")
-       values (?, ?, ?, 'x', 'Dep', 'Letion', 'regular_user', ?, now(), now())`,
-      [id, organizationId, `${id.slice(0, 8)}@depletion.example`, await predefinedRoleIdOf(h.em(), organizationId, kind)],
+         ("id","organization_id","email","password_hash","first_name","last_name","role","organization_role_id","blocked_at","created_at","updated_at")
+       values (?, ?, ?, 'x', 'Dep', 'Letion', 'regular_user', ?, ?, now(), now())`,
+      [
+        id,
+        organizationId,
+        `${id.slice(0, 8)}@depletion.example`,
+        await predefinedRoleIdOf(h.em(), organizationId, kind),
+        options.blocked ? new Date() : null,
+      ],
     );
     return id;
   }
@@ -108,6 +118,30 @@ describe('customers — depletion guards are for company Organizations only (PR-
       cookies: OPERATOR,
     });
     expect(res.statusCode).toBe(409);
+    expect((res.json() as { error: { code: string } }).error.code).toBe(ERROR_CODES.ORG_OWNER_DEPLETION);
+  });
+
+  // Owner ruling (lead, 2026-11-03): blocked administrators do not count toward
+  // last-administrator protection — for deletion and unassign as for blocking.
+  it('refuses deleting the last unblocked administrator when the only other one is blocked', async () => {
+    const company = await organization(false);
+    const administrator = await account(company, 'administrator');
+    await account(company, 'administrator', { blocked: true });
+    const res = await h.app.inject({ method: 'DELETE', url: `/api/v1/admin/customers/${administrator}`, cookies: OPERATOR });
+    expect(res.statusCode, res.body).toBe(409);
+    expect((res.json() as { error: { code: string } }).error.code).toBe(ERROR_CODES.ORG_OWNER_DEPLETION);
+  });
+
+  it('refuses unassigning the last unblocked administrator when the only other one is blocked', async () => {
+    const company = await organization(false);
+    const administrator = await account(company, 'administrator');
+    await account(company, 'administrator', { blocked: true });
+    const res = await h.app.inject({
+      method: 'DELETE',
+      url: `/api/v1/admin/customers/${administrator}/organization`,
+      cookies: OPERATOR,
+    });
+    expect(res.statusCode, res.body).toBe(409);
     expect((res.json() as { error: { code: string } }).error.code).toBe(ERROR_CODES.ORG_OWNER_DEPLETION);
   });
 
