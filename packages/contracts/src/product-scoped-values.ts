@@ -80,7 +80,16 @@ function boundedRecord<K extends z.ZodType<string>, V extends z.ZodType>(keySche
 export const httpUrlSchema = z
   .string()
   .max(SEO_PRODUCT_META_MAX.ogImageUrl)
-  .regex(/^https?:\/\/[^\s/?#\\]+[^\s\\]*$/i, 'http(s) URL');
+  .regex(/^https?:\/\/[^\s/?#\\@]+(?:[/?#][^\s\\]*)?$/i, 'http(s) URL');
+
+/**
+ * `products.scope_version` as the client echoes it: digits within the bigint range, so an
+ * over-long token is a 400 and never a database overflow (C2/C3 security review).
+ */
+export const scopeVersionTokenSchema = z
+  .string()
+  .regex(/^\d{1,19}$/)
+  .refine((value) => BigInt(value) <= 9223372036854775807n, 'out of range');
 
 // --- §1 Scope ---------------------------------------------------------------------------------
 
@@ -386,7 +395,7 @@ export function countChangedCells(changes: ScopedValueChanges): number {
 export const saveScopedValuesRequestSchema = z
   .object({
     scope: scopeRequestSchema,
-    version: z.string().regex(/^\d{1,19}$/),
+    version: scopeVersionTokenSchema,
     changes: scopedValueChangesSchema,
   })
   .strict()
@@ -409,7 +418,7 @@ export const copyScopedValueRequestSchema = z
     field: fieldPathSchema,
     from: z.object({ channelId: uuidSchema, languageCode: z.string().min(1).max(16) }).strict(),
     toChannelIds: z.array(uuidSchema).min(1).max(SCOPED_COPY_TARGETS_MAX),
-    version: z.string().regex(/^\d{1,19}$/),
+    version: scopeVersionTokenSchema,
     dryRun: z.boolean().optional(),
   })
   .strict();

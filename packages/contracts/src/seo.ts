@@ -69,7 +69,7 @@ export const ogImageUrlSchema = z
   .string()
   .max(2048)
   .refine(
-    (value) => /^https?:\/\/[^\s/?#\\]+[^\s\\]*$/i.test(value) || /^\/(?![/\\])[^\s\\]*$/.test(value),
+    (value) => /^https?:\/\/[^\s/?#\\@]+(?:[/?#][^\s\\]*)?$/i.test(value) || /^\/(?![/\\])[^\s\\]*$/.test(value),
     { message: 'an http(s) URL or a path starting with a single /' },
   );
 

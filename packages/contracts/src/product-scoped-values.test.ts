@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   copyScopedValueResponseSchema,
+  httpUrlSchema,
   SCOPED_SAVE_CELLS_MAX,
   saveScopedValuesRequestSchema,
   scopedValueChangesSchema,
@@ -104,5 +105,26 @@ describe('170 — copy response currentValue', () => {
     expect(ok('Wiertarka')).toBe(true);
     expect(ok({ empty: true })).toBe(true);
     expect(ok(undefined)).toBe(false);
+  });
+});
+
+/** Feature 170, C2/C3 security review — userinfo in an image URL, and a version beyond bigint. */
+describe('httpUrlSchema and the version token (C2/C3 review)', () => {
+  it.each(['https://user:pass@evil.example/a.png', 'https://user@cdn.example.com/a.png', 'http://a@b/c'])(
+    'refuses userinfo in %s',
+    (value) => {
+      expect(httpUrlSchema.safeParse(value).success).toBe(false);
+    },
+  );
+
+  it('still accepts a plain http(s) URL, an @ in the path included', () => {
+    expect(httpUrlSchema.safeParse('https://cdn.example.com/a@2x.png').success).toBe(true);
+  });
+
+  it('bounds the version to the bigint range', () => {
+    const body = (version: string) => ({ scope: {}, version, changes: {} });
+    expect(saveScopedValuesRequestSchema.safeParse(body('9223372036854775807')).success).toBe(true);
+    expect(saveScopedValuesRequestSchema.safeParse(body('9223372036854775808')).success).toBe(false);
+    expect(saveScopedValuesRequestSchema.safeParse(body('9999999999999999999')).success).toBe(false);
   });
 });
