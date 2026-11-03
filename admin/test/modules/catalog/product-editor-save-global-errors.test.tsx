@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { ApiError } from '@endora-commerce/admin-kit/lib';
-import type { ScopeRef } from '@endora-commerce/contracts';
+import type { ErrorCode, ScopeRef } from '@endora-commerce/contracts';
 import { BASE, PRODUCT_ID, VALID_SCOPES, api, en, renderEditor, scopedValuesResponse, setUpEditorApi } from './product-editor-harness';
 
 /**
@@ -23,7 +23,7 @@ const { ProductEditor } = await import('../../../../packages/modules/catalog/src
 const URL_G = `/catalog/products/${PRODUCT_ID}?scope=global`;
 const read = (scope: ScopeRef) => scopedValuesResponse({ scope, version: '4', validScopes: VALID_SCOPES });
 
-function refuse(status: number, code: string, details: Record<string, unknown>): void {
+function refuse(status: number, code: ErrorCode, details: Record<string, unknown>): void {
   api.put.mockImplementation(async (path: string) => {
     if (path.endsWith('/scoped-values')) throw new ApiError(status, { error: { code, message: 'refused', details } });
     return { data: null };
