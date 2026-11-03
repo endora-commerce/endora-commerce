@@ -190,14 +190,18 @@ the integration pull request (T116).
 
 `backend/test/integration/organizations/roles-upgrade-replay.test.ts`:
 
-1. Clone a migrated database (`backend/test/helpers/migrated-database.ts`).
+1. Clone a migrated database (`backend/test/helpers/migrated-database.ts`) and boot the test server
+   against it (`DATABASE_URL` set to the clone before the dynamic `import()` of the harness). The
+   boot comes **first** because `setupBackendServer` truncates and reseeds the tables the population
+   lives in and needs (channels, product, delivery and payment methods); steps 2–4 then run on the
+   booted clone, before the first request.
 2. Execute the `down()` statements of M5, M4, M3, M2 in that order (statement-level, the pattern
    of `backend/test/integration/orders/new-to-paid-edge-migration.test.ts`). **Until WP-12 merges
    the lists hold M3 and M2 only**; WP-12 adds M5 and M4 in the merge request that adds them, since
    the step-3 insert names the columns they drop.
 3. Insert `ORACLE_POPULATION` with raw SQL in the pre-170 shape (`role` enums,
    `requires_cart_approval`; `P.owner` as the `regular_user` it is today).
-4. Execute the `up()` statements of M2, M3, M4, M5; boot the test server against the database.
+4. Execute the `up()` statements of M2, M3, M4, M5.
 5. Replay `ORACLE_REQUESTS` in order (the request bodies' `role` fields become `roleId` through the
    fixture's `roleToRoleId` — the API shape changed, the outcome must not; **until WP-03 has
    landed** the bodies are sent unconverted, because the API still takes `role`) and assert, **per
