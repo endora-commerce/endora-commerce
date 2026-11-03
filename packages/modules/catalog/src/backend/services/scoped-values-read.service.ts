@@ -9,7 +9,7 @@ import {
   type CatalogAttributeView,
   type CompletenessSummary,
   type FieldScopeSpec,
-  type InheritedSource,
+  type InheritedLevel,
   type LanguageReadPort,
   type OrganizationDetailsPort,
   type ScopeMissingValue,
@@ -110,15 +110,16 @@ function inheritedAt<T>(
   global: T | null,
   rows: readonly ScopedRow<T>[],
   scope: Exclude<ScopeRef, { level: 'global' }>,
-): { value: T | null; source: InheritedSource } {
+): { value: T | null; level: InheritedLevel } {
   const isOwn = (row: ScopedRow<T>) =>
     row.channelId === scope.channelId &&
     (scope.level === 'channel'
       ? row.languageCode === null
       : row.languageCode !== null && row.languageCode.toLowerCase() === scope.languageCode.toLowerCase());
   const resolved = resolveScoped<T>({ global, rows: rows.filter((row) => !isOwn(row)), scope, levels: spec.levels });
-  // Without its own row a non-Global scope resolves to the channel row, Global, or nothing.
-  return { value: resolved.value, source: resolved.source as InheritedSource };
+  // Without its own row a non-Global scope resolves to the channel row or to Global (which may
+  // hold no value: `value: null`, level `G`).
+  return { value: resolved.value, level: resolved.source === 'inherited_channel' ? 'C' : 'G' };
 }
 
 const textOf = (name: Record<string, string> | string | null, fallback: string): string => {

@@ -97,9 +97,9 @@ export { scopeRequestSchema };
 export const scopedSourceSchema = z.enum(SCOPED_SOURCES as unknown as [ScopedSource, ...ScopedSource[]]);
 export const scopeLevelShortSchema = z.enum(['G', 'C', 'CL']);
 
-/** Where an inherited value comes from: the Channel row, Global, or no value at any scope. */
-export const INHERITED_SOURCES = ['inherited_channel', 'inherited_global', 'absent'] as const;
-export type InheritedSource = (typeof INHERITED_SOURCES)[number];
+/** The level an inherited value comes from: the channel (`C`) or Global (`G`). */
+export const INHERITED_LEVELS = ['G', 'C'] as const;
+export type InheritedLevel = (typeof INHERITED_LEVELS)[number];
 
 /** One field at the read's scope (FR-109). */
 export function scopedFieldViewSchema<S extends z.ZodType>(valueSchema: S) {
@@ -112,10 +112,11 @@ export function scopedFieldViewSchema<S extends z.ZodType>(valueSchema: S) {
     /**
      * Present at Channel and Channel × language, absent at Global (owner decision 2026-11-03):
      * what the field would read if it inherited at this scope — the parent's effective value
-     * (`null` for an empty parent or no value) and where it comes from.
+     * (`null` for a deliberately empty parent, or for no value at Global) and the level it comes
+     * from.
      */
     inheritedValue: z
-      .object({ value: valueSchema.nullable(), source: z.enum(INHERITED_SOURCES) })
+      .object({ value: valueSchema.nullable(), level: z.enum(INHERITED_LEVELS) })
       .strict()
       .optional(),
     levels: z.array(scopeLevelShortSchema),
@@ -129,7 +130,7 @@ export type ScopedFieldView<T> = {
   value: T | null;
   source: ScopedSource;
   ownValue?: T | null;
-  inheritedValue?: { value: T | null; source: InheritedSource } | undefined;
+  inheritedValue?: { value: T | null; level: InheritedLevel } | undefined;
   levels: Array<'G' | 'C' | 'CL'>;
   supportedHere: boolean;
   required: boolean;

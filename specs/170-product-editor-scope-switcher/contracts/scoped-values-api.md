@@ -21,9 +21,9 @@ type ScopedFieldView<T> = {
   source: 'set' | 'set_empty' | 'inherited_channel' | 'inherited_global' | 'absent';
   ownValue?: T | null;             // present when source is set / set_empty: the value stored at this scope
   inheritedValue?: {               // C and C×L only, absent at G (owner decision 2026-11-03, round 8):
-    value: T | null;               //   what the field reads if it inherits here — the parent's effective value
-    source: 'inherited_channel' | 'inherited_global' | 'absent';  // where it comes from; an empty parent
-  };                               //   is { value: null, source: 'inherited_channel' }, never skipped to G
+    value: T | null;               //   what the field reads if it inherits here — the parent's effective value;
+    level: 'G' | 'C';              //   null = a deliberately empty parent (or no Global value); an empty C
+  };                               //   parent is { value: null, level: 'C' }, never skipped to G
   levels: Array<'G' | 'C' | 'CL'>; // the field's scope set
   supportedHere: boolean;          // the scope's level is in `levels` (FR-082)
   required: boolean;               // refuses an empty override (FR-062)

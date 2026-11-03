@@ -38,22 +38,22 @@ describe('170 — inheritedValue on every scoped field view', () => {
     const id = await fx.product({ channels: [channel] });
     const { items } = await fx.media(id);
     let data = await fx.read(id, { channelId: channel });
-    expect(data.fields.name).toMatchObject({ value: 'Drill X', source: 'inherited_global', inheritedValue: { value: 'Drill X', source: 'inherited_global' } });
+    expect(data.fields.name).toMatchObject({ value: 'Drill X', source: 'inherited_global', inheritedValue: { value: 'Drill X', level: 'G' } });
     data = await fx.save(id, { channelId: channel }, { name: 'Kana\u0142', gallery: { items: { [items[0]]: { altText: 'Kana\u0142owy' } } } });
-    expect(data.fields.name).toMatchObject({ value: 'Kana\u0142', source: 'set', inheritedValue: { value: 'Drill X', source: 'inherited_global' } });
+    expect(data.fields.name).toMatchObject({ value: 'Kana\u0142', source: 'set', inheritedValue: { value: 'Drill X', level: 'G' } });
     expect(data.gallery.items.find((item) => item.id === items[0])!.altText).toMatchObject({
       value: 'Kana\u0142owy',
-      inheritedValue: { value: 'Alt 0', source: 'inherited_global' },
+      inheritedValue: { value: 'Alt 0', level: 'G' },
     });
     // A field with no value anywhere inherits nothing.
-    expect(data.fields.minOrderQuantity).toMatchObject({ inheritedValue: { value: null, source: 'absent' } });
+    expect(data.fields.minOrderQuantity).toMatchObject({ inheritedValue: { value: null, level: 'G' } });
   });
 
   it("at Channel \u00d7 language it is the channel's own value when the channel holds one", async () => {
     const id = await fx.product({ channels: [channel] });
     await fx.save(id, { channelId: channel }, { name: 'Kana\u0142' });
     const data = await fx.save(id, { channelId: channel, languageCode: 'pl-PL' }, { name: 'Polski' });
-    expect(data.fields.name).toMatchObject({ value: 'Polski', source: 'set', inheritedValue: { value: 'Kana\u0142', source: 'inherited_channel' } });
+    expect(data.fields.name).toMatchObject({ value: 'Polski', source: 'set', inheritedValue: { value: 'Kana\u0142', level: 'C' } });
   });
 
   it("at Channel \u00d7 language it is Global's value (the grandparent) when the channel inherits", async () => {
@@ -62,7 +62,7 @@ describe('170 — inheritedValue on every scoped field view', () => {
     expect(data.fields.description).toMatchObject({
       value: 'English',
       source: 'set',
-      inheritedValue: { value: 'Global description', source: 'inherited_global' },
+      inheritedValue: { value: 'Global description', level: 'G' },
     });
   });
 
@@ -70,6 +70,6 @@ describe('170 — inheritedValue on every scoped field view', () => {
     const id = await fx.product({ channels: [channel] });
     await fx.save(id, { channelId: channel }, { description: null });
     const data = await fx.save(id, { channelId: channel, languageCode: 'pl-PL' }, { description: 'Opis' });
-    expect(data.fields.description).toMatchObject({ value: 'Opis', source: 'set', inheritedValue: { value: null, source: 'inherited_channel' } });
+    expect(data.fields.description).toMatchObject({ value: 'Opis', source: 'set', inheritedValue: { value: null, level: 'C' } });
   });
 });
