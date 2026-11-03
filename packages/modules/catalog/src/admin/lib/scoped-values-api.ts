@@ -1,4 +1,6 @@
 import type {
+  CopyScopedValueRequest,
+  CopyScopedValueResponse,
   ProductEditorPreferenceResponse,
   SaveScopedValuesRequest,
   SaveScopedValuesResponse,
@@ -38,6 +40,11 @@ export function saveScopedValues(
   body: SaveScopedValuesRequest,
 ): Promise<SaveScopedValuesResponse> {
   return apiClient.put<SaveScopedValuesResponse>(`${productPath(productId)}/scoped-values`, body);
+}
+
+/** §4 — copy one own value at C×L to other channels in the same language; `dryRun` plans it only. */
+export function copyScopedValue(productId: string, body: CopyScopedValueRequest): Promise<CopyScopedValueResponse> {
+  return apiClient.post<CopyScopedValueResponse>(`${productPath(productId)}/scoped-values/copy`, body);
 }
 
 /** §5 — the scope this admin last edited the product at; `null` before the first visit. */

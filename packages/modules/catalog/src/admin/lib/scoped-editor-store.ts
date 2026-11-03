@@ -52,7 +52,9 @@ export type ScopedEditorAction =
   | { type: 'discard' }
   | { type: 'errors'; errors: Record<EditorFieldPath, string> }
   | { type: 'refreshFamily'; family: ImmediateFamily; data: ScopedValuesData }
-  | { type: 'dropPaths'; paths: readonly EditorFieldPath[] };
+  | { type: 'dropPaths'; paths: readonly EditorFieldPath[] }
+  /** A write outside the Save bumped the version (the copy, §4): the next Save sends it; staged cells stay. */
+  | { type: 'version'; version: string };
 
 export function initialEditorState(scope: ScopeRef): ScopedEditorState {
   return { scope, data: null, version: null, staged: new Map(), unticked: new Set(), errors: {}, busy: true, dropped: [] };
@@ -189,6 +191,8 @@ export function scopedEditorReducer(state: ScopedEditorState, action: ScopedEdit
       for (const path of action.paths) staged.delete(path);
       return { ...state, staged, dropped: action.paths.filter((p) => state.staged.has(p)) };
     }
+    case 'version':
+      return { ...state, version: action.version, data: state.data ? { ...state.data, version: action.version } : null };
   }
 }
 
