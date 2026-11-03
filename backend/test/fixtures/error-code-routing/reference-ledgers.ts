@@ -1810,8 +1810,10 @@ export const REHOMED_ERROR_CODES: RehomedErrorCodes = {
     tier: 'T1',
     reason:
       'It reads like `organizations` and is not: the invariant is counted over ' +
-      '`CustomerAccount.role` within one organization, in this module\'s `role-service.ts`, ' +
-      'which is the only thing in the tree that raises it. `organizations` owns the ' +
+      'the holders of the organization\'s Administrator role, in this module\'s ' +
+      '`customer_account.change_role` Command (it replaced `role-service.ts` in ' +
+      '`specs/170-organization-roles/` WP-02b), the only thing in the tree that raises it. ' +
+      '`organizations` owns the ' +
       'organization; this module owns its membership. It carried a placeholder and arrives ' +
       'with prose instead (§5.4): the reader is an organization administrator managing ' +
       'their own company\'s users and the refusal has one remedy to offer.',
