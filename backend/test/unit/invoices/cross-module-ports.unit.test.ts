@@ -149,6 +149,10 @@ function readPort(
       calls.push(`findById:${id}`);
       return order;
     },
+    findByIdForCustomer: async (id, customer) => {
+      calls.push(`findByIdForCustomer:${id}:${customer.customerAccountId}`);
+      return order;
+    },
     findByIds: async (ids) => {
       calls.push(`findByIds:${ids.join(',')}`);
       return order ? [order] : [];

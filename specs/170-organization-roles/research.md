@@ -308,3 +308,449 @@ the two migrations simply run back to back.
 | XVII Toggleable (NN) | Pass — absent module's permissions not listed, not effective, grants retained (FR-025, US 8); mechanism lives in non-deactivatable modules |
 
 Verdict: **no violation; no Complexity Tracking entry needed.**
+
+---
+
+# Plan-phase decisions *(added by `/speckit.plan`, 2026-11-03)*
+
+The entries above were written by the specify phase and stand. The entries below were written
+while planning against `origin/master` at `d31bab44b`. Where one **refines** an entry above it says
+so and says why; none reverses a decision above.
+
+## R-14 — Re-measured inventory, and how the plan uses it
+
+**Measurement** (`d31bab44b`, same `rg` pattern and exclusions as the spec's *Impact*, plus
+`backend/scripts/ledgers/**` excluded because a ledger records history and is not a role check):
+**155 references in 59 non-test files, plus 79 test files and 6 shared test helpers.** The spec's
+figure (154 / 57 / 68 at `75b069175`) drifted with the merges of #647, #654, #659, #670 and #674 —
+`orders/order-buyer-action-scope.test.ts`, `orders/buyer-order-actions-scope.test.ts` and
+`storefront/test/account/module-presence-nav.test.tsx` are among the newcomers.
+
+| Area | Non-test files / refs | Owning work package (plan.md) |
+| --- | --- | --- |
+| `packages/contracts` | 6 / 22 | WP-01 (additive), WP-12 (removal) |
+| `organizations` | 13 / 35 | WP-02a, WP-03, WP-08, WP-12 |
+| `customer_accounts` | 5 / 15 | WP-02b |
+| `carts` | 8 / 23 | WP-04 |
+| `customers` | 5 / 11 | WP-03 |
+| `quote_requests` | 2 / 4 | WP-05 |
+| `quick_order` | 3 / 4 | WP-06 |
+| `shopping_lists` | 1 / 1 | WP-06 |
+| `orders` | 2 / 2 | WP-07 |
+| `mfa` | 2 / 2 | WP-03 |
+| `storefront` | 10 / 34 | WP-09, WP-10 |
+| `demo-composition`, `backend/scripts/acceptance` | 2 / 2 | WP-02b |
+
+**Decision.** The plan does not hand an implementer the count; it hands them the command. Every
+work package ends by running the inventory over the files it owns and reporting zero hits, and
+WP-12 runs it over the whole tree and must report **zero** non-test hits (the pattern minus
+`requires_cart_approval`, which survives in the historical `carts` and `organizations`
+migrations by design). A count written into a plan is stale on the next merge (D-100); the
+pattern is not.
+
+## R-15 — The member's role travels on the actor *(refines R-9)*
+
+**Decision.** `auth`'s request hook already reads the session's customer account **once per
+request** through `customerOrgResolver` (`packages/modules/auth/src/backend/plugin.ts:195-201`,
+`packages/modules/customer_accounts/src/backend/index.ts:476-500`) to stamp `organizationId` and
+`active`. That read returns `organizationRoleId` too, `ActorCustomer` gains an optional
+`organizationRoleId` (`packages/contracts/src/actor.ts`), and the platform's
+`customerContextResolver` / `cartActorResolver` / `customerActorResolver`
+(`packages/platform/src/composition/compose-app.ts:1122-1214`) pass it through. The permission
+port's subject therefore normally arrives with its role id; when it does not (a service judging
+somebody other than the requester — the "cart submitted" e-mail's recipients, a cascade), the
+port reads the account through `customerAccountReadPort`.
+
+The cache is consequently **only** `organizationId → { roleId → { kind, grants } }`. R-9 asked for a
+second entry keyed by account "if that read is not already per-request"; it is, so the second
+entry is not built.
+
+**Rationale.** FR-080 (no extra read on the hot path) is met by a read that already happens.
+FR-081 is met *better* than asked for an assignment change: the next request on **every** process
+reads the new role id, because the account row is read fresh each time. Only a change to a role's
+permission set rides the cache bound.
+
+**Alternatives rejected.** *A per-account cache entry* — a second invalidation surface for a value
+the request already has. *Embedding the permission set in the session* — rejected in R-9, still
+rejected (FR-082).
+
+## R-16 — The cache is per-process with a pub/sub drop, not two-layer *(refines R-9)*
+
+**Decision.** `OrganizationRoleCache` in `organizations` follows
+`packages/modules/custom_fields/src/backend/services/custom-field-definitions-cache.ts`, not the
+kernel's `SalesChannelAccessCache`: a per-process LRU (cap 4096 Organizations, entries older than
+**30 s** ignored), a generation counter so a fill that raced an invalidation is answered and not
+stored, PostgreSQL as source, and a Redis pub/sub channel `b2b:organization-roles:changed`
+carrying `{ organizationId }`. Every role command and every assignment command drops the local
+entry **after commit** and publishes; every composed process subscribes in an `onBoot` hook on the
+`redisSubscriber` connection, exactly as `custom_fields` does
+(`packages/modules/custom_fields/src/backend/index.ts:201-202`). No shared Redis value layer.
+
+**Rationale.** The source read is one indexed query returning at most 52 rows (FR-004's 50 custom
+plus two predefined). A shared Redis layer saves that read only for a *cold* process and adds the
+D-93 drop-marks machinery whose whole purpose is to stop a shared layer re-pinning a stale value —
+a risk this design does not have to manage. The obligations that matter (FR-081: immediate in the
+writing process, ≤ 30 s elsewhere even with a lost announcement, never open beyond it) are met by
+the LRU age bound plus the drop. `organizations` is `nonDeactivatable`, so the `onBoot`
+subscriber needs no presence probe (`specs/conventions/module-activation.md` item 3, last
+paragraph).
+
+**Alternatives rejected.** *R-9's two layers* — more moving parts for no requirement. *No pub/sub,
+TTL only* — meets FR-081's 30 s bound but not SC-005's "immediately on the server that made the
+change" for *other* processes' perception; the local drop already makes it immediate in the writing
+process, and the publish makes the common case immediate everywhere. *Kernel-hosted cache* — the
+platform may not name a module's table or concept it does not own (D-52/D-53).
+
+## R-17 — The first-seen ledger is per *Member* role, and an unoffered default is held implicitly *(refines the spec's Key Entity)*
+
+**Decision.** Instead of a platform-wide table of codes already granted, each role row carries
+`member_defaults_offered text[]` — the member-default codes that row has **already been offered**.
+*Member*'s effective set is computed, never reconciled:
+
+```
+effective(member) = ( permissions ∪ (vocabularyMemberDefaults ∖ member_defaults_offered) ) ∩ present
+```
+
+So a member-default code that becomes known (its module is installed, FR-023) is held by every
+*Member* that has not been offered it **from the first request on**, with no boot step and no write.
+Saving *Member* materialises the decision: `member_defaults_offered` becomes `member_defaults_offered
+∪ vocabularyMemberDefaults`, and `permissions` becomes the merge of data-model §1 computed over the
+previous *effective-before-presence* set. A code the administrator un-ticked is then in
+`member_defaults_offered` and absent from `permissions`, so it is never granted again — across a
+switch-off/on and across an uninstall/reinstall (FR-023; `member_defaults_offered` keeps codes no
+module declares any more). Custom and administrator roles ignore the column.
+
+**Rationale.** A platform-wide ledger cannot answer correctly for an Organization created while a
+module was uninstalled: the code is in the ledger (seen once), the new Organization's *Member* was
+never offered it, and reinstalling the module would grant it to nobody there. Per role, the question
+"has **this** *Member* been offered this code?" is exactly FR-023's. Computing rather than
+reconciling also means a *Member* row created by any path — the M2 trigger (R-28), a test fixture's
+raw insert — is correct with empty arrays, and lets R-18 express FR-071's exception as data. The
+spec's Key Entity reads *"platform-wide record"*; the behaviour the FRs require is unchanged, and the
+product owner should align that one Key Entities line when the spec is next touched.
+
+**Alternatives rejected.** *Platform-wide `organization_permission_first_seen` table* — the defect
+above. *A boot reconciler appending new codes to every Member row* — correct, but a write at boot on
+every Organization, a window between creation and the next boot in which a new Organization's
+*Member* lacks a default, and a second statement of the rule; the computed form has neither.
+*Installing the grant from each declaring module's `installHook`* — a hook may not write another
+module's table (`specs/conventions/module-migrations.md` item 4a, R2).
+
+## R-18 — FR-071's exception is written by `organizations`' own migration
+
+**Decision.** The `organizations` data migration that creates the predefined roles reads
+`organizations.requires_cart_approval` — a column on this module's own table (its entity property
+is `Organization.requiresCartApproval`; `carts`' 2026-06 consolidation migration added it, which is
+already ledgered under `backend/scripts/ledgers/migration-foreign-writes/carts.ts`) — and, for every
+Organization where it is `true`, writes that Organization's *Member* row with
+`member_defaults_offered = '{carts.order_without_approval,quick_order.one_click}'` and those two
+codes **absent** from `permissions`. By R-17's rule *Member* then holds every other
+member-default code implicitly and not those two, because they read as already offered. The column is
+dropped later, by `organizations`' own cleanup migration in WP-12, once nothing reads it.
+
+This writes two code literals owned by `carts` and `quick_order` into an `organizations`
+migration. That is accepted, and bounded: the migration translates **its own** column — a policy
+whose meaning was always "carts need approval" — into **its own** table, once, frozen in history. No
+runtime path in `organizations` names either code.
+
+**Rationale.** R-13 placed the exception in "P2's migration"; with P1 and P2 released together
+there is one upgrade, and the only module that may write `organization_roles` is `organizations`
+(R2 of `specs/097-migration-sql-boundary/contracts/migration-cross-module-sql.md`). Reading the
+flag in the same migration that creates *Member* is the only point at which the value is both
+available and authoritative.
+
+**Alternatives rejected.** *A `carts` migration withholding the grant* — writes `organizations`'
+table (R2 violation). *A `carts` `installHook`* — does not run on an upgrade of an installed module,
+and is not co-ordered with the migration. *Keeping `requires_cart_approval` and consulting it when
+computing *Member*'s effective set* — `organizations` would then encode a carts rule forever.
+
+## R-19 — Migrations, by module and dependency
+
+**Decision.** No migration numbers (`specs/conventions/module-migrations.md`); each file is
+scaffolded with `pnpm --filter backend run migration:new -- --module <id> --name <slug>` and
+registered by `composer:generate`. Execution order is the manifest graph: `organizations` runs
+before `customer_accounts`, which declares it (`packages/modules/customer_accounts/src/manifest.ts`),
+so every step below sees the previous step's tables.
+
+| Step | Module | Slug (suggested) | WP | Content |
+| --- | --- | --- | --- | --- |
+| M1 | core (platform) | `audit_actor_customer_account` | WP-01 | `audit_log_entries.actor_customer_account_id uuid null` (R-21) |
+| M2 | `organizations` | `organization_roles` | WP-02a | Create `organization_roles`; insert the two predefined rows for **every** Organization (including suspended and personal ones); install the R-28 `after insert` trigger; FR-071 marker (R-18); add `organization_invitations.organization_role_id`, backfill from `role` (`organization_admin` → administrator row, else member row), `not null`, composite FK |
+| M3 | `customer_accounts` | `organization_role_assignment` | WP-02b | Add `customer_accounts.organization_role_id`, backfill from `role` for **every** row (deleted and blocked included, FR-070), install the R-28 `before insert` default trigger, `not null`, composite FK `(organization_id, organization_role_id) → organization_roles (organization_id, id)` |
+| M4 | `organizations` | `drop_legacy_role_columns` | WP-12 | Drop `organizations.requires_cart_approval` and `organization_invitations.role` |
+| M5 | `customer_accounts` | `drop_legacy_role_column` | WP-12 | Drop `customer_accounts.role` and its index |
+
+M3 **reads** `organization_roles` (a cross-module read: R1 of the boundary contract, satisfied by
+the declared dependency) and **writes** only its own table (R2). M2 and M4 touch only
+`organizations`' tables. FR-074 (repeatable): every insert is `insert … select … where not exists`,
+every backfill is `update … where organization_role_id is null`, every `add column` is
+`if not exists`.
+
+Each migration's `down()` restores the previous **schema** shape (M2's drops the table and the
+column; M3's re-creates nothing it did not drop) — FR-072's replay (R-27) depends on the downs of
+M2–M5 putting the schema back exactly, so they are written and tested, not left empty.
+
+**Alternatives rejected.** *One migration in `organizations` that also backfills
+`customer_accounts`* — R2 violation. *Dropping the legacy columns in M2/M3* — leaves the
+integration branch red between WP-02 and WP-12, because Wave 2 still reads them (R-23).
+
+## R-20 — The permission port, the route guard and the refusal
+
+**Decision.** `organizations` publishes **`organizationPermissionPort`** (`ctx.di.providePort`, type
+in `packages/contracts/src/organization-roles.ts`, full shape in
+[`contracts/organization-permission-port.md`](./contracts/organization-permission-port.md)):
+`can`, `assert`, `isAdministrator`, `effective`, and `rolesHolding(organizationId, code)` (for
+recipients and cascades). Consumers reach it with `lazyPort<OrganizationPermissionPort>(ctx,
+'organizationPermissionPort')`; every consumer already declares `organizations` in `dependencies`
+(`carts`, `customer_accounts`, `orders`, `quote_requests`, `quick_order`, `shopping_lists`, `mfa`,
+`customers` — measured), so **no new lifecycle edge** is added and `check:port-dependencies` needs
+no acknowledgement.
+
+The route guard is **`organizationPermissionPreHandler(getPort, code)`**, a plain function in
+`@endora-commerce/contracts` (it needs only the `Actor` type and the port interface, so no Fastify
+import), declared after `requireCustomer` in the route's `preHandler` array, so the platform moves
+both to `preValidation` and a refused caller is answered before validation
+(`specs/conventions/module-admin-surfaces.md` item 3). `getPort` is a thunk: the port is resolved
+per request, never at route registration (`module-composition.md` item 4a, third fail-open shape).
+
+The refusal is `403 ORGANIZATION_PERMISSION_REQUIRED`, declared in `organizations`' manifest
+`errorCodes`, with `details: { permission, permissionLabel }`; the envelope interpolates
+`{permissionLabel}` into the translated sentence (`packages/platform/src/http/error-envelope.ts`
+`messageParams`). It is distinguishable from `401 UNAUTHORIZED`, `503 MODULE_DISABLED` and `404`
+(FR-055). The reserved administrator capabilities (FR-010–FR-012) refuse with the existing
+`403 FORBIDDEN` "Organization administrator required", unchanged — they are not permissions.
+
+**Composite actions** (spec *Edge Cases*) are two guards, never a combined code: the guard array
+lists both; the refusal names the first missing one.
+
+**Alternatives rejected.** *A Fastify decorator registered by `organizations`* — a decoration is a
+capture of a gated registration. *A guard in `@endora-commerce/platform/http`* — the platform would
+name a module's concept. *A per-module copy of the guard* — eight copies of one rule.
+
+## R-21 — A customer actor is recorded on the audit row *(platform extension)*
+
+**Decision.** `CommandActor` gains `actorCustomerAccountId: string | null`, filled by
+`actorFromContext` (`packages/platform/src/commands/actor.ts`) from `TenantContext.actor.id` when
+the actor is a customer acting for themselves; `audit_log_entries` gains the matching nullable
+column (M1); `AuditPort.recordWithin` carries it. Impersonation keeps its two existing columns.
+
+**Rationale.** FR-065 and SC-006 require every role and assignment change to name the member who
+made it. Today a customer-issued Command records `actorAdminUserId = null` and nothing else
+(`actor.ts`, "plain customer — no acting admin id"), so the storefront administrator's edit would be
+anonymous. `organization.set_cart_approval_policy` has had the same gap since #175; this closes it
+for every customer-side Command at once.
+
+**Alternatives rejected.** *The actor in `stateAfter`* — server-derived but not queryable, and every
+module would invent its own key. *A module-owned history table, as `quote_requests` keeps* — a second
+audit substrate for one screen.
+
+## R-22 — Child Commands in one transaction *(platform extension)*
+
+**Decision.** `CommandContext` gains `run<T>(child: Command<T>): Promise<T>`: the child's
+`capture`/`run` execute on the **parent's** transactional `em` and actor, the bus records the
+child's own single audit entry inside the same transaction, and buffers the child's event in the
+parent's `EventBus.run` scope. Every Command still records exactly one entry; parent and children
+commit or roll back together.
+
+**Rationale.** FR-024 and US 6 require a role deletion and every reassignment to happen together or
+not at all; FR-065 requires each reassignment to be its own audited command. Principle XIII
+requires exactly one entry *per Command* and co-transactionality; a second `CommandBus.run` opens a
+second fork and transaction. Nested execution is the only shape that satisfies all three without a
+hand-placed audit call.
+
+**Alternatives rejected.** *One `organization_role.delete` entry listing every moved member* — fails
+FR-065's "each". *Recording the reassignments with `auditLog.recordWithin` by hand* — Principle XIII
+gate 12, double-audit shape. *Sequential bus runs* — not atomic.
+
+## R-23 — Delivery: one integration branch, deprecate then delete
+
+**Decision.** P1 and P2 are built on an integration branch `feat/170-organization-roles` cut from
+`origin/master` after WP-00 merges. Every work package branches from it and merges back into it; the
+integration branch reaches `master` once, after WP-13. P3 gets its own integration branch later.
+
+Inside the branch, legacy symbols are **deprecated before they are deleted**: WP-01 adds every new
+contract shape *beside* the old one and marks the old one `@deprecated`; Wave 2 moves each consumer
+to the new shape and stops reading the old; WP-12 deletes the old symbols and columns, and a
+compile plus the inventory command (R-14) proves nothing still names them.
+
+The data follows the same rule. From WP-02b until WP-12, `customer_accounts.role` and
+`organization_invitations.role` are **dual-written**: every assignment writes the role reference and
+the matching enum (`administrator` → `organization_admin`, else `regular_user`), so a Wave 2 module
+that has not yet been converted reads a consistent answer. M3's default trigger (R-28) derives the
+role from `new.role` while that column exists — a fixture inserting `role: 'organization_admin'`
+gets the administrator role — and M5 redefines it to the plain *Member* default when it drops the
+column. Only WP-12 sweeps the test files that name the enum (54 at `d31bab44b`).
+
+**Rationale.** OR-4 makes the contract change breaking with no window, so a partial merge to
+`master` would leave every release cut in between shipping half a contract. A long-lived branch is
+the cost; it is paid by merging `master` into it at least daily, regenerating
+`composer:generate` artefacts on conflict rather than hand-merging them
+(`module-admin-surfaces.md` § *The generated admin registry conflicts*). Deprecate-then-delete is
+what lets six agents work in parallel against a branch that stays green.
+
+**Alternatives rejected.** *WPs straight to `master`* — releases in between would carry a broken
+half. *One agent, one MR* — 59 files and 79 test files in one review.
+
+## R-24 — Requests that still send `role` are refused, not ignored (FR-073)
+
+**Decision.** Every request schema this feature touches is a `z.object({...}).strict()`, so an
+unknown key — `role` included — fails validation with `400 VALIDATION_FAILED` naming the key.
+Response schemas drop `role` and gain `organizationRole: { id, name, kind }` and, on the session
+views, `permissions: string[]`. Zod's default `.object` strips unknown keys silently, which is the
+behaviour FR-073 forbids, so `.strict()` is load-bearing and each contract test sends `role` once.
+
+## R-25 — Approval is judged by the permission at placement; statuses follow by event *(refines R-4)*
+
+**Decision.** `cartApprovalRequired(buyer)` becomes `!(await permissions.can(buyer,
+'carts.order_without_approval'))`. The placement gate from #656 refuses iff approval is required
+**and** the cart is not `approved`. The FR-034 cascade (a role gaining the permission returns its
+members' `pending` carts to `not_required`) is a `carts` subscriber to two events the role and
+assignment commands emit on commit — `organization_role.permissions_changed.v1` and
+`customer_account.organization_role_changed.v1` — not a synchronous call from `organizations`
+into `carts`.
+
+**Rationale.** With the gate judging the permission, a `pending` cart whose owner has since gained
+*Place orders without approval* is placeable even if the event were lost, so the cascade is
+presentation consistency (the CTA), never a security boundary. That makes an in-process, post-commit
+event the right seam: `organizations` (non-deactivatable) does not reach into `carts`, and no
+lifecycle edge is added.
+
+## R-26 — Operator "on behalf" endpoints are not judged by organization permissions
+
+**Decision.** Operator endpoints that act on a buyer's basket or quotes
+(`POST /api/v1/admin/quote-requests/:id/prepare-customer-basket`, `quick_order`'s
+`onBehalfOf` build in `routes.admin.ts`) are gated by **operator** permissions only. What they
+produce is still judged by organization permissions when the **member** acts on it: placement of a
+basket the operator prepared is refused for a member who needs approval. Impersonation is different
+and stays as the spec says: the impersonated member's permissions apply.
+
+**Rationale.** An operator is not a member and holds no organization role; organization permissions
+gate what a member may do, and the placement gate is where approval is enforced (R-25), so no bypass
+opens.
+
+## R-27 — FR-072's replay: an oracle recorded before the change, a replay after it
+
+**Decision.** Two tests, in two places in time.
+
+1. **WP-00, on `master`, before any 170 code** — `backend/test/integration/organizations/
+   roles-upgrade-oracle.test.ts` seeds the fixture population (Organizations with and without cart
+   approval; members of both kinds, including a blocked and a deleted one; pending, expired and
+   accepted invitations of both kinds; carts in `not_required`, `pending`, `approved`, `rejected`),
+   performs one HTTP request per gated action per member, and asserts the outcome table committed
+   at `backend/test/fixtures/organization-roles/pre-upgrade-outcomes.ts`. The table is recorded by
+   the code it describes.
+2. **WP-13, on the integration branch** — `backend/test/integration/organizations/
+   roles-upgrade-replay.test.ts` takes a migrated clone (`backend/test/helpers/migrated-database.ts`),
+   runs the `down()` statements of M5, M4, M3, M2 in that order to reach the pre-170 schema, inserts
+   the same population with raw SQL in the old shape, runs the `up()` statements of M2–M5 (the
+   pattern of `backend/test/integration/orders/new-to-paid-edge-migration.test.ts`), boots the test
+   server, replays the same requests and asserts the **same table**,
+   with exactly one row allowed to differ: one-click in an approval-requiring Organization (#653).
+   It then runs M2–M5 `up()` a second time and asserts nothing changed (FR-074).
+
+The oracle's request list is the source of the replay's; WP-13 imports it.
+
+**Alternatives rejected.** *Hand-writing the expected table* — it would encode the author's belief
+about today's behaviour, not today's behaviour. *Running the old code in the replay* — the old code
+is not in the tree after WP-12.
+
+## R-28 — Both predefined roles exist by construction; an account without a role is a *Member*
+
+**Decision.** Two database rules, each in the migration of the module that owns the table it fires on:
+
+- **M2 (`organizations`)** installs `after insert on organizations for each row` →
+  insert the `administrator` and `member` rows for `new.id` (empty arrays). FR-001 then holds for
+  every creation path — `registration-service.ts`, `commands/create-organization.command.ts`,
+  `personal-organization-service.ts`, `demo/seed.ts`, and the **84** test files that create an
+  `Organization` directly — with nothing to remember. Application code that needs the new
+  Organization's role ids in the same transaction reads them after the flush.
+- **M3 (`customer_accounts`)** installs `before insert on customer_accounts for each row when
+  (new.organization_role_id is null)` → set it to the Organization's `member` row. It is the
+  database's statement of the default the entity carries today (`role = 'regular_user'`,
+  `customer-account.entity.ts:100`). Production paths always pass the role explicitly — the write
+  port's input requires it — so the rule exists for the **50** files that `em.create(CustomerAccount,
+  …)` directly (45 of them tests) and keeps FR-006's `not null` structural without touching them.
+
+**Rationale.** Measured on `d31bab44b`: 84 files create an `Organization` and 50 a `CustomerAccount`
+through the entity manager, most of them tests, most not naming a role at all. A call-site seeder
+plus a required entity property would turn this feature into a 130-file fixture sweep whose only
+content is boilerplate, on top of the 79 test files that really change; a nullable column would make
+FR-006 a convention. `specs/conventions/module-migrations.md` item 4a counts a trigger as a write on
+the table it fires on, which is each owner's own table here; M3's trigger function **reads**
+`organization_roles`, an R1 read covered by the declared dependency. The repository already holds a
+trigger-enforced invariant in `packages/modules/projects/src/migrations/20261026T144350_projects_init.ts`.
+
+**Alternatives rejected.** *Call-site seeding everywhere* — the sweep above, and a missed call is a
+latent defect until an account is inserted. *A boot-time repair* — hides a missed path until a
+restart. *A MikroORM `onFlush` subscriber* — no module-contributed subscriber seam exists; the
+platform's only one is the tenancy write guard.
+
+## R-29 — Custom role names, protected names, and stale edits
+
+**Decision.** A custom role's name is trimmed and compared case-insensitively against the
+Organization's other custom roles **and** against the predefined roles' labels in every shipped
+language (`Administrator`, `Member`, and their Polish labels), refused with
+`409 ORGANIZATION_ROLE_NAME_TAKEN`. Every role write carries `expectedVersion`; a mismatch is
+`409 ORGANIZATION_ROLE_STALE` (spec *Edge Cases*, concurrent edits). The 51st custom role is
+`422 ORGANIZATION_ROLE_LIMIT_REACHED`.
+
+**Last administrator** keeps today's codes and is made race-free: the change-role and
+remove-member Commands lock the Organization's administrator holders (`select … for update` on
+`customer_accounts` rows of the administrator role, inside the Command's transaction) before
+counting, so two concurrent demotions cannot both pass.
+
+## R-30 — RFQ visibility before and after P3
+
+**Decision.** In P1+P2, "sees every quote request of the Organization" is
+`permissions.isAdministrator(ctx)` — today's behaviour with the comparison moved behind the port —
+and `RfqCustomerContext.isOrgAdmin` is deleted in WP-12. `quote_requests.approve` and
+`quote_requests.send_without_approval` are declared in **P3**, when the state they govern exists;
+P3 then switches visibility to `can(ctx, 'quote_requests.approve')` (FR-041). P2 declares only
+`quote_requests.create`.
+
+**Rationale.** Declaring *Approve quote requests* before there is anything to approve would put a
+checkbox on every Organization's role editor that does nothing but widen a list. When P3 ships, FR-023
+grants `send_without_approval` to every *Member* on first sight, so P3 changes nobody's outcome.
+
+## R-31 — Permission labels reach the storefront translated, per request
+
+**Decision.** `GET /api/v1/organizations/mine/permission-catalogue` (administrators) and
+`GET /api/v1/organizations/mine/role` (every member, FR-058) answer each permission with `label` and
+`description` already translated into the request language, through `_i18n`'s
+`adminI18nService.translate(moduleId, 'organizationPermissions.<code>.label', language)` — the port
+`organizations` already resolves for global search. The manifest's English `label` / `description`
+are the fallback. Case 1 of `specs/conventions/module-i18n.md` (the backend can resolve the reader's
+language), and the reason is the one R-11 gives: the storefront cannot know at build time which
+modules an instance has.
+
+## R-32 — What is audited, against which object
+
+**Decision.** Every Command this feature adds audits against **`objectType: 'organization'`,
+`objectId: <organizationId>`**, with the role or member id and the before/after role name, kind and
+sorted permission list in the state. `customer_account.change_role` (today hand-audited by
+`role-service.ts` against `customer_account`) moves onto the bus under the same action name and the
+Organization object.
+
+**Rationale.** FR-066 puts these entries in *the Organization's* history, and the audit substrate's
+only object filter is `(objectType, objectId)` (`packages/modules/audit_logs/src/admin/pages/
+AuditLogViewer.tsx`, `?objectType=…&objectId=…`). The Roles tab links to
+`/audit-log?objectType=organization&objectId=<id>`; no audit-viewer change is needed.
+
+**Alternatives rejected.** *Per-object types (`organization_role`, `customer_account`)* — the history
+would be scattered over one object per role and one per member, with no screen that shows them
+together. *An `organization_id` column on `audit_log_entries`* — a platform schema change for one
+screen.
+
+## R-33 — Dependencies on work merged or in flight
+
+| Item | State at planning | What this plan assumes / where it bites |
+| --- | --- | --- |
+| #647, #654, #659 (cart approval CTA, refusal codes, pending edit) | merged | Baseline behaviour of WP-00's oracle and WP-04 |
+| #656 (#648, placement gate, `ORDER_CART_APPROVAL_REQUIRED`, `cart-approval-policy.ts`) | open | **Blocks WP-00** (the oracle must record placement outcomes) and **WP-04** (rewrites `approvalSubmissionRequired`) |
+| #655 (#651, approval e-mails) | open | **Blocks WP-04**'s FR-035 recipient change (`cart-approval-emails.ts`) |
+| #670 (#665, clone/reorder through the order read scope) | merged | WP-07 swaps the admin test inside `OrderAccessService` only; clone and reorder follow it |
+| #680 (#669, invoices via `OrderReadPort.findByIdForCustomer`) | open | WP-07: FR-049's "its documents" holds through the order scope once #680 lands; WP-07's colleague-invoice test needs it |
+| #674 (#666, storefront module presence in nav) | merged | WP-09 builds the account nav on `storefront/lib/module-gate.ts` |
+| #653 | resolved by this feature | WP-06 (`quick_order.one_click`) |
+| #667 (invitation role label) | resolved by this feature | WP-03 |
+| #668 (organization addresses) | resolved by this feature | WP-03 (`addresses.manage`) |

@@ -29,6 +29,7 @@ Everything below is a **peer** dependency, so the application resolves exactly o
 
 - `@endora-commerce/admin-kit` — *optional*
 - `@endora-commerce/contracts`
+- `@endora-commerce/email-components`
 - `@endora-commerce/platform`
 
 **Third-party**

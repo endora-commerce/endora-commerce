@@ -69,6 +69,8 @@ function readPort(
   };
   return {
     findById: unreachable('findById') as unknown as OrderReadPort['findById'],
+    findByIdForCustomer:
+      unreachable('findByIdForCustomer') as unknown as OrderReadPort['findByIdForCustomer'],
     findByIds: unreachable('findByIds') as unknown as OrderReadPort['findByIds'],
     listAll: unreachable('listAll') as unknown as () => Promise<OrderRecord[]>,
     listItems: unreachable('listItems') as unknown as OrderReadPort['listItems'],

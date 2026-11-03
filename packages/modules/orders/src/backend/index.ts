@@ -904,7 +904,15 @@ export function registerModule(ctx: ModuleContext): void {
 
   ctx.di.providePort<OrderReadPort>(
     'orderReadPort',
-    ctx.asFunction(({ emFactory }: OrdersCradle) => new OrderReadService(emFactory)).singleton(),
+    ctx
+      .asFunction(
+        ({ emFactory }: OrdersCradle) =>
+          new OrderReadService(
+            emFactory,
+            lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+          ),
+      )
+      .singleton(),
   );
 
   ctx.di.providePort<OrderListPort>(
