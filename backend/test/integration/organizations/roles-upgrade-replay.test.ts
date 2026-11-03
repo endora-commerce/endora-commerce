@@ -81,9 +81,9 @@ const UPGRADE = [
 type MigrationClass = (typeof UPGRADE)[number];
 
 /** The statements a migration emits in one direction, as the migrator would run them. */
-async function statementsOf(Migration: MigrationClass, direction: 'up' | 'down'): Promise<string[]> {
+async function statementsOf(migrationClass: MigrationClass, direction: 'up' | 'down'): Promise<string[]> {
   // The base class only stores these; nothing in `up()`/`down()` reaches the driver.
-  const migration = new Migration(undefined as never, undefined as never);
+  const migration = new migrationClass(undefined as never, undefined as never);
   await migration[direction]();
   return migration.getQueries().map((query) => String(query));
 }
@@ -134,8 +134,8 @@ describe('organization roles — the upgrade replay (170 WP-13a)', () => {
 
   async function apply(direction: 'up' | 'down'): Promise<void> {
     const order = direction === 'up' ? [...UPGRADE] : [...UPGRADE].reverse();
-    for (const Migration of order) {
-      for (const sql of await statementsOf(Migration, direction)) await execute(sql);
+    for (const migrationClass of order) {
+      for (const sql of await statementsOf(migrationClass, direction)) await execute(sql);
     }
   }
 
