@@ -206,7 +206,223 @@ describe('organization roles — the upgrade replay (170 WP-13a)', () => {
       invitationRoleColumn: schema!.invitation,
     };
 
-    // ── ORACLE_POPULATION, raw SQL, in the pre-170 shape — not written yet (red) ──
+    // ── ORACLE_POPULATION, raw SQL, in the pre-170 shape ─────────────────────
+    for (const org of POPULATION.organizations) {
+      await execute(
+        `insert into "organizations"
+           ("id", "name", "name_search", "tax_id", "status", "vat_status", "is_personal", "requires_cart_approval",
+            "registered_address", "path", "version", "created_at", "updated_at")
+         values (?, ?, ?, ?, 'active', ?, ?, ?, ?::jsonb, ?, 1, now(), now())`,
+        [
+          org.id,
+          org.name,
+          normalizeOrganizationName(org.name),
+          org.taxId,
+          org.isPersonal ? 'vat_exempt' : 'vat_payer',
+          org.isPersonal,
+          org.requiresCartApproval,
+          JSON.stringify({ street: 'ul. Wyroczni 170', city: 'Warszawa', postalCode: '00-170', country: 'PL' }),
+          `/${org.id}/`,
+        ],
+      );
+      for (const channel of org.channels) {
+        await execute(`insert into "sales_channel_organizations" ("sales_channel_id", "organization_id") values (?, ?)`, [
+          channelIdOf.get(channel)!,
+          org.id,
+        ]);
+      }
+    }
+
+    // Members — the withdrawn ones in the state the operator's block and delete
+    // routes leave them (`customer_accounts`' lifecycle write port); their
+    // sessions are revoked below, after the boot, as those routes revoke them.
+    const passwordHash = await hashPassword('oracle-170-password-not-used');
+    for (const member of POPULATION.members) {
+      const blocked = member.state === 'blocked';
+      const deleted = member.state === 'deleted';
+      await execute(
+        `insert into "customer_accounts"
+           ("id", "organization_id", "email", "password_hash", "first_name", "last_name", "role", "email_verified_at",
+            "blocked_at", "block_source", "blocked_by_admin_user_id", "block_reason",
+            "deleted_at", "deletion_requested_by_admin_user_id", "created_at", "updated_at")
+         values (?, ?, ?, ?, 'Oracle', ?, ?, now(), ?, ?, ?, ?, ?, ?, now(), now())`,
+        [
+          member.id,
+          oracleOrganization(member.organization).id,
+          member.email,
+          passwordHash,
+          member.key,
+          member.role,
+          blocked ? new Date() : null,
+          blocked ? 'staff' : null,
+          blocked ? TEST_ADMIN_ID : null,
+          blocked ? 'Oracle 170' : null,
+          deleted ? new Date() : null,
+          deleted ? TEST_ADMIN_ID : null,
+        ],
+      );
+    }
+
+    for (const address of POPULATION.addresses) {
+      await execute(
+        `insert into "addresses"
+           ("id", "organization_id", "kind", "recipient_name", "street", "city", "postal_code", "country", "is_default",
+            "created_at", "updated_at")
+         values (?, ?, ?, ?, 'ul. Wyroczni 170', 'Warszawa', '00-170', 'PL', ?, now(), now())`,
+        [address.id, oracleOrganization(address.organization).id, address.kind, `Oracle 170 ${address.key}`, address.isDefault],
+      );
+    }
+
+    for (const invitation of POPULATION.invitations) {
+      const now = Date.now();
+      await execute(
+        `insert into "organization_invitations"
+           ("id", "organization_id", "invited_by_customer_account_id", "email", "role", "token_hash",
+            "expires_at", "consumed_at", "revoked_at", "created_at", "updated_at")
+         values (?, ?, ?, ?, ?, ?, ?, ?, null, ?, ?)`,
+        [
+          invitation.id,
+          oracleOrganization(invitation.organization).id,
+          memberId(invitation.invitedBy),
+          invitation.email,
+          invitation.role,
+          createHash('sha256').update(randomBytes(32)).digest('hex'),
+          new Date(invitation.state === 'expired' ? now - DAY : now + 7 * DAY),
+          invitation.state === 'accepted' ? new Date(now - DAY / 2) : null,
+          new Date(now - 2 * DAY),
+          new Date(now - 2 * DAY),
+        ],
+      );
+    }
+
+    for (const cart of POPULATION.carts) {
+      const owner = oracleMember(cart.owner);
+      const submitted = cart.approvalStatus !== 'not_required' ? new Date() : null;
+      const approved = cart.approvalStatus === 'approved';
+      const rejected = cart.approvalStatus === 'rejected_by_org_admin';
+      // Only B's carts are approved or rejected; P has no administrator to name.
+      const admin = approved || rejected ? memberId(`${owner.organization}.admin` as OracleMemberKey) : null;
+      await execute(
+        `insert into "carts"
+           ("id", "customer_account_id", "organization_id", "sales_channel_id", "status", "approval_status",
+            "submitted_for_approval_at", "approved_at", "approved_by_customer_account_id",
+            "rejected_at", "rejected_by_actor", "rejected_reason", "last_activity_at", "version", "created_at", "updated_at")
+         values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, now(), 1, now(), now())`,
+        [
+          cart.id,
+          owner.id,
+          oracleOrganization(owner.organization).id,
+          channelIdOf.get(cart.channel)!,
+          cart.status,
+          cart.approvalStatus,
+          submitted,
+          approved ? new Date() : null,
+          approved ? admin : null,
+          rejected ? new Date() : null,
+          rejected ? `org_admin:${admin}` : null,
+          rejected ? 'Oracle 170: seeded rejection' : null,
+        ],
+      );
+      await execute(
+        `insert into "cart_items" ("id", "cart_id", "product_id", "quantity", "unit_price", "currency", "created_at", "updated_at")
+         values (gen_random_uuid(), ?, ?, ?, ?, 'PLN', now(), now())`,
+        [cart.id, POPULATION.productId, cart.quantity, POPULATION.unitPrice],
+      );
+    }
+
+    const snapshotAddress = JSON.stringify({
+      recipientName: 'Oracle 170',
+      street: 'ul. Wyroczni 170',
+      city: 'Warszawa',
+      postalCode: '00-170',
+      country: 'PL',
+    });
+    for (const order of POPULATION.orders) {
+      const placer = oracleMember(order.placedBy);
+      await execute(
+        `insert into "orders"
+           ("id", "business_id", "organization_id", "placed_by_customer_account_id", "sales_channel_id", "status",
+            "payment_status", "delivery_address", "billing_address", "delivery_method_id", "delivery_method_snapshot",
+            "payment_method_id", "payment_method_snapshot", "subtotal", "tax_total", "discount_total", "delivery_total",
+            "total", "currency", "placed_at", "created_at", "updated_at")
+         values (?, ?, ?, ?, ?, 'completed', 'awaiting_payment', ?::jsonb, ?::jsonb, ?, ?::jsonb, ?, ?::jsonb,
+                 ?, '0.00', '0', '0.00', ?, 'PLN', now(), now(), now())`,
+        [
+          order.id,
+          `ORACLE-170-${order.key}`,
+          oracleOrganization(placer.organization).id,
+          placer.id,
+          channelIdOf.get('default')!,
+          snapshotAddress,
+          snapshotAddress,
+          POPULATION.deliveryMethodId,
+          JSON.stringify({ code: 'in_person_pickup', name: 'Pickup', cost: 0 }),
+          POPULATION.paymentMethodId,
+          JSON.stringify({ code: 'bank_transfer', name: 'BT', kind: 'bank_transfer' }),
+          POPULATION.unitPrice,
+          POPULATION.unitPrice,
+        ],
+      );
+      await execute(
+        `insert into "order_items"
+           ("id", "order_id", "product_id", "product_snapshot", "quantity", "unit_price", "tax_rate", "line_total", "created_at")
+         values (gen_random_uuid(), ?, ?, ?::jsonb, 1, ?, '0.0000', ?, now())`,
+        [
+          order.id,
+          POPULATION.productId,
+          JSON.stringify({ sku: 'EXAMPLE-SIMPLE-001', name: 'Oracle 170 product', primaryAssetUrl: null }),
+          POPULATION.unitPrice,
+          POPULATION.unitPrice,
+        ],
+      );
+    }
+
+    for (const rfq of POPULATION.quoteRequests) {
+      const owner = oracleMember(rfq.owner);
+      await execute(
+        `insert into "quote_requests"
+           ("id", "business_id", "organization_id", "customer_account_id", "status", "submitted_at", "sales_channel_id",
+            "created_at", "updated_at")
+         values (?, ?, ?, ?, 'Pending', now(), ?, now(), now())`,
+        [rfq.id, `QR-ORACLE-170-${rfq.key}`, oracleOrganization(owner.organization).id, owner.id, channelIdOf.get('default')!],
+      );
+      await execute(
+        `insert into "quote_request_items"
+           ("id", "quote_request_id", "product_id", "product_name", "quantity", "line_currency", "created_at", "updated_at")
+         values (gen_random_uuid(), ?, ?, 'Oracle 170 product', 1, 'PLN', now(), now())`,
+        [rfq.id, POPULATION.productId],
+      );
+    }
+
+    for (const list of POPULATION.shoppingLists) {
+      const owner = oracleMember(list.owner);
+      await execute(
+        `insert into "shopping_lists" ("id", "organization_id", "customer_account_id", "name", "created_at", "updated_at")
+         values (?, ?, ?, ?, now(), now())`,
+        [list.id, oracleOrganization(owner.organization).id, owner.id, `Oracle 170 ${list.key}`],
+      );
+      await execute(
+        `insert into "shopping_list_items" ("id", "shopping_list_id", "product_id", "quantity", "created_at", "updated_at")
+         values (gen_random_uuid(), ?, ?, 1, now(), now())`,
+        [list.id, POPULATION.productId],
+      );
+    }
+
+    for (const defaults of POPULATION.oneClickDefaults) {
+      await execute(
+        `insert into "quick_order_default_preferences"
+           ("id", "scope", "scope_id", "default_payment_method_id", "default_delivery_method_id",
+            "default_billing_address_id", "default_shipping_address_id", "created_at", "updated_at")
+         values (gen_random_uuid(), 'organization', ?, ?, ?, ?, ?, now(), now())`,
+        [
+          oracleOrganization(defaults.organization).id,
+          POPULATION.paymentMethodId,
+          POPULATION.deliveryMethodId,
+          addressIdOf(defaults.billingAddress),
+          addressIdOf(defaults.deliveryAddress),
+        ],
+      );
+    }
 
     // ── The upgrade ──────────────────────────────────────────────────────────
     await apply('up');
