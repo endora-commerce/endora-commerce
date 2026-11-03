@@ -1,7 +1,9 @@
 /**
- * FR-022 — every English documentation source has a pinned translation cache entry
- * at the current source hash and a materialized i18n markdown file for each configured
- * translate locale.
+ * FR-022 — every English documentation source has a translation pin at the
+ * current source hash and a materialized i18n markdown file for each configured
+ * translate locale. The pin (`docs/translation-cache/<locale>/<key>.json`) holds
+ * the source path and hash only (issue #671); one carrying anything else is
+ * `malformed-pin`. `pnpm --filter backend run docs:translations:pin` re-pins.
  *
  * Feature 133 (FR-043) added the half that reports on **what Docusaurus actually
  * reads**. Until then this check asked whether a message id *existed in
@@ -16,7 +18,7 @@
  *
  * Usage: `pnpm --filter backend run check:docs-translations`
  *
- * Exit 0 = complete; exit 2 = missing or stale translations, chrome messages in
+ * Exit 0 = complete; exit 2 = missing, stale or malformed translations, chrome messages in
  * the wrong file or missing from the right one, or a page with no reachable title.
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
@@ -41,7 +43,7 @@ import {
   defaultTranslationCacheLayout,
   docIdFromSourcePath,
   hashSourceBody,
-  readCacheEntry,
+  readCacheEntryResult,
   materializedDocPath,
   type TranslationCacheLayout,
 } from './lib/docs-translation-cache.js';
@@ -58,6 +60,7 @@ const PREFIX = '[docs-translations]';
 export type DocsTranslationFindingKind =
   | 'missing-translation'
   | 'stale-translation'
+  | 'malformed-pin'
   | 'missing-sidebar-message'
   | 'chrome-message-missing'
   | 'chrome-message-inert'
@@ -156,8 +159,8 @@ export function checkDocsTranslations(input: DocsTranslationCheckInput): DocsTra
 
       const english = readSource(source.absolutePath);
       const currentHash = hashSourceBody(english);
-      const entry = readCacheEntry(locale, source.sourcePath, input.layout);
-      if (entry === null) {
+      const pin = readCacheEntryResult(locale, source.sourcePath, input.layout);
+      if (pin.kind === 'absent') {
         findings.push({
           kind: 'missing-translation',
           key: `${locale}:${source.sourcePath}`,
@@ -165,7 +168,15 @@ export function checkDocsTranslations(input: DocsTranslationCheckInput): DocsTra
         });
         continue;
       }
-      if (entry.sourceHash !== currentHash) {
+      if (pin.kind === 'malformed') {
+        findings.push({
+          kind: 'malformed-pin',
+          key: `${locale}:${source.sourcePath}`,
+          detail: `malformed-pin:${source.sourcePath}:${pin.reason}`,
+        });
+        continue;
+      }
+      if (pin.entry.sourceHash !== currentHash) {
         findings.push({
           kind: 'stale-translation',
           key: `${locale}:${source.sourcePath}`,
@@ -186,15 +197,10 @@ export function checkDocsTranslations(input: DocsTranslationCheckInput): DocsTra
         });
         continue;
       }
+      // The materialised page *is* the translation (issue #671): the pin says
+      // which English body it was made from, and nothing else holds a copy of
+      // it that could disagree.
       const onDisk = readFileSync(materialized, 'utf8');
-      if (onDisk !== entry.content) {
-        findings.push({
-          kind: 'stale-translation',
-          key: `${locale}:${source.sourcePath}`,
-          detail: `stale-translation:${source.sourcePath}`,
-        });
-        continue;
-      }
       // The same rule as the English source above, evaluated on the artefact
       // this locale actually ships: a Polish page whose first content node is a
       // translation-policy admonition resolves no title of its own.
