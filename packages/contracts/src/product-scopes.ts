@@ -485,25 +485,74 @@ export const productScopedWriteInputSchema = z
     }),
   }));
 
+/**
+ * Feature 170 (`pim-locale-mapping.md` §4, R13a, R21) — why one cell of an integration write was
+ * not applied. The rest of the call still applies (per-cell tolerant):
+ *
+ * - `not_supported` — the field family is outside the integration allowlist
+ *   ({@link integrationWritableField});
+ * - `SCOPE_INVALID` — a channel the product is not a member of, or a language it does not offer;
+ * - `FIELD_NOT_AT_SCOPE` — the field has no value at the scope's level (data-model §9);
+ * - `required_empty`, `not_emptyable`, `inherit_at_global` — `validateScopedWrite`'s refusals;
+ * - `subject_not_found` — a gallery item, attachment or packaging unit that is not the product's;
+ * - `invalid` — a value its field's own schema refuses (type, length, an attribute outside the
+ *   product's set, an option the attribute does not have).
+ *
+ * A `urlKey` cell another product holds is not a refusal: it is reported in `urlKeys`.
+ */
+export type ProductScopedWriteRefusalCode =
+  | 'not_supported'
+  | 'SCOPE_INVALID'
+  | 'FIELD_NOT_AT_SCOPE'
+  | 'required_empty'
+  | 'not_emptyable'
+  | 'inherit_at_global'
+  | 'subject_not_found'
+  | 'invalid';
+
 export interface ProductScopedWriteResult {
   /** Cells written. */
   applied: number;
-  /** Cells refused, each with its code (`SCOPED_VALUE_INVALID` reason, `FIELD_NOT_AT_SCOPE`, `SCOPE_INVALID`, …). */
-  refused: Array<{ scope: ScopeRef; field: FieldPath; code: string }>;
+  /** Cells refused; `index` is the cell's position in `input.cells`. */
+  refused: Array<{ index: number; scope: ScopeRef; field: FieldPath; code: ProductScopedWriteRefusalCode }>;
   /** One outcome per `urlKey` cell, in order. */
   urlKeys: UrlKeyWriteOutcome[];
 }
 
 /**
- * Container name: `catalogProductScopeWritePort`. Owner: `catalog` (R17, feature 170 v2).
+ * R13a (plan decision Q6) — whether an integration (a PIM connector, the products import) may
+ * write `field` at all: `name`, `description`, `attribute:<key>`, `gallery:<id>:altText`,
+ * `attachment:<id>:name|description`, `packagingUnit:<id>:name`, `urlKey`, `status`, `window`.
+ * Every other family — `audience`, `product.*`, `seo:*`, `galleryRole:*`, `*:hidden`,
+ * `minOrderQuantity`, `returnable` — is `not_supported`. Pure; the port applies it per cell.
+ */
+export function integrationWritableField(field: string): boolean {
+  return /^(name|description|urlKey|status|window|attribute:[a-z0-9_]{1,64}|gallery:[0-9a-f-]{36}:altText|attachment:[0-9a-f-]{36}:(name|description)|packagingUnit:[0-9a-f-]{36}:name)$/.test(
+    field,
+  );
+}
+
+/**
+ * Container name: `catalogProductScopeWritePort`. Owner: `catalog` (R17, feature 170 v2,
+ * `contracts/pim-locale-mapping.md` §4).
  *
- * Scoped writes for imports and connectors: one Command per product, per-cell tolerant (the
- * refused cells are reported, the rest applied), the same `validateScopedWrite` refusals as
- * the editor, never the completeness gate (A-6), never a redirect takeover (FR-093).
- * Allowlist (R13a, plan decision Q6): `name`, `description`, `attribute:<key>`,
- * `gallery:<id>:altText`, `attachment:<id>:name|description`, `packagingUnit:<id>:name`,
- * `urlKey`, `status`, `window`; every other family is refused `not_supported`.
- * `options.source` is a registered connector module id.
+ * Scoped writes for connectors: one Command `product.scoped_values.import` per call (one audit
+ * entry, `source` in it, `product.updated.v1` after commit, `products.scope_version` bumped),
+ * per-cell tolerant (each refused cell is reported with a {@link ProductScopedWriteRefusalCode},
+ * the rest applied; a call where every cell is refused writes, audits and bumps nothing). Each
+ * value is checked against its field's own schema (the save's — lengths `PRODUCT_NAME_MAX`,
+ * `PRODUCT_DESCRIPTION_MAX`, attribute value types and options) and `validateScopedWrite`
+ * (`required_empty`, `not_emptyable`, `inherit_at_global`); every subject id must be the
+ * product's. Never the completeness gate (A-6); URL keys through the URL-key service in
+ * `integration` mode — a key another product holds is reported in `urlKeys`, a redirect is never
+ * taken over (FR-093). Allowlist: {@link integrationWritableField}.
+ *
+ * The call itself is refused — nothing written — with:
+ * - `404 PRODUCT_NOT_FOUND` for an unknown or deleted product;
+ * - `422 VALIDATION_FAILED` `details.field = 'source'` when `options.source` is not a module id
+ *   (`^[a-z][a-z0-9_]{1,63}$`) present in the module registry;
+ * - `422 VALIDATION_FAILED` `details.field = 'cells'` for more than
+ *   {@link PRODUCT_SCOPED_WRITE_CELLS_MAX} cells or the same (field, scope) twice.
  */
 export interface CatalogProductScopeWritePort {
   applyScopes(

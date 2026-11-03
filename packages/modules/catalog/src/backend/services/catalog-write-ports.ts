@@ -1,16 +1,11 @@
 import {
-  patchProductScopesRequestSchema,
   type CatalogCategoryWritePort,
   type CatalogProductScopeWritePort,
   type CatalogProductWritePort,
   type CatalogPromoAttributePort,
-  fromScopedWriteOp,
-  type PatchProductScopesRequest,
-  type ProductScopedWriteInput,
-  type ProductScopedWriteResult,
 } from '@endora-commerce/contracts';
-import type { ProductScopesService } from './product-scopes.service.js';
-import type { ProductUrlKeyWrite, UrlKeyService } from './url-key.service.js';
+import type { CommandBus } from '@endora-commerce/platform/commands';
+import { assertIntegrationCall, runScopedImport, type ScopedImportDeps } from './scoped-values-import.js';
 import type { CatalogAdminService } from './catalog-admin.service.js';
 import type { CatalogQueryService } from './catalog-query.service.js';
 import type { CategoryAdminService } from './category-admin.service.js';
@@ -96,93 +91,29 @@ export function createCatalogPromoAttributePort(
 }
 
 /**
- * Feature 163 (R17, `contracts/url-keys-and-redirects.md` §5) — the scoped write
- * of a connector or an importer.
- *
- * It writes only the scopes the input names, so a connector writing global values
- * removes no operator override (FR-091). Status, window, audience and order rules
- * go through `ProductScopesService` — the operator's Command, its validation
- * (FR-014: a value for a channel the product is not in is refused) and its event;
- * URL keys through `UrlKeyService` in import mode, where a key another product
- * holds is not written and is reported, and a redirect is never taken over
- * (FR-093). No completeness gate runs on this path (A-6).
+ * Feature 170 (T083; `contracts/pim-locale-mapping.md` §4, R13a, R21) — the scoped write of a
+ * connector, v2: the call-level checks (a registered `source`, the cell cap, no duplicate cell),
+ * then one Command `product.scoped_values.import` on the save's planner and writers
+ * (`scoped-values-import.ts`): per-cell refusals, the integration allowlist, every subject bound to
+ * the product, no completeness gate (A-6), URL keys in `integration` mode (FR-093).
  */
-export function createCatalogProductScopeWritePort(
-  getScopes: () => ProductScopesService,
-  getUrlKeys: () => UrlKeyService,
-): CatalogProductScopeWritePort {
+export function createCatalogProductScopeWritePort(deps: {
+  commandBus: () => CommandBus;
+  importDeps: () => ScopedImportDeps;
+  /** Whether `moduleId` names a module of the registry (R21: `options.source`). */
+  isRegisteredModule: (moduleId: string) => boolean;
+}): CatalogProductScopeWritePort {
   return {
     async applyScopes(productId, input, options) {
-      // 170-shim: port v2 (`contracts/pim-locale-mapping.md` §4) on the 163 writers — `status` and
-      // `window` through the scopes PATCH, `urlKey` at C×L through the URL-key import mode; every
-      // other cell is refused `not_supported` until T083 lands the allowlist on the save service.
-      const { request, urlKeys, refused } = toScopesPatch(input);
-      if (request.channels.length > 0 || request.global !== undefined) {
-        // The write alone (checkpoint C code review, N2): an integration reads nothing
-        // back, and passes no completeness mode — it is never gated (A-6).
-        await getScopes().writeStatus(productId, request);
-      }
-      const outcomes = urlKeys.length ? await getUrlKeys().importKeys(productId, urlKeys, options.source) : [];
-      const result: ProductScopedWriteResult = {
-        applied: input.cells.length - refused.length,
-        refused,
-        urlKeys: outcomes,
-      };
+      assertIntegrationCall(input.cells, options.source, deps.isRegisteredModule);
+      const { changedFields: _changed, ...result } = await runScopedImport(
+        deps.commandBus(),
+        deps.importDeps(),
+        productId,
+        input.cells,
+        { source: options.source },
+      );
       return result;
     },
-  };
-}
-
-/** 170-shim — the v2 cells the 163 writers can take, and the refused rest. */
-export function toScopesPatch(input: ProductScopedWriteInput): {
-  request: PatchProductScopesRequest;
-  urlKeys: ProductUrlKeyWrite[];
-  refused: ProductScopedWriteResult['refused'];
-} {
-  const channels = new Map<string, PatchProductScopesRequest['channels'][number]>();
-  const entry = (channelId: string): PatchProductScopesRequest['channels'][number] => {
-    let found = channels.get(channelId);
-    if (!found) {
-      found = { channelId };
-      channels.set(channelId, found);
-    }
-    return found;
-  };
-  let global: PatchProductScopesRequest['global'];
-  const urlKeys: ProductUrlKeyWrite[] = [];
-  const refused: ProductScopedWriteResult['refused'] = [];
-  for (const cell of input.cells) {
-    const { scope, op } = cell;
-    if (cell.field === 'status' && scope.level !== 'global') {
-      const target = entry(scope.channelId);
-      if (scope.level === 'channel') target.status = fromScopedWriteOp(op) as never;
-      else {
-        target.languageStatuses = [
-          ...(target.languageStatuses ?? []),
-          { languageCode: scope.languageCode, status: fromScopedWriteOp(op) as never },
-        ];
-      }
-    } else if (cell.field === 'window' && scope.level === 'global' && op.op !== 'inherit') {
-      const value = op.op === 'set' ? (op.value as { from: string | null; until: string | null }) : { from: null, until: null };
-      global = { publishFrom: value.from, publishUntil: value.until };
-    } else if (cell.field === 'window' && scope.level === 'channel') {
-      entry(scope.channelId).window = fromScopedWriteOp(op) as never;
-    } else if (cell.field === 'urlKey' && scope.level === 'channel_language' && op.op !== 'empty') {
-      urlKeys.push({
-        channelId: scope.channelId,
-        languageCode: scope.languageCode,
-        key: op.op === 'set' ? String(op.value) : null,
-      });
-    } else {
-      refused.push({ scope, field: cell.field, code: 'not_supported' });
-    }
-  }
-  return {
-    request: patchProductScopesRequestSchema.parse({
-      channels: [...channels.values()],
-      ...(global !== undefined ? { global } : {}),
-    }),
-    urlKeys,
-    refused,
   };
 }

@@ -174,19 +174,11 @@ const ALLOWLIST: ReadonlyArray<{ file: string; reason: string }> = [
   },
   {
     file: 'packages/modules/catalog/src/backend/services/catalog-bulk-import.service.ts',
-    reason: "S1 — catalog backend 170-shim, rewritten in US2 / US3 (T035, T040-T047); not S2's file",
+    reason: "S1 — channel codes in a products file's cells and the deprecated exportScopedStatuses, removed once import_export's adapter resolves codes and reads exportScopedValues (T087, S2)",
   },
   {
     file: 'packages/modules/catalog/src/backend/services/catalog-product-read.service.ts',
     reason: "S1 — catalog backend 170-shim, rewritten in US2 / US3 (T035, T040-T047); not S2's file — also drops `CatalogAdminNamePageQuery.language`",
-  },
-  {
-    file: 'packages/modules/catalog/src/backend/services/catalog-write-ports.ts',
-    reason: "S1 — catalog backend 170-shim, rewritten in US2 / US3 (T035, T040-T047); not S2's file — port v2 (T083)",
-  },
-  {
-    file: 'packages/modules/catalog/src/backend/services/product-overrides.service.ts',
-    reason: "S1 — catalog backend 170-shim, rewritten in US2 / US3 (T035, T040-T047); not S2's file",
   },
   {
     file: 'packages/modules/seo/src/admin/index.ts',

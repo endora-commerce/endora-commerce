@@ -1,82 +1,101 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CreateProductRequest } from '@endora-commerce/contracts';
-import { HttpError } from '@endora-commerce/platform/http';
 import {
-  createCatalogProductScopeWritePort,
-  createCatalogProductWritePort,
-  toScopesPatch,
-} from './catalog-write-ports.js';
+  integrationWritableField,
+  type CreateProductRequest,
+  type ProductScopedWriteCell,
+} from '@endora-commerce/contracts';
+import { HttpError } from '@endora-commerce/platform/http';
+import { createCatalogProductScopeWritePort, createCatalogProductWritePort } from './catalog-write-ports.js';
+import { assertIntegrationCall, firstDuplicateCell } from './scoped-values-import.js';
 import { CatalogAdminService, type CatalogEventBus } from './catalog-admin.service.js';
 import type { CatalogAttributeReadService, CatalogAttributeView } from './catalog-attribute-read.service.js';
-import type { ProductScopesService } from './product-scopes.service.js';
-import type { UrlKeyService } from './url-key.service.js';
 
 /**
- * Feature 163 (T122, FR-091), on the 170 v2 cells (170-shim until T083): a connector's status and
- * window cells become the scopes PATCH body with only the scopes they name, a C×L URL key goes to
- * the URL-key import mode, and every other family is refused `not_supported`.
+ * Feature 173 (T083; `contracts/pim-locale-mapping.md` §4, R13a, R21) — the pieces of the connector
+ * port v2 that need no database: the allowlist, the call-level refusals (source, cap, duplicates)
+ * raised before any Command runs. The writes themselves are `[PG]`:
+ * `backend/test/contract/catalog/scope-write-port-v2.test.ts`.
  */
-const B2B = '00000000-0000-4000-8000-0000000000c1';
-const B2C = '00000000-0000-4000-8000-0000000000c2';
+const C1 = '00000000-0000-4000-8000-0000000000c1';
+const ITEM = '00000000-0000-4000-8000-0000000000a1';
 
-describe('toScopesPatch', () => {
-  it('groups by channel and names only what the cells name, in the write encoding', () => {
-    const { request, refused } = toScopesPatch({
-      cells: [
-        { scope: { level: 'channel', channelId: B2B }, field: 'status', op: { op: 'set', value: 'inactive' } },
-        { scope: { level: 'channel_language', channelId: B2B, languageCode: 'pl-PL' }, field: 'status', op: { op: 'inherit' } },
-        { scope: { level: 'channel', channelId: B2C }, field: 'returnable', op: { op: 'set', value: false } },
-      ],
-    });
-    expect(request).toEqual({
-      channels: [{ channelId: B2B, status: 'inactive', languageStatuses: [{ languageCode: 'pl-PL', status: { inherit: true } }] }],
-    });
-    expect(refused).toEqual([{ scope: { level: 'channel', channelId: B2C }, field: 'returnable', code: 'not_supported' }]);
+describe('integrationWritableField (R13a)', () => {
+  it('accepts the allowlist', () => {
+    for (const field of [
+      'name',
+      'description',
+      'urlKey',
+      'status',
+      'window',
+      'attribute:colour',
+      `gallery:${ITEM}:altText`,
+      `attachment:${ITEM}:name`,
+      `attachment:${ITEM}:description`,
+      `packagingUnit:${ITEM}:name`,
+    ]) {
+      expect(integrationWritableField(field), field).toBe(true);
+    }
   });
 
-  it('maps the Global window to `global` and a channel window to the channel entry', () => {
-    const { request } = toScopesPatch({
-      cells: [
-        { scope: { level: 'global' }, field: 'window', op: { op: 'set', value: { from: '2026-11-01T00:00:00.000Z', until: null } } },
-        { scope: { level: 'channel', channelId: B2B }, field: 'window', op: { op: 'inherit' } },
-      ],
-    });
-    expect(request).toEqual({
-      channels: [{ channelId: B2B, window: { inherit: true } }],
-      global: { publishFrom: '2026-11-01T00:00:00.000Z', publishUntil: null },
-    });
-  });
-
-  it('is an empty write for no cells; a C×L key goes to the URL-key writes', () => {
-    expect(toScopesPatch({ cells: [] })).toEqual({ request: { channels: [] }, urlKeys: [], refused: [] });
-    const { urlKeys } = toScopesPatch({
-      cells: [{ scope: { level: 'channel_language', channelId: B2B, languageCode: 'pl-PL' }, field: 'urlKey', op: { op: 'set', value: 'drill' } }],
-    });
-    expect(urlKeys).toEqual([{ channelId: B2B, languageCode: 'pl-PL', key: 'drill' }]);
+  it('refuses audience, product.*, seo:*, galleryRole:*, hidden flags, MOQ and returnable', () => {
+    for (const field of [
+      'audience',
+      'product.sku',
+      'seo:title',
+      'galleryRole:base_image',
+      `gallery:${ITEM}:hidden`,
+      `attachment:${ITEM}:hidden`,
+      'minOrderQuantity',
+      'returnable',
+    ]) {
+      expect(integrationWritableField(field), field).toBe(false);
+    }
   });
 });
 
-describe('createCatalogProductScopeWritePort (checkpoint C code review, N2; A-6)', () => {
-  it('runs the write alone, with no completeness mode, and reads nothing back', async () => {
-    const calls: unknown[][] = [];
-    const scopes = {
-      writeStatus: async (...args: unknown[]) => {
-        calls.push(args);
-        return { changedFields: ['scopedStatus'], warnings: [] };
-      },
-      apply: async () => {
-        throw new Error('the port must not read the scopes back');
-      },
-    } as unknown as ProductScopesService;
-    const port = createCatalogProductScopeWritePort(() => scopes, () => ({}) as UrlKeyService);
-    const result = await port.applyScopes(
-      'p-1',
-      { cells: [{ scope: { level: 'channel', channelId: B2B }, field: 'status', op: { op: 'set', value: 'active' } }] },
-      { source: 'pim' },
+describe('assertIntegrationCall (R21)', () => {
+  const cell = (field: string, scope: ProductScopedWriteCell['scope'] = { level: 'global' }): ProductScopedWriteCell =>
+    ({ scope, field, op: { op: 'set', value: 'x' } }) as ProductScopedWriteCell;
+  const registered = (id: string) => id === 'pim_connector';
+
+  it('passes a registered source with distinct cells', () => {
+    expect(() =>
+      assertIntegrationCall([cell('name'), cell('name', { level: 'channel', channelId: C1 })], 'pim_connector', registered),
+    ).not.toThrow();
+  });
+
+  it('refuses a source that is not a registered module id', () => {
+    for (const source of ['unknown_module', 'Pim Connector', '', 'a']) {
+      expect(() => assertIntegrationCall([cell('name')], source, registered)).toThrow(
+        expect.objectContaining({ statusCode: 422, code: 'VALIDATION_FAILED', details: { field: 'source' } }),
+      );
+    }
+  });
+
+  it('refuses more than 2 000 cells and a (field, scope) twice; languages compare case-insensitively', () => {
+    const many = Array.from({ length: 2001 }, (_, i) => cell(`attribute:k${i}`));
+    expect(() => assertIntegrationCall(many, 'pim_connector', registered)).toThrow(
+      expect.objectContaining({ statusCode: 422, details: { field: 'cells' } }),
     );
-    expect(calls).toEqual([['p-1', { channels: [{ channelId: B2B, status: 'active' }] }]]);
-    expect(result).toEqual({ applied: 1, refused: [], urlKeys: [] });
+    const pl = (languageCode: string) => cell('name', { level: 'channel_language', channelId: C1, languageCode });
+    expect(firstDuplicateCell([pl('pl-PL'), pl('en-US'), pl('PL-pl')])).toBe(2);
+    expect(() => assertIntegrationCall([pl('pl-PL'), pl('pl-pl')], 'pim_connector', registered)).toThrow(
+      expect.objectContaining({ statusCode: 422, details: { field: 'cells', index: 1 } }),
+    );
+  });
+
+  it('the port refuses the call before any Command runs', async () => {
+    const run = vi.fn();
+    const port = createCatalogProductScopeWritePort({
+      commandBus: () => ({ run }) as never,
+      importDeps: () => ({}) as never,
+      isRegisteredModule: registered,
+    });
+    await expect(port.applyScopes(ITEM, { cells: [cell('name')] }, { source: 'not_registered' })).rejects.toMatchObject({
+      statusCode: 422,
+    });
+    expect(run).not.toHaveBeenCalled();
   });
 });
 
