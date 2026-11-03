@@ -22,6 +22,7 @@ import { ADMIN_COOKIES, TEST_ADMIN_ID, TEST_CUSTOMER_ID } from '../../helpers/te
 import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
 import { bindOrganizationToDefaultChannel } from '../../helpers/sales-channel-access.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
+import { predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 
 /**
  * T068 — Quote Request change history.
@@ -419,7 +420,10 @@ describe('146 — readable history: authority and bounds [integration]', () => {
         passwordHash: 'x'.repeat(60),
         firstName: 'Active',
         lastName: 'Buyer',
+        // The role held is the one the platform judges
+        // (`specs/170-organization-roles/`); the legacy `role` is dual-written.
         role: 'organization_admin',
+        organizationRoleId: await predefinedRoleIdOf(em, stranger.id, 'administrator'),
       });
       const gone = em.create(CustomerAccount, {
         organizationId: stranger.id,

@@ -35,7 +35,7 @@ const PRODUCT_ID = '00000000-0000-4000-8000-0000000000a2';
 const ORG_ID = '00000000-0000-4000-8000-0000000000b1';
 const CUSTOMER_ID = '00000000-0000-4000-8000-0000000000c1';
 
-const ctx = { customerAccountId: CUSTOMER_ID, organizationId: ORG_ID, isOrgAdmin: false };
+const ctx = { customerAccountId: CUSTOMER_ID, organizationId: ORG_ID };
 
 function serviceAskingAt(): { service: InstanceType<typeof RfqService>; filterAvailable: ReturnType<typeof vi.fn> } {
   // Nothing is available, so the write stops at the product 404 before any

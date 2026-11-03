@@ -22,7 +22,7 @@ import {
 import { setEscapeHatchAuditSink, withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 import { runWithTenantContext, type TenantContext } from '../../../src/tenancy/tenant-context.js';
 import { bindOrganizationsToFixtureChannelsSql } from '../../helpers/sales-channel-access.js';
-import { moveAccountToOrganization } from '../../helpers/seed-organization-roles.js';
+import { moveAccountToOrganization, predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 
 /**
  * Feature 146, Phase 10 (T065, T065a) — the price-negotiation lock, enforced in
@@ -103,7 +103,12 @@ describe('146 — price-negotiation lock enforcement [integration]', () => {
     em: EntityManager,
     organizationId: string,
     key: string,
-    role: 'organization_admin' | 'regular_user' = 'regular_user',
+    /**
+     * The *Administrator* role of `organizationId` for an administrator
+     * (`specs/170-organization-roles/` WP-05); absent, the account holds
+     * *Member*. The legacy `role` is dual-written to match (research R-23).
+     */
+    administratorRoleId?: string,
   ): CustomerAccount =>
     em.create(CustomerAccount, {
       organizationId,
@@ -111,7 +116,9 @@ describe('146 — price-negotiation lock enforcement [integration]', () => {
       passwordHash: 'x'.repeat(60),
       firstName: '146',
       lastName: key,
-      role,
+      ...(administratorRoleId
+        ? { role: 'organization_admin' as const, organizationRoleId: administratorRoleId }
+        : { role: 'regular_user' as const }),
     });
 
   /** Register a stub session for the account, carrying the organization the session was opened in. */
@@ -188,12 +195,13 @@ describe('146 — price-negotiation lock enforcement [integration]', () => {
       // Feature 154 — the three tenants shop on the stores the harness seeds.
       await bindOrganizationsToFixtureChannelsSql(em, [orgLocked, orgFree, orgOther]);
 
+      const freeAdministrator = await predefinedRoleIdOf(em, orgFree, 'administrator');
       const accounts = {
         lockedBuyer: newAccount(em, orgLocked, 'locked'),
         overrideAllowed: newAccount(em, orgLocked, 'override-allowed'),
         overrideLocked: newAccount(em, orgFree, 'override-locked'),
-        adminAllowed: newAccount(em, orgFree, 'admin-allowed', 'organization_admin'),
-        adminLocked: newAccount(em, orgFree, 'admin-locked', 'organization_admin'),
+        adminAllowed: newAccount(em, orgFree, 'admin-allowed', freeAdministrator),
+        adminLocked: newAccount(em, orgFree, 'admin-locked', freeAdministrator),
         colleagueAllowed: newAccount(em, orgFree, 'colleague-allowed'),
         otherBuyer: newAccount(em, orgOther, 'other'),
         movedToFree: newAccount(em, orgLocked, 'moved-to-free'),
