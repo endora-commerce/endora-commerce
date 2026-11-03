@@ -1,13 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { RotateCcw } from 'lucide-react';
-import type {
-  ProductScopeContextResponse,
-  ResolvedMeta,
-  SeoEntityType,
-  SeoProductMetaField,
-  SeoProductMetaSource,
-  UpsertSeoMetaOverrideRequest,
-} from '@endora-commerce/contracts';
+import type { ResolvedMeta, SeoEntityType, UpsertSeoMetaOverrideRequest } from '@endora-commerce/contracts';
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
 import {
   Alert,
@@ -15,7 +8,6 @@ import {
   Button,
   Input,
   Label,
-  Select,
   Table,
   TableBody,
   TableCell,
@@ -28,12 +20,10 @@ import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 /**
  * Feature 163 (T128, US8; `contracts/seo-media-attachments.md` §1) — one entity's meta
- * override at one scope. A product is addressed by sales channel beside language: the
- * channel list is the product's **member** channels (owner decision SEO-1 A), read from
- * catalog's `scope-context` over HTTP; a channel's language list is that channel's, with
- * "whole channel" for the channel row. Naming no channel is the language row, as before.
- * The resolved values say where each field comes from; "use inherited" deletes exactly
- * the selected scope's row. A category takes no channel.
+ * override at one scope: a category or a CMS page, by language. Feature 170 (FR-094): a
+ * product's SEO is edited in the product editor at the editor scope; the SEO screen offers
+ * only a link there, so this editor has no product mode. "Use inherited" deletes exactly the
+ * selected scope's row.
  *
  * Review round D+F (C-2, D5): a scope loads as soon as it is selected (Load stays as a
  * refresh; a typed locale loads on Enter, blur or Load), the selectors are disabled
@@ -72,16 +62,8 @@ const OVERRIDE_FIELDS: ReadonlyArray<keyof MetaOverrideFields> = [
 interface MetaEnvelope {
   data: {
     resolved: ResolvedMeta;
-    /** Per field, where the resolved value comes from (feature 163). */
-    sources?: Record<SeoProductMetaField, SeoProductMetaSource>;
     override: MetaOverrideFields | null;
   };
-}
-
-type MemberChannel = Pick<ProductScopeContextResponse['channels'][number], 'id' | 'name' | 'languages'>;
-
-interface ScopeContextEnvelope {
-  data: Pick<ProductScopeContextResponse, 'channels'>;
 }
 
 /** One addressable row: `channelId` `''` = the language row; `locale` `''` = the whole channel. */
@@ -91,19 +73,12 @@ interface Scope {
 }
 
 export interface SeoMetaScopeEditorProps {
-  entityType: SeoEntityType;
+  /** Feature 170 (FR-094): a product's SEO is edited in the product editor, not here. */
+  entityType: Exclude<SeoEntityType, 'product'>;
   entityId: string;
 }
 
 type Translate = (key: string, params?: Record<string, string>) => string;
-
-function sourceLabel(source: SeoProductMetaSource, t: Translate): string {
-  // 170-shim: the 170 source vocabulary on 163's labels; T126 replaces the product mode with a link.
-  if (source === 'set') return t('metaScope.source.channelLanguage');
-  if (source === 'inherited_channel') return t('metaScope.source.channel');
-  if (source === 'inherited_global') return t('metaScope.source.language');
-  return t('metaScope.source.derived');
-}
 
 /** The scope's query string: `channelId` and `locale` as selected; neither = the `en-US` language row. */
 function scopeQuery({ channelId, locale }: Scope): string {
@@ -133,7 +108,6 @@ function isDraftDirty(draft: MetaOverrideFields, override: MetaOverrideFields | 
 export function SeoMetaScopeEditor({ entityType, entityId }: SeoMetaScopeEditorProps): ReactNode {
   const tCore = useTranslation('core');
   const t = useTranslation('seo') as Translate;
-  const channelSelectId = useId();
   const languageId = useId();
   const effectiveHeadingId = useId();
   const discardBodyId = useId();
@@ -146,10 +120,6 @@ export function SeoMetaScopeEditor({ entityType, entityId }: SeoMetaScopeEditorP
     ogImageUrl: useId(),
   };
 
-  const isProduct = entityType === 'product';
-  /** `null` until the product's member channels are read; the editor waits for them. */
-  const [channels, setChannels] = useState<MemberChannel[] | null>(null);
-  const [channelsFailed, setChannelsFailed] = useState(false);
   const [scope, setScope] = useState<Scope>({ channelId: '', locale: FALLBACK_LOCALE });
   /** The free-text locale of the language row, applied on Enter, blur or Load. */
   const [localeText, setLocaleText] = useState(FALLBACK_LOCALE);
@@ -164,27 +134,7 @@ export function SeoMetaScopeEditor({ entityType, entityId }: SeoMetaScopeEditorP
   /** Bumped by every load; an answer carrying an older number is for a scope no longer shown. */
   const loadSeq = useRef(0);
 
-  useEffect(() => {
-    if (!isProduct) return;
-    let cancelled = false;
-    setChannelsFailed(false);
-    apiClient
-      .get<ScopeContextEnvelope>(`/api/v1/admin/catalog/products/${encodeURIComponent(entityId)}/scope-context`)
-      .then((res) => {
-        if (!cancelled) setChannels(Array.isArray(res?.data?.channels) ? res.data.channels : []);
-      })
-      .catch(() => {
-        if (!cancelled) setChannelsFailed(true);
-      });
-    return (): void => {
-      cancelled = true;
-    };
-  }, [isProduct, entityId]);
-
   const metaPath = `/api/v1/admin/seo/meta/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}`;
-  const selectedChannel = channels?.find((c) => c.id === scope.channelId) ?? null;
-  /** A product's scopes are offered once its channels are known (or known to be unreadable). */
-  const ready = !isProduct || channels !== null || channelsFailed;
 
   // Read through a ref: an admin-language switch must not re-run the load effect and drop
   // an unsaved draft without the discard question.
@@ -214,8 +164,8 @@ export function SeoMetaScopeEditor({ entityType, entityId }: SeoMetaScopeEditorP
 
   // A scope loads as soon as it is selected (D5).
   useEffect(() => {
-    if (ready) void load(scope);
-  }, [ready, scope, load]);
+    void load(scope);
+  }, [scope, load]);
 
   const dirty = meta !== null && isDraftDirty(draft, meta.override);
 
@@ -247,11 +197,6 @@ export function SeoMetaScopeEditor({ entityType, entityId }: SeoMetaScopeEditorP
   };
 
   const scopeName = (target: Scope): string => {
-    const channel = channels?.find((c) => c.id === target.channelId) ?? null;
-    if (channel && target.locale) {
-      return t('metaScope.scope.channelLanguage', { channel: channel.name, language: target.locale.toUpperCase() });
-    }
-    if (channel) return t('metaScope.scope.channel', { channel: channel.name });
     return t('metaScope.scope.language', { language: (target.locale || FALLBACK_LOCALE).toUpperCase() });
   };
 
@@ -294,7 +239,7 @@ export function SeoMetaScopeEditor({ entityType, entityId }: SeoMetaScopeEditorP
     await load(target);
   }, [scope, metaPath, load, t]);
 
-  const fieldRows: Array<{ field: SeoProductMetaField; label: string; value: string | null }> = meta
+  const fieldRows: Array<{ field: keyof MetaOverrideFields; label: string; value: string | null }> = meta
     ? [
         { field: 'title', label: tCore('seo.meta.field.title'), value: meta.resolved.title },
         { field: 'description', label: tCore('seo.meta.field.description'), value: meta.resolved.description },
@@ -324,61 +269,9 @@ export function SeoMetaScopeEditor({ entityType, entityId }: SeoMetaScopeEditorP
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
-      {isProduct && channelsFailed ? (
-        <Alert>
-          <AlertDescription>{t('metaScope.channelsUnavailable')}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      {!ready ? (
-        <p className="text-sm text-muted-foreground" aria-busy="true">
-          {t('metaScope.loadingChannels')}
-        </p>
-      ) : (
-        <div className="flex flex-wrap items-end gap-2">
-          {isProduct && !channelsFailed && channels ? (
-            <div className="space-y-1">
-              <Label htmlFor={channelSelectId}>{t('metaScope.channel')}</Label>
-              <Select
-                id={channelSelectId}
-                className="w-auto"
-                value={scope.channelId}
-                disabled={busy}
-                onChange={(e): void => {
-                  const next = channels.find((c) => c.id === e.target.value) ?? null;
-                  requestScope({
-                    channelId: e.target.value,
-                    locale: next ? ([...next.languages].sort()[0] ?? '') : FALLBACK_LOCALE,
-                  });
-                }}
-              >
-                <option value="">{t('metaScope.everyChannel')}</option>
-                {channels.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          ) : null}
+      <div className="flex flex-wrap items-end gap-2">
           <div className="space-y-1">
             <Label htmlFor={languageId}>{t('metaScope.language')}</Label>
-            {selectedChannel ? (
-              <Select
-                id={languageId}
-                className="w-auto"
-                value={scope.locale}
-                disabled={busy}
-                onChange={(e): void => requestScope({ channelId: scope.channelId, locale: e.target.value })}
-              >
-                <option value="">{t('metaScope.wholeChannel')}</option>
-                {[...selectedChannel.languages].sort().map((l) => (
-                  <option key={l} value={l}>
-                    {l.toUpperCase()}
-                  </option>
-                ))}
-              </Select>
-            ) : (
               <Input
                 id={languageId}
                 className="w-24"
@@ -396,7 +289,6 @@ export function SeoMetaScopeEditor({ entityType, entityId }: SeoMetaScopeEditorP
                 }}
                 placeholder={tCore('seo.meta.field.locale')}
               />
-            )}
           </div>
           <Button
             type="button"
@@ -404,14 +296,13 @@ export function SeoMetaScopeEditor({ entityType, entityId }: SeoMetaScopeEditorP
             disabled={busy}
             aria-busy={busy}
             onClick={(): void => {
-              if (!selectedChannel && commitLocaleText()) return;
+              if (commitLocaleText()) return;
               void load(scope);
             }}
           >
             {tCore('seo.meta.load')}
           </Button>
         </div>
-      )}
 
       {meta ? (
         <>
@@ -424,7 +315,6 @@ export function SeoMetaScopeEditor({ entityType, entityId }: SeoMetaScopeEditorP
                 <TableRow>
                   <TableHead>{t('metaScope.column.field')}</TableHead>
                   <TableHead>{t('metaScope.column.value')}</TableHead>
-                  {meta.sources ? <TableHead>{t('metaScope.column.source')}</TableHead> : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -436,7 +326,6 @@ export function SeoMetaScopeEditor({ entityType, entityId }: SeoMetaScopeEditorP
                     <TableCell className={row.field === 'ogImageUrl' ? 'font-mono text-xs' : undefined}>
                       {row.value ?? '—'}
                     </TableCell>
-                    {meta.sources ? <TableCell>{sourceLabel(meta.sources[row.field], t)}</TableCell> : null}
                   </TableRow>
                 ))}
               </TableBody>

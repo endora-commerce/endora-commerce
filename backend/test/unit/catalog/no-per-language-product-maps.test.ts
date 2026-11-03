@@ -129,18 +129,6 @@ const ALLOWLIST: ReadonlyArray<{ file: string; reason: string }> = [
     reason: "S1 — channel codes in a products file's cells and the deprecated exportScopedStatuses, removed once import_export's adapter resolves codes and reads exportScopedValues (T087, S2)",
   },
   {
-    file: 'packages/modules/seo/src/admin/index.ts',
-    reason: 'S3 — seo admin, rewritten in US10 (T122+)',
-  },
-  {
-    file: 'packages/modules/seo/src/admin/pages/SeoMetaScopeEditor.tsx',
-    reason: 'S3 — seo admin, rewritten in US10 (T122+)',
-  },
-  {
-    file: 'packages/modules/seo/src/admin/zones/ProductSeoLink.tsx',
-    reason: 'S3 — seo admin, rewritten in US10 (T122+)',
-  },
-  {
     file: 'packages/modules/seo/src/backend/services/meta-tag-resolver.service.ts',
     reason: "non-product map: a category's name per language, for the category's derived meta (the product half reads effectiveTexts since T070)",
   },

@@ -99,13 +99,11 @@ export const contributions: AdminContributions = {
         requiredPermission: SETTINGS_READ_PERMISSION,
       },
     ),
-    // Feature 163 (owner decision "SEO stub = A") — the product editor's SEO tab links
-    // to this module's meta editor. `catalog` hosts the place and never names `seo`;
-    // the code is the SEO screen's own, so the link never leads to a page it refuses.
-    // 170-shim: the link moves to the new `product.editor.seo` zone until T125 replaces it with
-    // `ProductSeoSection`.
-    zoneComponent('product.editor.seo', () => import('./zones/ProductSeoLink.js'), {
-      requiredPermission: SEO_PERMISSION,
+    // Feature 170 (US10) — the product's SEO fields inline in the product editor, at the
+    // editor scope. `catalog` hosts the place and never names `seo`; reading needs
+    // `catalog:read` (the product SEO read's code), and the host's one Save writes.
+    zoneComponent('product.editor.seo', () => import('./zones/ProductSeoSection.js'), {
+      requiredPermission: 'catalog:read',
     }),
   ],
 };

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import type { SeoEntityType, SitemapChannelStatus } from '@endora-commerce/contracts';
 import { ApiError, apiBaseUrl, apiClient, formatDateTime } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
@@ -264,6 +264,7 @@ function isEntityId(value: string | null): value is string {
 
 function MetaEditorCard(): ReactNode {
   const t = useTranslation('core');
+  const tSeo = useTranslation('seo');
   const [entityType, setEntityType] = useState<SeoEntityType>('product');
   const [entityId, setEntityId] = useState('');
   // Feature 163 (owner decision UX-4 = A) — `?entityType=product&entityId=<id>` opens the
@@ -318,7 +319,15 @@ function MetaEditorCard(): ReactNode {
           </div>
         </div>
 
-        {entityId.trim() ? (
+        {entityId.trim() && entityType === 'product' ? (
+          // Feature 170 (FR-094): a product's SEO is edited in the product editor, at its scope.
+          <div className="space-y-2" data-testid="seo-product-link">
+            <p className="m-0 text-sm text-muted-foreground">{tSeo('productLink.hint')}</p>
+            <Link to={`/catalog/products/${encodeURIComponent(entityId)}?tab=seo`} className="b2b-btn b2b-btn--default b2b-btn--sm">
+              {tSeo('productLink.editInEditor')}
+            </Link>
+          </div>
+        ) : entityId.trim() && entityType !== 'product' ? (
           <SeoMetaScopeEditor key={`${entityType}:${entityId}`} entityType={entityType} entityId={entityId} />
         ) : null}
       </CardContent>
