@@ -9,6 +9,7 @@ import {
   type CatalogAttributeView,
   type CompletenessSummary,
   type FieldScopeSpec,
+  type InheritedSource,
   type LanguageReadPort,
   type OrganizationDetailsPort,
   type ScopeMissingValue,
@@ -85,16 +86,39 @@ export function fieldView<T>(
   scope: ScopeRef,
   members: readonly MemberChannel[],
 ): ScopedFieldView<T> {
-  const resolved = resolveScoped<T>({ global: global ?? null, rows: atValidScopes(rows, members), scope, levels: spec.levels });
+  const valid = atValidScopes(rows, members);
+  const resolved = resolveScoped<T>({ global: global ?? null, rows: valid, scope, levels: spec.levels });
   const own = resolved.source === 'set' || resolved.source === 'set_empty';
   return {
     value: resolved.value,
     source: resolved.source,
     ...(own ? { ownValue: resolved.value } : {}),
+    ...(scope.level === 'global' ? {} : { inheritedValue: inheritedAt(spec, global ?? null, valid, scope) }),
     levels: [...spec.levels],
     supportedHere: spec.levels.includes(levelOf(scope)),
     required: spec.required,
   };
+}
+
+/**
+ * What the field would read if it inherited at `scope` (owner decision 2026-11-03): the same
+ * resolution without the scope's own row, so an empty parent stays empty rather than falling
+ * through to Global.
+ */
+function inheritedAt<T>(
+  spec: FieldScopeSpec,
+  global: T | null,
+  rows: readonly ScopedRow<T>[],
+  scope: Exclude<ScopeRef, { level: 'global' }>,
+): { value: T | null; source: InheritedSource } {
+  const isOwn = (row: ScopedRow<T>) =>
+    row.channelId === scope.channelId &&
+    (scope.level === 'channel'
+      ? row.languageCode === null
+      : row.languageCode !== null && row.languageCode.toLowerCase() === scope.languageCode.toLowerCase());
+  const resolved = resolveScoped<T>({ global, rows: rows.filter((row) => !isOwn(row)), scope, levels: spec.levels });
+  // Without its own row a non-Global scope resolves to the channel row, Global, or nothing.
+  return { value: resolved.value, source: resolved.source as InheritedSource };
 }
 
 const textOf = (name: Record<string, string> | string | null, fallback: string): string => {
@@ -237,6 +261,10 @@ export function scopedViews(
       // A holder effectively hidden at this scope holds the role for nobody (163 rule kept).
       const held = items.find((item) => item.id === view.value);
       if (view.value !== null && (!held || held.hidden.value === true)) view.value = null;
+      const inheritedHolder = view.inheritedValue ? items.find((item) => item.id === view.inheritedValue!.value) : undefined;
+      if (view.inheritedValue && view.inheritedValue.value !== null && (!inheritedHolder || inheritedHolder.hidden.value === true)) {
+        view.inheritedValue.value = null;
+      }
       return [GALLERY_ROLE_KEYS[label], view];
     }),
   ) as ScopedValuesData['gallery']['roles'];

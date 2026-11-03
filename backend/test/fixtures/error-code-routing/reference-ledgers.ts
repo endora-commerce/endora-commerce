@@ -1411,8 +1411,9 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
   URL_KEY_TAKEN: {
     to: 'catalog',
     reason:
-      'Minted by feature 163 (FR-070) for a URL-key write meeting another product\'s current key ' +
-      'in the same language. The noun is a product URL key, a `catalog` row; the one raise site ' +
+      'Minted by feature 163 (FR-070) for a URL-key write meeting another product\'s current key; ' +
+      'since feature 170 a key text belongs to at most one product per channel, across all the ' +
+      'channel\'s languages. The noun is a product URL key, a `catalog` row; the one raise site ' +
       'is its URL-key write. `VALIDATION_FAILED` is not reused: the key is well formed, and the ' +
       'operator has to choose another one.',
   },
