@@ -10,6 +10,7 @@ import { OTHER_TEST_ORGANIZATION_ID, TEST_ORGANIZATION_ID } from '../../helpers/
 import { Category, Product } from '../../helpers/package-entities.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { seedOtherTestOrganization } from '../../helpers/seed-organizations.js';
+import { attributeFilterMatches } from '../../../../packages/modules/catalog/src/backend/services/attribute-filter-match.js';
 
 /**
  * Issue #151 — the storefront product list narrowed a page **after** cutting it.
@@ -105,13 +106,14 @@ const AUDIENCES: ReadonlyArray<{
 
 /**
  * The `material` values of the kinds block. The listing compares
- * `String(value)` with the requested strings, and each of these is a value
- * `String` and PostgreSQL's own text for it part ways on: a one-element array
- * reads as its element, a longer one as a comma-joined list with `null` empty,
- * a JSON `null` as the word, an object as `[object Object]`, and a number as
- * JavaScript prints it — exponent notation from 1e21 up and below 1e-6, plain
- * in between, where PostgreSQL stores `1e21` as 22 digits and switches to
- * exponent notation at other thresholds.
+ * `String(value)` with the requested strings — for a multiselect, `String` of
+ * each option, any of which may match (issue #684) — and each of these is a
+ * value `String` and PostgreSQL's own text for it part ways on: an array
+ * element as its own text and a `null` element as the word, a JSON `null` as
+ * the word, an object as `[object Object]`, and a number as JavaScript prints
+ * it — exponent notation from 1e21 up and below 1e-6, plain in between, where
+ * PostgreSQL stores `1e21` as 22 digits and switches to exponent notation at
+ * other thresholds.
  *
  * `stored` is JSON written past the ORM, for the two values JavaScript cannot
  * write: a decimal with a trailing zero. `material` is then what JavaScript
@@ -554,20 +556,22 @@ describe('GET /api/v1/catalog/products — a page is cut from the rows that matc
   });
 
   it('compares an attribute value in the statement exactly as it is compared on the page', async () => {
-    // The statement restates a `String(value)` comparison, and a restatement
-    // can drift in either direction: admitting less loses rows from the walk,
+    // The statement restates the page's comparison, and a restatement can
+    // drift in either direction: admitting less loses rows from the walk,
     // admitting more leaves the page short. Both are visible below, because the
-    // expectation is computed with `String` itself.
+    // expectation is computed with the page-side predicate itself.
     const inCategory = fixtures.filter((f) => f.categories.includes(KINDS_SLUG));
     const carrying = inCategory.filter((f) => 'material' in f.attributeValues);
     const matching = (wanted: string[]): string[] =>
-      skusOf(carrying.filter((f) => wanted.includes(String(f.attributeValues['material']))));
+      skusOf(carrying.filter((f) => attributeFilterMatches(f.attributeValues['material'], wanted)));
+    const rendered = (value: unknown): string[] =>
+      Array.isArray(value) ? value.map((option) => String(option)) : [String(value)];
     const query = (wanted: string[]): string =>
       [`filter%5Bcategory%5D=${KINDS_SLUG}`]
         .concat(wanted.map((v) => `filter%5Battr.material%5D=${encodeURIComponent(v)}`))
         .join('&');
 
-    const every = [...new Set(carrying.map((f) => String(f.attributeValues['material'])))];
+    const every = [...new Set(carrying.flatMap((f) => rendered(f.attributeValues['material'])))];
     // The strings this is about, spelled once so the fixture cannot quietly
     // stop producing them.
     expect(every).toEqual(
@@ -582,21 +586,29 @@ describe('GET /api/v1/catalog/products — a page is cut from the rows that matc
         '0.00001',
         '0',
         '2.5',
-        '3.5,4',
-        '1.5,2,1e+21,,true,[object Object]',
+        '3.5',
+        '4',
+        'oak',
+        '1.5',
+        'true',
         '[object Object]',
         'null',
       ]),
     );
+    // Issue #684 — a multiselect's joined text is not one of its options.
+    expect(every).not.toContain('3.5,4');
+    expect(every).not.toContain('steel,oak');
 
     const pages = await walk(h, query(every), 4);
     expectFullPages(pages, 4);
     expect(pages.flatMap((p) => p.skus)).toEqual(skusOf(carrying));
 
     // One at a time, so a kind that only matched in company is named. `oak`
-    // and `1.50` are the two that must match nothing: an element of a longer
-    // array, and the stored spelling JavaScript never sees.
-    for (const wanted of [...every, 'oak', '1.50', '2.50']) {
+    // must match the multiselect holding it beside `steel` (issue #684); the
+    // joined texts and the stored spellings JavaScript never sees must match
+    // nothing.
+    expect(matching(['oak'])).toHaveLength(1);
+    for (const wanted of [...every, 'steel,oak', '3.5,4', '', '1.50', '2.50', '3.50']) {
       const expected = matching([wanted]);
       const walked = (await walk(h, query([wanted]), 1)).flatMap((p) => p.skus);
       expect(walked, `filter[attr.material]=${wanted}`).toEqual(expected);
