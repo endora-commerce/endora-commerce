@@ -150,6 +150,7 @@ import { Migration20261011T135250CoreSettingsMultiline } from '@endora-commerce/
 import { Migration20261018T101912CoreSalesChannelsAnonymousAccess } from '@endora-commerce/platform/migrations';
 import { Migration20261028T173317CoreSalesChannelsRetireIsPublic } from '@endora-commerce/platform/migrations';
 import { Migration20261029T152922CoreSalesChannelsPrefixDefaultLanguage } from '@endora-commerce/platform/migrations';
+import { Migration20261103T162518CoreAuditActorCustomerAccount } from '@endora-commerce/platform/migrations';
 
 // ── credentials ─────────────────────────────────────────────────────────────
 import { Migration20260721T011509CredentialsInit } from '@endora-commerce/mod-credentials/migrations';
@@ -536,6 +537,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('core', Migration20261018T101912CoreSalesChannelsAnonymousAccess),
   migration('core', Migration20261028T173317CoreSalesChannelsRetireIsPublic),
   migration('core', Migration20261029T152922CoreSalesChannelsPrefixDefaultLanguage),
+  migration('core', Migration20261103T162518CoreAuditActorCustomerAccount),
 
   // ── credentials ─────────────────────────────────────────────────────────────
   migration('credentials', Migration20260721T011509CredentialsInit),
