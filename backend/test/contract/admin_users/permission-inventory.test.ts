@@ -28,6 +28,15 @@ import {
 } from '../../helpers/permission-dependencies.js';
 import { readSizeLine, readSizeRefusal } from '../../../scripts/lib/read-size.js';
 import { DEMO_ADMIN_ROLES } from '../../../../packages/modules/admin_roles/src/backend/demo/rows.js';
+import {
+  findOrganizationPermissionDefects,
+  organizationPermissionReadSize,
+  scanOrganizationPermissionSites,
+  scanOrganizationPermissionSource,
+  walkOrganizationPermissionDeclarations,
+  type OrganizationPermissionFindingKind,
+  type OrganizationPermissionInventoryInput,
+} from '../../helpers/organization-permissions.js';
 
 /**
  * The `/admin-roles` catalogue and the server's gates have to describe the same
@@ -318,5 +327,196 @@ describe('demo admin roles hold only known permission codes (issue #180)', () =>
       unknown,
       'a demo role carrying a code nothing declares cannot be saved from the role editor',
     ).toEqual([]);
+  });
+});
+
+/**
+ * The **buyer** vocabulary — organization permissions (`specs/170-organization-roles/`,
+ * FR-020, FR-021, FR-022; `contracts/organization-permissions-manifest.md` §4).
+ *
+ * A second vocabulary, asked the questions the operator half above answers for
+ * its own: is every code a guard or a service names declared, is every declared
+ * code enforced (grantable ⇒ enforced), is it declared by the module whose
+ * namespace it carries, is it never also an operator code, and is it labelled in
+ * every shipped language. It lives in this file rather than in a `check-*`
+ * script on `module-admin-surfaces.md` item 6's reasoning: this is already the
+ * instrument that answers "declared, enforced and labelled", and a second one
+ * would be a second derivation of the same population.
+ *
+ * Two independent authors: the generated manifest index says what is
+ * declared; the source walk says what is checked. The rules and the walk are
+ * `test/helpers/organization-permissions.ts`.
+ *
+ * WP-01 lands the instrument over an **empty** population — no module declares
+ * a code yet — so the sweeps below are green by being vacuous on the real tree,
+ * which is why every finding kind is also proven red on a synthetic fixture.
+ */
+describe('[organization-permissions] organization permission inventory (feature 170)', () => {
+  const walk = walkOrganizationPermissionDeclarations(RESOLVED_MANIFESTS);
+  const scan = scanOrganizationPermissionSites(SCAN_ROOTS);
+  const operatorCodes = new Set(
+    new PermissionCatalogueService({ registryEntries: RESOLVED_MANIFESTS }).listKnownCodes(),
+  );
+  const real: OrganizationPermissionInventoryInput = {
+    declarations: walk.declarations,
+    operatorCodes,
+    sites: scan.sites,
+    bundles: walk.bundles,
+    languages: SUPPORTED_LANGUAGES,
+  };
+
+  it('discloses what it read, and refuses a walk that came back short', () => {
+    const record = organizationPermissionReadSize(walk, scan);
+    const refusal = readSizeRefusal(record);
+    expect(
+      refusal === null ? null : `${refusal.kind}: ${refusal.message}`,
+      'the organization-permission sweep may not report on a population it did not read',
+    ).toBeNull();
+    // The walk opened the whole gate population, not a residue of it: the
+    // operator scan above reads the same roots, so the two counts agree.
+    expect(scan.files).toBeGreaterThan(0);
+    // eslint-disable-next-line no-console -- the disclosure is the point (issue #244).
+    console.log(readSizeLine(record));
+  });
+
+  it('the real population has no finding', () => {
+    const findings = findOrganizationPermissionDefects(real).map(
+      (f) => `${f.kind} ${f.code}${f.module ? ` [${f.module}]` : ''}${f.file ? ` (${f.file})` : ''}: ${f.detail}`,
+    );
+    expect(
+      findings,
+      'an organization permission must be declared by its own module, never be an operator code, be named ' +
+        'by a guard or a service call, and be labelled in every shipped language',
+    ).toEqual([]);
+  });
+
+  /**
+   * Red proofs. Each fixture is the real tree's shape with exactly one defect,
+   * so a finding that fires on it is the defect and nothing else.
+   */
+  describe('refuses each defect on a synthetic population', () => {
+    const labelled = (module: string, codes: readonly string[], languages: readonly string[] = ['en', 'pl']) =>
+      new Map([
+        [
+          module,
+          new Map(
+            languages.map((language) => [
+              language,
+              new Set(codes.flatMap((code) => [`organizationPermissions.${code}.label`, `organizationPermissions.${code}.description`])),
+            ]),
+          ),
+        ],
+      ]);
+    const guarded = (code: string) =>
+      scanOrganizationPermissionSource(
+        `preHandler: [requireCustomer, organizationPermissionPreHandler(() => permissions, '${code}')]`,
+        'fixture/routes.ts',
+      );
+    const clean: OrganizationPermissionInventoryInput = {
+      declarations: [{ moduleId: 'fixture_carts', code: 'fixture_carts.create' }],
+      operatorCodes: new Set(['fixture_carts:read']),
+      sites: guarded('fixture_carts.create'),
+      bundles: labelled('fixture_carts', ['fixture_carts.create']),
+      languages: ['en', 'pl'],
+    };
+    const kinds = (input: OrganizationPermissionInventoryInput): OrganizationPermissionFindingKind[] =>
+      [...new Set(findOrganizationPermissionDefects(input).map((f) => f.kind))].sort();
+
+    it('the clean fixture has no finding — so every red below is its own defect', () => {
+      expect(findOrganizationPermissionDefects(clean)).toEqual([]);
+    });
+
+    it('cross-vocabulary: a string declared as both an operator and an organization code', () => {
+      expect(kinds({ ...clean, operatorCodes: new Set(['fixture_carts.create']) })).toEqual(['cross-vocabulary']);
+    });
+
+    it('foreign-declarer: an organization code whose prefix is not its declaring module', () => {
+      expect(
+        kinds({
+          ...clean,
+          declarations: [{ moduleId: 'fixture_orders', code: 'fixture_carts.create' }],
+          bundles: labelled('fixture_orders', ['fixture_carts.create']),
+        }),
+      ).toEqual(['foreign-declarer']);
+    });
+
+    it('undeclared-check: a guard naming a code no manifest declares', () => {
+      expect(
+        kinds({ ...clean, sites: [...clean.sites, ...guarded('fixture_carts.approve')] }),
+      ).toEqual(['undeclared-check']);
+    });
+
+    it('undeclared-check: a service call naming one, through can, assert and rolesHolding', () => {
+      for (const call of [
+        `await permissions.can(subject, 'fixture_carts.approve')`,
+        `await this.organizationPermissions().assert(subject, 'fixture_carts.approve', { language })`,
+        `const roles = await permissions.rolesHolding(organizationId, 'fixture_carts.approve')`,
+      ]) {
+        const sites = scanOrganizationPermissionSource(
+          `import type { OrganizationPermissionPort } from '@endora-commerce/contracts';\n${call};`,
+          'fixture/service.ts',
+        );
+        expect(kinds({ ...clean, sites: [...clean.sites, ...sites] }), call).toEqual(['undeclared-check']);
+      }
+    });
+
+    it('unchecked-declaration: a declared code no guard or service call names', () => {
+      expect(kinds({ ...clean, sites: [] })).toEqual(['unchecked-declaration']);
+    });
+
+    it('missing-label: a code without its label or description in the reference language', () => {
+      const bundles = labelled('fixture_carts', ['fixture_carts.create']);
+      for (const language of ['en', 'pl']) {
+        const keys = new Set(bundles.get('fixture_carts')!.get(language)!);
+        keys.delete('organizationPermissions.fixture_carts.create.description');
+        bundles.get('fixture_carts')!.set(language, keys);
+      }
+      expect(kinds({ ...clean, bundles })).toEqual(['missing-label']);
+      expect(kinds({ ...clean, bundles: new Map() })).toEqual(['missing-label']);
+    });
+
+    it('split-label: a code labelled in one shipped language and not the other', () => {
+      expect(kinds({ ...clean, bundles: labelled('fixture_carts', ['fixture_carts.create'], ['en']) })).toEqual([
+        'split-label',
+      ]);
+    });
+
+    it('an unresolvable code argument is a finding, never a silently dropped site', () => {
+      const sites = scanOrganizationPermissionSource(
+        `organizationPermissionPreHandler(() => permissions, codeFor(route))`,
+        'fixture/routes.ts',
+      );
+      expect(sites.map((site) => site.resolution)).toEqual(['unresolved']);
+      expect(kinds({ ...clean, sites: [...clean.sites, ...sites] })).toEqual(['unresolved-argument']);
+    });
+
+    it('reads a module-local constant, and a parameter forwarded by an implementation, as what they are', () => {
+      const constant = scanOrganizationPermissionSource(
+        `const CREATE = 'fixture_carts.create';\nconst CODES = { approve: 'fixture_carts.approve' } as const;\n` +
+          `organizationPermissionPreHandler(() => permissions, CREATE);\n` +
+          `organizationPermissionPreHandler(() => permissions, CODES.approve, { guests: 'pass' });`,
+        'fixture/routes.ts',
+      );
+      expect(constant.map((site) => [site.resolution, site.codes])).toEqual([
+        ['code', ['fixture_carts.create']],
+        ['code', ['fixture_carts.approve']],
+      ]);
+      const forwarded = scanOrganizationPermissionSource(
+        `import type { OrganizationPermissionPort } from '@endora-commerce/contracts';\n` +
+          `async function assert(subject: Subject, code: string): Promise<void> {\n  if (!(await this.can(subject, code))) throw refusal(code);\n}`,
+        'fixture/port.ts',
+      );
+      expect(forwarded.map((site) => site.resolution)).toEqual(['runtime-value']);
+    });
+
+    it('a comment quoting a guard is not a guard, and an unrelated `assert` is not a check', () => {
+      expect(
+        scanOrganizationPermissionSource(
+          `// organizationPermissionPreHandler(() => permissions, 'fixture_carts.nothing')\n` +
+            `/* permissions.can(subject, 'fixture_carts.nothing') */\nassert.equal(a, 'b');`,
+          'fixture/other.ts',
+        ),
+      ).toEqual([]);
+    });
   });
 });
