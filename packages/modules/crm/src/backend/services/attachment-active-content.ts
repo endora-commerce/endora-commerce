@@ -62,13 +62,20 @@ export function isActiveContent(file: { filename: string; mimeType: string }): b
  * 415 with the media library's own code for "this type is not accepted": the
  * same refusal a caller of this upload already meets when the library's policy
  * says no, so a screen handles one code for both.
+ *
+ * The `attachment_active_content` token picks the library's sentence for this
+ * refusal (`errors.ASSET_UPLOAD_TYPE_NOT_ALLOWED.attachment_active_content`);
+ * without it the reader got the library's generic upload sentence, which names
+ * the asset library and none of the refused types (issue #623). It stays a
+ * literal so `check:error-translations` P6 can read it.
  */
 export function refuseActiveContent(file: { filename: string; mimeType: string }): void {
   if (!isActiveContent(file)) return;
   throw new HttpError(
     415,
     ERROR_CODES.ASSET_UPLOAD_TYPE_NOT_ALLOWED,
-    'A file a browser would render and run (HTML, SVG, XML, JavaScript) cannot be an attachment.',
+    'HTML, SVG, XML and JavaScript files cannot be attachments: a browser would open and run them.',
+    { code: 'attachment_active_content' },
   );
 }
 

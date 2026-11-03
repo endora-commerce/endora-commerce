@@ -9,6 +9,7 @@
   "errors.ASSET_UPLOAD_TYPE_NOT_ALLOWED": "Pliku tego typu nie można przesłać do biblioteki zasobów.",
   "errors.ASSET_UPLOAD_TYPE_NOT_ALLOWED.not_allowed_by_policy": "Plików typu „{fileType}” nie można przesłać do biblioteki zasobów. Dozwolone typy: {allowedTypes}.",
   "errors.ASSET_UPLOAD_TYPE_NOT_ALLOWED.active_content": "Plików HTML, XHTML, XML i JavaScript nie można przesłać do biblioteki zasobów.",
+  "errors.ASSET_UPLOAD_TYPE_NOT_ALLOWED.attachment_active_content": "Pliki HTML, SVG, XML i JavaScript nie mogą być załącznikami: przeglądarka by je otworzyła i uruchomiła.",
   "errors.ASSET_UPLOAD_TOO_LARGE": "Plik jest za duży: można przesłać plik o rozmiarze najwyżej {maxFileSizeMb} MB.",
   "errors.ASSET_STORAGE_UNAVAILABLE": "Magazyn plików jest niedostępny. Spróbuj ponownie później.",
   "errors.ASSET_STORAGE_MISCONFIGURED": "Magazyn plików jest nieprawidłowo skonfigurowany. Skontaktuj się z administratorem.",

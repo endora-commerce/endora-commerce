@@ -9,6 +9,7 @@
   "errors.ASSET_UPLOAD_TYPE_NOT_ALLOWED": "Files of this type cannot be uploaded to the asset library.",
   "errors.ASSET_UPLOAD_TYPE_NOT_ALLOWED.not_allowed_by_policy": "Files of type \"{fileType}\" cannot be uploaded to the asset library. Allowed types: {allowedTypes}.",
   "errors.ASSET_UPLOAD_TYPE_NOT_ALLOWED.active_content": "HTML, XHTML, XML and JavaScript files cannot be uploaded to the asset library.",
+  "errors.ASSET_UPLOAD_TYPE_NOT_ALLOWED.attachment_active_content": "HTML, SVG, XML and JavaScript files cannot be attachments: a browser would open and run them.",
   "errors.ASSET_UPLOAD_TOO_LARGE": "The file is too large: the largest file that can be uploaded is {maxFileSizeMb} MB.",
   "errors.ASSET_STORAGE_UNAVAILABLE": "The file storage is unavailable. Try again later.",
   "errors.ASSET_STORAGE_MISCONFIGURED": "File storage is not configured correctly. Contact your administrator.",
