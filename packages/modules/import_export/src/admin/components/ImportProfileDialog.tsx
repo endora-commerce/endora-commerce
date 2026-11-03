@@ -28,8 +28,8 @@ import {
 /**
  * Create / edit one products import profile (feature 170, `contracts/import-profiles-and-csv.md`
  * §4): its name, the source language whose values write Global, and the mapping table — source
- * locale, optional source channel, and the target channel × language pairs from the channels
- * API. A target whose channel no longer exists is kept and flagged (§1: targets are not
+ * locale, optional source channel, and the target channel × language pairs from the module's
+ * own channel-targets read. A target whose channel no longer exists is kept and flagged (§1: targets are not
  * validated at save; the import reports them per row).
  */
 

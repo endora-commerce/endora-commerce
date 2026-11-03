@@ -6,6 +6,9 @@ import type {
   UpdateImportProfileRequest,
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
+import { toScopeChannel } from '@endora-commerce/contracts';
+import type { ImportChannelTarget } from '../channel-targets.js';
 import { ImportProfile } from '../entities/import-profile.entity.js';
 import {
   createImportProfileCommand,
@@ -46,6 +49,22 @@ export class ImportProfileService {
       { orderBy: { name: 'asc' } },
     );
     return rows.map(toImportProfileView);
+  }
+
+  /**
+   * Owner decision 2026-11-03 — the channels a mapping row may target, with the languages each
+   * offers (its default first when the stored list omits it), and nothing else: no name, no
+   * currency, no storefront address. Every channel, inactive ones included, ordered by code — a
+   * profile may already target a channel that was deactivated, and an editor that could not show
+   * it would drop the target on the next save (the delivery-methods precedent).
+   */
+  async listChannelTargets(): Promise<ImportChannelTarget[]> {
+    const channels = await this.deps.emFactory().find(SalesChannel, {}, { orderBy: { code: 'asc' } });
+    return channels.map((channel) => ({
+      id: channel.id,
+      code: channel.code,
+      languages: [...toScopeChannel(channel).languages],
+    }));
   }
 
   async get(id: string): Promise<ImportProfileView> {

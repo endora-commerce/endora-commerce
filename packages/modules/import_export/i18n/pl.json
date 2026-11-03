@@ -67,7 +67,7 @@
   "importProfiles.error.load": "Nie udało się wczytać profili importu.",
   "importProfiles.error.save": "Nie udało się zapisać profilu importu.",
   "importProfiles.error.delete": "Nie udało się usunąć profilu importu.",
-  "importProfiles.error.channels": "Nie udało się wczytać kanałów sprzedaży, więc nie można wybrać celu. Odczyt kanałów sprzedaży wymaga uprawnienia do odczytu kanałów sprzedaży.",
+  "importProfiles.error.channels": "Nie udało się wczytać kanałów sprzedaży, więc nie można wybrać celu. Spróbuj ponownie; jeśli błąd się powtarza, sprawdź, czy możesz edytować profile importu.",
   "importProfiles.error.nameRequired": "Podaj nazwę profilu.",
   "importProfiles.error.locale": "Użyj oznaczenia języka takiego jak pl_PL, pl-PL lub pl.",
   "importProfiles.error.targetRequired": "Wybierz co najmniej jeden cel dla każdego zmapowanego języka.",

@@ -4,13 +4,13 @@ import type {
   UpdateImportProfileRequest,
 } from '@endora-commerce/contracts';
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
-import { fetchScopeSalesChannel, listScopeSalesChannels } from '@endora-commerce/admin-kit/components';
 
 /**
  * The admin's reads and writes of import profiles (feature 170,
  * `contracts/import-profiles-and-csv.md` §1 and §4) and of the channel × language targets a
- * mapping row may name. Every profile route is gated `catalog:write`; the channel reads are the
- * sales-channel administration's own `GET`s, which the kit already wraps.
+ * mapping row may name. Every profile route is gated `catalog:write`, and so is the channel read:
+ * it is this module's own `GET …/import-export/channel-targets` (owner decision 2026-11-03), so an
+ * operator who may edit a profile may pick its targets without `sales_channels:read`.
  */
 
 const PROFILES = '/api/v1/admin/import-export/profiles';
@@ -42,11 +42,20 @@ export interface ChannelLanguageTarget {
   languageCode: string;
 }
 
-/** Every active channel × each language it offers — channels are few, so one detail read each. */
+/**
+ * One channel of `GET /api/v1/admin/import-export/channel-targets` — id, code and languages only.
+ * Mirrors the backend's `importChannelTargetSchema` until the contracts package carries it.
+ */
+interface ImportChannelTarget {
+  id: string;
+  code: string;
+  languages: string[];
+}
+
+/** Every channel × each language it offers, in one read. */
 export async function listChannelLanguageTargets(): Promise<ChannelLanguageTarget[]> {
-  const list = await listScopeSalesChannels();
-  const details = await Promise.all(list.items.map((item) => fetchScopeSalesChannel(item.code)));
-  return details.flatMap((channel) =>
+  const res = await apiClient.get<{ data: ImportChannelTarget[] }>('/api/v1/admin/import-export/channel-targets');
+  return res.data.flatMap((channel) =>
     channel.languages.map((languageCode) => ({
       channelId: channel.id,
       channelCode: channel.code,

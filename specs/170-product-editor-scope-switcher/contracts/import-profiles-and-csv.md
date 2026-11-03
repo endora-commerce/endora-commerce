@@ -12,13 +12,16 @@ R14. Data: `data-model.md` §11.
 | `POST /api/v1/admin/import-export/profiles` | `import_profile.create` | `{ name, entity: 'products', sourceLanguageForGlobal, localeMapping }` → `201 { data }` |
 | `PATCH /api/v1/admin/import-export/profiles/:id` | `import_profile.update` | partial of the above |
 | `DELETE /api/v1/admin/import-export/profiles/:id` | `import_profile.delete` | `204` |
+| `GET /api/v1/admin/import-export/channel-targets` | — | `{ data: Array<{ id, code, languages: string[] }> }` — every channel, ordered by code, languages as `toScopeChannel` gives them (owner decision 2026-11-03) |
 
 `ImportProfile = { id, name, entity, sourceLanguageForGlobal: string | null, localeMapping:
 PimLocaleMappingEntry[], createdAt, updatedAt }` (`packages/contracts/src/import-export.ts`, new section).
 Name unique case-insensitively → `409 IMPORT_PROFILE_NAME_TAKEN`. Unknown id → `404 IMPORT_PROFILE_NOT_FOUND`.
 Target channel ids are not validated against current channels at save (a deleted channel is reported per row at
 import, FR-042); the admin warns on a target whose channel no longer exists. Routes are gated by the any-of gate
-**and** `requireAdmin('catalog:write')` (literal, inventory-visible).
+**and** `requireAdmin('catalog:write')` (literal, inventory-visible). The profile editor picks targets from
+`channel-targets`, never from the sales-channel administration, so `catalog:write` alone is enough to edit a
+profile (the delivery-methods precedent, `SalesChannelOptionSchema`); the read carries no name, currency or address.
 
 ## 2. Import
 

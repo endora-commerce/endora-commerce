@@ -76,25 +76,18 @@ const { default: ImportExportPage } = await import(
 function getHandler(url: string): unknown {
   if (url === '/api/v1/admin/import-export/entities') return { data: { entities } };
   if (url.startsWith('/api/v1/admin/import-export/profiles')) return { data: profiles };
-  if (url.startsWith('/api/v1/admin/sales-channels?')) {
+  // Owner decision 2026-11-03: the editor reads its targets from import_export's own
+  // `catalog:write` route, never from the sales-channel administration (`sales_channels:read`).
+  if (url === '/api/v1/admin/import-export/channel-targets') {
     if (channelsForbidden) {
       throw new ApiError(403, { error: { code: 'FORBIDDEN', message: 'forbidden' } });
     }
     return {
-      items: [
-        { id: CHANNEL_RETAIL, code: 'pl_retail', name: 'Retail' },
-        { id: CHANNEL_VIP, code: 'pl_b2b_vip', name: 'VIP' },
+      data: [
+        { id: CHANNEL_VIP, code: 'pl_b2b_vip', languages: ['pl-PL'] },
+        { id: CHANNEL_RETAIL, code: 'pl_retail', languages: ['pl-PL', 'en-US'] },
       ],
-      page: 1,
-      pageSize: 100,
-      total: 2,
     };
-  }
-  if (url === '/api/v1/admin/sales-channels/pl_retail') {
-    return { id: CHANNEL_RETAIL, code: 'pl_retail', name: 'Retail', languages: ['pl-PL', 'en-US'] };
-  }
-  if (url === '/api/v1/admin/sales-channels/pl_b2b_vip') {
-    return { id: CHANNEL_VIP, code: 'pl_b2b_vip', name: 'VIP', languages: ['pl-PL'] };
   }
   throw new Error(`unexpected GET ${url}`);
 }
@@ -248,6 +241,17 @@ describe('Import profiles section', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'importProfiles.save' }));
     await waitFor(() => expect(api.patch).toHaveBeenCalled());
     expect(api.patch.mock.calls[0]?.[0]).toBe(`/api/v1/admin/import-export/profiles/${profile.id}`);
+  });
+
+  it('offers targets to a catalog:write operator from the import_export read alone', async () => {
+    renderPage(['catalog:write']);
+    const section = await screen.findByRole('region', { name: 'importProfiles.title' });
+    fireEvent.click(await within(section).findByRole('button', { name: 'importProfiles.create' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'importProfiles.mapping.add' }));
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/v1/admin/import-export/channel-targets'));
+    expect(within(dialog).queryByText('importProfiles.error.channels')).toBeNull();
+    expect(api.get).not.toHaveBeenCalledWith(expect.stringContaining('/api/v1/admin/sales-channels'));
   });
 
   it('shows the channel read refusal in the mapping editor instead of an empty target list', async () => {

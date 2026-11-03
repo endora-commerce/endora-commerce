@@ -9,6 +9,7 @@ import {
   uuidSchema,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
+import { importChannelTargetListResponseSchema } from './channel-targets.js';
 import type { ImportExportService } from './services/import-export-service.js';
 import type { ImportProfileService } from './services/import-profile.service.js';
 import type { RequireAdminAnyFactory, RequireAdminFactory } from '@endora-commerce/platform/kernel';
@@ -178,6 +179,17 @@ export async function registerImportExportRoutes(
    * centre, then the literal code so the permission inventory reads it.
    */
   const profilesBase = '/api/v1/admin/import-export/profiles';
+
+  /**
+   * Owner decision 2026-11-03 — the targets the profile editor offers, served here so that the
+   * code that lets an operator edit a profile is also enough to pick its targets (no
+   * `sales_channels:read`). Id, code and languages only; the delivery-methods precedent
+   * (`GET /api/v1/admin/delivery-methods/sales-channels`).
+   */
+  app.get('/api/v1/admin/import-export/channel-targets', { preHandler: [anyImportExportCode, requireAdmin('catalog:write')] }, async () => {
+    const data = await profiles.listChannelTargets();
+    return importChannelTargetListResponseSchema.parse({ data });
+  });
 
   app.get(profilesBase, { preHandler: [anyImportExportCode, requireAdmin('catalog:write')] }, async (request) => {
     const query = importProfileListQuerySchema.parse(request.query ?? {});

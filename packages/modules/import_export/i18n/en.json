@@ -67,7 +67,7 @@
   "importProfiles.error.load": "Could not load the import profiles.",
   "importProfiles.error.save": "Could not save the import profile.",
   "importProfiles.error.delete": "Could not delete the import profile.",
-  "importProfiles.error.channels": "Could not load the sales channels, so no target can be chosen. Reading sales channels needs the sales channels read permission.",
+  "importProfiles.error.channels": "Could not load the sales channels, so no target can be chosen. Try again; if it keeps failing, check that you may edit import profiles.",
   "importProfiles.error.nameRequired": "Enter a name for the profile.",
   "importProfiles.error.locale": "Use a locale like pl_PL, pl-PL or pl.",
   "importProfiles.error.targetRequired": "Choose at least one target for every mapped locale.",
