@@ -305,7 +305,7 @@ export class CartAdminService {
           return {
             id: it.id,
             productId: it.productId,
-            productName: product ? anyLocaleName(product) : it.productId,
+            productName: product ? globalName(product) : it.productId,
             variantId: it.variantId ?? null,
             quantity: it.quantity,
             unitPrice: { amount: Number(it.unitPrice), currency: it.currency },
@@ -445,7 +445,7 @@ export class CartAdminService {
   }
 }
 
-function anyLocaleName(product: CatalogProductRecord): string {
-  // 170-shim: the operator's view shows the Global name (`contracts/readers.md` §1, G).
+/** Feature 170 (FR-031, `contracts/readers.md` §1) — the operator's view shows the Global name. */
+function globalName(product: CatalogProductRecord): string {
   return product.name || product.id;
 }

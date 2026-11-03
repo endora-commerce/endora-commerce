@@ -25,8 +25,9 @@ export async function createTieredProduct(h: BackendServerHandle, suffix: string
     payload: {
       sku: `TIER-${suffix}`,
       type: 'simple',
-      name: { 'en-US': `Tiered product ${suffix}` },
-      description: { 'en-US': '' },
+      // Feature 170 (`contracts/readers.md` §2) — the Global texts are one string each.
+      name: `Tiered product ${suffix}`,
+      description: '',
       categoryIds: [],
       attributeValues: {},
       visibility: 'public',
@@ -61,8 +62,8 @@ export async function createUnpricedProduct(h: BackendServerHandle, suffix: stri
     payload: {
       sku: `NOPRICE-${suffix}`,
       type: 'simple',
-      name: { 'en-US': `Unpriced product ${suffix}` },
-      description: { 'en-US': '' },
+      name: `Unpriced product ${suffix}`,
+      description: '',
       categoryIds: [],
       attributeValues: {},
       visibility: 'public',

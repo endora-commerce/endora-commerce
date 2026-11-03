@@ -179,6 +179,11 @@ export async function assertCartChangeMeetsMinimums(
     productId: string;
     product: CatalogProductRecord | null;
     language?: string | undefined;
+    /**
+     * Feature 170 (FR-030) — the product's effective name at the basket's (channel, language),
+     * which the refusal names it by; absent (no channel), the Global name.
+     */
+    productName?: string | undefined;
   },
 ): Promise<void> {
   const { product } = input;
@@ -198,7 +203,7 @@ export async function assertCartChangeMeetsMinimums(
   }
   const refusal = minimumRefusal(
     [violation],
-    new Map([[product.id, product.name]]), // 170-shim: Global text
+    new Map([[product.id, input.productName || product.name]]),
     'cartItemId',
   );
   if (refusal === null) return;
@@ -378,6 +383,11 @@ export async function assertCartMeetsMinimums(
      * left out is a line whose product is unavailable: the unknown-id 404.
      */
     availableOnly: (products: CatalogProductRecord[]) => Promise<CatalogProductRecord[]>;
+    /**
+     * Feature 170 (FR-030) — the effective names at the basket's (channel, language) of the
+     * products a refusal names; absent (no channel), the Global names.
+     */
+    namesAt?: (productIds: readonly string[]) => Promise<ReadonlyMap<string, string>>;
   },
 ): Promise<void> {
   const { items } = input;
@@ -401,10 +411,11 @@ export async function assertCartMeetsMinimums(
     });
   }
   const productsById = new Map(products.map((p) => [p.id, p]));
+  const scoped = input.namesAt ? await input.namesAt([...new Set(violations.map((v) => v.productId))]) : new Map();
   const names = new Map(
     violations.map((v) => {
       const product = productsById.get(v.productId);
-      return [v.productId, product !== undefined ? product.name : v.productId]; // 170-shim: Global text
+      return [v.productId, scoped.get(v.productId) || (product !== undefined ? product.name : v.productId)];
     }),
   );
   const refusal = minimumRefusal(violations as OrderMinimumBelowViolation[], names, 'cartItemId');

@@ -13,7 +13,7 @@ import type {
 } from '@endora-commerce/contracts';
 import type { CartAuditService } from './cart-audit-service.js';
 import { assertCartMeetsMinimums, toCartMinimumItem } from './cart-minimums.js';
-import { availableRecords, basketScopeLanguage, withBasketOrderRules } from './cart-availability.js';
+import { availableRecords, basketNamesAt, basketScopeLanguage, withBasketOrderRules } from './cart-availability.js';
 import { cartAudience } from './cart-service.js';
 import { readOrganizationCarts } from './organization-cart-reach.js';
 import { approvalSubmissionRequired } from './cart-approval-policy.js';
@@ -115,7 +115,10 @@ export class CartApprovalService {
      * a product no longer available at its (channel, language) is refused at
      * submit as placement refuses it.
      */
-    private readonly availability: Pick<CatalogProductAvailabilityPort, 'filterAvailable' | 'effectiveOrderRules'>,
+    private readonly availability: Pick<
+      CatalogProductAvailabilityPort,
+      'filterAvailable' | 'effectiveOrderRules' | 'effectiveTexts'
+    >,
     private readonly emailDispatch?: CartEmailDispatch,
   ) {}
 
@@ -217,6 +220,14 @@ export class CartApprovalService {
             }),
           }),
           cart.salesChannelId,
+        ),
+      // Feature 170 (FR-030) — a refusal names the product as the basket shows it.
+      namesAt: (productIds) =>
+        basketNamesAt(
+          this.availability,
+          productIds,
+          cart.salesChannelId,
+          cart.salesChannelId ? basketScopeLanguage(cart.salesChannelId, options.language) : null,
         ),
       confirmQuoteSource: (quoteRequestId) =>
         this.quoteSource.quoteSourceHonoursExemptions({

@@ -9,10 +9,10 @@ export interface ProductMeta {
 }
 
 /**
- * Per-product display metadata, the name resolved from the record's per-locale
- * `name` in the response's language, through the `pickLocalized` fallback
- * chain. A product without a record has no entry (the serializer treats it as
- * an unknown name and the storefront falls back to the productId).
+ * Per-product display metadata. Feature 170 (FR-030) — the name is the effective one at the
+ * basket's (channel, language), C×L → C → Global, as `catalog` answers it; a product it has no
+ * answer for shows its Global name. A product without a record has no entry (the serializer
+ * treats it as an unknown name and the storefront falls back to the productId).
  *
  * Feature 163 (owner decision S1 = A) — a product that is no longer available
  * at the basket's (channel, language) keeps its name and SKU, so the buyer can
@@ -26,7 +26,7 @@ export function productMetaOf(
   /** The ids available at the basket's (channel, language) to this buyer now. */
   available: ReadonlySet<string>,
   /** The effective names at the basket's (channel, language), where known. */
-  effectiveNames: ReadonlyMap<string, string> = new Map(),
+  namesAtScope: ReadonlyMap<string, string> = new Map(),
   /**
    * Feature 163 (T113a, R28) — the effective URL key at the basket's (channel,
    * language), where known; else the global key.
@@ -36,7 +36,7 @@ export function productMetaOf(
   const meta = new Map<string, ProductMeta>();
   for (const p of products) {
     meta.set(p.id, {
-      name: effectiveNames.get(p.id) || p.name, // 170-shim: Global text
+      name: namesAtScope.get(p.id) || p.name,
       slug: available.has(p.id) ? (effectiveKeys.get(p.id) ?? p.slug) : null,
       sku: p.sku,
     });

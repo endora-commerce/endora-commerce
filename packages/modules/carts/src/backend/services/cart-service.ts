@@ -25,7 +25,7 @@ import type {
 } from '@endora-commerce/contracts';
 import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import type { SalesChannelResolutionPort } from '@endora-commerce/platform/kernel';
-import { basketScopeLanguage, withBasketOrderRules } from './cart-availability.js';
+import { basketNamesAt, basketScopeLanguage, withBasketOrderRules } from './cart-availability.js';
 import type { CartApprovalService } from './cart-approval-service.js';
 import type { CartAuditService } from './cart-audit-service.js';
 import type { CartRecomputeCache } from './cart-recompute-cache.js';
@@ -452,6 +452,26 @@ export class CartService {
     return (await withBasketOrderRules(this.availability, [product], channelId))[0]!;
   }
 
+  /**
+   * Feature 170 (FR-030) — one product's effective name at the basket's (channel, language), the
+   * name a minimum refusal gives it; `undefined` (the Global name) for a basket with no channel.
+   */
+  async #basketNameOf(
+    productId: string,
+    channelId: string | null | undefined,
+    actor: CartActor,
+    language: string | undefined,
+  ): Promise<string | undefined> {
+    if (!channelId) return undefined;
+    const names = await basketNamesAt(
+      this.availability,
+      [productId],
+      channelId,
+      basketScopeLanguage(channelId, actor.languageTag ?? language),
+    );
+    return names.get(productId);
+  }
+
   #basketChannelOf(actor: CartActor): string {
     const channel = actor.customer?.salesChannelId ?? actor.anonymousSalesChannelId;
     if (!channel) {
@@ -506,6 +526,7 @@ export class CartService {
       // Feature 163 (FR-100) — judged on the basket channel's minimum.
       product: (await withBasketOrderRules(this.availability, [product], cart.salesChannelId))[0]!,
       language: options.language,
+      productName: await this.#basketNameOf(product.id, cart.salesChannelId, actor, options.language),
     });
 
     await this.#writeLine(em, cart, actor, input, resolved);
@@ -645,7 +666,7 @@ export class CartService {
     // Feature 163 (FR-017 d) — a below-minimum outcome names the product as the
     // storefront shows it in this basket's (channel, language).
     const outcomeNames =
-      rejections.size > 0 ? await this.#effectiveNamesFor(actor, resolvedLines) : new Map<string, string>();
+      rejections.size > 0 ? await this.#lineNamesAt(actor, resolvedLines) : new Map<string, string>();
     let added = 0;
     let failure: unknown = null;
     for (const { index, input, resolved } of resolvedLines) {
@@ -656,7 +677,7 @@ export class CartService {
           belowMinimumOutcome(
             index,
             rejection,
-            outcomeNames.get(resolved.product.id) ?? resolved.product.name, // 170-shim: Global text
+            outcomeNames.get(resolved.product.id) ?? resolved.product.name,
           ),
         );
         continue;
@@ -809,11 +830,11 @@ export class CartService {
       .sort(([a], [b]) => a - b)
       .map(([index, rejection]) => ({ ...rejection, key: String(index) }));
     // Feature 163 (FR-017 d) — the names the storefront shows in this basket.
-    const effective = await this.#effectiveNamesFor(actor, resolvedLines);
+    const effective = await this.#lineNamesAt(actor, resolvedLines);
     const names = new Map(
       resolvedLines.map(({ resolved }) => [
         resolved.product.id,
-        effective.get(resolved.product.id) ?? resolved.product.name, // 170-shim: Global text
+        effective.get(resolved.product.id) ?? resolved.product.name,
       ]),
     );
     const refusal = minimumRefusal(violations, names, 'index');
@@ -826,7 +847,7 @@ export class CartService {
    * basket's (channel, language): `catalog`'s answer, the walk a storefront card
    * shows. An operator naming the channel is answered in its default language (N2).
    */
-  async #effectiveNamesFor(
+  async #lineNamesAt(
     actor: CartActor,
     resolvedLines: ReadonlyArray<{ resolved: ResolvedCartLine; input: CartBatchLineInput }>,
   ): Promise<Map<string, string>> {
@@ -1134,6 +1155,7 @@ export class CartService {
         // Feature 163 (FR-100) — judged on the basket channel's minimum.
         product: await this.#withChannelRules(await this.catalogProducts.findById(item.productId), cart.salesChannelId),
         language: options.language,
+        productName: await this.#basketNameOf(item.productId, cart.salesChannelId, actor, options.language),
       });
     }
 

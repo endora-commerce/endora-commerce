@@ -99,5 +99,22 @@ export async function effectiveKeysAt(
   return out;
 }
 
+/**
+ * Feature 170 (FR-030, `contracts/readers.md` §1) — product id → its effective name at the
+ * basket's (`channelId`, `languageCode`) along C×L → C → Global, as `catalog` answers it.
+ * `languageCode` `null` = the channel's default language. A basket with no channel is not
+ * asked about (FR-007): no entry, the caller keeps the Global name.
+ */
+export async function basketNamesAt(
+  availability: Pick<CatalogProductAvailabilityPort, 'effectiveTexts'>,
+  productIds: readonly string[],
+  channelId: string | null | undefined,
+  languageCode: string | null,
+): Promise<Map<string, string>> {
+  if (productIds.length === 0 || !channelId) return new Map();
+  const texts = await availability.effectiveTexts([...new Set(productIds)], { channelId, languageCode });
+  return new Map([...texts].map(([id, text]) => [id, text.name]));
+}
+
 /** The first `Accept-Language` tag without its quality parameter — the one home is `@endora-commerce/contracts`. */
 export { firstLanguageTag };

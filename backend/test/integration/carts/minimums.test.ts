@@ -6,6 +6,8 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
+import { seedScopedValues } from '../../helpers/scoped-values.js';
 import {
   buyerChannelIds,
   createMinimumPackagingUnit,
@@ -73,6 +75,12 @@ describe('155 — cart add and edit enforce the order minimums [integration]', (
       minOrderQuantity: 10,
       channelIds: channels,
     });
+    // Feature 170 (FR-030) — the Polish name a pl-PL buyer of `pl_retail` reads is that
+    // channel × language's translation; the Global name is the English one.
+    const retail = await em.findOneOrFail(SalesChannel, { code: 'pl_retail' });
+    await seedScopedValues(em, A.id, [
+      { field: 'name', scope: { level: 'channel_language', channelId: retail.id, languageCode: 'pl-PL' }, value: A.namePl },
+    ]);
     D = await createMinimumProduct(em, {
       sku: `MOQ-D-${RUN}`,
       nameEn: `Dowel ${RUN}`,
@@ -163,8 +171,10 @@ describe('155 — cart add and edit enforce the order minimums [integration]', (
       expect(res.statusCode, res.body).toBe(422);
       const error = errorOf(res);
       expect(error.code).toBe(ERROR_CODES.PRODUCT_BELOW_MINIMUM_QUANTITY);
-      expect(error.details).toMatchObject({ productId: A.id, productName: A.nameEn, minimum: 10, total: 5 });
-      expect(error.message).toBe(`"${A.nameEn}" has a minimum order quantity of 10 pcs.`);
+      // Feature 170 (FR-030) — the sentence is English, the name is the one the basket shows: the
+      // test `pl_retail` offers pl-PL alone, so an English request reads its pl-PL text.
+      expect(error.details).toMatchObject({ productId: A.id, productName: A.namePl, minimum: 10, total: 5 });
+      expect(error.message).toBe(`"${A.namePl}" has a minimum order quantity of 10 pcs.`);
       expect((await view(cookies)).items).toEqual([]);
     });
 
@@ -200,10 +210,11 @@ describe('155 — cart add and edit enforce the order minimums [integration]', (
       expect(res.statusCode, res.body).toBe(422);
       expect(errorOf(res)).toMatchObject({
         code: ERROR_CODES.PRODUCT_BELOW_MINIMUM_QUANTITY,
-        details: { productId: A.id, productName: A.nameEn, minimum: 10, total: 4 },
+        // Feature 170 (FR-030) — named at the basket's (channel, language), see #3.
+        details: { productId: A.id, productName: A.namePl, minimum: 10, total: 4 },
       });
       // U4 — the buyer reads this sentence; it is the envelope's message, never the code.
-      expect(errorOf(res).message).toBe(`"${A.nameEn}" has a minimum order quantity of 10 pcs.`);
+      expect(errorOf(res).message).toBe(`"${A.namePl}" has a minimum order quantity of 10 pcs.`);
       expect((await view(cookies)).items.map((i) => i.quantity)).toEqual([10]);
     });
 

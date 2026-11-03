@@ -59,12 +59,18 @@ describe('163 — order rules per channel: the minimum (T082) [integration]', ()
 
   const conn = () => h.em().getConnection();
 
+  /**
+   * The channel's own minimum, or `null` = the channel inherits the Global one. Feature 170
+   * (data-model §4): an own value carries `min_order_quantity_overridden`; an inheriting row
+   * carries neither.
+   */
   async function setChannelMinimum(productId: string, channelId: string, minimum: number | null): Promise<void> {
     await conn().execute(
-      `insert into product_channel_scopes (product_id, sales_channel_id, min_order_quantity, created_at, updated_at)
-       values (?, ?, ?, now(), now())
-       on conflict (product_id, sales_channel_id) do update set min_order_quantity = excluded.min_order_quantity, updated_at = now()`,
-      [productId, channelId, minimum],
+      `insert into product_channel_scopes (product_id, sales_channel_id, min_order_quantity, min_order_quantity_overridden, created_at, updated_at)
+       values (?, ?, ?, ?, now(), now())
+       on conflict (product_id, sales_channel_id) do update set min_order_quantity = excluded.min_order_quantity,
+         min_order_quantity_overridden = excluded.min_order_quantity_overridden, updated_at = now()`,
+      [productId, channelId, minimum, minimum !== null],
     );
   }
 
