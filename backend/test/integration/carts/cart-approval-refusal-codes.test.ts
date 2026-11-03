@@ -77,6 +77,8 @@ describe('cart approval, reject and conversion refusals carry their own code (is
   const MEMBER_ID = randomUUID();
   const ORG_ADMIN_ID = randomUUID();
   const MEMBER_COOKIE = `stub-i86-approval-member-${RUN}`;
+  const OTHER_MEMBER_ID = randomUUID();
+  const OTHER_MEMBER_COOKIE = `stub-i86-approval-other-member-${RUN}`;
   const ORG_ADMIN_COOKIE = `stub-i86-approval-admin-${RUN}`;
   let policyBefore = false;
   let channelId: string;
@@ -96,6 +98,16 @@ describe('cart approval, reject and conversion refusals carry their own code (is
       emailVerifiedAt: new Date(),
     });
     em.create(CustomerAccount, {
+      id: OTHER_MEMBER_ID,
+      organizationId: TEST_ORGANIZATION_ID,
+      email: `i86-approval-other-member-${RUN}@example.com`,
+      passwordHash: 'not-a-real-hash',
+      firstName: 'Approval',
+      lastName: 'Other member',
+      role: 'regular_user',
+      emailVerifiedAt: new Date(),
+    });
+    em.create(CustomerAccount, {
       id: ORG_ADMIN_ID,
       organizationId: TEST_ORGANIZATION_ID,
       email: `i86-approval-admin-${RUN}@example.com`,
@@ -107,6 +119,7 @@ describe('cart approval, reject and conversion refusals carry their own code (is
     });
     await em.flush();
     CUSTOMER_COOKIES[MEMBER_COOKIE] = { customerAccountId: MEMBER_ID, organizationId: TEST_ORGANIZATION_ID };
+    CUSTOMER_COOKIES[OTHER_MEMBER_COOKIE] = { customerAccountId: OTHER_MEMBER_ID, organizationId: TEST_ORGANIZATION_ID };
     CUSTOMER_COOKIES[ORG_ADMIN_COOKIE] = { customerAccountId: ORG_ADMIN_ID, organizationId: TEST_ORGANIZATION_ID };
     const org = await em.findOneOrFail(Organization, { id: TEST_ORGANIZATION_ID });
     policyBefore = org.requiresCartApproval;
@@ -114,6 +127,7 @@ describe('cart approval, reject and conversion refusals carry their own code (is
 
   afterAll(async () => {
     delete CUSTOMER_COOKIES[MEMBER_COOKIE];
+    delete CUSTOMER_COOKIES[OTHER_MEMBER_COOKIE];
     delete CUSTOMER_COOKIES[ORG_ADMIN_COOKIE];
     await setPolicy(policyBefore);
     await teardownBackendServer(h);
@@ -211,24 +225,16 @@ describe('cart approval, reject and conversion refusals carry their own code (is
       },
     );
 
-    /**
-     * The pending state is written directly rather than reached through a first
-     * submit: that submit answers `pending` and does not persist it (the
-     * service flushes an entity manager the cart was not loaded into), which is
-     * a defect of its own (issue #619) and not this file's subject.
-     */
     it('CART_APPROVAL_ALREADY_SUBMITTED — a cart already sent, in both languages, with its state in details', async () => {
       await setPolicy(true);
       await addLine(MEMBER_COOKIE);
       const cartId = await cartIdOf(MEMBER_COOKIE);
-      await h.em().getConnection().execute(`update "carts" set "approval_status" = 'pending' where "id" = ?`, [cartId]);
-      try {
-        const en = expectRefusal(await submit(MEMBER_COOKIE, 'en'), 'CART_APPROVAL_ALREADY_SUBMITTED', 'en');
-        expect(en.details).toEqual({ cartId, approvalStatus: 'pending' });
-        expectRefusal(await submit(MEMBER_COOKIE, 'pl'), 'CART_APPROVAL_ALREADY_SUBMITTED', 'pl');
-      } finally {
-        await h.em().getConnection().execute(`update "carts" set "approval_status" = 'not_required' where "id" = ?`, [cartId]);
-      }
+      // A real first submit: since issue #619 it is stored, so the second is refused.
+      const first = await submit(MEMBER_COOKIE, 'en');
+      expect(first.statusCode, first.body).toBe(200);
+      const en = expectRefusal(await submit(MEMBER_COOKIE, 'en'), 'CART_APPROVAL_ALREADY_SUBMITTED', 'en');
+      expect(en.details).toEqual({ cartId, approvalStatus: 'pending' });
+      expectRefusal(await submit(MEMBER_COOKIE, 'pl'), 'CART_APPROVAL_ALREADY_SUBMITTED', 'pl');
     });
   });
 
@@ -239,13 +245,10 @@ describe('cart approval, reject and conversion refusals carry their own code (is
       ['reject', 'en'],
       ['reject', 'pl'],
     ] as const)('CART_APPROVAL_NOT_PENDING — %s a cart not awaiting approval (%s)', async (action, language) => {
-      // The administrator's own basket. A member's basket is what the screen
-      // is for, and is not reachable on this route today: `Cart` is
-      // customer-scoped, so the administrator's request reads only their own
-      // carts and answers 404 for a member's — the same defect report as the
-      // unpersisted submit above (issue #619).
-      await addLine(ORG_ADMIN_COOKIE);
-      const cartId = await cartIdOf(ORG_ADMIN_COOKIE);
+      // A member's basket, not yet sent — the cart the screen is for, which
+      // the administrator reaches since issue #619.
+      await addLine(OTHER_MEMBER_COOKIE);
+      const cartId = await cartIdOf(OTHER_MEMBER_COOKIE);
       const res = await h.app.inject({
         method: 'POST',
         url: `/api/v1/organization/carts/${cartId}/${action}`,

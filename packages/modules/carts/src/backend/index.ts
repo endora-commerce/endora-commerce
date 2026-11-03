@@ -386,6 +386,7 @@ export function registerModule(ctx: ModuleContext): void {
       assertOrganizationCanTransact: async (organizationId) => {
         await ctx.cradle<CartsCradle>().organizationReadPort.assertCanTransact(organizationId);
       },
+      cartApprovalPolicy: (buyer) => cradle.cartApprovalService.submissionRequired(buyer),
       pushLineToShoppingList: (input) =>
         ctx.cradle<CartsCradle>().cartShoppingListBridge.pushLineToShoppingList(input),
       appendShoppingListToCart: (input) =>

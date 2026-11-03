@@ -127,11 +127,12 @@ export default async function CartPage({
     ? await getMe(session).catch(() => null)
     : null;
   const canTransact = me?.organization?.canTransact ?? true;
-  // Heuristic until the backend `/me` payload exposes
-  // `requiresCartApproval`: any non-`not_required` approval state on
-  // the cart means the policy was on at submission time.
+  // The backend answers `primaryCta: 'submit_for_approval'` for a basket its
+  // Organization's policy says must be sent (issue #619); any other approval
+  // state than `not_required` means the policy was on when it was sent.
   const requiresApproval =
-    cart.approvalStatus !== undefined && cart.approvalStatus !== 'not_required';
+    cart.primaryCta === 'submit_for_approval' ||
+    (cart.approvalStatus !== undefined && cart.approvalStatus !== 'not_required');
 
   const { locale, ctx } = await getServerContext();
 

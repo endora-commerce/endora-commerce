@@ -198,7 +198,9 @@ export async function registerCartsOrganizationRoutes(
       salesChannelId: getResolvedChannel(request).id,
     });
     const language = await request.responseLanguage();
-    await cartApprovalService.submitForApproval(
+    // The stored cart, not the one read above: the reply states what was
+    // written (issue #619 — it used to echo an object nothing had persisted).
+    const submitted = await cartApprovalService.submitForApproval(
       cart,
       {
         customerAccountId: actor.customer.customerAccountId,
@@ -206,7 +208,7 @@ export async function registerCartsOrganizationRoutes(
       },
       { language },
     );
-    return { data: { ok: true, approvalStatus: cart.approvalStatus } };
+    return { data: { ok: true, approvalStatus: submitted.approvalStatus } };
   });
 
   app.post<{ Params: { id: string } }>(

@@ -17,6 +17,7 @@ import type { CartAuditService } from './cart-audit-service.js';
 import { assertCartMeetsMinimums, toCartMinimumItem } from './cart-minimums.js';
 import { availableRecords, basketScopeLanguage, withBasketOrderRules } from './cart-availability.js';
 import { cartAudience } from './cart-service.js';
+import { readOrganizationCarts } from './organization-cart-reach.js';
 
 /**
  * Approval-workflow state machine (feature 027 US4).
@@ -121,6 +122,19 @@ export class CartApprovalService {
   }
 
   /**
+   * Whether `buyer`'s basket must be sent for approval before it is ordered
+   * (issue #619): their Organization requires cart approval and they are not
+   * its administrator — the two conditions {@link submitForApproval} refuses
+   * on, read as a yes/no for the cart's primary call to action.
+   */
+  async submissionRequired(buyer: ApproveActor): Promise<boolean> {
+    const org = await this.organizations.findById(buyer.organizationId);
+    if (!org?.requiresCartApproval) return false;
+    const account = await this.customerAccounts.findById(buyer.customerAccountId);
+    return account !== null && account !== undefined && account.role !== 'organization_admin';
+  }
+
+  /**
    * Buyer submits the cart for Org-Admin approval. Refuses if:
    *   - the cart is empty
    *   - the policy is off (approval not required)
@@ -132,12 +146,20 @@ export class CartApprovalService {
    *     source, so a basket that cannot be ordered is never sent for approval
    */
   async submitForApproval(
-    cart: Cart,
+    basket: Cart,
     actor: ApproveActor,
     options: { language?: string | undefined } = {},
   ): Promise<Cart> {
     const em = this.emFactory();
-    if (!cart.organizationId || cart.organizationId !== actor.organizationId) {
+    if (!basket.organizationId || basket.organizationId !== actor.organizationId) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'cart_not_found');
+    }
+    // Issue #619 — `basket` was loaded by the caller's entity manager, and
+    // `emFactory` forks per call, so flushing this one wrote nothing for it:
+    // the route answered `pending` while the row stayed `not_required`. Every
+    // check and the write below are made on this manager's own copy.
+    const cart = await em.findOne(Cart, { id: basket.id });
+    if (!cart) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'cart_not_found');
     }
 
@@ -209,16 +231,18 @@ export class CartApprovalService {
     cart.approvalStatus = 'pending';
     cart.submittedForApprovalAt = new Date();
     cart.lastActivityAt = new Date();
+    // The transition and its audit rows land in one flush (issue #152's rule).
+    this.cartAuditService.recordWithin(em, [
+      {
+        cartId: cart.id,
+        actorType: 'customer',
+        actorId: actor.customerAccountId,
+        action: 'approval_submitted',
+        fromState: 'not_required',
+        toState: 'pending',
+      },
+    ]);
     await em.flush();
-
-    await this.cartAuditService.record({
-      cartId: cart.id,
-      actorType: 'customer',
-      actorId: actor.customerAccountId,
-      action: 'approval_submitted',
-      fromState: 'not_required',
-      toState: 'pending',
-    });
     await this.dispatch(() =>
       this.emailDispatch!.onSubmittedForApproval({ cart, submitter: actor }),
     );
@@ -228,26 +252,24 @@ export class CartApprovalService {
   /** Org Admin approves a pending cart. */
   async approve(cartId: string, actor: ApproveActor): Promise<Cart> {
     const em = this.emFactory();
-    const cart = await em.findOne(Cart, { id: cartId });
-    if (!cart || cart.organizationId !== actor.organizationId) {
-      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'cart_not_found');
-    }
+    const cart = await this.#organizationCart(em, cartId, actor);
     if (cart.approvalStatus !== 'pending') {
       throw notPending(cart);
     }
     cart.approvalStatus = 'approved';
     cart.approvedAt = new Date();
     cart.approvedByCustomerAccountId = actor.customerAccountId;
+    this.cartAuditService.recordWithin(em, [
+      {
+        cartId: cart.id,
+        actorType: 'org_admin',
+        actorId: actor.customerAccountId,
+        action: 'approval_approved',
+        fromState: 'pending',
+        toState: 'approved',
+      },
+    ]);
     await em.flush();
-
-    await this.cartAuditService.record({
-      cartId: cart.id,
-      actorType: 'org_admin',
-      actorId: actor.customerAccountId,
-      action: 'approval_approved',
-      fromState: 'pending',
-      toState: 'approved',
-    });
     await this.dispatch(() =>
       this.emailDispatch!.onApproved({ cart, approver: actor }),
     );
@@ -257,10 +279,7 @@ export class CartApprovalService {
   /** Org Admin rejects a pending cart with a reason. */
   async reject(cartId: string, actor: ApproveActor, reason: string): Promise<Cart> {
     const em = this.emFactory();
-    const cart = await em.findOne(Cart, { id: cartId });
-    if (!cart || cart.organizationId !== actor.organizationId) {
-      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'cart_not_found');
-    }
+    const cart = await this.#organizationCart(em, cartId, actor);
     if (cart.approvalStatus !== 'pending') {
       throw notPending(cart);
     }
@@ -269,20 +288,37 @@ export class CartApprovalService {
     cart.rejectedAt = new Date();
     cart.rejectedByActor = `org_admin:${actor.customerAccountId}`;
     cart.rejectedReason = reason;
+    this.cartAuditService.recordWithin(em, [
+      {
+        cartId: cart.id,
+        actorType: 'org_admin',
+        actorId: actor.customerAccountId,
+        action: 'approval_rejected',
+        fromState: 'pending',
+        toState: 'rejected_by_org_admin',
+        reason,
+      },
+    ]);
     await em.flush();
-
-    await this.cartAuditService.record({
-      cartId: cart.id,
-      actorType: 'org_admin',
-      actorId: actor.customerAccountId,
-      action: 'approval_rejected',
-      fromState: 'pending',
-      toState: 'rejected_by_org_admin',
-      reason,
-    });
     await this.dispatch(() =>
       this.emailDispatch!.onRejected({ cart, rejector: actor, reason }),
     );
+    return cart;
+  }
+
+  /**
+   * A cart of the administrator's own Organization, loaded into `em` (issue
+   * #619). A member's cart is outside the administrator's customer filter, so
+   * it is read through {@link readOrganizationCarts}; a cart of another
+   * Organization, a working basket and an unknown id are all the same 404.
+   */
+  async #organizationCart(em: EntityManager, cartId: string, actor: ApproveActor): Promise<Cart> {
+    const cart = await readOrganizationCarts(actor.organizationId, () =>
+      em.findOne(Cart, { id: cartId, organizationId: actor.organizationId, status: { $ne: 'working' } }),
+    );
+    if (!cart) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'cart_not_found');
+    }
     return cart;
   }
 
@@ -362,23 +398,29 @@ export class CartApprovalService {
     actorId: string,
   ): Promise<void> {
     const em = this.emFactory();
-    const affected = await em.find(Cart, {
-      organizationId,
-      approvalStatus: { $in: ['pending', 'approved'] satisfies CartApprovalStatus[] },
-    });
-    for (const cart of affected) {
+    // Issue #619 — an Organization administrator's own customer filter hides
+    // every member's cart, so the reset used to reach only the administrator's.
+    const affected = await readOrganizationCarts(organizationId, () =>
+      em.find(Cart, {
+        organizationId,
+        approvalStatus: { $in: ['pending', 'approved'] satisfies CartApprovalStatus[] },
+      }),
+    );
+    if (affected.length === 0) return;
+    const audits = affected.map((cart) => {
       const prev = cart.approvalStatus;
       cart.approvalStatus = 'not_required';
-      await em.flush();
-      await this.cartAuditService.record({
+      return {
         cartId: cart.id,
         actorType,
         actorId,
-        action: 'approval_policy_reset',
+        action: 'approval_policy_reset' as const,
         fromState: prev,
         toState: 'not_required',
-      });
-    }
+      };
+    });
+    this.cartAuditService.recordWithin(em, audits);
+    await em.flush();
   }
 
   /**
@@ -388,18 +430,29 @@ export class CartApprovalService {
    */
   async maybeReArm(cart: Cart, actor: { customerAccountId?: string }): Promise<void> {
     if (cart.approvalStatus !== 'approved') return;
+    // Issue #619 — `cart` belongs to the caller's entity manager, which has
+    // already flushed; flushing a fresh fork wrote nothing, so an approved cart
+    // the buyer changed stayed `approved`. The re-arm is made on this
+    // manager's own copy, and the caller's object is kept in step with it.
     const em = this.emFactory();
-    cart.approvalStatus = 'pending';
-    cart.submittedForApprovalAt = new Date();
+    const managed = await em.findOne(Cart, { id: cart.id });
+    if (!managed || managed.approvalStatus !== 'approved') return;
+    const submittedAt = new Date();
+    managed.approvalStatus = 'pending';
+    managed.submittedForApprovalAt = submittedAt;
+    this.cartAuditService.recordWithin(em, [
+      {
+        cartId: managed.id,
+        actorType: 'customer',
+        ...(actor.customerAccountId ? { actorId: actor.customerAccountId } : {}),
+        action: 'approval_resubmission_required',
+        fromState: 'approved',
+        toState: 'pending',
+      },
+    ]);
     await em.flush();
-    await this.cartAuditService.record({
-      cartId: cart.id,
-      actorType: 'customer',
-      ...(actor.customerAccountId ? { actorId: actor.customerAccountId } : {}),
-      action: 'approval_resubmission_required',
-      fromState: 'approved',
-      toState: 'pending',
-    });
+    cart.approvalStatus = 'pending';
+    cart.submittedForApprovalAt = submittedAt;
   }
 }
 

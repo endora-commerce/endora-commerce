@@ -83,6 +83,17 @@ kupon) w koszyku `approved` po cichu przywraca `approval_status` do `pending`.
 Brak akceptowania własnych koszyków: koszyk utworzony przez administratora organizacji powstaje z
 `approval_status='not_required'`, niezależnie od ustawienia akceptacji w organizacji.
 
+Główna akcja: dla członka organizacji, która wymaga akceptacji koszyków, koszyk jeszcze nieprzekazany
+ma `primaryCta: 'submit_for_approval'`, przekazany — `awaiting_approval`, a zaakceptowany —
+`checkout`. Własny koszyk administratora organizacji oraz każdy koszyk organizacji, która nie wymaga
+akceptacji, ma `checkout`.
+
+Kto działa na koszyku członka: administrator organizacji wyświetla listę, szczegóły, akceptuje i
+odrzuca koszyki wszystkich członków swojej organizacji, a zamówienie z zaakceptowanego koszyka składa
+członek, do którego koszyk należy. Koszyk innej organizacji zwraca `404`, tak samo jak nieistniejący;
+członek, który nie jest administratorem, dostaje odmowę `403`. Wyłączenie wymogu akceptacji przywraca
+każdy oczekujący lub zaakceptowany koszyk organizacji do `not_required`.
+
 ## API publiczne
 
 ### Storefront (kupujący)

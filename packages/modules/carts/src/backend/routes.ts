@@ -168,6 +168,15 @@ export interface CartsDeps {
    * the route translates to HTTP 423 with a localized body.
    */
   assertOrganizationCanTransact?: (organizationId: string) => Promise<void>;
+  /**
+   * Issue #619 — whether this signed-in buyer's basket must be sent for
+   * approval before it is ordered: the Organization requires cart approval and
+   * the buyer is not its administrator (`CartApprovalService.submissionRequired`).
+   * The cart answers read it to emit `primaryCta: 'submit_for_approval'`; it
+   * was hard-wired to `false`, so the storefront never offered the submit and
+   * offered checkout instead.
+   */
+  cartApprovalPolicy: (buyer: { customerAccountId: string; organizationId: string }) => Promise<boolean>;
 }
 
 /**
@@ -214,6 +223,34 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
    * first read as it always was; an anonymous token names no basket on a
    * channel its basket is not of.
    */
+  /**
+   * A cart answer with the primary CTA the buyer's approval policy gives it
+   * (issue #619). Only a `not_required` basket that would otherwise read
+   * `checkout` can change, so every other answer is returned without a read.
+   */
+  const answer = async (
+    actor: { customer?: { customerAccountId: string; organizationId: string | null } },
+    payload: CartFullPayload,
+  ): Promise<{ data: CartFullPayload }> => {
+    if (payload.primaryCta !== 'checkout' || payload.approvalStatus !== 'not_required') return { data: payload };
+    const customer = actor.customer;
+    if (!customer?.organizationId) return { data: payload };
+    const requiresApproval = await deps.cartApprovalPolicy({
+      customerAccountId: customer.customerAccountId,
+      organizationId: customer.organizationId,
+    });
+    return {
+      data: {
+        ...payload,
+        primaryCta: derivePrimaryCta({
+          status: payload.status,
+          approvalStatus: payload.approvalStatus,
+          requiresApproval,
+        }),
+      },
+    };
+  };
+
   const basketFor = async (actor: ReturnType<typeof resolveCartActor>): Promise<Cart | null> => {
     if (actor.customer) return cartService.getOrCreateForCustomer(actor.customer);
     if (actor.anonymousToken) {
@@ -410,8 +447,9 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
         application = null;
       }
     }
-    return {
-      data: serializeCart(
+    return answer(
+      actor,
+      serializeCart(
         cart,
         items,
         recomputedPrices,
@@ -421,7 +459,7 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
         minimumViews,
         pricingRefusals,
       ),
-    };
+    );
   });
 
   app.post(
@@ -459,7 +497,7 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
         },
         { language },
       );
-      return { data: serializeCart(result.cart, result.items) };
+      return answer(actor, serializeCart(result.cart, result.items));
     },
   );
 
@@ -476,7 +514,7 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
         body.quantity,
         { language },
       );
-      return { data: serializeCart(result.cart, result.items) };
+      return answer(actor, serializeCart(result.cart, result.items));
     },
   );
 
@@ -485,7 +523,7 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
     async (request) => {
       const actor = resolveCartActor(request);
       const result = await cartService.removeItem(actor, request.params.itemId);
-      return { data: serializeCart(result.cart, result.items) };
+      return answer(actor, serializeCart(result.cart, result.items));
     },
   );
 
@@ -614,7 +652,7 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
         );
       }
       const freshItems = await cartService.getItems(cart.id);
-      return { data: serializeCart(cart, freshItems) };
+      return answer(actor, serializeCart(cart, freshItems));
     },
   );
 
@@ -630,7 +668,7 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
     if (!cart) return { data: emptyCart() };
     await deps.cartCouponService.clear(cart);
     const items = await cartService.getItems(cart.id);
-    return { data: serializeCart(cart, items) };
+    return answer(actor, serializeCart(cart, items));
   });
 
   // ── Feature 027 US3 — three conversions
@@ -935,12 +973,9 @@ function serializeCart(
 }
 
 function resolvePrimaryCta(cart: Cart) {
-  // The `submit_for_approval` branch needs the Organization's policy
-  // flag, which the route handler does not have on hand here. The
-  // helper is callable from the org-admin route with the flag passed
-  // through explicitly; for the storefront read we default to
-  // `requiresApproval: false`, which makes `not_required` + cart-active
-  // collapse to `checkout`.
+  // The `submit_for_approval` branch needs the buyer's approval policy, which
+  // is a read; `answer()` in `registerCartRoutes` applies it to the one state
+  // it can change (issue #619). Here it is the policy-free answer.
   return derivePrimaryCta({
     status: cart.status,
     approvalStatus: cart.approvalStatus,

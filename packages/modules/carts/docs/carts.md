@@ -76,6 +76,19 @@ Self-approval exemption: a cart created by an Organization Administrator
 is born with `approval_status='not_required'` regardless of the per-Org
 policy flag.
 
+Primary action: for a member of an Organization that requires cart approval, a
+basket not yet sent reads `primaryCta: 'submit_for_approval'`, a sent one
+`awaiting_approval` and an approved one `checkout`. An Organization
+Administrator's own basket, and every basket of an Organization that requires
+no approval, reads `checkout`.
+
+Who acts on a member's basket: an Organization Administrator lists, reads,
+approves and rejects the baskets of every member of their own Organization, and
+the member who owns an approved basket places the order from it. A basket of
+another Organization answers `404`, as an unknown one does; a member who is not
+an administrator is refused with `403`. Switching the policy off returns every
+pending or approved basket of the Organization to `not_required`.
+
 ## Public surface
 
 ### Storefront (buyer)
