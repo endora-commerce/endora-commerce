@@ -168,19 +168,53 @@ describe('ScopedField (feature 170, FR-060…FR-065)', () => {
     expect(control).toHaveAccessibleDescription(expect.stringContaining('Name is required.'));
   });
 
-  it('ticking "Use value from" on an own value shows the parent value read-only when the read carries it (round 8)', () => {
+  it('ticking "Use value from" on an own value shows the parent value read-only and names the channel (round 8)', () => {
     renderEn(
       <Harness
-        view={{ ...view({ value: 'Wiertarka', ownValue: 'Wiertarka', source: 'set' }), inheritedValue: { value: 'Drill PL', level: 'C' } } as ScopedFieldView<string>}
+        view={{ ...view({ value: 'Wiertarka', ownValue: 'Wiertarka', source: 'set' }), inheritedValue: { value: 'Drill PL', source: 'inherited_channel' } }}
       />,
     );
     fireEvent.click(screen.getByRole('checkbox'));
     const control = screen.getByLabelText('Name');
     expect(control).toHaveAttribute('readonly');
     expect(control).toHaveValue('Drill PL');
+    expect(control).toHaveAccessibleDescription(expect.stringContaining('Will use the value from B2B PL when you save'));
   });
 
-  it('ticking on an own value without inheritedValue keeps the empty control and the save note', () => {
+  it('a parent value that comes from Global names Global (round 8)', () => {
+    renderEn(
+      <Harness
+        view={{ ...view({ value: 'Wiertarka', ownValue: 'Wiertarka', source: 'set' }), inheritedValue: { value: 'Drill', source: 'inherited_global' } }}
+      />,
+    );
+    fireEvent.click(screen.getByRole('checkbox'));
+    expect(screen.getByLabelText('Name')).toHaveValue('Drill');
+    expect(screen.getByLabelText('Name')).toHaveAccessibleDescription(expect.stringContaining('Will use the value from Global when you save'));
+  });
+
+  it('an empty parent stays empty and is not skipped to Global (round 8)', () => {
+    renderEn(
+      <Harness
+        view={{ ...view({ value: 'Wiertarka', ownValue: 'Wiertarka', source: 'set' }), inheritedValue: { value: null, source: 'inherited_channel' } }}
+      />,
+    );
+    fireEvent.click(screen.getByRole('checkbox'));
+    expect(screen.getByLabelText('Name')).toHaveValue('');
+    expect(screen.getByLabelText('Name')).toHaveAccessibleDescription(expect.stringContaining('B2B PL'));
+  });
+
+  it('no value at any scope above: the field says so after the tick (round 8)', () => {
+    renderEn(
+      <Harness
+        view={{ ...view({ value: 'Wiertarka', ownValue: 'Wiertarka', source: 'set' }), inheritedValue: { value: null, source: 'absent' } }}
+      />,
+    );
+    fireEvent.click(screen.getByRole('checkbox'));
+    expect(screen.getByLabelText('Name')).toHaveValue('');
+    expect(screen.getByLabelText('Name')).toHaveAccessibleDescription(expect.stringContaining('No value at any scope above'));
+  });
+
+  it('ticking on an own value of a read without inheritedValue keeps the empty control and the save note', () => {
     renderEn(<Harness view={view({ value: 'Wiertarka', ownValue: 'Wiertarka', source: 'set' })} />);
     fireEvent.click(screen.getByRole('checkbox'));
     expect(screen.getByLabelText('Name')).toHaveValue('');

@@ -35,17 +35,12 @@ export interface ScopedFieldControlProps<T> {
 }
 
 /**
- * The parent's effective value, carried by the read for every non-Global field (spec round 8):
- * what the field shows read-only right after "Use value from <parent>" is ticked on an own
- * value. `level` is where that value is set (`G` Global, `C` the channel). Absent on a read that
- * does not carry it yet — the field then shows an empty read-only control and the save note.
+ * A field view as the read carries it. Every non-Global field holds `inheritedValue` (spec round
+ * 8, `contracts/scoped-values-api.md` §2): the parent's effective value and where it comes from,
+ * which the field shows read-only right after "Use value from <parent>" is ticked on an own
+ * value. A view without it (an older read) falls back to an empty read-only control.
  */
-export interface ScopedInheritedValue<T> {
-  value: T | null;
-  level: 'G' | 'C';
-}
-
-export type ScopedFieldViewWithParent<T> = ScopedFieldView<T> & { inheritedValue?: ScopedInheritedValue<T> | null };
+export type ScopedFieldViewWithParent<T> = ScopedFieldView<T>;
 
 /**
  * Read-only and inherited controls: dashed border, sunken background, muted text (prototype
@@ -257,8 +252,13 @@ export function ScopedField<T>(props: ScopedFieldProps<T>): ReactNode {
         ? { icon: <CircleSlash className="size-3" aria-hidden="true" />, text: t('scopedField.source.noValueAbove') }
         : { icon: <Link2 className="size-3" aria-hidden="true" />, text: t('scopedField.source.inheritedFrom', { scope: inheritedFrom }) };
   } else if (mode === 'stagedInherit') {
-    const from = view.inheritedValue ? (view.inheritedValue.level === 'C' ? parentScopeLabel : t('scopedField.scope.global')) : parentScopeLabel;
-    source = { icon: <Link2 className="size-3" aria-hidden="true" />, text: t('scopedField.source.willInherit', { scope: from }) };
+    const parent = view.inheritedValue;
+    if (parent?.source === 'absent') {
+      source = { icon: <CircleSlash className="size-3" aria-hidden="true" />, text: t('scopedField.source.noValueAbove') };
+    } else {
+      const from = parent?.source === 'inherited_global' ? t('scopedField.scope.global') : parentScopeLabel;
+      source = { icon: <Link2 className="size-3" aria-hidden="true" />, text: t('scopedField.source.willInherit', { scope: from }) };
+    }
   } else if (isEmpty(value)) {
     const base = t('scopedField.source.setEmpty');
     source = { icon: <CircleSlash className="size-3" aria-hidden="true" />, text: emptyMeaning ? `${base} — ${emptyMeaning}` : base };

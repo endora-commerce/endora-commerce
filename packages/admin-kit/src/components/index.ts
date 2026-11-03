@@ -188,4 +188,4 @@ export type {
 export { CursorPagination } from './record-history/CursorPagination.js';
 export type { CursorPaginationProps } from './record-history/CursorPagination.js';
 export { ScopedField, ScopedFieldGrid } from './scoped-field/ScopedField.js';
-export type { ScopedFieldControlProps, ScopedFieldProps, ScopedFieldViewWithParent, ScopedInheritedValue } from './scoped-field/ScopedField.js';
+export type { ScopedFieldControlProps, ScopedFieldProps, ScopedFieldViewWithParent } from './scoped-field/ScopedField.js';
