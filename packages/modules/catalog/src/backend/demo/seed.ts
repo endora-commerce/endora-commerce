@@ -24,7 +24,8 @@
  * went with them.
  *
  * What that leaves here is every row whose whole content is this module's, which
- * is 203 products and 13 categories.
+ * is 204 products (200 simple, three composites and feature 170's scope
+ * product) and 13 categories.
  *
  * Idempotent by an existence probe on the natural key (§2.4): a second run
  * creates nothing and reports the same counts.
@@ -40,6 +41,7 @@ import {
   DEMO_LEAF_CATEGORIES,
   DEMO_PRODUCT_SLUG_PREFIX,
   DEMO_ROOT_CATEGORY,
+  DEMO_SCOPE_PRODUCT,
   DEMO_SECTION_CATEGORIES,
   PRODUCT_COUNT,
   demoProducts,
@@ -185,6 +187,23 @@ export async function seedDemo(
   }
   await em.flush();
 
+  // ── feature 170's scope product, Global texts only ────────────────────
+  if (!present.has(DEMO_SCOPE_PRODUCT.slug) && !(await em.findOne(Product, { slug: DEMO_SCOPE_PRODUCT.slug }))) {
+    em.persist(
+      em.create(Product, {
+        sku: DEMO_SCOPE_PRODUCT.sku,
+        slug: DEMO_SCOPE_PRODUCT.slug,
+        type: 'simple',
+        status: 'active',
+        name: DEMO_SCOPE_PRODUCT.name,
+        description: DEMO_SCOPE_PRODUCT.description,
+        visibility: 'public',
+        attributeValues: {},
+      }),
+    );
+    await em.flush();
+  }
+
   // ── the composites' own structure ─────────────────────────────────────
   //
   // The first four simple products by SKU, which is the creation order the host
@@ -249,7 +268,7 @@ export async function seedDemo(
         entity: 'Category',
         count: 1 + DEMO_SECTION_CATEGORIES.length + DEMO_LEAF_CATEGORIES.length,
       },
-      { entity: 'Product', count: PRODUCT_COUNT + DEMO_COMPOSITE_SKUS.length },
+      { entity: 'Product', count: PRODUCT_COUNT + DEMO_COMPOSITE_SKUS.length + 1 },
     ],
   };
 }

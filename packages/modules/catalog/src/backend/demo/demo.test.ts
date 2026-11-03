@@ -4,7 +4,7 @@
  *
  * `test/integration/demo/demo-shop.test.ts` seeds a throwaway database and
  * holds every table the seed moves to a recorded delta, which is what says
- * these 203 products and 13 categories are still there and still that many. It cannot say that a second call creates nothing, and it
+ * these 204 products and 13 categories are still there and still that many. It cannot say that a second call creates nothing, and it
  * cannot say that the withdrawal is *filtered* — which on this module's tables
  * is the assertion that matters most, because what a `delete from products`
  * takes on a developer's machine is a catalogue somebody has been building.
@@ -26,6 +26,7 @@ import {
   DEMO_COMPOSITE_SKUS,
   DEMO_LEAF_CATEGORIES,
   DEMO_PRODUCT_SLUG_PREFIX,
+  DEMO_SCOPE_PRODUCT,
   PRODUCT_COUNT,
   buildProductDescription,
   demoProducts,
@@ -163,12 +164,27 @@ describe('catalog demo data', () => {
     const categories = created.filter((row) => typeof row['slug'] === 'string' && !row['sku']);
     expect(categories).toHaveLength(13);
     expect(created.filter((row) => row['sku']).length).toBe(
-      PRODUCT_COUNT + DEMO_COMPOSITE_SKUS.length,
+      PRODUCT_COUNT + DEMO_COMPOSITE_SKUS.length + 1,
     );
     expect(result.created).toEqual([
       { entity: 'Category', count: 13 },
-      { entity: 'Product', count: PRODUCT_COUNT + DEMO_COMPOSITE_SKUS.length },
+      { entity: 'Product', count: PRODUCT_COUNT + DEMO_COMPOSITE_SKUS.length + 1 },
     ]);
+  });
+
+  it("seeds feature 170's scope product with its Global texts only", async () => {
+    // Its Channel and Channel × language texts name a sales channel, which is
+    // the kernel's table, so they are the composition's step and not this body's.
+    const { em, created } = fakeEm();
+    await seedDemo(contextOver(em));
+    const drill = created.find((row) => row['sku'] === DEMO_SCOPE_PRODUCT.sku);
+    expect(drill).toMatchObject({
+      slug: DEMO_SCOPE_PRODUCT.slug,
+      name: 'Drill X',
+      description: DEMO_SCOPE_PRODUCT.description,
+      status: 'active',
+    });
+    expect(drill?.['slug']).toMatch(new RegExp(`^${DEMO_PRODUCT_SLUG_PREFIX}drills-`));
   });
 
   it('creates nothing on a second run and reports the same counts (§2.4)', async () => {
@@ -179,7 +195,7 @@ describe('catalog demo data', () => {
     expect(created).toHaveLength(afterFirst);
     expect(result.created).toEqual([
       { entity: 'Category', count: 13 },
-      { entity: 'Product', count: PRODUCT_COUNT + DEMO_COMPOSITE_SKUS.length },
+      { entity: 'Product', count: PRODUCT_COUNT + DEMO_COMPOSITE_SKUS.length + 1 },
     ]);
   });
 

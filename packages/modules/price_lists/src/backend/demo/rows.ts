@@ -59,6 +59,15 @@ const COMPOSITE_BASE_PRICES: Readonly<Record<string, string>> = {
   'DEMO-VIRTUAL-0001': '19.9900',
 };
 
+/**
+ * Feature 170's scope product, *Drill X* — the catalogue demo's one product whose
+ * texts differ per scope (`specs/170-product-editor-scope-switcher/` T024),
+ * priced so it can be put in a basket on both demo channels.
+ */
+const SCOPE_PRODUCT_BASE_PRICES: Readonly<Record<string, string>> = {
+  'DEMO-DRILL-X': '349.0000',
+};
+
 /** A generated demo product's SKU: `DEMO-<LEAF>-<nnnn>`. */
 const GENERATED_SKU = /^DEMO-[A-Z]+-(\d{4})$/;
 
@@ -71,6 +80,8 @@ export function demoBasePrice(sku: string): string | null {
   if (vector !== undefined) return vector;
   const composite = COMPOSITE_BASE_PRICES[sku];
   if (composite !== undefined) return composite;
+  const scoped = SCOPE_PRODUCT_BASE_PRICES[sku];
+  if (scoped !== undefined) return scoped;
   const generated = GENERATED_SKU.exec(sku);
   if (!generated) return null;
   const n = Number(generated[1]);

@@ -101,6 +101,25 @@ export const DEMO_COMPOSITE_SKUS = [
   'DEMO-VIRTUAL-0001',
 ] as const;
 
+/**
+ * Feature 170's scope product (`specs/170-product-editor-scope-switcher/` T024):
+ * one product whose texts differ per scope, which `quickstart.md` §1 and §3 and
+ * the search language rule (FR-033) are demonstrated on.
+ *
+ * Only its **Global** texts are here. Its Channel and Channel × language texts
+ * name a sales channel — the kernel's table — so they are the composition's
+ * step, as every channel binding is. The slug's first segment is a leaf slug,
+ * which is what the composition's bridge reads a product's category off, and it
+ * carries no four-digit ordinal, so like the composites it gets no placeholder
+ * image.
+ */
+export const DEMO_SCOPE_PRODUCT = {
+  sku: 'DEMO-DRILL-X',
+  slug: `${DEMO_PRODUCT_SLUG_PREFIX}drills-x`,
+  name: 'Drill X',
+  description: 'Cordless drill X: 18 V, two speeds, keyless chuck.',
+} as const;
+
 /** Singularized, lower-cased leaf noun for prose (e.g. "Screws" → "screw"). */
 export function leafNoun(leafNameEn: string): string {
   const lower = leafNameEn.toLowerCase();

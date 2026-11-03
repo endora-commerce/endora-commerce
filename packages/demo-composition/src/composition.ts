@@ -290,6 +290,38 @@ const DEMO_RETAIL_CHANNEL_CODE = 'pl_retail';
  */
 const PLATFORM_FALLBACK_CHANNEL_CODE = 'default';
 const DEMO_VIP_CHANNEL_CODE = 'pl_b2b_vip';
+/**
+ * Feature 170's scope product (`specs/170-product-editor-scope-switcher/` T024),
+ * by the SKU `catalog`'s demo data assigns it, and the texts it carries above
+ * Global — which name a channel, so they are this file's (§5.1).
+ *
+ * The three states of the scope model on one product, over the demo's two
+ * channels and their two languages: an own value at Channel (VIP's name) and at
+ * Channel × language (retail × pl-PL's name and description, VIP × pl-PL's
+ * name), a deliberately empty optional field (VIP × pl-PL's description,
+ * `{"v": null}`), and inheritance, which is the absence of a row (retail
+ * en-US inherits Global, VIP en-US inherits the VIP name). The Polish name
+ * differs from the English one on purpose: a Polish shopper searching "drill"
+ * on the retail channel finds nothing (FR-033).
+ */
+const DEMO_SCOPE_PRODUCT_SKU = 'DEMO-DRILL-X';
+const DEMO_SCOPE_PRODUCT_TEXTS: readonly {
+  readonly channel: 'retail' | 'vip';
+  readonly languageCode: string | null;
+  readonly key: 'name' | 'description';
+  readonly value: string | null;
+}[] = [
+  { channel: 'retail', languageCode: 'pl-PL', key: 'name', value: 'Wiertarka X' },
+  {
+    channel: 'retail',
+    languageCode: 'pl-PL',
+    key: 'description',
+    value: 'Wiertarka akumulatorowa X: 18 V, dwa biegi, uchwyt bezkluczykowy.',
+  },
+  { channel: 'vip', languageCode: null, key: 'name', value: 'Drill X Pro' },
+  { channel: 'vip', languageCode: 'pl-PL', key: 'name', value: 'Wiertarka X Pro' },
+  { channel: 'vip', languageCode: 'pl-PL', key: 'description', value: null },
+];
 const DEMO_MENU_NAME = 'Main navigation';
 /** `catalog`'s demo root — the category the demo menu's tree expands from. */
 const DEMO_ROOT_CATEGORY_SLUG = 'catalog';
@@ -945,6 +977,56 @@ const STEPS: readonly CompositionStep[] = [
       );
       await em.execute(
         `delete from sales_channel_products where product_id in
+           (select id from products where slug like ?)`,
+        [`${DEMO_PRODUCT_SLUG_PREFIX}%`],
+      );
+    },
+  },
+  {
+    // ── 2b. the scope product's texts above Global (feature 170) ──────────
+    // `product_value_overrides` is `catalog`'s table, but every row names a
+    // sales channel — the kernel's — so the step is the composition's, as the
+    // bridges above are. The scope product is sold on the VIP channel as well,
+    // so both channels' texts are reachable. `on conflict do nothing` on the
+    // stores' own unique indexes: a text an operator has since edited is theirs.
+    name: "the scope product's Channel and Channel × language texts",
+    modules: ['catalog'],
+    async apply(em) {
+      const { Product } = await catalogRows();
+      const product = await em.findOne(Product, { sku: DEMO_SCOPE_PRODUCT_SKU }, { fields: ['id'] });
+      const vip = await em.findOne(SalesChannel, { code: DEMO_VIP_CHANNEL_CODE });
+      if (product === null || vip === null) return;
+      const retail = await systemDefaultChannel(em);
+      await em.execute(
+        `insert into sales_channel_products (sales_channel_id, product_id)
+          values (?, ?)
+          on conflict do nothing`,
+        [vip.id, product.id],
+      );
+      const rows: string[] = [];
+      const params: unknown[] = [];
+      for (const text of DEMO_SCOPE_PRODUCT_TEXTS) {
+        rows.push('(?, ?, ?, ?, ?, ?::jsonb, now(), now())');
+        params.push(
+          crypto.randomUUID(),
+          product.id,
+          text.key,
+          text.channel === 'retail' ? retail.id : vip.id,
+          text.languageCode,
+          JSON.stringify({ v: text.value }),
+        );
+      }
+      await em.execute(
+        `insert into product_value_overrides
+           (id, product_id, attribute_key, channel_id, language_code, value, created_at, updated_at)
+          values ${rows.join(', ')}
+          on conflict do nothing`,
+        params,
+      );
+    },
+    async withdraw(em) {
+      await em.execute(
+        `delete from product_value_overrides where product_id in
            (select id from products where slug like ?)`,
         [`${DEMO_PRODUCT_SLUG_PREFIX}%`],
       );
