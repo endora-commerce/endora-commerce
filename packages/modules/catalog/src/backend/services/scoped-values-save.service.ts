@@ -530,6 +530,8 @@ function upsertOverride<R extends { value: { v: unknown }; updatedAt: Date }>(
   op: ScopedWriteOp<unknown>,
   create: () => R,
 ): void {
+  // command-coverage-ignore: a helper of `writeScopedSave`, run only inside the
+  // `product.scoped_values.save` Command's `run` (one audit entry for the save).
   if (op.op === 'inherit') {
     if (row) em.remove(row);
     return;
@@ -624,6 +626,8 @@ function writeGlobal(state: ScopedProductState, cell: PlannedCell): void {
 
 /** The Global holder of a role (`gallery_item_labels`): `set` moves the label, `empty` removes it. */
 async function writeGlobalRole(em: EntityManager, state: ScopedProductState, cell: PlannedCell): Promise<void> {
+  // command-coverage-ignore: a helper of `writeScopedSave`, run only inside the
+  // `product.scoped_values.save` Command's `run` (one audit entry for the save).
   const label = cell.field as GalleryRoleLabel;
   const current = state.galleryLabels.find((row) => row.label === label);
   if (current && cell.op.op === 'set' && current.galleryItemId === cell.op.value) return;
