@@ -25,8 +25,8 @@
  * Exit 0 = pins written (or none needed); exit 2 = refused, or nothing to read.
  */
 /* eslint-disable no-console -- CLI: stdout/stderr is the interface. */
-import { existsSync, readFileSync } from 'node:fs';
-import { relative } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { loadDocsLocales } from './lib/docs-locales.js';
@@ -37,7 +37,7 @@ import {
   hashSourceBody,
   materializedDocPath,
   readCacheEntryResult,
-  writeCacheEntry,
+  serializeCacheEntry,
   type TranslationCacheEntry,
   type TranslationCacheLayout,
 } from './lib/docs-translation-cache.js';
@@ -49,7 +49,8 @@ import {
 
 const PREFIX = '[docs-translations:pin]';
 
-export type DocsTranslationPinRefusalReason = 'no-translation' | 'untranslated-copy' | 'unknown-source';
+export type DocsTranslationPinRefusalReason =
+  'no-translation' | 'untranslated-copy' | 'unknown-source';
 
 export interface DocsTranslationPinRefusal {
   readonly reason: DocsTranslationPinRefusalReason;
@@ -106,7 +107,11 @@ export function planDocsTranslationPins(input: DocsTranslationPinInput): DocsTra
     for (const source of targets) {
       const english = readSource(source.absolutePath);
       const currentHash = hashSourceBody(english);
-      const page = materializedDocPath(locale, docIdFromSourcePath(source.sourcePath), input.layout);
+      const page = materializedDocPath(
+        locale,
+        docIdFromSourcePath(source.sourcePath),
+        input.layout,
+      );
       if (!existsSync(page)) {
         refused.push({
           reason: 'no-translation',
@@ -127,7 +132,8 @@ export function planDocsTranslationPins(input: DocsTranslationPinInput): DocsTra
         unchanged += 1;
         continue;
       }
-      const legacy = existing.kind === 'malformed' ? legacyPinOf(locale, source, input.layout) : null;
+      const legacy =
+        existing.kind === 'malformed' ? legacyPinOf(locale, source, input.layout) : null;
       const keepDate = legacy !== null && legacy.sourceHash === currentHash;
       writes.push({
         sourcePath: source.sourcePath,
@@ -151,7 +157,9 @@ function legacyPinOf(
   layout: TranslationCacheLayout,
 ): { sourceHash: string; updatedAt: string } | null {
   try {
-    const value = JSON.parse(readFileSync(cacheEntryPath(locale, source.sourcePath, layout), 'utf8')) as {
+    const value = JSON.parse(
+      readFileSync(cacheEntryPath(locale, source.sourcePath, layout), 'utf8'),
+    ) as {
       sourceHash?: unknown;
       meta?: { updatedAt?: unknown };
     };
@@ -175,7 +183,9 @@ export function applyDocsTranslationPins(
     );
   }
   for (const entry of plan.writes) {
-    writeCacheEntry(entry, layout);
+    const path = cacheEntryPath(entry.locale, entry.sourcePath, layout);
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, serializeCacheEntry(entry), 'utf8');
   }
 }
 

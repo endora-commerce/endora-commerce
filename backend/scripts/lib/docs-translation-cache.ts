@@ -165,11 +165,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * ignored, so the duplicate cannot drift back in from a branch cut before it
  * was removed.
  */
-function parsePin(
-  value: unknown,
-  locale: string,
-  sourcePath: string,
-): CacheEntryReadResult {
+function parsePin(value: unknown, locale: string, sourcePath: string): CacheEntryReadResult {
   if (!isRecord(value)) {
     return { kind: 'malformed', reason: 'not-an-object' };
   }

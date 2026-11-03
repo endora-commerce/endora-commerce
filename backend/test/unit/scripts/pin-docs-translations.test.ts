@@ -188,8 +188,10 @@ describe('pin-docs-translations (issue #671)', () => {
         /refus/,
       );
       // Atomic: the translated page's stale pin was not rewritten either.
-      expect(readCacheEntry('pl', translated.sourcePath, defaultTranslationCacheLayout(root))
-        ?.sourceHash).toBe(hashSourceBody('---\ntitle: Sample\n---\n\nA.\n'));
+      expect(
+        readCacheEntry('pl', translated.sourcePath, defaultTranslationCacheLayout(root))
+          ?.sourceHash,
+      ).toBe(hashSourceBody('---\ntitle: Sample\n---\n\nA.\n'));
       expect(() =>
         readFileSync(
           cacheEntryPath('pl', untranslated.sourcePath, defaultTranslationCacheLayout(root)),
@@ -203,10 +205,7 @@ describe('pin-docs-translations (issue #671)', () => {
       const source = english(root, 'docs/docs/intro.md', 'Welcome.');
       const layout = defaultTranslationCacheLayout(root);
       // Front matter translated, body not: still an untranslated page.
-      writeFile(
-        materializedDocPath('pl', 'intro', layout),
-        '---\ntitle: Wstęp\n---\n\nWelcome.\n',
-      );
+      writeFile(materializedDocPath('pl', 'intro', layout), '---\ntitle: Wstęp\n---\n\nWelcome.\n');
       const plan = planDocsTranslationPins(input(root, [source]));
       expect(plan.refused.map((refusal) => refusal.detail)).toEqual([
         'untranslated-copy:pl:docs/docs/intro.md',
