@@ -1,4 +1,4 @@
-import { StrictMode, type ReactElement, type ReactNode } from 'react';
+import { StrictMode, createElement, type ReactElement, type ReactNode } from 'react';
 import { render, type RenderResult } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { TranslationProvider } from '@endora-commerce/admin-kit/i18n';
@@ -95,7 +95,7 @@ export function currentSearch(container: { getByTestId(id: string): HTMLElement 
 }
 
 export function renderEditor(
-  Editor: () => ReactNode,
+  editor: () => ReactNode,
   options: { url?: string; permissions?: readonly string[]; contributions?: Parameters<typeof withSession>[1]['contributions'] } = {},
 ): RenderResult {
   return render(
@@ -111,7 +111,7 @@ export function renderEditor(
                 path="/catalog/products/:id"
                 element={
                   <>
-                    <Editor />
+                    {createElement(editor)}
                     <LocationProbe />
                   </>
                 }
