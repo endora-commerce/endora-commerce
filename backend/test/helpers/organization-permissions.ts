@@ -174,7 +174,10 @@ export function walkOrganizationPermissionDeclarations(
 export function scanOrganizationPermissionSites(
   roots: ReadonlyArray<string | PermissionScanRoot>,
 ): OrganizationPermissionSiteScan {
-  const base = roots.find((entry): entry is string => typeof entry === 'string') ?? '';
+  // Sites are reported relative to the application's own source root — the
+  // first bare-string root, by construction of `permissionScanRoots()` — and
+  // absolute when there is none, rather than relative to an invented one.
+  const base = roots.find((entry): entry is string => typeof entry === 'string');
   const seen = new Set<string>();
   const sites: OrganizationPermissionSite[] = [];
   let files = 0;
@@ -185,7 +188,7 @@ export function scanOrganizationPermissionSites(
       const source = readFileSync(file, 'utf8');
       if (!MENTION_RE.test(source)) continue;
       sites.push(
-        ...scanOrganizationPermissionSource(source, relative(base, file), (specifier) =>
+        ...scanOrganizationPermissionSource(source, base === undefined ? file : relative(base, file), (specifier) =>
           readRelativeImport(file, specifier),
         ),
       );
