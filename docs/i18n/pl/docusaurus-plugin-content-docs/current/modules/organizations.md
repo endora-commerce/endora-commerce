@@ -449,7 +449,8 @@ faktycznie ma — aby sklep mógł ukryć to, czego członek nie może zrobić. 
   innej roli jest odrzucane z `409 CANNOT_DEMOTE_LAST_ADMIN`, jego usunięcie
   z `409 CANNOT_REMOVE_LAST_ADMIN`, a unieważnienie jedynego oczekującego
   zaproszenia z rolą Administrator w organizacji bez aktywnego Administratora
-  z `409 CANNOT_REVOKE_LAST_ADMIN_INVITE`. Zablokowani administratorzy się nie
+  z `409 CANNOT_REVOKE_LAST_ADMIN_INVITE`; wygasłe zaproszenie nie jest
+  oczekujące. Zablokowani administratorzy się nie
   liczą.
 - **Zaproszenia.** Zaproszenie wskazuje rolę organizacji — rolę Członek, gdy
   żądanie nie wskazuje żadnej; rola innej organizacji daje `404`. E-mail

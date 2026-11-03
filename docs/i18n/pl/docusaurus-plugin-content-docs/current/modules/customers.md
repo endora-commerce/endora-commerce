@@ -34,7 +34,8 @@ zamiast być wyłączane jako przypadek szczególny.
   przypisany do organizacji klienta. Organizacja prywatna nigdy nie ma przypisanego handlowca, więc
   reguła dla nieprzypisanych organizacji sprawia, że samodzielnym klientem może zająć się dowolny
   handlowiec. Zabezpieczenie odmawia zablokowania, usunięcia lub odłączenia ostatniego aktywnego
-  członka z rolą Administrator organizacji firmowej (`409 ORG_OWNER_DEPLETION`). Nie dotyczy
+  członka z rolą Administrator organizacji firmowej (`409 ORG_OWNER_DEPLETION`);
+  zablokowani administratorzy się nie liczą. Nie dotyczy
   organizacji prywatnej, której jedyny członek ma rolę Administrator: zablokowanie lub usunięcie
   takiego klienta jest dozwolone.
 - Logowanie jako klient; audytowane jako `impersonation.start` / `impersonation.end`. Odpowiedź

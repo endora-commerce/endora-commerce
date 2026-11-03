@@ -39,7 +39,8 @@ switched off by a special case.
   never carries a sales-rep assignment, so the unassigned-organization fallback
   leaves a standalone customer open to any salesperson. An org-owner depletion
   guard refuses blocking, deleting or detaching the last active holder of a
-  company organization's Administrator role (`409 ORG_OWNER_DEPLETION`). It
+  company organization's Administrator role (`409 ORG_OWNER_DEPLETION`);
+  blocked administrators do not count. It
   does not apply to a personal organization, whose sole member is its
   Administrator: blocking or deleting that customer is allowed.
 - Impersonation; audited as `impersonation.start` / `impersonation.end`. The

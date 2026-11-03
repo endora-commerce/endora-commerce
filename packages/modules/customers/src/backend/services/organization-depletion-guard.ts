@@ -15,6 +15,9 @@ import type {
  * - **Administrator is the role, not the legacy column**: the account holds
  *   its Organization's *Administrator* role, and the others counted are its
  *   other holders (`countAdministrators`).
+ * - **Blocked administrators do not count** (owner ruling): a blocked
+ *   administrator cannot manage the Organization, so deleting, blocking or
+ *   detaching the last *unblocked* one is refused alike.
  * - **Company Organizations only** (owner ruling PR-3, research R-34): a
  *   personal Organization's sole member holds *Administrator* by construction,
  *   and its depletion is that Organization's intended end
@@ -30,21 +33,15 @@ export interface OrganizationDepletionGuardDeps {
   readonly organizationRoles: Pick<OrganizationRoleReadPort, 'predefinedRoleId'>;
 }
 
-export interface OrganizationDepletionOptions {
-  /** Count only administrators who are not blocked — the blocking guard's question. */
-  readonly notBlocked?: boolean;
-}
-
 export class OrganizationDepletionGuard {
   constructor(private readonly deps: OrganizationDepletionGuardDeps) {}
 
   /**
    * `true` when `customer` is an administrator of a company Organization and
-   * no other active administrator of it would remain.
+   * no other active, unblocked administrator of it would remain.
    */
   async wouldLeaveWithoutAdministrator(
     customer: Pick<CustomerAccountRecord, 'id' | 'organizationId' | 'organizationRoleId'>,
-    options: OrganizationDepletionOptions = {},
   ): Promise<boolean> {
     const administratorRoleId = await this.deps.organizationRoles.predefinedRoleId(
       customer.organizationId,
@@ -56,7 +53,7 @@ export class OrganizationDepletionGuard {
     const remaining = await this.deps.accounts.countAdministrators(customer.organizationId, {
       excludeCustomerAccountId: customer.id,
       activeOnly: true,
-      ...(options.notBlocked ? { notBlocked: true } : {}),
+      notBlocked: true,
     });
     return remaining === 0;
   }

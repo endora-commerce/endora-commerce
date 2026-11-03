@@ -466,7 +466,8 @@ field (`organization_admin` / `regular_user`) any more.
   is refused `409 CANNOT_DEMOTE_LAST_ADMIN`, removing them
   `409 CANNOT_REMOVE_LAST_ADMIN`, and revoking the only pending Administrator
   invitation of an organization with no active Administrator
-  `409 CANNOT_REVOKE_LAST_ADMIN_INVITE`. Blocked administrators do not count.
+  `409 CANNOT_REVOKE_LAST_ADMIN_INVITE`; an expired invitation is not pending.
+  Blocked administrators do not count.
 - **Invitations.** An invitation names a role of the organization — its Member
   role when the request names none; a role of another organization is `404`.
   The invitation e-mail shows the role's label in the e-mail's language (a

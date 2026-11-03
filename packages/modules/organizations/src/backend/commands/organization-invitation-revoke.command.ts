@@ -28,8 +28,8 @@ export interface RevokeOrganizationInvitationDeps {
  * expired one may still be revoked (research R-37, unchanged).
  *
  * The last-administrator invitation rule keeps its code: while the
- * Organization has no active administrator, its only outstanding invitation to
- * the *Administrator* role cannot be revoked (`409
+ * Organization has no active, unblocked administrator, its only pending
+ * (unexpired, FR-010a) invitation to the *Administrator* role cannot be revoked (`409
  * CANNOT_REVOKE_LAST_ADMIN_INVITE`). Administrator is the role, not the legacy
  * enum, since this package (`contracts/organization-permission-port.md` §3).
  *
@@ -56,13 +56,19 @@ export function makeRevokeOrganizationInvitationCommand(
 
       const administratorRoleId = await predefinedRoleIdOn(em, input.organizationId, 'administrator');
       if (invitation.organizationRoleId === administratorRoleId) {
-        const administrators = await deps.accounts.countAdministrators(input.organizationId, { activeOnly: true });
+        // A blocked administrator is not an active one (owner ruling).
+        const administrators = await deps.accounts.countAdministrators(input.organizationId, {
+          activeOnly: true,
+          notBlocked: true,
+        });
         if (administrators === 0) {
           const otherPending = await em.count(OrganizationInvitation, {
             organizationId: input.organizationId,
             organizationRoleId: administratorRoleId,
             consumedAt: null,
             revokedAt: null,
+            // An expired invitation is not pending (FR-010a), so it is no way back in.
+            expiresAt: { $gt: new Date() },
             id: { $ne: invitation.id },
           });
           if (otherPending === 0) {

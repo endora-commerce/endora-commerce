@@ -129,7 +129,7 @@ export class CustomerModerationService {
    * (`specs/170-organization-roles/` owner ruling PR-3).
    */
   private async assertWouldNotStrandOrg(customer: CustomerAccountRecord): Promise<void> {
-    if (await this.depletion.wouldLeaveWithoutAdministrator(customer, { notBlocked: true })) {
+    if (await this.depletion.wouldLeaveWithoutAdministrator(customer)) {
       throw new HttpError(
         409,
         ERROR_CODES.ORG_OWNER_DEPLETION,
