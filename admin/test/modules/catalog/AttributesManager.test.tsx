@@ -69,6 +69,8 @@ const BUNDLE = passthroughBundle('catalog', [
   'attributes.action.save',
   'attributes.action.cancel',
   'attributes.batch.unsaved',
+  'attributes.action.edit',
+  'attributes.options.title',
 ]);
 
 const seedAttribute = (massEditable: boolean, isPriceRule = false): unknown => ({
@@ -227,6 +229,79 @@ describe('AttributesManager — Price-rule flag', () => {
     expect(postSpy.mock.calls[0]![0]).toBe('/api/v1/admin/catalog/attributes');
     expect(postSpy.mock.calls[0]![1]).toEqual(
       expect.objectContaining({ key: 'margin_class', isPriceRule: true }),
+    );
+  });
+});
+
+/**
+ * Issue #682 — `select` (dropdown single-select) is a select-style type like
+ * `enum` / `multiselect`: the locked Type field must show it (not fall back to
+ * the first option, `string`) and the options editor must be rendered.
+ */
+describe('AttributesManager — select value type (#682)', () => {
+  beforeEach(() => {
+    postSpy.mockReset();
+    getSpy.mockReset();
+    patchSpy.mockReset();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const selectAttribute = (): unknown => ({
+    ...(seedAttribute(false) as Record<string, unknown>),
+    key: 'color',
+    label: { 'en-US': 'Color' },
+    labelDefault: 'Color',
+    valueType: 'select',
+    enumValues: ['red', 'blue'],
+  });
+
+  it('shows type `select` and the options editor when editing a select attribute', async () => {
+    getSpy.mockImplementation((url: string) =>
+      Promise.resolve(
+        url.endsWith('/options')
+          ? { data: { items: [{ id: 'o1', value: 'red', label: { 'en-US': 'Red' }, labelDefault: 'Red', isDefault: false, sortOrder: 0 }] } }
+          : { data: [selectAttribute()] },
+      ),
+    );
+
+    renderWithI18n(
+      withSession(<AttributesManager />, { session: adminSession({ permissions: ['catalog:read', 'catalog:write'] }) }),
+      BUNDLE,
+    );
+
+    const row = (await screen.findByText('color')).closest('tr')!;
+    const user = userEvent.setup();
+    await user.click(within(row).getByText('attributes.action.edit'));
+
+    expect((document.getElementById('atype') as HTMLSelectElement).value).toBe('select');
+    await screen.findByText('attributes.options.title');
+    await waitFor(() =>
+      expect(getSpy).toHaveBeenCalledWith('/api/v1/admin/catalog/attributes/a1/options'),
+    );
+  });
+
+  it('collects enum values when creating a select attribute', async () => {
+    getSpy.mockResolvedValue({ data: [] });
+    postSpy.mockResolvedValue({ data: selectAttribute() });
+
+    renderWithI18n(
+      withSession(<AttributesManager />, { session: adminSession({ permissions: ['catalog:read', 'catalog:write'] }) }),
+      BUNDLE,
+    );
+
+    const user = userEvent.setup();
+    await screen.findByText('attributes.action.create');
+    await user.type(document.getElementById('akey') as HTMLInputElement, 'color');
+    await user.selectOptions(document.getElementById('atype') as HTMLSelectElement, 'select');
+    await user.type(document.getElementById('aenum') as HTMLInputElement, 'red, blue');
+    await user.click(screen.getByText('attributes.action.create'));
+
+    await waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
+    expect(postSpy.mock.calls[0]![1]).toEqual(
+      expect.objectContaining({ key: 'color', valueType: 'select', enumValues: ['red', 'blue'] }),
     );
   });
 });
