@@ -102,8 +102,16 @@ export type OrderStatus = z.infer<typeof orderStatusSchema>;
 export const paymentStatusSchema = z.enum(['awaiting_payment', 'paid', 'failed', 'deferred', 'refunded']);
 export type PaymentStatus = z.infer<typeof paymentStatusSchema>;
 
-/** Roles within a Customer Organization (FR-042). */
+/**
+ * Roles within a Customer Organization (FR-042).
+ *
+ * @deprecated Replaced by organization roles (`specs/170-organization-roles/`):
+ * a member holds a role **id** — `organizationRoleRefSchema` /
+ * `OrganizationRoleKind` in `./organization-roles.ts` — and permissions follow
+ * from it. Kept, dual-written, until the feature's legacy removal (research R-23).
+ */
 export const organizationRoleSchema = z.enum(['organization_admin', 'regular_user']);
+/** @deprecated Use `OrganizationRoleRef` / `OrganizationRoleKind` (`./organization-roles.ts`). */
 export type OrganizationRole = z.infer<typeof organizationRoleSchema>;
 
 /** Supported Sales Channel visibility modes (R-18 + FR-106). */

@@ -6,6 +6,7 @@ import {
   uuidSchema,
 } from './common.js';
 import { fulfilmentStrategySchema, type FulfilmentStrategy } from './inventory.js';
+import { organizationRoleRefSchema } from './organization-roles.js';
 import { SalesChannelOptionSchema } from './sales-channels.js';
 import { foldDiacritics } from './text-normalization.js';
 
@@ -150,7 +151,15 @@ export const customerAccountSchema = z.object({
   email: z.string().email(),
   firstName: z.string(),
   lastName: z.string(),
+  /** @deprecated Read `organizationRole` (`specs/170-organization-roles/`, FR-073); removed with the legacy enum. */
   role: organizationRoleSchema,
+  /**
+   * The member's role (`specs/170-organization-roles/`, FR-008, FR-056).
+   * Optional until the session views fill it; replaces `role`.
+   */
+  organizationRole: organizationRoleRefSchema.optional(),
+  /** The member's effective organization permissions, sorted (FR-056). Optional until filled. */
+  permissions: z.array(z.string()).optional(),
   emailVerifiedAt: isoDateTimeSchema.nullable(),
   twoFactorEnabled: z.boolean(),
   createdAt: isoDateTimeSchema,
@@ -227,7 +236,12 @@ export const customerLoginRequestSchema = z.object({
  * `'noop'`; see `cartMergeOutcomePublicSchema` below.
  */
 export const cartMergeOutcomeSchema = z.object({
-  outcome: z.enum(['adopted', 'merged', 'noop_empty', 'noop_no_anon']),
+  /**
+   * `skipped_permission` (owner ruling PR-12, `specs/170-organization-roles/`):
+   * the member's role lacks `carts.create`, so sign-in did not merge the guest
+   * basket. The HTTP narrowing reports it as `'noop'`.
+   */
+  outcome: z.enum(['adopted', 'merged', 'noop_empty', 'noop_no_anon', 'skipped_permission']),
   movedLineCount: z.number().int().min(0),
   summedLineCount: z.number().int().min(0),
   destinationCartId: uuidSchema,
@@ -258,7 +272,12 @@ export const customerLoginResponseSchema = z.object({
       id: uuidSchema,
       email: z.string().email(),
       organizationId: uuidSchema.nullable(),
+      /** @deprecated Read `organizationRole` (`specs/170-organization-roles/`, FR-073). */
       role: organizationRoleSchema,
+      /** The member's role (FR-056). Optional until the login route fills it; replaces `role`. */
+      organizationRole: organizationRoleRefSchema.optional(),
+      /** The member's effective organization permissions, sorted (FR-056). */
+      permissions: z.array(z.string()).optional(),
       twoFactorEnabled: z.boolean(),
     }),
     cartMerge: cartMergeOutcomePublicSchema.nullable().optional(),
@@ -286,6 +305,7 @@ export type CreateAddressRequest = z.infer<typeof createAddressRequestSchema>;
 export const updateAddressRequestSchema = createAddressRequestSchema.partial();
 export type UpdateAddressRequest = z.infer<typeof updateAddressRequestSchema>;
 
+/** @deprecated Use `inviteMemberToRoleRequestSchema` (`./organization-roles.ts`): `{ email, roleId? }`, strict. */
 export const inviteMemberRequestSchema = z.object({
   email: z.string().email(),
   role: organizationRoleSchema.optional(),
@@ -297,6 +317,7 @@ export const acceptInvitationRequestSchema = z.object({
   lastName: z.string().min(1).max(120),
 });
 
+/** @deprecated Use `assignMemberRoleRequestSchema` (`./organization-roles.ts`): `{ roleId }`, strict. */
 export const changeMemberRoleRequestSchema = z.object({
   role: organizationRoleSchema,
 });
@@ -331,10 +352,15 @@ export const adminDirectMemberRequestSchema = z.object({
   firstName: z.string().min(1).max(120),
   lastName: z.string().min(1).max(120),
   password: z.string().min(12).max(256),
+  /** @deprecated Use `adminDirectMemberToRoleRequestSchema`'s `roleId` (`./organization-roles.ts`). */
   role: organizationRoleSchema.optional(),
 });
 
-/** Platform admin — PATCH member role */
+/**
+ * Platform admin — PATCH member role
+ *
+ * @deprecated Use `adminAssignMemberRoleRequestSchema` (`./organization-roles.ts`): `{ roleId, expectedUpdatedAt? }`, strict.
+ */
 export const adminPatchMemberRoleRequestSchema = z.object({
   role: organizationRoleSchema,
   expectedUpdatedAt: z.string().optional(),
@@ -483,6 +509,10 @@ export interface OrganizationRecord {
   rejectedAt: Date | null;
   approvedAt: Date | null;
   approvedByAdminUserId: string | null;
+  /**
+   * @deprecated Replaced by the `carts.order_without_approval` organization
+   * permission (`specs/170-organization-roles/`, OR-3, FR-031); removed with the column.
+   */
   requiresCartApproval: boolean;
   fulfilmentStrategy: FulfilmentStrategy | null;
   fulfilmentStrategyWarehouseOrder: string[] | null;
@@ -623,7 +653,11 @@ export interface OrganizationInheritancePort {
   creditOwner(organizationId: string): Promise<OrganizationCreditOwner>;
 }
 
-/** What a cart-approval-policy write answers with. */
+/**
+ * What a cart-approval-policy write answers with.
+ *
+ * @deprecated The policy is replaced by `carts.order_without_approval` (`specs/170-organization-roles/`, OR-3).
+ */
 export interface CartApprovalPolicyWriteResult {
   readonly organization: OrganizationRecord;
   /**
@@ -654,6 +688,7 @@ export interface CartApprovalPolicyWriteResult {
  * cannot be reached; the registration is a `providePort` anyway, for the reason
  * its siblings give.
  */
+/** @deprecated The policy is replaced by `carts.order_without_approval` (`specs/170-organization-roles/`, OR-3). */
 export interface OrganizationCartApprovalWritePort {
   setCartApprovalPolicy(
     organizationId: string,
