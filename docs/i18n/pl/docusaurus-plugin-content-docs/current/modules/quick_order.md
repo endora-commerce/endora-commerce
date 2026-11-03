@@ -39,6 +39,15 @@ Odpowiedniki w panelu administracyjnym
 (`/api/v1/admin/quick-order/import` i `/build`, chronione przez `orders:write`) budują koszyk lub
 zapytanie w imieniu wybranego klienta przez `onBehalfOf`.
 
+**Uprawnienia w organizacji.** Import kupującego wymaga `carts.create`, bo wypełnia koszyk; odmowa
+pada, zanim plik zostanie odczytany. Budowanie przez kupującego wymaga uprawnienia do utworzenia
+celu — `carts.create` dla celu `cart`, `quote_requests.create` dla celu `quote_request` —
+sprawdzanego na samym początku, zanim pozycje zostaną odczytane. Oba uprawnienia deklarują moduły
+`carts` i `quote_requests`; odmowa to `403 ORGANIZATION_PERMISSION_REQUIRED` z nazwą kodu.
+Odpowiedniki w panelu są chronione wyłącznie uprawnieniem operatora `orders:write`: operator nie ma
+roli w organizacji, więc klient, w którego imieniu powstaje koszyk lub zapytanie, nie jest
+sprawdzany. To, co powstanie, jest oceniane, gdy klient z tego skorzysta.
+
 **Minimalne ilości zamówienia w pliku.** Podgląd ocenia minimum każdego produktu w sztukach na
 **łącznej ilości produktu w całym pliku** — po połączeniu powtórzonych wierszy i zsumowaniu
 wszystkich wariantów produktu — nigdy razem z koszykiem kupującego, więc werdykt podglądu i
@@ -83,7 +92,10 @@ organizacji, osobno dla każdego pola), a w chwili użycia sprawdzane jest ponow
 nadal dopuszczalna (aktywna, dozwolona dla organizacji, adres istnieje — w przeciwnym razie null).
 
 - Storefront: klient zarządza własnymi wartościami domyślnymi (`/preferences`); checkout wstępnie
-  wybiera wyznaczone wartości domyślne.
+  wybiera wyznaczone wartości domyślne. Członek z rolą *Administrator* swojej organizacji zarządza
+  także zakresem organizacji i wartościami domyślnymi pozostałych członków organizacji. Jest to
+  zastrzeżone dla roli *Administrator* — nie jest uprawnieniem, nie można go przyznać innej roli,
+  a każdy inny otrzymuje odmowę `403 FORBIDDEN`.
 - Panel: `/api/v1/admin/quick-order/preferences` — administrator platformy zarządza dowolnym
   zakresem, a handlowiec tylko przypisanymi organizacjami i ich klientami. Każda zmiana jest
   audytowana.
@@ -96,9 +108,10 @@ niedostępne pozycje i respektując ustawienie `orders.reorder_enabled`.
 
 ### 5. Zakup jednym kliknięciem
 
-Gdy w kanale sprzedaży kupującego włączone jest `quick_order.one_click_buy_enabled` **i** kupujący
-ma wszystkie cztery dopuszczalne wartości domyślne, strona produktu pokazuje przycisk „Kup jednym
-kliknięciem”. Pomija on koszyk i checkout: zamówienie jest składane z wartości domyślnych,
+Gdy rola kupującego ma uprawnienia **Zakup jednym kliknięciem** (`quick_order.one_click`) **oraz**
+składania zamówień bez akceptacji (`carts.order_without_approval`), w kanale sprzedaży kupującego
+włączone jest `quick_order.one_click_buy_enabled` **i** kupujący ma wszystkie cztery dopuszczalne
+wartości domyślne, strona produktu pokazuje przycisk „Kup jednym kliknięciem”. Pomija on koszyk i checkout: zamówienie jest składane z wartości domyślnych,
 a kupujący trafia tam, gdzie wskazuje `nextAction` płatności (przekierowanie do bramki albo strona
 zamówienia lub sukcesu, gdy krok płatności nie jest potrzebny).
 
@@ -114,6 +127,30 @@ ponownie usuwa koszyk roboczy.
 Obowiązują te same warunki co przy zwykłym zamówieniu (aktywna organizacja, wartość minimalna, limit
 kredytowy, stan magazynowy, minimalna ilość zamówienia). Dla produktu `simple` lub `configurable` z
 minimalną ilością zamówienia jedno kliknięcie zamawia to minimum zamiast 1.
+
+**Kto może kupić jednym kliknięciem.** Zakup jednym kliknięciem to uprawnienie organizacji
+`quick_order.one_click`, deklarowane przez ten moduł i domyślne dla członka. Wymaga też
+`carts.order_without_approval`: członek, którego koszyki wymagają akceptacji, nie może jej w ten
+sposób ominąć. `GET /api/v1/quick-order/one-click/eligibility` sprawdza rolę najpierw, w tej
+kolejności:
+
+| `reason` | Kiedy |
+| --- | --- |
+| `permission_required` | rola nie ma `quick_order.one_click` (także gdy nie ma żadnego z dwóch) |
+| `cart_approval_required` | rola ma je, ale nie ma `carts.order_without_approval` |
+| `setting_disabled` | ustawienie jest wyłączone dla kanału |
+| `missing_defaults` | jedna z czterech wartości domyślnych nie daje się wyznaczyć |
+
+`POST /api/v1/quick-order/one-click` jest odrzucane według tej samej zasady, zanim koszyk roboczy
+zostanie zapisany: `403 ORGANIZATION_PERMISSION_REQUIRED` z kodem `quick_order.one_click` albo
+`carts.order_without_approval`, gdy brakuje tylko tego drugiego. Storefront ukrywa przycisk, gdy
+tylko odpowiedź jest negatywna. Po wyłączeniu modułu jego uprawnienie znika z edytora ról i
+z efektywnych uprawnień każdego członka; przyznane uprawnienia pozostają zapisane i obowiązują
+ponownie po włączeniu modułu.
+
+Przy aktualizacji rola *Członek* organizacji otrzymuje `quick_order.one_click` tylko tam, gdzie
+otrzymuje `carts.order_without_approval` — czyli tylko w organizacji, która nie wymagała
+akceptacji koszyków.
 
 ## Ustawienia
 

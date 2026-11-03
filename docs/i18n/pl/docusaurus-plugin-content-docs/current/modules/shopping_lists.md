@@ -31,6 +31,35 @@ Wszystkie endpointy wymagają zalogowanej sesji klienta i są ograniczone do par
 Oba przeniesienia przyjmują opcjonalne pole `itemIds: string[]` w treści żądania. Pusta lub
 brakująca tablica oznacza „przenieś wszystkie pozycje z listy”.
 
+Lista domyślna ma trzy własne ścieżki: `GET /api/v1/shopping-lists/default` (tworzona przy
+pierwszym odczycie, jeśli jej brak), `POST /api/v1/shopping-lists/default/items` oraz
+`POST /api/v1/shopping-lists/:id/set-default`.
+
+## Uprawnienia w organizacji
+
+Moduł deklaruje dwa uprawnienia organizacji, które administrator organizacji przyznaje rolom
+(`organizations`). Oba są domyślne dla członka, więc rola *Członek* organizacji ma je od początku
+i dla dotychczasowych członków nic się nie zmienia.
+
+| Kod | Etykieta | Czego wymaga |
+| --- | --- | --- |
+| `shopping_lists.create` | Tworzenie i edycja list zakupowych | `POST /api/v1/shopping-lists`, `PATCH` / `DELETE …/:id`, `POST …/:id/items`, `PATCH` / `DELETE …/:id/items/:itemId`, `DELETE …/:id/items`, `POST …/default/items`, `POST …/:id/set-default` |
+| `shopping_lists.convert` | Zamiana list zakupowych na zapytania ofertowe i koszyki | `POST …/:id/convert-to-cart` (razem z `carts.create`), `POST …/:id/convert-to-rfq` (razem z `quote_requests.create`) |
+
+- **Odczyt pozostaje otwarty.** Lista własnych list, odczyt jednej z nich i odczyt listy domyślnej
+  nie wymagają uprawnienia.
+- **Przeniesienie wymaga dwóch uprawnień**: `shopping_lists.convert` oraz uprawnienia do
+  utworzenia celu, które deklarują `carts` i `quote_requests`. To dwa osobne sprawdzenia, w tej
+  kolejności; odmowa wskazuje pierwsze brakujące.
+- **Odmowa** to `403 ORGANIZATION_PERMISSION_REQUIRED` z kodem i przetłumaczoną etykietą w
+  `details`, udzielana, zanim treść żądania albo lista zostaną odczytane.
+- **Zapisanie pozycji koszyka na liście** (`POST /api/v1/cart/items/:itemId/save-to-shopping-list`)
+  to ścieżka modułu `carts`; także ona wymaga `shopping_lists.create`.
+- **Lista domyślna nadal powstaje** dla każdego nowego członka organizacji, niezależnie od jego
+  roli: należy do platformy, a nie jest zapisem członka.
+- **Po wyłączeniu** modułu oba uprawnienia znikają z edytora ról i z efektywnych uprawnień każdego
+  członka; przyznane uprawnienia pozostają zapisane i obowiązują ponownie po włączeniu modułu.
+
 ## Jak działa przeniesienie
 
 `ShoppingListService` dzieli wskazane pozycje według statusu produktu, do którego się odwołują:
