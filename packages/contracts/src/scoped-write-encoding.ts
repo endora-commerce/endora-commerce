@@ -154,3 +154,14 @@ export function validateScopedWrite(
   }
   return null;
 }
+
+/**
+ * `products.scope_version` as the client echoes it: digits within the bigint range, so an
+ * over-long token is a 400 and never a database overflow (C2/C3 security review). It lives in this leaf
+ * file so `catalog.ts` (the product `PATCH`) and `product-scoped-values.ts` both import it
+ * without an import cycle.
+ */
+export const scopeVersionTokenSchema = z
+  .string()
+  .regex(/^\d{1,19}$/)
+  .refine((value) => BigInt(value) <= 9223372036854775807n, 'out of range');

@@ -18,7 +18,7 @@ import { ORDER_MINIMUM_MAX } from './order-minimums.js';
 import { SCOPED_SOURCES, type ScopeRef, type ScopedSource } from './product-scope-model.js';
 import { fieldPathSchema, scopeMissingValueSchema, scopeRequestSchema, scopeWarningSchema } from './product-scopes.js';
 import { PRODUCT_URL_KEY_MAX, productSlugSchema, URL_KEY_TAKEOVER_MAX } from './product-url-keys.js';
-import { scopedWrite } from './scoped-write-encoding.js';
+import { scopeVersionTokenSchema, scopedWrite } from './scoped-write-encoding.js';
 
 // --- Bounds (R21) -----------------------------------------------------------------------------
 
@@ -81,15 +81,6 @@ export const httpUrlSchema = z
   .string()
   .max(SEO_PRODUCT_META_MAX.ogImageUrl)
   .regex(/^https?:\/\/[^\s/?#\\@]+(?:[/?#][^\s\\]*)?$/i, 'http(s) URL');
-
-/**
- * `products.scope_version` as the client echoes it: digits within the bigint range, so an
- * over-long token is a 400 and never a database overflow (C2/C3 security review).
- */
-export const scopeVersionTokenSchema = z
-  .string()
-  .regex(/^\d{1,19}$/)
-  .refine((value) => BigInt(value) <= 9223372036854775807n, 'out of range');
 
 // --- §1 Scope ---------------------------------------------------------------------------------
 

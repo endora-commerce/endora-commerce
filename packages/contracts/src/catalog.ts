@@ -14,6 +14,7 @@ import { ORDER_MINIMUM_MAX } from './order-minimums.js';
 import { productPagePathsSchema } from './product-url-keys.js';
 import type { FieldPath, ScopeLevel } from './product-scope-model.js';
 import type { ProductScopedWriteCell } from './product-scopes.js';
+import { scopeVersionTokenSchema } from './scoped-write-encoding.js';
 
 /**
  * Catalog module contracts — Source of truth per Principle V.
@@ -820,7 +821,7 @@ export const updateProductRequestSchema = baseProductRequestObject
      * Feature 170 (R7) — optional precondition: the `products.scope_version` the caller read
      * (`GET …/scoped-values`, opaque). When sent and stale → `409 VERSION_CONFLICT`.
      */
-    version: z.string().regex(/^\d{1,19}$/).optional(),
+    version: scopeVersionTokenSchema.optional(),
   });
 export type UpdateProductRequest = z.infer<typeof updateProductRequestSchema>;
 
