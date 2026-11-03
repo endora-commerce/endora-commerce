@@ -141,7 +141,7 @@ US5, US6, US7 and US9 land; they are the acceptance of FR-004.
 **Independent test**: spec US1 *Independent Test*.
 
 - [x] T026 [P] [US1] (S1) **RED** `backend/test/contract/catalog/scoped-values-save-isolation.test.ts` [PG]: seed name, description and a scopable text attribute at C×L in `en-US`, `pl-PL`, `de-DE`; save an unrelated field at another scope through `PUT …/scoped-values`; assert every other cell unchanged (FR-002, FR-003, FR-004, SC-001, US1 #1, #3)
-- [ ] T027 [P] [US1] (S3, after T143) **RED** `admin/test/modules/catalog/product-editor-f1-f2-regression.test.tsx`: the editor at a scope with `de-DE` values; change an unrelated field and Save; the request carries only the staged cells; the attributes section never renders `[object Object]` or a serialised map at any scope (FR-002, FR-003, US1 #1–#3)
+- [x] T027 [P] [US1] (S3, after T143) **RED** `admin/test/modules/catalog/product-editor-f1-f2-regression.test.tsx`: the editor at a scope with `de-DE` values; change an unrelated field and Save; the request carries only the staged cells; the attributes section never renders `[object Object]` or a serialised map at any scope (FR-002, FR-003, US1 #1–#3)
 
 ---
 
@@ -265,12 +265,12 @@ US5, US6, US7 and US9 land; they are the acceptance of FR-004.
 **Goal**: one scope bar; every tab at the editor scope; URL state.
 **Independent test**: spec US5 *Independent Test*.
 
-- [ ] T091 [P] [US5] (S3) **RED** `admin/test/modules/catalog/product-editor-scope-switcher.test.tsx`: US5 #1–#6; language names not codes; combobox past 8 options; banner text + icon + live region mounted empty first; `aria-busy` during a switch, no stale values (FR-050…FR-055, FR-057); no other scope selector in the DOM (SC-006)
-- [ ] T092 [P] [US5] (S3) **RED** `admin/test/modules/catalog/product-editor-scope-url.test.tsx`: URL is the truth; preference seeds a URL without scope; invalid / stale scope → nearest valid scope with an announcement (FR-056, spec *Edge Cases*)
-- [ ] T093 [US5] (S3) `packages/modules/catalog/src/admin/lib/scoped-editor-store.ts` (+ `scoped-editor-store.test.ts`, RED first) and `lib/scoped-values-api.ts` (GET / PUT / copy / preference clients replacing the editor's use of `product-scopes-api.ts` and `product-url-keys-api.ts`)
-- [ ] T094 [US5] (S3) `packages/modules/catalog/src/admin/components/ProductScopeBar.tsx` (`contracts/editor-ui.md` §2)
-- [ ] T095 [US5] (S3) Restructure `packages/modules/catalog/src/admin/pages/ProductEditor.tsx`: load through the read endpoint, URL state, every tab at the scope; delete `ProductScopeEditor.tsx`, the gallery Scope / Language selects, `ProductUrlKeysPanel`'s "Add override", `AttachmentScopesDialog.tsx`, the packaging translations dialog, `lib/product-scope-drafts.ts`, `lib/media-scopes.ts`; grep `admin/test/**` for every deleted file; remove the remaining `// 170-shim` in catalog admin — T091, T092 green
-- [ ] T096 [US5] (S3) Tab labels into `packages/modules/catalog/i18n/{en,pl}.json` and the WAI-ARIA tabs pattern (FR-105, FR-107); test `admin/test/modules/catalog/product-editor-tabs.test.tsx` (RED first)
+- [x] T091 [P] [US5] (S3) **RED** `admin/test/modules/catalog/product-editor-scope-switcher.test.tsx`: US5 #1–#6; language names not codes; combobox past 8 options; banner text + icon + live region mounted empty first; `aria-busy` during a switch, no stale values (FR-050…FR-055, FR-057); no other scope selector in the DOM (SC-006)
+- [x] T092 [P] [US5] (S3) **RED** `admin/test/modules/catalog/product-editor-scope-url.test.tsx`: URL is the truth; preference seeds a URL without scope; invalid / stale scope → nearest valid scope with an announcement (FR-056, spec *Edge Cases*)
+- [x] T093 [US5] (S3) `packages/modules/catalog/src/admin/lib/scoped-editor-store.ts` (+ `scoped-editor-store.test.ts`, RED first) and `lib/scoped-values-api.ts` (GET / PUT / copy / preference clients replacing the editor's use of `product-scopes-api.ts` and `product-url-keys-api.ts`)
+- [x] T094 [US5] (S3) `packages/modules/catalog/src/admin/components/ProductScopeBar.tsx` (`contracts/editor-ui.md` §2)
+- [x] T095 [US5] (S3) Restructure `packages/modules/catalog/src/admin/pages/ProductEditor.tsx`: load through the read endpoint, URL state, every tab at the scope; delete `ProductScopeEditor.tsx`, the gallery Scope / Language selects, `ProductUrlKeysPanel`'s "Add override", `AttachmentScopesDialog.tsx`, the packaging translations dialog, `lib/product-scope-drafts.ts`, `lib/media-scopes.ts`; grep `admin/test/**` for every deleted file; remove the remaining `// 170-shim` in catalog admin — T091, T092 green
+- [x] T096 [US5] (S3) Tab labels into `packages/modules/catalog/i18n/{en,pl}.json` and the WAI-ARIA tabs pattern (FR-105, FR-107); test `admin/test/modules/catalog/product-editor-tabs.test.tsx` (RED first)
 
 ---
 
@@ -279,12 +279,12 @@ US5, US6, US7 and US9 land; they are the acceptance of FR-004.
 **Goal**: one `ScopedField`, one polarity, empty overrides allowed only where FR-062 allows.
 **Independent test**: spec US6 *Independent Test*.
 
-- [ ] T097 [P] [US6] (S3) **RED** `packages/admin-kit/src/components/scoped-field/ScopedField.test.tsx`: every state of `contracts/editor-ui.md` §4; accessible names include the field; source line is the description; read-only not disabled (FR-060…FR-065)
-- [ ] T098 [US6] (S3) Implement `packages/admin-kit/src/components/scoped-field/ScopedField.tsx`, export from `packages/admin-kit/src/components/index.ts`, kit strings in both languages — T097 green
-- [ ] T099 [P] [US6] (S3) **RED** `admin/test/modules/catalog/product-editor-scoped-field.test.tsx`: US6 #1–#8 on text, select, date and list fields; clearing name refused naming the field; clearing description stages `empty`
-- [ ] T100 [US6] (S3) Details and order rules on `ScopedField`: name, description, status, window, audience, MOQ, returnable in `pages/ProductEditor.tsx`, `components/ProductScopeControls.tsx` (reduced to field renderers), `components/ProductOrderRulesCard.tsx`; "Inherit (…)" options and opposite-polarity checkboxes retired (FR-063)
-- [ ] T101 [US6] (S3) Media, attachments, packaging and URL key on `ScopedField`: `components/ProductGallerySection.tsx`, `components/ProductAttachmentsSection.tsx`, `components/PackagingUnitsEditor.tsx`, `components/ProductUrlKeysPanel.tsx` — T099 green
-- [ ] T102 [US6] (S3) Global-only and not-at-this-scope states on every tab, the all-global-tab notice, "Edit at Global" / "Edit at <scope>" jumps (FR-081, FR-082)
+- [x] T097 [P] [US6] (S3) **RED** `packages/admin-kit/src/components/scoped-field/ScopedField.test.tsx`: every state of `contracts/editor-ui.md` §4; accessible names include the field; source line is the description; read-only not disabled (FR-060…FR-065)
+- [x] T098 [US6] (S3) Implement `packages/admin-kit/src/components/scoped-field/ScopedField.tsx`, export from `packages/admin-kit/src/components/index.ts`, kit strings in both languages — T097 green
+- [x] T099 [P] [US6] (S3) **RED** `admin/test/modules/catalog/product-editor-scoped-field.test.tsx`: US6 #1–#8 on text, select, date and list fields; clearing name refused naming the field; clearing description stages `empty`
+- [x] T100 [US6] (S3) Details and order rules on `ScopedField`: name, description, status, window, audience, MOQ, returnable in `pages/ProductEditor.tsx`, `components/ProductScopeControls.tsx` (reduced to field renderers), `components/ProductOrderRulesCard.tsx`; "Inherit (…)" options and opposite-polarity checkboxes retired (FR-063)
+- [x] T101 [US6] (S3) Media, attachments, packaging and URL key on `ScopedField`: `components/ProductGallerySection.tsx`, `components/ProductAttachmentsSection.tsx`, `components/PackagingUnitsEditor.tsx`, `components/ProductUrlKeysPanel.tsx` — T099 green
+- [x] T102 [US6] (S3) Global-only and not-at-this-scope states on every tab, the all-global-tab notice, "Edit at Global" / "Edit at <scope>" jumps (FR-081, FR-082)
 
 ---
 
@@ -296,12 +296,12 @@ US5, US6, US7 and US9 land; they are the acceptance of FR-004.
 - [x] T103 [P] [US7] (S1) **RED** `backend/test/contract/catalog/scoped-values-save.test.ts` [PG]: one audit entry with every cell's before / after (FR-072, SC-008); `changedFields`; warn-mode warnings (US7 #3, FR-098); re-applying the audit before-state through the API restores 100% of the fields (US7 #5, FR-074, SC-008); `409 VERSION_CONFLICT` writes nothing (US7 #6)
 - [x] T104 [P] [US7] (S1) **RED** `backend/test/contract/catalog/scoped-values-save-atomicity.test.ts` [PG]: failure injected in each family writer, a late `URL_KEY_TAKEN`, a refuse-mode gate → nothing written, no audit entry, no event (FR-071, FR-073, FR-076, SC-007)
 - [x] T105 [US7] (S1) Order the save: gate before any write, then the fixed write order; failure-injection seam for tests; audit projection carries a complete, re-applicable before-state — T103, T104 green
-- [ ] T106 [P] [US7] (S3) **RED** `admin/test/modules/catalog/product-editor-save.test.tsx`: US7 #1–#6 UI half; Save / Discard / Stay (FR-075); staged changes survive tab switches (FR-083); the unsaved-changes prompt counts every staged change; per-field errors and per-pair gate refusal
-- [ ] T107 [US7] (S3) Header Save, error mapping, switch-guard `ModalDialog`, `useUnsavedChangesPrompt` on the store; retire every per-section Save and auto-save that writes a scoped value or the product row (FR-070, round 6) — T106 green
+- [x] T106 [P] [US7] (S3) **RED** `admin/test/modules/catalog/product-editor-save.test.tsx`: US7 #1–#6 UI half; Save / Discard / Stay (FR-075); staged changes survive tab switches (FR-083); the unsaved-changes prompt counts every staged change; per-field errors and per-pair gate refusal
+- [x] T107 [US7] (S3) Header Save, error mapping, switch-guard `ModalDialog`, `useUnsavedChangesPrompt` on the store; retire every per-section Save and auto-save that writes a scoped value or the product row (FR-070, round 6) — T106 green
 - [x] T144 [P] [US7] (S1) **RED** `backend/test/contract/catalog/scoped-values-version-immediate-actions.test.ts` [PG]: read the version; run every immediate action (add / remove / reorder a variant, bundle slot, grouped item, link, gallery item, attachment, packaging unit; replace an image asset; a price-book row write through `price_lists`; a channel-membership add; a stock change through `inventory`); then a Save with the **old** version → 200 and the staged cells written; a Save naming the removed gallery item's alt text → `422 SCOPED_VALUE_INVALID` `subject_not_found`, nothing written (FR-070, spec *Edge Cases*, R7)
 - [x] T145 [US7] (S1) Make T144 green in `packages/modules/catalog/src/backend/services/` (`gallery.service.ts`, `attachment.service.ts`, `packaging-unit.service.ts`, `product-link.service.ts`, `grouped.service.ts`, `bundle.service.ts`, variant writers in `catalog-admin.service.ts`): no structural Command marks the `Product` entity dirty or writes `products.scope_version`; `bumpScopeVersion` is called only by the scoped-value / product-row writers; `subject_not_found` in `scoped-values-save.service.ts`. A gap in another module (none expected: those cannot write `products`) goes to its owning stream
-- [ ] T146 [P] [US7] (S3) **RED** `admin/test/modules/catalog/product-editor-immediate-actions.test.tsx`: staged scoped edits survive an immediate action on every tab; each immediate control is labelled "Applies immediately"; an immediate action neither stages nor saves; staged cells of a removed subject are dropped with an announced notice; the next Save sends the version read before the immediate action and succeeds (FR-070, US7 #7, spec *Edge Cases*)
-- [ ] T147 [US7] (S3) "Applies immediately" labels on every structural / price-book / membership / stock control in `packages/modules/catalog/src/admin/**` (and through the existing zones for `price_lists`, `sales_channels`, `inventory` contributions — the label is rendered by the host around the zone); store refresh of one family without clearing `staged`; drop-and-announce for removed subjects — T146 green
+- [x] T146 [P] [US7] (S3) **RED** `admin/test/modules/catalog/product-editor-immediate-actions.test.tsx`: staged scoped edits survive an immediate action on every tab; each immediate control is labelled "Applies immediately"; an immediate action neither stages nor saves; staged cells of a removed subject are dropped with an announced notice; the next Save sends the version read before the immediate action and succeeds (FR-070, US7 #7, spec *Edge Cases*)
+- [x] T147 [US7] (S3) "Applies immediately" labels on every structural / price-book / membership / stock control in `packages/modules/catalog/src/admin/**` (and through the existing zones for `price_lists`, `sales_channels`, `inventory` contributions — the label is rendered by the host around the zone); store refresh of one family without clearing `staged`; drop-and-announce for removed subjects — T146 green
 
 ---
 
@@ -354,8 +354,8 @@ US5, US6, US7 and US9 land; they are the acceptance of FR-004.
 **Goal**: the gate's missing values named at the editor scope.
 **Independent test**: spec US11 *Independent Test*.
 
-- [ ] T127 [P] [US11] (S1) **RED** `backend/test/contract/catalog/scoped-values-completeness.test.ts` [PG]: summary at C×L, C (fields × languages) and G (count of incomplete pairs); a Global value satisfies every (C, L) (FR-095…FR-097)
-- [ ] T128 [US11] (S1) Completeness summary per level in `scoped-values-read.service.ts` — T127 green
+- [x] T127 [P] [US11] (S1) **RED** `backend/test/contract/catalog/scoped-values-completeness.test.ts` [PG]: summary at C×L, C (fields × languages) and G (count of incomplete pairs); a Global value satisfies every (C, L) (FR-095…FR-097)
+- [x] T128 [US11] (S1) Completeness summary per level in `scoped-values-read.service.ts` — T127 green
 - [ ] T129 [P] [US11] (S3) **RED** `admin/test/modules/catalog/product-editor-completeness.test.tsx`: US11 #1–#3; links focus the field; warn-mode warnings announced (FR-097, FR-098)
 - [ ] T130 [US11] (S3) Completeness markers and summaries in `ProductScopeBar.tsx` and `ScopedField` usage (`contracts/editor-ui.md` §9) — T129 green
 
@@ -375,7 +375,7 @@ US5, US6, US7 and US9 land; they are the acceptance of FR-004.
 
 - [ ] T133 [P] (S3) Field zone scope props (FR-106): host passes `scope` and `languageCodes: null` to `product.editor.field.after`; `admin/test/modules/catalog/product-editor-field-zone.test.tsx` (RED first) proves a contributor ignoring `scope` still renders
 - [ ] T134 [P] (S3) **SC-013** `admin/test/modules/catalog/product-editor-a11y.test.tsx`: axe-core at G, C and C×L, read-only and with errors — 0 violations
-- [ ] T135 [P] (S1) Palette (FR-108, XVI): `open-products` keywords (`scope`, `zakres`, `kanał`, `język`, `translation`, `tłumaczenie`) in `packages/modules/catalog/src/manifest.ts` and both catalog bundles (via S3); run `pnpm --filter backend run check:action-route-permissions`, `pnpm --filter admin exec vitest run test/unit/palette-coverage.test.ts`
+- [x] T135 [P] (S1) Palette (FR-108, XVI): `open-products` keywords (`scope`, `zakres`, `kanał`, `język`, `translation`, `tłumaczenie`) in `packages/modules/catalog/src/manifest.ts` and both catalog bundles (via S3); run `pnpm --filter backend run check:action-route-permissions`, `pnpm --filter admin exec vitest run test/unit/palette-coverage.test.ts`
 - [ ] T136 [P] (S2/S3) i18n sweep (FR-105): `pnpm --filter backend exec vitest run test/unit/_i18n/registered-bundles-shape.test.ts`; every new string in `en` and `pl` for catalog, seo, import_export, pim_connector, admin-kit; `pnpm run check:language`
 - [ ] T137 [P] (S1) Docs (en) and Polish mirrors per `specs/conventions/module-documentation.md`: `packages/modules/catalog/docs/` (three-level scopes, "Use value from <parent scope>", empty overrides, URL keys and redirects, the write encoding stated against JSON Merge Patch and Magento — FR-115), `import_export/docs/` (profiles, CSV grammar), `seo/docs/` (inline SEO, relaxed read), `search/docs/` (reindex, language-restricted match), `pim_connector/docs/` (T090); `docs/i18n/pl/…` and `docs/translation-cache/pl/…`
 - [ ] T138 [P] (S1) Changesets in `.changeset/` per plan *Compatibility and release*: `minor` with BREAKING bodies for contracts, mod-catalog, mod-seo, mod-search, mod-import-export, mod-pim-connector, admin-kit, page-builder-admin (in-place `null` change FR-116 with old and new call; removed routes; name / description strings; grammar; reindex); `patch` for each reader package; the R20 follow-up list in the contracts body (FR-117); `pnpm --filter backend run check:release-intent`

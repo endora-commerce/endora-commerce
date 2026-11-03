@@ -271,6 +271,13 @@ Owner decisions on 2026-10-30 arising from the pre-build security and schema rev
   → A: **The Global name** on the snapshot.
 - Q: Which product name does the back-in-stock e-mail show? → A: **The Global name** in 170; per-scope is the
   follow-up endora-commerce/endora-commerce#696.
+- Q: Does the duplicate copy per-scope status? → A: **No** — status stays at Global only, so a copy is never live
+  in a channel by accident (keeps 163's rule; every other scoped family is copied, FR-119).
+- Q: How does the editor show gallery roles? → A: **One field per role** (base image, small image, thumbnail),
+  each with its own "Use value from <parent scope>" checkbox; no per-image roles multiselect.
+- Q: What does a field show right after "Use value from <parent scope>" is ticked? → A: **The parent's value**,
+  read-only; the read carries `inheritedValue` for every non-Global field.
+- Q: Where are the URL redirects? → A: **Details, under the URL key** (stays visible when SEO is off).
 
 ## Amendments to 163 (2026-10-29, extended 2026-10-30)
 
