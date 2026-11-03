@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { expect } from 'vitest';
 import type { ScopedValuesResponse } from '@endora-commerce/contracts';
 import type { BackendServerHandle } from './test-server.js';
+import type { LightMyRequestResponse as InjectResponse } from 'fastify';
 import { createAttributeFixture } from './seed-catalog.js';
 
 /**
@@ -16,8 +17,8 @@ export interface ScopedValuesFixture {
   attribute(input: { key: string; valueType: string; scopable?: boolean; isRequired?: boolean; options?: string[] }): Promise<string>;
   product(input?: { channels?: string[]; type?: string; attributeValues?: Record<string, unknown>; name?: string; description?: string | null }): Promise<string>;
   read(productId: string, scope?: Scope, who?: Who): Promise<ScopedValuesResponse['data']>;
-  readRaw(productId: string, scope?: Scope, who?: Who): ReturnType<BackendServerHandle['app']['inject']>;
-  put(productId: string, scope: Scope, changes: unknown, options?: { version?: string; who?: Who }): ReturnType<BackendServerHandle['app']['inject']>;
+  readRaw(productId: string, scope?: Scope, who?: Who): Promise<InjectResponse>;
+  put(productId: string, scope: Scope, changes: unknown, options?: { version?: string; who?: Who }): Promise<InjectResponse>;
   save(productId: string, scope: Scope, changes: unknown): Promise<ScopedValuesResponse['data']>;
   /** Two gallery items (the first holds `base_image` at Global), one attachment and one packaging unit, by SQL. */
   media(productId: string): Promise<{ items: [string, string]; attachment: string; unit: string }>;
