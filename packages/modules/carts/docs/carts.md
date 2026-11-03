@@ -69,8 +69,21 @@ working basket ends `completed` with `completed_order_id` naming its order, or
 is deleted when the placement is refused. It never appears in a cart list, in
 the customer's carts panel or in the abandonment sweep.
 
-Re-arm rule: any buyer-driven mutation (add/remove/quantity/coupon) on an
-`approved` cart silently drops `approval_status` back to `pending`.
+Re-arm rule: any buyer-driven content change (a line added or removed, a
+quantity changed, a coupon applied or removed) on a cart that is in approval
+moves it back one step, in the same transaction as the change and with an
+`approval_resubmission_required` audit entry:
+
+- an `approved` cart drops back to `pending`, so the changed basket is approved
+  again before it is ordered;
+- a `pending` cart returns to `not_required` — the state it was submitted from —
+  so the administrator never approves contents other than those submitted. It
+  leaves the administrator's pending list, approving or rejecting it answers
+  `CART_APPROVAL_NOT_PENDING`, and the buyer is offered **Submit for approval**
+  (`primaryCta: 'submit_for_approval'`) again.
+
+A rejected cart is closed (`status: 'rejected'`) and cannot be submitted again,
+so a `pending` cart was always submitted from `not_required`.
 
 Self-approval exemption: a cart created by an Organization Administrator
 is born with `approval_status='not_required'` regardless of the per-Org

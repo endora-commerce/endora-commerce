@@ -77,8 +77,20 @@ opróżniany ani zamykany. Koszyk roboczy kończy jako `completed` z `completed_
 jego zamówienie albo jest usuwany, gdy złożenie zamówienia zostanie odrzucone. Nie pojawia się na
 żadnej liście koszyków, w panelu koszyków klienta ani w wyszukiwaniu porzuconych koszyków.
 
-Ponowne wymaganie akceptacji: każda zmiana koszyka przez kupującego (dodanie, usunięcie, ilość,
-kupon) w koszyku `approved` po cichu przywraca `approval_status` do `pending`.
+Ponowne wymaganie akceptacji: każda zmiana zawartości koszyka przez kupującego (dodanie lub
+usunięcie pozycji, zmiana ilości, dodanie lub usunięcie kuponu) w koszyku objętym akceptacją cofa
+go o jeden krok — w tej samej transakcji co zmiana i z wpisem audytu
+`approval_resubmission_required`:
+
+- koszyk `approved` wraca do `pending`, więc zmieniony koszyk musi zostać ponownie zaakceptowany,
+  zanim zostanie z niego złożone zamówienie;
+- koszyk `pending` wraca do `not_required` — stanu, z którego został przekazany do akceptacji —
+  więc administrator nigdy nie akceptuje innej zawartości niż przekazana. Koszyk znika z listy
+  oczekujących administratora, jego akceptacja lub odrzucenie zwraca `CART_APPROVAL_NOT_PENDING`,
+  a kupujący ponownie widzi **Zgłoś do akceptacji** (`primaryCta: 'submit_for_approval'`).
+
+Odrzucony koszyk jest zamknięty (`status: 'rejected'`) i nie można go ponownie przekazać, więc
+koszyk `pending` zawsze został przekazany ze stanu `not_required`.
 
 Brak akceptowania własnych koszyków: koszyk utworzony przez administratora organizacji powstaje z
 `approval_status='not_required'`, niezależnie od ustawienia akceptacji w organizacji.
