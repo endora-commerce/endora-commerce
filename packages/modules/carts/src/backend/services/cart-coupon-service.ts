@@ -55,9 +55,9 @@ export interface CouponReevaluateResult {
 export class CartCouponService {
   /**
    * `approvalService` is optional — when wired, applying or clearing a
-   * coupon on an `approved` cart re-arms approval to `pending`. Legacy
-   * compositions without the approval surface omit it (re-arm is a
-   * no-op when absent).
+   * coupon re-arms approval: an `approved` cart goes back to `pending`, a
+   * `pending` one to `not_required` (issue #649). Legacy compositions
+   * without the approval surface omit it (re-arm is a no-op when absent).
    */
   constructor(
     private readonly emFactory: () => EntityManager,
@@ -80,6 +80,18 @@ export class CartCouponService {
     private readonly organizations: OrganizationDetailsPort,
     private readonly approvalService?: CartApprovalService,
   ) {}
+
+  /**
+   * The approval re-arm of a coupon change, staged on `em` so the flush that
+   * writes the code writes the transition and its audit row with it (issue
+   * #649). A guest's basket has no approval to re-arm.
+   */
+  #reArmWithin(em: EntityManager, managedCart: Cart): void {
+    if (!this.approvalService || !managedCart.customerAccountId) return;
+    this.approvalService.reArmWithin(em, managedCart, {
+      customerAccountId: managedCart.customerAccountId,
+    });
+  }
 
   /** The buyer's effective group: their own, else their Organization's. */
   private customerGroupIdFor(cart: Cart): Promise<string | null> {
@@ -187,17 +199,13 @@ export class CartCouponService {
 
     managedCart.appliedPromotionCode = code;
     managedCart.lastActivityAt = new Date();
+    this.#reArmWithin(em, managedCart);
     await em.flush();
     // Mirror the persisted mutation onto the caller's in-memory cart so
     // serializeCart in the route handler reflects it without re-reading.
     cart.appliedPromotionCode = code;
     cart.lastActivityAt = managedCart.lastActivityAt;
-    if (this.approvalService && managedCart.customerAccountId) {
-      await this.approvalService.maybeReArm(managedCart, {
-        customerAccountId: managedCart.customerAccountId,
-      });
-      cart.approvalStatus = managedCart.approvalStatus;
-    }
+    mirrorApproval(cart, managedCart);
     return { outcome: 'applied', cart, appliedCode: code };
   }
 
@@ -235,15 +243,11 @@ export class CartCouponService {
     if (!managedCart) return;
     managedCart.appliedPromotionCode = null;
     managedCart.lastActivityAt = new Date();
+    this.#reArmWithin(em, managedCart);
     await em.flush();
     cart.appliedPromotionCode = null;
     cart.lastActivityAt = managedCart.lastActivityAt;
-    if (this.approvalService && managedCart.customerAccountId) {
-      await this.approvalService.maybeReArm(managedCart, {
-        customerAccountId: managedCart.customerAccountId,
-      });
-      cart.approvalStatus = managedCart.approvalStatus;
-    }
+    mirrorApproval(cart, managedCart);
   }
 
   /**
@@ -301,4 +305,10 @@ export class CartCouponService {
     await em.flush();
     cart.appliedPromotionCode = null;
   }
+}
+
+/** Keep the caller's in-memory cart in step with the re-armed approval. */
+function mirrorApproval(cart: Cart, managedCart: Cart): void {
+  cart.approvalStatus = managedCart.approvalStatus;
+  cart.submittedForApprovalAt = managedCart.submittedForApprovalAt ?? null;
 }

@@ -32,6 +32,8 @@ import { approvalSubmissionRequired } from './cart-approval-policy.js';
  *   pending       → rejected_by_org_admin (org-admin rejects; main
  *                                          status also flips to `rejected`)
  *   approved      → pending (buyer mutates cart post-approval; re-arm)
+ *   pending       → not_required (buyer mutates cart while it awaits
+ *                                 approval; must submit again, issue #649)
  *   pending|approved → not_required (org turns the policy off)
  *
  * Self-approval exemption: a cart whose owner is themself an Org Admin
@@ -425,35 +427,49 @@ export class CartApprovalService {
   }
 
   /**
-   * Re-arm hook: any buyer-driven mutation on an `approved` cart drops
-   * it back to `pending`. Called by CartService.{addItem,updateItem,
-   * removeItem} and by CartCouponService.{apply,clear}.
+   * Re-arm hook: a buyer's content change — a line added, a quantity changed, a
+   * line removed, a coupon applied or removed — on a cart that is in, or past,
+   * approval. Called by CartService.{addItem,addItems,updateItem,removeItem}
+   * and by CartCouponService.{apply,clear}, on the caller's own entity manager
+   * and its managed `cart`, **before** the flush that writes the change, so the
+   * change, the transition and its audit row land in one transaction (the
+   * `Within` convention: nothing here flushes).
+   *
+   *   approved → pending       the change needs approving again (feature 027)
+   *   pending  → not_required  issue #649 (owner ruling 2026-11-03, option b):
+   *                            the administrator would otherwise approve
+   *                            contents other than those submitted, so the
+   *                            submission is withdrawn and the buyer submits
+   *                            again. `not_required` is the pre-submission
+   *                            state because it is the only one
+   *                            {@link submitForApproval} starts from.
+   *
+   * Idempotent within one unit of work: once moved, the cart no longer matches,
+   * so a batch that writes several lines records one transition.
    */
-  async maybeReArm(cart: Cart, actor: { customerAccountId?: string }): Promise<void> {
-    if (cart.approvalStatus !== 'approved') return;
-    // Issue #619 — `cart` belongs to the caller's entity manager, which has
-    // already flushed; flushing a fresh fork wrote nothing, so an approved cart
-    // the buyer changed stayed `approved`. The re-arm is made on this
-    // manager's own copy, and the caller's object is kept in step with it.
-    const em = this.emFactory();
-    const managed = await em.findOne(Cart, { id: cart.id });
-    if (!managed || managed.approvalStatus !== 'approved') return;
-    const submittedAt = new Date();
-    managed.approvalStatus = 'pending';
-    managed.submittedForApprovalAt = submittedAt;
+  reArmWithin(em: EntityManager, cart: Cart, actor: { customerAccountId?: string }): void {
+    const from = cart.approvalStatus;
+    let to: CartApprovalStatus;
+    if (from === 'approved') {
+      to = 'pending';
+      cart.submittedForApprovalAt = new Date();
+    } else if (from === 'pending') {
+      to = 'not_required';
+      cart.submittedForApprovalAt = null;
+    } else {
+      return;
+    }
+    cart.approvalStatus = to;
     this.cartAuditService.recordWithin(em, [
       {
-        cartId: managed.id,
+        cartId: cart.id,
         actorType: 'customer',
         ...(actor.customerAccountId ? { actorId: actor.customerAccountId } : {}),
         action: 'approval_resubmission_required',
-        fromState: 'approved',
-        toState: 'pending',
+        fromState: from,
+        toState: to,
       },
     ]);
-    await em.flush();
-    cart.approvalStatus = 'pending';
-    cart.submittedForApprovalAt = submittedAt;
   }
 }
 
