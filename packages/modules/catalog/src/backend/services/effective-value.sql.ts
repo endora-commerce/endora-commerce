@@ -48,13 +48,14 @@ function render(build: (w: Writer, alias: string) => string): SqlExpression {
 
 /** The `value` of one override row at a scope, or SQL `NULL` when there is no row. */
 function overrideValue(w: Writer, alias: string, attributeKey: string, channelId: string, languageCode: string | null): string {
-  const language =
-    languageCode === null ? `o.language_code is null` : `lower(o.language_code) = lower(${w.bind(languageCode)}::text)`;
-  return (
+  // Bound in the order the placeholders are written: attribute, channel, then the language.
+  const head =
     `(select o.value from product_value_overrides o ` +
     `where o.product_id = ${alias}.id and o.attribute_key = ${w.bind(attributeKey)} ` +
-    `and o.channel_id = ${w.bind(channelId)} and ${language} limit 1)`
-  );
+    `and o.channel_id = ${w.bind(channelId)} and `;
+  const language =
+    languageCode === null ? `o.language_code is null` : `lower(o.language_code) = lower(${w.bind(languageCode)}::text)`;
+  return `${head}${language} limit 1)`;
 }
 
 /**

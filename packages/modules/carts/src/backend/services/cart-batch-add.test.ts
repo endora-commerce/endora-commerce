@@ -83,9 +83,9 @@ function product(
 }
 
 const PRODUCTS = new Map<string, CatalogProductRecord>([
-  [A, product(A, { type: 'configurable', minOrderQuantity: 10, name: { en: 'Anchor', pl: 'Kotwa' } })],
+  [A, product(A, { type: 'configurable', minOrderQuantity: 10, name: 'Anchor' })],
   [B, product(B)],
-  [C, product(C, { minOrderQuantity: 10, name: { en: 'Cement', pl: 'Cement PL' } })],
+  [C, product(C, { minOrderQuantity: 10, name: 'Cement' })],
   [H, product(H, { minOrderQuantity: 10, allowedOrganizationIds: ['org-other'] })],
   [Q, product(Q)],
   [D, product(D, { status: 'inactive' })],
@@ -97,7 +97,6 @@ const UNITS: CatalogPackagingUnitRecord[] = [
     productId: C,
     name: 'Pallet',
     // Feature 163 (FR-079) — the name per language; the line snapshots it in the basket language.
-    nameTranslations: { 'pl-PL': 'Paleta' },
     baseQuantity: 64,
     minOrderUnits: 2,
     position: 0,

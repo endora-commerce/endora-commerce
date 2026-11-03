@@ -123,7 +123,6 @@ describe('resolveLinePackaging', () => {
 describe('resolveLinePackaging — the unit name at the scope language (163)', () => {
   const TRANSLATED: PackagingUnitCandidate = {
     ...PALLET_B,
-    nameTranslations: { 'pl-PL': 'Paleta' },
   };
 
   it('an id-named unit stores its translation at the scope language', () => {

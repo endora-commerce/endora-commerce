@@ -65,8 +65,8 @@ function rig(rows: Row[], channels: Channel[] = CHANNELS) {
     commandBus as never,
     {
       listAll: async () => [
-        { key: 'narrowed', channelScoped: false, languageScoped: false, valueType: 'string' },
-        { key: 'color', channelScoped: true, languageScoped: true, valueType: 'string' },
+        { key: 'narrowed', scopable: false, valueType: 'string' },
+        { key: 'color', scopable: true, valueType: 'string' },
       ],
     } as never,
   );

@@ -63,16 +63,23 @@ export interface ProductScopeWriteState {
   memberChannels: ReadonlyMap<string, readonly string[]>;
 }
 
+/** `{ inherit: true }` — the write encoding's "no own value here" (`contracts/write-encoding.md`). */
+type Inherit = { inherit: true };
+const INHERIT: Inherit = { inherit: true };
+
+/**
+ * One channel of the audit before / after, **in the request shape of the write encoding**
+ * (feature 170, FR-074, FR-116): re-sending it through the PATCH restores the rows. An inheriting
+ * field is `{ inherit: true }`; an overridden minimum with no value is `null` (no minimum here).
+ */
 interface ChannelAuditEntry {
   channelId: string;
-  status?: ProductScopeStatus | null;
-  window?: { from: string | null; until: string | null } | null;
-  audience?: AudienceRule | null;
-  /** 170-shim: the audit still speaks 163's `null` = inherit; T040 moves it to the write encoding. */
-  minOrderQuantityOverridden?: boolean;
-  minOrderQuantity?: number | null;
-  returnable?: boolean | null;
-  languageStatuses: Array<{ languageCode: string; status: ProductScopeStatus | null }>;
+  status?: ProductScopeStatus | Inherit;
+  window?: { from: string | null; until: string | null } | Inherit;
+  audience?: AudienceRule | Inherit;
+  minOrderQuantity?: number | null | Inherit;
+  returnable?: boolean | Inherit;
+  languageStatuses: Array<{ languageCode: string; status: ProductScopeStatus | Inherit }>;
 }
 
 /** The audit projection — the PATCH body's shape with every touched value explicit. */
@@ -173,8 +180,8 @@ export function planProductScopeWrite(
       const op = toScopedWriteOp(language.status);
       if (op === undefined) continue;
       const nextStatus = refuseEmpty(op, 'status', { level: 'channel_language', channelId: entry.channelId, languageCode });
-      beforeEntry.languageStatuses.push({ languageCode, status: current });
-      afterEntry.languageStatuses.push({ languageCode, status: nextStatus });
+      beforeEntry.languageStatuses.push({ languageCode, status: current ?? INHERIT });
+      afterEntry.languageStatuses.push({ languageCode, status: nextStatus ?? INHERIT });
       if (current !== nextStatus) changed.add('scopedStatus');
       plan.languageRows.push({ channelId: entry.channelId, languageCode, next: nextStatus });
     }
@@ -359,12 +366,12 @@ function emptyRow(productId: string, channelId: string): ProductChannelScopeReco
 
 function channelProjection(row: ProductChannelScopeRecord): Omit<ChannelAuditEntry, 'channelId' | 'languageStatuses'> {
   return {
-    status: row.status,
-    window: row.window === null ? null : windowProjection(row.window, 'plain'),
-    audience: row.audience === null ? null : { ...row.audience, allowedOrganizationIds: [...row.audience.allowedOrganizationIds] },
-    minOrderQuantityOverridden: row.minOrderQuantityOverridden,
-    minOrderQuantity: row.minOrderQuantity,
-    returnable: row.returnable,
+    status: row.status ?? INHERIT,
+    window: row.window === null ? INHERIT : windowProjection(row.window, 'plain'),
+    audience:
+      row.audience === null ? INHERIT : { ...row.audience, allowedOrganizationIds: [...row.audience.allowedOrganizationIds] },
+    minOrderQuantity: row.minOrderQuantityOverridden ? row.minOrderQuantity : INHERIT,
+    returnable: row.returnable ?? INHERIT,
   };
 }
 

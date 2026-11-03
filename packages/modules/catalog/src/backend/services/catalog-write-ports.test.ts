@@ -13,52 +13,47 @@ import type { ProductScopesService } from './product-scopes.service.js';
 import type { UrlKeyService } from './url-key.service.js';
 
 /**
- * Feature 163 (T122, FR-091) — a connector's scoped write becomes the scopes PATCH
- * body with only the scopes it names: one entry per channel, an absent key left
- * absent (untouched), `null` kept (use inherited).
+ * Feature 163 (T122, FR-091), on the 170 v2 cells (170-shim until T083): a connector's status and
+ * window cells become the scopes PATCH body with only the scopes they name, a C×L URL key goes to
+ * the URL-key import mode, and every other family is refused `not_supported`.
  */
 const B2B = '00000000-0000-4000-8000-0000000000c1';
 const B2C = '00000000-0000-4000-8000-0000000000c2';
 
 describe('toScopesPatch', () => {
-  it('groups by channel and names only what the input names', () => {
-    expect(
-      toScopesPatch({
-        status: [
-          { channelId: B2B, languageCode: null, value: 'inactive' },
-          { channelId: B2B, languageCode: 'pl-PL', value: null },
-        ],
-        orderRules: [{ channelId: B2C, returnable: false }],
-      }),
-    ).toEqual({
-      channels: [
-        { channelId: B2B, status: 'inactive', languageStatuses: [{ languageCode: 'pl-PL', status: null }] },
-        { channelId: B2C, returnable: false },
+  it('groups by channel and names only what the cells name, in the write encoding', () => {
+    const { request, refused } = toScopesPatch({
+      cells: [
+        { scope: { level: 'channel', channelId: B2B }, field: 'status', op: { op: 'set', value: 'inactive' } },
+        { scope: { level: 'channel_language', channelId: B2B, languageCode: 'pl-PL' }, field: 'status', op: { op: 'inherit' } },
+        { scope: { level: 'channel', channelId: B2C }, field: 'returnable', op: { op: 'set', value: false } },
       ],
     });
+    expect(request).toEqual({
+      channels: [{ channelId: B2B, status: 'inactive', languageStatuses: [{ languageCode: 'pl-PL', status: { inherit: true } }] }],
+    });
+    expect(refused).toEqual([{ scope: { level: 'channel', channelId: B2C }, field: 'returnable', code: 'not_supported' }]);
   });
 
-  it('maps windows to ISO bounds, the global one to `global`', () => {
-    const from = new Date('2026-11-01T00:00:00.000Z');
-    expect(
-      toScopesPatch({
-        window: [
-          { channelId: null, value: { from, until: null } },
-          { channelId: B2B, value: null },
-        ],
-        audience: [{ channelId: B2C, value: { visibility: 'public', allowedOrganizationIds: [] } }],
-      }),
-    ).toEqual({
-      channels: [
-        { channelId: B2B, window: null },
-        { channelId: B2C, audience: { visibility: 'public', allowedOrganizationIds: [] } },
+  it('maps the Global window to `global` and a channel window to the channel entry', () => {
+    const { request } = toScopesPatch({
+      cells: [
+        { scope: { level: 'global' }, field: 'window', op: { op: 'set', value: { from: '2026-11-01T00:00:00.000Z', until: null } } },
+        { scope: { level: 'channel', channelId: B2B }, field: 'window', op: { op: 'inherit' } },
       ],
+    });
+    expect(request).toEqual({
+      channels: [{ channelId: B2B, window: { inherit: true } }],
       global: { publishFrom: '2026-11-01T00:00:00.000Z', publishUntil: null },
     });
   });
 
-  it('is an empty write for an empty input', () => {
-    expect(toScopesPatch({})).toEqual({ channels: [] });
+  it('is an empty write for no cells; a C×L key goes to the URL-key writes', () => {
+    expect(toScopesPatch({ cells: [] })).toEqual({ request: { channels: [] }, urlKeys: [], refused: [] });
+    const { urlKeys } = toScopesPatch({
+      cells: [{ scope: { level: 'channel_language', channelId: B2B, languageCode: 'pl-PL' }, field: 'urlKey', op: { op: 'set', value: 'drill' } }],
+    });
+    expect(urlKeys).toEqual([{ channelId: B2B, languageCode: 'pl-PL', key: 'drill' }]);
   });
 });
 
@@ -75,8 +70,13 @@ describe('createCatalogProductScopeWritePort (checkpoint C code review, N2; A-6)
       },
     } as unknown as ProductScopesService;
     const port = createCatalogProductScopeWritePort(() => scopes, () => ({}) as UrlKeyService);
-    await port.applyScopes('p-1', { status: [{ channelId: B2B, languageCode: null, value: 'active' }] }, { source: 'pim' });
+    const result = await port.applyScopes(
+      'p-1',
+      { cells: [{ scope: { level: 'channel', channelId: B2B }, field: 'status', op: { op: 'set', value: 'active' } }] },
+      { source: 'pim' },
+    );
     expect(calls).toEqual([['p-1', { channels: [{ channelId: B2B, status: 'active' }] }]]);
+    expect(result).toEqual({ applied: 1, refused: [], urlKeys: [] });
   });
 });
 

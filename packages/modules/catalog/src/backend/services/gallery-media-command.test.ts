@@ -144,14 +144,15 @@ describe('gallery labels and order under the product.media.update Command (163 B
     expect(h.outside).toEqual([]);
   });
 
-  it('alt text and labels in one body are one entry, and no label row is written after the Command', async () => {
+  it('position and labels in one body are one entry, and no label row is written after the Command', async () => {
+    // Feature 170: alt text left this route for the scoped-values save.
     const h = harness();
-    await h.service.update(PRODUCT, ITEM_B, { altText: { 'pl-PL': 'Zdjęcie' }, labels: ['small_image'] }, KEEP);
+    await h.service.update(PRODUCT, ITEM_B, { position: 3, labels: ['small_image'] }, KEEP);
     expect(h.recorded).toHaveLength(1);
     expect(h.recorded[0]).toMatchObject({
       action: 'product.media.update',
-      before: { labels: [], altText: { 'pl-PL': '' } },
-      after: { labels: ['small_image'], altText: { 'pl-PL': 'Zdjęcie' } },
+      before: { labels: [] },
+      after: { labels: ['small_image'], position: 3 },
     });
     expect(h.outside).toEqual([]);
     expect(h.labelsOf(ITEM_B)).toEqual(['small_image']);

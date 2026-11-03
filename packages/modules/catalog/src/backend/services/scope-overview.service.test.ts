@@ -8,7 +8,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import { buildScopeOverview, ScopeOverviewService, type ScopeOverviewInput } from './scope-overview.service.js';
 
 /**
- * Feature 163, Phase 9 (T069) — the pure core of `GET …/products/:id/scope-overview`
+ * Feature 163, Phase 9 (T069), on feature 170's model (no Language row) — the pure core of `GET …/products/:id/scope-overview`
  * (`contracts/admin-scopes-api.md` §3; US4, FR-015, FR-041).
  *
  * `buildScopeOverview` takes the rows the service read and answers the matrix:
@@ -31,6 +31,7 @@ function channelRow(over: Partial<ProductChannelScopeRecord> = {}): ProductChann
     status: null,
     window: null,
     audience: null,
+    minOrderQuantityOverridden: false,
     minOrderQuantity: null,
     returnable: null,
     ...over,
@@ -47,12 +48,12 @@ function input(over: Partial<ScopeOverviewInput> = {}): ScopeOverviewInput {
       status: 'active',
       archivedAt: null,
       window: { from: null, until: null },
-      name: { 'pl-PL': 'Wiertarka' },
-      description: { 'pl-PL': 'Opis' },
+      name: 'Wiertarka',
+      description: 'Opis',
       attributeValues: {},
       slug: 'wiertarka',
     },
-    requiredLanguageAttributes: [],
+    requiredAttributes: [],
     channels: [
       { id: B2B, name: { 'en-US': 'B2B' }, languages: ['pl-PL', 'de-DE'], isMember: true },
       { id: B2C, name: { 'en-US': 'B2C' }, languages: ['pl-PL', 'en-GB'], isMember: true },
@@ -61,8 +62,7 @@ function input(over: Partial<ScopeOverviewInput> = {}): ScopeOverviewInput {
     languageRows: [],
     valueOverrides: [],
     urlKeys: [],
-    attributeScopes: new Map(),
-    primaryLanguage: 'pl-PL',
+    attributeLevels: new Map(),
     platformLanguages: ['pl-PL', 'en-GB', 'de-DE', 'fr-FR'],
     now: NOW,
     ...over,
@@ -97,15 +97,15 @@ describe('buildScopeOverview (spec 163, T069)', () => {
     const overview = buildScopeOverview(
       input({
         languageRows: [languageRow({ channelId: B2B, languageCode: 'de-DE', status: 'inactive' })],
-        requiredLanguageAttributes: ['material'],
-        attributeScopes: new Map([['material', { channelScoped: true, languageScoped: true }]]),
-        product: { ...input().product, attributeValues: { material: { 'pl-PL': 'stal' } } },
+        requiredAttributes: ['material'],
+        attributeLevels: new Map([['material', ['G', 'C', 'CL'] as const]]),
+        valueOverrides: [{ attributeKey: 'material', channelId: B2B, languageCode: 'pl-PL', value: { v: 'stal' } }],
       }),
     );
-    // Off at (B2B, de-DE), and still evaluated: name and material are missing there.
-    expect(cell(overview, B2B, 'de-DE').missing).toEqual(['name', 'attribute:material']);
+    // Off at (B2B, de-DE), and still evaluated (170: the Global name satisfies every pair).
+    expect(cell(overview, B2B, 'de-DE').missing).toEqual(['attribute:material']);
     expect(cell(overview, B2B, 'pl-PL').missing).toEqual([]);
-    expect(cell(overview, B2C, 'en-GB').missing).toEqual(['name', 'attribute:material']);
+    expect(cell(overview, B2C, 'en-GB').missing).toEqual(['attribute:material']);
   });
 
   it('T080a: a non-member channel’s cells carry no missing', () => {
@@ -161,72 +161,51 @@ describe('buildScopeOverview (spec 163, T069)', () => {
     for (const c of archived.cells) expect(c.available).toBe(false);
   });
 
-  it('marks fields at the cell, the channel row and the language column, each once at the level that wins', () => {
+  // Feature 170 (FR-010, FR-100) — there is no Language row: every override sits at C or C×L.
+  it('marks fields at the cell and the channel row, each once at the level that wins; no language column', () => {
     const overview = buildScopeOverview(
       input({
-        product: {
-          ...input().product,
-          name: { 'pl-PL': 'Wiertarka', 'de-DE': 'Bohrmaschine' },
-          attributeValues: { color: { 'pl-PL': 'czerwony', 'en-GB': 'red' } },
-        },
         channelRows: [
           channelRow({
+            status: 'inactive',
             window: { from: null, until: null },
-            audience: { visibility: 'logged_in_only', allowedOrganizationIds: [] },
-            minOrderQuantity: 5,
-            returnable: false,
+            minOrderQuantityOverridden: true,
+            minOrderQuantity: null,
           }),
         ],
+        languageRows: [languageRow({ languageCode: 'pl-PL', status: 'active' })],
         valueOverrides: [
           { attributeKey: 'name', channelId: B2B, languageCode: 'pl-PL', value: { v: 'Wiertarka B2B' } },
-          { attributeKey: 'description', channelId: B2B, languageCode: null, value: { v: 'Opis B2B' } },
-          { attributeKey: 'name', channelId: B2B, languageCode: null, value: { v: 'Shadowed in pl-PL' } },
+          { attributeKey: 'description', channelId: B2B, languageCode: null, value: { v: null } },
           { attributeKey: 'color', channelId: B2C, languageCode: 'en-GB', value: { v: 'scarlet' } },
-          { attributeKey: 'name', channelId: B2C, languageCode: 'pl-PL', value: { v: '' } },
         ],
         urlKeys: [
-          { languageCode: 'de-DE', salesChannelId: null },
+          { languageCode: null, salesChannelId: B2B },
           { languageCode: 'pl-PL', salesChannelId: B2C },
         ],
-        attributeScopes: new Map([['color', { channelScoped: true, languageScoped: true }]]),
+        attributeLevels: new Map([['color', ['G', 'C', 'CL'] as const]]),
       }),
     );
-
-    expect(cell(overview, B2B, 'pl-PL').overriddenFields).toEqual(
-      expect.arrayContaining([
-        { field: 'name', level: 'channel_language' },
-        { field: 'description', level: 'channel' },
-        { field: 'window', level: 'channel' },
-        { field: 'audience', level: 'channel' },
-        { field: 'minOrderQuantity', level: 'channel' },
-        { field: 'returnable', level: 'channel' },
-      ]),
-    );
-    expect(cell(overview, B2B, 'pl-PL').overriddenFields.filter((f) => f.field === 'name')).toHaveLength(1);
-    // The channel-only name wins in de-DE over the language value.
-    expect(cell(overview, B2B, 'de-DE').overriddenFields).toContainEqual({ field: 'name', level: 'channel' });
-    expect(cell(overview, B2B, 'de-DE').overriddenFields).toContainEqual({ field: 'urlKey', level: 'language' });
-    expect(cell(overview, B2C, 'en-GB').overriddenFields).toEqual(
-      expect.arrayContaining([{ field: 'attribute:color', level: 'channel_language' }]),
-    );
+    expect(cell(overview, B2B, 'pl-PL').overriddenFields).toEqual([
+      { field: 'status', level: 'channel_language' },
+      { field: 'window', level: 'channel' },
+      { field: 'minOrderQuantity', level: 'channel' },
+      { field: 'name', level: 'channel_language' },
+      // An empty override is an override (FR-013).
+      { field: 'description', level: 'channel' },
+      { field: 'urlKey', level: 'channel' },
+    ]);
     expect(cell(overview, B2C, 'pl-PL').overriddenFields).toEqual([{ field: 'urlKey', level: 'channel_language' }]);
-
+    expect(cell(overview, B2C, 'en-GB').overriddenFields).toEqual([{ field: 'attribute:color', level: 'channel_language' }]);
     expect(overview.channelRows).toEqual([
-      {
-        channelId: B2B,
-        overriddenFields: ['window', 'audience', 'minOrderQuantity', 'returnable', 'name', 'description'],
-      },
+      { channelId: B2B, overriddenFields: ['status', 'window', 'minOrderQuantity', 'description', 'urlKey'] },
       { channelId: B2C, overriddenFields: [] },
     ]);
-    // The default language's value is the global one; every other language's is a language override.
-    expect(overview.languageColumns).toEqual([
-      { languageCode: 'de-DE', overriddenFields: ['name', 'urlKey'] },
-      { languageCode: 'en-GB', overriddenFields: ['attribute:color'] },
-      { languageCode: 'pl-PL', overriddenFields: [] },
-    ]);
+    expect(overview).not.toHaveProperty('languageColumns');
+    expect(() => scopeOverviewResponseSchema.parse({ data: overview })).not.toThrow();
   });
 
-  it('lists orphans: non-member channel, language no longer offered, attribute scope narrowed (FR-015)', () => {
+  it('lists orphans: non-member channel, language no longer offered, attribute scope set narrowed (FR-015)', () => {
     const overview = buildScopeOverview(
       input({
         channels: [
@@ -234,10 +213,7 @@ describe('buildScopeOverview (spec 163, T069)', () => {
           { id: GONE, name: { 'en-US': 'Gone' }, languages: ['pl-PL'], isMember: false },
         ],
         channelRows: [channelRow({ channelId: GONE, status: 'inactive', returnable: true })],
-        languageRows: [
-          languageRow({ channelId: B2B, languageCode: 'fr-FR' }),
-          languageRow({ channelId: GONE, languageCode: 'pl-PL' }),
-        ],
+        languageRows: [languageRow({ channelId: B2B, languageCode: 'fr-FR' })],
         valueOverrides: [
           { attributeKey: 'name', channelId: GONE, languageCode: 'pl-PL', value: { v: 'x' } },
           { attributeKey: 'name', channelId: B2B, languageCode: 'fr-FR', value: { v: 'x' } },
@@ -247,11 +223,11 @@ describe('buildScopeOverview (spec 163, T069)', () => {
         ],
         urlKeys: [
           { languageCode: 'fr-FR', salesChannelId: B2B },
-          { languageCode: 'pl-PL', salesChannelId: GONE },
+          { languageCode: null, salesChannelId: GONE },
         ],
-        attributeScopes: new Map([
-          ['color', { channelScoped: false, languageScoped: false }],
-          ['size', { channelScoped: true, languageScoped: false }],
+        attributeLevels: new Map([
+          ['color', ['G'] as const],
+          ['size', ['G', 'C'] as const],
         ]),
       }),
     );
@@ -259,7 +235,6 @@ describe('buildScopeOverview (spec 163, T069)', () => {
       expect.arrayContaining([
         { field: 'status', channelId: GONE, languageCode: null, reason: 'not_a_member' },
         { field: 'returnable', channelId: GONE, languageCode: null, reason: 'not_a_member' },
-        { field: 'status', channelId: GONE, languageCode: 'pl-PL', reason: 'not_a_member' },
         { field: 'status', channelId: B2B, languageCode: 'fr-FR', reason: 'language_not_offered' },
         { field: 'name', channelId: GONE, languageCode: 'pl-PL', reason: 'not_a_member' },
         { field: 'name', channelId: B2B, languageCode: 'fr-FR', reason: 'language_not_offered' },
@@ -267,140 +242,50 @@ describe('buildScopeOverview (spec 163, T069)', () => {
         { field: 'attribute:size', channelId: B2B, languageCode: 'pl-PL', reason: 'attribute_scope_changed' },
         { field: 'attribute:deleted_attr', channelId: B2B, languageCode: null, reason: 'attribute_scope_changed' },
         { field: 'urlKey', channelId: B2B, languageCode: 'fr-FR', reason: 'language_not_offered' },
-        { field: 'urlKey', channelId: GONE, languageCode: 'pl-PL', reason: 'not_a_member' },
+        { field: 'urlKey', channelId: GONE, languageCode: null, reason: 'not_a_member' },
       ]),
     );
-    expect(overview.orphans).toHaveLength(11);
-    // Orphans never mark a cell; the non-member channel's cells are not available.
-    for (const c of overview.cells) {
-      expect(c.overriddenFields.map((f) => f.field)).not.toContain('attribute:color');
-      expect(c.overriddenFields.map((f) => f.field)).not.toContain('attribute:size');
-    }
-    expect(cell(overview, GONE, 'pl-PL')).toMatchObject({
-      available: false,
-      effectiveStatus: 'active',
-      statusSource: 'global',
-      overriddenFields: [],
-    });
-    expect(overview.channelRows.find((r) => r.channelId === GONE)).toEqual({ channelId: GONE, overriddenFields: [] });
-    // The languages axis is the member channels' union.
     expect(overview.languages).toEqual(['de-DE', 'pl-PL']);
   });
 
-  it('a language URL key whose channel id the ORM hydrates as undefined is a language key, never an orphan', () => {
-    // MikroORM answers a NULL `sales_channel_id` as `undefined` on `ProductUrlKey`
-    // (163 ci-pg, 829ce2995): an orphan with no channel id broke the §3 schema.
-    const overview = buildScopeOverview(
-      input({ urlKeys: [{ languageCode: 'de-DE', salesChannelId: undefined as unknown as null }] }),
-    );
-    expect(overview.orphans).toEqual([]);
-    expect(overview.languageColumns.find((c) => c.languageCode === 'de-DE')?.overriddenFields).toEqual(['urlKey']);
-    expect(() => scopeOverviewResponseSchema.parse({ data: overview })).not.toThrow();
-  });
-
-  it('a product in no channel offers the global and language scopes only (US4 #4)', () => {
-    const overview = buildScopeOverview(
-      input({
-        channels: [],
-        product: { ...input().product, name: { 'pl-PL': 'Wiertarka', 'fr-FR': 'Perceuse' } },
-        urlKeys: [{ languageCode: 'en-GB', salesChannelId: null }],
-      }),
-    );
-    expect(overview.channels).toEqual([]);
+  it('a product in no channel has no cells and no channel rows', () => {
+    const overview = buildScopeOverview(input({ channels: [] }));
     expect(overview.cells).toEqual([]);
     expect(overview.channelRows).toEqual([]);
     expect(overview.languages).toEqual(['de-DE', 'en-GB', 'fr-FR', 'pl-PL']);
-    expect(overview.languageColumns).toEqual([
-      { languageCode: 'de-DE', overriddenFields: [] },
-      { languageCode: 'en-GB', overriddenFields: ['urlKey'] },
-      { languageCode: 'fr-FR', overriddenFields: ['name'] },
-      { languageCode: 'pl-PL', overriddenFields: [] },
-    ]);
   });
 });
 
-describe('buildScopeOverview — media and SEO scopes (spec 163, T134b, T118c)', () => {
-  it('lists gallery role / hidden overrides on the channel row and alt text on the language column (FR-041)', () => {
+describe('buildScopeOverview — media, attachment, packaging and SEO scopes (170)', () => {
+  it('lists them at C and C×L; a Global SEO row is no override cell', () => {
     const overview = buildScopeOverview(
       input({
         scopedFields: [
           { field: 'media:roles', channelId: B2B, languageCode: null },
-          { field: 'media:hidden', channelId: B2B, languageCode: null },
-          { field: 'media:altText', channelId: null, languageCode: 'de-de' },
+          { field: 'media:altText', channelId: B2B, languageCode: 'de-de' },
+          { field: 'attachments:name', channelId: B2C, languageCode: 'pl-PL' },
+          { field: 'packagingUnits:name', channelId: B2C, languageCode: null },
+          { field: 'seo:title', channelId: null, languageCode: null },
+          { field: 'seo:description', channelId: B2C, languageCode: 'en-gb' },
         ],
       }),
     );
-    expect(overview.channelRows.find((r) => r.channelId === B2B)?.overriddenFields).toEqual([
-      'media:hidden',
-      'media:roles',
-    ]);
-    expect(overview.languageColumns.find((c) => c.languageCode === 'de-DE')?.overriddenFields).toEqual([
-      'media:altText',
-    ]);
+    expect(overview.channelRows.find((r) => r.channelId === B2B)?.overriddenFields).toEqual(['media:roles']);
     expect(cell(overview, B2B, 'de-DE').overriddenFields).toEqual([
-      { field: 'media:altText', level: 'language' },
-      { field: 'media:hidden', level: 'channel' },
+      { field: 'media:altText', level: 'channel_language' },
       { field: 'media:roles', level: 'channel' },
     ]);
-    expect(cell(overview, B2C, 'pl-PL').overriddenFields).toEqual([]);
-  });
-
-  it('lists attachment and packaging-unit overrides at their levels, beside the media ones (T139b)', () => {
-    const overview = buildScopeOverview(
-      input({
-        scopedFields: [
-          { field: 'attachments:hidden', channelId: B2C, languageCode: null },
-          { field: 'attachments:name', channelId: null, languageCode: 'pl-PL' },
-          { field: 'attachments:description', channelId: null, languageCode: 'pl-PL' },
-          { field: 'packagingUnits:name', channelId: null, languageCode: 'de-de' },
-          { field: 'media:hidden', channelId: B2C, languageCode: null },
-        ],
-      }),
-    );
-    expect(overview.channelRows.find((r) => r.channelId === B2C)?.overriddenFields).toEqual([
-      'attachments:hidden',
-      'media:hidden',
-    ]);
-    expect(overview.languageColumns.find((c) => c.languageCode === 'pl-PL')?.overriddenFields).toEqual([
-      'attachments:description',
-      'attachments:name',
-    ]);
-    expect(overview.languageColumns.find((c) => c.languageCode === 'de-DE')?.overriddenFields).toEqual([
-      'packagingUnits:name',
-    ]);
     expect(cell(overview, B2C, 'pl-PL').overriddenFields).toEqual([
-      { field: 'attachments:description', level: 'language' },
-      { field: 'attachments:hidden', level: 'channel' },
-      { field: 'attachments:name', level: 'language' },
-      { field: 'media:hidden', level: 'channel' },
+      { field: 'attachments:name', level: 'channel_language' },
+      { field: 'packagingUnits:name', level: 'channel' },
     ]);
-  });
-
-  it('lists an SEO override at L, C and C × L, each at its level, after every other field', () => {
-    const overview = buildScopeOverview(
-      input({
-        scopedFields: [
-          { field: 'seo:title', channelId: null, languageCode: 'pl-PL' },
-          { field: 'seo:description', channelId: B2C, languageCode: null },
-          { field: 'seo:title', channelId: B2C, languageCode: 'en-gb' },
-          { field: 'media:roles', channelId: B2C, languageCode: null },
-        ],
-      }),
-    );
     expect(cell(overview, B2C, 'en-GB').overriddenFields).toEqual([
-      { field: 'media:roles', level: 'channel' },
-      { field: 'seo:description', level: 'channel' },
-      { field: 'seo:title', level: 'channel_language' },
+      { field: 'packagingUnits:name', level: 'channel' },
+      { field: 'seo:description', level: 'channel_language' },
     ]);
-    expect(cell(overview, B2C, 'pl-PL').overriddenFields).toEqual([
-      { field: 'media:roles', level: 'channel' },
-      { field: 'seo:description', level: 'channel' },
-      { field: 'seo:title', level: 'language' },
-    ]);
-    expect(cell(overview, B2B, 'de-DE').overriddenFields).toEqual([]);
   });
 
-  it('lists a channel or channel × language override the resolution ignores as an orphan (FR-015)', () => {
+  it('lists a C or C×L override the resolution ignores as an orphan (FR-015)', () => {
     const overview = buildScopeOverview(
       input({
         channels: [

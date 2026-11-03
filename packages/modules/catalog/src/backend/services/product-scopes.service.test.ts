@@ -53,6 +53,7 @@ function row(over: Partial<ProductChannelScopeRecord> = {}): ProductChannelScope
     status: null,
     window: null,
     audience: null,
+    minOrderQuantityOverridden: false,
     minOrderQuantity: null,
     returnable: null,
     ...over,
@@ -81,21 +82,21 @@ describe('planProductScopeWrite — upsert and inherit (FR-012)', () => {
       channels: [{ channelId: B2B, minOrderQuantity: 5 }],
     });
     expect(plan.channelRows).toEqual([
-      { channelId: B2B, next: row({ status: 'inactive', returnable: false, minOrderQuantity: 5 }) },
+      { channelId: B2B, next: row({ status: 'inactive', returnable: false, minOrderQuantityOverridden: true, minOrderQuantity: 5 }) },
     ]);
     expect(plan.changedFields).toEqual(['orderRules']);
   });
 
   it('null removes one override and keeps the others', () => {
     const plan = planProductScopeWrite(state({ channelRows: [row({ status: 'inactive', returnable: false })] }), {
-      channels: [{ channelId: B2B, status: null }],
+      channels: [{ channelId: B2B, status: { inherit: true } }],
     });
     expect(plan.channelRows).toEqual([{ channelId: B2B, next: row({ returnable: false }) }]);
   });
 
   it('a row whose every field inherits is deleted, never stored empty', () => {
     const plan = planProductScopeWrite(state({ channelRows: [row({ status: 'inactive' })] }), {
-      channels: [{ channelId: B2B, status: null }],
+      channels: [{ channelId: B2B, status: { inherit: true } }],
     });
     expect(plan.channelRows).toEqual([{ channelId: B2B, next: null }]);
   });
@@ -109,7 +110,7 @@ describe('planProductScopeWrite — upsert and inherit (FR-012)', () => {
             channelId: B2B,
             languageStatuses: [
               { languageCode: 'de-DE', status: 'active' },
-              { languageCode: 'pl-PL', status: null },
+              { languageCode: 'pl-PL', status: { inherit: true } },
             ],
           },
         ],
@@ -220,7 +221,7 @@ describe('planProductScopeWrite — refusals (FR-014) and their one exception (F
 
   it('removing an orphaned channel row is always allowed', () => {
     const plan = planProductScopeWrite(state({ channelRows: [row({ channelId: GONE, status: 'inactive' })] }), {
-      channels: [{ channelId: GONE, status: null }],
+      channels: [{ channelId: GONE, status: { inherit: true } }],
     });
     expect(plan.channelRows).toEqual([{ channelId: GONE, next: null }]);
   });
@@ -230,7 +231,7 @@ describe('planProductScopeWrite — refusals (FR-014) and their one exception (F
       languageRows: [{ productId: P, channelId: B2B, languageCode: 'fr-FR', status: 'active' }],
     });
     const plan = planProductScopeWrite(current, {
-      channels: [{ channelId: B2B, languageStatuses: [{ languageCode: 'fr-FR', status: null }] }],
+      channels: [{ channelId: B2B, languageStatuses: [{ languageCode: 'fr-FR', status: { inherit: true } }] }],
     });
     expect(plan.languageRows).toEqual([{ channelId: B2B, languageCode: 'fr-FR', next: null }]);
   });
@@ -324,7 +325,7 @@ describe('planProductScopeWrite — audience (C4)', () => {
       visibility: 'organization_restricted',
       allowedOrganizationIds: [ORG_B],
     });
-    const inherited = planProductScopeWrite(current, { channels: [{ channelId: B2B, audience: null }] });
+    const inherited = planProductScopeWrite(current, { channels: [{ channelId: B2B, audience: { inherit: true } }] });
     expect(inherited.channelRows).toEqual([{ channelId: B2B, next: null }]);
   });
 
@@ -350,31 +351,24 @@ describe('planProductScopeWrite — the audit projection (FR-080, Q-D → A)', (
     });
     const plan = planProductScopeWrite(current, {
       channels: [
-        { channelId: B2B, status: 'active', languageStatuses: [{ languageCode: 'de-DE', status: null }] },
+        { channelId: B2B, status: 'active', languageStatuses: [{ languageCode: 'de-DE', status: { inherit: true } }] },
         { channelId: B2C, minOrderQuantity: 3 },
       ],
       global: { publishFrom: '2026-12-01T00:00:00.000Z' },
     });
+    const I = { inherit: true };
     expect(plan.before).toEqual({
       channels: [
         {
           channelId: B2B,
           status: 'inactive',
-          window: null,
-          audience: null,
-          minOrderQuantity: null,
+          window: I,
+          audience: I,
+          minOrderQuantity: I,
           returnable: false,
           languageStatuses: [{ languageCode: 'de-DE', status: 'inactive' }],
         },
-        {
-          channelId: B2C,
-          status: null,
-          window: null,
-          audience: null,
-          minOrderQuantity: null,
-          returnable: null,
-          languageStatuses: [],
-        },
+        { channelId: B2C, status: I, window: I, audience: I, minOrderQuantity: I, returnable: I, languageStatuses: [] },
       ],
       global: { publishFrom: null, publishUntil: '2027-01-01T00:00:00.000Z' },
     });
@@ -383,21 +377,13 @@ describe('planProductScopeWrite — the audit projection (FR-080, Q-D → A)', (
         {
           channelId: B2B,
           status: 'active',
-          window: null,
-          audience: null,
-          minOrderQuantity: null,
+          window: I,
+          audience: I,
+          minOrderQuantity: I,
           returnable: false,
-          languageStatuses: [{ languageCode: 'de-DE', status: null }],
+          languageStatuses: [{ languageCode: 'de-DE', status: I }],
         },
-        {
-          channelId: B2C,
-          status: null,
-          window: null,
-          audience: null,
-          minOrderQuantity: 3,
-          returnable: null,
-          languageStatuses: [],
-        },
+        { channelId: B2C, status: I, window: I, audience: I, minOrderQuantity: 3, returnable: I, languageStatuses: [] },
       ],
       global: { publishFrom: '2026-12-01T00:00:00.000Z', publishUntil: '2027-01-01T00:00:00.000Z' },
     });
@@ -405,7 +391,7 @@ describe('planProductScopeWrite — the audit projection (FR-080, Q-D → A)', (
 
   it('re-applying before restores the rows the write replaced', () => {
     const current = state({ channelRows: [row({ status: 'inactive', returnable: false })] });
-    const forward = planProductScopeWrite(current, { channels: [{ channelId: B2B, status: 'active', returnable: null }] });
+    const forward = planProductScopeWrite(current, { channels: [{ channelId: B2B, status: 'active', returnable: { inherit: true } }] });
     const afterState = state({
       channelRows: forward.channelRows.flatMap((r) => (r.next ? [r.next] : [])),
     });
@@ -418,7 +404,7 @@ describe('planProductScopeWrite — the audit projection (FR-080, Q-D → A)', (
       channels: [{ channelId: B2B, languageStatuses: [{ languageCode: 'de-DE', status: 'active' }] }],
     });
     expect(plan.before).toEqual({
-      channels: [{ channelId: B2B, languageStatuses: [{ languageCode: 'de-DE', status: null }] }],
+      channels: [{ channelId: B2B, languageStatuses: [{ languageCode: 'de-DE', status: { inherit: true } }] }],
     });
   });
 });
@@ -636,7 +622,7 @@ describe('writeScopedStatus — the one write of a scope row (checkpoint C code 
     return { em: em as never, removed, persisted };
   }
   const channelRow = (over: Partial<Record<string, unknown>> = {}) =>
-    ({ productId: P, salesChannelId: C, status: null, windowOverridden: false, publishFrom: null, publishUntil: null, visibility: null, allowedOrganizationIds: null, minOrderQuantity: null, returnable: null, ...over }) as never;
+    ({ productId: P, salesChannelId: C, status: null, windowOverridden: false, publishFrom: null, publishUntil: null, visibility: null, allowedOrganizationIds: null, minOrderQuantityOverridden: false, minOrderQuantity: null, returnable: null, ...over }) as never;
 
   it('creates a channel row for a status and answers that it changed', () => {
     const { em, persisted } = fakeEm();
@@ -654,7 +640,10 @@ describe('writeScopedStatus — the one write of a scope row (checkpoint C code 
     expect(loneRows.channelRows).toHaveLength(0);
 
     const kept = fakeEm();
-    const keptRows = { channelRows: [channelRow({ status: 'inactive', minOrderQuantity: 5 })], languageRows: [] };
+    const keptRows = {
+      channelRows: [channelRow({ status: 'inactive', minOrderQuantityOverridden: true, minOrderQuantity: 5 })],
+      languageRows: [],
+    };
     writeScopedStatus(kept.em, keptRows, P, { channelId: C, languageCode: null }, null);
     expect(kept.removed).toHaveLength(0);
     expect(keptRows.channelRows[0]).toMatchObject({ status: null, minOrderQuantity: 5 });

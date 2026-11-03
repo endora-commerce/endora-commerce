@@ -35,7 +35,7 @@ function fakeEm(
     sku: 'DRILL',
     slug: 'drill',
     type: 'simple',
-    name: { 'en-US': 'Drill' },
+    name: 'Drill',
     description: {},
     visibility: 'public',
     attributeValues: {},

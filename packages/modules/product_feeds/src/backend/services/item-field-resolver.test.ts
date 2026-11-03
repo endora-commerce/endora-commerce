@@ -34,8 +34,8 @@ const ITEM: FeedItemSource = {
   sku: 'SKU-1',
   slug: 'blue-widget',
   productType: 'simple',
-  name: { 'pl-PL': 'Niebieski widget', 'en-US': 'Blue widget' },
-  description: { 'pl-PL': 'Opis', 'en-US': 'Description' },
+  name: 'Blue widget',
+  description: 'Description',
   attributes: { brand: 'Acme', colour: 'blue', weight: 2.5 },
   customFields: { warranty_months: 24 },
   price: { net: '100.0000', gross: '123.00', taxResolved: true, taxRatePercent: 23 },
@@ -440,7 +440,7 @@ describe('resolveFeedItem — language chain (FR-040)', () => {
   it('walks the configured fallback chain and counts the substitution as a warning', () => {
     const out = resolveFeedItem({
       fields: [field({ outputName: 'title', sourceKind: 'name' })],
-      item: { ...ITEM, name: { pl: 'Zapasowy', 'en-US': 'English' } },
+      item: { ...ITEM, name: 'English' },
       context: CONTEXT,
     });
     expect(valueOf(out.fields, 'title')).toBe('Zapasowy');
@@ -452,7 +452,7 @@ describe('resolveFeedItem — language chain (FR-040)', () => {
   it('falls through to the platform default at the end of the chain', () => {
     const out = resolveFeedItem({
       fields: [field({ outputName: 'title', sourceKind: 'name' })],
-      item: { ...ITEM, name: { 'en-US': 'English only' } },
+      item: { ...ITEM, name: 'English only' },
       context: CONTEXT,
     });
     expect(valueOf(out.fields, 'title')).toBe('English only');
@@ -465,7 +465,7 @@ describe('resolveFeedItem — language chain (FR-040)', () => {
         field({ outputName: 'title', sourceKind: 'name' }),
         field({ outputName: 'description', sourceKind: 'description' }),
       ],
-      item: { ...ITEM, name: { 'en-US': 'x' }, description: { 'en-US': 'y' } },
+      item: { ...ITEM, name: 'x', description: 'y' },
       context: CONTEXT,
     });
     expect(out.issues.filter((i) => i.reason === 'missing_translation')).toHaveLength(2);
@@ -492,7 +492,7 @@ describe('resolveFeedItem — transforms (FR-067)', () => {
   it('strips HTML and collapses the leftover whitespace', () => {
     const out = resolveFeedItem({
       fields: [field({ outputName: 'd', sourceKind: 'description', transform: 'strip_html' })],
-      item: { ...ITEM, description: { 'pl-PL': '<p>Opis <b>x</b></p>' } },
+      item: { ...ITEM, description: '<p>Opis <b>x</b></p>' },
       context: CONTEXT,
     });
     expect(valueOf(out.fields, 'd')).toBe('Opis x');

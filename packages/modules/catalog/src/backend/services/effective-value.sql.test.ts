@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { effectiveAttributeSql, effectiveTextSql } from './effective-value.sql.js';
 
 /**
- * Feature 163 (T060) — the shape of the effective-value expressions: one
- * placeholder per bound value, the values in placeholder order, and nothing
- * spliced into the text. Their meaning is held to #384's walk by
+ * Feature 163 (T060), rewritten by feature 170 (T033; research R1, R22) — the shape of the
+ * effective-value expressions over the C×L → C → G chain: one placeholder per bound value, the
+ * values in placeholder order, nothing spliced into the text, and the empty override detected by
+ * `jsonb_typeof(value -> 'v')`, never by `->>`. Their meaning is held to the TypeScript chain by
  * `effective-text-parity.test.ts` [PG].
  */
 
@@ -12,51 +13,48 @@ const CHANNEL = '11111111-1111-4111-8111-111111111111';
 const placeholders = (sql: string) => (sql.match(/\?/g) ?? []).length;
 
 describe('effectiveTextSql', () => {
-  it.each([[['pl-PL']], [['pl-PL', 'en-US', 'en']], [['de-DE', 'pl-PL', 'en-US', 'en']]])(
-    'binds exactly its placeholders for the chain %j',
-    (languages) => {
-      const e = effectiveTextSql('name', { channelId: CHANNEL, languages });
-      const sql = e.sql('p0');
-      expect(placeholders(sql)).toBe(e.params.length);
-      expect(sql).not.toContain(CHANNEL);
-      expect(sql).toContain('p0.name');
-      expect(sql).toContain('product_value_overrides');
-      // The overrides sub-select binds last: the attribute, then the channel.
-      expect(e.params.slice(-2)).toEqual(['name', CHANNEL]);
-    },
-  );
+  it.each([['pl-PL'], [null]])('binds exactly its placeholders at language %j', (languageCode) => {
+    const e = effectiveTextSql('name', { channelId: CHANNEL, languageCode });
+    const sql = e.sql('p0');
+    expect(placeholders(sql)).toBe(e.params.length);
+    expect(sql).not.toContain(CHANNEL);
+    expect(sql).toContain('p0.name');
+    expect(sql).toContain('product_value_overrides');
+    // The C×L row is read only when the scope names a language.
+    expect(e.params).toEqual(languageCode === null ? ['name', CHANNEL] : ['name', CHANNEL, 'pl-PL', 'name', CHANNEL]);
+  });
 
   it('renders the same params whatever the alias', () => {
-    const e = effectiveTextSql('description', { channelId: CHANNEL, languages: ['pl-PL', 'en'] });
+    const e = effectiveTextSql('description', { channelId: CHANNEL, languageCode: 'pl-PL' });
     expect(placeholders(e.sql('x'))).toBe(placeholders(e.sql('p0')));
+  });
+
+  it('answers an empty override by its JSON type, never with ->> on the value', () => {
+    const sql = effectiveTextSql('description', { channelId: CHANNEL, languageCode: 'pl-PL' }).sql('p0');
+    expect(sql).toContain("jsonb_typeof(x.cl -> 'v') = 'string'");
+    expect(sql).not.toMatch(/value ->> 'v'/);
   });
 });
 
 describe('effectiveAttributeSql', () => {
-  it.each([
-    [{ channelScoped: true, languageScoped: true }],
-    [{ channelScoped: true, languageScoped: false }],
-    [{ channelScoped: false, languageScoped: false }],
-  ])('binds exactly its placeholders for scope %j', (scope) => {
-    const e = effectiveAttributeSql('color', scope, { channelId: CHANNEL, languages: ['pl-PL', 'en-US'] });
-    const sql = e.sql('p0');
-    expect(placeholders(sql)).toBe(e.params.length);
-    expect(sql).not.toContain("'color'");
-  });
+  it.each([[['G', 'C', 'CL'] as const], [['G', 'C'] as const], [['G'] as const]])(
+    'binds exactly its placeholders for the scope set %j',
+    (levels) => {
+      const e = effectiveAttributeSql('color', levels, { channelId: CHANNEL, languageCode: 'pl-PL' });
+      const sql = e.sql('p0');
+      expect(placeholders(sql)).toBe(e.params.length);
+      expect(sql).not.toContain("'color'");
+    },
+  );
 
-  it('is the baseline alone for an attribute that is not channel-scoped', () => {
-    const e = effectiveAttributeSql('color', { channelScoped: false, languageScoped: true }, { channelId: CHANNEL, languages: ['pl-PL'] });
+  it('is the Global value alone for a {G} attribute', () => {
+    const e = effectiveAttributeSql('color', ['G'], { channelId: CHANNEL, languageCode: 'pl-PL' });
     expect(e.sql('p0')).toBe('(p0.attribute_values -> ?::text)');
     expect(e.params).toEqual(['color']);
   });
-});
 
-describe('the emptiness test of a jsonb value', () => {
-  it('never reads a missing key (SQL NULL) as non-empty', () => {
-    // A simple `case jsonb_typeof(x)` over a NULL `x` matches no `when`; an
-    // `else true` there made every absent override slot answer the walk.
-    const sql = effectiveTextSql('name', { channelId: CHANNEL, languages: ['pl-PL', 'en-US'] }).sql('p0');
-    expect(sql).not.toMatch(/else true end, false\)/);
-    expect(sql).toContain("when 'number' then true when 'boolean' then true else false end, false)");
+  it('reads no C×L row for a {G,C} attribute', () => {
+    const e = effectiveAttributeSql('size', ['G', 'C'], { channelId: CHANNEL, languageCode: 'pl-PL' });
+    expect(e.params).not.toContain('pl-PL');
   });
 });

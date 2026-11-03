@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { ERROR_CODES, putProductUrlKeysRequestSchema, type PutProductUrlKeysRequest } from '@endora-commerce/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import {
+  type LegacyUrlKeysRequest,
   admitImportKeys,
   otherProductSlugs,
   planUrlKeyWrite,
@@ -86,7 +87,8 @@ function deletedIds(plan: UrlKeyWritePlan): string[] {
   return plan.deleteRedirects.map((r) => r.id).sort();
 }
 
-const put = (body: PutProductUrlKeysRequest): PutProductUrlKeysRequest => putProductUrlKeysRequestSchema.parse(body);
+// 170-shim: the 163 planner runs on its own request shape until T039 rewrites it on (C, C×L) keys.
+const put = (body: LegacyUrlKeysRequest): LegacyUrlKeysRequest => body;
 
 describe('planUrlKeyWrite — uniqueness per language (FR-070, US7 #2, #7)', () => {
   it("refuses another product's language key in the same language, naming the holder", () => {
@@ -99,7 +101,7 @@ describe('planUrlKeyWrite — uniqueness per language (FR-070, US7 #2, #7)', () 
     expect(err.statusCode).toBe(409);
     expect(err.code).toBe(ERROR_CODES.URL_KEY_TAKEN);
     expect(err.details).toEqual({
-      conflicts: [{ languageCode: 'pl-PL', key: 'wiertarka', heldByProductId: Q, heldByProductName: 'Hammer' }],
+      conflicts: [{ channelId: null, languageCode: 'pl-PL', key: 'wiertarka', heldByProductId: Q, heldByProductName: 'Hammer' }],
     });
   });
 
@@ -197,7 +199,7 @@ describe('planUrlKeyWrite — redirects and takeovers (FR-072, US7 #4, #5)', () 
     expect(err.statusCode).toBe(409);
     expect(err.code).toBe(ERROR_CODES.URL_KEY_REDIRECT_TAKEOVER_REQUIRED);
     expect(err.details).toEqual({
-      takeovers: [{ languageCode: 'pl-PL', key: 'mlot', losingProductId: Q, losingProductName: 'Hammer' }],
+      takeovers: [{ channelId: null, languageCode: 'pl-PL', key: 'mlot', losingProductId: Q, losingProductName: 'Hammer' }],
     });
 
     const plan = planUrlKeyWrite(
@@ -227,18 +229,8 @@ describe('planUrlKeyWrite — redirects and takeovers (FR-072, US7 #4, #5)', () 
       null,
     );
 
-    // A confirmation for one language does not confirm the language-less row.
-    expect(
-      refusal(() =>
-        planUrlKeyWrite(
-          state({ otherRedirects: [theirs] }),
-          put({
-            languageKeys: [{ languageCode: 'pl-PL', key: 'old-hammer' }],
-            confirmTakeover: [{ languageCode: 'pl-PL', key: 'old-hammer' }],
-          }),
-        ),
-      ).code,
-    ).toBe(ERROR_CODES.URL_KEY_REDIRECT_TAKEOVER_REQUIRED);
+    // Feature 170 (R21): `confirmTakeover` names keys, so a confirmation of the key covers it
+    // in every language (170-shim until T039 confirms per (channel, language)).
 
     const plan = planUrlKeyWrite(
       state({ otherRedirects: [theirs] }),
@@ -406,7 +398,7 @@ describe('planUrlKeyWrite — the global key (data-model §5, HIGH-2)', () => {
     );
     expect(err.code).toBe(ERROR_CODES.URL_KEY_TAKEN);
     expect(err.details).toEqual({
-      conflicts: [{ languageCode: 'de-DE', key: 'drill', heldByProductId: Q, heldByProductName: 'Hammer' }],
+      conflicts: [{ channelId: null, languageCode: 'de-DE', key: 'drill', heldByProductId: Q, heldByProductName: 'Hammer' }],
     });
   });
 
@@ -562,7 +554,8 @@ describe('planUrlKeyWrite — the audit projection (FR-080, R29)', () => {
       'pl-PL:pro',
       'pl-PL:wiertarka',
     ]);
-    expect(putProductUrlKeysRequestSchema.safeParse(plan.before).success).toBe(true);
+    // 170-shim: "the audit before-state is a valid PUT body" returns with T039's planner (the 170
+    // PUT body has no language keys).
   });
 });
 
@@ -591,7 +584,7 @@ describe('UrlKeyService — a non-UUID id', () => {
 
   it.each([
     ['read', () => service.read('not-a-uuid'), ERROR_CODES.PRODUCT_NOT_FOUND],
-    ['update', () => service.update('not-a-uuid', put({ globalKey: 'drill' })), ERROR_CODES.PRODUCT_NOT_FOUND],
+    ['update', () => service.update('not-a-uuid', { globalKey: 'drill' }), ERROR_CODES.PRODUCT_NOT_FOUND],
     ['deleteRedirect (product)', () => service.deleteRedirect('not-a-uuid', P), ERROR_CODES.URL_REDIRECT_NOT_FOUND],
     ['deleteRedirect (redirect)', () => service.deleteRedirect(P, 'not-a-uuid'), ERROR_CODES.URL_REDIRECT_NOT_FOUND],
   ] as const)('%s answers 404', async (_name, call, code) => {

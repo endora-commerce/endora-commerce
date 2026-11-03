@@ -21,106 +21,92 @@ const P = '31111111-2222-4333-8444-555555555555';
 
 function facts(over: Partial<CompletenessFacts> = {}): CompletenessFacts {
   return {
-    name: { 'pl-PL': 'Wiertarka' },
+    name: 'Wiertarka',
     slug: 'wiertarka',
     attributeValues: {},
-    requiredLanguageAttributes: [],
-    attributeScopes: new Map(),
+    requiredAttributes: [],
+    attributeLevels: new Map(),
     valueOverrides: [],
     urlKeys: [],
     ...over,
   };
 }
 
+// Feature 170 (T033; R16, FR-095, FR-096): complete at (C, L) along C×L → C → G — a Global
+// value satisfies every (C, L); an empty override at C×L or C does not.
 describe('checkCompleteness', () => {
-  it('the name counts only in L itself — never another language (FR-060, last sentence)', () => {
+  it('a Global name satisfies every (C, L) (FR-096)', () => {
     expect(checkCompleteness(facts(), B2C, 'pl-PL')).toEqual([]);
-    expect(checkCompleteness(facts(), B2C, 'de-DE')).toEqual(['name']);
+    expect(checkCompleteness(facts(), B2C, 'de-DE')).toEqual([]);
   });
 
-  it('a baseline name in L counts, matched case-insensitively; an empty or blank one does not', () => {
-    expect(checkCompleteness(facts({ name: { 'de-de': 'Bohrer' } }), B2C, 'de-DE')).toEqual([]);
-    expect(checkCompleteness(facts({ name: { 'de-DE': '' } }), B2C, 'de-DE')).toEqual(['name']);
-    expect(checkCompleteness(facts({ name: { 'de-DE': '   ' } }), B2C, 'de-DE')).toEqual(['name']);
+  it('an empty or blank Global name does not', () => {
+    expect(checkCompleteness(facts({ name: '' }), B2C, 'de-DE')).toEqual(['name']);
+    expect(checkCompleteness(facts({ name: '   ' }), B2C, 'de-DE')).toEqual(['name']);
   });
 
-  it('a channel × language or a channel name override counts at that channel only', () => {
-    const cl = facts({ valueOverrides: [{ attributeKey: 'name', channelId: B2C, languageCode: 'de-DE', value: { v: 'Bohrer' } }] });
+  it('a C×L or C name counts at that channel only', () => {
+    const cl = facts({ name: '', valueOverrides: [{ attributeKey: 'name', channelId: B2C, languageCode: 'de-DE', value: { v: 'Bohrer' } }] });
     expect(checkCompleteness(cl, B2C, 'de-DE')).toEqual([]);
     expect(checkCompleteness(cl, B2B, 'de-DE')).toEqual(['name']);
     expect(checkCompleteness(cl, B2C, 'en-US')).toEqual(['name']);
-    const c = facts({ valueOverrides: [{ attributeKey: 'name', channelId: B2C, languageCode: null, value: { v: 'Bohrer' } }] });
+    const c = facts({ name: '', valueOverrides: [{ attributeKey: 'name', channelId: B2C, languageCode: null, value: { v: 'Bohrer' } }] });
     expect(checkCompleteness(c, B2C, 'de-DE')).toEqual([]);
     expect(checkCompleteness(c, B2B, 'de-DE')).toEqual(['name']);
   });
 
-  it('an empty override does not count', () => {
-    const f = facts({ valueOverrides: [{ attributeKey: 'name', channelId: B2C, languageCode: 'de-DE', value: { v: '' } }] });
+  it('an empty override at C×L stops the fallback to a Global value (FR-013)', () => {
+    const f = facts({ valueOverrides: [{ attributeKey: 'name', channelId: B2C, languageCode: 'de-DE', value: { v: null } }] });
     expect(checkCompleteness(f, B2C, 'de-DE')).toEqual(['name']);
+    expect(checkCompleteness(f, B2C, 'pl-PL')).toEqual([]);
   });
 
-  describe('URL key (K3)', () => {
-    it('the global key satisfies it where the product has no key in L', () => {
-      expect(checkCompleteness(facts({ name: { 'de-DE': 'Bohrer' } }), B2C, 'de-DE')).toEqual([]);
+  describe('URL key', () => {
+    it('the Global key satisfies it everywhere', () => {
+      expect(checkCompleteness(facts(), B2C, 'de-DE')).toEqual([]);
     });
 
-    it('without a global key, a language key or a channel × language key satisfies it', () => {
-      const none = facts({ slug: '', name: { 'de-DE': 'Bohrer' } });
+    it('without a Global key, a C×L or a C key of that channel satisfies it', () => {
+      const none = facts({ slug: '' });
       expect(checkCompleteness(none, B2C, 'de-DE')).toEqual(['urlKey']);
-      expect(
-        checkCompleteness({ ...none, urlKeys: [{ languageCode: 'de-DE', salesChannelId: null }] }, B2C, 'de-DE'),
-      ).toEqual([]);
-      const channelKey = { ...none, urlKeys: [{ languageCode: 'de-DE', salesChannelId: B2C }] };
-      expect(checkCompleteness(channelKey, B2C, 'de-DE')).toEqual([]);
-      expect(checkCompleteness(channelKey, B2B, 'de-DE')).toEqual(['urlKey']);
+      const clKey = { ...none, urlKeys: [{ languageCode: 'de-DE', salesChannelId: B2C }] };
+      expect(checkCompleteness(clKey, B2C, 'de-DE')).toEqual([]);
+      expect(checkCompleteness(clKey, B2B, 'de-DE')).toEqual(['urlKey']);
+      const cKey = { ...none, urlKeys: [{ languageCode: null, salesChannelId: B2C }] };
+      expect(checkCompleteness(cKey, B2C, 'pl-PL')).toEqual([]);
     });
   });
 
-  describe('required language-scoped attributes', () => {
-    const scopes = new Map([
-      ['material', { channelScoped: true, languageScoped: true }],
-      ['claim', { channelScoped: false, languageScoped: true }],
+  describe('required attributes', () => {
+    const levels = new Map([
+      ['material', ['G', 'C', 'CL'] as const],
+      ['grade', ['G', 'C'] as const],
     ]);
 
-    it('counts the value in L, at C × L or at C — never another language', () => {
-      const base = facts({
-        name: { 'de-DE': 'Bohrer', 'pl-PL': 'Wiertarka' },
-        requiredLanguageAttributes: ['material'],
-        attributeScopes: scopes,
-        attributeValues: { material: { 'pl-PL': 'stal' } },
-      });
-      expect(checkCompleteness(base, B2C, 'pl-PL')).toEqual([]);
+    it('a Global value satisfies; a C×L or C override fills a missing one at that scope', () => {
+      const base = facts({ requiredAttributes: ['material'], attributeLevels: levels });
       expect(checkCompleteness(base, B2C, 'de-DE')).toEqual(['attribute:material']);
+      expect(checkCompleteness({ ...base, attributeValues: { material: 'stal' } }, B2C, 'de-DE')).toEqual([]);
       const overridden = {
         ...base,
         valueOverrides: [{ attributeKey: 'material', channelId: B2C, languageCode: 'de-DE', value: { v: 'Stahl' } }],
       };
       expect(checkCompleteness(overridden, B2C, 'de-DE')).toEqual([]);
-      const channelOnly = {
-        ...base,
-        valueOverrides: [{ attributeKey: 'material', channelId: B2C, languageCode: null, value: { v: 'Stahl' } }],
-      };
-      expect(checkCompleteness(channelOnly, B2C, 'de-DE')).toEqual([]);
+      expect(checkCompleteness(overridden, B2C, 'pl-PL')).toEqual(['attribute:material']);
     });
 
-    it('ignores an override its attribute’s scope no longer allows (an orphan, FR-015)', () => {
+    it('ignores a C×L row a {G,C} attribute does not read (an orphan)', () => {
       const f = facts({
-        name: { 'de-DE': 'Bohrer' },
-        requiredLanguageAttributes: ['claim'],
-        attributeScopes: scopes,
-        valueOverrides: [{ attributeKey: 'claim', channelId: B2C, languageCode: 'de-DE', value: { v: 'Neu' } }],
+        requiredAttributes: ['grade'],
+        attributeLevels: levels,
+        valueOverrides: [{ attributeKey: 'grade', channelId: B2C, languageCode: 'de-DE', value: { v: 'A' } }],
       });
-      expect(checkCompleteness(f, B2C, 'de-DE')).toEqual(['attribute:claim']);
+      expect(checkCompleteness(f, B2C, 'de-DE')).toEqual(['attribute:grade']);
     });
 
     it('names every missing value, name first, then the URL key, then attributes by key', () => {
-      const f = facts({
-        name: {},
-        slug: '',
-        requiredLanguageAttributes: ['material', 'claim'],
-        attributeScopes: scopes,
-      });
-      expect(checkCompleteness(f, B2C, 'de-DE')).toEqual(['name', 'urlKey', 'attribute:claim', 'attribute:material']);
+      const f = facts({ name: '', slug: '', requiredAttributes: ['material', 'grade'], attributeLevels: levels });
+      expect(checkCompleteness(f, B2C, 'de-DE')).toEqual(['name', 'urlKey', 'attribute:grade', 'attribute:material']);
     });
   });
 });
@@ -145,7 +131,10 @@ describe('completenessFailures — the gate over pairsTurningOn (M3 → A)', () 
     languageRows: [],
     ...over,
   });
-  const lacksGerman = facts();
+  // Feature 170: a Global name satisfies every pair, so "lacks German" is an empty override there.
+  const lacksGerman = facts({
+    valueOverrides: [{ attributeKey: 'name', channelId: B2C, languageCode: 'de-DE', value: { v: null } }],
+  });
 
   it('a global switch on fails only the pair lacking its name, naming it (US6 #3)', () => {
     const failures = completenessFailures(snap(), snap({ global: global({ status: 'active' }) }), [b2c, b2b], lacksGerman);
@@ -153,7 +142,7 @@ describe('completenessFailures — the gate over pairsTurningOn (M3 → A)', () 
   });
 
   it('a complete product fails nothing (US6 #2)', () => {
-    const complete = facts({ name: { 'pl-PL': 'Wiertarka', 'de-DE': 'Bohrer' } });
+    const complete = facts({ name: 'Wiertarka' });
     expect(completenessFailures(snap(), snap({ global: global({ status: 'active' }) }), [b2c, b2b], complete)).toEqual([]);
   });
 
