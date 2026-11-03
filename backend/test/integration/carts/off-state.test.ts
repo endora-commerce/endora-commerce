@@ -8,6 +8,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { expectModuleAbsent } from '../../helpers/off-state.js';
+import { seedCartOrganization } from '../../helpers/cart-approval-roles.js';
 
 /**
  * `carts` off-state — Constitution XVII item 6, for the module feature 091's
@@ -122,6 +123,73 @@ describe('carts off-state, from a package (Constitution XVII)', () => {
       registryCache.__setEnabledForTesting(baseline);
     }
     expect((await advertised()).get('carts') ?? []).toEqual(['open-carts']);
+  });
+
+  it('takes its three organization permissions out of the catalogue and every effective set while absent, keeping the grants', async () => {
+    // `specs/170-organization-roles/` WP-04, T070 (FR-007, FR-025, SC-007).
+    // Presence is read at call time, so the platform axis alone moves them.
+    const CODES = ['carts.approve', 'carts.create', 'carts.order_without_approval'];
+    const org = await seedCartOrganization(h, {
+      label: 'WP-04 carts off-state',
+      members: { ADMIN: 'administrator', HOLDER: { permissions: ['carts.create', 'carts.approve'] } },
+    });
+    try {
+      const read = async (key: string, url: string) => {
+        const res = await h.app.inject({
+          method: 'GET',
+          url,
+          cookies: { b2b_session: org.actors[key]!.cookie },
+          headers: { 'accept-language': 'en' },
+        });
+        expect(res.statusCode, `${url}: ${res.body}`).toBe(200);
+        return res.json() as Record<string, unknown>;
+      };
+      const catalogueCodes = async (): Promise<string[]> => {
+        const body = (await read('ADMIN', '/api/v1/organizations/mine/permission-catalogue')) as {
+          data: { groups: Array<{ permissions: Array<{ code: string }> }> };
+        };
+        return body.data.groups.flatMap((group) => group.permissions.map((p) => p.code));
+      };
+      const ownCodes = async (key: string): Promise<string[]> => {
+        const body = (await read(key, '/api/v1/organizations/mine/role')) as {
+          data: { permissions: Array<{ code: string }> };
+        };
+        return body.data.permissions.map((p) => p.code);
+      };
+      const storedGrants = async (): Promise<string[]> => {
+        const [row] = (await h
+          .em()
+          .getConnection()
+          .execute(`select "permissions" from "organization_roles" where "id" = ?`, [
+            org.actors['HOLDER']!.roleId,
+          ])) as Array<{ permissions: string[] }>;
+        return [...row!.permissions].sort();
+      };
+
+      expect(await catalogueCodes()).toEqual(expect.arrayContaining(CODES));
+      expect(await ownCodes('ADMIN')).toEqual(expect.arrayContaining(CODES));
+      expect((await ownCodes('HOLDER')).sort()).toEqual(['carts.approve', 'carts.create']);
+
+      const baseline = registryCache.enabledIds();
+      try {
+        registryCache.__setEnabledForTesting(baseline.filter((id) => id !== 'carts'));
+        expect(effectiveState.isPresent('carts')).toBe(false);
+        const offCatalogue = await catalogueCodes();
+        for (const code of CODES) expect(offCatalogue, code).not.toContain(code);
+        const offAdmin = await ownCodes('ADMIN');
+        for (const code of CODES) expect(offAdmin, code).not.toContain(code);
+        expect(await ownCodes('HOLDER')).toEqual([]);
+        // Off is non-destructive: the grant stays stored.
+        expect(await storedGrants()).toEqual(['carts.approve', 'carts.create']);
+      } finally {
+        registryCache.__setEnabledForTesting(baseline);
+      }
+
+      expect(await catalogueCodes()).toEqual(expect.arrayContaining(CODES));
+      expect((await ownCodes('HOLDER')).sort()).toEqual(['carts.approve', 'carts.create']);
+    } finally {
+      org.release();
+    }
   });
 
   it('has no operator axis at all, and that is the module saying so', () => {

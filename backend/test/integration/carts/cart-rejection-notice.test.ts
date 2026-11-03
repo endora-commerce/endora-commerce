@@ -10,6 +10,7 @@ import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
 import { CustomerAccount, Organization } from '../../helpers/package-entities.js';
 import { CUSTOMER_COOKIES } from '../../helpers/test-actors.js';
 import { addOrganizationChannels } from '../../helpers/sales-channel-access.js';
+import { requireCartApprovalForMembers } from '../../helpers/cart-approval-roles.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 
 /**
@@ -66,10 +67,12 @@ describe('cart approval reads for the storefront (issue #650)', () => {
       taxId: `PL650${ORG.replace(/\D/g, '').slice(0, 7).padEnd(7, '0')}`,
       status: 'active',
       vatStatus: 'vat_payer',
-      requiresCartApproval: true,
       registeredAddress: { street: 'ul. Akceptacji 6', city: 'Warszawa', postalCode: '00-650', country: 'PL' },
     });
     await em.flush();
+    // `specs/170-organization-roles/` WP-04 — approval is the role's: the
+    // *Member* role as M2 maps an approval-requiring Organization.
+    await requireCartApprovalForMembers(em, ORG);
     const accounts = [
       { ...MEMBER, role: 'regular_user' as const, label: 'member' },
       { ...OTHER_MEMBER, role: 'regular_user' as const, label: 'other' },

@@ -9,6 +9,8 @@ import { CustomerAccount, Organization } from '../../helpers/package-entities.js
 import { CUSTOMER_COOKIES } from '../../helpers/test-actors.js';
 import { addOrganizationChannels } from '../../helpers/sales-channel-access.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
+import { requireCartApprovalForMembers, seedRoleGranting } from '../../helpers/cart-approval-roles.js';
+import { assignOrganizationRole } from '../../helpers/seed-organization-roles.js';
 import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
 import type {
   MailerSendInput,
@@ -28,6 +30,11 @@ import type {
  * The fixture owns its Organization: two administrators (one of them on a
  * mailbox that refuses every message), three members, one blocked administrator
  * who must not be told. `pl_retail`'s default language is Polish.
+ *
+ * `specs/170-organization-roles/` WP-04 (FR-033) — the "submitted" e-mail goes
+ * to every member whose role holds `carts.approve` (`rolesHolding`), so an
+ * approver who is not an administrator is told as well. The *Member* role is
+ * mapped as M2 maps an approval-requiring Organization.
  */
 
 const CHANNEL = { 'x-sales-channel': 'pl_retail' };
@@ -55,6 +62,7 @@ describe('cart approval e-mails (issue #651)', () => {
   const ADMIN = { id: randomUUID(), cookie: `stub-i651-admin-${RUN}`, label: 'admin' };
   const REFUSING_ADMIN = { id: randomUUID(), cookie: `stub-i651-refusing-${RUN}`, label: 'refusing-admin' };
   const BLOCKED_ADMIN = { id: randomUUID(), cookie: `stub-i651-blocked-${RUN}`, label: 'blocked-admin' };
+  const APPROVER = { id: randomUUID(), cookie: `stub-i651-approver-${RUN}`, label: 'approver' };
   let refuse = email('refusing-admin');
   const mailer = new RefusingMailer(() => refuse);
 
@@ -70,10 +78,10 @@ describe('cart approval e-mails (issue #651)', () => {
       taxId: `PL651${ORG.replace(/\D/g, '').slice(0, 7).padEnd(7, '0')}`,
       status: 'active',
       vatStatus: 'vat_payer',
-      requiresCartApproval: true,
       registeredAddress: { street: 'ul. Akceptacji 7', city: 'Warszawa', postalCode: '00-651', country: 'PL' },
     });
     await em.flush();
+    await requireCartApprovalForMembers(em, ORG);
     const accounts = [
       { ...MEMBER, role: 'regular_user' as const, blockedAt: null },
       { ...SECOND_MEMBER, role: 'regular_user' as const, blockedAt: null },
@@ -81,6 +89,7 @@ describe('cart approval e-mails (issue #651)', () => {
       { ...ADMIN, role: 'organization_admin' as const, blockedAt: null },
       { ...REFUSING_ADMIN, role: 'organization_admin' as const, blockedAt: null },
       { ...BLOCKED_ADMIN, role: 'organization_admin' as const, blockedAt: new Date() },
+      { ...APPROVER, role: 'regular_user' as const, blockedAt: null },
     ];
     for (const account of accounts) {
       em.create(CustomerAccount, {
@@ -96,6 +105,7 @@ describe('cart approval e-mails (issue #651)', () => {
       });
     }
     await em.flush();
+    await assignOrganizationRole(em, APPROVER.id, await seedRoleGranting(em, ORG, ['carts.create', 'carts.approve']));
     await addOrganizationChannels(h, ORG, ['pl_retail']);
     for (const account of accounts) {
       CUSTOMER_COOKIES[account.cookie] = { customerAccountId: account.id, organizationId: ORG };
@@ -103,7 +113,7 @@ describe('cart approval e-mails (issue #651)', () => {
   }, 60_000);
 
   afterAll(async () => {
-    for (const actor of [MEMBER, SECOND_MEMBER, THIRD_MEMBER, ADMIN, REFUSING_ADMIN, BLOCKED_ADMIN]) {
+    for (const actor of [MEMBER, SECOND_MEMBER, THIRD_MEMBER, ADMIN, REFUSING_ADMIN, BLOCKED_ADMIN, APPROVER]) {
       delete CUSTOMER_COOKIES[actor.cookie];
     }
     await teardownBackendServer(h);
@@ -138,15 +148,16 @@ describe('cart approval e-mails (issue #651)', () => {
     return rows[0]!.approval_status;
   }
 
-  it('a submit tells each reachable administrator once, in the store’s language; a refusing mailbox fails nothing', async () => {
+  it('a submit tells each reachable holder of carts.approve once, in the store’s language; a refusing mailbox fails nothing', async () => {
     const cartId = await submittedCart(MEMBER);
     expect(await approvalStatus(cartId)).toBe('pending');
 
     const messages = ofCart(cartId, 'cart_approval_requested');
     // The refusing administrator's message raised and was contained; the
-    // blocked administrator and the submitter are never addressed.
-    expect(messages.map((m) => m.to)).toEqual([email('admin')]);
-    const [message] = messages;
+    // blocked administrator and the submitter are never addressed; the approver
+    // who is not an administrator is (FR-033).
+    expect(messages.map((m) => m.to).sort()).toEqual([email('admin'), email('approver')].sort());
+    const message = messages.find((m) => m.to === email('admin'));
     expect(message!.subject).toContain('Issue651 member');
     expect(message!.subject).toContain('przekazuje koszyk do Twojej akceptacji');
     expect(message!.text).toContain(email('member'));

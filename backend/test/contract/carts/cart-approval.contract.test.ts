@@ -8,14 +8,17 @@ import {
 /**
  * T078-T083 (feature 027 US4) — Approval workflow smoke contract tests.
  *
- * Full happy-path coverage that requires an Organization with
- * `requires_cart_approval=true` and Org-Admin / ordinary-member
- * Customer fixtures is deferred until US4 frontend; these tests
- * cover the route plumbing and the error-handler contract for the
- * anonymous-session and non-org-admin paths.
+ * Route plumbing and the error-handler contract for the anonymous-session
+ * paths; the member and approver paths are
+ * `backend/test/integration/carts/cart-approval-flow.test.ts`.
+ *
+ * `specs/170-organization-roles/` WP-04 (OR-3, FR-031) — the per-Organization
+ * policy switch is gone: whether a buyer's basket needs approval is their
+ * role's `carts.order_without_approval`, so
+ * `PATCH /api/v1/organization/policies/cart-approval` is not served at all.
  */
 
-describe('US4 approval routes — anonymous + non-org-admin paths', () => {
+describe('US4 approval routes — anonymous paths, and the removed policy switch', () => {
   let h: BackendServerHandle;
 
   beforeAll(async () => {
@@ -60,13 +63,14 @@ describe('US4 approval routes — anonymous + non-org-admin paths', () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it('PATCH /api/v1/organization/policies/cart-approval returns 401 for an anonymous session', async () => {
+  it('PATCH /api/v1/organization/policies/cart-approval is removed: 404, even for an administrator', async () => {
     const res = await h.app.inject({
       method: 'PATCH',
       url: '/api/v1/organization/policies/cart-approval',
       payload: JSON.stringify({ requiresCartApproval: true }),
       headers: { 'content-type': 'application/json' },
+      cookies: { b2b_session: 'stub-customer-session' },
     });
-    expect(res.statusCode).toBe(401);
+    expect(res.statusCode, res.body).toBe(404);
   });
 });
