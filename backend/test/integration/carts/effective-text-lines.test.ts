@@ -162,8 +162,28 @@ describe('170 — basket texts at the basket (channel, language) [integration]',
     expect((await line('pl_retail', drill.id))?.packagingUnitName).toBe(`Carton ${RUN}`);
   });
 
-  // Open question for the coordinator (T050): FR-013 and the port docblock say an empty override of
-  // the (optional) packaging-unit name shows nothing; the Phase 2 code and the builder brief keep
-  // the Global name on the basket snapshot. Held as `todo` until the owner answers.
-  it.todo('an empty packaging-unit name override at the line (C, L) — Global name or nothing on the snapshot');
+  // Owner decision after C1 (2026-11-03, tasks.md): an empty packaging-unit name override at C or
+  // C×L does not blank the basket snapshot — the line keeps the unit's Global name.
+  it('keeps the Global packaging-unit name on the snapshot where the override at C or C×L is empty', async () => {
+    const em = h.em();
+    const emptyAtChannel = await createMinimumPackagingUnit(em, { productId: drill.id, name: `Box C ${RUN}`, baseQuantity: 6 });
+    const emptyAtLanguage = await createMinimumPackagingUnit(em, { productId: drill.id, name: `Box CL ${RUN}`, baseQuantity: 4 });
+    await seedScopedValues(em, drill.id, [
+      { field: `packagingUnit:${emptyAtChannel}:name`, scope: { level: 'channel', channelId: vipId }, value: 'empty' },
+      {
+        field: `packagingUnit:${emptyAtLanguage}:name`,
+        scope: { level: 'channel_language', channelId: vipId, languageCode: 'pl-PL' },
+        value: 'empty',
+      },
+    ]);
+    for (const [packagingUnitId, globalName] of [
+      [emptyAtChannel, `Box C ${RUN}`],
+      [emptyAtLanguage, `Box CL ${RUN}`],
+    ] as const) {
+      await completeActiveBaskets();
+      const added = await add('pl_b2b_vip', { productId: drill.id, quantity: 3, packagingUnitId });
+      expect(added.statusCode, added.body).toBeLessThan(300);
+      expect((await line('pl_b2b_vip', drill.id))?.packagingUnitName, packagingUnitId).toBe(globalName);
+    }
+  });
 });

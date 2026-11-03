@@ -4,11 +4,24 @@ import { setupBackendServer, teardownBackendServer, type BackendServerHandle } f
 import { createMinimumProduct, minimumFixtureRun, type MinimumProductFixture } from '../../helpers/order-minimum-fixture.js';
 import { clearValueOverrides } from '../../helpers/product-scope-fixture.js';
 import { seedScopedValues } from '../../helpers/scoped-values.js';
+import type {
+  CatalogProductAvailabilityPort,
+  CatalogProductReadPort,
+  CustomerAccountReadPort,
+} from '@endora-commerce/contracts';
+import { AvailabilityWorker } from '../../../../packages/modules/inventory/src/backend/services/availability-worker.js';
+import { AvailabilityNotificationService } from '../../../../packages/modules/inventory/src/backend/services/availability-notification-service.js';
+import { AvailabilityNotification, CustomerAccount } from '../../helpers/package-entities.js';
+import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
 
 /**
  * Feature 170 (`specs/170-product-editor-scope-switcher/` T054; FR-030, FR-031) — an operator's
  * stock alert has no channel, so it names the product by its **Global** name, never by a channel
  * or channel × language translation (`contracts/readers.md` §1, inventory = G for operator alerts).
+ *
+ * Owner decision after C1 (2026-11-03, tasks.md): the buyer's back-in-stock e-mail names the
+ * product by its **Global** name in 170 too — `availability_notifications` stores no channel and
+ * no language. Storing them is a follow-up (spec *Out of scope / follow-ups*), not 170.
  */
 
 const ADMIN = { b2b_session: 'stub-admin-session' };
@@ -42,6 +55,7 @@ describe('170 — inventory alerts name products by their Global name [integrati
   afterAll(async () => {
     if (!h) return;
     await sql(`delete from stock_levels where product_id = ?`, [drill.id]);
+    await sql(`delete from availability_notifications where product_id = ?`, [drill.id]);
     await clearValueOverrides(h.em(), [drill.id]);
     await teardownBackendServer(h);
   });
@@ -55,8 +69,53 @@ describe('170 — inventory alerts name products by their Global name [integrati
     expect(row?.productName).toBe(GLOBAL);
   });
 
-  // Blocked (reported to the coordinator): `availability_notifications` stores no channel and no
-  // language, so "the subscription's channel and language" (readers.md §1) has no source. It needs
-  // a data-model entry and an inventory migration before the e-mail can read `effectiveTexts`.
-  it.todo("the back-in-stock e-mail names the product at the subscription's channel and language");
+  function ports(): {
+    catalogProducts: CatalogProductReadPort;
+    customerAccounts: CustomerAccountReadPort;
+    catalogAvailability: CatalogProductAvailabilityPort;
+  } {
+    const cradle = h.container.cradle as never as {
+      catalogProductReadPort: CatalogProductReadPort;
+      customerAccountReadPort: CustomerAccountReadPort;
+      catalogProductAvailabilityPort: CatalogProductAvailabilityPort;
+    };
+    return {
+      catalogProducts: cradle.catalogProductReadPort,
+      customerAccounts: cradle.customerAccountReadPort,
+      catalogAvailability: cradle.catalogProductAvailabilityPort,
+    };
+  }
+
+  async function subscribe(): Promise<void> {
+    const em = h.em();
+    const customer = await em.findOneOrFail(CustomerAccount, { role: 'organization_admin' });
+    await sql(`delete from availability_notifications where product_id = ?`, [drill.id]);
+    em.create(AvailabilityNotification, {
+      customerAccountId: customer.id,
+      organizationId: customer.organizationId,
+      productId: drill.id,
+      variantId: null,
+    });
+    await em.flush();
+  }
+
+  it('the back-in-stock e-mail of the stock worker names the product by its Global name', async () => {
+    await subscribe();
+    const mailer = new InMemoryMailer();
+    const { catalogProducts, customerAccounts } = ports();
+    const worker = new AvailabilityWorker(h.em, mailer, catalogProducts, customerAccounts);
+    expect((await worker.dispatchForStockIncrease({ productId: drill.id })).notified).toBe(1);
+    expect(mailer.sent[0]?.subject).toBe(`Back in stock: ${GLOBAL}`);
+    expect(mailer.sent[0]?.text).toContain(`"${GLOBAL}"`);
+  });
+
+  it('the back-in-stock e-mail of the restock fan-out names the product by its Global name', async () => {
+    await subscribe();
+    const mailer = new InMemoryMailer();
+    const { catalogProducts, customerAccounts, catalogAvailability } = ports();
+    const service = new AvailabilityNotificationService(h.em, catalogProducts, customerAccounts, catalogAvailability, mailer);
+    expect((await service.processRestockedFanOut({ productId: drill.id })).notified).toBe(1);
+    expect(mailer.sent[0]?.subject).toBe(`Back in stock: ${GLOBAL}`);
+    expect(mailer.sent[0]?.text).toContain(`"${GLOBAL}"`);
+  });
 });

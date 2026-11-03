@@ -121,7 +121,33 @@ describe('170 — quote-request line snapshots at the request (channel, language
     });
   });
 
-  // Same open question as `carts/effective-text-lines.test.ts` (T050): an empty override of the
-  // packaging-unit name — Global name or nothing on the snapshot. Held until the owner answers.
-  it.todo('an empty packaging-unit name override at the request (C, L) — Global name or nothing on the snapshot');
+  // Owner decision after C1 (2026-11-03, tasks.md): an empty packaging-unit name override at C or
+  // C×L does not blank the request's snapshot — the line keeps the unit's Global name.
+  it('keeps the Global packaging-unit name on the snapshot where the override at C or C×L is empty', async () => {
+    const em = h.em();
+    const emptyAtChannel = await createMinimumPackagingUnit(em, { productId: drill.id, name: `Box C ${RUN}`, baseQuantity: 3 });
+    const emptyAtLanguage = await createMinimumPackagingUnit(em, { productId: drill.id, name: `Box CL ${RUN}`, baseQuantity: 2 });
+    await seedScopedValues(em, drill.id, [
+      { field: `packagingUnit:${emptyAtChannel}:name`, scope: { level: 'channel', channelId: vipId }, value: 'empty' },
+      {
+        field: `packagingUnit:${emptyAtLanguage}:name`,
+        scope: { level: 'channel_language', channelId: vipId, languageCode: 'pl-PL' },
+        value: 'empty',
+      },
+    ]);
+    for (const [packagingUnitId, globalName] of [
+      [emptyAtChannel, `Box C ${RUN}`],
+      [emptyAtLanguage, `Box CL ${RUN}`],
+    ] as const) {
+      const res = await create('pl_b2b_vip', [{ productId: drill.id, quantity: 1, packagingUnitId }]);
+      expect(res.statusCode, res.body).toBe(201);
+      expect(lineName(res.json(), drill.id), packagingUnitId).toBe(`${VIP_PL} (${globalName})`);
+      const id = (res.json() as { data: { id: string } }).data.id;
+      const unitRow = (await sql(
+        `select packaging_unit_name from quote_request_items where quote_request_id = ? and product_id = ?`,
+        [id, drill.id],
+      )) as Array<{ packaging_unit_name: string | null }>;
+      expect(unitRow[0]?.packaging_unit_name, packagingUnitId).toBe(globalName);
+    }
+  });
 });
