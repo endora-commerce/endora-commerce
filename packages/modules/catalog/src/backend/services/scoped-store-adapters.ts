@@ -110,25 +110,25 @@ export function languageStatusRows(
  * column normalised to `subjectId` by the caller.
  */
 export function familyOverrideRows<T = unknown>(
-  rows: ReadonlyArray<{ subjectId: string; salesChannelId: string; languageCode: string | null; field: string; value: unknown }>,
+  rows: ReadonlyArray<{ subjectId: string; salesChannelId: string; languageCode?: string | null; field: string; value: unknown }>,
   subjectId: string,
   field: string,
 ): ScopedRow<T>[] {
   return rows
     .filter((row) => row.subjectId === subjectId && row.field === field)
-    .map((row) => ({ channelId: row.salesChannelId, languageCode: row.languageCode, value: wrapped<T>(row.value) }));
+    .map((row) => ({ channelId: row.salesChannelId, languageCode: row.languageCode ?? null, value: wrapped<T>(row.value) }));
 }
 
 /** `gallery_role_scope_overrides` of one role: a row naming no item = no image holds the role there. */
 export function galleryRoleRows(
-  rows: ReadonlyArray<{ label: GalleryRoleLabel; salesChannelId: string; languageCode: string | null; galleryItemId: string | null }>,
+  rows: ReadonlyArray<{ label: GalleryRoleLabel; salesChannelId: string; languageCode?: string | null; galleryItemId?: string | null }>,
   label: GalleryRoleLabel,
 ): ScopedRow<string>[] {
   return rows
     .filter((row) => row.label === label)
     .map((row) => ({
       channelId: row.salesChannelId,
-      languageCode: row.languageCode,
-      value: row.galleryItemId === null ? { kind: 'empty' } : { kind: 'value', value: row.galleryItemId },
+      languageCode: row.languageCode ?? null,
+      value: row.galleryItemId == null ? { kind: 'empty' } : { kind: 'value', value: row.galleryItemId },
     }));
 }

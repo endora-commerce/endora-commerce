@@ -19,6 +19,8 @@ export interface ScopedValuesFixture {
   readRaw(productId: string, scope?: Scope, who?: Who): ReturnType<BackendServerHandle['app']['inject']>;
   put(productId: string, scope: Scope, changes: unknown, options?: { version?: string; who?: Who }): ReturnType<BackendServerHandle['app']['inject']>;
   save(productId: string, scope: Scope, changes: unknown): Promise<ScopedValuesResponse['data']>;
+  /** Two gallery items (the first holds `base_image` at Global), one attachment and one packaging unit, by SQL. */
+  media(productId: string): Promise<{ items: [string, string]; attachment: string; unit: string }>;
   sql<T = Record<string, unknown>>(statement: string, params?: unknown[]): Promise<T[]>;
   cleanup(): Promise<void>;
 }
@@ -33,6 +35,8 @@ export function scopedValuesFixture(h: () => BackendServerHandle): ScopedValuesF
   const channels: string[] = [];
   const products: string[] = [];
   const sets: string[] = [];
+  const assets: string[] = [];
+  const types: string[] = [];
   let attributeSetId: string | null = null;
   const conn = () => h().em().getConnection();
   const url = (productId: string) => `/api/v1/admin/catalog/products/${productId}/scoped-values`;
@@ -126,6 +130,49 @@ export function scopedValuesFixture(h: () => BackendServerHandle): ScopedValuesF
       expect(res.statusCode, res.body).toBe(200);
       return (res.json() as ScopedValuesResponse).data;
     },
+    async media(productId) {
+      const asset = async (kind: string, mime: string) => {
+        const id = randomUUID();
+        await conn().execute(
+          `insert into assets (id, kind, filename, mime_type, size_bytes, storage_url, created_at, updated_at)
+           values (?, ?, 'file.bin', ?, 1024, ?, now(), now())`,
+          [id, kind, mime, `https://cdn.test/sv170/${id}`],
+        );
+        assets.push(id);
+        return id;
+      };
+      const item = async (position: number) => {
+        const id = randomUUID();
+        await conn().execute(
+          `insert into gallery_items (id, product_id, asset_id, position, alt_text, hidden, created_at, updated_at)
+           values (?, ?, ?, ?, ?, false, now(), now())`,
+          [id, productId, await asset('image', 'image/jpeg'), position, `Alt ${position}`],
+        );
+        return id;
+      };
+      const first = await item(0);
+      const second = await item(1);
+      await conn().execute(`insert into gallery_item_labels (gallery_item_id, label, product_id) values (?, 'base_image', ?)`, [first, productId]);
+      const typeId = randomUUID();
+      await conn().execute(
+        `insert into attachment_types (id, code, name, position, created_at, updated_at) values (?, ?, '{"en-US":"Doc"}'::jsonb, 0, now(), now())`,
+        [typeId, `sv170_${run}_${types.length}`],
+      );
+      types.push(typeId);
+      const attachment = randomUUID();
+      await conn().execute(
+        `insert into product_attachments (id, product_id, asset_id, attachment_type_id, name, description, position, hidden, created_at, updated_at)
+         values (?, ?, ?, ?, 'Data sheet', 'Specs', 0, false, now(), now())`,
+        [attachment, productId, await asset('pdf', 'application/pdf'), typeId],
+      );
+      const unit = randomUUID();
+      await conn().execute(
+        `insert into product_packaging_units (id, product_id, name, base_quantity, position, is_default, created_at, updated_at)
+         values (?, ?, 'Carton', 12, 0, false, now(), now())`,
+        [unit, productId],
+      );
+      return { items: [first, second], attachment, unit };
+    },
     async sql(statement, params = []) {
       return conn().execute(statement, params) as Promise<never>;
     },
@@ -133,6 +180,8 @@ export function scopedValuesFixture(h: () => BackendServerHandle): ScopedValuesF
       for (const id of products) await conn().execute(`delete from products where id = ?`, [id]);
       for (const id of channels) await conn().execute(`delete from sales_channels where id = ?`, [id]);
       for (const id of sets) await conn().execute(`delete from attribute_sets where id = ?`, [id]);
+      for (const id of assets) await conn().execute(`delete from assets where id = ?`, [id]);
+      for (const id of types) await conn().execute(`delete from attachment_types where id = ?`, [id]);
     },
   };
   return fixture;

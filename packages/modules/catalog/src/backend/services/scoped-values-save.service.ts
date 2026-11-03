@@ -537,8 +537,8 @@ export async function writeScopedSave(
   await em.flush();
 }
 
-const sameLang = (a: string | null, b: string | null): boolean =>
-  a === null || b === null ? a === b : a.toLowerCase() === b.toLowerCase();
+const sameLang = (a: string | null | undefined, b: string | null | undefined): boolean =>
+  a == null || b == null ? (a ?? null) === (b ?? null) : a.toLowerCase() === b.toLowerCase();
 
 /** A wrapped override row: `set` → `{v: value}`, `empty` → `{v: null}`, `inherit` → deleted. */
 function upsertOverride<R extends { value: { v: unknown }; updatedAt: Date }>(
