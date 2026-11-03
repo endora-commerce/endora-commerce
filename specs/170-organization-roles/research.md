@@ -657,7 +657,8 @@ opens.
    performs one HTTP request per gated action per member, and asserts the outcome table committed
    at `backend/test/fixtures/organization-roles/pre-upgrade-outcomes.ts`. The table is recorded by
    the code it describes.
-2. **WP-13, on the integration branch** — `backend/test/integration/organizations/
+2. **WP-13, on the integration branch** *(brought forward to WP-13a in Wave 2 and closed by WP-13;
+   R-38)* — `backend/test/integration/organizations/
    roles-upgrade-replay.test.ts` takes a migrated clone (`backend/test/helpers/migrated-database.ts`),
    runs the `down()` statements of M5, M4, M3, M2 in that order to reach the pre-170 schema, inserts
    the same population with raw SQL in the old shape, runs the `up()` statements of M2–M5 (the
@@ -925,3 +926,89 @@ administrator a colleague is about to join who cannot. The oracle recorded it (�
 **Alternatives rejected.** *List expired invitations with a status* — a new response field and UI
 nobody asked for. *A sweep that deletes expired invitations* — destructive, and loses the audit
 trail of who was invited.
+
+## R-38 — The replay replaces the live oracle on the integration branch from Wave 2 *(architect, 2026-11-03)*
+
+**Context.** On the integration branch the WP-00 oracle runs *live*: it creates its Organizations
+on the already-migrated schema, so B's *Member* comes from M2's insert trigger and holds every
+member default, `carts.order_without_approval` and `quick_order.one_click` included. FR-071's
+mapping runs only inside M2's `up()`, so the live oracle never sees it. WP-04 (#709) consequently
+moved four rows that are **not** in §6.1 — `cart.read:B.regular@pl_b2b_vip`,
+`order.place:B.regular@pl_retail`, `order.place:B.regular@pl_b2b_vip`,
+`cart.submitForApproval:B.regular` — and WP-06 (#707) cannot move §6.1 rows 23–24 at all. The four
+are artefacts of the seed, not of the design: after WP-04 nothing can set `requires_cart_approval`
+on an Organization (the policy endpoints are gone), so a company Organization with the flag set and
+an unmapped *Member* is a state no upgraded database can reach. Independently of those four rows,
+WP-03 (#710) showed the live oracle's second blind spot: it sends the legacy `role` request bodies,
+which WP-03's strict schemas refuse with `400`, so nine rows move for no design reason —
+`invitation.create{Member,Administrator}:{A,B}.admin`, `member.changeRole:{A,B}.admin`, and
+`P.owner`'s rows 9, 10 and 13 (`400` instead of §6.1's `422`/`422`/`200`); its other seven differing
+rows (1, 2, 8, 11, 12, 25, 26) match §6.1. The body mapping (`roleToRoleId`) exists only for the
+replay. So the integration branch needs both what the live oracle cannot do — the pre-migration seed
+and the body mapping — and only the replay does both. Beyond that,
+the live oracle asserts `PRE_UPGRADE_OUTCOMES` with no difference allowed, so the first merge that
+lands a §6.1 row (WP-03 or WP-04) turns it red by design, and after WP-12 it no longer type-checks
+(it seeds `role` and `requiresCartApproval` through the entities).
+
+**Decision.** Bring the replay forward (option (a)) as a new work package **WP-13a**, test-only,
+merging into the integration branch **before WP-03, WP-04 and WP-06**:
+
+1. `roles-upgrade-replay.test.ts` is written now, in its final shape, but over the migrations that
+   exist: migrated clone → `down()` of M3, M2 → `ORACLE_POPULATION` inserted with raw SQL in the
+   pre-170 shape → `up()` of M2, M3 → boot → replay → per-row comparison → the data assertions →
+   second `up()` changes nothing. WP-12 adds M5 and M4 to the two lists in the merge request that
+   adds them (it has to: the raw-SQL insert names columns M4/M5 drop).
+2. `EXPECTED_DIFFERENCES` (T125) and its self-check (T124) are written in WP-13a, not WP-13. Each
+   entry gains `landedBy` — the work package whose merge moves it (WP-03, WP-04 or WP-06). That is
+   an **allocation**, not behaviour: `before` and `after` still move only with an owner ruling;
+   a wrong `landedBy` is corrected by the architect in the merge request that finds it.
+3. A ledger, `backend/test/fixtures/organization-roles/landed-work-packages.ts`, records which of
+   the three have merged. **While a work package is not landed its rows must equal `before`; once it
+   is, they must equal `after`; every other row equals `PRE_UPGRADE_OUTCOMES`** — strict in both
+   directions at every merge. The landing package flips its own entry in its own merge request.
+   The WP-03 entry also switches request bodies from `role` to `roleId` (`roleToRoleId`), because
+   WP-03 is the package that changes that API shape.
+4. WP-13a **retires** `roles-upgrade-oracle.test.ts` (`git rm`, content never edited) in the same
+   merge request, after showing on one tree that both are green: the live oracle against
+   `PRE_UPGRADE_OUTCOMES`, and the replay with an empty ledger against the same table, all 319
+   rows. That equality is what proves the replay's copied observation functions (`send`, `observe`)
+   observe exactly what the oracle's did. The fixture `pre-upgrade-outcomes.ts` stays frozen and
+   unedited; it is the record, and the replay is its only reader from then on. The oracle file
+   stays on `master` until the integration pull request (T116) and in history at `6ddb4210d`.
+5. WP-13 shrinks to the close-out: delete the ledger and the interim branch, so the replay asserts
+   every §6.1 row at `after` unconditionally, and run SC-004.
+
+**Rationale.** The instrument that matters is the one the release will meet: an upgraded database.
+Only the replay exercises M2's FR-071 mapping and M3's backfill, so only the replay can tell a seed
+artefact from a defect, and it does so at the merge that would introduce the defect rather than at
+WP-13, when ten packages are tangled together. The ledger keeps it as strict as the frozen oracle
+was (no row may drift, in or out of the table) while letting the table land one package at a time.
+Building the raw-SQL population now is also cheaper than after WP-12: the legacy columns are still
+in the schema, so the pre-170 shape is today's shape minus M2/M3's additions.
+
+**Alternatives rejected.**
+
+- *(b) A live mode with the §6.1 table plus a "live-seed artefact" list.* It needs a new harness
+  anyway (the frozen file cannot apply any table), and the artefact list is a set of rows whose only
+  justification is "the seed is unrealistic". Its promised self-check — "the replay matches each
+  artefact row later" — needs the replay, so (b) is (a) plus a weaker instrument in front of it.
+  It also never moves rows 23–24, so #653's fix (WP-06) would merge unobserved.
+- *(c) The live oracle master-only, rely on WP-13.* Leaves Waves 2 and 3 — every behavioural change
+  in the feature — without the instrument WP-00 was built for, and turns the integration branch red
+  at the first §6.1 merge in any case (the file is on the branch). Defects would surface in WP-13 as
+  one tangle.
+- *Tolerant interim mode (a table row may equal `before` or `after` until WP-13), no ledger.* No
+  ledger edits, but a row could land early, late or flip back unobserved; the ledger costs one line
+  per landing package.
+- *Keep the live oracle beside the replay, excluded from the run on the integration branch.* An
+  excluded file is dead code that fails type-check after WP-12 and asserts pre-upgrade behaviour on
+  `master` after T116; the record it guards is the fixture, which stays.
+- *Seed live, then re-run M2's `up()` statements over the population.* Applies the FR-071 marker
+  (idempotent, `member_defaults_offered = '{}'`), but the accounts come from the trigger, not M3's
+  backfill, so the upgrade path is still not tested.
+
+**Risk.** The test server opens the ORM with `DATABASE_URL` captured at import
+(`backend/test/helpers/test-server.ts`), and no in-process precedent boots it against a clone
+(`price_lists/fresh-install.test.ts` spawns a CLI). T130 proves this first; the expected route is
+setting `DATABASE_URL` to the clone before a dynamic `import()` of the helper (vitest isolates each
+file's module graph). The risk existed for WP-13 already; WP-13a meets it earlier.

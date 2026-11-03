@@ -39,7 +39,10 @@ output:
 
 1. `pnpm run build:packages` after editing any package; `pnpm -r run typecheck`; `pnpm -r run lint`.
 2. `pnpm --filter backend run test:unit:fast`, `pnpm --filter '!backend' run test` for the touched
-   packages, and the WP's targeted contract/integration files run locally (D-198).
+   packages, and the WP's targeted contract/integration files run locally (D-198). **From WP-13a's
+   merge on, the targeted files always include
+   `backend/test/integration/organizations/roles-upgrade-replay.test.ts`** (R-38): the MR pastes its
+   output and names every row that moved; the WP-00 oracle test is no longer run on the branch.
 3. The R-14 inventory over the WP's owned files reports zero (command in `quickstart.md` §8, run
    with the WP's paths) — Wave 2 onward.
 4. `pnpm --filter backend run composer:check` and `manifests:check` green; if either refuses,
@@ -185,7 +188,32 @@ the port answers, the integration branch is green. Wave 2 may start.
 
 ---
 
-## Phase 3 — Wave 2: conversion (WP-03, WP-04, WP-05, WP-07, WP-08 in parallel; WP-06 merges after WP-04; WP-08 merges after WP-03)
+## Phase 3 — Wave 2: conversion (WP-03, WP-04, WP-05, WP-07, WP-08 in parallel; WP-13a merges before WP-03, WP-04 and WP-06; WP-05 after WP-04; WP-06 after WP-04 and WP-05; WP-08 after WP-03)
+
+### WP-13a — the upgrade replay, brought forward (R-38)
+
+**Goal**: the integration branch's behaviour instrument from Wave 2 on is the replay of an
+upgraded database, not the live oracle (`contracts/migration-and-replay.md` §5 *On the integration
+branch*, §6, §6.2). Test only; owns only new files plus the retirement of the oracle test.
+**Merge gate**: before WP-03, WP-04 and WP-06 (WP-05, WP-07 and WP-08 move no §6.1 row and may
+merge either side of it). **Independent test**: the replay is green with an empty ledger and
+reproduces `PRE_UPGRADE_OUTCOMES` on all 319 rows. Implemented by `endora-commerce-dev`, branch
+`wp/170-13a-replay`.
+
+T124 (the table's self-check) and T125 (the table) are WP-13a's; they stay listed under WP-13 below, where their full text is, carrying `[WP-13a]`.
+
+- [ ] T130 [WP-13a] [US2] The landing ledger: `LANDED` with `'WP-03'`, `'WP-04'`, `'WP-06'` all `false`, one entry per line separated by a comment line naming the package and its §6.1 rows (§6.2) — backend test — `backend/test/fixtures/organization-roles/landed-work-packages.ts` (new) — T125
+- [ ] T131 [WP-13a] [US2] The replay in its interim form, red first (no population yet): migrated clone → `down()` of M3, M2 → `ORACLE_POPULATION` with raw SQL in the pre-170 shape (withdrawn members in the state the operator routes leave them; sessions through `SessionService` after boot) → `up()` of M2, M3 → boot the test server against the clone → `ORACLE_REQUESTS` in order, bodies through `roleToRoleId` only when `LANDED['WP-03']` → per-row comparison on the whole `{ status, code }` per §6 step 5 and §6.2 → data assertions (§6 step 6) → second `up()` changes nothing. `send` and `observe` are copied from the oracle test unchanged. **First prove the boot**: the test server opens the ORM with `DATABASE_URL` captured at import, so set it to the clone before a dynamic `import()` of `backend/test/helpers/test-server.js`; if that cannot work, stop and report before writing more (an edit of the shared helper is a WP-02b-owned file and needs the architect) — backend test — `backend/test/integration/organizations/roles-upgrade-replay.test.ts` (new) — T130
+- [ ] T132 [WP-13a] [US2] Hand-over, on one tree: run the WP-00 oracle test (green against `PRE_UPGRADE_OUTCOMES`) and the replay (green, every `LANDED` entry `false`, all 319 rows) and paste both outputs; then `git rm backend/test/integration/organizations/roles-upgrade-oracle.test.ts` — content never edited, the fixture untouched — and grep `backend/test/**`, `backend/vitest*.ts`, `scripts/**` and `quickstart.md` for the path (AGENTS.md trap: a deleted file's reader fails only in the complete suite) — backend test — T131
+- [ ] T133 [WP-13a] Verify (standing obligations 1, 2, 5); an empty changeset if the gate asks for one; merge before WP-03, WP-04 and WP-06 — T132
+
+**Obligations WP-13a places on the landing packages** (listed here, not in their sections, so the
+open WP-04 and WP-06 PRs, which edit those sections, rebase without a conflict):
+
+- [ ] T134 [WP-04] After WP-13a merges: rebase; flip `LANDED['WP-04']` to `true`; run the replay — §6.1 rows 3–6 and 14–22 at `after`, every other row as §6.2 requires (`PRE_UPGRADE_OUTCOMES`, or `after` for a package already landed), **including** at `PRE_UPGRADE_OUTCOMES` `cart.read:B.regular@pl_b2b_vip`, `order.place:B.regular@pl_retail`, `order.place:B.regular@pl_b2b_vip` and `cart.submitForApproval:B.regular` (the migrated B's *Member* lacks `carts.order_without_approval`); restate the MR's oracle section against the replay output — backend test — `landed-work-packages.ts` — T133, T079
+- [ ] T135 [WP-03] After WP-13a merges: flip `LANDED['WP-03']` to `true` (which also sends `role` bodies as `roleId`); run the replay — rows 1–2, 8–13 and 25–26 at `after`, and the six `invitation.create*`/`member.changeRole` rows of `A.admin` and `B.admin` at `PRE_UPGRADE_OUTCOMES` (#710 saw them, and rows 9, 10, 13, at `400` only because the live oracle sends `role`) — backend test — `landed-work-packages.ts` — T133, WP-03's implementation tasks
+- [ ] T136 [WP-06] After WP-04, WP-05 and WP-13a merge: rebase; flip `LANDED['WP-06']` to `true`; run the replay — rows 7, 23 and 24 at `after` (#653 observed closed), and no B.regular row after them moved (§6.1 *How the table is used*); restate the MR's oracle section against the replay output — backend test — `landed-work-packages.ts` — T133, T134, T137
+- [ ] T137 [WP-06] The three cross-module gates in `carts`' routes, owned by WP-06 because it merges last of the three (lead's decision, Notes 7): `shopping_lists.convert` on from-shopping-list, `shopping_lists.create` on save-to-shopping-list, `quote_requests.create` on convert-to-quote-request; WP-04's `it.todo` cases in `cart-organization-permissions.contract.test.ts` become real tests, red before the gate — carts — `packages/modules/carts/src/backend/routes.ts`, `backend/test/contract/carts/cart-organization-permissions.contract.test.ts` — WP-04 and WP-05 merged
 
 ### WP-03 — members, invitations, session, addresses, reserved capabilities
 
@@ -321,8 +349,9 @@ directions), every backend legacy read removed from converted modules.
 ### WP-12 — legacy removal
 
 - [ ] T105 [WP-12] [US2] Failing tests first: M4/M5 migration test (columns dropped; `down()` re-derives `role` and `requires_cart_approval` from the role reference exactly; M5 redefines the default trigger to plain *Member*); a contracts test that the legacy exports are gone; every touched request schema still refuses `role` (FR-073, FR-074) — organizations, customer_accounts, contracts — `backend/test/integration/organizations/legacy-role-columns-drop.test.ts` (new), `packages/contracts/src/organization-roles.test.ts` — T104
-- [ ] T106 [WP-12] Delete the legacy contract symbols (`organizationRoleSchema`, `OrganizationRole`, `CustomerAccountRole`, `countByOrganizationRole`, `RfqCustomerContext.isOrgAdmin`, cart-policy schemas, `requiresCartApproval` on the details record and write port, every `@deprecated` `role` field, and `CART_APPROVAL_SELF_SUBMIT`, unreachable since WP-04 (R-36)) — contracts — `packages/contracts/src/{common,organizations,customer-accounts,carts,quote-requests,admin}.ts` — T105
+- [ ] T106 [WP-12] Delete the legacy contract symbols (`organizationRoleSchema`, `OrganizationRole`, `CustomerAccountRole`, `countByOrganizationRole`, `RfqCustomerContext.isOrgAdmin`, cart-policy schemas, `requiresCartApproval` on the details record and write port, every `@deprecated` `role` field, and `CART_APPROVAL_SELF_SUBMIT`, unreachable since WP-04 (R-36) — **already removed from `ERROR_CODES` by WP-04** (Notes 7), so only its remaining contract mentions, if any) — contracts — `packages/contracts/src/{common,organizations,customer-accounts,carts,quote-requests,admin}.ts` — T105
 - [ ] T107 [WP-12] Delete in `organizations`: `commands/set-cart-approval-policy.command.ts`, the `organizationCartApprovalWritePort` registration, `Organization.requiresCartApproval`, its field in `services/organization-details-port.ts`, the invitation entity's `role`; in `customer_accounts`: the entity's `role` and the dual-write — organizations, customer_accounts — `org/src/backend/{commands/set-cart-approval-policy.command.ts,index.ts,entities/organization.entity.ts,entities/organization-invitation.entity.ts,services/organization-details-port.ts,services/invitation-service.ts}`, `ca/src/backend/{entities/customer-account.entity.ts,services/customer-account-ports.ts}` — T106
+- [ ] T138 [WP-12] [US2] In the merge request that adds M4/M5: add M5 and M4 to the replay's `down()` list (before M3, M2) and to both `up()` lists (after M2, M3); the replay green with the ledger as it stands (§6 step 2, R-38) — backend test — `backend/test/integration/organizations/roles-upgrade-replay.test.ts` — T108
 - [ ] T108 [WP-12] Scaffold **M4** (`--module organizations --name drop_legacy_role_columns`) and **M5** (`--module customer_accounts --name drop_legacy_role_column`) with exact `down()`s; T105 green — `org/src/migrations/<stamp>_organizations_drop_legacy_role_columns.ts`, `ca/src/migrations/<stamp>_customer_accounts_drop_legacy_role_column.ts` — T107
 - [ ] T109 [WP-12] Convert the incidental fixtures listed in plan.md *Test allocation* and every other test file the inventory still finds; delete `backend/test/integration/organizations/cart-approval-policy-audit.test.ts` with its Command — backend test, packages/modules/{pwa,search} — T108
 - [ ] T110 [WP-12] Whole-tree inventory (`quickstart.md` §8 `rg` command) prints nothing outside migrations, tests-by-design and ledgers; also grep `org_admin` and `role ===` by hand (plan *Risks*) — T109
@@ -330,9 +359,9 @@ directions), every backend legacy read removed from converted modules.
 
 ### WP-13 — upgrade replay and performance
 
-- [ ] T124 [WP-13] [US2] Failing self-check of the expected-differences table (no services; runs on every MR): every key is an `ORACLE_REQUESTS` id; every `before` equals `PRE_UPGRADE_OUTCOMES[id]`; every `after` differs from its `before`; the F4 keys are exactly the ids tagged `oneClickInApprovalOrg` (PR-6); 26 entries in the five families of `contracts/migration-and-replay.md` §6.1 (red: the table does not exist) — backend test — `backend/test/unit/organizations/roles-expected-differences.test.ts` (new) — T111
-- [ ] T125 [WP-13] [US2] Write `EXPECTED_DIFFERENCES` — the §6.1 table verbatim, keyed by oracle request id, `{ family, ruling, before, after }` in `OracleOutcome` shape; the oracle fixture is not edited; T124 green (PR-5, PR-6, FR-072) — backend test — `backend/test/fixtures/organization-roles/expected-differences.ts` (new) — T124
-- [ ] T112 [WP-13] [US2] Write the replay (red until green against the full branch): migrated clone → `down()` M5, M4, M3, M2 → raw-SQL `ORACLE_POPULATION` in the pre-170 shape → `up()` M2–M5 → boot → replay `ORACLE_REQUESTS` in order (body `role` → `roleId` via the fixture's mapping) → assert **per row** on the whole `{ status, code }`: a row of `EXPECTED_DIFFERENCES` equals its `after`, every other row equals `PRE_UPGRADE_OUTCOMES` (never a status-only comparison, PR-5) → data assertions (FR-071; `P.owner` holds *Administrator*, PR-3) → second `up()` changes nothing (FR-072, FR-074, SC-002) — backend test — `backend/test/integration/organizations/roles-upgrade-replay.test.ts` (new), imports `backend/test/fixtures/organization-roles/{pre-upgrade-outcomes,expected-differences}.ts` — T111, T125
+- [ ] T124 [WP-13a] [US2] Failing self-check of the expected-differences table (no services; runs on every MR): every key is an `ORACLE_REQUESTS` id; every `before` equals `PRE_UPGRADE_OUTCOMES[id]`; every `after` differs from its `before`; the F4 keys are exactly the ids tagged `oneClickInApprovalOrg` (PR-6); 26 entries in the five families of `contracts/migration-and-replay.md` §6.1; every `landedBy` equals the §6.1 *Lands in* value and, while the ledger exists, is a key of `LANDED` (red: the table does not exist) — backend test — `backend/test/unit/organizations/roles-expected-differences.test.ts` (new) — T111
+- [ ] T125 [WP-13a] [US2] Write `EXPECTED_DIFFERENCES` — the §6.1 table verbatim, keyed by oracle request id, `{ family, ruling, landedBy, before, after }` in `OracleOutcome` shape; the oracle fixture is not edited; T124 green (PR-5, PR-6, FR-072) — backend test — `backend/test/fixtures/organization-roles/expected-differences.ts` (new) — T124
+- [ ] T112 [WP-13] [US2] Close the replay (written by T131, extended by T138): delete `landed-work-packages.ts`, the interim branch of the comparison and the self-check's ledger clause, so every §6.1 row must equal its `after`; the replay then is, in full: migrated clone → `down()` M5, M4, M3, M2 → raw-SQL `ORACLE_POPULATION` in the pre-170 shape → `up()` M2–M5 → boot → replay `ORACLE_REQUESTS` in order (body `role` → `roleId` via the fixture's mapping) → assert **per row** on the whole `{ status, code }`: a row of `EXPECTED_DIFFERENCES` equals its `after`, every other row equals `PRE_UPGRADE_OUTCOMES` (never a status-only comparison, PR-5) → data assertions (FR-071; `P.owner` holds *Administrator*, PR-3) → second `up()` changes nothing (FR-072, FR-074, SC-002) — backend test — `backend/test/integration/organizations/roles-upgrade-replay.test.ts` (new), imports `backend/test/fixtures/organization-roles/{pre-upgrade-outcomes,expected-differences}.ts` — T111, T125
 - [ ] T113 [WP-13] Fix whatever the replay reveals in the owning module (a separate commit per module, test first); neither a changed oracle row nor an edit of `EXPECTED_DIFFERENCES` is an allowed fix — a row of the table that does not reach its `after` goes to the owner — T112
 - [ ] T114 [WP-13] SC-004: run the `backend/test/perf/carts/` harness on cart, checkout and placement on the previous release and on the branch; p95 within 5 %; record numbers in the MR (FR-080) — backend perf — T113
 - [ ] T115 [WP-13] Verify; merge into the integration branch — T114
@@ -358,11 +387,12 @@ is released. Nothing here may declare those two codes (R-30).
 ```text
 #656 ─► WP-00 (T001–T005, master) ─► T006 cut branch
         ─► WP-01 (T007–T023) ─► WP-02a (T024–T039) ─► WP-02b (T040–T052, T117–T118)
-            ─► Wave 2 ∥ : WP-03 (T053–T066, T119, T120, T122, T123, T128, T129) · WP-04 (T067–T079, T121, T126, T127, #656) · WP-05 (T080–T083)
+            ─► WP-13a (T124, T125, T130–T133; before WP-03, WP-04, WP-06)
+            ─► Wave 2 ∥ : WP-03 (T053–T066, T119, T120, T122, T123, T128, T129, T135) · WP-04 (T067–T079, T121, T126, T127, T134, #656) · WP-05 (T080–T083)
                           · WP-07 (T091–T093) · WP-08 (T094–T096, merges after WP-03)
-                          · WP-06 (T084–T090, merges after WP-04)
+                          · WP-06 (T084–T090, T136, T137, merges after WP-04 and WP-05)
             ─► Wave 3 ∥ : WP-09 (T097–T099, after 02a/03/04) · WP-10 (T100–T102, after 04/05/06)
-            ─► WP-11 (T103–T104) ─► WP-12 (T105–T111) ─► WP-13 (T124, T125, T112–T115) ─► T116
+            ─► WP-11 (T103–T104) ─► WP-12 (T105–T111, T138) ─► WP-13 (T112–T115) ─► T116
 ```
 
 **Critical path**: #656 → WP-00 (M) → WP-01 (M) → WP-02a (L) → WP-02b (L) → WP-04 (L) → WP-06 (M)
@@ -372,7 +402,7 @@ branch of equal length to WP-04 → WP-06 → WP-10 and becomes critical if WP-0
 ### Wave parallelism
 
 - Wave 1 is serial (one agent at a time).
-- Wave 2: up to six agents (WP-03, -04, -05, -06, -07, -08); their file sets are disjoint per
+- Wave 2: up to seven agents (WP-13a, WP-03, -04, -05, -06, -07, -08); WP-13a owns only new test files, and the one line per landing package in its ledger is the declared exception to disjointness (R-38); the other file sets are disjoint per
   plan.md *Owns* with A-1 applied. Shared helpers are WP-02b's; a Wave 2 package adds fixtures in
   new files only. `organizations`' i18n bundle is edited by WP-03 only in Wave 2.
 - Wave 3: WP-09 ∥ WP-10 (disjoint storefront files; both read `storefront/lib/organization-permissions.ts`, edited by neither).
@@ -411,7 +441,7 @@ WP-06) as the business reason for the feature, then US 1's storefront (WP-09/10)
 | FR-011 | T058 → T063 |
 | FR-012 | T085 → T088 |
 | FR-013 | superseded by OR-5 → see FR-049 |
-| FR-014 | T003/T004 (oracle) → T112 (replay) |
+| FR-014 | T003/T004 (oracle) → T131 (replay, interim), T112 (replay, final) |
 | FR-014a | T056 → T061 |
 | FR-020 | T008, T012 → T014, T020 |
 | FR-021 | T012 → T020; declarations T061, T072, T081, T088, T089, T092 |
@@ -446,7 +476,7 @@ WP-06) as the business reason for the feature, then US 1's storefront (WP-09/10)
 | FR-070 | T024, T040 → T031, T044 |
 | FR-070a | T040, T117, T119, T097 → T044, T118, T120, T098 (PR-3) |
 | FR-071 | T024 → T031; T112 |
-| FR-072 | T003/T004 → T124 → T125 → T112 (expected differences per row, PR-5, PR-6) |
+| FR-072 | T003/T004 → T124 → T125 → T130 → T131 → T134/T135/T136 (per landing package) → T112 (expected differences per row, PR-5, PR-6, R-38) |
 | FR-073 | T007, T053, T054, T105 → T013, T059, T060, T106 |
 | FR-074 | T024, T040, T105 → T031, T044, T108; T112 |
 | FR-080 | T026 → T033; T114 |
@@ -478,3 +508,30 @@ automated test; it is checked in the `quickstart.md` §2 walk-through (T116).
    ids are appended, never renumbered; each sits in its work package's section. The owner's
    confirmations PR-8 to PR-12 followed; PR-12 (the sign-in merge, FR-030a) adds T126–T129 and amends
    T015. No `[NEEDS CLARIFICATION]` remains.
+6. **The live oracle on the integration branch** (raised by WP-04 in #709 and WP-06 in #707,
+   decided 2026-11-03, research R-38). The WP-00 oracle test creates its Organizations on the
+   migrated schema, so FR-071's mapping never reaches B and four B.regular rows outside §6.1 move from
+   WP-04 on while rows 23–24 cannot move at all; it sends legacy `role` bodies, so WP-03 (#710) sees
+   nine rows at `400` that the replay's `roleToRoleId` sends as `roleId`; it also turns red at the first merge that lands any
+   §6.1 row and stops type-checking at WP-12. Decision: the replay is brought forward as **WP-13a**
+   (T124, T125, T130–T133), which merges before WP-03, WP-04 and WP-06, retires the oracle test
+   (never edited; the fixture stays frozen) after showing both green on one tree, and introduces a
+   landing ledger that each landing package flips in its own MR (T134 WP-04, T135 WP-03, T136
+   WP-06). WP-12 extends the replay with M4/M5 (T138); WP-13 deletes the ledger (T112).
+   `contracts/migration-and-replay.md` §5, §6, §6.1 (*Lands in*) and §6.2 carry it. **Effect on the
+   open PRs**: #709 (WP-04) and #707 (WP-06) wait for WP-13a, rebase, flip their entry and restate
+   their oracle section against the replay; #710 (WP-03) likewise (T135); #705 (WP-05) and #708 (WP-07) move no row and may merge
+   either side of WP-13a, running the replay if they merge after it.
+7. **Lead's decisions, 2026-11-03** (recorded here; the WP-04 and WP-06 sections are left as the
+   open PRs edit them):
+   - The three cross-module gates in `carts`' routes that name other modules' codes —
+     `shopping_lists.convert` on from-shopping-list, `shopping_lists.create` on
+     save-to-shopping-list, `quote_requests.create` on convert-to-quote-request — are added by
+     **WP-06** when it rebases after WP-04 and WP-05 merge (WP-06 merges last of the three); the tests
+     WP-04 leaves as `it.todo` become real then (T137). T067 and T073 are complete only with T137.
+   - `CART_APPROVAL_SELF_SUBMIT` leaves `ERROR_CODES` already in **WP-04** — part of T106 pulled
+     forward, because `check:error-translations` refuses an `ERROR_CODES` member no manifest declares
+     (`undeclared-enum-member`). T106 no longer removes it.
+   - **Merge order** of the three: WP-04, then WP-05 (its convert-to-order is gated by
+     `carts.create`), then WP-06 (after WP-04 and WP-05). T090's "rebase after WP-04 merges" reads
+     "after WP-04 and WP-05 merge".
