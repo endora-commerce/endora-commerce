@@ -128,16 +128,11 @@ export class GalleryService {
   async listForProducts(
     productIds: readonly string[],
     channelId: string | null,
+    languageCode: string | null = null,
   ): Promise<CatalogGalleryBatchItem[]> {
     if (productIds.length === 0) return [];
     const ids = [...new Set(productIds)];
-    const hiddenInChannel =
-      channelId === null
-        ? ''
-        : `and not exists (
-                select 1 from gallery_item_channel_hidden h
-                 where h.gallery_item_id = gi.id and h.sales_channel_id = ?
-              )`;
+    const hidden = effectiveHiddenSql('gi.id', 'gi.hidden', channelId);
     // `em.execute`, not `em.getConnection().execute`, so a caller that opens a
     // transaction around this read sees its own uncommitted writes (issue #200).
     const rows = await this.emFactory().execute<
@@ -148,9 +143,9 @@ export class GalleryService {
               gi.position
          from gallery_items gi
         where gi.product_id in (${ids.map(() => '?').join(',')})
-          ${hiddenInChannel}
+          and not ${hidden.sql}
         order by gi.product_id, gi.position asc, gi.id asc`,
-      channelId === null ? ids : [...ids, channelId],
+      [...ids, ...hidden.params(channelId, languageCode)],
     );
     return rows.map((row) => ({
       productId: row.product_id,
@@ -188,6 +183,7 @@ export class GalleryService {
   async baseImageUrls(
     productIds: readonly string[],
     channelId: string | null,
+    languageCode: string | null = null,
   ): Promise<Map<string, string | null>> {
     const urlByProduct = new Map<string, string | null>();
     for (const id of productIds) urlByProduct.set(id, null);
@@ -195,34 +191,39 @@ export class GalleryService {
 
     const ids = [...urlByProduct.keys()];
     const placeholders = ids.map(() => '?').join(',');
+    const hidden = effectiveHiddenSql('gi.id', 'gi.hidden', channelId);
+    // Feature 170 (`data-model.md` §6b) — the holder at (C, L): the C×L row, else the C row
+    // (an override with `gallery_item_id null` = no image holds the role), else the Global
+    // label; then none when that holder is effectively hidden there.
     const rows = await this.emFactory().execute<Array<{ product_id: string; asset_id: string }>>(
       channelId === null
         ? `select gil.product_id::text as product_id, gi.asset_id::text as asset_id
              from gallery_item_labels gil
              join gallery_items gi on gi.id = gil.gallery_item_id
             where gil.label = 'base_image'
-              and gil.product_id in (${placeholders})`
+              and gil.product_id in (${placeholders})
+              and not ${hidden.sql}`
         : `select holder.product_id::text as product_id, gi.asset_id::text as asset_id
              from (
                select p.id as product_id,
-                      coalesce(
-                        (select cl.gallery_item_id
-                           from gallery_item_channel_labels cl
-                           join gallery_items ci on ci.id = cl.gallery_item_id and ci.product_id = cl.product_id
-                          where cl.product_id = p.id and cl.sales_channel_id = ? and cl.label = 'base_image'),
-                        (select gil.gallery_item_id
-                           from gallery_item_labels gil
-                          where gil.product_id = p.id and gil.label = 'base_image')
-                      ) as gallery_item_id
+                      case when ov.found then ov.gallery_item_id else gil.gallery_item_id end as gallery_item_id
                  from products p
+                 left join lateral (
+                   select r.gallery_item_id, true as found
+                     from gallery_role_scope_overrides r
+                    where r.product_id = p.id and r.label = 'base_image' and r.sales_channel_id = ?
+                      and (r.language_code is null or lower(r.language_code) = lower(?::text))
+                    order by (r.language_code is null) asc
+                    limit 1
+                 ) ov on true
+                 left join gallery_item_labels gil on gil.product_id = p.id and gil.label = 'base_image'
                 where p.id in (${placeholders})
              ) holder
-             join gallery_items gi on gi.id = holder.gallery_item_id
-            where not exists (
-                    select 1 from gallery_item_channel_hidden h
-                     where h.gallery_item_id = holder.gallery_item_id and h.sales_channel_id = ?
-                  )`,
-      channelId === null ? ids : [channelId, ...ids, channelId],
+             join gallery_items gi on gi.id = holder.gallery_item_id and gi.product_id = holder.product_id
+            where not ${hidden.sql}`,
+      channelId === null
+        ? [...ids, ...hidden.params(null, null)]
+        : [channelId, languageCode, ...ids, ...hidden.params(channelId, languageCode)],
     );
     if (rows.length === 0) return urlByProduct;
 
@@ -608,4 +609,29 @@ export class GalleryService {
 /** The audit projection of one item's media write (FR-080): enough to restore it by re-sending. */
 function itemProjection(item: GalleryItem, labels: readonly GalleryLabel[]): Record<string, unknown> {
   return { itemId: item.id, position: item.position, labels: [...labels].sort() };
+}
+
+/**
+ * Feature 170 (`data-model.md` §6a) — a gallery item's effective `hidden` at (C, L) as one SQL
+ * boolean: the C×L override, else the C override, else the Global column. With no channel, the
+ * Global column alone. Languages compare case-insensitively (a caller's tag against the stored
+ * channel spelling).
+ */
+function effectiveHiddenSql(
+  itemId: string,
+  globalHidden: string,
+  channelId: string | null,
+): { sql: string; params: (channelId: string | null, languageCode: string | null) => unknown[] } {
+  if (channelId === null) return { sql: `coalesce(${globalHidden}, false)`, params: () => [] };
+  return {
+    sql: `coalesce(
+      (select (o.value ->> 'v')::boolean
+         from gallery_item_scope_overrides o
+        where o.gallery_item_id = ${itemId} and o.field = 'hidden' and o.sales_channel_id = ?
+          and (o.language_code is null or lower(o.language_code) = lower(?::text))
+        order by (o.language_code is null) asc
+        limit 1),
+      ${globalHidden}, false)`,
+    params: (channel, languageCode) => [channel, languageCode],
+  };
 }

@@ -3467,8 +3467,16 @@ export interface CatalogGalleryPort {
    * Feature 163 (FR-076, owner decision MED-1 = A) — `channelId` is the channel the
    * caller serves (a feed's channel): an item hidden there is left out. `null` names no
    * channel and answers the global gallery.
+   *
+   * Feature 170 (`data-model.md` §6) — `hidden` resolves C×L → C → Global: an item hidden
+   * at Global is left out of the global gallery too. `languageCode` (optional, additive) is
+   * the caller's language in the channel; omitted or `null` = the Channel level.
    */
-  listForProducts(productIds: readonly string[], channelId: string | null): Promise<CatalogGalleryBatchItem[]>;
+  listForProducts(
+    productIds: readonly string[],
+    channelId: string | null,
+    languageCode?: string | null,
+  ): Promise<CatalogGalleryBatchItem[]>;
   /**
    * The `base_image` url of each of a batch of products — `base_image` only,
    * with no fallback to `thumbnail` or to the first item by position.
@@ -3489,8 +3497,16 @@ export interface CatalogGalleryPort {
    * (the request's resolved channel): the channel's own holder of the role when it has
    * one, else the global holder; `null` when that holder is hidden there. `null` names
    * no channel and answers the global holder.
+   *
+   * Feature 170 (`data-model.md` §6b) — the holder resolves C×L → C → Global; an override
+   * naming no item means no image holds the role there. `languageCode` as
+   * {@link listForProducts}.
    */
-  baseImageUrls(productIds: readonly string[], channelId: string | null): Promise<Map<string, string | null>>;
+  baseImageUrls(
+    productIds: readonly string[],
+    channelId: string | null,
+    languageCode?: string | null,
+  ): Promise<Map<string, string | null>>;
   create(
     productId: string,
     req: CreateGalleryItemRequest,

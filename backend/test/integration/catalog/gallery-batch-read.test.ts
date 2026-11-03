@@ -43,8 +43,8 @@ describe('catalog — the batch gallery read over the real schema', () => {
       payload: {
         sku: `GAL-BATCH-${suffix}`,
         type: 'simple',
-        name: { 'en-US': `Gallery batch ${suffix}` },
-        description: { 'en-US': 'desc' },
+        name: `Gallery batch ${suffix}`,
+        description: 'desc',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',
@@ -121,16 +121,20 @@ describe('catalog — the batch gallery read over the real schema', () => {
   });
 
   /**
-   * Feature 163 (FR-076, owner decision MED-1 = A) — in a channel, an image hidden there
-   * reaches neither a feed (`listForProducts`) nor a comparison (`baseImageUrls`), and the
-   * channel's own holder of the base image wins over the global one.
+   * Feature 163 (FR-076, owner decision MED-1 = A), on feature 170's three levels
+   * (`data-model.md` §6) — at (C, L) an item is left out when its effective `hidden`
+   * (C×L → C → Global) is true; the base image is the effective holder of the role
+   * (C×L → C → Global, an override with no item = no image holds it), and none when
+   * that holder is effectively hidden there. `languageCode` omitted = the Channel level.
    */
-  it('in a channel: hidden items are left out and the channel holder of the base image wins', async () => {
+  it('in a channel: hidden items are left out and the scoped holder of the base image wins', async () => {
     const product = await createProduct('CHANNEL');
     const globalBase = await seedAsset('https://cdn.test/batch-channel-global.jpg');
     const channelBase = await seedAsset('https://cdn.test/batch-channel-own.jpg');
+    const extra = await seedAsset('https://cdn.test/batch-channel-extra.jpg');
     await attach(product, globalBase, ['base_image']);
     await attach(product, channelBase, []);
+    await attach(product, extra, []);
     const conn = h.orm.em.getConnection();
     const [channel] = (await conn.execute(`select id::text as id from sales_channels order by created_at limit 1`)) as Array<{
       id: string;
@@ -141,30 +145,58 @@ describe('catalog — the batch gallery read over the real schema', () => {
     )) as Array<{ id: string; asset_id: string }>;
     const globalItem = items.find((i) => i.asset_id === globalBase)!.id;
     const channelItem = items.find((i) => i.asset_id === channelBase)!.id;
+    const extraItem = items.find((i) => i.asset_id === extra)!.id;
+    const role = (languageCode: string | null, itemId: string | null) =>
+      conn.execute(
+        `insert into gallery_role_scope_overrides (id, product_id, sales_channel_id, language_code, label, gallery_item_id)
+         values (?, ?, ?, ?, 'base_image', ?)`,
+        [randomUUID(), product, channel!.id, languageCode, itemId],
+      );
+    const hide = (itemId: string, languageCode: string | null, hidden: boolean) =>
+      conn.execute(
+        `insert into gallery_item_scope_overrides (id, gallery_item_id, product_id, sales_channel_id, language_code, field, value)
+         values (?, ?, ?, ?, ?, 'hidden', ?::jsonb)`,
+        [randomUUID(), itemId, product, channel!.id, languageCode, JSON.stringify({ v: hidden })],
+      );
 
-    // The channel's own base image: the second item.
-    await conn.execute(
-      `insert into gallery_item_channel_labels (product_id, sales_channel_id, label, gallery_item_id) values (?, ?, 'base_image', ?)`,
-      [product, channel!.id, channelItem],
-    );
-    expect((await gallery.baseImageUrls([product], channel!.id)).get(product)).toBe(
+    // The channel's own base image: the second item; at C×L en-US the third.
+    await role(null, channelItem);
+    await role('en-US', extraItem);
+    expect((await gallery.baseImageUrls([product], channel!.id)).get(product)).toBe('https://cdn.test/batch-channel-own.jpg');
+    expect((await gallery.baseImageUrls([product], channel!.id, 'pl-PL')).get(product)).toBe(
       'https://cdn.test/batch-channel-own.jpg',
     );
-    expect((await gallery.baseImageUrls([product], null)).get(product)).toBe(
-      'https://cdn.test/batch-channel-global.jpg',
+    expect((await gallery.baseImageUrls([product], channel!.id, 'EN-us')).get(product)).toBe(
+      'https://cdn.test/batch-channel-extra.jpg',
     );
+    expect((await gallery.baseImageUrls([product], null)).get(product)).toBe('https://cdn.test/batch-channel-global.jpg');
 
-    // Hide the channel holder there: no base image in that channel, the feed loses it.
-    await conn.execute(
-      `insert into gallery_item_channel_hidden (gallery_item_id, sales_channel_id, product_id) values (?, ?, ?)`,
-      [channelItem, channel!.id, product],
-    );
+    // Hide the channel holder at C: no base image at the Channel level, the feed loses it there.
+    await hide(channelItem, null, true);
     expect((await gallery.baseImageUrls([product], channel!.id)).get(product)).toBeNull();
-    expect((await gallery.listForProducts([product], channel!.id)).map((i) => i.assetId)).toEqual([globalBase]);
-    expect((await gallery.listForProducts([product], null)).map((i) => i.assetId)).toEqual([
+    expect((await gallery.listForProducts([product], channel!.id)).map((i) => i.assetId)).toEqual([globalBase, extra]);
+    // …but shown again at C×L pl-PL by an own `false` there.
+    await hide(channelItem, 'pl-PL', false);
+    expect((await gallery.listForProducts([product], channel!.id, 'pl-PL')).map((i) => i.assetId)).toEqual([
       globalBase,
       channelBase,
+      extra,
     ]);
+    expect((await gallery.baseImageUrls([product], channel!.id, 'pl-PL')).get(product)).toBe(
+      'https://cdn.test/batch-channel-own.jpg',
+    );
+
+    // An empty role override at C×L: no image holds the role there.
+    await conn.execute(
+      `update gallery_role_scope_overrides set gallery_item_id = null where product_id = ? and language_code = 'en-US'`,
+      [product],
+    );
+    expect((await gallery.baseImageUrls([product], channel!.id, 'en-US')).get(product)).toBeNull();
+
+    // Hidden at Global: left out everywhere no override shows it, the global answer included.
+    await conn.execute(`update gallery_items set hidden = true where id = ?`, [extraItem]);
+    expect((await gallery.listForProducts([product], null)).map((i) => i.assetId)).toEqual([globalBase, channelBase]);
+    expect((await gallery.listForProducts([product], channel!.id)).map((i) => i.assetId)).toEqual([globalBase]);
     expect(globalItem).toBeDefined();
   });
 });
