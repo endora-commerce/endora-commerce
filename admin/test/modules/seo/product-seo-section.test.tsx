@@ -119,7 +119,8 @@ describe('ProductSeoSection (feature 170, US10)', () => {
       expect.stringContaining('Derived drill description'),
     );
     expect(screen.queryByRole('link')).toBeNull();
-  });
+    // The first case pays the lazy zone / editor import; under a loaded runner that exceeds 5 s.
+  }, 15_000);
 
   it('#2 a change is staged through the host, never saved by the section', async () => {
     const onStage = vi.fn();

@@ -83,7 +83,8 @@ describe('scopable attributes per scope (feature 170, US9)', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Save 1 change\b/ }));
     await waitFor(() => expect(puts()).toHaveLength(1));
     expect(puts()[0]!.changes).toEqual({ attributes: { weight: 3 } });
-  });
+    // The first case pays the lazy zone / editor import; under a loaded runner that exceeds 5 s.
+  }, 15_000);
 
   it('#1 every value type renders at the channel: date, boolean, select', async () => {
     renderEditor(ProductEditor, { url: AT_C });
