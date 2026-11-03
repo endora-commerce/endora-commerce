@@ -83,11 +83,17 @@ type ScopedFieldProps<T> = {
 | untick | stage nothing yet; control editable, pre-filled with the inherited value, focused (FR-061); typing stages `set` |
 | own value | checkbox unchecked; source "Set at this scope"; "Overridden" badge with icon |
 | own empty | source "Set at this scope, empty"; the control empty |
-| tick on an own value | stages `inherit`; untick before Save restores and unstages (FR-062) |
+| tick on an own value | stages `inherit`; the control shows `view.inheritedValue.value` read-only and the source line "Will use the value from <channel \| Global>" (or "No value at any scope above" for `absent`); untick before Save restores and unstages (FR-062) |
 | clear an optional field | stages `empty`; a required field (view.required) or a select / boolean shows the error on Save attempt and Save is refused client-side too |
 | no `catalog:write` | no checkbox; the source text only (FR-080) |
 | global-only outside G | read-only, "Global only" + "Edit at Global" (FR-081); a tab of global-only fields shows one notice instead |
 | not supported at this scope (FR-082) | read-only effective value, "Set per <levels in words>", button "Edit at <nearest supporting scope>" |
+
+**Focus on untick (FR-061, prototype §11).** Unticking "Use value from <parent scope>" moves focus from the
+checkbox to the control, because the next thing the operator does is type. It is a focus move on a checkbox
+change, which WCAG 3.2.2 allows only when expected: the checkbox's accessible description (the source line) says
+what unticking does, and the move happens on untick only. Ticking leaves focus on the checkbox. To re-tick after
+an untick the operator goes back with Shift+Tab; the checkbox is the control's preceding tab stop in the head row.
 
 ## 5. Zones
 
@@ -117,7 +123,10 @@ goes through the switch guard (§3). Resets and orphan deletion keep their confi
 On a {G,C,CL} text field at C×L with an own value and no staged change: a menu action "Copy to other channels in
 <language>…" opens a dialog listing member channels offering L (checkboxes), runs `dryRun`, and lists the channels
 whose own value will be overwritten before the confirm button; copying an empty value is offered only on optional
-fields.
+fields. The dry run re-runs on every change of selection; the dialog shows a loading line, an error with "Try again",
+a version conflict ("the product changed"), and "Select at least one channel" when nothing is ticked. A successful
+copy keeps its answered `version` for the next Save (staged cells stay), is announced, and returns focus to the
+field's "…" button.
 
 ## 9. Completeness (US11, FR-097)
 

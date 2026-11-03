@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowDown, ArrowUp, Trash2 } from 'lucide-react';
 import type { AssetDetail, AssetSummary } from '@endora-commerce/contracts';
 import { ApiError, apiClient, toAbsoluteAssetUrl } from '@endora-commerce/admin-kit/lib';
@@ -41,6 +41,24 @@ export function GallerySection(): ReactNode {
   const [busy, setBusy] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
   const [status, setStatus] = useState('');
+  /** Where focus goes once the list is re-read (WCAG 2.4.3): the moved image, or the heading after a removal. */
+  const pendingFocus = useRef<{ id: string; dir: 'up' | 'down' } | 'heading' | null>(null);
+  const itemOrder = data ? data.gallery.items.map((i) => `${i.id}:${i.position}`).join(',') : '';
+  useEffect(() => {
+    const target = pendingFocus.current;
+    if (busy || target === null) return;
+    pendingFocus.current = null;
+    if (target === 'heading') {
+      const heading = document.getElementById('product-gallery-heading');
+      heading?.setAttribute('tabindex', '-1');
+      heading?.focus();
+      return;
+    }
+    const row = document.querySelector(`[data-gallery-item="${target.id}"]`);
+    const same = row?.querySelector<HTMLElement>(`[data-move="${target.dir}"]`);
+    const other = row?.querySelector<HTMLElement>(`[data-move="${target.dir === 'up' ? 'down' : 'up'}"]`);
+    (same && same.getAttribute('aria-disabled') !== 'true' ? same : (other ?? same))?.focus();
+  }, [busy, itemOrder]);
   if (!data) return null;
   const atGlobal = ctx.state.scope.level === 'global';
   const structural = atGlobal && !ctx.readOnly;
@@ -70,10 +88,12 @@ export function GallerySection(): ReactNode {
   };
 
   const move = (from: number, to: number): void => {
+    if (busy || to < 0 || to >= items.length) return;
     const next = items.map((i) => i.id);
     const [moved] = next.splice(from, 1);
     if (moved === undefined) return;
     next.splice(to, 0, moved);
+    pendingFocus.current = { id: moved, dir: to < from ? 'up' : 'down' };
     void immediate(
       () => apiClient.put(`${base}/order`, { orderedGalleryItemIds: next }),
       t('productEditor.gallery.success.moved'),
@@ -117,7 +137,9 @@ export function GallerySection(): ReactNode {
                       type="button"
                       variant="outline"
                       size="sm"
-                      disabled={busy || index === 0}
+                      // aria-disabled, not disabled: the pressed button keeps focus while the move runs.
+                      aria-disabled={busy || index === 0 ? true : undefined}
+                      data-move="up"
                       aria-label={t('productEditor.gallery.moveUp', { item: name })}
                       onClick={(): void => move(index, index - 1)}
                     >
@@ -127,7 +149,8 @@ export function GallerySection(): ReactNode {
                       type="button"
                       variant="outline"
                       size="sm"
-                      disabled={busy || index === items.length - 1}
+                      aria-disabled={busy || index === items.length - 1 ? true : undefined}
+                      data-move="down"
                       aria-label={t('productEditor.gallery.moveDown', { item: name })}
                       onClick={(): void => move(index, index + 1)}
                     >
@@ -211,6 +234,7 @@ export function GallerySection(): ReactNode {
                 onClick={(): void => {
                   const id = removing;
                   setRemoving(null);
+                  pendingFocus.current = 'heading';
                   void immediate(
                     () => apiClient.delete(`${base}/${id}`),
                     t('productEditor.gallery.success.remove'),
