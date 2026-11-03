@@ -90,10 +90,11 @@ describe('163 — comparisons show effective names [integration]', () => {
       payload: { productId: product.id },
     });
     expect(add.statusCode, add.body).toBe(200);
-    const column = (add.json() as { data: { products: Array<{ id: string; name: Record<string, string> }> } }).data.products.find(
+    // Feature 170 (`contracts/readers.md` §2) — the column's name is the effective string.
+    const column = (add.json() as { data: { products: Array<{ id: string; name: string }> } }).data.products.find(
       (p) => p.id === product.id,
     );
-    expect(column?.name[language]).toBe(`Compared ${RUN}`);
+    expect(column?.name).toBe(`Compared ${RUN}`);
   });
 
   it('compares the attribute by the (channel, language) override, not the baseline', async () => {
