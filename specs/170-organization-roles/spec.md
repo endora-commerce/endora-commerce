@@ -2,7 +2,7 @@
 
 **Feature Branch**: `spec/organization-roles`
 **Created**: 2026-11-03
-**Status**: Draft — owner rulings OR-1 to OR-8 recorded 2026-11-03; oracle rulings PR-3 to PR-7 (`plan.md`) recorded 2026-11-03 from the WP-00 oracle (#689); one plan-level `[NEEDS CLARIFICATION]` (`research.md` R-35, login merge); `plan.md` and `tasks.md` merged (#683), implementation not started
+**Status**: Draft — owner rulings OR-1 to OR-8 recorded 2026-11-03; oracle rulings PR-3 to PR-12 (`plan.md`) recorded 2026-11-03 from the WP-00 oracle (#689); no open questions; `plan.md` and `tasks.md` merged (#683), implementation not started
 **Input**: Owner request (translated from Polish): *"Customers should be able, within their
 Organization, to define their own Roles and assign them to Organization Members. Roles carry
 permissions over the actions an Organization member can perform. The Organization Administrator
@@ -337,7 +337,9 @@ When the operator switches it back on, every role holds again exactly what it he
   so no Roles screen is offered there. What is hidden for a personal Organization is hidden because
   the Organization is personal, not because of the member's role.
 - **Guests.** An anonymous visitor keeps the guest basket exactly as today; organization permissions
-  judge signed-in members only (FR-030).
+  judge signed-in members only (FR-030). When a visitor signs in, their guest basket is merged into
+  their basket only if their role holds *Create and edit carts*; otherwise it is left unmerged and
+  unchanged (FR-030a).
 - **Organization hierarchy and roll-up.** Permissions are always those of the member's role in
   their own Organization. Roll-up (a head-office login acting across its subtree) widens *where* a
   permission reaches exactly as it widens the administrator's reach today; it never adds a
@@ -452,6 +454,9 @@ When the operator switches it back on, every role holds again exactly what it he
   quote request, a shopping list or a quick-order list MUST require `carts.create`. Reading one's own
   cart MUST NOT. The permission is checked for a **signed-in member** only: an anonymous visitor
   MUST keep adding to and editing the guest basket as today (PR-4).
+- **FR-030a** *(PR-12)*: Merging a guest basket into the member's basket at sign-in MUST require
+  `carts.create`. For a member whose role lacks it the merge MUST be skipped — no line moves and the
+  guest basket stays as it was — and the sign-in MUST still succeed.
 - **FR-031**: A cart of a member whose role lacks `carts.order_without_approval` MUST be submitted
   for approval and approved before an order can be placed from it; every other member's cart MUST
   NOT require approval. The Organization-wide *requires cart approval* switch MUST be removed.
