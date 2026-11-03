@@ -33,7 +33,7 @@
     "@tiptap/react": "^3.31.3",
     "@tiptap/starter-kit": "^3.31.3",
     "leaflet": "^1.9.4",
-    "next": "^15.5.27",
+    "next": "^15.5.28",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "tailwindcss": "^4.2.4",
@@ -43,8 +43,8 @@
     "@axe-core/playwright": "^4.13.0",
     "@next/eslint-plugin-next": "^15",
     "@playwright/test": "^1.63.0",
-    "@types/node": "^22.9.0",
     "@types/leaflet": "^1.9.22",
+    "@types/node": "^22.9.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@typescript-eslint/eslint-plugin": "^8.71.0",
@@ -55,6 +55,6 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "postcss": "^8.5.29",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   }
 }

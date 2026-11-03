@@ -55,10 +55,10 @@
     "@endora-commerce/platform": "workspace:*",
     "@types/node": "^22.9.0",
     "bullmq": "^5.76.1",
-    "fastify": "^5.12.5",
+    "fastify": "^5.12.8",
     "ioredis": "^5.10.1",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.11",
+    "vitest": "^4.1.12",
     "zod": "^4.2.0"
   }
 }

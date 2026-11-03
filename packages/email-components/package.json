@@ -43,8 +43,8 @@
     "test": "vitest run"
   },
   "peerDependencies": {
-    "@puckeditor/core": "*",
     "@endora-commerce/page-builder-core": "workspace:^",
+    "@puckeditor/core": "*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
@@ -66,6 +66,6 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   }
 }

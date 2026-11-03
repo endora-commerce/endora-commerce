@@ -61,6 +61,6 @@
     "@types/node": "^22.9.0",
     "nodemailer": "^10.1.4",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   }
 }
