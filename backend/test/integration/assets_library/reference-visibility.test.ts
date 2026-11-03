@@ -631,18 +631,33 @@ describe('assets library — reference visibility (feature 166)', () => {
         );
         contentRows.blogPosts.push(id);
         return;
-      case 'megamenu_item_target':
-        await conn.execute(`insert into megamenus (id, name, version, created_at, updated_at) values (?, ?, 1, now(), now())`, [
-          id,
-          `RV ${id.slice(0, 8)}`,
-        ]);
-        await conn.execute(
-          `insert into megamenu_items (id, megamenu_id, parent_id, position, kind, labels, descriptions, target, created_at, updated_at)
-           values (?, ?, null, 0, 'asset', '{}'::jsonb, null, ?::jsonb, now(), now())`,
-          [randomUUID(), id, JSON.stringify({ assetId })],
-        );
-        contentRows.megamenus.push(id);
+      case 'megamenu_item_target': {
+        // Through the megamenu module's own admin routes, not raw rows: the
+        // item tree carries invariants of its own (since feature 168 an asset
+        // opens under a tab, and a tab row needs its presentation and
+        // alignment), and a hand-written row is stranded by the next one.
+        const created = await inject('POST', '/api/v1/admin/megamenu/menus', W, { name: `RV ${id.slice(0, 8)}` });
+        expect(created.statusCode, created.body).toBe(201);
+        const menu = (created.json() as { data: { id: string; version: number } }).data;
+        contentRows.megamenus.push(menu.id);
+        const tab = randomUUID();
+        const items = await inject('PUT', `/api/v1/admin/megamenu/menus/${menu.id}/items`, W, {
+          version: menu.version,
+          items: [
+            { id: tab, parentId: null, presentation: 'mega', position: 0, kind: 'group', labels: { 'en-US': 'RV tab' }, target: {} },
+            {
+              id: randomUUID(),
+              parentId: tab,
+              position: 0,
+              kind: 'asset',
+              labels: { 'en-US': 'RV tile' },
+              target: { assetId, kind: 'image' },
+            },
+          ],
+        });
+        expect(items.statusCode, items.body).toBe(200);
         return;
+      }
     }
   }
 
