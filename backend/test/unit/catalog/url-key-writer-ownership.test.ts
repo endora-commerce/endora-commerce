@@ -26,7 +26,8 @@ const OWNER = 'packages/modules/catalog/src/backend/services/url-key.service.ts'
 const KEY_WRITERS: Record<string, string> = {
   'packages/modules/catalog/src/backend/services/catalog-admin.service.ts': 'product create and duplicate: the slug comes from allocateFreeSlug',
   'packages/modules/catalog/src/backend/plugin.ts': 'the scoped-values save: its URL-key step is UrlKeyService.lockAndCheck',
-  'packages/modules/catalog/src/backend/services/catalog-write-ports.ts': 'the connector port: UrlKeyService.importKeys (integration mode)',
+  'packages/modules/catalog/src/backend/services/scoped-values-import.ts':
+    'the connector port and the products import (T083, T084): UrlKeyService.lockAndCheck in integration mode',
 };
 
 /** Files that write a store and are not request paths — each with its reason. */
