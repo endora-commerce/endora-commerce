@@ -1,6 +1,8 @@
 import type {
+  CatalogAttributeReadPort,
   CatalogBulkImportPort,
   CatalogCategoryReadPort,
+  CatalogProductAvailabilityPort,
   CatalogProductReadPort,
   CustomerAccountReadPort,
   InventoryStockImportPort,
@@ -11,7 +13,11 @@ import type {
 } from '@endora-commerce/contracts';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { lazyPort } from '@endora-commerce/platform/kernel';
-import type { RequireAdminAnyFactory, RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type {
+  RequireAdminAnyFactory,
+  RequireAdminFactory,
+  SalesChannelResolutionPort,
+} from '@endora-commerce/platform/kernel';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { ImportExportService } from './services/import-export-service.js';
@@ -25,7 +31,7 @@ import { registerImportExportRoutes } from './routes.js';
  *
  * Nothing about it is unusual, which is worth one sentence rather than none:
  * the module took two arguments, both roots passed both, and neither consumed its
- * handle. Feature 170 gave it its first entity and migration (import profiles,
+ * handle. Feature 173 gave it its first entity and migration (import profiles,
  * `import_profiles`), so it now leaves that table behind when removed.
  *
  * The one thing to preserve is the `text/csv` body parser. It is registered
@@ -71,12 +77,17 @@ export function registerModule(ctx: ModuleContext): void {
             orders: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
             customerAccounts: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
             organizations: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
+            // Feature 173 — the products file's attributes, channel memberships and channels.
+            catalogAttributes: lazyPort<CatalogAttributeReadPort>(ctx, 'catalogAttributeReadPort'),
+            catalogAvailability: lazyPort<CatalogProductAvailabilityPort>(ctx, 'catalogProductAvailabilityPort'),
+            // A kernel registration: no module edge, nothing to switch off.
+            salesChannels: lazyPort<SalesChannelResolutionPort>(ctx, 'salesChannelResolutionPort'),
             organizationRoles: lazyPort<OrganizationRoleReadPort>(ctx, 'organizationRoleReadPort'),
           }),
       )
       .singleton(),
 
-    /** Feature 170 (FR-048) — import profiles; every write a Command (Constitution XIII). */
+    /** Feature 173 (FR-048) — import profiles; every write a Command (Constitution XIII). */
     importProfileService: ctx
       .asFunction(
         ({ emFactory, commandBus }: ImportExportCradle) => new ImportProfileService({ emFactory, commandBus }),
@@ -105,7 +116,7 @@ export function registerModule(ctx: ModuleContext): void {
 
 
 /**
- * The module's persisted entity classes (D-168). Feature 170 added the first, the import
+ * The module's persisted entity classes (D-168). Feature 173 added the first, the import
  * profile, together with the module's first migration (`./migrations`).
  */
 export const entities = [ImportProfile];

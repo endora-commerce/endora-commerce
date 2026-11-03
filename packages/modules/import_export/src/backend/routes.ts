@@ -4,6 +4,7 @@ import {
   ERROR_CODES,
   createImportProfileRequestSchema,
   importProfileListQuerySchema,
+  productsImportQuerySchema,
   updateImportProfileRequestSchema,
   uuidSchema,
 } from '@endora-commerce/contracts';
@@ -21,6 +22,8 @@ export interface ImportExportRoutesDeps {
 
 const FILENAME_RE = /^[a-z][a-z0-9_]*$/;
 const profileParams = z.object({ id: uuidSchema });
+/** The largest CSV an import accepts (`import-profiles-and-csv.md` §2: 10 MiB). */
+const IMPORT_BODY_LIMIT = 10 * 1024 * 1024;
 /** A profile body: at most 100 entries x 16 targets of short strings fit well under this. */
 const PROFILE_BODY_LIMIT = 256 * 1024;
 
@@ -140,6 +143,9 @@ export async function registerImportExportRoutes(
       ],
       // Receive the raw CSV body — operators can `curl --data-binary @file.csv`
       // and the admin SPA can read the file as text and POST it directly.
+      // Feature 170 — the cap is explicit rather than the server default; rows,
+      // columns and cell lengths are bounded by the products adapter.
+      bodyLimit: IMPORT_BODY_LIMIT,
     },
     async (request, reply) => {
       const { entity } = request.params;
@@ -151,7 +157,16 @@ export async function registerImportExportRoutes(
         typeof request.body === 'string'
           ? request.body
           : (request.body as unknown as Buffer | undefined)?.toString('utf8') ?? '';
-      const report = await service.importFromCsv(entity, body);
+      // Feature 170 (FR-048) — `profileId` / `dryRun` for products; other entities take none.
+      const query =
+        entity === 'products'
+          ? productsImportQuerySchema.parse(request.query ?? {})
+          : ({} as { profileId?: string; dryRun?: 'true' | 'false' });
+      const report = await service.importFromCsv(entity, body, {
+        profileId: query.profileId,
+        dryRun: query.dryRun === 'true',
+        loadProfile: (id) => profiles.snapshot(id),
+      });
       return { data: report };
     },
   );

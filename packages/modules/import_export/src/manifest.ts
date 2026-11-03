@@ -66,6 +66,24 @@ export const manifest = defineModuleManifest({
         'A catalogue import is `catalog`\'s transaction and `catalog`\'s audit row (D-74). With the module off the entity is not offered, so the operator never reaches the gate.',
     },
     {
+      moduleId: 'catalog',
+      name: 'catalogAttributeReadPort',
+      kind: 'degrades-without',
+      whenAbsent:
+        'The import/export centre stops offering the Products import; every other entity is unaffected.',
+      reason:
+        'Feature 170 — a products header names attributes (`attribute:<key>`); their value type and scope set decide how a cell reads and where it may be written.',
+    },
+    {
+      moduleId: 'catalog',
+      name: 'catalogProductAvailabilityPort',
+      kind: 'degrades-without',
+      whenAbsent:
+        'The import/export centre stops offering the Products import; every other entity is unaffected.',
+      reason:
+        'Feature 170 (FR-042) — a mapped locale column writes only the channels a product belongs to; membership is `catalog`\'s answer, so a target the product is not in is reported for that row.',
+    },
+    {
       moduleId: 'inventory',
       name: 'inventoryStockReadPort',
       kind: 'degrades-without',
