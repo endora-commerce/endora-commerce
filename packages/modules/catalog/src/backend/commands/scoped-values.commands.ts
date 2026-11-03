@@ -8,7 +8,9 @@ import type {
   ScopeSnapshot,
   ScopeWarning,
 } from '@endora-commerce/contracts';
+import { ERROR_CODES, type OrganizationDetailsPort } from '@endora-commerce/contracts';
 import type { Command } from '@endora-commerce/platform/commands';
+import { HttpError } from '@endora-commerce/platform/http';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 
 import { globalScopeFields } from '../services/product-availability.service.js';
@@ -49,6 +51,8 @@ export interface ScopedValuesCommandDeps {
     em: EntityManager,
     input: { productId: string; scope: ScopeRef; cell: PlannedCell; confirmTakeover: readonly string[] },
   ) => Promise<{ before: Record<string, unknown>; after: Record<string, unknown> }>;
+  /** Step 3a (R21) — the organisations an audience names must exist. */
+  organizations?: Pick<OrganizationDetailsPort, 'findByIds'> | undefined;
   /** Test seam (T104): called before each family writer; throwing simulates its failure. */
   probe?: WriteProbe | undefined;
 }
@@ -87,6 +91,7 @@ export function scopedValuesSaveCommand(
       if (plan.cells.length === 0) {
         return { result: { state, scope, changedFields: [], warnings: [] }, skipAudit: true };
       }
+      await assertOrganizationsExist(deps, plan.cells, scope);
       const before = ownValues(state, plan);
       const scopesBefore = snapshot(state);
 
@@ -128,4 +133,21 @@ export function scopedValuesSaveCommand(
             payload: { eventId: randomUUID(), occurredAt: new Date().toISOString(), productId, changedFields },
           },
   };
+}
+
+/** Step 3a (R21) — every organisation id an audience cell names exists; else `invalid`, nothing written. */
+async function assertOrganizationsExist(
+  deps: ScopedValuesCommandDeps,
+  cells: readonly PlannedCell[],
+  scope: ScopeRef,
+): Promise<void> {
+  const audience = cells.find((cell) => cell.field === 'audience' && cell.op.op === 'set');
+  if (!audience || audience.op.op !== 'set' || !deps.organizations) return;
+  const ids = [...new Set((audience.op.value as { allowedOrganizationIds: string[] }).allowedOrganizationIds)];
+  if (ids.length === 0) return;
+  const found = new Set((await deps.organizations.findByIds(ids)).map((record) => record.id));
+  if (ids.every((id) => found.has(id))) return;
+  throw new HttpError(422, ERROR_CODES.SCOPED_VALUE_INVALID, 'An audience names an organisation that does not exist.', {
+    fields: [{ field: 'audience', scope, reason: 'invalid' }],
+  });
 }
