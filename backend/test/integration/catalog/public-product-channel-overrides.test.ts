@@ -8,6 +8,7 @@ import {
 } from '@endora-commerce/contracts';
 import { SearchQueryService } from '../../../../packages/modules/search/dist/backend/services/search-query.service.js';
 
+import { seedScopedValues } from '../../helpers/scoped-values.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -197,20 +198,12 @@ describe('Issue #384 — public product reads honour channel value overrides', (
       [slotId, productId],
     );
 
-    const patch = await h.app.inject({
-      method: 'PATCH',
-      url: `/api/v1/admin/catalog/products/${productId}/value-overrides`,
-      payload: {
-        upserts: [
-          { attributeKey: 'name', channelId: vipChannelId, languageCode: 'pl-PL', value: { v: 'Zestaw hurtowy' } },
-          { attributeKey: 'description', channelId: vipChannelId, languageCode: 'pl-PL', value: { v: 'Opis hurtowy' } },
-          { attributeKey, channelId: vipChannelId, languageCode: null, value: { v: 'Matte' } },
-        ],
-        deletes: [],
-      },
-      cookies: { b2b_session: 'stub-admin-session' },
-    });
-    expect(patch.statusCode, patch.body).toBe(200);
+    // Feature 170 (T043) — seeded as stored (the 163 value-overrides PATCH is retired).
+    await seedScopedValues(h.em().fork(), productId, [
+      { field: 'name', scope: { level: 'channel_language', channelId: vipChannelId, languageCode: 'pl-PL' }, value: 'Zestaw hurtowy' },
+      { field: 'description', scope: { level: 'channel_language', channelId: vipChannelId, languageCode: 'pl-PL' }, value: 'Opis hurtowy' },
+      { field: `attribute:${attributeKey}`, scope: { level: 'channel', channelId: vipChannelId }, value: 'Matte' },
+    ]);
   });
 
   afterAll(async () => {

@@ -1407,6 +1407,13 @@
       }
     },
     "/api/v1/admin/catalog/products/{id}/editor-preference": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
       "put": {
         "responses": {
           "200": {
@@ -1490,7 +1497,7 @@
         }
       }
     },
-    "/api/v1/admin/catalog/products/{id}/scope-context": {
+    "/api/v1/admin/catalog/products/{id}/scope-overview": {
       "get": {
         "responses": {
           "200": {
@@ -1499,8 +1506,15 @@
         }
       }
     },
-    "/api/v1/admin/catalog/products/{id}/scope-overview": {
+    "/api/v1/admin/catalog/products/{id}/scoped-values": {
       "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
         "responses": {
           "200": {
             "description": "OK"
@@ -1549,22 +1563,6 @@
         }
       }
     },
-    "/api/v1/admin/catalog/products/{id}/value-overrides": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      },
-      "patch": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
     "/api/v1/admin/catalog/products/{productId}/attachments": {
       "get": {
         "responses": {
@@ -1606,22 +1604,6 @@
         }
       },
       "post": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/admin/catalog/products/{productId}/gallery/channel-roles": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      },
-      "put": {
         "responses": {
           "200": {
             "description": "OK"

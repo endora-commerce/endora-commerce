@@ -11,6 +11,7 @@ import {
   type MinimumProductFixture,
 } from '../../helpers/order-minimum-fixture.js';
 import { clearValueOverrides, setNameOverride } from '../../helpers/product-scope-fixture.js';
+import { seedScopedValues } from '../../helpers/scoped-values.js';
 
 /**
  * Feature 163, Phase 8 (T058, FR-017 b, D6) — the Postgres listing searches and
@@ -142,16 +143,10 @@ describe('163 — listing over effective names [integration]', () => {
           filtered[0]!.id,
           filtered[1]!.id,
         ]);
-      const patch = await h.app.inject({
-        method: 'PATCH',
-        url: `/api/v1/admin/catalog/products/${filtered[1]!.id}/value-overrides`,
-        payload: {
-          upserts: [{ attributeKey, channelId: vipId, languageCode: null, value: { v: 'Gloss' } }],
-          deletes: [],
-        },
-        cookies: ADMIN,
-      });
-      expect(patch.statusCode, patch.body).toBe(200);
+      // Feature 170 (T043) — seeded as stored (the 163 value-overrides PATCH is retired).
+      await seedScopedValues(h.em().fork(), filtered[1]!.id, [
+        { field: `attribute:${attributeKey}`, scope: { level: 'channel', channelId: vipId }, value: 'Gloss' },
+      ]);
     });
 
     afterAll(async () => {

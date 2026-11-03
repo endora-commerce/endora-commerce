@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
 import {
   SCOPED_VALUES_BODY_LIMIT,
+  productEditorPreferenceRequestSchema,
   saveScopedValuesRequestSchema,
   scopedValuesQuerySchema,
   PRICE_FIELDS_REFUSED_ON_PRODUCTS,
@@ -64,12 +65,10 @@ import type { PackagingUnitService } from './services/packaging-unit.service.js'
 import type { ProductLinkService } from './services/product-link.service.js';
 import type { GroupedService } from './services/grouped.service.js';
 import type { BundleService } from './services/bundle.service.js';
-import type { ProductScopeContextService } from './services/product-scope-context.service.js';
 import type { ProductEditorPreferencesService } from './services/product-editor-preferences.service.js';
 import type { ScopedValuesService } from './services/scoped-values.service.js';
 import type { ProductListViewService } from './services/product-list-view-service.js';
 import type { ProductValueResolverService } from './services/product-value-resolver.service.js';
-import type { ProductOverridesService } from './services/product-overrides.service.js';
 import type { ProductScopesService } from './services/product-scopes.service.js';
 import type { ScopeOverviewService } from './services/scope-overview.service.js';
 import type { AttributeScopePreviewService } from './services/attribute-scope-preview.js';
@@ -77,7 +76,6 @@ import type { UrlKeyService } from './services/url-key.service.js';
 import { registerCatalogUrlKeyAdminRoutes } from './routes.admin.url-keys.js';
 import {
   patchProductScopesRequestSchema,
-  productValueOverridesPatchRequestSchema,
 } from '@endora-commerce/contracts';
 
 /**
@@ -172,12 +170,6 @@ export interface CatalogAdminDeps {
   /** Feature 002 — Bundle slots + options admin CRUD (US5). */
   bundleService?: BundleService;
   /**
-   * Feature 023 — per-Sales-Channel + per-Language product scope
-   * context endpoint backing the product edit page switchers. When
-   * omitted, the scope-context route is NOT registered (back-compat).
-   */
-  productScopeContextService?: ProductScopeContextService;
-  /**
    * Feature 023 — editor preference upsert backing the remembered
    * switcher state. Optional same reason as above.
    */
@@ -193,13 +185,6 @@ export interface CatalogAdminDeps {
    * when `channelId` / `languageCode` are passed.
    */
   productValueResolverService?: ProductValueResolverService;
-  /**
-   * Feature 023 — channel-aware override CRUD. Powers the
-   * `PATCH /admin/products/:id/value-overrides` endpoint. Optional so
-   * the read-only path (GET value-overrides) can ship without the
-   * write surface in dev/test setups that haven't wired it yet.
-   */
-  productOverridesService?: ProductOverridesService;
   /**
    * Feature 163 — a product's scoped values per sales channel and language
    * (`GET|PATCH /admin/catalog/products/:id/scopes`). When omitted, the two
@@ -764,82 +749,8 @@ export async function registerCatalogAdminRoutes(
   // Feature 022 — Product Scope Editor: per Sales Channel + per Language.
   // -------------------------------------------------------------------------
 
-  if (deps.productScopeContextService) {
-    const scopeContextSvc = deps.productScopeContextService;
-    app.get<{ Params: { id: string } }>(
-      '/api/v1/admin/catalog/products/:id/scope-context',
-      { preHandler: requireAdmin('catalog:read') },
-      async (request) => {
-        const ctx = deps.resolveAdminAuditContext?.(request);
-        // Editor identity is required for the per-(user, product) prefs;
-        // when the composition root cannot resolve an admin actor (e.g.,
-        // dev mode without auth), fall back to a fixed UUID — the
-        // returned preference block is just `null` in that path.
-        const adminUserId =
-          ctx?.actorAdminUserId ?? '00000000-0000-0000-0000-000000000000';
-        const data = await scopeContextSvc.getContext(request.params.id, adminUserId);
-        return { data };
-      },
-    );
-  }
-
-  if (deps.productValueResolverService) {
-    const resolverSvc = deps.productValueResolverService;
-    app.get<{ Params: { id: string } }>(
-      '/api/v1/admin/catalog/products/:id/value-overrides',
-      { preHandler: requireAdmin('catalog:read') },
-      async (request) => {
-        // For a missing product the resolver service does not 404 on
-        // its own (it just returns an empty list). Run the lookup
-        // through adminService.getProductById so the 404 path stays
-        // consistent with every other product-scoped endpoint.
-        const product = await adminService.getProductById(request.params.id);
-        const overrides = await resolverSvc.loadOverrides(product.id);
-        return {
-          data: {
-            productId: product.id,
-            overrides: overrides.map((o) => ({
-              attributeKey: o.attributeKey,
-              channelId: o.channelId,
-              languageCode: o.languageCode,
-              value: o.value,
-            })),
-          },
-        };
-      },
-    );
-  }
-
-  if (deps.productOverridesService) {
-    const overridesSvc = deps.productOverridesService;
-    app.patch<{
-      Params: { id: string };
-    }>(
-      '/api/v1/admin/catalog/products/:id/value-overrides',
-      { preHandler: requireAdmin('catalog:write') },
-      async (request) => {
-        const body = productValueOverridesPatchRequestSchema.parse(request.body);
-        const result = await overridesSvc.applyBulk(request.params.id, {
-          upserts: body.upserts,
-          deletes: body.deletes,
-        });
-        return {
-          data: {
-            productId: result.productId,
-            applied: result.applied,
-            overrides: result.overrides.map((o) => ({
-              id: o.id,
-              attributeKey: o.attributeKey,
-              channelId: o.channelId,
-              languageCode: o.languageCode ?? null,
-              value: o.value,
-              updatedAt: o.updatedAt.toISOString(),
-            })),
-          },
-        };
-      },
-    );
-  }
+  // Feature 170 (T043) — `GET …/scope-context` and `GET|PATCH …/value-overrides` are retired:
+  // the editor reads one scope through `GET …/scoped-values` and saves it through `PUT …/scoped-values`.
 
   // -------------------------------------------------------------------------
   // Feature 172 — a product's Page Builder content attributes
@@ -1024,41 +935,48 @@ export async function registerCatalogAdminRoutes(
     );
   }
 
-  if (deps.productEditorPreferencesService && deps.productScopeContextService) {
+  // Feature 170 (T044; `contracts/scoped-values-api.md` §5, R8) — the editor's last scope per
+  // (admin, product). UI state, not a Command (Constitution XIII does not apply). A language
+  // without a channel is 422 VALIDATION_FAILED; a non-member channel or an unoffered language is
+  // 422 SCOPE_INVALID (the same resolution as the read).
+  if (deps.productEditorPreferencesService && deps.scopedValuesService) {
     const prefSvc = deps.productEditorPreferencesService;
-    const scopeContextSvc = deps.productScopeContextService;
-    app.put<{
-      Params: { id: string };
-      Body: { lastChannelId: string | null; lastLanguageCode: string | null };
-    }>(
-      '/api/v1/admin/catalog/products/:id/editor-preference',
-      { preHandler: requireAdmin('catalog:read') },
-      async (request) => {
-        // Validate the product exists + channel (if any) is assigned to it.
-        await adminService.getProductById(request.params.id);
-        const ctx = deps.resolveAdminAuditContext?.(request);
-        const adminUserId =
-          ctx?.actorAdminUserId ?? '00000000-0000-0000-0000-000000000000';
-        const body = request.body;
-        if (body.lastChannelId) {
-          await scopeContextSvc.assertChannelAssignedToProduct(
-            request.params.id,
-            body.lastChannelId,
-          );
-        }
-        const row = await prefSvc.upsert(adminUserId, request.params.id, {
-          lastChannelId: body.lastChannelId,
-          lastLanguageCode: body.lastLanguageCode,
-        });
-        return {
-          data: {
+    const scopedSvc = deps.scopedValuesService;
+    const adminOf = (request: FastifyRequest) =>
+      deps.resolveAdminAuditContext?.(request)?.actorAdminUserId ?? '00000000-0000-0000-0000-000000000000';
+    const view = (row: { productId: string; adminUserId: string; lastChannelId?: string | null; lastLanguageCode?: string | null; updatedAt: Date } | null) => ({
+      data: row
+        ? {
             productId: row.productId,
             adminUserId: row.adminUserId,
             lastChannelId: row.lastChannelId ?? null,
             lastLanguageCode: row.lastLanguageCode ?? null,
             updatedAt: row.updatedAt.toISOString(),
-          },
-        };
+          }
+        : null,
+    });
+    app.get<{ Params: { id: string } }>(
+      '/api/v1/admin/catalog/products/:id/editor-preference',
+      { preHandler: requireAdmin('catalog:read') },
+      async (request) => {
+        await scopedSvc.resolveScope(request.params.id, {});
+        return view(await prefSvc.find(adminOf(request), request.params.id));
+      },
+    );
+    app.put<{ Params: { id: string } }>(
+      '/api/v1/admin/catalog/products/:id/editor-preference',
+      { preHandler: requireAdmin('catalog:read') },
+      async (request) => {
+        const body = productEditorPreferenceRequestSchema.parse(request.body);
+        const scope = await scopedSvc.resolveScope(request.params.id, {
+          channelId: body.lastChannelId ?? undefined,
+          languageCode: body.lastLanguageCode ?? undefined,
+        });
+        const row = await prefSvc.upsert(adminOf(request), request.params.id, {
+          lastChannelId: scope.level === 'global' ? null : scope.channelId,
+          lastLanguageCode: scope.level === 'channel_language' ? scope.languageCode : null,
+        });
+        return view(row);
       },
     );
   }
