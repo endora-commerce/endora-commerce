@@ -205,6 +205,15 @@ export const manifest = defineModuleManifest({
         'the audit rows stayed here. Same mutual pair, same trade.',
     },
     {
+      moduleId: 'customer_accounts',
+      port: 'customerAccountRoleCommandPort',
+      reason:
+        '`specs/170-organization-roles/` WP-02b: deleting a role its members hold moves ' +
+        "each holder as a child `customer_account.change_role` Command of this module's " +
+        '`organization_role.delete`, in one transaction (research R-22); the Command and ' +
+        "the column are that module's. Same mutual pair, same trade.",
+    },
+    {
       moduleId: 'price_lists',
       port: 'priceListReadPort',
       reason:

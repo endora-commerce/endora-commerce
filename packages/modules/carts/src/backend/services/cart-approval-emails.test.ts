@@ -33,6 +33,7 @@ function account(overrides: Partial<CustomerAccountRecord> & { id: string }): Cu
     firstName: 'First',
     lastName: overrides.id,
     role: 'regular_user',
+    organizationRoleId: '00000000-0000-4000-8000-0000000170b2',
     emailVerifiedAt: new Date(),
     twoFactorEnabled: false,
     lastLoginAt: null,

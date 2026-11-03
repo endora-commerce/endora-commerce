@@ -39,6 +39,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | `addresses` | tylko bramkowanie | rozwiązuje `addressServicePort`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |
 | `customer_accounts` | tylko bramkowanie | rozwiązuje `customerAccountMemberWritePort`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |
 | `customer_accounts` | tylko bramkowanie | rozwiązuje `customerAccountReadPort`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |
+| `customer_accounts` | tylko bramkowanie | rozwiązuje `customerAccountRoleCommandPort`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |
 | `customer_accounts` | tylko bramkowanie | rozwiązuje `customerAuthPort`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |
 | `customer_accounts` | tylko bramkowanie | rozwiązuje `customerRolePort`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |
 | `customer_accounts` | tylko bramkowanie | rozwiązuje `passwordResetService`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |

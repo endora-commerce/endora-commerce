@@ -352,6 +352,9 @@ export class InvitationService {
       firstName: input.firstName,
       lastName: input.lastName,
       role: invitation.role,
+      // The role the invitation names (`specs/170-organization-roles/`
+      // data-model §3), dual-written with the legacy value above.
+      organizationRoleId: invitation.organizationRoleId,
       // Accepting an invitation implies a confirmed address: it was delivered
       // to that address.
       emailVerified: true,

@@ -10,6 +10,7 @@ import {
 } from './seed-commerce.js';
 import { STUB_CUSTOMER_PASSWORD } from './seed-organizations.js';
 import { Order } from './package-entities.js';
+import { predefinedRoleIdOf } from './seed-organization-roles.js';
 
 /**
  * Fixture for T169 (Regular User scoping).
@@ -32,6 +33,7 @@ export async function seedRoleScopingFixture(em: EntityManager): Promise<void> {
     firstName: 'Reg',
     lastName: 'Ular',
     role: 'regular_user',
+    organizationRoleId: await predefinedRoleIdOf(em, TEST_ORGANIZATION_ID, 'member'),
     emailVerifiedAt: new Date(),
   });
   await em.persistAndFlush(regular);

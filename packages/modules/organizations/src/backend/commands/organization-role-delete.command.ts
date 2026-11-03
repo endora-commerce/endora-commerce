@@ -1,4 +1,8 @@
-import { ERROR_CODES, type DeleteOrganizationRoleResponse } from '@endora-commerce/contracts';
+import {
+  ERROR_CODES,
+  type CustomerAccountRoleCommandPort,
+  type DeleteOrganizationRoleResponse,
+} from '@endora-commerce/contracts';
 import type { Command } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { grantedCodes } from '../services/organization-role-catalogue.js';
@@ -10,6 +14,7 @@ import {
   roleNotFound,
   type OrganizationRoleCommandDeps,
 } from '../services/organization-role-rules.js';
+import type { OrganizationRoleRow } from '../services/organization-role-store.js';
 
 export interface DeleteOrganizationRoleInput {
   readonly organizationId: string;
@@ -26,64 +31,94 @@ function replacementRequired(message: string): HttpError {
 
 /**
  * `organization_role.delete` (`specs/170-organization-roles/`,
- * `contracts/commands-audit-events.md` §2; FR-024, FR-065).
+ * `contracts/commands-audit-events.md` §2; research R-22; FR-024, FR-065, US 6).
  *
  * The predefined roles are never deleted (`409 ORGANIZATION_ROLE_PROTECTED`).
  * A role nobody holds — no account, no invitation in any state — is deleted
- * outright and needs no replacement. A named replacement must be a different
- * role of the same Organization (`422 ORGANIZATION_ROLE_REPLACEMENT_REQUIRED`
- * for the role itself, `404` for another Organization's).
+ * outright and needs no replacement. A held role needs one (`422
+ * ORGANIZATION_ROLE_REPLACEMENT_REQUIRED`): a different role of the same
+ * Organization (`422` for the role itself, `404` for another Organization's).
  *
- * **A held role is refused, with or without a replacement, in this work
- * package.** Deleting it means moving every holder to the replacement in the
- * same transaction — one `customer_account.change_role` child per account
- * through `ctx.run` (research R-22) plus the invitation moves — and the child
- * Command is `customer_accounts`' to publish, which is WP-02b
- * (`specs/170-organization-roles/plan.md`, the note under the Wave 1 table). The
- * gap exists only inside the integration branch.
+ * The holders move **inside this Command's transaction**: one
+ * `customer_account.change_role` child per account, run through `ctx.run` —
+ * `customer_accounts` builds it behind `customerAccountRoleCommandPort`, and
+ * each child records its own audit entry — then every invitation naming the
+ * role, then the role row itself. Parent and children commit together or not at
+ * all; the composite foreign keys (`on delete restrict`) refuse the delete if a
+ * holder was missed.
  *
  * Audited against the Organization with the deleted role's last state.
  */
+export interface DeleteOrganizationRoleCommandDeps extends Omit<OrganizationRoleCommandDeps, 'reservedNames'> {
+  /** `customer_accounts`' role Command port, resolved per call (`lazyPort`). */
+  readonly accounts: Pick<CustomerAccountRoleCommandPort, 'changeRole' | 'holdersOf'>;
+}
+
 export function makeDeleteOrganizationRoleCommand(
-  deps: Omit<OrganizationRoleCommandDeps, 'reservedNames'>,
+  deps: DeleteOrganizationRoleCommandDeps,
   input: DeleteOrganizationRoleInput,
 ): Command<DeleteOrganizationRoleResult> {
   return {
     action: 'organization_role.delete',
     objectType: 'organization',
     objectId: input.organizationId,
-    run: async ({ em }) => {
-      const store = deps.store(em);
+    run: async (ctx) => {
+      const store = deps.store(ctx.em);
       await lockCompanyOrganization(store, input.organizationId);
       const role = await store.lock(input.organizationId, input.roleId);
       if (role === null) throw roleNotFound();
       if (role.kind !== 'custom') throw protectedRole('A predefined role cannot be deleted.');
       refuseStale(role, input.expectedVersion);
 
+      let replacement: OrganizationRoleRow | null = null;
       if (input.replacementRoleId !== undefined) {
         if (input.replacementRoleId === role.id) {
           throw replacementRequired('The replacement role must be a different role.');
         }
-        if ((await store.lock(input.organizationId, input.replacementRoleId)) === null) throw roleNotFound();
+        replacement = await store.lock(input.organizationId, input.replacementRoleId);
+        if (replacement === null) throw roleNotFound();
       }
 
-      const holders = await store.holders(input.organizationId, role.id);
-      if (holders.members > 0 || holders.invitations > 0) {
-        throw replacementRequired(
-          'Members or invitations still hold this role. Move them to another role before deleting it.',
-        );
-      }
-
+      const members = await deps.accounts.holdersOf(input.organizationId, role.id);
+      const invitationCount = await store.countInvitations(input.organizationId, role.id);
       const before = {
         role: auditRole(role, grantedCodes(role, deps.catalogue)),
-        memberCount: holders.members,
-        invitationCount: holders.invitations,
+        memberCount: members.length,
+        invitationCount,
       };
+      if (replacement === null) {
+        if (members.length > 0 || invitationCount > 0) {
+          throw replacementRequired(
+            'Members or invitations still hold this role. Choose the role they move to before deleting it.',
+          );
+        }
+        await store.remove(role);
+        return {
+          result: { reassignedMembers: 0, reassignedInvitations: 0 },
+          before,
+          after: { deletedRoleId: role.id, replacementRoleId: null, reassignedInvitations: [] },
+        };
+      }
+
+      if (members.length > 0 && !ctx.run) {
+        throw new Error('organization_role.delete moves holders through child Commands; run it on the Command Bus.');
+      }
+      for (const customerAccountId of members) {
+        await ctx.run!(
+          deps.accounts.changeRole({
+            organizationId: input.organizationId,
+            customerAccountId,
+            roleId: replacement.id,
+            includeRemoved: true,
+          }),
+        );
+      }
+      const reassignedInvitations = await store.moveInvitations(input.organizationId, role.id, replacement);
       await store.remove(role);
       return {
-        result: { reassignedMembers: 0, reassignedInvitations: 0 },
+        result: { reassignedMembers: members.length, reassignedInvitations: reassignedInvitations.length },
         before,
-        after: { deletedRoleId: role.id, replacementRoleId: input.replacementRoleId ?? null, reassignedInvitations: [] },
+        after: { deletedRoleId: role.id, replacementRoleId: replacement.id, reassignedInvitations },
       };
     },
   };

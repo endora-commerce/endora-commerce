@@ -12,6 +12,7 @@ import type {
   CustomFieldValuePort,
   CustomerAccountMemberWritePort,
   CustomerAccountReadPort,
+  CustomerAccountRoleCommandPort,
   CustomerAuthPort,
   CustomerPasswordResetPort,
   CustomerRolePort,
@@ -87,13 +88,13 @@ import {
   OrganizationRoleCatalogue,
   type OrganizationPermissionManifestEntry,
 } from './services/organization-role-catalogue.js';
-import { legacyPredefinedRoleKind } from './services/organization-role-legacy.js';
 import { OrganizationRolePermissionService } from './services/organization-role-permission-port.js';
 import {
   OrganizationRoleService,
   translatePermissionText,
   type ModuleTranslate,
 } from './services/organization-role-service.js';
+import { predefinedRoleIdOn } from './services/organization-role-store.js';
 import { ViesClient } from './integrations/vies-client.js';
 import { MinisterstwoFinansowClient } from './integrations/ministerstwo-finansow-client.js';
 import type { OrganizationEventBus } from './services/registration-service.js';
@@ -422,16 +423,16 @@ export function registerModule(ctx: ModuleContext): void {
    * The permission port's implementation. Both port names below are this one
    * class over the shared cache; it holds no state of its own.
    *
-   * The account fallback answers for a subject whose actor carries no role id.
-   * Until WP-02b gives accounts their `organization_role_id` (migration M3) no
-   * actor carries one, so it maps the account's legacy role — M3's own mapping,
-   * in `organization-role-legacy.ts` — onto this Organization's predefined
-   * role. WP-02b turns it into a read of the account's role id (T046).
+   * The account fallback answers for a subject whose actor carries no role id
+   * — a service judging somebody other than the requester (a cascade's
+   * recipients), or an actor resolved without it: the account's own
+   * `organizationRoleId`, read through `customer_accounts`' port (research
+   * R-15; WP-02b, T046). `null` when the account is not a live member of the
+   * subject's Organization, which the port answers by failing closed.
    */
   const permissionService = ({
     organizationRoleCache,
     organizationRoleCatalogue,
-    emFactory,
   }: OrganizationsCradle): OrganizationRolePermissionService =>
     new OrganizationRolePermissionService({
       cache: organizationRoleCache,
@@ -443,17 +444,7 @@ export function registerModule(ctx: ModuleContext): void {
           subject.organizationId,
           { activeOnly: true },
         );
-        if (!account) return null;
-        const organization = await withSystemScope(
-          "organization roles: whether the subject's own Organization is personal, for the role fallback",
-          () => emFactory().findOne(Organization, { id: subject.organizationId }),
-        );
-        if (!organization) return null;
-        const kind = legacyPredefinedRoleKind(account, organization.isPersonal);
-        for (const role of (await organizationRoleCache.get(subject.organizationId)).values()) {
-          if (role.kind === kind) return role.id;
-        }
-        return null;
+        return account?.organizationRoleId ?? null;
       },
       permissionLabel: (code, language) =>
         translatePermissionText(
@@ -494,6 +485,7 @@ export function registerModule(ctx: ModuleContext): void {
                     {
                       id: row.id,
                       kind: row.kind,
+                      name: row.name ?? null,
                       permissions: new Set(row.permissions),
                       memberDefaultsOffered: new Set(row.memberDefaultsOffered),
                     },
@@ -515,6 +507,9 @@ export function registerModule(ctx: ModuleContext): void {
             catalogue: cradleValue.organizationRoleCatalogue,
             permissions: permissionService(cradleValue),
             customerAccountRead: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+            // WP-02b — a held role's holders move as child Commands of its
+            // delete (research R-22); resolved per call, never captured.
+            customerAccountRoles: lazyPort<CustomerAccountRoleCommandPort>(ctx, 'customerAccountRoleCommandPort'),
             translate: moduleTranslate,
           }),
       )
@@ -772,10 +767,16 @@ export function registerModule(ctx: ModuleContext): void {
           return {
             ensureForCustomerAccount: async (customerAccountId) =>
               toOrganizationRecord(await service.ensureForCustomerAccountId(customerAccountId)),
-            provisionPersonalOrganization: async (customerAccountId) =>
-              toOrganizationRecord(
-                await service.provisionPersonalOrganizationFor(customerAccountId),
-              ),
+            // The destination's Administrator travels with the answer: the
+            // operator's detach writes it with the Organization (owner ruling
+            // PR-3, research R-34).
+            provisionPersonalOrganization: async (customerAccountId) => {
+              const org = await service.provisionPersonalOrganizationFor(customerAccountId);
+              return {
+                ...toOrganizationRecord(org),
+                administratorRoleId: await predefinedRoleIdOn(emFactory(), org.id, 'administrator'),
+              };
+            },
             anonymizeIfOrphaned: async (customerAccountId) => {
               const org = await service.anonymizeIfOrphaned(customerAccountId);
               return org ? toOrganizationRecord(org) : null;
@@ -821,9 +822,11 @@ export function registerModule(ctx: ModuleContext): void {
             lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort'),
           );
           return {
+            // Read on the caller's `em`: the Organization and its roles exist
+            // only inside the caller's still-open transaction (research R-34).
             provisionFor: async (em, input) => {
               const org = await service.provisionFor(em, input);
-              return { id: org.id };
+              return { id: org.id, administratorRoleId: await predefinedRoleIdOn(em, org.id, 'administrator') };
             },
           };
         },

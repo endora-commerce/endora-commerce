@@ -9,6 +9,7 @@ import {
   type CustomerAccountAdminSearchResult,
   type CustomerAccountAnonymizedEventV1,
   type CustomerAccountLifecycleWritePort,
+  type CustomerAccountOrganizationMoveInput,
   type CustomerAccountRecord,
   type CustomerAccountStandaloneCreateInput,
   type CustomerAccountWriteRequestMeta,
@@ -174,6 +175,11 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
         firstName: input.firstName,
         lastName: input.lastName,
         organizationId: organization.id,
+        // The individual administers their own personal Organization (owner
+        // ruling PR-3, research R-34); the id comes from the provisioning
+        // answer because the role row exists only in this transaction. The
+        // legacy `role` keeps its default, as M3 leaves a personal account's.
+        organizationRoleId: organization.administratorRoleId,
       });
       // Self-registration is pre-auth, so there is no ambient actor and the row
       // is recorded with a null one — as it was before this write moved here.
@@ -326,7 +332,7 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
   async setOrganization(
     customerAccountId: string,
     organizationId: string,
-    input: { actorAdminUserId: string },
+    input: CustomerAccountOrganizationMoveInput,
   ): Promise<CustomerAccountRecord> {
     return this.#writeOrganization(
       'customer_account.organization_assigned',
@@ -353,7 +359,7 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
   async detachToPersonalOrganization(
     customerAccountId: string,
     personalOrganizationId: string,
-    input: { actorAdminUserId: string },
+    input: CustomerAccountOrganizationMoveInput,
   ): Promise<CustomerAccountRecord> {
     return this.#writeOrganization(
       'customer_account.organization_unassigned',
@@ -367,14 +373,22 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
     action: string,
     customerAccountId: string,
     organizationId: string,
-    input: { actorAdminUserId: string },
+    input: CustomerAccountOrganizationMoveInput,
   ): Promise<CustomerAccountRecord> {
     const em = this.emFactory();
     const account = await this.#loadLive(em, customerAccountId);
-    const before = { organizationId: account.organizationId };
+    const before = { organizationId: account.organizationId, organizationRoleId: account.organizationRoleId };
+    // The role moves with the Organization, in one statement: the composite
+    // foreign key refuses the previous Organization's role
+    // (`specs/170-organization-roles/` research R-34). The legacy `role`
+    // travels unchanged, as it always has.
     account.organizationId = organizationId;
+    account.organizationRoleId = input.organizationRoleId;
     await em.flush();
-    await this.#record(action, account.id, input.actorAdminUserId, before, { organizationId });
+    await this.#record(action, account.id, input.actorAdminUserId, before, {
+      organizationId,
+      organizationRoleId: input.organizationRoleId,
+    });
     return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
   }
 

@@ -46,6 +46,8 @@ export const ORGANIZATION_ROLE_CACHE_CAPACITY = 4096;
 export interface CachedOrganizationRole {
   readonly id: string;
   readonly kind: OrganizationRoleKind;
+  /** The custom role's name; `null` (or absent) for the predefined two. */
+  readonly name?: string | null;
   readonly permissions: ReadonlySet<string>;
   readonly memberDefaultsOffered: ReadonlySet<string>;
 }

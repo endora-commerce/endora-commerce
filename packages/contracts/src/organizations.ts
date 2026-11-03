@@ -726,6 +726,16 @@ export interface OrganizationRestrictionPort {
 }
 
 /**
+ * A personal organisation as {@link PersonalOrganizationPort.provisionPersonalOrganization}
+ * answers it: the record, and the id of its *Administrator* role — the role
+ * its single member holds (`specs/170-organization-roles/`, owner ruling PR-3,
+ * research R-34), which a caller moving the account there writes with it.
+ */
+export interface ProvisionedPersonalOrganizationRecord extends OrganizationRecord {
+  administratorRoleId: string;
+}
+
+/**
  * Container name: `personalOrganizationPort`. Owner: `organizations`.
  *
  * Feature 051 — a B2C customer is backed by a single-member personal
@@ -768,7 +778,7 @@ export interface PersonalOrganizationPort {
    * Idempotent: the personal organisation's `taxId` is derived from the account
    * id, so a second call re-finds the row rather than creating a second one.
    */
-  provisionPersonalOrganization(customerAccountId: string): Promise<OrganizationRecord>;
+  provisionPersonalOrganization(customerAccountId: string): Promise<ProvisionedPersonalOrganizationRecord>;
 
   /**
    * Feature 051, the other end of the same rule — the retention sweep's

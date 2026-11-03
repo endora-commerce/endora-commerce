@@ -33,6 +33,7 @@ import type {
   OrderListPort,
   OrderReadPort,
   OrganizationDetailsPort,
+  OrganizationRoleReadPort,
   PersonalOrganizationPort,
   RfqCustomerPort,
   VatValidator,
@@ -122,6 +123,12 @@ export interface CustomersModuleOptions {
    */
   organizationDetailsPort: OrganizationDetailsPort;
   personalOrganizationPort: PersonalOrganizationPort;
+  /**
+   * `organizations`' role read (`specs/170-organization-roles/` WP-02b): the
+   * target's predefined role an account moved to a company lands on (owner
+   * ruling PR-11).
+   */
+  organizationRoleReadPort: Pick<OrganizationRoleReadPort, 'predefinedRoleId'>;
   /** `addresses`' published read: the org-shared book a customer may pick from. */
   addressReadPort: AddressReadPort;
   /**
@@ -252,6 +259,7 @@ export function customersModule(options: CustomersModuleOptions): {
     options.organizationDetailsPort,
     authorityService,
     options.personalOrganizationPort,
+    options.organizationRoleReadPort,
   );
   const deletionService = new CustomerDeletionService(
     options.customerAccountReadPort,

@@ -4,6 +4,7 @@ import {
   type OrganizationPermissionPort,
   type OrganizationPermissionSubject,
   type OrganizationRoleReadPort,
+  type OrganizationRoleSummary,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { CachedOrganizationRole, CachedOrganizationRoles } from './organization-role-cache.js';
@@ -113,6 +114,11 @@ export class OrganizationRolePermissionService implements OrganizationPermission
     const roles = await this.deps.cache.get(organizationId);
     for (const role of roles.values()) if (role.kind === kind) return role.id;
     throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
+  }
+
+  async findRole(organizationId: string, roleId: string): Promise<OrganizationRoleSummary | null> {
+    const role = (await this.deps.cache.get(organizationId)).get(roleId);
+    return role ? { id: role.id, kind: role.kind, name: role.kind === 'custom' ? (role.name ?? null) : null } : null;
   }
 
   /** The subject's role in its own Organization, or `null` (logged). */

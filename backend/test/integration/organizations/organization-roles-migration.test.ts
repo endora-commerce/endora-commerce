@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { Migration20261103T173304OrganizationsOrganizationRoles } from '@endora-commerce/mod-organizations/migrations';
+import { Migration20261103T190132CustomerAccountsOrganizationRoleAssignment } from '@endora-commerce/mod-customer-accounts/migrations';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 
 /**
@@ -25,10 +26,20 @@ describe('M2 — organization_roles', () => {
     return new Migration20261103T173304OrganizationsOrganizationRoles(em.getDriver(), em.config);
   }
 
+  /**
+   * M3 (`customer_accounts`, WP-02b) holds a foreign key into
+   * `organization_roles`, so the schema before M2 is reached as the replay
+   * reaches it — M3's `down()` first — and M3 is re-applied after M2's `up()`.
+   */
   async function apply(direction: 'up' | 'down'): Promise<void> {
-    const m = migration();
-    await m[direction]();
-    for (const query of m.getQueries()) await em.execute(query as string);
+    const steps =
+      direction === 'down'
+        ? [new Migration20261103T190132CustomerAccountsOrganizationRoleAssignment(em.getDriver(), em.config), migration()]
+        : [migration(), new Migration20261103T190132CustomerAccountsOrganizationRoleAssignment(em.getDriver(), em.config)];
+    for (const m of steps) {
+      await m[direction]();
+      for (const query of m.getQueries()) await em.execute(query as string);
+    }
   }
 
   async function insertOrganization(options: {

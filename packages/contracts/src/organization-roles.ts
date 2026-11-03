@@ -210,7 +210,7 @@ export interface OrganizationEffectivePermissions {
 }
 
 /**
- * Container name `organizationPermissionPort`. Owner: `organizations`.
+ * Container name: `organizationPermissionPort`. Owner: `organizations`.
  *
  * Reached with `lazyPort<OrganizationPermissionPort>(ctx, 'organizationPermissionPort')`
  * and never captured into a singleton. A subject whose role cannot be found in
@@ -236,7 +236,7 @@ export interface OrganizationPermissionPort {
   rolesHolding(organizationId: string, code: string): Promise<readonly string[]>;
 }
 
-/** Container name `organizationRoleReadPort`. Owner: `organizations`. */
+/** Container name: `organizationRoleReadPort`. Owner: `organizations`. */
 export interface OrganizationRoleReadPort {
   /**
    * The id of the Organization's predefined role of `kind`, read through the
@@ -245,6 +245,24 @@ export interface OrganizationRoleReadPort {
    * answer instead (research R-34).
    */
   predefinedRoleId(organizationId: string, kind: 'administrator' | 'member'): Promise<string>;
+
+  /**
+   * The role `roleId` **of `organizationId`**, or `null` when that Organization
+   * has no such role — another Organization's role id included (FR-005). Read
+   * through the role cache from committed rows, like {@link predefinedRoleId}.
+   * `name` is `null` for the two predefined roles, whose label is translated
+   * (FR-003). Added for `customer_account.change_role` (WP-02b), which assigns a
+   * role the caller named and must refuse one it cannot see.
+   */
+  findRole(organizationId: string, roleId: string): Promise<OrganizationRoleSummary | null>;
+}
+
+/** A role as {@link OrganizationRoleReadPort.findRole} answers it. */
+export interface OrganizationRoleSummary {
+  readonly id: string;
+  readonly kind: OrganizationRoleKind;
+  /** The custom role's name; `null` for `administrator` and `member`. */
+  readonly name: string | null;
 }
 
 // --- The route guard -------------------------------------------------------------

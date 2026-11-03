@@ -4,6 +4,7 @@ import {
   type CustomerAccountReadPort,
   type CustomerAccountRecord,
   type OrganizationDetailsPort,
+  type OrganizationRoleReadPort,
   type PersonalOrganizationPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -39,6 +40,11 @@ export class CustomerOrgAssignmentService {
     private readonly authority: CustomerAuthorityService,
     /** D-178 — where a detached member goes. */
     private readonly personalOrganizations: PersonalOrganizationPort,
+    /**
+     * `specs/170-organization-roles/` WP-02b — the predefined role an account
+     * holds in the company it is assigned to.
+     */
+    private readonly organizationRoles: Pick<OrganizationRoleReadPort, 'predefinedRoleId'>,
   ) {}
 
   async assign(
@@ -60,7 +66,30 @@ export class CustomerOrgAssignmentService {
 
     return this.accountWrites.setOrganization(customer.id, organizationId, {
       actorAdminUserId: actor.adminUserId,
+      organizationRoleId: await this.roleInTarget(customer, organizationId),
     });
+  }
+
+  /**
+   * The role the account holds in the Organization it is assigned to
+   * (`specs/170-organization-roles/` owner ruling PR-11, research R-34): the
+   * target's *Administrator* when it administers the **company** it comes from,
+   * else the target's *Member* — a custom role does not travel. Written with
+   * the Organization, because the composite foreign key refuses the old one.
+   *
+   * An account coming from its own **personal** Organization lands on *Member*,
+   * whatever it holds there: it administers that Organization by construction
+   * (owner ruling PR-3), not by anybody's decision, and its legacy role — which
+   * the move carries unchanged — says `regular_user`. That is today's outcome.
+   */
+  private async roleInTarget(customer: CustomerAccountRecord, organizationId: string): Promise<string> {
+    const source = await this.organizations.findById(customer.organizationId);
+    const administersCompany =
+      source !== null &&
+      !source.isPersonal &&
+      customer.organizationRoleId ===
+        (await this.organizationRoles.predefinedRoleId(customer.organizationId, 'administrator'));
+    return this.organizationRoles.predefinedRoleId(organizationId, administersCompany ? 'administrator' : 'member');
   }
 
   /**
@@ -99,8 +128,11 @@ export class CustomerOrgAssignmentService {
       }
     }
 
+    // The individual administers their own personal Organization (owner
+    // ruling PR-3); its Administrator role comes with the provisioning answer.
     return this.accountWrites.detachToPersonalOrganization(customer.id, personal.id, {
       actorAdminUserId: actor.adminUserId,
+      organizationRoleId: personal.administratorRoleId,
     });
   }
 

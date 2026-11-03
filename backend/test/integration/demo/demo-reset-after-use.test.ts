@@ -622,6 +622,10 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
     const colleagueId = await add('customer_accounts', {
       organization_id: organizationId,
       role: 'regular_user',
+      // Left to the database: M3's default trigger names the Organization's
+      // own Member role (`specs/170-organization-roles/` WP-02b). A filler uuid
+      // would name no role, and the composite foreign key refuses it.
+      organization_role_id: null,
     });
     await add('organization_invitations', {
       organization_id: organizationId,
@@ -1165,6 +1169,8 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
     const customerAccountId = await insert('real', 'customer_accounts', {
       organization_id: organizationId,
       role: 'organization_admin',
+      // M3's default trigger: the legacy role names the Administrator role.
+      organization_role_id: null,
     });
     const creditLimitId = await insert('real', 'credit_limits', {
       organization_id: organizationId,

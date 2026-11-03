@@ -59,10 +59,53 @@ When a delay starts for an existing account, one audit entry
 answer within three seconds the attempt is refused with **503
 `CUSTOMER_AUTHENTICATION_UNAVAILABLE`**.
 
+## Organization roles
+
+Every account holds exactly one **organization role**, a role of its own
+Organization: *Administrator*, *Member* or a custom role the Organization's
+administrators defined (the roles themselves, their permissions and their
+routes belong to the `organizations` module). The database holds the
+assignment: an account cannot point at another Organization's role, and a role
+that any account still holds — a blocked or removed one included — cannot be
+deleted.
+
+- **New accounts.** The person who registers a company is its *Administrator*.
+  An individual (B2C) customer is the *Administrator* of their own personal
+  Organization — after self-registration and after a first sign-in through an
+  external identity provider alike. An invited member gets the role the
+  invitation names.
+- **Moving an account.** When an operator assigns a customer to another
+  company, the customer becomes that company's *Administrator* if they
+  administered the company they came from, and its *Member* otherwise; a custom
+  role does not travel. A customer coming from their own personal Organization
+  becomes a *Member*. Detaching a customer from a company makes them the
+  *Administrator* of their own personal Organization again.
+- **The last administrator.** An Organization keeps at least one active
+  administrator: demoting or removing the last one is refused with **409
+  `CANNOT_DEMOTE_LAST_ADMIN`** / **409 `CANNOT_REMOVE_LAST_ADMIN`**. A blocked
+  administrator does not count. Two administrators stepping down at the same
+  moment cannot both succeed.
+- **The next request.** The session reads the account on every request, so a
+  role change applies to the member's very next request, on every server.
+
+Role changes are Commands, each recorded in the audit log against the
+Organization:
+
+| Action | When |
+| --- | --- |
+| `customer_account.change_role` | An account is moved to another role — also once per member when a role they hold is deleted and its members move to a replacement |
+| `customer_account.remove_member` | A member is removed from the Organization |
+| `customer_account.promote_organization_admin` | An operator restores access to an Organization left without an administrator |
+
+A role change also announces `customer_account.organization_role_changed.v1`
+once it is committed.
+
 ## Entities
 
-`CustomerAccount` (email, passwordHash, role), `PasswordResetToken`. Role is
-enum `organization_admin | regular_user`.
+`CustomerAccount` (email, passwordHash, organizationRoleId), `PasswordResetToken`.
+`organizationRoleId` names the account's organization role. The older two-value
+`role` (`organization_admin | regular_user`) is still kept in step with it while
+the platform moves off it, and will be removed.
 
 ## Extension points
 

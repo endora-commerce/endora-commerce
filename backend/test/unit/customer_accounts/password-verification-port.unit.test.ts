@@ -48,7 +48,9 @@ async function makeAccount(password: string): Promise<CustomerAccount> {
     id: 'c-1',
     email: 'buyer@example.test',
     passwordHash: await hashPassword(password),
-    role: 'organization_admin',
+    // The account's organization role (`specs/170-organization-roles/`); the
+    // password check reads neither it nor the Organization.
+    organizationRoleId: '00000000-0000-4000-8000-0000000170b1',
     deletedAt: null,
   } as unknown as CustomerAccount;
 }

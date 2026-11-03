@@ -8,6 +8,7 @@ import {
 import { HttpError } from '@endora-commerce/platform/http';
 import type { AuditPort, SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { Organization } from '../entities/organization.entity.js';
+import { predefinedRoleIdOn } from './organization-role-store.js';
 
 /**
  * `customer_accounts`' own read and write of the row this service binds to an
@@ -171,7 +172,14 @@ export class PersonalOrganizationService {
       if (existing) return existing;
     }
     const org = await this.provisionFor(em, { ...account, customerAccountId: account.id });
-    await accounts.write.attachToOrganization(account.id, org.id);
+    // A personal organisation's member is its Administrator (owner ruling PR-3,
+    // research R-34); the role is written with the Organization, which the
+    // composite foreign key requires.
+    await accounts.write.attachToOrganization(
+      account.id,
+      org.id,
+      await predefinedRoleIdOn(em, org.id, 'administrator'),
+    );
     return org;
   }
 

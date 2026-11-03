@@ -14,6 +14,7 @@ import { manifest as customersManifest } from '../../../../packages/modules/cust
 import { CustomerAccount } from '../../helpers/package-entities.js';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 
 /**
  * Issue #222 — `passwordSetAt` records that a password was actually set.
@@ -111,6 +112,7 @@ describe('customer_accounts — passwordSetAt (issue #222)', () => {
       firstName: 'New',
       lastName: 'Member',
       role: 'regular_user',
+      organizationRoleId: await predefinedRoleIdOf(h.em(), TEST_ORGANIZATION_ID, 'member'),
     });
 
     const account = await rowFor(created.email);
@@ -126,6 +128,7 @@ describe('customer_accounts — passwordSetAt (issue #222)', () => {
       firstName: 'Reset',
       lastName: 'Me',
       role: 'regular_user',
+      organizationRoleId: await predefinedRoleIdOf(h.em(), TEST_ORGANIZATION_ID, 'member'),
     });
     // Back to "no password on record", so the assertion below is about the
     // confirm and not about the create two lines above it.

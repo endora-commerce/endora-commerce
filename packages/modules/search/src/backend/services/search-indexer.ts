@@ -181,9 +181,12 @@ export interface IndexedDocument {
   categoryIds: string[];
   categorySlugs: string[];
   // Flattened attribute values. Meilisearch's filtering is type-tolerant
-  // for primitive values; complex types should be projected via the
-  // service layer when they appear.
-  attributes: Record<string, string | number | boolean | null>;
+  // for primitive values. A multiselect is the array of its options, each
+  // rendered as `String` renders it: an equality filter on an array field
+  // matches when any element equals the value (issue #684), which is what
+  // `filter[attr.<key>]` means on the Postgres listing too. Any other
+  // complex value is its JSON text, which no filter is built against.
+  attributes: Record<string, string | number | boolean | string[] | null>;
   /**
    * Feature 012 / FR-035 — for every `isSearchable = true` attribute of
    * a select-style type (`select` / `enum` / `multiselect`), this array
@@ -970,10 +973,9 @@ function buildDocument(
           if (rendered) searchableOptions.push(rendered);
         }
       }
-      // Persist the raw shape too so non-search filtering still works
-      // (Meilisearch tolerates JSON-string fallback per the comment
-      // in the original implementation).
-      attrs[key] = JSON.stringify(value);
+      // Issue #684 — the options themselves, so `attributes.<key> = "<option>"`
+      // matches any of them. Their JSON text matched none.
+      attrs[key] = value.map(String);
       continue;
     }
     if (
