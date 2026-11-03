@@ -62,6 +62,10 @@ describe('quick order — organization permission gates', () => {
       customerAccountId: id,
       permissions,
     });
+    // The fixture writes the role with SQL, past the role cache's drop; this
+    // process has read the Organization's roles already, so drop its entry.
+    (h.container.cradle as unknown as { organizationRoleCache: { invalidateLocal(id?: string): void } })
+      .organizationRoleCache.invalidateLocal(TEST_ORGANIZATION_ID);
     const cookie = `stub-quick-order-permissions-${label}`;
     CUSTOMER_COOKIES[cookie] = { customerAccountId: id, organizationId: TEST_ORGANIZATION_ID };
     cookieNames.push(cookie);

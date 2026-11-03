@@ -133,6 +133,10 @@ describe('shopping_lists off-state (Constitution XVII)', () => {
         customerAccountId: memberId,
         permissions: CODES,
       });
+      // The fixture writes the role with SQL, past the role cache's drop; this
+      // process has read the Organization's roles already, so drop its entry.
+      (h.container.cradle as unknown as { organizationRoleCache: { invalidateLocal(id?: string): void } })
+        .organizationRoleCache.invalidateLocal(TEST_ORGANIZATION_ID);
     });
 
     it.each(['deactivated', 'platform-unavailable'] as const satisfies readonly OffStateAxis[])(
