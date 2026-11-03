@@ -197,14 +197,18 @@ for the org/subtree predicate. Every reader of a colleague's order goes through 
 including clone-to-quote, whose missing scope and `isOrgAdmin ?? true` default are issue #665
 (being fixed separately now; this feature then swaps its admin test for the permission).
 
-## R-8b — Organization addresses (open question Q-7, #668)
+## R-8b — Organization addresses (owner ruling OR-8, 2026-11-03, #668)
 
-**Recommendation.** `addresses.manage`, declared by `addresses` (it owns the entity and the write
-behind `addressServicePort`), enforced by the route seam in
-`packages/modules/organizations/src/backend/routes.customer.ts`, member-default so FR-072 holds.
-Rejected: declaring it in `organizations` (it would name another module's action, against R-2's
-"`<module>` segment is the declarer"); not member-default (a behaviour change on upgrade nobody
-asked for in this feature).
+**Decision.** `addresses.manage`, declared by `addresses` (it owns the entity and the write behind
+`addressServicePort`), held implicitly by *Administrator*, member-default so FR-072 holds, revocable
+per Organization by removing it from a role. It is enforced at the route seam in
+`packages/modules/organizations/src/backend/routes.customer.ts` (create, update, delete of
+`/api/v1/organizations/mine/addresses`); the list stays open to every member. `addresses` is
+non-deactivatable, so the code is always grantable.
+
+**Alternatives rejected.** Declaring it in `organizations` (it would name another module's action,
+against R-2's "`<module>` segment is the declarer"); not member-default (option B — a behaviour
+change on upgrade); no permission (option C — leaves a shared checkout input editable by anyone).
 
 ## R-9 — Caching on hot paths (FR-080–FR-082)
 
@@ -276,7 +280,7 @@ The UX laws (`.claude/skills/ux-laws/SKILL.md`) apply; the designer owns the fin
 | Phase | Content | Size |
 | --- | --- | --- |
 | **P1 — Mechanism** | Contracts (breaking: `role` removed, OR-4), roles entity + commands + catalogue + port + cache, assignment column, invitations, migration and first-seen ledger, last-admin, every `organization_admin` comparison replaced by *is Administrator* (no behaviour change), storefront Roles and Members screens, operator Roles tab and codes, docs EN+PL | L |
-| **P2 — Commerce permissions** | `carts.*` (flag removed, approvers), `quick_order.one_click` (#653), `shopping_lists.*`, `quote_requests.create`, `orders.view_organization` (incl. clone-to-quote after #665), `addresses.manage` if Q-7 = A/B; storefront buttons | M–L |
+| **P2 — Commerce permissions** | `carts.*` (flag removed, approvers), `quick_order.one_click` (#653), `shopping_lists.*`, `quote_requests.create`, `orders.view_organization` (incl. clone-to-quote after #665), `addresses.manage` (OR-8); storefront buttons | M–L |
 | **P3 — RFQ approval** | OR-2: internal approval state, `quote_requests.send_without_approval`, e-mails, approval queue, seller-side invisibility | L |
 
 There is no removal phase (OR-4). P1 is releasable on its own (two predefined roles, nothing

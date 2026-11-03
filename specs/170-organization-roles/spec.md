@@ -2,7 +2,7 @@
 
 **Feature Branch**: `spec/organization-roles`
 **Created**: 2026-11-03
-**Status**: Draft — owner rulings OR-1 to OR-7 recorded 2026-11-03; one open question (Q-7)
+**Status**: Draft — owner rulings OR-1 to OR-8 recorded 2026-11-03; no open questions; ready for `/speckit.plan`
 **Input**: Owner request (translated from Polish): *"Customers should be able, within their
 Organization, to define their own Roles and assign them to Organization Members. Roles carry
 permissions over the actions an Organization member can perform. The Organization Administrator
@@ -83,24 +83,13 @@ them away entirely.
 - **OR-7 (Q-6) — Operator codes** `organizations:read-roles` (*View organization roles*) and
   `organizations:manage-roles` (*Manage organization roles*), owned by `organizations`; assigning a
   role to a member stays under `customers:manage`. FR-060–FR-062.
-
-## Questions for the owner
-
-### Q-7 — Should managing the Organization's addresses be a permission? (issue #668)
-
-Today any member can create, edit and delete the Organization's shared delivery and billing
-addresses (`/organization/addresses`, routes in
-`packages/modules/organizations/src/backend/routes.customer.ts`, written through `addresses`'
-`addressServicePort`). A change there affects every colleague's checkout.
-
-| Option | Meaning | Consequences |
-| --- | --- | --- |
-| **A** *(recommended)* | A permission **"Manage organization addresses"** (`addresses.manage`), declared by `addresses` (the owner of the write), held implicitly by *Administrator*, **member-default**. Reading addresses stays open to every member. | No behaviour change on upgrade (FR-072 holds); an Organization that wants to lock addresses down removes it from *Member*. Small, delivered with P2. |
-| **B** | The same permission, **not** member-default. | Members lose address editing on upgrade — the first FR-072 exception that is not a bug fix; needs its own upgrade-note line. |
-| **C** | No permission; stays open. | Nothing to build; #668 closed as intended behaviour. |
-
-The spec is written on **A** (FR-022, FR-014a). Under B only the member-default column changes;
-under C both lines are deleted.
+- **OR-8 (Q-7) — Managing the Organization's addresses is a permission** (#668):
+  `addresses.manage` (*Manage organization addresses*), declared by the `addresses` module (the
+  owner of the write behind `addressServicePort`), held implicitly by *Administrator*,
+  **member-default** so nothing changes on upgrade, revocable per Organization by removing it from a
+  role, and enforced on the `organizations` address routes
+  (`packages/modules/organizations/src/backend/routes.customer.ts`). Reading addresses stays open to
+  every member. FR-014a.
 
 ## Resolved questions *(kept for the record; rulings above)*
 
@@ -114,6 +103,8 @@ under C both lines are deleted.
 - **Q-5** — One-click also needs "Place orders without approval". Recommendation yes. **Resolved
   2026-11-03: yes (OR-6).**
 - **Q-6** — Operator codes. Recommendation two new codes. **Resolved 2026-11-03: as recommended (OR-7).**
+- **Q-7** — Organization addresses (#668). Options were A (`addresses.manage`, member-default),
+  B (the same, not member-default), C (no permission). Recommendation A. **Resolved 2026-11-03: A (OR-8).**
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -392,7 +383,7 @@ When the operator switches it back on, every role holds again exactly what it he
 - **FR-013**: *(Superseded by OR-5.)* Seeing every colleague's orders is **not** reserved; it is the
   grantable permission `orders.view_organization` (FR-049), held implicitly by *Administrator*.
 - **FR-014**: Behaviour not gated by a permission in this feature MUST be unchanged for every role.
-- **FR-014a** *(Q-7, written on option A)*: Creating, editing and deleting the Organization's shared
+- **FR-014a** *(OR-8)*: Creating, editing and deleting the Organization's shared
   addresses MUST require `addresses.manage`; reading them MUST NOT (#668).
 
 **Permission vocabulary**
@@ -417,7 +408,7 @@ When the operator switches it back on, every role holds again exactly what it he
   | `shopping_lists.convert` | shopping_lists | Convert shopping lists into quote requests and carts | yes |
   | `quick_order.one_click` | quick_order | One-click purchase (OR-1) | yes (FR-071) |
   | `orders.view_organization` | orders | View the organization's orders (OR-5) | no |
-  | `addresses.manage` | addresses | Manage organization addresses (Q-7, option A) | yes |
+  | `addresses.manage` | addresses | Manage organization addresses (OR-8) | yes |
 
 - **FR-023**: When a permission becomes known to the platform for the first time (its module is
   installed), it MUST be granted to every Organization's *Member* role if it is member-default, and
@@ -582,7 +573,7 @@ Measured on `origin/master` at `75b069175`, excluding tests, docs, `dist/` and m
 | `quick_order` | 3 / 4 | `routes.preferences.ts`, `quick-order-build-service.ts`; `one-click-service.ts` eligibility and placement (OR-1, #653); manifest declares one permission |
 | `shopping_lists` | 1 / 1 | `shopping-list-service.ts`; write and convert routes gated; manifest declares two permissions |
 | `orders` | 2 / 3 | `order-access-service.ts` (colleagues' orders → `orders.view_organization`), `order-clone-to-quote-service.ts` (honours the same permission once #665's scope fix lands); manifest declares one permission |
-| `addresses` | 0 / 0 | Q-7 option A: manifest declares `addresses.manage`; the write routes in `organizations/routes.customer.ts` enforce it (#668) |
+| `addresses` | 0 / 0 | OR-8: manifest declares `addresses.manage`; the write routes in `organizations/routes.customer.ts` enforce it (#668) |
 | `mfa` | 2 / 2 | `account-identity.ts`, `routes.org.ts` — *Administrator* check |
 | `storefront` | 9 / 33 | `(account)/layout.tsx`, `organization/members`, `organization/carts`, `organization/settings/cart-approval` (removed), `lib/api/{account,cart,organization}.ts`, `lib/i18n/messages/account.ts`, `CartApprovalBanner.tsx`; new `organization/roles` pages; permission-aware buttons on PDP, cart, quick order, quote requests, shopping lists |
 | `demo-composition` (counted above), `backend/scripts/acceptance/instance-actor-scope.ts`, `backend/test/helpers/` (seed-commerce, seed-credit-limit, seed-organizations, seed-roles, test-server, admin-search-fixtures) | outside the count | Seeds and fixtures build roles instead of enum values |

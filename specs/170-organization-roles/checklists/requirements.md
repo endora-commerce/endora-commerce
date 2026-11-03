@@ -32,17 +32,16 @@
 ## Notes
 
 - *Implementation detail* is read as this repository's specs read it (`specs/164-admin-user-preferences/`,
-  `specs/147-saved-views/`): the *Context*, *Owner rulings*, *Questions for the owner* and *Impact*
+  `specs/147-saved-views/`): the *Context*, *Owner rulings*, *Resolved questions* and *Impact*
   sections cite files, endpoints and fields as grounding, and the *Upgrade note* names the API fields
   an upgrader must change. Requirements and success criteria state behaviour; the mechanism is in
   `research.md`.
 - FR-022 names permission codes because they are user-visible configuration (role editor, upgrade
   note, custom-module authors), not because they prescribe storage.
-- Owner rulings recorded 2026-11-03: OR-1 (one-click permission, #653); OR-2 to OR-7 resolve Q-1 to
-  Q-6 (Q-1 = B, Q-2 = yes, Q-3 = no versioning and no compatibility window, Q-4 = grantable
-  `orders.view_organization` now, Q-5 = yes, Q-6 = as recommended). P4 removed.
-- One open question remains, **Q-7** (organization addresses as `addresses.manage`, #668). It is a
-  recommendation-backed question, not a `[NEEDS CLARIFICATION]` marker: the spec is written on
-  option A and states what changes under B or C. It must be answered before `/speckit.plan`.
+- Owner rulings recorded 2026-11-03: OR-1 (one-click permission, #653); OR-2 to OR-8 resolve Q-1 to
+  Q-7 (Q-1 = B, Q-2 = yes, Q-3 = no versioning and no compatibility window, Q-4 = grantable
+  `orders.view_organization` now, Q-5 = yes, Q-6 = as recommended, Q-7 = A). P4 removed.
+- Q-7 (organization addresses, #668) resolved 2026-11-03 as OR-8: `addresses.manage`, declared by
+  `addresses`, member-default. **No open questions remain; the spec is ready for `/speckit.plan`.**
 - Issues referenced: #665 (clone-to-quote order scope; FR-049), #667 (invitation role label; FR-008),
-  #668 (addresses; Q-7, FR-014a).
+  #668 (addresses; OR-8, FR-014a).
