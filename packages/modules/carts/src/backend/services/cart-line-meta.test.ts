@@ -10,7 +10,7 @@ import { productMetaOf } from './cart-line-meta.js';
  * from the minimum evaluation, as before.
  */
 const rec = (id: string, sku: string, slug: string) =>
-  ({ id, sku, slug, name: { en: `Name ${sku}`, pl: `Nazwa ${sku}` } }) as unknown as CatalogProductRecord;
+  ({ id, sku, slug, name: `Name ${sku}` }) as unknown as CatalogProductRecord;
 
 describe('productMetaOf', () => {
   const records = [rec('p-on', 'ON-1', 'on-1'), rec('p-off', 'OFF-1', 'off-1')];

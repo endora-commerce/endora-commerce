@@ -10,32 +10,24 @@ import type { SeoMetaOverride } from '../entities/seo-meta-override.entity.js';
  */
 
 describe('buildRuleMeta', () => {
-  it('uses the requested locale when available', () => {
-    const product = {
-      name: { 'en-US': 'English name', 'pl-PL': 'Polska nazwa' },
-      description: { 'en-US': 'English desc', 'pl-PL': 'Polski opis' },
-    } as unknown as CatalogProductRecord;
+  // Feature 170: a product's name and description are one Global string (170-shim until T121
+  // derives them at (C, L) through `effectiveTexts`).
+  it('derives the product rule from the Global texts', () => {
+    const product = { name: 'Polska nazwa', description: 'Polski opis' } as unknown as CatalogProductRecord;
     const meta = buildRuleMeta('product', { product }, 'pl-PL');
     expect(meta.title).toBe('Polska nazwa');
     expect(meta.description).toBe('Polski opis');
     expect(meta.openGraph.title).toBe('Polska nazwa');
   });
 
-  it('falls back to en-US when the requested locale is missing', () => {
-    const product = {
-      name: { 'en-US': 'Fallback name' },
-      description: { 'en-US': 'Fallback desc' },
-    } as unknown as CatalogProductRecord;
-    const meta = buildRuleMeta('product', { product }, 'de-DE');
-    expect(meta.title).toBe('Fallback name');
+  it('a product without a description derives an empty one', () => {
+    const product = { name: 'Name', description: null } as unknown as CatalogProductRecord;
+    expect(buildRuleMeta('product', { product }, 'de-DE').description).toBe('');
   });
 
   it('truncates an over-long title with an ellipsis', () => {
     const long = 'a'.repeat(120);
-    const product = {
-      name: { 'en-US': long },
-      description: { 'en-US': 'short' },
-    } as unknown as CatalogProductRecord;
+    const product = { name: long, description: 'short' } as unknown as CatalogProductRecord;
     const meta = buildRuleMeta('product', { product }, 'en-US');
     expect(meta.title.length).toBeLessThanOrEqual(60);
     expect(meta.title.endsWith('…')).toBe(true);
@@ -66,22 +58,23 @@ function row(fields: Partial<SeoMetaOverride>): SeoMetaOverride {
 
 const fallback = { title: 'Derived', description: 'Derived d', ogTitle: 'Derived og', ogDescription: 'Derived ogd', ogImageUrl: null };
 
+// Feature 170 (FR-010) — C×L → C → Global → derived; a locale-only row is never read.
 describe('walkSeoScopes', () => {
   const rows = [
     row({ salesChannelId: C1, locale: 'pl-PL', title: 'CxL' }),
     row({ salesChannelId: C1, title: 'C', description: 'C d' }),
-    row({ locale: 'pl-PL', title: 'L', description: 'L d', ogTitle: 'L og' }),
+    row({ title: 'G', description: 'G d', ogTitle: 'G og' }),
+    row({ locale: 'pl-PL', ogDescription: 'language row' }),
     row({ salesChannelId: C2, locale: 'pl-PL', title: 'other channel' }),
-    row({ locale: 'en-US', title: 'other language' }),
   ];
 
   it('takes each field from the most specific row that sets it', () => {
     const walked = walkSeoScopes(rows, C1, 'pl-PL', fallback);
-    expect(walked).toMatchObject({ title: 'CxL', description: 'C d', ogTitle: 'L og', ogDescription: 'Derived ogd' });
+    expect(walked).toMatchObject({ title: 'CxL', description: 'C d', ogTitle: 'G og', ogDescription: 'Derived ogd' });
     expect(walked.sources).toEqual({
-      title: 'channel_language',
-      description: 'channel',
-      ogTitle: 'language',
+      title: 'set',
+      description: 'inherited_channel',
+      ogTitle: 'inherited_global',
       ogDescription: 'derived',
       ogImageUrl: 'derived',
     });
@@ -89,8 +82,8 @@ describe('walkSeoScopes', () => {
 
   it('matches the language case-insensitively and never crosses languages or channels', () => {
     expect(walkSeoScopes(rows, C1, 'pl-pl', fallback).title).toBe('CxL');
-    expect(walkSeoScopes(rows, C1, 'de-DE', fallback)).toMatchObject({ title: 'C', ogTitle: 'Derived og' });
-    expect(walkSeoScopes(rows, null, 'pl-PL', fallback)).toMatchObject({ title: 'L', description: 'L d' });
+    expect(walkSeoScopes(rows, C1, 'de-DE', fallback)).toMatchObject({ title: 'C', ogTitle: 'G og' });
+    expect(walkSeoScopes(rows, null, 'pl-PL', fallback)).toMatchObject({ title: 'G', description: 'G d' });
     expect(walkSeoScopes([], C1, 'pl-PL', fallback)).toMatchObject(fallback);
   });
 });

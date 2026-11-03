@@ -27,10 +27,11 @@ const CHANNEL: ResolvedSearchChannel = {
   code: 'pl_retail',
   defaultCurrency: 'PLN',
   defaultLanguage: 'pl-PL',
+  languages: ['pl-PL', 'en-US'],
 };
 const OTHER_CHANNEL_ID = '00000000-0000-4000-8000-0000000000c2';
 
-function product(id: string, name: Record<string, string>) {
+function product(id: string, name: string) {
   return {
     id,
     sku: `SKU-${id}`,
@@ -38,7 +39,7 @@ function product(id: string, name: Record<string, string>) {
     type: 'simple' as const,
     status: 'active' as const,
     name,
-    description: {},
+    description: null,
     visibility: 'public' as const,
     allowedOrganizationIds: [],
     attributeValues: {},
@@ -111,61 +112,47 @@ const ctx = (preferredLanguage?: string) => ({
   preferredLanguage,
 });
 
-describe('search hit names honour channel value overrides (#384)', () => {
-  it('takes the (channel, request language) override', async () => {
+// Feature 170 (R1): the name at the request's (C, L) — C×L row → C row → the Global name.
+describe('search hit names honour channel value overrides (#384, 170 chain)', () => {
+  it('takes the (channel, request language) row', async () => {
     const { service } = serviceWith(
-      [product('p1', { 'pl-PL': 'Zestaw bazowy', 'en-US': 'Baseline kit' })],
-      [
-        override('p1', CHANNEL.id, 'en-US', 'Retail kit'),
-        override('p1', CHANNEL.id, 'pl-PL', 'Zestaw detaliczny'),
-      ],
+      [product('p1', 'Baseline kit')],
+      [override('p1', CHANNEL.id, 'en-US', 'Retail kit'), override('p1', CHANNEL.id, 'pl-PL', 'Zestaw detaliczny')],
     );
     const [card] = await service.hydrateHits([hit('p1')], ctx('en-US'));
     expect(card?.name).toBe('Retail kit');
   });
 
-  it("falls to the channel's default-language override, ahead of the channel-only slot", async () => {
+  it("an unoffered request language is answered at the channel's default language", async () => {
     const { service } = serviceWith(
-      [product('p1', { 'pl-PL': 'Zestaw bazowy' })],
-      [
-        override('p1', CHANNEL.id, 'pl-PL', 'Zestaw detaliczny'),
-        override('p1', CHANNEL.id, null, 'Channel-only name'),
-      ],
+      [product('p1', 'Baseline kit')],
+      [override('p1', CHANNEL.id, 'pl-PL', 'Zestaw detaliczny'), override('p1', CHANNEL.id, null, 'Channel name')],
     );
     const [card] = await service.hydrateHits([hit('p1')], ctx('de-DE'));
     expect(card?.name).toBe('Zestaw detaliczny');
   });
 
-  it("keeps the request language's baseline over the channel default's override", async () => {
+  it('takes the channel row when the language has none, never another language', async () => {
     const { service } = serviceWith(
-      [product('p1', { 'pl-PL': 'Zestaw bazowy', 'en-US': 'Baseline kit' })],
-      [override('p1', CHANNEL.id, 'pl-PL', 'Zestaw detaliczny')],
+      [product('p1', 'Baseline kit')],
+      [override('p1', CHANNEL.id, 'pl-PL', 'Zestaw detaliczny'), override('p1', CHANNEL.id, null, 'Channel name')],
     );
     const [card] = await service.hydrateHits([hit('p1')], ctx('en-US'));
-    expect(card?.name).toBe('Baseline kit');
+    expect(card?.name).toBe('Channel name');
   });
 
-  it('takes the channel-only override when no language slot applies', async () => {
+  it("ignores another channel's row and keeps the Global name", async () => {
     const { service } = serviceWith(
-      [product('p1', { 'pl-PL': 'Zestaw bazowy', 'en-US': 'Baseline kit' })],
-      [override('p1', CHANNEL.id, null, 'Channel-only name')],
-    );
-    const [card] = await service.hydrateHits([hit('p1')], ctx('en-US'));
-    expect(card?.name).toBe('Channel-only name');
-  });
-
-  it("ignores another channel's override and keeps the baseline pick", async () => {
-    const { service } = serviceWith(
-      [product('p1', { 'pl-PL': 'Zestaw bazowy', 'en-US': 'Baseline kit' })],
+      [product('p1', 'Baseline kit')],
       [override('p1', OTHER_CHANNEL_ID, 'en-US', 'Other channel kit')],
     );
     const [card] = await service.hydrateHits([hit('p1')], ctx('en-US'));
     expect(card?.name).toBe('Baseline kit');
   });
 
-  it('answers exactly as before for a product without overrides, the indexed name included', async () => {
+  it('answers the Global name for a product without rows, and the indexed name for one with none', async () => {
     const { service } = serviceWith(
-      [product('p1', { 'pl-PL': 'Zestaw bazowy' }), product('p2', {})],
+      [product('p1', 'Zestaw bazowy'), product('p2', '')],
       [override('p1', CHANNEL.id, 'pl-PL', 'Opis', 'description')],
     );
     const cards = await service.hydrateHits([hit('p1'), hit('p2', 'Indexed only')], ctx('en-US'));
@@ -174,7 +161,7 @@ describe('search hit names honour channel value overrides (#384)', () => {
 
   it("reads the page's override rows once, for the request's channel only", async () => {
     const { service, listValueOverridesByProductIds } = serviceWith(
-      [product('p1', { 'pl-PL': 'A' }), product('p2', { 'pl-PL': 'B' })],
+      [product('p1', 'A'), product('p2', 'B')],
       [],
     );
     await service.hydrateHits([hit('p1'), hit('p2')], ctx('pl-PL'));

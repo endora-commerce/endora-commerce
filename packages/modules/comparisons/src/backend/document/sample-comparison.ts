@@ -5,14 +5,15 @@ import type { ComparisonDocumentData } from '@endora-commerce/contracts';
  * (`contracts/comparison-document.md` §1): three products — one unavailable,
  * one missing a value — common and differing rows, one product hidden from
  * the viewer, prices for an organisation, and a placeholder share address.
- * Names carry English and Polish so a preview in either language reads right.
+ * Names are the effective string in the preview's language (feature 170: one name per (C, L)).
  */
-export function sampleComparisonData(_language: string): ComparisonDocumentData {
+export function sampleComparisonData(language: string): ComparisonDocumentData {
+  const polish = language.toLowerCase().startsWith('pl');
   const at = '2026-10-17T09:00:00.000Z';
   const product = (n: number, over: Partial<ComparisonDocumentData['view']['products'][number]> = {}) => ({
     id: `00000000-0000-4000-8000-00000000c0${n}0`,
     sku: `SAMPLE-${n}00`,
-    name: `Sample product ${n}`,
+    name: polish ? `Przykładowy produkt ${n}` : `Sample product ${n}`,
     slug: `sample-product-${n}`,
     type: 'simple' as const,
     primaryAssetUrl: null,

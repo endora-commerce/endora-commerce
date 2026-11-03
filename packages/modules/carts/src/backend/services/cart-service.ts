@@ -1050,10 +1050,13 @@ export class CartService {
       packagingUnit && input.salesChannelId
         ? await this.#channelDefaultLanguage(input.salesChannelId)
         : scopeLanguage;
-    // 170-shim: the Global unit name; S2 resolves it at the line's (C, L) with
-    // `effectivePackagingUnitNames` (`contracts/readers.md` §1).
-    void unitLanguage;
-    const packagingUnitName = packagingUnit ? packagingUnit.name : null;
+    // Feature 170 (`contracts/readers.md` §1) — the unit's effective name at the line's (C, L):
+    // C×L → C → Global. An empty override (nothing shown) keeps the Global name on the snapshot,
+    // so a placed line always names its unit.
+    const unitNames = packagingUnit
+      ? await this.availability.effectivePackagingUnitNames([packagingUnit.id], { channelId, languageCode: unitLanguage })
+      : new Map<string, string | null>();
+    const packagingUnitName = packagingUnit ? (unitNames.get(packagingUnit.id) ?? packagingUnit.name) : null;
     return { product, packagingUnit, packagingUnitName, effectiveQuantity };
   }
 

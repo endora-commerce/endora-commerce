@@ -18,8 +18,8 @@ const color = {
   key: 'color',
   valueType: 'select',
   isPriceRule: true,
-  languageScoped: false,
-  channelScoped: false,
+  scopable: false,
+  scopeLevels: ['G'],
   options: [{ value: 'red' }, { value: 'blue' }],
 } as unknown as CatalogAttributeView;
 

@@ -82,19 +82,25 @@ describe('products adapter — scoped status columns (163)', () => {
     ]);
   });
 
-  it('reads the cells back, an empty one as "use inherited", and leaves a row without them alone', async () => {
+  // Feature 170 (FR-110, FR-116): an empty cell is no change, `INHERIT` removes the override.
+  it('reads the cells back in the write encoding, and leaves a row without them alone', async () => {
     const imported: ProductImportRow[][] = [];
     const report = await productsAdapter(ports(imported)).importRows!([
-      { sku: 'A', 'status@b2b': 'inactive', 'status@b2b/pl-PL': '' },
+      { sku: 'A', 'status@b2b': 'inactive', 'status@b2b/pl-PL': 'INHERIT', 'status@b2c': '' },
       { sku: 'B' },
     ]);
     expect(report).toEqual({ imported: 2, errors: [] });
     expect(imported[0]).toEqual([
       {
         sku: 'A',
-        scopedStatus: [
-          { channelCode: 'b2b', languageCode: null, status: 'inactive' },
-          { channelCode: 'b2b', languageCode: 'pl-PL', status: null },
+        // 170-shim: the channel travels as its code until T081.
+        cells: [
+          { scope: { level: 'channel', channelId: 'b2b' }, field: 'status', op: { op: 'set', value: 'inactive' } },
+          {
+            scope: { level: 'channel_language', channelId: 'b2b', languageCode: 'pl-PL' },
+            field: 'status',
+            op: { op: 'inherit' },
+          },
         ],
       },
       { sku: 'B' },
