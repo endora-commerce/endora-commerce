@@ -46,6 +46,11 @@ export const PRODUCTS_CSV_COLUMNS_MAX = 500;
 export const PRODUCTS_CSV_ROWS_MAX = 50_000;
 /** The longest cell (a description, `scoped-values-api.md` R21 bounds). */
 export const PRODUCTS_CSV_CELL_MAX = 20_000;
+/**
+ * The most row errors, and the most field errors, one report lists (C2/C3 security review): the
+ * file caps alone allow 25 million refused cells. The rest are counted, never listed.
+ */
+export const PRODUCTS_REPORT_ERRORS_MAX = 1_000;
 
 export interface GrammarChannel {
   id: string;

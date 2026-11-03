@@ -85,9 +85,9 @@ export async function registerImportExportRoutes(
    * answers the 400 or 404 it always has.
    */
   const entityGate =
-    (permissionFor: (entity: string) => string | undefined) =>
+    (permissionFor: (entity: string) => string | undefined, entity?: string) =>
     async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-      const permission = permissionFor((request as EntityRequest).params.entity);
+      const permission = permissionFor(entity ?? (request as EntityRequest).params.entity);
       if (permission !== undefined) await requireAdmin(permission)(request, reply);
     };
 
@@ -135,6 +135,44 @@ export async function registerImportExportRoutes(
     },
   );
 
+  const importCsv = async (entity: string, request: FastifyRequest, reply: FastifyReply) => {
+    if (!FILENAME_RE.test(entity)) {
+      reply.status(400);
+      return { error: { code: 'VALIDATION_FAILED', message: 'invalid entity slug' } };
+    }
+    const body =
+      typeof request.body === 'string'
+        ? request.body
+        : (request.body as unknown as Buffer | undefined)?.toString('utf8') ?? '';
+    // Feature 170 (FR-048) — `profileId` / `dryRun` for products; other entities take none.
+    const query =
+      entity === 'products'
+        ? productsImportQuerySchema.parse(request.query ?? {})
+        : ({} as { profileId?: string; dryRun?: 'true' | 'false' });
+    const report = await service.importFromCsv(entity, body, {
+      profileId: query.profileId,
+      dryRun: query.dryRun === 'true',
+      loadProfile: (id) => profiles.snapshot(id),
+    });
+    return { data: report };
+  };
+
+  // Receive the raw CSV body — operators can `curl --data-binary @file.csv`
+  // and the admin SPA can read the file as text and POST it directly.
+  //
+  // Feature 170 — the products file's cap is explicit, 10 MiB
+  // (`import-profiles-and-csv.md` §2), with rows, columns and cell lengths bounded by the
+  // products adapter. It is that route's alone: a static route, which Fastify prefers to the
+  // parametric one, so every other entity keeps the server's default limit (C2/C3 code review).
+  app.post<{ Body: string }>(
+    '/api/v1/admin/import/products',
+    {
+      preHandler: [anyImportExportCode, entityGate((entity) => service.importPermissionFor(entity), 'products')],
+      bodyLimit: IMPORT_BODY_LIMIT,
+    },
+    async (request, reply) => importCsv('products', request, reply),
+  );
+
   app.post<{ Params: { entity: string }; Body: string }>(
     '/api/v1/admin/import/:entity',
     {
@@ -142,34 +180,8 @@ export async function registerImportExportRoutes(
         anyImportExportCode,
         entityGate((entity) => service.importPermissionFor(entity)),
       ],
-      // Receive the raw CSV body — operators can `curl --data-binary @file.csv`
-      // and the admin SPA can read the file as text and POST it directly.
-      // Feature 170 — the cap is explicit rather than the server default; rows,
-      // columns and cell lengths are bounded by the products adapter.
-      bodyLimit: IMPORT_BODY_LIMIT,
     },
-    async (request, reply) => {
-      const { entity } = request.params;
-      if (!FILENAME_RE.test(entity)) {
-        reply.status(400);
-        return { error: { code: 'VALIDATION_FAILED', message: 'invalid entity slug' } };
-      }
-      const body =
-        typeof request.body === 'string'
-          ? request.body
-          : (request.body as unknown as Buffer | undefined)?.toString('utf8') ?? '';
-      // Feature 170 (FR-048) — `profileId` / `dryRun` for products; other entities take none.
-      const query =
-        entity === 'products'
-          ? productsImportQuerySchema.parse(request.query ?? {})
-          : ({} as { profileId?: string; dryRun?: 'true' | 'false' });
-      const report = await service.importFromCsv(entity, body, {
-        profileId: query.profileId,
-        dryRun: query.dryRun === 'true',
-        loadProfile: (id) => profiles.snapshot(id),
-      });
-      return { data: report };
-    },
+    async (request, reply) => importCsv(request.params.entity, request, reply),
   );
 
   /**

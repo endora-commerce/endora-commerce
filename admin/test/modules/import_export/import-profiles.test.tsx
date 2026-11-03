@@ -315,6 +315,44 @@ describe('Products import: required profile, dry run, then Apply', () => {
     expect(await card.findByText('products.applied')).toBeTruthy();
   });
 
+  it('labels every refusal the import can return, keeps duplicate rows and says when the list was cut', async () => {
+    api.post.mockImplementation(async () => ({
+      data: {
+        imported: 0,
+        dryRun: true,
+        errors: [
+          { rowNumber: 2, reason: 'sku is required' },
+          { rowNumber: 2, reason: 'sku is required' },
+          { rowNumber: 3, reason: 'unknown sku: X-1' },
+          { rowNumber: 4, reason: 'IMPORT_CELL_CONFLICT: "name" is written by a scope column and by a mapped locale column' },
+          { rowNumber: 5, reason: 'name@pl_retail: the same field and scope twice in one row' },
+        ],
+        fieldErrors: [
+          { rowNumber: 6, column: 'name@pl_retail', code: 'FIELD_NOT_AT_SCOPE' },
+          { rowNumber: 6, column: 'urlKey@pl_retail', code: 'URL_KEY_TAKEN' },
+          { rowNumber: 7, column: 'name[fr_FR]', code: 'language_not_offered' },
+          { rowNumber: 7, column: 'name', code: 'SCOPE_INVALID' },
+          { rowNumber: 7, column: 'status', code: 'not_supported' },
+          { rowNumber: 8, column: 'sku', code: 'subject_not_found' },
+        ],
+        truncated: { errors: 1500, fieldErrors: 6 },
+      },
+    }));
+    renderPage(['catalog:write']);
+    const card = within(await productsCard());
+    fireEvent.change(card.getByLabelText('products.profile'), { target: { value: profile.id } });
+    fireEvent.change(card.getByLabelText('products.checkFile'), { target: { files: [csvFile()] } });
+
+    expect(await card.findAllByText('rowError.skuRequired')).toHaveLength(2);
+    for (const key of ['rowError.unknownSku', 'rowError.cellConflict', 'rowError.duplicateCell']) {
+      expect(card.getByText(key)).toBeTruthy();
+    }
+    for (const code of ['FIELD_NOT_AT_SCOPE', 'URL_KEY_TAKEN', 'language_not_offered', 'SCOPE_INVALID', 'not_supported', 'subject_not_found']) {
+      expect(card.getByText(`fieldError.${code}`)).toBeTruthy();
+    }
+    expect(card.getByText('products.truncated')).toBeTruthy();
+  });
+
   it('discards the dry run on Cancel without writing', async () => {
     renderPage(['catalog:write']);
     const card = within(await productsCard());

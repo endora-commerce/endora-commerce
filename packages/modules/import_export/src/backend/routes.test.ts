@@ -17,6 +17,7 @@ type Handler = (req: FastifyRequest, reply: FastifyReply) => Promise<unknown>;
 interface Registered {
   preHandler: Guard | Guard[];
   handler: Handler;
+  bodyLimit?: number;
 }
 
 /**
@@ -28,8 +29,12 @@ async function harness(held: readonly string[]) {
   const routes = new Map<string, Registered>();
   const record =
     (method: string) =>
-    (url: string, options: { preHandler: Guard | Guard[] }, handler: Handler) => {
-      routes.set(`${method} ${url}`, { preHandler: options.preHandler, handler });
+    (url: string, options: { preHandler: Guard | Guard[]; bodyLimit?: number }, handler: Handler) => {
+      routes.set(`${method} ${url}`, {
+        preHandler: options.preHandler,
+        handler,
+        ...(options.bodyLimit !== undefined ? { bodyLimit: options.bodyLimit } : {}),
+      });
     };
   const app = {
     get: record('GET'),
@@ -76,7 +81,7 @@ async function harness(held: readonly string[]) {
     return registered.handler({} as FastifyRequest, {} as FastifyReply);
   }
 
-  return { anyOf, gate, listed, service };
+  return { anyOf, gate, listed, service, routes };
 }
 
 const EXPORT = 'GET /api/v1/admin/export/:entity.csv';
@@ -125,5 +130,20 @@ describe('import_export routes — gates', () => {
     const h = await harness(['orders:read']);
     const body = (await h.listed()) as { data: { entities: Array<{ name: string }> } };
     expect(body.data.entities.map((entity) => entity.name)).toEqual(['orders']);
+  });
+});
+
+/**
+ * C2/C3 code review (warn 2) — feature 170 raised the import body cap to 10 MiB for the products
+ * file. It is the products route's alone: every other entity keeps the server's default limit,
+ * as before 170.
+ */
+describe('import body limit', () => {
+  it('is 10 MiB on the products import and the server default on every other entity', async () => {
+    const { routes } = await harness(['catalog:write']);
+    expect(routes.get('POST /api/v1/admin/import/products')?.bodyLimit).toBe(10 * 1024 * 1024);
+    const other = routes.get('POST /api/v1/admin/import/:entity');
+    expect(other).toBeDefined();
+    expect(other?.bodyLimit).toBeUndefined();
   });
 });

@@ -32,9 +32,15 @@ interface ProductsImportReport {
   cellCounts?: Array<{ column: string; null: number; inherit: number }>;
   warnings?: Array<{ kind: 'unmapped_locale'; locale: string; sourceChannel: string | null; products: number }>;
   fieldErrors?: Array<{ rowNumber: number; column: string; code: string }>;
+  /** Present when the lists were cut at their cap: how many there were in all. */
+  truncated?: { errors: number; fieldErrors: number };
 }
 
-/** Field-error codes with an operator-facing label; any other code is shown as it came. */
+/**
+ * Every field-error code a products import can return — this module's grammar refusals, the
+ * locale mapping's skips and catalog's write refusals — each with an operator-facing label. A code
+ * outside the list is shown as it came.
+ */
 const LABELLED_FIELD_ERRORS = new Set([
   'invalid',
   'inherit_at_global',
@@ -42,7 +48,33 @@ const LABELLED_FIELD_ERRORS = new Set([
   'not_emptyable',
   'required_empty',
   'too_long',
+  'language_not_offered',
+  'not_supported',
+  'subject_not_found',
+  'FIELD_NOT_AT_SCOPE',
+  'SCOPE_INVALID',
+  'URL_KEY_TAKEN',
 ]);
+
+/**
+ * The row errors a products import can return carry a sentence, not a code (`BulkImportRowError`),
+ * so the known ones are recognised by their form and labelled with what they name; any other
+ * reason is shown as it came.
+ */
+const ROW_ERRORS: ReadonlyArray<{ pattern: RegExp; key: string; param?: string }> = [
+  { pattern: /^sku is required$/, key: 'rowError.skuRequired' },
+  { pattern: /^unknown sku: (.+)$/, key: 'rowError.unknownSku', param: 'sku' },
+  { pattern: /^IMPORT_CELL_CONFLICT: "([^"]+)"/, key: 'rowError.cellConflict', param: 'field' },
+  { pattern: /^(.+): the same field and scope twice in one row$/, key: 'rowError.duplicateCell', param: 'column' },
+];
+
+function rowErrorLabel(reason: string, t: (key: string, params?: Record<string, string | number>) => string): string {
+  for (const { pattern, key, param } of ROW_ERRORS) {
+    const match = pattern.exec(reason);
+    if (match) return param ? t(key, { [param]: match[1] ?? '' }) : t(key);
+  }
+  return reason;
+}
 
 export interface ProductsImportProps {
   profiles: ImportProfile[];
@@ -251,6 +283,18 @@ function ReportDetails({ report }: { report: ProductsImportReport }): ReactNode 
         </Alert>
       ) : null}
 
+      {report.truncated ? (
+        <Alert variant="warning">
+          <AlertDescription>
+            {t('products.truncated', {
+              errors: report.truncated.errors,
+              fieldErrors: report.truncated.fieldErrors,
+              shown: report.errors.length + (report.fieldErrors?.length ?? 0),
+            })}
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
       {report.errors.length > 0 ? (
         <Table>
           <TableHeader>
@@ -260,10 +304,11 @@ function ReportDetails({ report }: { report: ProductsImportReport }): ReactNode 
             </TableRow>
           </TableHeader>
           <TableBody>
-            {report.errors.map((err) => (
-              <TableRow key={`${err.rowNumber}-${err.reason}`}>
+            {report.errors.map((err, position) => (
+              // A row can repeat a reason; the list is never reordered, so its position is a stable key.
+              <TableRow key={position}>
                 <TableCell>{err.rowNumber}</TableCell>
-                <TableCell>{err.reason}</TableCell>
+                <TableCell>{rowErrorLabel(err.reason, t)}</TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -282,8 +327,8 @@ function ReportDetails({ report }: { report: ProductsImportReport }): ReactNode 
               </TableRow>
             </TableHeader>
             <TableBody>
-              {fieldErrors.map((err) => (
-                <TableRow key={`${err.rowNumber}-${err.column}-${err.code}`}>
+              {fieldErrors.map((err, position) => (
+                <TableRow key={position}>
                   <TableCell>{err.rowNumber}</TableCell>
                   <TableCell className="font-mono text-xs">{err.column}</TableCell>
                   <TableCell>{LABELLED_FIELD_ERRORS.has(err.code) ? t(`fieldError.${err.code}`) : err.code}</TableCell>

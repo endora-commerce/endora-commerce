@@ -2,7 +2,7 @@ import { ERROR_CODES, type BulkImportReport, type ImportExportEntity, type Impor
 import { HttpError } from '@endora-commerce/platform/http';
 import { effectiveState } from '@endora-commerce/platform/kernel';
 import { parseCsv, rowsToRecords, serializeCsv } from './csv-codec.js';
-import type { ImportExportAdapter, ImportExportPorts } from './adapter.js';
+import type { AdapterImportReport, ImportExportAdapter, ImportExportPorts } from './adapter.js';
 import { productsAdapter } from './adapters/products.adapter.js';
 import { ProductsFileError } from './adapters/products-csv-grammar.js';
 import { categoriesAdapter } from './adapters/categories.adapter.js';
@@ -39,6 +39,8 @@ export interface ImportReport {
   cellCounts?: BulkImportReport['cellCounts'];
   warnings?: BulkImportReport['warnings'];
   fieldErrors?: Array<{ rowNumber: number; column: string; code: string }>;
+  /** Present when the lists were cut at their cap: how many row and field errors there were in all. */
+  truncated?: { errors: number; fieldErrors: number };
 }
 
 /** Feature 170 — how a products run is asked for (`POST …/import/products?profileId=&dryRun=`). */
@@ -200,7 +202,7 @@ export class ImportExportService {
       }
     }
 
-    let report: BulkImportReport;
+    let report: AdapterImportReport;
     try {
       report = await adapter.importRows(rowsToRecords(parsed), {
         ...(profile ? { profile } : {}),
@@ -223,6 +225,7 @@ export class ImportExportService {
       ...(options.dryRun === true ? { dryRun: true } : {}),
       ...(report.cellCounts ? { cellCounts: report.cellCounts } : {}),
       ...(report.warnings ? { warnings: report.warnings } : {}),
+      ...(report.truncated ? { truncated: report.truncated } : {}),
       ...(report.fieldErrors
         ? {
             fieldErrors: report.fieldErrors.map((error) => ({

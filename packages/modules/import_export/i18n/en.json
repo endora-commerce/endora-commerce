@@ -94,5 +94,16 @@
   "fieldError.not_a_member": "The product is not sold in this sales channel.",
   "fieldError.not_emptyable": "This field cannot be NULL.",
   "fieldError.required_empty": "This field is required and cannot be NULL.",
-  "fieldError.too_long": "The cell is too long."
+  "fieldError.too_long": "The cell is too long.",
+  "products.truncated": "The file has {errors} row error(s) and {fieldErrors} refused cell(s); only the first {shown} are listed. Fix them and check the file again to see the rest.",
+  "rowError.skuRequired": "The row has no SKU.",
+  "rowError.unknownSku": "No product has the SKU {sku}; an import does not create products.",
+  "rowError.cellConflict": "The field {field} is written both by a scope column and by a mapped locale column.",
+  "rowError.duplicateCell": "The column {column} writes the same field and scope as another column of the row.",
+  "fieldError.language_not_offered": "The sales channel does not offer this language.",
+  "fieldError.not_supported": "This field cannot be imported.",
+  "fieldError.subject_not_found": "The product was not found.",
+  "fieldError.FIELD_NOT_AT_SCOPE": "This field cannot be set at this scope.",
+  "fieldError.SCOPE_INVALID": "The scope is not valid for this product.",
+  "fieldError.URL_KEY_TAKEN": "The URL key is already used by another product; it was not written."
 }

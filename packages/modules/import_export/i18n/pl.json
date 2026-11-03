@@ -94,5 +94,16 @@
   "fieldError.not_a_member": "Produkt nie jest sprzedawany w tym kanale sprzedaży.",
   "fieldError.not_emptyable": "To pole nie może mieć wartości NULL.",
   "fieldError.required_empty": "To pole jest wymagane i nie może mieć wartości NULL.",
-  "fieldError.too_long": "Komórka jest za długa."
+  "fieldError.too_long": "Komórka jest za długa.",
+  "products.truncated": "Plik ma błędów wierszy: {errors} i odrzuconych komórek: {fieldErrors}; pokazano tylko pierwsze {shown}. Popraw je i sprawdź plik ponownie, aby zobaczyć resztę.",
+  "rowError.skuRequired": "Wiersz nie ma SKU.",
+  "rowError.unknownSku": "Żaden produkt nie ma SKU {sku}; import nie tworzy produktów.",
+  "rowError.cellConflict": "Pole {field} jest zapisywane zarówno przez kolumnę zakresu, jak i przez zmapowaną kolumnę języka źródłowego.",
+  "rowError.duplicateCell": "Kolumna {column} zapisuje to samo pole i zakres co inna kolumna wiersza.",
+  "fieldError.language_not_offered": "Kanał sprzedaży nie oferuje tego języka.",
+  "fieldError.not_supported": "Tego pola nie można importować.",
+  "fieldError.subject_not_found": "Nie znaleziono produktu.",
+  "fieldError.FIELD_NOT_AT_SCOPE": "Tego pola nie można ustawić w tym zakresie.",
+  "fieldError.SCOPE_INVALID": "Zakres jest nieprawidłowy dla tego produktu.",
+  "fieldError.URL_KEY_TAKEN": "Klucz URL jest już używany przez inny produkt; nie został zapisany."
 }
