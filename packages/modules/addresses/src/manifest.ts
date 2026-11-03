@@ -89,4 +89,26 @@ export const manifest = defineModuleManifest({
    * balanced-paren extraction of the call's own arguments.
    */
   errorCodes: [{ code: 'ADDRESS_IN_USE' }, { code: 'ADDRESS_NOT_OWNED' }],
+  /**
+   * `specs/170-organization-roles/` — the organization permission an
+   * Organization's shared addresses are written under (FR-014a; owner ruling
+   * OR-8, research R-8b, #668; adjustment A-1: declared in WP-03, the package
+   * that enforces it). Declared here because this module owns the entity and
+   * the write behind `addressServicePort`; enforced at `organizations`' route
+   * seam (`/api/v1/organizations/mine/addresses` create, update, delete).
+   * Reading the list is not gated.
+   *
+   * A *Member* default, so every existing member keeps the outcome they have
+   * today (FR-072); an Organization withdraws it by editing a role. This module
+   * is `nonDeactivatable`, so the code is always grantable. Translations in
+   * `i18n/{en,pl}.json` under `organizationPermissions.addresses.manage.*`.
+   */
+  organizationPermissions: [
+    {
+      code: 'addresses.manage',
+      label: 'Manage organization addresses',
+      description: "Add, edit and delete the organization's shared delivery and billing addresses.",
+      memberDefault: true,
+    },
+  ],
 });

@@ -346,3 +346,16 @@ export function translatePermissionText(
   if (!entry) return Promise.resolve(code);
   return translatedOr(translate, entry.moduleId, `organizationPermissions.${code}.${field}`, entry[field], language);
 }
+
+/**
+ * A predefined role's name in `language` (FR-008), from this module's bundle,
+ * the English one when it has none — the label every response and e-mail
+ * names the role by (`specs/170-organization-roles/` WP-03).
+ */
+export function predefinedRoleName(
+  translate: ModuleTranslate,
+  kind: 'administrator' | 'member',
+  language: SupportedLanguage,
+): Promise<string> {
+  return translatedOr(translate, 'organizations', `organizationRoles.${kind}.name`, PREDEFINED_FALLBACK_NAMES[kind], language);
+}

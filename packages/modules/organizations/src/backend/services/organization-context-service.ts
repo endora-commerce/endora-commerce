@@ -49,17 +49,10 @@ export class OrganizationContextService {
     return org;
   }
 
-  /**
-   * Feature 027 §R2 — single-boolean lookup driving the per-Organization
-   * cart-approval policy. Returns `false` when the Organization is
-   * missing or soft-deleted (the gate is off by definition in that case
-   * — a Customer with no Organization uses platform defaults).
-   */
-  async loadCartApprovalPolicy(organizationId: string | null): Promise<boolean> {
-    if (!organizationId) return false;
-    const org = await this.loadEffectiveOrganization(organizationId);
-    return org?.requiresCartApproval ?? false;
-  }
+  // `loadCartApprovalPolicy` was here (feature 027 §R2). Nothing read it: the
+  // per-Organization policy is replaced by the `carts.order_without_approval`
+  // permission (`specs/170-organization-roles/` OR-3), and the kernel port no
+  // longer advertises it (WP-03).
 }
 
 /**

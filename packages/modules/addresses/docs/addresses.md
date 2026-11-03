@@ -17,6 +17,13 @@ Customer postal addresses scoped to an Organization. Each address has a
 | `PATCH /api/v1/organizations/mine/addresses/:id` | Update |
 | `DELETE /api/v1/organizations/mine/addresses/:id` | Delete (rejected if referenced by an order via `409 ADDRESS_IN_USE`) |
 
+The routes are served by `organizations`. Creating, updating and deleting need
+the **`addresses.manage`** organization permission, which this module declares
+(*Manage organization addresses*): a member whose role lacks it is refused
+`403 ORGANIZATION_PERMISSION_REQUIRED`. Every member may read the list. The
+permission is held by the Member role by default and by Administrator always;
+an organization withdraws it by editing a role.
+
 ## Entities
 
 `Address` — partial unique index `(organization_id, kind) WHERE

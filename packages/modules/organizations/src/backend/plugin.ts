@@ -8,9 +8,12 @@ import type {
   CustomerAccountReadPort,
   CustomerAuthPort,
   CustomerPasswordResetPort,
+  CustomerAccountRoleCommandPort,
   CustomerRolePort,
   EmailMailerPort,
   OrganizationPermissionPort,
+  OrganizationRoleReadPort,
+  SupportedLanguage,
 } from '@endora-commerce/contracts';
 import type { EventBus } from '@endora-commerce/platform/events';
 import type { OrganizationModerationService } from './services/organization-moderation-service.js';
@@ -70,6 +73,19 @@ export interface OrganizationsModuleOptions {
    */
   roleService: OrganizationRoleService;
   organizationPermissions: () => OrganizationPermissionPort;
+  /**
+   * WP-03 — the role as every member response names it (FR-008), and
+   * `customer_accounts`' `customer_account.change_role` factory the member
+   * routes run on the bus (research R-22).
+   */
+  organizationRoles: OrganizationRoleReadPort;
+  customerAccountRoles: CustomerAccountRoleCommandPort;
+  /**
+   * The language the template invitation e-mail is sent in — the
+   * system-default sales channel's, as `templateEmailPort` resolves it — for
+   * the role label it shows (#667, FR-008).
+   */
+  resolveEmailLanguage: () => Promise<SupportedLanguage>;
   emFactory: () => EntityManager;
   eventBus: EventBus;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
@@ -155,11 +171,12 @@ export interface OrganizationsModuleOptions {
   /** Feature 055 — validates + reads organization custom-field values on the admin edit path. */
   customFieldValues?: CustomFieldValuePort;
   /**
-   * Feature 056 — Command Bus for the org-hierarchy tree mutations
-   * (`organization.set_parent` / `organization.move`). When present alongside
-   * `requireAdmin`, the hierarchy admin endpoints are mounted (Principle XIII).
+   * The Command Bus (Principle XIII): the org-hierarchy tree mutations
+   * (`organization.set_parent` / `organization.move`, feature 056) and, since
+   * `specs/170-organization-roles/` WP-03, the invitation and member-role
+   * Commands. Required since WP-03 — the member routes cannot write without it.
    */
-  commandBus?: CommandBus;
+  commandBus: CommandBus;
   /**
    * Feature 154 — the kernel's channel-membership writer, which binds a
    * registered Organization to the channel of the store it registered on (the
@@ -207,15 +224,18 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       options.auditLogService,
     );
     const customerAuthService = options.customerAuthService;
-    const invitationService = new InvitationService(
-      options.emFactory,
-      accountPorts,
+    const invitationService = new InvitationService({
+      emFactory: options.emFactory,
+      accounts: accountPorts,
+      commandBus: options.commandBus,
       mailer,
-      { acceptBaseUrl: storefrontBaseUrl },
-      options.eventBus as OrganizationEventBus,
-      orgTemplateEmail,
-      options.auditLogService,
-    );
+      acceptBaseUrl: storefrontBaseUrl,
+      events: options.eventBus as OrganizationEventBus,
+      templateEmail: orgTemplateEmail,
+      ...(options.auditLogService ? { auditLog: options.auditLogService } : {}),
+      ...(options.translate ? { translate: options.translate } : {}),
+      resolveEmailLanguage: options.resolveEmailLanguage,
+    });
     const roleService = options.customerRoleService;
     const passwordResetService = options.passwordResetService;
     const addressService = options.addressService;
@@ -231,6 +251,8 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       mailer,
       templateEmail: orgTemplateEmail,
       storefrontBaseUrl,
+      organizationRoles: options.organizationRoles,
+      organizationPermissions: options.organizationPermissions,
       ...(options.onLogin ? { onLogin: options.onLogin } : {}),
     });
     await registerOrganizationsCustomerRoutes(app, {
@@ -241,6 +263,8 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       resolveCustomerContext: options.resolveCustomerContext,
       resolveCustomerActorOptionalOrg: resolveOptionalOrgContext,
       emFactory: options.emFactory,
+      organizationRoles: options.organizationRoles,
+      organizationPermissions: options.organizationPermissions,
       ...(options.translate ? { translate: options.translate } : {}),
     });
     if (options.restrictionService) {
@@ -261,6 +285,10 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       invitationService,
       roleService,
       customerAccountRead: options.customerAccountRead,
+      organizationPermissions: options.organizationPermissions,
+      organizationRoles: options.organizationRoles,
+      customerAccountRoles: options.customerAccountRoles,
+      commandBus: options.commandBus,
       requireCustomer: options.requireCustomer,
       resolveCustomerContext: options.resolveCustomerContext,
       exposeTestProbe: options.exposeTestProbe ?? false,
@@ -287,6 +315,9 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
         roleService,
         customerAccountRead: options.customerAccountRead,
         customerAccountWrite: options.customerAccountWrite,
+        organizationRoles: options.organizationRoles,
+        customerAccountRoles: options.customerAccountRoles,
+        commandBus: options.commandBus,
         auditLogService: options.auditLogService,
         eventBus: options.eventBus as OrganizationEventBus,
         addressService,
@@ -305,12 +336,7 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
           ? { salesChannelMembership: options.salesChannelMembership }
           : {}),
         ...(options.dictionaryValidator ? { dictionaryValidator: options.dictionaryValidator } : {}),
-        ...(options.commandBus
-          ? {
-              commandBus: options.commandBus,
-              treeService: new OrganizationTreeService(options.emFactory),
-            }
-          : {}),
+        treeService: new OrganizationTreeService(options.emFactory),
       });
       await registerOrganizationAdminRoleRoutes(app, {
         roleService: options.roleService,

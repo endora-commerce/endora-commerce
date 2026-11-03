@@ -13,8 +13,8 @@ import type { OrganizationStatus } from '@endora-commerce/contracts';
  * `@endora-commerce/kernel` reached `@endora-commerce/mod-organizations` — the
  * package cycle F4 cannot start with. {@link OrganizationSnapshot} is the shape
  * the port actually advertises, measured against every caller: `promotions`
- * reads `status`, `carts` and `orders` discard the return value and want the
- * throw, and `loadCartApprovalPolicy` never named an entity at all.
+ * reads `status`, and `carts` and `orders` discard the return value and want
+ * the throw.
  *
  * `OrganizationStatus` comes from `@endora-commerce/contracts`, which already declares the
  * union the entity re-declares — the second name is the existing one, not a new
@@ -54,6 +54,8 @@ export interface OrganizationReadPort {
    */
   assertCanTransact(organizationId: string): Promise<OrganizationSnapshot>;
 
-  /** Per-organisation cart-approval policy; `false` for a customer with no organisation. */
-  loadCartApprovalPolicy(organizationId: string | null): Promise<boolean>;
+  // `loadCartApprovalPolicy(organizationId)` was here. It had no caller, and
+  // the per-Organization cart-approval policy it read is replaced by the
+  // `carts.order_without_approval` organization permission
+  // (`specs/170-organization-roles/` OR-3; removed in WP-03).
 }

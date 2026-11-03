@@ -1,3 +1,5 @@
 {
-  "errors.ADDRESS_NOT_OWNED": "Ten adres nie należy do Twojej organizacji. Wybierz jeden z zapisanych adresów organizacji albo dodaj nowy."
+  "errors.ADDRESS_NOT_OWNED": "Ten adres nie należy do Twojej organizacji. Wybierz jeden z zapisanych adresów organizacji albo dodaj nowy.",
+  "organizationPermissions.addresses.manage.label": "Zarządzanie adresami organizacji",
+  "organizationPermissions.addresses.manage.description": "Dodawanie, edytowanie i usuwanie wspólnych adresów dostawy i rozliczeniowych organizacji."
 }

@@ -82,11 +82,15 @@ export const impersonationStartResponseSchema = z.object({
     email: z.string().email(),
     firstName: z.string(),
     lastName: z.string(),
-    /** @deprecated Read `organizationRole` (`specs/170-organization-roles/`, FR-062, FR-073). */
-    role: z.enum(['organization_admin', 'regular_user']),
+    /**
+     * @deprecated Never sent by the route, and no longer described: read
+     * `organizationRole` (`specs/170-organization-roles/` WP-03, FR-062, FR-073).
+     * Removed with the legacy enum.
+     */
+    role: z.enum(['organization_admin', 'regular_user']).optional(),
     /**
      * The impersonated member's role — whose permissions the impersonation acts
-     * under (spec *Impersonation*). Optional until the route fills it; replaces `role`.
+     * under (spec *Impersonation*); replaces `role`.
      */
     organizationRole: organizationRoleRefSchema.optional(),
   }),

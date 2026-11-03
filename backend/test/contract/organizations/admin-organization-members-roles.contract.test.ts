@@ -215,7 +215,13 @@ describe('operator member endpoints name roles by id (FR-062)', () => {
   it('embeds members with organizationRole on the Organization detail', async () => {
     const res = await h.app.inject({ method: 'GET', url: base, cookies: { b2b_session: CUSTOMERS_ONLY } });
     expect(res.statusCode, res.body).toBe(200);
-    const members = (res.json() as { data: { members: Member[] } }).data.members;
+    const detail = (res.json() as { data: { members: Member[]; predefinedRoles: unknown[] } }).data;
+    const members = detail.members;
+    // `contracts/operator-api.md` §5 — the two predefined roles, for an operator who cannot read the role list.
+    expect(detail.predefinedRoles).toEqual([
+      { id: administratorRoleId, kind: 'administrator', name: 'Administrator' },
+      { id: memberRoleId, kind: 'member', name: 'Member' },
+    ]);
     expect(members.length).toBeGreaterThan(0);
     for (const member of members) {
       expect(member).not.toHaveProperty('role');

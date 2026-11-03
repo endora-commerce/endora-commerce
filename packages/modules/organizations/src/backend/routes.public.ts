@@ -22,6 +22,8 @@ import {
   type CustomerAuthPort,
   type CustomerPasswordResetPort,
   type EmailMailerPort,
+  type OrganizationPermissionPort,
+  type OrganizationRoleReadPort,
 } from '@endora-commerce/contracts';
 import { currentSalesChannel } from '@endora-commerce/platform/kernel';
 import { firstLanguageTag, storefrontPagePathFor } from '@endora-commerce/contracts';
@@ -30,6 +32,7 @@ import type { EmailVerificationService } from './services/email-verification-ser
 import { readCustomerKnownDevice, rememberCustomerKnownDevice } from './known-device-cookie.js';
 import { buildVerificationEmail } from './email-templates/verification.js';
 import type { OrgTemplateEmail } from './services/org-template-email.js';
+import { memberSessionRole } from './services/member-role-views.js';
 
 /**
  * Anonymous endpoints: registration, email verification, customer login /
@@ -71,6 +74,13 @@ export interface OrganizationsPublicDeps {
   templateEmail?: OrgTemplateEmail;
   /** Storefront URL for verify link in the email body. */
   storefrontBaseUrl: string;
+  /**
+   * `specs/170-organization-roles/` WP-03 — the signed-in member's role and
+   * effective permissions on the login answer (FR-056, FR-073), in place of
+   * the legacy `role`.
+   */
+  organizationRoles: Pick<OrganizationRoleReadPort, 'roleRef'>;
+  organizationPermissions: () => Pick<OrganizationPermissionPort, 'effective'>;
 }
 
 export async function registerOrganizationsPublicRoutes(
@@ -79,6 +89,11 @@ export async function registerOrganizationsPublicRoutes(
 ): Promise<void> {
   const { registrationService, verificationService, customerAuthService, passwordResetService } =
     deps;
+  /** An account as a public answer shows it: its role, not the legacy enum (FR-056, FR-073). */
+  const accountView = async (account: CustomerAccountRecord, language: string) => ({
+    ...serializeCustomerAccount(account),
+    ...(await memberSessionRole(deps.organizationRoles, deps.organizationPermissions(), account, language)),
+  });
 
   app.post(
     '/api/v1/organizations/register',
@@ -137,7 +152,7 @@ export async function registerOrganizationsPublicRoutes(
       return {
         data: {
           organization: serializeOrganization(result.organization),
-          customerAccount: serializeCustomerAccount(result.customerAccount),
+          customerAccount: await accountView(result.customerAccount, await request.responseLanguage()),
           emailVerificationSent,
         },
       };
@@ -223,14 +238,17 @@ export async function registerOrganizationsPublicRoutes(
       // consumed (adopted/merged) or pointed at an empty cart (noop_empty).
       // Failure and noop_no_anon both leave the cookie alone — failure so the
       // buyer can retry on the next login, noop_no_anon because there was
-      // nothing to clear in the first place. See spec R-06.
-      if (cartMerge && cartMerge.outcome !== 'noop_no_anon') {
+      // nothing to clear in the first place. See spec R-06. So does
+      // skipped_permission (`specs/170-organization-roles/` owner ruling PR-12,
+      // FR-030a): the member's role lacks `carts.create`, the guest basket was
+      // left unmerged and unchanged, and its cookie still points at it.
+      if (cartMerge && !ANON_CART_COOKIE_KEPT.has(cartMerge.outcome)) {
         reply.clearCookie('b2b_cart_anon', { path: '/' });
       }
       return {
         data: {
           status: 'authenticated',
-          customerAccount: serializeCustomerAccount(result.customerAccount),
+          customerAccount: await accountView(result.customerAccount, await request.responseLanguage()),
           ...(cartMerge ? { cartMerge: narrowCartMergeForHttp(cartMerge) } : {}),
         },
       };
@@ -340,6 +358,9 @@ function serializeOrganization(o: {
   };
 }
 
+/** The merge outcomes after which the guest basket still exists, so its cookie is kept. */
+const ANON_CART_COOKIE_KEPT: ReadonlySet<CartMergeOutcome['outcome']> = new Set(['noop_no_anon', 'skipped_permission']);
+
 function serializeCustomerAccount(c: CustomerAccountRecord) {
   return {
     id: c.id,
@@ -347,7 +368,6 @@ function serializeCustomerAccount(c: CustomerAccountRecord) {
     email: c.email,
     firstName: c.firstName,
     lastName: c.lastName,
-    role: c.role,
     emailVerifiedAt: c.emailVerifiedAt?.toISOString() ?? null,
     // The record already answers this; the entity carried the secret's
     // confirmation timestamp and every caller derived the same boolean from it.

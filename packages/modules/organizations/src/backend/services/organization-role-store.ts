@@ -109,12 +109,25 @@ export function entityManagerRoleStore(em: EntityManager): OrganizationRoleStore
       );
       for (const invitation of invitations) {
         invitation.organizationRoleId = to.id;
-        invitation.role = to.kind === 'administrator' ? 'organization_admin' : 'regular_user';
+        invitation.role = legacyRoleOfKind(to.kind);
       }
       await em.flush();
       return invitations.map((invitation) => invitation.id).sort();
     },
   };
+}
+
+/**
+ * The legacy two-value role a role kind is **dual-written** as until the
+ * legacy removal (`specs/170-organization-roles/` research R-23): only
+ * *Administrator* is `organization_admin`. The one place this module spells the
+ * enum outside its migrations and entities, so every writer agrees and the
+ * legacy-removal package deletes one function.
+ *
+ * @deprecated Deleted with the legacy `role` columns.
+ */
+export function legacyRoleOfKind(kind: OrganizationRoleKind): OrganizationInvitation['role'] {
+  return kind === 'administrator' ? 'organization_admin' : 'regular_user';
 }
 
 /**

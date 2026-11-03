@@ -5,6 +5,7 @@ import type {
   AdminUserReadPort,
   CustomerAccountReadPort,
   CustomerPasswordVerificationPort,
+  OrganizationPermissionPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 
@@ -44,19 +45,29 @@ import { HttpError } from '@endora-commerce/platform/http';
  * `customerActorResolver`'s answer, which the platform contributes and eight
  * other modules already read, and asking it a second time here is the duplicate
  * spelling this drain removes.
+ *
+ * Setting the Organization's MFA policy is a **reserved administrator
+ * capability** (`specs/170-organization-roles/` WP-03, FR-011): the account
+ * must hold its Organization's *Administrator* role, asked of
+ * `organizationPermissionPort.isAdministrator` by role kind — never a
+ * permission code, so a custom role holding every code is still refused — and
+ * never the legacy `role` column.
  */
 export function createOrganizationAdminResolver(
   accounts: Pick<CustomerAccountReadPort, 'findById'>,
+  permissions: Pick<OrganizationPermissionPort, 'isAdministrator'>,
 ): (customerAccountId: string) => Promise<{ organizationId: string; actor: string }> {
+  const refusal = (): HttpError =>
+    new HttpError(403, ERROR_CODES.FORBIDDEN, 'Organization administrator role required.');
   return async (customerAccountId) => {
     const account = await accounts.findById(customerAccountId);
-    if (!account || account.role !== 'organization_admin' || !account.organizationId) {
-      throw new HttpError(
-        403,
-        ERROR_CODES.FORBIDDEN,
-        'Organization administrator role required.',
-      );
-    }
+    if (!account || !account.organizationId) throw refusal();
+    const administrator = await permissions.isAdministrator({
+      customerAccountId: account.id,
+      organizationId: account.organizationId,
+      organizationRoleId: account.organizationRoleId,
+    });
+    if (!administrator) throw refusal();
     return { organizationId: account.organizationId, actor: account.id };
   };
 }

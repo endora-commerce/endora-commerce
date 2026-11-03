@@ -17,6 +17,12 @@ Adresy pocztowe klientów, przypisane do organizacji. Każdy adres ma rodzaj `ki
 | `PATCH /api/v1/organizations/mine/addresses/:id` | Aktualizacja |
 | `DELETE /api/v1/organizations/mine/addresses/:id` | Usunięcie (odrzucane, gdy adres jest używany przez zamówienie — `409 ADDRESS_IN_USE`) |
 
+Trasy obsługuje moduł `organizations`. Tworzenie, aktualizacja i usuwanie wymagają uprawnienia
+organizacji **`addresses.manage`**, które deklaruje ten moduł (*Zarządzanie adresami organizacji*):
+członek, którego rola go nie ma, otrzymuje odmowę `403 ORGANIZATION_PERMISSION_REQUIRED`. Listę
+może odczytać każdy członek. Uprawnienie ma domyślnie rola Członek, a rola Administrator zawsze;
+organizacja odbiera je, edytując rolę.
+
 ## Encje
 
 `Address` — częściowy indeks unikalny `(organization_id, kind) WHERE is_default = true` wymusza na
