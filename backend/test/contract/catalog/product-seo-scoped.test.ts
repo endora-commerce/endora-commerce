@@ -8,20 +8,21 @@ import {
 import { withModuleOff } from '../../helpers/off-state.js';
 
 /**
- * Feature 163, Phase 18 (T115) — the product page's metadata per sales channel ×
- * language (`specs/163-product-data-scopes/contracts/seo-media-attachments.md` §1;
- * research R13, owner decision Q-A; FR-075, FR-111, US8 #1, plan *Intended
- * behaviour changes* 4).
+ * Feature 170, US10 (T122; FR-020, FR-090…FR-092; `contracts/seo-ports.md` §1) — the product page's
+ * metadata on the three-level model, rewritten from 163's T115 (which asserted the Language level
+ * 170 removes):
  *
- * - the PDP's `seo` block is `seo`'s answer for the request's (C, L): C×L → C → L →
- *   the page's derived values, per field;
- * - a per-language override written before this feature is now served (Q-A);
+ * - the PDP's `seo` block is `seo`'s answer for the request's (C, L), per field along
+ *   C×L → C → G, then the page's derived values (from the Global name and description);
+ * - a field whose effective source is an empty override takes the derived value (owner round 6);
  * - with `seo` off the block is the derived one, and the override rows persist.
+ *
+ * Rows are seeded in `seo_meta_overrides` directly: product metadata is written only through
+ * catalog's save (FR-094), and `seo`'s generic product `PUT` is refused from T121 on.
  */
-describe('PDP metadata per channel × language (spec 163, T115)', () => {
+describe('PDP metadata at Global, Channel and Channel × language (spec 170, T122)', () => {
   let h: BackendServerHandle;
   const run = randomUUID().slice(0, 8);
-  const admin = { cookies: { b2b_session: 'stub-admin-session' } };
   const channels: Array<{ id: string; code: string }> = [];
   let productId: string;
 
@@ -55,14 +56,17 @@ describe('PDP metadata per channel × language (spec 163, T115)', () => {
     }).data.seo;
   }
 
-  const putMeta = async (payload: Record<string, unknown>): Promise<void> => {
-    const res = await h.app.inject({
-      method: 'PUT',
-      url: `/api/v1/admin/seo/meta/product/${productId}`,
-      ...admin,
-      payload,
-    });
-    expect(res.statusCode, res.body).toBe(200);
+  /** One `seo_meta_overrides` row: `channelId` null = Global, `locale` null = Channel. */
+  const seedMeta = async (
+    channelId: string | null,
+    locale: string | null,
+    values: { title?: string | null; description?: string | null },
+  ): Promise<void> => {
+    await sql(
+      `insert into seo_meta_overrides (id, entity_type, entity_id, sales_channel_id, locale, title, description, created_at, updated_at)
+       values (?, 'product', ?, ?, ?, ?, ?, now(), now())`,
+      [randomUUID(), productId, channelId, locale, values.title ?? null, values.description ?? null],
+    );
   };
 
   let b2b: { id: string; code: string };
@@ -83,13 +87,8 @@ describe('PDP metadata per channel × language (spec 163, T115)', () => {
     for (const channel of [b2b, b2c]) {
       await sql(`insert into sales_channel_products (sales_channel_id, product_id) values (?, ?)`, [channel.id, productId]);
     }
-    // Pre-163 shape: a per-language override, no channel (Q-A: served from now on).
-    await sql(
-      `insert into seo_meta_overrides (id, entity_type, entity_id, locale, title, description, created_at, updated_at)
-       values (?, 'product', ?, 'pl-PL', 'Wiertarka — sklep', 'Opis PL z SEO', now(), now())`,
-      [randomUUID(), productId],
-    );
-    await putMeta({ channelId: b2b.id, locale: 'pl-PL', title: 'Wiertarka dla firm' });
+    await seedMeta(b2b.id, 'pl-PL', { title: 'Wiertarka dla firm' });
+    await seedMeta(b2b.id, null, { title: '', description: 'Opis B2B' });
   });
 
   afterAll(async () => {
@@ -102,30 +101,35 @@ describe('PDP metadata per channel × language (spec 163, T115)', () => {
     }
   });
 
-  it('serves B2B × Polish its own title and inherits the language description (US8 #1)', async () => {
+  it('serves the C\u00d7L title and the Channel description at B2B \u00d7 Polish (C\u00d7L \u2192 C)', async () => {
     expect(await pdpSeo(b2b, 'pl-PL')).toMatchObject({
       metaTitle: 'Wiertarka dla firm',
-      metaDescription: 'Opis PL z SEO',
+      metaDescription: 'Opis B2B',
     });
   });
 
-  it('serves a pre-existing per-language override where no channel row applies (Q-A)', async () => {
-    expect(await pdpSeo(b2c, 'pl-PL')).toMatchObject({
-      metaTitle: 'Wiertarka — sklep',
-      metaDescription: 'Opis PL z SEO',
-    });
+  /** PENDING T121 (S2) — `seo`'s 163 resolver serves the empty title; round 6's derived fallback lands with T121. */
+  it.skip('derives a field whose effective value is an empty override, and inherits the Channel description (PENDING T121)', async () => {
+    expect(await pdpSeo(b2b, 'en-US')).toMatchObject({ metaTitle: 'Impact drill', metaDescription: 'Opis B2B' });
   });
 
   it('derives the rest from the product where no override applies', async () => {
-    expect(await pdpSeo(b2c, 'en-US')).toMatchObject({ metaTitle: 'Impact drill', metaDescription: 'A drill.' });
+    expect(await pdpSeo(b2c, 'pl-PL')).toMatchObject({ metaTitle: 'Impact drill', metaDescription: 'A drill.' });
+  });
+
+  /**
+   * PENDING T118 (S2) — a Global product row breaks 163's `seo_meta_overrides_scope_check`
+   * (locale or channel required) until `seo`'s three-level migration replaces it. Un-skip when it lands.
+   */
+  it.skip('serves the Global row on every channel and language no C or C\u00d7L row overrides (PENDING T118)', async () => {
+    await seedMeta(null, null, { title: 'Wiertarka (G)', description: 'Opis globalny' });
+    expect(await pdpSeo(b2c, 'en-US')).toMatchObject({ metaTitle: 'Wiertarka (G)', metaDescription: 'Opis globalny' });
+    expect(await pdpSeo(b2b, 'pl-PL')).toMatchObject({ metaTitle: 'Wiertarka dla firm', metaDescription: 'Opis B2B' });
   });
 
   it('answers the derived metadata while seo is off, and serves the overrides again after', async () => {
     await withModuleOff('seo', 'deactivated', async () => {
-      expect(await pdpSeo(b2b, 'pl-PL')).toMatchObject({
-        metaTitle: 'Wiertarka udarowa',
-        metaDescription: 'Wiertarka.',
-      });
+      expect(await pdpSeo(b2b, 'pl-PL')).toMatchObject({ metaTitle: 'Impact drill', metaDescription: 'A drill.' });
     });
     expect(await pdpSeo(b2b, 'pl-PL')).toMatchObject({ metaTitle: 'Wiertarka dla firm' });
   });
