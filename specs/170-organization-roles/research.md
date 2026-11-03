@@ -807,7 +807,7 @@ changes that:
   operator's assign) → the target's predefined role of the kind the account held (*Administrator*
   stays *Administrator*, anyone else becomes *Member*; a custom role does not travel), resolved by
   `organizationRoleReadPort.predefinedRoleId` (`contracts/organization-permission-port.md` §1) —
-  today's outcome, since the legacy enum travels unchanged.
+  today's outcome, since the legacy enum travels unchanged. Confirmed as owner ruling PR-11.
 
 **What relied on the role to stay hidden, and what gates it now.** Measured on `origin/master` at
 `75b069175`:
@@ -841,7 +841,8 @@ no screen anyone could edit it from. *Hide the personal surfaces by role* — co
 kind with the member's authority; it is exactly what left today's personal Organizations
 administrator-less. *Answer `404` on every member and invitation route for a personal Organization,
 as the role routes do* — more surface changed for no visible gain, since the storefront offers none of
-them; a possible follow-up, not needed for PR-3.
+them. Rejected deliberately by owner ruling PR-10 (2026-11-03): those routes answer as for any
+administrator.
 
 ## R-35 — The guard judges signed-in customers only where a route admits guests (owner ruling PR-4, 2026-11-03)
 
@@ -863,12 +864,19 @@ default `'refuse'` keeps every other guard fail-closed; the option is opt-in per
 picks the wrong one fails open. *Moving `carts.create` into the handler* — R-20's consumer checklist
 (a route gate is a `preHandler`, never a handler check), and the inventory reads pre-handlers.
 
-**[NEEDS CLARIFICATION — PR-4 follow-on]** The login merge (`carts` `cart-service.ts`, feature 037)
-moves a guest basket's lines into the member's basket at sign-in. For a member whose role lacks
-`carts.create`, that merge is a cart write the gate would otherwise refuse. **Recommendation**: the
-merge is judged by `carts.create` and skipped (the guest basket left as it was) for a member lacking
-it; WP-04 implements it with a test once the owner confirms. The oracle has no login-merge row, so
-FR-072 is unaffected either way.
+**The sign-in merge (owner ruling PR-12, 2026-11-03).** The login merge (`carts`
+`CartService.mergeAnonymousIntoCustomer`, called by the login hook in `backend/src/composition.ts`,
+feature 037) moves a guest basket's lines into the member's basket — a cart write by the now
+signed-in member. It is judged against `carts.create`: for a member whose role lacks it the merge is
+**skipped** — no line moves, the guest basket keeps its rows and its token, and the outcome is a new
+internal value `skipped_permission`, narrowed to `noop` on the login answer (no merge toast). The
+login route keeps the `b2b_cart_anon` cookie on that outcome, as it does for `noop_no_anon`, and the
+login itself never fails because of it (037 FR-007/FR-008). The oracle has no sign-in row, so FR-072
+is unaffected.
+
+*Alternatives rejected.* *Merge anyway* — a role without `carts.create` would build a cart as a
+guest and carry it in at sign-in, which is the bypass the gate exists to close. *Discard the guest
+basket* — destructive, and the visitor loses their lines on signing in with a restricted role.
 
 ## R-36 — Expected differences are stated per row, by oracle request id (owner rulings PR-5, PR-6, 2026-11-03)
 
@@ -879,7 +887,8 @@ each of which must equal its stated `after`. The table is a WP-13 fixture
 by a service-free unit test against the frozen oracle. The F4 rows are exactly the two
 `oneClickInApprovalOrg` rows (PR-6).
 
-Three orderings the table depends on are pinned here, so each `after` is determined:
+Three orderings the table depends on are pinned here, so each `after` is determined (the first and
+third confirmed by the owner as PR-9 and PR-8):
 
 1. **Approve and reject check the cart's state before self-approval.** `CART_APPROVAL_NOT_PENDING`
    stays first in `cart-approval-service.ts`; `CART_APPROVAL_SELF_APPROVE` refuses only a pending
