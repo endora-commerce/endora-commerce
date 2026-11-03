@@ -201,19 +201,7 @@ const ALLOWLIST: ReadonlyArray<{ file: string; reason: string }> = [
     reason: "S1 — catalog backend 170-shim, rewritten in US2 / US3 (T035, T040-T047); not S2's file",
   },
   {
-    file: 'packages/modules/catalog/src/backend/services/gallery.service.ts',
-    reason: "S1 — catalog backend 170-shim, rewritten in US2 / US3 (T035, T040-T047); not S2's file — still queries the dropped gallery_item_channel_* tables",
-  },
-  {
     file: 'packages/modules/catalog/src/backend/services/product-overrides.service.ts',
-    reason: "S1 — catalog backend 170-shim, rewritten in US2 / US3 (T035, T040-T047); not S2's file",
-  },
-  {
-    file: 'packages/modules/catalog/src/backend/services/url-key-resolution.service.ts',
-    reason: "S1 — catalog backend 170-shim, rewritten in US2 / US3 (T035, T040-T047); not S2's file",
-  },
-  {
-    file: 'packages/modules/catalog/src/backend/services/url-key.service.ts',
     reason: "S1 — catalog backend 170-shim, rewritten in US2 / US3 (T035, T040-T047); not S2's file",
   },
   {
