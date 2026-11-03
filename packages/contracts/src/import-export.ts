@@ -23,6 +23,8 @@ import { pimLocaleMappingEntrySchema, pimLocaleTagSchema, sameSourceLocale } fro
 export interface BulkImportRowError {
   index: number;
   reason: string;
+  /** Feature 170 — a stable code for the row's refusal, so a client labels it without parsing `reason`. */
+  code?: string;
 }
 
 /**
@@ -46,6 +48,11 @@ export interface BulkImportReport {
   cellCounts?: Array<{ column: string; null: number; inherit: number }>;
   warnings?: Array<{ kind: 'unmapped_locale'; locale: string; sourceChannel: string | null; products: number }>;
   fieldErrors?: Array<{ index: number; column: string; code: string }>;
+  /**
+   * Feature 170 — products imports only: how many `errors` / `fieldErrors` the report left out
+   * when it capped them (the first ones in arrival order are kept).
+   */
+  truncated?: { errors: number; fieldErrors: number };
 }
 
 /**
@@ -154,3 +161,16 @@ export const importProfileErrorDetailsSchemas = {
   [ERROR_CODES.IMPORT_PROFILE_NOT_FOUND]: importProfileNotFoundDetailsSchema,
   [ERROR_CODES.IMPORT_PROFILE_NAME_TAKEN]: importProfileNameTakenDetailsSchema,
 } as const;
+
+// --- Feature 170: the products import's channel targets ---------------------------------------
+
+/**
+ * `GET /api/v1/admin/import-export/channel-targets` — every channel a products import profile may
+ * target (inactive ones included, so a saved target is not dropped), ordered by code.
+ */
+export const importChannelTargetSchema = z
+  .object({ id: uuidSchema, code: z.string().min(1).max(32), languages: z.array(z.string().min(2).max(16)).min(1) })
+  .strict();
+export type ImportChannelTarget = z.infer<typeof importChannelTargetSchema>;
+export const importChannelTargetListResponseSchema = z.object({ data: z.array(importChannelTargetSchema) });
+export type ImportChannelTargetListResponse = z.infer<typeof importChannelTargetListResponseSchema>;

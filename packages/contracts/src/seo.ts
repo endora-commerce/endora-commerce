@@ -4,6 +4,7 @@ import { SalesChannelCodeSchema } from './sales-channels.js';
 import type { ScopeRef, ScopedSource, SeoProductMetaField } from './product-scope-model.js';
 import type { ScopedFieldView } from './product-scoped-values.js';
 import type { ScopedWriteOp } from './scoped-write-encoding.js';
+import { scopeRequestSchema } from './product-scopes.js';
 
 /**
  * SEO meta + sitemap contracts (T235 / FR-101, FR-102).
@@ -446,6 +447,10 @@ export type AdminCrawlerFilePreviewResponse = z.infer<typeof adminCrawlerFilePre
  * touches an operator's channel override (FR-091).
  *
  * **Owner off:** resolving this port throws `ModuleDisabledError` (503).
+ *
+ * @deprecated Feature 170: no module calls it, and with no Language scope any call naming a locale
+ * answers `422 SCOPE_INVALID`. Product SEO is written through {@link SeoProductMetaWritePort}
+ * inside catalog's Commands. Deleted together with `seo`'s `providePort` (stream S2).
  */
 export interface SeoMetaWritePort {
   upsertProductMeta(input: {
@@ -474,13 +479,12 @@ export interface SeoProductMetaValues {
   ogImageUrl: string | null;
 }
 
-/** `GET /api/v1/admin/seo/meta/product/:entityId` query — `catalog:read` (FR-093). No locale-only scope. */
-export const seoProductMetaQuerySchema = z
-  .object({
-    channelId: uuidSchema.optional(),
-    languageCode: z.string().min(2).max(16).optional(),
-  })
-  .strict();
+/**
+ * `GET /api/v1/admin/seo/meta/product/:entityId` query — `catalog:read` (FR-093). The scope
+ * request every scoped read takes (`scopeRequestSchema`, resolved with `scopeFromRequest`): no
+ * locale-only scope.
+ */
+export const seoProductMetaQuerySchema = scopeRequestSchema;
 export type SeoProductMetaQuery = z.infer<typeof seoProductMetaQuerySchema>;
 
 /**
@@ -515,8 +519,7 @@ export interface SeoProductMetaPort {
 export type SeoProductMetaOwnValue = { own: string | { empty: true } } | { inherited: true };
 
 /**
- * Owner: `seo` (feature 170, FR-091). Its container name, `seoProductMetaWritePort`, is published with its
- * registration in T121 (stream S2); until then no module provides it and catalog does not resolve it.
+ * Container name: `seoProductMetaWritePort`. Owner: `seo` (feature 170, FR-091), registered by T121.
  *
  * Writes product metadata **on the caller's EntityManager**: no fork, no flush, no audit entry,
  * no event — `catalog`'s save Command commits or rolls the rows back with its own. `catalog`
@@ -527,7 +530,11 @@ export type SeoProductMetaOwnValue = { own: string | { empty: true } } | { inher
  * `set` → the column holds the value; `empty` → `''`; `inherit` → `NULL`, and a row whose every
  * column is `NULL` is deleted. Refuses (`422 SCOPED_VALUE_INVALID`) `inherit` at Global, an
  * over-long value (title 160, description 400, OG title 160, OG description 400, image URL 2048)
- * and an image URL that is not `http:` / `https:`.
+ * and an image URL that is not `http:` / `https:` or carries credentials (`unsafe_url`).
+ *
+ * **No scope check:** it writes any scope it is given — membership and the channel's languages are
+ * the caller's to check (`catalog`'s save resolves the scope first; a duplicate writes the copy's
+ * scopes in the same transaction).
  *
  * **Owner off:** resolving this port throws `ModuleDisabledError` (503).
  */
