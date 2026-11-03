@@ -36,7 +36,20 @@ function wrap(
       <MemoryRouter>
         <AppLanguageContext.Provider value={{ language, setLanguage: (): void => undefined }}>
           <TranslationProvider language={language} initialBundle={{ seo: bundle }}>
-            {withSession(<AdminZone name="product.editor.seo.after" props={{ productId: PRODUCT_ID }} />, {
+            {withSession(<AdminZone
+                name="product.editor.seo"
+                props={{
+                  productId: PRODUCT_ID,
+                  scope: { level: 'global' },
+                  scopeLabel: '',
+                  parentScopeLabel: null,
+                  view: null,
+                  staged: new Map(),
+                  onStage: () => undefined,
+                  readOnly: true,
+                  errors: {},
+                }}
+              />, {
               session: adminSession({ permissions: options.permissions ?? ['catalog:read', 'catalog:write'] }),
               presence: options.seo === false ? modulePresence({ absent: ['seo'] }) : modulePresence({ present: ['seo'] }),
               contributions: REGISTRY,
@@ -52,7 +65,7 @@ afterEach(() => cleanup());
 
 describe('seo contributes the product editor SEO link (owner decision SEO stub = A)', () => {
   it('declares the member with the SEO screen’s code and no match', () => {
-    const zone = (seo.contributions.zones ?? []).find((z) => z.zone === 'product.editor.seo.after');
+    const zone = (seo.contributions.zones ?? []).find((z) => z.zone === 'product.editor.seo');
     expect(zone).toBeDefined();
     expect(zone!.match).toBeUndefined();
     expect(zone!.requiredPermission).toBe('catalog:write');

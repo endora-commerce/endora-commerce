@@ -85,6 +85,7 @@ function scopesFixture(): ProductScopes {
         status: null,
         window: null,
         audience: null,
+        minOrderQuantityOverridden: false,
         minOrderQuantity: null,
         returnable: null,
         languageStatuses: [
@@ -104,6 +105,7 @@ function scopesFixture(): ProductScopes {
           allowedOrganizationIds: [ORG_W],
           nonMemberOrganizationIds: [ORG_W],
         },
+        minOrderQuantityOverridden: true,
         minOrderQuantity: 1,
         returnable: false,
         languageStatuses: [],

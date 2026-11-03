@@ -263,7 +263,7 @@ const SUBJECTS: readonly Subject[] = [
       ['catalog/src/admin/pages/ProductEditor.tsx', 'product.editor.pricing.before', 1],
       ['catalog/src/admin/pages/ProductEditor.tsx', 'product.editor.pricing.after', 1],
       ['catalog/src/admin/pages/ProductEditor.tsx', 'product.editor.channels', 1],
-      ['catalog/src/admin/pages/ProductEditor.tsx', 'product.editor.seo.after', 1],
+      ['catalog/src/admin/pages/ProductEditor.tsx', 'product.editor.seo', 1],
       ['catalog/src/admin/components/ProductAttributesTab.tsx', 'product.editor.field.after', 1],
       ['catalog/src/admin/pages/CategoriesTree.tsx', 'category.editor.after', 1],
     ],

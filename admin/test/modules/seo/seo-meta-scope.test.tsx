@@ -72,9 +72,9 @@ function metaAnswer(override: Record<string, string | null> | null) {
         locale: 'de-DE',
       },
       sources: {
-        title: 'channel_language',
-        description: 'channel',
-        ogTitle: 'language',
+        title: 'set',
+        description: 'inherited_channel',
+        ogTitle: 'inherited_global',
         ogDescription: 'derived',
         ogImageUrl: 'derived',
       },
