@@ -20,12 +20,13 @@ const ID = '22222222-2222-4222-8222-222222222222';
 const NOW = '2026-10-26T10:00:00.000Z';
 
 describe('attachment shapes', () => {
-  it('create and update take the Global name and description', () => {
+  it('create takes the Global name; update is a collection operation only (contract §6)', () => {
     expect(
       createAttachmentRequestSchema.safeParse({ assetId: ID, attachmentTypeId: ID, name: 'Data sheet' }).success,
     ).toBe(true);
-    expect(updateAttachmentRequestSchema.safeParse({ name: 'Data sheet', description: null }).success).toBe(true);
-    expect(updateAttachmentRequestSchema.safeParse({ name: 'x'.repeat(161) }).success).toBe(false);
+    expect(updateAttachmentRequestSchema.safeParse({ attachmentTypeId: ID, position: 1 }).success).toBe(true);
+    // The name and description at any scope are written through `PUT …/scoped-values`.
+    expect(updateAttachmentRequestSchema.safeParse({ name: 'Data sheet', description: null }).success).toBe(false);
   });
 
   it('refuses 163 per-scope sub-fields (strict)', () => {

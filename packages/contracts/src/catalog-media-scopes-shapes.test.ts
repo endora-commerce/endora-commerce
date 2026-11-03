@@ -11,8 +11,9 @@ const I = '22222222-2222-4222-8222-222222222222';
 const NOW = '2026-10-26T10:00:00.000Z';
 
 describe('updateGalleryItemRequestSchema', () => {
-  it('accepts position and labels', () => {
-    expect(updateGalleryItemRequestSchema.safeParse({ position: 2, labels: ['thumbnail'] }).success).toBe(true);
+  it('accepts position; a role is a scoped value now, not a label list here (contract §6)', () => {
+    expect(updateGalleryItemRequestSchema.safeParse({ position: 2 }).success).toBe(true);
+    expect(updateGalleryItemRequestSchema.safeParse({ position: 2, labels: ['thumbnail'] }).success).toBe(false);
   });
 
   it('refuses 163 per-scope sub-fields (strict)', () => {
