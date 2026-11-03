@@ -109,10 +109,6 @@ function scan(file: string, source: string): Site[] {
  */
 const ALLOWLIST: ReadonlyArray<{ file: string; reason: string }> = [
   {
-    file: 'packages/modules/catalog/src/admin/components/ProductScopeOverview.tsx',
-    reason: 'S3 — catalog admin, removed by T127 / T132 (US12)',
-  },
-  {
     file: 'packages/modules/catalog/src/admin/lib/attribute-scope.ts',
     reason: 'S3 — catalog admin, removed by T113 (US9)',
   },

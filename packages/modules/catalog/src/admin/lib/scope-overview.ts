@@ -32,7 +32,7 @@ import { scopeToRequest } from './scoped-editor-store.js';
 export type ScopeOverview = ScopeOverviewResponse['data'];
 export type ScopeOverviewCell = ScopeOverview['cells'][number];
 export type ScopeOverviewOrphan = ScopeOverview['orphans'][number];
-export type OverviewLevel = 'channel_language' | 'channel' | 'language';
+export type OverviewLevel = 'channel_language' | 'channel';
 
 const CHANNEL_FIELDS = ['status', 'window', 'audience', 'minOrderQuantity', 'returnable'] as const;
 type ChannelField = (typeof CHANNEL_FIELDS)[number];
@@ -73,10 +73,9 @@ function inheritValue(key: string, scope: ScopeRef): ScopeFieldRequest {
 }
 
 /**
- * "Reset to inherited" for one field at one level (US4 #2): the owning endpoint with
- * `null` for that field only. `null` when the level holds no override to remove — a
- * name, description or attribute at the **language** level is the product's own value
- * in that language, edited on the Details and Attributes tabs, not an override.
+ * "Reset to inherited" for one field at one level (US4 #2): the owning endpoint with an
+ * inherit for that field only (feature 170: there is no Language level, FR-010). `null`
+ * when the level holds no override to remove.
  */
 export function resetRequestFor(input: {
   field: string;
@@ -99,7 +98,6 @@ export function resetRequestFor(input: {
   }
   const attributeKey = overrideAttributeKey(field);
   if (attributeKey !== null) {
-    if (level === 'language') return null;
     return inheritValue(
       attributeKey,
       level === 'channel_language' ? { level: 'channel_language', channelId, languageCode } : { level: 'channel', channelId },
@@ -109,11 +107,7 @@ export function resetRequestFor(input: {
   if (field === 'urlKey') {
     // A URL key has no channel-wide value: a channel row never holds one (C-7).
     if (level === 'channel') return null;
-    if (level === 'channel_language') {
-      return { kind: 'urlKeys', body: { channelKeys: [{ channelId, languageCode, key: { inherit: true } }] } };
-    }
-    // There is no Language key any more (FR-010); T132 drops the Language row.
-    return null;
+    return { kind: 'urlKeys', body: { channelKeys: [{ channelId, languageCode, key: { inherit: true } }] } };
   }
   return null;
 }
@@ -177,6 +171,10 @@ export async function getScopeOverview(productId: string): Promise<ScopeOverview
   const res = await apiClient.get<ScopeOverviewResponse>(
     `/api/v1/admin/catalog/products/${encodeURIComponent(productId)}/scope-overview`,
   );
+  // A malformed answer is a failed read (the overview shows Retry), never a crash.
+  if (!res?.data || !Array.isArray(res.data.channels) || !Array.isArray(res.data.cells)) {
+    throw new Error('Malformed scope overview');
+  }
   return res.data;
 }
 

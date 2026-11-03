@@ -4,6 +4,7 @@ import { apiClient, useAuth } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button } from '@endora-commerce/admin-kit/ui';
 import { ModalDialog } from '@endora-commerce/admin-kit/components';
 import { AppLanguageContext, useTranslation } from '@endora-commerce/admin-kit/i18n';
+import type { ScopeRef } from '@endora-commerce/contracts';
 import { scopeSaveErrorMessage } from '../lib/product-scopes-api.js';
 import {
   describeOverviewField,
@@ -42,8 +43,51 @@ import { urlKeyErrorMessage } from '../lib/product-url-keys-api.js';
  * below the table with a delete each. Without `catalog:write` nothing here is actionable.
  */
 
+/**
+ * Feature 170 (US12, `contracts/editor-ui.md` §7) — how the map's links reach the editor: a
+ * real URL for each scope (and field), activation through the editor's switch guard, and the
+ * scope in the editor's words. Absent, the map shows no links.
+ */
+export interface ScopeMapLinks {
+  href(scope: ScopeRef, field?: string): string;
+  open(scope: ScopeRef, field?: string): void;
+  words(scope: ScopeRef): string;
+}
+
 export interface ProductScopeOverviewProps {
   productId: string;
+  links?: ScopeMapLinks | undefined;
+}
+
+/** A real `<a href>` whose activation runs the editor's guard instead of a page load. */
+function ScopeLink({
+  links,
+  scope,
+  field,
+  label,
+  children,
+}: {
+  links: ScopeMapLinks;
+  scope: ScopeRef;
+  field?: string;
+  label?: string;
+  children: ReactNode;
+}): ReactNode {
+  return (
+    <a
+      href={links.href(scope, field)}
+      aria-label={label}
+      data-own-unsaved-guard=""
+      className="text-sm text-primary underline underline-offset-2 max-lg:inline-flex max-lg:min-h-11 max-lg:items-center"
+      onClick={(e): void => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+        e.preventDefault();
+        links.open(scope, field);
+      }}
+    >
+      {children}
+    </a>
+  );
 }
 
 interface AttributeSummary {
@@ -54,7 +98,7 @@ interface AttributeSummary {
 
 type Translate = (key: string, params?: Record<string, string>) => string;
 
-export function ProductScopeOverview({ productId }: ProductScopeOverviewProps): ReactNode {
+export function ProductScopeOverview({ productId, links }: ProductScopeOverviewProps): ReactNode {
   const t = useTranslation('catalog');
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('catalog:write');
@@ -210,30 +254,6 @@ export function ProductScopeOverview({ productId }: ProductScopeOverviewProps): 
     );
   }
 
-  // 170-shim: the Language row is gone (FR-010, FR-100); T132 removes it from this view.
-  const languageColumnOf = (_code: string): string[] => [];
-
-  /** A language's own values, with their resets — rendered in a body cell, never a header (D11). */
-  const languageValues = (code: string): ReactNode => {
-    const fields = languageColumnOf(code);
-    if (fields.length === 0) return <span className="b2b-help">{t('productEditor.scopeOverview.nothingSet')}</span>;
-    return (
-      <FieldList
-        fields={fields}
-        fieldLabel={fieldLabel}
-        resetFor={(field): ScopeFieldRequest | null =>
-          canWrite ? resetRequestFor({ field, level: 'language', channelId: '', languageCode: code }) : null
-        }
-        resetLabel={(field): string =>
-          t('productEditor.scopeOverview.resetAria', { field: fieldLabel(field), scope: code.toUpperCase() })
-        }
-        busy={busy}
-        onReset={(request, field): void => reset(request, field, code.toUpperCase())}
-        t={t}
-      />
-    );
-  };
-
   /** Sticky row headers keep the channel in view while the languages scroll (D11). */
   const stickyRowHeader = { position: 'sticky', left: 0, background: 'var(--surface)', zIndex: 1 } as const;
 
@@ -256,39 +276,18 @@ export function ProductScopeOverview({ productId }: ProductScopeOverviewProps): 
         </p>
       ) : null}
       {liveRegion}
+      {links ? (
+        <p className="m-0">
+          <ScopeLink links={links} scope={{ level: 'global' }}>
+            {t('productEditor.scopeOverview.editAt', { scope: links.words({ level: 'global' }) })}
+          </ScopeLink>
+        </p>
+      ) : null}
 
       {members.length === 0 ? (
-        <>
-          <Alert role="note">
-            <AlertDescription>{t('productEditor.scopeOverview.noChannels')}</AlertDescription>
-          </Alert>
-          <div
-            role="region"
-            tabIndex={0}
-            aria-label={t('productEditor.scopeOverview.languagesCaption')}
-            style={{ overflowX: 'auto' }}
-          >
-            <table className="b2b-tbl" style={{ width: '100%' }}>
-              <caption className="sr-only">{t('productEditor.scopeOverview.languagesCaption')}</caption>
-              <thead>
-                <tr>
-                  <th scope="col">{t('productEditor.scopeOverview.languageColumn')}</th>
-                  <th scope="col">{t('productEditor.scopeOverview.languageValues')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {overview.languages.map((code) => (
-                  <tr key={code}>
-                    <th scope="row" style={{ verticalAlign: 'top', textAlign: 'left' }}>
-                      <span className="font-semibold">{code.toUpperCase()}</span>
-                    </th>
-                    <td style={{ verticalAlign: 'top' }}>{languageValues(code)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
+        <Alert role="note">
+          <AlertDescription>{t('productEditor.scopeOverview.noChannels')}</AlertDescription>
+        </Alert>
       ) : (
         <div
           role="region"
@@ -312,21 +311,6 @@ export function ProductScopeOverview({ productId }: ProductScopeOverviewProps): 
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <th scope="row" style={{ ...stickyRowHeader, verticalAlign: 'top', textAlign: 'left' }}>
-                  <span className="font-semibold">{t('productEditor.scopeOverview.everyChannelRow')}</span>
-                </th>
-                <td style={{ verticalAlign: 'top' }}>
-                  <span className="b2b-help" aria-hidden="true">
-                    —
-                  </span>
-                </td>
-                {overview.languages.map((code) => (
-                  <td key={code} style={{ verticalAlign: 'top' }}>
-                    {languageValues(code)}
-                  </td>
-                ))}
-              </tr>
               {overview.channels.map((channel) => {
                 const name = pickLocalized(channel.name, language);
                 const rowFields =
@@ -335,6 +319,16 @@ export function ProductScopeOverview({ productId }: ProductScopeOverviewProps): 
                   <tr key={channel.channelId}>
                     <th scope="row" style={{ ...stickyRowHeader, verticalAlign: 'top', textAlign: 'left' }}>
                       <span className="font-semibold">{name}</span>
+                      {links && channel.isMember ? (
+                        <>
+                          <br />
+                          <ScopeLink links={links} scope={{ level: 'channel', channelId: channel.channelId }}>
+                            {t('productEditor.scopeOverview.editAt', {
+                              scope: links.words({ level: 'channel', channelId: channel.channelId }),
+                            })}
+                          </ScopeLink>
+                        </>
+                      ) : null}
                       {!channel.isMember ? (
                         <>
                           {' '}
@@ -375,6 +369,7 @@ export function ProductScopeOverview({ productId }: ProductScopeOverviewProps): 
                             <OverviewCell
                               cell={cell}
                               scopeName={scopeName}
+                              links={links}
                               canWrite={canWrite}
                               busy={busy}
                               fieldLabel={fieldLabel}
@@ -498,7 +493,6 @@ function orphanScope(orphan: ScopeOverviewOrphan, channelName: (id: string | nul
 const LEVEL_KEYS: Record<OverviewLevel, string> = {
   channel_language: 'productEditor.scopeOverview.level.here',
   channel: 'productEditor.scopeOverview.level.channel',
-  language: 'productEditor.scopeOverview.level.language',
 };
 
 const STATUS_SOURCE_KEYS: Record<ScopeOverviewCell['statusSource'], string> = {
@@ -510,6 +504,7 @@ const STATUS_SOURCE_KEYS: Record<ScopeOverviewCell['statusSource'], string> = {
 function OverviewCell({
   cell,
   scopeName,
+  links,
   canWrite,
   busy,
   fieldLabel,
@@ -518,6 +513,7 @@ function OverviewCell({
 }: {
   cell: ScopeOverviewCell;
   scopeName: string;
+  links?: ScopeMapLinks | undefined;
   canWrite: boolean;
   busy: boolean;
   fieldLabel: (field: string) => string;
@@ -525,8 +521,23 @@ function OverviewCell({
   t: Translate;
 }): ReactNode {
   const missing = cell.missing ?? [];
+  const here: ScopeRef = { level: 'channel_language', channelId: cell.channelId, languageCode: cell.languageCode };
+  const hereWords = links?.words(here) ?? scopeName;
+  const fieldName = (field: string): ReactNode =>
+    links ? (
+      <ScopeLink links={links} scope={here} field={field} label={t('productEditor.scopeOverview.editFieldAt', { field: fieldLabel(field), scope: hereWords })}>
+        {fieldLabel(field)}
+      </ScopeLink>
+    ) : (
+      fieldLabel(field)
+    );
   return (
     <div className="b2b-col" style={{ gap: 4 }}>
+      {links ? (
+        <ScopeLink links={links} scope={here}>
+          {t('productEditor.scopeOverview.editAt', { scope: hereWords })}
+        </ScopeLink>
+      ) : null}
       <span className="b2b-row" style={{ gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
         <span className="font-medium">{t(`productEditor.scopeControls.statusValue.${cell.effectiveStatus}`)}</span>
         <span className="b2b-row b2b-help" style={{ gap: 4, alignItems: 'center', margin: 0 }}>
@@ -548,7 +559,7 @@ function OverviewCell({
             return (
               <li key={`${field}|${level}`} className="b2b-row" style={{ gap: 6, alignItems: 'center' }}>
                 <span>
-                  {fieldLabel(field)} <span className="b2b-help">· {t(LEVEL_KEYS[level])}</span>
+                  {fieldName(field)} <span className="b2b-help">· {t(LEVEL_KEYS[level])}</span>
                 </span>
                 {request ? (
                   <ResetButton
