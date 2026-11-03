@@ -147,7 +147,7 @@ describe('R-1 — the kit names no translation namespace but `core`', () => {
       'en',
     );
     expect(screen.getByPlaceholderText('Filter categories…')).toBeTruthy();
-    expect(screen.getByRole('tree', { name: 'Catalog category tree' })).toBeTruthy();
+    expect(screen.getByRole('group', { name: 'Catalog category tree' })).toBeTruthy();
     expect(screen.getAllByRole('button', { name: 'Expand branch' }).length).toBeGreaterThan(0);
     expectNoRawKeys(en.container);
     en.unmount();

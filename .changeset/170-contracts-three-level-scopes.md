@@ -25,6 +25,8 @@ Other breaking shape changes:
 
 - `name` and `description` of a product are strings (the Global value) on `CatalogProductRecord`, `createProductRequestSchema`, `updateProductRequestSchema` and the summaries; a reader with a channel resolves the effective texts through `catalogProductAvailabilityPort.effectiveTexts`.
 - Removed: `ScopedStatusExport`, `scopedStatusColumn`, `parseScopedStatusColumn`, `CatalogBulkImportPort.exportScopedStatuses`, the value-override and scope-context route schemas, the `gallery/channel-roles` schemas, `SeoMetaWritePort` (`seoMetaWritePort`), the `'language'` member of `scopeLevelSchema`, and the per-language `nameTranslations` / `descriptionTranslations` / `altText` maps on gallery items, attachments and packaging units. `updateGalleryItemRequestSchema`, `updateAttachmentRequestSchema` and `updatePackagingUnitRequestSchema` carry collection fields only.
+- Removed: `ProductValueOverrideDelete`, `ProductScopeChannel` and `ProductScopeContextResponse` (with their schemas), the last shapes of the retired value-override and scope-context routes.
+- `ProductEditorSeoZoneProps` (admin zone `product.editor.seo`) gains a required `version` (the product's scope version the editor read). Breaking for a host that renders the zone — it must pass `version`; a module that only contributes to the zone receives one more prop and is unaffected.
 - `ProductUrlKeyWrite` addresses a key by `(channelId, languageCode?)`: `channelId: null` is the Global key, `languageCode: null` the Channel key.
 - `catalogProductValueOverrideWritePort` is retired; connectors write through `CatalogProductScopeWritePort.applyScopes` v2 (`productScopedWriteInputSchema`, `fieldPathSchema`, `integrationWritableField`, `ProductScopedWriteResult`).
 

@@ -130,7 +130,9 @@ export function CategoryTreePicker(props: CategoryTreePickerProps): ReactNode {
       />
       <div
         id="category-tree-picker-list"
-        role="tree"
+        // A labelled group of checkbox rows, not an ARIA tree: the rows are not `treeitem`s and the
+        // list has no tree keyboard model, so `role="tree"` announced a widget that is not there.
+        role="group"
         aria-label={t('categoryTreePicker.aria.treeLabel')}
         className="max-h-64 overflow-y-auto rounded-md border border-input p-1"
       >
