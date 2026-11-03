@@ -146,8 +146,8 @@ describe.skipIf(!shouldRun)('assets library — reference visibility at scale (1
       payload: {
         sku: `RVP-${run}`,
         type: 'simple',
-        name: { 'en-US': `RVP ${run}` },
-        description: { 'en-US': 'desc' },
+        name: `RVP ${run}`,
+        description: 'desc',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',

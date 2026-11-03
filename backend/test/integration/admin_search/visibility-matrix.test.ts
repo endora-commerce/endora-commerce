@@ -76,8 +76,8 @@ describe('admin global search — visibility matrix (spec 150, SC-003)', () => {
         slug: `acme-${T}`,
         type: 'simple',
         status: 'active',
-        name: { 'en-US': 'Anvil' },
-        description: { 'en-US': '' },
+        name: 'Anvil',
+        description: '',
         visibility: 'public',
         attributeValues: {},
       } as never);
