@@ -311,8 +311,8 @@ US5, US6, US7 and US9 land; they are the acceptance of FR-004.
 **Independent test**: spec US8 *Independent Test*.
 
 - [x] T108 [P] [US8] (S1) **RED** `backend/test/contract/catalog/scoped-values-permissions.test.ts` [PG]: `catalog:read` reads every scope and gets 403 on `PUT …/scoped-values`, `POST …/copy`, `PATCH …/scopes`; no product write route accepts a `catalog:read` caller (FR-080, SC-010)
-- [ ] T109 [P] [US8] (S3) **RED** `admin/test/modules/catalog/product-editor-read-only.test.tsx`: US8 #1–#5
-- [ ] T110 [US8] (S3) Read-only mode from the session's permissions: no checkboxes (source text only), no Save / Archive / Restore / Duplicate / Delete; global actions say they are global (FR-080, FR-084) — T109 green; T108 green (backend gates already in place; fix any gap in `routes.admin.ts` via S1)
+- [x] T109 [P] [US8] (S3) **RED** `admin/test/modules/catalog/product-editor-read-only.test.tsx`: US8 #1–#5
+- [x] T110 [US8] (S3) Read-only mode from the session's permissions: no checkboxes (source text only), no Save / Archive / Restore / Duplicate / Delete; global actions say they are global (FR-080, FR-084) — T109 green; T108 green (backend gates already in place; fix any gap in `routes.admin.ts` via S1)
 
 ---
 
@@ -321,9 +321,9 @@ US5, US6, US7 and US9 land; they are the acceptance of FR-004.
 **Goal**: attribute inputs at every scope the model allows; "Copy to other channels".
 **Independent test**: spec US9 *Independent Test*.
 
-- [ ] T111 [P] [US9] (S3) **RED** `admin/test/modules/catalog/product-editor-attributes-scoped.test.tsx`: US9 #1–#3 for string, number, date, select, multiselect, boolean (FR-085)
-- [ ] T112 [US9] (S3) Rewrite `packages/modules/catalog/src/admin/components/ProductAttributesTab.tsx` on `ScopedField` per value type — T111 green
-- [ ] T113 [US9] (S3) "Scopable" flag with the scope-change preview in `packages/modules/catalog/src/admin/pages/AttributesManager.tsx` and `lib/attribute-scope.ts`; test `admin/test/modules/catalog/AttributesManager.scopable.test.tsx` (RED first) (FR-012)
+- [x] T111 [P] [US9] (S3) **RED** `admin/test/modules/catalog/product-editor-attributes-scoped.test.tsx`: US9 #1–#3 for string, number, date, select, multiselect, boolean (FR-085)
+- [x] T112 [US9] (S3) Rewrite `packages/modules/catalog/src/admin/components/ProductAttributesTab.tsx` on `ScopedField` per value type — T111 green
+- [x] T113 [US9] (S3) "Scopable" flag with the scope-change preview in `packages/modules/catalog/src/admin/pages/AttributesManager.tsx` and `lib/attribute-scope.ts`; test `admin/test/modules/catalog/AttributesManager.scopable.test.tsx` (RED first) (FR-012)
 - [x] T114 [P] [US9] (S1) **RED** `backend/test/contract/catalog/scoped-values-copy.test.ts` [PG]: `dryRun` lists overwrites; copy writes every target in one Command and one audit entry; `empty` only for optional fields; `source_inherits`; invalid target → `SCOPE_INVALID`; version CAS (FR-086) — plus `toChannelIds` deduplicated, `urlKey` and non-text fields `not_supported`, dry run side-effect free (R21)
 - [x] T115 [US9] (S1) Command `product.scoped_values.copy_to_channels` and `POST …/scoped-values/copy` in `commands/scoped-values.commands.ts` / `routes.admin.ts` — T114 green
 - [ ] T116 [US9] (S3) Copy dialog (`contracts/editor-ui.md` §8) in `packages/modules/catalog/src/admin/components/CopyToChannelsDialog.tsx` with `admin/test/modules/catalog/product-editor-copy.test.tsx` (RED first)
@@ -342,10 +342,10 @@ US5, US6, US7 and US9 land; they are the acceptance of FR-004.
 - [x] T121 [US10] (S2) `seo` backend: `readScoped`, three-level `resolveForProduct` (an empty override yields the derived value, round 6) and `listScopesForProduct` in `meta-tag-resolver.service.ts`; `SeoProductMetaWritePort` implementation; `providePort('seoProductMetaWritePort', …)` in `src/backend/index.ts` (`// command-coverage-ignore:` marker naming catalog's Command on the caller-transaction writes; `em.execute` only; run `check:command-coverage`, `check:transaction-context`, `check:port-shape`); the static product GET route in `routes.ts`; product three-level addressing in PUT / DELETE — T119, T120 green — generic route refuses product writes; `ogImageUrl` scheme check at write and escaped, re-checked at render
 - [ ] T122 [P] [US10] (S1) **RED** `backend/test/contract/catalog/scoped-values-seo.test.ts` [PG] (SEO title + name in one save, one transaction, one audit entry incl. SEO; injected SEO failure → neither written) and `backend/test/contract/catalog/scoped-values-seo-off.test.ts` [PG] (`seo` off: read `seo: null`, save without SEO succeeds, save with SEO `503 MODULE_DISABLED` and nothing written; full restoration on re-activation) (FR-090…FR-092, XVII)
 - [ ] T123 [US10] (S1) Catalog: `nonBindingDependencies` `refuses-without` entry for `seoProductMetaWritePort` in `packages/modules/catalog/src/manifest.ts`; read endpoint's `seo` block behind `effectiveState.isPresent('seo')`; save step 8 with `lazyPort` inside the Command; `check:port-dependencies`, `check:port-catches` — T122 green
-- [ ] T124 [P] [US10] (S3) **RED** `admin/test/modules/seo/product-seo-section.test.tsx` (fields at the scope with sources, staging through `onStage`, read-only mode) and `admin/test/modules/catalog/product-editor-seo-off.test.tsx` (no contributor → no SEO tab, no request, no error)
-- [ ] T125 [US10] (S3) `packages/modules/seo/src/admin/zones/ProductSeoSection.tsx` contributed to `product.editor.seo` in `seo/src/admin/index.ts`; delete `ProductSeoLink.tsx` and its contribution; host mount and tab visibility in `ProductEditor.tsx` — T124 green
-- [ ] T148 [P] [US10] (S3) **RED** `admin/test/modules/seo/seo-screen-product-link.test.tsx`: `/seo` edits categories and CMS pages; a product shows only a link to `/catalog/products/:id?tab=seo` (FR-094, US10 #5)
-- [ ] T126 [US10] (S3) `/seo` screen: `packages/modules/seo/src/admin/pages/SeoMetaScopeEditor.tsx` / `SeoPage.tsx` keep category / CMS-page scopes; the product mode is replaced by the link (FR-094); `seo/i18n/{en,pl}.json` UI keys; catalog-side `whenAbsent` wording handed to S1 — T148 green
+- [x] T124 [P] [US10] (S3) **RED** `admin/test/modules/seo/product-seo-section.test.tsx` (fields at the scope with sources, staging through `onStage`, read-only mode) and `admin/test/modules/catalog/product-editor-seo-off.test.tsx` (no contributor → no SEO tab, no request, no error)
+- [x] T125 [US10] (S3) `packages/modules/seo/src/admin/zones/ProductSeoSection.tsx` contributed to `product.editor.seo` in `seo/src/admin/index.ts`; delete `ProductSeoLink.tsx` and its contribution; host mount and tab visibility in `ProductEditor.tsx` — T124 green
+- [x] T148 [P] [US10] (S3) **RED** `admin/test/modules/seo/seo-screen-product-link.test.tsx`: `/seo` edits categories and CMS pages; a product shows only a link to `/catalog/products/:id?tab=seo` (FR-094, US10 #5)
+- [x] T126 [US10] (S3) `/seo` screen: `packages/modules/seo/src/admin/pages/SeoMetaScopeEditor.tsx` / `SeoPage.tsx` keep category / CMS-page scopes; the product mode is replaced by the link (FR-094); `seo/i18n/{en,pl}.json` UI keys; catalog-side `whenAbsent` wording handed to S1 — T148 green
 
 ---
 
@@ -356,8 +356,8 @@ US5, US6, US7 and US9 land; they are the acceptance of FR-004.
 
 - [x] T127 [P] [US11] (S1) **RED** `backend/test/contract/catalog/scoped-values-completeness.test.ts` [PG]: summary at C×L, C (fields × languages) and G (count of incomplete pairs); a Global value satisfies every (C, L) (FR-095…FR-097)
 - [x] T128 [US11] (S1) Completeness summary per level in `scoped-values-read.service.ts` — T127 green
-- [ ] T129 [P] [US11] (S3) **RED** `admin/test/modules/catalog/product-editor-completeness.test.tsx`: US11 #1–#3; links focus the field; warn-mode warnings announced (FR-097, FR-098)
-- [ ] T130 [US11] (S3) Completeness markers and summaries in `ProductScopeBar.tsx` and `ScopedField` usage (`contracts/editor-ui.md` §9) — T129 green
+- [x] T129 [P] [US11] (S3) **RED** `admin/test/modules/catalog/product-editor-completeness.test.tsx`: US11 #1–#3; links focus the field; warn-mode warnings announced (FR-097, FR-098)
+- [x] T130 [US11] (S3) Completeness markers and summaries in `ProductScopeBar.tsx` and `ScopedField` usage (`contracts/editor-ui.md` §9) — T129 green
 
 ---
 
@@ -366,8 +366,8 @@ US5, US6, US7 and US9 land; they are the acceptance of FR-004.
 **Goal**: real links from the overview into the editor; delivers 163 L7.
 **Independent test**: spec US12 *Independent Test*.
 
-- [ ] T131 [P] [US12] (S3) **RED** `admin/test/modules/catalog/product-scope-overview-links.test.tsx`: US12 #1–#4; links are `<a href>`; the Language row is gone; the guard dialog fires with staged changes (FR-100, FR-101, FR-075)
-- [ ] T132 [US12] (S3) `packages/modules/catalog/src/admin/components/ProductScopeOverview.tsx` and `lib/scope-overview.ts`: "Edit at <scope>" links, field links with `&field=`, Language row removed, resets and orphan deletion kept — T131 green
+- [x] T131 [P] [US12] (S3) **RED** `admin/test/modules/catalog/product-scope-overview-links.test.tsx`: US12 #1–#4; links are `<a href>`; the Language row is gone; the guard dialog fires with staged changes (FR-100, FR-101, FR-075)
+- [x] T132 [US12] (S3) `packages/modules/catalog/src/admin/components/ProductScopeOverview.tsx` and `lib/scope-overview.ts`: "Edit at <scope>" links, field links with `&field=`, Language row removed, resets and orphan deletion kept — T131 green
 
 ---
 
