@@ -92,6 +92,8 @@ describe('product link tile price source (#132)', () => {
         id: channelId,
         code: channelCode,
         defaultCurrency: 'PLN',
+        // A resolved channel always names its default language (feature 163, FR-001).
+        defaultLanguage: 'en-US',
       },
       // The price *source* is what this suite asks about; the viewer is the
       // public one, and which figure each viewer gets is asserted next door in

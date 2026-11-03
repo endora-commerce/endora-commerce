@@ -37,7 +37,8 @@ describe('ProductLinkService.listForStorefront — channel filter (feature 052 U
   // case reads as the public: the channel filter has to hold for the caller who
   // has the least, and the priced answer has its own suite.
   const rc = (id: string, code: string) => ({
-    resolvedChannel: { id, code, defaultCurrency: 'PLN' },
+    // A resolved channel always names its default language (feature 163, FR-001).
+    resolvedChannel: { id, code, defaultCurrency: 'PLN', defaultLanguage: 'en-US' },
     audience: ANONYMOUS_PRODUCT_AUDIENCE,
   });
 

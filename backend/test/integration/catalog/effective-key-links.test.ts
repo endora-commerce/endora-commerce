@@ -38,19 +38,23 @@ describe('163 — S1 surfaces link to the effective URL key (T113a) [integration
   beforeAll(async () => {
     h = await setupBackendServer();
     const em = h.em();
+    const channelIds = await buyerChannelIds(em);
     P = await createMinimumProduct(em, {
       sku: `G163-${RUN}`,
       nameEn: `Linked ${RUN}`,
       namePl: `Linkowany ${RUN}`,
-      channelIds: await buyerChannelIds(em),
+      channelIds,
     });
-    await em
-      .getConnection()
-      .execute(
-        `insert into product_url_keys (id, product_id, language_code, sales_channel_id, key, created_at, updated_at)
-         values (?, ?, 'pl-PL', null, ?, now(), now())`,
-        [randomUUID(), P.id, KEY],
-      );
+    // Feature 170 — 163's pl-PL language key is a (C, pl-PL) key in each of the product's channels.
+    for (const channelId of channelIds) {
+      await em
+        .getConnection()
+        .execute(
+          `insert into product_url_keys (id, product_id, language_code, sales_channel_id, key, created_at, updated_at)
+           values (?, ?, 'pl-PL', ?, ?, now(), now())`,
+          [randomUUID(), P.id, channelId, KEY],
+        );
+    }
   }, 60_000);
 
   afterAll(async () => {

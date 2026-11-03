@@ -12,6 +12,7 @@ import { ADMIN, scopedValuesFixture, type ScopedValuesFixture } from '../../help
  * A Save naming the alt text of a gallery item removed meanwhile is `422 SCOPED_VALUE_INVALID`
  * `subject_not_found`, nothing written. Scoped-value and product-row writes do move it.
  *
+ * Variants, grouped items and bundle slots and options are exercised on their own product types.
  * Price-book rows (`price_lists`) and stock (`inventory`) cannot write `products` at all (they
  * own neither the table nor a catalog writer); they are not exercised here (T145 note).
  */
@@ -85,6 +86,55 @@ describe('170 US7 — immediate actions keep the version (T144)', () => {
     expect(saved.statusCode, saved.body).toBe(200);
     expect((await fx.read(id, { channelId: channel, languageCode: 'pl-PL' })).fields.name).toMatchObject({ value: 'Wiertarka', source: 'set' });
     expect(await version(id)).not.toBe(v0);
+  });
+
+  it('variant, grouped-item and bundle-slot actions leave the version; a Save with the old version succeeds', async () => {
+    const child = await fx.product();
+    const check = async (id: string, actions: () => Promise<void>) => {
+      const v0 = await version(id);
+      await actions();
+      expect(await version(id)).toBe(v0);
+      const saved = await fx.put(id, { channelId: channel, languageCode: 'pl-PL' }, { name: `Zestaw ${id.slice(0, 4)}` }, { version: v0 });
+      expect(saved.statusCode, saved.body).toBe(200);
+      expect(await version(id)).not.toBe(v0);
+    };
+
+    // A configurable product: add, change and remove a variant.
+    const configurable = await fx.product({ channels: [channel], type: 'configurable' });
+    await check(configurable, async () => {
+      const base = `/api/v1/admin/catalog/products/${configurable}/variants`;
+      const created = await inject('POST', base, { sku: `T144-V-${fx.run}`, variantAttributeValues: { color: 'red' } });
+      expect(created.statusCode, created.body).toBe(201);
+      const variantId = (created.json() as { data: { id: string } }).data.id;
+      expect((await inject('PATCH', `${base}/${variantId}`, { stockLevel: 3 })).statusCode).toBeLessThan(300);
+      expect((await inject('DELETE', `${base}/${variantId}`)).statusCode).toBeLessThan(300);
+    });
+
+    // A grouped product: add, change and remove an item.
+    const grouped = await fx.product({ channels: [channel], type: 'grouped' });
+    await check(grouped, async () => {
+      const base = `/api/v1/admin/catalog/products/${grouped}/grouped-items`;
+      const created = await inject('POST', base, { childProductId: child, quantity: 1 });
+      expect(created.statusCode, created.body).toBe(201);
+      const itemId = (created.json() as { data: { id: string } }).data.id;
+      expect((await inject('PATCH', `${base}/${itemId}`, { quantity: 2 })).statusCode).toBeLessThan(300);
+      expect((await inject('DELETE', `${base}/${itemId}`)).statusCode).toBeLessThan(300);
+    });
+
+    // A bundle: add a slot and an option, change the slot, remove both.
+    const bundle = await fx.product({ channels: [channel], type: 'bundle' });
+    await check(bundle, async () => {
+      const base = `/api/v1/admin/catalog/products/${bundle}/bundle-slots`;
+      const slot = await inject('POST', base, { name: { 'en-US': 'Bit' }, maxQuantity: 2 });
+      expect(slot.statusCode, slot.body).toBe(201);
+      const slotId = (slot.json() as { data: { id: string } }).data.id;
+      const option = await inject('POST', `${base}/${slotId}/options`, { optionProductId: child });
+      expect(option.statusCode, option.body).toBe(201);
+      const optionId = (option.json() as { data: { id: string } }).data.id;
+      expect((await inject('PATCH', `${base}/${slotId}`, { maxQuantity: 3 })).statusCode).toBeLessThan(300);
+      expect((await inject('DELETE', `${base}/${slotId}/options/${optionId}`)).statusCode).toBeLessThan(300);
+      expect((await inject('DELETE', `${base}/${slotId}`)).statusCode).toBeLessThan(300);
+    });
   });
 
   it('a Save naming a gallery item removed meanwhile is subject_not_found, nothing written', async () => {

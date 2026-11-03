@@ -183,7 +183,8 @@ describe('163 — product scope tables [integration]', () => {
     const productId = await insertProduct(em);
     const channelId = await insertChannel(em);
     await insertChannelRow(em, productId, channelId);
-    const update = `update "product_channel_scopes" set "min_order_quantity" = ? where "product_id" = ?`;
+    // Feature 170 (data-model §4) — a minimum is held only with the overridden flag.
+    const update = `update "product_channel_scopes" set "min_order_quantity_overridden" = true, "min_order_quantity" = ? where "product_id" = ?`;
     await em.execute(update, [1, productId]);
     await em.execute(update, [1_000_000, productId]);
     await expectRefused(em, update, [0, productId], 'product_channel_scopes_min_order_quantity_check');
@@ -297,6 +298,7 @@ describe('163 — product scope tables [integration]', () => {
     expect(Number(seo?.n)).toBe(0);
   });
 
+  // Feature 170 (data-model §6–§7) — the 163 media tables are replaced by the scope override tables.
   it('every per-channel media table cascades on a channel delete (Q-L3)', async () => {
     const em = db.em();
     const rows = await em.execute<Array<{ table: string; on_delete: string }>>(
@@ -304,11 +306,12 @@ describe('163 — product scope tables [integration]', () => {
          from pg_constraint c
         where c.contype = 'f'
           and c.confrelid = 'sales_channels'::regclass
-          and c.conrelid::regclass::text in (?, ?, ?, ?, ?, ?, ?)`,
+          and c.conrelid::regclass::text in (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        'gallery_item_channel_labels',
-        'gallery_item_channel_hidden',
-        'product_attachment_channel_hidden',
+        'gallery_item_scope_overrides',
+        'gallery_role_scope_overrides',
+        'product_attachment_scope_overrides',
+        'product_packaging_unit_scope_overrides',
         'product_url_keys',
         'seo_meta_overrides',
         'product_channel_scopes',
@@ -318,9 +321,10 @@ describe('163 — product scope tables [integration]', () => {
     const byTable = Object.fromEntries(rows.map((row) => [row.table.replace(/"/g, ''), row.on_delete]));
     // `c` is `on delete cascade`.
     expect(byTable).toEqual({
-      gallery_item_channel_labels: 'c',
-      gallery_item_channel_hidden: 'c',
-      product_attachment_channel_hidden: 'c',
+      gallery_item_scope_overrides: 'c',
+      gallery_role_scope_overrides: 'c',
+      product_attachment_scope_overrides: 'c',
+      product_packaging_unit_scope_overrides: 'c',
       product_url_keys: 'c',
       seo_meta_overrides: 'c',
       product_channel_scopes: 'c',

@@ -162,6 +162,60 @@ describe('170 US2 — URL keys at G, C and C×L (T030)', () => {
     expect([ra.statusCode, rb.statusCode].sort()).toEqual([200, 409]);
   });
 
+  // Ported from 163's url-key-uniqueness (Q-M6, T105a) on the 170 keys (T047).
+  it('a derived global key (create, duplicate) skips every key another product holds, orphans and redirects included', async () => {
+    const holder = await fx.product({ channels: [channel] });
+    await ok(holder, { channelKeys: [{ channelId: channel, languageCode: 'pl-PL', key: key('derived-cl') }] });
+    await ok(holder, { channelKeys: [{ channelId: channel, languageCode: 'en-US', key: key('derived-gone') }] });
+    await ok(holder, { channelKeys: [{ channelId: channel, languageCode: 'en-US', key: key('derived-gone-2') }] });
+    const create = async (name: string) => {
+      const res = await h.app.inject({
+        method: 'POST',
+        url: '/api/v1/admin/catalog/products',
+        ...ADMIN,
+        payload: { sku: `UK-${fx.run}-${name.length}-${Math.random().toString(36).slice(2, 8)}`, type: 'simple', name, description: '', categoryIds: [], attributeValues: {}, visibility: 'public' },
+      });
+      expect(res.statusCode, res.body).toBe(201);
+      return (res.json() as { data: { id: string; slug: string } }).data;
+    };
+    for (const base of ['derived-cl', 'derived-gone']) {
+      const created = await create(key(base));
+      expect(created.slug, base).toBe(`${key(base)}-2`);
+      await fx.sql(`delete from products where id = ?`, [created.id]);
+    }
+    const source = await fx.product({ channels: [channel] });
+    const [sourceRow] = await fx.sql<{ slug: string }>(`select slug from products where id = ?`, [source]);
+    await ok(holder, { channelKeys: [{ channelId: channel, languageCode: 'pl-PL', key: `${sourceRow!.slug}-copy` }] });
+    const dup = await h.app.inject({ method: 'POST', url: `/api/v1/admin/catalog/products/${source}/duplicate`, ...ADMIN });
+    expect(dup.statusCode, dup.body).toBe(201);
+    const copy = (dup.json() as { data: { id: string; slug: string } }).data;
+    expect(copy.slug).toBe(`${sourceRow!.slug}-copy-2`);
+    await fx.sql(`delete from products where id = ?`, [copy.id]);
+  });
+
+  it('an orphaned key is removed by inherit, never written (FR-101, 163 FR-015)', async () => {
+    const own = await fx.channel(['pl-PL', 'de-DE']);
+    const p = await fx.product({ channels: [own] });
+    await ok(p, {
+      channelKeys: [
+        { channelId: own, languageCode: 'pl-PL', key: key('orphan-pl') },
+        { channelId: own, languageCode: 'de-DE', key: key('orphan-de') },
+      ],
+    });
+    await fx.sql(`update sales_channels set languages = '["pl-PL"]'::jsonb where id = ?`, [own]);
+    await h.salesChannels.cache.invalidateAll();
+    const write = await putKeys(p, { channelKeys: [{ channelId: own, languageCode: 'de-DE', key: key('orphan-de-2') }] });
+    expect(write.statusCode).toBe(422);
+    expect(errorOf(write)).toMatchObject({ code: ERROR_CODES.SCOPE_INVALID, details: { reason: 'language_not_offered' } });
+    await ok(p, { channelKeys: [{ channelId: own, languageCode: 'de-DE', key: { inherit: true } }] });
+    await fx.sql(`delete from sales_channel_products where sales_channel_id = ? and product_id = ?`, [own, p]);
+    const write2 = await putKeys(p, { channelKeys: [{ channelId: own, languageCode: 'pl-PL', key: key('orphan-pl-2') }] });
+    expect(write2.statusCode).toBe(422);
+    expect(errorOf(write2)).toMatchObject({ code: ERROR_CODES.SCOPE_INVALID, details: { reason: 'not_a_member' } });
+    await ok(p, { channelKeys: [{ channelId: own, languageCode: 'pl-PL', key: { inherit: true } }] });
+    expect(await fx.sql(`select key from product_url_keys where product_id = ?`, [p])).toEqual([]);
+  });
+
   it('keeps at most 50 redirects per (product, channel)', async () => {
     const p = await fx.product({ channels: [channel] });
     for (let i = 0; i <= 51; i += 1) {

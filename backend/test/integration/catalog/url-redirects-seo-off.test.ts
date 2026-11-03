@@ -49,8 +49,8 @@ describe('URL redirects with seo off (spec 163, T108)', () => {
     await sql(
       `insert into products (id, sku, slug, type, status, name, description, visibility, allowed_organization_ids,
                              created_at, updated_at)
-       values (?, ?, ?, 'simple', 'active', ?::jsonb, '{}'::jsonb, 'public', '[]'::jsonb, now(), now())`,
-      [id, `O163-${run}-${products.length}`, slug, JSON.stringify({ 'en-US': `Seo off ${slug}` })],
+       values (?, ?, ?, 'simple', 'active', ?, null, 'public', '[]'::jsonb, now(), now())`,
+      [id, `O163-${run}-${products.length}`, slug, `Seo off ${slug}`],
     );
     await sql(`insert into sales_channel_products (sales_channel_id, product_id) values (?, ?)`, [channel.id, id]);
     products.push(id);
@@ -93,7 +93,8 @@ describe('URL redirects with seo off (spec 163, T108)', () => {
     // P: `old` → `new` leaves `(NULL, old)`; its pl-PL key leaves `(pl-PL, new)`.
     p = await insertProduct(k('old'));
     expect((await putKeys(p, { globalKey: k('new') })).statusCode).toBe(200);
-    expect((await putKeys(p, { languageKeys: [{ languageCode: 'pl-PL', key: k('nowy') }] })).statusCode).toBe(200);
+    // Feature 170 — 163's pl-PL language key is the channel's (C, pl-PL) key.
+    expect((await putKeys(p, { channelKeys: [{ channelId: channel.id, languageCode: 'pl-PL', key: k('nowy') }] })).statusCode).toBe(200);
     q = await insertProduct(k('other'));
   });
 
@@ -173,9 +174,11 @@ describe('URL redirects with seo off (spec 163, T108)', () => {
         error: { code: string; details: { takeovers: Array<{ losingProductId: string; key: string }> } };
       };
       expect(body.error.code).toBe(ERROR_CODES.URL_KEY_REDIRECT_TAKEOVER_REQUIRED);
-      expect(body.error.details.takeovers).toEqual([
-        expect.objectContaining({ key: k('old'), losingProductId: p }),
-      ]);
+      // Feature 170 (`url-keys.md` §3): the old Global key left a redirect at each (C, L) pair.
+      const takeovers = body.error.details.takeovers as Array<{ key: string; losingProductId: string; languageCode: string }>;
+      expect(takeovers.length).toBeGreaterThan(0);
+      expect(takeovers.every((t) => t.key === k('old') && t.losingProductId === p)).toBe(true);
+      expect(new Set(takeovers.map((t) => t.languageCode))).toEqual(new Set(['en-US', 'pl-PL']));
       expect(await redirectRows(p)).toEqual(rowsBefore);
     });
 

@@ -154,7 +154,7 @@ describe('CatalogProductReadService.pageProductsByAdminName (161 G15)', () => {
     } finally {
       conn.execute = original;
     }
-    const pages = seen.map((sql, i) => ({ sql, i })).filter(({ sql }) => /order by (p\."admin_name_key_en"|h\."k")/.test(sql));
+    const pages = seen.map((sql, i) => ({ sql, i })).filter(({ sql }) => /order by (p\."admin_name_key"|h\."k")/.test(sql));
     expect(pages).toHaveLength(2);
     expect(pages.map(({ i }) => seen[i - 1])).toEqual(['set local enable_sort = off', 'set local enable_sort = off']);
   });

@@ -267,7 +267,7 @@ describe('catalog outbound webhooks — product.created / updated / archived', (
 
     // Already archived: neither an edit nor a second Archive announces it again.
     capture.clear();
-    await patchProduct(product.id, { name: { 'en-US': 'Edited while archived' } });
+    await patchProduct(product.id, { name: 'Edited while archived' });
     const again = await h.app.inject({ method: 'POST', url: `/api/v1/admin/catalog/products/${product.id}/archive`, cookies: ADMIN });
     expect(again.statusCode).toBe(200);
     expect(jobsFor(product.id, PRODUCT_ARCHIVED)).toEqual([]);
@@ -312,7 +312,7 @@ describe('catalog outbound webhooks — product.created / updated / archived', (
     const rows = await h
       .em()
       .execute<Array<{ status: string; name: string }>>(
-        `select "status", "name"->>'en-US' as "name" from "products" where "id" = ?`,
+        `select "status", "name" from "products" where "id" = ?`,
         [id],
       );
     return rows[0] ?? null;
@@ -367,7 +367,7 @@ describe('catalog outbound webhooks — product.created / updated / archived', (
         h,
         PRODUCT_UPDATED,
         (payload) => readProduct(payload['productId'] as string),
-        () => updateUnaudited(product.id, { name: { 'en-US': 'Saved before it is announced' }, status: 'inactive' }),
+        () => updateUnaudited(product.id, { name: 'Saved before it is announced', status: 'inactive' }),
       ),
     );
     expect(reads).toEqual([{ status: 'inactive', name: 'Saved before it is announced' }]);
@@ -418,7 +418,7 @@ describe('catalog outbound webhooks — product.created / updated / archived', (
     await storeWebhookSubscription(h, [PRODUCT_CREATED]);
     capture.clear();
 
-    await patchProduct(product.id, { name: { 'en-US': 'Nobody is told' } });
+    await patchProduct(product.id, { name: 'Nobody is told' });
 
     expect(jobsFor(product.id)).toEqual([]);
   });
@@ -475,7 +475,7 @@ describe('catalog outbound webhooks — product.created / updated / archived', (
     );
     try {
       const product = await createProduct();
-      await patchProduct(product.id, { name: { 'en-US': 'Renamed' }, visibility: 'logged_in_only' });
+      await patchProduct(product.id, { name: 'Renamed', visibility: 'logged_in_only' });
       await archiveProduct(product.id);
     } finally {
       offs.forEach((off) => off());
@@ -501,13 +501,13 @@ describe('catalog outbound webhooks — product.created / updated / archived', (
       const product = await createProduct();
       capture.clear();
       await withModuleOff('webhooks', axis, async () => {
-        await patchProduct(product.id, { name: { 'en-US': 'While webhooks is off' } });
+        await patchProduct(product.id, { name: 'While webhooks is off' });
         expect(jobsFor(product.id)).toEqual([]);
       });
       // Not delivered later either: what was emitted meanwhile is gone.
       expect(jobsFor(product.id)).toEqual([]);
       // Back on, the next change is delivered.
-      await patchProduct(product.id, { name: { 'en-US': 'After webhooks is back' } });
+      await patchProduct(product.id, { name: 'After webhooks is back' });
       expect(jobsFor(product.id, PRODUCT_UPDATED).length).toBeGreaterThan(0);
     },
   );

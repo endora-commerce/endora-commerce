@@ -15,7 +15,10 @@ import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { errorBodyOf, setChannelStatus } from '../../helpers/product-scope-fixture.js';
 
 /**
- * Feature 163, Phase 17 (T107) — resolving a storefront key at (C, L)
+ * Feature 163, Phase 17 (T107), on feature 170's keys (T047; `specs/170-product-editor-scope-switcher/
+ * contracts/url-keys.md` §4: a key is a Global slug, a Channel key or a Channel × language key; 163's
+ * language key of L is written here as the C×L key of L in each channel) — resolving a storefront
+ * key at (C, L)
  * (`specs/163-product-data-scopes/contracts/url-keys-and-redirects.md` §4,
  * data-model §5 "Resolution order", research R12, R28; FR-071, FR-072, US7 #1,
  * #3, #8, #11; re-analyze H1).
@@ -76,13 +79,13 @@ describe('URL-key resolution at (C, L) (spec 163, T107)', () => {
     await sql(
       `insert into products (id, sku, slug, type, status, name, description, visibility, allowed_organization_ids,
                              archived_at, created_at, updated_at)
-       values (?, ?, ?, 'simple', ?, ?::jsonb, '{}'::jsonb, ?, ?::jsonb, ?, now(), now())`,
+       values (?, ?, ?, 'simple', ?, ?, null, ?, ?::jsonb, ?, now(), now())`,
       [
         id,
         `R163-${run}-${products.length}`,
         slug,
         fields.archived ? 'inactive' : 'active',
-        JSON.stringify({ 'en-US': `Resolve ${slug}`, 'pl-PL': `Rozwiąż ${slug}` }),
+        `Resolve ${slug}`,
         fields.restrictedTo ? 'organization_restricted' : 'public',
         JSON.stringify(fields.restrictedTo ?? []),
         fields.archived ? new Date() : null,
@@ -94,6 +97,12 @@ describe('URL-key resolution at (C, L) (spec 163, T107)', () => {
     products.push(id);
     return id;
   }
+
+  /** Feature 170 — 163's language key of L is the C×L key of L in each of this file's channels. */
+  const inBoth = (languageCode: string, key: string) => [
+    { channelId: c1.id, languageCode, key },
+    { channelId: c2.id, languageCode, key },
+  ];
 
   async function putKeys(productId: string, payload: unknown): Promise<void> {
     const res = await h.app.inject({
@@ -194,16 +203,18 @@ describe('URL-key resolution at (C, L) (spec 163, T107)', () => {
     }
   });
 
-  it('serves the effective key, redirects the global key in L to the first L key, and answers not-found across languages (US7 #1, #8; K1)', async () => {
+  it('serves the effective key; the global key, still a key of the channel, redirects temporarily in L (US7 #1, #8; K1)', async () => {
     const p = await insertProduct(k('drill'));
-    await putKeys(p, { languageKeys: [{ languageCode: 'pl-PL', key: k('wiertarka') }] });
+    await putKeys(p, { channelKeys: inBoth('pl-PL', k('wiertarka')) });
 
     await expectServed(k('wiertarka'), c1, 'pl-PL', p);
     // The global key keeps serving every language without a language key.
     await expectServed(k('drill'), c1, 'en-US', p);
-    // In pl-PL it became the product's redirect `(pl-PL, drill)` (US7 #8).
-    await expectRedirect(k('drill'), c1, 'pl-PL', k('wiertarka'));
-    await expectRedirect(k('drill'), c2, 'pl-PL', k('wiertarka'));
+    // Feature 170 (`url-keys.md` §3): the global key is still one of the product's keys in each
+    // channel (en-US has no key of its own), so no redirect row is written; in pl-PL it answers the
+    // temporary redirect of a key of another channel language.
+    await expectCrossLanguageRedirect(k('drill'), c1, 'pl-PL', k('wiertarka'));
+    await expectCrossLanguageRedirect(k('drill'), c2, 'pl-PL', k('wiertarka'));
     // A key the product holds only in pl-PL is not a key of en-US (K1): the page is
     // never rendered under it — feature 167 (FR-024) answers a temporary redirect to
     // the product's own en-US key instead.
@@ -215,10 +226,7 @@ describe('URL-key resolution at (C, L) (spec 163, T107)', () => {
   it('redirects (not permanently) a current key of another channel language to the key of L', async () => {
     const p = await insertProduct(k('grinder'));
     await putKeys(p, {
-      languageKeys: [
-        { languageCode: 'pl-PL', key: k('szlifierka') },
-        { languageCode: 'en-US', key: k('angle-grinder') },
-      ],
+      channelKeys: [...inBoth('pl-PL', k('szlifierka')), ...inBoth('en-US', k('angle-grinder'))],
     });
     await expectCrossLanguageRedirect(k('szlifierka'), c1, 'en-US', k('angle-grinder'));
     await expectCrossLanguageRedirect(k('angle-grinder'), c2, 'pl-PL', k('szlifierka'));
@@ -226,7 +234,7 @@ describe('URL-key resolution at (C, L) (spec 163, T107)', () => {
 
   it('answers not-found when the product is not reachable in L', async () => {
     const p = await insertProduct(k('sander'));
-    await putKeys(p, { languageKeys: [{ languageCode: 'pl-PL', key: k('szlifierka-tasmowa') }] });
+    await putKeys(p, { channelKeys: inBoth('pl-PL', k('szlifierka-tasmowa')) });
     await sql(
       `insert into product_channel_language_scopes (product_id, sales_channel_id, language_code, status, created_at, updated_at)
        values (?, ?, 'en-US', 'inactive', now(), now())`,
@@ -245,8 +253,8 @@ describe('URL-key resolution at (C, L) (spec 163, T107)', () => {
     // of a language outside the channel's list.
     await sql(
       `insert into product_url_keys (id, product_id, language_code, sales_channel_id, key, created_at, updated_at)
-       values (gen_random_uuid(), ?, 'de-DE', null, ?, now(), now())`,
-      [p, k('hobel')],
+       values (gen_random_uuid(), ?, 'de-DE', ?, ?, now(), now())`,
+      [p, c1.id, k('hobel')],
     );
     try {
       await expectAbsent(k('hobel'), c1, 'en-US');
@@ -255,26 +263,25 @@ describe('URL-key resolution at (C, L) (spec 163, T107)', () => {
     }
   });
 
-  it('redirects another current key of the product in L to its effective key at (C, L)', async () => {
+  it('a C\u00d7L key is a key of its channel only: another channel answers not-found (FR-016)', async () => {
     const p = await insertProduct(k('saw'));
     await putKeys(p, {
-      languageKeys: [{ languageCode: 'pl-PL', key: k('pila') }],
-      channelKeys: [{ channelId: c1.id, languageCode: 'pl-PL', key: k('pila-c1') }],
+      channelKeys: [
+        { channelId: c2.id, languageCode: 'pl-PL', key: k('pila') },
+        { channelId: c1.id, languageCode: 'pl-PL', key: k('pila-c1') },
+      ],
     });
-
     await expectServed(k('pila-c1'), c1, 'pl-PL', p);
-    // The language key is a current key in pl-PL but not the effective one at (C1, pl-PL).
-    await expectRedirect(k('pila'), c1, 'pl-PL', k('pila-c1'));
-    // At C2 the language key is effective, and C1's override is another current key in pl-PL.
     await expectServed(k('pila'), c2, 'pl-PL', p);
-    await expectRedirect(k('pila-c1'), c2, 'pl-PL', k('pila'));
+    await expectAbsent(k('pila'), c1, 'pl-PL');
+    await expectAbsent(k('pila-c1'), c2, 'pl-PL');
   });
 
   it('redirects an old key at every (C, L) of its language, straight to the current key (US7 #3, #4)', async () => {
     const p = await insertProduct(k('hammer'));
-    await putKeys(p, { languageKeys: [{ languageCode: 'pl-PL', key: k('mlotek-1') }] });
-    await putKeys(p, { languageKeys: [{ languageCode: 'pl-PL', key: k('mlotek-2') }] });
-    await putKeys(p, { languageKeys: [{ languageCode: 'pl-PL', key: k('mlotek-3') }] });
+    await putKeys(p, { channelKeys: inBoth('pl-PL', k('mlotek-1')) });
+    await putKeys(p, { channelKeys: inBoth('pl-PL', k('mlotek-2')) });
+    await putKeys(p, { channelKeys: inBoth('pl-PL', k('mlotek-3')) });
 
     for (const channel of [c1, c2]) {
       await expectRedirect(k('mlotek-1'), channel, 'pl-PL', k('mlotek-3'));
@@ -287,8 +294,8 @@ describe('URL-key resolution at (C, L) (spec 163, T107)', () => {
 
   it('answers the absent body, never a redirect, for a product unavailable at (C, L)', async () => {
     const p = await insertProduct(k('level'));
-    await putKeys(p, { languageKeys: [{ languageCode: 'pl-PL', key: k('poziomica-1') }] });
-    await putKeys(p, { languageKeys: [{ languageCode: 'pl-PL', key: k('poziomica-2') }] });
+    await putKeys(p, { channelKeys: inBoth('pl-PL', k('poziomica-1')) });
+    await putKeys(p, { channelKeys: inBoth('pl-PL', k('poziomica-2')) });
 
     await setChannelStatus(h.em(), p, [c2.id], 'inactive');
     try {
@@ -304,7 +311,7 @@ describe('URL-key resolution at (C, L) (spec 163, T107)', () => {
 
   it('answers the absent body to a caller outside the audience, for current and redirect keys alike', async () => {
     const p = await insertProduct(k('restricted'), { restrictedTo: [TEST_ORGANIZATION_ID] });
-    await putKeys(p, { languageKeys: [{ languageCode: 'pl-PL', key: k('zastrzezony') }] });
+    await putKeys(p, { channelKeys: inBoth('pl-PL', k('zastrzezony')) });
 
     // The organisation's buyer reaches it — the audience comes from the session.
     const asBuyer = await resolveRaw(k('zastrzezony'), c1, 'pl-PL', buyer);
@@ -322,7 +329,7 @@ describe('URL-key resolution at (C, L) (spec 163, T107)', () => {
 
   it('answers 410 for an archived product reached by its current key or a redirect', async () => {
     const p = await insertProduct(k('archived'));
-    await putKeys(p, { languageKeys: [{ languageCode: 'pl-PL', key: k('archiwalny') }] });
+    await putKeys(p, { channelKeys: inBoth('pl-PL', k('archiwalny')) });
     await sql(`update products set status = 'inactive', archived_at = now() where id = ?`, [p]);
 
     for (const [key, language] of [
@@ -361,27 +368,17 @@ describe('URL-key resolution at (C, L) (spec 163, T107)', () => {
     const q = await insertProduct(k('s0'));
     // s0 → s1 writes `(NULL, s0)`; only then does Q get its first pl-PL key.
     await putKeys(q, { globalKey: k('s1') });
-    await putKeys(q, { languageKeys: [{ languageCode: 'pl-PL', key: k('q-pl') }] });
+    await putKeys(q, { channelKeys: inBoth('pl-PL', k('q-pl')) });
 
     await expectRedirect(k('s0'), c1, 'en-US', k('s1'));
     await expectRedirect(k('s0'), c1, 'pl-PL', k('q-pl'));
     await expectRedirect(k('s0'), c2, 'pl-PL', k('q-pl'));
   });
 
-  it("H1: a product's own current L key wins over its own language-less redirect with the same key", async () => {
-    const q = await insertProduct(k('t0'));
-    await putKeys(q, { globalKey: k('t1') });
-    // Q writes its own `(NULL, t0)` back as its pl-PL key: the NULL row is kept (data-model §5).
-    await putKeys(q, { languageKeys: [{ languageCode: 'pl-PL', key: k('t0') }] });
-
-    await expectServed(k('t0'), c1, 'pl-PL', q);
-    await expectRedirect(k('t0'), c1, 'en-US', k('t1'));
-  });
-
   it('the JSON lookup answers an id, a current key at (C, L) and the global key — never a redirect (R28)', async () => {
     const p = await insertProduct(k('block'));
-    await putKeys(p, { languageKeys: [{ languageCode: 'pl-PL', key: k('blok-1') }] });
-    await putKeys(p, { languageKeys: [{ languageCode: 'pl-PL', key: k('blok-2') }] });
+    await putKeys(p, { channelKeys: inBoth('pl-PL', k('blok-1')) });
+    await putKeys(p, { channelKeys: inBoth('pl-PL', k('blok-2')) });
 
     const lookup = (idOrSlug: string, language: string) =>
       h.app.inject({
@@ -410,8 +407,10 @@ describe('URL-key resolution at (C, L) (spec 163, T107)', () => {
     const before = new Date(Date.now() - 1000).toISOString();
     const p = await insertProduct(k('wrench'));
     await putKeys(p, {
-      languageKeys: [{ languageCode: 'pl-PL', key: k('klucz') }],
-      channelKeys: [{ channelId: c2.id, languageCode: 'pl-PL', key: k('klucz-c2') }],
+      channelKeys: [
+        { channelId: c1.id, languageCode: 'pl-PL', key: k('klucz') },
+        { channelId: c2.id, languageCode: 'pl-PL', key: k('klucz-c2') },
+      ],
     });
 
     const pdp = async (channel: { code: string }, language: string) => {

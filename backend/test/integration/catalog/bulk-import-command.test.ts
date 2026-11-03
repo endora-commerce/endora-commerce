@@ -7,6 +7,7 @@ import {
 import { CommandBus } from '../../../src/commands/index.js';
 import { CatalogBulkImportService } from '../../../../packages/modules/catalog/dist/backend/services/catalog-bulk-import.service.js';
 import { AuditLogEntry } from '@endora-commerce/platform/kernel';
+import type { CatalogBulkImportPort } from '@endora-commerce/contracts';
 import { Category } from '../../helpers/package-entities.js';
 import { Product } from '../../helpers/package-entities.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
@@ -23,10 +24,12 @@ import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
  *    Nothing in the tree said so. It is an explicit index here, and the test
  *    that a child listed *above* its parent still fails is what proves the index
  *    is ordered rather than a set of every slug in the file;
- *  - **all-or-nothing** — a rejected row applies nothing, which is the only
- *    thing making a corrected re-upload safe (there is no run ledger and no
- *    idempotency key anywhere in the platform);
- *  - **one audit row per run**, and none when the run applied nothing. The old
+ *  - **all-or-nothing** for categories — a rejected row applies nothing, which
+ *    is the only thing making a corrected re-upload safe (there is no run ledger
+ *    and no idempotency key anywhere in the platform); products apply **per
+ *    product** since feature 170 (one `product.scoped_values.import` each);
+ *  - **one audit row per run** (categories) or per product, and none when the
+ *    run applied nothing. The old
  *    path wrote no audit row at all, and `check:command-coverage` could not see
  *    that, because `em.create` and a field assignment are not in its vocabulary;
  *  - **the default sales-channel binding** for created categories (Principle
@@ -36,11 +39,14 @@ import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 describe('CatalogBulkImportService — one Command per run [real DB]', () => {
   let h: BackendServerHandle;
   let service: CatalogBulkImportService;
+  /** Feature 170 (T084) — the products half needs the scoped import's deps: the composed port. */
+  let products: CatalogBulkImportPort;
 
   beforeAll(async () => {
     h = await setupBackendServer();
     const commandBus = new CommandBus(h.orm, h.auditLogService, h.eventBus);
     service = new CatalogBulkImportService(commandBus, h.salesChannels.membershipService);
+    products = (h.container.cradle as unknown as { catalogBulkImportPort: CatalogBulkImportPort }).catalogBulkImportPort;
   });
 
   afterAll(async () => {
@@ -147,30 +153,29 @@ describe('CatalogBulkImportService — one Command per run [real DB]', () => {
     expect(rows[0]?.isActive).toBe(false);
   });
 
-  it('rolls back the whole product run when one SKU does not resolve', async () => {
-    const target = await h.em().findOneOrFail(Product, { sku: 'EXAMPLE-BLUE-002' });
-    const beforeName = target.name;
-    const beforeAudit = await auditCount('catalog.products.import');
+  // Feature 170 (T084, `contracts/import-profiles-and-csv.md` §2): products apply per product.
+  it('applies each product row on its own: an unknown SKU is a row error and the other rows apply', async () => {
+    const beforeAudit = await auditCount('product.scoped_values.import');
 
     const report = await run('unknown sku', () =>
-      service.importProducts([
-        { sku: 'EXAMPLE-BLUE-002', cells: [{ scope: { level: 'global' }, field: 'name', op: { op: 'set', value: 'About to be reverted' } }] },
+      products.importProducts([
+        { sku: 'EXAMPLE-BLUE-002', cells: [{ scope: { level: 'global' }, field: 'name', op: { op: 'set', value: 'Applied beside a bad row' } }] },
         { sku: 'BI-NO-SUCH-SKU', cells: [{ scope: { level: 'global' }, field: 'name', op: { op: 'set', value: 'Will fail' } }] },
       ]),
     );
 
-    expect(report.imported).toBe(0);
+    expect(report.imported).toBe(1);
     expect(report.errors).toEqual([{ index: 1, reason: 'unknown sku: BI-NO-SUCH-SKU' }]);
-    const reloaded = await h.em().findOneOrFail(Product, { sku: 'EXAMPLE-BLUE-002' });
-    expect(reloaded.name).toBe(beforeName);
-    expect(await auditCount('catalog.products.import')).toBe(beforeAudit);
+    const reloaded = await h.em().fork().findOneOrFail(Product, { sku: 'EXAMPLE-BLUE-002' });
+    expect(reloaded.name).toBe('Applied beside a bad row');
+    expect(await auditCount('product.scoped_values.import')).toBe(beforeAudit + 1);
   });
 
-  it('applies a valid product run and audits it once', async () => {
-    const beforeAudit = await auditCount('catalog.products.import');
+  it('applies a valid product run and audits it once per product', async () => {
+    const beforeAudit = await auditCount('product.scoped_values.import');
 
     const report = await run('valid product run', () =>
-      service.importProducts([
+      products.importProducts([
         {
           sku: 'EXAMPLE-SIMPLE-001',
           status: 'active',
@@ -184,10 +189,10 @@ describe('CatalogBulkImportService — one Command per run [real DB]', () => {
     );
 
     expect(report).toEqual({ imported: 1, errors: [] });
-    const reloaded = await h.em().findOneOrFail(Product, { sku: 'EXAMPLE-SIMPLE-001' });
+    const reloaded = await h.em().fork().findOneOrFail(Product, { sku: 'EXAMPLE-SIMPLE-001' });
     expect(reloaded.name).toBe('Bulk renamed');
     expect(reloaded.description).toBe('Bulk described.');
-    expect(await auditCount('catalog.products.import')).toBe(beforeAudit + 1);
+    expect(await auditCount('product.scoped_values.import')).toBe(beforeAudit + 1);
   });
 
   it('audits nothing for an empty run', async () => {
@@ -198,7 +203,7 @@ describe('CatalogBulkImportService — one Command per run [real DB]', () => {
       imported: 0,
       errors: [],
     });
-    expect(await run('empty products', () => service.importProducts([]))).toEqual({
+    expect(await run('empty products', () => products.importProducts([]))).toEqual({
       imported: 0,
       errors: [],
     });

@@ -267,10 +267,12 @@ describe('Issue #384 — public product reads honour channel value overrides', (
     );
   });
 
-  it('the product page in another language of the same channel shows that language baseline, and the channel-only attribute override', async () => {
+  // Feature 170 (FR-013, FR-014): one Global text; a language of the channel without its own
+  // override shows it (C×L → C → G), and the channel-only attribute override.
+  it('the product page in another language of the same channel shows the Global text, and the channel-only attribute override', async () => {
     const detail = await readDetail('pl_b2b_vip', 'en-US');
-    expect(detail.name).toBe('Baseline kit');
-    expect(detail.description).toBe('Baseline description');
+    expect(detail.name).toBe('Zestaw bazowy');
+    expect(detail.description).toBe('Opis bazowy');
     expect(detail.attributeValues[attributeKey]).toBe('Matte');
   });
 
@@ -282,15 +284,13 @@ describe('Issue #384 — public product reads honour channel value overrides', (
     expect((await readDetail('pl_retail', null)).name).toBe('Zestaw bazowy');
   });
 
-  it('a request language with no text falls back to the channel default for the override too, not only for the baseline', async () => {
-    // `de-DE` has no baseline text, so the page shows the `pl-PL` baseline;
-    // the (channel, pl-PL) override must win over it exactly as it does for a
-    // `pl-PL` request — and as the search index, built for the channel
-    // default, already shows.
+  it('an offered language with no override of its own shows the Global text, never another language\'s override (feature 170)', async () => {
+    // `de-DE` is a language of the channel: its scope is (channel, de-DE), which holds no row, so
+    // the chain reaches the Global value — the (channel, pl-PL) override is another scope's.
     const detail = await readDetail('pl_b2b_vip', 'de-DE');
-    expect(detail.name).toBe('Zestaw hurtowy');
-    expect(detail.description).toBe('Opis hurtowy');
-    expect(await readCardName('pl_b2b_vip', 'de-DE')).toBe('Zestaw hurtowy');
+    expect(detail.name).toBe('Zestaw bazowy');
+    expect(detail.description).toBe('Opis bazowy');
+    expect(await readCardName('pl_b2b_vip', 'de-DE')).toBe('Zestaw bazowy');
     expect((await readDetail('pl_retail', 'de-DE')).name).toBe('Zestaw bazowy');
   });
 
@@ -318,7 +318,7 @@ describe('Issue #384 — public product reads honour channel value overrides', (
   it('the listing card follows the same resolution', async () => {
     expect(await readCardName('pl_b2b_vip', 'pl-PL')).toBe('Zestaw hurtowy');
     expect(await readCardName('pl_retail', 'pl-PL')).toBe('Zestaw bazowy');
-    expect(await readCardName('pl_b2b_vip', 'en-US')).toBe('Baseline kit');
+    expect(await readCardName('pl_b2b_vip', 'en-US')).toBe('Zestaw bazowy');
   });
 
   it('a grouped parent lists its child, and its related link, under the child effective name', async () => {
@@ -346,13 +346,9 @@ describe('Issue #384 — public product reads honour channel value overrides', (
     expect(await read('pl_retail')).toEqual({ child: 'Zestaw bazowy', related: 'Zestaw bazowy' });
   });
 
-  it('a related tile keeps its own language pick, which has no channel-default leg', async () => {
-    // A known, owner-accepted divergence from the catalogue card, older than
-    // #384: the tile picks request language → en-US → en → first key and never
-    // the channel default, so on this pl-PL-default channel a request with no
-    // `pl-PL` in it shows the en-US baseline, and the (channel, pl-PL)
-    // override — walked over that same pick — does not answer. The catalogue
-    // card shows 'Zestaw hurtowy' for both requests (cases above).
+  it('a related tile shows the name the catalogue card shows at the same (channel, language)', async () => {
+    // Feature 170: the tile resolves at the request's (C, L) — no request language is the channel
+    // default's — like the card (163's own language pick, with no channel-default leg, is gone).
     const relatedName = async (language: string | null): Promise<string | undefined> => {
       const res = await h.app.inject({
         method: 'GET',
@@ -367,8 +363,9 @@ describe('Issue #384 — public product reads honour channel value overrides', (
         .data;
       return rows.find((l) => l.product.id === productId)?.product.name;
     };
-    expect(await relatedName(null)).toBe('Baseline kit');
-    expect(await relatedName('de-DE')).toBe('Baseline kit');
+    for (const language of [null, 'pl-PL', 'de-DE']) {
+      expect(await relatedName(language), String(language)).toBe(await readCardName('pl_b2b_vip', language));
+    }
   });
 
   it('a search result card shows the name the listing card shows, for every channel and language', async () => {
@@ -407,6 +404,8 @@ describe('Issue #384 — public product reads honour channel value overrides', (
             code,
             defaultCurrency: 'PLN',
             defaultLanguage: 'pl-PL',
+            // The channels' languages, as the request's resolved channel carries them.
+            languages: ['pl-PL', 'en-US', 'de-DE'],
           },
           audience: ANONYMOUS_PRODUCT_AUDIENCE,
           preferredLanguage: language ?? undefined,

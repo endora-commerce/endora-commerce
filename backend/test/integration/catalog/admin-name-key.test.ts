@@ -2,9 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Product } from '../../helpers/package-entities.js';
 import { setupBackendServer, teardownBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
-import { CommandBus } from '../../../src/commands/index.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
-import { CatalogBulkImportService } from '../../../../packages/modules/catalog/src/backend/services/catalog-bulk-import.service.js';
+import type { CatalogBulkImportPort } from '@endora-commerce/contracts';
 
 /**
  * Feature 161, G15 redesign, on feature 170's model (`specs/170-product-editor-scope-switcher/`
@@ -78,7 +77,8 @@ describe('products — generated admin name and search keys (161 G15, 170)', () 
   });
 
   it('the product import moves the key', async () => {
-    const service = new CatalogBulkImportService(new CommandBus(h.orm, h.auditLogService, h.eventBus), h.salesChannels.membershipService);
+    // Feature 170 (T084) — the composed port: the scoped import needs its planner deps.
+    const service = (h.container.cradle as unknown as { catalogBulkImportPort: CatalogBulkImportPort }).catalogBulkImportPort;
     const report = await withSystemScope('161 G15 key test — import', () =>
       service.importProducts([
         { sku: sku('EMPTY'), cells: [{ scope: { level: 'global' }, field: 'name', op: { op: 'set', value: 'Ćwiek' } }] },
