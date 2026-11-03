@@ -80,6 +80,15 @@ export function assertIntegrationCall(
       field: 'cells',
     });
   }
+  // C2/C3 security review warn 2 — the op's shape, at runtime: an untyped caller's malformed op
+  // is refused here and never read as an inherit (which would delete an override).
+  const malformed = cells.findIndex((cell) => !isWriteOp(cell.op));
+  if (malformed !== -1) {
+    throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'A cell carries no valid write operation.', {
+      field: 'cells',
+      index: malformed,
+    });
+  }
   const duplicate = firstDuplicateCell(cells);
   if (duplicate !== null) {
     throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'The same (field, scope) cell appears twice.', {
@@ -87,6 +96,15 @@ export function assertIntegrationCall(
       index: duplicate,
     });
   }
+}
+
+/** Exactly `{ op: 'set', value }`, `{ op: 'empty' }` or `{ op: 'inherit' }` — no other keys. */
+function isWriteOp(op: unknown): op is ScopedWriteOp<unknown> {
+  if (typeof op !== 'object' || op === null || Array.isArray(op)) return false;
+  const keys = Object.keys(op).sort().join(',');
+  const kind = (op as { op?: unknown }).op;
+  if (kind === 'set') return keys === 'op,value' && (op as { value?: unknown }).value !== undefined;
+  return (kind === 'empty' || kind === 'inherit') && keys === 'op';
 }
 
 /** The index of the first cell whose (field, scope) an earlier cell already named, else `null`. */
@@ -100,7 +118,13 @@ export function firstDuplicateCell(cells: readonly ProductScopedWriteCell[]): nu
   return null;
 }
 
-const raw = (op: ScopedWriteOp<unknown>): unknown => (op.op === 'set' ? op.value : op.op === 'empty' ? null : { inherit: true });
+const raw = (op: ScopedWriteOp<unknown>): unknown => {
+  if (op.op === 'set') return op.value;
+  if (op.op === 'empty') return null;
+  if (op.op === 'inherit') return { inherit: true };
+  // Fail closed: an op that is none of the three never becomes an inherit.
+  throw new Error(`scoped import: not a write operation: ${String((op as { op?: unknown }).op)}`);
+};
 
 /** One allowlisted cell as the save's `changes` body, or `null` when the path names no such field. */
 export function cellChanges(field: string, op: ScopedWriteOp<unknown>): Record<string, unknown> | null {

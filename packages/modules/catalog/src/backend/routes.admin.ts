@@ -67,7 +67,7 @@ import type { PackagingUnitService } from './services/packaging-unit.service.js'
 import type { ProductLinkService } from './services/product-link.service.js';
 import type { GroupedService } from './services/grouped.service.js';
 import type { BundleService } from './services/bundle.service.js';
-import type { ProductEditorPreferencesService } from './services/product-editor-preferences.service.js';
+import { preferenceOwner, type ProductEditorPreferencesService } from './services/product-editor-preferences.service.js';
 import type { ScopedValuesService } from './services/scoped-values.service.js';
 import type { ProductListViewService } from './services/product-list-view-service.js';
 import type { ProductValueResolverService } from './services/product-value-resolver.service.js';
@@ -950,8 +950,7 @@ export async function registerCatalogAdminRoutes(
   if (deps.productEditorPreferencesService && deps.scopedValuesService) {
     const prefSvc = deps.productEditorPreferencesService;
     const scopedSvc = deps.scopedValuesService;
-    const adminOf = (request: FastifyRequest) =>
-      deps.resolveAdminAuditContext?.(request)?.actorAdminUserId ?? '00000000-0000-0000-0000-000000000000';
+    const adminOf = (request: FastifyRequest) => preferenceOwner(deps.resolveAdminAuditContext?.(request)?.actorAdminUserId);
     const view = (row: { productId: string; adminUserId: string; lastChannelId?: string | null; lastLanguageCode?: string | null; updatedAt: Date } | null) => ({
       data: row
         ? {

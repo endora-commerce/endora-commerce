@@ -1,5 +1,17 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import { ERROR_CODES } from '@endora-commerce/contracts';
+import { HttpError } from '@endora-commerce/platform/http';
 import { ProductEditorPreference } from '../entities/product-editor-preference.entity.js';
+
+/**
+ * Feature 170 (C2/C3 security review note) — the admin a preference row belongs to. Without a
+ * resolved admin id the call is refused: a shared fallback id would hand every admin the scope
+ * another one last chose.
+ */
+export function preferenceOwner(actorAdminUserId: string | null | undefined): string {
+  if (!actorAdminUserId) throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'An editor preference needs a signed-in administrator.');
+  return actorAdminUserId;
+}
 
 /**
  * Feature 022 — per-(admin user, product) memory of the last

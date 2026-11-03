@@ -324,12 +324,16 @@ function changedFieldOf(cell: PlannedCell): string {
 
 type AuditCell = unknown;
 
-/** A cell over 4 KiB is stored `{ truncated, length, sha256 }` (R21). */
+/**
+ * A cell over 4 KiB is stored `{ truncated, length, sha256 }` (R21): a string by its UTF-8
+ * bytes, an array or object (attribute lists, audiences) by the bytes of its JSON form.
+ */
 export function boundedAuditCell(value: AuditCell): AuditCell {
-  if (typeof value !== 'string') return value;
-  const length = Buffer.byteLength(value, 'utf8');
+  if (typeof value !== 'string' && (typeof value !== 'object' || value === null)) return value;
+  const text = typeof value === 'string' ? value : JSON.stringify(value);
+  const length = Buffer.byteLength(text, 'utf8');
   if (length <= SCOPED_AUDIT_CELL_MAX_BYTES) return value;
-  return { truncated: true, length, sha256: createHash('sha256').update(value, 'utf8').digest('hex') };
+  return { truncated: true, length, sha256: createHash('sha256').update(text, 'utf8').digest('hex') };
 }
 
 function setPath(target: Record<string, unknown>, path: readonly string[], value: unknown): void {

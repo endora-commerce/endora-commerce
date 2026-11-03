@@ -26,11 +26,18 @@ Locale tags compare case-insensitively with `_` ≡ `-`.
 ## 2. Planner (FR-041, FR-042, FR-044, FR-047)
 
 ```ts
+/**
+ * Always an explicit operation: `{ op: 'set', value }`, `{ op: 'empty' }` or `{ op: 'inherit' }`.
+ * A bare value is not accepted — the planner no longer sniffs objects for an op (C1 security
+ * review), and catalog's connector port refuses any other shape at runtime as `invalid`, so a
+ * malformed value never becomes an inherit (C2/C3 security review warn 2).
+ */
+export type PimSourceValue = ScopedWriteOp<unknown>;
 export interface PimSourceValues {
   /** Non-localizable attributes and fields — always written to Global (FR-047). */
-  global: Record<FieldPath, unknown | ScopedWriteOp<unknown>>;
+  global: Partial<Record<FieldPath, PimSourceValue>>;
   /** Localizable values per source locale (and optional source channel). */
-  perLocale: Array<{ locale: string; sourceChannel: string | null; values: Record<FieldPath, unknown | ScopedWriteOp<unknown>> }>;
+  perLocale: Array<{ locale: string; sourceChannel: string | null; values: Partial<Record<FieldPath, PimSourceValue>> }>;
 }
 export function planLocaleWrites(input: {
   source: PimSourceValues;
