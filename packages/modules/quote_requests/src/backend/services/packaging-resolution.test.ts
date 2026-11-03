@@ -115,46 +115,48 @@ describe('resolveLinePackaging', () => {
 });
 
 /**
- * Feature 163, Phase 22 (T138), on feature 170's model — the line snapshots the unit's Global
- * name (170-shim: S2 snapshots the effective name at the line's (C, L) through
- * `effectivePackagingUnitNames`). The **name match** of a line naming its unit stays on the
- * Global name.
+ * Feature 163, Phase 22 (T138), on feature 170's model — the line snapshots the unit's effective
+ * name at the line's (channel, language), as the caller read it from catalog's
+ * `effectivePackagingUnitNames`; without one, its Global name. The **name match** of a line
+ * naming its unit stays on the Global name.
  */
-describe('resolveLinePackaging — the unit name snapshot (170-shim)', () => {
+describe('resolveLinePackaging — the unit name snapshot', () => {
   const TRANSLATED: PackagingUnitCandidate = {
     ...PALLET_B,
   };
+  const AT_SCOPE = new Map<string, string | null>([[TRANSLATED.id, 'Paleta']]);
 
-  it('an id-named unit stores its Global name', () => {
-    const { lines } = resolveLinePackaging([{ productId: B, packagingUnitId: TRANSLATED.id }], [TRANSLATED], 'pl-PL');
-    expect(lines).toEqual([{ packagingUnitId: TRANSLATED.id, packagingUnitName: 'Pallet', packagingUnitBaseQuantity: 64 }]);
+  it('an id-named unit stores its effective name at the line scope', () => {
+    const { lines } = resolveLinePackaging([{ productId: B, packagingUnitId: TRANSLATED.id }], [TRANSLATED], AT_SCOPE);
+    expect(lines).toEqual([{ packagingUnitId: TRANSLATED.id, packagingUnitName: 'Paleta', packagingUnitBaseQuantity: 64 }]);
   });
 
-  it('a unit named by its Global name matches and stores it', () => {
+  it('a unit named by its Global name matches and stores its effective name', () => {
     const { lines, mismatches } = resolveLinePackaging(
       [{ productId: B, packagingUnitName: 'Pallet', packagingUnitBaseQuantity: 64 }],
       [TRANSLATED],
-      'pl-pl',
+      AT_SCOPE,
     );
     expect(mismatches).toEqual([]);
-    expect(lines[0]!.packagingUnitName).toBe('Pallet');
+    expect(lines[0]!.packagingUnitName).toBe('Paleta');
   });
 
   it('the translated name is not a name a line can match by', () => {
     const { mismatches } = resolveLinePackaging(
       [{ productId: B, packagingUnitName: 'Paleta', packagingUnitBaseQuantity: 64 }],
       [TRANSLATED],
-      'pl-PL',
+      AT_SCOPE,
     );
     expect(mismatches.map((m) => m.reason)).toEqual(['name_unknown']);
   });
 
-  it('no scope language, or one without a translation, stores the global name', () => {
-    // The scope language is a channel language (`scopeLanguageOf`), matched exactly, case aside.
+  it('no name at the scope, or an empty override, stores the Global name', () => {
     const line = [{ productId: B, packagingUnitId: TRANSLATED.id }];
-    expect(resolveLinePackaging(line, [TRANSLATED], null).lines[0]!.packagingUnitName).toBe('Pallet');
-    expect(resolveLinePackaging(line, [TRANSLATED], 'de').lines[0]!.packagingUnitName).toBe('Pallet');
     expect(resolveLinePackaging(line, [TRANSLATED]).lines[0]!.packagingUnitName).toBe('Pallet');
+    expect(resolveLinePackaging(line, [TRANSLATED], new Map()).lines[0]!.packagingUnitName).toBe('Pallet');
+    expect(
+      resolveLinePackaging(line, [TRANSLATED], new Map([[TRANSLATED.id, null]])).lines[0]!.packagingUnitName,
+    ).toBe('Pallet');
   });
 });
 

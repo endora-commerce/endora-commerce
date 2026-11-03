@@ -77,9 +77,11 @@ describe('155 QA — the minimum refusal is worded in Polish on quote-request cr
     expect((res.json() as ErrorBody).error.message).toMatch(/has a minimum order quantity of 10 pcs\.$/);
   });
 
-  // D3/D4 — the raiser names the product in the language the sentence is written in
-  // (contracts/error-codes.md; research R10), `request.responseLanguage()`.
-  it('names the product in Polish too (contracts/error-codes.md: names resolved in the request language)', async () => {
+  // D3/D4 — the sentence is written in the request language (`request.responseLanguage()`).
+  // Feature 170 (FR-030) — the product is named by its effective text at the request's (channel,
+  // language): the system-default channel offers en-US alone, so a Polish request reads the
+  // Global name there.
+  it('names the product at the request scope inside the Polish sentence', async () => {
     const res = await h.app.inject({
       method: 'POST',
       url: '/api/v1/quote-requests',
@@ -88,11 +90,11 @@ describe('155 QA — the minimum refusal is worded in Polish on quote-request cr
       payload: { items: [{ productId: A.id, quantity: 5 }] },
     });
     expect(res.statusCode, res.body).toBe(422);
-    expect((res.json() as ErrorBody).error.message).toContain(A.namePl);
-    expect((res.json() as ErrorBody).error.details).toMatchObject({ productName: A.namePl });
+    expect((res.json() as ErrorBody).error.message).toContain(A.nameEn);
+    expect((res.json() as ErrorBody).error.details).toMatchObject({ productName: A.nameEn });
   });
 
-  it('a q-weighted header (`en;q=0.2,pl;q=0.9`) answers Polish with the Polish name', async () => {
+  it('a q-weighted header (`en;q=0.2,pl;q=0.9`) answers Polish, the name at the request scope', async () => {
     const res = await h.app.inject({
       method: 'POST',
       url: '/api/v1/quote-requests',
@@ -103,6 +105,6 @@ describe('155 QA — the minimum refusal is worded in Polish on quote-request cr
     expect(res.statusCode, res.body).toBe(422);
     const { error } = res.json() as ErrorBody;
     expect(error.message).toMatch(PL_SENTENCE);
-    expect(error.message).toContain(A.namePl);
+    expect(error.message).toContain(A.nameEn);
   });
 });
