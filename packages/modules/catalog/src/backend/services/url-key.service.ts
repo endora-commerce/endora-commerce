@@ -565,7 +565,7 @@ export class UrlKeyService {
         : { level: 'channel', channelId: entry.channelId };
       writes.push({ scope, op: typeof entry.key === 'string' ? { op: 'set', key: entry.key } : { op: 'inherit' } });
     }
-    await this.#run(this.#writeCommand(productId, writes, { mode: 'interactive', confirmTakeover: request.confirmTakeover ?? [] }));
+    await this.#runWrite(this.#writeCommand(productId, writes, { mode: 'interactive', confirmTakeover: request.confirmTakeover ?? [] }));
     return this.read(productId);
   }
 
@@ -585,7 +585,7 @@ export class UrlKeyService {
             : { level: 'channel', channelId: write.channelId };
       return { scope, op: write.key === null ? { op: 'inherit' } : { op: 'set', key: write.key } };
     });
-    const effects = await this.#run(this.#writeCommand(productId, keyWrites, { mode: 'integration' }, source));
+    const effects = await this.#runWrite(this.#writeCommand(productId, keyWrites, { mode: 'integration' }, source));
     return writes.map((write) => {
       const issue = effects.issues.find((i) => write.key !== null && i.key === normaliseUrlKey(write.key));
       return issue ? { written: false as const, issue } : { written: true as const };
@@ -628,7 +628,8 @@ export class UrlKeyService {
         // Feature 170 (R7) — a key write is Save-overwritable: it moves the editor's version.
         await bumpScopeVersion(em, productId);
         const effects = await this.lockAndCheck(em, productId, writes, options);
-        if (!effects.changed) return { result: effects, skipAudit: true };
+        // A write that changes nothing rolls the version bump back (code review warn).
+        if (!effects.changed) throw new UrlKeysNothingChanged(effects);
         return {
           result: effects,
           before: { ...effects.before },
@@ -639,11 +640,28 @@ export class UrlKeyService {
     };
   }
 
+  /** A key write; one that changes nothing answers its effects with nothing committed. */
+  async #runWrite(command: Command<UrlKeySideEffects>): Promise<UrlKeySideEffects> {
+    try {
+      return await this.#run(command);
+    } catch (error) {
+      if (error instanceof UrlKeysNothingChanged) return error.effects;
+      throw error;
+    }
+  }
+
   async #run<T>(command: Command<T>): Promise<T> {
     if (this.commandBus) return this.commandBus.run(command);
     return this.emFactory().transactional(async (em) => {
       const outcome = await command.run({ em, actor: { actorAdminUserId: null, impersonatedCustomerAccountId: null, kind: 'system' } });
       return outcome.result;
     });
+  }
+}
+
+/** Thrown inside a key write that changes nothing, so its version bump rolls back. */
+class UrlKeysNothingChanged extends Error {
+  constructor(readonly effects: UrlKeySideEffects) {
+    super('url keys: nothing changed');
   }
 }

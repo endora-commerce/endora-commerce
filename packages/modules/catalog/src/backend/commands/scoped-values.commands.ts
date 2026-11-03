@@ -81,6 +81,17 @@ function snapshot(state: ScopedProductState): ScopeSnapshot {
   };
 }
 
+/**
+ * A save with no cells: thrown inside the Command so its transaction, and with it the version
+ * compare-and-set, rolls back — a no-op writes nothing, audits nothing and leaves the version, so
+ * no other open editor is sent a 409 for it. The caller answers {@link result}.
+ */
+export class ScopedSaveNothingChanged extends Error {
+  constructor(readonly result: ScopedValuesSaveResult) {
+    super('scoped-values save: nothing changed');
+  }
+}
+
 export function scopedValuesSaveCommand(
   deps: ScopedValuesCommandDeps,
   productId: string,
@@ -101,7 +112,8 @@ export function scopedValuesSaveCommand(
       if (scope.level === 'global') await useTargetAttributeSet(em, deps, state, body.changes.product?.attributeSetId);
       const plan = planScopedSave(state, scope, body.changes);
       if (plan.cells.length === 0) {
-        return { result: { state, scope, changedFields: [], warnings: [] }, skipAudit: true };
+        // Nothing to write: roll the version bump back with the transaction (code review warn).
+        throw new ScopedSaveNothingChanged({ state, scope, changedFields: [], warnings: [] });
       }
       await assertOrganizationsExist(deps, plan.cells, scope);
       await assertGlobalOnlyFields(em, deps, state, plan);

@@ -13,6 +13,7 @@ import {
   planCopy,
   scopedValuesCopyCommand,
   scopedValuesSaveCommand,
+  ScopedSaveNothingChanged,
   type ScopedValuesCommandDeps,
   type ScopedValuesSaveResult,
 } from '../commands/scoped-values.commands.js';
@@ -60,25 +61,20 @@ export class ScopedValuesService {
     const touchesStatus = body.changes.status !== undefined;
     const completeness = touchesStatus ? await this.deps.gate?.mode() : undefined;
     const command = scopedValuesSaveCommand(this.deps, productId, body, completeness);
+    // Constitution XIII — the editor's main write is audited or refused, never run bare.
+    if (!this.commandBus) throw new Error('ScopedValuesService: the save needs the command bus.');
     let result: ScopedValuesSaveResult;
-    if (this.commandBus) {
-      try {
-        result = await this.commandBus.run(command);
-      } catch (error) {
+    try {
+      result = await this.commandBus.run(command);
+    } catch (error) {
+      if (error instanceof ScopedSaveNothingChanged) {
+        result = error.result;
+      } else if (error instanceof UniqueConstraintViolationException && body.changes.product?.sku !== undefined) {
         // A SKU taken between the step-3a check and the write (code review 1): the same answer.
-        if (error instanceof UniqueConstraintViolationException && body.changes.product?.sku !== undefined) {
-          throw new HttpError(409, ERROR_CODES.SKU_ALREADY_EXISTS, 'This SKU already exists.', { field: 'product.sku' });
-        }
+        throw new HttpError(409, ERROR_CODES.SKU_ALREADY_EXISTS, 'This SKU already exists.', { field: 'product.sku' });
+      } else {
         throw error;
       }
-    } else {
-      result = await this.emFactory().transactional(async (em) => {
-        const outcome = await command.run({
-          em,
-          actor: { actorAdminUserId: null, impersonatedCustomerAccountId: null, kind: 'system' },
-        });
-        return outcome.result;
-      });
     }
     const em = this.emFactory().fork();
     const state = await loadScopedState(em, productId, this.deps);
