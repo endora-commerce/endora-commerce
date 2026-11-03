@@ -14,7 +14,7 @@ const run = (em: EntityManager, sql: string, params: unknown[] = []) => em.getCo
 /**
  * `count` simple products named `${namePrefix} 0001` … (zero-padded to the
  * width of `count`; prefixed by a word when `words` is given), SKU
- * `${skuPrefix}-0001` …, in `en-US`. Ids are
+ * `${skuPrefix}-0001` …, as their Global name. Ids are
  * deterministic per prefix so a caller can rebuild them; answered in name order.
  */
 export async function seedBulkProductsSql(
@@ -37,10 +37,11 @@ export async function seedBulkProductsSql(
             ? || '-' || lpad(g::text, ?, '0'),
             lower(? || '-' || lpad(g::text, ?, '0')),
             'simple', 'active',
-            jsonb_build_object('en-US',
-              coalesce((?::text[])[1 + (g - 1) % greatest(coalesce(array_length(?::text[], 1), 1), 1)] || ' ', '')
-              || ? || ' ' || lpad(g::text, ?, '0')),
-            '{}'::jsonb, 'public', '{}'::jsonb, now(), now()
+            -- Feature 170 — the Global name and description are text columns: a jsonb map here
+            -- would be stored as its JSON string, silently.
+            coalesce((?::text[])[1 + (g - 1) % greatest(coalesce(array_length(?::text[], 1), 1), 1)] || ' ', '')
+              || ? || ' ' || lpad(g::text, ?, '0'),
+            null, 'public', '{}'::jsonb, now(), now()
        from generate_series(1, ?) g
      returning "id", "sku"`,
     [input.skuPrefix, width, input.skuPrefix, width, words, words, input.namePrefix, width, input.count],

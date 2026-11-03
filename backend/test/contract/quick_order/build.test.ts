@@ -250,7 +250,9 @@ describe('Quick-order Excel import + build', () => {
           productId: A.id,
           variantId: null,
           quantity: 5,
-          productName: A.namePl,
+          // Feature 170 (FR-030) — named at the basket's (channel, language): the request names
+          // no channel, the system default offers en-US alone, so the Global name.
+          productName: A.nameEn,
           reason: 'below_minimum',
           kind: 'pieces',
           minimum: 10,
