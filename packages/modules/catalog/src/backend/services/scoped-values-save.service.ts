@@ -427,6 +427,29 @@ function globalOnlyValue(state: ScopedProductState, field: string): unknown {
   return value === undefined ? null : value;
 }
 
+/** A JSON form with sorted object keys, so two equal values compare equal whatever their key order. */
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+  if (value !== null && typeof value === 'object') {
+    return `{${Object.keys(value as object)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${canonical((value as Record<string, unknown>)[key])}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value ?? null);
+}
+
+/**
+ * FR-114 — the plan without the cells that would write what the scope already holds (the same
+ * value, the same empty override, or an inherit where nothing is stored), so re-importing an
+ * unchanged export writes, audits, announces and bumps nothing. `changedFields` follows the cells.
+ */
+export function withoutUnchangedCells(state: ScopedProductState, plan: ScopedSavePlan): ScopedSavePlan {
+  const stored = ownValues(state, plan);
+  const cells = plan.cells.filter((cell) => canonical(stored.get(cell.path) ?? null) !== canonical(opValue(cell.op)));
+  return { scope: plan.scope, cells, changedFields: [...new Set(cells.map((cell) => changedFieldOf(cell)))] };
+}
+
 const opValue = (op: ScopedWriteOp<unknown>): unknown => (op.op === 'set' ? op.value : op.op === 'empty' ? null : { inherit: true });
 
 /** The audit `before` / `after` (§3 step 9): `cells` keyed `field@scope`, and the re-applicable `changes` body. */

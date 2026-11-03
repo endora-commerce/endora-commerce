@@ -19,7 +19,7 @@ import type { Command } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 
-import { auditStates, ownValues, planScopedSave, writeScopedSave, type ScopedSavePlan } from './scoped-values-save.service.js';
+import { auditStates, ownValues, planScopedSave, withoutUnchangedCells, writeScopedSave, type ScopedSavePlan } from './scoped-values-save.service.js';
 import { bumpScopeVersion, loadScopedState, resolveRequestScope, type ScopedProductState } from './scoped-values-state.js';
 import type { UrlKeyService, UrlKeyWrite } from './url-key.service.js';
 
@@ -308,6 +308,8 @@ export async function runScopedImport(
       await bumpScopeVersion(em, productId);
       const state = await loadScopedState(em, productId, deps);
       const planned = planIntegrationCells(state, cells, trustedChangesOf(state, options.extras), options.path ?? 'connector');
+      // FR-114 — a cell that writes what the scope already holds is not a change.
+      planned.plans = planned.plans.map((plan) => withoutUnchangedCells(state, plan)).filter((plan) => plan.cells.length > 0);
       const audit: { before: Record<string, unknown>; after: Record<string, unknown> } = { before: {}, after: {} };
       for (const plan of planned.plans) {
         const states = auditStates(plan, ownValues(state, plan));
@@ -329,7 +331,7 @@ export async function runScopedImport(
           const key = write.op.op === 'set' ? write.op.key.normalize('NFC').toLowerCase() : null;
           const issue = key === null ? undefined : effects.issues.find((candidate) => candidate.key === key);
           urlKeys.push(issue ? { written: false, issue } : { written: true });
-          if (!issue) urlKeysWritten += 1;
+          if (!issue && effects.changed) urlKeysWritten += 1;
         }
         if (effects.changed) urlKeyEffects = { before: effects.before, after: effects.after };
       }
@@ -341,7 +343,8 @@ export async function runScopedImport(
         urlKeys,
         changedFields,
       };
-      if (result.applied === 0 && planned.plans.length === 0) throw new NothingApplied(result);
+      // Nothing written (every cell refused, or each already what the scope holds): roll back.
+      if (planned.plans.length === 0 && urlKeysWritten === 0) throw new NothingApplied(result);
       return {
         result,
         before: { source: options.source, cells: audit.before, ...(urlKeyEffects ? { urlKey: urlKeyEffects.before } : {}) },
