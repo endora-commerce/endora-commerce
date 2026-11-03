@@ -165,10 +165,24 @@ export default async function CartPage({
 
   const strings = STRINGS(locale);
 
+  // Issue #650 — the rejection of the buyer's previous basket. The rejection
+  // closed that basket, so this one — empty or refilled since — cannot say it
+  // itself; the answer carries it until the buyer sends a basket again.
+  const previousRejection = cart.previousRejection ? (
+    <CartApprovalBanner
+      approvalStatus="rejected_by_org_admin"
+      policyOn={false}
+      rejectedReason={cart.previousRejection.reason}
+      submitForApprovalAction={submitForApprovalAction}
+      strings={{ ...strings.approvalBanner, rejected: strings.previousRejection }}
+    />
+  ) : null;
+
   if (cart.items.length === 0) {
     return (
       <div className="mx-auto max-w-[1360px] px-[24px]">
         <Breadcrumbs strings={strings.breadcrumbs} />
+        {previousRejection}
         <div className="rounded-md border border-line bg-surface px-[24px] py-[48px] text-center">
           <h1 className="m-0 mb-2 text-[22px] font-semibold text-fg">{strings.heading}</h1>
           <p className="m-0 mb-[18px] text-[14px] text-muted">{strings.empty}</p>
@@ -198,6 +212,8 @@ export default async function CartPage({
         message={me?.organization?.moderationMessage ?? null}
         locale={locale}
       />
+
+      {previousRejection}
 
       {/* Feature 027 — approval-state banner (US4). */}
       {cart.approvalStatus ? (
@@ -566,6 +582,7 @@ function STRINGS(locale: string): {
   convertButtons: Parameters<typeof CartConvertButtons>[0]['strings'];
   dropped: Parameters<typeof CartDroppedLinesBanner>[0]['strings'];
   approvalBanner: Parameters<typeof CartApprovalBanner>[0]['strings'];
+  previousRejection: (reason: string | null) => string;
   upsells: Parameters<typeof UpsellStrip>[0]['strings'];
   banner: { qrCreated: string; listAdded: (listName: string) => string };
   cta: {
@@ -666,6 +683,10 @@ function STRINGS(locale: string): {
       policyOn: t('commerce.cart.approval.policyOn'),
       submitButton: t('commerce.common.submitForApproval'),
     },
+    previousRejection: (reason: string | null) =>
+      reason
+        ? format(t('commerce.cart.approval.previousRejectedWithReason'), { reason })
+        : t('commerce.cart.approval.previousRejected'),
     upsells: {
       heading: t('commerce.cart.upsells.heading'),
       noPriceLabel: t('commerce.common.priceOnRequest'),

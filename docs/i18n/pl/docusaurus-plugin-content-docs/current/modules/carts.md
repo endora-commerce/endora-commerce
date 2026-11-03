@@ -106,13 +106,51 @@ członek, do którego koszyk należy. Koszyk innej organizacji zwraca `404`, tak
 członek, który nie jest administratorem, dostaje odmowę `403`. Wyłączenie wymogu akceptacji przywraca
 każdy oczekujący lub zaakceptowany koszyk organizacji do `not_required`.
 
+W sklepie administrator robi to w sekcji **Organizacja → Koszyki** (`/organization/carts`): listę
+można zawęzić do koszyków oczekujących na akceptację, a każdy koszyk otwiera się na własnej stronie
+(`/organization/carts/<id>`) z właścicielem, pozycjami, sumą i czasem przesłania. Oczekujący koszyk
+oferuje **Zaakceptuj koszyk** oraz — za rozwijanym przełącznikiem — **Odrzuć koszyk**, które wymaga
+podania powodu o długości do 2000 znaków. Strona potwierdza decyzję albo nazywa odmowę — na
+przykład koszyk, w sprawie którego decyzja już zapadła (`CART_APPROVAL_NOT_PENDING`).
+
+Co kupujący dowiaduje się po odrzuceniu: odrzucenie zamyka koszyk (`status = 'rejected'`), więc przy
+następnym odczycie kupujący dostaje nowy, pusty koszyk, którego własny `approvalStatus` nie może
+powiedzieć, że został odrzucony. Dlatego odpowiedź koszyka zawiera `previousRejection` —
+`{ cartId, rejectedAt, reason }` ostatniego odrzuconego koszyka kupującego w danym kanale sprzedaży
+— a strona koszyka w sklepie pokazuje tę informację wraz z powodem. Pole jest wypełnione, dopóki
+bieżący koszyk nie zostanie przesłany do akceptacji i dopóki od odrzucenia żaden koszyk kupującego
+w tym kanale nie zostanie zamówiony (ani zamieniony na zapytanie ofertowe); w przeciwnym razie, a
+także dla koszyka anonimowego, ma wartość `null`. Pozycje odrzuconego koszyka nie są kopiowane do
+nowego.
+
+### E-maile o akceptacji
+
+Każdy krok akceptacji wysyła e-mail, gdy krok zostanie już zapisany:
+
+| E-mail (kod szablonu) | Kiedy | Do kogo |
+| --- | --- | --- |
+| Koszyk przekazany do akceptacji (`cart_approval_requested`) | Członek przekazuje koszyk do akceptacji | Każdy administrator organizacji członka — osobna wiadomość dla każdego. Administrator zablokowany, usunięty lub zanonimizowany nie dostaje wiadomości. |
+| Koszyk zaakceptowany (`cart_approved`) | Administrator akceptuje koszyk | Członek, do którego koszyk należy, z informacją, kto go zaakceptował |
+| Koszyk odrzucony (`cart_rejected`) | Administrator odrzuca koszyk | Członek, do którego koszyk należy, z powodem podanym przez administratora |
+
+- Wiadomości są pisane w domyślnym języku sklepu (kanału sprzedaży), do którego należy koszyk, a po
+  angielsku, gdy sklep nie ma języka domyślnego. Konto klienta nie zapisuje własnego języka, więc
+  język sklepu jest jedynym, jaki platforma zna dla odbiorcy.
+- Temat i treść każdej wiadomości są dostarczane po angielsku i po polsku; można je edytować dla
+  każdego języka i sklepu albo wyłączyć na ekranie szablonów e-maili (grupa *carts*). Wiadomości nie
+  zawierają linku: odbiorca loguje się na swoje konto, aby działać — administrator w sekcji
+  **Organizacja → Koszyki** (`/organization/carts`), kupujący na stronie swojego koszyka.
+- Wiadomość, której nie da się wysłać — brak serwera poczty, wyłączony szablon, serwer poczty odbiorcy
+  ją odrzuca — nigdy nie cofa ani nie przerywa kroku akceptacji. Trafia do logu serwera jako
+  *„the cart approval e-mail was not sent”*, z koszykiem, kodem szablonu i powodem.
+
 ## API publiczne
 
 ### Storefront (kupujący)
 
 | Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
-| `GET /api/v1/cart` | Aktywny koszyk kanału sprzedaży żądania (tworzony przy pierwszym odczycie); odpowiedź zawiera `status`, `approvalStatus`, `salesChannelId`, `grandTotal`, `discount`, `primaryCta`, `droppedLines`, `couponDroppedThisRead`, `lastActivityAt` |
+| `GET /api/v1/cart` | Aktywny koszyk kanału sprzedaży żądania (tworzony przy pierwszym odczycie); odpowiedź zawiera `status`, `approvalStatus`, `salesChannelId`, `grandTotal`, `discount`, `primaryCta`, `droppedLines`, `couponDroppedThisRead`, `lastActivityAt`, `previousRejection` |
 | `POST /api/v1/cart/items` | Dodanie pozycji (limit 200 pozycji) |
 | `PATCH /api/v1/cart/items/:itemId` | Zmiana ilości (`0` usuwa pozycję) |
 | `DELETE /api/v1/cart/items/:itemId` | Usunięcie pozycji |
@@ -130,7 +168,7 @@ każdy oczekujący lub zaakceptowany koszyk organizacji do `not_required`.
 | Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
 | `GET /api/v1/organization/carts` | Lista wszystkich koszyków w organizacji wywołującego |
-| `GET /api/v1/organization/carts/:id` | Szczegóły koszyka członka organizacji |
+| `GET /api/v1/organization/carts/:id` | Szczegóły koszyka członka organizacji wraz z pozycjami (`items`: nazwa, SKU, ilość, cena jednostkowa i wartość pozycji w zapisanej wysokości) |
 | `PATCH /api/v1/organization/policies/cart-approval` | Włączenie lub wyłączenie `requires_cart_approval` dla organizacji |
 | `POST /api/v1/cart/submit-for-approval` | Kupujący przekazuje koszyk do akceptacji administratorowi organizacji. Odrzucane z `422 CART_APPROVAL_NOT_REQUIRED`, gdy akceptacja jest wyłączona, z `422 CART_APPROVAL_SELF_SUBMIT` dla samych administratorów organizacji, z `422 CART_APPROVAL_ALREADY_SUBMITTED` dla koszyka już przekazanego oraz dla koszyka poniżej minimum — zob. *Minimalne ilości zamówienia* |
 | `POST /api/v1/organization/carts/:id/approve` | Akceptacja oczekującego koszyka; koszyk, który nie oczekuje na akceptację, daje `422 CART_APPROVAL_NOT_PENDING` |
@@ -369,8 +407,10 @@ odczytu to zmiana na później.
   `CartPricingRecompute`, który wywołuje `CartLinePricing.orderablePrices`; wynik jest przechowywany
   w `CartRecomputeCache` (TTL 30 s w Redis), unieważnianym przy każdym zapisie koszyka. Odpowiedzi
   operacji zmieniających koszyk zwracają zapisaną wartość `unitPrice`.
-- **Wysyłka e-maili** — e-maile o przekazaniu do akceptacji, akceptacji, odrzuceniu i porzuceniu są
-  przygotowane w usługach jako szkielet; osobne szablony to zmiana na później.
+- **Wysyłka e-maili** — e-maile o przekazaniu do akceptacji, akceptacji i odrzuceniu są wysyłane przez
+  `transactional_emails` (zobacz *E-maile o akceptacji*). E-mail o porzuceniu koszyka to punkt
+  rozszerzenia `cartAbandonmentNotifier`, który dostarcza wdrożenie; bez niego wyszukiwanie zmienia
+  status i niczego nie wysyła.
 - **Harmonogram wyszukiwania porzuconych koszyków** — worker jest tworzony w produkcyjnej kompozycji,
   ale nie jest jeszcze podłączony do crona ani harmonogramu BullMQ. Polecenie
   `pnpm run cli carts abandonment-sweep`, uruchomione w katalogu głównym instancji, wykonuje jeden

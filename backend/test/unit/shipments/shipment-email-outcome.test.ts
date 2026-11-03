@@ -71,6 +71,7 @@ function fakeEmFactory(channel: unknown): ShipmentEmailNotifierDeps['emFactory']
 function orderReadPort(order: OrderRecord | null): OrderReadPort {
   return {
     findById: async () => order,
+    findByIdForCustomer: async () => order,
     findByIds: async () => (order ? [order] : []),
     listAll: async () => (order ? [order] : []),
     listItems: async () => [],
@@ -208,6 +209,9 @@ describe('shipments — the shipment-created notifier reports what happened (#78
     const logged: Logged[] = [];
     const refusing: OrderReadPort = {
       findById: async () => {
+        throw new ModuleDisabledError('orders');
+      },
+      findByIdForCustomer: async () => {
         throw new ModuleDisabledError('orders');
       },
       findByIds: async () => [],

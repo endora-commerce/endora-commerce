@@ -31,6 +31,13 @@ export function MobileTabBar(props: {
     cart: string;
     account: string;
   };
+  /**
+   * Whether the two module-owned tabs' modules are present. Booleans rather
+   * than the presence set because this is a client island and a function does
+   * not cross that boundary. Required, so no caller renders the tabs without
+   * asking (Constitution XVII item 5, issue #666).
+   */
+  present: { quoteRequests: boolean; quickOrder: boolean };
 }): ReactNode {
   const pathname = usePathname();
   const urlState = useUrlLanguageState();
@@ -60,15 +67,17 @@ export function MobileTabBar(props: {
     };
   }, [pathname]);
 
-  const tabs: { href: string; label: string; icon: ReactNode; match: (p: string) => boolean }[] = [
-    { href: '/', label: props.labels.home, icon: <HomeIcon />, match: (p) => p === '/' },
+  const tabs: { href: string; label: string; icon: ReactNode; match: (p: string) => boolean; shown: boolean }[] = [
+    { href: '/', label: props.labels.home, icon: <HomeIcon />, match: (p) => p === '/', shown: true },
     {
+      shown: props.present.quoteRequests,
       href: '/quote-request',
       label: props.labels.quoteRequest,
       icon: <QuoteIcon />,
       match: (p) => p.startsWith('/quote-request'),
     },
     {
+      shown: props.present.quickOrder,
       href: '/quick-order',
       label: props.labels.quickOrder,
       icon: <LightningIcon />,
@@ -79,6 +88,7 @@ export function MobileTabBar(props: {
       label: props.labels.cart,
       icon: <CartIcon />,
       match: (p) => p.startsWith('/cart'),
+      shown: true,
       // count badge handled below
     },
     {
@@ -86,12 +96,13 @@ export function MobileTabBar(props: {
       label: props.labels.account,
       icon: <UserIcon />,
       match: (p) => p.startsWith('/account'),
+      shown: true,
     },
   ];
 
   return (
     <nav className="m-tabbar" aria-label={props.labels.navigation}>
-      {tabs.map((tab) => {
+      {tabs.filter((tab) => tab.shown).map((tab) => {
         // Feature 167 — match the logical path, not the prefixed browser path.
         const active = tab.match(stripLocalePrefix(pathname, urlState));
         const isCart = tab.href === '/cart';

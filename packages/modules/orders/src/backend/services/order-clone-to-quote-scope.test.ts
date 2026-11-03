@@ -22,6 +22,7 @@ function rig() {
   const service = new OrderCloneToQuoteService(
     () => ({ findOne: async () => ({ id: 'order-1' }) }) as never,
     () => ({ createForCustomer }) as never,
+    { findById: async () => null } as never,
   );
   return { service, createForCustomer };
 }

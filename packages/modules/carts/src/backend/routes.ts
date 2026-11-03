@@ -41,6 +41,7 @@ import type { CartPricingRecompute, RecomputeRefusal } from './services/cart-pri
 import { agreementOf } from './services/cart-line-pricing.js';
 import { productMetaOf, type ProductMeta } from './services/cart-line-meta.js';
 import { derivePrimaryCta } from './services/cart-state-machine.js';
+import { previousRejectionOf } from './services/cart-previous-rejection.js';
 import {
   evaluateCartViewMinimums,
   toCartMinimumItem,
@@ -226,25 +227,33 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
   /**
    * A cart answer with the primary CTA the buyer's approval policy gives it
    * (issue #619). Only a `not_required` basket that would otherwise read
-   * `checkout` can change, so every other answer is returned without a read.
+   * `checkout` can change, so every other answer skips the policy read.
+   *
+   * Issue #650 — and, for a signed-in buyer, with the rejection of their
+   * previous basket on the channel (`previousRejectionOf`), which no state of
+   * this basket can carry.
    */
   const answer = async (
     actor: { customer?: { customerAccountId: string; organizationId: string | null } },
     payload: CartFullPayload,
   ): Promise<{ data: CartFullPayload }> => {
-    if (payload.primaryCta !== 'checkout' || payload.approvalStatus !== 'not_required') return { data: payload };
     const customer = actor.customer;
-    if (!customer?.organizationId) return { data: payload };
+    const previousRejection = customer
+      ? await previousRejectionOf(emFactory(), payload)
+      : null;
+    const answered: CartFullPayload = { ...payload, previousRejection };
+    if (answered.primaryCta !== 'checkout' || answered.approvalStatus !== 'not_required') return { data: answered };
+    if (!customer?.organizationId) return { data: answered };
     const requiresApproval = await deps.cartApprovalPolicy({
       customerAccountId: customer.customerAccountId,
       organizationId: customer.organizationId,
     });
     return {
       data: {
-        ...payload,
+        ...answered,
         primaryCta: derivePrimaryCta({
-          status: payload.status,
-          approvalStatus: payload.approvalStatus,
+          status: answered.status,
+          approvalStatus: answered.approvalStatus,
           requiresApproval,
         }),
       },
@@ -812,6 +821,7 @@ function emptyCart(): CartFullPayload {
     createdAt: null,
     updatedAt: null,
     lastActivityAt: null,
+    previousRejection: null,
   };
 }
 
@@ -969,6 +979,8 @@ function serializeCart(
     createdAt: cart.createdAt.toISOString(),
     updatedAt: cart.updatedAt.toISOString(),
     lastActivityAt: cart.lastActivityAt.toISOString(),
+    // Issue #650 — a read of other baskets, made by `answer()`.
+    previousRejection: null,
   };
 }
 

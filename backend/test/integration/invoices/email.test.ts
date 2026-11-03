@@ -2,6 +2,7 @@ import { Invoice } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import type {
+  CustomerAccountReadPort,
   DocumentRenderPort,
   TransactionalEmailSendInput,
   TransactionalEmailSender,
@@ -93,7 +94,7 @@ audit);
     await h.settings.adminService.setValueForAllChannels('invoices.storefront_base_url', 'https://shop.example.com', null, audit);
 
     sender = new CapturingSender();
-    const orderReadPort = new OrderReadService(h.em);
+    const orderReadPort = new OrderReadService(h.em, h.container.resolve<CustomerAccountReadPort>('customerAccountReadPort'));
     const invoiceService = new InvoiceService(
       h.em,
       orderReadPort,
@@ -162,10 +163,10 @@ audit);
     const id = await issue();
     const logged: Array<{ message: string; context: Record<string, unknown> }> = [];
     const throwingDispatcher = new InvoiceEmailDispatcher({
-      orderReadPort: new OrderReadService(h.em),
+      orderReadPort: new OrderReadService(h.em, h.container.resolve<CustomerAccountReadPort>('customerAccountReadPort')),
       invoiceService: new InvoiceService(
         h.em,
-        new OrderReadService(h.em),
+        new OrderReadService(h.em, h.container.resolve<CustomerAccountReadPort>('customerAccountReadPort')),
         new InvoiceNumberGenerator(createSettingsPatternResolver(h.settings.settingsService)),
         new SellerSettingsResolver(h.settings.settingsService),
       ),

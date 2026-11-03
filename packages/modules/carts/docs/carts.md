@@ -102,13 +102,56 @@ another Organization answers `404`, as an unknown one does; a member who is not
 an administrator is refused with `403`. Switching the policy off returns every
 pending or approved basket of the Organization to `not_required`.
 
+On the storefront the administrator does this under **Organization → Carts**
+(`/organization/carts`): the list can be narrowed to the carts awaiting
+approval, and each cart opens on its own page (`/organization/carts/<id>`) with
+its owner, lines, total and the time it was sent. A pending cart offers
+**Approve cart**, and **Reject cart** behind a disclosure, which needs a reason
+of up to 2000 characters. The page confirms the answer, or names the refusal —
+for example a cart that was answered meanwhile (`CART_APPROVAL_NOT_PENDING`).
+
+What the buyer is told after a rejection: a rejection closes the basket
+(`status = 'rejected'`), so the buyer's next read is a new, empty basket whose
+own `approvalStatus` cannot say it was rejected. The cart answer therefore
+carries `previousRejection` — `{ cartId, rejectedAt, reason }` of the buyer's
+most recent rejected basket on that sales channel — and the storefront's cart
+page shows it, with the reason. It is answered while the current basket has not
+been sent for approval and no basket of the buyer's on the channel has been
+ordered (or converted to a quote request) since the rejection; otherwise, and
+for an anonymous basket, it is `null`. The rejected basket's lines are not
+copied into the new one.
+
+### Approval e-mails
+
+Each approval step sends an e-mail, after the step has been saved:
+
+| E-mail (template code) | Sent when | To |
+| --- | --- | --- |
+| Cart sent for approval (`cart_approval_requested`) | A member sends a basket for approval | Every administrator of the member's Organization — one message each. A blocked, deleted or anonymised administrator is not told. |
+| Cart approved (`cart_approved`) | An administrator approves the basket | The member who owns the basket, naming who approved it |
+| Cart rejected (`cart_rejected`) | An administrator rejects the basket | The member who owns the basket, with the reason the administrator gave |
+
+- The messages are written in the default language of the store (sales channel)
+  the basket belongs to, and in English when the store has none. A customer
+  account does not record a language of its own, so the store's language is
+  the one the platform knows for its reader.
+- The subject and body of each message ship in English and Polish and can be
+  edited per language and per store, or switched off, on the e-mail templates
+  screen (group *carts*). The messages carry no link: the reader signs in to
+  their account to act — an administrator under **Organization → Carts**
+  (`/organization/carts`), a buyer on their cart page.
+- A message that cannot be sent — no mail server, the template switched off,
+  the recipient's mail server refusing it — never undoes or fails the approval
+  step. It is written to the server log as *"the cart approval e-mail was not
+  sent"*, with the cart, the template code and the reason.
+
 ## Public surface
 
 ### Storefront (buyer)
 
 | Verb + Path | Purpose |
 | --- | --- |
-| `GET /api/v1/cart` | The active cart of the request's sales channel (lazy-create); the payload includes `status`, `approvalStatus`, `salesChannelId`, `grandTotal`, `discount`, `primaryCta`, `droppedLines`, `couponDroppedThisRead`, `lastActivityAt` |
+| `GET /api/v1/cart` | The active cart of the request's sales channel (lazy-create); the payload includes `status`, `approvalStatus`, `salesChannelId`, `grandTotal`, `discount`, `primaryCta`, `droppedLines`, `couponDroppedThisRead`, `lastActivityAt`, `previousRejection` |
 | `POST /api/v1/cart/items` | Add line item (200-line cap enforced) |
 | `PATCH /api/v1/cart/items/:itemId` | Update quantity (accepts `0` to delete) |
 | `DELETE /api/v1/cart/items/:itemId` | Remove line |
@@ -126,7 +169,7 @@ pending or approved basket of the Organization to `not_required`.
 | Verb + Path | Purpose |
 | --- | --- |
 | `GET /api/v1/organization/carts` | List every cart in the caller's Organization |
-| `GET /api/v1/organization/carts/:id` | Detail (member-owned cart) |
+| `GET /api/v1/organization/carts/:id` | Detail of a member's cart, with its lines (`items`: name, SKU, quantity, unit price and line total as stored) |
 | `PATCH /api/v1/organization/policies/cart-approval` | Toggle `requires_cart_approval` for the Organization |
 | `POST /api/v1/cart/submit-for-approval` | Buyer submits cart for Org-Admin approval. Refused with `422 CART_APPROVAL_NOT_REQUIRED` when the policy is off, `422 CART_APPROVAL_SELF_SUBMIT` for Org-Admins themselves, `422 CART_APPROVAL_ALREADY_SUBMITTED` for a cart already sent, and for a basket below a minimum — see *Order minimums* |
 | `POST /api/v1/organization/carts/:id/approve` | Approve a pending cart; a cart not awaiting approval is `422 CART_APPROVAL_NOT_PENDING` |
@@ -388,9 +431,11 @@ surfaces `couponDroppedThisRead`. Wiring into the read path is a follow-up.
   `CartPricingRecompute`, which runs `CartLinePricing.orderablePrices`; the
   result is kept in `CartRecomputeCache` (30 s Redis TTL), which every cart write
   invalidates. The mutation answers return the stored `unitPrice`.
-- **Email dispatch** — submit-for-approval / approve / reject / abandonment
-  e-mails are scaffolded in the service surfaces; dedicated templates are a
-  follow-up.
+- **Email dispatch** — the submit-for-approval / approve / reject e-mails go
+  out through `transactional_emails` (see *Approval e-mails*). The abandonment
+  e-mail is the `cartAbandonmentNotifier` contribution point, which a
+  deployment supplies; without one the sweep flips the status and sends
+  nothing.
 - **Abandonment scheduler** — the worker is constructed in production
   composition but not yet wired to a cron / BullMQ schedule. The ops CLI
   `pnpm run cli carts abandonment-sweep`, run in the root of an instance, runs
