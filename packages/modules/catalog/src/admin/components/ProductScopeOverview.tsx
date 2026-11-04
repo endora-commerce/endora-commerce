@@ -241,6 +241,7 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
           <Button
             type="button"
             size="sm"
+            className="max-lg:min-h-11"
             variant="outline"
             onClick={(): void => {
               setLoading(true);
@@ -635,6 +636,7 @@ function ResetButton({
     <Button
       type="button"
       size="sm"
+      className="max-lg:min-h-11"
       variant="ghost"
       aria-label={label}
       title={label}
@@ -682,6 +684,7 @@ function OrphanItem({
         <Button
           type="button"
           size="sm"
+          className="max-lg:min-h-11"
           variant="outline"
           aria-label={t('productEditor.scopeOverview.orphans.deleteAria', { field, scope })}
           disabled={busy}

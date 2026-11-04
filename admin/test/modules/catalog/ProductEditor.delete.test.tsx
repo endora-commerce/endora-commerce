@@ -57,6 +57,7 @@ const BUNDLE_KEYS = [
   'productEditor.deleteConfirm',
   'productEditor.deleteTitle',
   'productEditor.deleteAction',
+  'productEditor.error.delete',
   'productEditor.wholeProduct.menu',
   'productEditor.section.identity',
   'productEditor.field.sku',
@@ -181,6 +182,7 @@ describe('ProductEditor — delete product (feature 032)', () => {
 
     await deleteThroughMenu(user);
 
-    expect(await screen.findByText(/blocked by orders/)).toBeInTheDocument();
+    // A translated lead first, the server's sentence as detail (final design review).
+    expect(await screen.findByText(/blocked by orders/)).toHaveTextContent(/^productEditor\.error\.delete blocked by orders$/);
   });
 });

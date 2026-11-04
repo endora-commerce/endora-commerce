@@ -110,6 +110,7 @@ export function AttachmentsSection(): ReactNode {
                     type="button"
                     variant="destructive"
                     size="sm"
+                    className="max-lg:min-h-11"
                     disabled={busy}
                     onClick={(): void => setRemoving({ id: attachment.id, name: subject })}
                   >
@@ -242,7 +243,7 @@ function CreateAttachmentInline({
             readOnly
             placeholder={t('productEditor.attachments.field.noAsset')}
           />
-          <Button type="button" variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
+          <Button type="button" variant="outline" size="sm" className="max-lg:min-h-11" onClick={() => setPickerOpen(true)}>
             {t('productEditor.attachments.action.pickOrUpload')}
           </Button>
         </div>

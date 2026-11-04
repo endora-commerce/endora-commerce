@@ -78,15 +78,12 @@ afterEach(() => {
 /**
  * The shared helper's rules (`test/helpers/axe.ts`: WCAG 2.0–2.2 A/AA, `color-contrast` off),
  * over the whole document so portalled menus and dialogs are included.
- *
- * One known exclusion, outside the editor's own markup: the kit's `CategoryTreePicker` sets
- * `role="tree"` on its list while its rows carry no `treeitem` role (`aria-required-children`).
- * It is a kit defect, not a 170 one, reported in the S3 block 3 report for its owner; only
- * that node is excluded, and only for that reason.
+ * No exclusion: the kit's `CategoryTreePicker` list is a labelled `group` of checkbox rows
+ * (it was a `tree` without `treeitem`s, excluded here until the final fix round).
  */
 async function expectNoAxeViolations(): Promise<void> {
   const result = await axe.run(
-    { include: [document.body], exclude: [['#category-tree-picker-list']] } as unknown as axe.ElementContext,
+    document.body,
     {
       runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
       rules: { 'color-contrast': { enabled: false } },

@@ -184,6 +184,13 @@ describe('copy to other channels (feature 170, T116, FR-086)', () => {
     await user.click(await within(dialog).findByRole('button', { name: 'Copy to 1 channel' }));
     expect(await within(dialog).findByText(en['productEditor.copy.conflict']!)).toBeInTheDocument();
     expect(screen.getByRole('dialog')).toBeInTheDocument();
+    // Not a dead end: the dialog offers to reload the product, which closes it and reads it again.
+    const reads = api.get.mock.calls.filter(([path]) => String(path).startsWith(`${BASE}/scoped-values`)).length;
+    await user.click(within(dialog).getByRole('button', { name: en['productEditor.save.reloadDiscarding']! }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() =>
+      expect(api.get.mock.calls.filter(([path]) => String(path).startsWith(`${BASE}/scoped-values`)).length).toBeGreaterThan(reads),
+    );
   });
 
   it('empty target list: unticking every channel asks for one and Copy is unavailable', async () => {

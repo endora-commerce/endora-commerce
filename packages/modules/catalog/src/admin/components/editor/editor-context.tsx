@@ -27,6 +27,8 @@ export interface ProductEditorContextValue {
   missingText(fieldPath: string): string | undefined;
   /** A copy to other channels succeeded (§8): keep its version for the next Save and announce it. */
   afterCopy(version: string, fieldLabel: string, count: number): void;
+  /** Discards the staged changes and reads the product again (the answer to a version conflict). */
+  reloadDiscarding(): void;
 }
 
 const Context = createContext<ProductEditorContextValue | null>(null);
@@ -115,6 +117,10 @@ export function EditorField<T>(props: EditorFieldProps<T>): ReactNode {
             version={state.version}
             finalFocusRef={menuRef}
             onClose={(): void => setCopyOpen(false)}
+            onReload={(): void => {
+              setCopyOpen(false);
+              ctx.reloadDiscarding();
+            }}
             onCopied={(version, count): void => {
               setCopyOpen(false);
               ctx.afterCopy(version, props.label, count);

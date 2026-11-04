@@ -140,7 +140,7 @@ export function GallerySection(): ReactNode {
                       // aria-disabled, not disabled: the pressed button keeps focus while the move runs.
                       aria-disabled={busy || index === 0 ? true : undefined}
                       data-move="up"
-                      className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                      className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50 max-lg:min-h-11"
                       aria-label={t('productEditor.gallery.moveUp', { item: name })}
                       onClick={(): void => move(index, index - 1)}
                     >
@@ -152,13 +152,13 @@ export function GallerySection(): ReactNode {
                       size="sm"
                       aria-disabled={busy || index === items.length - 1 ? true : undefined}
                       data-move="down"
-                      className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                      className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50 max-lg:min-h-11"
                       aria-label={t('productEditor.gallery.moveDown', { item: name })}
                       onClick={(): void => move(index, index + 1)}
                     >
                       <ArrowDown className="size-4" aria-hidden="true" />
                     </Button>
-                    <Button type="button" variant="destructive" size="sm" disabled={busy} onClick={(): void => setRemoving(item.id)}>
+                    <Button type="button" variant="destructive" size="sm" className="max-lg:min-h-11" disabled={busy} onClick={(): void => setRemoving(item.id)}>
                       <Trash2 className="size-4" aria-hidden="true" />
                       {t('productEditor.gallery.action.removeItem', { item: name })}
                     </Button>
@@ -272,7 +272,7 @@ function AddGalleryItem({ disabled, onAdd }: { disabled: boolean; onAdd(assetId:
       <Label htmlFor="gallery-new-asset">{t('productEditor.gallery.field.asset')}</Label>
       <div className="flex flex-wrap items-center gap-2">
         <Input id="gallery-new-asset" readOnly value={picked?.filename ?? ''} placeholder={t('productEditor.gallery.field.noAsset')} />
-        <Button type="button" variant="outline" size="sm" onClick={(): void => setPickerOpen(true)}>
+        <Button type="button" variant="outline" size="sm" className="max-lg:min-h-11" onClick={(): void => setPickerOpen(true)}>
           {t('productEditor.gallery.action.pickOrUpload')}
         </Button>
         <Button

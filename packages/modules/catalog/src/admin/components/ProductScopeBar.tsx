@@ -88,104 +88,108 @@ export function ProductScopeBar(props: ProductScopeBarProps): ReactNode {
   const noChannels = validScopes !== null && channels.length === 0;
 
   return (
-    <section
-      aria-label={t('productEditor.scope.region')}
-      className="mb-4 rounded-lg border bg-card p-3 lg:sticky lg:top-0 lg:z-10"
-      data-testid="product-scope-bar"
-    >
-      <div className="flex flex-wrap items-start gap-4">
-        <div className="flex min-w-[12rem] flex-col gap-1">
-          <Label htmlFor={channelId}>{t('productEditor.scope.channelSelect')}</Label>
-          {channelOptions.length > CHANNEL_SELECT_THRESHOLD ? (
-            <Combobox
-              id={channelId}
-              options={channelOptions}
-              value={currentChannelId}
-              onChange={(value): void => pickChannel(value ?? '')}
-              ariaLabel={t('productEditor.scope.channelSelect')}
-            />
-          ) : (
+    <>
+      <section
+        aria-label={t('productEditor.scope.region')}
+        className="mb-4 rounded-lg border bg-card p-3 lg:sticky lg:top-0 lg:z-10"
+        data-testid="product-scope-bar"
+      >
+        <div className="flex flex-wrap items-start gap-4">
+          <div className="flex min-w-[12rem] flex-col gap-1">
+            <Label htmlFor={channelId}>{t('productEditor.scope.channelSelect')}</Label>
+            {channelOptions.length > CHANNEL_SELECT_THRESHOLD ? (
+              <Combobox
+                id={channelId}
+                options={channelOptions}
+                value={currentChannelId}
+                onChange={(value): void => pickChannel(value ?? '')}
+                ariaLabel={t('productEditor.scope.channelSelect')}
+              />
+            ) : (
+              <Select
+                id={channelId}
+                className="max-lg:min-h-11"
+                value={currentChannelId}
+                disabled={noChannels}
+                aria-describedby={noChannels ? hintId : undefined}
+                onChange={(e): void => pickChannel(e.target.value)}
+              >
+                {channelOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </div>
+          <div className="flex min-w-[12rem] flex-col gap-1">
+            <Label htmlFor={languageId}>{t('productEditor.scope.languageSelect')}</Label>
             <Select
-              id={channelId}
+              id={languageId}
               className="max-lg:min-h-11"
-              value={currentChannelId}
-              disabled={noChannels}
-              aria-describedby={noChannels ? hintId : undefined}
-              onChange={(e): void => pickChannel(e.target.value)}
+              value={currentLanguage}
+              disabled={scope.level === 'global'}
+              aria-describedby={scope.level === 'global' ? `${languageId}-hint` : undefined}
+              onChange={(e): void => pickLanguage(e.target.value)}
             >
-              {channelOptions.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
+              <option value="">{t('productEditor.scope.allLanguages')}</option>
+              {(currentChannel?.languages ?? []).map((l) => (
+                <option key={l.code} value={l.code}>
+                  {l.name || languageName(validScopes ?? { channels: [] }, currentChannelId, l.code, adminLanguage)}
                 </option>
               ))}
             </Select>
-          )}
-        </div>
-        <div className="flex min-w-[12rem] flex-col gap-1">
-          <Label htmlFor={languageId}>{t('productEditor.scope.languageSelect')}</Label>
-          <Select
-            id={languageId}
-            className="max-lg:min-h-11"
-            value={currentLanguage}
-            disabled={scope.level === 'global'}
-            aria-describedby={scope.level === 'global' ? `${languageId}-hint` : undefined}
-            onChange={(e): void => pickLanguage(e.target.value)}
-          >
-            <option value="">{t('productEditor.scope.allLanguages')}</option>
-            {(currentChannel?.languages ?? []).map((l) => (
-              <option key={l.code} value={l.code}>
-                {l.name || languageName(validScopes ?? { channels: [] }, currentChannelId, l.code, adminLanguage)}
-              </option>
-            ))}
-          </Select>
-          {scope.level === 'global' ? (
-            <span id={`${languageId}-hint`} className="text-xs text-muted-foreground">
-              {t('productEditor.scope.pickChannelFirst')}
+            {scope.level === 'global' ? (
+              <span id={`${languageId}-hint`} className="text-xs text-muted-foreground">
+                {t('productEditor.scope.pickChannelFirst')}
+              </span>
+            ) : null}
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-muted-foreground">{t('productEditor.scope.editing')}</span>
+            <span className="inline-flex items-center gap-1 font-medium" data-testid="scope-words">
+              {scope.level === 'global' ? <Globe className="size-4" aria-hidden="true" /> : null}
+              {scope.level === 'channel_language' ? <Languages className="size-4" aria-hidden="true" /> : null}
+              {scopeWords}
             </span>
-          ) : null}
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 self-start text-sm text-primary underline underline-offset-2 max-lg:min-h-11"
+              onClick={onOpenScopeMap}
+            >
+              <LayoutGrid className="size-3.5" aria-hidden="true" />
+              {t('productEditor.scope.scopeMap')}
+            </button>
+          </div>
         </div>
-        <div className="flex flex-col gap-1">
-          <span className="text-xs text-muted-foreground">{t('productEditor.scope.editing')}</span>
-          <span className="inline-flex items-center gap-1 font-medium" data-testid="scope-words">
-            {scope.level === 'global' ? <Globe className="size-4" aria-hidden="true" /> : null}
-            {scope.level === 'channel_language' ? <Languages className="size-4" aria-hidden="true" /> : null}
-            {scopeWords}
+        {noChannels ? (
+          <p id={hintId} className="mt-2 text-sm text-muted-foreground">
+            {t('productEditor.scope.noChannels')}
+          </p>
+        ) : null}
+        <div
+          className={
+            scope.level === 'global'
+              ? 'hidden'
+              : 'mt-3 flex items-center gap-2 rounded-md border border-[var(--warn)]/40 bg-[var(--warn-soft)] px-3 py-2 text-sm text-[var(--warn-soft-fg)]'
+          }
+        >
+          <TriangleAlert className="size-4 shrink-0" aria-hidden="true" />
+          {/* Not a live region: the editor announces the scope once its data has loaded. */}
+          <span data-testid="scope-banner-live">
+            {bannerText}
           </span>
-          <button
-            type="button"
-            className="inline-flex items-center gap-1 self-start text-sm text-primary underline underline-offset-2 max-lg:min-h-11"
-            onClick={onOpenScopeMap}
-          >
-            <LayoutGrid className="size-3.5" aria-hidden="true" />
-            {t('productEditor.scope.scopeMap')}
-          </button>
         </div>
-      </div>
-      {noChannels ? (
-        <p id={hintId} className="mt-2 text-sm text-muted-foreground">
-          {t('productEditor.scope.noChannels')}
-        </p>
-      ) : null}
-      <div
-        className={
-          scope.level === 'global'
-            ? 'hidden'
-            : 'mt-3 flex items-center gap-2 rounded-md border border-[var(--warn)]/40 bg-[var(--warn-soft)] px-3 py-2 text-sm text-[var(--warn-soft-fg)]'
-        }
-      >
-        <TriangleAlert className="size-4 shrink-0" aria-hidden="true" />
-        {/* Not a live region: the editor announces the scope once its data has loaded. */}
-        <span data-testid="scope-banner-live">
-          {bannerText}
-        </span>
-      </div>
-      {readOnly ? (
-        <p className="mt-2 inline-flex items-center gap-1 text-sm text-muted-foreground">
-          <Lock className="size-3.5" aria-hidden="true" />
-          {t('productEditor.scope.readOnly')}
-        </p>
-      ) : null}
-      {completeness ? <div className="mt-2 text-sm">{completeness}</div> : null}
-    </section>
+        {readOnly ? (
+          <p className="mt-2 inline-flex items-center gap-1 text-sm text-muted-foreground">
+            <Lock className="size-3.5" aria-hidden="true" />
+            {t('productEditor.scope.readOnly')}
+          </p>
+        ) : null}
+      </section>
+      {/* Outside the sticky bar (final design review): a long "missing here" list would hold a
+          permanent slice of a laptop viewport; the selects and the scope banner stay sticky. */}
+      {completeness ? <div className="-mt-2 mb-4 px-3 text-sm">{completeness}</div> : null}
+    </>
   );
 }

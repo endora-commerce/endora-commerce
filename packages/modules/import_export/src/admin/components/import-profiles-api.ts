@@ -70,7 +70,8 @@ export function errorMessage(
 ): string {
   if (err instanceof ApiError) {
     const code = err.envelope.error.code;
-    return TRANSLATED_ERROR_CODES.has(code) ? t(`errors.${code}`) : err.envelope.error.message;
+    // An untranslated code: the translated lead, with the server's sentence as detail.
+    return TRANSLATED_ERROR_CODES.has(code) ? t(`errors.${code}`) : `${t(fallbackKey)} ${err.envelope.error.message}`;
   }
   return t(fallbackKey);
 }

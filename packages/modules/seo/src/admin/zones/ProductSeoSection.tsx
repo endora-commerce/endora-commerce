@@ -90,7 +90,7 @@ export function ProductSeoSection(props: ProductSeoSectionProps): ReactNode {
         <span role="alert" className="text-destructive">
           {t('productSeo.loadFailed')}
         </span>
-        <Button type="button" variant="outline" size="sm" onClick={(): void => setReload((n) => n + 1)}>
+        <Button type="button" variant="outline" size="sm" className="max-lg:min-h-11" onClick={(): void => setReload((n) => n + 1)}>
           <RotateCw size={14} aria-hidden="true" /> {t('productSeo.retry')}
         </Button>
       </div>

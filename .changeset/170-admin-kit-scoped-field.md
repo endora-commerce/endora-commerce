@@ -9,3 +9,4 @@
 
 `CategoryTreePicker`'s list is a labelled `role="group"` instead of `role="tree"`: its rows are checkboxes, not `treeitem`s, and it has no tree keyboard model. A test that queried `getByRole('tree', …)` queries `getByRole('group', …)`.
 - `@endora-commerce/admin-kit/ui` exports `DropdownMenuSeparator` (the existing primitive), so a menu can set its destructive item apart.
+- `CategoryTreePicker`: clicking a category name toggles it, each expand control names its branch (`categoryTreePicker.expand` / `.collapse` take `{name}`), the list id is per instance, the loading line is a status, and its controls are 44 px below 1024 px. The `ScopedField` "Edit at" control is 44 px there too.

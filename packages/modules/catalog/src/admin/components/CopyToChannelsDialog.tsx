@@ -35,6 +35,8 @@ export interface CopyToChannelsDialogProps {
   version: string;
   onClose(): void;
   onCopied(version: string, count: number): void;
+  /** A version conflict: close and read the product again (a retry would fail the same way). */
+  onReload?(): void;
   finalFocusRef?: RefObject<HTMLElement | null>;
 }
 
@@ -48,8 +50,21 @@ type Check =
   | { state: 'ready'; overwrites: CopyScopedValueResponse['data']['overwrites'] };
 
 export function CopyToChannelsDialog(props: CopyToChannelsDialogProps): ReactNode {
-  const { productId, fieldPath, fieldLabel, from, sourceScopeLabel, languageName, value, targets, version, onClose, onCopied, finalFocusRef } =
-    props;
+  const {
+    productId,
+    fieldPath,
+    fieldLabel,
+    from,
+    sourceScopeLabel,
+    languageName,
+    value,
+    targets,
+    version,
+    onClose,
+    onCopied,
+    onReload,
+    finalFocusRef,
+  } = props;
   const t = useTranslation('catalog');
   const adminLanguage = useContext(AppLanguageContext)?.language ?? 'en';
   const plural = (key: string, count: number): string =>
@@ -57,6 +72,7 @@ export function CopyToChannelsDialog(props: CopyToChannelsDialogProps): ReactNod
 
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set(targets.map((target) => target.channelId)));
   const [check, setCheck] = useState<Check>({ state: 'idle' });
+  const [conflict, setConflict] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [copying, setCopying] = useState(false);
   const [copyError, setCopyError] = useState<string | null>(null);
@@ -88,7 +104,9 @@ export function CopyToChannelsDialog(props: CopyToChannelsDialogProps): ReactNod
         if (request === requestRef.current) setCheck({ state: 'ready', overwrites: res.data.overwrites });
       },
       (err: unknown) => {
-        if (request === requestRef.current) setCheck({ state: 'error', message: errorText(err, t('productEditor.copy.checkError')) });
+        if (request !== requestRef.current) return;
+        setConflict(err instanceof ApiError && err.status === 409);
+        setCheck({ state: 'error', message: errorText(err, t('productEditor.copy.checkError')) });
       },
     );
     // `from` is a fresh object per render; its two strings are the dependency.
@@ -107,6 +125,7 @@ export function CopyToChannelsDialog(props: CopyToChannelsDialogProps): ReactNod
       },
       (err: unknown) => {
         setCopying(false);
+        setConflict(err instanceof ApiError && err.status === 409);
         setCopyError(errorText(err, t('productEditor.copy.copyError')));
       },
     );
@@ -194,9 +213,14 @@ export function CopyToChannelsDialog(props: CopyToChannelsDialogProps): ReactNod
                   <li key={row.channelId}>
                     <span className="font-medium">{nameOf(row.channelId)}</span>
                     {': '}
-                    <span className="break-words">
-                      {typeof row.currentValue === 'string' ? row.currentValue : t('productEditor.copy.currentEmpty')}
-                    </span>
+                    {typeof row.currentValue === 'string' ? (
+                      // A long value is clamped to three lines; the whole of it stays in the title.
+                      <span className="line-clamp-3 break-words" title={row.currentValue}>
+                        {row.currentValue}
+                      </span>
+                    ) : (
+                      <span>{t('productEditor.copy.currentEmpty')}</span>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -208,15 +232,28 @@ export function CopyToChannelsDialog(props: CopyToChannelsDialogProps): ReactNod
           <Alert variant="destructive">
             <AlertDescription>
               <span>{check.message}</span>
-              <Button type="button" variant="outline" size="sm" className="ml-2" onClick={(): void => setAttempt((n) => n + 1)}>
-                {t('productEditor.copy.retry')}
-              </Button>
+              {conflict && onReload ? (
+                <Button type="button" variant="outline" size="sm" className="ml-2 max-lg:min-h-11" onClick={onReload}>
+                  {t('productEditor.save.reloadDiscarding')}
+                </Button>
+              ) : (
+                <Button type="button" variant="outline" size="sm" className="ml-2 max-lg:min-h-11" onClick={(): void => setAttempt((n) => n + 1)}>
+                  {t('productEditor.copy.retry')}
+                </Button>
+              )}
             </AlertDescription>
           </Alert>
         ) : null}
         {copyError ? (
           <Alert variant="destructive">
-            <AlertDescription>{copyError}</AlertDescription>
+            <AlertDescription>
+              <span>{copyError}</span>
+              {conflict && onReload ? (
+                <Button type="button" variant="outline" size="sm" className="ml-2 max-lg:min-h-11" onClick={onReload}>
+                  {t('productEditor.save.reloadDiscarding')}
+                </Button>
+              ) : null}
+            </AlertDescription>
           </Alert>
         ) : null}
       </div>

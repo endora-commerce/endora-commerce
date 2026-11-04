@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from 'react';
 import { Alert, AlertDescription } from '../../ui/alert.js';
 import { Input } from '../../ui/input.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
@@ -37,6 +37,7 @@ export interface CategoryTreePickerProps {
  */
 export function CategoryTreePicker(props: CategoryTreePickerProps): ReactNode {
   const t = useTranslation('core');
+  const listId = useId();
   const { language } = useTranslationContext();
   const locale = adminLanguageToLocale(language);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
@@ -107,7 +108,11 @@ export function CategoryTreePicker(props: CategoryTreePickerProps): ReactNode {
   const wrapperClass = props.className ? `space-y-2 ${props.className}` : 'space-y-2';
 
   if (props.loading) {
-    return <p className="text-sm text-muted-foreground">{t('categoryTreePicker.loading')}</p>;
+    return (
+      <p role="status" className="text-sm text-muted-foreground">
+        {t('categoryTreePicker.loading')}
+      </p>
+    );
   }
 
   if (props.error) {
@@ -129,7 +134,7 @@ export function CategoryTreePicker(props: CategoryTreePickerProps): ReactNode {
         onChange={(e): void => setFilterQuery(e.target.value)}
       />
       <div
-        id="category-tree-picker-list"
+        id={listId}
         // A labelled group of checkbox rows, not an ARIA tree: the rows are not `treeitem`s and the
         // list has no tree keyboard model, so `role="tree"` announced a widget that is not there.
         role="group"
@@ -155,8 +160,8 @@ export function CategoryTreePicker(props: CategoryTreePickerProps): ReactNode {
               disabled={props.disabled ?? false}
               hasChildren={hasChildren}
               expanded={expanded}
-              expandLabel={t('categoryTreePicker.expand')}
-              collapseLabel={t('categoryTreePicker.collapse')}
+              expandLabel={(name): string => t('categoryTreePicker.expand', { name })}
+              collapseLabel={(name): string => t('categoryTreePicker.collapse', { name })}
               onToggleExpand={(): void => toggleExpand(node.category.id)}
               onToggleSelect={(): void => toggleSelect(node.category.id)}
             />

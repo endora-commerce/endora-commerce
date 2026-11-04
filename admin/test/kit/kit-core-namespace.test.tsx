@@ -148,7 +148,8 @@ describe('R-1 — the kit names no translation namespace but `core`', () => {
     );
     expect(screen.getByPlaceholderText('Filter categories…')).toBeTruthy();
     expect(screen.getByRole('group', { name: 'Catalog category tree' })).toBeTruthy();
-    expect(screen.getAllByRole('button', { name: 'Expand branch' }).length).toBeGreaterThan(0);
+    // Each expand control names its branch (final design review, feature 170).
+    expect(screen.getAllByRole('button', { name: /^Expand \S/ }).length).toBeGreaterThan(0);
     expectNoRawKeys(en.container);
     en.unmount();
 

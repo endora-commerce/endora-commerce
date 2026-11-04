@@ -181,7 +181,7 @@ export function ScopedField<T>(props: ScopedFieldProps<T>): ReactNode {
           {!readOnly && onJumpToScope ? (
             <button
               type="button"
-              className="mt-1 text-xs font-medium text-primary underline underline-offset-2"
+              className="mt-1 text-xs font-medium text-primary underline underline-offset-2 max-lg:min-h-11"
               onClick={(): void => onJumpToScope(target)}
             >
               {t('scopedField.editAt', { scope: targetLabel })}

@@ -81,7 +81,7 @@ export function ProductUrlRedirects({ productId, canWrite }: { productId: string
           <span role="alert" className="text-destructive">
             {t('productEditor.urlKeys.error.loadRedirects')}
           </span>
-          <Button type="button" variant="outline" size="sm" onClick={(): void => void load()}>
+          <Button type="button" variant="outline" size="sm" className="max-lg:min-h-11" onClick={(): void => void load()}>
             <RotateCw size={14} aria-hidden="true" /> {t('productEditor.error.retry')}
           </Button>
         </div>
@@ -109,6 +109,7 @@ export function ProductUrlRedirects({ productId, canWrite }: { productId: string
                     type="button"
                     variant="ghost"
                     size="sm"
+                    className="max-lg:min-h-11"
                     aria-disabled={busy || undefined}
                     aria-label={t('productEditor.urlKeys.deleteRedirectFor', { key: r.key })}
                     onClick={(): void => {
