@@ -98,6 +98,11 @@ const { default: MembersPage } = await import('../../app/(account)/organization/
 const { createRoleAction, updateRoleAction, deleteRoleAction } = await import(
   '../../app/(account)/organization/roles/actions'
 );
+const { RoleEditorForm } = await import('../../components/account/RoleEditorForm');
+
+/** No refusal yet — what `useActionState` starts from. */
+const IDLE = { error: null };
+
 
 function role(overrides: Partial<OrganizationRoleView> & Pick<OrganizationRoleView, 'id' | 'kind' | 'name'>): OrganizationRoleView {
   return {
@@ -350,33 +355,89 @@ describe('new role — /organization/roles/new (owner ruling Q1)', () => {
     expect(text).toContain('Works only together with “Place orders without approval”.');
   });
 
-  it.each([
-    ['ORGANIZATION_ROLE_NAME_TAKEN', 'A role with this name already exists in your organization. Choose another name.'],
-    ['ORGANIZATION_ROLE_LIMIT_REACHED', 'Your organization already has 50 custom roles, the most it can hold.'],
-    ['ORGANIZATION_PERMISSION_UNKNOWN', 'One of the permissions is no longer available. Review the list and save again.'],
-    ['Call +48 000 000 000', 'The role could not be saved. Try again.'],
-  ])('names the refusal %s', async (error, sentence) => {
-    const out = await html(create({ error }));
-    expect(visibleText(out)).toContain(sentence);
-    expect(out).toContain('role="alert"');
-    expect(out).not.toContain('+48 000');
+  it('reads nothing from the URL: a crafted link neither pre-fills the form nor shows a refusal', async () => {
+    const out = await html(create({ error: 'ORGANIZATION_ROLE_NAME_TAKEN', name: 'Everything', permissions: 'carts.approve' }));
+    expect(tagWith(out, 'name="name"')).not.toContain('value=');
+    expect(out).not.toMatch(/checked/);
+    expect(visibleText(out)).not.toContain('already exists');
   });
 
-  it('links a taken name to the name field', async () => {
-    const out = await html(create({ error: 'ORGANIZATION_ROLE_NAME_TAKEN' }));
-    expect(tagWith(out, 'name="name"')).toContain('aria-invalid="true"');
-    expect(tagWith(out, 'name="name"')).toContain('aria-describedby="role-name-error"');
+  it('mounts its announcement region empty, before any refusal (WCAG 4.1.3)', async () => {
+    const out = await html(create());
+    expect(out).toMatch(/<div[^>]*id="role-form-error"[^>]*><\/div>/);
+    expect(out).toMatch(/<div[^>]*role="alert"[^>]*id="role-form-error"|<div[^>]*id="role-form-error"[^>]*role="alert"/);
   });
 
   it('renders in Polish', async () => {
     locale = 'pl-PL';
-    const text = visibleText(await html(create({ error: 'ORGANIZATION_ROLE_NAME_TAKEN' })));
+    const text = visibleText(await html(create()));
     expect(text).toContain('Nowa rola');
     expect(text).toContain('Nazwa roli');
     expect(text).toContain('Opis (opcjonalnie)');
     expect(text).toContain('Utwórz rolę');
     expect(text).toContain('Działa tylko razem z uprawnieniem „Place orders without approval”.');
-    expect(text).toContain('Rola o tej nazwie już istnieje w Twojej organizacji. Wybierz inną nazwę.');
+  });
+});
+
+/**
+ * Owner ruling 2026-11-04 (PR #715, Q3): a refused create or edit keeps what
+ * the administrator typed and ticked. The form is a client component on
+ * `useActionState`; the action answers the refusal's **code** as state, and
+ * nothing of the form travels in a URL. SSR-only harness: the refusal is
+ * rendered from `initialState`, which is `useActionState`'s own starting state.
+ */
+describe('role form — a refusal is shown by its code, in place', () => {
+  const noop = async () => IDLE;
+  const formFor = (error: string | null, role: Parameters<typeof RoleEditorForm>[0]['role'] = null) =>
+    renderToString(
+      <RoleEditorForm
+        action={noop}
+        locale={locale}
+        groups={catalogue}
+        granted={[]}
+        role={role}
+        cancelHref="/organization/roles"
+        initialState={{ error: error as never }}
+      />,
+    ).replaceAll('<!-- -->', '');
+
+  it.each([
+    ['ORGANIZATION_ROLE_NAME_TAKEN', 'A role with this name already exists in your organization. Choose another name.'],
+    ['ORGANIZATION_ROLE_LIMIT_REACHED', 'Your organization already has 50 custom roles, the most it can hold.'],
+    ['ORGANIZATION_PERMISSION_UNKNOWN', 'One of the permissions is no longer available. Review the list and save again.'],
+    ['FAILED', 'The role could not be saved. Try again.'],
+  ])('names the refusal %s in the announcement region', (error, sentence) => {
+    const out = formFor(error);
+    expect(visibleText(out)).toContain(sentence);
+    expect(out).toMatch(/id="role-form-error"/);
+    expect(out).toContain('role="alert"');
+  });
+
+  it('links a taken name to the name field', () => {
+    const out = formFor('ORGANIZATION_ROLE_NAME_TAKEN');
+    expect(tagWith(out, 'name="name"')).toContain('aria-invalid="true"');
+    expect(tagWith(out, 'name="name"')).toContain('aria-describedby="role-name-error"');
+  });
+
+  it('says a stale edit keeps the changes but cannot save them over another’s, and offers the reload', () => {
+    const out = formFor('ORGANIZATION_ROLE_STALE', {
+      id: R_JUNIOR,
+      kind: 'custom',
+      name: 'Junior buyer',
+      description: null,
+      version: 2,
+    });
+    expect(visibleText(out)).toContain(
+      'Someone changed this role while you were editing it. Your changes are still here, but they cannot be saved over theirs: reload the role to see its current state.',
+    );
+    expect(out).toContain(`href="/organization/roles/${R_JUNIOR}"`);
+  });
+
+  it('renders the refusal in Polish', () => {
+    locale = 'pl-PL';
+    expect(visibleText(formFor('ORGANIZATION_ROLE_NAME_TAKEN'))).toContain(
+      'Rola o tej nazwie już istnieje w Twojej organizacji. Wybierz inną nazwę.',
+    );
   });
 });
 
@@ -441,8 +502,7 @@ describe('a role — /organization/roles/[id]', () => {
     ['ORGANIZATION_ROLE_STALE', 'Someone changed this role while you were editing it. Its current state is shown: review it and save again.'],
     ['ORGANIZATION_ROLE_PROTECTED', 'The Administrator and Member roles cannot be renamed or deleted.'],
     ['ORGANIZATION_ROLE_REPLACEMENT_REQUIRED', 'Members or invitations hold this role: choose the role they move to.'],
-    ['ORGANIZATION_ROLE_NAME_TAKEN', 'A role with this name already exists in your organization. Choose another name.'],
-  ])('names the refusal %s', async (error, sentence) => {
+  ])('names the refused deletion %s', async (error, sentence) => {
     const out = await html(edit(R_JUNIOR, { error }));
     expect(visibleText(out)).toContain(sentence);
     expect(out).toContain('role="alert"');
@@ -462,6 +522,7 @@ describe('role actions', () => {
   it('creates a role with the ticked permissions, the name trimmed and an empty description left out', async () => {
     const to = await rejection(
       createRoleAction(
+        IDLE,
         form([
           ['name', '  Junior buyer '],
           ['description', '  '],
@@ -475,15 +536,22 @@ describe('role actions', () => {
     expect(call?.args[1]).toEqual({ name: 'Junior buyer', permissions: ['carts.create', 'returns.create'] });
   });
 
-  it('sends a refused creation back to the form with the code only', async () => {
+  it('answers a refused creation with its code as state, and does not navigate', async () => {
     failure = new StorefrontApiError(409, 'ORGANIZATION_ROLE_NAME_TAKEN', 'Taken: call +48 000');
-    const to = await rejection(createRoleAction(form([['name', 'Member']])));
-    expect(to).toBe('redirect /organization/roles/new?error=ORGANIZATION_ROLE_NAME_TAKEN');
+    await expect(createRoleAction(IDLE, form([['name', 'Member']]))).resolves.toEqual({
+      error: 'ORGANIZATION_ROLE_NAME_TAKEN',
+    });
+  });
+
+  it('answers an unknown failure as FAILED, never as the API’s sentence', async () => {
+    failure = new Error('Call +48 000');
+    await expect(createRoleAction(IDLE, form([['name', 'X']]))).resolves.toEqual({ error: 'FAILED' });
   });
 
   it('saves a custom role at the version read, a cleared description as null', async () => {
     const to = await rejection(
       updateRoleAction(
+        IDLE,
         form([
           ['id', R_JUNIOR],
           ['expectedVersion', '2'],
@@ -502,15 +570,16 @@ describe('role actions', () => {
   });
 
   it('saves Member’s permissions only — an empty list when nothing is ticked', async () => {
-    await rejection(updateRoleAction(form([['id', R_MEMBER], ['expectedVersion', '1']])));
+    await rejection(updateRoleAction(IDLE, form([['id', R_MEMBER], ['expectedVersion', '1']])));
     const call = calls.find((c) => c.fn === 'updateRole');
     expect(call?.args.slice(1, 3)).toEqual([R_MEMBER, { expectedVersion: 1, permissions: [] }]);
   });
 
-  it('sends a stale save back to the role, which reloads its current state', async () => {
+  it('answers a stale save with its code as state, keeping the form where it is', async () => {
     failure = new StorefrontApiError(409, 'ORGANIZATION_ROLE_STALE', 'stale');
-    const to = await rejection(updateRoleAction(form([['id', R_JUNIOR], ['expectedVersion', '1'], ['name', 'X']])));
-    expect(to).toBe(`redirect /organization/roles/${R_JUNIOR}?error=ORGANIZATION_ROLE_STALE`);
+    await expect(
+      updateRoleAction(IDLE, form([['id', R_JUNIOR], ['expectedVersion', '1'], ['name', 'X']])),
+    ).resolves.toEqual({ error: 'ORGANIZATION_ROLE_STALE' });
   });
 
   it('deletes a role, moving its holders to the chosen replacement, and reports how many moved', async () => {

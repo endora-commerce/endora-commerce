@@ -21,6 +21,7 @@ import { POLISH_DIACRITIC, visibleText } from './text';
 
 let locale = 'en-US';
 let ownPermissions: Array<{ code: string; label: string; description: string }> = [];
+let ownRoleReads = 0;
 
 const me: MeResult = {
   customerAccount: {
@@ -107,7 +108,7 @@ vi.mock('../../../lib/api/organization', () => ({
     { id: '00000000-0000-4000-8000-0000000000a1', kind: 'administrator', name: 'Administrator', permissions: [] },
     { id: '00000000-0000-4000-8000-0000000000b1', kind: 'member', name: locale === 'pl-PL' ? 'Członek' : 'Member', permissions: [] },
   ],
-  getMyRole: async () => ({
+  getMyRole: async () => (ownRoleReads++, {
     role: { id: '00000000-0000-4000-8000-0000000000a1', kind: 'administrator', name: 'Administrator' },
     permissions: ownPermissions,
   }),
@@ -214,6 +215,24 @@ describe('account shell — the shop language (issue #85)', () => {
     const { en, pl } = await both(() => Page({ searchParams: Promise.resolve({}) }));
     expect(en).toContain('Your role does not allow any of the actions an organization can grant.');
     expect(pl).toContain('Twoja rola nie pozwala na żadne z działań, które organizacja może przyznać.');
+  });
+
+  it('shows a personal Organization’s member no role and no list, and does not read it (owner ruling, PR #715)', async () => {
+    ownPermissions = [{ code: 'carts.create', label: 'Create and edit carts', description: 'Add products to a cart.' }];
+    ownRoleReads = 0;
+    me.organization!.isPersonal = true;
+    try {
+      const { default: Page } = await import('../../../app/(account)/account/page');
+      const { en, pl } = await both(() => Page({ searchParams: Promise.resolve({}) }));
+      expect(en).toContain('Your profile');
+      expect(en).not.toContain('Role Administrator');
+      expect(en).not.toContain('What your role allows');
+      expect(en).not.toContain('Create and edit carts');
+      expect(pl).not.toContain('Na co pozwala Twoja rola');
+      expect(ownRoleReads).toBe(0);
+    } finally {
+      me.organization!.isPersonal = false;
+    }
   });
 
   it('renders the password page in both languages', async () => {
