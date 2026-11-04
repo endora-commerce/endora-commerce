@@ -138,6 +138,7 @@ const modules = [
       'modules/catalog/attributes',
       'modules/catalog/category-content',
       'modules/catalog/composite-products',
+      'modules/catalog/editing-a-product-at-a-scope',
       'modules/catalog/packaging-units',
       'modules/catalog/attachments',
       'modules/catalog/product-content',

@@ -126,7 +126,7 @@ Answers given by the owner on 2026-10-29 / 2026-10-30.
 - Q: (FR-074; corrected by round 6) What does "one undo per save" mean? → A: **(a)** — the existing audit-log undo restores the whole
   save; **no Undo button** in the editor.
 - Q: (FR-097) Completeness display at coarser scopes? → A: **C×L**: per-field markers; **Channel**: a list of
-  the fields missing across its languages; **Global**: "N incomplete scopes" with a link to the Scopes tab.
+  the fields missing across its languages; **Global**: "N incomplete scopes" with a link to the Scope map.
 - Q: (FR-033) Search index shape? → A: **One search index per channel**; each product document carries the
   effective text (C×L → C → G) for **every language the channel offers**; storefront search matches **only the
   shopper's language** — a Polish shopper typing "drill" does not find "Wiertarka X" whose English name is
@@ -712,14 +712,14 @@ field is named and its link focuses it.
 
 1. **Given** C×L with name and URL key missing, **Then** both are named, each linking to its field.
 2. **Given** C, **Then** the fields missing across the channel's languages are listed; **given** Global,
-   **Then** "N incomplete scopes" is shown with a link to the Scopes tab (FR-097).
+   **Then** "N incomplete scopes" is shown with a link to the Scope map (FR-097).
 3. **Given** a complete scope, **Then** nothing is shown.
 
 ---
 
 ### User Story 12 - The scope map switches the editor scope (Priority: P3)
 
-On the Scopes tab, each cell (C×L), "whole channel" entry (C) and the Global corner offer "Edit at <scope>";
+On the Scope map, each cell (C×L), "whole channel" entry (C) and the Global corner offer "Edit at <scope>";
 each field named in a cell links to that field at that scope; the links are real, shareable links. Delivers
 163 L7.
 
@@ -730,7 +730,7 @@ and the field focused; open it in a new tab with the same result.
 
 **Acceptance Scenarios**:
 
-1. **Given** the Scopes tab, **When** "Edit at B2B PL × Polish" is activated, **Then** the editor scope
+1. **Given** the Scope map, **When** "Edit at B2B PL × Polish" is activated, **Then** the editor scope
    becomes B2B PL × Polish.
 2. **Given** a cell naming "URL key", **When** activated, **Then** the URL-key field opens at that scope.
 3. **Given** staged changes, **When** a map link is activated, **Then** the Save / Discard / Stay dialog
@@ -800,6 +800,8 @@ and the field focused; open it in a new tab with the same result.
   FR-085.
 - **FR-004**: A save MUST NOT change any value at any scope other than the values staged
   at the current scope.
+  The completeness gate's `required_empty` refusal at Global is the one deliberate extension of what a save
+  checks (not of what it writes): see FR-095.
 
 #### Scope model (US2)
 
@@ -929,14 +931,14 @@ therefore a schema change, not a data-preserving move.
   channels + member channels) and a "Language" select (All languages + the languages the chosen channel
   offers). All channels → Global (the Language select then shows "All languages" and is not editable); a
   channel with All languages → C; a channel with a language → C×L.
-- **FR-051**: Only scopes valid for the product MUST be offered; orphaned scopes stay on the Scopes tab.
+- **FR-051**: Only scopes valid for the product MUST be offered; orphaned scopes stay on the Scope map.
 - **FR-052**: Every tab MUST show and edit values at the editor scope; the Details chips, the gallery "Scope"
   and "Language" selects, the URL-keys "Add override" select and every all-languages-at-once dialog MUST be
   replaced by the switcher. Every per-tab scope selector MUST be retired in 172 (round 2; audit Q13).
 - **FR-053**: Outside Global the scope banner MUST read "Changes apply only to <scope in words>" with an icon
   and the warning treatment, never colour alone (WCAG 1.4.1), announced through a live region present before
   its text is set (WCAG 4.1.3).
-- **FR-054**: The switcher area MUST show the editor scope in words and a link to the Scopes tab; the header
+- **FR-054**: The switcher area MUST show the editor scope in words and a link to the Scope map; the header
   status indicator MUST show the effective status at the editor scope and its source (audit Q12, adopted).
 - **FR-055**: The selects MUST be admin-kit primitives with visible labels, language names rather than codes,
   no hard-coded colours, and searchable past a threshold the plan sets (Constitution IX; WCAG 1.3.1, 4.1.2).
@@ -1051,6 +1053,11 @@ therefore a schema change, not a data-preserving move.
 
 - **FR-095**: The completeness gate (163 FR-060) MUST check name, URL key and every required scopable
   attribute at (C, L) along C×L → C → G; the Language-level clause of 163 FR-060 is removed.
+  **Trigger at Global (owner decision, 2026-11-04):** a Global save that carries an attribute cell or an
+  attribute-set change is refused with `required_empty` for **every** empty required attribute, staged or not. A
+  Global save without an attribute cell, and saves at C or C×L, are not refused for this (a Global save may leave a
+  required attribute absent; the gate checks per (C, L)). Contract: `contracts/editor-ui.md` (Rules settled by the
+  review).
 - **FR-096** *(round 2; unchanged by round 3)*: A Global value MUST **always** satisfy the gate at every (C, L),
   whatever language it is written in — an untranslated product may be published. The owner chose this
   **against the recommendation** (Global satisfies the gate only where L is the Global language), knowingly
@@ -1060,12 +1067,12 @@ therefore a schema change, not a data-preserving move.
 - **FR-097** *(round 2)*: The editor MUST name the values the gate would report missing at the editor scope, as
   text with an icon: at **C×L**, a marker on each missing field, linked to it; at **Channel**, a list of the
   fields missing across the channel's languages; at **Global**, "N incomplete scopes" with a link to the
-  Scopes tab.
+  Scope map.
 - **FR-098**: After a *warn*-mode save the warnings MUST be shown and announced (163 G-2).
 
 #### Scope map (US12; delivers 163 L7)
 
-- **FR-100**: On the Scopes tab, each cell (C×L), each "whole channel" entry (C) and the Global corner MUST
+- **FR-100**: On the Scope map, each cell (C×L), each "whole channel" entry (C) and the Global corner MUST
   offer "Edit at <scope>"; each field named in a cell MUST link to that field at that scope; these MUST be real
   links. The overview's "every channel" (Language) row MUST be removed.
 - **FR-101**: The overview's resets and orphan deletion MUST keep working.

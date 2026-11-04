@@ -87,6 +87,7 @@ sprzedażą).
 
 ## Powiązane strony
 
+- [Edycja produktu w zakresie](./editing-a-product-at-a-scope.md) — przełącznik zakresu, dziedziczenie i Mapa zakresów w edytorze.
 - [Klucze URL i przekierowania](./url-keys-and-redirects.md) — unikalność kluczy w kanale i przekierowania.
 - [Galeria i etykiety](./gallery-and-labels.md), [Załączniki](./attachments.md),
   [Jednostki opakowania](./packaging-units.md) — wartości mediów i opakowań w zakresach.

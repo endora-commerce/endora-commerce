@@ -104,7 +104,7 @@ Open `/catalog/products/$P` (Drill X):
 3. Stage an SEO title and an alt text, Save → both written, one audit entry. Switch SEO off on `/platform/modules`,
    reload → no SEO tab, no error.
 4. As an admin with `catalog:read` only: every control read-only, no Save / Archive / Duplicate / Delete, SEO visible.
-5. Scopes tab: "Edit at PL B2B VIP × Polish" opens the editor there; a cell's "URL key" link focuses the field.
+5. Scope map: "Edit at PL B2B VIP × Polish" opens the editor there; a cell's "URL key" link focuses the field.
 
 ## 5. Tests to run (targeted; full suite is CI's)
 

@@ -86,6 +86,7 @@ starts inactive everywhere, so it is reviewed before it is sold).
 
 ## Related pages
 
+- [Editing a product at a scope](./editing-a-product-at-a-scope.md) — the scope switcher, inherit and the Scope map in the editor.
 - [URL Keys and Redirects](./url-keys-and-redirects.md) — key uniqueness per channel and redirects.
 - [Gallery and Labels](./gallery-and-labels.md), [Attachments](./attachments.md),
   [Packaging Units](./packaging-units.md) — the media and packaging values per scope.

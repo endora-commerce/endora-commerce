@@ -179,6 +179,9 @@ Prototype: <https://claude.ai/artifact/6NSyfVSv3q4haqokHCCiU4>. Binding for S3; 
 - **URL key** renders on **Details → Content**, outside the `product.editor.seo` zone, so it stays with `seo` off.
 - **Required at Global**: name and URL key refuse being cleared at Global; a required attribute may be absent at
   Global (the gate checks per (C, L)).
+  **Trigger (owner decision 2026-11-04, FR-004 / FR-095):** a Global save that carries an attribute cell or an
+  attribute-set change is refused with `required_empty` for every empty required attribute, staged or not. A
+  Global save without an attribute cell, and saves at C or C×L, are not refused for this.
 - **Back with staged changes** goes through Save / Discard / Stay; Stay re-pushes the current URL (§1, §3).
 - **409 Reload** discards the staged changes and says so on the button (§3).
 - **Concurrent membership change** invalidating the current scope → reload notice (§3).

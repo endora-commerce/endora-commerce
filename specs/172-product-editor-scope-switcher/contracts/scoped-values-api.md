@@ -78,7 +78,7 @@ type ScopedValuesResponse = { data: {
   the session's permissions).
 - `seo` is read through `seoProductMetaPort.readScoped` only when `effectiveState.isPresent('seo')`; otherwise
   `seo: null`. Never a 503 on this route for an absent `seo`.
-- Orphaned rows never contribute (they are not at a valid scope); the Scopes tab lists them (163 §3 overview).
+- Orphaned rows never contribute (they are not at a valid scope); the Scope map lists them (163 §3 overview).
 - `404 PRODUCT_NOT_FOUND` for an unknown or soft-deleted id.
 
 ## 3. `PUT /api/v1/admin/catalog/products/:id/scoped-values` — `catalog:write`
