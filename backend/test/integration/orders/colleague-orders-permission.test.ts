@@ -271,13 +271,14 @@ describe('170 WP-07 — colleagues’ orders need orders.view_organization (FR-0
         expect(pdf.statusCode).toBe(200);
       });
 
-      it('gets the answer the administrator gets today on starting a return from it (placer only, 404)', async () => {
-        // `returns` judges a return against the order's placer, for every
-        // buyer, administrator included (`return-case-service.ts`). FR-049
-        // grants "the reach the administrator has today", which here is none;
-        // a wider rule is `returns`' change, not this package's.
+      it('reads its returnable lines, the first step of starting a return from it (200)', async () => {
+        // WP-14 (FR-054, Q-R1 = A) widened this, as this row said `returns`
+        // would: the order is judged through `orderReadPort.findByIdForCustomer`,
+        // so it reaches exactly the orders this file's other rows reach.
+        // Submitting the return also needs `returns.create` — see
+        // `test/integration/returns/colleague-order-returns.test.ts`.
         const res = await as(holder, 'GET', `/api/v1/orders/${orders.colleague}/returnable`);
-        expect(res.statusCode, res.body).toBe(404);
+        expect(res.statusCode, res.body).toBe(200);
       });
 
       it('gets 404 on another Organization’s order', async () => {

@@ -75,11 +75,18 @@ export interface SeededOrderLine {
  */
 export async function seedReturnableOrder(
   em: EntityManager,
-  opts: { status?: string; salesChannelId?: string; lines?: readonly SeededOrderLine[] } = {},
+  opts: {
+    status?: string;
+    salesChannelId?: string;
+    lines?: readonly SeededOrderLine[];
+    /** `specs/170-organization-roles/` WP-14 — whose order it is; the test customer's by default. */
+    organizationId?: string;
+    placedByCustomerAccountId?: string;
+  } = {},
 ): Promise<SeededOrder> {
   const order = em.create(Order, {
-    organizationId: TEST_ORGANIZATION_ID,
-    placedByCustomerAccountId: TEST_CUSTOMER_ID,
+    organizationId: opts.organizationId ?? TEST_ORGANIZATION_ID,
+    placedByCustomerAccountId: opts.placedByCustomerAccountId ?? TEST_CUSTOMER_ID,
     // Feature 078, D-95: `{channel}` renders the `sales_channels` row, so an
     // order has to be seeded on a channel that exists. This used to be
     // `randomUUID()` with a note telling every caller to pin one channel per
