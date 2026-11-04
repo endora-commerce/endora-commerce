@@ -22,7 +22,10 @@ function rig() {
   const service = new OrderCloneToQuoteService(
     () => ({ findOne: async () => ({ id: 'order-1' }) }) as never,
     () => ({ createForCustomer }) as never,
-    { findById: async () => null } as never,
+    // `specs/170-organization-roles/` WP-07 — the read scope asks the
+    // permission port; a member without `orders.view_organization` is pinned to
+    // the orders they placed, which is all this file needs.
+    { can: async () => false } as never,
   );
   return { service, createForCustomer };
 }

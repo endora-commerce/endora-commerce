@@ -5,6 +5,7 @@ import type {
   CatalogProductReadPort,
   CatalogProductRecord,
   CustomerAccountReadPort,
+  OrganizationPermissionPort,
 } from '@endora-commerce/contracts';
 import { OrderReorderService } from './order-reorder-service.js';
 
@@ -76,6 +77,7 @@ describe('OrderReorderService — archived is archivedAt (spec 163)', () => {
       cartWrite,
       catalogProductRead,
       { findById: async () => null } as unknown as CustomerAccountReadPort,
+      { can: async () => false } as unknown as OrganizationPermissionPort,
     );
 
     const result = await service.reorder(ORDER.id, {

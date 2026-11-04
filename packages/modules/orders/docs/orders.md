@@ -16,13 +16,33 @@ Admin routes are gated by `orders:read` (read) / `orders:write` (mutations).
 | Verb + Path | Audience | Purpose |
 | --- | --- | --- |
 | `POST /api/v1/orders` | customer | Place order from active Cart |
-| `GET /api/v1/orders` | customer | List orders scoped by Role (Regular vs Org Admin) |
+| `GET /api/v1/orders` | customer | List orders: own orders, or the Organization's with `orders.view_organization` (see below) |
 | `GET /api/v1/orders/:id` | customer | Order detail |
 | `GET /api/v1/orders/:id/invoice` | customer | Download invoice PDF |
 | `GET /api/v1/admin/orders` | admin | List every order (cross-organization) |
 | `GET /api/v1/admin/orders/:id` | admin | Order detail (bypasses customer scope) |
 | `POST /api/v1/admin/orders/:id/status` | admin | Status transition (audited) |
 | `POST /api/v1/admin/orders/:id/payment-status` | admin | Payment status transition (audited) |
+
+## Who sees a colleague's order
+
+A buyer sees the orders they placed. Every other order of their Organization —
+in the list, on its detail page, and in every action that reads an order as
+its source (reorder, clone to a quote request, its invoices) — needs the
+organization permission **View the organization's orders**
+(`orders.view_organization`), which this module declares:
+
+| Role | Holds it |
+| --- | --- |
+| *Administrator* | always (every permission, implicitly) |
+| *Member* | no, unless the Organization's administrator grants it to the role |
+| a custom role | when the role grants it |
+
+Without the permission a colleague's order answers `404`, exactly as an order
+of another Organization does, never `403`. With it the reach is the
+Organization; a head-office login with roll-up enabled reaches its subtree as
+well — roll-up widens the reach, it never grants the permission. Returns are
+not widened: a return is started by the buyer who placed the order.
 
 ## Which sales channel an order records
 
@@ -849,8 +869,10 @@ payment e-mail renderer registry (`payments/services/payment-email-renderer.ts`)
   dispatches start-payment through the `PaymentAdapterRegistry`; new methods
   register an adapter rather than editing the order service.
 - **Access scoping** — `order-access-service.ts` is the single place that
-  enforces the Regular User / Organization Admin / Admin User scoping rule;
-  add new actor kinds here.
+  enforces the buyer's order scope (own orders, or the Organization's with
+  `orders.view_organization`, asked of `organizationPermissionPort`); the list,
+  the detail, reorder, clone to a quote request and
+  `OrderReadPort.findByIdForCustomer` all go through it.
 - **Panels on the order screen** — the admin zone `order.detail.after` is
   mounted once at the end of an order's screen, below its tabs, and hands a
   contribution `{ orderId }`. A module adds a panel by declaring

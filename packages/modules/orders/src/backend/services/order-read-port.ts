@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
-  CustomerAccountReadPort,
   OrderCustomerContext,
+  OrganizationPermissionPort,
   OrderItemRecord,
   OrderReadPort,
   OrderRecord,
@@ -29,15 +29,16 @@ export class OrderReadService implements OrderReadPort {
   readonly #access: OrderAccessService;
 
   /**
-   * `customerAccountRead` is what {@link findByIdForCustomer} asks for the
-   * caller's role; it is handed to the same `OrderAccessService` that
-   * `OrderService` scopes its reads with, so there is one rule, not two.
+   * `organizationPermissions` is what {@link findByIdForCustomer} asks whether
+   * the caller holds `orders.view_organization`; it is handed to the same
+   * `OrderAccessService` that `OrderService` scopes its reads with, so there
+   * is one rule, not two.
    */
   constructor(
     private readonly emFactory: () => EntityManager,
-    customerAccountRead: CustomerAccountReadPort,
+    organizationPermissions: OrganizationPermissionPort,
   ) {
-    this.#access = new OrderAccessService(customerAccountRead);
+    this.#access = new OrderAccessService(organizationPermissions);
   }
 
   async findById(id: string): Promise<OrderRecord | null> {
@@ -47,9 +48,10 @@ export class OrderReadService implements OrderReadPort {
 
   /**
    * The customer-scoped lookup (issue #669). The `where` comes from
-   * `OrderAccessService` — the one home of the regular-member / organization-
-   * admin rule that `OrderService.getById` uses — so a consumer serving an
-   * order-scoped resource and `GET /api/v1/orders/:id` cannot disagree.
+   * `OrderAccessService` — the one home of the own-orders /
+   * `orders.view_organization` rule that `OrderService.getById` uses — so a
+   * consumer serving an order-scoped resource and `GET /api/v1/orders/:id`
+   * cannot disagree.
    */
   async findByIdForCustomer(
     id: string,

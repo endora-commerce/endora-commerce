@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { CustomerAccountReadPort } from '@endora-commerce/contracts';
+import type { OrganizationPermissionPort } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -78,7 +78,7 @@ describe('OrderReadPort.salesChannelIdsForCustomer', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
-    port = new OrderReadService(h.em, h.container.resolve<CustomerAccountReadPort>('customerAccountReadPort'));
+    port = new OrderReadService(h.em, h.container.resolve<OrganizationPermissionPort>('organizationPermissionPort'));
     await seedOrdersForInvoiceTests(h.em());
     channelA = await ensureSalesChannelId(h.em(), 'ord-read-chan-a');
     channelB = await ensureSalesChannelId(h.em(), 'ord-read-chan-b');

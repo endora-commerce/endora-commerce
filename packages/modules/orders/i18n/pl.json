@@ -146,5 +146,7 @@
   "actions.openOrders.keywords": "zamówienia, sprzedaż",
   "actions.newOrder.keywords": "zamówienie, nowe, utwórz",
   "actions.orderStatusConfig.keywords": "statusy, cykl życia",
-  "emails.orderConfirmation.sample.shippingAddressText": "  Anna Nowak\n  ul. Główna 1"
+  "emails.orderConfirmation.sample.shippingAddressText": "  Anna Nowak\n  ul. Główna 1",
+  "organizationPermissions.orders.view_organization.label": "Wyświetlanie zamówień organizacji",
+  "organizationPermissions.orders.view_organization.description": "Przeglądanie wszystkich zamówień złożonych w organizacji oraz ponawianie zamówienia współpracownika, tworzenie z niego zapytania ofertowego i pobieranie jego dokumentów."
 }
