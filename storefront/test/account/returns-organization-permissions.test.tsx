@@ -151,12 +151,12 @@ describe('order detail — starting a return (FR-052, FR-057)', () => {
     expect(visibleText(await render())).toContain('File a complaint');
   });
 
-  it.each([
+  it.each<[string, ReturnableResponse]>([
     ['an eligible order', { eligible: true, freeReturnEligible: false, lines: [] }],
     ['a complaint-only order', { eligible: false, reason: 'no_returnable_lines', freeReturnEligible: false, lines: [] }],
-  ] as const)('renders neither entry on %s for a member without returns.create', async (_l, answer) => {
+  ])('renders neither entry on %s for a member without returns.create', async (_l, answer) => {
     permissions = ['orders.view_organization'];
-    returnable = answer as ReturnableResponse;
+    returnable = answer;
     const out = await render();
     expect(out).not.toContain('/returns/new');
     expect(visibleText(out)).not.toContain('Request return / complaint');

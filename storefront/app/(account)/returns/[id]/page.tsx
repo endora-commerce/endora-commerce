@@ -10,6 +10,8 @@ import { getServerContext } from '../../../../lib/server-context';
 import { tForLocale } from '../../../../lib/i18n/messages';
 import { format } from '../../../../lib/i18n/format';
 import { codeLabel, richText } from '../../../../lib/account/labels';
+import { getMe } from '../../../../lib/api/account';
+import { filedByColleague } from '../../../../lib/returns/returnForm';
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -20,6 +22,12 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 /**
  * Return / RMA case detail + conversation (feature 046, US1/US4).
+ *
+ * Feature 170 (FR-053, Q-R2 = A): a holder of `returns.view_organization` also
+ * opens a colleague's case. It is read-only — the follow-up actions stay the
+ * filer's and the API answers them `404` to anyone else — so the page offers
+ * none of them and says why in one line, and the filer's messages are not
+ * credited to the reader.
  */
 export default async function ReturnDetailPage({
   params,
@@ -31,8 +39,9 @@ export default async function ReturnDetailPage({
   if (!session) return await localeRedirect(`/login?next=/returns/${id}`);
 
   let detail;
+  let me;
   try {
-    detail = await getMyReturn(session, id);
+    [detail, me] = await Promise.all([getMyReturn(session, id), getMe(session).catch(() => null)]);
   } catch (err) {
     if (err instanceof StorefrontApiError && err.status === 404) return await localeRedirect('/returns');
     throw err;
@@ -50,6 +59,7 @@ export default async function ReturnDetailPage({
   }
 
   const isTerminal = ['rejected', 'closed', 'cancelled'].includes(detail.statusCode);
+  const isColleaguesCase = filedByColleague(detail.customerAccountId, me?.customerAccount.id);
   const { locale } = await getServerContext();
   const t = tForLocale(locale);
 
@@ -95,7 +105,11 @@ export default async function ReturnDetailPage({
           {detail.comments.map((c) => (
             <li key={c.id}>
               <span className="muted">
-                {codeLabel(t, 'account.returnAuthor', c.authorKind)} · {new Date(c.createdAt).toLocaleString(locale)}
+                {codeLabel(
+                  t,
+                  'account.returnAuthor',
+                  isColleaguesCase && c.authorKind === 'customer' ? 'colleague' : c.authorKind,
+                )} · {new Date(c.createdAt).toLocaleString(locale)}
               </span>
               <div>{c.body}</div>
             </li>
@@ -103,14 +117,16 @@ export default async function ReturnDetailPage({
         </ul>
       )}
 
-      {!isTerminal ? (
+      {isTerminal ? (
+        <p className="muted">{t('account.return.closed')}</p>
+      ) : isColleaguesCase ? (
+        <p role="note" className="muted">{t('account.return.colleagueReadOnly')}</p>
+      ) : (
         <form action={addComment} className="b2b-auth__form">
           <label htmlFor="body">{t('account.return.addMessage')}</label>
           <textarea id="body" name="body" required maxLength={2000} />
           <button type="submit">{t('account.return.send')}</button>
         </form>
-      ) : (
-        <p className="muted">{t('account.return.closed')}</p>
       )}
     </div>
   );
