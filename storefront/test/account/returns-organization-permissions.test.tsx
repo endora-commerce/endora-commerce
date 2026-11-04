@@ -249,6 +249,23 @@ describe('return case detail — a colleague’s case is read-only (Q-R2 = A)', 
     expect(visibleText(out)).toContain(sentence);
   });
 
+  it.each([
+    ['en-US', 'Colleague', 'You'],
+    ['pl-PL', 'Współpracownik', 'Ty'],
+  ])('%s: does not credit the colleague’s messages to the reader', async (l, colleague, you) => {
+    locale = l;
+    permissions = ['returns.view_organization'];
+    detail = returnCase({
+      customerAccountId: COLLEAGUE,
+      comments: [
+        { id: 'c1', authorKind: 'customer', body: 'Box arrived crushed.', isCustomerVisible: true, createdAt: '2026-08-23T10:00:00.000Z' },
+      ],
+    });
+    const text = visibleText(await render());
+    expect(text).toContain(`${colleague} ·`);
+    expect(text).not.toContain(`${you} ·`);
+  });
+
   it('keeps the message form on the member’s own case', async () => {
     permissions = ['returns.view_organization'];
     const out = await render();
