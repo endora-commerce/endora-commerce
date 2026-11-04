@@ -53,5 +53,7 @@
   "onBehalf.build.rejectedUnits": "{product}: {quantity} szt., minimum {minimum} × {unit}",
   "onBehalf.build.rejectedUnitsUnnamed": "{product}: {quantity} szt., minimum w jednostkach opakowania: {minimum}",
   "orderEntry.tab.quick": "Szybkie zamówienie",
-  "actions.openQuickOrder.keywords": "szybkie zamówienie, import csv"
+  "actions.openQuickOrder.keywords": "szybkie zamówienie, import csv",
+  "organizationPermissions.quick_order.one_click.label": "Zakup jednym kliknięciem",
+  "organizationPermissions.quick_order.one_click.description": "Kupowanie produktu jednym kliknięciem na jego stronie, z domyślnymi metodami płatności i dostawy oraz adresami; wymaga też uprawnienia do składania zamówień bez akceptacji."
 }

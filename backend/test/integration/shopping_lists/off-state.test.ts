@@ -1,10 +1,14 @@
-import { afterAll, beforeAll, describe, it } from 'vitest';
+import { randomUUID } from 'node:crypto';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { OrganizationPermissionPort } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { expectModuleAbsent } from '../../helpers/off-state.js';
+import { expectModuleAbsent, withModuleOff, type OffStateAxis } from '../../helpers/off-state.js';
+import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { seedMemberWithPermissions } from '../../helpers/seed-organization-roles.js';
 
 /**
  * `shopping_lists` off-state — Constitution XVII item 6.
@@ -66,5 +70,95 @@ describe('shopping_lists off-state (Constitution XVII)', () => {
       ],
       adminPresence: { cookies: admin },
     });
+  });
+  /**
+   * `specs/170-organization-roles/` WP-06 (T087; FR-007, FR-025, US 8, SC-007)
+   * — US 8 — its two permissions follow the module's presence. While it is off, on either axis,
+   * its codes leave the Organization's permission catalogue and every member's
+   * effective set; the stored grants are not touched; switched back on, the
+   * member holds exactly what they held before. Presence is read at call time,
+   * so no cache has to be dropped for any of it.
+   */
+  describe('organization permissions follow presence', () => {
+    const CODES = ['shopping_lists.create', 'shopping_lists.convert'] as const;
+    const ORG_ADMIN = { b2b_session: 'stub-customer-session' };
+    let memberId: string;
+    let roleId: string;
+
+    const port = (): OrganizationPermissionPort =>
+      (h.container.cradle as unknown as { organizationPermissionPort: OrganizationPermissionPort })
+        .organizationPermissionPort;
+    const subject = () => ({ customerAccountId: memberId, organizationId: TEST_ORGANIZATION_ID });
+
+    async function catalogueCodes(): Promise<string[]> {
+      const res = await h.app.inject({
+        method: 'GET',
+        url: '/api/v1/organizations/mine/permission-catalogue',
+        cookies: ORG_ADMIN,
+      });
+      expect(res.statusCode, res.body).toBe(200);
+      const groups = (res.json() as { data: { groups: Array<{ permissions: Array<{ code: string }> }> } }).data.groups;
+      return groups.flatMap((g) => g.permissions.map((p) => p.code));
+    }
+
+    async function storedGrants(): Promise<string[]> {
+      const [row] = (await h.em().getConnection().execute(
+        `select "permissions" from "organization_roles" where "id" = ?`,
+        [roleId],
+      )) as Array<{ permissions: string[] }>;
+      return [...row!.permissions].sort();
+    }
+
+    async function expectPresent(): Promise<void> {
+      const catalogue = await catalogueCodes();
+      const effective = (await port().effective(subject())).permissions;
+      for (const code of CODES) {
+        expect(catalogue).toContain(code);
+        expect(effective).toContain(code);
+        expect(await port().can(subject(), code)).toBe(true);
+      }
+    }
+
+    beforeAll(async () => {
+      memberId = randomUUID();
+      const em = h.em();
+      await em.getConnection().execute(
+        `insert into "customer_accounts"
+           ("id","organization_id","email","password_hash","first_name","last_name","created_at","updated_at")
+         values (?, ?, ?, 'x', 'Off', 'State', now(), now())`,
+        [memberId, TEST_ORGANIZATION_ID, `${memberId.slice(0, 8)}@shopping-lists-off-state.example`],
+      );
+      roleId = await seedMemberWithPermissions(em, {
+        organizationId: TEST_ORGANIZATION_ID,
+        customerAccountId: memberId,
+        permissions: CODES,
+      });
+      // The fixture writes the role with SQL, past the role cache's drop; this
+      // process has read the Organization's roles already, so drop its entry.
+      (h.container.cradle as unknown as { organizationRoleCache: { invalidateLocal(id?: string): void } })
+        .organizationRoleCache.invalidateLocal(TEST_ORGANIZATION_ID);
+    });
+
+    it.each(['deactivated', 'platform-unavailable'] as const satisfies readonly OffStateAxis[])(
+      'leave the catalogue and the effective set while off (%s), grants kept, and come back',
+      async (axis) => {
+        await expectPresent();
+        const before = await storedGrants();
+
+        await withModuleOff('shopping_lists', axis, async () => {
+          const catalogue = await catalogueCodes();
+          const effective = (await port().effective(subject())).permissions;
+          for (const code of CODES) {
+            expect(catalogue).not.toContain(code);
+            expect(effective).not.toContain(code);
+            expect(await port().can(subject(), code)).toBe(false);
+          }
+          expect(await storedGrants()).toEqual(before);
+        });
+
+        await expectPresent();
+        expect(await storedGrants()).toEqual(before);
+      },
+    );
   });
 });

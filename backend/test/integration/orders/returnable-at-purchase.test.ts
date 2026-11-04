@@ -169,6 +169,8 @@ describe('155 — placement stamps returnable_at_purchase on every path [integra
       cradle().orderPlacementPort,
       async () => true,
       cradle().catalogProductReadPort,
+      // `specs/170-organization-roles/` (FR-050) — the buyer's role is judged too.
+      (h.container.cradle as unknown as { organizationPermissionPort: unknown }).organizationPermissionPort,
     );
     const viaR = await whenOrderCreatedSettled(h, () => oneClick.place(CTX, { productId: R.id, quantity: 1 }, channelId));
     expect(await stampsOf(placed(viaR.id))).toEqual({ [R.id]: true });

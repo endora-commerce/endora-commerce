@@ -244,10 +244,23 @@ export type QuickOrderResolvedDefaults = z.infer<typeof quickOrderResolvedDefaul
 
 // --- One-click buy ---------------------------------------------------------
 
+/**
+ * Why one-click buy is not offered. `permission_required` and
+ * `cart_approval_required` (`specs/170-organization-roles/`, FR-050, R-6) are
+ * the member's role — no `quick_order.one_click`, or no
+ * `carts.order_without_approval` — and are judged first, in that order, before
+ * the setting and the defaults.
+ */
 export const quickOrderOneClickEligibilitySchema = z.object({
   enabled: z.boolean(),
   reason: z
-    .enum(['setting_disabled', 'missing_defaults', 'ineligible_default'])
+    .enum([
+      'permission_required',
+      'cart_approval_required',
+      'setting_disabled',
+      'missing_defaults',
+      'ineligible_default',
+    ])
     .nullable()
     .optional(),
 });
@@ -295,7 +308,7 @@ export interface PreferenceAuditContext {
  * Who is writing the preference.
  *
  * A discriminated union, not a bag of optional ids, and that is the point: a
- * buyer editing their own defaults, an org admin editing a member's, a
+ * buyer editing their own defaults, an Organization administrator editing a member's, a
  * salesperson editing an assigned organisation's and a platform admin editing
  * anybody's are four different authorisations, and each carries exactly the
  * one identifier its rule needs. A shape with four optional fields has twelve
@@ -305,7 +318,13 @@ export interface PreferenceAuditContext {
  */
 export type PreferenceActor =
   | { kind: 'customer'; customerAccountId: string }
-  | { kind: 'org_admin'; organizationId: string }
+  /**
+   * A member holding the Organization's *Administrator* role — a buyer, not
+   * the operator's `platform_admin`. Managing others' defaults is a reserved
+   * capability, not a permission (`specs/170-organization-roles/` FR-012),
+   * asked of `organizationPermissionPort.isAdministrator`.
+   */
+  | { kind: 'administrator'; organizationId: string }
   | { kind: 'salesperson'; assignedOrganizationIds: string[] }
   | { kind: 'platform_admin' };
 

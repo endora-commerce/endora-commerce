@@ -121,6 +121,23 @@ export const manifest = defineModuleManifest({
   // buyers order line by line is an ordinary one.
   activation: { settingCode: 'quick_order.enabled', default: true },
   settings,
+  /**
+   * `specs/170-organization-roles/` (OR-1, OR-6, FR-022, FR-050; issue #653) —
+   * one-click purchase is a permission of its own. It is judged together with
+   * `carts.order_without_approval`, which `carts` declares, so a member whose
+   * carts need approval cannot buy round it. Member-default; the upgrade grants
+   * it to *Member* only where it grants `carts.order_without_approval` too
+   * (FR-071, `organizations`' role migration).
+   */
+  organizationPermissions: [
+    {
+      code: 'quick_order.one_click',
+      label: 'One-click purchase',
+      description:
+        'Buy a product from its page in one click with the default payment and delivery methods and addresses; also needs the permission to place orders without approval.',
+      memberDefault: true,
+    },
+  ],
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
   actions: [

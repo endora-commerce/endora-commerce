@@ -8,7 +8,9 @@ import type { QuickOrderPreferenceScope } from '@endora-commerce/contracts';
  * function only applies the rule, so it is unit-testable.
  *
  *   - Customer        → only their own customer scope.
- *   - Org admin       → own organization scope + customers within that org.
+ *   - Organization administrator (the *Administrator* role, a reserved
+ *     capability — `specs/170-organization-roles/` FR-012)
+ *                     → own organization scope + customers within that org.
  *   - Salesperson     → assigned organizations + customers within them.
  *   - Platform admin  → any scope.
  */
@@ -42,7 +44,7 @@ export function canManagePreference(
     case 'customer':
       return target.scope === 'customer' && target.scopeId === actor.customerAccountId;
 
-    case 'org_admin':
+    case 'administrator':
       if (target.scope === 'organization') return target.scopeId === actor.organizationId;
       return targetCustomerOrganizationId === actor.organizationId;
 

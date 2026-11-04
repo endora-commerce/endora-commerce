@@ -3,6 +3,7 @@ import {
   QUICK_ORDER_BUILD_MAX_ITEMS,
   type CartBatchLineOutcome,
   type CartWritePort,
+  type OrganizationPermissionPort,
   type QuickOrderBuildResponse,
   type QuickOrderTarget,
   type RfqCustomerPort,
@@ -16,7 +17,8 @@ import { HttpError } from '@endora-commerce/platform/http';
 export interface QuickOrderBuildContext {
   customerAccountId: string;
   organizationId: string | null;
-  isOrgAdmin?: boolean;
+  /** The buyer's role id when the request's actor carries it (research R-15); the port reads the account's otherwise. */
+  organizationRoleId?: string | null;
   /**
    * The channel whose basket a `cart` build fills — the request's
    * (`specs/154-sales-channel-access/`): a customer holds one basket per channel.
@@ -62,6 +64,11 @@ export class QuickOrderBuildService {
   constructor(
     private readonly cartWrite: CartWritePort,
     private readonly rfq: RfqCustomerPort,
+    /**
+     * `specs/170-organization-roles/` (FR-030, FR-040) — `organizations`'
+     * port, resolved lazily by the composition and never captured.
+     */
+    private readonly permissions: OrganizationPermissionPort,
   ) {}
 
   async build(
@@ -69,6 +76,27 @@ export class QuickOrderBuildService {
     input: { target: QuickOrderTarget; items: QuickOrderBuildLineInput[] },
     options: QuickOrderBuildOptions = {},
   ): Promise<QuickOrderBuildResponse> {
+    // `specs/170-organization-roles/` (FR-030, FR-040; `contracts/storefront-api.md`
+    // §5) — a buyer's build needs the target's create permission. The target
+    // is in the body, so no route guard can name the code; it is judged here,
+    // first, before the request is looked at any further. The operator's
+    // on-behalf build is gated by operator permissions only (research R-26):
+    // what it produces is judged when the member acts on it.
+    if (options.actor !== 'operator') {
+      const subject = {
+        customerAccountId: ctx.customerAccountId,
+        // `''` finds no role, and the port fails closed.
+        organizationId: ctx.organizationId ?? '',
+        ...(ctx.organizationRoleId !== undefined ? { organizationRoleId: ctx.organizationRoleId } : {}),
+      };
+      const language = options.language ? { language: options.language } : {};
+      if (input.target === 'cart') {
+        await this.permissions.assert(subject, 'carts.create', language);
+      } else {
+        await this.permissions.assert(subject, 'quote_requests.create', language);
+      }
+    }
+
     // Feature 155 (FR-038, R20, threat F4) — first, before any line is
     // resolved, evaluated or added, for either target. Not a schema `.max()`,
     // which would answer 400.
@@ -140,7 +168,10 @@ export class QuickOrderBuildService {
     const rfqCtx = {
       customerAccountId: ctx.customerAccountId,
       organizationId: ctx.organizationId,
-      isOrgAdmin: ctx.isOrgAdmin ?? false,
+      // Still a required field of `RfqCustomerContext` until the legacy enum
+      // goes (`specs/170-organization-roles/` WP-12). A literal, not a role
+      // read: `quote_requests` decides visibility by its own question (R-30).
+      isOrgAdmin: false,
     };
     const request = {
       items: items.map((item) => ({

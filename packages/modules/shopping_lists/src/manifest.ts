@@ -56,6 +56,29 @@ export const manifest = defineModuleManifest({
   // separated the two, so this now switches shopping lists and nothing else.
   activation: { settingCode: 'shopping_lists.enabled', default: true },
   /**
+   * `specs/170-organization-roles/` (FR-022, FR-047, FR-048) — what a member's
+   * role may do with lists. Reading one's own lists needs neither. Converting
+   * also needs the target's create permission (`carts.create`,
+   * `quote_requests.create`), declared by those modules: two guards, never a
+   * combined code. Both member-default, so nothing changes on upgrade.
+   */
+  organizationPermissions: [
+    {
+      code: 'shopping_lists.create',
+      label: 'Create and edit shopping lists',
+      description:
+        'Create, rename and delete shopping lists, add, change and remove their items, choose the default list and save cart lines to a list.',
+      memberDefault: true,
+    },
+    {
+      code: 'shopping_lists.convert',
+      label: 'Convert shopping lists into quote requests and carts',
+      description:
+        'Move a shopping list, or chosen lines of it, into the cart or into a quote request; also needs the permission to create that cart or quote request.',
+      memberDefault: true,
+    },
+  ],
+  /**
    * This module's first i18n bundle — D-129's remaining sweep, MR 3.
    *
    * It ships two keys and nothing else, and it exists because a **declaring**

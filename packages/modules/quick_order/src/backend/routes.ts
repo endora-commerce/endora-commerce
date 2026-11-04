@@ -1,10 +1,12 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
   firstLanguageTag,
+  organizationPermissionPreHandler,
   quickOrderBuildRequestSchema,
   quickOrderImportRequestSchema,
   quickOrderSearchQuerySchema,
   type CatalogQuickSearchPort,
+  type OrganizationPermissionPort,
 } from '@endora-commerce/contracts';
 import { getResolvedChannel } from '@endora-commerce/platform/kernel';
 import { productAudienceOf } from '@endora-commerce/platform/http';
@@ -21,6 +23,13 @@ import { parseImportRequest } from './services/import-from-request.js';
  *
  * Requires an authenticated customer session: SKU-to-product disclosure and
  * cart / RFQ mutation are gated to logged-in buyers.
+ *
+ * **By organization permission (`specs/170-organization-roles/`, FR-030,
+ * FR-040; `contracts/storefront-api.md` §5).** The import fills a basket, so it
+ * needs `carts.create` — a guard after `requireCustomer`, answered before the
+ * file is parsed. The build's target is in its body, so the build judges
+ * `carts.create` or `quote_requests.create` itself, first thing
+ * (`QuickOrderBuildService.build`). The type-ahead is a read and stays open.
  */
 
 export interface QuickOrderRoutesDeps {
@@ -41,17 +50,22 @@ export interface QuickOrderRoutesDeps {
    * and the `matchedOn` labels belong to the module that owns the tables.
    */
   catalogQuickSearch: CatalogQuickSearchPort;
+  /** `organizations`' port, resolved per request (`module-composition.md` item 4a). */
+  organizationPermissions: () => OrganizationPermissionPort;
 }
 
 export async function registerQuickOrderRoutes(
   app: FastifyInstance,
   deps: QuickOrderRoutesDeps,
 ): Promise<void> {
-  const { pipeline, buildService, requireCustomer, resolveCustomerContext } = deps;
+  const { pipeline, buildService, requireCustomer, resolveCustomerContext, organizationPermissions } = deps;
 
   app.post(
     '/api/v1/quick-order/import',
-    { preHandler: requireCustomer, schema: { body: quickOrderImportRequestSchema } },
+    {
+      preHandler: [requireCustomer, organizationPermissionPreHandler(organizationPermissions, 'carts.create')],
+      schema: { body: quickOrderImportRequestSchema },
+    },
     async (request) => {
       const body = quickOrderImportRequestSchema.parse(request.body);
       const maxRows = await deps.resolveImportMaxRows();
@@ -77,10 +91,12 @@ export async function registerQuickOrderRoutes(
     async (request) => {
       const body = quickOrderBuildRequestSchema.parse(request.body);
       const ctx = resolveCustomerContext(request);
+      const actor = request.actor;
       const result = await buildService.build(
         {
           customerAccountId: ctx.customerAccountId,
           organizationId: ctx.organizationId,
+          organizationRoleId: actor.kind === 'customer' ? (actor.organizationRoleId ?? null) : null,
           salesChannelId: getResolvedChannel(request).id,
         },
         {
