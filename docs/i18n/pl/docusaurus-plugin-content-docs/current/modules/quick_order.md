@@ -53,6 +53,13 @@ Odpowiedniki w panelu są chronione wyłącznie uprawnieniem operatora `orders:w
 roli w organizacji, więc klient, w którego imieniu powstaje koszyk lub zapytanie, nie jest
 sprawdzany. To, co powstanie, jest oceniane, gdy klient z tego skorzysta.
 
+W storefroncie strona szybkiego zamówienia (`/quick-order`) stosuje tę samą regułę. Członek bez obu
+kodów zamiast importu widzi wyjaśnienie: *„Twoja rola nie pozwala dodawać produktów do koszyka ani
+wysyłać zapytań ofertowych, dlatego szybkie zamówienie jest dla Ciebie niedostępne.”* Po imporcie
+**Dodaj wszystko do koszyka** jest dostępne tylko z `carts.create`, a **Wyślij jako zapytanie
+ofertowe** — tylko z `quote_requests.create`, więc członek, który ma wyłącznie to drugie, importuje
+plik i może jedynie poprosić o ofertę.
+
 **Minimalne ilości zamówienia w pliku.** Podgląd ocenia minimum każdego produktu w sztukach na
 **łącznej ilości produktu w całym pliku** — po połączeniu powtórzonych wierszy i zsumowaniu
 wszystkich wariantów produktu — nigdy razem z koszykiem kupującego, więc werdykt podglądu i

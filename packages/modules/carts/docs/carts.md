@@ -129,8 +129,23 @@ require approval for some members only, give them a role without
   `not_required` (audited as `approval_policy_reset`). A role losing it leaves
   an approved basket approved.
 
-On the storefront the approver does this under **Organization → Carts**
-(`/organization/carts`): the list can be narrowed to the carts awaiting
+What the buyer sees on the storefront follows the same three permissions. A
+signed-in member without *Create and edit carts* is offered no add-to-cart on
+the product page, the product cards or the comparison page; their cart page
+shows the lines without quantity controls, remove buttons or coupon field, and
+says why in one line: *"Your role does not allow changing the cart. You can
+still view it and order it."* A signed-out visitor is offered all of it, as
+before. *Save to list* on a cart line follows `shopping_lists.create`, and
+*Convert to quote request* `quote_requests.create`. A member without *Place
+orders without approval* sees *"Your role requires approval of this cart before
+checkout."* and a **Submit for approval** button in place of checkout; once the basket is sent the cart says it is
+awaiting approval in the organization, and after a rejection it names *an
+approver in your organization*.
+
+The approver works under **Carts to approve** in the account navigation (shown
+to holders of *Approve and reject colleagues' carts*, with the number of carts
+waiting; never in a personal Organization), which opens
+`/organization/carts` on the carts awaiting approval. The list can be narrowed to the carts awaiting
 approval, and each cart opens on its own page (`/organization/carts/<id>`) with
 its owner, lines, total and the time it was sent. A pending cart offers
 **Approve cart**, and **Reject cart** behind a disclosure, which needs a reason
@@ -174,7 +189,7 @@ Each approval step sends an e-mail, after the step has been saved:
 - The subject and body of each message ship in English and Polish and can be
   edited per language and per store, or switched off, on the e-mail templates
   screen (group *carts*). The messages carry no link: the reader signs in to
-  their account to act — an approver under **Organization → Carts**
+  their account to act — an approver under **Carts to approve**
   (`/organization/carts`), a buyer on their cart page.
 - A message that cannot be sent — no mail server, the template switched off,
   the recipient's mail server refusing it — never undoes or fails the approval

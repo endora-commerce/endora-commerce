@@ -584,6 +584,14 @@ validated or the quote request is looked up. An anonymous visitor still gets
 catalogue and every member's effective permissions; a role's stored grant is
 kept, and is effective again when the module is switched back on.
 
+On the storefront a member without `quote_requests.create` is offered no
+add-to-quote button on the product page or the product cards and no *Convert to quote
+request* on the cart. The quote-request draft stays reviewable, but its submit
+button is disabled with the reason beside it: *"Your role does not allow
+sending quote requests."* On a quote request's page, resubmitting is offered
+only with `quote_requests.create`, and placing the order from an approved
+request only with `carts.create`.
+
 ## Custom fields
 
 Quote requests take custom fields, defined on **Custom Fields**. They follow this module: while

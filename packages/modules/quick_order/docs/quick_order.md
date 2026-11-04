@@ -57,6 +57,14 @@ code. The admin twins are gated by the operator permission `orders:write` only:
 an operator holds no organization role, so the customer an on-behalf build is
 for is not judged. What it produces is judged when the customer acts on it.
 
+On the storefront the quick-order page (`/quick-order`) follows the same rule. A
+member holding neither code is told, instead of being shown the import: *"Your
+role does not allow adding products to the cart or requesting quotes, so quick
+order is not available to you."* After an import, **Add all to cart** is offered
+only with `carts.create` and **Send as quote request** only with
+`quote_requests.create`, so a member holding only the second imports a file and
+can only request a quote.
+
 **Order minimums in the file.** The preview judges each product's minimum in
 pieces on the product's **total across the whole file** — duplicate rows
 merged, then every variant of the product summed — never together with the

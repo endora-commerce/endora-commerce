@@ -48,6 +48,11 @@ Starting a return or a complaint from a colleague's order also needs the
 `returns` module's **Create returns and complaints** (`returns.create`); the case
 is filed in the name of the member who starts it (see the `returns` page).
 
+On the storefront the order list and the order page show a colleague's order to
+a member holding the permission exactly as their own. The order page offers
+**Request return / complaint** (or **File a complaint**) only to a member whose
+role holds `returns.create`.
+
 ## Which sales channel an order records
 
 An order records one sales channel. Where it comes from depends on who places
@@ -132,21 +137,23 @@ all, sees no change.
 
 ## Cart approval at placement
 
-In an Organization that requires cart approval, a member's basket is ordered only
-once the Organization administrator has approved it. Placement asks the Carts
-module before anything is reserved or written, and refuses a basket the policy
-applies to that is not `approved` with `409 ORDER_CART_APPROVAL_REQUIRED`;
+A member whose role lacks *Place orders without approval*
+(`carts.order_without_approval`, declared by the Carts module) orders a basket
+only once a colleague allowed to approve carts has approved it. Placement asks
+the Carts module before anything is reserved or written, reading the basket
+owner's role at that moment, and refuses such a basket that is not `approved`
+with `409 ORDER_CART_APPROVAL_REQUIRED`;
 `details` carries `cartId`, `approvalStatus` and a `code` naming the state:
 
 | `details.code` | Basket | Sentence (English) |
 | --- | --- | --- |
 | `cart_approval_not_submitted` | never sent for approval | *"Your organization requires baskets to be approved before ordering. Send this basket for approval first."* |
-| `cart_approval_pending` | awaiting the administrator | *"This basket is awaiting approval by your organization administrator. You can place the order once it is approved."* |
+| `cart_approval_pending` | awaiting an approver | *"This basket is awaiting approval by your organization administrator. You can place the order once it is approved."* |
 | `cart_approval_rejected` | rejected | *"Your organization administrator rejected this basket, so it cannot be ordered."* |
 
-The basket is kept as it was. Unaffected: the Organization administrator's own
-basket (they need no approval), every basket of an Organization that does not
-require approval, and orders placed from a working basket — admin order
+The basket is kept as it was. Unaffected: the basket of every member whose role
+holds *Place orders without approval* (*Administrator* always does), and orders
+placed from a working basket — admin order
 creation, one-click buy and the external order API — which do not place the
 member's basket.
 
