@@ -5,7 +5,8 @@ integration branch `feat/170-organization-roles` | **Date**: 2026-11-03 | **Spec
 | **Tasks**: [tasks.md](./tasks.md)
 **Input**: Feature specification from `specs/170-organization-roles/spec.md` (merged in #664; owner
 rulings OR-1 to OR-8; plan-phase rulings PR-1 and PR-2 and oracle rulings PR-3 to PR-12 below; owner
-rulings OR-9 to OR-11 of 2026-11-04 below, with OR-11's open design questions Q-R1 to Q-R3)
+rulings OR-9 to OR-11 of 2026-11-04 below, with OR-11's design questions Q-R1 to Q-R3, answered the
+same day)
 
 ## Plan-phase owner rulings *(binding; recorded 2026-11-03, after #681 merged)*
 
@@ -102,31 +103,22 @@ the *Owns* columns below are read with them applied):
   (backend, docs; T143–T149) and **WP-14b** (storefront; T150–T152). It moves no oracle row
   (`contracts/migration-and-replay.md` §6.3).
 
-## Open questions *(OR-11's design; each with the recommendation `tasks.md` is written for)*
+## OR-11's design questions *(answered by the owner, 2026-11-04 — binding)*
 
-WP-14 starts on the recommended answers; the tasks name what changes if the owner answers otherwise.
-
-- **Q-R1 — May a member who sees a colleague's order start a return from it?** *A (recommended)*:
-  yes — `returns.create` **and** the order within the member's order scope, i.e.
-  `orders.view_organization` (or *Administrator*), judged by `orderReadPort.findByIdForCustomer`; the
-  case is filed in the starter's name and the placer sees it only through `returns.view_organization`.
-  It is what FR-049 already says (*returns started from it*) and how reorder and clone-to-quote behave
-  for the same holder. *B*: placer-only submission for every role, administrators included, as today.
-  If B: T145 asserts `404` for every non-placer and leaves WP-07's test as it is, and T148 keeps the
-  placer comparison; FR-054 becomes "only from orders they placed".
-- **Q-R2 — What may a holder of `returns.view_organization` do on a colleague's case?** *A
-  (recommended)*: read only — comments, attachments, the return delivery method and cancelling stay
-  the filer's, answered `404 NOT_FOUND` to anyone else as today. *B*: the holder may also act on the
-  case. If B: T144's follow-up assertions turn to `200`/`201`, and T148 widens those four lookups with
-  the same scope helper (a comment is then authored by the viewer, not the filer).
-- **Q-R3 — Confirm the administrator's upgrade change.** *Administrator* holds every code (FR-002), so
-  from the upgrade on an administrator's `GET /api/v1/returns` lists every member's cases and opens a
-  colleague's case (before: their own only), and with Q-R1 = A starts returns from colleagues'
-  orders. The oracle has no returns family, so this is listed in `contracts/migration-and-replay.md`
-  §6.3 and FR-072 rather than §6.1. *Recommended: accept* — an administrator already sees every
-  colleague's order. If not: the only design consistent with FR-002 is a separate
-  `GET /api/v1/organization/returns` for holders, leaving `GET /api/v1/returns` own-only for everyone
-  (rejected in R-41 for duplicating the list); T144 and T148 change accordingly.
+- **Q-R1 — May a member who sees a colleague's order start a return from it? Answered: A.** Yes —
+  `returns.create` **and** the order within the member's order scope, i.e. `orders.view_organization`
+  (or *Administrator*), judged by `orderReadPort.findByIdForCustomer`; the case is filed in the
+  starter's name and the placer sees it only through `returns.view_organization`. It is what FR-049
+  already says (*returns started from it*) and how reorder and clone-to-quote behave for the same
+  holder. (Rejected: B, placer-only submission for every role.)
+- **Q-R2 — What may a holder of `returns.view_organization` do on a colleague's case? Answered: A.**
+  Read only — comments, attachments, the return delivery method and cancelling stay the filer's,
+  answered `404 NOT_FOUND` to anyone else as today. (Rejected: B, the holder may also act on it.)
+- **Q-R3 — The administrator's upgrade change. Answered: accepted.** *Administrator* holds every code
+  (FR-002), so from the upgrade on an administrator's `GET /api/v1/returns` lists every member's cases,
+  opens a colleague's case, and starts returns from colleagues' orders (before: their own only). The
+  oracle has no returns family, so this is listed in `contracts/migration-and-replay.md` §6.3 and
+  FR-072 rather than §6.1.
 
 ## Summary
 
@@ -378,7 +370,7 @@ integration branch.
 | --- | --- | --- | --- | --- |
 | **WP-09** | Storefront: organization area | `storefront/app/(account)/layout.tsx`, `app/(account)/organization/{roles/**,members/**,carts/**}`, removal of `app/(account)/organization/settings/cart-approval/`, the account page, `lib/api/{account,organization}.ts`, `lib/i18n/messages/account.ts`; tests `storefront/test/account/{i18n/account-pages,module-presence-nav,org-cart-detail,org-carts-list}.test.tsx` plus new roles-page tests | WP-02a, WP-03, WP-04; the designer's layout (R-12) | L |
 | **WP-10** | Storefront: commerce surfaces | `components/CartApprovalBanner.tsx`, the PDP / cart / quick-order / RFQ / shopping-list action components, `lib/api/cart.ts`, `lib/i18n/messages/commerce.ts`; tests `storefront/test/checkout/cart-approval-submit.test.tsx` plus new hidden/disabled-action tests | WP-04, WP-05, WP-06 | M |
-| **WP-14** | Returns by permission, backend (OR-11) | `returns`: `src/manifest.ts` (two codes; `organizations` in `dependencies`), `i18n/{en,pl}.json`, `src/backend/{index.ts,plugin.ts,routes.customer.ts}`, `services/return-case-service.ts`, a module-local scope helper (new), the operator row mapper in `services/return-list-service.ts` (summary field), `docs/returns.md` and `plpage(returns)`; `contracts`: `returnCaseSummarySchema.customerAccountId` in `packages/contracts/src/returns.ts`; `orders`: the `orders.view_organization` description (manifest, `i18n/*`, `docs/orders.md`, `plpage(orders)`) if Q-R1 = A; tests: `backend/test/integration/returns/{organization-permissions,organization-returns-visibility,colleague-order-returns}.test.ts` (new), `backend/test/integration/returns/off-state.test.ts`, `backend/test/integration/orders/colleague-orders-permission.test.ts` (the two *placer only* cases) | WP-02b, WP-07 (merged); Q-R1, Q-R2 answered | M |
+| **WP-14** | Returns by permission, backend (OR-11) | `returns`: `src/manifest.ts` (two codes; `organizations` in `dependencies`), `i18n/{en,pl}.json`, `src/backend/{index.ts,plugin.ts,routes.customer.ts}`, `services/return-case-service.ts`, a module-local scope helper (new), the operator row mapper in `services/return-list-service.ts` (summary field), `docs/returns.md` and `plpage(returns)`; `contracts`: `returnCaseSummarySchema.customerAccountId` in `packages/contracts/src/returns.ts`; `orders`: the `orders.view_organization` description (manifest, `i18n/*`, `docs/orders.md`, `plpage(orders)`) (Q-R1 = A); `contracts`: the `findByIdForCustomer` doc comment in `packages/contracts/src/orders.ts` (T153); tests: `backend/test/integration/returns/{organization-permissions,organization-returns-visibility,colleague-order-returns}.test.ts` (new), `backend/test/integration/returns/off-state.test.ts`, `backend/test/integration/orders/colleague-orders-permission.test.ts` (the two *placer only* cases) | WP-02b, WP-07 (merged) | M |
 | **WP-14b** | Returns by permission, storefront (OR-11) | `storefront/app/(account)/orders/[id]/page.tsx` (the return action), `app/(account)/returns/{page,new/page,[id]/page}.tsx`, `lib/returns/returnForm.ts`, `lib/api/returns.ts`, the returns keys of `lib/i18n/messages/account.ts`; tests `storefront/test/account/{order-detail-return-action,returns-new-returnable,i18n/orders-returns}.test.tsx`, `storefront/test/account/returns-organization-permissions.test.tsx` (new) | WP-14; **WP-09 merged** (it edits `account.ts`) | S |
 | **WP-15** | Quick-order import by either target (OR-10) and the OR-9 Admin UI lock | `quick_order`: `src/backend/routes.ts` (the import's guard), `docs/quick_order.md`, `plpage(quick_order)`; tests `backend/test/contract/quick_order/quick-order-permissions.contract.test.ts`, `backend/test/integration/quick_order/off-state.test.ts`, `admin/test/modules/organizations/organization-roles-tab.test.tsx` (one create-form case) | WP-05, WP-06, WP-08 (merged) | S |
 
@@ -424,7 +416,7 @@ starting point.
         │                                                                              │
         └──────────────────────────────► WP-09 (after 02a, 03, 04) ◄───────────────────┤
                                          WP-10 (after 04, 05, 06)  ◄───────────────────┘
-                                         WP-14 (after 07; Q-R1, Q-R2) ──► WP-14b (after 14 and 09)
+                                         WP-14 (after 07) ──► WP-14b (after 14 and 09)
                                          WP-15 (after 05, 06, 08)
                                                      │
                                                      ▼
@@ -486,7 +478,7 @@ and WP-10 drafting alongside.
 | FR-041 | 05, P3a | P2 form (05): only *Administrator* sees every quote request (R-30); permission form: P3a |
 | FR-042–FR-046 | P3a | — |
 | FR-047, FR-048 | 06 (+04) | list writes; composite conversions |
-| FR-049 | 07, 14 | colleague order list, read, reorder, clone, returns and invoices only with the permission; otherwise 404 (the return start widened by 14, Q-R1) |
+| FR-049 | 07, 14 | colleague order list, read, reorder, clone, returns and invoices only with the permission; otherwise 404 (the return start widened by 14, Q-R1 = A) |
 | FR-052 | 14, 14b | submission refused without `returns.create` before the order is read; reads and follow-ups on one's own case open; the start action hidden |
 | FR-053 | 14, 14b | the Organization's cases listed and read only with `returns.view_organization` (subtree for roll-up); a colleague's case read-only (Q-R2); its actions hidden |
 | FR-054 | 14 | a return from a colleague's order with `returns.create` and `orders.view_organization`, filed in the starter's name (Q-R1) |
@@ -583,5 +575,5 @@ pre-research check, and why each verdict stands:
 - **The 2026-11-04 rulings (OR-9 to OR-11)** land in: WP-09 (T097/T098 amended, the empty create
   form), WP-10 (T100/T101 amended, the import's visibility), **WP-15** (T139–T142, the import's guard
   and the Admin UI lock), **WP-14** (T143–T149, returns backend) and **WP-14b** (T150–T152, returns
-  storefront). None adds a migration or an error code, and none moves an oracle row (§6.3). WP-14
-  waits for the owner's Q-R1 and Q-R2 (*Open questions*); everything else may start now.
+  storefront). None adds a migration or an error code, and none moves an oracle row (§6.3). The owner
+  answered Q-R1 = A, Q-R2 = A and accepted Q-R3, so every one of them may start now.

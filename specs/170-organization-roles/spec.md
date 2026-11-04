@@ -2,7 +2,7 @@
 
 **Feature Branch**: `spec/organization-roles`
 **Created**: 2026-11-03
-**Status**: Draft — owner rulings OR-1 to OR-8 recorded 2026-11-03; oracle rulings PR-3 to PR-12 (`plan.md`) recorded 2026-11-03 from the WP-00 oracle (#689); owner rulings OR-9 to OR-11 recorded 2026-11-04 (the Wave 3 questions Q1–Q3); OR-11's design questions Q-R1 to Q-R3 open (`plan.md` *Open questions*); `plan.md` and `tasks.md` merged (#683), Waves 0–2 merged on `feat/170-organization-roles`
+**Status**: Draft — owner rulings OR-1 to OR-8 recorded 2026-11-03; oracle rulings PR-3 to PR-12 (`plan.md`) recorded 2026-11-03 from the WP-00 oracle (#689); owner rulings OR-9 to OR-11 recorded 2026-11-04 (the Wave 3 questions Q1–Q3); OR-11's design questions Q-R1 to Q-R3 answered the same day (Q-R1 = A, Q-R2 = A, Q-R3 accepted; `plan.md`); `plan.md` and `tasks.md` merged (#683), Waves 0–2 merged on `feat/170-organization-roles`
 **Input**: Owner request (translated from Polish): *"Customers should be able, within their
 Organization, to define their own Roles and assign them to Organization Members. Roles carry
 permissions over the actions an Organization member can perform. The Organization Administrator
@@ -112,7 +112,7 @@ spec-phase *Q-1* to *Q-3* below, which is why they are recorded here as OR-9 to 
   complaints"** (`returns.create`, member-default) and **"View the organization's returns and
   complaints"** (`returns.view_organization`, not member-default; *Administrator* holds it
   implicitly, FR-002). *Member* keeps exactly today's reach. FR-052–FR-054, User Story 9. The
-  design's open points (Q-R1 to Q-R3) are in `plan.md` *Open questions*.
+  design questions Q-R1 to Q-R3 were answered the same day — Q-R1 = A, Q-R2 = A, Q-R3 accepted (`plan.md`).
 
 ## Resolved questions *(kept for the record; rulings above)*
 
@@ -382,10 +382,10 @@ read returns and start one; compare with the scenarios below.
 4. **Given** such a member opening a colleague's case, **When** they look for the case's actions,
    **Then** commenting, cancelling, attaching files and choosing the return delivery method stay the
    filer's: the storefront offers none of them and the backend answers those requests as it does
-   today, `404 NOT_FOUND` (FR-053; `plan.md` Q-R2).
+   today, `404 NOT_FOUND` (FR-053; `plan.md` Q-R2 = A).
 5. **Given** a member holding `returns.create` **and** `orders.view_organization`, **When** they
    start a return from a colleague's order, **Then** it is accepted and filed in their own name
-   (FR-054; `plan.md` Q-R1).
+   (FR-054; `plan.md` Q-R1 = A).
 
 ### Edge Cases
 
@@ -598,8 +598,8 @@ read returns and start one; compare with the scenarios below.
   FR-049 gives over orders (own Organization; subtree for a roll-up login). Without it a member sees
   only the cases they filed. A case outside the member's reach MUST answer `404`, never `403`
   (Principle XI). Seeing a colleague's case MUST NOT open its follow-up actions: they stay the
-  filer's, and are answered `404 NOT_FOUND` to anyone else, as today *(`plan.md` Q-R2)*.
-- **FR-054** *(form pending `plan.md` Q-R1; this is the recommended one)*: A return or complaint MAY
+  filer's, and are answered `404 NOT_FOUND` to anyone else, as today *(`plan.md` Q-R2 = A)*.
+- **FR-054** *(`plan.md` Q-R1 = A)*: A return or complaint MAY
   be started from any order the member may read under FR-049 — their own, or a colleague's with
   `orders.view_organization` — and MUST be filed in the name of the member who starts it. An order
   the member may not read MUST answer `404`, for the returnable-lines read and the submission alike.
@@ -672,7 +672,7 @@ read returns and start one; compare with the scenarios below.
   the permission's code; and expired invitations no longer listed (FR-010a, PR-7). Two further
   deliberate changes lie outside the recorded oracle, which has no returns family, and are listed in
   `contracts/migration-and-replay.md` §6.3 instead of §6.1: an administrator's returns list and
-  case reads reach the Organization's cases (FR-053), and — in FR-054's recommended form — an
+  case reads reach the Organization's cases (FR-053), and an
   administrator may start a return from a colleague's order (OR-11). (The removal of the
   `role` field changes the API shape, not any member's outcome.)
 - **FR-073**: The legacy `role` field MUST be removed from every request and response in the same
@@ -772,8 +772,7 @@ Measured on `origin/master` at `75b069175`, excluding tests, docs, `dist/` and m
 > Organization is the new permission *View the organization's returns and complaints*: **an
 > administrator now sees the returns and complaints of every member**, where before they saw only
 > their own; *Member* does not hold it. An administrator — and any role holding *View the
-> organization's orders* — can also start a return from a colleague's order *(pending `plan.md`
-> Q-R1)*.
+> organization's orders* — can also start a return from a colleague's order.
 >
 > **Operator roles.** Two new operator permissions, `organizations:read-roles` and
 > `organizations:manage-roles`, gate the new Roles tab. *Platform administrator* has them; grant

@@ -1103,10 +1103,10 @@ and does **not** list `organizations` in `dependencies`. The oracle has no retur
    on the always-on tenant filter; anyone else keeps `{ customerAccountId }`. A module-local scope
    helper in `returns` (one method, the port asked through `lazyPort`) is the single home of that rule
    inside the module. Out of reach is "no row", answered `404 NOT_FOUND` as today.
-4. **The follow-up actions stay the filer's** (recommended answer to Q-R2): their lookups keep
+4. **The follow-up actions stay the filer's** (owner's answer to Q-R2: A): their lookups keep
    `{ id, customerAccountId }`, so a viewer's comment or cancel on a colleague's case answers
    `404 NOT_FOUND`, unchanged; the storefront offers none of them on a case that is not the viewer's.
-5. **Starting a return from a colleague's order** (recommended answer to Q-R1): the order is judged by
+5. **Starting a return from a colleague's order** (owner's answer to Q-R1: A): the order is judged by
    `orderReadPort.findByIdForCustomer(orderId, { customerAccountId, organizationId })`
    (`packages/contracts/src/orders.ts`), which applies `OrderAccessService.scopedWhere` — so a member
    holding `orders.view_organization` (or *Administrator*) reaches a colleague's order and everyone else

@@ -3,7 +3,7 @@
 **Input**: design documents in `specs/170-organization-roles/` — [spec.md](./spec.md),
 [plan.md](./plan.md) (work packages WP-00 … WP-15, waves, plan-phase rulings PR-1/PR-2, oracle
 rulings PR-3 … PR-12, decomposition adjustments A-1 … A-4, the owner rulings OR-9 … OR-11 of
-2026-11-04 and their open questions Q-R1 … Q-R3), [research.md](./research.md)
+2026-11-04 and their design questions Q-R1 … Q-R3, answered the same day), [research.md](./research.md)
 (R-14 … R-41),
 [data-model.md](./data-model.md), [contracts/](./contracts/), [quickstart.md](./quickstart.md).
 
@@ -363,24 +363,23 @@ Branch `wp/170-15-import-either`.
 ### WP-14 — returns and complaints by permission, backend (owner ruling OR-11; 2026-11-04)
 
 **Goal**: FR-052–FR-054, FR-022's two `returns` codes, User Story 9 (backend), research R-41.
-**Gate**: WP-07 merged (done). **The owner's answers to Q-R1 and Q-R2** (`plan.md` *Open questions*)
-are needed before T145 and before T148 merges; T143, T144's own-case and list parts, T146 and T147 do
-not depend on them. The tasks are written for the recommended answers (A, A) and name what changes
-otherwise. **Merge before** WP-11 and WP-12. **Independent test**: User Story 9's scenarios over HTTP.
+**Gate**: WP-07 merged (done). The owner answered Q-R1 = A, Q-R2 = A and accepted Q-R3 on 2026-11-04
+(`plan.md` *OR-11's design questions*), so nothing waits. **Merge before** WP-11 and WP-12. **Independent test**: User Story 9's scenarios over HTTP.
 Branch `wp/170-14-returns`. Moves no oracle row and flips no ledger entry (§6.3).
 
 Tests first:
 
 - [ ] T143 [P] [WP-14] [US9] Failing submission-gate tests (FR-052): `POST /api/v1/returns` by a member whose custom role lacks `returns.create` → `403 ORGANIZATION_PERMISSION_REQUIRED` with `details.permission = 'returns.create'` and its EN/PL label, for `kind: 'return'` and `kind: 'complaint'`, with no `return_cases` row and no `return_case.create` audit entry, judged **before** the order is read (the same `403` for another Organization's order id); *Member* (implicit member default) and *Administrator* still `201` for their own order; a member lacking the code still reads `GET /api/v1/orders/:orderId/returnable` of their own order, `GET /api/v1/returns`, `GET …/:id`, and comments, attaches, selects the delivery method and cancels on a case they filed before the role change; a signed-out caller `401` — backend test — `backend/test/integration/returns/organization-permissions.test.ts` (new) — WP-07 merged
-- [ ] T144 [P] [WP-14] [US9] Failing visibility tests (FR-053): with cases filed by a colleague, by the caller and by another Organization's member — a member without `returns.view_organization` lists only their own and gets `404 NOT_FOUND` on the colleague's case; a custom role holding the code and *Administrator* list both Organization cases (not the foreign one, `404` on it) and read the colleague's (`200`), every summary carrying `customerAccountId` (the filer); a roll-up head-office login holding the code lists its subtree's cases, one without it only its own (roll-up never adds a permission); the holder's comment, attachment, delivery-method choice and cancel on the colleague's case → `404 NOT_FOUND`, the case unchanged (Q-R2 = A; if B, these four become `201`/`200` and the comment's author is the holder) — backend test — `backend/test/integration/returns/organization-returns-visibility.test.ts` (new) — WP-07 merged
-- [ ] T145 [P] [WP-14] [US9] Failing colleague-order tests (FR-054, Q-R1 = A): on a colleague's completed order, a custom role holding `returns.create` and `orders.view_organization`, and *Administrator*, get `200` on `GET /api/v1/orders/:orderId/returnable` and `201` on `POST /api/v1/returns`, the case's `customerAccountId` being the starter and its e-mail going to the starter; `returns.create` alone → `404` on both; `orders.view_organization` without `returns.create` → `returnable` `200`, the submission `403` naming `returns.create`; in WP-07's file, the two *gets the answer the administrator gets today on starting a return from it (placer only, 404)* cases (holder and *Administrator*) become `200`, with their comment rewritten (the widening is this package's, as the comment said). If Q-R1 = B: instead assert `404` on both routes for every non-placer, administrator included, and leave WP-07's file unedited — backend test — `backend/test/integration/returns/colleague-order-returns.test.ts` (new), `backend/test/integration/orders/colleague-orders-permission.test.ts` — Q-R1 answered
+- [ ] T144 [P] [WP-14] [US9] Failing visibility tests (FR-053): with cases filed by a colleague, by the caller and by another Organization's member — a member without `returns.view_organization` lists only their own and gets `404 NOT_FOUND` on the colleague's case; a custom role holding the code and *Administrator* list both Organization cases (not the foreign one, `404` on it) and read the colleague's (`200`), every summary carrying `customerAccountId` (the filer); a roll-up head-office login holding the code lists its subtree's cases, one without it only its own (roll-up never adds a permission); the holder's comment, attachment, delivery-method choice and cancel on the colleague's case → `404 NOT_FOUND`, the case unchanged (Q-R2 = A) — backend test — `backend/test/integration/returns/organization-returns-visibility.test.ts` (new) — WP-07 merged
+- [ ] T145 [P] [WP-14] [US9] Failing colleague-order tests (FR-054, Q-R1 = A): on a colleague's completed order, a custom role holding `returns.create` and `orders.view_organization`, and *Administrator*, get `200` on `GET /api/v1/orders/:orderId/returnable` and `201` on `POST /api/v1/returns`, the case's `customerAccountId` being the starter and its e-mail going to the starter; `returns.create` alone → `404` on both; `orders.view_organization` without `returns.create` → `returnable` `200`, the submission `403` naming `returns.create`; in WP-07's file, the two *gets the answer the administrator gets today on starting a return from it (placer only, 404)* cases (holder and *Administrator*) become `200`, with their comment rewritten (the widening is this package's, as the comment said) — backend test — `backend/test/integration/returns/colleague-order-returns.test.ts` (new), `backend/test/integration/orders/colleague-orders-permission.test.ts` — WP-07 merged
 - [ ] T146 [P] [WP-14] [US8] Failing off-state additions: with `returns` switched off its two codes leave the permission catalogue and every member's effective set (`GET …/mine/role`, the session's `permissions`), a custom role's grant of them is retained, and both come back on reactivation (FR-007, FR-025, SC-007) — backend test — `backend/test/integration/returns/off-state.test.ts` — WP-07 merged
 
 Implementation:
 
 - [ ] T147 [WP-14] [US9] Contract first (Principle II): `returnCaseSummarySchema` gains `customerAccountId: uuidSchema` (additive; `returnCaseDetailSchema` already declares it and keeps it through `.extend`; `adminReturnRowSchema` inherits it), with a schema test; changeset `.changeset/170-14-contracts-return-summary.md` (`@endora-commerce/contracts`, `minor`, naming the field) — contracts — `packages/contracts/src/returns.ts`, its test — T144
-- [ ] T148 [WP-14] [US9] Declare `returns.create` (member-default) and `returns.view_organization` (not) under `organizationPermissions` with EN+PL `organizationPermissions.<code>.{label,description}` in the package-root bundles (EN labels: FR-022; PL: *Zgłaszanie zwrotów i reklamacji*, *Wyświetlanie zwrotów i reklamacji organizacji*, for the product owner's review); add `organizations` to `dependencies` (R-41 item 7); in `index.ts` resolve `lazyPort<OrganizationPermissionPort>(ctx, 'organizationPermissionPort')` and `lazyPort<OrderReadPort>(ctx, 'orderReadPort')` (string literals) into the plugin options; `routes.customer.ts`: `organizationPermissionPreHandler(() => permissions, 'returns.create')` after `requireCustomer` on `POST /api/v1/returns` only, and the routes pass the customer context `{ customerAccountId, organizationId, organizationRoleId }` from the actor; `return-case-service.ts`: a module-local scope helper (one method asking `can(…, 'returns.view_organization')`, as `OrderAccessService.scopedWhere` does) for `listForCustomer` and `getForCustomer`, the follow-up lookups left on `{ id, customerAccountId }` (Q-R2 = A); `getReturnable` and `createCase` judge the order with `orderReadPort.findByIdForCustomer` instead of `ctx.customerAccountId !== customerAccountId` (Q-R1 = A; if B, keep the comparison); `toSummary` and the operator's row mapper fill `customerAccountId`; if Q-R1 = A, extend `orders.view_organization`'s description (manifest, `orders/i18n/{en,pl}.json`) to name starting a return; `manifests:generate`/`composer:generate` as the checks ask (the dependency edge); T143–T146 green — returns, orders — `packages/modules/returns/src/manifest.ts`, `packages/modules/returns/i18n/{en,pl}.json`, `packages/modules/returns/src/backend/{index.ts,plugin.ts,routes.customer.ts}`, `packages/modules/returns/src/backend/services/{return-case-service.ts,return-list-service.ts}`, the new scope helper beside them, `packages/modules/orders/src/manifest.ts`, `packages/modules/orders/i18n/{en,pl}.json` — T143, T144, T145, T146, T147
-- [ ] T149 [WP-14] Docs EN+PL+pin — the returns page's buyer section (who may open, see and act on a case; the two codes) and, if Q-R1 = A, the orders page's `orders.view_organization` paragraph; changeset `.changeset/170-14-returns.md` (`@endora-commerce/mod-returns`, `minor`: the new `organizations` dependency, the gate, the widened list and read, the plugin options gaining `organizationPermissions` and `orderReadPort`) and, if the orders description changed, `.changeset/170-14-orders-description.md`; verify (standing obligations 1–5 — the replay among the targeted files, moving no row, §6.3; the permission inventory green in both directions; `check:port-dependencies`, `check:module-boundary`, `check:off-state-coverage`); merge before WP-11 — `packages/modules/returns/docs/returns.md`, `plpage(returns)`, `packages/modules/orders/docs/orders.md`, `plpage(orders)` — T148
+- [ ] T153 [WP-14] Fix the stale doc comment on `OrderReadPort.findByIdForCustomer` (it still says "a regular member reaches only the orders they placed, an `organization_admin` every order of their Organization", untrue since WP-07): a member whose role holds `orders.view_organization` (*Administrator* included) reaches every order of the Organization (its roll-up subtree through the tenant filter), anyone else only the orders they placed; name `returns` (FR-054) beside `invoices` as a consumer. Comment only; covered by T147's `@endora-commerce/contracts` changeset (mention it there) — contracts — `packages/contracts/src/orders.ts` — WP-07 merged
+- [ ] T148 [WP-14] [US9] Declare `returns.create` (member-default) and `returns.view_organization` (not) under `organizationPermissions` with EN+PL `organizationPermissions.<code>.{label,description}` in the package-root bundles (EN labels: FR-022; PL: *Zgłaszanie zwrotów i reklamacji*, *Wyświetlanie zwrotów i reklamacji organizacji*, for the product owner's review); add `organizations` to `dependencies` (R-41 item 7); in `index.ts` resolve `lazyPort<OrganizationPermissionPort>(ctx, 'organizationPermissionPort')` and `lazyPort<OrderReadPort>(ctx, 'orderReadPort')` (string literals) into the plugin options; `routes.customer.ts`: `organizationPermissionPreHandler(() => permissions, 'returns.create')` after `requireCustomer` on `POST /api/v1/returns` only, and the routes pass the customer context `{ customerAccountId, organizationId, organizationRoleId }` from the actor; `return-case-service.ts`: a module-local scope helper (one method asking `can(…, 'returns.view_organization')`, as `OrderAccessService.scopedWhere` does) for `listForCustomer` and `getForCustomer`, the follow-up lookups left on `{ id, customerAccountId }` (Q-R2 = A); `getReturnable` and `createCase` judge the order with `orderReadPort.findByIdForCustomer` instead of `ctx.customerAccountId !== customerAccountId` (Q-R1 = A); `toSummary` and the operator's row mapper fill `customerAccountId`; extend `orders.view_organization`'s description (manifest, `orders/i18n/{en,pl}.json`) to name starting a return; `manifests:generate`/`composer:generate` as the checks ask (the dependency edge); T143–T146 green — returns, orders — `packages/modules/returns/src/manifest.ts`, `packages/modules/returns/i18n/{en,pl}.json`, `packages/modules/returns/src/backend/{index.ts,plugin.ts,routes.customer.ts}`, `packages/modules/returns/src/backend/services/{return-case-service.ts,return-list-service.ts}`, the new scope helper beside them, `packages/modules/orders/src/manifest.ts`, `packages/modules/orders/i18n/{en,pl}.json` — T143, T144, T145, T146, T147, T153
+- [ ] T149 [WP-14] Docs EN+PL+pin — the returns page's buyer section (who may open, see and act on a case; the two codes) and the orders page's `orders.view_organization` paragraph (it now names starting a return); changeset `.changeset/170-14-returns.md` (`@endora-commerce/mod-returns`, `minor`: the new `organizations` dependency, the gate, the widened list and read, the plugin options gaining `organizationPermissions` and `orderReadPort`) and `.changeset/170-14-orders-description.md` (`@endora-commerce/mod-orders`, `minor`: the `orders.view_organization` description names starting a return from a colleague's order; no behaviour of `orders` changes); verify (standing obligations 1–5 — the replay among the targeted files, moving no row, §6.3; the permission inventory green in both directions; `check:port-dependencies`, `check:module-boundary`, `check:off-state-coverage`); merge before WP-11 — `packages/modules/returns/docs/returns.md`, `plpage(returns)`, `packages/modules/orders/docs/orders.md`, `plpage(orders)` — T148
 
 ### WP-14b — returns and complaints by permission, storefront (owner ruling OR-11; merge after WP-14 and WP-09)
 
@@ -450,21 +449,21 @@ is released. Nothing here may declare those two codes (R-30).
                           · WP-06 (T084–T090, T136, T137, merges after WP-04 and WP-05)
             ─► Wave 3 ∥ : WP-09 (T097–T099, after 02a/03/04) · WP-10 (T100–T102, after 04/05/06)
                           · WP-15 (T139–T142, after 05/06/08 — all merged; OR-9, OR-10)
-                          · WP-14 (T143–T149, after 07 — merged; T145 and T148's merge wait for Q-R1/Q-R2; OR-11)
+                          · WP-14 (T143–T149, T153, after 07 — merged; OR-11)
                           · WP-14b (T150–T152, after WP-14 and WP-09)
             ─► WP-11 (T103–T104; after WP-14, WP-14b, WP-15 too) ─► WP-12 (T105–T111, T138) ─► WP-13 (T112–T115) ─► T116
 ```
 
 Inside the 2026-11-04 packages: T139 ∥ T140 → T141 → T142; T143 ∥ T144 ∥ T145 ∥ T146 → T147 →
-T148 → T149; T150 → T151 → T152. WP-14, WP-14b and WP-15 flip no `LANDED` entry and add no
+T148 → T149, with T153 beside T147; T150 → T151 → T152. WP-14, WP-14b and WP-15 flip no `LANDED` entry and add no
 `EXPECTED_DIFFERENCES` row (`contracts/migration-and-replay.md` §6.3); each still pastes the replay's
 run.
 
 **Critical path**: #656 → WP-00 (M) → WP-01 (M) → WP-02a (L) → WP-02b (L) → WP-04 (L) → WP-06 (M)
 → WP-10 (M) → WP-11 (S) → WP-12 (M) → WP-13 (M) → T116. WP-03 (L) → WP-09 (L) is a parallel
 branch of equal length to WP-04 → WP-06 → WP-10 and becomes critical if WP-09 slips. Since
-2026-11-04 the branch WP-09 (L) → WP-14b (S) → WP-11 is one S longer than WP-09 → WP-11, and WP-14 (M)
-waits on the owner's Q-R1/Q-R2: either can now be the critical path.
+2026-11-04 the branch WP-09 (L) → WP-14b (S) → WP-11 is one S longer than WP-09 → WP-11 and can
+become the critical path.
 
 ### Wave parallelism
 
@@ -530,12 +529,12 @@ WP-06) as the business reason for the feature, then US 1's storefront (WP-09/10)
 | FR-042 – FR-046 | **deferred to P3** (no task here, by design) |
 | FR-047 | T067, T086 → T073, T089 |
 | FR-048 | T067, T086 → T073, T089 |
-| FR-049 | T091 → T092; T145 → T148 (the return start, Q-R1) |
+| FR-049 | T091 → T092; T145 → T148, T153 (the return start, Q-R1 = A) |
 | FR-050 | T084 → T088 (check order pinned, R-6) |
 | FR-051 | T100 → T101 |
 | FR-052 | T143 → T148; T150 → T151 — OR-11 |
-| FR-053 | T144 → T147, T148; T150 → T151 — OR-11, Q-R2 |
-| FR-054 | T145 → T148 — OR-11, Q-R1 |
+| FR-053 | T144 → T147, T148; T150 → T151 — OR-11, Q-R2 = A |
+| FR-054 | T145 → T148 — OR-11, Q-R1 = A |
 | FR-055 | T007, T025, T028 → T013, T032, T035 |
 | FR-056 | T053 → T059; T097 → T098 |
 | FR-057 | T097, T100, T150 → T098, T101, T151 |
@@ -613,5 +612,5 @@ automated test; it is checked in the `quickstart.md` §2 walk-through (T116).
    and T104 (their scope and dependencies). OR-9 needs no backend task: WP-02a already creates a
    custom role with exactly the submitted codes (R-39). None of the three moves an oracle row
    (`contracts/migration-and-replay.md` §6.3). OR-11 leaves three design questions to the owner,
-   Q-R1 to Q-R3 (`plan.md` *Open questions*); WP-14's tasks follow the recommended answers and say
-   what changes otherwise.
+   Q-R1 to Q-R3 (`plan.md` *OR-11's design questions*), answered the same day (A, A, accepted); WP-14's tasks
+   follow those answers, and T153 (the stale `findByIdForCustomer` comment) was added with them.
