@@ -68,10 +68,20 @@ const ROW_ERRORS: ReadonlyArray<{ pattern: RegExp; key: string; param?: string }
   { pattern: /^(.+): the same field and scope twice in one row$/, key: 'rowError.duplicateCell', param: 'column' },
 ];
 
+/** Codes of catalog's refusals of a whole product (`<CODE>: <message>`) that carry their own label. */
+const LABELLED_ROW_CODES = new Set(['PRODUCT_NOT_FOUND']);
+
 function rowErrorLabel(reason: string, t: (key: string, params?: Record<string, string | number>) => string): string {
   for (const { pattern, key, param } of ROW_ERRORS) {
     const match = pattern.exec(reason);
     if (match) return param ? t(key, { [param]: match[1] ?? '' }) : t(key);
+  }
+  // Any other refusal of the whole product: its label when there is one, else a translated lead
+  // with the server's sentence as detail. The code itself is never shown.
+  const coded = /^([A-Z][A-Z0-9_]*): (.*)$/s.exec(reason);
+  if (coded) {
+    const [, code = '', message = ''] = coded;
+    return LABELLED_ROW_CODES.has(code) ? t(`rowError.${code}`) : t('rowError.refused', { message });
   }
   return reason;
 }

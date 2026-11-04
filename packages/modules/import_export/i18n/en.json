@@ -100,6 +100,8 @@
   "rowError.unknownSku": "No product has the SKU {sku}; an import does not create products.",
   "rowError.cellConflict": "The field {field} is written both by a scope column and by a mapped locale column.",
   "rowError.duplicateCell": "The column {column} writes the same field and scope as another column of the row.",
+  "rowError.PRODUCT_NOT_FOUND": "The product was removed while the file was being imported.",
+  "rowError.refused": "The row was refused: {message}",
   "fieldError.language_not_offered": "The sales channel does not offer this language.",
   "fieldError.not_supported": "This field cannot be imported.",
   "fieldError.subject_not_found": "The product was not found.",

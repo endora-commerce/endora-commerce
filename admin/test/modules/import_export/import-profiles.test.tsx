@@ -326,6 +326,9 @@ describe('Products import: required profile, dry run, then Apply', () => {
           { rowNumber: 3, reason: 'unknown sku: X-1' },
           { rowNumber: 4, reason: 'IMPORT_CELL_CONFLICT: "name" is written by a scope column and by a mapped locale column' },
           { rowNumber: 5, reason: 'name@pl_retail: the same field and scope twice in one row' },
+          // A refusal of the whole product by catalog: `<CODE>: <message>`, never shown raw.
+          { rowNumber: 9, reason: 'PRODUCT_NOT_FOUND: Product not found.' },
+          { rowNumber: 10, reason: 'SOME_FUTURE_CODE: Something else went wrong.' },
         ],
         fieldErrors: [
           { rowNumber: 6, column: 'name@pl_retail', code: 'FIELD_NOT_AT_SCOPE' },
@@ -344,9 +347,10 @@ describe('Products import: required profile, dry run, then Apply', () => {
     fireEvent.change(card.getByLabelText('products.checkFile'), { target: { files: [csvFile()] } });
 
     expect(await card.findAllByText('rowError.skuRequired')).toHaveLength(2);
-    for (const key of ['rowError.unknownSku', 'rowError.cellConflict', 'rowError.duplicateCell']) {
+    for (const key of ['rowError.unknownSku', 'rowError.cellConflict', 'rowError.duplicateCell', 'rowError.PRODUCT_NOT_FOUND', 'rowError.refused']) {
       expect(card.getByText(key)).toBeTruthy();
     }
+    expect(card.queryByText(/^(PRODUCT_NOT_FOUND|SOME_FUTURE_CODE)/)).toBeNull();
     for (const code of ['FIELD_NOT_AT_SCOPE', 'URL_KEY_TAKEN', 'language_not_offered', 'SCOPE_INVALID', 'not_supported', 'subject_not_found']) {
       expect(card.getByText(`fieldError.${code}`)).toBeTruthy();
     }

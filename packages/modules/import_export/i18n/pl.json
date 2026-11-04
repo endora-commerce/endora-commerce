@@ -100,6 +100,8 @@
   "rowError.unknownSku": "Żaden produkt nie ma SKU {sku}; import nie tworzy produktów.",
   "rowError.cellConflict": "Pole {field} jest zapisywane zarówno przez kolumnę zakresu, jak i przez zmapowaną kolumnę języka źródłowego.",
   "rowError.duplicateCell": "Kolumna {column} zapisuje to samo pole i zakres co inna kolumna wiersza.",
+  "rowError.PRODUCT_NOT_FOUND": "Produkt został usunięty w trakcie importu pliku.",
+  "rowError.refused": "Wiersz odrzucony: {message}",
   "fieldError.language_not_offered": "Kanał sprzedaży nie oferuje tego języka.",
   "fieldError.not_supported": "Tego pola nie można importować.",
   "fieldError.subject_not_found": "Nie znaleziono produktu.",

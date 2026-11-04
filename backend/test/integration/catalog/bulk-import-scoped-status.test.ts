@@ -5,6 +5,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { createImportProfile } from '../../helpers/import-profile.js';
 
 /**
  * Feature 163, Phase 19 (T121) — scoped status in the products CSV
@@ -18,6 +19,13 @@ import {
  * - the whole-file rule is unchanged: one rejected row — an unknown channel, a
  *   value for a channel the product is not in or a language it does not offer, a
  *   value that is not a status — applies nothing.
+ *
+ * Feature 170 (`specs/170-product-editor-scope-switcher/contracts/import-profiles-and-csv.md`,
+ * `write-encoding.md`) moved this file onto the one write encoding and grammar: an inherited
+ * scope exports `INHERIT` and an empty cell is **no change**; the Global columns are `name` and
+ * `description`; a products import runs with a profile; an unknown channel or a language the
+ * channel does not offer refuses the file (400), a value that is not a status is a field error,
+ * and each product applies in its own transaction.
  *
  * Final QA Q-L2 (FR-092, SC-009) — an import never archives and never restores: a
  * status cell, global or scoped, moves the status and leaves `archived_at` as it was.
@@ -33,6 +41,7 @@ describe('Products CSV — scoped status columns (spec 163, T121)', () => {
   let channelId: string;
   let productId: string;
   let outsiderId: string;
+  let profileId: string;
   const sku = `CSV163-${run}-A`;
   const outsiderSku = `CSV163-${run}-B`;
 
@@ -68,22 +77,26 @@ describe('Products CSV — scoped status columns (spec 163, T121)', () => {
     };
   }
 
-  async function importCsv(lines: string[]) {
-    const res = await h.app.inject({
+  const post = (lines: string[]) =>
+    h.app.inject({
       method: 'POST',
-      url: '/api/v1/admin/import/products',
+      url: `/api/v1/admin/import/products?profileId=${profileId}`,
       ...admin,
       headers: { 'content-type': 'text/csv' },
       payload: lines.join('\n'),
     });
+
+  async function importCsv(lines: string[]) {
+    const res = await post(lines);
     expect(res.statusCode, res.body).toBe(200);
     return (res.json() as { data: { imported: number; errors: Array<{ row?: number; reason: string }> } }).data;
   }
 
-  const base = 'sku,status,visibility,name_en,description_en';
+  const base = 'sku,status,visibility,name,description';
 
   beforeAll(async () => {
     h = await setupBackendServer();
+    profileId = await createImportProfile(h);
     channelId = randomUUID();
     await sql(
       `insert into sales_channels (id, code, name, default_language, languages, currencies, default_currency,
@@ -100,7 +113,7 @@ describe('Products CSV — scoped status columns (spec 163, T121)', () => {
     ] as const) {
       await sql(
         `insert into products (id, sku, slug, type, status, name, description, created_at, updated_at)
-         values (?, ?, ?, 'simple', 'active', '{"en-US":"Csv product"}'::jsonb, '{}'::jsonb, now(), now())`,
+         values (?, ?, ?, 'simple', 'active', 'Csv product', null, now(), now())`,
         [id, skuValue, skuValue.toLowerCase()],
       );
     }
@@ -128,18 +141,18 @@ describe('Products CSV — scoped status columns (spec 163, T121)', () => {
     }
   });
 
-  it('exports the override at each channel and channel × language scope, empty where it inherits', async () => {
+  it('exports the override at each channel and channel × language scope, INHERIT where it inherits', async () => {
     const { header, row } = await exportCsv();
-    expect(header).toEqual(
-      expect.arrayContaining([`status@${channelCode}`, `status@${channelCode}/pl-PL`, `status@${channelCode}/en-US`]),
-    );
+    // `contracts/import-profiles-and-csv.md` §3: a column only where some exported product holds an
+    // own value there. Nobody holds a pl-PL status, so the file has no such column.
+    expect(header).toEqual(expect.arrayContaining([`status@${channelCode}`, `status@${channelCode}/en-US`]));
+    expect(header).not.toContain(`status@${channelCode}/pl-PL`);
     expect(row(sku)).toMatchObject({
       [`status@${channelCode}`]: 'inactive',
-      [`status@${channelCode}/pl-PL`]: '',
       [`status@${channelCode}/en-US`]: 'active',
     });
     // A product outside the channel inherits there too.
-    expect(row(outsiderSku)[`status@${channelCode}`]).toBe('');
+    expect(row(outsiderSku)[`status@${channelCode}`]).toBe('INHERIT');
   });
 
   it('round-trips: the exported values imported unchanged change nothing', async () => {
@@ -150,43 +163,51 @@ describe('Products CSV — scoped status columns (spec 163, T121)', () => {
       [base, ...columns].join(','),
       [sku, '', '', '', '', ...columns.map((c) => exported[c] ?? '')].join(','),
     ]);
-    expect(report).toEqual({ imported: 1, errors: [] });
+    expect(report).toMatchObject({ imported: 1, errors: [] });
     expect(await channelStatus(productId)).toBe('inactive');
     expect(await languageStatus(productId, 'pl-PL')).toBeNull();
     expect(await languageStatus(productId, 'en-US')).toBe('active');
   });
 
-  it('writes exactly the edited scopes; an empty cell inherits; a file without the columns touches none', async () => {
+  it('writes exactly the edited scopes; INHERIT inherits; a file without the columns touches none', async () => {
     const report = await importCsv([
       `${base},status@${channelCode},status@${channelCode}/pl-PL`,
-      `${sku},,,,,,inactive`,
+      `${sku},,,,,INHERIT,inactive`,
     ]);
-    expect(report).toEqual({ imported: 1, errors: [] });
+    expect(report).toMatchObject({ imported: 1, errors: [] });
     expect(await channelStatus(productId)).toBeNull();
     expect(await languageStatus(productId, 'pl-PL')).toBe('inactive');
     expect(await languageStatus(productId, 'en-US')).toBe('active');
 
-    expect(await importCsv([base, `${sku},,,Renamed,`])).toEqual({ imported: 1, errors: [] });
+    expect(await importCsv([base, `${sku},,,Renamed,`])).toMatchObject({ imported: 1, errors: [] });
     expect(await languageStatus(productId, 'pl-PL')).toBe('inactive');
     expect(await languageStatus(productId, 'en-US')).toBe('active');
   });
 
-  it('rejects the whole file for any invalid scoped cell, applying nothing', async () => {
+  it('refuses an invalid scoped cell and applies nothing of it', async () => {
     const before = [await channelStatus(productId), await languageStatus(productId, 'pl-PL')];
+    // A language the channel does not offer, and a channel no one has: the file is refused.
     for (const lines of [
-      // A value for a channel the second product is not in.
-      [`${base},status@${channelCode}`, `${sku},,,,,active`, `${outsiderSku},,,,,active`],
-      // A language the channel does not offer.
       [`${base},status@${channelCode}/de-DE`, `${sku},,,,,active`],
-      // A channel no one has.
       [`${base},status@no-such-channel-${run}`, `${sku},,,,,active`],
-      // Not a status.
-      [`${base},status@${channelCode}`, `${sku},,,,,sideways`],
     ]) {
-      const report = await importCsv(lines);
-      expect(report.imported, lines.join(' | ')).toBe(0);
-      expect(report.errors.length, lines.join(' | ')).toBeGreaterThan(0);
+      const res = await post(lines);
+      expect(res.statusCode, lines.join(' | ')).toBe(400);
     }
+    // Not a status: a field error, nothing of the row written.
+    const sideways = await importCsv([`${base},status@${channelCode}`, `${sku},,,,,sideways`]);
+    expect(sideways.imported).toBe(0);
+    expect((sideways as { fieldErrors?: unknown[] }).fieldErrors).toEqual([
+      { rowNumber: 2, column: `status@${channelCode}`, code: 'invalid' },
+    ]);
+    // A value for a channel the second product is not in: catalog refuses the cell. A row whose
+    // every cell is refused imports nothing, so it is not counted, the same as the "not a status" row.
+    const outsider = await importCsv([`${base},status@${channelCode}`, `${outsiderSku},,,,,active`]);
+    expect(outsider.imported).toBe(0);
+    expect(outsider.errors).toEqual([]);
+    expect((outsider as { fieldErrors?: unknown[] }).fieldErrors).toEqual([
+      { rowNumber: 2, column: `status@${channelCode}`, code: 'SCOPE_INVALID' },
+    ]);
     expect([await channelStatus(productId), await languageStatus(productId, 'pl-PL')]).toEqual(before);
   });
 
@@ -203,18 +224,18 @@ describe('Products CSV — scoped status columns (spec 163, T121)', () => {
     const stamp = new Date('2026-10-01T08:00:00.000Z');
     try {
       // `inactive` on a live product switches it off; it does not archive it.
-      expect(await importCsv([base, `${outsiderSku},inactive,,,`])).toEqual({ imported: 1, errors: [] });
+      expect(await importCsv([base, `${outsiderSku},inactive,,,`])).toMatchObject({ imported: 1, errors: [] });
       expect(await globalStatus(outsiderId)).toBe('inactive');
       expect(await archivedAt(outsiderId)).toBeNull();
 
       // `active` on an archived product, globally and at a channel scope: the status
       // moves, the archive stays.
       await sql(`update products set archived_at = ? where id in (?, ?)`, [stamp, outsiderId, productId]);
-      expect(await importCsv([base, `${outsiderSku},active,,,`])).toEqual({ imported: 1, errors: [] });
+      expect(await importCsv([base, `${outsiderSku},active,,,`])).toMatchObject({ imported: 1, errors: [] });
       expect(await globalStatus(outsiderId)).toBe('active');
       expect(await archivedAt(outsiderId)).toBe(stamp.toISOString());
 
-      expect(await importCsv([`${base},status@${channelCode}`, `${sku},,,,,active`])).toEqual({ imported: 1, errors: [] });
+      expect(await importCsv([`${base},status@${channelCode}`, `${sku},,,,,active`])).toMatchObject({ imported: 1, errors: [] });
       expect(await channelStatus(productId)).toBe('active');
       expect(await archivedAt(productId)).toBe(stamp.toISOString());
     } finally {

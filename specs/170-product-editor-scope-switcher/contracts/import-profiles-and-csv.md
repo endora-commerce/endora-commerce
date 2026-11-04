@@ -69,6 +69,13 @@ SC-005). Protection does not exist for CSV (it is a PIM-connector concept, FR-04
 after a dry run — spec round 7, softening FR-116), `warnings: Array<{ kind: 'unmapped_locale'; locale; sourceChannel; products: number }>`
 and per-row `fieldErrors: Array<{ column; code }>`.
 
+`imported` counts the rows of which **at least one cell applied** — any cell that is not refused, one that writes
+what the scope already holds included (so an unchanged re-import still counts its rows); a URL key another
+product holds is a refusal (`URL_KEY_TAKEN`). A row whose every cell was refused (a field error each, e.g. `SCOPE_INVALID` for a product outside the channel) counts 0, the
+same as a row this module's grammar refused before catalog saw it (final fix round, coordinator decision). A row
+error's `reason` is a sentence; a refusal of the whole product reads `<CODE>: <message>` and the admin shows it by
+its code's label (`rowError.<CODE>`), never the raw code.
+
 ## 3. Export
 
 `GET /api/v1/admin/export/products.csv` writes `sku`, every Global column, and one `<field>@<channel>` /
