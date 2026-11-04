@@ -144,7 +144,8 @@ function form(entries: Array<[string, string]>): FormData {
 }
 
 const list = (searchParams: Record<string, string> = {}) => RolesPage({ searchParams: Promise.resolve(searchParams) });
-const create = (searchParams: Record<string, string> = {}) => NewRolePage({ searchParams: Promise.resolve(searchParams) });
+// The new-role page takes no `searchParams` at all: whatever a link carries, it reads nothing (owner ruling, PR #715).
+const create = (_crafted: Record<string, string> = {}) => NewRolePage();
 const edit = (id: string, searchParams: Record<string, string> = {}) => {
   currentId = id;
   return EditRolePage({ params: Promise.resolve({ id }), searchParams: Promise.resolve(searchParams) });

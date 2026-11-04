@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { getSessionCookie } from '../../../lib/session';
 import { getServerContext } from '../../../lib/server-context';
-import { getMe } from '../../../lib/api/account';
+import { getMe, type MeResult } from '../../../lib/api/account';
 import { getMyCreditLimit } from '../../../lib/api/credit-limit';
 import { getMyRole, type OwnRole } from '../../../lib/api/organization';
 import {
@@ -34,7 +34,8 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
  * Feature 170 (FR-058): the role is the member's organization role, and the
  * page lists what it allows in plain language — `GET …/mine/role`, translated
  * by the API. When that read fails the role still shows from the session and
- * only the list is left out.
+ * only the list is left out. A personal Organization's member sees neither,
+ * and the list is not read (owner ruling on PR #715).
  */
 export default async function AccountProfilePage({
   searchParams,
@@ -49,14 +50,19 @@ export default async function AccountProfilePage({
   // The push section (`specs/149-pwa-order-status-push/`) is read beside the
   // profile: the public config says what the channel offers, the preferences
   // what this customer chose. Either failing hides the section.
+  const mePromise = getMe(session);
+  // The own-role read waits only for `/me`, and is skipped where no role is shown.
+  const ownRolePromise = mePromise.then((me) =>
+    showsRole(me) ? getMyRole(session, ctx).catch((): OwnRole | null => null) : null,
+  );
   const [me, creditLimit, pwaConfig, pushPreferences, ownRole] = await Promise.all([
-    getMe(session),
+    mePromise,
     getMyCreditLimit(session),
     fetchPwaConfig(ctx.salesChannelCode),
     getPushPreferences(session, ctx),
-    getMyRole(session, ctx).catch((): OwnRole | null => null),
+    ownRolePromise,
   ]);
-  const role = me.organization ? (ownRole?.role ?? me.customerAccount.organizationRole) : null;
+  const role = showsRole(me) ? (ownRole?.role ?? me.customerAccount.organizationRole) : null;
 
   return (
     <>
@@ -103,7 +109,7 @@ export default async function AccountProfilePage({
           </tr>
         </tbody>
       </table>
-      {me.organization && ownRole ? (
+      {role && ownRole ? (
         <section aria-labelledby="role-allows-heading" className="mt-6">
           <h3 id="role-allows-heading">{t('account.profile.allows.heading')}</h3>
           {ownRole.permissions.length === 0 ? (
@@ -132,6 +138,17 @@ export default async function AccountProfilePage({
       />
     </>
   );
+}
+
+/**
+ * Whether the profile shows the member's role and what it allows: only in a
+ * company Organization. A personal Organization's member holds *Administrator*
+ * (PR-3), which says nothing useful to a B2C buyer, so neither is shown nor read
+ * there (owner ruling on PR #715) — the same `isPersonal` gate as the
+ * organization screens.
+ */
+function showsRole(me: MeResult): boolean {
+  return me.organization !== null && me.organization.isPersonal !== true;
 }
 
 async function savePushPreferencesAction(formData: FormData): Promise<void> {

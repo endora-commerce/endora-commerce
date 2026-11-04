@@ -15,13 +15,9 @@ import { getServerContext } from '../../../../../lib/server-context';
 import { tForLocale } from '../../../../../lib/i18n/messages';
 import { format } from '../../../../../lib/i18n/format';
 import { organizationAreaAccess } from '../../../../../lib/account/organization-area';
-import {
-  ROLE_DESCRIPTION_MAX_LENGTH,
-  ROLE_NAME_MAX_LENGTH,
-  isNameError,
-  roleErrorKey,
-} from '../../../../../lib/account/organization-roles';
+import { roleErrorKey } from '../../../../../lib/account/organization-roles';
 import { RolePermissionsFields } from '../../../../../components/account/RolePermissionsFields';
+import { RoleEditorForm } from '../../../../../components/account/RoleEditorForm';
 import { CartSubmitButton } from '../../../../../components/CartSubmitButton';
 import { deleteRoleAction, updateRoleAction } from '../actions';
 
@@ -44,9 +40,11 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
  *   hold it the administrator chooses the role they move to, *Member*
  *   preselected; a role nobody holds is deleted without one.
  *
- * The save carries the version the page read; a stale save comes back here as
- * `?error=ORGANIZATION_ROLE_STALE` and the page shows the role as it now is
- * (R-29).
+ * The save is `RoleEditorForm` (client): it carries the version the page read,
+ * and a refusal — a stale save included — is shown in place with what was typed
+ * kept; a stale form is reloaded only on request (R-29, owner ruling on PR
+ * #715). The deletion is a plain server form that comes back as `?error=<code>`,
+ * after which the page shows the role as it now is.
  */
 export default async function OrganizationRolePage({
   params,
@@ -106,9 +104,9 @@ export default async function OrganizationRolePage({
   }
 
   const { error } = await searchParams;
+  // Only the deletion still answers by `?error=` (the save answers in place).
   const errorKey = roleErrorKey(error);
   const custom = role.kind === 'custom';
-  const nameInvalid = custom && isNameError(error);
   const held = role.memberCount + role.pendingInvitationCount > 0;
   // The replacement choices are read only where a deletion needs one (FR-024).
   const replacements =
@@ -140,67 +138,20 @@ export default async function OrganizationRolePage({
       {back}
       {heading}
       {role.description ? <p className="b2b-auth__hint">{role.description}</p> : null}
-      {errorKey && !nameInvalid ? (
+      {errorKey ? (
         <p className="b2b-auth__error" role="alert">
           {t(errorKey)}
         </p>
       ) : null}
 
-      <form action={updateRoleAction} className="b2b-auth__form mt-4 max-w-[720px]">
-        <input type="hidden" name="id" value={role.id} />
-        <input type="hidden" name="expectedVersion" value={String(role.version)} />
-        {custom ? (
-          <>
-            <div className="b2b-auth__field">
-              <label htmlFor="role-name">{t('account.roles.editor.name')}</label>
-              <input
-                id="role-name"
-                name="name"
-                defaultValue={role.name}
-                required
-                maxLength={ROLE_NAME_MAX_LENGTH}
-                placeholder=" "
-                autoComplete="off"
-                aria-invalid={nameInvalid || undefined}
-                aria-describedby={nameInvalid ? 'role-name-error' : 'role-name-hint'}
-              />
-            </div>
-            {nameInvalid && errorKey ? (
-              <p id="role-name-error" className="b2b-auth__error m-0" role="alert">
-                {t(errorKey)}
-              </p>
-            ) : (
-              <p id="role-name-hint" className="m-0 text-[12px] text-muted">
-                {t('account.roles.editor.nameHint')}
-              </p>
-            )}
-            <div className="b2b-auth__field">
-              <label htmlFor="role-description">{t('account.roles.editor.description')}</label>
-              <textarea
-                id="role-description"
-                name="description"
-                rows={2}
-                defaultValue={role.description ?? ''}
-                maxLength={ROLE_DESCRIPTION_MAX_LENGTH}
-                placeholder=" "
-              />
-            </div>
-          </>
-        ) : (
-          <p className="m-0 text-[13px] text-muted">{format(t('account.roles.editor.memberHint'), { role: role.name })}</p>
-        )}
-        <RolePermissionsFields groups={groups} granted={role.permissions} locale={locale} />
-        <div className="b2b-auth__actions flex flex-wrap items-center gap-3">
-          <CartSubmitButton
-            className="btn btn--dark min-h-11"
-            label={t('account.roles.editor.save')}
-            pendingLabel={t('account.roles.editor.saving')}
-          />
-          <LocalizedLink href="/organization/roles" className="btn btn--ghost min-h-11">
-            {t('account.common.cancel')}
-          </LocalizedLink>
-        </div>
-      </form>
+      <RoleEditorForm
+        action={updateRoleAction}
+        locale={locale}
+        groups={groups}
+        granted={role.permissions}
+        role={{ id: role.id, kind: role.kind, name: role.name, description: role.description, version: role.version }}
+        cancelHref="/organization/roles"
+      />
 
       {custom ? (
         <details

@@ -193,6 +193,9 @@ export const account = defineMessages({
     'account.roles.error.FORBIDDEN': 'Only the organization’s administrators can manage roles.',
     'account.roles.error.VALIDATION_FAILED': 'Check the name: it must be 1 to 80 characters long.',
     'account.roles.error.FAILED': 'The role could not be saved. Try again.',
+    'account.roles.form.stale':
+      'Someone changed this role while you were editing it. Your changes are still here, but they cannot be saved over theirs: reload the role to see its current state.',
+    'account.roles.form.reload': 'Reload the role',
 
     // Organization carts (`/organization/carts`).
     'account.orgCarts.heading': 'Organization carts',
@@ -627,6 +630,9 @@ export const account = defineMessages({
     'account.roles.error.FORBIDDEN': 'Rolami mogą zarządzać tylko administratorzy organizacji.',
     'account.roles.error.VALIDATION_FAILED': 'Sprawdź nazwę: musi mieć od 1 do 80 znaków.',
     'account.roles.error.FAILED': 'Nie udało się zapisać roli. Spróbuj ponownie.',
+    'account.roles.form.stale':
+      'Ktoś zmienił tę rolę podczas Twojej edycji. Twoje zmiany wciąż tu są, ale nie można ich zapisać w miejsce tamtych: wczytaj rolę ponownie, aby zobaczyć jej aktualny stan.',
+    'account.roles.form.reload': 'Wczytaj rolę ponownie',
 
     'account.orgCarts.heading': 'Koszyki organizacji',
     'account.orgCarts.approverOnly': 'Tę stronę widzą tylko członkowie, którzy mogą akceptować koszyki.',

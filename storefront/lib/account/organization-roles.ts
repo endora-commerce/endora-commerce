@@ -15,7 +15,10 @@ import type { MessageKey } from '../i18n/messages';
  * `lib/account/org-cart-approval.ts`, for the same reason: a redirect's query
  * string is text anyone can put on an administrator's page with a crafted link.
  * The page names a code it knows and reads anything else as `FAILED`. For the
- * same reason a refused form is not refilled from the URL.
+ * same reason no form state travels in a URL: a refused create or edit answers
+ * its code as action state ({@link RoleFormState}) and the client form keeps
+ * what was typed (`components/account/RoleEditorForm.tsx`). Only the deletion,
+ * a plain server form, still redirects with `?error=<code>`.
  */
 
 /** The bounds `createOrganizationRoleRequestSchema` applies (FR-004). */
@@ -41,6 +44,15 @@ export type RoleErrorCode = keyof typeof ERROR_KEYS;
 
 function isKnown(code: string): code is RoleErrorCode {
   return Object.prototype.hasOwnProperty.call(ERROR_KEYS, code);
+}
+
+/**
+ * What a role form's server action answers through `useActionState` when the
+ * API refuses the write: the refusal's code, nothing of what was typed — the
+ * client form keeps that itself (owner ruling on PR #715). Success navigates.
+ */
+export interface RoleFormState {
+  readonly error: RoleErrorCode | null;
 }
 
 /** The code a failed role write reports: the API's own when the page can name it. */
