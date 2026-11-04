@@ -28,7 +28,8 @@ Trasy administracyjne są chronione przez `orders:read` (odczyt) i `orders:write
 
 Kupujący widzi zamówienia, które sam złożył. Każde inne zamówienie jego organizacji — na liście,
 na stronie szczegółów i w każdej akcji, która czyta zamówienie jako źródło (ponowienie zamówienia,
-utworzenie z niego zapytania ofertowego, jego faktury) — wymaga uprawnienia organizacji
+utworzenie z niego zapytania ofertowego, zgłoszenie do niego zwrotu lub reklamacji, jego faktury) —
+wymaga uprawnienia organizacji
 **Wyświetlanie zamówień organizacji** (`orders.view_organization`), które deklaruje ten moduł:
 
 | Rola | Czy je ma |
@@ -40,7 +41,10 @@ utworzenie z niego zapytania ofertowego, jego faktury) — wymaga uprawnienia or
 Bez tego uprawnienia zamówienie współpracownika odpowiada `404`, dokładnie tak jak zamówienie innej
 organizacji, nigdy `403`. Z nim zasięgiem jest organizacja; logowanie centrali z włączonym
 roll-upem obejmuje także jej poddrzewo — roll-up poszerza zasięg, ale nigdy nie nadaje uprawnienia.
-Zwroty nie są poszerzane: zwrot rozpoczyna kupujący, który złożył zamówienie.
+
+Zgłoszenie zwrotu lub reklamacji do zamówienia współpracownika wymaga ponadto uprawnienia modułu
+`returns` **Zgłaszanie zwrotów i reklamacji** (`returns.create`); sprawa zostaje zgłoszona w imieniu
+członka, który ją rozpoczyna (zob. stronę `returns`).
 
 ## Który kanał sprzedaży zapisuje zamówienie
 
@@ -814,7 +818,8 @@ szablon platformy.
 - **Zakres dostępu** — `order-access-service.ts` to jedyne miejsce egzekwujące zakres zamówień
   kupującego (własne albo całej organizacji z `orders.view_organization`, o które pyta
   `organizationPermissionPort`); przechodzą przez nie lista, szczegóły, ponowienie zamówienia,
-  utworzenie zapytania ofertowego i `OrderReadPort.findByIdForCustomer`.
+  utworzenie zapytania ofertowego i `OrderReadPort.findByIdForCustomer`. Moduły `invoices` i `returns`
+  korzystają z niego przez ten port.
 - **Panele na ekranie zamówienia** — strefa panelu administracyjnego `order.detail.after` jest
   osadzona raz, na końcu ekranu zamówienia, pod jego zakładkami, i przekazuje wkładowi
   `{ orderId }`. Moduł dodaje panel, deklarując `zoneComponent('order.detail.after', …)` we

@@ -94,12 +94,21 @@ export const manifest = defineModuleManifest({
   // state for a consequence to describe and the bind costs no operator a control.
   //
   // `orders` was already here, which is why `orderReturnContextPort` needs no
-  // line of its own. The other three settlement owners are deliberately **not**
-  // here — see `nonBindingDependencies`.
+  // line of its own — nor `orderReadPort`, which judges the order a buyer
+  // starts a return from (`specs/170-organization-roles/` FR-054). The other
+  // three settlement owners are deliberately **not** here — see
+  // `nonBindingDependencies`.
+  //
+  // `organizations` arrives with the two organization permissions below
+  // (`specs/170-organization-roles/` OR-11, research R-41 item 7): the buyer
+  // routes ask `organizationPermissionPort` whether the caller may open a case
+  // and whether they see the Organization's cases. `organizations` declares
+  // `nonDeactivatable`, so the bind costs no operator a control.
   dependencies: [
     'auth',
     'customer_accounts',
     'orders',
+    'organizations',
     'settings',
     'transactional_emails',
   ],
@@ -175,6 +184,38 @@ export const manifest = defineModuleManifest({
     },
   ],
   settings,
+  /**
+   * The buyer actions this module gates by organization role
+   * (`specs/170-organization-roles/` FR-022, OR-11, research R-41). One code
+   * covers returns and complaints alike: they are one form and one route.
+   *
+   * - `returns.create` gates `POST /api/v1/returns` only (FR-052). Reading an
+   *   order's returnable lines, one's own cases, and the follow-up actions on a
+   *   case one filed stay open — they continue a case rather than open one.
+   * - `returns.view_organization` widens the buyer's case list and case read
+   *   from the cases they filed to every case of the Organization, as
+   *   `orders.view_organization` widens orders (FR-053). It opens none of a
+   *   colleague's case's follow-up actions (Q-R2 = A).
+   *
+   * Labels and descriptions are `organizationPermissions.<code>.{label,description}`
+   * in this module's `i18n/{en,pl}.json`.
+   */
+  organizationPermissions: [
+    {
+      code: 'returns.create',
+      label: 'Create returns and complaints',
+      description:
+        "Open a return or a complaint for an order you can see: your own, or a colleague's if you may view the organization's orders.",
+      memberDefault: true,
+    },
+    {
+      code: 'returns.view_organization',
+      label: "View the organization's returns and complaints",
+      description:
+        'See every return and complaint filed in the organization, not only your own. Commenting, attaching files, choosing the return delivery method and cancelling stay with the member who filed the case.',
+      memberDefault: false,
+    },
+  ],
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
   // Feature 047 — admin-editable transactional emails owned by this module.

@@ -28,5 +28,9 @@
   "errors.RETURN_SAVED_VIEW_NAME_TAKEN": "Masz już zapisany widok o tej nazwie na liście zwrotów. Wybierz inną nazwę.",
   "errors.RETURN_LINE_NOT_RETURNABLE": "Produktu „{productName}” nie można zwrócić. Nadal możesz złożyć reklamację.",
   "actions.openReturns.keywords": "zwroty, reklamacje",
-  "actions.returnStatusConfig.keywords": "statusy zwrotów"
+  "actions.returnStatusConfig.keywords": "statusy zwrotów",
+  "organizationPermissions.returns.create.label": "Zgłaszanie zwrotów i reklamacji",
+  "organizationPermissions.returns.create.description": "Zgłaszanie zwrotu lub reklamacji do zamówienia, które widzisz: własnego albo współpracownika, jeśli możesz wyświetlać zamówienia organizacji.",
+  "organizationPermissions.returns.view_organization.label": "Wyświetlanie zwrotów i reklamacji organizacji",
+  "organizationPermissions.returns.view_organization.description": "Przeglądanie wszystkich zwrotów i reklamacji zgłoszonych w organizacji, nie tylko własnych. Komentowanie, dodawanie plików, wybór sposobu odesłania zwrotu i anulowanie pozostają w gestii osoby, która zgłosiła sprawę."
 }
