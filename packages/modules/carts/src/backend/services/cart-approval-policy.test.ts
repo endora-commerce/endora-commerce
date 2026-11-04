@@ -58,6 +58,17 @@ describe('basketAwaitsApproval', () => {
     );
   });
 
+  it("hands the port the owner's role when the caller knows it (FR-080)", async () => {
+    const policy = reads();
+    await basketAwaitsApproval(policy, {
+      ...basket(MEMBER, 'not_required'),
+      organizationRoleId: 'role-1',
+    });
+    expect(policy.can.mock.calls.map(([subject]) => subject)).toStrictEqual([
+      { customerAccountId: MEMBER, organizationId: ORG, organizationRoleId: 'role-1' },
+    ]);
+  });
+
   it('a basket with no owner is not this rule’s to refuse; an owner nobody knows fails closed', async () => {
     expect(await basketAwaitsApproval(reads(), basket(null, 'not_required'))).toBe(false);
     expect(await basketAwaitsApproval(reads(), basket('unknown', 'not_required'))).toBe(true);
@@ -68,5 +79,17 @@ describe('approvalSubmissionRequired', () => {
   it('is the negation of carts.order_without_approval', async () => {
     expect(await approvalSubmissionRequired(reads(), { customerAccountId: MEMBER, organizationId: ORG })).toBe(true);
     expect(await approvalSubmissionRequired(reads(), { customerAccountId: TRUSTED, organizationId: ORG })).toBe(false);
+  });
+
+  // `specs/170-organization-roles/` FR-080 (WP-13, T113): the requester's role,
+  // which the actor carries, is handed on so the port judges from its cache.
+  it("hands the port the buyer's role when the caller knows it, and none when it does not", async () => {
+    const policy = reads();
+    await approvalSubmissionRequired(policy, { customerAccountId: MEMBER, organizationId: ORG, organizationRoleId: 'role-1' });
+    await approvalSubmissionRequired(policy, { customerAccountId: MEMBER, organizationId: ORG, organizationRoleId: null });
+    expect(policy.can.mock.calls.map(([subject]) => subject)).toStrictEqual([
+      { customerAccountId: MEMBER, organizationId: ORG, organizationRoleId: 'role-1' },
+      { customerAccountId: MEMBER, organizationId: ORG },
+    ]);
   });
 });

@@ -19,7 +19,6 @@ import { TEST_ADMIN_ID } from '../../helpers/test-actors.js';
 import {
   EXPECTED_DIFFERENCES,
 } from '../../fixtures/organization-roles/expected-differences.js';
-import { LANDED } from '../../fixtures/organization-roles/landed-work-packages.js';
 import {
   ORACLE_KEY_OF_ID,
   ORACLE_POPULATION as POPULATION,
@@ -37,9 +36,9 @@ import {
 } from '../../fixtures/organization-roles/pre-upgrade-outcomes.js';
 
 /**
- * The roles upgrade replay — `specs/170-organization-roles/` T131 (WP-13a;
- * research R-27, R-38; `contracts/migration-and-replay.md` §6, §6.2; FR-070 –
- * FR-074, PR-3, PR-5).
+ * The roles upgrade replay — `specs/170-organization-roles/` T131 (WP-13a),
+ * closed by T112 (WP-13) (research R-27, R-38; `contracts/migration-and-replay.md`
+ * §6; FR-070 – FR-074, PR-3, PR-5).
  *
  * The frozen WP-00 oracle recorded what today's code answers; this file asks the
  * same questions of an **upgraded** database, which is the state the release
@@ -65,14 +64,16 @@ import {
  * first request. Nothing the 170 migrations touch exists between the truncate and
  * the population, so no cache holds a pre-upgrade row.
  *
- * **The comparison** (§6 step 5, §6.2) is on the oracle's whole
- * `{ status, code }`: a row of `EXPECTED_DIFFERENCES` equals its `after` once its
- * `landedBy` package is `LANDED`, its `before` until then; every other row equals
- * `PRE_UPGRADE_OUTCOMES`. Request bodies go through `roleToRoleId` only once
- * WP-03 — the package that changes that API shape — has landed. `send` and
- * `observe` are the oracle's, copied unchanged, which is what the hand-over
- * (T132: the live oracle and this file, empty ledger, both green on one tree)
- * proves.
+ * **The comparison** (§6 step 5) is on the oracle's whole `{ status, code }`:
+ * a row of `EXPECTED_DIFFERENCES` equals its `after`, every other row equals
+ * `PRE_UPGRADE_OUTCOMES` — never the status alone (PR-5). Request bodies go
+ * through `roleToRoleId`, because the API now takes `roleId` where the oracle
+ * sent `role`; the outcome must not change with the shape. `send` and `observe`
+ * are the oracle's, copied unchanged, which is what the hand-over (T132: the
+ * live oracle and this file, with every row at `before`, both green on one tree)
+ * proved. The interim landing ledger of §6.2, which let each package's rows move
+ * at its own merge, is gone (T112): `landedBy` stays in the table as provenance
+ * and the replay no longer reads it.
  */
 
 const BACKEND_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
@@ -122,7 +123,7 @@ interface MigrationSnapshot {
   triggers: unknown[];
 }
 
-describe('organization roles — the upgrade replay (170 WP-13a)', () => {
+describe('organization roles — the upgrade replay (170 WP-13a, WP-13)', () => {
   let h: BackendServerHandle;
   let database: MigratedDatabase;
   const declaredDatabaseUrl = process.env['DATABASE_URL'];
@@ -489,9 +490,9 @@ describe('organization roles — the upgrade replay (170 WP-13a)', () => {
     await database?.drop();
   });
 
-  /** The body the API of this tree takes: `role` → `roleId` once WP-03 has landed (§6 step 5). */
+  /** The body the API takes: the oracle's `role` sent as `roleId` (§6 step 5). */
   function asSent(request: OracleRequest): OracleRequest {
-    if (!LANDED['WP-03'] || request.body === undefined) return request;
+    if (request.body === undefined) return request;
     const body = roleToRoleId(request, (organizationId: string, kind: OracleRoleKind) => {
       const id = roleIdOf.get(`${organizationId}:${kind}`);
       if (!id) throw new Error(`no ${kind} role for Organization ${organizationId}`);
@@ -500,11 +501,9 @@ describe('organization roles — the upgrade replay (170 WP-13a)', () => {
     return { ...request, ...(body !== undefined ? { body } : {}) };
   }
 
-  /** The outcome a row must have on this tree (§6 step 5, §6.2). */
+  /** The outcome a row must have after the upgrade (§6 step 5). */
   function expectedOutcome(id: string): OracleOutcome | undefined {
-    const difference = EXPECTED_DIFFERENCES[id];
-    if (difference) return LANDED[difference.landedBy] ? difference.after : difference.before;
-    return PRE_UPGRADE_OUTCOMES[id];
+    return EXPECTED_DIFFERENCES[id]?.after ?? PRE_UPGRADE_OUTCOMES[id];
   }
 
   async function send(request: OracleRequest): Promise<OracleOutcome> {
@@ -625,7 +624,7 @@ describe('organization roles — the upgrade replay (170 WP-13a)', () => {
     });
   });
 
-  it('answers every gated request as the oracle recorded, but for the landed expected differences', async () => {
+  it('answers every gated request as the oracle recorded, but for the expected differences at their `after`', async () => {
     const observed: Record<string, OracleOutcome> = {};
     for (const request of ORACLE_REQUESTS) {
       observed[request.id] = await send(asSent(request));
@@ -644,11 +643,9 @@ describe('organization roles — the upgrade replay (170 WP-13a)', () => {
       id: r.id,
       expected: expectedOutcome(r.id),
       observed: observed[r.id],
-      ...(EXPECTED_DIFFERENCES[r.id]
-        ? { landedBy: EXPECTED_DIFFERENCES[r.id]!.landedBy, landed: LANDED[EXPECTED_DIFFERENCES[r.id]!.landedBy] }
-        : { inTable: false }),
+      inTable: r.id in EXPECTED_DIFFERENCES,
     }));
-    expect(differing, `ledger: ${JSON.stringify(LANDED)}`).toEqual([]);
+    expect(differing, `observed:\n${renderTable(observed)}`).toEqual([]);
   }, 300_000);
 
   // §6 step 7 — FR-074, SC-002.

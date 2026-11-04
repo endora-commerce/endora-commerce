@@ -52,6 +52,11 @@ import { approvalSubmissionRequired } from './cart-approval-policy.js';
 export interface ApproveActor {
   customerAccountId: string;
   organizationId: string;
+  /**
+   * The actor's role, when the request carries it (research R-15): the
+   * approval rule then needs no read of the account (FR-080).
+   */
+  organizationRoleId?: string | null;
 }
 
 /**

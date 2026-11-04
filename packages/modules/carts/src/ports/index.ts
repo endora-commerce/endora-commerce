@@ -168,6 +168,13 @@ export interface CartPlacementApplyPort {
   awaitsApproval(input: {
     cart: Pick<CartRecord, 'customerAccountId' | 'approvalStatus'>;
     organizationId: string;
+    /**
+     * The basket owner's organization role, when the caller knows it — the
+     * placer's own, off the request's actor, when they place their own basket
+     * (`specs/170-organization-roles/` R-15, FR-080). The rule is then judged
+     * from the role cache alone; absent, the owner's account is read for it.
+     */
+    organizationRoleId?: string | null;
   }): Promise<boolean>;
 }
 
