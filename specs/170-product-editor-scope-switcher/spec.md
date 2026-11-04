@@ -279,6 +279,14 @@ Owner decisions on 2026-10-30 arising from the pre-build security and schema rev
   read-only; the read carries `inheritedValue` for every non-Global field.
 - Q: Where are the URL redirects? → A: **Details, under the URL key** (stays visible when SEO is off).
 
+### Session 2026-11-04 (round 9, from the final review)
+
+- Q: Does a Global save refuse an empty required attribute the operator did not stage? → A: **Yes, as today**
+  (owner, 2026-11-04).
+- Q: What are the scope overview, the publication window and the inherit action called? → A: One name each,
+  in English and Polish, on every 170 surface: **Scope map** / **Mapa zakresów**, **Publication window** /
+  **Okres publikacji**, and **Use value from {scope}** / **Użyj wartości z zakresu: {scope}**.
+
 ## Amendments to 163 (2026-10-29, extended 2026-10-30)
 
 163 is shipped on `master`. The following parts of `specs/163-product-data-scopes/spec.md` are **reversed or
@@ -1245,6 +1253,11 @@ Code-versus-spec defects in shipped 163, resolved here:
   (`organizations.ts:75`, inherits the sales channel's); a variant's base price per currency
   (`price-books.ts:971`, inherits the product's). Each keeps `null` = inherit until its follow-up adopts the
   FR-110 encoding.
+- **Named follow-up — sticky Save on desktop** (endora-commerce/endora-commerce#717): Save in the sticky
+  region at ≥1024 px; 170 keeps it in the page head (owner, 2026-11-04).
+- **Named follow-up — channel names in import channel targets** (endora-commerce/endora-commerce#718): the
+  channel-targets read returns no channel name, so 170 shows the channel code and names the language (owner,
+  2026-11-04).
 - Per-deployment overlays (Constitution XV).
 
 ## Constitution constraints
