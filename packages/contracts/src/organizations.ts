@@ -151,11 +151,15 @@ export const customerAccountSchema = z.object({
   email: z.string().email(),
   firstName: z.string(),
   lastName: z.string(),
-  /** @deprecated Read `organizationRole` (`specs/170-organization-roles/`, FR-073); removed with the legacy enum. */
-  role: organizationRoleSchema,
   /**
-   * The member's role (`specs/170-organization-roles/`, FR-008, FR-056).
-   * Optional until the session views fill it; replaces `role`.
+   * @deprecated No longer sent since `specs/170-organization-roles/` WP-03
+   * (FR-073): read `organizationRole`. Optional so a response without it
+   * parses; removed with the legacy enum.
+   */
+  role: organizationRoleSchema.optional(),
+  /**
+   * The member's role (`specs/170-organization-roles/`, FR-008, FR-056);
+   * replaces `role`. Optional on the schema only until the legacy removal.
    */
   organizationRole: organizationRoleRefSchema.optional(),
   /** The member's effective organization permissions, sorted (FR-056). Optional until filled. */
@@ -272,9 +276,12 @@ export const customerLoginResponseSchema = z.object({
       id: uuidSchema,
       email: z.string().email(),
       organizationId: uuidSchema.nullable(),
-      /** @deprecated Read `organizationRole` (`specs/170-organization-roles/`, FR-073). */
-      role: organizationRoleSchema,
-      /** The member's role (FR-056). Optional until the login route fills it; replaces `role`. */
+      /**
+       * @deprecated No longer sent since `specs/170-organization-roles/` WP-03
+       * (FR-073): read `organizationRole`. Removed with the legacy enum.
+       */
+      role: organizationRoleSchema.optional(),
+      /** The member's role (FR-056); replaces `role`. */
       organizationRole: organizationRoleRefSchema.optional(),
       /** The member's effective organization permissions, sorted (FR-056). */
       permissions: z.array(z.string()).optional(),

@@ -91,6 +91,7 @@ import {
 import { OrganizationRolePermissionService } from './services/organization-role-permission-port.js';
 import {
   OrganizationRoleService,
+  predefinedRoleName,
   translatePermissionText,
   type ModuleTranslate,
 } from './services/organization-role-service.js';
@@ -454,6 +455,8 @@ export function registerModule(ctx: ModuleContext): void {
           'label',
           supportedLanguageOf(language),
         ),
+      // WP-03 — the role as the session views and the impersonation answer name it (FR-008).
+      predefinedRoleName: (kind, language) => predefinedRoleName(moduleTranslate, kind, supportedLanguageOf(language)),
     });
 
   ctx.di.register({
@@ -678,6 +681,16 @@ export function registerModule(ctx: ModuleContext): void {
             roleService: cradle().organizationRoleService,
             organizationPermissions: () =>
               lazyPort<OrganizationPermissionPort>(ctx, 'organizationPermissionPort'),
+            // WP-03 — the role every member response names, and the member
+            // role Command `customer_accounts` publishes (research R-22).
+            organizationRoles: lazyPort<OrganizationRoleReadPort>(ctx, 'organizationRoleReadPort'),
+            customerAccountRoles: lazyPort<CustomerAccountRoleCommandPort>(ctx, 'customerAccountRoleCommandPort'),
+            // #667 — the invitation e-mail's role label is written in the
+            // language the template path sends in: the system-default channel's.
+            resolveEmailLanguage: async () =>
+              supportedLanguageOf(
+                (await cradle().salesChannelResolutionPort.getSystemDefault()).defaultLanguage,
+              ),
             // Registered unconditionally. Before T138 each of these four was an
             // optional argument, and an omitted one silently removed a route
             // surface: no `restrictionService` meant no storefront preflight,

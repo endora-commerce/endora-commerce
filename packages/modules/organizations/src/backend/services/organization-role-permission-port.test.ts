@@ -203,3 +203,27 @@ describe('findRole (WP-02b)', () => {
     expect(await service.findRole(ORG, '00000000-0000-4000-8000-0000000000ff')).toBeNull();
   });
 });
+
+describe('roleRef (WP-03)', () => {
+  it('names a predefined role in the requested language and a custom role by its own name (FR-008)', async () => {
+    const service = new OrganizationRolePermissionService({
+      cache: { get: async (organizationId) => (organizationId === ORG ? roles() : new Map()) },
+      catalogue: new OrganizationRoleCatalogue({ manifests: () => MANIFESTS, isModulePresent: () => true }),
+      resolveAccountRoleId: async () => null,
+      permissionLabel: async (code) => code,
+      predefinedRoleName: async (kind, language) => `${language}:${kind}`,
+    });
+    await expect(service.roleRef(ORG, MEMBER_ROLE, 'pl')).resolves.toEqual({ id: MEMBER_ROLE, kind: 'member', name: 'pl:member' });
+    await expect(service.roleRef(ORG, CUSTOM_ROLE, 'pl')).resolves.toEqual({ id: CUSTOM_ROLE, kind: 'custom', name: 'Buyer' });
+  });
+
+  it("answers null for another Organization's role (FR-005)", async () => {
+    const { service } = port();
+    await expect(service.roleRef(OTHER_ORG, ADMIN_ROLE)).resolves.toBeNull();
+  });
+
+  it('falls back to the English names when no translation is wired', async () => {
+    const { service } = port();
+    await expect(service.roleRef(ORG, ADMIN_ROLE, 'pl')).resolves.toEqual({ id: ADMIN_ROLE, kind: 'administrator', name: 'Administrator' });
+  });
+});

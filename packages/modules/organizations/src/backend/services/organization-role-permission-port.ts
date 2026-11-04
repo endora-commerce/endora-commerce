@@ -4,6 +4,7 @@ import {
   type OrganizationPermissionPort,
   type OrganizationPermissionSubject,
   type OrganizationRoleReadPort,
+  type OrganizationRoleRef,
   type OrganizationRoleSummary,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -41,6 +42,12 @@ export interface OrganizationRolePermissionServiceDeps {
   readonly resolveAccountRoleId: (subject: OrganizationPermissionSubject) => Promise<string | null>;
   /** The translated label of a declared code, in `language` (R-31). */
   readonly permissionLabel: (code: string, language?: string) => Promise<string>;
+  /**
+   * The translated name of a predefined role, in `language` (FR-008; WP-03).
+   * Absent, the English one — a composition that wires no bundle still names
+   * the role rather than answering its key.
+   */
+  readonly predefinedRoleName?: (kind: 'administrator' | 'member', language?: string) => Promise<string>;
   readonly logError?: (message: string, context: Record<string, unknown>) => void;
 }
 
@@ -59,6 +66,12 @@ export function permissionRequiredRefusal(code: string, permissionLabel: string)
     { permission: code, permissionLabel },
   );
 }
+
+/** The predefined roles' English names, the last tier when no bundle answers. */
+const PREDEFINED_ROLE_ENGLISH_NAMES: Readonly<Record<'administrator' | 'member', string>> = {
+  administrator: 'Administrator',
+  member: 'Member',
+};
 
 export class OrganizationRolePermissionService implements OrganizationPermissionPort, OrganizationRoleReadPort {
   private readonly logError: (message: string, context: Record<string, unknown>) => void;
@@ -119,6 +132,18 @@ export class OrganizationRolePermissionService implements OrganizationPermission
   async findRole(organizationId: string, roleId: string): Promise<OrganizationRoleSummary | null> {
     const role = (await this.deps.cache.get(organizationId)).get(roleId);
     return role ? { id: role.id, kind: role.kind, name: role.kind === 'custom' ? (role.name ?? null) : null } : null;
+  }
+
+  async roleRef(organizationId: string, roleId: string, language?: string): Promise<OrganizationRoleRef | null> {
+    const role = (await this.deps.cache.get(organizationId)).get(roleId);
+    if (!role) return null;
+    const name =
+      role.kind === 'custom'
+        ? (role.name ?? '')
+        : this.deps.predefinedRoleName
+          ? await this.deps.predefinedRoleName(role.kind, language)
+          : PREDEFINED_ROLE_ENGLISH_NAMES[role.kind];
+    return { id: role.id, kind: role.kind, name };
   }
 
   /** The subject's role in its own Organization, or `null` (logged). */

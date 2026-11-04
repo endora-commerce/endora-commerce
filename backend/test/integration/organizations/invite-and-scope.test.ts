@@ -10,7 +10,8 @@ import {
  * logs in → invitee can read their own profile but NOT a sibling order.
  */
 
-interface CustomerAccount { id: string; email: string; role: string }
+/** `specs/170-organization-roles/` WP-03 — the role as `organizationRole` (FR-073). */
+interface CustomerAccount { id: string; email: string; organizationRole: { id: string; name: string; kind: string } }
 
 describe('invite → accept → role scoping integration', () => {
   let h: BackendServerHandle;
@@ -28,7 +29,7 @@ describe('invite → accept → role scoping integration', () => {
     const invite = await h.app.inject({
       method: 'POST',
       url: '/api/v1/organizations/mine/invitations',
-      payload: { email: 'integration-invitee@example.com', role: 'regular_user' },
+      payload: { email: 'integration-invitee@example.com' },
       cookies: { b2b_session: 'stub-customer-session' },
     });
     expect(invite.statusCode).toBe(201);
@@ -49,7 +50,7 @@ describe('invite → accept → role scoping integration', () => {
     expect(accept.statusCode).toBe(200);
     const newCustomer = (accept.json() as { data: { customerAccount: CustomerAccount } }).data
       .customerAccount;
-    expect(newCustomer.role).toBe('regular_user');
+    expect(newCustomer.organizationRole.kind).toBe('member');
 
     // 4. Invitee logs in.
     const login = await h.app.inject({

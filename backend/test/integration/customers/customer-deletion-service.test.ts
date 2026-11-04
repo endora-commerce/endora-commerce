@@ -24,6 +24,7 @@ import {
 import { CustomerAccountReadService } from '../../../../packages/modules/customer_accounts/dist/backend/services/customer-account-ports.js';
 import { twoFactorEnrolmentsFor } from '../../helpers/two-factor-enrolments.js';
 import { predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
+import { OrganizationDepletionGuard } from '../../../../packages/modules/customers/src/backend/services/organization-depletion-guard.js';
 
 /**
  * Feature 040, US7 — soft-delete, restore within window, and the permanent
@@ -52,8 +53,10 @@ describe('CustomerDeletionService', () => {
       customerAccountPortsFor(() => em),
       audit,
     );
+    const organizationRoles = { predefinedRoleId: (organizationId: string, kind: 'administrator' | 'member') => predefinedRoleIdOf(em, organizationId, kind) };
+    const accounts = new CustomerAccountReadService(() => em, twoFactorEnrolmentsFor(() => em, 'customer'), organizationRoles);
     svc = new CustomerDeletionService(
-      new CustomerAccountReadService(() => em, twoFactorEnrolmentsFor(() => em, 'customer')),
+      accounts,
       customerAccountLifecycleWriteFor(() => em, audit),
       {
         ensureForCustomerAccount: async (id) =>
@@ -69,6 +72,18 @@ describe('CustomerDeletionService', () => {
       },
       new CustomerAuthorityService({ canSeeOrganization: async () => true }),
       { destroyAllForCustomer: (id: string) => sessions.destroyAllForCustomer(id) },
+      // `specs/170-organization-roles/` WP-03 (T120) — the guard against deleting
+      // a company Organization's last administrator.
+      new OrganizationDepletionGuard({
+        accounts,
+        organizations: {
+          findById: async (id) => {
+            const org = await em.findOne(Organization, { id });
+            return org ? toOrganizationRecord(org) : null;
+          },
+        },
+        organizationRoles,
+      }),
     );
   });
 

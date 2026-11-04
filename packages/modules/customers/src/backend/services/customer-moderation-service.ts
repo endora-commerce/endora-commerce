@@ -6,6 +6,7 @@ import {
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { CustomerAuthorityService } from './customer-authority-service.js';
+import type { OrganizationDepletionGuard } from './organization-depletion-guard.js';
 
 /**
  * CustomerModerationService — block / unblock a Customer account (feature 040,
@@ -56,6 +57,11 @@ export class CustomerModerationService {
     private readonly accountWrites: CustomerAccountLifecycleWritePort,
     private readonly authority: CustomerAuthorityService,
     private readonly sessions: SessionRevoker,
+    /**
+     * `specs/170-organization-roles/` WP-03 — the last-administrator question,
+     * by role and for company Organizations only (owner ruling PR-3).
+     */
+    private readonly depletion: OrganizationDepletionGuard,
   ) {}
 
   async block(input: BlockCustomerInput): Promise<CustomerAccountRecord> {
@@ -116,18 +122,14 @@ export class CustomerModerationService {
   }
 
   /**
-   * Refuses to block the last usable (active, non-blocked) organization admin
-   * of an Organization — that would strand the org with nobody able to manage
-   * it (spec edge case "org-owner depletion").
+   * Refuses to block the last usable (active, non-blocked) administrator of a
+   * company Organization — that would strand the org with nobody able to
+   * manage it (spec edge case "org-owner depletion"). A personal
+   * Organization's sole member is its administrator and may be blocked
+   * (`specs/170-organization-roles/` owner ruling PR-3).
    */
   private async assertWouldNotStrandOrg(customer: CustomerAccountRecord): Promise<void> {
-    if (!customer.organizationId || customer.role !== 'organization_admin') return;
-    const remaining = await this.accounts.countByOrganizationRole(
-      customer.organizationId,
-      'organization_admin',
-      { excludeCustomerAccountId: customer.id, activeOnly: true, notBlocked: true },
-    );
-    if (remaining === 0) {
+    if (await this.depletion.wouldLeaveWithoutAdministrator(customer)) {
       throw new HttpError(
         409,
         ERROR_CODES.ORG_OWNER_DEPLETION,

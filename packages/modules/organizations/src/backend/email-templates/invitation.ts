@@ -16,7 +16,14 @@ export interface BuildInvitationEmailInput {
   inviteeEmail: string;
   inviterName: string;
   organizationName: string;
-  role: 'organization_admin' | 'regular_user';
+  /**
+   * The role's own label (`specs/170-organization-roles/` WP-03; #667,
+   * FR-008): a predefined role's name in this e-mail's language, a custom
+   * role's name verbatim. The builder never spells a role itself.
+   */
+  roleLabel: string;
+  /** The role the invitation names, for the delivery metadata. */
+  organizationRoleId: string;
   expiresAt: Date;
   /** Storefront base URL used to build the redemption link. */
   acceptBaseUrl: string;
@@ -27,7 +34,7 @@ export interface BuildInvitationEmailInput {
 export function buildInvitationEmail(input: BuildInvitationEmailInput): EmailMailerSendInput {
   const path = `/invitations/${input.rawToken}/accept`;
   const acceptUrl = `${trimSlash(input.acceptBaseUrl)}${input.pagePath ? input.pagePath(path) : path}`;
-  const roleLabel = input.role === 'organization_admin' ? 'Organization Admin' : 'Member';
+  const roleLabel = input.roleLabel;
   const expiresOn = input.expiresAt.toISOString().slice(0, 10);
 
   const text = [
@@ -52,7 +59,7 @@ export function buildInvitationEmail(input: BuildInvitationEmailInput): EmailMai
       kind: 'organization_invitation',
       invitationId: input.invitationId,
       organizationName: input.organizationName,
-      role: input.role,
+      organizationRoleId: input.organizationRoleId,
       expiresAt: input.expiresAt.toISOString(),
       acceptUrl,
     },

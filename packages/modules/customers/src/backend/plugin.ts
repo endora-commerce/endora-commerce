@@ -14,6 +14,7 @@ import { CustomerAdminQueryService } from './services/customer-admin-query-servi
 import { CustomerOrgAssignmentService } from './services/customer-org-assignment-service.js';
 import { CustomerDeletionService } from './services/customer-deletion-service.js';
 import { CustomerPresenceService } from './services/customer-presence-service.js';
+import { OrganizationDepletionGuard } from './services/organization-depletion-guard.js';
 import { AnonymizationSweepWorker } from './workers/anonymization-sweep-worker.js';
 import type {
   AddressReadPort,
@@ -33,6 +34,7 @@ import type {
   OrderListPort,
   OrderReadPort,
   OrganizationDetailsPort,
+  OrganizationPermissionPort,
   OrganizationRoleReadPort,
   PersonalOrganizationPort,
   RfqCustomerPort,
@@ -126,9 +128,13 @@ export interface CustomersModuleOptions {
   /**
    * `organizations`' role read (`specs/170-organization-roles/` WP-02b): the
    * target's predefined role an account moved to a company lands on (owner
-   * ruling PR-11).
+   * ruling PR-11), the administrator role the depletion guards ask about, and
+   * — WP-03 — the role the self-service profile and the impersonation answer
+   * name (FR-008).
    */
-  organizationRoleReadPort: Pick<OrganizationRoleReadPort, 'predefinedRoleId'>;
+  organizationRoleReadPort: Pick<OrganizationRoleReadPort, 'predefinedRoleId' | 'roleRef'>;
+  /** `organizations`' answer to "what may this member do" — the self-service profile's permissions (FR-056). */
+  organizationPermissionPort: Pick<OrganizationPermissionPort, 'effective'>;
   /** `addresses`' published read: the org-shared book a customer may pick from. */
   addressReadPort: AddressReadPort;
   /**
@@ -237,6 +243,13 @@ export function customersModule(options: CustomersModuleOptions): {
     customerAddressService,
   );
   const authorityService = new CustomerAuthorityService(options.salesRepVisibility);
+  // `specs/170-organization-roles/` WP-03 — the last-administrator question the
+  // blocking and deletion guards ask, by role and for company Organizations only.
+  const depletionGuard = new OrganizationDepletionGuard({
+    accounts: options.customerAccountReadPort,
+    organizations: options.organizationDetailsPort,
+    organizationRoles: options.organizationRoleReadPort,
+  });
   const moderationService = new CustomerModerationService(
     options.customerAccountReadPort,
     options.customerAccountLifecycleWritePort,
@@ -245,6 +258,7 @@ export function customersModule(options: CustomersModuleOptions): {
       destroyAllForCustomer: (customerAccountId) =>
         options.sessionService.destroyAllForCustomer(customerAccountId),
     },
+    depletionGuard,
   );
   const queryService = new CustomerAdminQueryService(customerDefaultsService, {
     accounts: options.customerAccountReadPort,
@@ -270,6 +284,7 @@ export function customersModule(options: CustomersModuleOptions): {
       destroyAllForCustomer: (customerAccountId) =>
         options.sessionService.destroyAllForCustomer(customerAccountId),
     },
+    depletionGuard,
   );
   const presenceService = new CustomerPresenceService(
     {
@@ -290,6 +305,8 @@ export function customersModule(options: CustomersModuleOptions): {
     await registerCustomersRegisterRoutes(app, { registrationService });
     await registerCustomersSelfRoutes(app, {
       accounts: options.customerAccountReadPort,
+      organizationRoles: options.organizationRoleReadPort,
+      organizationPermissions: options.organizationPermissionPort,
       requireCustomer: options.requireCustomer,
       resolveCustomerActor: options.resolveCustomerActor,
       customerAuthService,
@@ -300,6 +317,7 @@ export function customersModule(options: CustomersModuleOptions): {
     });
     await registerCustomersAdminRoutes(app, {
       accounts: options.customerAccountReadPort,
+      organizationRoles: options.organizationRoleReadPort,
       accountWrites: options.customerAccountLifecycleWritePort,
       requireAdmin: options.requireAdmin,
       resolveModerationActor: options.resolveModerationActor,

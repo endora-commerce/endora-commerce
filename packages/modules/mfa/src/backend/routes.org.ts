@@ -4,9 +4,10 @@ import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { MfaOrgPolicyService } from './services/mfa-org-policy-service.js';
 
 /**
- * Storefront org-admin 2FA enforcement (feature 042, US3, FR-014). An
- * Organization Administrator (customer role `organization_admin`) can require
- * 2FA for their own organization's members. The guard + organization id are
+ * Storefront org-admin 2FA enforcement (feature 042, US3, FR-014). A member
+ * holding the Organization's *Administrator* role (`specs/170-organization-roles/`
+ * FR-011 — a reserved capability, not a permission code) can require 2FA for
+ * their own organization's members. The guard + organization id are
  * resolved by an injected port so the module stays decoupled.
  */
 export interface MfaOrgRoutesDeps {

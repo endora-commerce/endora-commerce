@@ -7,13 +7,15 @@ description: Customer Organizations, registration, invitations
 
 Customer Organizations — registration, email verification, member management,
 invitations, and the suspension state. The first user of a registering
-Organization becomes its `organization_admin`.
+Organization becomes its Administrator (see *Roles* below).
 
 ## Public surface
 
-Org-Admin-only routes are enforced server-side via the
-`assertOrganizationAdmin` helper. Admin routes (`/api/v1/admin/*`) are
-gated by `customers:manage`.
+Routes marked *org administrator* are reserved to a member holding the
+organization's Administrator role, checked server-side through
+`organizationPermissionPort.isAdministrator` and refused with
+`403 FORBIDDEN`; no permission grants them (see *Roles* below). Admin routes
+(`/api/v1/admin/*`) are gated by `customers:manage`.
 
 | Verb + Path | Audience | Purpose |
 | --- | --- | --- |
@@ -23,31 +25,31 @@ gated by `customers:manage`.
 | `POST /api/v1/auth/customer/logout` | customer | Destroy session |
 | `POST /api/v1/auth/password-reset/request` | anon | Always 202 (defends against account enumeration) |
 | `POST /api/v1/auth/password-reset/confirm` | anon | Redeem the emailed reset token. A redeemed token signs the account out of **every** session, retires its other outstanding reset tokens and withdraws any sign-in it had begun and not finished. |
-| `GET /api/v1/me` | customer | Current customer + their organization, plus `impersonation: { impersonatorAdminUserId }` when an admin is acting as the buyer |
+| `GET /api/v1/me` | customer | Current customer (with `organizationRole` and `permissions`) + their organization, plus `impersonation: { impersonatorAdminUserId }` when an admin is acting as the buyer |
 | `POST /api/v1/me/password` | customer | Change password (rejects wrong `currentPassword`). A successful change signs the account out of every other session (the one the request was made from is kept), retires its outstanding reset tokens and withdraws any sign-in it had begun and not finished. |
-| `GET /api/v1/organizations/mine/members` | org admin | List members |
-| `DELETE /api/v1/organizations/mine/members/:id` | org admin | Remove member (last-admin guard) |
-| `PATCH /api/v1/organizations/mine/members/:id/role` | org admin | Promote / demote (last-admin guard) |
-| `GET /api/v1/organizations/mine/invitations` | org admin | List pending invitations |
-| `POST /api/v1/organizations/mine/invitations` | org admin | Invite a new user; emails the redemption link via the injected Mailer |
-| `DELETE /api/v1/organizations/mine/invitations/:id` | org admin | Revoke a pending invitation |
-| `POST /api/v1/organizations/invitations/:token/accept` | anon | Redeem invitation, mint Customer Account |
+| `GET /api/v1/organizations/mine/members` | org administrator | List members, each with its `organizationRole` |
+| `DELETE /api/v1/organizations/mine/members/:id` | org administrator | Remove member (last-administrator guard) |
+| `PATCH /api/v1/organizations/mine/members/:id/role` | org administrator | Assign a role (`{ roleId }`; last-administrator guard) |
+| `GET /api/v1/organizations/mine/invitations` | org administrator | List pending invitations (not accepted, revoked or expired), each with its `organizationRole` |
+| `POST /api/v1/organizations/mine/invitations` | org administrator | Invite a new user (`{ email, roleId? }`, Member by default); emails the redemption link via the injected Mailer |
+| `DELETE /api/v1/organizations/mine/invitations/:id` | org administrator | Revoke a pending invitation |
+| `POST /api/v1/organizations/invitations/:token/accept` | anon | Redeem invitation, mint Customer Account holding the invitation's role |
 | `GET /api/v1/organizations/mine/addresses` | customer | List delivery / billing addresses |
-| `POST /api/v1/organizations/mine/addresses` | customer | Create address |
-| `PATCH /api/v1/organizations/mine/addresses/:id` | customer | Update |
-| `DELETE /api/v1/organizations/mine/addresses/:id` | customer | Remove |
+| `POST /api/v1/organizations/mine/addresses` | customer (`addresses.manage`) | Create address |
+| `PATCH /api/v1/organizations/mine/addresses/:id` | customer (`addresses.manage`) | Update |
+| `DELETE /api/v1/organizations/mine/addresses/:id` | customer (`addresses.manage`) | Remove |
 | `GET /api/v1/admin/organizations` | admin | List with `filter[status]` / `filter[vatStatus]` / `q` |
 | `POST /api/v1/admin/organizations` | admin (`customers:manage`) | Create an Organization with its sales channels (see *Sales channels* below) |
 | `GET /api/v1/admin/organizations/sales-channel-options` | admin (`customers:manage`) | The channels the create form offers |
 | `GET /api/v1/admin/organizations/:id/sales-channels` | admin (`customers:read` or `customers:manage`) | The channels assigned to the Organization, and the channels it could be assigned |
 | `PUT /api/v1/admin/organizations/:id/sales-channels` | admin (`customers:manage`) | Replace the assigned channels (`{ salesChannelIds }`, at least one) |
-| `GET /api/v1/admin/organizations/:id` | admin | Org + member roster (`updatedAt`, members include `lastLoginAt`) |
+| `GET /api/v1/admin/organizations/:id` | admin | Org + member roster (`updatedAt`, members include `lastLoginAt` and `organizationRole`; `predefinedRoles` names the Administrator and Member roles) |
 | `PATCH /api/v1/admin/organizations/:id` | admin | Update name / `status` / `vatStatus`; optional `expectedUpdatedAt` → `409 VERSION_CONFLICT` when stale |
-| `POST /api/v1/admin/organizations/:id/members/invite` | admin | Invite by email + role (platform-scope) |
-| `POST /api/v1/admin/organizations/:id/members` | admin | Direct-create member with password |
-| `PATCH /api/v1/admin/organizations/:id/members/:customerAccountId/role` | admin | Change role; optional `expectedUpdatedAt` per member |
-| `DELETE /api/v1/admin/organizations/:id/members/:customerAccountId` | admin | Soft-remove member (last-admin guard) |
-| `POST /api/v1/admin/organizations/:id/recover-admin-access` | admin | Break-glass — promote existing member to `organization_admin` |
+| `POST /api/v1/admin/organizations/:id/members/invite` | admin | Invite by email (`{ email, roleId? }`, Member by default; platform-scope) |
+| `POST /api/v1/admin/organizations/:id/members` | admin | Direct-create member with password (`roleId?`, Member by default) |
+| `PATCH /api/v1/admin/organizations/:id/members/:customerAccountId/role` | admin | Assign a role (`{ roleId, expectedUpdatedAt? }`) |
+| `DELETE /api/v1/admin/organizations/:id/members/:customerAccountId` | admin | Soft-remove member (last-administrator guard) |
+| `POST /api/v1/admin/organizations/:id/recover-admin-access` | admin | Break-glass — give an existing member the Administrator role |
 
 Configure **`SMTP_URL`** in the backend environment so outbound mail uses SMTP instead of the console logger.
 
@@ -443,11 +445,54 @@ Other modules ask whether a member may do something through
 from `@endora-commerce/contracts`. `organizationRoleReadPort.predefinedRoleId`
 answers an organization's Administrator or Member role id.
 
-**Still being built.** Roles exist and can be managed, but members are not yet
-assigned to them one by one: until that lands, a member counts as holding
-Administrator when they are the organization's administrator (or the member of a
-personal organization) and Member otherwise, and a custom role that anybody —
-member or invitation — holds cannot be deleted yet.
+### Members, invitations and the session
+
+A member's role is named by its id everywhere a request names one, and shown as
+`organizationRole: { id, name, kind }` everywhere a response shows one — the
+login answer, `GET /api/v1/me`, `GET /api/v1/me/customer`, the invitation
+accept, the members and invitations lists, the operator's member roster and the
+impersonation answer. A predefined role's `name` is translated into the
+response language; a custom role's is its own name. The session views (login,
+`GET /api/v1/me`, `GET /api/v1/me/customer`, the invitation accept) also carry
+`permissions`, the member's effective permission codes, so a storefront can
+hide what the member cannot do. No request or response carries the old `role`
+field (`organization_admin` / `regular_user`) any more.
+
+- **Reserved to Administrator.** Managing members (listing, changing roles,
+  removing), managing invitations, managing roles and setting the
+  organization's two-factor policy are reserved to the Administrator role. A
+  custom role holding every permission is still refused them.
+- **Last administrator.** Moving the last active Administrator to another role
+  is refused `409 CANNOT_DEMOTE_LAST_ADMIN`, removing them
+  `409 CANNOT_REMOVE_LAST_ADMIN`, and revoking the only pending Administrator
+  invitation of an organization with no active Administrator
+  `409 CANNOT_REVOKE_LAST_ADMIN_INVITE`; an expired invitation is not pending.
+  Blocked administrators do not count.
+- **Invitations.** An invitation names a role of the organization — its Member
+  role when the request names none; a role of another organization is `404`.
+  The invitation e-mail shows the role's label in the e-mail's language (a
+  custom role's own name). The pending list leaves out accepted, revoked and
+  expired invitations.
+- **Addresses.** Creating, editing and deleting the organization's shared
+  addresses needs the `addresses.manage` permission (declared by `addresses`,
+  held by Member by default); reading them does not.
+- **Personal organizations.** The sole member of a personal organization is its
+  Administrator. The member and invitation routes answer them as any
+  administrator (their members list holds only themselves and their
+  invitations list is empty); inviting is refused `422 VALIDATION_FAILED`,
+  because the organization is personal, before the role is looked at. A
+  storefront hides the organization screens there by `organization.isPersonal`,
+  never by the role.
+- **Login and the guest basket.** When a member whose role lacks *Create and
+  edit carts* signs in, their guest basket is not merged: the login answers
+  `cartMerge.outcome = 'noop'` and keeps the `b2b_cart_anon` cookie, so the
+  guest basket is still there.
+
+Assigning a role, removing a member and promoting through the break-glass route
+run the `customer_account.change_role` / `customer_account.remove_member`
+Commands of `customer_accounts`; creating and revoking an invitation run
+`organization_invitation.create` / `organization_invitation.revoke`. Each is
+audited against the organization, naming the member or the operator who acted.
 
 ## Global search
 

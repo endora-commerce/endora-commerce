@@ -122,5 +122,7 @@
   "roles.error.save": "The role could not be saved.",
   "roles.error.delete": "The role could not be deleted.",
   "roles.loading": "Loading roles…",
-  "roles.retry": "Retry"
+  "roles.retry": "Retry",
+  "organizationRoles.action.view": "View",
+  "organizationRoles.action.close": "Close"
 }

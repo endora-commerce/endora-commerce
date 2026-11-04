@@ -6,6 +6,7 @@ import type { CustomerAccountReadPort, EmailMailerPort } from '@endora-commerce/
 import { withSystemScope } from '@endora-commerce/platform/tenancy';
 import type { OrganizationEventBus } from './registration-service.js';
 import { noopOrgTemplateEmail, type OrgTemplateEmail } from './org-template-email.js';
+import { predefinedRoleIdOn } from './organization-role-store.js';
 
 /**
  * OrganizationModerationService — owns every status transition on the
@@ -34,8 +35,9 @@ import { noopOrgTemplateEmail, type OrgTemplateEmail } from './org-template-emai
  * admin-editable transactional template, which resolves them in the
  * recipient's language, and fall back to the English in-code builders below
  * only when the platform holds no definition for the code. The recipient is
- * the Organization's first `organization_admin` Customer account, read through
- * `customer_accounts`' published port (feature 075, D-87).
+ * the Organization's first Customer account holding its *Administrator* role
+ * (`specs/170-organization-roles/` WP-03), read through `customer_accounts`'
+ * published port (feature 075, D-87).
  */
 export interface ModerationActorContext {
   actorAdminUserId?: string | null;
@@ -300,14 +302,16 @@ export class OrganizationModerationService {
      * (Constitution XI, FR-005), with a reason and one audit record.
      *
      * `listByOrganization` orders by role then creation date, so the first
-     * `organization_admin` in the result is the row the `order by
-     * "created_at" asc limit 1` picked.
+     * holder of the *Administrator* role in the result is the earliest
+     * created one. The role is this module's own row, read on its own unit of
+     * work (`specs/170-organization-roles/` WP-03); the legacy column is not.
      */
     const members = await withSystemScope(
       'organizations: notify the moderated organisation of its status change',
       () => this.customerAccounts.listByOrganization(org.id, { activeOnly: true }),
     );
-    const recipient = members.find((m) => m.role === 'organization_admin')?.email;
+    const administratorRoleId = await predefinedRoleIdOn(this.emFactory(), org.id, 'administrator');
+    const recipient = members.find((m) => m.organizationRoleId === administratorRoleId)?.email;
     if (!recipient) return;
     const messageId = `organization.${input.messageIdSuffix}.${org.id}.${org.version}`;
     const meta = { organizationId: org.id, kind: input.messageIdSuffix };

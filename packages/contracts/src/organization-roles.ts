@@ -255,6 +255,16 @@ export interface OrganizationRoleReadPort {
    * role the caller named and must refuse one it cannot see.
    */
   findRole(organizationId: string, roleId: string): Promise<OrganizationRoleSummary | null>;
+
+  /**
+   * The role `roleId` **of `organizationId`** as every response names it
+   * (FR-008, FR-056): a predefined role's label translated into `language`
+   * (English when absent or unsupported), a custom role's own name verbatim;
+   * `null` when that Organization has no such role (FR-005). Read through the
+   * role cache like {@link findRole}. Added for the session views and the
+   * operator's impersonation answer (WP-03), which other modules serve.
+   */
+  roleRef(organizationId: string, roleId: string, language?: string): Promise<OrganizationRoleRef | null>;
 }
 
 /** A role as {@link OrganizationRoleReadPort.findRole} answers it. */

@@ -122,5 +122,7 @@
   "roles.error.save": "Nie udało się zapisać roli.",
   "roles.error.delete": "Nie udało się usunąć roli.",
   "roles.loading": "Wczytywanie ról…",
-  "roles.retry": "Spróbuj ponownie"
+  "roles.retry": "Spróbuj ponownie",
+  "organizationRoles.action.view": "Podgląd",
+  "organizationRoles.action.close": "Zamknij"
 }

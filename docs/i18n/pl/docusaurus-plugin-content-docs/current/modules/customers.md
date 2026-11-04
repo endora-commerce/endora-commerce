@@ -33,8 +33,14 @@ zamiast być wyłączane jako przypadek szczególny.
   administrator platformy może działać na każdym kliencie; poza nim uprawniony jest handlowiec
   przypisany do organizacji klienta. Organizacja prywatna nigdy nie ma przypisanego handlowca, więc
   reguła dla nieprzypisanych organizacji sprawia, że samodzielnym klientem może zająć się dowolny
-  handlowiec. Zabezpieczenie odmawia zablokowania lub usunięcia ostatniego administratora organizacji.
-- Logowanie jako klient; audytowane jako `impersonation.start` / `impersonation.end`.
+  handlowiec. Zabezpieczenie odmawia zablokowania, usunięcia lub odłączenia ostatniego aktywnego
+  członka z rolą Administrator organizacji firmowej (`409 ORG_OWNER_DEPLETION`);
+  zablokowani administratorzy się nie liczą. Nie dotyczy
+  organizacji prywatnej, której jedyny członek ma rolę Administrator: zablokowanie lub usunięcie
+  takiego klienta jest dozwolone.
+- Logowanie jako klient; audytowane jako `impersonation.start` / `impersonation.end`. Odpowiedź
+  podaje `organizationRole` klienta, a logowanie jako klient działa dokładnie z jego uprawnieniami
+  w organizacji.
 - Reset hasła z poziomu panelu (e-mail z linkiem do ustawienia hasła).
 - Walidacja NIP/VAT (VIES, port Białej listy).
 - Przypisanie do organizacji i odłączenie od organizacji, które przenosi klienta do jego własnej
@@ -59,7 +65,7 @@ Trasy administracyjne są chronione przez `customers:read` (odczyt), `customers:
 | Metoda i ścieżka | Kto | Przeznaczenie |
 | --- | --- | --- |
 | `POST /api/v1/customers/register` | anonimowy | Samodzielna rejestracja (zależna od ustawienia) |
-| `GET /api/v1/me/customer` | klient | Własny profil |
+| `GET /api/v1/me/customer` | klient | Własny profil z `organizationRole` i faktycznymi uprawnieniami `permissions` |
 | `POST /api/v1/me/customer/change-password` | klient | Zmiana hasła. Udana zmiana wylogowuje konto ze wszystkich pozostałych sesji (sesja, z której wysłano żądanie, zostaje), unieważnia niewykorzystane tokeny resetu hasła i wycofuje każde rozpoczęte, a niedokończone logowanie. |
 | `GET /api/v1/me/customer/addresses` | klient | Adresy prywatne i wspólne adresy organizacji |
 | `POST/PATCH/DELETE /api/v1/me/customer/addresses[/:id]` | klient | Zarządzanie adresami prywatnymi |

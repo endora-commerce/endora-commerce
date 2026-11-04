@@ -10,6 +10,7 @@ import {
 import { HttpError } from '@endora-commerce/platform/http';
 import type { CustomerAuthorityService } from './customer-authority-service.js';
 import type { ModerationActor } from './customer-moderation-service.js';
+import { OrganizationDepletionGuard } from './organization-depletion-guard.js';
 
 /**
  * CustomerOrgAssignmentService — assign a Customer to an Organization, or
@@ -33,6 +34,9 @@ import type { ModerationActor } from './customer-moderation-service.js';
  * depletion guard stay here, because they are this module's policy.
  */
 export class CustomerOrgAssignmentService {
+  /** `specs/170-organization-roles/` WP-03 — the last-administrator question, by role (T063). */
+  private readonly depletion: OrganizationDepletionGuard;
+
   constructor(
     private readonly accounts: CustomerAccountReadPort,
     private readonly accountWrites: CustomerAccountLifecycleWritePort,
@@ -45,7 +49,9 @@ export class CustomerOrgAssignmentService {
      * holds in the company it is assigned to.
      */
     private readonly organizationRoles: Pick<OrganizationRoleReadPort, 'predefinedRoleId'>,
-  ) {}
+  ) {
+    this.depletion = new OrganizationDepletionGuard({ accounts, organizations, organizationRoles });
+  }
 
   async assign(
     customerAccountId: string,
@@ -80,7 +86,7 @@ export class CustomerOrgAssignmentService {
    * An account coming from its own **personal** Organization lands on *Member*,
    * whatever it holds there: it administers that Organization by construction
    * (owner ruling PR-3), not by anybody's decision, and its legacy role — which
-   * the move carries unchanged — says `regular_user`. That is today's outcome.
+   * the move carries unchanged — names no administrator. That is today's outcome.
    */
   private async roleInTarget(customer: CustomerAccountRecord, organizationId: string): Promise<string> {
     const source = await this.organizations.findById(customer.organizationId);
@@ -112,20 +118,13 @@ export class CustomerOrgAssignmentService {
     const personal = await this.personalOrganizations.provisionPersonalOrganization(customer.id);
     if (customer.organizationId === personal.id) return customer; // already their own
 
-    // Refuse to strand the org without an admin.
-    if (customer.role === 'organization_admin') {
-      const remaining = await this.accounts.countByOrganizationRole(
-        customer.organizationId,
-        'organization_admin',
-        { excludeCustomerAccountId: customer.id, activeOnly: true },
+    // Refuse to strand a company Organization without an administrator.
+    if (await this.depletion.wouldLeaveWithoutAdministrator(customer)) {
+      throw new HttpError(
+        409,
+        ERROR_CODES.ORG_OWNER_DEPLETION,
+        'Cannot unassign the last organization administrator.',
       );
-      if (remaining === 0) {
-        throw new HttpError(
-          409,
-          ERROR_CODES.ORG_OWNER_DEPLETION,
-          'Cannot unassign the last organization administrator.',
-        );
-      }
     }
 
     // The individual administers their own personal Organization (owner
