@@ -54,6 +54,7 @@ export class CartPlacementApplyService implements CartPlacementApplyPort {
   awaitsApproval(input: {
     cart: Pick<CartRecord, 'customerAccountId' | 'approvalStatus'>;
     organizationId: string;
+    organizationRoleId?: string | null;
   }): Promise<boolean> {
     return basketAwaitsApproval(this.approvalPolicy, input);
   }

@@ -58,6 +58,17 @@ describe('basketAwaitsApproval', () => {
     );
   });
 
+  it("hands the port the owner's role when the caller knows it (FR-080)", async () => {
+    const policy = reads();
+    await basketAwaitsApproval(policy, {
+      ...basket(MEMBER, 'not_required'),
+      organizationRoleId: 'role-1',
+    });
+    expect(policy.can.mock.calls.map(([subject]) => subject)).toStrictEqual([
+      { customerAccountId: MEMBER, organizationId: ORG, organizationRoleId: 'role-1' },
+    ]);
+  });
+
   it('a basket with no owner is not this rule’s to refuse; an owner nobody knows fails closed', async () => {
     expect(await basketAwaitsApproval(reads(), basket(null, 'not_required'))).toBe(false);
     expect(await basketAwaitsApproval(reads(), basket('unknown', 'not_required'))).toBe(true);

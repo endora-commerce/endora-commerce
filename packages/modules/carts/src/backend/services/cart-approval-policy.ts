@@ -60,6 +60,8 @@ export async function basketAwaitsApproval(
   input: {
     cart: { customerAccountId: string | null; approvalStatus: CartApprovalStatus };
     organizationId: string;
+    /** The owner's role, when the caller knows it (FR-080; see `CartApprovalBuyer`). */
+    organizationRoleId?: string | null;
   },
 ): Promise<boolean> {
   if (input.cart.approvalStatus === 'approved') return false;
@@ -67,5 +69,6 @@ export async function basketAwaitsApproval(
   return approvalSubmissionRequired(reads, {
     customerAccountId: input.cart.customerAccountId,
     organizationId: input.organizationId,
+    organizationRoleId: input.organizationRoleId ?? null,
   });
 }
