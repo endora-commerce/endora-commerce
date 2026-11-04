@@ -18,9 +18,9 @@
  */
 export const LANDED: Readonly<Record<'WP-03' | 'WP-04' | 'WP-06', boolean>> = {
   // WP-03 — §6.1 rows 1, 2, 8–13 (P.owner's membership and MFA routes), 25, 26 (expired invitations unlisted); bodies through `roleToRoleId`
-  'WP-03': false,
+  'WP-03': true,
   // WP-04 — §6.1 rows 3–6 (P.owner's organization carts), 14–21 (organization-cart refusal code), 22 (self-submit code)
-  'WP-04': false,
+  'WP-04': true,
   // WP-06 — §6.1 rows 7 (P.owner's one-click defaults), 23, 24 (one-click in an approval-requiring Organization, #653)
-  'WP-06': false,
+  'WP-06': true,
 };

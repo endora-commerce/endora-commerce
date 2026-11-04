@@ -341,6 +341,12 @@ describe('new role — /organization/roles/new (owner ruling Q1)', () => {
     expect(visibleText(out)).not.toMatch(/copy/i);
   });
 
+  it('offers no copy control from any role — no role select, no role list read (OR-9, FR-004a)', async () => {
+    const out = await html(create());
+    expect(out).not.toContain('<select');
+    expect(calls.map((c) => c.fn)).not.toContain('listRoles');
+  });
+
   it('names its fields, bounds them as the API does, and links each permission to its description', async () => {
     const out = await html(create());
     expect(tagWith(out, 'name="name"')).toContain('required=""');
@@ -535,6 +541,12 @@ describe('role actions', () => {
     expect(to).toBe('redirect /organization/roles?status=created');
     const call = calls.find((c) => c.fn === 'createRole');
     expect(call?.args[1]).toEqual({ name: 'Junior buyer', permissions: ['carts.create', 'returns.create'] });
+  });
+
+  it('creates a role with nothing ticked as permissions: [] (OR-9, FR-004a)', async () => {
+    await rejection(createRoleAction(IDLE, form([['name', 'Viewer']])));
+    const call = calls.find((c) => c.fn === 'createRole');
+    expect(call?.args[1]).toEqual({ name: 'Viewer', permissions: [] });
   });
 
   it('answers a refused creation with its code as state, and does not navigate', async () => {

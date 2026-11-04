@@ -48,6 +48,7 @@ module shipping one bundle file without the other; the key-level check is §4.
 | `quick_order` | `packages/modules/quick_order/src/manifest.ts` | `quick_order.one_click` (default) |
 | `orders` | `packages/modules/orders/src/manifest.ts` | `orders.view_organization` |
 | `addresses` | `packages/modules/addresses/src/manifest.ts` | `addresses.manage` (default) |
+| `returns` | `packages/modules/returns/src/manifest.ts` | `returns.create` (default), `returns.view_organization` (OR-11, WP-14; the manifest also adds `organizations` to `dependencies`, R-41) |
 
 Labels (EN) are FR-022's table; the PL labels are written by the declaring work package and
 reviewed by the product owner.
