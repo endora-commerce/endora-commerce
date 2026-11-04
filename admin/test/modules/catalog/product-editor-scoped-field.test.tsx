@@ -115,9 +115,10 @@ describe('fields at a scope (feature 170, US6)', () => {
     const status = await screen.findByLabelText(en['productEditor.field.status']!);
     expect(status.tagName).toBe('INPUT');
     expect(status).toHaveValue(en['productEditor.statusValue.active']);
-    fireEvent.click(screen.getByRole('checkbox', { name: `Use value from Global for ${en['productEditor.field.status']}` }));
+    fireEvent.click(await screen.findByRole('checkbox', { name: `Use value from Global for ${en['productEditor.field.status']}` }));
+    // The field re-renders as a select after the untick; read it once it has.
+    await waitFor(() => expect(screen.getByLabelText(en['productEditor.field.status']!).tagName).toBe('SELECT'));
     const select = screen.getByLabelText(en['productEditor.field.status']!);
-    expect(select.tagName).toBe('SELECT');
     fireEvent.change(select, { target: { value: 'inactive' } });
     expect(await save()).toEqual({ status: 'inactive' });
   });

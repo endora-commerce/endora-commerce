@@ -343,9 +343,10 @@ export function resolveFeedItem(input: ResolveFeedItemInput): ResolvedFeedItem {
     if (value === '' && field.fallbackValue != null && field.fallbackValue !== '') {
       value = field.fallbackValue;
       // The fallback did its job, so a diagnostic about the empty source would
-      // be noise — except a language substitution, which the operator asked to
-      // be counted (FR-040). Keep only the reasons that survive a fallback.
-      carryIssues = carryIssues.filter((i) => i.reason === 'missing_translation');
+      // be noise. Feature 170 retired the one reason that used to survive a
+      // fallback (`missing_translation`: a product's text has a value at every
+      // language through Global), so none is carried.
+      carryIssues = [];
     }
 
     value = applyTransform(value, field, input.context);
