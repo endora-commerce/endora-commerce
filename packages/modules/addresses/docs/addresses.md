@@ -24,6 +24,12 @@ the **`addresses.manage`** organization permission, which this module declares
 permission is held by the Member role by default and by Administrator always;
 an organization withdraws it by editing a role.
 
+On the storefront the organization's address page (`/organization/addresses`)
+still shows its add and remove controls to every member; for a member whose role
+lacks the permission, saving shows the refusal's sentence — *Your role does not
+allow this: “Manage organization addresses”. Ask an administrator of your
+organization for this permission.* — and nothing changes.
+
 ## Entities
 
 `Address` — partial unique index `(organization_id, kind) WHERE

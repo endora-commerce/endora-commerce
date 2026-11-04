@@ -83,6 +83,22 @@ opened cases for the orders they placed only. *Member* keeps exactly that; an
 administrator now sees every case of the Organization and may open a case from a
 colleague's order.
 
+On the storefront:
+
+- **Returns** (`/returns`) lists the cases the member may see. A colleague's case
+  is marked *Filed by a colleague*. **Start a new return** is offered only to a
+  member whose role holds `returns.create`; the order page offers its return or
+  complaint entry on the same rule.
+- Without `returns.create`, the new-case page (`/returns/new`) says so instead of
+  showing the form: *"Your role does not include the “Create returns and
+  complaints” permission, so you can't start a return or a complaint. Ask your
+  organization's administrator if you need it."*
+- A colleague's case opens read-only. The page offers no comment box,
+  attachment upload, return delivery choice or cancel button, and says why in
+  one line: *"This case was filed by a colleague. You can read it, but only they
+  can add messages or change it."* The filer's messages are labelled
+  *Colleague*, not *You*.
+
 When the module is switched off, both permissions leave the Organization's
 permission catalogue and every member's effective permissions; a role's stored
 grant is kept and applies again when the module is switched back on.

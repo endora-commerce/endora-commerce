@@ -445,6 +445,53 @@ Other modules ask whether a member may do something through
 from `@endora-commerce/contracts`. `organizationRoleReadPort.predefinedRoleId`
 answers an organization's Administrator or Member role id.
 
+### Roles on the storefront
+
+The Organization's administrators manage roles in the account area. What each
+member is offered follows their role, and the Organization's kind:
+
+- **Account navigation.** *Members* and *Roles* are shown to members holding
+  *Administrator*; *Carts to approve* to members whose role holds *Approve and
+  reject colleagues' carts* (`carts.approve`), with the number of carts waiting.
+  A personal (B2C) Organization's member is offered none of the three, although
+  they hold *Administrator*, and those pages send them back to `/account`.
+  Anyone else who opens one is told who may use it — for example *"Only the
+  organization's administrators can manage roles."*
+- **Roles** (`/organization/roles`) lists every role with its type (*Built-in*
+  or *Custom*), its members, its pending invitations and its permissions, and
+  offers **New role**. A role opens on its own page (`/organization/roles/<id>`):
+  *Administrator* is shown as holding every permission and cannot be changed;
+  *Member* keeps its name and takes permission changes only; a custom role can be
+  renamed, described, edited and deleted. Deleting a role that members or
+  pending invitations hold asks which role they move to; deleting cannot be
+  undone.
+- **A new role starts with nothing allowed.** The create page
+  (`/organization/roles/new`) opens with every permission unticked and offers no
+  "copy from another role"; a role created with nothing ticked allows nothing.
+  The permissions are grouped by module, with the label and description in the
+  page's language, and *One-click purchase* notes that it works only together
+  with *Place orders without approval*.
+- **Two administrators editing one role.** The second save is refused; the page
+  keeps what was typed and offers to reload the role's current state.
+- **Members** (`/organization/members`) shows each member's role as a select of
+  the Organization's roles, and the invite form names the role of the new
+  member, *Member* preselected.
+- **The account page** shows the member their role and a plain-language list of
+  what it allows (*What your role allows*), translated by the API; a role that
+  allows nothing says so. A personal Organization's member sees neither.
+
+### Roles in the Admin UI
+
+The Organization detail screen has a **Roles** tab. It is shown to an operator
+holding `organizations:read-roles` or `organizations:manage-roles`, and never for
+a personal Organization. With the read code it is read-only; with
+`organizations:manage-roles` the operator creates, edits and deletes roles under
+the storefront's rules — the create form also opens with every permission
+unticked, and a held role is deleted only with a replacement. The members table
+on the same screen shows each member's role and, for `customers:manage`, a role
+select. The tab links to the Organization's history in the audit log, where each
+role change is recorded.
+
 ### Members, invitations and the session
 
 A member's role is named by its id everywhere a request names one, and shown as

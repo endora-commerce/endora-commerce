@@ -426,8 +426,8 @@ ORDER_NOT_FOUND` out of it).
 
 ### WP-11 — documentation (EN + PL)
 
-- [ ] T103 [WP-11] Architecture page: organization permissions, the `organizationPermissions` manifest field (custom and overlay modules declare their own, XIV/XV), the port and the guard; PL page and pin; `pnpm --filter backend exec vitest run test/unit/docs/` and `check:docs-translations` green; `build:docs` locally — docs — `docs/docs/architecture/permissions.md`, `docs/i18n/pl/docusaurus-plugin-content-docs/current/architecture/permissions.md`, its pin; the page's list of declared codes includes `returns.create` and `returns.view_organization` (OR-11) and the either-of import (OR-10) as the worked example of a module-local guard — Waves 1–3, WP-14, WP-14b and WP-15 merged
-- [ ] T104 [WP-11] Sweep: every module page touched in Waves 1–3 and in WP-14/WP-15 (`returns`, `orders`, `quick_order`) has a fresh PL pin; generated module-reference pages regenerated (`composer:generate`) and pinned; no edit to `docs/docs/upgrading-an-instance.md` (A-3) — docs — T103
+- [x] T103 [WP-11] Architecture page: organization permissions, the `organizationPermissions` manifest field (custom and overlay modules declare their own, XIV/XV), the port and the guard; PL page and pin; `pnpm --filter backend exec vitest run test/unit/docs/` and `check:docs-translations` green; `build:docs` locally — docs — `docs/docs/architecture/permissions.md`, `docs/i18n/pl/docusaurus-plugin-content-docs/current/architecture/permissions.md`, its pin; the page's list of declared codes includes `returns.create` and `returns.view_organization` (OR-11) and the either-of import (OR-10) as the worked example of a module-local guard — Waves 1–3, WP-14, WP-14b and WP-15 merged
+- [x] T104 [WP-11] Sweep: every module page touched in Waves 1–3 and in WP-14/WP-15 (`returns`, `orders`, `quick_order`) has a fresh PL pin; generated module-reference pages regenerated (`composer:generate`) and pinned; no edit to `docs/docs/upgrading-an-instance.md` (A-3) — docs — T103
 
 ### WP-12 — legacy removal
 
