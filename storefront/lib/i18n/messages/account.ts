@@ -337,6 +337,13 @@ export const account = defineMessages({
     'account.return.addMessage': 'Add a message',
     'account.return.send': 'Send',
     'account.return.closed': 'This case is closed.',
+    // Feature 170 (OR-11): returns by organization permission.
+    'account.returns.filedByColleague': 'Filed by a colleague',
+    'account.returns.new.notAllowed':
+      'Your role does not include the “Create returns and complaints” permission, so you can’t start a return or a complaint. Ask your organization’s administrator if you need it.',
+    'account.return.colleagueReadOnly':
+      'This case was filed by a colleague. You can read it, but only they can add messages or change it.',
+    'account.returnAuthor.colleague': 'Colleague',
     'account.returnAuthor.admin': 'Customer service',
     'account.returnAuthor.customer': 'You',
 
@@ -768,6 +775,13 @@ export const account = defineMessages({
     'account.return.addMessage': 'Dodaj wiadomość',
     'account.return.send': 'Wyślij',
     'account.return.closed': 'To zgłoszenie jest zamknięte.',
+    // Feature 170 (OR-11): returns by organization permission.
+    'account.returns.filedByColleague': 'Zgłoszone przez współpracownika',
+    'account.returns.new.notAllowed':
+      'Twoja rola nie obejmuje uprawnienia „Zgłaszanie zwrotów i reklamacji”, więc nie możesz zgłosić zwrotu ani reklamacji. Jeśli go potrzebujesz, poproś administratora organizacji.',
+    'account.return.colleagueReadOnly':
+      'To zgłoszenie złożył współpracownik. Możesz je przeglądać, ale dodawać wiadomości i wprowadzać zmiany może tylko osoba, która je złożyła.',
+    'account.returnAuthor.colleague': 'Współpracownik',
     'account.returnAuthor.admin': 'Obsługa klienta',
     'account.returnAuthor.customer': 'Ty',
 

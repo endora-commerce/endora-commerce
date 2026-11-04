@@ -13,7 +13,9 @@ import { retryOrderPayment } from '../../../../lib/api/payments';
 import { offersCancellation } from '../../../../lib/order-cancel';
 import { offersPaymentRetry, paymentRetryDestination } from '../../../../lib/payment-retry';
 import { getReturnable } from '../../../../lib/api/returns';
-import { orderReturnAction, type OrderReturnAction } from '../../../../lib/returns/returnForm';
+import { mayStartReturn, orderReturnAction, type OrderReturnAction } from '../../../../lib/returns/returnForm';
+import { getMe } from '../../../../lib/api/account';
+import { memberSession } from '../../../../lib/commerce-permissions';
 import { listMyOrderInvoices, invoiceDownloadUrl } from '../../../../lib/api/invoices';
 import { getSessionCookie } from '../../../../lib/session';
 import { getServerContext } from '../../../../lib/server-context';
@@ -138,9 +140,17 @@ export default async function OrderConfirmationPage({
   // any line is returnable, a complaint when none is (feature 155, FR-018/FR-021:
   // `eligible: false` with `no_returnable_lines` still takes a complaint), nothing
   // otherwise. Falls back to hidden on any error so the page never breaks.
+  //
+  // Feature 170 (FR-052, FR-057): only for a member whose role holds `returns.create`. The
+  // session is read only when the order offers an entry at all, and a session that cannot be
+  // read keeps today's entry — `POST /api/v1/returns` is the gate.
   let returnAction: OrderReturnAction | null = null;
   try {
-    returnAction = orderReturnAction(await getReturnable(session, id), order.id, locale);
+    const returnable = await getReturnable(session, id);
+    if (orderReturnAction(returnable, order.id, locale, true)) {
+      const me = await getMe(session).catch(() => null);
+      returnAction = orderReturnAction(returnable, order.id, locale, mayStartReturn(memberSession(me)));
+    }
   } catch {
     returnAction = null;
   }
