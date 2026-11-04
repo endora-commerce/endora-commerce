@@ -117,9 +117,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const inLanguage = (path: string, languageCode: string | undefined): string =>
     absoluteUrl(languageCode === undefined ? path : localizePath(path, urlState, languageCode));
 
+  const blog = await blogPaths(ctx);
   const localized: MetadataRoute.Sitemap = [];
   for (const entry of entries) {
-    const path = new URL(entry.url).pathname;
+    const route = new URL(entry.url).pathname;
+    // Feature 171 — the blog index lives under the operator's prefix; `/blog` then only redirects.
+    const path = route === '/blog' ? blog.base : route;
     for (const languageCode of languages) localized.push({ ...entry, url: inLanguage(path, languageCode) });
   }
 
@@ -131,10 +134,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
   }
   const categories = await categoryPaths(ctx);
-  const blog = await blogPaths(ctx);
   for (const languageCode of languages) {
     for (const path of categories) localized.push({ url: inLanguage(path, languageCode), lastModified: now, priority: 0.6 });
-    for (const path of blog) localized.push({ url: inLanguage(path, languageCode), lastModified: now, priority: 0.5 });
+    for (const path of blog.paths) localized.push({ url: inLanguage(path, languageCode), lastModified: now, priority: 0.5 });
   }
   for (const entry of await cmsPageEntries(ctx)) {
     // R24 + feature 167: the backend answers each language's own URL — its own slug,
@@ -285,20 +287,28 @@ async function cmsPageEntries(ctx: Ctx): Promise<CmsSitemapEntry[]> {
   }
 }
 
-async function blogPaths(ctx: Ctx): Promise<string[]> {
+/**
+ * The blog's logical paths: `base` is its index (the operator's prefix, feature 171),
+ * `paths` its categories and latest posts. Without an answer the index stays at the
+ * storefront's own `/blog` route and nothing else is listed.
+ */
+async function blogPaths(ctx: Ctx): Promise<{ base: string; paths: string[] }> {
   try {
     const index = await getBlogIndex(ctx);
     // A switched-off `blog` answers `null` (Principle XVII): the module is
     // absent, so the shop advertises no blog URL, which is the correct sitemap
     // rather than a degraded one.
-    if (index === null) return [];
+    if (index === null) return { base: '/blog', paths: [] };
     const prefix = index.urlPrefix.replace(/^\/+|\/+$/gu, '');
     const base = prefix.length > 0 ? `/${prefix}` : '/blog';
-    return [
-      ...index.topLevelCategories.map((category) => `${base}/${category.slug}`),
-      ...index.latestPosts.map((post) => `${base}/${post.slug}`),
-    ];
+    return {
+      base,
+      paths: [
+        ...index.topLevelCategories.map((category) => `${base}/${category.slug}`),
+        ...index.latestPosts.map((post) => `${base}/${post.slug}`),
+      ],
+    };
   } catch {
-    return [];
+    return { base: '/blog', paths: [] };
   }
 }

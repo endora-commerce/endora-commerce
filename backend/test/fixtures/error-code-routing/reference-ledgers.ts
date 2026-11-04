@@ -90,6 +90,66 @@ import type {
  * author of one claim is two answers waiting to disagree.
  */
 export const MINTED_ERROR_CODES: MintedErrorCodes = {
+  ADMIN_USER_AVATAR_NOT_FOUND: {
+    to: 'admin_users',
+    reason:
+      'Minted by feature 171 (`specs/171-blog-i18n-authors/`, FR-050) for an administrator\'s ' +
+      'author avatar that names no live library asset. The noun is the administrator profile, ' +
+      'which `admin_users` owns and validates; the library only answers whether the asset exists.',
+  },
+  BLOG_AUTHOR_NOT_FOUND: {
+    to: 'blog',
+    reason:
+      'Minted by feature 171 (`specs/171-blog-i18n-authors/`, FR-060) for naming as a post\'s ' +
+      'author anyone but an active administrator. The noun is the post\'s author, which `blog` ' +
+      'owns; the administrator is read through `adminUserReadPort`.',
+  },
+  BLOG_URL_PREFIX_CONFLICT: {
+    to: 'blog',
+    reason:
+      'Minted by feature 171 (`specs/171-blog-i18n-authors/`, FR-041) for a blog URL prefix ' +
+      'that is a language prefix of a sales channel or the first slug segment of a CMS page in ' +
+      'the channel — an address another part of the storefront already serves. Not ' +
+      '`BLOG_URL_PREFIX_RESERVED`: that names a segment the storefront reserves by itself, and ' +
+      'the operator fixes the two differently. The noun is the blog prefix; `blog` raises it.',
+  },
+  BLOG_LANGUAGE_INCOMPLETE: {
+    to: 'blog',
+    reason:
+      'Minted by feature 171 (`specs/171-blog-i18n-authors/`, FR-022, OR-7) for publishing a ' +
+      'post, or saving a category, that is not written in every language assigned to it: a ' +
+      'post exists on the storefront in each of its languages, so each needs its name and — ' +
+      'once the post has content — its content. Not `VALIDATION_FAILED`: the details name the ' +
+      'missing field per language, and the editor shows them on its language tabs.',
+  },
+  BLOG_URL_KEY_TAKEN: {
+    to: 'blog',
+    reason:
+      'Minted by feature 171 (`specs/171-blog-i18n-authors/`, FR-031) for a URL key another post ' +
+      'or category already serves in the same sales channel and language — posts and categories ' +
+      'share one URL space. The noun is the blog URL key; `blog` raises it.',
+  },
+  BLOG_URL_KEY_REDIRECT_TAKEOVER_REQUIRED: {
+    to: 'blog',
+    reason:
+      'Minted by feature 171 (`specs/171-blog-i18n-authors/`, FR-033) for a URL key another blog ' +
+      'entry still answers as a redirect: the write succeeds only when the retry confirms the ' +
+      'takeover, the protocol `URL_KEY_REDIRECT_TAKEOVER_REQUIRED` gives product keys. A code of ' +
+      'its own because the editor answers it with a confirmation, not a correction.',
+  },
+  BLOG_URL_REDIRECT_NOT_FOUND: {
+    to: 'blog',
+    reason:
+      'Minted by feature 171 (`specs/171-blog-i18n-authors/`, FR-033) for removing a redirect a ' +
+      'blog entry does not have. The noun is the blog URL redirect, which `blog` owns.',
+  },
+  BLOG_URL_PREFIX_NOT_FOUND: {
+    to: 'blog',
+    reason:
+      'Minted by feature 171 (`specs/171-blog-i18n-authors/`, FR-042) for forgetting a former ' +
+      'blog URL prefix that does not exist or is the current one. The noun is the blog prefix ' +
+      'history, which `blog` owns and raises it for.',
+  },
   INVOICE_ORDER_REFUNDED: {
     to: 'invoices',
     reason:

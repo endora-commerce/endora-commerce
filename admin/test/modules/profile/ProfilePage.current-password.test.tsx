@@ -24,7 +24,8 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
     // The session is read through the same barrel as the transport.
     useAuth: () => ({ me: ME, refresh: refreshSpy }),
     apiClient: {
-      get: vi.fn(),
+      // Feature 171 — the profile reads the content languages for the author profile.
+      get: vi.fn(async () => ({ data: { languages: [] } })),
       post: vi.fn(),
       put: vi.fn(),
       patch: (path: string, body: unknown) => patchSpy(path, body),

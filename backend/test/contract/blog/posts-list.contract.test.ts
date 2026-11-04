@@ -28,6 +28,8 @@ describe('storefront blog posts list contract (feature 163, T064)', () => {
   let image: { id: string; url: string };
 
   const createdPostIds: string[] = [];
+  const createdTagIds: string[] = [];
+  const tagCode = `${run}-diy`;
   const createdCategoryIds: string[] = [];
   const createdChannelIds: string[] = [];
 
@@ -196,6 +198,30 @@ describe('storefront blog posts list contract (feature 163, T064)', () => {
         publishedAt: '2100-01-01T00:00:00Z',
       }),
     };
+
+    // Feature 171 — a tag on two of channel A's posts, for the `tagCode` filter.
+    const tag = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/blog/tags',
+      headers: { 'content-type': 'application/json' },
+      cookies: adminCookie,
+      payload: JSON.stringify({ name: { 'en-US': 'DIY' }, code: tagCode }),
+    });
+    expect(tag.statusCode, tag.body).toBe(201);
+    const tagId = (tag.json() as { data: { id: string } }).data.id;
+    createdTagIds.push(tagId);
+    for (const postId of [posts.older, posts.oldest]) {
+      const read = await h.app.inject({ method: 'GET', url: `/api/v1/admin/blog/posts/${postId}`, cookies: adminCookie });
+      const version = (read.json() as { data: { version: number } }).data.version;
+      const set = await h.app.inject({
+        method: 'PUT',
+        url: `/api/v1/admin/blog/posts/${postId}/tags`,
+        headers: { 'content-type': 'application/json' },
+        cookies: adminCookie,
+        payload: JSON.stringify({ tagIds: [tagId], version }),
+      });
+      expect(set.statusCode, set.body).toBe(200);
+    }
   });
 
   beforeEach(async () => {
@@ -220,6 +246,7 @@ describe('storefront blog posts list contract (feature 163, T064)', () => {
       await connection.execute('delete from blog_category_sales_channels where blog_category_id = ?', [id]);
       await connection.execute('delete from blog_categories where id = ?', [id]);
     }
+    for (const id of createdTagIds) await connection.execute('delete from blog_tags where id = ?', [id]);
     if (image) await connection.execute('delete from assets where id = ?', [image.id]);
     for (const id of createdChannelIds) {
       await connection.execute('delete from sales_channels where id = ?', [id]);
@@ -278,6 +305,90 @@ describe('storefront blog posts list contract (feature 163, T064)', () => {
     expect(ids[0]).toBe(posts.onlyDefault);
     for (const id of [posts.newest, posts.newer, posts.older, posts.oldest, posts.onlyB, posts.draft]) {
       expect(ids).not.toContain(id);
+    }
+  });
+
+  // ── Feature 171 (US2, FR-010…FR-013) — page by page ─────────────────
+
+  type Pagination = { page: number; perPage: number; totalItems: number; totalPages: number };
+
+  async function page(query: string) {
+    const res = await list(query, channelA.code);
+    expect(res.statusCode, res.body).toBe(200);
+    return res.json() as { data: Card[]; pagination: Pagination };
+  }
+
+  it('pages the channel’s posts newest first, none repeated, with the totals', async () => {
+    const first = await page('?perPage=2&page=1');
+    const second = await page('?perPage=2&page=2');
+    expect(first.data.map((c) => c.id)).toEqual([posts.newest, posts.newer]);
+    expect(second.data.map((c) => c.id)).toEqual([posts.older, posts.oldest]);
+    expect(first.pagination).toEqual({ page: 1, perPage: 2, totalItems: 4, totalPages: 2 });
+    expect(second.pagination).toEqual({ page: 2, perPage: 2, totalItems: 4, totalPages: 2 });
+  });
+
+  it('answers a page past the last with no posts and the real totals, not a 404', async () => {
+    const past = await page('?perPage=2&page=3');
+    expect(past.data).toEqual([]);
+    expect(past.pagination).toEqual({ page: 3, perPage: 2, totalItems: 4, totalPages: 2 });
+  });
+
+  it('keeps `limit` as the page size of an existing caller, and lets `perPage` win', async () => {
+    const legacy = await page('?limit=3');
+    expect(legacy.data).toHaveLength(3);
+    expect(legacy.pagination.perPage).toBe(3);
+    expect((await page('?limit=3&perPage=2')).data).toHaveLength(2);
+    expect((await page('')).pagination.perPage).toBe(6);
+  });
+
+  it('filters by tag, counting only the matching posts', async () => {
+    const tagged = await page(`?tagCode=${tagCode}`);
+    expect(tagged.data.map((c) => c.id)).toEqual([posts.older, posts.oldest]);
+    expect(tagged.pagination.totalItems).toBe(2);
+    const combined = await page(`?tagCode=${tagCode}&categorySlug=${run}-news`);
+    expect(combined.data.map((c) => c.id)).toEqual([posts.oldest]);
+    expect((await page(`?tagCode=${run}-missing`)).data).toEqual([]);
+  });
+
+  it('pages the blog index by the channel’s posts-per-page, with category tiles on page 1 only', async () => {
+    const setting = await h.app.inject({
+      method: 'PUT',
+      url: '/api/v1/admin/settings/blog.posts_per_page/value',
+      headers: { 'content-type': 'application/json' },
+      cookies: adminCookie,
+      payload: JSON.stringify({ scope: 'subset', salesChannelCodes: [channelA.code], value: 2 }),
+    });
+    expect(setting.statusCode, setting.body).toBe(200);
+    try {
+      const index = async (query: string) => {
+        const res = await h.app.inject({
+          method: 'GET',
+          url: `/api/v1/blog/by-channel${query}`,
+          headers: { 'x-sales-channel': channelA.code, 'x-blog-language': 'en-US' },
+        });
+        expect(res.statusCode, res.body).toBe(200);
+        return (res.json() as {
+          data: {
+            posts: { data: Card[]; pagination: Pagination };
+            latestPosts: Card[];
+            topLevelCategories: unknown[];
+          };
+        }).data;
+      };
+      const first = await index('');
+      expect(first.posts.data.map((c) => c.id)).toEqual([posts.newest, posts.newer]);
+      expect(first.posts.pagination).toEqual({ page: 1, perPage: 2, totalItems: 4, totalPages: 2 });
+      expect(first.latestPosts).toEqual(first.posts.data);
+      expect(first.topLevelCategories.length).toBeGreaterThan(0);
+      const second = await index('?page=2');
+      expect(second.posts.data.map((c) => c.id)).toEqual([posts.older, posts.oldest]);
+      expect(second.topLevelCategories).toEqual([]);
+    } finally {
+      await h.app.inject({
+        method: 'DELETE',
+        url: `/api/v1/admin/settings/blog.posts_per_page/values?salesChannelCodes=${channelA.code}`,
+        cookies: adminCookie,
+      });
     }
   });
 });

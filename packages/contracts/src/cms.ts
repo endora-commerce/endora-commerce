@@ -1041,6 +1041,33 @@ export interface CmsPageReadPort {
    * and its parent's path (R19D). Pages the channel does not serve are absent.
    */
   findStorefrontLinks(ids: readonly string[], scope: CmsPageStorefrontLinkScope): Promise<CmsPageStorefrontLink[]>;
+  /**
+   * Feature 171 — the lower-case first slug segment of every page the channel serves,
+   * in every language (its own slug and each translation's), so another module can
+   * refuse an address a page already holds.
+   */
+  firstSegmentsInChannel(salesChannelId: string): Promise<string[]>;
+}
+
+/**
+ * Feature 171 (`specs/171-blog-i18n-authors/` research R5) — a module that serves
+ * first path segments of its own on the storefront (the blog's prefix) claims them
+ * here, and CMS refuses a page slug that starts with a claimed segment, as it does a
+ * language prefix (feature 167). CMS never names the contributor.
+ */
+export interface CmsReservedSegmentContributor {
+  /** The contributing module — a switched-off contributor claims nothing. */
+  readonly contributorModuleId: string;
+  /** The lower-case first segments the module serves in this channel. */
+  segmentsFor(salesChannelId: string): Promise<string[]>;
+}
+
+/**
+ * Container name: `cmsReservedSegmentRegistry`. Owner: `cms`. An ungated contribution
+ * registry: a module pushes a contributor once, from a boot hook.
+ */
+export interface CmsReservedSegmentRegistryPort {
+  register(contributor: CmsReservedSegmentContributor): void;
 }
 
 /** Where a {@link CmsPageReadPort.findStorefrontLinks} link is served. */

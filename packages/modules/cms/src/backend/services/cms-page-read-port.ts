@@ -1,4 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import { firstSlugSegment } from '@endora-commerce/contracts';
 import type {
   CmsPageReadPort,
   CmsPageRecord,
@@ -73,6 +74,30 @@ export class CmsPageReadService implements CmsPageReadPort {
       ids,
       scope,
     );
+  }
+
+  /**
+   * Feature 171 — every first slug segment the channel's pages hold, in every
+   * language, lower-cased. A page served under its parent's path has its parent's
+   * first segment, and the parent is a page of the channel too.
+   */
+  async firstSegmentsInChannel(salesChannelId: string): Promise<string[]> {
+    const rows = (await this.emFactory().execute(
+      `select p.slug, p.translations
+         from cms_pages p
+         join cms_page_sales_channels s on s.page_id = p.id
+        where s.sales_channel_id = ?`,
+      [salesChannelId],
+    )) as Array<{ slug: string; translations: Record<string, { slug?: string | null }> | null }>;
+    const segments = new Set<string>();
+    for (const row of rows) {
+      const slugs = [row.slug, ...Object.values(row.translations ?? {}).map((t) => t?.slug ?? '')];
+      for (const slug of slugs) {
+        const segment = firstSlugSegment(slug ?? '');
+        if (segment.length > 0) segments.add(segment);
+      }
+    }
+    return [...segments];
   }
 }
 

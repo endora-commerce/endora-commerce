@@ -105,12 +105,11 @@ describe('storefront blog by-slug contract (T049)', () => {
     expect(body.posts?.pagination.perPage).toBe(12); // documented default
   });
 
-  it('resolves a published post authored only in a non-default language (no 404)', async () => {
-    // Regression: a post published with content only in a language that is
-    // neither the requested language nor the channel default used to 404 on
-    // the post-detail endpoint while still appearing in the index/category
-    // listings. A published post must always be reachable, degrading only its
-    // display language.
+  it('404s a post in a language it is not written in (feature 171)', async () => {
+    // Feature 171 (US3, OR-7) reverses the earlier rule that served a post in any
+    // language: a post exists in the languages assigned to it, and the lists stop
+    // showing it elsewhere too, so the list/detail disagreement this once guarded
+    // against cannot recur.
     const slug = `foreign-lang-${Date.now()}`;
     const create = await h.app.inject({
       method: 'POST',
@@ -136,20 +135,14 @@ describe('storefront blog by-slug contract (T049)', () => {
     });
     if (h.blog.cache) await h.blog.cache.invalidateAll();
 
-    // Requested + channel-default language is en-US, but the post is authored
-    // only in pl-PL — previously a 404.
-    const res = await h.app.inject({
+    // The default channel serves en-US only, so a post written only in pl-PL has no
+    // language here to exist in.
+    const english = await h.app.inject({
       method: 'GET',
       url: `/api/v1/blog/by-slug?slug=${slug}`,
       headers: { 'x-sales-channel': defaultChannelCode, 'x-blog-language': 'en-US' },
     });
-    expect(res.statusCode).toBe(200);
-    const body = (res.json() as {
-      data: { kind: string; post?: { slug: string; name: string } };
-    }).data;
-    expect(body.kind).toBe('post');
-    expect(body.post?.slug).toBe(slug);
-    expect(body.post?.name).toBe('Witaj');
+    expect(english.statusCode).toBe(404);
   });
 
   it('returns 404 for an unknown slug', async () => {

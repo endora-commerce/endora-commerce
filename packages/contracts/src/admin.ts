@@ -22,8 +22,23 @@ export const adminUserSchema = z.object({
   lastLoginAt: isoDateTimeSchema.nullable(),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
+  /** Feature 171 (US6) — the author avatar, a library asset. Optional for clients that predate it. */
+  avatarAssetId: uuidSchema.nullable().optional(),
+  /** Feature 171 (US6) — the author biography per language. */
+  bio: z.record(z.string(), z.string()).nullable().optional(),
 });
 export type AdminUser = z.infer<typeof adminUserSchema>;
+
+/**
+ * Feature 171 (US6) — an administrator's public author profile: the avatar (one
+ * library asset, the same in every language) and the biography per language, each
+ * at most {@link ADMIN_USER_BIO_MAX_LENGTH} characters. `null` clears either.
+ */
+export const ADMIN_USER_BIO_MAX_LENGTH = 2000;
+const adminUserAuthorProfileFields = {
+  avatarAssetId: uuidSchema.nullable().optional(),
+  bio: z.record(z.string().min(2).max(16), z.string().max(ADMIN_USER_BIO_MAX_LENGTH)).nullable().optional(),
+};
 
 export const adminRoleSchema = z.object({
   id: uuidSchema,
@@ -103,6 +118,7 @@ export const updateAdminUserRequestSchema = z
     lastName: z.string().min(1).max(120).optional(),
     adminRoleId: uuidSchema.nullable().optional(),
     status: z.enum(['active', 'inactive']).optional(),
+    ...adminUserAuthorProfileFields,
   })
   .strict();
 export type UpdateAdminUserRequest = z.infer<typeof updateAdminUserRequestSchema>;
@@ -130,6 +146,7 @@ export const updateAdminUserSelfRequestSchema = z
     lastName: z.string().min(1).max(120).optional(),
     password: z.string().min(12).max(120).optional(),
     currentPassword: z.string().min(1).max(256).optional(),
+    ...adminUserAuthorProfileFields,
   })
   .strict()
   .superRefine((body, ctx) => {

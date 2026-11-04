@@ -3,10 +3,15 @@ import { ERROR_CODES, blogPostsListQuerySchema } from '@endora-commerce/contract
 import { z } from 'zod';
 import { HttpError } from '@endora-commerce/platform/http';
 import { getResolvedChannel } from '@endora-commerce/platform/kernel';
-import type { BlogStorefrontResolver } from './services/blog-storefront-resolver.js';
+import type { BlogStorefrontResolver, ResolvedChannel } from './services/blog-storefront-resolver.js';
+import type { BlogUrlPrefixService } from './services/blog-url-prefix-service.js';
 
 const bySlugQuerySchema = z.object({
   slug: z.string().min(1).max(160),
+  page: z.coerce.number().int().positive().optional(),
+});
+
+const indexQuerySchema = z.object({
   page: z.coerce.number().int().positive().optional(),
 });
 
@@ -17,13 +22,28 @@ const tagByCodeQuerySchema = z.object({
 
 export async function registerBlogStorefrontRoutes(
   app: FastifyInstance,
-  deps: { storefrontResolver: BlogStorefrontResolver },
+  deps: { storefrontResolver: BlogStorefrontResolver; urlPrefixService: BlogUrlPrefixService },
 ): Promise<void> {
+  /**
+   * Feature 171 — what the storefront middleware maps the public blog prefix with,
+   * for the resolved channel only (Constitution XII). 404 when the blog is disabled
+   * there, so the middleware leaves every path alone.
+   */
+  app.get('/api/v1/blog/routing', async (request) => {
+    const routing = await deps.urlPrefixService.routingFor(resolvedChannel(request));
+    if (!routing) {
+      throw new HttpError(404, ERROR_CODES.BLOG_DISABLED, 'Blog is disabled or not configured.');
+    }
+    return { data: routing };
+  });
+
   app.get('/api/v1/blog/by-channel', async (request) => {
     const { language } = readContext(request);
+    const { page } = indexQuerySchema.parse(request.query ?? {});
     const resolved = await deps.storefrontResolver.getIndex({
       resolvedChannel: resolvedChannel(request),
       ...(language !== undefined ? { language } : {}),
+      ...(page !== undefined ? { page } : {}),
     });
     if (!resolved) {
       throw new HttpError(404, ERROR_CODES.BLOG_DISABLED, 'Blog is disabled or not configured.');
@@ -40,13 +60,15 @@ export async function registerBlogStorefrontRoutes(
   app.get('/api/v1/blog/posts', async (request) => {
     const query = blogPostsListQuerySchema.parse(request.query ?? {});
     const { language } = readContext(request);
-    const data = await deps.storefrontResolver.listPosts({
+    return deps.storefrontResolver.listPosts({
       resolvedChannel: resolvedChannel(request),
       ...(language !== undefined ? { language } : {}),
-      limit: query.limit,
+      page: query.page,
+      perPage: query.perPage,
       ...(query.categorySlug !== undefined ? { categorySlug: query.categorySlug } : {}),
+      ...(query.tagCode !== undefined ? { tagCode: query.tagCode } : {}),
+      ...(query.authorId !== undefined ? { authorId: query.authorId } : {}),
     });
-    return { data };
   });
 
   app.get('/api/v1/blog/by-slug', async (request) => {
@@ -101,13 +123,15 @@ function readContext(request: FastifyRequest): {
  * middleware for this request. Feature 053: routes no longer re-parse the
  * `x-sales-channel` header nor re-query `sales_channels`.
  */
-function resolvedChannel(request: FastifyRequest): {
-  id: string;
-  code: string;
-  defaultLanguage: string;
-} {
+function resolvedChannel(request: FastifyRequest): ResolvedChannel {
   const ch = getResolvedChannel(request);
-  return { id: ch.id, code: ch.code, defaultLanguage: ch.defaultLanguage };
+  return {
+    id: ch.id,
+    code: ch.code,
+    defaultLanguage: ch.defaultLanguage,
+    languages: ch.languages,
+    prefixDefaultLanguage: ch.prefixDefaultLanguage,
+  };
 }
 
 function readHeader(value: string | string[] | undefined): string | undefined {

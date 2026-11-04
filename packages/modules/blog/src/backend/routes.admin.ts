@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
   createBlogCategoryRequestSchema,
   createBlogPostRequestSchema,
@@ -17,6 +17,10 @@ import { z } from 'zod';
 import type { BlogCategoryService } from './services/blog-category-service.js';
 import type { BlogPostService } from './services/blog-post-service.js';
 import type { BlogTagService } from './services/blog-tag-service.js';
+import type { BlogUrlPrefixService } from './services/blog-url-prefix-service.js';
+import type { BlogUrlKeyService } from './services/blog-url-keys.js';
+import type { BlogAuthors } from './services/blog-authors.js';
+import { putBlogUrlKeysRequestSchema } from '@endora-commerce/contracts';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 const versionOnlySchema = z.object({ version: z.number().int() });
@@ -66,6 +70,9 @@ export async function registerBlogAdminRoutes(
     postService: BlogPostService;
     categoryService: BlogCategoryService;
     tagService: BlogTagService;
+    urlPrefixService: BlogUrlPrefixService;
+    urlKeyService: BlogUrlKeyService;
+    authors: BlogAuthors;
     requireAdmin?: RequireAdminFactory;
   },
 ): Promise<void> {
@@ -305,4 +312,73 @@ export async function registerBlogAdminRoutes(
       data: await deps.tagService.getInboundReferences(request.params.id),
     }),
   );
+
+  // ── Authors (feature 171, US7) ─────────────────────────────────────
+  // Who may be named a post's author: active administrators, by name and avatar
+  // only. Gated on `blog.write` — the editor needs no `admin_users:manage`.
+
+  app.get('/api/v1/admin/blog/author-candidates', { preHandler: requireWrite }, async (request) => {
+    const { q } = z.object({ q: z.string().max(120).optional() }).parse(request.query ?? {});
+    return { data: await deps.authors.candidates(q) };
+  });
+
+  // ── URL keys (feature 171, US4) ────────────────────────────────────
+  // The per-language URL keys of posts and categories, and their redirects. The
+  // paths are written out per kind so the permission reader can read every one.
+
+  const readUrlKeys = (kind: 'post' | 'category') => async (request: FastifyRequest<{ Params: { id: string } }>) => ({
+    data: await deps.urlKeyService.read(kind, request.params.id),
+  });
+  const writeUrlKeys = (kind: 'post' | 'category') => async (request: FastifyRequest<{ Params: { id: string } }>) => ({
+    data: await deps.urlKeyService.update(kind, request.params.id, putBlogUrlKeysRequestSchema.parse(request.body)),
+  });
+  const deleteRedirect =
+    (kind: 'post' | 'category') =>
+    async (request: FastifyRequest<{ Params: { id: string; redirectId: string } }>, reply: FastifyReply) => {
+      await deps.urlKeyService.deleteRedirect(kind, request.params.id, z.string().uuid().parse(request.params.redirectId));
+      return reply.code(204).send();
+    };
+
+  app.get<{ Params: { id: string } }>('/api/v1/admin/blog/posts/:id/url-keys', { preHandler: requireRead }, readUrlKeys('post'));
+  app.put<{ Params: { id: string } }>('/api/v1/admin/blog/posts/:id/url-keys', { preHandler: requireWrite }, writeUrlKeys('post'));
+  app.delete<{ Params: { id: string; redirectId: string } }>(
+    '/api/v1/admin/blog/posts/:id/url-redirects/:redirectId',
+    { preHandler: requireWrite },
+    deleteRedirect('post'),
+  );
+  app.get<{ Params: { id: string } }>(
+    '/api/v1/admin/blog/categories/:id/url-keys',
+    { preHandler: requireRead },
+    readUrlKeys('category'),
+  );
+  app.put<{ Params: { id: string } }>(
+    '/api/v1/admin/blog/categories/:id/url-keys',
+    { preHandler: requireWrite },
+    writeUrlKeys('category'),
+  );
+  app.delete<{ Params: { id: string; redirectId: string } }>(
+    '/api/v1/admin/blog/categories/:id/url-redirects/:redirectId',
+    { preHandler: requireWrite },
+    deleteRedirect('category'),
+  );
+
+  // ── URL prefixes (feature 171) ─────────────────────────────────────
+  // The prefix itself is a setting; these list the addresses a channel has
+  // served and forget a former one (it then stops redirecting).
+
+  app.get('/api/v1/admin/blog/addresses', { preHandler: requireRead }, async (request) => {
+    const { salesChannelId } = urlPrefixListQuerySchema.parse(request.query ?? {});
+    return { data: await deps.urlPrefixService.list(salesChannelId) };
+  });
+
+  app.delete<{ Params: { id: string } }>(
+    '/api/v1/admin/blog/addresses/:id',
+    { preHandler: requireWrite },
+    async (request, reply) => {
+      await deps.urlPrefixService.forget(z.string().uuid().parse(request.params.id));
+      return reply.code(204).send();
+    },
+  );
 }
+
+const urlPrefixListQuerySchema = z.object({ salesChannelId: z.string().uuid().optional() });

@@ -39,6 +39,10 @@ describe('blog migration (T005 — 037_blog_init)', () => {
       'blog_post_tags',
       'blog_posts',
       'blog_tags',
+      // Feature 171 — URL keys and redirects per language; the prefixes a channel serves and has served.
+      'blog_url_keys',
+      'blog_url_prefixes',
+      'blog_url_redirects',
     ]);
   });
 

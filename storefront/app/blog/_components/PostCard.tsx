@@ -2,7 +2,8 @@ import type { ReactNode } from 'react';
 import type { BlogPostCard } from '@endora-commerce/contracts';
 import { LocalizedLink } from '../../../lib/i18n/localized-link';
 
-const BLOG_PREFIX = '/blog';
+// Feature 171 — the backend composes every blog URL (`blogPath`); the `/blog` fallback only
+// serves a payload cached before it did.
 
 function formatDate(iso: string | null, locale: string): string | null {
   if (!iso) return null;
@@ -21,7 +22,7 @@ export function PostCard({ post, locale }: { post: BlogPostCard; locale: string 
       data-test="post-card"
       className="group flex flex-col overflow-hidden rounded-lg border border-[--line] bg-[--surface] transition hover:shadow-lg"
     >
-      <LocalizedLink href={`${BLOG_PREFIX}/${post.slug}`} className="block">
+      <LocalizedLink href={post.url ?? `/blog/${post.slug}`} className="block">
         {post.mainImageUrl ? (
           <div className="relative aspect-[16/9] overflow-hidden bg-[--surface-alt]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -49,6 +50,11 @@ export function PostCard({ post, locale }: { post: BlogPostCard; locale: string 
           <h3 className="text-lg font-semibold leading-snug text-[--ink-700] group-hover:text-[--brand-700]">
             {post.name}
           </h3>
+          {post.author ? (
+            <p data-test="post-card-author" className="text-xs text-[--ink-400]">
+              {post.author.name}
+            </p>
+          ) : null}
           {post.excerpt ? (
             <p className="line-clamp-3 text-sm text-[--ink-400]">{post.excerpt}</p>
           ) : null}

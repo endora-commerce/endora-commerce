@@ -37,6 +37,8 @@ export const BLOG_SETTING_CODES = {
   ACTIVATION: 'blog.activation',
   ENABLED: 'blog.enabled',
   URL_PREFIX: 'blog.url_prefix',
+  /** Feature 171 (US5) — a prefix per language, overriding `URL_PREFIX` for that language. */
+  URL_PREFIX_BY_LANGUAGE: 'blog.url_prefix_by_language',
   LATEST_COUNT: 'blog.latest_count',
   POSTS_PER_PAGE: 'blog.posts_per_page',
 } as const;
@@ -86,6 +88,15 @@ const settings = defineModuleSettingsManifest({
       defaultValue: BLOG_DEFAULT_URL_PREFIX,
     },
     {
+      code: BLOG_SETTING_CODES.URL_PREFIX_BY_LANGUAGE,
+      name: 'Blog URL prefix per language',
+      description:
+        "The blog's URL segment per language, overriding the URL prefix for that language, as a JSON object of language code → prefix (e.g. {\"pl-PL\": \"aktualnosci\", \"en-US\": \"news\"}). A language not named uses the URL prefix.",
+      groupCode: 'blog',
+      valueType: 'json',
+      defaultValue: {},
+    },
+    {
       code: BLOG_SETTING_CODES.LATEST_COUNT,
       name: 'Latest posts on the blog index',
       description:
@@ -131,6 +142,9 @@ export const manifest = defineModuleManifest({
     // declaration therefore buys install and migration order rather than a
     // flip-time refusal.
     'admin_roles',
+    // Feature 171 (US7) — a post's author is an administrator, read through
+    // `adminUserReadPort`. `admin_users` is non-deactivatable.
+    'admin_users',
     'assets_library',
     // Feature 072 (T061) — blog resolves the `requireAdmin` port, which `auth`
     // owns. Every admin route in this module is gated by it, so `auth` being
@@ -228,6 +242,14 @@ export const manifest = defineModuleManifest({
     { code: 'BLOG_TAG_NOT_FOUND' },
     { code: 'BLOG_URL_PREFIX_INVALID' },
     { code: 'BLOG_URL_PREFIX_RESERVED' },
+    // Feature 171 — a prefix that is a language prefix or a CMS page's address; a former prefix to forget that is not one.
+    { code: 'BLOG_URL_PREFIX_CONFLICT' },
+    { code: 'BLOG_URL_PREFIX_NOT_FOUND' },
+    { code: 'BLOG_LANGUAGE_INCOMPLETE' },
+    { code: 'BLOG_URL_KEY_TAKEN' },
+    { code: 'BLOG_URL_KEY_REDIRECT_TAKEOVER_REQUIRED' },
+    { code: 'BLOG_URL_REDIRECT_NOT_FOUND' },
+    { code: 'BLOG_AUTHOR_NOT_FOUND' },
   ],
   /**
    * Feature 163 (US6, FR-026, research R-15) — the latest-posts block. Declared
@@ -304,6 +326,18 @@ export const manifest = defineModuleManifest({
       keywords: ['blog', 'tag', 'tags'],
       keywordsKey: 'actions.openTags.keywords',
       weight: 160,
+    },
+    {
+      // Feature 171 — the addresses the blog is served at, per sales channel.
+      id: 'open-blog-addresses',
+      labelKey: 'actions.openAddresses.label',
+      descriptionKey: 'actions.openAddresses.description',
+      icon: 'Newspaper',
+      targetRoute: '/blog/addresses',
+      requiredPermission: 'blog.read',
+      keywords: ['blog', 'address', 'url', 'prefix', 'redirect'],
+      keywordsKey: 'actions.openAddresses.keywords',
+      weight: 165,
     },
     {
       id: 'new-post',

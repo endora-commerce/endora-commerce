@@ -32,6 +32,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | `admin_roles` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `auth` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `customer_accounts` | gating only | resolves `customerAccountReadPort`; withheld from `dependencies` because the install order cannot carry the edge |
+| `assets_library` | no | degrades-without `assetReadPort` — An administrator cannot set an author avatar while the library is off; the one already set is kept and comes back with the library. Everything else on the profile still saves. |
 | `mfa` | no | degrades-without `mfaEnrolmentStatePort` — Reads "no second factor" for every admin on /admin-users, on /admin/me and on the login response. True while MFA is off — admin sign-in asks for none — and not a claim that nobody is enrolled. |
 | `mfa` | no | degrades-without `mfaLoginPort` — Admin sign-in stops asking for a second factor and offers no Google/Microsoft button. Every admin has a password a peer admin can reset, so no admin is locked out. |
 

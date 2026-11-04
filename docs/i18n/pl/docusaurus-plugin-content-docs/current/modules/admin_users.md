@@ -323,6 +323,24 @@ tych samych liczników przez port `adminAuthenticationThrottlePort`
 porównanie jednym wywołaniem `verify(attempt, check)`. Próba niesie adres
 klienta i zweryfikowaną wartość pliku cookie znanego urządzenia.
 
+## Profil autora
+
+Funkcja 171. Każdy administrator może prowadzić na swojej stronie profilu publiczny
+**profil autora** — **avatar** (obraz z biblioteki, ten sam w każdym języku) oraz tekst
+**o mnie** w każdym języku treści, do 2000 znaków. Blog pokazuje je przy wpisach, których
+autorem jest ten administrator: imię i nazwisko, avatar oraz tekst w języku czytelnika
+(a gdy go brak — w domyślnym języku kanału).
+
+- `PATCH /api/v1/admin/me` oraz `PATCH /api/v1/admin/admin-users/:id` (ten drugi z
+  uprawnieniem `admin_users:manage`) przyjmują `avatarAssetId` (`null` go usuwa) i `bio`
+  (`{ "<język>": "<tekst>" }`, `null` je usuwa). Avatar, który nie wskazuje aktywnego zasobu
+  biblioteki, jest odrzucany z `422 ADMIN_USER_AVATAR_NOT_FOUND`; gdy biblioteka zasobów jest
+  wyłączona, avatara nie da się ustawić (`MODULE_DISABLED`), a reszta profilu się zapisuje.
+  Zmiana trafia do wpisu audytu `admin_user.update`.
+- Biblioteka liczy avatar jako użycie obrazu (*Administrator „…”*), więc nie da się go usunąć,
+  dopóki administrator go wyświetla. Usunięty administrator nie ma avatara.
+- Nic więcej o administratorze — e-mail, rola, status — nie trafia do storefrontu.
+
 ## Preferencje panelu administracyjnego
 
 Układ panelu administracyjnego każdego administratora jest przechowywany na serwerze, razem z

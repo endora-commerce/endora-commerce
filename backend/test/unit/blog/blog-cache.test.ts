@@ -49,7 +49,9 @@ describe('BlogCacheService (T019)', () => {
 
   it('uses the documented key-prefix scheme', () => {
     const indexKey = BlogCacheService.composeIndexKey('default', 'en-US');
-    expect(indexKey).toBe(`${BLOG_CACHE_KEY_PREFIX}default:en-US:index`);
+    // Feature 171 — the index is paged; page 1 when none is named.
+    expect(indexKey).toBe(`${BLOG_CACHE_KEY_PREFIX}default:en-US:index:p1`);
+    expect(BlogCacheService.composeIndexKey('default', 'en-US', 3)).toBe(`${BLOG_CACHE_KEY_PREFIX}default:en-US:index:p3`);
 
     const categoryKey = BlogCacheService.composeCategoryKey('default', 'en-US', 'guides', 1);
     expect(categoryKey).toBe(`${BLOG_CACHE_KEY_PREFIX}default:en-US:category:guides:p1`);

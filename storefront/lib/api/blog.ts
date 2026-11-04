@@ -23,6 +23,7 @@ export type {
  */
 export async function getBlogIndex(
   ctx: RequestContext,
+  page?: number,
 ): Promise<BlogIndexResponse | null> {
   try {
     // No Next Data Cache (apiGet falls back to `no-store`): blog content is
@@ -31,7 +32,8 @@ export async function getBlogIndex(
     // invalidated on every post/category write, so skipping the storefront-side
     // time cache keeps the list fresh without a per-request DB hit. A 60s/300s
     // Next cache previously hid newly published posts until it expired.
-    const res = await apiGet<{ data: BlogIndexResponse }>('/api/v1/blog/by-channel', ctx);
+    const query = page !== undefined && page > 1 ? `?page=${page}` : '';
+    const res = await apiGet<{ data: BlogIndexResponse }>(`/api/v1/blog/by-channel${query}`, ctx);
     return res.data;
   } catch (err) {
     if (err instanceof StorefrontApiError && err.status === 404) return null;
@@ -65,6 +67,8 @@ export async function getBlogBySlug(
     return res.data;
   } catch (err) {
     if (err instanceof StorefrontApiError && err.status === 404) return null;
+    // Feature 171 — a switched-off `blog` is an absence here too, as on the index.
+    if (isModuleDisabled(err)) return null;
     throw err;
   }
 }
@@ -88,6 +92,8 @@ export async function getBlogTagByCode(
     return res.data;
   } catch (err) {
     if (err instanceof StorefrontApiError && err.status === 404) return null;
+    // Feature 171 — a switched-off `blog` is an absence here too, as on the index.
+    if (isModuleDisabled(err)) return null;
     throw err;
   }
 }
