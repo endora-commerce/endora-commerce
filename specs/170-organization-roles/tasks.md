@@ -78,7 +78,7 @@ output:
 - [x] T003 [WP-00] [US2] Write the failing oracle test: seed `ORACLE_POPULATION` through today's services/entities, replay `ORACLE_REQUESTS` against the test server, assert each `{ status, code }` equals `PRE_UPGRADE_OUTCOMES[id]` and that every request id has an expected entry (red: the table is empty) — `backend/test/integration/organizations/roles-upgrade-oracle.test.ts` (new) — T002
 - [x] T004 [WP-00] [US2] Record the table: run T003 once locally, write the observed outcomes into `PRE_UPGRADE_OUTCOMES`, review every row by hand against today's behaviour (a surprising row is a question for the owner, not an edit), re-run green; paste both runs in the MR — `backend/test/fixtures/organization-roles/pre-upgrade-outcomes.ts` — T003
 - [x] T005 [WP-00] Verify (standing obligations 1, 2, 5); add an empty changeset if `check:release-intent` asks; open the PR to `master` — `.changeset/170-00-roles-upgrade-oracle.md` (only if required) — T004
-- [ ] T006 Cut the integration branch: after WP-00 merges, `git fetch origin && git push origin origin/master:refs/heads/feat/170-organization-roles`; every later WP branches from it — no files — T005 merged
+- [x] T006 Cut the integration branch: after WP-00 merges, `git fetch origin && git push origin origin/master:refs/heads/feat/170-organization-roles`; every later WP branches from it — no files — T005 merged
 
 **Checkpoint**: oracle on `master`; integration branch exists.
 
@@ -116,7 +116,7 @@ Implementation:
 - [x] T020 [WP-01] Implement the organization-permissions scanner in the inventory; T012 green — backend test — `backend/test/contract/admin_users/permission-inventory.test.ts` — T014, T012
 - [x] T021 [WP-01] Generated artefacts: `composer:generate` (M1 registered), `manifests:check`; commit `backend/src/db/*-registry.generated.ts` — generated — T017
 - [x] T022 [WP-01] Changesets: `@endora-commerce/contracts` `minor` (new `organization-roles` exports, manifest field, actor field, error codes, deprecations named); `@endora-commerce/platform` `minor` (`CommandContext.run`, `CommandActor.actorCustomerAccountId`, the audit column); `auth` package `patch` or `minor` by judgement (actor field) — `.changeset/170-01-*.md` — T013…T020
-- [ ] T023 [WP-01] Verify (standing obligations) and merge into `feat/170-organization-roles` — T021, T022
+- [x] T023 [WP-01] Verify (standing obligations) and merge into `feat/170-organization-roles` — T021, T022
 
 ### WP-02a — roles in `organizations`
 
@@ -147,7 +147,7 @@ Implementation:
 - [x] T036 [WP-02a] i18n EN+PL in one pass for every P1 key: operator code labels `adminRoles.permission.organizations:{read,manage}-roles`, predefined role labels, the error sentences (with `{permissionLabel}`), the Admin UI Roles tab strings (consumed by WP-08), the e-mail role labels (consumed by WP-03); list them in the MR description — organizations — `org/i18n/en.json`, `org/i18n/pl.json` — T035
 - [x] T037 [WP-02a] Docs: Roles section on the module page, EN + PL + pin (A-2) — organizations — `org/docs/organizations.md`, `plpage(organizations)`, `docs/translation-cache/pl/…organizations…json` (via `docs:translations:pin`) — T035
 - [x] T038 [WP-02a] Generated artefacts (`composer:generate` for M2 and the entity; `manifests:check`) and changeset for `organizations` (`minor`: new routes, port, operator codes) — generated, `.changeset/170-02a-organization-roles.md` — T031…T037
-- [ ] T039 [WP-02a] Verify and merge into the integration branch — T038
+- [x] T039 [WP-02a] Verify and merge into the integration branch — T038
 
 ### WP-02b — assignment in `customer_accounts`
 
@@ -181,7 +181,7 @@ Implementation:
   - *Done in WP-02b*: beyond the listed files, fixtures that moved an account between Organizations by hand now move its role with it (the composite foreign key refuses the old one): `backend/test/integration/customers/customer-deletion-service.test.ts`, `backend/test/integration/quote_requests/negotiation-{enforcement,policy-routes}.test.ts`; `backend/test/integration/mfa/factor-removal-withdraws-sessions.test.ts` passes the role id to the member write port; record fixtures in seven unit tests gained `organizationRoleId`; and M2's migration test steps M3 down before M2 and up after it.
 - [x] T050 [WP-02b] Docs EN+PL+pin for `customer_accounts` (role reference, Commands) — `ca/docs/customer_accounts.md`, `plpage(customer_accounts)` — T045
 - [x] T051 [WP-02b] Generated artefacts (M3); `check:command-coverage` with `customer_accounts` migrated; changesets: `customer_accounts` `minor`, `organizations` `patch`/`minor`, `contracts` `minor` (new port type), `demo-composition` by judgement — `.changeset/170-02b-*.md` — T044…T050
-- [ ] T052 [WP-02b] Verify and merge into the integration branch — T051
+- [x] T052 [WP-02b] Verify and merge into the integration branch — T051
 
 **Checkpoint (end of Wave 1)**: roles exist for every Organization, every subject carries a role id,
 the port answers, the integration branch is green. Wave 2 may start.
@@ -210,10 +210,10 @@ T124 (the table's self-check) and T125 (the table) are WP-13a's; they stay liste
 **Obligations WP-13a places on the landing packages** (listed here, not in their sections, so the
 open WP-04 and WP-06 PRs, which edit those sections, rebase without a conflict):
 
-- [ ] T134 [WP-04] After WP-13a merges: rebase; flip `LANDED['WP-04']` to `true`; run the replay — §6.1 rows 3–6 and 14–22 at `after`, every other row as §6.2 requires (`PRE_UPGRADE_OUTCOMES`, or `after` for a package already landed), **including** at `PRE_UPGRADE_OUTCOMES` `cart.read:B.regular@pl_b2b_vip`, `order.place:B.regular@pl_retail`, `order.place:B.regular@pl_b2b_vip` and `cart.submitForApproval:B.regular` (the migrated B's *Member* lacks `carts.order_without_approval`); restate the MR's oracle section against the replay output — backend test — `landed-work-packages.ts` — T133, T079
-- [ ] T135 [WP-03] After WP-13a merges: flip `LANDED['WP-03']` to `true` (which also sends `role` bodies as `roleId`); run the replay — rows 1–2, 8–13 and 25–26 at `after`, and the six `invitation.create*`/`member.changeRole` rows of `A.admin` and `B.admin` at `PRE_UPGRADE_OUTCOMES` (#710 saw them, and rows 9, 10, 13, at `400` only because the live oracle sends `role`) — backend test — `landed-work-packages.ts` — T133, WP-03's implementation tasks
-- [ ] T136 [WP-06] After WP-04, WP-05 and WP-13a merge: rebase; flip `LANDED['WP-06']` to `true`; run the replay — rows 7, 23 and 24 at `after` (#653 observed closed), and no B.regular row after them moved (§6.1 *How the table is used*); restate the MR's oracle section against the replay output — backend test — `landed-work-packages.ts` — T133, T134, T137
-- [ ] T137 [WP-06] The three cross-module gates in `carts`' routes, owned by WP-06 because it merges last of the three (lead's decision, Notes 7): `shopping_lists.convert` on from-shopping-list, `shopping_lists.create` on save-to-shopping-list, `quote_requests.create` on convert-to-quote-request; WP-04's `it.todo` cases in `cart-organization-permissions.contract.test.ts` become real tests, red before the gate — carts — `packages/modules/carts/src/backend/routes.ts`, `backend/test/contract/carts/cart-organization-permissions.contract.test.ts` — WP-04 and WP-05 merged
+- [x] T134 [WP-04] After WP-13a merges: rebase; flip `LANDED['WP-04']` to `true`; run the replay — §6.1 rows 3–6 and 14–22 at `after`, every other row as §6.2 requires (`PRE_UPGRADE_OUTCOMES`, or `after` for a package already landed), **including** at `PRE_UPGRADE_OUTCOMES` `cart.read:B.regular@pl_b2b_vip`, `order.place:B.regular@pl_retail`, `order.place:B.regular@pl_b2b_vip` and `cart.submitForApproval:B.regular` (the migrated B's *Member* lacks `carts.order_without_approval`); restate the MR's oracle section against the replay output — backend test — `landed-work-packages.ts` — T133, T079
+- [x] T135 [WP-03] After WP-13a merges: flip `LANDED['WP-03']` to `true` (which also sends `role` bodies as `roleId`); run the replay — rows 1–2, 8–13 and 25–26 at `after`, and the six `invitation.create*`/`member.changeRole` rows of `A.admin` and `B.admin` at `PRE_UPGRADE_OUTCOMES` (#710 saw them, and rows 9, 10, 13, at `400` only because the live oracle sends `role`) — backend test — `landed-work-packages.ts` — T133, WP-03's implementation tasks
+- [x] T136 [WP-06] After WP-04, WP-05 and WP-13a merge: rebase; flip `LANDED['WP-06']` to `true`; run the replay — rows 7, 23 and 24 at `after` (#653 observed closed), and no B.regular row after them moved (§6.1 *How the table is used*); restate the MR's oracle section against the replay output — backend test — `landed-work-packages.ts` — T133, T134, T137
+- [x] T137 [WP-06] The three cross-module gates in `carts`' routes, owned by WP-06 because it merges last of the three (lead's decision, Notes 7): `shopping_lists.convert` on from-shopping-list, `shopping_lists.create` on save-to-shopping-list, `quote_requests.create` on convert-to-quote-request; WP-04's `it.todo` cases in `cart-organization-permissions.contract.test.ts` become real tests, red before the gate — carts — `packages/modules/carts/src/backend/routes.ts`, `backend/test/contract/carts/cart-organization-permissions.contract.test.ts` — WP-04 and WP-05 merged
 
 ### WP-03 — members, invitations, session, addresses, reserved capabilities
 
