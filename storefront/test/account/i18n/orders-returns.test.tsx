@@ -51,6 +51,7 @@ const returnCase: ReturnCaseDetail = {
   rmaNumber: null,
   kind: 'complaint',
   orderId: order.id,
+  customerAccountId: 'member-1',
   statusCode: 'submitted',
   statusLabel: 'Submitted',
   totalRefundAmount: 0,
@@ -81,6 +82,14 @@ vi.mock('../../../lib/api/orders', async () => {
     listOrderComments: async () => [],
   };
 });
+// Feature 170 — the returns pages read the member's role; this member files returns as today.
+vi.mock('../../../lib/api/account', () => ({
+  getMe: async () => ({
+    customerAccount: { id: 'member-1', organizationRole: { id: 'role-1', kind: 'member', name: 'Member' }, permissions: ['returns.create'] },
+    organization: { id: 'org-1', name: 'Acme', isPersonal: false },
+    impersonation: null,
+  }),
+}));
 vi.mock('../../../lib/api/returns', () => ({
   getReturnable: async () => ({ eligible: false }),
   listMyReturns: async () => returns,
