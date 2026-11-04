@@ -163,6 +163,43 @@ describe('quote-request detail — "place order" needs `carts.create`', () => {
   });
 });
 
+describe('quote-request detail — "resubmit" needs `quote_requests.create` (FR-040)', () => {
+  const resubmit = `>${en('quoteRequests.resubmit')}</button>`;
+  const render = (canResubmit?: boolean): string =>
+    html(
+      <RfqDetailActions
+        rfqId="rfq-1"
+        status="Approved"
+        currentRevisionNumber={1}
+        awaitingCustomerRevisionAcceptance={false}
+        gate={rfqValidityGate({
+          status: 'Approved',
+          awaitingCustomerRevisionAcceptance: false,
+          validity: rfqValidity(null, new Date()),
+        })}
+        locale="en-US"
+        acceptAction={async () => undefined}
+        rejectAction={async () => undefined}
+        convertAction={async () => undefined}
+        resubmitAction={async () => undefined}
+        {...(canResubmit === undefined ? {} : { canResubmit })}
+      />,
+    );
+
+  it('offers it by default and drops it when not allowed', () => {
+    expect(render()).toContain(resubmit);
+    expect(render(false)).not.toContain(resubmit);
+  });
+
+  it('the page passes the member’s `quote_requests.create`', async () => {
+    const page = async (): Promise<string> =>
+      html(await QuoteRequestDetailPage({ params: Promise.resolve({ id: 'rfq-1' }), searchParams: Promise.resolve({}) }));
+    expect(await page()).toContain(resubmit);
+    abilities = noQuote;
+    expect(await page()).not.toContain(resubmit);
+  });
+});
+
 // ── quote-request draft ───────────────────────────────────────────────────
 
 describe('quote-request draft — submitting needs `quote_requests.create`', () => {
