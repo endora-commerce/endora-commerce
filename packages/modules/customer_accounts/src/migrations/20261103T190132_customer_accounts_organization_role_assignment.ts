@@ -43,18 +43,32 @@ export class Migration20261103T190132CustomerAccountsOrganizationRoleAssignment 
       `alter table "customer_accounts" add column if not exists "organization_role_id" uuid null;`,
     );
 
-    // FR-070 / PR-3 — every account, deleted and blocked included.
+    // FR-070 / PR-3 — every account, deleted and blocked included. Guarded by
+    // the column's presence: migration M5 drops `role`, after which every
+    // account already holds a role, so a re-run (FR-074) has nothing to map.
     this.addSql(`
-      update "customer_accounts" a
-         set "organization_role_id" = r."id"
-        from "organization_roles" r, "organizations" o
-       where o."id" = a."organization_id"
-         and r."organization_id" = a."organization_id"
-         and r."kind" = case
-               when o."is_personal" or a."role" = 'organization_admin' then 'administrator'
-               else 'member'
-             end
-         and a."organization_role_id" is null;
+      do $$
+      begin
+        if exists (
+          select 1 from information_schema.columns
+           where table_schema = current_schema() and table_name = 'customer_accounts'
+             and column_name = 'role'
+        ) then
+          execute $sql$
+            update "customer_accounts" a
+               set "organization_role_id" = r."id"
+              from "organization_roles" r, "organizations" o
+             where o."id" = a."organization_id"
+               and r."organization_id" = a."organization_id"
+               and r."kind" = case
+                     when o."is_personal" or a."role" = 'organization_admin' then 'administrator'
+                     else 'member'
+                   end
+               and a."organization_role_id" is null
+          $sql$;
+        end if;
+      end
+      $$;
     `);
     this.addSql(`alter table "customer_accounts" alter column "organization_role_id" set not null;`);
     this.addSql(`

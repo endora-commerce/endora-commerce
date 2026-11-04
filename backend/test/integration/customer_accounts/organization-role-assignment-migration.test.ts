@@ -1,7 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { Migration20261103T190132CustomerAccountsOrganizationRoleAssignment } from '@endora-commerce/mod-customer-accounts/migrations';
+import {
+  Migration20261103T190132CustomerAccountsOrganizationRoleAssignment,
+  Migration20261104T094540CustomerAccountsDropLegacyRoleColumn,
+} from '@endora-commerce/mod-customer-accounts/migrations';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 
 /**
@@ -17,6 +20,10 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
  *
  * The test database is already migrated, so "before M3" is reached by running
  * `down()` first — which is also how the replay (R-27) reaches the old schema.
+ * Since WP-12 the migrated schema is also past **M5**, which drops the legacy
+ * `role` M3 reads and redefines its default; every case therefore starts from
+ * M5's `down()`, the state M3 left (`contracts/migration-and-replay.md` §6
+ * step 2 runs them in the same order).
  */
 describe('M3 — customer_accounts.organization_role_id', () => {
   let db: TestDb;
@@ -146,6 +153,9 @@ describe('M3 — customer_accounts.organization_role_id', () => {
 
   beforeEach(async () => {
     em = await db.beginTx();
+    const m5 = new Migration20261104T094540CustomerAccountsDropLegacyRoleColumn(em.getDriver(), em.config);
+    await m5.down();
+    for (const query of m5.getQueries()) await em.execute(query as string);
   });
 
   afterEach(async () => {

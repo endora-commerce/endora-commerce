@@ -1,8 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { Migration20261103T173304OrganizationsOrganizationRoles } from '@endora-commerce/mod-organizations/migrations';
-import { Migration20261103T190132CustomerAccountsOrganizationRoleAssignment } from '@endora-commerce/mod-customer-accounts/migrations';
+import {
+  Migration20261103T173304OrganizationsOrganizationRoles,
+  Migration20261104T094535OrganizationsDropLegacyRoleColumns,
+} from '@endora-commerce/mod-organizations/migrations';
+import {
+  Migration20261103T190132CustomerAccountsOrganizationRoleAssignment,
+  Migration20261104T094540CustomerAccountsDropLegacyRoleColumn,
+} from '@endora-commerce/mod-customer-accounts/migrations';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 
 /**
@@ -17,6 +23,11 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
  *
  * The test database is already migrated, so "before M2" is reached by running
  * `down()` first — which is also how the replay (R-27) reaches the old schema.
+ * Since WP-12 the migrated schema is also past **M4** and **M5**, which drop the
+ * legacy columns M2 reads (`requires_cart_approval`, the invitation's `role`)
+ * and the trigger M2 installs on it; every case therefore starts from their
+ * `down()`s — M5's, then M4's — the state M2 and M3 left
+ * (`contracts/migration-and-replay.md` §6 step 2 runs them in the same order).
  */
 describe('M2 — organization_roles', () => {
   let db: TestDb;
@@ -174,6 +185,13 @@ describe('M2 — organization_roles', () => {
 
   beforeEach(async () => {
     em = await db.beginTx();
+    for (const m of [
+      new Migration20261104T094540CustomerAccountsDropLegacyRoleColumn(em.getDriver(), em.config),
+      new Migration20261104T094535OrganizationsDropLegacyRoleColumns(em.getDriver(), em.config),
+    ]) {
+      await m.down();
+      for (const query of m.getQueries()) await em.execute(query as string);
+    }
   });
 
   afterEach(async () => {
