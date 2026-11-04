@@ -27,9 +27,13 @@ import { seedCartOrganization, type CartFixtureOrganization } from '../../helper
 
 const CHANNEL = { 'x-sales-channel': 'pl_retail' };
 const UNKNOWN_ID = '00000000-0000-4000-8000-00000000f170';
-const EN = JSON.parse(
-  readFileSync(new URL('../../../../packages/modules/carts/i18n/en.json', import.meta.url), 'utf8'),
-) as Record<string, string>;
+const bundle = (moduleId: string) =>
+  JSON.parse(
+    readFileSync(new URL(`../../../../packages/modules/${moduleId}/i18n/en.json`, import.meta.url), 'utf8'),
+  ) as Record<string, string>;
+const EN = bundle('carts');
+const EN_LISTS = bundle('shopping_lists');
+const EN_QUOTES = bundle('quote_requests');
 
 interface ErrorBody {
   error: { code: string; details?: { permission?: string; permissionLabel?: string } };
@@ -49,6 +53,10 @@ describe('carts — organization permission gates (170 WP-04)', () => {
         RESTRICTED: {
           permissions: ['shopping_lists.create', 'shopping_lists.convert', 'quote_requests.create'],
         },
+        // Holds `carts.create` and nothing else: what the other modules' gates refuse.
+        CARTS_ONLY: { permissions: ['carts.create'] },
+        // Holds nothing: the gate judged first names itself.
+        NOTHING: { permissions: [] },
       },
     });
   }, 60_000);
@@ -134,12 +142,52 @@ describe('carts — organization permission gates (170 WP-04)', () => {
     }
   });
 
-  // The three gates naming another module's code. `shopping_lists` and
-  // `quote_requests` declare those codes in their own work packages (WP-05,
-  // WP-06), which run beside this one; a guard naming an undeclared code is a
-  // `500` and an `undeclared-check` in the permission inventory, so these land
-  // once both have merged (see the WP-04 MR).
-  it.todo('POST /api/v1/cart/from-shopping-list/:id is judged by shopping_lists.convert before carts.create');
-  it.todo('POST /api/v1/cart/items/:itemId/save-to-shopping-list needs shopping_lists.create');
-  it.todo('POST /api/v1/cart/convert-to-quote-request needs quote_requests.create');
+  // The three gates naming another module's code (T137): `shopping_lists`
+  // and `quote_requests` declare those codes (WP-05, WP-06).
+  function expectRefusedNaming(res: { statusCode: number; body: string; json: () => unknown }, permission: string, label: string | undefined) {
+    expect(res.statusCode, res.body).toBe(403);
+    const { error } = res.json() as ErrorBody;
+    expect(error.code).toBe(ERROR_CODES.ORGANIZATION_PERMISSION_REQUIRED);
+    expect(label).toBeDefined();
+    expect(error.details).toMatchObject({ permission, permissionLabel: label });
+  }
+
+  it('POST /api/v1/cart/from-shopping-list/:id is judged by shopping_lists.convert before carts.create', async () => {
+    const url = `/api/v1/cart/from-shopping-list/${UNKNOWN_ID}`;
+    expectRefusedNaming(
+      await call('NOTHING', 'POST', url),
+      'shopping_lists.convert',
+      EN_LISTS['organizationPermissions.shopping_lists.convert.label'],
+    );
+    expectRefusedNaming(
+      await call('CARTS_ONLY', 'POST', url),
+      'shopping_lists.convert',
+      EN_LISTS['organizationPermissions.shopping_lists.convert.label'],
+    );
+    const member = await call('MEMBER', 'POST', url);
+    expect(member.statusCode, member.body).not.toBe(403);
+  });
+
+  it('POST /api/v1/cart/items/:itemId/save-to-shopping-list needs shopping_lists.create', async () => {
+    const url = `/api/v1/cart/items/${UNKNOWN_ID}/save-to-shopping-list`;
+    const payload = { shoppingListId: UNKNOWN_ID };
+    expectRefusedNaming(
+      await call('CARTS_ONLY', 'POST', url, payload),
+      'shopping_lists.create',
+      EN_LISTS['organizationPermissions.shopping_lists.create.label'],
+    );
+    const member = await call('MEMBER', 'POST', url, payload);
+    expect(member.statusCode, member.body).toBe(404);
+  });
+
+  it('POST /api/v1/cart/convert-to-quote-request needs quote_requests.create', async () => {
+    const url = '/api/v1/cart/convert-to-quote-request';
+    expectRefusedNaming(
+      await call('CARTS_ONLY', 'POST', url, {}),
+      'quote_requests.create',
+      EN_QUOTES['organizationPermissions.quote_requests.create.label'],
+    );
+    const member = await call('MEMBER', 'POST', url, {});
+    expect(member.statusCode, member.body).not.toBe(403);
+  });
 });

@@ -1,9 +1,10 @@
 # Tasks: Organization roles and permissions
 
 **Input**: design documents in `specs/170-organization-roles/` — [spec.md](./spec.md),
-[plan.md](./plan.md) (work packages WP-00 … WP-13, waves, plan-phase rulings PR-1/PR-2, oracle
-rulings PR-3 … PR-12 and decomposition adjustments A-1 … A-4), [research.md](./research.md)
-(R-14 … R-37),
+[plan.md](./plan.md) (work packages WP-00 … WP-15, waves, plan-phase rulings PR-1/PR-2, oracle
+rulings PR-3 … PR-12, decomposition adjustments A-1 … A-4, the owner rulings OR-9 … OR-11 of
+2026-11-04 and their design questions Q-R1 … Q-R3, answered the same day), [research.md](./research.md)
+(R-14 … R-41),
 [data-model.md](./data-model.md), [contracts/](./contracts/), [quickstart.md](./quickstart.md).
 
 **Scope**: P1 + P2, one release, delivered on the integration branch `feat/170-organization-roles`
@@ -78,7 +79,7 @@ output:
 - [x] T003 [WP-00] [US2] Write the failing oracle test: seed `ORACLE_POPULATION` through today's services/entities, replay `ORACLE_REQUESTS` against the test server, assert each `{ status, code }` equals `PRE_UPGRADE_OUTCOMES[id]` and that every request id has an expected entry (red: the table is empty) — `backend/test/integration/organizations/roles-upgrade-oracle.test.ts` (new) — T002
 - [x] T004 [WP-00] [US2] Record the table: run T003 once locally, write the observed outcomes into `PRE_UPGRADE_OUTCOMES`, review every row by hand against today's behaviour (a surprising row is a question for the owner, not an edit), re-run green; paste both runs in the MR — `backend/test/fixtures/organization-roles/pre-upgrade-outcomes.ts` — T003
 - [x] T005 [WP-00] Verify (standing obligations 1, 2, 5); add an empty changeset if `check:release-intent` asks; open the PR to `master` — `.changeset/170-00-roles-upgrade-oracle.md` (only if required) — T004
-- [ ] T006 Cut the integration branch: after WP-00 merges, `git fetch origin && git push origin origin/master:refs/heads/feat/170-organization-roles`; every later WP branches from it — no files — T005 merged
+- [x] T006 Cut the integration branch: after WP-00 merges, `git fetch origin && git push origin origin/master:refs/heads/feat/170-organization-roles`; every later WP branches from it — no files — T005 merged
 
 **Checkpoint**: oracle on `master`; integration branch exists.
 
@@ -116,7 +117,7 @@ Implementation:
 - [x] T020 [WP-01] Implement the organization-permissions scanner in the inventory; T012 green — backend test — `backend/test/contract/admin_users/permission-inventory.test.ts` — T014, T012
 - [x] T021 [WP-01] Generated artefacts: `composer:generate` (M1 registered), `manifests:check`; commit `backend/src/db/*-registry.generated.ts` — generated — T017
 - [x] T022 [WP-01] Changesets: `@endora-commerce/contracts` `minor` (new `organization-roles` exports, manifest field, actor field, error codes, deprecations named); `@endora-commerce/platform` `minor` (`CommandContext.run`, `CommandActor.actorCustomerAccountId`, the audit column); `auth` package `patch` or `minor` by judgement (actor field) — `.changeset/170-01-*.md` — T013…T020
-- [ ] T023 [WP-01] Verify (standing obligations) and merge into `feat/170-organization-roles` — T021, T022
+- [x] T023 [WP-01] Verify (standing obligations) and merge into `feat/170-organization-roles` — T021, T022
 
 ### WP-02a — roles in `organizations`
 
@@ -147,7 +148,7 @@ Implementation:
 - [x] T036 [WP-02a] i18n EN+PL in one pass for every P1 key: operator code labels `adminRoles.permission.organizations:{read,manage}-roles`, predefined role labels, the error sentences (with `{permissionLabel}`), the Admin UI Roles tab strings (consumed by WP-08), the e-mail role labels (consumed by WP-03); list them in the MR description — organizations — `org/i18n/en.json`, `org/i18n/pl.json` — T035
 - [x] T037 [WP-02a] Docs: Roles section on the module page, EN + PL + pin (A-2) — organizations — `org/docs/organizations.md`, `plpage(organizations)`, `docs/translation-cache/pl/…organizations…json` (via `docs:translations:pin`) — T035
 - [x] T038 [WP-02a] Generated artefacts (`composer:generate` for M2 and the entity; `manifests:check`) and changeset for `organizations` (`minor`: new routes, port, operator codes) — generated, `.changeset/170-02a-organization-roles.md` — T031…T037
-- [ ] T039 [WP-02a] Verify and merge into the integration branch — T038
+- [x] T039 [WP-02a] Verify and merge into the integration branch — T038
 
 ### WP-02b — assignment in `customer_accounts`
 
@@ -181,7 +182,7 @@ Implementation:
   - *Done in WP-02b*: beyond the listed files, fixtures that moved an account between Organizations by hand now move its role with it (the composite foreign key refuses the old one): `backend/test/integration/customers/customer-deletion-service.test.ts`, `backend/test/integration/quote_requests/negotiation-{enforcement,policy-routes}.test.ts`; `backend/test/integration/mfa/factor-removal-withdraws-sessions.test.ts` passes the role id to the member write port; record fixtures in seven unit tests gained `organizationRoleId`; and M2's migration test steps M3 down before M2 and up after it.
 - [x] T050 [WP-02b] Docs EN+PL+pin for `customer_accounts` (role reference, Commands) — `ca/docs/customer_accounts.md`, `plpage(customer_accounts)` — T045
 - [x] T051 [WP-02b] Generated artefacts (M3); `check:command-coverage` with `customer_accounts` migrated; changesets: `customer_accounts` `minor`, `organizations` `patch`/`minor`, `contracts` `minor` (new port type), `demo-composition` by judgement — `.changeset/170-02b-*.md` — T044…T050
-- [ ] T052 [WP-02b] Verify and merge into the integration branch — T051
+- [x] T052 [WP-02b] Verify and merge into the integration branch — T051
 
 **Checkpoint (end of Wave 1)**: roles exist for every Organization, every subject carries a role id,
 the port answers, the integration branch is green. Wave 2 may start.
@@ -210,10 +211,10 @@ T124 (the table's self-check) and T125 (the table) are WP-13a's; they stay liste
 **Obligations WP-13a places on the landing packages** (listed here, not in their sections, so the
 open WP-04 and WP-06 PRs, which edit those sections, rebase without a conflict):
 
-- [ ] T134 [WP-04] After WP-13a merges: rebase; flip `LANDED['WP-04']` to `true`; run the replay — §6.1 rows 3–6 and 14–22 at `after`, every other row as §6.2 requires (`PRE_UPGRADE_OUTCOMES`, or `after` for a package already landed), **including** at `PRE_UPGRADE_OUTCOMES` `cart.read:B.regular@pl_b2b_vip`, `order.place:B.regular@pl_retail`, `order.place:B.regular@pl_b2b_vip` and `cart.submitForApproval:B.regular` (the migrated B's *Member* lacks `carts.order_without_approval`); restate the MR's oracle section against the replay output — backend test — `landed-work-packages.ts` — T133, T079
-- [ ] T135 [WP-03] After WP-13a merges: flip `LANDED['WP-03']` to `true` (which also sends `role` bodies as `roleId`); run the replay — rows 1–2, 8–13 and 25–26 at `after`, and the six `invitation.create*`/`member.changeRole` rows of `A.admin` and `B.admin` at `PRE_UPGRADE_OUTCOMES` (#710 saw them, and rows 9, 10, 13, at `400` only because the live oracle sends `role`) — backend test — `landed-work-packages.ts` — T133, WP-03's implementation tasks
-- [ ] T136 [WP-06] After WP-04, WP-05 and WP-13a merge: rebase; flip `LANDED['WP-06']` to `true`; run the replay — rows 7, 23 and 24 at `after` (#653 observed closed), and no B.regular row after them moved (§6.1 *How the table is used*); restate the MR's oracle section against the replay output — backend test — `landed-work-packages.ts` — T133, T134, T137
-- [ ] T137 [WP-06] The three cross-module gates in `carts`' routes, owned by WP-06 because it merges last of the three (lead's decision, Notes 7): `shopping_lists.convert` on from-shopping-list, `shopping_lists.create` on save-to-shopping-list, `quote_requests.create` on convert-to-quote-request; WP-04's `it.todo` cases in `cart-organization-permissions.contract.test.ts` become real tests, red before the gate — carts — `packages/modules/carts/src/backend/routes.ts`, `backend/test/contract/carts/cart-organization-permissions.contract.test.ts` — WP-04 and WP-05 merged
+- [x] T134 [WP-04] After WP-13a merges: rebase; flip `LANDED['WP-04']` to `true`; run the replay — §6.1 rows 3–6 and 14–22 at `after`, every other row as §6.2 requires (`PRE_UPGRADE_OUTCOMES`, or `after` for a package already landed), **including** at `PRE_UPGRADE_OUTCOMES` `cart.read:B.regular@pl_b2b_vip`, `order.place:B.regular@pl_retail`, `order.place:B.regular@pl_b2b_vip` and `cart.submitForApproval:B.regular` (the migrated B's *Member* lacks `carts.order_without_approval`); restate the MR's oracle section against the replay output — backend test — `landed-work-packages.ts` — T133, T079
+- [x] T135 [WP-03] After WP-13a merges: flip `LANDED['WP-03']` to `true` (which also sends `role` bodies as `roleId`); run the replay — rows 1–2, 8–13 and 25–26 at `after`, and the six `invitation.create*`/`member.changeRole` rows of `A.admin` and `B.admin` at `PRE_UPGRADE_OUTCOMES` (#710 saw them, and rows 9, 10, 13, at `400` only because the live oracle sends `role`) — backend test — `landed-work-packages.ts` — T133, WP-03's implementation tasks
+- [x] T136 [WP-06] After WP-04, WP-05 and WP-13a merge: rebase; flip `LANDED['WP-06']` to `true`; run the replay — rows 7, 23 and 24 at `after` (#653 observed closed), and no B.regular row after them moved (§6.1 *How the table is used*); restate the MR's oracle section against the replay output — backend test — `landed-work-packages.ts` — T133, T134, T137
+- [x] T137 [WP-06] The three cross-module gates in `carts`' routes, owned by WP-06 because it merges last of the three (lead's decision, Notes 7): `shopping_lists.convert` on from-shopping-list, `shopping_lists.create` on save-to-shopping-list, `quote_requests.create` on convert-to-quote-request; WP-04's `it.todo` cases in `cart-organization-permissions.contract.test.ts` become real tests, red before the gate — carts — `packages/modules/carts/src/backend/routes.ts`, `backend/test/contract/carts/cart-organization-permissions.contract.test.ts` — WP-04 and WP-05 merged
 
 ### WP-03 — members, invitations, session, addresses, reserved capabilities
 
@@ -225,7 +226,7 @@ Tests first:
 
 - [x] T053 [P] [WP-03] [US1] Failing session-view contract tests: login, `/api/v1/me`, `/api/v1/me/customer`, invitation accept answer `organizationRole` (translated predefined label in the request language, custom name verbatim) and `permissions`, and no `role` (FR-008, FR-056, FR-073) — organizations, customers — `backend/test/contract/organizations/me.test.ts`, `backend/test/contract/organizations/accept-invite.test.ts`, `backend/test/contract/organizations/session-role-views.contract.test.ts` (new) — T052
   - *Done in WP-03*: all four session views carry `permissions` beside `organizationRole` (the contract table names it for login and `/me`; T053 for all four). `organizationRoleReadPort` gains `roleRef(organizationId, roleId, language?)` — the translated `{ id, name, kind }` — so `customers` can name the role without reading `organizations`' bundle. The registration answer drops `role` too. The deprecated `role` of the three response schemas in `contracts` becomes optional (no longer sent); WP-12 deletes it.
-- [x] T054 [P] [WP-03] [US1] [US5] Failing member/invitation contract tests: `PATCH …/members/:id/role { roleId }`; `role` in any body → 400; another Organization's role → 404; invite `{ email, roleId? }` defaults to *Member* and audits `organization_invitation.create`; last-admin refusals keep their codes; a custom role holding every code still cannot manage members, invitations or roles (FR-005, FR-010, FR-065, US 5.1/5.3) — organizations — `backend/test/contract/organizations/{invite,invitations-list-revoke,last-admin-protection,member-rollup}.test.ts`, `backend/test/contract/organizations/reserved-capabilities.contract.test.ts` (new) — T052
+- [x] T054 [P] [WP-03] [US1] [US5] Failing member/invitation contract tests: `PATCH …/members/:id/role { roleId }`; `role` in any body → 400; another Organization's role → 404; invite `{ email, roleId? }` defaults to *Member* and audits `organization_invitation.create`; last-admin refusals keep their codes; a custom role holding every code still cannot manage members, invitations or roles (FR-005, FR-010, FR-065, US 5.1/5.3) — organizations — `backend/test/contract/organizations/{invite,invitations-list-revoke,last-admin-protection}.test.ts`, `backend/test/contract/organizations/member-rollup.contract.test.ts`, `backend/test/contract/organizations/reserved-capabilities.contract.test.ts` (new) — T052
   - *Done in WP-03*: the shared `seedCustomOrganizationRole` binds its array through `em.execute`, which expands it into one parameter per element — PostgreSQL refuses the literal — so this package's tests use their own `backend/test/contract/organizations/organization-role-fixtures.ts` (`seedCustomRole`, `holdCustomRole`, and a role-cache drop: a fixture's SQL does not drop the cache a role Command would).
 - [x] T055 [P] [WP-03] [US5] Failing e-mail test: the invitation e-mail's role label is the role's own — PL label for a predefined role in a PL e-mail, custom name verbatim, never a hard-coded English string (#667, FR-008, US 5.1a) — organizations — `org/src/backend/email-templates/invitation.test.ts`, `backend/test/integration/organizations/invitation-email.test.ts` — T052
 - [x] T056 [P] [WP-03] [US1] Failing address-gate test: create/update/delete organization addresses refused `403 ORGANIZATION_PERMISSION_REQUIRED` without `addresses.manage`, allowed with it; list open to every member (FR-014a, OR-8) — organizations, addresses — `backend/test/contract/organizations/addresses-manage-permission.contract.test.ts` (new) — T052
@@ -260,7 +261,7 @@ leg). **Gate**: #656 merged (A-4). **Independent test**: `quickstart.md` §3–�
 
 Tests first:
 
-- [ ] T067 [P] [WP-04] [US3] Failing gate contract tests per route family of `contracts/storefront-api.md` §5 (cart items, coupon, empty/batch, from-quote-request, from-shopping-list with both guards, save-to-shopping-list, convert-to-quote-request) — refused 403 naming the first missing code, allowed with it; `GET /api/v1/cart` ungated (FR-030, FR-040, FR-047, FR-048, SC-003) — carts — `backend/test/contract/carts/cart-organization-permissions.contract.test.ts` (new) — T052
+- [x] T067 [P] [WP-04] [US3] Failing gate contract tests per route family of `contracts/storefront-api.md` §5 (cart items, coupon, empty/batch, from-quote-request, from-shopping-list with both guards, save-to-shopping-list, convert-to-quote-request) — refused 403 naming the first missing code, allowed with it; `GET /api/v1/cart` ungated (FR-030, FR-040, FR-047, FR-048, SC-003) — carts — `backend/test/contract/carts/cart-organization-permissions.contract.test.ts` (new) — T052
   - *Partial (WP-04 MR)*: every `carts.create` family is asserted red-then-green; the three families judged by `shopping_lists.*` / `quote_requests.create` are `it.todo` until WP-05/WP-06 declare those codes (see T073).
 - [x] T121 [P] [WP-04] [US3] Test, written before T073 and green before **and** after it — the guest basket is unchanged (PR-4, FR-030, R-35): an anonymous visitor's `POST /api/v1/cart/items` answers `200` and mints the anonymous cookie, `PATCH`/`DELETE …/items/:itemId` and `POST`/`DELETE /api/v1/cart/coupon` behave as today, and `GET /api/v1/cart` answers `200`; a signed-in member whose role lacks `carts.create` is refused `403 ORGANIZATION_PERMISSION_REQUIRED` on the same `POST` — carts — `backend/test/contract/carts/guest-basket-unchanged.contract.test.ts` (new) — T052
 - [x] T126 [P] [WP-04] [US3] Failing sign-in merge test (PR-12, FR-030a): `mergeAnonymousIntoCustomer` for a member whose role lacks `carts.create` answers `skipped_permission`, moves no line, writes no audit row, and leaves the guest basket `active` with its token and lines; for a member holding it the four feature-037 outcomes are unchanged; the login itself succeeds in both cases — carts — `backend/test/integration/carts/merge-on-login-permission.test.ts` (new) — T052
@@ -272,7 +273,7 @@ Tests first:
 Implementation:
 
 - [x] T072 [WP-04] [US3] Declare `carts.create` (default), `carts.approve`, `carts.order_without_approval` (default) with EN+PL labels/descriptions — carts — `packages/modules/carts/src/manifest.ts`, `packages/modules/carts/i18n/{en,pl}.json` — T067
-- [ ] T073 [WP-04] [US3] Route gates — `{ guests: 'pass' }` on the routes that admit a guest today (`contracts/storefront-api.md` §5 `Pg`); T067 green and T121 still green — carts — `packages/modules/carts/src/backend/routes.ts` — T072
+- [x] T073 [WP-04] [US3] Route gates — `{ guests: 'pass' }` on the routes that admit a guest today (`contracts/storefront-api.md` §5 `Pg`); T067 green and T121 still green — carts — `packages/modules/carts/src/backend/routes.ts` — T072
   - *Partial (WP-04 MR)*: every `carts.create` gate is in; the three gates naming another module's code — `shopping_lists.convert` on from-shopping-list, `shopping_lists.create` on save-to-shopping-list, `quote_requests.create` on convert-to-quote-request — wait for WP-05/WP-06 to declare those codes (a guard naming an undeclared code is a `500` and an `undeclared-check`); T067 carries them as `it.todo`.
 - [x] T074 [WP-04] [US3] Approval by permission: `cartApprovalRequired` via the port, approvers via `carts.approve`, self-approval refusal after the not-pending check, `CART_APPROVAL_SELF_SUBMIT` no longer raised and removed from `carts`' manifest `errorCodes` and bundles, reach without `isOrgAdmin`, recipients via `rolesHolding`; remove the policy endpoints; T068, T071 (backend) green — carts — `packages/modules/carts/src/backend/routes.organization.ts`, `routes.admin.ts`, `services/cart-approval-service.ts`, `services/cart-approval-policy.ts` (from #656), `services/cart-approval-emails.ts`, `services/organization-cart-reach.ts`, `entities/cart.entity.ts` (comment) — T073
 - [x] T127 [WP-04] [US3] `CartService.mergeAnonymousIntoCustomer` judges `carts.create` through `organizationPermissionPort.can` (via `lazyPort`, no bare `catch`) after locating the source basket and before any write, and answers `skipped_permission` when the member lacks it; T126 green — carts — `packages/modules/carts/src/backend/services/cart-service.ts` — T073, T126
@@ -331,19 +332,66 @@ directions), every backend legacy read removed from converted modules.
 
 ---
 
-## Phase 4 — Wave 3: storefront (WP-09 ∥ WP-10; may draft during Wave 2, merge after their APIs)
+## Phase 4 — Wave 3: storefront (WP-09 ∥ WP-10; may draft during Wave 2, merge after their APIs), and the 2026-11-04 packages WP-15, WP-14, WP-14b
 
 ### WP-09 — organization area (merge after WP-02a, WP-03, WP-04)
 
-- [ ] T097 [P] [WP-09] [US1] Failing tests: account nav shows *Members* and *Roles* to administrators and *Carts to approve* to `carts.approve` holders (module presence via `lib/module-gate.ts`), **none of the three** for a personal Organization's member although they hold *Administrator*, and the members, roles and carts pages redirect such a member to `/account` — gated on `organization.isPersonal`, not the role (PR-3, FR-070a, R-34); roles list/create/edit/delete pages (replacement dialog, protected roles, name-taken and stale errors shown); members page role select; account page shows the member's role and the plain-language list from `GET …/mine/role`; cart-approval settings page gone; EN+PL (FR-056, FR-057, FR-058, US 1, US 6) — storefront — `storefront/test/account/{i18n/account-pages,module-presence-nav,org-cart-detail,org-carts-list}.test.tsx`, `storefront/test/account/org-roles-pages.test.tsx` (new) — T052
-- [ ] T098 [WP-09] [US1] [US6] Implement: `app/(account)/layout.tsx`, `app/(account)/organization/roles/{page,new/page,[id]/page}.tsx` (new), `organization/members/**`, `organization/carts/**`, delete `organization/settings/cart-approval/`, the account page, `lib/api/{account,organization}.ts` (`CurrentOrganization` gains the `isPersonal` `/api/v1/me` already serves), `lib/i18n/messages/account.ts` (EN+PL); Server Components preserved (VII); T097 green — storefront — T097, WP-02a/03/04 merged
+- [ ] T097 [P] [WP-09] [US1] Failing tests: account nav shows *Members* and *Roles* to administrators and *Carts to approve* to `carts.approve` holders (module presence via `lib/module-gate.ts`), **none of the three** for a personal Organization's member although they hold *Administrator*, and the members, roles and carts pages redirect such a member to `/account` — gated on `organization.isPersonal`, not the role (PR-3, FR-070a, R-34); roles list/create/edit/delete pages (replacement dialog, protected roles, name-taken and stale errors shown); **the create page opens with every catalogue permission unchecked, offers no "copy from *Member*" (nor any other role), shows `memberDefault` at most as a hint, and saving with nothing ticked posts `permissions: []`** (OR-9, FR-004a, R-39 — the backend already stores exactly that, so this is the storefront's own test); members page role select; account page shows the member's role and the plain-language list from `GET …/mine/role`; cart-approval settings page gone; EN+PL (FR-056, FR-057, FR-058, US 1, US 6) — storefront — `storefront/test/account/{i18n/account-pages,module-presence-nav,org-cart-detail,org-carts-list}.test.tsx`, `storefront/test/account/org-roles-pages.test.tsx` (new) — T052
+- [ ] T098 [WP-09] [US1] [US6] Implement: `app/(account)/layout.tsx`, `app/(account)/organization/roles/{page,new/page,[id]/page}.tsx` (new), `organization/members/**`, `organization/carts/**`, delete `organization/settings/cart-approval/`, the account page, `lib/api/{account,organization}.ts` (`CurrentOrganization` gains the `isPersonal` `/api/v1/me` already serves), `lib/i18n/messages/account.ts` (EN+PL); the role-create page's initial selection is empty and it has no copy control (OR-9, FR-004a; no backend change, R-39); Server Components preserved (VII); T097 green — storefront — T097, WP-02a/03/04 merged
 - [ ] T099 [WP-09] Verify (`pnpm --filter storefront run test`, typecheck, lint, `check:rsc-discipline`); merge — T098
 
 ### WP-10 — commerce surfaces (merge after WP-04, WP-05, WP-06)
 
-- [x] T100 [P] [WP-10] [US4] [US3] Failing tests: one-click button not rendered when eligibility is disabled (FR-051); add-to-cart/cart editing, quick order, request-a-quote (PDP, cart, lists), save-to-list and list conversions hidden or disabled per `can(session, code)` for a signed-in member, while a **signed-out visitor still sees add-to-cart and cart editing** (PR-4, R-35); `CartApprovalBanner` and primary CTA follow `primaryCta` without the Organization flag (FR-057) — storefront — `storefront/test/checkout/cart-approval-submit.test.tsx`, `storefront/test/components/permission-aware-actions.test.tsx` (new) — T052
-- [x] T101 [WP-10] [US4] [US3] Implement in `components/CartApprovalBanner.tsx`, `components/CartPrimaryCta.tsx`, `components/CartConvertButtons.tsx`, `components/AddToShoppingListButton.tsx`, `components/pricing/QuoteRequestCta.tsx`, `app/(catalog)/p/[slug]/page.tsx`, the quick-order and shopping-list pages under `app/(account)/{quick-order,shopping-lists}/`, `lib/api/cart.ts`, `lib/actions/cart.ts`, `lib/i18n/messages/commerce.ts` (EN+PL); T100 green — storefront — T100, WP-04/05/06 merged
+- [x] T100 [P] [WP-10] [US4] [US3] Failing tests: one-click button not rendered when eligibility is disabled (FR-051); add-to-cart/cart editing, quick order, request-a-quote (PDP, cart, lists), save-to-list and list conversions hidden or disabled per `can(session, code)` for a signed-in member — **the quick-order import (paste and file upload) shown to a member holding `carts.create` or `quote_requests.create`, hidden to one holding neither; after an import, *add to cart* offered only with `carts.create` and *request a quote* only with `quote_requests.create`** (OR-10, FR-030b; a member holding only `quote_requests.create` imports and can only request a quote) — while a **signed-out visitor still sees add-to-cart and cart editing** (PR-4, R-35); `CartApprovalBanner` and primary CTA follow `primaryCta` without the Organization flag (FR-057) — storefront — `storefront/test/checkout/cart-approval-submit.test.tsx`, `storefront/test/components/permission-aware-actions.test.tsx` (new) — T052
+- [x] T101 [WP-10] [US4] [US3] Implement in `components/CartApprovalBanner.tsx`, `components/CartPrimaryCta.tsx`, `components/CartConvertButtons.tsx`, `components/AddToShoppingListButton.tsx`, `components/pricing/QuoteRequestCta.tsx`, `app/(catalog)/p/[slug]/page.tsx`, the quick-order and shopping-list pages under `app/(account)/{quick-order,shopping-lists}/`, `lib/api/cart.ts`, `lib/actions/cart.ts`, `lib/i18n/messages/commerce.ts` (EN+PL); the quick-order import by OR-10's either-of rule (`can(session, 'carts.create') || can(session, 'quote_requests.create')`; the backend rule is WP-15's, and the storefront tests do not wait for it); T100 green — storefront — T100, WP-04/05/06 merged
 - [ ] T102 [WP-10] Verify; merge — T101
+
+### WP-15 — quick-order import by either target, and the OR-9 Admin UI lock (owner rulings OR-10, OR-9; 2026-11-04)
+
+**Goal**: FR-030b, FR-004a (Admin UI). A follow-up of WP-06 (#707, merged), which gates
+`POST /api/v1/quick-order/import` with `organizationPermissionPreHandler(organizationPermissions,
+'carts.create')` in `packages/modules/quick_order/src/backend/routes.ts`. **Merge gate**: none beyond
+WP-05, WP-06 and WP-08, all merged; may run beside WP-09, WP-10 and WP-14. **Independent test**: a
+member holding only `quote_requests.create` imports a CSV and can build a quote request, not a cart.
+Branch `wp/170-15-import-either`.
+
+- [ ] T139 [P] [WP-15] [US1] Failing tests (OR-10, FR-030b, R-40) — in the `POST /api/v1/quick-order/import` block of the contract file: (a) **new, red today** — a member whose role holds `quote_requests.create` and not `carts.create` is served (`200`, recognised rows); (b) kept — a holder of `carts.create` alone is served; (c) **rewritten** from *refuses a member without carts.create* — a member holding neither is refused `403 ORGANIZATION_PERMISSION_REQUIRED` with `details.permission = 'carts.create'`, and a malformed file body gets the same `403` (judged before the parse, not `422`); (d) the target stays gated — the quote-only member's `POST …/build` with `target: cart` → `403` naming `carts.create` with no basket line written, and the cart-only member's `target: quote_request` → `403` naming `quote_requests.create` with no quote request created; (e) a signed-out caller still `401`. In the off-state file: with `quote_requests` switched off, the quote-only member's import is refused naming `carts.create` (an absent module's code grants nothing, FR-007) and is served again after reactivation — quick_order — `backend/test/contract/quick_order/quick-order-permissions.contract.test.ts`, `backend/test/integration/quick_order/off-state.test.ts` — WP-06 merged
+- [ ] T140 [P] [WP-15] [US1] Characterization test, **green before and after** (as T121): the Admin UI Roles tab's create editor opens with every catalogue checkbox unchecked, shows the *member-default* hint without ticking it, offers no copy-from-role control, and saving with nothing ticked calls `organizationRolesClient.create` with `permissions: []` (OR-9, FR-004a, R-39) — admin — `admin/test/modules/organizations/organization-roles-tab.test.tsx` — WP-08 merged
+- [ ] T141 [WP-15] [US1] Replace the import's guard with a module-local pre-handler in `routes.ts` (R-40): after `requireCustomer`, before the body is parsed; the subject from `request.actor` as `organizationPermissionPreHandler` builds it (`organizationRoleId` included); `can(…, CARTS_CREATE)` then `can(…, QUOTE_REQUESTS_CREATE)` (module-local string constants, which the inventory resolves); neither → `assert(subject, CARTS_CREATE, { language: await request.responseLanguage() })`; no bare `catch` around the port (`check:port-catches`); the route's doc comment restated; `build` untouched; T139 green, T140 still green; docs EN+PL+pin (the import's rule) — quick_order — `packages/modules/quick_order/src/backend/routes.ts`, `packages/modules/quick_order/docs/quick_order.md`, `plpage(quick_order)` — T139
+- [ ] T142 [WP-15] Changeset `.changeset/170-15-quick-order-import.md` (`@endora-commerce/mod-quick-order`, `minor`: the import's guard widens from `carts.create` to either code; not a break for any member — *Member* holds both); verify (standing obligations 1–5, the replay among the targeted files — it must move no row, `contracts/migration-and-replay.md` §6.3; the permission inventory green); merge — T141
+
+### WP-14 — returns and complaints by permission, backend (owner ruling OR-11; 2026-11-04)
+
+**Goal**: FR-052–FR-054, FR-022's two `returns` codes, User Story 9 (backend), research R-41.
+**Gate**: WP-07 merged (done). The owner answered Q-R1 = A, Q-R2 = A and accepted Q-R3 on 2026-11-04
+(`plan.md` *OR-11's design questions*), so nothing waits. **Merge before** WP-11 and WP-12. **Independent test**: User Story 9's scenarios over HTTP.
+Branch `wp/170-14-returns`. Moves no oracle row and flips no ledger entry (§6.3).
+
+Tests first:
+
+- [ ] T143 [P] [WP-14] [US9] Failing submission-gate tests (FR-052): `POST /api/v1/returns` by a member whose custom role lacks `returns.create` → `403 ORGANIZATION_PERMISSION_REQUIRED` with `details.permission = 'returns.create'` and its EN/PL label, for `kind: 'return'` and `kind: 'complaint'`, with no `return_cases` row and no `return_case.create` audit entry, judged **before** the order is read (the same `403` for another Organization's order id); *Member* (implicit member default) and *Administrator* still `201` for their own order; a member lacking the code still reads `GET /api/v1/orders/:orderId/returnable` of their own order, `GET /api/v1/returns`, `GET …/:id`, and comments, attaches, selects the delivery method and cancels on a case they filed before the role change; a signed-out caller `401` — backend test — `backend/test/integration/returns/organization-permissions.test.ts` (new) — WP-07 merged
+- [ ] T144 [P] [WP-14] [US9] Failing visibility tests (FR-053): with cases filed by a colleague, by the caller and by another Organization's member — a member without `returns.view_organization` lists only their own and gets `404 NOT_FOUND` on the colleague's case; a custom role holding the code and *Administrator* list both Organization cases (not the foreign one, `404` on it) and read the colleague's (`200`), every summary carrying `customerAccountId` (the filer); a roll-up head-office login holding the code lists its subtree's cases, one without it only its own (roll-up never adds a permission); the holder's comment, attachment, delivery-method choice and cancel on the colleague's case → `404 NOT_FOUND`, the case unchanged (Q-R2 = A) — backend test — `backend/test/integration/returns/organization-returns-visibility.test.ts` (new) — WP-07 merged
+- [ ] T145 [P] [WP-14] [US9] Failing colleague-order tests (FR-054, Q-R1 = A): on a colleague's completed order, a custom role holding `returns.create` and `orders.view_organization`, and *Administrator*, get `200` on `GET /api/v1/orders/:orderId/returnable` and `201` on `POST /api/v1/returns`, the case's `customerAccountId` being the starter and its e-mail going to the starter; `returns.create` alone → `404` on both; `orders.view_organization` without `returns.create` → `returnable` `200`, the submission `403` naming `returns.create`; in WP-07's file, the two *gets the answer the administrator gets today on starting a return from it (placer only, 404)* cases (holder and *Administrator*) become `200`, with their comment rewritten (the widening is this package's, as the comment said) — backend test — `backend/test/integration/returns/colleague-order-returns.test.ts` (new), `backend/test/integration/orders/colleague-orders-permission.test.ts` — WP-07 merged
+- [ ] T146 [P] [WP-14] [US8] Failing off-state additions: with `returns` switched off its two codes leave the permission catalogue and every member's effective set (`GET …/mine/role`, the session's `permissions`), a custom role's grant of them is retained, and both come back on reactivation (FR-007, FR-025, SC-007) — backend test — `backend/test/integration/returns/off-state.test.ts` — WP-07 merged
+
+Implementation:
+
+- [ ] T147 [WP-14] [US9] Contract first (Principle II): `returnCaseSummarySchema` gains `customerAccountId: uuidSchema` (additive; `returnCaseDetailSchema` already declares it and keeps it through `.extend`; `adminReturnRowSchema` inherits it), with a schema test; changeset `.changeset/170-14-contracts-return-summary.md` (`@endora-commerce/contracts`, `minor`, naming the field) — contracts — `packages/contracts/src/returns.ts`, its test — T144
+- [ ] T153 [WP-14] Fix the stale doc comment on `OrderReadPort.findByIdForCustomer` (it still says "a regular member reaches only the orders they placed, an `organization_admin` every order of their Organization", untrue since WP-07): a member whose role holds `orders.view_organization` (*Administrator* included) reaches every order of the Organization (its roll-up subtree through the tenant filter), anyone else only the orders they placed; name `returns` (FR-054) beside `invoices` as a consumer. Comment only; covered by T147's `@endora-commerce/contracts` changeset (mention it there) — contracts — `packages/contracts/src/orders.ts` — WP-07 merged
+- [ ] T148 [WP-14] [US9] Declare `returns.create` (member-default) and `returns.view_organization` (not) under `organizationPermissions` with EN+PL `organizationPermissions.<code>.{label,description}` in the package-root bundles (EN labels: FR-022; PL: *Zgłaszanie zwrotów i reklamacji*, *Wyświetlanie zwrotów i reklamacji organizacji*, for the product owner's review); add `organizations` to `dependencies` (R-41 item 7); in `index.ts` resolve `lazyPort<OrganizationPermissionPort>(ctx, 'organizationPermissionPort')` and `lazyPort<OrderReadPort>(ctx, 'orderReadPort')` (string literals) into the plugin options; `routes.customer.ts`: `organizationPermissionPreHandler(() => permissions, 'returns.create')` after `requireCustomer` on `POST /api/v1/returns` only, and the routes pass the customer context `{ customerAccountId, organizationId, organizationRoleId }` from the actor; `return-case-service.ts`: a module-local scope helper (one method asking `can(…, 'returns.view_organization')`, as `OrderAccessService.scopedWhere` does) for `listForCustomer` and `getForCustomer`, the follow-up lookups left on `{ id, customerAccountId }` (Q-R2 = A); `getReturnable` and `createCase` judge the order with `orderReadPort.findByIdForCustomer` instead of `ctx.customerAccountId !== customerAccountId` (Q-R1 = A); `toSummary` and the operator's row mapper fill `customerAccountId`; extend `orders.view_organization`'s description (manifest, `orders/i18n/{en,pl}.json`) to name starting a return; `manifests:generate`/`composer:generate` as the checks ask (the dependency edge); T143–T146 green — returns, orders — `packages/modules/returns/src/manifest.ts`, `packages/modules/returns/i18n/{en,pl}.json`, `packages/modules/returns/src/backend/{index.ts,plugin.ts,routes.customer.ts}`, `packages/modules/returns/src/backend/services/{return-case-service.ts,return-list-service.ts}`, the new scope helper beside them, `packages/modules/orders/src/manifest.ts`, `packages/modules/orders/i18n/{en,pl}.json` — T143, T144, T145, T146, T147, T153
+- [ ] T149 [WP-14] Docs EN+PL+pin — the returns page's buyer section (who may open, see and act on a case; the two codes) and the orders page's `orders.view_organization` paragraph (it now names starting a return); changeset `.changeset/170-14-returns.md` (`@endora-commerce/mod-returns`, `minor`: the new `organizations` dependency, the gate, the widened list and read, the plugin options gaining `organizationPermissions` and `orderReadPort`) and `.changeset/170-14-orders-description.md` (`@endora-commerce/mod-orders`, `minor`: the `orders.view_organization` description names starting a return from a colleague's order; no behaviour of `orders` changes); verify (standing obligations 1–5 — the replay among the targeted files, moving no row, §6.3; the permission inventory green in both directions; `check:port-dependencies`, `check:module-boundary`, `check:off-state-coverage`); merge before WP-11 — `packages/modules/returns/docs/returns.md`, `plpage(returns)`, `packages/modules/orders/docs/orders.md`, `plpage(orders)` — T148
+
+### WP-14b — returns and complaints by permission, storefront (owner ruling OR-11; merge after WP-14 and WP-09)
+
+**Goal**: FR-052, FR-053 and FR-057 on the storefront's returns surfaces. Not WP-10's (its files are
+the commerce surfaces) and not WP-09's (the organization area); it shares only
+`lib/i18n/messages/account.ts` with WP-09, hence the merge order. May draft against the contract
+(`storefront-api.md` §5) while WP-14 is open. Designer-reviewed against `.claude/skills/ux-laws/SKILL.md`.
+Branch `wp/170-14b-returns-storefront`.
+
+- [ ] T150 [P] [WP-14b] [US9] Failing tests: the order detail's *Start a return* / *File a complaint* action is not rendered for a member without `returns.create` (`can(session, 'returns.create')`) and is rendered as today otherwise; `/returns/new` for such a member shows a plain-language notice naming the permission instead of the form, with no submit; the returns list of a member holding `returns.view_organization` marks a case whose `customerAccountId` is not the session's as filed by a colleague (EN+PL); a colleague's case detail renders no comment form, attachment upload, delivery-method choice or cancel (Q-R2 = A); a member without the code sees the page as today — storefront — `storefront/test/account/{order-detail-return-action,returns-new-returnable,i18n/orders-returns}.test.tsx`, `storefront/test/account/returns-organization-permissions.test.tsx` (new) — T147
+- [ ] T151 [WP-14b] [US9] Implement: `app/(account)/orders/[id]/page.tsx` (the action by `can`), `lib/returns/returnForm.ts` (`orderReturnAction` told whether the member may open one), `app/(account)/returns/{page,new/page,[id]/page}.tsx`, `lib/api/returns.ts` (`ReturnCaseSummary.customerAccountId`), the returns keys of `lib/i18n/messages/account.ts` (EN+PL); Server Components preserved (VII); T150 green — storefront — T150, WP-14 merged, WP-09 merged
+- [ ] T152 [WP-14b] Verify (`pnpm --filter storefront run test`, typecheck, lint, `check:rsc-discipline`, `i18n:hardcoded`); merge before WP-11 — T151
 
 ---
 
@@ -351,8 +399,8 @@ directions), every backend legacy read removed from converted modules.
 
 ### WP-11 — documentation (EN + PL)
 
-- [ ] T103 [WP-11] Architecture page: organization permissions, the `organizationPermissions` manifest field (custom and overlay modules declare their own, XIV/XV), the port and the guard; PL page and pin; `pnpm --filter backend exec vitest run test/unit/docs/` and `check:docs-translations` green; `build:docs` locally — docs — `docs/docs/architecture/permissions.md`, `docs/i18n/pl/docusaurus-plugin-content-docs/current/architecture/permissions.md`, its pin — Waves 1–3 merged
-- [ ] T104 [WP-11] Sweep: every module page touched in Waves 1–3 has a fresh PL pin; generated module-reference pages regenerated (`composer:generate`) and pinned; no edit to `docs/docs/upgrading-an-instance.md` (A-3) — docs — T103
+- [ ] T103 [WP-11] Architecture page: organization permissions, the `organizationPermissions` manifest field (custom and overlay modules declare their own, XIV/XV), the port and the guard; PL page and pin; `pnpm --filter backend exec vitest run test/unit/docs/` and `check:docs-translations` green; `build:docs` locally — docs — `docs/docs/architecture/permissions.md`, `docs/i18n/pl/docusaurus-plugin-content-docs/current/architecture/permissions.md`, its pin; the page's list of declared codes includes `returns.create` and `returns.view_organization` (OR-11) and the either-of import (OR-10) as the worked example of a module-local guard — Waves 1–3, WP-14, WP-14b and WP-15 merged
+- [ ] T104 [WP-11] Sweep: every module page touched in Waves 1–3 and in WP-14/WP-15 (`returns`, `orders`, `quick_order`) has a fresh PL pin; generated module-reference pages regenerated (`composer:generate`) and pinned; no edit to `docs/docs/upgrading-an-instance.md` (A-3) — docs — T103
 
 ### WP-12 — legacy removal
 
@@ -400,12 +448,22 @@ is released. Nothing here may declare those two codes (R-30).
                           · WP-07 (T091–T093) · WP-08 (T094–T096, merges after WP-03)
                           · WP-06 (T084–T090, T136, T137, merges after WP-04 and WP-05)
             ─► Wave 3 ∥ : WP-09 (T097–T099, after 02a/03/04) · WP-10 (T100–T102, after 04/05/06)
-            ─► WP-11 (T103–T104) ─► WP-12 (T105–T111, T138) ─► WP-13 (T112–T115) ─► T116
+                          · WP-15 (T139–T142, after 05/06/08 — all merged; OR-9, OR-10)
+                          · WP-14 (T143–T149, T153, after 07 — merged; OR-11)
+                          · WP-14b (T150–T152, after WP-14 and WP-09)
+            ─► WP-11 (T103–T104; after WP-14, WP-14b, WP-15 too) ─► WP-12 (T105–T111, T138) ─► WP-13 (T112–T115) ─► T116
 ```
+
+Inside the 2026-11-04 packages: T139 ∥ T140 → T141 → T142; T143 ∥ T144 ∥ T145 ∥ T146 → T147 →
+T148 → T149, with T153 beside T147; T150 → T151 → T152. WP-14, WP-14b and WP-15 flip no `LANDED` entry and add no
+`EXPECTED_DIFFERENCES` row (`contracts/migration-and-replay.md` §6.3); each still pastes the replay's
+run.
 
 **Critical path**: #656 → WP-00 (M) → WP-01 (M) → WP-02a (L) → WP-02b (L) → WP-04 (L) → WP-06 (M)
 → WP-10 (M) → WP-11 (S) → WP-12 (M) → WP-13 (M) → T116. WP-03 (L) → WP-09 (L) is a parallel
-branch of equal length to WP-04 → WP-06 → WP-10 and becomes critical if WP-09 slips.
+branch of equal length to WP-04 → WP-06 → WP-10 and becomes critical if WP-09 slips. Since
+2026-11-04 the branch WP-09 (L) → WP-14b (S) → WP-11 is one S longer than WP-09 → WP-11 and can
+become the critical path.
 
 ### Wave parallelism
 
@@ -413,7 +471,7 @@ branch of equal length to WP-04 → WP-06 → WP-10 and becomes critical if WP-0
 - Wave 2: up to seven agents (WP-13a, WP-03, -04, -05, -06, -07, -08); WP-13a owns only new test files, and the one line per landing package in its ledger is the declared exception to disjointness (R-38); the other file sets are disjoint per
   plan.md *Owns* with A-1 applied. Shared helpers are WP-02b's; a Wave 2 package adds fixtures in
   new files only. `organizations`' i18n bundle is edited by WP-03 only in Wave 2.
-- Wave 3: WP-09 ∥ WP-10 (disjoint storefront files; both read `storefront/lib/organization-permissions.ts`, edited by neither).
+- Wave 3: WP-09 ∥ WP-10 (disjoint storefront files; both read `storefront/lib/organization-permissions.ts`, edited by neither), with WP-14 and WP-15 beside them (backend and Admin-UI-test files no other open package edits; WP-15's admin test file is WP-08's, merged) and WP-14b after WP-09 (they share `lib/i18n/messages/account.ts`). Up to five agents.
 - Within a WP, [P] marks the test-writing tasks, which touch disjoint new or existing files.
 
 ### Parallel example (WP-02a)
@@ -440,9 +498,10 @@ WP-06) as the business reason for the feature, then US 1's storefront (WP-09/10)
 | FR-002 | T025, T027 → T032, T034 |
 | FR-003 | T027 → T034, T036 |
 | FR-004 | T027 → T034 |
+| FR-004a | T025, T027 → T032, T034 (backend, existing: a custom role holds what was submitted, never a default — R-39); T140 (Admin UI, characterization); T097 → T098 (storefront) — OR-9 |
 | FR-005 | T028, T040, T041, T054 → T035, T044, T045, T060 |
 | FR-006 | T040 → T044 |
-| FR-007 | T025, T070 → T032 |
+| FR-007 | T025, T070, T146, T139 (off-state leg) → T032, T148, T141 |
 | FR-008 | T053, T055 → T059, T060; T097 → T098 |
 | FR-010 | T028, T054 → T035, T060 |
 | FR-010a | T122, T028 → T123, T034; T124/T125 (rows 25–26) → T112 |
@@ -452,13 +511,14 @@ WP-06) as the business reason for the feature, then US 1's storefront (WP-09/10)
 | FR-014 | T003/T004 (oracle) → T131 (replay, interim), T112 (replay, final) |
 | FR-014a | T056 → T061 |
 | FR-020 | T008, T012 → T014, T020 |
-| FR-021 | T012 → T020; declarations T061, T072, T081, T088, T089, T092 |
-| FR-022 | T012 (inventory) with T061, T072, T081, T088, T089, T092 — **P2 codes only**; `quote_requests.approve` and `…send_without_approval` deferred to P3 |
+| FR-021 | T012 → T020; declarations T061, T072, T081, T088, T089, T092, T148 |
+| FR-022 | T012 (inventory) with T061, T072, T081, T088, T089, T092, T148 (the two `returns` codes, OR-11) — **P2 codes only**; `quote_requests.approve` and `…send_without_approval` deferred to P3 |
 | FR-023 | T027 → T034 |
 | FR-024 | T027, T042 → T034, T047 |
-| FR-025 | T025, T027, T070, T087 → T032, T034 |
+| FR-025 | T025, T027, T070, T087, T146 → T032, T034, T148 |
 | FR-030 | T067, T085, T121 (guest basket, PR-4) → T073, T088; T100 → T101 (signed-out add-to-cart) |
 | FR-030a | T126 → T127 (merge judged and skipped); T015 (outcome value); T128 → T129 (login keeps the cookie) — PR-12 |
+| FR-030b | T139 → T141 (the import's either-of guard, OR-10); T100 → T101 (the import's visibility) |
 | FR-031 | T068, T071 → T074, T076 |
 | FR-032 | T068 → T074 (not-pending before self-approval, R-36) |
 | FR-033 | T068 → T074 |
@@ -469,12 +529,15 @@ WP-06) as the business reason for the feature, then US 1's storefront (WP-09/10)
 | FR-042 – FR-046 | **deferred to P3** (no task here, by design) |
 | FR-047 | T067, T086 → T073, T089 |
 | FR-048 | T067, T086 → T073, T089 |
-| FR-049 | T091 → T092 |
+| FR-049 | T091 → T092; T145 → T148, T153 (the return start, Q-R1 = A) |
 | FR-050 | T084 → T088 (check order pinned, R-6) |
 | FR-051 | T100 → T101 |
+| FR-052 | T143 → T148; T150 → T151 — OR-11 |
+| FR-053 | T144 → T147, T148; T150 → T151 — OR-11, Q-R2 = A |
+| FR-054 | T145 → T148 — OR-11, Q-R1 = A |
 | FR-055 | T007, T025, T028 → T013, T032, T035 |
 | FR-056 | T053 → T059; T097 → T098 |
-| FR-057 | T097, T100 → T098, T101 |
+| FR-057 | T097, T100, T150 → T098, T101, T151 |
 | FR-058 | T028, T097 → T035, T098 |
 | FR-060 | T028, T094 → T035, T095 |
 | FR-061 | T028, T094 → T035, T036, T095 |
@@ -484,7 +547,7 @@ WP-06) as the business reason for the feature, then US 1's storefront (WP-09/10)
 | FR-070 | T024, T040 → T031, T044 |
 | FR-070a | T040, T117, T119, T097 → T044, T118, T120, T098 (PR-3) |
 | FR-071 | T024 → T031; T112 |
-| FR-072 | T003/T004 → T124 → T125 → T130 → T131 → T134/T135/T136 (per landing package) → T112 (expected differences per row, PR-5, PR-6, R-38) |
+| FR-072 | T003/T004 → T124 → T125 → T130 → T131 → T134/T135/T136 (per landing package) → T112 (expected differences per row, PR-5, PR-6, R-38); the changes outside the oracle (`contracts/migration-and-replay.md` §6.3): T143, T144, T145 (OR-11), T139 (OR-10) |
 | FR-073 | T007, T053, T054, T105 → T013, T059, T060, T106 |
 | FR-074 | T024, T040, T105 → T031, T044, T108; T112 |
 | FR-080 | T026 → T033; T114 |
@@ -543,3 +606,11 @@ automated test; it is checked in the `quickstart.md` §2 walk-through (T116).
    - **Merge order** of the three: WP-04, then WP-05 (its convert-to-order is gated by
      `carts.create`), then WP-06 (after WP-04 and WP-05). T090's "rebase after WP-04 merges" reads
      "after WP-04 and WP-05 merge".
+8. **Owner rulings of 2026-11-04** (the Wave 3 questions Q1–Q3; `spec.md` OR-9 to OR-11, `plan.md`).
+   They add T139–T152 in three new packages — WP-15 (OR-10, OR-9's Admin UI lock), WP-14 (OR-11,
+   backend) and WP-14b (OR-11, storefront) — and amend T097, T098 (OR-9), T100, T101 (OR-10), T103
+   and T104 (their scope and dependencies). OR-9 needs no backend task: WP-02a already creates a
+   custom role with exactly the submitted codes (R-39). None of the three moves an oracle row
+   (`contracts/migration-and-replay.md` §6.3). OR-11 leaves three design questions to the owner,
+   Q-R1 to Q-R3 (`plan.md` *OR-11's design questions*), answered the same day (A, A, accepted); WP-14's tasks
+   follow those answers, and T153 (the stale `findByIdForCustomer` comment) was added with them.
