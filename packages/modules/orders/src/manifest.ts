@@ -710,7 +710,7 @@ export const manifest = defineModuleManifest({
       code: 'orders.view_organization',
       label: "View the organization's orders",
       description:
-        "See every order placed in the organization, and reorder, quote and download the documents of a colleague's order.",
+        "See every order placed in the organization and act on a colleague's order: reorder it, quote it, start a return or complaint from it and download its documents.",
       memberDefault: false,
     },
   ],

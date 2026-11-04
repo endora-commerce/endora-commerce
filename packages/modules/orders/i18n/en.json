@@ -146,5 +146,5 @@
   "actions.orderStatusConfig.keywords": "statuses, lifecycle",
   "emails.orderConfirmation.sample.shippingAddressText": "  Anna Nowak\n  1 Main Street",
   "organizationPermissions.orders.view_organization.label": "View the organization's orders",
-  "organizationPermissions.orders.view_organization.description": "See every order placed in the organization, and reorder, quote and download the documents of a colleague's order."
+  "organizationPermissions.orders.view_organization.description": "See every order placed in the organization and act on a colleague's order: reorder it, quote it, start a return or complaint from it and download its documents."
 }

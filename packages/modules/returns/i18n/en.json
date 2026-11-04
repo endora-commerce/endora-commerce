@@ -28,5 +28,9 @@
   "errors.RETURN_SAVED_VIEW_NAME_TAKEN": "You already have a saved view with this name on the return list. Choose a different name.",
   "errors.RETURN_LINE_NOT_RETURNABLE": "\"{productName}\" cannot be returned. You can still file a complaint.",
   "actions.openReturns.keywords": "returns, complaints",
-  "actions.returnStatusConfig.keywords": "return statuses"
+  "actions.returnStatusConfig.keywords": "return statuses",
+  "organizationPermissions.returns.create.label": "Create returns and complaints",
+  "organizationPermissions.returns.create.description": "Open a return or a complaint for an order you can see: your own, or a colleague's if you may view the organization's orders.",
+  "organizationPermissions.returns.view_organization.label": "View the organization's returns and complaints",
+  "organizationPermissions.returns.view_organization.description": "See every return and complaint filed in the organization, not only your own. Commenting, attaching files, choosing the return delivery method and cancelling stay with the member who filed the case."
 }
