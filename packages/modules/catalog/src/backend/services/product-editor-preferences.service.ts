@@ -4,7 +4,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import { ProductEditorPreference } from '../entities/product-editor-preference.entity.js';
 
 /**
- * Feature 170 (C2/C3 security review note) — the admin a preference row belongs to. Without a
+ * Feature 172 (C2/C3 security review note) — the admin a preference row belongs to. Without a
  * resolved admin id the call is refused: a shared fallback id would hand every admin the scope
  * another one last chose.
  */

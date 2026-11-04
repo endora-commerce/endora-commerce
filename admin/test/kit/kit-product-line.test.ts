@@ -8,7 +8,7 @@ import { parsePositiveInt, productDisplayName } from '@endora-commerce/admin-kit
  */
 
 describe('productDisplayName', () => {
-  // Feature 170 (FR-031, `contracts/readers.md` §1): the admin list answers the
+  // Feature 172 (FR-031, `contracts/readers.md` §1): the admin list answers the
   // product's Global name as one string; a host shows it as it is.
   it('shows the Global name string as it is', () => {
     expect(productDisplayName({ name: 'Drill X', slug: 'w' })).toBe('Drill X');

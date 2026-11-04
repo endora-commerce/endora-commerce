@@ -13,7 +13,7 @@ import {
 } from './product-editor-harness';
 
 /**
- * Feature 170 (T131; US12 #1–#4, FR-100, FR-101, FR-075, `contracts/editor-ui.md` §7) — the
+ * Feature 172 (T131; US12 #1–#4, FR-100, FR-101, FR-075, `contracts/editor-ui.md` §7) — the
  * scope map switches the editor scope: every cell, every "whole channel" header and the Global
  * corner is a real link "Edit at <scope>"; a field named in a cell links with `&field=` and
  * opens that field; activation goes through the switch guard; the Language row is gone;
@@ -61,7 +61,7 @@ async function map(): Promise<HTMLElement> {
   return screen.findByRole('table', { name: en['productEditor.scopeOverview.title']! });
 }
 
-describe('the scope map switches the editor scope (feature 170, US12)', () => {
+describe('the scope map switches the editor scope (feature 172, US12)', () => {
   it('has no Language row; Global, each channel and each cell are real links', async () => {
     renderEditor(ProductEditor, { url: SCOPES_TAB });
     const table = await map();

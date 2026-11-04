@@ -5,7 +5,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { SearchIndexer, type SearchIndexerOptions } from './search-indexer.js';
 
 /**
- * Feature 170 (code review, note 5) — the option labels of the searchable select attributes are
+ * Feature 172 (code review, note 5) — the option labels of the searchable select attributes are
  * read once per indexing run, not once per language per channel. A full reindex over two channels
  * that share two languages used to read the attribute set four times; it reads it once, and each
  * channel's documents still carry the labels of their own language.

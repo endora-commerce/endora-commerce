@@ -97,15 +97,15 @@ async function loadActions(): Promise<{
 export const ACTION_PERMISSION_DISAGREEMENTS: Readonly<Record<string, string>> = {
   'import_export:open-import-export-center':
     '"Import / export" declares `catalog:write`; the screen lands on GET ' +
-    '/api/v1/admin/import-export/entities, gated by the any-of of every entity code, and feature 170 ' +
+    '/api/v1/admin/import-export/entities, gated by the any-of of every entity code, and feature 172 ' +
     'added GET /api/v1/admin/import-export/profiles beside it at the same depth, gated by that any-of ' +
-    'and `catalog:write` (`specs/170-product-editor-scope-switcher/contracts/import-profiles-and-csv.md` ' +
+    'and `catalog:write` (`specs/172-product-editor-scope-switcher/contracts/import-profiles-and-csv.md` ' +
     '§1). The two shallowest candidates differ, so the walk cannot pick. The landing route is ' +
     '`entities`; the profiles section loads only for `catalog:write`. Retire this entry when the ' +
     'action declares the landing code or the profiles route moves below the landing depth.',
   'import_export:import-products':
     '"Import products" declares `catalog:write`; ambiguous for the same reason as ' +
-    '`import_export:open-import-export-center` (the `entities` landing route and the feature 170 ' +
+    '`import_export:open-import-export-center` (the `entities` landing route and the feature 172 ' +
     '`profiles` route at one depth). The products import itself is `catalog:write`. Retire on the ' +
     'same terms.',
   'megamenu:edit-megamenu':

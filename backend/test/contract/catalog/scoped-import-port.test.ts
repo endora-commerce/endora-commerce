@@ -5,7 +5,7 @@ import { setupBackendServer, teardownBackendServer, type BackendServerHandle } f
 import { scopedValuesFixture, type ScopedValuesFixture } from '../../helpers/scoped-values-fixture.js';
 
 /**
- * Feature 170, US4 (T084; `contracts/import-profiles-and-csv.md` §2–§3, FR-043, FR-114) — the
+ * Feature 172, US4 (T084; `contracts/import-profiles-and-csv.md` §2–§3, FR-043, FR-114) — the
  * catalog side of the products import, `catalogBulkImportPort`:
  *
  * - `importProducts` writes the C and C×L cells of a row (name, description, URL key, attributes,
@@ -17,14 +17,14 @@ import { scopedValuesFixture, type ScopedValuesFixture } from '../../helpers/sco
  * - `exportScopedValues` lists one column per (field, scope) holding an own value, the values as
  *   `{ kind: 'text' | 'value' | 'empty' }`, orphans left out.
  */
-describe('170 US4 — the scoped products import and export port (T084)', () => {
+describe('172 US4 — the scoped products import and export port (T084)', () => {
   let h: BackendServerHandle;
   let fx: ScopedValuesFixture;
   let channel: string;
   let channelCode: string;
   let tags: string;
   const port = () => (h.container.cradle as unknown as { catalogBulkImportPort: CatalogBulkImportPort }).catalogBulkImportPort;
-  const run = <T>(fn: () => Promise<T>) => withSystemScope('170 scoped import port test', fn);
+  const run = <T>(fn: () => Promise<T>) => withSystemScope('172 scoped import port test', fn);
   const skuOf = async (id: string) => (await fx.sql<{ sku: string }>(`select sku from products where id = ?`, [id]))[0]!.sku;
   const audits = async (id: string) =>
     Number((await fx.sql<{ n: string }>(`select count(*)::text as n from audit_log_entries where object_id = ? and action = 'product.scoped_values.import'`, [id]))[0]!.n);

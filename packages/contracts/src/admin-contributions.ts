@@ -271,7 +271,7 @@ export const AdminZoneNameSchema = z.enum([
    */
   'product.editor.channels',
   /**
-   * The product editor's SEO section at the editor scope (feature 170, FR-090…FR-092,
+   * The product editor's SEO section at the editor scope (feature 172, FR-090…FR-092,
    * `contracts/editor-ui.md` §5). Replaces 163's `product.editor.seo.after`.
    *
    * Mounted **once** per editor. Props: {@link ProductEditorSeoZoneProps}. `seo` contributes
@@ -594,7 +594,7 @@ export interface ProductEditorZoneProps {
 }
 
 /**
- * The product editor's SEO zone (feature 170, `contracts/editor-ui.md` §5): the editor scope,
+ * The product editor's SEO zone (feature 172, `contracts/editor-ui.md` §5): the editor scope,
  * the SEO block of the scoped-values read, and the staging callback into catalog's one Save.
  */
 export interface ProductEditorSeoZoneProps {
@@ -886,13 +886,13 @@ export interface ProductEditorFieldZoneProps {
    */
   readonly fieldPath: string;
   /**
-   * Feature 170 (FR-106) — the editor scope the field is shown at. Optional: a contributor
+   * Feature 172 (FR-106) — the editor scope the field is shown at. Optional: a contributor
    * that ignores it keeps working.
    */
   readonly scope?: ScopeRef;
   /**
    * The locales this field is edited in, or `null` for a field that is not
-   * language-scoped. Feature 170: the host passes `null` (protection is whole-field, FR-046).
+   * language-scoped. Feature 172: the host passes `null` (protection is whole-field, FR-046).
    *
    * The host passes the set; a contributor that wants one control per locale
    * fans out over it. That is what collapses the two `LOCALES.map(...)` loops

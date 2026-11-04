@@ -5,7 +5,7 @@ import { SCOPED_AUDIT_CELL_MAX_BYTES } from '@endora-commerce/contracts';
 import { boundedAuditCell } from './scoped-values-save.service.js';
 
 /**
- * Feature 170 (R21; C2/C3 security review note) — an audit cell over the cap is stored as
+ * Feature 172 (R21; C2/C3 security review note) — an audit cell over the cap is stored as
  * `{ truncated, length, sha256 }`: strings by their UTF-8 bytes, arrays and objects (attribute
  * lists, audiences) by the bytes of their JSON form.
  */

@@ -24,7 +24,7 @@
  * went with them.
  *
  * What that leaves here is every row whose whole content is this module's, which
- * is 204 products (200 simple, three composites and feature 170's scope
+ * is 204 products (200 simple, three composites and feature 172's scope
  * product) and 13 categories.
  *
  * Idempotent by an existence probe on the natural key (§2.4): a second run
@@ -187,7 +187,7 @@ export async function seedDemo(
   }
   await em.flush();
 
-  // ── feature 170's scope product, Global texts only ────────────────────
+  // ── feature 172's scope product, Global texts only ────────────────────
   if (!present.has(DEMO_SCOPE_PRODUCT.slug) && !(await em.findOne(Product, { slug: DEMO_SCOPE_PRODUCT.slug }))) {
     em.persist(
       em.create(Product, {

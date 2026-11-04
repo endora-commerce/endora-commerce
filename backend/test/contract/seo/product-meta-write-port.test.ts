@@ -5,7 +5,7 @@ import type { SeoProductMetaWritePort } from '@endora-commerce/contracts';
 import { setupBackendServer, teardownBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
 
 /**
- * Feature 170 (`specs/170-product-editor-scope-switcher/` T119; FR-091, `contracts/seo-ports.md` §2,
+ * Feature 172 (`specs/172-product-editor-scope-switcher/` T119; FR-091, `contracts/seo-ports.md` §2,
  * research R9, R21) — `seoProductMetaWritePort`:
  *
  * - `applyWithin` writes on the **caller's** EntityManager: no flush, no audit entry, and the rows
@@ -19,7 +19,7 @@ import { setupBackendServer, teardownBackendServer, type BackendServerHandle } f
  *   that is not `http(s)` (`javascript:`, `data:`) or that carries credentials;
  * - `readWithin` answers one entry per named field, `own` never `null`.
  */
-describe('170 — seo product metadata write port [contract]', () => {
+describe('172 — seo product metadata write port [contract]', () => {
   let h: BackendServerHandle;
   const run = randomUUID().slice(0, 8);
   const productId = randomUUID();
@@ -50,7 +50,7 @@ describe('170 — seo product metadata write port [contract]', () => {
     // A channel the product is NOT a member of: the port writes any scope it is given.
     await sql(
       `insert into sales_channels (id, code, name, default_language, languages, currencies, default_currency, active, created_at, updated_at)
-       values (?, ?, '{"en-US":"170 seo port"}'::jsonb, 'pl-PL', '["pl-PL"]'::jsonb, '["PLN"]'::jsonb, 'PLN', true, now(), now())`,
+       values (?, ?, '{"en-US":"172 seo port"}'::jsonb, 'pl-PL', '["pl-PL"]'::jsonb, '["PLN"]'::jsonb, 'PLN', true, now(), now())`,
       [channelId, `sc170p-${run}`],
     );
     await sql(

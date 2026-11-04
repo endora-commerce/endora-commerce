@@ -6,7 +6,7 @@ import type { LightMyRequestResponse as InjectResponse } from 'fastify';
 import { createAttributeFixture } from './seed-catalog.js';
 
 /**
- * Feature 170 — the scoped-values contract suites' fixture: per-run channels, an attribute set
+ * Feature 172 — the scoped-values contract suites' fixture: per-run channels, an attribute set
  * holding the attributes a test asks for, products created through the admin API and added to
  * channels, and the read / save calls of `contracts/scoped-values-api.md` §2–§3. Everything is
  * committed (the suites run against `setupBackendServer`) and removed by {@link cleanup}.

@@ -6,7 +6,7 @@ import { setupBackendServer, teardownBackendServer, type BackendServerHandle } f
 import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
 
 /**
- * Feature 170 (`specs/170-product-editor-scope-switcher/` T078; FR-048,
+ * Feature 172 (`specs/172-product-editor-scope-switcher/` T078; FR-048,
  * `contracts/import-profiles-and-csv.md` §1) — the import-profile routes: CRUD, every route on
  * `catalog:write` (a `catalog:read` admin is refused each one), one audit entry per Command,
  * `409 IMPORT_PROFILE_NAME_TAKEN` (case-insensitive) and `404 IMPORT_PROFILE_NOT_FOUND`.
@@ -14,7 +14,7 @@ import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
 const ADMIN = { b2b_session: 'stub-admin-session' };
 const BASE = '/api/v1/admin/import-export/profiles';
 
-describe('170 — import profiles [contract]', () => {
+describe('172 — import profiles [contract]', () => {
   let h: BackendServerHandle;
   const run = randomUUID().slice(0, 8);
   const READER = `stub-ip-catalog-reader-${run}`;

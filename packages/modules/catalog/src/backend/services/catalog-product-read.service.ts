@@ -264,7 +264,7 @@ export class CatalogProductReadService implements CatalogProductReadPort {
    *   literally (`%`, `_` and `\\` escaped); a variant's SKU finds its product.
    */
   async pageProductsByAdminName(query: CatalogAdminNamePageQuery): Promise<{ ids: string[]; total: number | null }> {
-    // Feature 170 (data-model §1, FR-031): one key over the Global name for every admin language.
+    // Feature 172 (data-model §1, FR-031): one key over the Global name for every admin language.
     const key = `p."admin_name_key"`;
     const searchKey = `p."admin_search_key"`;
     const order = `${key}, p."sku", p."id"`;

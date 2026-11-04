@@ -445,7 +445,7 @@ export class CartAdminService {
   }
 }
 
-/** Feature 170 (FR-031, `contracts/readers.md` §1) — the operator's view shows the Global name. */
+/** Feature 172 (FR-031, `contracts/readers.md` §1) — the operator's view shows the Global name. */
 function globalName(product: CatalogProductRecord): string {
   return product.name || product.id;
 }

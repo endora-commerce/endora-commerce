@@ -32,7 +32,7 @@ import { GALLERY_ROLE_KEYS, scopedViews } from './scoped-values-read.service.js'
 import type { ScopedProductState } from './scoped-values-state.js';
 
 /**
- * Feature 170 (T037; `contracts/scoped-values-api.md` §3, research R4–R7, R21) — the save of one
+ * Feature 172 (T037; `contracts/scoped-values-api.md` §3, research R4–R7, R21) — the save of one
  * scope: every changed cell is planned and validated **before** anything is written (steps 1–3a),
  * then written in the fixed order product row → scope rows → value overrides → family overrides
  * (step 7), all inside the caller's Command (`product.scoped_values.save`), so a refusal at any

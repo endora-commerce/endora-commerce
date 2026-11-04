@@ -230,7 +230,7 @@ describe('migration 102 — attributes on custom fields (SC-001 parity)', () => 
           flags['is_promo_rule'] ?? false,
           flags['filter_position'] ?? 0,
           flags['is_visible_on_product_page'] ?? false,
-          // Feature 170 (R15): the table this file reverts onto already carries the one flag that
+          // Feature 172 (R15): the table this file reverts onto already carries the one flag that
           // replaced 163's two; a legacy attribute with either flag is scopable.
           (flags['channel_scoped'] ?? false) || (flags['language_scoped'] ?? false),
           flags['mass_editable'] ?? false,

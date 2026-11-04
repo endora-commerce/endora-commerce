@@ -73,7 +73,7 @@ const PLAIN_PIECES: ResolvedPackaging = {
  * A failing line resolves to plain pieces in the output; the caller refuses the
  * whole request when `mismatches` is not empty.
  *
- * Feature 163 (FR-079, T138; owner decision 2026-10-26), on feature 170's model — the stored name
+ * Feature 163 (FR-079, T138; owner decision 2026-10-26), on feature 172's model — the stored name
  * is the unit's effective name at the line's (channel, language), `unitNamesAtScope` (catalog's
  * `effectivePackagingUnitNames`), else its Global name. The name match above stays on the
  * Global name only: a line that names its unit by a translation (the name a buyer saw at another

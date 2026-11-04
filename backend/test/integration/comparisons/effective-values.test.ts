@@ -57,7 +57,7 @@ describe('163 — comparisons show effective names [integration]', () => {
         attributeKey,
         product.id,
       ]);
-    // Feature 170 — the override is written through the one save, `PUT …/scoped-values`, which
+    // Feature 172 — the override is written through the one save, `PUT …/scoped-values`, which
     // binds an attribute key to the product's attribute set (R21): the product gets a set of its
     // own holding the attribute.
     const conn = em.getConnection();
@@ -115,7 +115,7 @@ describe('163 — comparisons show effective names [integration]', () => {
       payload: { productId: product.id },
     });
     expect(add.statusCode, add.body).toBe(200);
-    // Feature 170 (`contracts/readers.md` §2) — the column's name is the effective string.
+    // Feature 172 (`contracts/readers.md` §2) — the column's name is the effective string.
     const column = (add.json() as { data: { products: Array<{ id: string; name: string }> } }).data.products.find(
       (p) => p.id === product.id,
     );

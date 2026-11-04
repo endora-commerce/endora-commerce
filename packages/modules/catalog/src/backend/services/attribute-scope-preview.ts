@@ -12,7 +12,7 @@ import type { CatalogAttributeReadService } from './catalog-attribute-read.servi
 
 /**
  * Feature 163 (`specs/163-product-data-scopes/`) — the FR-090 preview of a change to a
- * user-defined attribute's scope, on feature 170's one flag and its value type (R15, FR-012):
+ * user-defined attribute's scope, on feature 172's one flag and its value type (R15, FR-012):
  * `GET /api/v1/admin/catalog/attributes/:idOrKey/scope-change-preview?scopable=&valueType=`
  * (`contracts/admin-scopes-api.md` §6, research R27). The scope set is derived from both — a
  * scopable text attribute {G, C, C×L}, a scopable non-text one {G, C}, a non-scopable one {G} —
@@ -39,7 +39,7 @@ export interface OrphanedSlots {
   channelLanguage: boolean;
 }
 
-/** The slots the resolver reads for an attribute's scope set (feature 170, `attributeScopeSet`). */
+/** The slots the resolver reads for an attribute's scope set (feature 172, `attributeScopeSet`). */
 function readable(levels: readonly ScopeLevel[]): OrphanedSlots {
   return { channel: levels.includes('C'), channelLanguage: levels.includes('CL') };
 }
@@ -54,7 +54,7 @@ export function slotsOrphanedByScopeChange(current: readonly ScopeLevel[], next:
   };
 }
 
-/** What the scope set is derived from (feature 170, `attributeScopeSet`). */
+/** What the scope set is derived from (feature 172, `attributeScopeSet`). */
 export interface AttributeScopeInput {
   scopable: boolean;
   valueType: AttributeValueType;

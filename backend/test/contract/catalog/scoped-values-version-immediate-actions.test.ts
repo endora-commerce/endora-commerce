@@ -5,7 +5,7 @@ import { setupBackendServer, teardownBackendServer, type BackendServerHandle } f
 import { ADMIN, scopedValuesFixture, type ScopedValuesFixture } from '../../helpers/scoped-values-fixture.js';
 
 /**
- * Feature 170, US7 (T144; FR-070, R7, spec *Edge Cases*) — immediate actions never move the
+ * Feature 172, US7 (T144; FR-070, R7, spec *Edge Cases*) — immediate actions never move the
  * editor's version. Read the version; add / reorder / remove gallery items, add / remove an
  * attachment and a packaging unit, add a product link and a channel membership; the version is
  * unchanged and a Save sent with the version read **before** them succeeds with its staged cells.
@@ -16,7 +16,7 @@ import { ADMIN, scopedValuesFixture, type ScopedValuesFixture } from '../../help
  * Price-book rows (`price_lists`) and stock (`inventory`) cannot write `products` at all (they
  * own neither the table nor a catalog writer); they are not exercised here (T145 note).
  */
-describe('170 US7 — immediate actions keep the version (T144)', () => {
+describe('172 US7 — immediate actions keep the version (T144)', () => {
   let h: BackendServerHandle;
   let fx: ScopedValuesFixture;
   let channel: string;

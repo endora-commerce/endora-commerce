@@ -91,7 +91,7 @@ export function createCatalogPromoAttributePort(
 }
 
 /**
- * Feature 170 (T083; `contracts/pim-locale-mapping.md` §4, R13a, R21) — the scoped write of a
+ * Feature 172 (T083; `contracts/pim-locale-mapping.md` §4, R13a, R21) — the scoped write of a
  * connector, v2: the call-level checks (a registered `source`, the cell cap, no duplicate cell),
  * then one Command `product.scoped_values.import` on the save's planner and writers
  * (`scoped-values-import.ts`): per-cell refusals, the integration allowlist, every subject bound to

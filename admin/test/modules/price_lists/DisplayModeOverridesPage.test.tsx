@@ -114,7 +114,7 @@ describe('DisplayModeOverridesPage — names in the admin language', () => {
     expect(await within(await screen.findByRole('table')).findByText('Wkręty')).toBeInTheDocument();
   });
 
-  // Feature 170 (FR-031): the product's Global name, whatever the admin language.
+  // Feature 172 (FR-031): the product's Global name, whatever the admin language.
   it('names a product override by its Global name, with its SKU', async () => {
     const user = userEvent.setup();
     mount('pl');

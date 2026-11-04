@@ -9,7 +9,7 @@ import { SalesChannelMembershipService } from '../../../src/kernel/sales-channel
 import { ProductAvailabilityService } from '../../../../packages/modules/catalog/dist/backend/services/product-availability.service.js';
 
 /**
- * Feature 170 (T049; FR-030, FR-031, `contracts/readers.md` §2) —
+ * Feature 172 (T049; FR-030, FR-031, `contracts/readers.md` §2) —
  * `catalogProductAvailabilityPort.effectiveTexts` and `effectivePackagingUnitNames` resolve along
  * C×L → C → Global: an own value at the request's (C, L) wins, else the channel's, else the Global
  * value; an **empty** override (`{"v": null}`) stops the fallback and answers `null` (a
@@ -36,7 +36,7 @@ async function insertChannel(em: EntityManager): Promise<ScopeChannel> {
   const id = randomUUID();
   await em.execute(
     `insert into sales_channels (id, code, name, default_language, languages, default_currency, created_at, updated_at)
-     values (?, ?, '{"en-US":"170 texts"}'::jsonb, 'pl-PL', '["pl-PL","en-US"]'::jsonb, 'PLN', now(), now())`,
+     values (?, ?, '{"en-US":"172 texts"}'::jsonb, 'pl-PL', '["pl-PL","en-US"]'::jsonb, 'PLN', now(), now())`,
     [id, `et170-${id.slice(0, 8)}`],
   );
   return { id, languages: ['pl-PL', 'en-US'], defaultLanguage: 'pl-PL' };
@@ -103,7 +103,7 @@ function port(channels: ScopeChannel[]): ProductAvailabilityService {
   } as never);
 }
 
-describe('170 — effectiveTexts / effectivePackagingUnitNames: C×L → C → G [integration]', () => {
+describe('172 — effectiveTexts / effectivePackagingUnitNames: C×L → C → G [integration]', () => {
   it('resolves name and description at C×L, C and Global, and an empty description override answers null', async () => {
     const em = db.em();
     const channel = await insertChannel(em);

@@ -3,7 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ScopeRef } from '@endora-commerce/contracts';
 
 /**
- * Feature 170 (`specs/170-product-editor-scope-switcher/` T023, data-model §3–§7) — seed scoped
+ * Feature 172 (`specs/172-product-editor-scope-switcher/` T023, data-model §3–§7) — seed scoped
  * values the way the stores hold them, so a test can stand a product up at any scope without the
  * save Command. One row per call entry; `'empty'` is the empty override (`{"v": null}`, or a role
  * held by no image). Raw SQL on the caller's `em`, so it runs inside the test's transaction.

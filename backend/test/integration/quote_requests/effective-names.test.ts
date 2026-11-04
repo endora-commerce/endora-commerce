@@ -12,7 +12,7 @@ import { clearValueOverrides, setNameOverride } from '../../helpers/product-scop
  * override changes afterwards.
  *
  * The packaging-unit case of Phase 22 (T138, FR-079) moved to `effective-text-snapshot.test.ts`
- * (feature 170, T052) when the 163 `nameTranslations` map it wrote was retired.
+ * (feature 172, T052) when the 163 `nameTranslations` map it wrote was retired.
  */
 
 const BUYER = { b2b_session: 'stub-customer-session' };

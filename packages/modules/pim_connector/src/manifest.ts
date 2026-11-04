@@ -6,7 +6,7 @@ import { CAPABILITY_KEYS, defineModuleManifest } from '@endora-commerce/contract
  * Owns mutual-exclusion registry and field-path grammar shared by UnoPim now
  * and future PIM connectors. No import pipeline.
  *
- * Feature 170 — it also owns the locale-mapping contract (`pim-locale-mapping.ts` in
+ * Feature 172 — it also owns the locale-mapping contract (`pim-locale-mapping.ts` in
  * `@endora-commerce/contracts`: source locale → channel × language, the source language for
  * Global, the planner) and the whole-field protection grammar, and ships the connector-author
  * page in `docs/`.

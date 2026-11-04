@@ -7,7 +7,7 @@ import type { ProductBrowserItem } from './types.js';
  */
 
 /**
- * The name a product is shown under: its Global name (feature 170, FR-031 — the admin list
+ * The name a product is shown under: its Global name (feature 172, FR-031 — the admin list
  * has no channel, so it answers one string), else the slug, else the SKU.
  */
 export function productDisplayName(

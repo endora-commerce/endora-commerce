@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 /**
- * Feature 170 (T149; `contracts/url-keys.md` §3, research R12) — `UrlKeyService` is the **one**
+ * Feature 172 (T149; `contracts/url-keys.md` §3, research R12) — `UrlKeyService` is the **one**
  * writer of `product_url_keys`, `product_url_redirects` and `products.slug`, and every key writer
  * of §3's list reaches it.
  *
@@ -55,7 +55,7 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-describe('170 T149 — UrlKeyService is the one URL-key writer', () => {
+describe('172 T149 — UrlKeyService is the one URL-key writer', () => {
   const files = readdirSync(MODULES)
     .map((id) => join(MODULES, id, 'src'))
     .filter((dir) => {

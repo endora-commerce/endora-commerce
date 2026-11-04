@@ -155,8 +155,8 @@ export const feedRunIssueReasonSchema = z.enum([
   'private_image_asset',
   'missing_required_field',
   /**
-   * Feature 170 — no longer emitted: a product's Global text satisfies every (channel, language),
-   * so there is no language fallback to report. Kept because run issues recorded before 170 still
+   * Feature 172 — no longer emitted: a product's Global text satisfies every (channel, language),
+   * so there is no language fallback to report. Kept because run issues recorded before 172 still
    * carry it and are read back through this schema (and labelled by the admin's run history).
    */
   'missing_translation',

@@ -24,9 +24,9 @@ describe('pendingAvailabilitySettings', () => {
     expect(pendingAvailabilitySettings(current, WANTED)).toEqual({ filterable: WANTED.filterable });
   });
 
-  // Feature 170 (`contracts/search-index.md` §2) — an index built before 170 carries no `texts`
+  // Feature 172 (`contracts/search-index.md` §2) — an index built before 172 carries no `texts`
   // in its documents, so a settings push is not enough: the boot check reindexes it.
-  it('asks for a reindex when the index does not search the language-keyed texts (a pre-170 index)', () => {
+  it('asks for a reindex when the index does not search the language-keyed texts (a pre-172 index)', () => {
     const current = { filterable: WANTED.filterable, searchable: ['name', 'localized' + 'Names', 'sku', 'description'] };
     expect(pendingAvailabilitySettings(current, WANTED)).toEqual({ reindex: true });
   });

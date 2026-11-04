@@ -16,7 +16,7 @@ import {
 } from './product-editor-harness';
 
 /**
- * Feature 170 (S3 block 2; `contracts/editor-ui.md` §3, §6, §11; FR-070, FR-080, FR-081) — the
+ * Feature 172 (S3 block 2; `contracts/editor-ui.md` §3, §6, §11; FR-070, FR-080, FR-081) — the
  * editor's states beyond one Save: a failed read offers Retry instead of a skeleton forever,
  * the redirects say "Applies immediately" and have loading and error states, read-only mode
  * (T110) hides the whole-product menu and Save, global-only tabs show their content read-only

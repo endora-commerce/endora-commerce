@@ -4,7 +4,7 @@ import type { OverrideRow, ScopeLevel } from '@endora-commerce/contracts';
 import { effectiveAttributeValues, effectiveSystemText } from './storefront-value-overrides.js';
 
 /**
- * Issue #384, rewritten by feature 170 (T033; research R1) — the storefront's effective value at
+ * Issue #384, rewritten by feature 172 (T033; research R1) — the storefront's effective value at
  * (channel, language): the C×L row, else the C row, else Global, restricted to the field's scope
  * set; a present row answers whatever it holds and `{ v: null }` is an empty override (FR-013).
  */

@@ -24,7 +24,7 @@ import { bumpScopeVersion, loadScopedState, resolveRequestScope, type ScopedProd
 import type { UrlKeyService, UrlKeyWrite } from './url-key.service.js';
 
 /**
- * Feature 170, US4 (T083, T084; `contracts/pim-locale-mapping.md` §4, R13a, R21) — the integration
+ * Feature 172, US4 (T083, T084; `contracts/pim-locale-mapping.md` §4, R13a, R21) — the integration
  * write of scoped values: a PIM connector through `catalogProductScopeWritePort`, a products
  * import through `catalogBulkImportPort`. One Command `product.scoped_values.import` per product.
  *

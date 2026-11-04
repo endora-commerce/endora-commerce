@@ -19,7 +19,7 @@ import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { errorMessage } from './import-profiles-api.js';
 
 /**
- * The products import step (feature 170, `contracts/import-profiles-and-csv.md` §2 and §4): a
+ * The products import step (feature 172, `contracts/import-profiles-and-csv.md` §2 and §4): a
  * required profile, then a **dry run** whose per-column `NULL` / `INHERIT` counts, warnings and
  * refusals the operator reads before "Apply" posts the same file for real. Products apply one
  * transaction per row, so a report can hold both imported rows and refused ones.

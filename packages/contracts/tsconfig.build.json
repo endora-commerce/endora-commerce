@@ -32,7 +32,7 @@
   // `src` alone, so `test/` was in no type-check program and the guard below was guarding
   // against something that could not happen.
   //
-  // `*.cases.ts` are shared test-case tables (feature 170, `scoped-write-encoding.cases.ts`):
+  // `*.cases.ts` are shared test-case tables (feature 172, `scoped-write-encoding.cases.ts`):
   // imported by tests in several workspaces through the source path, never published.
   "exclude": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx", "**/*.cases.ts"],
   // `include` is narrowed back to `src` rather than inherited, which is what

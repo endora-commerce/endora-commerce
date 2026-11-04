@@ -40,7 +40,7 @@ export interface CatalogAdminSearchQuery {
 export interface ProductAdminSearchRow {
   readonly id: string;
   readonly sku: string;
-  /** Feature 170 (FR-031) — the Global name, shown whatever the admin's language. */
+  /** Feature 172 (FR-031) — the Global name, shown whatever the admin's language. */
   readonly name: string;
   readonly type: string;
   readonly status: string;

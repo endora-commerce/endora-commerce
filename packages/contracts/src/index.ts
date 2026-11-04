@@ -239,8 +239,8 @@ export * from './product-value-resolver.js';
 export * from './storefront-value-overrides.js';
 export * from './product-scopes.js';
 export * from './product-url-keys.js';
-// Feature 170 — the three-level scope model, the one write encoding, the editor's scoped values
-// and the PIM locale mapping (`specs/170-product-editor-scope-switcher/`).
+// Feature 172 — the three-level scope model, the one write encoding, the editor's scoped values
+// and the PIM locale mapping (`specs/172-product-editor-scope-switcher/`).
 export * from './product-scope-model.js';
 export * from './scoped-write-encoding.js';
 export * from './product-scoped-values.js';

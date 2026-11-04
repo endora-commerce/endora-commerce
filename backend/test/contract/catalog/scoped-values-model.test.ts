@@ -4,7 +4,7 @@ import { setupBackendServer, teardownBackendServer, type BackendServerHandle } f
 import { scopedValuesFixture, type ScopedValuesFixture } from '../../helpers/scoped-values-fixture.js';
 
 /**
- * Feature 170, US2 (T029; FR-010…FR-018, SC-004) — one three-level model for every field, through
+ * Feature 172, US2 (T029; FR-010…FR-018, SC-004) — one three-level model for every field, through
  * `GET|PUT …/products/:id/scoped-values`:
  * - #2 a value at C×L, C and G resolves C×L → C → G with its source;
  * - #4 a Language-only scope does not exist (422 `VALIDATION_FAILED`, `details.field = 'scope'`);
@@ -16,7 +16,7 @@ import { scopedValuesFixture, type ScopedValuesFixture } from '../../helpers/sco
  *   orphaned row is retained, never contributes, and does not block the read;
  * - SC-004 a C×L write changes that pair only.
  */
-describe('170 US2 — the three-level scope model (T029)', () => {
+describe('172 US2 — the three-level scope model (T029)', () => {
   let h: BackendServerHandle;
   let fx: ScopedValuesFixture;
   let channel: string;

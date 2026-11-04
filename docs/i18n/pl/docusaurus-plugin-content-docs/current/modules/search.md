@@ -184,7 +184,7 @@ surową wartością jest klucz opcji (np. „red”). Etykiety są odczytywane r
 Wyłączenie `isSearchable` usuwa etykiety opcji przy następnym odświeżeniu, w zwykłym rytmie
 wyznaczanym przez zdarzenia.
 
-### Aktualizacja do dokumentu z tekstami w językach (funkcja 170)
+### Aktualizacja do dokumentu z tekstami w językach (funkcja 172)
 
 Pola dokumentu `name`, `description`, `localizedNames` i `searchableOptions` oraz wartości tekstowe w
 `attributes` zastępuje `texts`. **Po aktualizacji uruchom jedno pełne ponowne indeksowanie**:

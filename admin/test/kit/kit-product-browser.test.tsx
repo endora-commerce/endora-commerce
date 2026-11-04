@@ -82,7 +82,7 @@ function product(
     id,
     sku: `SKU-${id.toUpperCase()}`,
     slug: id,
-    // Feature 170 (FR-031): the admin list answers the Global name as one string.
+    // Feature 172 (FR-031): the admin list answers the Global name as one string.
     name: en,
     status,
     type,
@@ -412,7 +412,7 @@ describe('columns (B3, B14)', () => {
     expect(within(row).getByText('SKU-A01')).toBeTruthy();
     expect(within(row).getByText('Active')).toBeTruthy();
     expect(within(row).getByText('Simple')).toBeTruthy();
-    // Feature 170 (FR-031): one name, no per-language second line.
+    // Feature 172 (FR-031): one name, no per-language second line.
     expect(within(row).getAllByText(/Widget 01/)).toHaveLength(1);
     expect(dialog.querySelector('.b2b-table-scroll table')).not.toBeNull();
     expectNoRawKeys(container);

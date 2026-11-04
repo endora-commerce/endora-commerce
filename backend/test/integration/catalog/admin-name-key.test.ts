@@ -6,7 +6,7 @@ import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 import type { CatalogBulkImportPort } from '@endora-commerce/contracts';
 
 /**
- * Feature 161, G15 redesign, on feature 170's model (`specs/170-product-editor-scope-switcher/`
+ * Feature 161, G15 redesign, on feature 172's model (`specs/172-product-editor-scope-switcher/`
  * data-model §1; FR-031) — `catalog` keeps one stored, generated admin **name key** and **search
  * key** on `products` (`admin_name_key`, `admin_search_key`) over the Global name, so the
  * price-book grid orders and searches 50 000 product lines without deriving a name per row. An
@@ -17,7 +17,7 @@ import type { CatalogBulkImportPort } from '@endora-commerce/contracts';
  * maintains the columns on every write path — the admin update, the import, a bulk edit — and
  * the ORM never writes them.
  */
-describe('products — generated admin name and search keys (161 G15, 170)', () => {
+describe('products — generated admin name and search keys (161 G15, 172)', () => {
   let h: BackendServerHandle;
   const stamp = randomUUID().slice(0, 6).toUpperCase();
   const ids: Record<string, string> = {};
@@ -77,7 +77,7 @@ describe('products — generated admin name and search keys (161 G15, 170)', () 
   });
 
   it('the product import moves the key', async () => {
-    // Feature 170 (T084) — the composed port: the scoped import needs its planner deps.
+    // Feature 172 (T084) — the composed port: the scoped import needs its planner deps.
     const service = (h.container.cradle as unknown as { catalogBulkImportPort: CatalogBulkImportPort }).catalogBulkImportPort;
     const report = await withSystemScope('161 G15 key test — import', () =>
       service.importProducts([

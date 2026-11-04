@@ -87,7 +87,7 @@ function product(overrides: { status?: 'active' | 'inactive'; archivedAt?: strin
 
 let current: unknown = product();
 
-/** Feature 170 — the editor reads the product through `GET …/scoped-values` (T023 fixture). */
+/** Feature 172 — the editor reads the product through `GET …/scoped-values` (T023 fixture). */
 function scopedRead(p: unknown) {
   const row = p as { sku: string; status: 'active' | 'inactive'; archivedAt: string | null };
   const base = scopedValuesResponse();
@@ -127,7 +127,7 @@ function renderEditor(options: { permissions?: readonly string[]; id?: string } 
 
 type User = ReturnType<typeof userEvent.setup>;
 
-/** Feature 170 (§11): Duplicate, Archive and Delete live in the captioned "Product" menu. */
+/** Feature 172 (§11): Duplicate, Archive and Delete live in the captioned "Product" menu. */
 async function openProductMenu(user: User): Promise<void> {
   await user.click(await screen.findByRole('button', { name: tr('productEditor.wholeProduct.menu') }));
   await screen.findByRole('menu');
@@ -305,7 +305,7 @@ describe('ProductEditor — an archived product and Restore (FR-019, O-5)', () =
   });
 
   it('saving a status sends the status only and leaves the product archived', async () => {
-    // Feature 170 — the one Save is `PUT …/scoped-values` with the staged cells only.
+    // Feature 172 — the one Save is `PUT …/scoped-values` with the staged cells only.
     putSpy.mockImplementation(async (path: string) =>
       path.endsWith('/scoped-values') ? { ...scopedRead(current), warnings: [] } : { data: null },
     );

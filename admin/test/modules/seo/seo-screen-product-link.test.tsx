@@ -8,7 +8,7 @@ import coreEn from '../../../../packages/modules/_i18n/i18n/en.json';
 import { adminSession, withSession } from '../../helpers/render-with-session';
 
 /**
- * Feature 170 (T148; FR-094, US10 #5) — the SEO screen edits categories (and CMS pages); a
+ * Feature 172 (T148; FR-094, US10 #5) — the SEO screen edits categories (and CMS pages); a
  * product shows only a link to its SEO tab in the product editor, where SEO is edited at the
  * editor scope. The 163 deep link (`?entityType=product&entityId=…`, UX-4 = A) still selects
  * the product, and an id that is not a UUID is still ignored (S-M1).
@@ -72,7 +72,7 @@ function renderAt(url: string): void {
   render(page);
 }
 
-describe('the SEO screen and products (feature 170, FR-094)', () => {
+describe('the SEO screen and products (feature 172, FR-094)', () => {
   it('a product shows only a link to its SEO tab in the product editor', async () => {
     renderAt(`/seo?entityType=product&entityId=${PRODUCT_ID}`);
     const link = await screen.findByRole('link', { name: seoEn['productLink.editInEditor'] });

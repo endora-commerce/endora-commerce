@@ -10,7 +10,7 @@ import { SelectControl, TextControl, TextareaControl, WindowControl, type Window
 import { ProductUrlRedirects } from '../ProductUrlRedirects.js';
 
 /**
- * Feature 170 (T095, T100, T102; `contracts/editor-ui.md` §4, §6, §11) — the Details tab at the
+ * Feature 172 (T095, T100, T102; `contracts/editor-ui.md` §4, §6, §11) — the Details tab at the
  * editor scope: Identity (global only), Content (name, URL key, description), Availability
  * (status, audience, publication window) and Categories (global only). Every field is a
  * `ScopedField`; nothing here saves on its own.

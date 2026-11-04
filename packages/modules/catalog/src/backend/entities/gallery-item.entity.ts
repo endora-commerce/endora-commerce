@@ -27,14 +27,14 @@ export class GalleryItem {
   position: number = 0;
 
   /**
-   * Feature 170 (data-model §6) — the Global alt text; `null` = none (the asset's own alt text is
+   * Feature 172 (data-model §6) — the Global alt text; `null` = none (the asset's own alt text is
    * the derived fallback). Channel and Channel × language values live in
    * `gallery_item_scope_overrides`.
    */
   @Property({ type: 'text', nullable: true })
   altText: string | null = null;
 
-  /** Feature 170 — hidden at Global. */
+  /** Feature 172 — hidden at Global. */
   @Property({ type: 'boolean' })
   hidden: boolean = false;
 

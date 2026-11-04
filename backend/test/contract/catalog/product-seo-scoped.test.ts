@@ -8,9 +8,9 @@ import {
 import { withModuleOff } from '../../helpers/off-state.js';
 
 /**
- * Feature 170, US10 (T122; FR-020, FR-090…FR-092; `contracts/seo-ports.md` §1) — the product page's
+ * Feature 172, US10 (T122; FR-020, FR-090…FR-092; `contracts/seo-ports.md` §1) — the product page's
  * metadata on the three-level model, rewritten from 163's T115 (which asserted the Language level
- * 170 removes):
+ * 172 removes):
  *
  * - the PDP's `seo` block is `seo`'s answer for the request's (C, L), per field along
  *   C×L → C → G, then the page's derived values (from the Global name and description);
@@ -20,7 +20,7 @@ import { withModuleOff } from '../../helpers/off-state.js';
  * Rows are seeded in `seo_meta_overrides` directly: product metadata is written only through
  * catalog's save (FR-094), and `seo`'s generic product `PUT` is refused from T121 on.
  */
-describe('PDP metadata at Global, Channel and Channel × language (spec 170, T122)', () => {
+describe('PDP metadata at Global, Channel and Channel × language (spec 172, T122)', () => {
   let h: BackendServerHandle;
   const run = randomUUID().slice(0, 8);
   const channels: Array<{ id: string; code: string }> = [];

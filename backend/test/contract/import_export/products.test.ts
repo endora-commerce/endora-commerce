@@ -14,7 +14,7 @@ import { createImportProfile } from '../../helpers/import-profile.js';
  * MUST round-trip them as a CSV with the documented header. Import MUST
  * mutate the targeted rows.
  *
- * Feature 170 (`specs/170-product-editor-scope-switcher/contracts/import-profiles-and-csv.md`
+ * Feature 172 (`specs/172-product-editor-scope-switcher/contracts/import-profiles-and-csv.md`
  * §2–§3): the Global text columns are `name` and `description`, a products import runs with
  * a profile (`422 IMPORT_PROFILE_REQUIRED` without one), and each product row applies in its
  * own transaction — a refused row no longer rolls the others back.
@@ -44,7 +44,7 @@ describe('Import/Export — products', () => {
     expect(res.headers['content-disposition']).toMatch(/products-\d{4}-\d{2}-\d{2}\.csv/);
     const body = res.body;
     const firstLine = body.split('\n')[0];
-    // Feature 170 (`import-profiles-and-csv.md` §2.1, §3) — the fixed Global columns, then one
+    // Feature 172 (`import-profiles-and-csv.md` §2.1, §3) — the fixed Global columns, then one
     // `<field>@<channel code>[/<language>]` column per (field, scope) holding an own value.
     const columns = firstLine!.split(',');
     expect(columns.slice(0, 10)).toEqual([
@@ -79,7 +79,7 @@ describe('Import/Export — products', () => {
     expect(reloaded.description).toBe('An updated description.');
   });
 
-  it('applies each product row on its own: a refused row leaves the others applied (feature 170)', async () => {
+  it('applies each product row on its own: a refused row leaves the others applied (feature 172)', async () => {
     const csv = [
       'sku,status,visibility,name,description',
       'EXAMPLE-BLUE-002,active,public,Applied on its own,desc',

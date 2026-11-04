@@ -8,7 +8,7 @@ import { randomUUID } from 'crypto';
  * products still resolve from historical Orders, Invoices, RFQs, Shopping Lists
  * but are excluded from search/filters.
  *
- * Feature 170 (`specs/170-product-editor-scope-switcher/data-model.md` §1): `name` and
+ * Feature 172 (`specs/172-product-editor-scope-switcher/data-model.md` §1): `name` and
  * `description` are the **Global** values, one text each; Channel and Channel × language
  * values live in `product_value_overrides`. `attributeValues` is a JSONB keyed by
  * ProductAttribute.key holding Global values only — never a language map.
@@ -222,7 +222,7 @@ export class Product {
   returnable: boolean = false;
 
   /**
-   * Feature 161 (G15), rewritten by feature 170 (data-model §1) — the admin name key and search
+   * Feature 161 (G15), rewritten by feature 172 (data-model §1) — the admin name key and search
    * key: **generated stored** columns Postgres computes from the Global `name` (else the SKU) on
    * every write. One key for every admin language: an admin sees the Global name (FR-031).
    * Read-only here: the ORM never writes them, never loads them unless asked (`lazy`) and never
@@ -241,7 +241,7 @@ export class Product {
   readonly adminSearchKey?: string;
 
   /**
-   * Feature 170 (research R7) — the version of everything a Save can overwrite: the product
+   * Feature 172 (research R7) — the version of everything a Save can overwrite: the product
    * row's own fields and every scoped value. Not ORM-versioned: written only by
    * `bumpScopeVersion` (one `update … set scope_version = scope_version + 1`), never by a flush,
    * so a structural or inventory writer that loads a `Product` never moves it.

@@ -23,7 +23,7 @@ import { scopeToRequest } from './scoped-editor-store.js';
  * channel-roles PUT; the item-level ones are edited on the Media, Attachments and
  * Inventory tabs (the overview names no item), so they have no reset here.
  *
- * Feature 170 — the value overrides and the gallery roles are reset (and their orphans
+ * Feature 172 — the value overrides and the gallery roles are reset (and their orphans
  * removed) through `PUT …/scoped-values` with `{ inherit: true }` at the cell's own scope, the
  * version taken from a Global read (FR-101); the removed `…/value-overrides` and channel-roles
  * routes are no longer called. The overview's Language row is T127 / T132's.
@@ -74,7 +74,7 @@ function inheritValue(key: string, scope: ScopeRef): ScopeFieldRequest {
 
 /**
  * "Reset to inherited" for one field at one level (US4 #2): the owning endpoint with an
- * inherit for that field only (feature 170: there is no Language level, FR-010). `null`
+ * inherit for that field only (feature 172: there is no Language level, FR-010). `null`
  * when the level holds no override to remove.
  */
 export function resetRequestFor(input: {

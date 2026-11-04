@@ -23,7 +23,7 @@ import { pimLocaleMappingEntrySchema, pimLocaleTagSchema, sameSourceLocale } fro
 export interface BulkImportRowError {
   index: number;
   reason: string;
-  /** Feature 170 — a stable code for the row's refusal, so a client labels it without parsing `reason`. */
+  /** Feature 172 — a stable code for the row's refusal, so a client labels it without parsing `reason`. */
   code?: string;
 }
 
@@ -40,7 +40,7 @@ export interface BulkImportReport {
   imported: number;
   errors: BulkImportRowError[];
   /**
-   * Feature 170 (`contracts/import-profiles-and-csv.md` §2.3) — products imports only: the
+   * Feature 172 (`contracts/import-profiles-and-csv.md` §2.3) — products imports only: the
    * per-column count of `NULL` and `INHERIT` cells (shown before "Apply" after a dry run), the
    * run warnings (unmapped source locales, FR-041) and the per-row field errors (refusals of the
    * write encoding; the row's other fields apply).
@@ -49,7 +49,7 @@ export interface BulkImportReport {
   warnings?: Array<{ kind: 'unmapped_locale'; locale: string; sourceChannel: string | null; products: number }>;
   fieldErrors?: Array<{ index: number; column: string; code: string }>;
   /**
-   * Feature 170 — products imports only: how many `errors` / `fieldErrors` the report left out
+   * Feature 172 — products imports only: how many `errors` / `fieldErrors` the report left out
    * when it capped them (the first ones in arrival order are kept).
    */
   truncated?: { errors: number; fieldErrors: number };
@@ -88,13 +88,13 @@ export const importExportEntitiesResponseSchema = z.object({
 });
 export type ImportExportEntitiesResponse = z.infer<typeof importExportEntitiesResponseSchema>;
 
-// --- Import profiles (feature 170, `contracts/import-profiles-and-csv.md` §1, data-model §11) ---
+// --- Import profiles (feature 172, `contracts/import-profiles-and-csv.md` §1, data-model §11) ---
 
 /** The most mapping entries one import profile holds, and targets per entry (data-model §11). */
 export const IMPORT_PROFILE_ENTRIES_MAX = 100;
 export const IMPORT_PROFILE_TARGETS_MAX = 16;
 
-/** The only entity with a locale mapping in 170. */
+/** The only entity with a locale mapping in 172. */
 export const importProfileEntitySchema = z.enum(['products']);
 
 const importProfileMappingSchema = z
@@ -162,7 +162,7 @@ export const importProfileErrorDetailsSchemas = {
   [ERROR_CODES.IMPORT_PROFILE_NAME_TAKEN]: importProfileNameTakenDetailsSchema,
 } as const;
 
-// --- Feature 170: the products import's channel targets ---------------------------------------
+// --- Feature 172: the products import's channel targets ---------------------------------------
 
 /**
  * `GET /api/v1/admin/import-export/channel-targets` — every channel a products import profile may

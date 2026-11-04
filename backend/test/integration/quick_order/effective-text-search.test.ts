@@ -6,7 +6,7 @@ import { clearValueOverrides } from '../../helpers/product-scope-fixture.js';
 import { seedScopedValues } from '../../helpers/scoped-values.js';
 
 /**
- * Feature 170 (`specs/170-product-editor-scope-switcher/` T056; FR-030, US3 #1) — the quick-order
+ * Feature 172 (`specs/172-product-editor-scope-switcher/` T056; FR-030, US3 #1) — the quick-order
  * search names a hit by its effective name at the request's (channel, language), one string
  * (`CatalogQuickSearchHit.name`, `contracts/readers.md` §2): the C×L translation on its channel,
  * the Global name on a channel without it.
@@ -16,7 +16,7 @@ const BUYER = { b2b_session: 'stub-customer-session' };
 type Code = 'pl_retail' | 'pl_b2b_vip';
 const on = (code: Code): Record<string, string> => ({ 'x-sales-channel': code, 'accept-language': 'pl-PL' });
 
-describe('170 — quick-order search hits at the request (channel, language) [integration]', () => {
+describe('172 — quick-order search hits at the request (channel, language) [integration]', () => {
   let h: BackendServerHandle;
   const RUN = minimumFixtureRun();
   let drill: MinimumProductFixture;

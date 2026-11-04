@@ -8,7 +8,7 @@ import {
 } from './scoped-store-adapters.js';
 
 /**
- * Feature 170 (T028; research R1, data-model §2–§7) — every store of a scoped value reads as the
+ * Feature 172 (T028; research R1, data-model §2–§7) — every store of a scoped value reads as the
  * one `ScopedRow` shape `resolveScoped` takes: a row's **presence** is the override, `{"v": null}`
  * (or a role held by no image, or an overridden minimum with none) is the **empty** override, and
  * an inheriting store row contributes nothing. Orphan rows (a channel the product left, a language

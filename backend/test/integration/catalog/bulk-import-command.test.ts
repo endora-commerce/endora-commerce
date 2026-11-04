@@ -27,7 +27,7 @@ import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
  *  - **all-or-nothing** for categories — a rejected row applies nothing, which
  *    is the only thing making a corrected re-upload safe (there is no run ledger
  *    and no idempotency key anywhere in the platform); products apply **per
- *    product** since feature 170 (one `product.scoped_values.import` each);
+ *    product** since feature 172 (one `product.scoped_values.import` each);
  *  - **one audit row per run** (categories) or per product, and none when the
  *    run applied nothing. The old
  *    path wrote no audit row at all, and `check:command-coverage` could not see
@@ -39,7 +39,7 @@ import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 describe('CatalogBulkImportService — one Command per run [real DB]', () => {
   let h: BackendServerHandle;
   let service: CatalogBulkImportService;
-  /** Feature 170 (T084) — the products half needs the scoped import's deps: the composed port. */
+  /** Feature 172 (T084) — the products half needs the scoped import's deps: the composed port. */
   let products: CatalogBulkImportPort;
 
   beforeAll(async () => {
@@ -153,7 +153,7 @@ describe('CatalogBulkImportService — one Command per run [real DB]', () => {
     expect(rows[0]?.isActive).toBe(false);
   });
 
-  // Feature 170 (T084, `contracts/import-profiles-and-csv.md` §2): products apply per product.
+  // Feature 172 (T084, `contracts/import-profiles-and-csv.md` §2): products apply per product.
   it('applies each product row on its own: an unknown SKU is a row error and the other rows apply', async () => {
     const beforeAudit = await auditCount('product.scoped_values.import');
 

@@ -23,7 +23,7 @@ import { deleteProfile, errorMessage } from './import-profiles-api.js';
 import { ImportProfileDialog } from './ImportProfileDialog.js';
 
 /**
- * The **Import profiles** section of the import/export centre (feature 170,
+ * The **Import profiles** section of the import/export centre (feature 172,
  * `contracts/import-profiles-and-csv.md` §4): the list, the create / edit dialog and a delete
  * that asks first. The page mounts it only for an operator holding `catalog:write`, the code
  * every profile route is gated by, and owns the list so the products import step reads the

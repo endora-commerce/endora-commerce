@@ -184,7 +184,7 @@ describe('comparisons — the base image arrives over catalogGalleryPort', () =>
 
     expect(baseImageUrls).toHaveBeenCalledTimes(1);
     // Feature 163 (MED-1 = A) — the base image as the viewer's resolved channel shows it.
-    // Feature 170 — no viewer language here, so the Channel level (`null`).
+    // Feature 172 — no viewer language here, so the Channel level (`null`).
     expect(baseImageUrls).toHaveBeenCalledWith([PRODUCT_A, PRODUCT_B], 'channel-1', null);
     expect(view.products.map((p) => p.primaryAssetUrl)).toEqual([
       'https://cdn.test/a.png',

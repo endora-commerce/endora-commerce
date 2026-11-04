@@ -45,7 +45,7 @@ describe('163 — S1 surfaces link to the effective URL key (T113a) [integration
       namePl: `Linkowany ${RUN}`,
       channelIds,
     });
-    // Feature 170 — 163's pl-PL language key is a (C, pl-PL) key in each of the product's channels.
+    // Feature 172 — 163's pl-PL language key is a (C, pl-PL) key in each of the product's channels.
     for (const channelId of channelIds) {
       await em
         .getConnection()

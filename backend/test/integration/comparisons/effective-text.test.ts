@@ -7,7 +7,7 @@ import { clearValueOverrides } from '../../helpers/product-scope-fixture.js';
 import { seedScopedValues } from '../../helpers/scoped-values.js';
 
 /**
- * Feature 170 (`specs/170-product-editor-scope-switcher/` T053; FR-030, US3 #1, #2) — a comparison
+ * Feature 172 (`specs/172-product-editor-scope-switcher/` T053; FR-030, US3 #1, #2) — a comparison
  * column is named by the product's effective name at the reader's (channel, language), one string
  * (`comparisonProductSummarySchema.name`, `contracts/readers.md` §2): the C×L translation where
  * the reader's channel has one, else the Channel value, else the Global name.
@@ -17,7 +17,7 @@ const BUYER = { b2b_session: 'stub-customer-session' };
 type Code = 'pl_retail' | 'pl_b2b_vip';
 const on = (code: Code): Record<string, string> => ({ 'x-sales-channel': code, 'accept-language': 'pl-PL' });
 
-describe('170 — comparison columns at the reader (channel, language) [integration]', () => {
+describe('172 — comparison columns at the reader (channel, language) [integration]', () => {
   let h: BackendServerHandle;
   const RUN = minimumFixtureRun();
   let drill: MinimumProductFixture;

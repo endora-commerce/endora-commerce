@@ -320,7 +320,7 @@ function MetaEditorCard(): ReactNode {
         </div>
 
         {entityId.trim() && entityType === 'product' ? (
-          // Feature 170 (FR-094): a product's SEO is edited in the product editor, at its scope.
+          // Feature 172 (FR-094): a product's SEO is edited in the product editor, at its scope.
           <div className="space-y-2" data-testid="seo-product-link">
             <p className="m-0 text-sm text-muted-foreground">{tSeo('productLink.hint')}</p>
             <Link to={`/catalog/products/${encodeURIComponent(entityId)}?tab=seo`} className="b2b-btn b2b-btn--default b2b-btn--sm">

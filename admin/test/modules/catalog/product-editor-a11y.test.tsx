@@ -18,7 +18,7 @@ import {
 } from './product-editor-harness';
 
 /**
- * Feature 170 (T134, SC-013) — axe-core over the product editor at Global, Channel and
+ * Feature 172 (T134, SC-013) — axe-core over the product editor at Global, Channel and
  * Channel × language, read-only, with field errors and with the copy dialog open: 0 violations.
  *
  * jsdom computes no colours, so axe's `color-contrast` rule is off in the shared helper. The
@@ -100,7 +100,7 @@ async function settled(): Promise<void> {
   await waitFor(() => expect(screen.getByRole('tabpanel')).not.toHaveAttribute('aria-busy', 'true'));
 }
 
-describe('the product editor has no axe violations (feature 170, T134, SC-013)', () => {
+describe('the product editor has no axe violations (feature 172, T134, SC-013)', () => {
   it.each([
     ['Global', URL_G],
     ['Channel', URL_C],

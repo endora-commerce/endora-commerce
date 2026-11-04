@@ -5,7 +5,7 @@ import type { ErrorCode, ScopeRef } from '@endora-commerce/contracts';
 import { BASE, PRODUCT_ID, VALID_SCOPES, api, en, renderEditor, scopedValuesResponse, setUpEditorApi } from './product-editor-harness';
 
 /**
- * Feature 170 (S1 block 4; `contracts/scoped-values-api.md` §3 step 3a) — the Save's Global-only
+ * Feature 172 (S1 block 4; `contracts/scoped-values-api.md` §3 step 3a) — the Save's Global-only
  * refusals land beside their field: a taken SKU (`409 SKU_ALREADY_EXISTS`), an attribute set or a
  * category that no longer exists (`422 SCOPED_VALUE_INVALID`, `product.*` paths), a required
  * attribute left empty; the download rules, which the editor has no field for, as one message;
@@ -40,7 +40,7 @@ async function saveAChange(): Promise<void> {
 beforeEach(() => setUpEditorApi({ read }));
 afterEach(() => cleanup());
 
-describe('Global-only save refusals beside their field (feature 170)', () => {
+describe('Global-only save refusals beside their field (feature 172)', () => {
   it('a taken SKU marks the SKU field and focuses it', async () => {
     refuse(409, 'SKU_ALREADY_EXISTS', { field: 'product.sku' });
     renderEditor(ProductEditor, { url: URL_G });

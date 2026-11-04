@@ -13,7 +13,7 @@ import { seedScopedValues } from '../../helpers/scoped-values.js';
 import { ProductLink } from '../../helpers/package-entities.js';
 
 /**
- * Feature 170 (`specs/170-product-editor-scope-switcher/` T050; FR-030, FR-032, US3 #1–#3) — the
+ * Feature 172 (`specs/172-product-editor-scope-switcher/` T050; FR-030, FR-032, US3 #1–#3) — the
  * basket reads a product's texts at the basket's (channel, language) along C×L → C → Global:
  * the line name, the minimum-order refusal and the up-sell strip. A translation at one channel
  * × Polish is not seen by a Polish buyer of another channel, who gets the Global string. The
@@ -37,7 +37,7 @@ interface CartLine {
   packagingUnitName: string | null;
 }
 
-describe('170 — basket texts at the basket (channel, language) [integration]', () => {
+describe('172 — basket texts at the basket (channel, language) [integration]', () => {
   let h: BackendServerHandle;
   const RUN = minimumFixtureRun();
   let drill: MinimumProductFixture;

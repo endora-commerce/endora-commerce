@@ -3,7 +3,7 @@ import { setupBackendServer, teardownBackendServer, type BackendServerHandle } f
 import { scopedValuesFixture, type ScopedValuesFixture } from '../../helpers/scoped-values-fixture.js';
 
 /**
- * Feature 170, US11 (T127; FR-095…FR-097; `contracts/scoped-values-api.md` §2.1) — what
+ * Feature 172, US11 (T127; FR-095…FR-097; `contracts/scoped-values-api.md` §2.1) — what
  * `GET …/scoped-values` says is missing at the read's scope:
  *
  * - at Channel × language, the list of missing values there;
@@ -12,7 +12,7 @@ import { scopedValuesFixture, type ScopedValuesFixture } from '../../helpers/sco
  *   incomplete;
  * - a Global value satisfies every (C, L); an empty override at C does not (FR-095, FR-096).
  */
-describe('170 US11 — the completeness summary per level (T127)', () => {
+describe('172 US11 — the completeness summary per level (T127)', () => {
   let h: BackendServerHandle;
   let fx: ScopedValuesFixture;
   let a: string;

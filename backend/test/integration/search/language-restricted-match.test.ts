@@ -9,7 +9,7 @@ import { clearProductScopes, clearValueOverrides, setLanguageStatus } from '../.
 import { seedScopedValues } from '../../helpers/scoped-values.js';
 
 /**
- * Feature 170 (`specs/170-product-editor-scope-switcher/` T059; FR-033, US3,
+ * Feature 172 (`specs/172-product-editor-scope-switcher/` T059; FR-033, US3,
  * `contracts/search-index.md`) — storefront search matches the shopper's language only.
  *
  * A product's Global name is English ("Drillx…"); `pl_retail` × pl-PL translates it
@@ -24,7 +24,7 @@ const meilisearchHost = process.env['MEILISEARCH_URL'] ?? 'http://localhost:7700
 const meilisearchKey = process.env['MEILISEARCH_API_KEY'] ?? 'devMasterKeyChangeMe';
 type Code = 'pl_retail' | 'pl_b2b_vip';
 
-describe('170 — search matches the shopper language only [integration]', () => {
+describe('172 — search matches the shopper language only [integration]', () => {
   let h: BackendServerHandle;
   const RUN = minimumFixtureRun();
   const GLOBAL = `Drillx${RUN}`;

@@ -4,7 +4,7 @@ import { setupBackendServer, teardownBackendServer, type BackendServerHandle } f
 import { scopedValuesFixture, type Scope, type ScopedValuesFixture } from '../../helpers/scoped-values-fixture.js';
 
 /**
- * Feature 170 final QA (FR-010, FR-011, FR-017, FR-062, FR-110, FR-113, SC-009) — the deliberately
+ * Feature 172 final QA (FR-010, FR-011, FR-017, FR-062, FR-110, FR-113, SC-009) — the deliberately
  * empty value, at EVERY level each field family supports, through the one save:
  *
  * - an optional scopable field written `null` is an empty override at C and C×L (`set_empty`,
@@ -13,7 +13,7 @@ import { scopedValuesFixture, type Scope, type ScopedValuesFixture } from '../..
  * - a required field (name, URL key, a required attribute) refuses `null` at every level it has,
  *   `422 SCOPED_VALUE_INVALID`, and nothing is written.
  */
-describe('170 QA — the empty override at each level for each field family', () => {
+describe('172 QA — the empty override at each level for each field family', () => {
   let h: BackendServerHandle;
   let fx: ScopedValuesFixture;
   // A second fixture, so its attribute set (holding the required attribute) is not shared: a Global save

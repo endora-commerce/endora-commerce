@@ -16,7 +16,7 @@ import { seedProductScopesAdmins } from '../../helpers/product-scopes-admins.js'
  * `GET /api/v1/admin/catalog/attributes/:idOrKey/scope-change-preview`
  * (`specs/163-product-data-scopes/contracts/admin-scopes-api.md` §6, research R27).
  *
- * - a narrowing counts, per channel, the overrides it would orphan — feature 170 (R15): the one
+ * - a narrowing counts, per channel, the overrides it would orphan — feature 172 (R15): the one
  *   `scopable` flag and the value type (`?valueType=`, text → non-text orphans the C×L rows);
  * - a widening reports 0;
  * - the attribute update that follows still retains every row (FR-015).
@@ -156,7 +156,7 @@ describe('Attribute scope-change preview (spec 163, FR-090)', () => {
     expect((bad.json() as { error: { code: string } }).error.code).toBe('VALIDATION_FAILED');
   });
 
-  // Feature 170 (R15): scopable text → not scopable orphans every C and C×L row.
+  // Feature 172 (R15): scopable text → not scopable orphans every C and C×L row.
   it('scopable → not scopable counts every row the resolver reads now', async () => {
     const key = `sap_glob_${run}`;
     await createAttribute(key, true);
@@ -167,7 +167,7 @@ describe('Attribute scope-change preview (spec 163, FR-090)', () => {
     expect(data.byChannel.find((r) => r.channelId === c2)?.count).toBe(1);
   });
 
-  // Feature 170 (T042, R15): a scopable text attribute turning non-text keeps {G, C}, so the
+  // Feature 172 (T042, R15): a scopable text attribute turning non-text keeps {G, C}, so the
   // C×L rows are what it orphans.
   it('text \u2192 non-text counts the C\u00d7L rows only; an unknown value type is 400', async () => {
     const key = `sap_type_${run}`;

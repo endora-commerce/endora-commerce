@@ -144,7 +144,7 @@ export async function registerImportExportRoutes(
       typeof request.body === 'string'
         ? request.body
         : (request.body as unknown as Buffer | undefined)?.toString('utf8') ?? '';
-    // Feature 170 (FR-048) — `profileId` / `dryRun` for products; other entities take none.
+    // Feature 172 (FR-048) — `profileId` / `dryRun` for products; other entities take none.
     const query =
       entity === 'products'
         ? productsImportQuerySchema.parse(request.query ?? {})
@@ -160,7 +160,7 @@ export async function registerImportExportRoutes(
   // Receive the raw CSV body — operators can `curl --data-binary @file.csv`
   // and the admin SPA can read the file as text and POST it directly.
   //
-  // Feature 170 — the products file's cap is explicit, 10 MiB
+  // Feature 172 — the products file's cap is explicit, 10 MiB
   // (`import-profiles-and-csv.md` §2), with rows, columns and cell lengths bounded by the
   // products adapter. It is that route's alone: a static route, which Fastify prefers to the
   // parametric one, so every other entity keeps the server's default limit (C2/C3 code review).
@@ -185,7 +185,7 @@ export async function registerImportExportRoutes(
   );
 
   /**
-   * Feature 170 (`contracts/import-profiles-and-csv.md` §1; FR-048) — import profiles. Every
+   * Feature 172 (`contracts/import-profiles-and-csv.md` §1; FR-048) — import profiles. Every
    * route, reads included, is `catalog:write`: a profile decides where an import writes, so it is
    * part of the write (no new permission code). The any-of gate first, like every route of the
    * centre, then the literal code so the permission inventory reads it.

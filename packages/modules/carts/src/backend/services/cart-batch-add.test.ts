@@ -251,7 +251,7 @@ function rig(
     ),
     // No override in this rig: the caller's baseline pick names the product.
     effectiveTexts: vi.fn(async () => new Map<string, { name: string; description: string | null }>()),
-    // Feature 170 — the unit's name at (C, L): the pallet has a Polish C×L name.
+    // Feature 172 — the unit's name at (C, L): the pallet has a Polish C×L name.
     effectivePackagingUnitNames: vi.fn(async (ids: readonly string[], scope: { languageCode: string | null }) =>
       new Map(ids.map((id) => [id, id === PALLET && scope.languageCode?.toLowerCase().startsWith('pl') ? 'Paleta' : null])),
     ),
@@ -513,7 +513,7 @@ describe('addItems — two passes with the cart (D1, FR-006a)', () => {
       { onLineError: 'report', language: 'pl' },
     );
     expect(result.outcomes).toEqual([
-      // Feature 170: the Global name, or the effective one at the basket's (C, L) where it has one.
+      // Feature 172: the Global name, or the effective one at the basket's (C, L) where it has one.
       { index: 0, status: 'below_minimum', productId: A, productName: 'Anchor', kind: 'pieces', minimum: 10 },
       { index: 1, status: 'below_minimum', productId: A, productName: 'Anchor', kind: 'pieces', minimum: 10 },
     ]);

@@ -1,5 +1,5 @@
 /**
- * Feature 170 (`specs/170-product-editor-scope-switcher/contracts/scoped-values-api.md`; research
+ * Feature 172 (`specs/172-product-editor-scope-switcher/contracts/scoped-values-api.md`; research
  * R4–R8, R21) — the product editor's one read, one save, copy to channels and the editor scope
  * preference. Owner: `catalog`.
  *

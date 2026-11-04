@@ -1,7 +1,7 @@
 import type { GalleryRoleLabel, ProductScopeStatus, ProductVisibility, ScopedRow, ScopedValue } from '@endora-commerce/contracts';
 
 /**
- * Feature 170 (T034; research R1, `data-model.md` §2–§7) — every store of a scoped value read as
+ * Feature 172 (T034; research R1, `data-model.md` §2–§7) — every store of a scoped value read as
  * the one {@link ScopedRow} shape `resolveScoped` takes.
  *
  * A row's **presence** is the override; its value is either a value or the **empty** override:

@@ -53,7 +53,7 @@ export const AVAILABILITY_FILTERABLE_ATTRIBUTES = [
  * settings update re-indexes the corpus it lands on. Meilisearch's default
  * searchable list `['*']` searches every field.
  *
- * Feature 170 (`contracts/search-index.md` §2) — an index whose searchable set lacks `texts` was
+ * Feature 172 (`contracts/search-index.md` §2) — an index whose searchable set lacks `texts` was
  * built before the language-keyed documents, so its documents carry no `texts` and a settings
  * push cannot fix it: `{ reindex: true }`, and the boot check reindexes the channel (which writes
  * every setting). Until then a query falls back to searching without `attributesToSearchOn`.

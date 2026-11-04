@@ -128,7 +128,7 @@ price.<price-list-uuid>.<currency>
 category.<category-uuid>
 ```
 
-Ścieżka wskazuje **całe pole**. Od funkcji 170 ochrona obejmuje każdy zakres pola — globalny,
+Ścieżka wskazuje **całe pole**. Od funkcji 172 ochrona obejmuje każdy zakres pola — globalny,
 każdy kanał i każdy kanał × język — dlatego segmenty języka i kanału z wcześniejszej składni
 (`name.<locale>`, `attribute.<key>.<channel-uuid>.<locale>`, `seo.metaTitle.<locale>`) do niej nie
 należą.

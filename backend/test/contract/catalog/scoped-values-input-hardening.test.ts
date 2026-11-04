@@ -5,7 +5,7 @@ import { setupBackendServer, teardownBackendServer, type BackendServerHandle } f
 import { ADMIN, scopedValuesFixture, type ScopedValuesFixture } from '../../helpers/scoped-values-fixture.js';
 
 /**
- * Feature 170, US2 (T150; research R21) — the save's input is bounded and bound to the product:
+ * Feature 172, US2 (T150; research R21) — the save's input is bounded and bound to the product:
  * - a subject id of another product and an unknown id answer the **identical**
  *   `subject_not_found`, for gallery items, role targets, attachments and packaging units;
  * - an unknown organisation id in an audience and an attribute outside the product's set are
@@ -15,7 +15,7 @@ import { ADMIN, scopedValuesFixture, type ScopedValuesFixture } from '../../help
  * - a description over 4 KiB is audited as `{ truncated, length, sha256 }`.
  * Nothing is written by any refusal. (The URL-key side effects in the audit are T039's.)
  */
-describe('170 US2 — scoped-values input hardening (T150)', () => {
+describe('172 US2 — scoped-values input hardening (T150)', () => {
   let h: BackendServerHandle;
   let fx: ScopedValuesFixture;
   let channel: string;

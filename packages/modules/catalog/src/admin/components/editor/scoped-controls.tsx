@@ -3,7 +3,7 @@ import { Input, Select, Textarea } from '@endora-commerce/admin-kit/ui';
 import type { ScopedFieldControlProps } from '@endora-commerce/admin-kit/components';
 
 /**
- * Feature 170 (`contracts/editor-ui.md` §11) — the controls `ScopedField` renders, one per value
+ * Feature 172 (`contracts/editor-ui.md` §11) — the controls `ScopedField` renders, one per value
  * kind. An empty input reports `null` (an empty value); an inherited select renders as a
  * read-only text input showing the option's label, because a native `select` has no
  * `readonly` and §4 forbids `disabled`.

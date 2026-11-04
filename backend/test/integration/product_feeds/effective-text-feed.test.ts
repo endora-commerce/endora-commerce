@@ -9,7 +9,7 @@ import { clearValueOverrides } from '../../helpers/product-scope-fixture.js';
 import { seedScopedValues } from '../../helpers/scoped-values.js';
 
 /**
- * Feature 170 (`specs/170-product-editor-scope-switcher/` T055; FR-030, US3 #1, #2) — a feed line
+ * Feature 172 (`specs/172-product-editor-scope-switcher/` T055; FR-030, US3 #1, #2) — a feed line
  * carries the product's name and description at the **feed's** (channel, language), C×L → C →
  * Global. A feed of another
  * channel in the same language carries the Global texts.
@@ -22,7 +22,7 @@ const HIDDEN_URL = 'https://cdn.example.test/s170-feed-hidden-at-cxl.jpg';
 /** The feed links the image by its permalink, which carries the stored file's stem. */
 const HIDDEN_MARK = 's170-feed-hidden-at-cxl';
 
-describe('170 — feed lines at the feed (channel, language) [integration]', () => {
+describe('172 — feed lines at the feed (channel, language) [integration]', () => {
   let h: BackendServerHandle;
   let templateId: string;
   let vipId: string;
@@ -46,7 +46,7 @@ describe('170 — feed lines at the feed (channel, language) [integration]', () 
       name: 'Drill X',
       description: 'A drill.',
     });
-    const category = em.create(Category, { name: { 'en-US': 'Feed 170' }, slug: `feed-170-${Date.now()}` });
+    const category = em.create(Category, { name: { 'en-US': 'Feed 172' }, slug: `feed-170-${Date.now()}` });
     await em.flush();
     categoryId = category.id;
     const conn = em.getConnection();
@@ -77,7 +77,7 @@ describe('170 — feed lines at the feed (channel, language) [integration]', () 
       { field: `gallery:${itemId}:hidden`, scope: { level: 'channel_language', channelId: vipId, languageCode: 'pl-PL' }, value: true },
     ]);
     priceListId = await seedPriceBookSql(em, {
-      name: 'Feed 170 book',
+      name: 'Feed 172 book',
       audience: 'everyone',
       rows: [{ productId: DRILL_ID, fixed: '349.0000' }],
     });
@@ -100,7 +100,7 @@ describe('170 — feed lines at the feed (channel, language) [integration]', () 
       url: '/api/v1/admin/product-feeds',
       ...ADMIN,
       payload: {
-        name: `Feed 170 ${Math.random().toString(36).slice(2, 8)}`,
+        name: `Feed 172 ${Math.random().toString(36).slice(2, 8)}`,
         slug: `feed-170-${Math.random().toString(36).slice(2, 10)}`,
         feedTemplateId: templateId,
         salesChannelId,

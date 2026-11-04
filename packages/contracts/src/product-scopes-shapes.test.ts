@@ -24,7 +24,7 @@ const C = '00000000-0000-4000-8000-0000000000c1';
 const ORG = '00000000-0000-4000-8000-0000000000e1';
 
 describe('patchProductScopesRequestSchema', () => {
-  it('170 write encoding: absent = untouched, {inherit:true} = use inherited, null = empty', () => {
+  it('172 write encoding: absent = untouched, {inherit:true} = use inherited, null = empty', () => {
     const parsed = patchProductScopesRequestSchema.parse({
       channels: [{ channelId: C, status: { inherit: true }, minOrderQuantity: null, returnable: '' }],
     });

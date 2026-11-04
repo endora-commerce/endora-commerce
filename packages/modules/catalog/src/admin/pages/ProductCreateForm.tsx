@@ -7,7 +7,7 @@ import { CategoryTreePicker, StickyFormActions } from '@endora-commerce/admin-ki
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 /**
- * Feature 170 — creating a product. Scopes start with the first saved product: the create form
+ * Feature 172 — creating a product. Scopes start with the first saved product: the create form
  * writes the Global values only (a string name and description, `contracts/readers.md` §2), and
  * the editor opens on the new product at Global.
  */

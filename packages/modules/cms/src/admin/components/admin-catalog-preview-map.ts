@@ -15,7 +15,7 @@ export function pickAdminLocalizedName(
  * 163, T196: the card's summary is derived from the description by the rule
  * the storefront's listing uses (`productSummaryText`), so a listing's "text
  * under the product name" shows the same line in the editor as on the page.
- * Feature 170 (FR-031): the editor has no channel, so both are the Global strings.
+ * Feature 172 (FR-031): the editor has no channel, so both are the Global strings.
  */
 export function mapAdminProductToCmsSummary(product: {
   id: string;

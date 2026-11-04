@@ -78,7 +78,7 @@ describe('155 QA — the minimum refusal is worded in Polish on quote-request cr
   });
 
   // D3/D4 — the sentence is written in the request language (`request.responseLanguage()`).
-  // Feature 170 (FR-030) — the product is named by its effective text at the request's (channel,
+  // Feature 172 (FR-030) — the product is named by its effective text at the request's (channel,
   // language): the system-default channel offers en-US alone, so a Polish request reads the
   // Global name there.
   it('names the product at the request scope inside the Polish sentence', async () => {

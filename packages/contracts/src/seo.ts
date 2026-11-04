@@ -439,7 +439,7 @@ export const adminCrawlerFilePreviewResponseSchema = z.object({
 export type AdminCrawlerFilePreviewResponse = z.infer<typeof adminCrawlerFilePreviewResponseSchema>;
 
 /**
- * Feature 170 (`specs/170-product-editor-scope-switcher/contracts/seo-ports.md`; research R9,
+ * Feature 172 (`specs/172-product-editor-scope-switcher/contracts/seo-ports.md`; research R9,
  * R21) — product metadata at the three product scopes: Global (no channel, no locale),
  * Channel (channel, no locale) and Channel × language. There is no locale-only product row any
  * more (FR-010). `SeoProductMetaField` is declared once, in `product-scope-model.ts`.
@@ -465,7 +465,7 @@ export const seoProductMetaQuerySchema = scopeRequestSchema;
 export type SeoProductMetaQuery = z.infer<typeof seoProductMetaQuerySchema>;
 
 /**
- * Container name: `seoProductMetaPort`. Owner: `seo` (feature 163 R13, rewritten by 170).
+ * Container name: `seoProductMetaPort`. Owner: `seo` (feature 163 R13, rewritten by 172).
  *
  * `catalog` declares the edge as degrades-without and probes `seo`'s presence before resolving
  * it; with `seo` off the product editor shows no SEO section (FR-092).
@@ -496,7 +496,7 @@ export interface SeoProductMetaPort {
 export type SeoProductMetaOwnValue = { own: string | { empty: true } } | { inherited: true };
 
 /**
- * Container name: `seoProductMetaWritePort`. Owner: `seo` (feature 170, FR-091), registered by T121.
+ * Container name: `seoProductMetaWritePort`. Owner: `seo` (feature 172, FR-091), registered by T121.
  *
  * Writes product metadata **on the caller's EntityManager**: no fork, no flush, no audit entry,
  * no event — `catalog`'s save Command commits or rolls the rows back with its own. `catalog`

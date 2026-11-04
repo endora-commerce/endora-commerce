@@ -59,7 +59,7 @@ describe('GET /api/v1/catalog/products — filter validation', () => {
  */
 describe('GET /api/v1/catalog/products — the derived summary (feature 163)', () => {
   let h: BackendServerHandle;
-  // Feature 170 — the file's own channel offering pl-PL and en-US: the seeded `pl_retail` offers
+  // Feature 172 — the file's own channel offering pl-PL and en-US: the seeded `pl_retail` offers
   // pl-PL only, so an en-US request there resolves to pl-PL and never reaches the Global text.
   let CHANNEL: Record<string, string>;
   const RUN = `pb163_${randomUUID().slice(0, 8)}`;
@@ -84,7 +84,7 @@ describe('GET /api/v1/catalog/products — the derived summary (feature 163)', (
     await em.persistAndFlush(retail);
     CHANNEL = { 'x-sales-channel': retail.code };
     for (const [key, description] of [
-      // Feature 170: the Global description, one string.
+      // Feature 172: the Global description, one string.
       ['described', LONG_EN],
       ['empty', ''],
     ] as const) {
@@ -109,7 +109,7 @@ describe('GET /api/v1/catalog/products — the derived summary (feature 163)', (
           retail.id,
           product.id,
         ]);
-      // Feature 170: the Polish text is the (channel, language) override of the Global one.
+      // Feature 172: the Polish text is the (channel, language) override of the Global one.
       if (key === 'described') {
         await em
           .getConnection()

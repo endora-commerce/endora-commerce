@@ -58,7 +58,7 @@ export class GalleryService {
      */
     private readonly assets?: AssetReadPort,
     /**
-     * Feature 163 (FR-014) — which channels the product is a member of. Unused since feature 170
+     * Feature 163 (FR-014) — which channels the product is a member of. Unused since feature 172
      * retired the per-channel media writes on this route; kept so the composition root's
      * signature does not move before T041 rewrites the service.
      */
@@ -104,7 +104,7 @@ export class GalleryService {
     return this.#fetchAllForProduct(em, productId);
   }
 
-  // Feature 170 (`contracts/scoped-values-api.md` §6) — 163's `GET` / `PUT …/gallery/channel-roles`
+  // Feature 172 (`contracts/scoped-values-api.md` §6) — 163's `GET` / `PUT …/gallery/channel-roles`
   // are retired: a role at C or C×L is the scoped field `galleryRole:<label>` of the save Command.
 
   /**
@@ -192,7 +192,7 @@ export class GalleryService {
     const ids = [...urlByProduct.keys()];
     const placeholders = ids.map(() => '?').join(',');
     const hidden = effectiveHiddenSql('gi.id', 'gi.hidden', channelId);
-    // Feature 170 (`data-model.md` §6b) — the holder at (C, L): the C×L row, else the C row
+    // Feature 172 (`data-model.md` §6b) — the holder at (C, L): the C×L row, else the C row
     // (an override with `gallery_item_id null` = no image holds the role), else the Global
     // label; then none when that holder is effectively hidden there.
     const rows = await this.emFactory().execute<Array<{ product_id: string; asset_id: string }>>(
@@ -286,7 +286,7 @@ export class GalleryService {
   }
 
   /**
-   * Feature 170 (`contracts/scoped-values-api.md` §6) — a collection operation: the item's
+   * Feature 172 (`contracts/scoped-values-api.md` §6) — a collection operation: the item's
    * position (`gallery_item.update`, one audit entry). Roles, alt text and the hidden flag are
    * scoped fields of `PUT …/products/:id/scoped-values`.
    */
@@ -557,7 +557,7 @@ export class GalleryService {
 }
 
 /**
- * Feature 170 (`data-model.md` §6a) — a gallery item's effective `hidden` at (C, L) as one SQL
+ * Feature 172 (`data-model.md` §6a) — a gallery item's effective `hidden` at (C, L) as one SQL
  * boolean: the C×L override, else the C override, else the Global column. With no channel, the
  * Global column alone. Languages compare case-insensitively (a caller's tag against the stored
  * channel spelling).

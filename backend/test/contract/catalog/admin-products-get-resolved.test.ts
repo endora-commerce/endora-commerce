@@ -4,7 +4,7 @@ import { setupBackendServer, teardownBackendServer, type BackendServerHandle } f
 import { ADMIN, scopedValuesFixture, type ScopedValuesFixture } from '../../helpers/scoped-values-fixture.js';
 
 /**
- * Feature 022 (T021), on feature 170's three levels (FR-010, FR-013, FR-014) — the `resolved` block of
+ * Feature 022 (T021), on feature 172's three levels (FR-010, FR-013, FR-014) — the `resolved` block of
  * `GET /api/v1/admin/catalog/products/:id?channelId=…&languageCode=…`.
  *
  * - the product's `name` / `description` are one Global string each;
@@ -14,7 +14,7 @@ import { ADMIN, scopedValuesFixture, type ScopedValuesFixture } from '../../help
  *
  * Replaces 163's per-language baseline cases (`global+language`, the primary-language fallback).
  */
-describe('GET /api/v1/admin/catalog/products/:id?channelId&languageCode (resolver, feature 170)', () => {
+describe('GET /api/v1/admin/catalog/products/:id?channelId&languageCode (resolver, feature 172)', () => {
   let h: BackendServerHandle;
   let fx: ScopedValuesFixture;
   let channel: string;

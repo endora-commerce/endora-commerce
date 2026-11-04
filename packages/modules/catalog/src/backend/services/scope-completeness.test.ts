@@ -32,7 +32,7 @@ function facts(over: Partial<CompletenessFacts> = {}): CompletenessFacts {
   };
 }
 
-// Feature 170 (T033; R16, FR-095, FR-096): complete at (C, L) along C×L → C → G — a Global
+// Feature 172 (T033; R16, FR-095, FR-096): complete at (C, L) along C×L → C → G — a Global
 // value satisfies every (C, L); an empty override at C×L or C does not.
 describe('checkCompleteness', () => {
   it('a Global name satisfies every (C, L) (FR-096)', () => {
@@ -131,7 +131,7 @@ describe('completenessFailures — the gate over pairsTurningOn (M3 → A)', () 
     languageRows: [],
     ...over,
   });
-  // Feature 170: a Global name satisfies every pair, so "lacks German" is an empty override there.
+  // Feature 172: a Global name satisfies every pair, so "lacks German" is an empty override there.
   const lacksGerman = facts({
     valueOverrides: [{ attributeKey: 'name', channelId: B2C, languageCode: 'de-DE', value: { v: null } }],
   });

@@ -15,7 +15,7 @@ import { searchIndexerNeighbourPorts } from '../../helpers/search-indexer-ports.
  * Asserts that:
  *   1. The per-channel index document carries, per channel language, the
  *      resolved option labels of every isSearchable select-style attribute
- *      the product has a value for — feature 170: `texts.<L>.options`
+ *      the product has a value for — feature 172: `texts.<L>.options`
  *      (`contracts/search-index.md` §1), where 163 had one `searchableOptions`.
  *   2. The Meilisearch settings search `texts`.
  *   3. A search query against the rendered option label (e.g. "Red")
@@ -70,7 +70,7 @@ describe('SearchIndexer — feature 012 searchableOptions payload (T050)', () =>
     if (!channel) throw new Error('test fixture must seed at least one sales channel');
     const result = await indexer.reindexChannel(em, channel);
 
-    // Feature 170 — the option labels are searched as part of the language-keyed texts.
+    // Feature 172 — the option labels are searched as part of the language-keyed texts.
     expect(result.searchableAttributes).toContain('texts');
     const language = channel.defaultLanguage;
 

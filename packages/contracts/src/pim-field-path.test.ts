@@ -3,7 +3,7 @@ import { pimFieldPathSchema } from './pim-connector.js';
 import { canonicalisePimFieldPath, isValidPimFieldPath } from './pim-field-path.js';
 
 /**
- * Feature 170 (`contracts/pim-locale-mapping.md` §3, FR-046) — the protection path grammar
+ * Feature 172 (`contracts/pim-locale-mapping.md` §3, FR-046) — the protection path grammar
  * shrinks to whole-field paths: a locale or channel segment is no longer part of a field's
  * address, because protection removes every scope of the field.
  */
@@ -43,7 +43,7 @@ const INVALID = [
   'categories.root',
 ];
 
-describe('PIM field path grammar after 170', () => {
+describe('PIM field path grammar after 172', () => {
   it.each(VALID)('accepts the whole-field path %s', (path) => {
     expect(pimFieldPathSchema.safeParse(path).success).toBe(true);
     expect(isValidPimFieldPath(path)).toBe(true);

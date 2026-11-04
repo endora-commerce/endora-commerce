@@ -34,7 +34,7 @@ const DOCUMENT_GROUP_PERMISSIONS: ReadonlyArray<{ code: string; needsOrganizatio
   { code: 'projects:read', needsOrganization: false },
 ];
 
-/** A Product's Global name (feature 170, FR-031 — an operator screen has no channel), else its SKU. */
+/** A Product's Global name (feature 172, FR-031 — an operator screen has no channel), else its SKU. */
 function productLabel(name: string, sku: string): string {
   return name || sku;
 }

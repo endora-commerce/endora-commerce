@@ -15,7 +15,7 @@ import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { errorBodyOf, setChannelStatus } from '../../helpers/product-scope-fixture.js';
 
 /**
- * Feature 163, Phase 17 (T107), on feature 170's keys (T047; `specs/170-product-editor-scope-switcher/
+ * Feature 163, Phase 17 (T107), on feature 172's keys (T047; `specs/172-product-editor-scope-switcher/
  * contracts/url-keys.md` §4: a key is a Global slug, a Channel key or a Channel × language key; 163's
  * language key of L is written here as the C×L key of L in each channel) — resolving a storefront
  * key at (C, L)
@@ -98,7 +98,7 @@ describe('URL-key resolution at (C, L) (spec 163, T107)', () => {
     return id;
   }
 
-  /** Feature 170 — 163's language key of L is the C×L key of L in each of this file's channels. */
+  /** Feature 172 — 163's language key of L is the C×L key of L in each of this file's channels. */
   const inBoth = (languageCode: string, key: string) => [
     { channelId: c1.id, languageCode, key },
     { channelId: c2.id, languageCode, key },
@@ -210,7 +210,7 @@ describe('URL-key resolution at (C, L) (spec 163, T107)', () => {
     await expectServed(k('wiertarka'), c1, 'pl-PL', p);
     // The global key keeps serving every language without a language key.
     await expectServed(k('drill'), c1, 'en-US', p);
-    // Feature 170 (`url-keys.md` §3): the global key is still one of the product's keys in each
+    // Feature 172 (`url-keys.md` §3): the global key is still one of the product's keys in each
     // channel (en-US has no key of its own), so no redirect row is written; in pl-PL it answers the
     // temporary redirect of a key of another channel language.
     await expectCrossLanguageRedirect(k('drill'), c1, 'pl-PL', k('wiertarka'));

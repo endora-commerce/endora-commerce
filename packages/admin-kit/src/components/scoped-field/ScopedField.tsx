@@ -5,7 +5,7 @@ import { useTranslation } from '../../i18n/useTranslation.js';
 import { cn } from '../../lib/utils.js';
 
 /**
- * One product field at the editor's scope (feature 170, `contracts/editor-ui.md` §4 and §11).
+ * One product field at the editor's scope (feature 172, `contracts/editor-ui.md` §4 and §11).
  *
  * It says, for one field at one scope, whether the value is the scope's own or inherited, and
  * lets the operator change that with one checkbox — "Use value from <parent scope>". It holds no

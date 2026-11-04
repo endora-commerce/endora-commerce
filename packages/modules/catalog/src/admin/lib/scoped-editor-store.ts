@@ -9,7 +9,7 @@ import {
 } from '@endora-commerce/contracts';
 
 /**
- * Feature 170 (T093, `contracts/editor-ui.md` §3) — the product editor's state at one scope:
+ * Feature 172 (T093, `contracts/editor-ui.md` §3) — the product editor's state at one scope:
  * the read answer, the version it carried and the changes staged on top of it.
  *
  * Staged changes belong to the current scope and survive tab switches; a scope switch, a

@@ -9,8 +9,8 @@ import {
 /**
  * Feature 163, Phase 18 (T114a, analyze C1) — SEO override writes are Commands
  * (`specs/163-product-data-scopes/contracts/seo-media-attachments.md` §1, research
- * R13, R29; Constitution XIII, FR-080). Feature 170 moved product metadata to catalog's save
- * (`specs/170-product-editor-scope-switcher/contracts/seo-ports.md` §2, §4): the generic routes
+ * R13, R29; Constitution XIII, FR-080). Feature 172 moved product metadata to catalog's save
+ * (`specs/172-product-editor-scope-switcher/contracts/seo-ports.md` §2, §4): the generic routes
  * refuse a product (`product-meta-read-relaxed.test.ts`) and the write port is tested in
  * `product-meta-write-port.test.ts`, so this suite holds the Command path on what still uses it,
  * a **category**'s language rows:
@@ -28,7 +28,7 @@ import {
  *
  * The category is this suite's own (per-run names).
  */
-describe('SEO meta overrides as Commands (spec 163, T114a; category since 170)', () => {
+describe('SEO meta overrides as Commands (spec 163, T114a; category since 172)', () => {
   let h: BackendServerHandle;
   const run = randomUUID().slice(0, 8);
   const admin = { cookies: { b2b_session: 'stub-admin-session' } };

@@ -149,7 +149,7 @@ describe('PackagingUnitsEditor — minimum units (155)', () => {
     await screen.findByText(messageText);
 
     const loadsBefore = getSpy.mock.calls.length;
-    // Feature 170 — the unit's name is a scoped value saved by the editor's Save; another
+    // Feature 172 — the unit's name is a scoped value saved by the editor's Save; another
     // immediate write of the row is its base quantity.
     const quantity = screen.getByDisplayValue('480');
     await user.clear(quantity);

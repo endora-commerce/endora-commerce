@@ -47,7 +47,7 @@ export class AttachmentService {
      */
     private readonly assets?: AssetReadPort,
     /**
-     * Feature 163 (FR-014) — which channels the product is a member of. Unused since feature 170
+     * Feature 163 (FR-014) — which channels the product is a member of. Unused since feature 172
      * retired the per-channel attachment writes on this route; kept so the composition root's
      * signature does not move before T041 rewrites the service.
      */

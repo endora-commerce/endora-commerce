@@ -4,14 +4,14 @@ import { setupBackendServer, teardownBackendServer, type BackendServerHandle } f
 import { ADMIN, scopedValuesFixture, type ScopedValuesFixture } from '../../helpers/scoped-values-fixture.js';
 
 /**
- * Feature 170, US7 (T103; FR-072, FR-074, FR-098, SC-008, US7 #3, #5, #6) — one Save is one Command:
+ * Feature 172, US7 (T103; FR-072, FR-074, FR-098, SC-008, US7 #3, #5, #6) — one Save is one Command:
  * - one audit entry whose `cells` name every written cell `field@scope` with its before and after,
  *   and `product.updated.v1` with the union of the changed fields;
  * - a warn-mode completeness warning comes back with the 200;
  * - the audit `before.changes` re-applied through the same route restores every field;
  * - a stale version is `409 VERSION_CONFLICT` and writes nothing.
  */
-describe('170 US7 — one atomic Save (T103)', () => {
+describe('172 US7 — one atomic Save (T103)', () => {
   let h: BackendServerHandle;
   let fx: ScopedValuesFixture;
   let channel: string;

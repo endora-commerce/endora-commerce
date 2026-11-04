@@ -4,7 +4,7 @@ import { setupBackendServer, teardownBackendServer, type BackendServerHandle } f
 import { ADMIN, scopedValuesFixture, type Scope, type ScopedValuesFixture } from '../../helpers/scoped-values-fixture.js';
 
 /**
- * Feature 170, FR-119 (round 8, T151) — duplicating a product copies its values at every scope:
+ * Feature 172, FR-119 (round 8, T151) — duplicating a product copies its values at every scope:
  * Global, Channel and Channel × language, deliberately empty overrides and inherit states
  * included, for texts, attributes, gallery / attachment / packaging values, roles, hidden, MOQ,
  * audience, publication window and returnable — in one audited Command.
@@ -19,7 +19,7 @@ import { ADMIN, scopedValuesFixture, type Scope, type ScopedValuesFixture } from
 
 type Data = ScopedValuesResponse['data'];
 
-describe('170 FR-119 — duplicate copies every scope (T151)', () => {
+describe('172 FR-119 — duplicate copies every scope (T151)', () => {
   let h: BackendServerHandle;
   let fx: ScopedValuesFixture;
   let a: string;

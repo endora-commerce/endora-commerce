@@ -185,7 +185,7 @@ describe('seo — the meta-tag rule sources arrive over published read ports', (
       refusing('catalog product texts'),
     );
 
-    // Feature 170 (FR-010) — a product has no language-only scope; naming neither half is Global.
+    // Feature 172 (FR-010) — a product has no language-only scope; naming neither half is Global.
     const meta = await service.resolve({
       entityType: 'product',
       entityId: 'prod-1',

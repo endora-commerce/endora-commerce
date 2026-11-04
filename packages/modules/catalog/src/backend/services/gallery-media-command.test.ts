@@ -10,7 +10,7 @@ import { GalleryItemLabel } from '../entities/gallery-item-label.entity.js';
  * Feature 163, checkpoint F (B-1, S-4) — the gallery's order is written inside the Command
  * `product.media.update` on the product: the positions are written on the Command's own `em`,
  * under the product row lock and in its transaction, and the one audit entry's `before` names
- * the order the write replaced. A write that changes nothing writes no audit entry. Feature 170
+ * the order the write replaced. A write that changes nothing writes no audit entry. Feature 172
  * (`contracts/scoped-values-api.md` §6): an item's roles left the item PATCH for the
  * scoped-values save, so the PATCH is a position write (`gallery_item.update`).
  */
@@ -124,7 +124,7 @@ function harness(labels: Array<{ item: string; label: string }> = []) {
 }
 
 describe('gallery order under the product.media.update Command (163 B-1, S-4)', () => {
-  it('a PATCH carries the position only: one gallery_item.update entry, no label row written (feature 170, §6)', async () => {
+  it('a PATCH carries the position only: one gallery_item.update entry, no label row written (feature 172, §6)', async () => {
     const h = harness([{ item: ITEM_A, label: 'base_image' }]);
     await h.service.update(PRODUCT, ITEM_B, { position: 3 });
     expect(h.recorded).toHaveLength(1);

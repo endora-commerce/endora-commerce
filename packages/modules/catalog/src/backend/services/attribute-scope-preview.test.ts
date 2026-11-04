@@ -8,10 +8,10 @@ import {
 } from './attribute-scope-preview.js';
 
 /**
- * Feature 163, Phase 9 (T071), on feature 170's one flag (R15) — the FR-090 preview of an
+ * Feature 163, Phase 9 (T071), on feature 172's one flag (R15) — the FR-090 preview of an
  * attribute's scope change. A row becomes orphaned when the current scope set lets the resolver
  * read it and the requested one does not: a C row needs `C`, a C×L row `CL`. A text → non-text
- * value-type change orphans the C×L rows (feature 170 T042, R15).
+ * value-type change orphans the C×L rows (feature 172 T042, R15).
  */
 
 const C1 = '00000000-0000-4000-8000-0000000000c1';
@@ -20,7 +20,7 @@ const text = ['G', 'C', 'CL'] as const;
 const nonText = ['G', 'C'] as const;
 const globalOnly = ['G'] as const;
 
-describe('slotsOrphanedByScopeChange (FR-090, 170 R15)', () => {
+describe('slotsOrphanedByScopeChange (FR-090, 172 R15)', () => {
   it('scopable text → not scopable orphans both slots; non-text the channel slot', () => {
     expect(slotsOrphanedByScopeChange(text, globalOnly)).toEqual({ channel: true, channelLanguage: true });
     expect(slotsOrphanedByScopeChange(nonText, globalOnly)).toEqual({ channel: true, channelLanguage: false });

@@ -57,7 +57,7 @@ describe('PATCH /admin/catalog/products/:id — audited via Command Bus [real DB
     const rows = await h.em().find(AuditLogEntry, { action: 'product.update', objectId: id });
     expect(rows).toHaveLength(1); // exactly one — no double-audit (FR-010)
     expect(rows[0]?.actorAdminUserId).toBeTruthy(); // server-derived admin actor
-    // Feature 170 (FR-014) — the Global name is one string.
+    // Feature 172 (FR-014) — the Global name is one string.
     const before = (rows[0]?.stateBefore ?? {}) as { name?: string };
     const after = (rows[0]?.stateAfter ?? {}) as { name?: string; changedFields?: string[] };
     expect(before.name).toBe('Original name');

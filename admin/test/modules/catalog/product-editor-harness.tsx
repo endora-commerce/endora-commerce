@@ -9,7 +9,7 @@ import { shippedCoreBundle } from '../../helpers/core-bundle';
 import { scopedField, scopedValuesResponse } from '../../helpers/scoped-values-fixtures';
 
 /**
- * Feature 170 — the shared rig of the product editor tests: one `apiClient` double that
+ * Feature 172 — the shared rig of the product editor tests: one `apiClient` double that
  * answers `GET …/scoped-values` per scope (parsed from the query), `editor-preference` with
  * `{ data: null }` unless told otherwise, and the lists the editor reads beside them.
  *

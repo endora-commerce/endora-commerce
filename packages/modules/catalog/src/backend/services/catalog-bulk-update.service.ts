@@ -64,7 +64,7 @@ type BulkScopedStatus = NonNullable<BulkUpdateProductsRequest['fields']['scopedS
  * one language status; `inherit` removes the override (FR-012).
  */
 export function scopedStatusPatch(field: BulkScopedStatus): PatchProductScopesRequest {
-  // Feature 170 (FR-116) — the scopes PATCH takes the write encoding: `{ inherit: true }` removes.
+  // Feature 172 (FR-116) — the scopes PATCH takes the write encoding: `{ inherit: true }` removes.
   const status = field.value === 'inherit' ? { inherit: true as const } : field.value;
   return {
     channels: [

@@ -60,13 +60,13 @@ describe('effectiveGallery', () => {
     expect(effectiveGallery(rich, overrides()).map((item) => item.assetId)).toEqual(['x', 'y']);
   });
 
-  it('an empty role override (no image) takes the role off every item (feature 170, data-model §6b)', () => {
+  it('an empty role override (no image) takes the role off every item (feature 172, data-model §6b)', () => {
     const gallery = effectiveGallery(items, overrides({ roles: new Map([['base_image', null]]) }));
     expect(gallery.find((item) => item.id === 'hero')?.labels).toEqual(['thumbnail']);
   });
 });
 
-describe('resolveGalleryScope (feature 170, C\u00d7L \u2192 C \u2192 G)', () => {
+describe('resolveGalleryScope (feature 172, C\u00d7L \u2192 C \u2192 G)', () => {
   const C = 'c1';
   const stored = [
     { id: 'hero', hidden: false },

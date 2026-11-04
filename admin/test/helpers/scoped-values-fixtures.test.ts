@@ -3,7 +3,7 @@ import { scopedValuesResponseSchema } from '@endora-commerce/contracts';
 import { scopedField, scopedValuesResponse } from './scoped-values-fixtures';
 
 /**
- * Feature 170 (T023) — the editor tests' builder answers in the API's shape: every response it
+ * Feature 172 (T023) — the editor tests' builder answers in the API's shape: every response it
  * builds parses with the contract's `scopedValuesResponseSchema`, at every scope.
  */
 describe('scoped-values fixtures', () => {

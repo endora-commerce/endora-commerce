@@ -5,7 +5,7 @@ import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kerne
 import { familyOverrideRows } from './scoped-store-adapters.js';
 
 /**
- * Feature 170 (`data-model.md` §7; FR-011, FR-013) — attachments and packaging units per scope.
+ * Feature 172 (`data-model.md` §7; FR-011, FR-013) — attachments and packaging units per scope.
  *
  * The Global values are the attachment and packaging-unit rows' own columns; Channel and
  * Channel × language values are rows of `product_attachment_scope_overrides` and
@@ -62,7 +62,7 @@ async function overrideRows(
 }
 
 /**
- * Feature 170 (`data-model.md` §7; FR-011, FR-013) — a product's attachments at one scope: the
+ * Feature 172 (`data-model.md` §7; FR-011, FR-013) — a product's attachments at one scope: the
  * name, description and `hidden` flag of each, C×L → C → G, an empty override stopping the
  * chain. One statement (none at Global).
  */
@@ -92,7 +92,7 @@ export async function loadAttachmentsAtScope(
 }
 
 /**
- * Feature 170 (`data-model.md` §7) — a product's packaging-unit names at one scope, C×L → C → G;
+ * Feature 172 (`data-model.md` §7) — a product's packaging-unit names at one scope, C×L → C → G;
  * `''` for an empty override (nothing shown on the product page; basket, quote and order
  * snapshots keep the Global name — owner decision after C1). One statement (none at Global).
  */

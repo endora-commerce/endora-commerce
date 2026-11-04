@@ -87,12 +87,12 @@ export const ERROR_CODES = {
   URL_KEY_REDIRECT_TAKEOVER_REQUIRED: 'URL_KEY_REDIRECT_TAKEOVER_REQUIRED',
   URL_REDIRECT_NOT_FOUND: 'URL_REDIRECT_NOT_FOUND',
 
-  // Catalog 170 — the three-level scope model and the one write encoding (owned by `catalog`)
+  // Catalog 172 — the three-level scope model and the one write encoding (owned by `catalog`)
   FIELD_NOT_AT_SCOPE: 'FIELD_NOT_AT_SCOPE',
   SCOPED_VALUE_INVALID: 'SCOPED_VALUE_INVALID',
   GLOBAL_ONLY_FIELD: 'GLOBAL_ONLY_FIELD',
 
-  // Import/export 170 — import profiles (owned by `import_export`)
+  // Import/export 172 — import profiles (owned by `import_export`)
   IMPORT_PROFILE_REQUIRED: 'IMPORT_PROFILE_REQUIRED',
   IMPORT_PROFILE_NOT_FOUND: 'IMPORT_PROFILE_NOT_FOUND',
   IMPORT_PROFILE_NAME_TAKEN: 'IMPORT_PROFILE_NAME_TAKEN',

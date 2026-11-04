@@ -8,7 +8,7 @@ import { seedScopedValues } from '../../helpers/scoped-values.js';
 import { seedPriceBookSql } from '../../helpers/price-book-sql.js';
 
 /**
- * Feature 170 (`specs/170-product-editor-scope-switcher/` T058; FR-031, data-model §1) — a price
+ * Feature 172 (`specs/172-product-editor-scope-switcher/` T058; FR-031, data-model §1) — a price
  * book is an operator's list with no channel: its product lines are labelled, ordered and
  * searched by the product's **Global** name — one admin key whatever the admin language. A
  * channel or channel × language translation is neither shown nor matched.
@@ -16,7 +16,7 @@ import { seedPriceBookSql } from '../../helpers/price-book-sql.js';
 
 const ADMIN = { b2b_session: 'stub-admin-session' };
 
-describe('170 — price-book product lines by the Global name [integration]', () => {
+describe('172 — price-book product lines by the Global name [integration]', () => {
   let h: BackendServerHandle;
   const RUN = minimumFixtureRun();
   let drill: MinimumProductFixture;
@@ -44,7 +44,7 @@ describe('170 — price-book product lines by the Global name [integration]', ()
       { field: 'name', scope: { level: 'channel_language', channelId: vipId, languageCode: 'pl-PL' }, value: VIP_PL },
     ]);
     bookId = await seedPriceBookSql(em, {
-      name: `Book 170 ${RUN}`,
+      name: `Book 172 ${RUN}`,
       audience: 'everyone',
       status: 'draft',
       rows: [{ productId: drill.id, fixed: '349.0000' }],

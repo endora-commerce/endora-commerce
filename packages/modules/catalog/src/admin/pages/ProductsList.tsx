@@ -48,7 +48,7 @@ interface AdminProduct {
   status: 'active' | 'inactive';
   /** Archived is its own fact, independent of `status`. */
   archivedAt?: string | null;
-  /** The Global name (feature 170: one text per product, no per-language map). */
+  /** The Global name (feature 172: one text per product, no per-language map). */
   name: string;
   visibility: string;
   attributeValues: Record<string, unknown>;

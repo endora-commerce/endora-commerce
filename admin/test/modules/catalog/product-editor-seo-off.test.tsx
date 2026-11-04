@@ -3,7 +3,7 @@ import { cleanup, screen } from '@testing-library/react';
 import { PRODUCT_ID, api, en, renderEditor, setUpEditorApi } from './product-editor-harness';
 
 /**
- * Feature 170 (T124; US10 #3, FR-093) — with no `product.editor.seo` contributor (`seo` off or
+ * Feature 172 (T124; US10 #3, FR-093) — with no `product.editor.seo` contributor (`seo` off or
  * absent) the editor shows no SEO tab, sends no SEO request and shows no error; `?tab=seo`
  * falls back to Details, and the URL key and redirects stay on Details.
  */
@@ -19,7 +19,7 @@ const { ProductEditor } = await import('../../../../packages/modules/catalog/src
 beforeEach(() => setUpEditorApi());
 afterEach(() => cleanup());
 
-describe('the product editor with seo off (feature 170, US10 #3)', () => {
+describe('the product editor with seo off (feature 172, US10 #3)', () => {
   it('has no SEO tab, reads nothing from seo and keeps the URL key on Details', async () => {
     renderEditor(ProductEditor, { url: `/catalog/products/${PRODUCT_ID}?scope=global&tab=seo`, contributions: [] });
     expect(await screen.findByLabelText(en['productEditor.field.urlKey']!)).toBeInTheDocument();

@@ -14,7 +14,7 @@ import {
 import { SectionHeading } from './editor/ImmediateBadge.js';
 
 /**
- * Feature 170 (`contracts/editor-ui.md` §3, §11) — the product's old URLs, below the URL key on
+ * Feature 172 (`contracts/editor-ui.md` §3, §11) — the product's old URLs, below the URL key on
  * Details → Content. The key itself is a `ScopedField` saved with the page Save; this list is
  * only read and pruned. Deleting a redirect is its own audited Command, applied at once.
  *

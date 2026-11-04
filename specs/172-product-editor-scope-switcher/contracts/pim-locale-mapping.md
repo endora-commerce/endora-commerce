@@ -66,7 +66,7 @@ export function filterProtectedWrites<W extends { field: FieldPath }>(writes: W[
 };
 ```
 
-A protected path removes **every** scope of the field. Path grammar after 170 (`pimFieldPathSchema`):
+A protected path removes **every** scope of the field. Path grammar after 172 (`pimFieldPathSchema`):
 `attribute.<key>` · `seo.metaTitle|metaDescription|metaKeywords` · `name` · `description` · `gallery.<n>` ·
 `attachment.<uuid>` · `price.<uuid>.<CUR>` · `category.<uuid>`. Any locale or channel segment is invalid
 (`canonicalisePimFieldPath` → `null`). No stored protection rule is migrated (owner: no live data); the connectors'
@@ -96,7 +96,7 @@ connector module id (`^[a-z][a-z0-9_]{1,63}$`, present in the registry). At most
 One Command `product.scoped_values.import` per product (one audit entry, `source` in the audit meta), the same
 `validateScopedWrite` refusals (reported per cell, the rest applied — an import is per-cell tolerant, unlike the
 editor save), no completeness gate (163 A-6), no takeover (163 FR-093), version bumped. SEO cells are not
-accepted here (connectors write SEO through `seo`, outside 170) — `seo:*` paths are refused `not_supported`.
+accepted here (connectors write SEO through `seo`, outside 172) — `seo:*` paths are refused `not_supported`.
 
 ## 5. Tests
 

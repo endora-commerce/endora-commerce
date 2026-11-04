@@ -4,7 +4,7 @@ import { randomUUID } from 'crypto';
 import type { GalleryLabel } from './gallery-item-label.entity.js';
 
 /**
- * GalleryRoleScopeOverride — feature 170 (`specs/170-product-editor-scope-switcher/data-model.md`
+ * GalleryRoleScopeOverride — feature 172 (`specs/172-product-editor-scope-switcher/data-model.md`
  * §6b). Which gallery item holds a role (`base_image`, `small_image`, `thumbnail`) at a Channel
  * (`languageCode` `null`) or Channel × language scope. The Global holders stay in
  * `gallery_item_labels`.

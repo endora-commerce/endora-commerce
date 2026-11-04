@@ -6,7 +6,7 @@ import { createAttributeFixture } from '../../helpers/seed-catalog.js';
 import { seedScopedValues } from '../../helpers/scoped-values.js';
 
 /**
- * Feature 170, US1 (T026; FR-002, FR-003, FR-004, SC-001, US1 #1, #3) — saving a product never
+ * Feature 172, US1 (T026; FR-002, FR-003, FR-004, SC-001, US1 #1, #3) — saving a product never
  * loses its text in any language. Name, description and a scopable text attribute hold own values
  * at Channel × language in `en-US`, `pl-PL` and `de-DE`; three saves of **unrelated** fields at
  * other scopes (Channel, Global, another Channel × language) through
@@ -15,7 +15,7 @@ import { seedScopedValues } from '../../helpers/scoped-values.js';
  *
  * Stays RED until the scoped-values read and save land (US2 T036–T038).
  */
-describe('170 US1 — a save never loses another scope’s text (T026)', () => {
+describe('172 US1 — a save never loses another scope’s text (T026)', () => {
   let h: BackendServerHandle;
   const run = randomUUID().slice(0, 8);
   const admin = { cookies: { b2b_session: 'stub-admin-session' } };

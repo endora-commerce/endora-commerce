@@ -2,7 +2,7 @@ import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
 import { GlobalEntity } from '@endora-commerce/platform/tenancy';
 
 /**
- * ProductUrlRedirect — feature 163, rewritten by feature 170 (data-model §5,
+ * ProductUrlRedirect — feature 163, rewritten by feature 172 (data-model §5,
  * `contracts/url-keys.md` §2–§4). A former key that answers at one (channel, language) with a
  * permanent redirect to the product's effective path there. Unique
  * `(sales_channel_id, language_code, key)`; at most 50 per (product, channel), the oldest

@@ -204,7 +204,7 @@ describe('Admin Gallery contract (T055)', () => {
     );
   });
 
-  it('PATCH refuses labels; the Global role moves through the scoped-values save (feature 170, §6)', async () => {
+  it('PATCH refuses labels; the Global role moves through the scoped-values save (feature 172, §6)', async () => {
     const productId = await createProduct('F');
     const assetA = await seedAsset('image');
     const assetB = await seedAsset('image');

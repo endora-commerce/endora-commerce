@@ -294,7 +294,7 @@ export class ProductAvailabilityService implements CatalogProductAvailabilityPor
   }
 
   /**
-   * Feature 170 (`contracts/readers.md` §2) — the effective name and description at (C, L) along
+   * Feature 172 (`contracts/readers.md` §2) — the effective name and description at (C, L) along
    * C×L → C → Global. `languageCode` `null` = the channel's default language (an operator, N2). An
    * unknown channel answers the Global texts.
    */
@@ -325,7 +325,7 @@ export class ProductAvailabilityService implements CatalogProductAvailabilityPor
   }
 
   /**
-   * Feature 170 — the effective packaging-unit name per unit id at (C, L); `null` = an empty
+   * Feature 172 — the effective packaging-unit name per unit id at (C, L); `null` = an empty
    * override (nothing shown). An id no unit has is absent.
    */
   async effectivePackagingUnitNames(

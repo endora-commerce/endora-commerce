@@ -18,7 +18,7 @@ import {
 } from './product-editor-harness';
 
 /**
- * Feature 170 (T106; US7 #1–#6 UI half, FR-070…FR-076, FR-083) — one Save of the current scope:
+ * Feature 172 (T106; US7 #1–#6 UI half, FR-070…FR-076, FR-083) — one Save of the current scope:
  * the button counts the staged changes, staged changes survive tab switches, a scope switch
  * with staged changes asks Save / Discard / Stay, and every refusal is shown where it belongs —
  * a version conflict with a Reload that discards, a field's refusal beside the field, the
@@ -69,7 +69,7 @@ async function stageName(value = 'Wiertarka'): Promise<HTMLElement> {
   return name;
 }
 
-describe('one Save of the current scope (feature 170, US7)', () => {
+describe('one Save of the current scope (feature 172, US7)', () => {
   it('counts the staged changes and keeps them across tab switches (FR-083)', async () => {
     renderEditor(ProductEditor, { url: AT_C });
     await stageName();

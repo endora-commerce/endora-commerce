@@ -5,16 +5,16 @@ import coreEn from '../../../../packages/modules/_i18n/i18n/en.json';
 import corePl from '../../../../packages/modules/_i18n/i18n/pl.json';
 
 /**
- * Feature 170, owner decision 2026-11-04 (spec Clarifications round 9): one name per place, in
- * English and Polish, on every 170 surface. The scope overview is the "Scope map", the publication
+ * Feature 172, owner decision 2026-11-04 (spec Clarifications round 9): one name per place, in
+ * English and Polish, on every 172 surface. The scope overview is the "Scope map", the publication
  * window is "Publication window" / "Okres publikacji", and the inherit action is "Use value from
  * {scope}". The bulk status option "Use inherited (remove the override)" belongs to 163's bulk
- * dialog, which 170 does not change, and is the one value left out here.
+ * dialog, which 172 does not change, and is the one value left out here.
  */
 
 const LEFT_OUT = new Set(['productsList.bulkEdit.scopedStatus.inherit']);
 
-/** The core bundle's 170 surface is the ScopedField; the rest of it belongs to other screens. */
+/** The core bundle's 172 surface is the ScopedField; the rest of it belongs to other screens. */
 function scopedField(bundle: Record<string, string>): Record<string, string> {
   return Object.fromEntries(Object.entries(bundle).filter(([key]) => key.startsWith('scopedField.')));
 }
@@ -26,7 +26,7 @@ const bundles: Array<[string, Record<string, string>, RegExp]> = [
   ['core pl', scopedField(corePl), /U\u017cyj dziedziczonego/],
 ];
 
-describe('one vocabulary on the 170 surfaces (owner, 2026-11-04)', () => {
+describe('one vocabulary on the 172 surfaces (owner, 2026-11-04)', () => {
   it.each(bundles)('%s carries no retired name', (_name, bundle, retired) => {
     const offenders = Object.entries(bundle).filter(([key, value]) => !LEFT_OUT.has(key) && retired.test(value));
     expect(offenders).toEqual([]);

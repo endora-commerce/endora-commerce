@@ -78,7 +78,7 @@ export interface FeedItemSource {
   /** `products.type` — simple / configurable / grouped / bundle / virtual (FR-003). */
   readonly productType: string;
   /**
-   * Feature 170 (FR-030) — the effective texts at the feed's (channel, language), as
+   * Feature 172 (FR-030) — the effective texts at the feed's (channel, language), as
    * `catalogProductAvailabilityPort.effectiveTexts` answers them; `null` = no description there.
    */
   readonly name: string;

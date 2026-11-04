@@ -14,7 +14,7 @@ import {
 } from './product-editor-harness';
 
 /**
- * Feature 170 (T111; US9 #1–#3, FR-085) — scopable user attributes on the Attributes tab, one
+ * Feature 172 (T111; US9 #1–#3, FR-085) — scopable user attributes on the Attributes tab, one
  * `ScopedField` per value type: unticking "Use value from <parent>" at a channel and entering a
  * value stages it for that channel; a text attribute takes a Channel × language value and can
  * go back to inheriting; a non-scopable attribute is read-only with "Global only".
@@ -72,7 +72,7 @@ function puts(): Array<{ changes: Record<string, unknown> }> {
   return api.put.mock.calls.filter(([path]) => path === `${BASE}/scoped-values`).map(([, body]) => body as { changes: Record<string, unknown> });
 }
 
-describe('scopable attributes per scope (feature 170, US9)', () => {
+describe('scopable attributes per scope (feature 172, US9)', () => {
   it('#1 at a channel: untick, enter a number, Save stages it for the channel', async () => {
     renderEditor(ProductEditor, { url: AT_C });
     const weight = await screen.findByLabelText('Weight');

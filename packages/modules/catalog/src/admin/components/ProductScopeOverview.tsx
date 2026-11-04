@@ -44,7 +44,7 @@ import { urlKeyErrorMessage } from '../lib/product-url-keys-api.js';
  */
 
 /**
- * Feature 170 (US12, `contracts/editor-ui.md` §7) — how the map's links reach the editor: a
+ * Feature 172 (US12, `contracts/editor-ui.md` §7) — how the map's links reach the editor: a
  * real URL for each scope (and field), activation through the editor's switch guard, and the
  * scope in the editor's words. Absent, the map shows no links.
  */

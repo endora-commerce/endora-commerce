@@ -39,7 +39,7 @@ import {
 } from './scoped-values-state.js';
 
 /**
- * Feature 170 (T036; `contracts/scoped-values-api.md` §2) — `GET …/products/:id/scoped-values`:
+ * Feature 172 (T036; `contracts/scoped-values-api.md` §2) — `GET …/products/:id/scoped-values`:
  * every scoped field of the product at one scope, with its source, in **one** request per scope
  * switch (FR-109). Orphaned rows never contribute. `seo` is `seo`'s own view at the scope
  * (`seoProductMetaPort.readScoped`, US10), `null` while `seo` is off.
@@ -59,7 +59,7 @@ export interface ScopedValuesReadDeps {
   assets?: Pick<AssetReadPort, 'findByIds'>;
   organizations?: Pick<OrganizationDetailsPort, 'findByIds'>;
   /**
-   * Feature 170 (T123, FR-090, FR-092) — `seo`'s view of the product's metadata at one scope
+   * Feature 172 (T123, FR-090, FR-092) — `seo`'s view of the product's metadata at one scope
    * (`seoProductMetaPort.readScoped`), `null` while `seo` is not effectively present. Absent = no
    * SEO block.
    */

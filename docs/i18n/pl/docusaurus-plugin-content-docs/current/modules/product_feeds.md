@@ -340,7 +340,7 @@ pozycji, której dotyczą, i eksportem pełnej listy do CSV.
 | `missing_image` | Produkt nie ma publicznie dostępnego zdjęcia. |
 | `private_image_asset` | Zdjęcia istnieją, ale nie są publiczne, więc nie można było opublikować stałego adresu URL. |
 | `missing_required_field` | Pole wymagane przez dostawcę okazało się puste i nie miało wartości zastępczej — pozycja została pominięta. |
-| `missing_translation` | Tylko przebiegi sprzed funkcji 170: brak wartości w języku feedu, użyto języka zastępczego. Tekst Global produktu obowiązuje teraz w każdym kanale i języku, więc nowe przebiegi go nie zapisują. |
+| `missing_translation` | Tylko przebiegi sprzed funkcji 172: brak wartości w języku feedu, użyto języka zastępczego. Tekst Global produktu obowiązuje teraz w każdym kanale i języku, więc nowe przebiegi go nie zapisują. |
 | `unresolvable_link` | Kanał nie ma skonfigurowanego adresu URL storefrontu. |
 | `unmapped_provider_category` | Nie zastosowano żadnego mapowania kategorii; pole zostało pominięte. |
 | `stale_provider_category_mapping` | Zmapowany węzeł nie istnieje w zainstalowanej wersji taksonomii. |

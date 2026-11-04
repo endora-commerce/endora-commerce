@@ -14,7 +14,7 @@ import type {
  * inactive and archived ones included (FR-016) — with no channel or audience
  * filter, because the admin screens have none (research R-19). Only the
  * selected fields are matched, literally (`likeEscaped`, Postgres' default
- * `\` LIKE escape). A product matches on its Global name (feature 170,
+ * `\` LIKE escape). A product matches on its Global name (feature 172,
  * FR-031: one string); a category name matches in **any** language (one value
  * of its per-language map, never a key); `quickSearchAttributes` are the attributes
  * this module flags `quickSearchable`, read through its own attribute port as

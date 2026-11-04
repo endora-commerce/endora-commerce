@@ -14,7 +14,7 @@ import {
 } from './product-editor-harness';
 
 /**
- * Feature 170 (T146; FR-070, US7 #7, spec *Edge Cases*, R7) — structural operations apply at
+ * Feature 172 (T146; FR-070, US7 #7, spec *Edge Cases*, R7) — structural operations apply at
  * once: each such section says "Applies immediately", an immediate action neither stages nor
  * saves, staged scoped edits survive it, a staged edit of the subject it removed is dropped and
  * announced, and the next Save sends the version read before the immediate action.
@@ -97,7 +97,7 @@ function removeImage(name: RegExp): void {
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: en['productEditor.gallery.removeConfirm']! }));
 }
 
-describe('immediate actions beside staged changes (feature 170, US7 #7)', () => {
+describe('immediate actions beside staged changes (feature 172, US7 #7)', () => {
   it('labels each structural section "Applies immediately"', async () => {
     renderEditor(ProductEditor, { url: MEDIA });
     const heading = await screen.findByRole('heading', { name: new RegExp(en['productEditor.gallery.title']!) });

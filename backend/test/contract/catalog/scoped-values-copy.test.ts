@@ -5,7 +5,7 @@ import { ADMIN, scopedValuesFixture, type ScopedValuesFixture } from '../../help
 import { seedProductScopesAdmins } from '../../helpers/product-scopes-admins.js';
 
 /**
- * Feature 170, US9 (T114; FR-086, R21; `contracts/scoped-values-api.md` §4) —
+ * Feature 172, US9 (T114; FR-086, R21; `contracts/scoped-values-api.md` §4) —
  * `POST /api/v1/admin/catalog/products/:id/scoped-values/copy`, "Copy to other channels":
  *
  * - `dryRun` lists the targets whose own value the copy overwrites, writes nothing, bumps no
@@ -19,7 +19,7 @@ import { seedProductScopesAdmins } from '../../helpers/product-scopes-admins.js'
  * - `toChannelIds` deduplicated (and the source channel itself skipped); `urlKey` and non-text
  *   fields are `not_supported`; `catalog:read` is 403.
  */
-describe('170 US9 — copy a C×L value to other channels (T114)', () => {
+describe('172 US9 — copy a C×L value to other channels (T114)', () => {
   let h: BackendServerHandle;
   let fx: ScopedValuesFixture;
   let source: string;

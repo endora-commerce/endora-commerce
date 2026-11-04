@@ -17,7 +17,7 @@ import {
 } from './product-editor-harness';
 
 /**
- * Feature 170 (T091, US5 #1–#6; FR-050…FR-055, FR-057, SC-006) — one switcher sets the scope
+ * Feature 172 (T091, US5 #1–#6; FR-050…FR-055, FR-057, SC-006) — one switcher sets the scope
  * of the whole editor: a channel select and a language select (by name), the scope in words, a
  * banner announced through a live region that is mounted empty, `aria-busy` while a scope
  * loads, and no other scope selector anywhere in the editor.
@@ -38,7 +38,7 @@ function banner(): HTMLElement {
   return screen.getByTestId('scope-banner-live');
 }
 
-describe('the scope switcher (feature 170, US5)', () => {
+describe('the scope switcher (feature 172, US5)', () => {
   it('opens at Global: the channel select lists the member channels, the language select waits for a channel', async () => {
     renderEditor(ProductEditor);
     await screen.findByRole('option', { name: 'Retail PL' });

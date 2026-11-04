@@ -11,7 +11,7 @@ import { apiClient } from '@endora-commerce/admin-kit/lib';
 import { scopeToRequest } from './scoped-editor-store.js';
 
 /**
- * Feature 170 (T093, `contracts/scoped-values-api.md` §2, §3, §5) — the product editor's
+ * Feature 172 (T093, `contracts/scoped-values-api.md` §2, §3, §5) — the product editor's
  * one read per scope, one save of a scope, and the remembered scope. Replaces the editor's
  * calls to the removed `…/scope-context` and `…/value-overrides` routes.
  */

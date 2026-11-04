@@ -3,13 +3,13 @@ import { setupBackendServer, teardownBackendServer, type BackendServerHandle } f
 import { scopedValuesFixture, type ScopedValuesFixture } from '../../helpers/scoped-values-fixture.js';
 
 /**
- * Feature 170 (owner decision 2026-11-03, round 8; `contracts/scoped-values-api.md` §2) — every
+ * Feature 172 (owner decision 2026-11-03, round 8; `contracts/scoped-values-api.md` §2) — every
  * field view of `GET …/scoped-values` at Channel and Channel × language carries `inheritedValue`:
  * the value the field would have if it inherited at this scope (the parent's effective value) and
  * where that value comes from. The S3 editor shows it the moment "Use value from <parent>" is
  * ticked. At Global there is no parent, so there is no `inheritedValue`.
  */
-describe('170 — inheritedValue on every scoped field view', () => {
+describe('172 — inheritedValue on every scoped field view', () => {
   let h: BackendServerHandle;
   let fx: ScopedValuesFixture;
   let channel: string;

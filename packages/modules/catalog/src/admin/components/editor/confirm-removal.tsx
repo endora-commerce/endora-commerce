@@ -4,7 +4,7 @@ import { ModalDialog } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 /**
- * Final design review (feature 170): the editor's structural removals (a variant, a related
+ * Final design review (feature 172): the editor's structural removals (a variant, a related
  * product, a group child, a bundle slot or option) ask in the kit's `ModalDialog`, the same
  * dialog Archive, Delete and the gallery use, instead of `window.confirm`. `ask` resolves `true`
  * on the destructive button and `false` on Cancel, Escape or the scrim; the caller renders

@@ -204,7 +204,7 @@ they see (e.g. "Czerwony") hits products whose raw value is the option key
 `isSearchable` off removes the option labels on the next refresh within
 the existing event-driven cadence.
 
-### Upgrading to the per-language document (feature 170)
+### Upgrading to the per-language document (feature 172)
 
 The document's `name`, `description`, `localizedNames` and
 `searchableOptions` fields, and the text values inside `attributes`, are

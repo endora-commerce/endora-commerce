@@ -1,7 +1,7 @@
 import { Migration } from '@mikro-orm/migrations';
 
 /**
- * Feature 170 (`specs/170-product-editor-scope-switcher/data-model.md` §5, `contracts/url-keys.md`;
+ * Feature 172 (`specs/172-product-editor-scope-switcher/data-model.md` §5, `contracts/url-keys.md`;
  * research R12, spec round 7) — URL keys at Channel and Channel × language, redirects per
  * (channel, language). Replaces 163 data-model §5.
  *

@@ -121,7 +121,7 @@ function primeGets(): void {
   });
 }
 
-/** Delete lives in the "Product" menu and asks in a dialog, not `window.confirm` (feature 170, §11). */
+/** Delete lives in the "Product" menu and asks in a dialog, not `window.confirm` (feature 172, §11). */
 async function deleteThroughMenu(user: ReturnType<typeof userEvent.setup>): Promise<void> {
   await user.click(await screen.findByRole('button', { name: /productEditor\.wholeProduct\.menu/ }));
   await user.click(await screen.findByRole('menuitem', { name: /productEditor\.action\.delete/ }));

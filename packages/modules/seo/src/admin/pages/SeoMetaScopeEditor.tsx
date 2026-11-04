@@ -20,7 +20,7 @@ import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 /**
  * Feature 163 (T128, US8; `contracts/seo-media-attachments.md` §1) — one entity's meta
- * override at one scope: a category or a CMS page, by language. Feature 170 (FR-094): a
+ * override at one scope: a category or a CMS page, by language. Feature 172 (FR-094): a
  * product's SEO is edited in the product editor at the editor scope; the SEO screen offers
  * only a link there, so this editor has no product mode. "Use inherited" deletes exactly the
  * selected scope's row.
@@ -73,7 +73,7 @@ interface Scope {
 }
 
 export interface SeoMetaScopeEditorProps {
-  /** Feature 170 (FR-094): a product's SEO is edited in the product editor, not here. */
+  /** Feature 172 (FR-094): a product's SEO is edited in the product editor, not here. */
   entityType: Exclude<SeoEntityType, 'product'>;
   entityId: string;
 }

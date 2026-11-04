@@ -318,7 +318,7 @@ export of the full list.
 | `missing_image` | The product has no publicly reachable image. |
 | `private_image_asset` | Images exist but are not public, so no stable URL could be published. |
 | `missing_required_field` | A field the provider requires resolved empty with no fallback — the item was skipped. |
-| `missing_translation` | Runs before feature 170 only: the feed's language had no value and a fallback language was used. A product's Global text now satisfies every channel and language, so new runs never record it. |
+| `missing_translation` | Runs before feature 172 only: the feed's language had no value and a fallback language was used. A product's Global text now satisfies every channel and language, so new runs never record it. |
 | `unresolvable_link` | No storefront URL is configured for the channel. |
 | `unmapped_provider_category` | No category mapping applied; the field was omitted. |
 | `stale_provider_category_mapping` | The mapped node no longer exists in the installed revision. |

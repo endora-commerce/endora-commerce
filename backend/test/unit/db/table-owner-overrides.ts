@@ -34,7 +34,7 @@ export const TABLE_OWNER_OVERRIDES: Readonly<Record<string, string>> = {
   invoice_templates: 'invoices',
 
   // Created by 163's media and attachment scope migrations and dropped by
-  // `scope_model_media` (`specs/170-product-editor-scope-switcher/` data-model §6–§7): their
+  // `scope_model_media` (`specs/172-product-editor-scope-switcher/` data-model §6–§7): their
   // entities left with the tables, so only these overrides still name the owner of the
   // migrations that touch them.
   gallery_item_channel_hidden: 'catalog',

@@ -25,7 +25,7 @@ import { Product } from '../entities/product.entity.js';
 import { assertProductId, loadScopedState, readScopeVersion, resolveRequestScope } from './scoped-values-state.js';
 
 /**
- * Feature 170 (T036–T038) — the editor's one read and one save (`contracts/scoped-values-api.md`
+ * Feature 172 (T036–T038) — the editor's one read and one save (`contracts/scoped-values-api.md`
  * §2–§3). The save runs as one `CommandBus.run`; its answer is the product re-read at the same
  * scope after commit, with the completeness gate's warn-mode warnings.
  */
@@ -85,7 +85,7 @@ export class ScopedValuesService {
   }
 
   /**
-   * Feature 170 (T115; §4, FR-086) — "Copy to other channels". A dry run plans the copy on a read
+   * Feature 172 (T115; §4, FR-086) — "Copy to other channels". A dry run plans the copy on a read
    * (the version compared, never bumped) and lists the overwrites; a copy is one Command
    * `product.scoped_values.copy_to_channels`.
    */

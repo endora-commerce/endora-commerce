@@ -9,7 +9,7 @@ import { scopedValuesFixture, type ScopedValuesFixture } from '../../helpers/sco
 import { serializeCsv } from '../../../../packages/modules/import_export/src/backend/services/csv-codec.js';
 
 /**
- * Feature 170 (`specs/170-product-editor-scope-switcher/` T079; US4 #9; FR-110…FR-113, FR-118,
+ * Feature 172 (`specs/172-product-editor-scope-switcher/` T079; US4 #9; FR-110…FR-113, FR-118,
  * SC-014) — the products CSV import honours every CSV row of the shared case table
  * (`write-encoding.md` §4): an empty cell changes nothing, `NULL` is the empty value, `INHERIT`
  * removes the own value, escaped and formula-guarded text lands verbatim, and the refusals are
@@ -27,7 +27,7 @@ const ADMIN = { cookies: { b2b_session: 'stub-admin-session' } };
 const FIELDS = new Set(['name', 'description', 'status']);
 const SEED: Record<string, string> = { name: 'Seeded', description: 'Seeded', status: 'inactive' };
 
-describe('170 — products CSV import, the shared encoding cases [integration]', () => {
+describe('172 — products CSV import, the shared encoding cases [integration]', () => {
   let h: BackendServerHandle;
   let vipId = '';
   let profileId = '';

@@ -3,7 +3,7 @@ import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { PRODUCT_ID, en, renderEditor, setUpEditorApi } from './product-editor-harness';
 
 /**
- * Feature 170 (T096; FR-105, FR-107) — the editor's tab labels come from the catalog bundle and
+ * Feature 172 (T096; FR-105, FR-107) — the editor's tab labels come from the catalog bundle and
  * the tab list follows the WAI-ARIA tabs pattern: one tab in the tab order, arrow keys / Home /
  * End move between tabs, `aria-selected` and `aria-controls` on each.
  */
@@ -24,7 +24,7 @@ const { ProductEditor } = await import('../../../../packages/modules/catalog/src
 beforeEach(() => setUpEditorApi());
 afterEach(() => cleanup());
 
-describe('the product editor tabs (feature 170, FR-105, FR-107)', () => {
+describe('the product editor tabs (feature 172, FR-105, FR-107)', () => {
   it('labels every tab from the catalog bundle and links it to the panel', async () => {
     renderEditor(ProductEditor, { url: `/catalog/products/${PRODUCT_ID}?scope=global` });
     const details = await screen.findByRole('tab', { name: en['productEditor.tab.details']! });

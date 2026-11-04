@@ -22,7 +22,7 @@ export { mapAdminProductToCmsSummary, pickAdminLocalizedName } from './admin-cat
 interface AdminProduct {
   id: string;
   slug: string;
-  /** Feature 170 (FR-031) — the Global name. */
+  /** Feature 172 (FR-031) — the Global name. */
   name: string;
   sku: string;
   /** The Global description, from which the card's summary is derived (T196). */

@@ -5,7 +5,7 @@ import { TranslationProvider } from '@endora-commerce/admin-kit/i18n';
 import type { Bundle } from '@endora-commerce/admin-kit/i18n';
 
 /**
- * `specs/170-product-editor-scope-switcher/` T060 (FR-031, `contracts/readers.md` §1) — the page
+ * `specs/172-product-editor-scope-switcher/` T060 (FR-031, `contracts/readers.md` §1) — the page
  * builder's product picker reads the admin product list, which has no channel and therefore
  * answers the product's **Global name as one string**. The picker shows it as it is; it never
  * picks a language out of a map (there is none) and never shows a character of the string.

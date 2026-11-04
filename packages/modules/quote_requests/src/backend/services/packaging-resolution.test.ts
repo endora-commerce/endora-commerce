@@ -115,7 +115,7 @@ describe('resolveLinePackaging', () => {
 });
 
 /**
- * Feature 163, Phase 22 (T138), on feature 170's model — the line snapshots the unit's effective
+ * Feature 163, Phase 22 (T138), on feature 172's model — the line snapshots the unit's effective
  * name at the line's (channel, language), as the caller read it from catalog's
  * `effectivePackagingUnitNames`; without one, its Global name. The **name match** of a line
  * naming its unit stays on the Global name.

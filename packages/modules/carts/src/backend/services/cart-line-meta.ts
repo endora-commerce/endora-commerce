@@ -9,7 +9,7 @@ export interface ProductMeta {
 }
 
 /**
- * Per-product display metadata. Feature 170 (FR-030) — the name is the effective one at the
+ * Per-product display metadata. Feature 172 (FR-030) — the name is the effective one at the
  * basket's (channel, language), C×L → C → Global, as `catalog` answers it; a product it has no
  * answer for shows its Global name. A product without a record has no entry (the serializer
  * treats it as an unknown name and the storefront falls back to the productId).

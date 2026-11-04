@@ -1,12 +1,12 @@
 import { Migration } from '@mikro-orm/migrations';
 
 /**
- * Feature 170 (`specs/170-product-editor-scope-switcher/data-model.md` §11, research R14) — the
+ * Feature 172 (`specs/172-product-editor-scope-switcher/data-model.md` §11, research R14) — the
  * import profiles of `import_export`: a named, platform-global locale mapping a products import
  * is run with.
  *
  * - `name` is unique case-insensitively, by a raw `lower(name)` index (no `@Unique` in the entity).
- * - `entity` is `'products'` — the only entity with a mapping in 170 (CHECK).
+ * - `entity` is `'products'` — the only entity with a mapping in 172 (CHECK).
  * - `locale_mapping` holds `pimLocaleMappingEntriesSchema`'s entries. Their target channel ids carry
  *   **no** foreign key: a deleted channel makes a target invalid, reported per row at import
  *   (FR-042), and the profile itself stays.

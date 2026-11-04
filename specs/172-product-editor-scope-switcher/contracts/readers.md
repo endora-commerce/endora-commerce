@@ -14,7 +14,7 @@ Scope column: what the reader resolves at. **(C, L)** = the document's / request
 `catalogProductAvailabilityPort.effectiveTexts` / `effectivePackagingUnitNames`; **G** = the Global string from the
 record (FR-031: a reader with no channel).
 
-| Module / package | File | Today | 170 | Scope |
+| Module / package | File | Today | 172 | Scope |
 | --- | --- | --- | --- | --- |
 | carts | `src/backend/services/cart-line-meta.ts` | `effectiveNames` ∥ `pickLocalized(p.name, lang)` | `effectiveTexts` only | (C, L) |
 | carts | `src/backend/services/cart-service.ts` (531-542, 687-711) | same | `effectiveTexts` | (C, L) |
@@ -36,7 +36,7 @@ record (FR-031: a reader with no channel).
 | search | `search-indexer.ts`, `search-query.service.ts` | `pickLocale`, `localizedNames`, `pickLang` | `search-index.md` | (C, L) per L |
 | seo | `meta-tag-resolver.service.ts:320-321`, `sitemap-generator.service.ts` | `pickLocale(product.name, locale)` | `effectiveTexts` at (C, L) for the derived fallback | (C, L) |
 | cms (admin) | `src/admin/components/admin-catalog-preview-map.ts:40-45` | `pickAdminLocalizedName` | Global string | G |
-| audit_logs | `src/backend/services/recent-activity-service.ts:360` | `name as Record` from an audit state | accept both: string (170 entries) or map (older entries) | — |
+| audit_logs | `src/backend/services/recent-activity-service.ts:360` | `name as Record` from an audit state | accept both: string (172 entries) or map (older entries) | — |
 | shopping_lists, promotions, tasks, projects | `catalogProductReadPort` consumers | record consumers | verify (compile) | — |
 | admin-kit | `components/product-browser/product-line.ts:17`, `ProductBrowserDialog.tsx:112` | `name['en-US']`, `name['pl-PL']` | Global string | G |
 | page-builder-admin | `src/chrome/CatalogPickers.tsx`, `src/email/EmailEditorPane.tsx` | `pickName(name map \| string)` | string only | G |
@@ -70,7 +70,7 @@ are not product values and stay per-language maps.
 any of:
 
 - identifiers: `nameTranslations`, `descriptionTranslations`, `localizedNames`, `effectiveNames`,
-  `translationMapPatchSchema`, `global+language`, `170-shim`, `channelScoped`, `languageScoped`,
+  `translationMapPatchSchema`, `global+language`, `172-shim`, `channelScoped`, `languageScoped`,
   `gallery_item_channel_labels`, `gallery_item_channel_hidden`, `product_attachment_channel_hidden`,
   `name_translations`, `description_translations`;
 - patterns on product shapes: `/\b(product|p|item|hit|record|row)\??\.(name|description)\??\[/`,

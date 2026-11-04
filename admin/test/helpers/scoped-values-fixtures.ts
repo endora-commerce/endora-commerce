@@ -1,7 +1,7 @@
 import type { ScopedFieldView, ScopedValuesData, ScopedValuesResponse } from '@endora-commerce/contracts';
 
 /**
- * Feature 170 (`specs/170-product-editor-scope-switcher/` T023, `contracts/scoped-values-api.md`
+ * Feature 172 (`specs/172-product-editor-scope-switcher/` T023, `contracts/scoped-values-api.md`
  * §2) — a builder for `GET …/products/:id/scoped-values` answers, so editor tests mock the API in
  * its own shape. Every default is a Global answer of a simple product with no overrides; a test
  * names only what it is about. `scoped-values-fixtures.test.ts` holds it to the contract schema.

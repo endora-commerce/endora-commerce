@@ -288,7 +288,7 @@ describe('Product scopes — GET|PATCH /admin/catalog/products/:id/scopes (spec 
 
       const audits = await auditRows(productId);
       expect(audits).toHaveLength(1);
-      // Feature 170 (FR-074, FR-116) — the before-state is in the write encoding: a scope that
+      // Feature 172 (FR-074, FR-116) — the before-state is in the write encoding: a scope that
       // held no own value is `{ inherit: true }`, so re-sending it restores the row exactly.
       const inherit = { inherit: true };
       expect(audits[0]!.state_before).toEqual({

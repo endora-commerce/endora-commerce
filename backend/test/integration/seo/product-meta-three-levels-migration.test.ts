@@ -5,14 +5,14 @@ import { Migration20261103T171312SeoProductMetaThreeLevels } from '@endora-comme
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 
 /**
- * Feature 170 (`specs/170-product-editor-scope-switcher/` T117; `data-model.md` §8, research R9,
+ * Feature 172 (`specs/172-product-editor-scope-switcher/` T117; `data-model.md` §8, research R9,
  * R22; FR-020, FR-026) — `seo`'s `product_meta_three_levels`: the Language-only product rows go
  * (there is no Language scope any more, FR-010), the scope CHECK lets a product hold a Global row
  * (no channel, no locale) and nothing else does, one Global row per product, and category /
  * CMS-page rows are untouched.
  *
  * The migration has already run against the template, so each test runs its `down`, seeds the
- * rows `up` meets on a database deployed before 170, and runs `up` — in one transaction the test
+ * rows `up` meets on a database deployed before 172, and runs `up` — in one transaction the test
  * rolls back, with the statements taken off the shipped class (the T015 harness).
  */
 type MigrationClass = new (driver: unknown, config: unknown) => {
@@ -22,7 +22,7 @@ type MigrationClass = new (driver: unknown, config: unknown) => {
 };
 const MIGRATION = Migration20261103T171312SeoProductMetaThreeLevels as unknown as MigrationClass;
 
-describe('seo product_meta_three_levels migration (170 T117)', () => {
+describe('seo product_meta_three_levels migration (172 T117)', () => {
   let db: TestDb;
   let em: EntityManager;
 

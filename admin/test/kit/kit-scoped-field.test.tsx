@@ -8,7 +8,7 @@ import { shippedCoreBundle } from '../helpers/core-bundle';
 import { expectNoAxeViolations } from '../helpers/axe';
 
 /**
- * Feature 170 (T097, `contracts/editor-ui.md` §4 and §11) — every state of `ScopedField`:
+ * Feature 172 (T097, `contracts/editor-ui.md` §4 and §11) — every state of `ScopedField`:
  * the "Use value from <parent scope>" checkbox, the source line as the control's description,
  * the badges, read-only never disabled, Global only and not supported at this scope.
  *
@@ -62,7 +62,7 @@ function renderEn(ui: ReactElement): ReturnType<typeof render> {
   );
 }
 
-describe('ScopedField (feature 170, FR-060…FR-065)', () => {
+describe('ScopedField (feature 172, FR-060…FR-065)', () => {
   it('Global: no checkbox, control editable', () => {
     renderEn(<Harness scope={{ level: 'global' }} scopeLabel="Global" view={view({ source: 'set' })} />);
     expect(screen.queryByRole('checkbox')).toBeNull();

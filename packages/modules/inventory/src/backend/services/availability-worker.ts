@@ -79,8 +79,8 @@ export class AvailabilityWorker {
       customerIds.length > 0 ? await this.customerAccounts.findByIds(customerIds) : [];
     const emailById = new Map(customers.map((c) => [c.id, c.email]));
 
-    // Feature 170 (owner decision after C1, 2026-11-03) — the Global name: a subscription stores no
-    // channel and no language. Storing them is the named follow-up of spec 170 (*Out of scope*).
+    // Feature 172 (owner decision after C1, 2026-11-03) — the Global name: a subscription stores no
+    // channel and no language. Storing them is the named follow-up of spec 172 (*Out of scope*).
     const productName = product.name || product.sku;
     const now = new Date();
 

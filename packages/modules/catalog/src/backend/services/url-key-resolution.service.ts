@@ -19,7 +19,7 @@ import { channelUrlFactsOf } from './channel-url-facts.js';
 import { inIdChunks } from './sql-id-arrays.js';
 
 /**
- * Feature 163, rewritten by feature 170 (T039; `contracts/url-keys.md` §4, research R12) — which
+ * Feature 163, rewritten by feature 172 (T039; `contracts/url-keys.md` §4, research R12) — which
  * product a URL key names at (sales channel C, language L), and what a product's keys are where it
  * is read.
  *
@@ -63,7 +63,7 @@ export async function loadEffectiveKeys(
     const own = rowsByProduct.get(product.id) ?? [];
     const keys = new Map<string, string>();
     for (const languageCode of channel.languages) {
-      // Feature 170 (`contracts/url-keys.md` §1) — the C×L key, else the Channel key, else the slug.
+      // Feature 172 (`contracts/url-keys.md` §1) — the C×L key, else the Channel key, else the slug.
       const clKey = own.find(
         (row) => row.languageCode !== null && sameLanguage(row.languageCode, languageCode),
       );

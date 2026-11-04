@@ -5,7 +5,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import { ImportProfile } from '../entities/import-profile.entity.js';
 
 /**
- * The three writes of import profiles (`specs/170-product-editor-scope-switcher/data-model.md`
+ * The three writes of import profiles (`specs/172-product-editor-scope-switcher/data-model.md`
  * §11; Constitution XIII), each a Command run by `CommandBus.run`: one audit entry per
  * successful run, none for a refusal — every check throws before the first write, and a throw
  * rolls the transaction (and the audit row) back. `before` / `after` are the row projection.

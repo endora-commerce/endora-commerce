@@ -7,7 +7,7 @@ import { scopedValuesFixture, type ScopedValuesFixture } from '../../helpers/sco
 import { seedProductScopesAdmins } from '../../helpers/product-scopes-admins.js';
 
 /**
- * Feature 170, US8 (T108; FR-080, SC-010) — one `catalog:write` check governs the editor:
+ * Feature 172, US8 (T108; FR-080, SC-010) — one `catalog:write` check governs the editor:
  *
  * - a `catalog:read` admin reads the scoped values at every scope (G, C, C×L);
  * - it gets 403 on `PUT …/scoped-values`, `POST …/scoped-values/copy` and `PATCH …/scopes`, and
@@ -44,7 +44,7 @@ function productWriteRoutes(): Array<{ method: string; url: string; permission: 
   return routes;
 }
 
-describe('170 US8 — catalog:read reads every scope and writes nothing (T108)', () => {
+describe('172 US8 — catalog:read reads every scope and writes nothing (T108)', () => {
   let h: BackendServerHandle;
   let fx: ScopedValuesFixture;
   let channel: string;

@@ -213,7 +213,7 @@ export interface FeedGenerationDeps {
   /** Feature 167 (FR-033) — each product's effective URL key per channel language. */
   catalogUrlKeys: Pick<CatalogProductUrlKeyReadPort, 'effectiveKeys'>;
   /**
-   * Feature 170 (FR-030, `contracts/readers.md` §1) — each product's effective name and
+   * Feature 172 (FR-030, `contracts/readers.md` §1) — each product's effective name and
    * description at the feed's (channel, language). Absent (a rig that wires none), the Global
    * texts.
    */
@@ -773,7 +773,7 @@ export class FeedGenerationService {
     // Feature 167 (FR-033) — a feed line links the product on its key in the feed's
     // language; the global slug only where the product has none there.
     const urlKeys = await this.deps.catalogUrlKeys.effectiveKeys(productIds, salesChannelId);
-    // Feature 170 (FR-030) — the texts a feed line carries, at the feed's (channel, language).
+    // Feature 172 (FR-030) — the texts a feed line carries, at the feed's (channel, language).
     const texts = this.deps.catalogTexts
       ? await this.deps.catalogTexts.effectiveTexts(productIds, {
           channelId: salesChannelId,
@@ -827,7 +827,7 @@ export class FeedGenerationService {
     // that stops and records why.
     // Feature 163 (FR-076, owner decision MED-1 = A) — the gallery as the feed's channel
     // shows it: an image hidden there never reaches the feed.
-    // Feature 170 — and at the feed's language: an item hidden at (C, L) never reaches it.
+    // Feature 172 — and at the feed's language: an item hidden at (C, L) never reaches it.
     const galleryRows = await this.deps.catalogGallery.listForProducts(
       productIds,
       salesChannelId,

@@ -289,7 +289,7 @@ const SEED_DELTA: Readonly<Record<string, number>> = {
   // the baseline.
   warehouse_channel_assignments: 3,
   categories: 13,
-  // 203 + feature 170's scope product, *Drill X* (`DEMO-DRILL-X`).
+  // 203 + feature 172's scope product, *Drill X* (`DEMO-DRILL-X`).
   products: 204,
   grouped_items: 2,
   bundle_slots: 1,
@@ -308,7 +308,7 @@ const SEED_DELTA: Readonly<Record<string, number>> = {
   product_categories: 204,
   // 204 on the retail channel, plus *Drill X* on the VIP channel (step 2b).
   sales_channel_products: 205,
-  // 2b — feature 170: *Drill X*'s Channel and Channel × language texts, three
+  // 2b — feature 172: *Drill X*'s Channel and Channel × language texts, three
   //      states over two channels (own value, deliberately empty, inherited =
   //      no row): retail × pl-PL name and description, VIP name, VIP × pl-PL
   //      name and an empty description.
@@ -629,8 +629,8 @@ describe('T226 — `endora demo seed` builds this shop', () => {
       expect(row).toEqual({ products: '204', categories: '204', channels: '204' });
     });
 
-    it("holds Drill X's texts in all three scope states (feature 170, T024)", async () => {
-      // What `specs/170-product-editor-scope-switcher/quickstart.md` §1 walks
+    it("holds Drill X's texts in all three scope states (feature 172, T024)", async () => {
+      // What `specs/172-product-editor-scope-switcher/quickstart.md` §1 walks
       // through: an own value at Channel and at Channel × language, a
       // deliberately empty description (`{"v": null}`), and every other scope
       // inheriting — which is the absence of a row, so the full list is the

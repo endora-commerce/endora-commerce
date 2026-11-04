@@ -305,7 +305,7 @@ describe('155 — placement and the checkout preview refuse below-minimum lines 
     expect((await basketLines()).length).toBe(3);
   });
 
-  // Feature 170 (FR-030) — the sentence is Polish; each product is named at the basket's (channel,
+  // Feature 172 (FR-030) — the sentence is Polish; each product is named at the basket's (channel,
   // language). The system-default channel offers en-US alone, so the names are the Global ones.
   it('D3/D4 — a Polish placement refusal names every product at the basket scope, as the preview does', async () => {
     await seed([

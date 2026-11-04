@@ -14,7 +14,7 @@ import {
 } from './product-editor-harness';
 
 /**
- * Feature 170 (T129; US11 #1–#3, FR-097, `contracts/editor-ui.md` §9) — the completeness
+ * Feature 172 (T129; US11 #1–#3, FR-097, `contracts/editor-ui.md` §9) — the completeness
  * summary in the scope bar, from saved values: at C×L "Missing here: Name, URL key" whose
  * items open the field; at C "Missing in this channel: Name (Polish, English)"; at G
  * "N incomplete scopes — Scope map"; nothing when the scope is complete.
@@ -47,7 +47,7 @@ function summary(): HTMLElement {
 
 afterEach(() => cleanup());
 
-describe('completeness at the editor scope (feature 170, US11)', () => {
+describe('completeness at the editor scope (feature 172, US11)', () => {
   it('C×L: names each missing field, and each item opens its field', async () => {
     setUpEditorApi({ read: withCompleteness({ level: 'channel_language', missing: ['name', 'urlKey'] }) });
     const view = renderEditor(ProductEditor, { url: `${AT_CL}&tab=attributes` });

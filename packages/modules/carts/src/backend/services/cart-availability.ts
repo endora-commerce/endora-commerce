@@ -100,7 +100,7 @@ export async function effectiveKeysAt(
 }
 
 /**
- * Feature 170 (FR-030, `contracts/readers.md` §1) — product id → its effective name at the
+ * Feature 172 (FR-030, `contracts/readers.md` §1) — product id → its effective name at the
  * basket's (`channelId`, `languageCode`) along C×L → C → Global, as `catalog` answers it.
  * `languageCode` `null` = the channel's default language. A basket with no channel is not
  * asked about (FR-007): no entry, the caller keeps the Global name.

@@ -4,14 +4,14 @@ import { describe, expect, it } from 'vitest';
 import { decodeCsvScopedCell } from '@endora-commerce/contracts';
 
 /**
- * Feature 170 (`specs/170-product-editor-scope-switcher/` T024): the import-ready CSV that
+ * Feature 172 (`specs/172-product-editor-scope-switcher/` T024): the import-ready CSV that
  * `quickstart.md` §3 imports onto the demo catalogue. The importer is US4's, so at C1 this holds
  * the file to the contract it will be read against — `contracts/import-profiles-and-csv.md` §2.1
  * (one anchored header grammar) and `contracts/write-encoding.md` §3 (cells) — and to the demo it
  * names: the demo's two channel codes, the languages they offer, the demo's SKUs.
  */
 const FIXTURE = fileURLToPath(
-  new URL('../../../../specs/170-product-editor-scope-switcher/fixtures/demo-scoped-import.csv', import.meta.url),
+  new URL('../../../../specs/172-product-editor-scope-switcher/fixtures/demo-scoped-import.csv', import.meta.url),
 );
 
 /** The demo's channels (`@endora-commerce/demo-composition`'s foundation) and their languages. */
@@ -48,7 +48,7 @@ function targetsOf(column: string): string[] {
   return [`${column}@global`];
 }
 
-describe('quickstart §3 import fixture (feature 170, T024)', () => {
+describe('quickstart §3 import fixture (feature 172, T024)', () => {
   it('keys every row by sku, and every row has the header width (no quoted cell)', () => {
     expect(header[0]).toBe('sku');
     expect(lines.join('\n')).not.toMatch(/"/);

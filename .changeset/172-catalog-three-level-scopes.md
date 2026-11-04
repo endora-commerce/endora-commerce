@@ -2,7 +2,7 @@
 '@endora-commerce/mod-catalog': minor
 ---
 
-**Breaking — the product editor edits one scope at a time: Global, a sales channel, or a channel and language (feature 170).**
+**Breaking — the product editor edits one scope at a time: Global, a sales channel, or a channel and language (feature 172).**
 
 - **New routes.** `GET|PUT /api/v1/admin/catalog/products/:id/scoped-values` (`catalog:read` / `catalog:write`) read and save every scoped field of one scope in one audited Command (`product.scoped_values.save`), with a `version` precondition (`409 VERSION_CONFLICT`); `POST …/scoped-values/copy`; `GET …/editor-preference`. A save that changes nothing answers 200, leaves the version and writes no audit entry. Each view carries `inheritedValue` at Channel and Channel × language.
 - **Retired routes.** `GET …/products/:id/scope-context`, `GET` and `PATCH …/products/:id/value-overrides`, and `GET` / `PUT …/gallery/channel-roles`. The gallery, attachment and packaging-unit `PATCH` routes keep their collection fields only (position, type, base quantity, default flag, minimum); alt text, hidden flags, gallery roles and names are scoped fields written through `PUT …/scoped-values`.

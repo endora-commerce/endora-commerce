@@ -81,7 +81,7 @@ export function searchScopeLanguage(channel: ResolvedSearchChannel, preferredLan
 const FIELD_PATH_LANGUAGE = /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8}){0,3}$/;
 
 /**
- * Feature 170 (`contracts/search-index.md` §3, R21) — the language whose `texts.<L>.*` a query
+ * Feature 172 (`contracts/search-index.md` §3, R21) — the language whose `texts.<L>.*` a query
  * reads: {@link searchScopeLanguage}, checked against the channel's own languages and the tag
  * grammar **before** it is interpolated into a field path. A value that fails either is refused
  * (it cannot come from the resolver; reaching here means a caller bypassed it).
@@ -248,7 +248,7 @@ export class SearchQueryService {
 
     const indexUid = indexUidFor(channel);
     const index = this.client.index<DocumentHit & { updatedAt: number }>(indexUid);
-    // Feature 170 (FR-033) — the one language this query reads texts in, validated first (R21).
+    // Feature 172 (FR-033) — the one language this query reads texts in, validated first (R21).
     const queryLanguage = queryLanguageOf(channel, ctx.preferredLanguage);
 
     const offset = decodeOffsetCursor(params.cursor) ?? 0;
@@ -265,7 +265,7 @@ export class SearchQueryService {
     ];
     const sort = buildSort(params.sort, queryLanguage);
 
-    // Feature 170 (FR-033, `contracts/search-index.md` §3) — a query matches the texts of its
+    // Feature 172 (FR-033, `contracts/search-index.md` §3) — a query matches the texts of its
     // language only, `texts.<L>.*`, beside the SKU and the searchable non-text attributes. An
     // index not yet reindexed after the upgrade does not know the fields; it is asked again
     // without the restriction rather than refused (see below), and that is logged.
@@ -289,7 +289,7 @@ export class SearchQueryService {
         if (!(searchOn && err instanceof MeilisearchApiError && err.cause?.code === 'invalid_search_attributes_to_search_on')) {
           throw err;
         }
-        // Feature 170 (§2) — a pre-170 index, until the boot check reindexes it.
+        // Feature 172 (§2) — a pre-172 index, until the boot check reindexes it.
         console.warn('[search] index without language-keyed texts; searching every field until it is reindexed', {
           indexUid,
         });
@@ -436,7 +436,7 @@ export class SearchQueryService {
   }
 
   /**
-   * Feature 170 (`contracts/search-index.md` §3) — the fields a query in `languageCode` searches:
+   * Feature 172 (`contracts/search-index.md` §3) — the fields a query in `languageCode` searches:
    * that language's texts, the SKU and the searchable attributes whose values are not text (a
    * text attribute is searched in `texts.<L>.attributes`). Mirrors `SearchIndexer.textInputs`.
    */
@@ -610,7 +610,7 @@ export type SearchSortExpression = `${SortableAttribute}:${'asc' | 'desc'}`;
 
 export function buildSort(
   sort: SearchListProductsParams['sort'],
-  /** Feature 170 — the query's language, validated by {@link queryLanguageOf}: a name sorts in it. */
+  /** Feature 172 — the query's language, validated by {@link queryLanguageOf}: a name sorts in it. */
   languageCode: string,
 ): SearchSortExpression[] {
   // `relevance` and the absent sort both leave the ordering to the engine's
@@ -684,7 +684,7 @@ export function searchHitSummary(
     id: product.id,
     sku: product.sku,
     type: product.type,
-    // Feature 170 (FR-030) — the card's name at the request's (C, L), C×L → C → Global, from the
+    // Feature 172 (FR-030) — the card's name at the request's (C, L), C×L → C → Global, from the
     // hydrated rows: never the index, which a stale document could have left behind.
     name:
       effectiveSystemText(

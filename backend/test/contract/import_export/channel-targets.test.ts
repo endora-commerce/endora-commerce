@@ -6,7 +6,7 @@ import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
 import { expectModuleAbsent } from '../../helpers/off-state.js';
 
 /**
- * Feature 170 (owner decision 2026-11-03, `contracts/import-profiles-and-csv.md` §1) — the
+ * Feature 172 (owner decision 2026-11-03, `contracts/import-profiles-and-csv.md` §1) — the
  * channel × language targets an import profile may name, served by `import_export` itself behind
  * `catalog:write` (the delivery-methods precedent), so an operator who may edit profiles may pick
  * targets without `sales_channels:read`. Each channel answers its id, code and languages, and
@@ -15,7 +15,7 @@ import { expectModuleAbsent } from '../../helpers/off-state.js';
 const ADMIN = { b2b_session: 'stub-admin-session' };
 const URL = '/api/v1/admin/import-export/channel-targets';
 
-describe('170 — import profile channel targets [contract]', () => {
+describe('172 — import profile channel targets [contract]', () => {
   let h: BackendServerHandle;
   const run = randomUUID().slice(0, 8);
   const READER = `stub-ct-catalog-reader-${run}`;

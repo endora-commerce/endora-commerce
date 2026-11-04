@@ -213,7 +213,7 @@ export class ComparisonService {
     _channelDefaultLanguage: string | undefined,
     attributeDefs: ReadonlyArray<{ key: string; scopeLevels?: readonly ScopeLevel[] }>,
   ): Promise<{ names: Map<string, string>; values: Map<string, Record<string, unknown>> }> {
-    // Feature 170 — the chain at (C, L): C×L → C → Global (`contracts/readers.md` §1).
+    // Feature 172 — the chain at (C, L): C×L → C → Global (`contracts/readers.md` §1).
     const names = new Map<string, string>();
     const values = new Map<string, Record<string, unknown>>();
     if (products.length === 0 || languageCode === null) return { names, values };
@@ -614,7 +614,7 @@ export class ComparisonService {
     // Feature 163 — whether each column can still be acquired here, now, by
     // this reader, as `catalog` answers it; no status is tested in this module
     // (FR-002). An administrator reads it as the public would.
-    // Feature 170 — the reader's language in the channel, shared by availability and
+    // Feature 172 — the reader's language in the channel, shared by availability and
     // the gallery's base image (`null` = the Channel level).
     const viewerLanguageCode = comparisonScopeLanguage(
       viewerSalesChannelId,
@@ -699,7 +699,7 @@ export class ComparisonService {
       shownProductIds.length > 0
         ? // Feature 163 (FR-076, owner decision MED-1 = A) — the base image as the
           // viewer's resolved channel shows it: an image hidden there is not served.
-          // Feature 170 — and at the reader's language (C×L → C → Global).
+          // Feature 172 — and at the reader's language (C×L → C → Global).
           await this.catalogGallery.baseImageUrls(shownProductIds, viewerSalesChannelId, viewerLanguageCode)
         : new Map<string, string | null>();
 

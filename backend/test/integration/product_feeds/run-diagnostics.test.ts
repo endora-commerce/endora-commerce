@@ -138,7 +138,7 @@ describe('feed run diagnostics [integration]', () => {
     expect(priceless?.sku).toBe('DIAG-NO-PRICE');
     expect(priceless?.productId).toBe(NO_PRICE_ID);
 
-    // Feature 170 (FR-014, `contracts/readers.md` §1): the product with only a Global text is
+    // Feature 172 (FR-014, `contracts/readers.md` §1): the product with only a Global text is
     // not a defect. The Global value satisfies every (channel, language), so there is no
     // language fallback to report and the product is not skipped.
     expect(reasons).not.toContain('missing_translation');

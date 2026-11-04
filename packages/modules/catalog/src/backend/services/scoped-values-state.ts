@@ -28,7 +28,7 @@ import { ProductValueOverride } from '../entities/product-value-override.entity.
 import { attributeSetDefinitionIds } from './scope-completeness.js';
 
 /**
- * Feature 170 (`contracts/scoped-values-api.md` §1–§3) — everything the scoped-values read and
+ * Feature 172 (`contracts/scoped-values-api.md` §1–§3) — everything the scoped-values read and
  * the save Command read about one product, loaded in one place so both see the same stores.
  */
 

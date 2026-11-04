@@ -8,7 +8,7 @@ import { CopyToChannelsDialog, type CopyTarget } from '../CopyToChannelsDialog.j
 import { fieldViewAt, type ScopedEditorAction, type ScopedEditorState } from '../../lib/scoped-editor-store.js';
 
 /**
- * Feature 170 — what every tab of the product editor reads: the store at the current scope,
+ * Feature 172 — what every tab of the product editor reads: the store at the current scope,
  * the scope's words, whether the operator may write, and the jump to another scope (which goes
  * through the page's switch guard).
  */

@@ -3,7 +3,7 @@ import type { PimLocaleMappingEntry } from '@endora-commerce/contracts';
 import type { BackendServerHandle } from './test-server.js';
 
 /**
- * Feature 170 (`specs/170-product-editor-scope-switcher/contracts/import-profiles-and-csv.md` §1–§2)
+ * Feature 172 (`specs/172-product-editor-scope-switcher/contracts/import-profiles-and-csv.md` §1–§2)
  * — a products import needs an import profile (`422 IMPORT_PROFILE_REQUIRED` without one). Create
  * one through the admin route and answer its id; with no arguments it maps nothing and writes no
  * locale to Global, which is what a file of Global and scope columns only needs.

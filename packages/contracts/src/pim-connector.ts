@@ -34,7 +34,7 @@ export const pimImportCountsSchema = z.object({
 export type PimImportCounts = z.infer<typeof pimImportCountsSchema>;
 
 /**
- * Canonical field-protection path grammar (shared across PIM connectors). Feature 170
+ * Canonical field-protection path grammar (shared across PIM connectors). Feature 172
  * (`contracts/pim-locale-mapping.md` §3, FR-046): whole-field paths only — protection removes
  * every scope of a field, so a path carries no locale or channel segment.
  */

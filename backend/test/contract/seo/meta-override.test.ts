@@ -11,7 +11,7 @@ import { Product } from '../../helpers/package-entities.js';
 /**
  * T235 — admin can read the resolved meta for a product (rule-derived by default), and an
  * override flips `source` to `'override'`; a field the override leaves empty falls back to the
- * rule. Since feature 170 the product read is the static `GET …/seo/meta/product/:id` at a scope
+ * rule. Since feature 172 the product read is the static `GET …/seo/meta/product/:id` at a scope
  * (Global here) and the override is written through `seoProductMetaWritePort`, the path catalog's
  * save takes — the generic product `PUT` is refused (`product-meta-read-relaxed.test.ts`).
  */

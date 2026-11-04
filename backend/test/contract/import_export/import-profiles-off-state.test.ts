@@ -4,7 +4,7 @@ import { setupBackendServer, teardownBackendServer, type BackendServerHandle } f
 import { expectModuleAbsent, withModuleOff } from '../../helpers/off-state.js';
 
 /**
- * Feature 170 (`specs/170-product-editor-scope-switcher/` T089; Constitution XVII,
+ * Feature 172 (`specs/172-product-editor-scope-switcher/` T089; Constitution XVII,
  * `contracts/import-profiles-and-csv.md` §5) — `import_export` off: every profile route answers
  * the module-disabled refusal like the rest of the module, the admin resolves the module (its
  * Import profiles section and palette actions) as absent, and the profiles are kept — they are
@@ -13,7 +13,7 @@ import { expectModuleAbsent, withModuleOff } from '../../helpers/off-state.js';
 const ADMIN = { b2b_session: 'stub-admin-session' };
 const BASE = '/api/v1/admin/import-export/profiles';
 
-describe('170 — import profiles while import_export is off [contract]', () => {
+describe('172 — import profiles while import_export is off [contract]', () => {
   let h: BackendServerHandle;
   const run = randomUUID().slice(0, 8);
   let profileId = '';

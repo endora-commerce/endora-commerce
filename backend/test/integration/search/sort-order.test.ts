@@ -40,7 +40,7 @@ const meilisearchKey = process.env['MEILISEARCH_API_KEY'] ?? 'devMasterKeyChange
  * The three seeded products in ascending order of the name the index carries
  * for this channel.
  *
- * Feature 170 — the name sorted on is `texts.<L>.name` in the request's language — `pl_retail`
+ * Feature 172 — the name sorted on is `texts.<L>.name` in the request's language — `pl_retail`
  * resolves `pl-PL` — which is also the language the response renders. The three carry no
  * override, so it is their Global name. Ascending:
  *

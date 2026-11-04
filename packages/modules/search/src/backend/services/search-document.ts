@@ -1,7 +1,7 @@
 import { effectiveScopedValue, effectiveSystemText, type OverrideRow, type ScopeLevel } from '@endora-commerce/contracts';
 
 /**
- * Feature 170 (`specs/170-product-editor-scope-switcher/contracts/search-index.md`, FR-033) — the
+ * Feature 172 (`specs/172-product-editor-scope-switcher/contracts/search-index.md`, FR-033) — the
  * language-keyed half of a channel index document, and the field paths a query names.
  *
  * One index per sales channel stays. Each document carries `texts.<L>` for **every language the
@@ -133,7 +133,7 @@ export function nameSortField(languageCode: string): `texts.${string}.name` {
   return `texts.${languageCode}.name`;
 }
 
-/** The sortable attributes of a channel index carrying `languages` (issue #287, feature 170). */
+/** The sortable attributes of a channel index carrying `languages` (issue #287, feature 172). */
 export function sortableAttributesFor(languages: readonly string[]): string[] {
   return ['createdAt', ...languages.map(nameSortField)];
 }

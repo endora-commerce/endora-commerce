@@ -96,7 +96,7 @@ export function registerModule(ctx: ModuleContext): void {
             lazyPort<CmsPageReadPort>(ctx, 'cmsPageReadPort'),
             // Feature 163 — a channel-scoped override needs the product in the channel (FR-014).
             lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort'),
-            // Feature 170 — the derived metadata at (C, L) from the product's effective texts.
+            // Feature 172 — the derived metadata at (C, L) from the product's effective texts.
             lazyPort<CatalogProductAvailabilityPort>(ctx, 'catalogProductAvailabilityPort'),
           ),
       )
@@ -169,7 +169,7 @@ export function registerModule(ctx: ModuleContext): void {
   );
 
   /**
-   * Feature 170 (FR-091, `contracts/seo-ports.md` §2) — product metadata written on the caller's
+   * Feature 172 (FR-091, `contracts/seo-ports.md` §2) — product metadata written on the caller's
    * EntityManager, for `catalog`'s save Command and its duplicate: no audit entry of its own, the
    * Command that called it records the save (one audit path, Constitution XIII). `catalog`
    * declares the edge `refuses-without` and resolves it inside the Command only when the save

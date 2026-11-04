@@ -121,7 +121,7 @@ describe('catalog — the batch gallery read over the real schema', () => {
   });
 
   /**
-   * Feature 163 (FR-076, owner decision MED-1 = A), on feature 170's three levels
+   * Feature 163 (FR-076, owner decision MED-1 = A), on feature 172's three levels
    * (`data-model.md` §6) — at (C, L) an item is left out when its effective `hidden`
    * (C×L → C → Global) is true; the base image is the effective holder of the role
    * (C×L → C → Global, an override with no item = no image holds it), and none when

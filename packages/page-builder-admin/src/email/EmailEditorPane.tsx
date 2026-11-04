@@ -244,7 +244,7 @@ function toAbsoluteStorefrontUrl(pathOrUrl: string): string {
 }
 
 /**
- * A category's name in the editor's language: categories keep their per-language map (feature 170,
+ * A category's name in the editor's language: categories keep their per-language map (feature 172,
  * `contracts/readers.md` "Not readers"); a product's name is one Global string, read as it is.
  */
 function pickCategoryName(name: Record<string, string> | string, fallback: string): string {
@@ -252,7 +252,7 @@ function pickCategoryName(name: Record<string, string> | string, fallback: strin
   return name['pl-PL'] ?? name['en-US'] ?? Object.values(name)[0] ?? fallback;
 }
 
-/** Feature 170 (FR-031) — the product's Global name, else the fallback. */
+/** Feature 172 (FR-031) — the product's Global name, else the fallback. */
 function productTitle(name: string, fallback: string): string {
   return name || fallback;
 }

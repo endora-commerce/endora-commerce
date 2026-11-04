@@ -16,7 +16,7 @@ import {
 } from './product-editor-harness';
 
 /**
- * Feature 170 (T092, FR-056, spec *Edge Cases*, `contracts/editor-ui.md` §1) — the URL is the
+ * Feature 172 (T092, FR-056, spec *Edge Cases*, `contracts/editor-ui.md` §1) — the URL is the
  * source of truth for the editor scope; the editor preference seeds a URL that names none; a
  * scope the product no longer has opens the nearest valid one and says why.
  */
@@ -34,7 +34,7 @@ afterEach(() => cleanup());
 
 const url = (qs: string): string => `/catalog/products/${PRODUCT_ID}${qs}`;
 
-describe('the editor scope in the URL (feature 170, FR-056)', () => {
+describe('the editor scope in the URL (feature 172, FR-056)', () => {
   it('opens at the scope the URL names, without reading the preference', async () => {
     renderEditor(ProductEditor, { url: url(`?scope=channel&channel=${CH_VIP}`) });
     await waitFor(() => expect(api.get).toHaveBeenCalledWith(`${BASE}/scoped-values?channelId=${CH_VIP}`));

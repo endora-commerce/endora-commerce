@@ -34,7 +34,7 @@ import { loadAttachmentPackagingScopedFields } from './attachment-packaging-scop
 /**
  * Feature 163 (`specs/163-product-data-scopes/`) — the scope overview of one product,
  * `GET /api/v1/admin/catalog/products/:id/scope-overview` (`contracts/admin-scopes-api.md`
- * §3; US4, FR-015, FR-041), on feature 170's three levels (FR-010, FR-100, FR-101).
+ * §3; US4, FR-015, FR-041), on feature 172's three levels (FR-010, FR-100, FR-101).
  *
  * A read: channels × languages, each cell's effective status and where it comes from, the
  * fields overridden at the cell (C×L) and at the whole channel (C), and every override the
@@ -80,7 +80,7 @@ export interface ScopeOverviewInput {
     status: ProductScopeStatus;
     archivedAt: Date | null;
     window: PublicationWindow;
-    /** Feature 170 — the Global name and description, one string each. */
+    /** Feature 172 — the Global name and description, one string each. */
     name: string;
     description: string | null;
     attributeValues: Record<string, unknown>;

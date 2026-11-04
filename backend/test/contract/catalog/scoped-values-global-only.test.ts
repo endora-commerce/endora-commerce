@@ -6,7 +6,7 @@ import { setupBackendServer, teardownBackendServer, type BackendServerHandle } f
 import { ADMIN, scopedValuesFixture, type ScopedValuesFixture } from '../../helpers/scoped-values-fixture.js';
 
 /**
- * Feature 170 (C2/C3 code review 1, security review warn 1; `contracts/scoped-values-api.md` §3
+ * Feature 172 (C2/C3 code review 1, security review warn 1; `contracts/scoped-values-api.md` §3
  * step 3a) — the Global-only `product.*` family of the save runs the checks `PATCH /products/:id`
  * runs, before anything is written:
  *
@@ -17,7 +17,7 @@ import { ADMIN, scopedValuesFixture, type ScopedValuesFixture } from '../../help
  * - the virtual-product download rules hold on the row the save leaves, and a download file is one
  *   the library shows.
  */
-describe('170 — the save checks Global-only fields like PATCH (code review 1)', () => {
+describe('172 — the save checks Global-only fields like PATCH (code review 1)', () => {
   let h: BackendServerHandle;
   let fx: ScopedValuesFixture;
   const categories: string[] = [];

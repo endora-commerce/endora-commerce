@@ -3,12 +3,12 @@ import { setupBackendServer, teardownBackendServer, type BackendServerHandle } f
 import { scopedValuesFixture, type ScopedValuesFixture } from '../../helpers/scoped-values-fixture.js';
 
 /**
- * Feature 170 (owner decision 2026-11-03, round 8; spec rule "an empty date is no limit") — an
+ * Feature 172 (owner decision 2026-11-03, round 8; spec rule "an empty date is no limit") — an
  * empty publication window, `window: null`, means **no limit**: at Global it clears both bounds,
  * and at Channel it is an override that opens the window there whatever Global's window says.
  * The storefront product page is the reader that proves it.
  */
-describe('170 — an empty publication window is no limit', () => {
+describe('172 — an empty publication window is no limit', () => {
   let h: BackendServerHandle;
   let fx: ScopedValuesFixture;
   let channel: string;

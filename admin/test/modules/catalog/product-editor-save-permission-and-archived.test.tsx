@@ -17,7 +17,7 @@ import {
 } from './product-editor-harness';
 
 /**
- * Feature 170 final QA, spec "Edge Cases":
+ * Feature 172 final QA, spec "Edge Cases":
  * - *Permission lost mid-session* — a 403 refuses the whole save; nothing is claimed saved;
  * - *Archived product* — the archived notice wins; the switcher still works.
  */

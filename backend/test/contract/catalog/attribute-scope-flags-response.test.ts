@@ -27,7 +27,7 @@ describe('Admin attribute response — scope flags (spec 163, T095b)', () => {
     await teardownBackendServer(h);
   });
 
-  // Feature 170 (R15): one flag, and the scope set it derives with the value type.
+  // Feature 172 (R15): one flag, and the scope set it derives with the value type.
   function flagsOf(body: unknown): { scopable: boolean | undefined; scopeLevels: string[] | undefined } {
     const data = adminAttributeResponseSchema.parse((body as { data: unknown }).data);
     return { scopable: data.scopable, scopeLevels: data.scopeLevels };

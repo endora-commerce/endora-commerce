@@ -6,7 +6,7 @@ import { setupBackendServer, teardownBackendServer, type BackendServerHandle } f
 import { CatalogProductReadService } from '../../../../packages/modules/catalog/src/backend/services/catalog-product-read.service.js';
 
 /**
- * Feature 161, G15 redesign, on feature 170's model — the grid shows a product line's label as the
+ * Feature 161, G15 redesign, on feature 172's model — the grid shows a product line's label as the
  * Global name (else the SKU, FR-031) and orders it by `catalog`'s stored key. The two must agree,
  * or the grid's order would not follow its labels:
  *
@@ -15,7 +15,7 @@ import { CatalogProductReadService } from '../../../../packages/modules/catalog/
  * - the TypeScript fold `price_lists` orders its attribute and category lines
  *   by (`foldAdminName`) equals the SQL fold the key is built with.
  */
-describe('admin name rule — the grid label and the catalogue key agree (161 G15, 170)', () => {
+describe('admin name rule — the grid label and the catalogue key agree (161 G15, 172)', () => {
   let h: BackendServerHandle;
   const stamp = randomUUID().slice(0, 6).toUpperCase();
   const ids: string[] = [];

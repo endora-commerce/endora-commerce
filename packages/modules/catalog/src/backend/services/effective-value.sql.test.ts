@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { effectiveAttributeSql, effectiveTextSql } from './effective-value.sql.js';
 
 /**
- * Feature 163 (T060), rewritten by feature 170 (T033; research R1, R22) — the shape of the
+ * Feature 163 (T060), rewritten by feature 172 (T033; research R1, R22) — the shape of the
  * effective-value expressions over the C×L → C → G chain: one placeholder per bound value, the
  * values in placeholder order, nothing spliced into the text, and the empty override detected by
  * `jsonb_typeof(value -> 'v')`, never by `->>`. Their meaning is held to the TypeScript chain by

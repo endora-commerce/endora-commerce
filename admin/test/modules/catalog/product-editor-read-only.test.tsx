@@ -17,7 +17,7 @@ import {
 } from './product-editor-harness';
 
 /**
- * Feature 170 (T109; US8 #1–#5, FR-080, FR-081, FR-082, FR-084) — read-only access and fields
+ * Feature 172 (T109; US8 #1–#5, FR-080, FR-081, FR-082, FR-084) — read-only access and fields
  * that cannot change at the scope; plus the Global-only Details fields the block-1 rewrite left
  * without a test: the category picker and the attribute-set swap stage and save at Global.
  */
@@ -73,7 +73,7 @@ function scopedPutBody(): { changes: Record<string, unknown> } {
   return call![1] as { changes: Record<string, unknown> };
 }
 
-describe('read-only access (feature 170, US8)', () => {
+describe('read-only access (feature 172, US8)', () => {
   it('#1 without catalog:write the switcher works, every control is read-only, no checkbox, no Save, no whole-product actions', async () => {
     const view = renderEditor(ProductEditor, { url: AT_C, permissions: ['catalog:read'] });
     const name = await screen.findByLabelText(en['productEditor.field.name']!);

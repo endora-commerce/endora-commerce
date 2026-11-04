@@ -3,7 +3,7 @@ import { ApiError } from '@endora-commerce/admin-kit/lib';
 
 /**
  * Feature 163 (T088) — scope refusals and completeness gate pairs in the operator's words.
- * Feature 170: the editor's reads and writes moved to `scoped-values-api.ts`; the removed
+ * Feature 172: the editor's reads and writes moved to `scoped-values-api.ts`; the removed
  * `…/scope-context` route is no longer called (channel names come from the read's
  * `validScopes`).
  */

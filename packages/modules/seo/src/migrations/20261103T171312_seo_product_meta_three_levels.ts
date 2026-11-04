@@ -1,8 +1,8 @@
 import { Migration } from '@mikro-orm/migrations';
 
 /**
- * Feature 170 — product SEO metadata at the three product levels
- * (`specs/170-product-editor-scope-switcher/data-model.md` §8, research R9, R22; FR-010, FR-020).
+ * Feature 172 — product SEO metadata at the three product levels
+ * (`specs/172-product-editor-scope-switcher/data-model.md` §8, research R9, R22; FR-010, FR-020).
  *
  * A product row sits at Global (no channel, no locale), Channel (a channel, no locale) or
  * Channel × language (both). The Language-only product row of feature 163 is gone (FR-010).

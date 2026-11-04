@@ -16,7 +16,7 @@ describe('pickAdminLocalizedName', () => {
   });
 });
 
-// Feature 170 (FR-031, `contracts/readers.md` §1) — the admin catalogue answers a product's Global
+// Feature 172 (FR-031, `contracts/readers.md` §1) — the admin catalogue answers a product's Global
 // name and description as strings; the preview card shows them as they are.
 describe('mapAdminProductToCmsSummary', () => {
   it('maps admin product fields for CMS preview cards', () => {

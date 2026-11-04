@@ -46,7 +46,7 @@ import type { LinkableAssetReader } from '../services/linkable-asset.js';
 import { loadScopedState, resolveRequestScope, type ScopedProductState } from '../services/scoped-values-state.js';
 
 /**
- * Feature 170 (T038; `contracts/scoped-values-api.md` §3) — the Command `product.scoped_values.save`:
+ * Feature 172 (T038; `contracts/scoped-values-api.md` §3) — the Command `product.scoped_values.save`:
  * one save of one scope, one audit entry whose `before` / `after` list every written cell as
  * `field@scope` and carry the re-applicable `changes` body (FR-072, FR-074), and
  * `product.updated.v1` with the union of the changed fields after commit.

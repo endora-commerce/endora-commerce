@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { BASE, PRODUCT_ID, VALID_SCOPES, api, en, renderEditor, scopedValuesResponse, setUpEditorApi } from './product-editor-harness';
 
 /**
- * Feature 170, final design review: the editor asks in the kit's `ModalDialog`, never through
+ * Feature 172, final design review: the editor asks in the kit's `ModalDialog`, never through
  * `window.confirm`. A structural removal (here a related product) opens a dialog that applies on
  * its destructive button and does nothing on Cancel; the Duplicate and Delete dialogs name the
  * product and say what becomes of the unsaved changes. A failed read of the category or attribute
@@ -57,7 +57,7 @@ async function openLinkRemoval(): Promise<HTMLElement> {
   return screen.findByRole('dialog', { name: en['productEditor.links.removeConfirm']! });
 }
 
-describe('editor confirmations are dialogs (feature 170, final design review)', () => {
+describe('editor confirmations are dialogs (feature 172, final design review)', () => {
   it('removes a related product only from the dialog, and Cancel removes nothing', async () => {
     renderEditor(ProductEditor, { url: LINKS });
 

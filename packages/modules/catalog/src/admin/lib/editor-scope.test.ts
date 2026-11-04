@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { nearestValidScope, scopeFromSearch, scopeInWords, searchWithScope } from './editor-scope.js';
 
-/** Feature 170 (T092, `contracts/editor-ui.md` §1) — the editor scope in the address. */
+/** Feature 172 (T092, `contracts/editor-ui.md` §1) — the editor scope in the address. */
 
 const CH = '00000000-0000-4000-8000-0000000000d1';
 const VALID = { channels: [{ channelId: CH, name: 'B2B PL', languages: [{ code: 'pl-PL', name: 'Polish' }] }] };

@@ -14,7 +14,7 @@ import {
 } from './product-editor-harness';
 
 /**
- * Feature 170 (T027, US1 #1–#3; FR-002, FR-003) — the regression of the two defects the
+ * Feature 172 (T027, US1 #1–#3; FR-002, FR-003) — the regression of the two defects the
  * feature was opened for: F1, a save at one scope rewriting the other languages' texts, and
  * F2, the attributes tab rendering a per-language map as `[object Object]`.
  *
@@ -76,7 +76,7 @@ afterEach(() => cleanup());
 
 const AT_DE = `/catalog/products/${PRODUCT_ID}?scope=cl&channel=${CH_RETAIL}&language=de-DE`;
 
-describe('US1 regression (feature 170, F1 + F2)', () => {
+describe('US1 regression (feature 172, F1 + F2)', () => {
   it('a save sends only the staged cell, at the scope, with the version read', async () => {
     renderEditor(ProductEditor, { url: AT_DE });
     const description = await screen.findByLabelText(en['productEditor.field.description']!);

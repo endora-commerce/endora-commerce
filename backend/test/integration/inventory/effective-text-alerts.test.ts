@@ -15,20 +15,20 @@ import { AvailabilityNotification, CustomerAccount } from '../../helpers/package
 import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
 
 /**
- * Feature 170 (`specs/170-product-editor-scope-switcher/` T054; FR-030, FR-031) — an operator's
+ * Feature 172 (`specs/172-product-editor-scope-switcher/` T054; FR-030, FR-031) — an operator's
  * stock alert has no channel, so it names the product by its **Global** name, never by a channel
  * or channel × language translation (`contracts/readers.md` §1, inventory = G for operator alerts).
  *
  * Owner decision after C1 (2026-11-03, tasks.md): the buyer's back-in-stock e-mail names the
- * product by its **Global** name in 170 too — `availability_notifications` stores no channel and
- * no language. Storing them is a follow-up (spec *Out of scope / follow-ups*), not 170.
+ * product by its **Global** name in 172 too — `availability_notifications` stores no channel and
+ * no language. Storing them is a follow-up (spec *Out of scope / follow-ups*), not 172.
  */
 
 const ADMIN = { b2b_session: 'stub-admin-session' };
 /** The warehouse `seedUs2Commerce` stocks (`backend/test/helpers/seed-commerce.ts`). */
 const SEED_WAREHOUSE_ID = '00000000-0000-4000-8000-00000000d017';
 
-describe('170 — inventory alerts name products by their Global name [integration]', () => {
+describe('172 — inventory alerts name products by their Global name [integration]', () => {
   let h: BackendServerHandle;
   const RUN = minimumFixtureRun();
   let drill: MinimumProductFixture;

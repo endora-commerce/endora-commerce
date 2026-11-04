@@ -16,7 +16,7 @@ import { validateScopedWrite } from './scoped-write-encoding.js';
 const set = (value: unknown) => ({ op: 'set' as const, value });
 
 /**
- * Feature 170 (`contracts/pim-locale-mapping.md` §1–§4; FR-040…FR-047; spec US4) — the mapping
+ * Feature 172 (`contracts/pim-locale-mapping.md` §1–§4; FR-040…FR-047; spec US4) — the mapping
  * contract shared by every PIM connector and the CSV import profiles, and the planner that turns
  * per-locale source values into scoped writes.
  */

@@ -50,7 +50,7 @@ export function attributeInactiveReason(
 ): AttributeInactiveReason | null {
   if (!view) return 'attribute_not_found';
   if (!view.isPriceRule) return 'attribute_not_flagged';
-  // Feature 170 (R15) — the derived scope set replaces the two 163 flags.
+  // Feature 172 (R15) — the derived scope set replaces the two 163 flags.
   if (view.scopeLevels.includes('CL')) return 'attribute_language_scoped';
   if (view.scopeLevels.includes('C')) return 'attribute_channel_scoped';
   if (!ELIGIBLE_VALUE_TYPES.has(view.valueType)) return 'attribute_value_type';

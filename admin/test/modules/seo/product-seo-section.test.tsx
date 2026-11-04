@@ -12,7 +12,7 @@ import { shippedCoreBundle } from '../../helpers/core-bundle';
 import { expectNoAxeViolations } from '../../helpers/axe';
 
 /**
- * Feature 170 (T124; US10 #1–#3, FR-090…FR-093, `contracts/editor-ui.md` §5) — `seo`'s
+ * Feature 172 (T124; US10 #1–#3, FR-090…FR-093, `contracts/editor-ui.md` §5) — `seo`'s
  * `ProductSeoSection` in the product editor's `product.editor.seo` zone: the five SEO fields at
  * the editor scope with their source (`GET /api/v1/admin/seo/meta/product/:id`), an empty
  * field showing the derived value it falls back to, every change staged through the host's
@@ -103,7 +103,7 @@ beforeEach(() => {
 });
 afterEach(() => cleanup());
 
-describe('ProductSeoSection (feature 170, US10)', () => {
+describe('ProductSeoSection (feature 172, US10)', () => {
   it('is the product.editor.seo member, readable with catalog:read; the 163 link is gone', () => {
     const zones = (seo.contributions.zones ?? []).filter((z) => z.zone === 'product.editor.seo');
     expect(zones).toHaveLength(1);

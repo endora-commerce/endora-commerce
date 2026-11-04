@@ -10,7 +10,7 @@ import { SectionHeading } from './editor/ImmediateBadge.js';
 import { BooleanControl, SelectControl, TextControl } from './editor/scoped-controls.js';
 
 /**
- * Feature 170 (T101, T147; `contracts/editor-ui.md` §3, §4, §11) — the product's images at the
+ * Feature 172 (T101, T147; `contracts/editor-ui.md` §3, §4, §11) — the product's images at the
  * editor scope.
  *
  * The image set and its order are Global: adding, removing and reordering run at once as their

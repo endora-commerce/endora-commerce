@@ -5,7 +5,7 @@ import { setupBackendServer, teardownBackendServer, type BackendServerHandle } f
 import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
 
 /**
- * Feature 170 (`specs/170-product-editor-scope-switcher/` T120; FR-093, `contracts/seo-ports.md` §4,
+ * Feature 172 (`specs/172-product-editor-scope-switcher/` T120; FR-093, `contracts/seo-ports.md` §4,
  * research R9, R21):
  *
  * - `GET /api/v1/admin/seo/meta/product/:id` is a static route on `catalog:read`, at G, C and C×L,
@@ -15,7 +15,7 @@ import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
  * - the generic `PUT` / `DELETE …/seo/meta/product/:id` is refused `422 VALIDATION_FAILED`:
  *   product SEO is written only through catalog's save (one audit path, FR-094).
  */
-describe('170 — the product SEO read on catalog:read [contract]', () => {
+describe('172 — the product SEO read on catalog:read [contract]', () => {
   let h: BackendServerHandle;
   const run = randomUUID().slice(0, 8);
   const READER = `stub-seo-catalog-reader-${run}`;
@@ -52,7 +52,7 @@ describe('170 — the product SEO read on catalog:read [contract]', () => {
     ] as const) {
       await sql(
         `insert into sales_channels (id, code, name, default_language, languages, currencies, default_currency, active, created_at, updated_at)
-         values (?, ?, '{"en-US":"170 seo read"}'::jsonb, 'pl-PL', '["pl-PL"]'::jsonb, '["PLN"]'::jsonb, 'PLN', true, now(), now())`,
+         values (?, ?, '{"en-US":"172 seo read"}'::jsonb, 'pl-PL', '["pl-PL"]'::jsonb, '["PLN"]'::jsonb, 'PLN', true, now(), now())`,
         [id, code],
       );
     }

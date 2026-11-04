@@ -3,12 +3,12 @@ import { setupBackendServer, teardownBackendServer, type BackendServerHandle } f
 import { scopedValuesFixture, type ScopedValuesFixture } from '../../helpers/scoped-values-fixture.js';
 
 /**
- * Feature 170, US2 (T032; FR-011, FR-012, data-model §6–§7) — the family values through the one
+ * Feature 172, US2 (T032; FR-011, FR-012, data-model §6–§7) — the family values through the one
  * save: gallery alt text and hide image, gallery roles (an empty role = no image holds it),
  * attachment name / description / hidden and the packaging-unit name, each at Global, Channel and
  * Channel × language; hidden at Global; a role holder hidden at (C, L) holds the role for nobody.
  */
-describe('170 US2 — gallery, attachment and packaging values at G, C and C×L (T032)', () => {
+describe('172 US2 — gallery, attachment and packaging values at G, C and C×L (T032)', () => {
   let h: BackendServerHandle;
   let fx: ScopedValuesFixture;
   let channel: string;

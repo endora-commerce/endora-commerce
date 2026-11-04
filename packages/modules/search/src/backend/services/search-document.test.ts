@@ -9,7 +9,7 @@ import {
 } from './search-document.js';
 
 /**
- * Feature 170 (`specs/170-product-editor-scope-switcher/contracts/search-index.md` §1–§3, FR-033)
+ * Feature 172 (`specs/172-product-editor-scope-switcher/contracts/search-index.md` §1–§3, FR-033)
  * — a channel index document carries, for **every language the channel offers**, the product's
  * texts effective at (channel, language) along C×L → C → Global; a query in language L searches
  * `texts.<L>.*` only, so a Polish shopper never matches the English name.

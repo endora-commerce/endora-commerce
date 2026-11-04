@@ -429,7 +429,7 @@ describe('ProductScopesService.apply — concurrent writes (security review, 163
         return product;
       },
       find: async () => [],
-      // Feature 170 (R7) — the scope_version bump, the write's first statement.
+      // Feature 172 (R7) — the scope_version bump, the write's first statement.
       execute: async () => [{ v: '1' }],
       create: (_entity: unknown, data: Record<string, unknown>) => ({ ...data }),
       persist: () => undefined,

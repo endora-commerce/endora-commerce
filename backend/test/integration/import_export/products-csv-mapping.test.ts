@@ -6,7 +6,7 @@ import { createImportProfile } from '../../helpers/import-profile.js';
 import { createMinimumProduct, minimumFixtureRun, type MinimumProductFixture } from '../../helpers/order-minimum-fixture.js';
 
 /**
- * Feature 170 (`specs/170-product-editor-scope-switcher/` T080; US4 #1–#5, #8; FR-040…FR-043,
+ * Feature 172 (`specs/172-product-editor-scope-switcher/` T080; US4 #1–#5, #8; FR-040…FR-043,
  * FR-047; SC-005; `contracts/import-profiles-and-csv.md` §2) — a products file mapped by an import
  * profile: the source language for Global writes Global, a mapped locale writes its Channel ×
  * language targets and nothing else, an unmapped locale is a run warning naming the locale and the
@@ -19,7 +19,7 @@ import { createMinimumProduct, minimumFixtureRun, type MinimumProductFixture } f
  */
 const ADMIN = { cookies: { b2b_session: 'stub-admin-session' } };
 
-describe('170 — products CSV through an import profile [integration]', () => {
+describe('172 — products CSV through an import profile [integration]', () => {
   let h: BackendServerHandle;
   const RUN = minimumFixtureRun();
   let vipId = '';

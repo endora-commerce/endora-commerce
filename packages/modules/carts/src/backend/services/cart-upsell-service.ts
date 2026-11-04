@@ -116,7 +116,7 @@ export class CartUpsellService {
       products = products.filter((p) => isProductVisibleTo(p, audience));
     }
     const byId = new Map(products.map((p) => [p.id, p]));
-    // Feature 170 (FR-030) — a candidate is named as the basket's (channel, language) shows it.
+    // Feature 172 (FR-030) — a candidate is named as the basket's (channel, language) shows it.
     const names =
       scope && this.availability
         ? await basketNamesAt(this.availability, products.map((p) => p.id), scope.channelId, scope.languageCode)
@@ -161,7 +161,7 @@ export class CartUpsellService {
     return typeof url === 'string' && url.length > 0 ? url : null;
   }
 
-  /** Feature 170 (FR-031) — outside a basket scope, the Global name. */
+  /** Feature 172 (FR-031) — outside a basket scope, the Global name. */
   private globalName(product: CatalogProductRecord): string {
     return product.name || product.id;
   }

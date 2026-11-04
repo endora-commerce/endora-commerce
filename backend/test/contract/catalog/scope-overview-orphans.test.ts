@@ -4,20 +4,20 @@ import { setupBackendServer, teardownBackendServer, type BackendServerHandle } f
 import { ADMIN, scopedValuesFixture, type ScopedValuesFixture } from '../../helpers/scoped-values-fixture.js';
 
 /**
- * Feature 170, US2 (T045; FR-100 backend half, FR-101) — the scope overview on the three-level
+ * Feature 172, US2 (T045; FR-100 backend half, FR-101) — the scope overview on the three-level
  * model, and its orphan deletion.
  *
  * - FR-100: the overview names an override at a cell (C×L) or at the whole channel (C) only —
  *   there is no Language level (`scopeLevelSchema`), and a Channel name is listed at C;
  * - FR-101: every orphan the overview lists can still be removed. 163 removed a value-override
- *   orphan through `PATCH …/value-overrides`, retired by T043; in 170 the removal is an
+ *   orphan through `PATCH …/value-overrides`, retired by T043; in 172 the removal is an
  *   `{ inherit: true }` through `PUT …/scoped-values` at the orphan's own scope — accepted there
  *   for removal only (163 FR-015: removing is always allowed), while a value at that scope is
  *   still `422 SCOPE_INVALID` (FR-017). That covers a channel the product left (`not_a_member`), a
  *   language the channel dropped (`language_not_offered`), an attribute whose scope set lost the
  *   level (`attribute_scope_changed`) and a gallery role held at an orphaned scope.
  */
-describe('170 US2 — scope overview and orphan removal (T045, FR-100, FR-101)', () => {
+describe('172 US2 — scope overview and orphan removal (T045, FR-100, FR-101)', () => {
   let h: BackendServerHandle;
   let fx: ScopedValuesFixture;
   let channel: string;

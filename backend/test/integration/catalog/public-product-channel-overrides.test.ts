@@ -198,7 +198,7 @@ describe('Issue #384 — public product reads honour channel value overrides', (
       [slotId, productId],
     );
 
-    // Feature 170 (T043) — seeded as stored (the 163 value-overrides PATCH is retired).
+    // Feature 172 (T043) — seeded as stored (the 163 value-overrides PATCH is retired).
     await seedScopedValues(h.em().fork(), productId, [
       { field: 'name', scope: { level: 'channel_language', channelId: vipChannelId, languageCode: 'pl-PL' }, value: 'Zestaw hurtowy' },
       { field: 'description', scope: { level: 'channel_language', channelId: vipChannelId, languageCode: 'pl-PL' }, value: 'Opis hurtowy' },
@@ -267,7 +267,7 @@ describe('Issue #384 — public product reads honour channel value overrides', (
     );
   });
 
-  // Feature 170 (FR-013, FR-014): one Global text; a language of the channel without its own
+  // Feature 172 (FR-013, FR-014): one Global text; a language of the channel without its own
   // override shows it (C×L → C → G), and the channel-only attribute override.
   it('the product page in another language of the same channel shows the Global text, and the channel-only attribute override', async () => {
     const detail = await readDetail('pl_b2b_vip', 'en-US');
@@ -284,7 +284,7 @@ describe('Issue #384 — public product reads honour channel value overrides', (
     expect((await readDetail('pl_retail', null)).name).toBe('Zestaw bazowy');
   });
 
-  it('an offered language with no override of its own shows the Global text, never another language\'s override (feature 170)', async () => {
+  it('an offered language with no override of its own shows the Global text, never another language\'s override (feature 172)', async () => {
     // `de-DE` is a language of the channel: its scope is (channel, de-DE), which holds no row, so
     // the chain reaches the Global value — the (channel, pl-PL) override is another scope's.
     const detail = await readDetail('pl_b2b_vip', 'de-DE');
@@ -347,7 +347,7 @@ describe('Issue #384 — public product reads honour channel value overrides', (
   });
 
   it('a related tile shows the name the catalogue card shows at the same (channel, language)', async () => {
-    // Feature 170: the tile resolves at the request's (C, L) — no request language is the channel
+    // Feature 172: the tile resolves at the request's (C, L) — no request language is the channel
     // default's — like the card (163's own language pick, with no channel-default leg, is gone).
     const relatedName = async (language: string | null): Promise<string | undefined> => {
       const res = await h.app.inject({

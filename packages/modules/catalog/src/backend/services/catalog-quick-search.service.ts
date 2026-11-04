@@ -187,7 +187,7 @@ export class CatalogQuickSearchService implements CatalogQuickSearchPort {
       productId: row.id,
       sku: row.sku,
       slug: keys.get(row.id)?.get(languageCode) ?? row.slug,
-      // Feature 170 — the name effective at (C, L) (`contracts/readers.md` §2).
+      // Feature 172 — the name effective at (C, L) (`contracts/readers.md` §2).
       name: row.effective_name,
       status: row.status as CatalogQuickSearchHit['status'],
       matchedOn: matchedOnFor(row, lowered, quickKeys),

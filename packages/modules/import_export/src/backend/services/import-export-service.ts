@@ -34,7 +34,7 @@ import { ordersAdapter } from './adapters/orders.adapter.js';
 export interface ImportReport {
   imported: number;
   errors: Array<{ rowNumber: number; reason: string }>;
-  /** Feature 170 (`import-profiles-and-csv.md` §2.3) — products imports only. */
+  /** Feature 172 (`import-profiles-and-csv.md` §2.3) — products imports only. */
   dryRun?: boolean;
   cellCounts?: BulkImportReport['cellCounts'];
   warnings?: BulkImportReport['warnings'];
@@ -43,7 +43,7 @@ export interface ImportReport {
   truncated?: { errors: number; fieldErrors: number };
 }
 
-/** Feature 170 — how a products run is asked for (`POST …/import/products?profileId=&dryRun=`). */
+/** Feature 172 — how a products run is asked for (`POST …/import/products?profileId=&dryRun=`). */
 export interface ImportRunOptions {
   readonly profileId?: string | undefined;
   readonly dryRun?: boolean | undefined;
@@ -186,7 +186,7 @@ export class ImportExportService {
       }
     }
 
-    // Feature 170 (FR-048) — the profile is required for products and snapshotted at run start:
+    // Feature 172 (FR-048) — the profile is required for products and snapshotted at run start:
     // an edit while the run goes has no effect on it.
     let profile: ImportProfile | undefined;
     if (adapter.requiresProfile === true) {

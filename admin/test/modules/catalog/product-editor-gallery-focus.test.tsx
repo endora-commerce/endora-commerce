@@ -4,7 +4,7 @@ import type { ScopeRef, ScopedValuesResponse } from '@endora-commerce/contracts'
 import { PRODUCT_ID, VALID_SCOPES, api, en, renderEditor, scopedField, scopedValuesResponse, setUpEditorApi } from './product-editor-harness';
 
 /**
- * Feature 170 (design review of block 1, WCAG 2.4.3) — focus after a gallery move or removal.
+ * Feature 172 (design review of block 1, WCAG 2.4.3) — focus after a gallery move or removal.
  * A move keeps focus on the moved image's button for the same direction, or on its other one
  * when the image reached an end; a removal moves focus to the gallery heading. While a move is
  * in flight the buttons are `aria-disabled`, not `disabled`, so focus is not dropped.

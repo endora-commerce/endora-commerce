@@ -127,7 +127,7 @@ export interface LinkableOrder {
 export interface MentionableProduct {
   id: string;
   sku: string;
-  /** Feature 170 (FR-031) — the Global name; the admin catalogue answers no per-language map. */
+  /** Feature 172 (FR-031) — the Global name; the admin catalogue answers no per-language map. */
   name: string;
 }
 

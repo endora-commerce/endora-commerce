@@ -143,7 +143,7 @@ describe('narrowing (pure)', () => {
   });
 });
 
-describe('AttributesManager — the scopable flag (feature 170, FR-012, R15)', () => {
+describe('AttributesManager — the scopable flag (feature 172, FR-012, R15)', () => {
   it('shows the one scopable flag of a user-defined attribute as it is stored', async () => {
     const group = await openEdit();
     expect(within(group).getAllByRole('checkbox')).toHaveLength(1);

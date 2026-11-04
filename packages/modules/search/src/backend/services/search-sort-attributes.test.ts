@@ -18,7 +18,7 @@ import { buildSort } from './search-query.service.js';
  * This is the runtime half of the guarantee; the compile-time half is
  * `buildSort`'s return type, which cannot spell a field outside the constant.
  *
- * Feature 170 (`contracts/search-index.md`) — the name a document sorts by is the one in the
+ * Feature 172 (`contracts/search-index.md`) — the name a document sorts by is the one in the
  * shopper's language, `texts.<L>.name`; the indexer declares it for every channel language.
  */
 const L = 'pl-PL';

@@ -134,9 +134,9 @@ describe('import_export routes — gates', () => {
 });
 
 /**
- * C2/C3 code review (warn 2) — feature 170 raised the import body cap to 10 MiB for the products
+ * C2/C3 code review (warn 2) — feature 172 raised the import body cap to 10 MiB for the products
  * file. It is the products route's alone: every other entity keeps the server's default limit,
- * as before 170.
+ * as before 172.
  */
 describe('import body limit', () => {
   it('is 10 MiB on the products import and the server default on every other entity', async () => {

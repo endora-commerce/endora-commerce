@@ -6,12 +6,12 @@ import { setupBackendServer, teardownBackendServer, type BackendServerHandle } f
 import { ADMIN, scopedValuesFixture, type ScopedValuesFixture } from '../../helpers/scoped-values-fixture.js';
 
 /**
- * Feature 170, US7 (T104; FR-071, FR-073, FR-076, SC-007) — a Save is all or nothing. A failure
+ * Feature 172, US7 (T104; FR-071, FR-073, FR-076, SC-007) — a Save is all or nothing. A failure
  * injected before each family writer (through the Command's test seam), a late `URL_KEY_TAKEN`
  * from the URL-key step, and a refuse-mode completeness gate each leave the product exactly as it
  * was: no row written, no audit entry, no `product.updated.v1`.
  */
-describe('170 US7 — the Save is atomic (T104)', () => {
+describe('172 US7 — the Save is atomic (T104)', () => {
   let h: BackendServerHandle;
   let fx: ScopedValuesFixture;
   let channel: string;

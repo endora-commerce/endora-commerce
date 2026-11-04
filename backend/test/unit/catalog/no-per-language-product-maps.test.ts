@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 /**
- * Feature 170 / T048 — the regression guard of FR-034 (`contracts/readers.md` §3, SC-003).
+ * Feature 172 / T048 — the regression guard of FR-034 (`contracts/readers.md` §3, SC-003).
  *
  * After the scope-model migration a product's name, description, alt text, attachment and
  * packaging-unit texts are one Global string plus scoped override rows; the per-language maps
@@ -66,7 +66,7 @@ const IDENTIFIERS = [
   'description_translations',
 ];
 /** §3 — literal markers that are not identifiers. */
-const LITERALS = ['global+language', '170-shim'];
+const LITERALS = ['global+language', '172-shim'];
 
 /** §3 — patterns on product shapes. */
 const PRODUCT_INDEX = /\b(product|p|item|hit|record|row)\??\.(name|description)\??\[/;
@@ -130,7 +130,7 @@ function walk(repoRoot: string): string[] {
     .filter(inPopulation);
 }
 
-describe('no per-language product maps (feature 170, FR-034)', () => {
+describe('no per-language product maps (feature 172, FR-034)', () => {
   const repoRoot = path.resolve(__dirname, '..', '..', '..', '..');
   const files = walk(repoRoot);
   const sites = files.flatMap((file) => scan(file, readFileSync(path.join(repoRoot, file), 'utf8')));
@@ -146,7 +146,7 @@ describe('no per-language product maps (feature 170, FR-034)', () => {
     const offenders = sites.filter((site) => !allowed.has(site.file));
     if (offenders.length > 0) {
       throw new Error(
-        `Feature 170 / FR-034 — per-language product structures read outside the allow-list:\n` +
+        `Feature 172 / FR-034 — per-language product structures read outside the allow-list:\n` +
           offenders.map((s) => `  - ${s.file}:${s.line} [${s.rule}] ${s.text}`).join('\n') +
           `\n\nRead the effective (channel, language) text through catalogProductAvailabilityPort ` +
           `.effectiveTexts / .effectivePackagingUnitNames, or the Global string where there is no ` +
@@ -160,7 +160,7 @@ describe('no per-language product maps (feature 170, FR-034)', () => {
     const stale = ALLOWLIST.filter((entry) => !filesWithSites.includes(entry.file));
     if (stale.length > 0) {
       throw new Error(
-        `Feature 170 / FR-034 — allow-list entries that describe nothing:\n` +
+        `Feature 172 / FR-034 — allow-list entries that describe nothing:\n` +
           stale.map((entry) => `  - ${entry.file} (${entry.reason})`).join('\n') +
           `\n\nThe file no longer reads a map — delete the entry — or it moved: re-point it.`,
       );

@@ -5,7 +5,7 @@ import { withModuleOff } from '../../helpers/off-state.js';
 import { scopedValuesFixture, type ScopedValuesFixture } from '../../helpers/scoped-values-fixture.js';
 
 /**
- * Feature 170, US10 (T122; FR-090…FR-092, Principle XVII) — the editor's SEO block on
+ * Feature 172, US10 (T122; FR-090…FR-092, Principle XVII) — the editor's SEO block on
  * `GET …/scoped-values`, and `seo` switched off:
  *
  * - with `seo` on, the read carries `seo`'s view of the five fields at the read's scope
@@ -15,7 +15,7 @@ import { scopedValuesFixture, type ScopedValuesFixture } from '../../helpers/sco
  * - a save **with** SEO while `seo` is off is `503 MODULE_DISABLED` and writes nothing (save
  *   step 8 resolves `seoProductMetaWritePort`, `refuses-without`).
  */
-describe('170 US10 — the SEO block of the scoped read, and seo off (T122)', () => {
+describe('172 US10 — the SEO block of the scoped read, and seo off (T122)', () => {
   let h: BackendServerHandle;
   let fx: ScopedValuesFixture;
   let channel: string;

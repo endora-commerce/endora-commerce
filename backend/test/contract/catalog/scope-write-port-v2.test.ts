@@ -10,7 +10,7 @@ import { setupBackendServer, teardownBackendServer, type BackendServerHandle } f
 import { scopedValuesFixture, type ScopedValuesFixture } from '../../helpers/scoped-values-fixture.js';
 
 /**
- * Feature 170, US4 (T077; `contracts/pim-locale-mapping.md` §4, R13a, R21; FR-044, US4 #6) — the
+ * Feature 172, US4 (T077; `contracts/pim-locale-mapping.md` §4, R13a, R21; FR-044, US4 #6) — the
  * connector's scoped write, `catalogProductScopeWritePort.applyScopes` v2:
  *
  * - only the named (field, scope) cells are touched — a Global-only write keeps every operator
@@ -30,7 +30,7 @@ import { scopedValuesFixture, type ScopedValuesFixture } from '../../helpers/sco
  * - a URL key goes through the URL-key service in `integration` mode: a held key is reported,
  *   never taken over.
  */
-describe('170 US4 — catalogProductScopeWritePort v2 (T077)', () => {
+describe('172 US4 — catalogProductScopeWritePort v2 (T077)', () => {
   let h: BackendServerHandle;
   let fx: ScopedValuesFixture;
   let channel: string;
@@ -42,7 +42,7 @@ describe('170 US4 — catalogProductScopeWritePort v2 (T077)', () => {
   const port = () =>
     (h.container.cradle as unknown as { catalogProductScopeWritePort: CatalogProductScopeWritePort }).catalogProductScopeWritePort;
   const apply = (productId: string, cells: ProductScopedWriteCell[], source = SOURCE) =>
-    withSystemScope('170 scope write port v2 test', () => port().applyScopes(productId, { cells }, { source }));
+    withSystemScope('172 scope write port v2 test', () => port().applyScopes(productId, { cells }, { source }));
 
   const G = { level: 'global' } as const;
   const C = () => ({ level: 'channel', channelId: channel }) as const;

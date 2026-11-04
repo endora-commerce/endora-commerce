@@ -51,7 +51,7 @@ describe('price books — attribute eligibility', () => {
     await expect(everyoneRow(['material', 'steel'])).rejects.toMatchObject({ statusCode: 400 });
   });
 
-  it('refuses a row on a scopable attribute (170: one flag)', async () => {
+  it('refuses a row on a scopable attribute (172: one flag)', async () => {
     await setFlags('material', { isPriceRule: true, scopable: true });
     await expect(everyoneRow(['material', 'steel'])).rejects.toMatchObject({ statusCode: 400 });
   });

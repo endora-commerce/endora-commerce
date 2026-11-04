@@ -1,6 +1,6 @@
 # Data model: three-level product scope model
 
-**Feature**: `specs/170-product-editor-scope-switcher/` | Decisions: `research.md` (R#). Replaces the parts of
+**Feature**: `specs/172-product-editor-scope-switcher/` | Decisions: `research.md` (R#). Replaces the parts of
 `specs/163-product-data-scopes/data-model.md` named per section below; 163's sections not named here stand.
 
 Every catalog and seo table here is **platform-global** (`@GlobalEntity()`), as `products` is (163 FR-083,
@@ -32,7 +32,7 @@ for every member channel C and every L in C's languages (163 FR-014, `toScopeCha
 
 ## 1. `products` (catalog) — migration `scope_model_texts`
 
-| Column | Before (163) | After (170) |
+| Column | Before (163) | After (172) |
 | --- | --- | --- |
 | `name` | jsonb `{lang: text}` | `text not null` — the Global name (FR-014) |
 | `description` | jsonb `{lang: text}` | `text null` — the Global description; `null` = none |
@@ -274,7 +274,7 @@ Emptied by `scope_model_texts` (the old `null` language meant "primary admin lan
 | --- | --- | --- | --- |
 | `id` | uuid | no | PK |
 | `name` | varchar(120) | no | unique index on `lower(name)`, raw SQL in the migration (no `@Unique` in the entity) |
-| `entity` | varchar(32) | no | `'products'` (CHECK) — the only entity with a mapping in 170 |
+| `entity` | varchar(32) | no | `'products'` (CHECK) — the only entity with a mapping in 172 |
 | `source_language_for_global` | varchar(16) | yes | the source locale written to Global (FR-047); `null` = none |
 | `locale_mapping` | jsonb | no | `pimLocaleMappingEntriesSchema` — `[{ sourceLocale, sourceChannel, targets: [{ channelId, languageCode }] }]` |
 | `created_at`, `updated_at` | timestamptz | no | |

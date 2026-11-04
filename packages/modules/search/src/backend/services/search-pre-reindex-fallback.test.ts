@@ -5,7 +5,7 @@ import { ANONYMOUS_PRODUCT_AUDIENCE, type CatalogProductReadPort } from '@endora
 import { SearchQueryService } from './search-query.service.js';
 
 /**
- * Feature 170 (`contracts/search-index.md` §2; C2/C3 security review, note 4) — an index not yet
+ * Feature 172 (`contracts/search-index.md` §2; C2/C3 security review, note 4) — an index not yet
  * reindexed after the upgrade does not know the `texts.<L>.*` fields, so the query is asked again
  * without `attributesToSearchOn` (every field). That fallback is logged, and it stays inside the
  * one channel's index: both requests name the same index, never another channel's.

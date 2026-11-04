@@ -180,7 +180,7 @@ export async function assertCartChangeMeetsMinimums(
     product: CatalogProductRecord | null;
     language?: string | undefined;
     /**
-     * Feature 170 (FR-030) — the product's effective name at the basket's (channel, language),
+     * Feature 172 (FR-030) — the product's effective name at the basket's (channel, language),
      * which the refusal names it by; absent (no channel), the Global name.
      */
     productName?: string | undefined;
@@ -384,7 +384,7 @@ export async function assertCartMeetsMinimums(
      */
     availableOnly: (products: CatalogProductRecord[]) => Promise<CatalogProductRecord[]>;
     /**
-     * Feature 170 (FR-030) — the effective names at the basket's (channel, language) of the
+     * Feature 172 (FR-030) — the effective names at the basket's (channel, language) of the
      * products a refusal names; absent (no channel), the Global names.
      */
     namesAt?: (productIds: readonly string[]) => Promise<ReadonlyMap<string, string>>;

@@ -191,7 +191,7 @@ export async function registerQuickOrderRoutes(
         productId: hit.productId,
         sku: hit.sku,
         // Feature 163 (FR-017 a) — the Name the storefront shows here.
-        // Feature 170 — `hit.name` is the effective string at the search's (C, L).
+        // Feature 172 — `hit.name` is the effective string at the search's (C, L).
         name: hit.name || hit.sku,
         slug: hit.slug,
         status: hit.status,

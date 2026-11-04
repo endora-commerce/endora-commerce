@@ -6,9 +6,9 @@ import { zoneComponent, type AdminContributions } from '@endora-commerce/admin-k
 import { CH_RETAIL, PRODUCT_ID, en, renderEditor, setUpEditorApi } from './product-editor-harness';
 
 /**
- * Feature 170 (T133, FR-106) — the `product.editor.field.after` zone at the editor scope. The
+ * Feature 172 (T133, FR-106) — the `product.editor.field.after` zone at the editor scope. The
  * host passes `scope` and `languageCodes: null` (protection is whole-field, FR-046); a
- * contributor written before 170, which reads neither, still renders under every field.
+ * contributor written before 172, which reads neither, still renders under every field.
  */
 
 vi.mock('@endora-commerce/admin-kit/lib', async () => {
@@ -19,12 +19,12 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
 
 const { ProductEditor } = await import('../../../../packages/modules/catalog/src/admin/pages/ProductEditor');
 
-/** A pre-170 contributor: reads `productId` and `fieldPath` only. */
+/** A pre-172 contributor: reads `productId` and `fieldPath` only. */
 function LegacyProbe({ productId, fieldPath }: { productId: string; fieldPath: string }): ReactNode {
   return <span data-testid={`legacy-${fieldPath}`}>{`legacy ${productId.slice(0, 4)} ${fieldPath}`}</span>;
 }
 
-/** A 170 contributor: reports the scope and the locale set it was handed. */
+/** A 172 contributor: reports the scope and the locale set it was handed. */
 function ScopeProbe(props: ProductEditorFieldZoneProps): ReactNode {
   const scope = props.scope;
   const where = !scope ? 'none' : scope.level === 'channel_language' ? `cl:${scope.channelId}:${scope.languageCode}` : scope.level;
@@ -42,7 +42,7 @@ const REGISTRY = [{ moduleId: 'catalog', contributions: CONTRIBUTIONS }];
 beforeEach(() => setUpEditorApi());
 afterEach(() => cleanup());
 
-describe('the field zone at the editor scope (feature 170, T133, FR-106)', () => {
+describe('the field zone at the editor scope (feature 172, T133, FR-106)', () => {
   it('at Global: a contributor ignoring scope renders under Name and Description; the host passes scope and languageCodes null', async () => {
     renderEditor(ProductEditor, { url: `/catalog/products/${PRODUCT_ID}?scope=global`, contributions: REGISTRY });
     await screen.findByLabelText(en['productEditor.field.name']!);
@@ -51,7 +51,7 @@ describe('the field zone at the editor scope (feature 170, T133, FR-106)', () =>
     expect(await screen.findByTestId('scope-name')).toHaveTextContent('global locales=null');
   });
 
-  it('at Channel × language: the same contributor still renders, and the scope reaches the 170 one', async () => {
+  it('at Channel × language: the same contributor still renders, and the scope reaches the 172 one', async () => {
     renderEditor(ProductEditor, {
       url: `/catalog/products/${PRODUCT_ID}?scope=cl&channel=${CH_RETAIL}&language=pl-PL`,
       contributions: REGISTRY,

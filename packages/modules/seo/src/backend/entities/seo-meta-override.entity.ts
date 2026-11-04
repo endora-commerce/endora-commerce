@@ -14,7 +14,7 @@ import { randomUUID } from 'crypto';
  * (`meta_override_channel_scope`), which no decorator expresses, and a check
  * that at least one half is set. Only products take a channel.
  *
- * Feature 170 (`specs/170-product-editor-scope-switcher/data-model.md` §8) — a **product** row
+ * Feature 172 (`specs/172-product-editor-scope-switcher/data-model.md` §8) — a **product** row
  * sits at Global (neither half), Channel (`salesChannelId` only) or Channel × language (both);
  * there is no Language-only product row any more (FR-010), and the scope check of
  * `product_meta_three_levels` refuses one. Category and CMS-page rows keep their language rows.

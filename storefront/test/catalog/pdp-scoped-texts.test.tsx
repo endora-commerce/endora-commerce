@@ -4,7 +4,7 @@ import { GallerySwitcher } from '../../components/GallerySwitcher';
 import { AttachmentsList } from '../../components/AttachmentsList';
 
 /**
- * Feature 170 (`specs/170-product-editor-scope-switcher/` T061; FR-013, FR-030, round 6) — the
+ * Feature 172 (`specs/172-product-editor-scope-switcher/` T061; FR-013, FR-030, round 6) — the
  * product page renders the texts `catalog` resolved at the request's (channel, language) as they
  * come. The one rule the page itself owns is the image alt text:
  *

@@ -7,7 +7,7 @@ import type {
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
 
 /**
- * The admin's reads and writes of import profiles (feature 170,
+ * The admin's reads and writes of import profiles (feature 172,
  * `contracts/import-profiles-and-csv.md` §1 and §4) and of the channel × language targets a
  * mapping row may name. Every profile route is gated `catalog:write`, and so is the channel read:
  * it is this module's own `GET …/import-export/channel-targets` (owner decision 2026-11-03), so an

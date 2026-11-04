@@ -7,7 +7,7 @@ import { ProductVariant } from '../entities/product-variant.entity.js';
 /**
  * The rules a write of a product's Global-only fields holds, whichever route carries it: the
  * product `PATCH` (`CatalogAdminService`) and the scoped save (`product.scoped_values.save`,
- * feature 170, C2/C3 code review 1). Each rule answers what is wrong and leaves the refusal's
+ * feature 172, C2/C3 code review 1). Each rule answers what is wrong and leaves the refusal's
  * shape to its caller, because the two routes answer in their own contracts' error shapes. Every
  * query runs on the caller's `em`, inside the caller's transaction.
  */

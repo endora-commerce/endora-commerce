@@ -5,12 +5,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { setupBackendServer, teardownBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
 
 /**
- * Feature 170 (`specs/170-product-editor-scope-switcher/` T057; FR-013 round-6 exceptions,
+ * Feature 172 (`specs/172-product-editor-scope-switcher/` T057; FR-013 round-6 exceptions,
  * US10 #4, `contracts/readers.md` §1 `seo` row) — the derived metadata at (C, L) is the
  * product's effective text there (C×L → C → G, `effectiveTexts`), not its Global text; and an
  * empty SEO title or description override yields the derived value, never a blank tag.
  */
-describe('170 — derived SEO metadata at (C, L) [integration]', () => {
+describe('172 — derived SEO metadata at (C, L) [integration]', () => {
   let h: BackendServerHandle;
   const run = randomUUID().slice(0, 8);
   const productId = randomUUID();
@@ -30,7 +30,7 @@ describe('170 — derived SEO metadata at (C, L) [integration]', () => {
     h = await setupBackendServer();
     await sql(
       `insert into sales_channels (id, code, name, default_language, languages, currencies, default_currency, active, created_at, updated_at)
-       values (?, ?, '{"en-US":"170 derived meta"}'::jsonb, 'pl-PL', '["pl-PL","en-US"]'::jsonb, '["PLN"]'::jsonb, 'PLN', true, now(), now())`,
+       values (?, ?, '{"en-US":"172 derived meta"}'::jsonb, 'pl-PL', '["pl-PL","en-US"]'::jsonb, '["PLN"]'::jsonb, 'PLN', true, now(), now())`,
       [channelId, `sc170d-${run}`],
     );
     await sql(

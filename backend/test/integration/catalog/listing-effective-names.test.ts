@@ -143,7 +143,7 @@ describe('163 — listing over effective names [integration]', () => {
           filtered[0]!.id,
           filtered[1]!.id,
         ]);
-      // Feature 170 (T043) — seeded as stored (the 163 value-overrides PATCH is retired).
+      // Feature 172 (T043) — seeded as stored (the 163 value-overrides PATCH is retired).
       await seedScopedValues(h.em().fork(), filtered[1]!.id, [
         { field: `attribute:${attributeKey}`, scope: { level: 'channel', channelId: vipId }, value: 'Gloss' },
       ]);

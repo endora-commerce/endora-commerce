@@ -16,7 +16,7 @@ import { ImmediateBadge, GlobalOnlyBadge } from './editor/ImmediateBadge.js';
  * Feature 155 (US2, FR-002) — each unit also carries an optional minimum number of that
  * unit per order (`minOrderUnits`), edited in its own column; empty clears it.
  *
- * Feature 170 (T101, T147; `contracts/editor-ui.md` §3, §11) — a unit's name is a scoped value
+ * Feature 172 (T101, T147; `contracts/editor-ui.md` §3, §11) — a unit's name is a scoped value
  * (`packagingUnit:<id>:name`) rendered by the host through `renderName` and saved with the
  * editor's one Save; everything else here (add, remove, reorder, base quantity, minimum,
  * default) runs at once as its own audited Command ("Applies immediately"), at Global only.

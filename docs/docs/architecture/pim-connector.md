@@ -129,7 +129,7 @@ price.<price-list-uuid>.<currency>
 category.<category-uuid>
 ```
 
-A path names a **whole field**. Since feature 170 a protection keeps every scope of the field —
+A path names a **whole field**. Since feature 172 a protection keeps every scope of the field —
 Global, each channel and each channel × language — so the locale and channel segments of the
 earlier grammar (`name.<locale>`, `attribute.<key>.<channel-uuid>.<locale>`,
 `seo.metaTitle.<locale>`) are outside it.

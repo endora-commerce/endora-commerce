@@ -85,7 +85,7 @@ export interface ProductAttributeRow {
   isPriceRule: Opt<boolean>;
   filterPosition: Opt<number>;
   isVisibleOnProductPage: Opt<boolean>;
-  /** Feature 170 (R15) — one scope flag. */
+  /** Feature 172 (R15) — one scope flag. */
   scopable: Opt<boolean>;
   massEditable: Opt<boolean>;
   createdAt: Opt<Date>;

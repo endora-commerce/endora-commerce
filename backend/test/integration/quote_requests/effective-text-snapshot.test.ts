@@ -11,7 +11,7 @@ import { clearValueOverrides } from '../../helpers/product-scope-fixture.js';
 import { seedScopedValues } from '../../helpers/scoped-values.js';
 
 /**
- * Feature 170 (`specs/170-product-editor-scope-switcher/` T052; FR-030, FR-032, US3 #1, #3) — a
+ * Feature 172 (`specs/172-product-editor-scope-switcher/` T052; FR-030, FR-032, US3 #1, #3) — a
  * quote-request line snapshots the product name and the packaging-unit name at the request's
  * (channel, language) along C×L → C → Global, keeps both after the overrides change, and a
  * Polish request on another channel snapshots the Global strings. A minimum refusal names the
@@ -22,7 +22,7 @@ const BUYER = { b2b_session: 'stub-customer-session' };
 type Code = 'pl_retail' | 'pl_b2b_vip';
 const on = (code: Code): Record<string, string> => ({ 'x-sales-channel': code, 'accept-language': 'pl-PL' });
 
-describe('170 — quote-request line snapshots at the request (channel, language) [integration]', () => {
+describe('172 — quote-request line snapshots at the request (channel, language) [integration]', () => {
   let h: BackendServerHandle;
   const RUN = minimumFixtureRun();
   let drill: MinimumProductFixture;

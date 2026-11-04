@@ -10,7 +10,7 @@ import type { SeoMetaOverride } from '../entities/seo-meta-override.entity.js';
  */
 
 describe('buildRuleMeta', () => {
-  // Feature 170: the rule builder reads the product's name and description as one string each;
+  // Feature 172: the rule builder reads the product's name and description as one string each;
   // the resolver hands it the effective texts at (C, L) (`effectiveTexts`, T121).
   it('derives the product rule from the Global texts', () => {
     const product = { name: 'Polska nazwa', description: 'Polski opis' } as unknown as CatalogProductRecord;
@@ -44,7 +44,7 @@ describe('buildRuleMeta', () => {
 });
 
 /**
- * Feature 163 (T114, T117a), rewritten by 170 — the per-field walk channel × language →
+ * Feature 163 (T114, T117a), rewritten by 172 — the per-field walk channel × language →
  * channel → Global → derived, and the addressing rule of a request. The `[PG]` cases are in
  * `backend/test/contract/seo/product-meta-read-relaxed.test.ts` (route, scope refusals) and
  * `backend/test/integration/seo/product-meta-three-levels-migration.test.ts` (the table's shapes).
@@ -58,7 +58,7 @@ function row(fields: Partial<SeoMetaOverride>): SeoMetaOverride {
 
 const fallback = { title: 'Derived', description: 'Derived d', ogTitle: 'Derived og', ogDescription: 'Derived ogd', ogImageUrl: null };
 
-// Feature 170 (FR-010) — C×L → C → Global → derived; a locale-only row is never read.
+// Feature 172 (FR-010) — C×L → C → Global → derived; a locale-only row is never read.
 describe('walkSeoScopes', () => {
   const rows = [
     row({ salesChannelId: C1, locale: 'pl-PL', title: 'CxL' }),
@@ -88,7 +88,7 @@ describe('walkSeoScopes', () => {
   });
 });
 
-describe('walkSeoScopes — empty overrides (170, owner round 6)', () => {
+describe('walkSeoScopes — empty overrides (172, owner round 6)', () => {
   it('an empty override stops the fallback and yields the derived value', () => {
     const rows = [row({ salesChannelId: C1, locale: 'pl-PL', title: '' }), row({ title: 'G', description: '' })];
     const walked = walkSeoScopes(rows, C1, 'pl-PL', fallback);
@@ -106,7 +106,7 @@ describe('walkSeoScopes — empty overrides (170, owner round 6)', () => {
 });
 
 describe('seoMetaAddress', () => {
-  it('reads a product request naming neither half as the Global row (170, FR-010)', () => {
+  it('reads a product request naming neither half as the Global row (172, FR-010)', () => {
     expect(seoMetaAddress({ entityType: 'product', entityId: 'p' })).toEqual({
       entityType: 'product',
       entityId: 'p',
@@ -115,7 +115,7 @@ describe('seoMetaAddress', () => {
     });
   });
 
-  it('refuses a product Language-only address: there is no Language scope (170, FR-010)', () => {
+  it('refuses a product Language-only address: there is no Language scope (172, FR-010)', () => {
     expect(() => seoMetaAddress({ entityType: 'product', entityId: 'p', locale: 'pl-PL' })).toThrow(
       expect.objectContaining({ statusCode: 422 }),
     );

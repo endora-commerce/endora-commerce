@@ -345,7 +345,7 @@ export async function registerSeoRoutes(
   // channel → language → the rule), `sources` says which scope each field came
   // from; `override` is the row at exactly the address.
 
-  // Feature 170 (FR-093, `contracts/seo-ports.md` §4) — a product's metadata at one scope, on
+  // Feature 172 (FR-093, `contracts/seo-ports.md` §4) — a product's metadata at one scope, on
   // `catalog:read`: whoever may read the product may read its SEO. A static route, so Fastify
   // answers it before the parametric one below, which stays on `catalog:write` for categories
   // and CMS pages. The scope is the editor's (`scoped-values-api.md` §1): neither half = Global,
@@ -466,7 +466,7 @@ export async function registerSeoRoutes(
 }
 
 /**
- * Feature 170 (R21, FR-094) — product metadata is written only through `catalog`'s save, which
+ * Feature 172 (R21, FR-094) — product metadata is written only through `catalog`'s save, which
  * carries it to `seoProductMetaWritePort` inside its own Command: one audit path for a product. The
  * generic editor keeps writing category and CMS-page rows.
  */

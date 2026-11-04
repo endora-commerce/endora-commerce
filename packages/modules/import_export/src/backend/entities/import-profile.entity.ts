@@ -4,7 +4,7 @@ import type { PimLocaleMappingEntry } from '@endora-commerce/contracts';
 import { randomUUID } from 'node:crypto';
 
 /**
- * A named locale mapping a products import runs with (`specs/170-product-editor-scope-switcher/`
+ * A named locale mapping a products import runs with (`specs/172-product-editor-scope-switcher/`
  * `data-model.md` §11, research R14; FR-048).
  *
  * Platform-global configuration (Principle XI): a profile describes how a source file's locales

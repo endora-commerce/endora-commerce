@@ -18,7 +18,7 @@ import {
 } from '../commands/import-profile.commands.js';
 
 /**
- * Import profiles (`specs/170-product-editor-scope-switcher/contracts/import-profiles-and-csv.md`
+ * Import profiles (`specs/172-product-editor-scope-switcher/contracts/import-profiles-and-csv.md`
  * §1; FR-048). Reads go straight to the module's own table; every write is a Command
  * (Constitution XIII). Profiles are platform-global — any `catalog:write` admin may edit any.
  */

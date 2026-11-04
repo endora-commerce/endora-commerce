@@ -240,7 +240,7 @@ describe('155 — a refused order request leaves the basket alone and names the 
     });
   });
 
-  // Feature 170 (FR-030) — the sentence follows the request's language; the product is named by
+  // Feature 172 (FR-030) — the sentence follows the request's language; the product is named by
   // its effective text at the basket's (channel, language). The system-default channel offers
   // en-US alone, so a Polish request reads the en-US text there: the Global name, A.nameEn.
   describe('D3/D4 — the sentence in the request language, the product named at the basket scope', () => {

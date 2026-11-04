@@ -258,7 +258,7 @@ const SUBJECTS: readonly Subject[] = [
     // A host and nothing else: this module contributes to no zone.
     zones: [],
     mounts: [
-      // Feature 170 moved the Details tab into its own component.
+      // Feature 172 moved the Details tab into its own component.
       ['catalog/src/admin/components/editor/DetailsTab.tsx', 'product.editor.details.before', 1],
       ['catalog/src/admin/components/editor/DetailsTab.tsx', 'product.editor.field.after', 3],
       ['catalog/src/admin/pages/ProductEditor.tsx', 'product.editor.field.after', 2],
@@ -911,7 +911,7 @@ describe('the routes that tighten say so in their own declarations', () => {
     // one-click shortfall. Asserted here, beside the route it belongs to,
     // because the two are one decision.
     //
-    // Feature 170 split the create form out of the editor (`ProductCreateForm.tsx`); its mount
+    // Feature 172 split the create form out of the editor (`ProductCreateForm.tsx`); its mount
     // effect is the loader now, and it reads both lists on every mount.
     const loader = sourceOf('../packages/modules/catalog/src/admin/pages/ProductCreateForm.tsx');
     const unconditional = loader.slice(loader.indexOf('useEffect(() => {'), loader.indexOf('const submit'));

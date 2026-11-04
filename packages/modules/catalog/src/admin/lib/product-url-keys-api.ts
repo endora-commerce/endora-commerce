@@ -8,7 +8,7 @@ import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
 /**
  * Feature 163 (US7; `contracts/url-keys-and-redirects.md` §1–§3) — the product's redirects
  * (`…/url-keys`, `…/url-redirects/:id`) and the URL-key refusals in the operator's words.
- * Feature 170: the key itself is written by the editor's one Save (`PUT …/scoped-values`).
+ * Feature 172: the key itself is written by the editor's one Save (`PUT …/scoped-values`).
  */
 
 export type ProductUrlKeys = ProductUrlKeysResponse['data'];

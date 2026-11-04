@@ -1,5 +1,5 @@
 /**
- * Feature 022, rewritten by feature 170 (`specs/170-product-editor-scope-switcher/`, research R1) —
+ * Feature 022, rewritten by feature 172 (`specs/172-product-editor-scope-switcher/`, research R1) —
  * the product value resolver over `product_value_overrides` rows.
  *
  * The fallback chain is {@link resolveScoped}'s — C×L → C → G, restricted to the field's scope
@@ -21,7 +21,7 @@ import {
 } from './product-scope-model.js';
 
 /**
- * An attribute's scope flag (feature 170, R15): a scopable attribute may carry Channel and — for
+ * An attribute's scope flag (feature 172, R15): a scopable attribute may carry Channel and — for
  * text — Channel × language overrides. The levels derive from the flag and the value type
  * (`attributeScopeSet`).
  */

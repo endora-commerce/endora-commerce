@@ -67,7 +67,7 @@ describe('productSlugSchema', () => {
   });
 });
 
-describe('putProductUrlKeysRequestSchema (170: Channel and Channel × language keys)', () => {
+describe('putProductUrlKeysRequestSchema (172: Channel and Channel × language keys)', () => {
   it('accepts a Channel key, a Channel × language key, {inherit:true} and a takeover confirmation', () => {
     const parsed = putProductUrlKeysRequestSchema.safeParse({
       globalKey: 'drill',

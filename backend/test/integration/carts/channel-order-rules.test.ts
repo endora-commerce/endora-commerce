@@ -60,7 +60,7 @@ describe('163 — order rules per channel: the minimum (T082) [integration]', ()
   const conn = () => h.em().getConnection();
 
   /**
-   * The channel's own minimum, or `null` = the channel inherits the Global one. Feature 170
+   * The channel's own minimum, or `null` = the channel inherits the Global one. Feature 172
    * (data-model §4): an own value carries `min_order_quantity_overridden`; an inheriting row
    * carries neither.
    */

@@ -4,13 +4,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { setupBackendServer, teardownBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
 
 /**
- * Feature 170 (C2/C3 code review 1, `product-global-field-rules.ts`) — the product `PATCH` holds
+ * Feature 172 (C2/C3 code review 1, `product-global-field-rules.ts`) — the product `PATCH` holds
  * the same existence rules as the scoped save for the Global-only fields it carries: an attribute
  * set or a category that does not exist (or is deleted) is a `400 VALIDATION_FAILED` naming what
  * is missing, and nothing on the product changes. Before, both reached the database's foreign key
  * and answered 500.
  */
-describe('170 — PATCH /products/:id checks attribute set and categories exist [contract]', () => {
+describe('172 — PATCH /products/:id checks attribute set and categories exist [contract]', () => {
   let h: BackendServerHandle;
   const cookies = { b2b_session: 'stub-admin-session' };
   const run = randomUUID().slice(0, 8);

@@ -7,7 +7,7 @@ import { Alert, AlertDescription, Button, Checkbox } from '@endora-commerce/admi
 import { copyScopedValue } from '../lib/scoped-values-api.js';
 
 /**
- * Feature 170 (T116; `contracts/editor-ui.md` §8, `contracts/scoped-values-api.md` §4, FR-086) —
+ * Feature 172 (T116; `contracts/editor-ui.md` §8, `contracts/scoped-values-api.md` §4, FR-086) —
  * "Copy to other channels in <language>". Lists the member channels that offer the language as
  * checkboxes (all ticked), plans the copy with a dry run on every selection, lists the channels
  * whose own value the copy overwrites, and only then offers the copy: one audited Command

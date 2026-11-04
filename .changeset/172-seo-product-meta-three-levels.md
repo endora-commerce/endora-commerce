@@ -2,7 +2,7 @@
 '@endora-commerce/mod-seo': minor
 ---
 
-**Breaking — product metadata has three scopes and is saved with the product (feature 170).**
+**Breaking — product metadata has three scopes and is saved with the product (feature 172).**
 
 - Product SEO overrides sit at Global, Channel or Channel × language. **The `product_meta_three_levels` migration deletes every product override stored for a language without a channel** — there is no such scope any more; category and CMS page overrides are unchanged.
 - `GET /api/v1/admin/seo/meta/product/:id` is a static route on `catalog:read`, addressed by `?channelId=&languageCode=`, and answers each field's own or inherited value, the resolved metadata and its sources.

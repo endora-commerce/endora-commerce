@@ -7,13 +7,13 @@ import { setupBackendServer, teardownBackendServer, type BackendServerHandle } f
 import { scopedValuesFixture, type Scope, type ScopedValuesFixture } from '../../helpers/scoped-values-fixture.js';
 
 /**
- * Feature 170, US2 (T031; FR-110…FR-113, SC-014) — every JSON row of `SCOPED_WRITE_CASES` through
+ * Feature 172, US2 (T031; FR-110…FR-113, SC-014) — every JSON row of `SCOPED_WRITE_CASES` through
  * `PUT …/products/:id/scoped-values`. Each case starts from an own value at its scope, so "no
  * change", "empty" and "inherit" are each observable: the cell keeps its value, holds an empty
  * override, or inherits from the scope above. A refusal is `422 SCOPED_VALUE_INVALID` naming the
  * field and the reason, with nothing written.
  */
-describe('170 US2 — the write encoding through the save API (T031)', () => {
+describe('172 US2 — the write encoding through the save API (T031)', () => {
   let h: BackendServerHandle;
   let fx: ScopedValuesFixture;
   let channel: string;

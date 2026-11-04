@@ -16,7 +16,7 @@ import {
 } from './product-editor-harness';
 
 /**
- * Feature 170 (T099, T102; US6 #1–#8, FR-060…FR-065, FR-081, FR-082) — the editor's fields at a
+ * Feature 172 (T099, T102; US6 #1–#8, FR-060…FR-065, FR-081, FR-082) — the editor's fields at a
  * scope: "Use value from <parent scope>" on text, select and date fields, the three states, a
  * required field refusing an empty value, an optional one staging `empty`, Global-only fields and
  * tabs, and fields not set at the scope's level.
@@ -71,7 +71,7 @@ async function save(): Promise<Record<string, unknown>> {
   return (call[1] as { changes: Record<string, unknown> }).changes;
 }
 
-describe('fields at a scope (feature 170, US6)', () => {
+describe('fields at a scope (feature 172, US6)', () => {
   it('an inherited text field: checked "Use value from Global", read-only, untick and type stages a value (US6 #1, #2)', async () => {
     renderEditor(ProductEditor, { url: atChannel });
     const name = await screen.findByLabelText(en['productEditor.field.name']!);

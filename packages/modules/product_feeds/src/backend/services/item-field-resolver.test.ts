@@ -34,7 +34,7 @@ const ITEM: FeedItemSource = {
   sku: 'SKU-1',
   slug: 'blue-widget',
   productType: 'simple',
-  // Feature 170: the effective texts at the feed's (C, L), one string each.
+  // Feature 172: the effective texts at the feed's (C, L), one string each.
   name: 'Niebieski widget',
   description: 'Opis',
   attributes: { brand: 'Acme', colour: 'blue', weight: 2.5 },
@@ -427,10 +427,10 @@ describe('resolveFeedItem — fallbacks and required fields (FR-002, FR-037)', (
   });
 });
 
-// Feature 170 (FR-014, `contracts/readers.md` §1): a product's name and description reach the
+// Feature 172 (FR-014, `contracts/readers.md` §1): a product's name and description reach the
 // feed as the effective strings at the feed's (C, L), so the 067 language chain (and its
 // `missing_translation` warning) no longer applies to them.
-describe('resolveFeedItem — product texts are one string (170)', () => {
+describe('resolveFeedItem — product texts are one string (172)', () => {
   it('takes the name and description verbatim, with no warning', () => {
     const out = resolveFeedItem({
       fields: [

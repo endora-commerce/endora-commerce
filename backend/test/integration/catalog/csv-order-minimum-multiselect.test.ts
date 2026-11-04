@@ -5,13 +5,13 @@ import { ADMIN, scopedValuesFixture, type ScopedValuesFixture } from '../../help
 import { serializeCsv } from '../../../../packages/modules/import_export/src/backend/services/csv-codec.js';
 
 /**
- * Feature 170 (T079 / T084; `contracts/write-encoding.md`, `contracts/import-profiles-and-csv.md`
+ * Feature 172 (T079 / T084; `contracts/write-encoding.md`, `contracts/import-profiles-and-csv.md`
  * §2) — what catalog stores for the products file's minimum order quantity and multiselect cells
  * at Global and Channel: a number, an empty override (`NULL` = no minimum / nothing selected), and
  * the refusals of a value that is not a valid minimum. S2's encoding suite keeps these as `todo`
  * rows; this suite is catalog's acceptance of them.
  */
-describe('170 — products CSV: minimum order quantity and multiselect at G and C [integration]', () => {
+describe('172 — products CSV: minimum order quantity and multiselect at G and C [integration]', () => {
   let h: BackendServerHandle;
   let fx: ScopedValuesFixture;
   let channel: string;

@@ -71,11 +71,11 @@ describe('SEO meta editor — a malformed entity id (163 S-5)', () => {
 });
 
 /**
- * Feature 170 (T120, FR-093) — route order: the static product GET answers a product, never the
+ * Feature 172 (T120, FR-093) — route order: the static product GET answers a product, never the
  * parametric route; a category still reaches the parametric one. The generic product writes are
  * refused before the resolver is asked anything.
  */
-describe('SEO meta editor — the static product route (170)', () => {
+describe('SEO meta editor — the static product route (172)', () => {
   const ID = '00000000-0000-4000-8000-000000000001';
 
   it('answers GET …/product/:id from the static route', async () => {

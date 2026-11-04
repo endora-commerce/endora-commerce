@@ -1,7 +1,7 @@
 import type { ScopeRef, ScopedValuesData } from '@endora-commerce/contracts';
 
 /**
- * Feature 170 (T092, `contracts/editor-ui.md` §1–§2) — the editor scope in the address and
+ * Feature 172 (T092, `contracts/editor-ui.md` §1–§2) — the editor scope in the address and
  * in words.
  *
  * `?scope=global|channel|cl&channel=<uuid>&language=<code>` is the source of truth. A URL

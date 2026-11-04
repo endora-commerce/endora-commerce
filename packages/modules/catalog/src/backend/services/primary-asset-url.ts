@@ -46,7 +46,7 @@ import { effectiveGallery, loadGalleryScopes, type GalleryScopeOverrides } from 
  * Both statements order by `product_id` first, which is what lets a page-wide
  * call take the same first row per product that a one-id call took.
  *
- * **Per scope (feature 163 FR-076, feature 170).** The chain runs over the gallery as
+ * **Per scope (feature 163 FR-076, feature 172).** The chain runs over the gallery as
  * the card's (channel, language) shows it (`effectiveGallery`): a hidden item is never
  * a candidate, and a role is its scope holder's. Three statements more per page, and
  * only for a page whose products have a gallery.
@@ -73,7 +73,7 @@ export async function resolvePrimaryAssetUrls(
    */
   channelId: string | null,
   /**
-   * Feature 170 — the card's scope language: with it, the C×L → C → G chain of each item's
+   * Feature 172 — the card's scope language: with it, the C×L → C → G chain of each item's
    * `hidden` flag and each role; `null` = the Channel level.
    */
   languageCode: string | null = null,

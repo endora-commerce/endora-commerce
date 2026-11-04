@@ -6,7 +6,7 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { effectiveTextSql } from '../../../../packages/modules/catalog/dist/backend/services/effective-value.sql.js';
 
 /**
- * Feature 163 (T057), rewritten by feature 170 (T033; research R1, R22) — `effectiveTextSql`
+ * Feature 163 (T057), rewritten by feature 172 (T033; research R1, R22) — `effectiveTextSql`
  * equals the TypeScript chain (`effectiveSystemText`: C×L → C → Global) over a grid: a row at the
  * request's (C, L), at another language, at C, an **empty** override (`{"v": null}`) and an empty
  * string, another channel's rows, and a Global description present or absent. The expectation is
@@ -53,7 +53,7 @@ const OVERRIDE_SETS: Array<Array<{ slot: Slot; value: unknown; other?: boolean }
 ];
 const LANGUAGES: Array<string | null> = ['pl-PL', 'en-US', 'de-DE', null];
 
-describe('170 — effectiveTextSql ≡ the C×L → C → G chain [integration]', () => {
+describe('172 — effectiveTextSql ≡ the C×L → C → G chain [integration]', () => {
   it('equals effectiveSystemText over the grid', async () => {
     const em = db.em();
     const channelId = await insertChannel(em);

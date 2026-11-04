@@ -71,7 +71,7 @@ async function card(name: string): Promise<HTMLElement> {
 }
 
 /**
- * The page reads the session for the products import profiles (feature 170); this operator holds
+ * The page reads the session for the products import profiles (feature 172); this operator holds
  * none of `catalog:write`, so no profile is asked for and the stubbed `get` serves the entities.
  */
 function renderAsStockAndOrdersOperator(): void {

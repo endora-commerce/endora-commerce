@@ -11,7 +11,7 @@ import type {
 import { HttpError } from '@endora-commerce/platform/http';
 
 /**
- * `seoProductMetaWritePort` (feature 170, FR-091; `specs/170-product-editor-scope-switcher/contracts/seo-ports.md`
+ * `seoProductMetaWritePort` (feature 172, FR-091; `specs/172-product-editor-scope-switcher/contracts/seo-ports.md`
  * §2, research R9, R21) — product metadata written **on the caller's EntityManager**.
  *
  * No fork, no flush, no audit entry, no event: `catalog`'s save Command (and its duplicate) commits or

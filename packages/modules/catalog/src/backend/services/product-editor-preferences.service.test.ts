@@ -4,7 +4,7 @@ import { ERROR_CODES } from '@endora-commerce/contracts';
 import { preferenceOwner } from './product-editor-preferences.service.js';
 
 /**
- * Feature 170 (C2/C3 security review note) — an editor preference is one admin's: with no
+ * Feature 172 (C2/C3 security review note) — an editor preference is one admin's: with no
  * resolved admin id the call is refused, never filed under a shared all-zero id where every
  * admin would read the last scope another one chose.
  */

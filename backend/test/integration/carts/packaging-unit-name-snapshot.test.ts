@@ -12,7 +12,7 @@ import {
 import { seedScopedValues } from '../../helpers/scoped-values.js';
 
 /**
- * Feature 163, Phase 22 (T138; owner decision N2 = B, 2026-10-26), on feature 170's model — a
+ * Feature 163, Phase 22 (T138; owner decision N2 = B, 2026-10-26), on feature 172's model — a
  * caller that names the channel itself (an operator surface, through `CartWritePort` with
  * `salesChannelId`) has no request language: the packaging-unit name is snapshotted at that
  * channel's **default language**, through the C×L → C → Global chain, as the product name beside
@@ -21,11 +21,11 @@ import { seedScopedValues } from '../../helpers/scoped-values.js';
  *
  * The buyer-request cases of this file (snapshot in the basket language, kept after a change,
  * Global fallback, the order line) moved to `effective-text-lines.test.ts` and
- * `orders/effective-text-snapshot.test.ts` (feature 170, T050 / T051) when the 163
+ * `orders/effective-text-snapshot.test.ts` (feature 172, T050 / T051) when the 163
  * `nameTranslations` map they wrote was retired.
  */
 
-describe('163 / 170 — packaging-unit name snapshot for an operator naming the channel (N2) [integration]', () => {
+describe('163 / 172 — packaging-unit name snapshot for an operator naming the channel (N2) [integration]', () => {
   let h: BackendServerHandle;
   const RUN = minimumFixtureRun();
   let product: MinimumProductFixture;

@@ -9,7 +9,7 @@ import { seedBulkProductsSql } from '../../helpers/price-book-bulk.js';
  * Feature 161, G15 redesign (`research.md` R14) — `catalogProductReadPort.pageProductsByAdminName`:
  * one page of the products a caller's **membership seam** names (a subquery the
  * caller owns, embedded by the catalogue as a hashed probe), ordered by the
- * stored admin name key (feature 170: one key over the Global name, whatever the admin
+ * stored admin name key (feature 172: one key over the Global name, whatever the admin
  * language), then SKU, then id, with the
  * total; narrowed by a search over the stored search key (name and SKU) or a
  * variant's SKU.
@@ -78,7 +78,7 @@ describe('CatalogProductReadService.pageProductsByAdminName (161 G15)', () => {
     expect(answer.ids).toEqual([ids['anchor'], ids['bolt1'], ids['bolt2'], ids['brick'], ids['gone'], ids['empty'], ids['lacznik']]);
   });
 
-  it('answers one order whatever the admin language (170, FR-031)', async () => {
+  it('answers one order whatever the admin language (172, FR-031)', async () => {
     const en = (await page(port, { language: 'en' })).ids;
     expect((await page(port, { language: 'pl' })).ids).toEqual(en);
     expect((await page(port, { language: 'de' })).ids).toEqual(en);

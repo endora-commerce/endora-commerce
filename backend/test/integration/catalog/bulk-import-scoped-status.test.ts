@@ -20,7 +20,7 @@ import { createImportProfile } from '../../helpers/import-profile.js';
  *   value for a channel the product is not in or a language it does not offer, a
  *   value that is not a status — applies nothing.
  *
- * Feature 170 (`specs/170-product-editor-scope-switcher/contracts/import-profiles-and-csv.md`,
+ * Feature 172 (`specs/172-product-editor-scope-switcher/contracts/import-profiles-and-csv.md`,
  * `write-encoding.md`) moved this file onto the one write encoding and grammar: an inherited
  * scope exports `INHERIT` and an empty cell is **no change**; the Global columns are `name` and
  * `description`; a products import runs with a profile; an unknown channel or a language the

@@ -2,7 +2,7 @@
 '@endora-commerce/contracts': minor
 ---
 
-**Breaking — product values have three scopes, and `null` changes meaning in place (feature 170, FR-116).**
+**Breaking — product values have three scopes, and `null` changes meaning in place (feature 172, FR-116).**
 
 Scoped product values live at Global, Channel or Channel × language; there is no language-only scope. Every scoped write — `scopedValueChangesSchema` (`PUT …/products/:id/scoped-values`), `productScopedWriteInputSchema` (connector port v2), `PATCH …/products/:id/scopes`, `putProductUrlKeysRequestSchema` and the products CSV — uses one write encoding, `scopedWrite` / `toScopedWriteOp`:
 

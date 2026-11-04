@@ -10,7 +10,7 @@ interface AdminProduct {
   status: 'active' | 'inactive';
   /** Archived is its own fact, independent of `status`. */
   archivedAt?: string | null;
-  /** Feature 170 (FR-031) — the Global name; the admin catalogue answers no per-language map. */
+  /** Feature 172 (FR-031) — the Global name; the admin catalogue answers no per-language map. */
   name: string;
 }
 

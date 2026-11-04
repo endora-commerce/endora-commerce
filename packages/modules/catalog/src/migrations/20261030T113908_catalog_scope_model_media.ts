@@ -1,7 +1,7 @@
 import { Migration } from '@mikro-orm/migrations';
 
 /**
- * Feature 170 (`specs/170-product-editor-scope-switcher/data-model.md` §6–§7; research R2, R22) —
+ * Feature 172 (`specs/172-product-editor-scope-switcher/data-model.md` §6–§7; research R2, R22) —
  * the gallery, attachment and packaging-unit values at Channel and Channel × language move to one
  * override table per family, beside a Global value on the subject row. Replaces 163 data-model
  * §7–§8.

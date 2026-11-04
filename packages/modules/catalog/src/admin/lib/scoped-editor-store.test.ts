@@ -9,7 +9,7 @@ import {
 } from './scoped-editor-store.js';
 
 /**
- * Feature 170 (T093, `contracts/editor-ui.md` §3) — the editor's staged changes of one scope.
+ * Feature 172 (T093, `contracts/editor-ui.md` §3) — the editor's staged changes of one scope.
  * The store is pure: the editor's tests mount it through the page; this file holds its rules.
  */
 

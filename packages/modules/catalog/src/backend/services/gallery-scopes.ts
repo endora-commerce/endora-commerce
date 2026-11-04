@@ -4,7 +4,7 @@ import { familyOverrideRows, galleryRoleRows } from './scoped-store-adapters.js'
 import { uuidArrayLiteral } from './sql-id-arrays.js';
 
 /**
- * Feature 170 (`data-model.md` §6, research R1; FR-011, FR-013) — a product's gallery at one
+ * Feature 172 (`data-model.md` §6, research R1; FR-011, FR-013) — a product's gallery at one
  * scope: Global, a sales channel (C) or a channel × language (C×L).
  *
  * The image set is global (D-6). Each item's `hidden` flag and alt text, and each role
@@ -182,7 +182,7 @@ export async function loadGalleryScopes(
 }
 
 /**
- * The scope overview's media rows (163 T118c, feature 170 data-model §6): every (field, channel,
+ * The scope overview's media rows (163 T118c, feature 172 data-model §6): every (field, channel,
  * language) at which the product's gallery holds an override.
  */
 export async function loadMediaScopedFields(

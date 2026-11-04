@@ -4,7 +4,7 @@ import { setupBackendServer, teardownBackendServer, type BackendServerHandle } f
 import { scopedValuesFixture, type ScopedValuesFixture } from '../../helpers/scoped-values-fixture.js';
 
 /**
- * Feature 170, US10 (T122, T123; FR-091, SC-007; `contracts/scoped-values-api.md` §3 steps 4, 8
+ * Feature 172, US10 (T122, T123; FR-091, SC-007; `contracts/scoped-values-api.md` §3 steps 4, 8
  * and 9) — the product and its SEO fields are one save: `changes.seo` is written through `seo`'s
  * write port inside the `product.scoped_values.save` Command, so
  *
@@ -13,7 +13,7 @@ import { scopedValuesFixture, type ScopedValuesFixture } from '../../helpers/sco
  * - a save with only SEO cells is a real write (version moved, one audit entry);
  * - an SEO refusal (an unsafe image URL) rolls the catalog rows back: nothing written, no audit.
  */
-describe('170 US10 — SEO in the scoped save (T122, T123)', () => {
+describe('172 US10 — SEO in the scoped save (T122, T123)', () => {
   let h: BackendServerHandle;
   let fx: ScopedValuesFixture;
   let channel: string;

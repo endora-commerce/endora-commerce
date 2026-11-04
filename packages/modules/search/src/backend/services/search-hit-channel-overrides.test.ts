@@ -112,8 +112,8 @@ const ctx = (preferredLanguage?: string) => ({
   preferredLanguage,
 });
 
-// Feature 170 (R1): the name at the request's (C, L) — C×L row → C row → the Global name.
-describe('search hit names honour channel value overrides (#384, 170 chain)', () => {
+// Feature 172 (R1): the name at the request's (C, L) — C×L row → C row → the Global name.
+describe('search hit names honour channel value overrides (#384, 172 chain)', () => {
   it('takes the (channel, request language) row', async () => {
     const { service } = serviceWith(
       [product('p1', 'Baseline kit')],
@@ -150,7 +150,7 @@ describe('search hit names honour channel value overrides (#384, 170 chain)', ()
     expect(card?.name).toBe('Baseline kit');
   });
 
-  // Feature 170 (`contracts/search-index.md` §1) — the document carries no top-level name any
+  // Feature 172 (`contracts/search-index.md` §1) — the document carries no top-level name any
   // more: a card is named from the hydrated record alone, never from what the index held.
   it('answers the Global name for a product without rows, never a name from the index', async () => {
     const { service } = serviceWith(

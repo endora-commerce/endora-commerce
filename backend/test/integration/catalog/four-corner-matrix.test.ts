@@ -71,7 +71,7 @@ describe('US3 — four-corner matrix (channel × language) overrides', () => {
       [retailChannelId, vipChannelId],
     );
 
-    // Feature 170 (T043) — the four corners seeded as stored (the 163 value-overrides PATCH is retired).
+    // Feature 172 (T043) — the four corners seeded as stored (the 163 value-overrides PATCH is retired).
     await seedScopedValues(h.em().fork(), productId, [
       { field: 'name', scope: { level: 'channel_language', channelId: vipChannelId, languageCode: 'pl-PL' }, value: 'VIP-PL' },
       { field: 'name', scope: { level: 'channel_language', channelId: vipChannelId, languageCode: 'en-US' }, value: 'VIP-EN' },

@@ -18,7 +18,7 @@ import {
 } from './product-editor-harness';
 
 /**
- * Feature 170 (T116; `contracts/editor-ui.md` §8, §11, FR-086) — "Copy to other channels in
+ * Feature 172 (T116; `contracts/editor-ui.md` §8, §11, FR-086) — "Copy to other channels in
  * <language>": a per-field menu on a {G,C,CL} text field at Channel × language with an own value,
  * a dialog listing the member channels that offer the language, a dry run listing the values it
  * overwrites, then one audited copy (`POST …/scoped-values/copy`).
@@ -78,7 +78,7 @@ beforeEach(() => {
 });
 afterEach(() => cleanup());
 
-describe('copy to other channels (feature 170, T116, FR-086)', () => {
+describe('copy to other channels (feature 172, T116, FR-086)', () => {
   it('lists the channels offering the language, dry-runs, names what it overwrites, then copies once', async () => {
     const user = userEvent.setup();
     renderEditor(ProductEditor, { url: atCL() });

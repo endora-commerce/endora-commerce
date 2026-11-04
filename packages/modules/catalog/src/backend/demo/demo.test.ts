@@ -172,7 +172,7 @@ describe('catalog demo data', () => {
     ]);
   });
 
-  it("seeds feature 170's scope product with its Global texts only", async () => {
+  it("seeds feature 172's scope product with its Global texts only", async () => {
     // Its Channel and Channel × language texts name a sales channel, which is
     // the kernel's table, so they are the composition's step and not this body's.
     const { em, created } = fakeEm();

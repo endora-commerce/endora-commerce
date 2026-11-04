@@ -6,7 +6,7 @@ import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { languageName, type ValidScopes } from '../lib/editor-scope.js';
 
 /**
- * Feature 170 (T094, `contracts/editor-ui.md` §2 and §11) — the product editor's one scope
+ * Feature 172 (T094, `contracts/editor-ui.md` §2 and §11) — the product editor's one scope
  * switcher: a sales-channel select ("All channels" + the member channels, a searchable
  * combobox past eight options), a language select by name, the scope in words with a link to
  * the scope map, the banner of a non-Global scope and the read-only line.

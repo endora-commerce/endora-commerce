@@ -15,7 +15,7 @@ import {
 
 /**
  * `specs/150-admin-global-search/` T047 — the Product and Category providers:
- * each field, a product's Global name (feature 170, FR-031: one string, shown
+ * each field, a product's Global name (feature 172, FR-031: one string, shown
  * whatever the admin's language), a category name in any language shown in the
  * admin's, drafts and inactive
  * products found with their status, deleted ones never, quick-search
@@ -120,7 +120,7 @@ describe('admin global search — Product and Category providers (spec 150)', ()
     expect(await productIds(`HIDDEN${T}`, ['sku', 'name', 'slug', 'quickSearchAttributes'])).toEqual([]);
   });
 
-  it('matches the Global name and shows it whatever the admin’s language (170, FR-031)', async () => {
+  it('matches the Global name and shows it whatever the admin’s language (172, FR-031)', async () => {
     const [en] = (await searchAsPlatform(product(), providerQuery(`NAZWA${T}`, ['name'], { language: 'en' }))).hits;
     expect(en?.title).toBe(`Krzesło NAZWA${T}`);
     const [pl] = (await searchAsPlatform(product(), providerQuery(`NAZWA${T}`, ['name'], { language: 'pl' }))).hits;

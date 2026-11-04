@@ -4,13 +4,13 @@ import { setupBackendServer, teardownBackendServer, type BackendServerHandle } f
 import { ADMIN, scopedValuesFixture, type ScopedValuesFixture } from '../../helpers/scoped-values-fixture.js';
 
 /**
- * Feature 170, US2 (T044; `contracts/scoped-values-api.md` §5, R8) — `GET|PUT
+ * Feature 172, US2 (T044; `contracts/scoped-values-api.md` §5, R8) — `GET|PUT
  * …/products/:id/editor-preference` (`catalog:read`): the editor's last scope per (admin,
  * product). `null` channel = Global, a channel = Channel, both = Channel × language (the language
  * stored in the channel's spelling). A language without a channel is `422 VALIDATION_FAILED`; a
  * non-member channel or an unoffered language `422 SCOPE_INVALID`. UI state: no audit entry.
  */
-describe('170 US2 — the editor preference (T044)', () => {
+describe('172 US2 — the editor preference (T044)', () => {
   let h: BackendServerHandle;
   let fx: ScopedValuesFixture;
   let channel: string;

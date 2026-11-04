@@ -6,7 +6,7 @@ import type { Bundle } from '@endora-commerce/admin-kit/i18n';
 import { adminSession, renderWithSession } from '../../helpers/render-with-session';
 
 /**
- * Feature 170, T082 (`contracts/import-profiles-and-csv.md` §4): the import/export centre's
+ * Feature 172, T082 (`contracts/import-profiles-and-csv.md` §4): the import/export centre's
  * **Import profiles** section and the profile the products import requires.
  *
  *  - the section lists, creates, edits and deletes profiles, and is shown only with

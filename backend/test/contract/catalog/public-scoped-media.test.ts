@@ -3,7 +3,7 @@ import { setupBackendServer, teardownBackendServer, type BackendServerHandle } f
 import { scopedValuesFixture, type ScopedValuesFixture } from '../../helpers/scoped-values-fixture.js';
 
 /**
- * Feature 170, US2 (T041; FR-011, FR-013, data-model §6–§7) — what the storefront serves of a
+ * Feature 172, US2 (T041; FR-011, FR-013, data-model §6–§7) — what the storefront serves of a
  * product's gallery, attachments and packaging units at (C, L), written through
  * `PUT …/scoped-values` and resolved C×L → C → G with empty overrides:
  *
@@ -17,7 +17,7 @@ import { scopedValuesFixture, type ScopedValuesFixture } from '../../helpers/sco
  * Replaces 163's `media-scopes` and `attachment-packaging-translations` suites (per-language
  * columns and the retired `channel-roles` / per-channel PATCH writers).
  */
-describe('170 US2 — gallery, attachments and packaging units at (C, L) on the storefront (T041)', () => {
+describe('172 US2 — gallery, attachments and packaging units at (C, L) on the storefront (T041)', () => {
   let h: BackendServerHandle;
   let fx: ScopedValuesFixture;
   let b2b: { id: string; code: string };

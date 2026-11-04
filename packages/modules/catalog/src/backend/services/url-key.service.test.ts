@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { effectiveKeyAt, keysInChannel } from './url-key.service.js';
 
 /**
- * Feature 170 (T039; `contracts/url-keys.md` §1) — the two definitions every key check reads.
+ * Feature 172 (T039; `contracts/url-keys.md` §1) — the two definitions every key check reads.
  * Replaces the 163 planner's unit test: the planner is gone, the checks run under the locks in
  * `UrlKeyService.lockAndCheck` and are held by `backend/test/integration/catalog/url-keys-three-levels.test.ts`.
  */

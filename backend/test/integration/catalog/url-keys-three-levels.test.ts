@@ -5,7 +5,7 @@ import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { ADMIN, scopedValuesFixture, type ScopedValuesFixture } from '../../helpers/scoped-values-fixture.js';
 
 /**
- * Feature 170, US2 (T030; FR-016, `contracts/url-keys.md` §2–§4, owner round 7) — URL keys at
+ * Feature 172, US2 (T030; FR-016, `contracts/url-keys.md` §2–§4, owner round 7) — URL keys at
  * Global, Channel and Channel × language:
  * - a key text is one product's per channel across all the channel's languages (the same product
  *   may repeat it), orphans included; another channel is free;
@@ -18,7 +18,7 @@ import { ADMIN, scopedValuesFixture, type ScopedValuesFixture } from '../../help
  * - the grammar refuses `//host`, `/\host`, `..`, `%2f`, `:`, whitespace, upper case, non-ASCII;
  * - a redirect target is `productPath()` of the effective key.
  */
-describe('170 US2 — URL keys at G, C and C×L (T030)', () => {
+describe('172 US2 — URL keys at G, C and C×L (T030)', () => {
   let h: BackendServerHandle;
   let fx: ScopedValuesFixture;
   let channel: string;
@@ -162,7 +162,7 @@ describe('170 US2 — URL keys at G, C and C×L (T030)', () => {
     expect([ra.statusCode, rb.statusCode].sort()).toEqual([200, 409]);
   });
 
-  // Ported from 163's url-key-uniqueness (Q-M6, T105a) on the 170 keys (T047).
+  // Ported from 163's url-key-uniqueness (Q-M6, T105a) on the 172 keys (T047).
   it('a derived global key (create, duplicate) skips every key another product holds, orphans and redirects included', async () => {
     const holder = await fx.product({ channels: [channel] });
     await ok(holder, { channelKeys: [{ channelId: channel, languageCode: 'pl-PL', key: key('derived-cl') }] });

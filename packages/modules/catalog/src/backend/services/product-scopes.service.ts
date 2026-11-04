@@ -70,7 +70,7 @@ const INHERIT: Inherit = { inherit: true };
 
 /**
  * One channel of the audit before / after, **in the request shape of the write encoding**
- * (feature 170, FR-074, FR-116): re-sending it through the PATCH restores the rows. An inheriting
+ * (feature 172, FR-074, FR-116): re-sending it through the PATCH restores the rows. An inheriting
  * field is `{ inherit: true }`; an overridden minimum with no value is `null` (no minimum here).
  */
 interface ChannelAuditEntry {
@@ -218,7 +218,7 @@ function writesAt(raw: unknown): boolean {
 }
 
 /**
- * Feature 170 (`contracts/write-encoding.md` §5, FR-116) — `inherit` → `null` (the override goes),
+ * Feature 172 (`contracts/write-encoding.md` §5, FR-116) — `inherit` → `null` (the override goes),
  * `set` → the value; `empty` is refused for a field that takes no empty override
  * (`422 SCOPED_VALUE_INVALID`, `not_emptyable`).
  */
@@ -860,7 +860,7 @@ export class ProductScopesService {
       objectType: 'product',
       objectId: productId,
       run: async ({ em }) => {
-        // Feature 170 (R7) — a scope write is Save-overwritable: it moves the editor's version.
+        // Feature 172 (R7) — a scope write is Save-overwritable: it moves the editor's version.
         await bumpScopeVersion(em, productId);
         // The write lock serialises concurrent scope writes on one product, so the
         // rows read below — and the audit `before` built from them — are the true

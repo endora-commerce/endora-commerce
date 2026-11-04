@@ -3,7 +3,7 @@ import { Lock, Zap } from 'lucide-react';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 /**
- * Feature 170 (FR-070, `contracts/editor-ui.md` §3 and §11) — one visible "Applies immediately"
+ * Feature 172 (FR-070, `contracts/editor-ui.md` §3 and §11) — one visible "Applies immediately"
  * badge on the heading of a section whose controls run at once as their own audited Commands
  * (structural operations, price-book rows, membership, stock). Text, not only an icon.
  */

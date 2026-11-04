@@ -8,7 +8,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import { buildScopeOverview, ScopeOverviewService, type ScopeOverviewInput } from './scope-overview.service.js';
 
 /**
- * Feature 163, Phase 9 (T069), on feature 170's model (no Language row) — the pure core of `GET …/products/:id/scope-overview`
+ * Feature 163, Phase 9 (T069), on feature 172's model (no Language row) — the pure core of `GET …/products/:id/scope-overview`
  * (`contracts/admin-scopes-api.md` §3; US4, FR-015, FR-041).
  *
  * `buildScopeOverview` takes the rows the service read and answers the matrix:
@@ -102,7 +102,7 @@ describe('buildScopeOverview (spec 163, T069)', () => {
         valueOverrides: [{ attributeKey: 'material', channelId: B2B, languageCode: 'pl-PL', value: { v: 'stal' } }],
       }),
     );
-    // Off at (B2B, de-DE), and still evaluated (170: the Global name satisfies every pair).
+    // Off at (B2B, de-DE), and still evaluated (172: the Global name satisfies every pair).
     expect(cell(overview, B2B, 'de-DE').missing).toEqual(['attribute:material']);
     expect(cell(overview, B2B, 'pl-PL').missing).toEqual([]);
     expect(cell(overview, B2C, 'en-GB').missing).toEqual(['attribute:material']);
@@ -161,7 +161,7 @@ describe('buildScopeOverview (spec 163, T069)', () => {
     for (const c of archived.cells) expect(c.available).toBe(false);
   });
 
-  // Feature 170 (FR-010, FR-100) — there is no Language row: every override sits at C or C×L.
+  // Feature 172 (FR-010, FR-100) — there is no Language row: every override sits at C or C×L.
   it('marks fields at the cell and the channel row, each once at the level that wins; no language column', () => {
     const overview = buildScopeOverview(
       input({
@@ -256,7 +256,7 @@ describe('buildScopeOverview (spec 163, T069)', () => {
   });
 });
 
-describe('buildScopeOverview — media, attachment, packaging and SEO scopes (170)', () => {
+describe('buildScopeOverview — media, attachment, packaging and SEO scopes (172)', () => {
   it('lists them at C and C×L; a Global SEO row is no override cell', () => {
     const overview = buildScopeOverview(
       input({

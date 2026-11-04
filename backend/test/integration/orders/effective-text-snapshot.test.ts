@@ -19,7 +19,7 @@ import {
 import { whenOrderCreatedSettled } from '../../helpers/quote-conversion.js';
 
 /**
- * Feature 170 (`specs/170-product-editor-scope-switcher/` T051; FR-030, FR-032, US3 #1, #3) — an
+ * Feature 172 (`specs/172-product-editor-scope-switcher/` T051; FR-030, FR-032, US3 #1, #3) — an
  * order line snapshots its product's name, and its packaging unit's, at the order's (channel,
  * language) along C×L → C → Global, and keeps both when the overrides change afterwards. A
  * Polish order on another channel gets the Global strings.
@@ -34,7 +34,7 @@ const BUYER = { b2b_session: 'stub-customer-session' };
 type Code = 'pl_retail' | 'pl_b2b_vip';
 const on = (code: Code): Record<string, string> => ({ 'x-sales-channel': code, 'accept-language': 'pl-PL' });
 
-describe('170 — order line snapshots at the order (channel, language) [integration]', () => {
+describe('172 — order line snapshots at the order (channel, language) [integration]', () => {
   let h: BackendServerHandle;
   const RUN = minimumFixtureRun();
   let drill: MinimumProductFixture;

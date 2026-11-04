@@ -10,7 +10,7 @@ import { BooleanControl, NumberControl } from './editor/scoped-controls.js';
  * tab: "Returnable" for every product type and the pieces minimum for simple and configurable
  * products only (D5 — the server refuses it on other types, so a line says why instead).
  *
- * Feature 170 (T100; `contracts/editor-ui.md` §4) — both are scoped values at Global or per
+ * Feature 172 (T100; `contracts/editor-ui.md` §4) — both are scoped values at Global or per
  * sales channel ({G, C}), rendered as `ScopedField`s and saved with the editor's one Save; the
  * card's own Saves, the returnable auto-save and the per-channel table are retired. At
  * Channel × language they show the channel's value with "Set per channel".

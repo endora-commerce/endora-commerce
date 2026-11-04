@@ -9,7 +9,7 @@ import { SectionHeading } from './editor/ImmediateBadge.js';
 import { BooleanControl, TextControl, TextareaControl } from './editor/scoped-controls.js';
 
 /**
- * Feature 170 (T101, T147; `contracts/editor-ui.md` §3, §4, §11) — the product's attachments at
+ * Feature 172 (T101, T147; `contracts/editor-ui.md` §3, §4, §11) — the product's attachments at
  * the editor scope.
  *
  * The files and their order are Global: adding and removing one run at once as their own

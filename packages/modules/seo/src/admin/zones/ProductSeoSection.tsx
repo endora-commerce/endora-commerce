@@ -7,7 +7,7 @@ import { ScopedField, ScopedFieldGrid } from '@endora-commerce/admin-kit/compone
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 /**
- * Feature 170 (T125; US10, FR-090…FR-093, `contracts/editor-ui.md` §5) — `seo`'s section of
+ * Feature 172 (T125; US10, FR-090…FR-093, `contracts/editor-ui.md` §5) — `seo`'s section of
  * the product editor, contributed to `product.editor.seo`. It shows the product's SEO fields at
  * the **editor scope** (Global, Channel or Channel × language) as `ScopedField`s with their
  * source, read from `GET /api/v1/admin/seo/meta/product/:id`; an empty field names the derived

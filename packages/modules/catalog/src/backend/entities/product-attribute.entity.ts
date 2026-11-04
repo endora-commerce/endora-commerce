@@ -109,7 +109,7 @@ export class ProductAttribute {
   isVisibleOnProductPage: boolean = false;
 
   /**
-   * Feature 170 (FR-012, R15) — the attribute may carry Channel overrides and, for a text
+   * Feature 172 (FR-012, R15) — the attribute may carry Channel overrides and, for a text
    * (`string`) attribute, Channel × language overrides, in `product_value_overrides`. Its Global
    * value in `products.attribute_values` is one value, never a language map.
    */

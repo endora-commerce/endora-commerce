@@ -32,7 +32,7 @@ import { scopedValuesFixture, type ScopedValuesFixture } from '../../helpers/sco
  * - the gate reads status only: `active` on an archived product is refused in
  *   `refuse` mode although the product stays archived.
  *
- * Feature 170 (FR-095, FR-096): a Global name satisfies every (C, L), so the missing value is a
+ * Feature 172 (FR-095, FR-096): a Global name satisfies every (C, L), so the missing value is a
  * required scopable text attribute — every product holds it at (C, pl-PL) of each member channel
  * only, so (B2C, de-DE) lacks it; a "complete" product holds it at Global. The setting is put
  * back to its default after every case.
@@ -376,7 +376,7 @@ describe('completeness gate (spec 163, T078)', () => {
       });
       expect(res.statusCode, res.body).toBeLessThan(300);
       const data = await overview(id);
-      // Feature 170: the product's value is a (B2B, pl-PL) one, so the joined channel lacks it in
+      // Feature 172: the product's value is a (B2B, pl-PL) one, so the joined channel lacks it in
       // every language it offers.
       expect(cellOf(data, b2c.id, 'de-DE')?.missing).toEqual(MISSING);
       expect(cellOf(data, b2c.id, 'pl-PL')?.missing).toEqual(MISSING);

@@ -6,7 +6,7 @@ import { createMinimumProduct, minimumFixtureRun } from '../../helpers/order-min
 import { parseCsv, serializeCsv } from '../../../../packages/modules/import_export/src/backend/services/csv-codec.js';
 
 /**
- * Feature 170 (`specs/170-product-editor-scope-switcher/` T081; FR-043, FR-114, FR-118) — export
+ * Feature 172 (`specs/172-product-editor-scope-switcher/` T081; FR-043, FR-114, FR-118) — export
  * then re-import of the unchanged file writes nothing: the export writes `INHERIT` where a scope
  * inherits, `NULL` for a deliberately empty value, escapes text equal to a token, and guards every
  * text that starts with `=`, `+`, `-`, `@`, TAB, CR or `'`; importing it back (with any profile)
@@ -15,7 +15,7 @@ import { parseCsv, serializeCsv } from '../../../../packages/modules/import_expo
 const ADMIN = { cookies: { b2b_session: 'stub-admin-session' } };
 const TEXTS = ['=SUM(A1)', '+48 123', '-5 mm', '@home', '\tTabbed', '\rCarriage', "'quoted", 'NULL', 'INHERIT'];
 
-describe('170 — products CSV export and re-import is a no-op [integration]', () => {
+describe('172 — products CSV export and re-import is a no-op [integration]', () => {
   let h: BackendServerHandle;
   const RUN = minimumFixtureRun();
   const skus: string[] = [];
@@ -40,7 +40,7 @@ describe('170 — products CSV export and re-import is a no-op [integration]', (
       skus.push(p.sku);
       ids.push(p.id);
     }
-    // No description is `null` in the 170 model (the fixture helper writes ''), and one product
+    // No description is `null` in the 172 model (the fixture helper writes ''), and one product
     // carries a description that starts with a quote.
     await em.getConnection().execute(`update products set description = null where id in (${ids.map(() => '?').join(',')})`, ids);
     await em.getConnection().execute(`update products set description = ? where id = ?`, ["'= not a formula", ids[1]]);

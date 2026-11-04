@@ -3,11 +3,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { setupBackendServer, teardownBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
 
 /**
- * Feature 170 (`specs/170-product-editor-scope-switcher/` T078, T085; `data-model.md` §11, R14) —
+ * Feature 172 (`specs/172-product-editor-scope-switcher/` T078, T085; `data-model.md` §11, R14) —
  * the `import_profiles` table `import_export` owns: its columns, the case-insensitive unique name
  * (a raw `lower(name)` index), the `entity` check and no foreign key on the target channels.
  */
-describe('170 — import_profiles migration [integration]', () => {
+describe('172 — import_profiles migration [integration]', () => {
   let h: BackendServerHandle;
   const sql = <T = Record<string, unknown>>(query: string, params: unknown[] = []) =>
     h.em().getConnection().execute<T[]>(query, params);

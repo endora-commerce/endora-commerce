@@ -2,7 +2,7 @@
 '@endora-commerce/mod-search': minor
 ---
 
-**Breaking — the search document carries one text block per channel language; reindex after upgrading (feature 170).**
+**Breaking — the search document carries one text block per channel language; reindex after upgrading (feature 172).**
 
 The document's `name`, `description`, `localizedNames` and `searchableOptions` fields, and the text values inside `attributes`, are replaced by `texts.<language>` (`name`, `description`, `attributes`, `options`) for every language the channel offers, resolved at that channel and language. A query searches only the shopper's language (`texts.<L>.*`, `sku`, the searchable non-text attributes) and sorts by `texts.<L>.name`.
 

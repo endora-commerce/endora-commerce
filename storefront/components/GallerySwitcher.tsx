@@ -43,7 +43,7 @@ export interface GallerySwitcherItem {
   asset: { id: string; kind: string; url: string };
   /**
    * Feature 163 (FR-077) — the image's own alt text at the request's language; absent / `null` = `alt`.
-   * Feature 170 (FR-013, round 6) — `''` is an empty override: a decorative image, `alt=""`.
+   * Feature 172 (FR-013, round 6) — `''` is an empty override: a decorative image, `alt=""`.
    */
   altText?: string | null | undefined;
 }

@@ -75,7 +75,7 @@ describe('155 — cart add and edit enforce the order minimums [integration]', (
       minOrderQuantity: 10,
       channelIds: channels,
     });
-    // Feature 170 (FR-030) — the Polish name a pl-PL buyer of `pl_retail` reads is that
+    // Feature 172 (FR-030) — the Polish name a pl-PL buyer of `pl_retail` reads is that
     // channel × language's translation; the Global name is the English one.
     const retail = await em.findOneOrFail(SalesChannel, { code: 'pl_retail' });
     await seedScopedValues(em, A.id, [
@@ -171,7 +171,7 @@ describe('155 — cart add and edit enforce the order minimums [integration]', (
       expect(res.statusCode, res.body).toBe(422);
       const error = errorOf(res);
       expect(error.code).toBe(ERROR_CODES.PRODUCT_BELOW_MINIMUM_QUANTITY);
-      // Feature 170 (FR-030) — the sentence is English, the name is the one the basket shows: the
+      // Feature 172 (FR-030) — the sentence is English, the name is the one the basket shows: the
       // test `pl_retail` offers pl-PL alone, so an English request reads its pl-PL text.
       expect(error.details).toMatchObject({ productId: A.id, productName: A.namePl, minimum: 10, total: 5 });
       expect(error.message).toBe(`"${A.namePl}" has a minimum order quantity of 10 pcs.`);
@@ -210,7 +210,7 @@ describe('155 — cart add and edit enforce the order minimums [integration]', (
       expect(res.statusCode, res.body).toBe(422);
       expect(errorOf(res)).toMatchObject({
         code: ERROR_CODES.PRODUCT_BELOW_MINIMUM_QUANTITY,
-        // Feature 170 (FR-030) — named at the basket's (channel, language), see #3.
+        // Feature 172 (FR-030) — named at the basket's (channel, language), see #3.
         details: { productId: A.id, productName: A.namePl, minimum: 10, total: 4 },
       });
       // U4 — the buyer reads this sentence; it is the envelope's message, never the code.

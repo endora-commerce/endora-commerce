@@ -10,7 +10,7 @@ import corePl from '../../../../packages/modules/_i18n/i18n/pl.json';
 import { adminSession, withSession } from '../../helpers/render-with-session';
 
 /**
- * Feature 163 / T126, reduced by feature 170 (T126, FR-094) — the SEO screen's meta editor
+ * Feature 163 / T126, reduced by feature 172 (T126, FR-094) — the SEO screen's meta editor
  * now addresses categories (and CMS pages) by language only. Its product mode (channel ×
  * language over catalog's retired `scope-context`) is gone: a product's SEO is edited in the
  * product editor (`product-seo-section.test.tsx`), and the SEO screen links there

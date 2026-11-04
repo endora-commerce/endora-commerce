@@ -64,7 +64,7 @@ const MEMBERSHIP_PAGE_SIZE = 500;
  *
  * The declaration is single on purpose: `sortableAttributesFor` (`search-document.ts`) is what
  * the indexer applies to every index **and** the alphabet `buildSort` may emit (its return type
- * is built from {@link SortableAttribute}). Feature 170 — the name is sorted in the shopper's
+ * is built from {@link SortableAttribute}). Feature 172 — the name is sorted in the shopper's
  * language, `texts.<L>.name`, declared for every language the channel offers. `updatedAt` is
  * deliberately absent: no sort token names it.
  */
@@ -75,7 +75,7 @@ export interface SearchIndexerOptions {
   meilisearchHost?: string;
   meilisearchApiKey?: string;
   /**
-   * Retired by feature 170: a document carries every channel language's texts, so there is no
+   * Retired by feature 172: a document carries every channel language's texts, so there is no
    * one indexed locale. Accepted and ignored, so a caller passing it keeps compiling.
    */
   locale?: string;
@@ -178,12 +178,12 @@ export interface IndexedDocument {
   // matches when any element equals the value (issue #684), which is what
   // `filter[attr.<key>]` means on the Postgres listing too. Any other
   // complex value is its JSON text, which no filter is built against.
-  // Feature 170 — the values of searchable text attributes no filter names
+  // Feature 172 — the values of searchable text attributes no filter names
   // are not here: they are searched in `texts.<L>.attributes`, at the
   // shopper's language.
   attributes: Record<string, string | number | boolean | string[] | null>;
   /**
-   * Feature 170 (`contracts/search-index.md` §1, FR-033) — per language the channel offers, the
+   * Feature 172 (`contracts/search-index.md` §1, FR-033) — per language the channel offers, the
    * texts effective at (channel, L): name, description, searchable text attributes and the
    * option labels of searchable select attributes in L. A query in L searches `texts.<L>.*`.
    */
@@ -340,7 +340,7 @@ export async function awaitIndexTask(
 }
 
 /**
- * Feature 170 (code review, note 5) — what one indexing run reads once and every channel batch
+ * Feature 172 (code review, note 5) — what one indexing run reads once and every channel batch
  * of the run shares: the searchable select attributes and, per language, their option labels.
  * A run is one {@link SearchIndexer.reindexAllChannels}, one {@link SearchIndexer.ensureQuerySettings},
  * one category-subtree reindex or one incremental upsert; the next run reads them again, so a
@@ -438,7 +438,7 @@ export class SearchIndexer {
       categoriesByProduct.set(row.productId, list);
     }
 
-    // Feature 170 (`contracts/search-index.md` §2) — the texts of every channel language, from
+    // Feature 172 (`contracts/search-index.md` §2) — the texts of every channel language, from
     // one read of this batch's override rows and of the searchable attributes.
     const languages = indexLanguagesOf(channel);
     const textInputs = await this.textInputs(em, languages, productIds, run);
@@ -525,7 +525,7 @@ export class SearchIndexer {
       activeOnly: true,
     });
     const categories = categoryRows.map((r) => ({ id: r.categoryId, slug: r.slug }));
-    // Feature 170 — the override rows and searchable attributes once; the texts per channel below.
+    // Feature 172 — the override rows and searchable attributes once; the texts per channel below.
     const allLanguages = [...new Set(channels.flatMap((channel) => indexLanguagesOf(channel)))];
     const textInputs = await this.textInputs(em, allLanguages, [productId], run);
 
@@ -606,7 +606,7 @@ export class SearchIndexer {
    */
   async refreshAttributeSettings(em: EntityManager): Promise<string[]> {
     const channels = await em.find(SalesChannel, {});
-    // Feature 170 — the searchable set is fixed (`texts`, `sku`, `attributes`); which attribute
+    // Feature 172 — the searchable set is fixed (`texts`, `sku`, `attributes`); which attribute
     // a query searches is the query's `attributesToSearchOn`, so a flipped `isSearchable` on a
     // text or select attribute takes effect at the next reindex of its documents' texts.
     const { searchable, filterable } = await this.attributeSettings();
@@ -668,7 +668,7 @@ export class SearchIndexer {
         },
         wanted,
       );
-      // Feature 170 (`contracts/search-index.md` §2) — a pre-170 index has no `texts` in its
+      // Feature 172 (`contracts/search-index.md` §2) — a pre-172 index has no `texts` in its
       // documents: reindex the channel, which writes every setting with the documents.
       if (pending.reindex) {
         await this.reindexChannel(em, channel, run);
@@ -784,7 +784,7 @@ export class SearchIndexer {
   }
 
   /**
-   * Feature 061 — derive per-index searchable/filterable settings from the view. Feature 170
+   * Feature 061 — derive per-index searchable/filterable settings from the view. Feature 172
    * (`contracts/search-index.md` §2) — the searchable set is the language-keyed `texts`, the SKU
    * and the attribute values; which of them a query reads is its `attributesToSearchOn`.
    */
@@ -807,7 +807,7 @@ export class SearchIndexer {
   }
 
   /**
-   * Feature 170 — what every document of a batch needs for its `texts`: each product's override
+   * Feature 172 — what every document of a batch needs for its `texts`: each product's override
    * rows (every channel; {@link documentTexts} reads the document's own), the searchable text
    * attributes with their scope sets, the option labels of the searchable select attributes per
    * language (read once per `run`), and the text keys `attributes` leaves out (searchable, filtered by nothing).
@@ -906,7 +906,7 @@ function isPublishableIn(availability: ChannelAvailability | undefined): boolean
 }
 
 /**
- * Feature 012 / FR-035 — (attributeKey, value) → the option label in `locale`. Feature 170
+ * Feature 012 / FR-035 — (attributeKey, value) → the option label in `locale`. Feature 172
  * (FR-033) — the label in `locale` itself, else the option's default label: never another
  * language's label, which a shopper of this language would match by.
  */
@@ -958,7 +958,7 @@ function buildDocument(
     categoryIds: categories.map((c) => c.id),
     categorySlugs: categories.map((c) => c.slug),
     attributes: documentAttributes(product.attributeValues, texts.textKeys),
-    // Feature 170 (`contracts/search-index.md` §1) — every channel language's effective texts.
+    // Feature 172 (`contracts/search-index.md` §1) — every channel language's effective texts.
     texts: documentTexts(product, { ...texts, overrides: texts.overridesByProduct.get(product.id) ?? [] }),
     createdAt: product.createdAt.getTime(),
     updatedAt: product.updatedAt.getTime(),

@@ -14,7 +14,7 @@ import {
 } from './scoped-write-encoding.js';
 
 /**
- * Feature 170 — the one write encoding of scoped product values (`contracts/write-encoding.md`,
+ * Feature 172 — the one write encoding of scoped product values (`contracts/write-encoding.md`,
  * FR-110…FR-113, FR-118, SC-014). Runs the shared case table purely, plus the codec's own
  * properties.
  */

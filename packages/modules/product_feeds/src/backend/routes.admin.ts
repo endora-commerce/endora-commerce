@@ -100,7 +100,7 @@ const duplicateFeedBodySchema = duplicateProductFeedRequestSchema.extend({
 /**
  * A product name for the preview sample. The sample exists so an operator can
  * recognise what a rule selected; an admin preview has no buyer scope, so it is
- * the Global name (feature 170, FR-031), and the SKU the last resort because it
+ * the Global name (feature 172, FR-031), and the SKU the last resort because it
  * always identifies the row.
  */
 function sampleProductLabel(name: string, sku: string): string {

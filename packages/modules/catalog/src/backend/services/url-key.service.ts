@@ -27,7 +27,7 @@ import { channelUrlFactsOf } from './channel-url-facts.js';
 import { bumpScopeVersion } from './scoped-values-state.js';
 
 /**
- * Feature 170 (T039; `contracts/url-keys.md`, research R12) — URL keys at Global (`products.slug`),
+ * Feature 172 (T039; `contracts/url-keys.md`, research R12) — URL keys at Global (`products.slug`),
  * Channel and Channel × language, and the redirects per (channel, language).
  *
  * **The one writer.** Every key writer — the product create and duplicate slug, the scoped-values
@@ -625,7 +625,7 @@ export class UrlKeyService {
       objectType: 'product',
       objectId: productId,
       run: async ({ em }) => {
-        // Feature 170 (R7) — a key write is Save-overwritable: it moves the editor's version.
+        // Feature 172 (R7) — a key write is Save-overwritable: it moves the editor's version.
         await bumpScopeVersion(em, productId);
         const effects = await this.lockAndCheck(em, productId, writes, options);
         // A write that changes nothing rolls the version bump back (code review warn).

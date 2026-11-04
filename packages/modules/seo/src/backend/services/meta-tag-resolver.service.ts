@@ -79,7 +79,7 @@ function sameLanguage(a: string | null, b: string): boolean {
 }
 
 /**
- * The address a request names (feature 170, `data-model.md` §8). A **product** sits at three
+ * The address a request names (feature 172, `data-model.md` §8). A **product** sits at three
  * levels: Global (neither half), Channel (a channel) and Channel × language (both); a
  * Language-only product address does not exist any more (FR-010) and is refused
  * `422 SCOPE_INVALID`. A category or CMS page keeps its language rows, and naming neither half
@@ -126,7 +126,7 @@ function scopeChain(
     const c = rows.find((r) => r.salesChannelId === channelId && (r.locale ?? null) === null);
     if (c) chain.push({ row: c, source: languageCode === null ? 'set' : 'inherited_channel' });
   }
-  // Feature 170 (FR-010) — the Global row, never a Language-only one.
+  // Feature 172 (FR-010) — the Global row, never a Language-only one.
   const g = rows.find((r) => (r.salesChannelId ?? null) === null && (r.locale ?? null) === null);
   if (g) chain.push({ row: g, source: channelId === null ? 'set' : 'inherited_global' });
   return chain;
@@ -135,7 +135,7 @@ function scopeChain(
 /**
  * Each field from the most specific row that holds it, else the fallback (FR-075). A row holding
  * `''` — a deliberately empty override — stops the walk like any own value, and the field takes the
- * derived fallback, its source `set_empty` (feature 170, owner round 6): an operator who empties
+ * derived fallback, its source `set_empty` (feature 172, owner round 6): an operator who empties
  * the SEO title gets the product-name title, never a blank `<title>`.
  */
 export function walkSeoScopes(
@@ -173,7 +173,7 @@ export class MetaTagResolverService implements SeoProductMetaPort {
     /** A product's channels and their languages, for the FR-014 check of a scoped write. */
     private readonly membership: Pick<SalesChannelMembershipPort, 'listChannelsForEntity'>,
     /**
-     * Feature 170 (`contracts/readers.md` §1) — the product's effective name and description at
+     * Feature 172 (`contracts/readers.md` §1) — the product's effective name and description at
      * (C, L), which the derived metadata there is built from.
      */
     private readonly productTexts: Pick<CatalogProductAvailabilityPort, 'effectiveTexts'>,
@@ -194,7 +194,7 @@ export class MetaTagResolverService implements SeoProductMetaPort {
     const locale = address.locale ?? FALLBACK_LOCALE;
     const ruleSource = await this.loadRuleSource(input.entityType, input.entityId);
     if (ruleSource.product && address.channelId !== null) {
-      // Feature 170 — the derived values at a Channel or Channel × language scope come from the
+      // Feature 172 — the derived values at a Channel or Channel × language scope come from the
       // product's effective texts there (C×L → C → G), not from its Global texts.
       const texts = await this.productTexts.effectiveTexts([ruleSource.product.id], {
         channelId: address.channelId,
@@ -284,7 +284,7 @@ export class MetaTagResolverService implements SeoProductMetaPort {
   }
 
   /**
-   * Feature 170 (`contracts/seo-ports.md` §1) — each field's view at one scope. A channel the
+   * Feature 172 (`contracts/seo-ports.md` §1) — each field's view at one scope. A channel the
    * product is not sold in, or a language the channel does not offer, is `422 SCOPE_INVALID`,
    * never an empty view.
    */
@@ -405,7 +405,7 @@ export function buildRuleMeta(
   locale: string,
 ): { title: string; description: string; openGraph: ResolvedMeta['openGraph'] } {
   if (entityType === 'product' && source.product) {
-    // Feature 170 — the texts at the request's scope (`effectiveTexts`), else the Global ones.
+    // Feature 172 — the texts at the request's scope (`effectiveTexts`), else the Global ones.
     const name = source.texts?.name ?? source.product.name;
     const description = (source.texts ? source.texts.description : source.product.description) ?? '';
     return {

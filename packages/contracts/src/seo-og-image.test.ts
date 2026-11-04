@@ -30,7 +30,7 @@ describe('upsertSeoMetaOverrideRequestSchema.ogImageUrl', () => {
   });
 });
 
-describe('ogImageUrlSchema refuses userinfo (170 C2/C3 review)', () => {
+describe('ogImageUrlSchema refuses userinfo (172 C2/C3 review)', () => {
   it.each(['https://user:pass@evil.example/a.png', 'http://u@cdn.example.com/a.png'])('refuses %s', (value) => {
     expect(upsertSeoMetaOverrideRequestSchema.safeParse({ ogImageUrl: value }).success).toBe(false);
   });

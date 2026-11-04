@@ -1,7 +1,7 @@
 import type { ScopeLevel } from '@endora-commerce/contracts';
 
 /**
- * Feature 163 (FR-017 b), rewritten by feature 170 (`specs/170-product-editor-scope-switcher/`,
+ * Feature 163 (FR-017 b), rewritten by feature 172 (`specs/172-product-editor-scope-switcher/`,
  * research R1, data-model §0) — the storefront's effective value restated as SQL, so a listing
  * can search, filter, count and sort by the value a card shows.
  *

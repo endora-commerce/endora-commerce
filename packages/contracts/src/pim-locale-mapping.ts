@@ -1,6 +1,6 @@
 /**
  * Owner: `pim_connector` — the PIM locale mapping contract shared by every PIM connector and by
- * `import_export`'s import profiles. Feature 170 (`specs/170-product-editor-scope-switcher/
+ * `import_export`'s import profiles. Feature 172 (`specs/172-product-editor-scope-switcher/
  * contracts/pim-locale-mapping.md`; research R13; FR-040…FR-047).
  *
  * A connector (or a CSV profile) states which source locale — optionally from which source

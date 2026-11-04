@@ -1,6 +1,6 @@
 # Tasks: three-level product scope model and one scope switcher for the product editor
 
-**Input**: `specs/170-product-editor-scope-switcher/` — `spec.md`, `plan.md`, `research.md` (R#), `data-model.md`,
+**Input**: `specs/172-product-editor-scope-switcher/` — `spec.md`, `plan.md`, `research.md` (R#), `data-model.md`,
 `contracts/`, `quickstart.md`.
 **Tests**: required. Constitution III (TDD, non-negotiable) and the brief: every implementation task is preceded by
 a failing test (marked **RED**) in the same phase, and every FR is traced to a test (*Traceability* below).
@@ -8,7 +8,7 @@ a failing test (marked **RED**) in the same phase, and every FR is traced to a t
 
 ## Phase 1 findings (2026-10-30, S1)
 
-- **T001 — id and drift.** `specs/170-*` is absent on `origin/master` (4b670e6a4, merge of #547). The branch's
+- **T001 — id and drift.** `specs/172-*` is absent on `origin/master` (4b670e6a4, merge of #547). The branch's
   merge base **is** `origin/master`'s tip: `git log $(git merge-base HEAD origin/master)..origin/master` is empty,
   so there is no upstream drift in `catalog`, `seo`, `search`, `import_export`, `pim_connector` or the named
   contracts files since the plan was written. 166 and 167 are ancestors of the base.
@@ -25,13 +25,14 @@ a failing test (marked **RED**) in the same phase, and every FR is traced to a t
 
 ## Phase 2 notes (2026-11-03, S1, after the rebase onto origin/master and the renumber to 170)
 
-- **Renumbered** from 168 (taken upstream by the megamenu navigation bar) to 170.
+- **Renumbered** from 168 (taken upstream by the megamenu navigation bar) to 170, and on 2026-11-04 from 170
+  (taken upstream by `170-forms-module` and `170-organization-roles`; 171 by `171-blog-i18n-authors`) to 172.
 - **Migration `down`** restores the 163 *schema* and none of its data, so T015 can rebuild the shape `up`
   meets — the 163 `product_status_drop_draft` precedent, not R18's "throws" (plan decision Q7).
 - **Error codes not raised before US2 / US4.** Upstream's `check:error-translations` refuses a declared code
   nothing names; the five such codes are named in the contracts' per-code details tables
   (`scopedValuesErrorDetailsSchemas`, `importProfileErrorDetailsSchemas`) until their raise sites land.
-- **Removed 163 tests of retired surfaces**, each with its 170 replacement task: `resolver-symmetry` (T029/T036),
+- **Removed 163 tests of retired surfaces**, each with its 172 replacement task: `resolver-symmetry` (T029/T036),
   `scope-write-port` v1 (T082), the `scope-overview` contract test of the Language row (T127/T132), `url-keys-api`
   over language keys (T030); admin `PackagingUnitsEditor.translations`, `product-media-scopes`,
   `product-scope-overview`, `product-url-keys-panel` (S3 after T143).
@@ -50,7 +51,7 @@ a failing test (marked **RED**) in the same phase, and every FR is traced to a t
 ## Owner decisions after C1 (2026-11-03)
 
 - **Empty packaging-unit name override** (at C or C×L): basket, quote and order snapshots keep the **Global** name. Turn the `it.todo` in `carts/effective-text-lines` and `quote_requests/effective-text-snapshot` into a test of that rule.
-- **Back-in-stock e-mail** (T067 buyer half): shows the **Global** name in 170. Storing channel + language on `availability_notifications` is a **follow-up issue** (endora-commerce/endora-commerce#696), not 170. The `it.todo` in `inventory/effective-text-alerts` becomes a Global-name test and the follow-up is listed in spec *Out of scope / follow-ups*.
+- **Back-in-stock e-mail** (T067 buyer half): shows the **Global** name in 172. Storing channel + language on `availability_notifications` is a **follow-up issue** (endora-commerce/endora-commerce#696), not 172. The `it.todo` in `inventory/effective-text-alerts` becomes a Global-name test and the follow-up is listed in spec *Out of scope / follow-ups*.
 - **Products CSV columns** include `minOrderQuantity`, `returnable` and multiselect attributes at G and C (from the
   write standard FR-110..115; MOQ `NULL` = no minimum, multiselect `NULL` = none selected). The connector
   exclusion list applies to the PIM port only. `contracts/import-profiles-and-csv.md` §2.1 gets these columns.
@@ -58,10 +59,10 @@ a failing test (marked **RED**) in the same phase, and every FR is traced to a t
 - **2026-11-04, from the final review:**
   - A Global save still refuses when a required attribute is empty, even if the operator did not stage that
     attribute. Kept as is.
-  - A sticky Save on desktop is the follow-up endora-commerce/endora-commerce#717, not 170.
+  - A sticky Save on desktop is the follow-up endora-commerce/endora-commerce#717, not 172.
   - Channel names in the import profile's channel targets are the follow-up endora-commerce/endora-commerce#718,
-    not 170. The targets keep the channel code and name the language.
-  - One vocabulary, en + pl, on every 170 surface: the scope overview is **Scope map** / **Mapa zakresów**; the
+    not 172. The targets keep the channel code and name the language.
+  - One vocabulary, en + pl, on every 172 surface: the scope overview is **Scope map** / **Mapa zakresów**; the
     publication window is **Publication window** / **Okres publikacji**; the inherit action is
     **Use value from {scope}** / **Użyj wartości z zakresu: {scope}**.
 
@@ -94,9 +95,9 @@ suite is CI's. Every migration task regenerates and commits `composer:generate`,
 
 **Purpose**: a clean, measured starting point.
 
-- [x] T001 (S1) Confirm `specs/170-*` is still free on `origin/master` and diff `origin/master` against the plan's base for upstream drift in `packages/modules/{catalog,seo,search,import_export,pim_connector}/src`, `packages/contracts/src/{catalog,product-scopes,product-value-resolver,seo,pim-*}.ts`; record findings at the top of this file
+- [x] T001 (S1) Confirm `specs/172-*` is still free on `origin/master` and diff `origin/master` against the plan's base for upstream drift in `packages/modules/{catalog,seo,search,import_export,pim_connector}/src`, `packages/contracts/src/{catalog,product-scopes,product-value-resolver,seo,pim-*}.ts`; record findings at the top of this file
 - [x] T002 (S1) Stand the worktree up (`bash scripts/setup-worktree.sh && pnpm run build:packages`), run `pnpm -r run typecheck` and the 163 scope suites (`backend/test/contract/catalog/product-scopes-api.test.ts`, `…/scope-completeness-gate.test.ts`, `admin/test/modules/catalog/product-scope-*.test.tsx`) to record a green baseline
-- [x] T003 [P] (S1) Record the "Before" column of `specs/170-product-editor-scope-switcher/quickstart.md` § *Measurements*: editor scope-switch request count and p95 server time on the dev stack; search index bytes per channel and p95 query latency on the 163 perf fixture (`backend/test/perf/`), 1 and 3 languages; `backend/test/perf/catalog/listing-scoped-availability.bench.ts`
+- [x] T003 [P] (S1) Record the "Before" column of `specs/172-product-editor-scope-switcher/quickstart.md` § *Measurements*: editor scope-switch request count and p95 server time on the dev stack; search index bytes per channel and p95 query latency on the 163 perf fixture (`backend/test/perf/`), 1 and 3 languages; `backend/test/perf/catalog/listing-scoped-availability.bench.ts`
 
 ---
 
@@ -135,8 +136,8 @@ suite is CI's. Every migration task regenerates and commits `composer:generate`,
 
 ### A compiling tree
 
-- [x] T021 (S1) Make catalog's backend compile on the new contracts: every map read in `packages/modules/catalog/src/backend/**` replaced by the Global string or a call the US2 / US3 tasks will rewrite, each marked `// 170-shim` (list the files in the commit body)
-- [x] T022 (S1) Make every other workspace member compile: the reader files of `contracts/readers.md` §1, `packages/modules/catalog/src/admin/**`, `packages/admin-kit`, `packages/page-builder-admin`, `storefront` — Global string, each marked `// 170-shim`; `pnpm -r run typecheck` green
+- [x] T021 (S1) Make catalog's backend compile on the new contracts: every map read in `packages/modules/catalog/src/backend/**` replaced by the Global string or a call the US2 / US3 tasks will rewrite, each marked `// 172-shim` (list the files in the commit body)
+- [x] T022 (S1) Make every other workspace member compile: the reader files of `contracts/readers.md` §1, `packages/modules/catalog/src/admin/**`, `packages/admin-kit`, `packages/page-builder-admin`, `storefront` — Global string, each marked `// 172-shim`; `pnpm -r run typecheck` green
 - [x] T023 (S1) Test helpers: `backend/test/helpers/` product factories take a string `name` / `description` and accept scoped rows per family (`seedScopedValues(productId, { field, scope, value | 'empty' })`); `admin/test/helpers/` builder for `ScopedValuesResponse`; grep `backend/test/helpers` for name maps
 - [x] T024 (S1) Rewrite the catalog demo seeders in `packages/modules/catalog/src/backend/demo/` to the new model (Global strings; ~~channels B2B PL and Sklep PL, both Polish~~ the existing `pl_retail` and `pl_b2b_vip` channels — owner, 2026-11-03; C×L and Channel translations in all three states on Drill X; an import-ready CSV for `quickstart.md` §3) (FR-020, SC-002); `pnpm --filter backend run check:demo-data-budget`; green proof that every seed loads in the new model: `pnpm --filter backend exec vitest run test/integration/demo/demo-shop.test.ts test/integration/demo/demo-instance-shape.test.ts test/integration/demo/demo-reset-after-use.test.ts` [PG]
 - [x] T025 (S1) **Checkpoint C1**: `pnpm -r run typecheck`, `pnpm -r run lint`, contracts tests, T015 green; hand the catalog `i18n/{en,pl}.json` bundles to S3; contracts, migrations and the review outcomes of `plan.md` *Pre-build reviews* frozen (a later contract change is a coordinated commit by S1)
@@ -184,7 +185,7 @@ US5, US6, US7 and US9 land; they are the acceptance of FR-004.
 - [x] T043 [US2] (S1) Remove `GET` / `PATCH …/value-overrides` and `GET …/scope-context` with `product-overrides.service.ts` and `product-scope-context.service.ts`; grep `backend/test/**`, `admin/**` and the module-removal ledger for every reference to the deleted files and routes
 - [x] T044 [US2] (S1) `product-editor-preferences.service.ts` and `routes.admin.ts`: `GET` / `PUT …/editor-preference` with R8 validation (`contracts/scoped-values-api.md` §5); test `backend/test/contract/catalog/editor-preference.test.ts` [PG] (RED first) — the PUT is UI state, not a Command (XIII does not apply; R8)
 - [x] T045 [US2] (S1) `scope-overview.service.ts`: Language row and level removed, new chain, orphans (FR-100 backend half, FR-101); update `scope-overview.service.test.ts` first
-- [x] T046 [US2] (S1) Remove every `// 170-shim` in `packages/modules/catalog/src/backend/**`: `catalog-query.service.ts`, `catalog-quick-search.service.ts`, `catalog-product-read.service.ts`, `catalog-admin.service.ts` (product POST / PATCH with string name, scoped fields on the encoding, optional `version`), `catalog-bulk-update.service.ts`, `bulk-operation.service.ts` (scoped status encoding), `admin-search-provider.ts`, `prompt-tools.ts`, the admin-name-key paging (`pageProductsByAdminName`: one key)
+- [x] T046 [US2] (S1) Remove every `// 172-shim` in `packages/modules/catalog/src/backend/**`: `catalog-query.service.ts`, `catalog-quick-search.service.ts`, `catalog-product-read.service.ts`, `catalog-admin.service.ts` (product POST / PATCH with string name, scoped fields on the encoding, optional `version`), `catalog-bulk-update.service.ts`, `bulk-operation.service.ts` (scoped status encoding), `admin-search-provider.ts`, `prompt-tools.ts`, the admin-name-key paging (`pageProductsByAdminName`: one key)
 - [x] T047 [US2] (S1) Sweep `backend/test/{contract,integration,unit,perf}/catalog/**` and `packages/modules/catalog/src/**/*.test.ts` to the new model (delete tests of removed routes; fix `'{"en-US"…}'` SQL literals); catalog suites green
 - [x] T151 [US2] (S1) **RED** `backend/test/contract/catalog/duplicate-every-scope.test.ts` [PG], then `duplicateProduct` in `packages/modules/catalog/src/backend/services/catalog-admin.service.ts`: Duplicate copies every scope (FR-119, round 8) — texts, attributes, gallery / attachment / packaging values, roles, hidden, MOQ, audience, publication window, returnable at G, C and C×L, empty overrides and inherit states included, and SEO through `seoProductMetaWritePort` (after T121); URL keys not copied beyond the fresh Global key; one audited Command; removes the `catalog-admin` copy-name entry of T048's allow-list
 
@@ -228,9 +229,9 @@ US5, US6, US7 and US9 land; they are the acceptance of FR-004.
 - [x] T071 [P] [US3] (S2) price_lists: `packages/modules/price_lists/src/backend/services/price-book-reads.ts`, `attribute-eligibility.ts` (`scopeLevels`) — T058 green
 - [x] T072 [P] [US3] (S2) Global-string readers: `packages/modules/crm/src/backend/services/reference-service.ts`, `crm/src/admin/lib/references.ts`, `packages/modules/cms/src/admin/components/admin-catalog-preview-map.ts`, `packages/modules/audit_logs/src/backend/services/recent-activity-service.ts` (string or legacy map), `packages/admin-kit/src/components/product-browser/{product-line.ts,ProductBrowserDialog.tsx}`, `packages/page-builder-admin/src/{chrome/CatalogPickers.tsx,email/EmailEditorPane.tsx}` — T060 green
 - [x] T073 [P] [US3] (S2) Compile-verify and de-shim `shopping_lists`, `promotions`, `tasks`, `projects`, `platform`, `comparisons` contracts consumers
-- [x] T074 [US3] (S2) Search: `search-indexer.ts` (`texts.<L>` for every channel language, settings), `search-availability.ts` and `plugin.ts` (reindex boot check, pre-170 fallback logged), `search-query.service.ts` (`attributesToSearchOn` on `texts.<L>`, hit display) in `packages/modules/search/src/backend/` per `contracts/search-index.md`; update the indexer unit tests first — T059 green
+- [x] T074 [US3] (S2) Search: `search-indexer.ts` (`texts.<L>` for every channel language, settings), `search-availability.ts` and `plugin.ts` (reindex boot check, pre-172 fallback logged), `search-query.service.ts` (`attributesToSearchOn` on `texts.<L>`, hit display) in `packages/modules/search/src/backend/` per `contracts/search-index.md`; update the indexer unit tests first — T059 green
 - [x] T075 [US3] (S2) Storefront: `storefront/app/(catalog)/p/[slug]/page.tsx`, `storefront/lib/api/catalog.ts` — an empty alt override renders `alt=""`, never the asset's alt text (round 6) — T061 green
-- [x] T076 [US3] (S2) Sweep each reader module's tests in `backend/test/{contract,integration}/<module>/` and `admin/test/modules/<module>/` to string names; remove the last `// 170-shim` outside catalog admin — T048 green except catalog admin files (S3 removes those in US5)
+- [x] T076 [US3] (S2) Sweep each reader module's tests in `backend/test/{contract,integration}/<module>/` and `admin/test/modules/<module>/` to string names; remove the last `// 172-shim` outside catalog admin — T048 green except catalog admin files (S3 removes those in US5)
 
 **Checkpoint C3**: readers green, T048 green (allow-list holds only S3's pending admin files, each named).
 
@@ -265,7 +266,7 @@ US5, US6, US7 and US9 land; they are the acceptance of FR-004.
 
 ## Gate G-S3: prototype review before the editor stream (spec round 6)
 
-- [x] T143 (designer + owner; coordinator tracks) Build a clickable prototype of the editor with `endora-commerce-designer` against `contracts/editor-ui.md` and `.claude/skills/ux-laws/SKILL.md`: the scope bar (switcher, banner, read-only line), `ScopedField` in every state (the "Use value from <parent scope>" checkbox, inheritance markers and source lines, empty override, Global only, not at this scope), the Save / Discard / Stay dialog and the "Applies immediately" labels; the owner reviews it; record the approval and any changes to `contracts/editor-ui.md` in a `docs(170)` commit. **No S3 task starts before this is checked**; S1 and S2 continue in parallel
+- [x] T143 (designer + owner; coordinator tracks) Build a clickable prototype of the editor with `endora-commerce-designer` against `contracts/editor-ui.md` and `.claude/skills/ux-laws/SKILL.md`: the scope bar (switcher, banner, read-only line), `ScopedField` in every state (the "Use value from <parent scope>" checkbox, inheritance markers and source lines, empty override, Global only, not at this scope), the Save / Discard / Stay dialog and the "Applies immediately" labels; the owner reviews it; record the approval and any changes to `contracts/editor-ui.md` in a `docs(172)` commit. **No S3 task starts before this is checked**; S1 and S2 continue in parallel
   - Approved by the owner 2026-10-30 — prototype <https://claude.ai/artifact/6NSyfVSv3q4haqokHCCiU4>; outcome recorded in `contracts/editor-ui.md` §11.
 
 ---
@@ -279,7 +280,7 @@ US5, US6, US7 and US9 land; they are the acceptance of FR-004.
 - [x] T092 [P] [US5] (S3) **RED** `admin/test/modules/catalog/product-editor-scope-url.test.tsx`: URL is the truth; preference seeds a URL without scope; invalid / stale scope → nearest valid scope with an announcement (FR-056, spec *Edge Cases*)
 - [x] T093 [US5] (S3) `packages/modules/catalog/src/admin/lib/scoped-editor-store.ts` (+ `scoped-editor-store.test.ts`, RED first) and `lib/scoped-values-api.ts` (GET / PUT / copy / preference clients replacing the editor's use of `product-scopes-api.ts` and `product-url-keys-api.ts`)
 - [x] T094 [US5] (S3) `packages/modules/catalog/src/admin/components/ProductScopeBar.tsx` (`contracts/editor-ui.md` §2)
-- [x] T095 [US5] (S3) Restructure `packages/modules/catalog/src/admin/pages/ProductEditor.tsx`: load through the read endpoint, URL state, every tab at the scope; delete `ProductScopeEditor.tsx`, the gallery Scope / Language selects, `ProductUrlKeysPanel`'s "Add override", `AttachmentScopesDialog.tsx`, the packaging translations dialog, `lib/product-scope-drafts.ts`, `lib/media-scopes.ts`; grep `admin/test/**` for every deleted file; remove the remaining `// 170-shim` in catalog admin — T091, T092 green
+- [x] T095 [US5] (S3) Restructure `packages/modules/catalog/src/admin/pages/ProductEditor.tsx`: load through the read endpoint, URL state, every tab at the scope; delete `ProductScopeEditor.tsx`, the gallery Scope / Language selects, `ProductUrlKeysPanel`'s "Add override", `AttachmentScopesDialog.tsx`, the packaging translations dialog, `lib/product-scope-drafts.ts`, `lib/media-scopes.ts`; grep `admin/test/**` for every deleted file; remove the remaining `// 172-shim` in catalog admin — T091, T092 green
 - [x] T096 [US5] (S3) Tab labels into `packages/modules/catalog/i18n/{en,pl}.json` and the WAI-ARIA tabs pattern (FR-105, FR-107); test `admin/test/modules/catalog/product-editor-tabs.test.tsx` (RED first)
 
 ---
@@ -391,7 +392,7 @@ US5, US6, US7 and US9 land; they are the acceptance of FR-004.
 - [x] T138 [P] (S1) Changesets in `.changeset/` per plan *Compatibility and release*: `minor` with BREAKING bodies for contracts, mod-catalog, mod-seo, mod-search, mod-import-export, mod-pim-connector, admin-kit, page-builder-admin (in-place `null` change FR-116 with old and new call; removed routes; name / description strings; grammar; reindex); `patch` for each reader package; the R20 follow-up list in the contracts body (FR-117); `pnpm --filter backend run check:release-intent`
 - [x] T139 [P] (S2) Measurements "After" column of `quickstart.md` § *Measurements*: search index bytes and p95 latency (1 and 3 languages, `contracts/search-index.md` §4), listing bench vs 163 SC-004 (+10%), editor scope switch (SC-012: one request, no slower than a product page load)
 - [x] T140 (all) Fixture sweep and stale-reference trap: grep `backend/test`, `admin/test`, `storefront/test`, `packages/*/src/**/*.test.*` for `'{"en-US"`, product `name: {`, `nameTranslations`, `altText: {`, deleted file names and removed routes (`value-overrides`, `scope-context`, `ProductScopeEditor`, `AttachmentScopesDialog`, `ProductSeoLink`, the three 163 entities); re-derive the module-removal ledger entries the deletions free (AGENTS.md *traps*)
-- [ ] T141 (S1) Final gate, recording which suites ran: `pnpm -r run typecheck`, `pnpm -r run lint`, `pnpm run check:naming && pnpm run check:language`, `pnpm --filter backend run check:module-boundary`, `check:port-dependencies`, `check:port-catches`, `check:port-shape`, `check:transaction-context`, `check:command-coverage`, `check:off-state-coverage`, `check:admin-zones`, `check:error-translations`, `check:module-docs`, `check:docs-translations`, `check:demo-data-budget`, `check:test-ownership`, `check:entry-presence`, `pnpm --filter backend exec vitest run test/contract/admin_users/permission-inventory.test.ts test/unit/db/fk-dependency-drift.test.ts test/unit/db/migrations-registry.test.ts`, `manifests:check`, `pnpm --filter '!backend' run test`, the targeted suites of `quickstart.md` §5, T048 with an empty allow-list for 170 shims; the demo suites `backend/test/integration/demo/{demo-shop,demo-instance-shape,demo-reset-after-use}.test.ts` (SC-002); walk `quickstart.md` §0–§4 on the dev stack
+- [ ] T141 (S1) Final gate, recording which suites ran: `pnpm -r run typecheck`, `pnpm -r run lint`, `pnpm run check:naming && pnpm run check:language`, `pnpm --filter backend run check:module-boundary`, `check:port-dependencies`, `check:port-catches`, `check:port-shape`, `check:transaction-context`, `check:command-coverage`, `check:off-state-coverage`, `check:admin-zones`, `check:error-translations`, `check:module-docs`, `check:docs-translations`, `check:demo-data-budget`, `check:test-ownership`, `check:entry-presence`, `pnpm --filter backend exec vitest run test/contract/admin_users/permission-inventory.test.ts test/unit/db/fk-dependency-drift.test.ts test/unit/db/migrations-registry.test.ts`, `manifests:check`, `pnpm --filter '!backend' run test`, the targeted suites of `quickstart.md` §5, T048 with an empty allow-list for 172 shims; the demo suites `backend/test/integration/demo/{demo-shop,demo-instance-shape,demo-reset-after-use}.test.ts` (SC-002); walk `quickstart.md` §0–§4 on the dev stack
 - [x] T142 (S1) Prepare (in the merge-request description, not files) the follow-up issue bodies: research R20 rows 1–7 (FR-117) and "Restore this save" on the save's audit entry (FR-074 follow-up, round 6), and `seo_meta_overrides` rows left by a deleted product (R22)
 
 ---

@@ -234,7 +234,7 @@ describe('catalog — the round-trip cost the batch read exists to remove', () =
     for (const id of ids) await oneByOne.list(id);
 
     expect(roundTrips(batch)).toBe(1);
-    // `#assertProductExists` + `find(GalleryItem)` + `find(GalleryItemLabel)` (feature 170: the
+    // `#assertProductExists` + `find(GalleryItem)` + `find(GalleryItemLabel)` (feature 172: the
     // item's hidden flag is a column of the item now, no per-item channel read).
     expect(roundTrips(perProduct)).toBe(1500);
   });
@@ -254,7 +254,7 @@ describe('catalog — the batch reads in a channel', () => {
     await service.listForProducts([PRODUCT_A], CHANNEL, 'pl-PL');
 
     expect(roundTrips(recorded)).toBe(1);
-    // Feature 170 — the C×L → C → Global chain of `hidden` (`data-model.md` §6a).
+    // Feature 172 — the C×L → C → Global chain of `hidden` (`data-model.md` §6a).
     expect(recorded.statements[0]).toMatch(/gallery_item_scope_overrides[\s\S]*'hidden'[\s\S]*gi\.hidden/i);
     expect(recorded.params?.[0]).toContain(CHANNEL);
     expect(recorded.params?.[0]).toContain('pl-PL');

@@ -147,7 +147,7 @@ describe('GET /api/v1/catalog/sitemap.xml', () => {
         method: 'PUT',
         url: `/api/v1/admin/catalog/products/${productId}/url-keys`,
         cookies: { b2b_session: 'stub-admin-session' },
-        // Feature 170 — the Channel × language key (`contracts/url-keys.md`); no language-only key.
+        // Feature 172 — the Channel × language key (`contracts/url-keys.md`); no language-only key.
         payload: { channelKeys: [{ channelId, languageCode: 'pl-PL', key: `wiertarka-${run}` }] },
       });
       expect(keys.statusCode, keys.body).toBe(200);

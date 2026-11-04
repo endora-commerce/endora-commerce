@@ -5,7 +5,7 @@ import type { ComparisonDocumentData } from '@endora-commerce/contracts';
  * (`contracts/comparison-document.md` §1): three products — one unavailable,
  * one missing a value — common and differing rows, one product hidden from
  * the viewer, prices for an organisation, and a placeholder share address.
- * Names are the effective string in the preview's language (feature 170: one name per (C, L)).
+ * Names are the effective string in the preview's language (feature 172: one name per (C, L)).
  */
 /** The sample product's name per preview language (the effective string a reader would get). */
 const SAMPLE_NAMES: Readonly<Record<string, (n: number) => string>> = {
