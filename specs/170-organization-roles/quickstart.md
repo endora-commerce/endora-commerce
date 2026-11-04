@@ -92,10 +92,16 @@ pnpm --filter backend exec vitest run test/unit/_i18n/registered-bundles-shape.t
 pnpm --filter backend run check:port-dependencies && pnpm --filter backend run check:port-catches
 pnpm --filter backend run check:module-boundary && pnpm --filter backend run composer:check
 pnpm --filter backend run i18n:hardcoded
-# the inventory (research R-14) — must print nothing outside migrations and tests
-rg "organization_admin|regular_user|isOrgAdmin|CustomerAccountRole|organizationRoleSchema|OrganizationRole\b|countByOrganizationRole|requiresCartApproval" \
-   --glob '!**/*.test.ts' --glob '!**/*.test.tsx' --glob '!**/test/**' --glob '!**/docs/**' \
-   --glob '!**/dist/**' --glob '!**/migrations/**' --glob '!**/*.md' --glob '!specs/**' --glob '!**/ledgers/**' .
+# the inventory (research R-14) — both commands must print nothing outside migrations and tests
+R14_GLOBS=(--glob '!**/*.test.ts' --glob '!**/*.test.tsx' --glob '!**/test/**' --glob '!**/docs/**'
+   --glob '!**/dist/**' --glob '!**/migrations/**' --glob '!**/*.md' --glob '!specs/**' --glob '!**/ledgers/**')
+rg "organization_admin|regular_user|isOrgAdmin|CustomerAccountRole|organizationRoleSchema|countByOrganizationRole|requiresCartApproval" \
+   "${R14_GLOBS[@]}" .
+# the legacy `OrganizationRole` type of `@endora-commerce/contracts`. The `organizations` entity
+# class has the same name, so skip its declaration and every file that imports it (one scope
+# cannot hold both names unaliased).
+rg -l --files-without-match "entities/organization-role\.entity" "${R14_GLOBS[@]}" \
+   --glob '!**/organization-role.entity.ts' --type ts . | xargs -r rg -n "\bOrganizationRole\b"
 # and, because D-198 keeps them off merge requests, the complete suite locally
 pnpm --filter backend run test
 ```
