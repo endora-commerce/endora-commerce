@@ -85,8 +85,8 @@ export class CustomerOrgAssignmentService {
    *
    * An account coming from its own **personal** Organization lands on *Member*,
    * whatever it holds there: it administers that Organization by construction
-   * (owner ruling PR-3), not by anybody's decision, and its legacy role — which
-   * the move carries unchanged — names no administrator. That is today's outcome.
+   * (owner ruling PR-3), not by anybody's decision. That is the outcome before
+   * `specs/170-organization-roles/`, kept.
    */
   private async roleInTarget(customer: CustomerAccountRecord, organizationId: string): Promise<string> {
     const source = await this.organizations.findById(customer.organizationId);

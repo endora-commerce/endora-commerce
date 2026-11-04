@@ -50,7 +50,7 @@ import type { TwoFactorEnrolmentReader } from './two-factor-enrolments.js';
  * touch this customer, and whether the write would strand an organisation
  * without an administrator, are `customers`' questions and are still asked
  * there; the counting half of the second is
- * `CustomerAccountReadPort.countByOrganizationRole`, which already existed.
+ * `CustomerAccountReadPort.countAdministrators`, which already existed.
  *
  * **The audit row came here** — one row, with the action string the caller used
  * to write, so nothing an operator can see moved. Unlike
@@ -177,8 +177,7 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
         organizationId: organization.id,
         // The individual administers their own personal Organization (owner
         // ruling PR-3, research R-34); the id comes from the provisioning
-        // answer because the role row exists only in this transaction. The
-        // legacy `role` keeps its default, as M3 leaves a personal account's.
+        // answer because the role row exists only in this transaction.
         organizationRoleId: organization.administratorRoleId,
       });
       // Self-registration is pre-auth, so there is no ambient actor and the row
@@ -380,8 +379,7 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
     const before = { organizationId: account.organizationId, organizationRoleId: account.organizationRoleId };
     // The role moves with the Organization, in one statement: the composite
     // foreign key refuses the previous Organization's role
-    // (`specs/170-organization-roles/` research R-34). The legacy `role`
-    // travels unchanged, as it always has.
+    // (`specs/170-organization-roles/` research R-34).
     account.organizationId = organizationId;
     account.organizationRoleId = input.organizationRoleId;
     await em.flush();

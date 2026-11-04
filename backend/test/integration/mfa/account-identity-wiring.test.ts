@@ -188,10 +188,10 @@ describe('mfa resolves its own identity reads (T118c)', () => {
       expect(res.statusCode).toBe(403);
     });
 
-    it('judges the administrator by the role it holds, not the legacy column (FR-011)', async () => {
+    it('judges the administrator by the role it holds (FR-011)', async () => {
       // `specs/170-organization-roles/` WP-03 (T058): the same member, moved to
-      // the Administrator role by its id alone — the legacy column still says
-      // `regular_user` — may set the policy; back on Member it may not.
+      // the Administrator role by its id alone, may set the policy; back on
+      // Member it may not.
       const em = h.em();
       const member = await predefinedRoleIdOf(em, TEST_ORGANIZATION_ID, 'member');
       await em.execute(`update "customer_accounts" set "organization_role_id" = ? where "id" = ?`, [

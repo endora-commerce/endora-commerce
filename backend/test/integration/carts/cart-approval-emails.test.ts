@@ -10,7 +10,7 @@ import { CUSTOMER_COOKIES } from '../../helpers/test-actors.js';
 import { addOrganizationChannels } from '../../helpers/sales-channel-access.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { requireCartApprovalForMembers, seedRoleGranting } from '../../helpers/cart-approval-roles.js';
-import { assignOrganizationRole } from '../../helpers/seed-organization-roles.js';
+import { assignOrganizationRole, predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
 import type {
   MailerSendInput,
@@ -83,13 +83,13 @@ describe('cart approval e-mails (issue #651)', () => {
     await em.flush();
     await requireCartApprovalForMembers(em, ORG);
     const accounts = [
-      { ...MEMBER, role: 'regular_user' as const, blockedAt: null },
-      { ...SECOND_MEMBER, role: 'regular_user' as const, blockedAt: null },
-      { ...THIRD_MEMBER, role: 'regular_user' as const, blockedAt: null },
-      { ...ADMIN, role: 'organization_admin' as const, blockedAt: null },
-      { ...REFUSING_ADMIN, role: 'organization_admin' as const, blockedAt: null },
-      { ...BLOCKED_ADMIN, role: 'organization_admin' as const, blockedAt: new Date() },
-      { ...APPROVER, role: 'regular_user' as const, blockedAt: null },
+      { ...MEMBER, role: 'member' as const, blockedAt: null },
+      { ...SECOND_MEMBER, role: 'member' as const, blockedAt: null },
+      { ...THIRD_MEMBER, role: 'member' as const, blockedAt: null },
+      { ...ADMIN, role: 'administrator' as const, blockedAt: null },
+      { ...REFUSING_ADMIN, role: 'administrator' as const, blockedAt: null },
+      { ...BLOCKED_ADMIN, role: 'administrator' as const, blockedAt: new Date() },
+      { ...APPROVER, role: 'member' as const, blockedAt: null },
     ];
     for (const account of accounts) {
       em.create(CustomerAccount, {
@@ -99,7 +99,7 @@ describe('cart approval e-mails (issue #651)', () => {
         passwordHash: 'not-a-real-hash',
         firstName: 'Issue651',
         lastName: account.label,
-        role: account.role,
+        organizationRoleId: await predefinedRoleIdOf(em, ORG, account.role),
         emailVerifiedAt: new Date(),
         blockedAt: account.blockedAt,
       });

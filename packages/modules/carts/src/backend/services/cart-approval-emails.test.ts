@@ -39,7 +39,6 @@ function account(overrides: Partial<CustomerAccountRecord> & { id: string }): Cu
     email: `${overrides.id}@example.com`,
     firstName: 'First',
     lastName: overrides.id,
-    role: 'regular_user',
     organizationRoleId: MEMBER_ROLE,
     emailVerifiedAt: new Date(),
     twoFactorEnabled: false,

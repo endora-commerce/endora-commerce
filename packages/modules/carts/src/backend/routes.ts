@@ -758,7 +758,6 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
         {
           customerAccountId: actor.customer.customerAccountId,
           organizationId: actor.customer.organizationId,
-          isOrgAdmin: false,
         },
         body.note,
         {

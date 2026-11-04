@@ -83,16 +83,10 @@ export const impersonationStartResponseSchema = z.object({
     firstName: z.string(),
     lastName: z.string(),
     /**
-     * @deprecated Never sent by the route, and no longer described: read
-     * `organizationRole` (`specs/170-organization-roles/` WP-03, FR-062, FR-073).
-     * Removed with the legacy enum.
-     */
-    role: z.enum(['organization_admin', 'regular_user']).optional(),
-    /**
      * The impersonated member's role — whose permissions the impersonation acts
-     * under (spec *Impersonation*); replaces `role`.
+     * under (spec *Impersonation*); it replaced the legacy `role` (FR-073).
      */
-    organizationRole: organizationRoleRefSchema.optional(),
+    organizationRole: organizationRoleRefSchema,
   }),
 });
 export type ImpersonationStartResponse = z.infer<typeof impersonationStartResponseSchema>;

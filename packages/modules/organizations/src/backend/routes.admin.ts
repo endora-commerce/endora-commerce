@@ -39,7 +39,7 @@ import { makeSetCreditModeCommand } from './commands/set-credit-mode.command.js'
 import { makeCreateOrganizationCommand } from './commands/create-organization.command.js';
 import { Organization } from './entities/organization.entity.js';
 import { OrganizationRole } from './entities/organization-role.entity.js';
-import { legacyRoleOfKind, predefinedRoleIdOn } from './services/organization-role-store.js';
+import { predefinedRoleIdOn } from './services/organization-role-store.js';
 import { memberRoleRef } from './services/member-role-views.js';
 import type { RequireAdminAnyFactory } from '@endora-commerce/platform/kernel';
 import type { InvitationService } from './services/invitation-service.js';
@@ -819,8 +819,6 @@ export async function registerOrganizationsAdminRoutes(
         password: body.password,
         firstName: body.firstName,
         lastName: body.lastName,
-        // Dual-written until the legacy removal (research R-23).
-        role: legacyRoleOfKind(role.kind),
         organizationRoleId: role.id,
       });
       if (deps.eventBus) {

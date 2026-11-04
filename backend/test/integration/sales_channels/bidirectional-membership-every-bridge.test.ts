@@ -161,8 +161,8 @@ describe('bidirectional membership: every bridge (T043)', () => {
     const id = randomUUID();
     const orgId = await insertOrganization();
     await rawExec(
-      `insert into "customer_accounts" ("id","organization_id","email","password_hash","first_name","last_name","role","created_at","updated_at") ` +
-        `values (?, ?, ?, '$2b$10$x', 'T', '043', 'regular_user', now(), now())`,
+      `insert into "customer_accounts" ("id","organization_id","email","password_hash","first_name","last_name","created_at","updated_at") ` +
+        `values (?, ?, ?, '$2b$10$x', 'T', '043', now(), now())`,
       [id, orgId, `t043-${id.slice(0, 8)}@example.test`],
     );
     return id;

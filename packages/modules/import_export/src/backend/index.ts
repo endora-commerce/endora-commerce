@@ -7,6 +7,7 @@ import type {
   InventoryStockReadPort,
   OrderReadPort,
   OrganizationDetailsPort,
+  OrganizationRoleReadPort,
 } from '@endora-commerce/contracts';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { lazyPort } from '@endora-commerce/platform/kernel';
@@ -65,6 +66,7 @@ export function registerModule(ctx: ModuleContext): void {
             orders: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
             customerAccounts: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
             organizations: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
+            organizationRoles: lazyPort<OrganizationRoleReadPort>(ctx, 'organizationRoleReadPort'),
           }),
       )
       .singleton(),

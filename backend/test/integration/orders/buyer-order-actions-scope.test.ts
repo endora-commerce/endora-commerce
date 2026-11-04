@@ -23,7 +23,7 @@ import {
 /**
  * Issue #665 — an action a buyer takes on an order *by its id* resolves that
  * order through the same scope the read does (`OrderAccessService`): a
- * `regular_user` reaches only the orders they placed, an `organization_admin`
+ * Member reaches only the orders they placed, an Administrator
  * every order of the Organization. An order outside that scope answers 404,
  * exactly as `GET /api/v1/orders/:id` does, and nothing is created.
  *
@@ -74,7 +74,6 @@ describe('#665 — buyer order actions follow the order read scope', () => {
           passwordHash,
           firstName: 'Member',
           lastName: letter.toUpperCase(),
-          role: 'regular_user',
           emailVerifiedAt: new Date(),
         }),
       );
@@ -87,7 +86,6 @@ describe('#665 — buyer order actions follow the order read scope', () => {
       passwordHash,
       firstName: 'Member',
       lastName: 'C',
-      role: 'regular_user',
       emailVerifiedAt: new Date(),
     });
     await em.persistAndFlush(viewer);

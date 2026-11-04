@@ -12,6 +12,7 @@ import { CUSTOMER_COOKIES } from '../../helpers/test-actors.js';
 import { addOrganizationChannels } from '../../helpers/sales-channel-access.js';
 import { requireCartApprovalForMembers } from '../../helpers/cart-approval-roles.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
+import { predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 
 /**
  * Issue #650 — the two reads the storefront's approval screens are built on.
@@ -74,9 +75,9 @@ describe('cart approval reads for the storefront (issue #650)', () => {
     // *Member* role as M2 maps an approval-requiring Organization.
     await requireCartApprovalForMembers(em, ORG);
     const accounts = [
-      { ...MEMBER, role: 'regular_user' as const, label: 'member' },
-      { ...OTHER_MEMBER, role: 'regular_user' as const, label: 'other' },
-      { ...ADMIN, role: 'organization_admin' as const, label: 'admin' },
+      { ...MEMBER, role: 'member' as const, label: 'member' },
+      { ...OTHER_MEMBER, role: 'member' as const, label: 'other' },
+      { ...ADMIN, role: 'administrator' as const, label: 'admin' },
     ];
     for (const account of accounts) {
       em.create(CustomerAccount, {
@@ -86,7 +87,7 @@ describe('cart approval reads for the storefront (issue #650)', () => {
         passwordHash: 'not-a-real-hash',
         firstName: 'Issue650',
         lastName: account.label,
-        role: account.role,
+        organizationRoleId: await predefinedRoleIdOf(em, ORG, account.role),
         emailVerifiedAt: new Date(),
       });
     }

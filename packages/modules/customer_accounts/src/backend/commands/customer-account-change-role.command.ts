@@ -8,7 +8,6 @@ import type { Command } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import {
   eventEnvelope,
-  legacyRoleOf,
   memberNotFound,
   memberState,
   refuseLosingLastAdministrator,
@@ -30,7 +29,6 @@ import {
  * - stepping down from *Administrator* is refused `409 CANNOT_DEMOTE_LAST_ADMIN`
  *   when no other active administrator would remain, counted under a lock
  *   (R-29);
- * - the legacy `role` is dual-written (R-23);
  * - an account already holding the role records nothing and emits nothing.
  *
  * Audited against the Organization (R-32) with `{ customerAccountId, role: { id,
@@ -75,7 +73,6 @@ export function makeChangeCustomerAccountRoleCommand(
       }
       const before = memberState(account.id, await roleSnapshot(deps.roles, input.organizationId, fromRoleId));
       account.organizationRoleId = target.id;
-      account.role = legacyRoleOf(target.kind);
       await store.save(account);
       return {
         result,

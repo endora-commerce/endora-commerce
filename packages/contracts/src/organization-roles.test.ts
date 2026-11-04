@@ -3,6 +3,14 @@ import type { Actor } from './actor.js';
 import { ERROR_CODES } from './errors.js';
 import { cartMergeOutcomeSchema, customerAccountSchema, customerLoginResponseSchema } from './organizations.js';
 import { impersonationStartResponseSchema } from './admin.js';
+import type {
+  CustomerAccountCreateInput,
+  CustomerAccountReadPort,
+  CustomerAccountRecord,
+  CustomerRolePort,
+} from './customer-accounts.js';
+import type { OrganizationRecord } from './organizations.js';
+import type { RfqCustomerContext } from './quote-requests.js';
 import {
   CustomerSessionRequiredError,
   adminAssignMemberRoleRequestSchema,
@@ -286,33 +294,72 @@ describe('cart merge outcome on sign-in (PR-12)', () => {
 });
 
 /**
- * R-23 deprecate-then-delete: the response shapes gain `organizationRole` (and,
- * on the session views, `permissions`) **beside** the legacy `role`, optional
- * until Wave 2 fills them; WP-12 removes `role`.
+ * R-23 deprecate-then-delete, completed by WP-12 (T105, FR-073): the legacy
+ * two-value `role` is gone from every response shape, and so are the symbols
+ * that spelled it. A payload that still carries `role` parses with the key
+ * stripped — these are response schemas, so nothing is refused, but nothing
+ * describes or forwards the old field either.
  */
-describe('additive role fields beside the legacy `role` (R-23)', () => {
+describe('the legacy role is removed (R-23, WP-12)', () => {
   const organizationRole = { id: ROLE_ID, name: 'Administrator', kind: 'administrator' as const };
 
-  it('a customer account carries an optional organizationRole and permissions', () => {
+  it('the package exports none of the legacy role symbols', async () => {
+    const contracts: Record<string, unknown> = await import('./index.js');
+    for (const name of [
+      'organizationRoleSchema',
+      'setCartApprovalPolicySchema',
+      'cartApprovalPolicyResponseSchema',
+      'inviteMemberRequestSchema',
+      'changeMemberRoleRequestSchema',
+      'adminDirectMemberRequestSchema',
+      'adminPatchMemberRoleRequestSchema',
+    ]) {
+      expect(contracts, name).not.toHaveProperty(name);
+    }
+    expect(Object.keys(ERROR_CODES)).not.toContain('CART_APPROVAL_SELF_SUBMIT');
+  });
+
+  it('the cross-module records and ports carry no legacy member (checked by the type-check)', () => {
+    type Has<T, K extends PropertyKey> = K extends keyof T ? true : false;
+    const absent: [
+      Has<CustomerAccountRecord, 'role'>,
+      Has<CustomerAccountCreateInput, 'role'>,
+      Has<CustomerAccountReadPort, 'countByOrganizationRole'>,
+      Has<CustomerRolePort, 'changeRole'>,
+      Has<OrganizationRecord, 'requiresCartApproval'>,
+      Has<RfqCustomerContext, 'isOrgAdmin'>,
+    ] = [false, false, false, false, false, false];
+    expect(absent.every((present) => !present)).toBe(true);
+  });
+
+  it('a customer account carries organizationRole and permissions, and no role', () => {
     const base = {
       id: ROLE_ID,
       organizationId: OTHER_ID,
       email: 'a@example.test',
       firstName: 'Ada',
       lastName: 'Lovelace',
-      role: 'organization_admin',
       emailVerifiedAt: null,
       twoFactorEnabled: false,
       createdAt: '2026-11-03T10:00:00.000Z',
       updatedAt: '2026-11-03T10:00:00.000Z',
     };
-    expect(customerAccountSchema.safeParse(base).success).toBe(true);
-    const parsed = customerAccountSchema.parse({ ...base, organizationRole, permissions: ['carts.create'] });
+    const parsed = customerAccountSchema.parse({
+      ...base,
+      role: 'organization_admin',
+      organizationRole,
+      permissions: ['carts.create'],
+    });
     expect(parsed.organizationRole).toEqual(organizationRole);
     expect(parsed.permissions).toEqual(['carts.create']);
+    expect(parsed).not.toHaveProperty('role');
+    expect(Object.keys(customerAccountSchema.shape)).not.toContain('role');
+    // Required since the legacy removal: every producer sends both (WP-12).
+    expect(customerAccountSchema.safeParse({ ...base, permissions: [] }).success).toBe(false);
+    expect(customerAccountSchema.safeParse({ ...base, organizationRole }).success).toBe(false);
   });
 
-  it('the login response carries them beside role', () => {
+  it('the login response carries them, and no role', () => {
     const parsed = customerLoginResponseSchema.parse({
       data: {
         customerAccount: {
@@ -328,9 +375,13 @@ describe('additive role fields beside the legacy `role` (R-23)', () => {
     });
     expect(parsed.data.customerAccount.organizationRole).toEqual(organizationRole);
     expect(parsed.data.customerAccount.permissions).toEqual([]);
+    expect(parsed.data.customerAccount).not.toHaveProperty('role');
+    const account = { id: ROLE_ID, email: 'a@example.test', organizationId: OTHER_ID, twoFactorEnabled: false };
+    expect(customerLoginResponseSchema.safeParse({ data: { customerAccount: { ...account, permissions: [] } } }).success).toBe(false);
+    expect(customerLoginResponseSchema.safeParse({ data: { customerAccount: { ...account, organizationRole } } }).success).toBe(false);
   });
 
-  it('the impersonation start response carries organizationRole beside role', () => {
+  it('the impersonation start response carries organizationRole, and no role', () => {
     const parsed = impersonationStartResponseSchema.parse({
       impersonationSessionId: ROLE_ID,
       impersonatedCustomerAccount: {
@@ -343,5 +394,12 @@ describe('additive role fields beside the legacy `role` (R-23)', () => {
       },
     });
     expect(parsed.impersonatedCustomerAccount.organizationRole).toEqual(organizationRole);
+    expect(parsed.impersonatedCustomerAccount).not.toHaveProperty('role');
+    expect(
+      impersonationStartResponseSchema.safeParse({
+        impersonationSessionId: ROLE_ID,
+        impersonatedCustomerAccount: { id: OTHER_ID, email: 'a@example.test', firstName: 'Ada', lastName: 'Lovelace' },
+      }).success,
+    ).toBe(false);
   });
 });

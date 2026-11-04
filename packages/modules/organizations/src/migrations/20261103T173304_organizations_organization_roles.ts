@@ -93,14 +93,28 @@ export class Migration20261103T173304OrganizationsOrganizationRoles extends Migr
     `);
 
     // FR-071 / R-18 — an approval-requiring Organization's Member was "offered" both codes.
+    // Guarded by the column's presence: migration M4 drops it, and a re-run of
+    // this `up()` after M4 (FR-074, the replay's step 7) has nothing to map.
     this.addSql(`
-      update "organization_roles" r
-         set "member_defaults_offered" = array['carts.order_without_approval', 'quick_order.one_click']
-        from "organizations" o
-       where r."organization_id" = o."id"
-         and r."kind" = 'member'
-         and o."requires_cart_approval" = true
-         and r."member_defaults_offered" = '{}';
+      do $$
+      begin
+        if exists (
+          select 1 from information_schema.columns
+           where table_schema = current_schema() and table_name = 'organizations'
+             and column_name = 'requires_cart_approval'
+        ) then
+          execute $sql$
+            update "organization_roles" r
+               set "member_defaults_offered" = array['carts.order_without_approval', 'quick_order.one_click']
+              from "organizations" o
+             where r."organization_id" = o."id"
+               and r."kind" = 'member'
+               and o."requires_cart_approval" = true
+               and r."member_defaults_offered" = '{}'
+          $sql$;
+        end if;
+      end
+      $$;
     `);
 
     // R-28 — every future Organization gets both rows in its own insert.
@@ -127,13 +141,27 @@ export class Migration20261103T173304OrganizationsOrganizationRoles extends Migr
     this.addSql(
       `alter table "organization_invitations" add column if not exists "organization_role_id" uuid null;`,
     );
+    // Guarded like the marker above: M4 drops `role`, after which every
+    // invitation already names its role.
     this.addSql(`
-      update "organization_invitations" i
-         set "organization_role_id" = r."id"
-        from "organization_roles" r
-       where r."organization_id" = i."organization_id"
-         and r."kind" = case when i."role" = 'organization_admin' then 'administrator' else 'member' end
-         and i."organization_role_id" is null;
+      do $$
+      begin
+        if exists (
+          select 1 from information_schema.columns
+           where table_schema = current_schema() and table_name = 'organization_invitations'
+             and column_name = 'role'
+        ) then
+          execute $sql$
+            update "organization_invitations" i
+               set "organization_role_id" = r."id"
+              from "organization_roles" r
+             where r."organization_id" = i."organization_id"
+               and r."kind" = case when i."role" = 'organization_admin' then 'administrator' else 'member' end
+               and i."organization_role_id" is null
+          $sql$;
+        end if;
+      end
+      $$;
     `);
     this.addSql(
       `alter table "organization_invitations" alter column "organization_role_id" set not null;`,

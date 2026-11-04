@@ -20,7 +20,7 @@ import { seedInvoiceableOrder } from '../invoices/helpers.js';
  *
  * It is the order read scope `GET /api/v1/orders/:id` applies, published for a
  * consumer that serves a customer an order-scoped resource: a regular member
- * reaches the orders they placed, an `organization_admin` (TEST_CUSTOMER_ID)
+ * reaches the orders they placed, an Administrator (TEST_CUSTOMER_ID)
  * every order of the Organization, and anyone else gets `null`.
  */
 describe('OrderReadPort.findByIdForCustomer', () => {
@@ -42,7 +42,7 @@ describe('OrderReadPort.findByIdForCustomer', () => {
     expect((await port().findByIdForCustomer(orderId, as(TEST_CUSTOMER_RFQ_ID)))?.id).toBe(orderId);
   });
 
-  it('answers the order to an organization_admin of its Organization', async () => {
+  it('answers the order to an Administrator of its Organization', async () => {
     expect((await port().findByIdForCustomer(orderId, as(TEST_CUSTOMER_ID)))?.id).toBe(orderId);
   });
 

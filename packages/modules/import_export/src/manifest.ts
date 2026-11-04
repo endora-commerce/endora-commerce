@@ -110,6 +110,15 @@ export const manifest = defineModuleManifest({
       reason:
         'The customers sheet names each account\'s organisation, so that one entity needs both owners present. No other entity reads this port.',
     },
+    {
+      moduleId: 'organizations',
+      name: 'organizationRoleReadPort',
+      kind: 'degrades-without',
+      whenAbsent:
+        'The import/export centre stops offering the Customers export; every other entity is unaffected.',
+      reason:
+        'The customers sheet names the role each account holds, its name and kind (`specs/170-organization-roles/`), and roles are `organizations`\' rows. Read only by that one entity, which is offered only while `organizations` is present.',
+    },
   ],
   settings: {
     moduleCode: 'import_export',

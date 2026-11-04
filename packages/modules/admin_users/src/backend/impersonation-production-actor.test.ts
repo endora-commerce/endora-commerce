@@ -28,6 +28,7 @@ import type { ImpersonationService } from './services/impersonation-service.js';
 const ADMIN_ID = '00000000-0000-4000-8000-0000000000b1';
 const ORG_ID = '00000000-0000-4000-8000-0000000000aa';
 const CUSTOMER_ID = '00000000-0000-4000-8000-0000000000a1';
+const ROLE_ID = '00000000-0000-4000-8000-0000000170b2';
 
 describe('POST /api/v1/admin/organizations/:id/impersonate — the acting admin', () => {
   let app: FastifyInstance;
@@ -48,7 +49,8 @@ describe('POST /api/v1/admin/organizations/:id/impersonate — the acting admin'
             email: 'buyer@example.test',
             firstName: 'Buyer',
             lastName: 'One',
-            role: 'buyer',
+            organizationId: ORG_ID,
+            organizationRoleId: ROLE_ID,
           },
         };
       },
@@ -58,6 +60,7 @@ describe('POST /api/v1/admin/organizations/:id/impersonate — the acting admin'
     await app.register(cookie);
     app.setValidatorCompiler(validatorCompiler);
     app.setSerializerCompiler(serializerCompiler);
+    app.decorateRequest('responseLanguage', async () => 'en');
     // The production request shape: the auth plugin decorates `request.actor`
     // and nothing decorates `request.testActor`.
     app.addHook('onRequest', async (request: FastifyRequest) => {
@@ -71,6 +74,10 @@ describe('POST /api/v1/admin/organizations/:id/impersonate — the acting admin'
       requireAdmin: () => async () => {},
       resolveAdminUserId: (request) =>
         (request as unknown as { actor: { adminUserId: string } }).actor.adminUserId,
+      organizationRoles: {
+        roleRef: async (organizationId, roleId) =>
+          organizationId === ORG_ID && roleId === ROLE_ID ? { id: ROLE_ID, name: 'Buyer', kind: 'custom' } : null,
+      },
     };
     await registerImpersonationRoutes(app, deps);
     await app.ready();
@@ -90,5 +97,21 @@ describe('POST /api/v1/admin/organizations/:id/impersonate — the acting admin'
     expect(res.statusCode).toBe(200);
     expect(started).not.toBeNull();
     expect(started?.adminUserId).toBe(ADMIN_ID);
+  });
+
+  it('names the role the impersonation acts under (`specs/170-organization-roles/` WP-12, FR-062)', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/organizations/${ORG_ID}/impersonate`,
+      payload: { customerAccountId: CUSTOMER_ID },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    expect((res.json() as { data: { impersonatedCustomerAccount: unknown } }).data.impersonatedCustomerAccount).toEqual({
+      id: CUSTOMER_ID,
+      email: 'buyer@example.test',
+      firstName: 'Buyer',
+      lastName: 'One',
+      organizationRole: { id: ROLE_ID, name: 'Buyer', kind: 'custom' },
+    });
   });
 });

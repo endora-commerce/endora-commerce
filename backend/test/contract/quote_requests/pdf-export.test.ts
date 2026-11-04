@@ -159,7 +159,6 @@ describe('quote request PDF — admin routes Q1–Q3 (spec 153)', () => {
         passwordHash: 'x'.repeat(60),
         firstName: '153',
         lastName: 'Foreign',
-        role: 'regular_user',
       });
       await fork.persistAndFlush([account, fork.create(OrganizationSalesRepAssignment, { organizationId: org.id, adminUserId: rep.id })]);
       foreignOrg = org.id;

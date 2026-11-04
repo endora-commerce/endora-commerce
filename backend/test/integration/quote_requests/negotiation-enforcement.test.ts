@@ -116,9 +116,7 @@ describe('146 — price-negotiation lock enforcement [integration]', () => {
       passwordHash: 'x'.repeat(60),
       firstName: '146',
       lastName: key,
-      ...(administratorRoleId
-        ? { role: 'organization_admin' as const, organizationRoleId: administratorRoleId }
-        : { role: 'regular_user' as const }),
+      ...(administratorRoleId ? { organizationRoleId: administratorRoleId } : {}),
     });
 
   /** Register a stub session for the account, carrying the organization the session was opened in. */

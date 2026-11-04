@@ -111,7 +111,6 @@ describe('customer_accounts — passwordSetAt (issue #222)', () => {
       password: 'another-very-strong-pass',
       firstName: 'New',
       lastName: 'Member',
-      role: 'regular_user',
       organizationRoleId: await predefinedRoleIdOf(h.em(), TEST_ORGANIZATION_ID, 'member'),
     });
 
@@ -127,7 +126,6 @@ describe('customer_accounts — passwordSetAt (issue #222)', () => {
       password: 'the-password-they-forgot',
       firstName: 'Reset',
       lastName: 'Me',
-      role: 'regular_user',
       organizationRoleId: await predefinedRoleIdOf(h.em(), TEST_ORGANIZATION_ID, 'member'),
     });
     // Back to "no password on record", so the assertion below is about the

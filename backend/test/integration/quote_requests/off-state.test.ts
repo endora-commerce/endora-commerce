@@ -507,7 +507,6 @@ describe('quote_requests off-state, from a package (Constitution XVII)', () => {
           passwordHash: 'x'.repeat(60),
           firstName: '146',
           lastName: 'off',
-          role: 'regular_user',
         });
         await em.persistAndFlush(account);
         organizationId = org.id;
@@ -827,8 +826,8 @@ describe('quote_requests off-state, from a package (Constitution XVII)', () => {
       // No role named: the R-28 trigger gives the account the Organization's *Member*.
       await conn.execute(
         `insert into "customer_accounts"
-           ("id","organization_id","email","password_hash","first_name","last_name","role","created_at","updated_at")
-         values (?, ?, ?, 'x', 'Off', 'State', 'regular_user', now(), now())`,
+           ("id","organization_id","email","password_hash","first_name","last_name","created_at","updated_at")
+         values (?, ?, ?, 'x', 'Off', 'State', now(), now())`,
         [accountId, TEST_ORGANIZATION_ID, `off-state-${RUN}@rfq-permission.example`],
       );
       CUSTOMER_COOKIES[MEMBER_COOKIE] = { customerAccountId: accountId, organizationId: TEST_ORGANIZATION_ID };

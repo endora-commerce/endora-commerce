@@ -4,8 +4,14 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { normalizeOrganizationName, type OrganizationPermissionPort } from '@endora-commerce/contracts';
-import { Migration20261103T190132CustomerAccountsOrganizationRoleAssignment } from '@endora-commerce/mod-customer-accounts/migrations';
-import { Migration20261103T173304OrganizationsOrganizationRoles } from '@endora-commerce/mod-organizations/migrations';
+import {
+  Migration20261103T190132CustomerAccountsOrganizationRoleAssignment,
+  Migration20261104T094540CustomerAccountsDropLegacyRoleColumn,
+} from '@endora-commerce/mod-customer-accounts/migrations';
+import {
+  Migration20261103T173304OrganizationsOrganizationRoles,
+  Migration20261104T094535OrganizationsDropLegacyRoleColumns,
+} from '@endora-commerce/mod-organizations/migrations';
 import { hashPassword, SalesChannel } from '@endora-commerce/platform/kernel';
 import type { BackendServerHandle } from '../../helpers/test-server.js';
 import { migratedDatabase, type MigratedDatabase } from '../../helpers/migrated-database.js';
@@ -45,8 +51,9 @@ import {
  * and M3's backfill over existing rows; a live seed gets its roles from the
  * insert triggers instead (R-38).
  *
- * **The migration lists.** Until WP-12 they hold M3 and M2 only (T138 adds M5
- * and M4: the population names the columns they drop).
+ * **The migration lists.** `down()` runs M5, M4, M3, M2 and `up()` M2, M3, M4,
+ * M5 (T138, WP-12): the population names the legacy columns M4 and M5 drop, so
+ * their `down()`s re-add them before it is written.
  *
  * **The order, and why the server boots first.** `setupBackendServer` truncates
  * and reseeds every table the population lives in, and the population needs
@@ -72,10 +79,12 @@ const BACKEND_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..'
 const ONE_CLICK_ENABLED = 'quick_order.one_click_buy_enabled';
 const DAY = 24 * 60 * 60 * 1000;
 
-/** The 170 migrations, in the order an upgrade applies them. WP-12 appends M4 and M5 (T138). */
+/** The 170 migrations, in the order an upgrade applies them (M2–M5, §6 step 4; T138). */
 const UPGRADE = [
   Migration20261103T173304OrganizationsOrganizationRoles,
   Migration20261103T190132CustomerAccountsOrganizationRoleAssignment,
+  Migration20261104T094535OrganizationsDropLegacyRoleColumns,
+  Migration20261104T094540CustomerAccountsDropLegacyRoleColumn,
 ] as const;
 
 type MigrationClass = (typeof UPGRADE)[number];
@@ -124,7 +133,14 @@ describe('organization roles — the upgrade replay (170 WP-13a)', () => {
   const roleIdOf = new Map<string, string>();
   /** What the first `up()` left, read before any request is sent. */
   let upgraded: MigrationSnapshot;
-  let pre170Schema: { organizationRoles: boolean; accountRoleColumn: boolean; invitationRoleColumn: boolean };
+  let pre170Schema: {
+    organizationRoles: boolean;
+    accountRoleColumn: boolean;
+    invitationRoleColumn: boolean;
+    legacyColumns: string[];
+  };
+  /** The legacy columns left after the first `up()` — none, once M4 and M5 ran. */
+  let legacyColumnsAfterUpgrade: string[];
 
   const memberId = (key: OracleMemberKey): string => oracleMember(key).id;
   const addressIdOf = (key: string): string => POPULATION.addresses.find((a) => a.key === key)!.id;
@@ -147,10 +163,10 @@ describe('organization roles — the upgrade replay (170 WP-13a)', () => {
            from "organization_roles" order by "id"`,
       ),
       accounts: await execute(
-        `select "id", "organization_id", "organization_role_id", "role", "updated_at" from "customer_accounts" order by "id"`,
+        `select "id", "organization_id", "organization_role_id", "updated_at" from "customer_accounts" order by "id"`,
       ),
       invitations: await execute(
-        `select "id", "organization_role_id", "role", "updated_at" from "organization_invitations" order by "id"`,
+        `select "id", "organization_role_id", "updated_at" from "organization_invitations" order by "id"`,
       ),
       triggers: await execute(
         `select "tgname", "tgrelid"::regclass::text as "table" from pg_trigger
@@ -193,6 +209,15 @@ describe('organization roles — the upgrade replay (170 WP-13a)', () => {
 
     // ── Back to the pre-170 schema ───────────────────────────────────────────
     await apply('down');
+    const legacyColumns = async (): Promise<string[]> =>
+      (
+        await execute<{ name: string }>(
+          `select table_name || '.' || column_name as "name" from information_schema.columns
+            where (table_name, column_name) in
+              (('customer_accounts', 'role'), ('organization_invitations', 'role'), ('organizations', 'requires_cart_approval'))
+            order by 1`,
+        )
+      ).map((row) => row.name);
     const [schema] = await execute<{ roles: boolean; account: boolean; invitation: boolean }>(
       `select to_regclass('organization_roles') is not null as "roles",
               exists (select 1 from information_schema.columns
@@ -204,6 +229,7 @@ describe('organization roles — the upgrade replay (170 WP-13a)', () => {
       organizationRoles: schema!.roles,
       accountRoleColumn: schema!.account,
       invitationRoleColumn: schema!.invitation,
+      legacyColumns: await legacyColumns(),
     };
 
     // ── ORACLE_POPULATION, raw SQL, in the pre-170 shape ─────────────────────
@@ -427,6 +453,7 @@ describe('organization roles — the upgrade replay (170 WP-13a)', () => {
     // ── The upgrade ──────────────────────────────────────────────────────────
     await apply('up');
     upgraded = await snapshot();
+    legacyColumnsAfterUpgrade = await legacyColumns();
     for (const row of upgraded.roles as Array<{ id: string; organization_id: string; kind: string }>) {
       roleIdOf.set(`${row.organization_id}:${row.kind}`, row.id);
     }
@@ -496,7 +523,16 @@ describe('organization roles — the upgrade replay (170 WP-13a)', () => {
   }
 
   it('reached the pre-170 schema before writing the population', () => {
-    expect(pre170Schema).toEqual({ organizationRoles: false, accountRoleColumn: false, invitationRoleColumn: false });
+    expect(pre170Schema).toEqual({
+      organizationRoles: false,
+      accountRoleColumn: false,
+      invitationRoleColumn: false,
+      legacyColumns: ['customer_accounts.role', 'organization_invitations.role', 'organizations.requires_cart_approval'],
+    });
+  });
+
+  it('leaves no legacy role column after the upgrade (M4, M5; FR-073)', () => {
+    expect(legacyColumnsAfterUpgrade).toEqual([]);
   });
 
   it('declares every request once, with a stable id', () => {
@@ -518,12 +554,12 @@ describe('organization roles — the upgrade replay (170 WP-13a)', () => {
       }
     });
 
-    it('maps every account, blocked and deleted included, to the role its legacy enum names — P.owner to Administrator', () => {
-      const accounts = upgraded.accounts as Array<{ id: string; organization_id: string; organization_role_id: string; role: string }>;
+    it('maps every account, blocked and deleted included, to the role its legacy enum named — P.owner to Administrator', () => {
+      const accounts = upgraded.accounts as Array<{ id: string; organization_id: string; organization_role_id: string }>;
       const mapped = Object.fromEntries(
         POPULATION.members.map((m) => {
           const row = accounts.find((a) => a.id === m.id)!;
-          return [m.key, { role: row.role, held: roleKindOf(row.organization_role_id), own: row.organization_id === oracleOrganization(m.organization).id }];
+          return [m.key, { held: roleKindOf(row.organization_role_id), own: row.organization_id === oracleOrganization(m.organization).id }];
         }),
       );
       expect(mapped).toEqual(
@@ -531,15 +567,15 @@ describe('organization roles — the upgrade replay (170 WP-13a)', () => {
           POPULATION.members.map((m) => [
             m.key,
             {
-              // M3 maps the reference only; the legacy enum stays as it was (until M5).
-              role: m.role,
               held: oracleOrganization(m.organization).isPersonal ? 'administrator' : legacyRoleKind(m.role),
               own: true,
             },
           ]),
         ),
       );
-      expect(mapped['P.owner']).toEqual({ role: 'regular_user', held: 'administrator', own: true });
+      // Written as the `regular_user` it is today (step 3), mapped to Administrator (PR-3).
+      expect(POPULATION.members.find((m) => m.key === 'P.owner')?.role).toBe('regular_user');
+      expect(mapped['P.owner']).toEqual({ held: 'administrator', own: true });
     });
 
     it('maps every invitation — pending, expired and accepted — to the role its legacy enum names', () => {

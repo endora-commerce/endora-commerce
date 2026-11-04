@@ -342,6 +342,12 @@ export async function registerCustomersAdminRoutes(
             await request.responseLanguage(),
           )
         : null;
+      if (!organizationRole) {
+        // Required on the answer (`specs/170-organization-roles/` WP-12); the
+        // account was just impersonated and its role is held by a foreign key,
+        // so this is unreachable — refuse rather than name no role.
+        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization role not found.');
+      }
       return {
         data: {
           impersonationSessionId: result.impersonationSessionId,
@@ -350,7 +356,7 @@ export async function registerCustomersAdminRoutes(
             email: result.impersonatedCustomerAccount.email,
             firstName: result.impersonatedCustomerAccount.firstName,
             lastName: result.impersonatedCustomerAccount.lastName,
-            ...(organizationRole ? { organizationRole } : {}),
+            organizationRole,
           },
         },
       };

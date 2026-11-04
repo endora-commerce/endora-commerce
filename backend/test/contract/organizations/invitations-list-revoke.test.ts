@@ -96,9 +96,9 @@ describe('Organization invitations — list + revoke', () => {
       const [expiresAt, consumedAt, revokedAt] = states[state];
       await h.em().execute(
         `insert into "organization_invitations"
-           ("id","organization_id","email","role","organization_role_id","token_hash","expires_at",
+           ("id","organization_id","email","organization_role_id","token_hash","expires_at",
             "consumed_at","revoked_at","created_at","updated_at")
-         values (?, ?, ?, 'regular_user', ?, ?, ?, ?, ?, now(), now())`,
+         values (?, ?, ?, ?, ?, ?, ?, ?, now(), now())`,
         [id, TEST_ORGANIZATION_ID, `${state}-${id.slice(0, 8)}@invitations-list.example`, memberRoleId, `h-${id}`, expiresAt, consumedAt, revokedAt],
       );
     }

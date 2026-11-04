@@ -83,7 +83,6 @@ export function toOrganizationRecord(organization: Organization): OrganizationRe
     rejectedAt: organization.rejectedAt ?? null,
     approvedAt: organization.approvedAt ?? null,
     approvedByAdminUserId: organization.approvedByAdminUserId ?? null,
-    requiresCartApproval: organization.requiresCartApproval,
     fulfilmentStrategy: organization.fulfilmentStrategy ?? null,
     fulfilmentStrategyWarehouseOrder: organization.fulfilmentStrategyWarehouseOrder ?? null,
     parentId: organization.parentId ?? null,

@@ -17,7 +17,6 @@ export class CustomerAccount {
     | 'id'
     | 'createdAt'
     | 'updatedAt'
-    | 'role'
     | 'organizationRoleId'
     | 'emailVerifiedAt'
     | 'passwordSetAt'
@@ -97,27 +96,15 @@ export class CustomerAccount {
   lastName!: string;
 
   /**
-   * The legacy two-value role, kept and **dual-written** beside
-   * {@link organizationRoleId} until the feature's legacy-removal package drops
-   * it (`specs/170-organization-roles/`, research R-23; migration M5). A personal
-   * Organization's account keeps whatever it held — M3 does not rewrite it.
-   *
-   * @deprecated Read `organizationRoleId`.
-   */
-  @Property({ type: 'string', length: 32 })
-  @Index()
-  role: 'organization_admin' | 'regular_user' = 'regular_user';
-
-  /**
    * The organization role this account holds (`specs/170-organization-roles/`
    * data-model §2): a composite foreign key `(organization_id,
    * organization_role_id)` into `organization_roles`, so it can only name a role
    * of this account's own Organization, and a role an account holds — removed
    * accounts included — cannot be deleted.
    *
-   * Optional here only because migration M3's `before insert` trigger fills it
-   * for a row inserted without one (research R-28): the personal Organization's
-   * *Administrator*, else the role the legacy {@link role} names. Every
+   * Optional here only because the `before insert` trigger (migration M3, as
+   * M5 redefines it) fills it for a row inserted without one (research R-28):
+   * the personal Organization's *Administrator*, else its *Member*. Every
    * production write passes it — the write ports require it — so the trigger
    * serves fixtures that create the entity directly. The value such a row gets
    * is in the database, not on this instance, until it is re-read.

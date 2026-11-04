@@ -45,12 +45,12 @@ const ADMINISTRATOR_ROLE_ID = '00000000-0000-4000-8000-0000000170a1';
 
 /**
  * The recipient is the first member holding the *Administrator* role, judged
- * by the role id and not the legacy column (`specs/170-organization-roles/`
- * WP-03, T060): a member listed first is skipped.
+ * by the role id (`specs/170-organization-roles/` WP-03, T060): a member listed
+ * first is skipped.
  */
 const MEMBERS = [
-  { role: 'organization_admin', organizationRoleId: '00000000-0000-4000-8000-0000000170b2', email: 'member@buyer.example' },
-  { role: 'regular_user', organizationRoleId: ADMINISTRATOR_ROLE_ID, email: BUYER },
+  { organizationRoleId: '00000000-0000-4000-8000-0000000170b2', email: 'member@buyer.example' },
+  { organizationRoleId: ADMINISTRATOR_ROLE_ID, email: BUYER },
 ];
 
 /** The fake unit of work answers the Organization, and the role row for an `OrganizationRole` lookup. */

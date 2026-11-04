@@ -3,7 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { BackendServerHandle } from '../../helpers/test-server.js';
 import { CUSTOMER_COOKIES } from '../../helpers/test-actors.js';
 import { bindOrganizationsToFixtureChannelsSql } from '../../helpers/sales-channel-access.js';
-import { seedCustomOrganizationRole, assignOrganizationRole } from '../../helpers/seed-organization-roles.js';
+import { seedCustomOrganizationRole, assignOrganizationRole, predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 import { CustomerAccount, Organization } from '../../helpers/package-entities.js';
 import { OrganizationTreeService } from '../../../../packages/modules/organizations/src/backend/services/organization-tree-service.js';
 import { anyReasonId, seedReturnableOrder, type SeededOrder } from './helpers.js';
@@ -84,7 +84,7 @@ export async function makeMember(
     passwordHash: 'x',
     firstName: 'WP14',
     lastName: options.label ?? 'Member',
-    role: role === 'administrator' ? 'organization_admin' : 'regular_user',
+    organizationRoleId: await predefinedRoleIdOf(em, organizationId, role === 'administrator' ? 'administrator' : 'member'),
     subtreeRollupEnabled: options.rollup ?? false,
     emailVerifiedAt: new Date(),
   });

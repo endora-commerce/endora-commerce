@@ -103,7 +103,6 @@ describe('146 — sales representative scope [integration]', () => {
           passwordHash: 'x'.repeat(60),
           firstName: '146',
           lastName: label,
-          role: 'regular_user',
         });
       const aOwn = account(own.id, 'own');
       const aForeign = account(foreign.id, 'foreign');
@@ -265,7 +264,6 @@ describe('146 — sales representative scope [integration]', () => {
           passwordHash: 'x'.repeat(60),
           firstName: 'Gone',
           lastName: 'Buyer',
-          role: 'regular_user',
           deletedAt: new Date(),
         });
         await em.persistAndFlush(acc);

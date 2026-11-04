@@ -97,10 +97,6 @@ export class OrderCloneToQuoteService {
       {
         customerAccountId: ctx.customerAccountId,
         organizationId: ctx.organizationId,
-        // Issue #665 — `createForCustomer` reads no role, and the request is
-        // the caller's own. Stated as `false`, as every other creating caller
-        // states it: a missing value must never be read as "admin".
-        isOrgAdmin: false,
       },
       input,
       options.actor === 'operator'

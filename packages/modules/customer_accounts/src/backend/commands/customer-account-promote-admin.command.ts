@@ -23,7 +23,7 @@ export interface PromoteOrganizationAdminInput {
  *
  * The path an operator reaches *because* an Organization has no administrator
  * left, so it has no last-administrator guard. Assigns the Organization's
- * *Administrator* role and its legacy value (R-23); idempotent — an account that
+ * *Administrator* role; idempotent — an account that
  * already holds it records nothing and emits nothing.
  *
  * Audited against the Organization with `{ customerAccountId, role }` refs;
@@ -49,12 +49,11 @@ export function makePromoteOrganizationAdminCommand(
         fromRoleId,
         toRoleId: administratorRoleId,
       };
-      if (fromRoleId === administratorRoleId && account.role === 'organization_admin') {
+      if (fromRoleId === administratorRoleId) {
         return { result, skipAudit: true };
       }
       const before = memberState(account.id, await roleSnapshot(deps.roles, input.organizationId, fromRoleId));
       account.organizationRoleId = administratorRoleId;
-      account.role = 'organization_admin';
       await store.save(account);
       return {
         result,

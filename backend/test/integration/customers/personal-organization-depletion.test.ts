@@ -47,8 +47,8 @@ describe('customers — depletion guards are for company Organizations only (PR-
     const id = randomUUID();
     await h.em().execute(
       `insert into "customer_accounts"
-         ("id","organization_id","email","password_hash","first_name","last_name","role","organization_role_id","blocked_at","created_at","updated_at")
-       values (?, ?, ?, 'x', 'Dep', 'Letion', 'regular_user', ?, ?, now(), now())`,
+         ("id","organization_id","email","password_hash","first_name","last_name","organization_role_id","blocked_at","created_at","updated_at")
+       values (?, ?, ?, 'x', 'Dep', 'Letion', ?, ?, now(), now())`,
       [
         id,
         organizationId,
@@ -145,9 +145,8 @@ describe('customers — depletion guards are for company Organizations only (PR-
     expect((res.json() as { error: { code: string } }).error.code).toBe(ERROR_CODES.ORG_OWNER_DEPLETION);
   });
 
-  it('judges the administrator by the role it holds, not the legacy column (T058)', async () => {
-    // Both accounts carry `regular_user` in the legacy column; the one holding
-    // the Administrator role is the one the guard protects.
+  it('judges the administrator by the role it holds (T058)', async () => {
+    // The one holding the Administrator role is the one the guard protects.
     const company = await organization(false);
     const administrator = await account(company, 'administrator');
     const member = await account(company, 'member');

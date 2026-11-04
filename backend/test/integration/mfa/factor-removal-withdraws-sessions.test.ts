@@ -162,7 +162,6 @@ describe('MFA — removing a factor withdraws sessions and pending logins', () =
       password: PASSWORD,
       firstName: 'Factor',
       lastName: 'Removal',
-      role: 'regular_user',
       organizationRoleId: await predefinedRoleIdOf(h.em(), TEST_ORGANIZATION_ID, 'member'),
     });
     await h.em().flush();

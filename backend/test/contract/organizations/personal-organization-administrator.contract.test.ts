@@ -25,8 +25,8 @@ import { bindOrganizationsToFixtureChannelsSql } from '../../helpers/sales-chann
  * oneself is the last-administrator refusal. The role routes stay `404`
  * (T028's rule, re-asserted from the member side).
  *
- * The account is inserted as the `regular_user` a self-registered individual
- * is today; the M3 default trigger gives it the personal Organization's
+ * The account is inserted without a role, as a self-registered individual's
+ * row is; the default trigger gives it the personal Organization's
  * *Administrator* (PR-3, R-28).
  */
 
@@ -54,8 +54,8 @@ describe('a personal Organization’s administrator (PR-3)', () => {
     );
     await h.em().execute(
       `insert into "customer_accounts"
-         ("id","organization_id","email","password_hash","first_name","last_name","role","created_at","updated_at")
-       values (?, ?, ?, 'x', 'Indi', 'Vidual', 'regular_user', now(), now())`,
+         ("id","organization_id","email","password_hash","first_name","last_name","created_at","updated_at")
+       values (?, ?, ?, 'x', 'Indi', 'Vidual', now(), now())`,
       [personalAccountId, personalOrganizationId, `${personalAccountId.slice(0, 8)}@personal-admin.example`],
     );
     await bindOrganizationsToFixtureChannelsSql(h.em(), [personalOrganizationId]);
@@ -64,8 +64,8 @@ describe('a personal Organization’s administrator (PR-3)', () => {
     otherOrganizationInvitationId = randomUUID();
     await h.em().execute(
       `insert into "organization_invitations"
-         ("id","organization_id","email","role","organization_role_id","token_hash","expires_at","created_at","updated_at")
-       values (?, ?, ?, 'regular_user', ?, ?, now() + interval '7 days', now(), now())`,
+         ("id","organization_id","email","organization_role_id","token_hash","expires_at","created_at","updated_at")
+       values (?, ?, ?, ?, ?, now() + interval '7 days', now(), now())`,
       [
         otherOrganizationInvitationId,
         OTHER_TEST_ORGANIZATION_ID,

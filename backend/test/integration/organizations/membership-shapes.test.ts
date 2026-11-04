@@ -7,6 +7,7 @@ import {
 } from '../../helpers/test-server.js';
 import { CustomerAccount } from '../../helpers/package-entities.js';
 import { hashPassword } from '@endora-commerce/platform/kernel';
+import { predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 
 /**
  * Feature 026 US2 — Customer↔Organization membership shapes.
@@ -59,7 +60,7 @@ describe('Customer↔Organization membership shapes (feature 026 US2)', () => {
       passwordHash: password,
       firstName: 'Anna',
       lastName: 'Decydent',
-      role: 'organization_admin',
+      organizationRoleId: await predefinedRoleIdOf(em, org.id, 'administrator'),
     });
     const memberB = em.create(CustomerAccount, {
       organizationId: org.id,
@@ -67,7 +68,6 @@ describe('Customer↔Organization membership shapes (feature 026 US2)', () => {
       passwordHash: password,
       firstName: 'Bartek',
       lastName: 'Aprobant',
-      role: 'regular_user',
     });
     await em.persistAndFlush([memberA, memberB]);
 
@@ -104,9 +104,9 @@ describe('Customer↔Organization membership shapes (feature 026 US2)', () => {
     // in the guard can see this statement.
     await expect(
       em.execute(
-        'insert into customer_accounts (id, organization_id, email, password_hash, first_name, last_name, role) ' +
-          'values (gen_random_uuid(), null, ?, ?, ?, ?, ?)',
-        [`solo+${Date.now()}@us2-test.local`, password, 'Solo', 'Buyer', 'regular_user'],
+        'insert into customer_accounts (id, organization_id, email, password_hash, first_name, last_name) ' +
+          'values (gen_random_uuid(), null, ?, ?, ?, ?)',
+        [`solo+${Date.now()}@us2-test.local`, password, 'Solo', 'Buyer'],
       ),
     ).rejects.toThrow(/not-null|not null/i);
   });

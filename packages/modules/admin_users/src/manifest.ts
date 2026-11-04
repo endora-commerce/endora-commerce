@@ -101,6 +101,16 @@ export const manifest = defineModuleManifest({
         'impersonation that cannot identify its target refuses rather than minting a session ' +
         'against a customer nobody looked up.',
     },
+    {
+      moduleId: 'organizations',
+      port: 'organizationRoleReadPort',
+      reason:
+        'The impersonation start answer names the role the session acts under ' +
+        '(`specs/170-organization-roles/` FR-062), and roles belong to organizations, which ' +
+        'declares this module — declaring it back closes a cycle. With organizations absent ' +
+        'the seam fails closed: the start refuses rather than answer a session whose role ' +
+        'nobody can name.',
+    },
   ],
   /**
    * D-96 — `mfaLoginPort`, the second factor on admin login.

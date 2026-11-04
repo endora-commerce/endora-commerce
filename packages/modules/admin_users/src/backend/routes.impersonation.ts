@@ -13,6 +13,7 @@ import {
   ERROR_CODES,
   SESSION_COOKIE_NAME,
   impersonationRequestSchema,
+  type OrganizationRoleReadPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { ImpersonationService } from './services/impersonation-service.js';
@@ -52,6 +53,12 @@ export interface ImpersonationDeps {
    * the production actor and throws 401 for a non-admin.
    */
   resolveAdminUserId: (request: FastifyRequest) => string;
+  /**
+   * `organizations`' role read, for the role the impersonation acts under
+   * (`specs/170-organization-roles/` FR-062): the answer names it as
+   * `organizationRole`, which replaced the legacy `role`.
+   */
+  organizationRoles: Pick<OrganizationRoleReadPort, 'roleRef'>;
 }
 
 export async function registerImpersonationRoutes(
@@ -92,6 +99,18 @@ export async function registerImpersonationRoutes(
         requestId: request.id,
       });
 
+      const target = result.impersonatedCustomerAccount;
+      const organizationRole = await deps.organizationRoles.roleRef(
+        target.organizationId,
+        target.organizationRoleId,
+        await request.responseLanguage(),
+      );
+      if (!organizationRole) {
+        // The composite foreign key makes this unreachable; refuse rather than
+        // answer a session whose role nobody can name.
+        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization role not found.');
+      }
+
       setSessionCookie(reply, result.impersonationCookieValue, result.impersonationExpiresAt);
       reply.setCookie(ADMIN_SHADOW_COOKIE, result.adminShadowSessionCookieValue, {
         path: '/',
@@ -110,7 +129,7 @@ export async function registerImpersonationRoutes(
             email: result.impersonatedCustomerAccount.email,
             firstName: result.impersonatedCustomerAccount.firstName,
             lastName: result.impersonatedCustomerAccount.lastName,
-            role: result.impersonatedCustomerAccount.role,
+            organizationRole,
           },
         },
       };

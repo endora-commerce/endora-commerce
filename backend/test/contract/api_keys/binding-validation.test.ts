@@ -84,7 +84,6 @@ describe('API key binding validation (062 / B1–B5)', () => {
       passwordHash: 'x',
       firstName: 'Foreign',
       lastName: 'Service',
-      role: 'regular_user',
       emailVerifiedAt: new Date(),
     });
     const blockedCustomer = em.create(CustomerAccount, {
@@ -94,7 +93,6 @@ describe('API key binding validation (062 / B1–B5)', () => {
       passwordHash: 'x',
       firstName: 'Blocked',
       lastName: 'Service',
-      role: 'regular_user',
       emailVerifiedAt: new Date(),
       blockedAt: new Date(),
     });

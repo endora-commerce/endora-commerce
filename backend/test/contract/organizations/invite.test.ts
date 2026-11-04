@@ -43,11 +43,11 @@ describe('POST /api/v1/organizations/mine/invitations', () => {
     await teardownBackendServer(h);
   });
 
-  async function invitationRow(id: string): Promise<{ role: string; organization_role_id: string }> {
+  async function invitationRow(id: string): Promise<{ organization_role_id: string }> {
     const [row] = (await h.em().execute(
-      `select "role", "organization_role_id" from "organization_invitations" where "id" = ?`,
+      `select "organization_role_id" from "organization_invitations" where "id" = ?`,
       [id],
-    )) as Array<{ role: string; organization_role_id: string }>;
+    )) as Array<{ organization_role_id: string }>;
     return row!;
   }
 
@@ -64,8 +64,6 @@ describe('POST /api/v1/organizations/mine/invitations', () => {
     expect(body.data.expiresAt).toMatch(/T.*Z/);
     const row = await invitationRow(body.data.invitationId);
     expect(row.organization_role_id).toBe(await predefinedRoleIdOf(h.em(), TEST_ORGANIZATION_ID, 'member'));
-    // Dual-written until the legacy removal (research R-23).
-    expect(row.role).toBe('regular_user');
   });
 
   it('creates an invitation holding the role it names, custom roles included', async () => {
@@ -83,7 +81,6 @@ describe('POST /api/v1/organizations/mine/invitations', () => {
     expect(res.statusCode, res.body).toBe(201);
     const row = await invitationRow((res.json() as { data: InvitationResponse }).data.invitationId);
     expect(row.organization_role_id).toBe(roleId);
-    expect(row.role).toBe('regular_user');
 
     const administratorRoleId = await predefinedRoleIdOf(h.em(), TEST_ORGANIZATION_ID, 'administrator');
     const admin = await h.app.inject({
@@ -94,7 +91,7 @@ describe('POST /api/v1/organizations/mine/invitations', () => {
     });
     expect(admin.statusCode, admin.body).toBe(201);
     const adminRow = await invitationRow((admin.json() as { data: InvitationResponse }).data.invitationId);
-    expect(adminRow).toEqual({ role: 'organization_admin', organization_role_id: administratorRoleId });
+    expect(adminRow).toEqual({ organization_role_id: administratorRoleId });
   });
 
   it('audits organization_invitation.create against the Organization (FR-065)', async () => {

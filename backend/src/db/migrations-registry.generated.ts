@@ -188,6 +188,7 @@ import { Migration20260825T124759CustomerAccountsDropLegacyTwoFactorSecret } fro
 import { Migration20260825T141659CustomerAccountsOrganizationRequired } from '@endora-commerce/mod-customer-accounts/migrations';
 import { Migration20260912T094701CustomerAccountsSalesChannelCustomerAccounts } from '@endora-commerce/mod-customer-accounts/migrations';
 import { Migration20261103T190132CustomerAccountsOrganizationRoleAssignment } from '@endora-commerce/mod-customer-accounts/migrations';
+import { Migration20261104T094540CustomerAccountsDropLegacyRoleColumn } from '@endora-commerce/mod-customer-accounts/migrations';
 
 // ── customers ───────────────────────────────────────────────────────────────
 import { Migration20260611T140404CustomersCustomerAddressesInit } from '@endora-commerce/mod-customers/migrations';
@@ -297,6 +298,7 @@ import { Migration20260912T094646OrganizationsSalesChannelOrganizations } from '
 import { Migration20261003T184802OrganizationsRepairEmptyPaths } from '@endora-commerce/mod-organizations/migrations';
 import { Migration20261018T104644OrganizationsChannelAccessBackfill } from '@endora-commerce/mod-organizations/migrations';
 import { Migration20261103T173304OrganizationsOrganizationRoles } from '@endora-commerce/mod-organizations/migrations';
+import { Migration20261104T094535OrganizationsDropLegacyRoleColumns } from '@endora-commerce/mod-organizations/migrations';
 
 // ── payment_methods ─────────────────────────────────────────────────────────
 import { Migration20260611T140353PaymentMethodsAdapter } from '@endora-commerce/mod-payment-methods/migrations';
@@ -577,6 +579,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('customer_accounts', Migration20260825T141659CustomerAccountsOrganizationRequired),
   migration('customer_accounts', Migration20260912T094701CustomerAccountsSalesChannelCustomerAccounts),
   migration('customer_accounts', Migration20261103T190132CustomerAccountsOrganizationRoleAssignment),
+  migration('customer_accounts', Migration20261104T094540CustomerAccountsDropLegacyRoleColumn),
 
   // ── customers ───────────────────────────────────────────────────────────────
   migration('customers', Migration20260611T140404CustomersCustomerAddressesInit),
@@ -686,6 +689,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('organizations', Migration20261003T184802OrganizationsRepairEmptyPaths),
   migration('organizations', Migration20261018T104644OrganizationsChannelAccessBackfill),
   migration('organizations', Migration20261103T173304OrganizationsOrganizationRoles),
+  migration('organizations', Migration20261104T094535OrganizationsDropLegacyRoleColumns),
 
   // ── payment_methods ─────────────────────────────────────────────────────────
   migration('payment_methods', Migration20260611T140353PaymentMethodsAdapter),

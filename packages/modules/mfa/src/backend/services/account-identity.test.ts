@@ -69,10 +69,7 @@ describe('createOrganizationAdminResolver', () => {
   it.each([
     ['no such account', null],
     ['a member whose role is not the administrator kind', { ...customer(), organizationRoleId: 'role-member' }],
-    [
-      'a custom role, whatever the legacy column says',
-      { ...customer(), organizationRoleId: 'role-custom-everything', role: 'organization_admin' },
-    ],
+    ['a custom role, whatever it grants', { ...customer(), organizationRoleId: 'role-custom-everything' }],
     // `CustomerAccountRecord.organizationId` is `string` since D-178, so this
     // case is the bridge's own guard preserved rather than a reachable state.
     ['an administrator with no organisation', { ...customer(), organizationId: null }],

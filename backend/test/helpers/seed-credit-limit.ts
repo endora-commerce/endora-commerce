@@ -59,7 +59,6 @@ export async function seedCreditLimitRaceFixture(em: EntityManager): Promise<voi
     passwordHash,
     firstName: 'CL',
     lastName: 'A',
-    role: 'regular_user',
     organizationRoleId: await predefinedRoleIdOf(em, TEST_ORGANIZATION_ID, 'member'),
     emailVerifiedAt: new Date(),
   });
@@ -70,7 +69,6 @@ export async function seedCreditLimitRaceFixture(em: EntityManager): Promise<voi
     passwordHash,
     firstName: 'CL',
     lastName: 'B',
-    role: 'regular_user',
     organizationRoleId: await predefinedRoleIdOf(em, TEST_ORGANIZATION_ID, 'member'),
     emailVerifiedAt: new Date(),
   });

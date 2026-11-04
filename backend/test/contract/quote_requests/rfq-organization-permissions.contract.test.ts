@@ -46,8 +46,8 @@ describe('quote requests — organization permissions (170 WP-05)', () => {
     const id = randomUUID();
     await h.em().getConnection().execute(
       `insert into "customer_accounts"
-         ("id","organization_id","email","password_hash","first_name","last_name","role","created_at","updated_at")
-       values (?, ?, ?, 'x', 'Rfq', ?, 'regular_user', now(), now())`,
+         ("id","organization_id","email","password_hash","first_name","last_name","created_at","updated_at")
+       values (?, ?, ?, 'x', 'Rfq', ?, now(), now())`,
       [id, TEST_ORGANIZATION_ID, `${label}-${stamp}-${id.slice(0, 6)}@rfq-permissions.example`, label],
     );
     await assignOrganizationRole(h.em(), id, roleId);
@@ -248,23 +248,14 @@ describe('quote requests — organization permissions (170 WP-05)', () => {
       expect(await detailStatus(broad.cookies, colleagues)).toBe(404);
     });
 
-    it('is judged by the role held, not by the legacy role column', async () => {
-      // Legacy `organization_admin`, but holding *Member*: sees only its own.
-      const legacyAdmin = await member(memberRoleId, 'legacy-admin');
-      await h.em().getConnection().execute(
-        `update "customer_accounts" set "role" = 'organization_admin' where "id" = ?`,
-        [legacyAdmin.id],
-      );
-      expect(await listed(legacyAdmin.cookies)).not.toContain(colleagues);
-      expect(await detailStatus(legacyAdmin.cookies, colleagues)).toBe(404);
+    it('is judged by the role held', async () => {
+      // Holding *Member*: sees only its own.
+      const memberHolder = await member(memberRoleId, 'member-holder');
+      expect(await listed(memberHolder.cookies)).not.toContain(colleagues);
+      expect(await detailStatus(memberHolder.cookies, colleagues)).toBe(404);
 
-      // Legacy `regular_user`, but holding *Administrator* (a personal
-      // Organization's owner today, PR-3): sees every quote request.
+      // Holding *Administrator*: sees every quote request.
       const roleAdmin = await member(administratorRoleId, 'role-admin');
-      await h.em().getConnection().execute(
-        `update "customer_accounts" set "role" = 'regular_user' where "id" = ?`,
-        [roleAdmin.id],
-      );
       expect(await listed(roleAdmin.cookies)).toContain(colleagues);
       expect(await detailStatus(roleAdmin.cookies, colleagues)).toBe(200);
     });

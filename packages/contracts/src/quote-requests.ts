@@ -982,16 +982,6 @@ export interface QuoteRequestReadPort {
 export interface RfqCustomerContext {
   customerAccountId: string;
   organizationId: string;
-  /**
-   * True when the account holds the org-admin role on the current
-   * organisation (FR-011 — broader visibility).
-   *
-   * @deprecated Ask `organizationPermissionPort.isAdministrator` instead
-   * (`specs/170-organization-roles/`, research R-30); removed with the legacy enum.
-   * Optional since WP-03, whose callers (`customers`' two own-RFQ lists) stopped
-   * passing it: absent reads as `false`, which is what they passed.
-   */
-  isOrgAdmin?: boolean;
 }
 
 /**

@@ -55,8 +55,8 @@ export async function registerInvoicesCustomerRoutes(
   /**
    * The order, if the caller may read it — decided by `orders` itself, so these
    * routes and `GET /api/v1/orders/:id` share one rule: a regular member reaches
-   * only the orders they placed, an `organization_admin` every order of the
-   * Organization (issue #669). Anything else answers 404.
+   * only the orders they placed, a holder of `orders.view_organization` every
+   * order of the Organization (issue #669, `specs/170-organization-roles/` FR-049). Anything else answers 404.
    */
   async function ownedOrderOr404(req: FastifyRequest, orderId: string): Promise<OrderRecord> {
     const order = await orderReadPort.findByIdForCustomer(orderId, resolveCustomerContext(req));

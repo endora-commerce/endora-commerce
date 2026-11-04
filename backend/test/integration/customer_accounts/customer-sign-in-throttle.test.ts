@@ -77,7 +77,6 @@ describe('customer authentication throttle', () => {
       password: PASSWORD,
       firstName: 'Throttle',
       lastName: `Buyer ${sequence}`,
-      role: 'regular_user',
       organizationRoleId: await predefinedRoleIdOf(h.em(), TEST_ORGANIZATION_ID, 'member'),
     });
     await h.em().flush();
