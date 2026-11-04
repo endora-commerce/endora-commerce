@@ -3,8 +3,11 @@ import { renderToString } from 'react-dom/server';
 import type { CartSummary } from '../../lib/api/cart';
 
 /**
- * Issue #619 — a member of an Organization that requires cart approval is
- * offered "Submit for approval", not checkout.
+ * Issue #619 — a member whose basket must be approved is offered "Submit for
+ * approval", not checkout. Since `specs/170-organization-roles/` (FR-031,
+ * FR-057) that is the member's **role** — it lacks
+ * `carts.order_without_approval` — and the page follows the backend's
+ * `primaryCta` alone: there is no Organization flag left to read.
  *
  * The backend says so with `primaryCta: 'submit_for_approval'` on a
  * `not_required` basket. The page used to decide "the policy is on" from the
@@ -15,9 +18,11 @@ import type { CartSummary } from '../../lib/api/cart';
  */
 let locale = 'en-US';
 let cart: CartSummary | 'cart-unavailable' = 'cart-unavailable';
+let sessionCookie: string | null = 'session';
+let permissions: string[] = [];
 
 vi.mock('../../lib/session', () => ({
-  getSessionCookie: async () => 'session',
+  getSessionCookie: async () => sessionCookie,
   getAnonCartCookie: async () => null,
   setAnonCartCookie: async () => undefined,
 }));
@@ -40,8 +45,9 @@ vi.mock('../../lib/api/cart', () => ({
 vi.mock('../../lib/api/shopping-lists', () => ({ listShoppingLists: async () => [] }));
 vi.mock('../../lib/api/account', () => ({
   getMe: async () => ({
-    customerAccount: { role: 'regular_user' },
-    organization: { name: 'Acme', canTransact: true, status: 'active', moderationMessage: null },
+    customerAccount: { organizationRole: { id: 'role-1', kind: 'member', name: 'Member' }, permissions },
+    // The removed Organization switch, still answered by a stale backend: never read (FR-057).
+    organization: { name: 'Acme', canTransact: true, status: 'active', moderationMessage: null, requiresCartApproval: true },
   }),
 }));
 vi.mock('../../lib/api/pricing', () => ({
@@ -85,15 +91,19 @@ async function render(): Promise<string> {
   return renderToString(<>{tree}</>).replaceAll('<!-- -->', '');
 }
 
+const ALL = ['carts.create', 'quote_requests.create', 'shopping_lists.create', 'carts.order_without_approval'];
+
 beforeEach(() => {
   locale = 'en-US';
   cart = 'cart-unavailable';
+  sessionCookie = 'session';
+  permissions = [...ALL];
 });
 
 describe('cart page — submit for approval (issue #619)', () => {
   it.each([
-    ['en-US', 'Your organization requires cart approval before checkout.', 'Submit for approval', 'Proceed to checkout'],
-    ['pl-PL', 'Twoja organizacja wymaga akceptacji koszyka przed realizacją.', 'Zgłoś do akceptacji', 'Przejdź do kasy'],
+    ['en-US', 'Your role requires approval of this cart before checkout.', 'Submit for approval', 'Proceed to checkout'],
+    ['pl-PL', 'Twoja rola wymaga akceptacji koszyka przed realizacją zamówienia.', 'Zgłoś do akceptacji', 'Przejdź do kasy'],
   ])('offers the submit, not checkout, for a basket that must be sent (%s)', async (l, banner, submit, checkout) => {
     locale = l;
     cart = basket({ approvalStatus: 'not_required', primaryCta: 'submit_for_approval' });
@@ -107,17 +117,75 @@ describe('cart page — submit for approval (issue #619)', () => {
   it('shows the pending notice and no submit once the basket is sent', async () => {
     cart = basket({ approvalStatus: 'pending', primaryCta: 'awaiting_approval' });
     const html = await render();
-    expect(html).toContain('Your cart is awaiting approval by an organization administrator.');
+    expect(html).toContain('Your cart is awaiting approval in your organization.');
     expect(html).toContain('Awaiting approval');
     expect(html).not.toContain('Submit for approval');
     expect(html).not.toContain('Proceed to checkout');
   });
 
-  it('offers checkout for a basket of an Organization that requires no approval', async () => {
+  it('offers checkout when `primaryCta` says so, whatever a stale Organization flag says', async () => {
     cart = basket({ approvalStatus: 'not_required', primaryCta: 'checkout' });
     const html = await render();
     expect(html).toContain('Proceed to checkout');
     expect(html).not.toContain('Submit for approval');
-    expect(html).not.toContain('requires cart approval');
+    expect(html).not.toContain('requires approval');
+  });
+});
+
+/**
+ * `specs/170-organization-roles/` T100 (FR-030, FR-040, FR-047, FR-057; PR-4, R-35) — the cart
+ * page's actions follow the member's role; a signed-out visitor keeps editing the guest basket.
+ */
+describe('cart page — actions per the member’s role', () => {
+  const stepper = 'name="step"';
+  const removeButton = 'aria-label="Remove"';
+  const coupon = 'Coupon code';
+  const convert = 'Convert to quote request';
+  const saveToList = 'Save to list';
+  const readOnly = 'Your role does not allow changing the cart.';
+
+  it('a signed-out visitor still edits the guest basket (PR-4)', async () => {
+    sessionCookie = null;
+    cart = basket({} as Pick<CartSummary, 'approvalStatus' | 'primaryCta'>);
+    const html = await render();
+    expect(html).toContain(stepper);
+    expect(html).toContain(removeButton);
+    expect(html).toContain(coupon);
+    expect(html).not.toContain(readOnly);
+  });
+
+  it('a member holding every code edits, converts and saves to a list', async () => {
+    cart = basket({ approvalStatus: 'not_required', primaryCta: 'checkout' });
+    const html = await render();
+    expect(html).toContain(stepper);
+    expect(html).toContain(removeButton);
+    expect(html).toContain(coupon);
+    expect(html).toContain(convert);
+    expect(html).toContain(saveToList);
+    expect(html).not.toContain(readOnly);
+  });
+
+  it('without `carts.create` the lines and the coupon are read-only, and the page says why', async () => {
+    permissions = ALL.filter((c) => c !== 'carts.create');
+    cart = basket({ approvalStatus: 'not_required', primaryCta: 'checkout' });
+    const html = await render();
+    expect(html).not.toContain(stepper);
+    expect(html).not.toContain(removeButton);
+    expect(html).not.toContain(coupon);
+    expect(html).toContain(readOnly);
+    // Reading the basket and ordering it stay open (R-5): the CTA is the backend's.
+    expect(html).toContain('Proceed to checkout');
+  });
+
+  it('without `quote_requests.create` the cart is not offered as a quote request', async () => {
+    permissions = ALL.filter((c) => c !== 'quote_requests.create');
+    cart = basket({ approvalStatus: 'not_required', primaryCta: 'checkout' });
+    expect(await render()).not.toContain(convert);
+  });
+
+  it('without `shopping_lists.create` a line is not offered for a list', async () => {
+    permissions = ALL.filter((c) => c !== 'shopping_lists.create');
+    cart = basket({ approvalStatus: 'not_required', primaryCta: 'checkout' });
+    expect(await render()).not.toContain(saveToList);
   });
 });
