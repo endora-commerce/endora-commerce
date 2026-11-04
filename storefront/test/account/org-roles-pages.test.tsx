@@ -124,6 +124,14 @@ async function rejection(promise: Promise<unknown>): Promise<string> {
   throw new Error('expected the call to redirect');
 }
 
+/** The one opening tag carrying `attribute` — React orders a form field's attributes its own way. */
+function tagWith(out: string, attribute: string): string {
+  const tags = out.match(/<(?:input|textarea|select)\b[^>]*>/g) ?? [];
+  const found = tags.filter((tag) => tag.includes(attribute));
+  expect(found).toHaveLength(1);
+  return found[0]!;
+}
+
 function form(entries: Array<[string, string]>): FormData {
   const data = new FormData();
   for (const [k, v] of entries) data.append(k, v);
@@ -329,9 +337,9 @@ describe('new role — /organization/roles/new (owner ruling Q1)', () => {
 
   it('names its fields, bounds them as the API does, and links each permission to its description', async () => {
     const out = await html(create());
-    expect(out).toMatch(/<input[^>]*name="name"[^>]*required/);
-    expect(out).toMatch(/<input[^>]*name="name"[^>]*maxLength="80"/);
-    expect(out).toMatch(/<textarea[^>]*name="description"[^>]*maxLength="500"/);
+    expect(tagWith(out, 'name="name"')).toContain('required=""');
+    expect(tagWith(out, 'name="name"')).toContain('maxLength="80"');
+    expect(tagWith(out, 'name="description"')).toContain('maxLength="500"');
     expect(out).toMatch(/<label[^>]*for="role-name"/);
     expect(out).toMatch(/aria-describedby="permission-returns\.create-description"/);
     expect(out).toContain('id="permission-returns.create-description"');
@@ -356,8 +364,8 @@ describe('new role — /organization/roles/new (owner ruling Q1)', () => {
 
   it('links a taken name to the name field', async () => {
     const out = await html(create({ error: 'ORGANIZATION_ROLE_NAME_TAKEN' }));
-    expect(out).toMatch(/<input[^>]*aria-invalid="true"[^>]*name="name"|<input[^>]*name="name"[^>]*aria-invalid="true"/);
-    expect(out).toContain('aria-describedby="role-name-error"');
+    expect(tagWith(out, 'name="name"')).toContain('aria-invalid="true"');
+    expect(tagWith(out, 'name="name"')).toContain('aria-describedby="role-name-error"');
   });
 
   it('renders in Polish', async () => {
@@ -375,9 +383,12 @@ describe('new role — /organization/roles/new (owner ruling Q1)', () => {
 describe('a role — /organization/roles/[id]', () => {
   it('edits a custom role: its name, description and the permissions it holds, at the version read', async () => {
     const out = await html(edit(R_JUNIOR));
-    expect(out).toMatch(/<input[^>]*name="name"[^>]*value="Junior buyer"/);
+    expect(tagWith(out, 'name="name"')).toContain('value="Junior buyer"');
     expect(out).toContain('Builds carts, sends them for approval</textarea>');
-    expect(out).toMatch(/<input[^>]*name="expectedVersion"[^>]*value="2"/);
+    // The save and the delete each carry the version read.
+    const versions = (out.match(/<input\b[^>]*>/g) ?? []).filter((tag) => tag.includes('name="expectedVersion"'));
+    expect(versions).toHaveLength(2);
+    for (const tag of versions) expect(tag).toContain('value="2"');
     expect(out).toMatch(/<input[^>]*checked=""[^>]*value="carts\.create"|<input[^>]*value="carts\.create"[^>]*checked=""/);
     expect(out).toMatch(/<input[^>]*checked=""[^>]*value="returns\.create"|<input[^>]*value="returns\.create"[^>]*checked=""/);
     expect(out.match(/checked=""/g)).toHaveLength(2);

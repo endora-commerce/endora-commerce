@@ -6,6 +6,7 @@ import {
   inviteMember,
   listMembers,
   listPendingInvitations,
+  listRoles,
   removeMember,
   revokeInvitation,
 } from '../../../../lib/api/organization';
@@ -15,7 +16,8 @@ import { localeRedirect } from '../../../../lib/i18n/navigation';
 import { getServerContext } from '../../../../lib/server-context';
 import { tForLocale, type MessageKey } from '../../../../lib/i18n/messages';
 import { format } from '../../../../lib/i18n/format';
-import { codeLabel } from '../../../../lib/account/labels';
+import { LocalizedLink } from '../../../../lib/i18n/localized-link';
+import { organizationAreaAccess } from '../../../../lib/account/organization-area';
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -25,9 +27,15 @@ import { codeLabel } from '../../../../lib/account/labels';
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 /**
- * Members list + invite form (T155 / FR-043). Backend enforces
- * Organization Admin via `requireCustomer` + a server-side role check; we
- * also gate the page in the layout to fail closed.
+ * Members list + invite form (T155 / FR-043). Backend enforces the
+ * *Administrator* role via `requireCustomer` + a server-side role check; the
+ * page asks the same of the session to say so rather than render an empty
+ * screen.
+ *
+ * Feature 170 (FR-008, US 1.2, US 5): each member's role is a select of the
+ * Organization's roles, named by the API in the page's language; an
+ * invitation names its role, *Member* preselected. A personal Organization's
+ * member — its Administrator — is sent to the account page (PR-3, FR-070a).
  */
 
 export default async function MembersPage({
@@ -38,10 +46,11 @@ export default async function MembersPage({
   const session = await getSessionCookie();
   if (!session) return await localeRedirect('/login');
   const me = await getMe(session);
-  const { locale } = await getServerContext();
+  const access = organizationAreaAccess(me, 'members');
+  if (access === 'absent') return await localeRedirect('/account');
+  const { locale, ctx } = await getServerContext();
   const t = tForLocale(locale);
-  const roleLabel = (role: string): string => codeLabel(t, 'account.role', role);
-  if (me.customerAccount.role !== 'organization_admin') {
+  if (access === 'refused') {
     return (
       <>
         <h2>{t('account.members.heading')}</h2>
@@ -49,15 +58,27 @@ export default async function MembersPage({
       </>
     );
   }
-  const [members, pendingInvitations] = await Promise.all([
-    listMembers(session),
-    listPendingInvitations(session),
+  const [members, pendingInvitations, roles] = await Promise.all([
+    listMembers(session, ctx),
+    listPendingInvitations(session, ctx),
+    listRoles(session, ctx),
   ]);
+  const memberRoleId = roles.find((r) => r.kind === 'member')?.id;
+  const roleOptions = roles.map((r) => (
+    <option key={r.id} value={r.id}>
+      {r.name}
+    </option>
+  ));
   const params = await searchParams;
 
   return (
     <>
-      <h2>{t('account.members.heading')}</h2>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <h2>{t('account.members.heading')}</h2>
+        <LocalizedLink href="/organization/roles" className="btn btn--outline btn--sm min-h-11">
+          {t('account.members.manageRoles')}
+        </LocalizedLink>
+      </div>
       {params.status === 'invited' ? (
         <p className="b2b-auth__success">
           {format(t('account.members.invited'), { email: params.email ?? '' })}
@@ -84,16 +105,20 @@ export default async function MembersPage({
                 {m.firstName} {m.lastName}
               </td>
               <td>{m.email}</td>
-              <td>{roleLabel(m.role)}</td>
               <td>
                 <form action={changeRoleAction} className="inline-flex gap-[0.25rem]">
                   <input type="hidden" name="memberId" value={m.id} />
-                  <select name="role" defaultValue={m.role}>
-                    <option value="organization_admin">{roleLabel('organization_admin')}</option>
-                    <option value="regular_user">{roleLabel('regular_user')}</option>
+                  <select
+                    name="roleId"
+                    defaultValue={m.organizationRole.id}
+                    aria-label={format(t('account.members.roleOf'), { name: `${m.firstName} ${m.lastName}` })}
+                  >
+                    {roleOptions}
                   </select>
                   <button type="submit">{t('account.common.save')}</button>
-                </form>{' '}
+                </form>
+              </td>
+              <td>
                 {m.id === me.customerAccount.id ? null : (
                   <form action={removeAction} className="inline">
                     <input type="hidden" name="memberId" value={m.id} />
@@ -123,7 +148,7 @@ export default async function MembersPage({
               {pendingInvitations.map((inv) => (
                 <tr key={inv.id}>
                   <td>{inv.email}</td>
-                  <td>{roleLabel(inv.role)}</td>
+                  <td>{inv.organizationRole.name}</td>
                   <td>{new Date(inv.createdAt).toLocaleDateString(locale)}</td>
                   <td>{new Date(inv.expiresAt).toLocaleDateString(locale)}</td>
                   <td>
@@ -148,9 +173,8 @@ export default async function MembersPage({
           </div>
           <div className="b2b-auth__field">
             <label htmlFor="invite-role">{t('account.common.role')}</label>
-            <select id="invite-role" name="role" defaultValue="regular_user">
-              <option value="regular_user">{roleLabel('regular_user')}</option>
-              <option value="organization_admin">{roleLabel('organization_admin')}</option>
+            <select id="invite-role" name="roleId" defaultValue={memberRoleId}>
+              {roleOptions}
             </select>
           </div>
         </div>
@@ -173,9 +197,9 @@ async function inviteAction(formData: FormData): Promise<void> {
   const session = await getSessionCookie();
   if (!session) return await localeRedirect('/login');
   const email = (formData.get('email') as string) ?? '';
-  const role = (formData.get('role') as 'regular_user' | 'organization_admin') ?? 'regular_user';
+  const roleId = formData.get('roleId');
   try {
-    await inviteMember(session, { email, role });
+    await inviteMember(session, { email, ...(typeof roleId === 'string' && roleId !== '' ? { roleId } : {}) });
   } catch (err) {
     const message =
       err instanceof StorefrontApiError ? err.detail : await failure('account.members.inviteFailed');
@@ -189,9 +213,9 @@ async function changeRoleAction(formData: FormData): Promise<void> {
   const session = await getSessionCookie();
   if (!session) return await localeRedirect('/login');
   const memberId = (formData.get('memberId') as string) ?? '';
-  const role = (formData.get('role') as 'regular_user' | 'organization_admin') ?? 'regular_user';
+  const roleId = (formData.get('roleId') as string) ?? '';
   try {
-    await changeMemberRole(session, memberId, role);
+    await changeMemberRole(session, memberId, roleId);
   } catch (err) {
     const message =
       err instanceof StorefrontApiError ? err.detail : await failure('account.members.roleFailed');

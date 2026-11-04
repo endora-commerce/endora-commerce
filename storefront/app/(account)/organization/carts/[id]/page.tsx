@@ -16,6 +16,7 @@ import {
   orgCartErrorKey,
 } from '../../../../../lib/account/org-cart-approval';
 import { CartSubmitButton } from '../../../../../components/CartSubmitButton';
+import { organizationAreaAccess } from '../../../../../lib/account/organization-area';
 import { approveCartAction, rejectCartAction } from './actions';
 
 /**
@@ -26,15 +27,18 @@ import { approveCartAction, rejectCartAction } from './actions';
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 /**
- * One cart of the Organization, for its administrator (issue #650): who owns
- * it, what is in it, what it totals and when it was sent — and, while it is
- * awaiting approval, the two answers. Approve is the one primary action; reject
- * sits behind a disclosure, away from it, because it needs a reason and cannot
- * be taken back.
+ * One cart of the Organization, for a member who may approve carts (issue #650;
+ * feature 170, FR-032, FR-033): who owns it, what is in it, what it totals and
+ * when it was sent — and, while it is awaiting approval, the two answers.
+ * Approve is the one primary action; reject sits behind a disclosure, away from
+ * it, because it needs a reason and cannot be taken back. The approver's own
+ * cart offers no answer: the API refuses it (`CART_APPROVAL_SELF_APPROVE`), so
+ * the page says who answers it instead.
  *
- * The role and the Organization are the API's to enforce (404 for a cart of
- * another Organization, 403 for a member); the page gates on the role too, to
- * say so rather than render an empty screen.
+ * The permission and the Organization are the API's to enforce (404 for a cart
+ * of another Organization, 403 without `carts.approve`); the page asks the same
+ * of the session, to say so rather than render an empty screen, and sends a
+ * personal Organization's member to the account page (FR-070a).
  */
 export default async function OrganizationCartPage({
   params,
@@ -48,7 +52,8 @@ export default async function OrganizationCartPage({
   const session = await getSessionCookie();
   if (!session) return await localeRedirect('/login');
   const me = await getMe(session);
-  if (!me.organization) return await localeRedirect('/account');
+  const access = organizationAreaAccess(me, 'carts');
+  if (access === 'absent') return await localeRedirect('/account');
   const { locale, ctx } = await getServerContext();
   const t = tForLocale(locale);
   const back = (
@@ -56,11 +61,11 @@ export default async function OrganizationCartPage({
       <LocalizedLink href="/organization/carts">← {t('account.orgCart.back')}</LocalizedLink>
     </p>
   );
-  if (me.customerAccount.role !== 'organization_admin') {
+  if (access === 'refused') {
     return (
       <>
         <h2>{t('account.orgCarts.heading')}</h2>
-        <p className="b2b-auth__error">{t('account.orgCarts.adminOnly')}</p>
+        <p className="b2b-auth__error">{t('account.orgCarts.approverOnly')}</p>
       </>
     );
   }
@@ -97,6 +102,7 @@ export default async function OrganizationCartPage({
   const reasonInvalid = query.error === 'REASON_REQUIRED' || query.error === 'REASON_TOO_LONG';
   const when = (iso: string | null): string => (iso ? new Date(iso).toLocaleString(locale) : '—');
   const pending = cart.approvalStatus === 'pending';
+  const ownCart = cart.ownerCustomerAccountId === me.customerAccount.id;
 
   return (
     <>
@@ -183,7 +189,9 @@ export default async function OrganizationCartPage({
       )}
 
       <h3>{t('account.orgCart.decision')}</h3>
-      {pending ? (
+      {pending && ownCart ? (
+        <p className="text-[13px] text-muted">{t('account.orgCart.ownCart')}</p>
+      ) : pending ? (
         <div className="grid gap-6">
           <form action={approveCartAction} className="flex flex-wrap items-center gap-3">
             <input type="hidden" name="cartId" value={cart.id} />
