@@ -81,6 +81,7 @@ import { ProductAttachment } from './entities/product-attachment.entity.js';
 import { ProductAttribute } from './entities/product-attribute.entity.js';
 import { ProductChannelLanguageScope } from './entities/product-channel-language-scope.entity.js';
 import { ProductChannelScope } from './entities/product-channel-scope.entity.js';
+import { ProductContentValue } from './entities/product-content-value.entity.js';
 import { ProductUrlKey } from './entities/product-url-key.entity.js';
 import { ProductUrlRedirect } from './entities/product-url-redirect.entity.js';
 import { ProductEditorPreference } from './entities/product-editor-preference.entity.js';
@@ -98,7 +99,11 @@ import { CatalogAdminService } from './services/catalog-admin.service.js';
 import { CatalogBulkImportService } from './services/catalog-bulk-import.service.js';
 import { ProductAvailabilityService } from './services/product-availability.service.js';
 import { ProductUrlKeyReadService } from './services/url-key-resolution.service.js';
-import { ProductPageRevalidation } from './services/product-page-revalidation.js';
+import {
+  PRODUCT_PAGE_CHANGE_EVENTS,
+  ProductPageRevalidation,
+  productPageChangeHandler,
+} from './services/product-page-revalidation.js';
 import { ProductScopesService } from './services/product-scopes.service.js';
 import { UrlKeyService } from './services/url-key.service.js';
 import {
@@ -746,6 +751,22 @@ export function registerModule(ctx: ModuleContext): void {
             reindexSearchIndexes: () => cradle().catalogSearchReindex(),
             resolveSeoProductMeta: (input) => cradle().catalogSeoProductMeta(input),
             listSeoProductScopes: (productId) => cradle().catalogSeoProductScopes(productId),
+            // Feature 172 (FR-051, research R-13) — the product page carries its
+            // Page Builder content only while `cms` is effectively present.
+            //
+            // Owner ruling OR-8: this probe is deliberately portless, and no
+            // `dependencies` or `nonBindingDependencies` entry names `cms`.
+            //  1. `catalog` is `nonDeactivatable`, so a `dependencies` entry on
+            //     `cms` would make `cms.enabled` a dead switch
+            //     (`module-composition.md` item 4a).
+            //  2. `cms` is deactivatable, so its absence is a normal state to
+            //     answer, not a wiring fault to fail on.
+            //  3. The probe gates only a projection of `catalog`'s own data (the
+            //     PDP's `contentAttributes`). It calls no `cms` code and reads no
+            //     `cms` data, so there is no port to declare — and a soft edge
+            //     (`nonBindingDependencies`) needs a port name this edge has not.
+            // Read the ruling here rather than re-raising it in review.
+            isPageBuilderPresent: () => effectiveState.isPresent('cms'),
             categoryRevalidator: cradle().catalogCategoryRevalidator,
             copyWarehouseThresholds,
           }),
@@ -886,6 +907,8 @@ export function registerModule(ctx: ModuleContext): void {
             lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort'),
             // Feature 163 (FR-092) — the scoped-status columns of the products file.
             { emFactory, eventBus },
+            // Feature 172 (FR-041) — which keys are Page Builder content attributes.
+            lazyPort<CatalogAttributeReadService>(ctx, 'catalogAttributeReadPort'),
           ),
       )
       .singleton(),
@@ -1200,7 +1223,13 @@ export function registerModule(ctx: ModuleContext): void {
    */
   ctx.onBoot(() => {
     const { assetReferenceRegistry, emFactory } = cradle();
-    registerCatalogAssetReferences(assetReferenceRegistry, emFactory);
+    // Feature 172 — the product-content descriptor labels a hit with the
+    // attribute's key, asked of this module's own attribute read model.
+    registerCatalogAssetReferences(
+      assetReferenceRegistry,
+      emFactory,
+      lazyPort<CatalogAttributeReadService>(ctx, 'catalogAttributeReadPort'),
+    );
   });
 
   /**
@@ -1311,15 +1340,17 @@ export function registerModule(ctx: ModuleContext): void {
    * `sales_channels.membership_changed`. Next keeps only a `200`, so without this a
    * product switched off went on showing. Coalesced and best-effort
    * (`ProductPageRevalidation`); `ctx.subscribe` stops it with the module.
+   *
+   * Feature 172 (FR-035) — a saved content attribute value announces
+   * `product.content.updated.v1`, which joins the list: the next product page
+   * load shows the change, and nothing re-indexes.
    */
-  ctx.subscribe('product.updated.v1', (payload) => {
-    const productId = productIdOf(payload);
-    if (productId) cradle().catalogProductPageRevalidation.productChanged(productId);
-  });
-  ctx.subscribe('product.archived.v1', (payload) => {
-    const productId = productIdOf(payload);
-    if (productId) cradle().catalogProductPageRevalidation.productChanged(productId);
-  });
+  for (const eventName of PRODUCT_PAGE_CHANGE_EVENTS) {
+    ctx.subscribe(
+      eventName,
+      productPageChangeHandler(() => cradle().catalogProductPageRevalidation),
+    );
+  }
   ctx.subscribe('product.deleted.v1', (payload) => {
     const productId = productIdOf(payload);
     if (!productId) return;
@@ -1417,6 +1448,7 @@ export const entities = [
   ProductAttribute,
   ProductChannelLanguageScope,
   ProductChannelScope,
+  ProductContentValue,
   ProductEditorPreference,
   ProductLink,
   ProductListSavedView,

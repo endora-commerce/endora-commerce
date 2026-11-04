@@ -142,7 +142,17 @@ export class AttributeSetService {
     }));
   }
 
-  async getSetDetail(id: string): Promise<AttributeSetDetailDto> {
+  /**
+   * One set with its members. `includeContent: false` (feature 172, FR-042)
+   * leaves out the Page Builder content attributes: the integration-facing
+   * read offers a connector what it can map, and a document is not a value a
+   * connector maps. The admin read keeps them — the product form lays its
+   * content cards out from it (OR-2).
+   */
+  async getSetDetail(
+    id: string,
+    options: { includeContent?: boolean } = {},
+  ): Promise<AttributeSetDetailDto> {
     const em = this.emFactory();
     const set = await em.findOne(AttributeSet, { id });
     if (!set) {
@@ -153,7 +163,11 @@ export class AttributeSetService {
       );
     }
 
-    const attrs = await this.#listAssignedAttributes(em, id);
+    const assigned = await this.#listAssignedAttributes(em, id);
+    const attrs =
+      options.includeContent === false
+        ? assigned.filter((attribute) => attribute.valueType !== 'page_builder')
+        : assigned;
     const counts = await this.#computeCounts(em, id);
 
     return this.#toDetailDto(set, attrs, counts);

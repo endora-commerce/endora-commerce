@@ -291,6 +291,31 @@ describe('§1.4 operators per value type', () => {
   });
 });
 
+describe('feature 172 — the page_builder value type takes no filter', () => {
+  it('has an operator row, and the row is empty', () => {
+    expect(Object.keys(cf.CUSTOM_FIELD_FILTER_OPERATORS).sort()).toEqual(
+      [...cf.customFieldValueTypeSchema.options].sort(),
+    );
+    expect(cf.CUSTOM_FIELD_FILTER_OPERATORS.page_builder).toEqual([]);
+  });
+
+  it('refuses every operator on a page_builder field', () => {
+    let caught: unknown;
+    try {
+      cf.assertCustomFieldFilterOperators(
+        { guide: { contains: 'x', is: true } },
+        (key) => (key === 'guide' ? 'page_builder' : undefined),
+      );
+    } catch (error) {
+      caught = error;
+    }
+    expect((caught as { issues: Array<{ path: unknown[] }> }).issues.map((issue) => issue.path)).toEqual([
+      ['guide', 'contains'],
+      ['guide', 'is'],
+    ]);
+  });
+});
+
 describe('§1.4 customFieldFilterUnavailable', () => {
   it('builds a failure the guard narrows, naming the keys', () => {
     const failure = cf.customFieldFilterUnavailable(['a', 'b']);

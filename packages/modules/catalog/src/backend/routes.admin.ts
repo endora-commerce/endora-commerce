@@ -32,6 +32,8 @@ import {
   updateAttributeRequestSchema,
   updateAttributeSetRequestSchema,
   putCategoryContentRequestSchema,
+  putProductContentRequestSchema,
+  PAGE_BUILDER_CONTENT_MAX_BYTES,
   updateCategoryRequestSchema,
   updateGalleryItemRequestSchema,
   putGalleryChannelRolesRequestSchema,
@@ -51,6 +53,7 @@ import type { BulkOperationService } from './services/bulk-operation.service.js'
 import type { BulkOperationStatus } from './entities/bulk-operation.entity.js';
 import { dbToApiAttributeType } from './services/catalog-admin.service.js';
 import type { CategoryAdminService } from './services/category-admin.service.js';
+import type { ProductContentService } from './services/product-content.service.js';
 import type { AttributeSetService } from './services/attribute-set.service.js';
 import type { GalleryService } from './services/gallery.service.js';
 import type { AttachmentService } from './services/attachment.service.js';
@@ -137,6 +140,12 @@ export interface CatalogAdminDeps {
   adminService: CatalogAdminService;
   /** Optional — wired by the catalog plugin once instantiated. */
   categoryAdminService?: CategoryAdminService;
+  /**
+   * Feature 172 — a product's Page Builder content attributes. Optional so a
+   * composition without the Command Bus or the attribute read model keeps
+   * booting; the three content routes are then not registered.
+   */
+  productContentService?: ProductContentService;
   /**
    * Feature 002 — AttributeSet admin CRUD. Optional so dev/test composition
    * roots can wire it up progressively without breaking foundation-era
@@ -823,6 +832,58 @@ export async function registerCatalogAdminRoutes(
   }
 
   // -------------------------------------------------------------------------
+  // Feature 172 — a product's Page Builder content attributes
+  // (`specs/172-product-content-attributes/contracts/admin-api.md` §4–§5). Three
+  // routes of their own rather than a key on the product PATCH: the content and
+  // the product form never write each other, and a document may weigh
+  // `PAGE_BUILDER_CONTENT_MAX_BYTES`. The PUT's body limit is the envelope's
+  // ceiling plus room for the wrapper, so an oversized envelope is answered by
+  // the schema's own message naming the limit rather than by the HTTP layer's
+  // bare 413 (research R-8).
+  if (deps.productContentService) {
+    const contentService = deps.productContentService;
+
+    app.get<{ Params: { id: string } }>(
+      '/api/v1/admin/catalog/products/:id/content',
+      { preHandler: requireAdmin('catalog:read') },
+      async (request) => ({ data: await contentService.list(request.params.id) }),
+    );
+
+    app.get<{ Params: { id: string; attributeKey: string } }>(
+      '/api/v1/admin/catalog/products/:id/content/:attributeKey',
+      { preHandler: requireAdmin('catalog:read') },
+      async (request) => ({
+        data: await contentService.get(request.params.id, request.params.attributeKey),
+      }),
+    );
+
+    app.put<{ Params: { id: string; attributeKey: string } }>(
+      '/api/v1/admin/catalog/products/:id/content/:attributeKey',
+      { preHandler: requireAdmin('catalog:write'), bodyLimit: PAGE_BUILDER_CONTENT_MAX_BYTES + 65_536 },
+      async (request) => {
+        // Parsed here rather than by a route `schema`, so the one refinement
+        // of the envelope — its size ceiling — answers with its own sentence,
+        // which names the limit (FR-012), instead of the generic validation
+        // message. Every other refusal is the schema's as usual.
+        const parsed = putProductContentRequestSchema.safeParse(request.body);
+        if (!parsed.success) {
+          const ceiling = parsed.error.issues.find((issue) => issue.code === 'custom');
+          if (ceiling) {
+            throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, ceiling.message, [
+              { path: ceiling.path.join('.'), issue: ceiling.message },
+            ]);
+          }
+          throw parsed.error;
+        }
+        const body = parsed.data;
+        return {
+          data: await contentService.replace(request.params.id, request.params.attributeKey, body.content),
+        };
+      },
+    );
+  }
+
+  // -------------------------------------------------------------------------
   // Feature 163 — scoped status, publication window, audience and order rules
   // per sales channel and channel × language (`contracts/admin-scopes-api.md`
   // §1–§2). The body is parsed inside the handler, after the gate, so an
@@ -1053,8 +1114,19 @@ export async function registerCatalogAdminRoutes(
     },
   );
 
+  // Feature 172 (FR-007 – FR-009, research R-21) — what deleting the attribute
+  // would meet, for every attribute type: set memberships and product values
+  // (each refuses) and Page Builder content (deleted with it). The delete
+  // Command's guard runs the same query.
+  app.get<{ Params: { idOrKey: string } }>(
+    '/api/v1/admin/catalog/attributes/:idOrKey/usage',
+    { preHandler: requireAdmin('catalog:read') },
+    async (request) => ({ data: await adminService.getAttributeUsage(request.params.idOrKey) }),
+  );
+
   // Feature 012 — delete an attribute. Refused while any Attribute Set or
-  // product still references it (FR-006).
+  // product still references it (FR-006); feature 172 (R-21) counts channel
+  // overrides and variant values too, and no longer counts soft-deleted products.
   app.delete<{ Params: { idOrKey: string } }>(
     '/api/v1/admin/catalog/attributes/:idOrKey',
     { preHandler: requireAdmin('catalog:write') },

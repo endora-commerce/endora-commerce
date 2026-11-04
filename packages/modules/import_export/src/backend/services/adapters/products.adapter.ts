@@ -27,6 +27,30 @@ import type { ImportExportAdapter, ImportExportPorts } from '../adapter.js';
  * `inactive` switches a product off without archiving it (archiving is its own
  * action, never a status).
  */
+const IMPORT_HEADER = ['sku', 'status', 'visibility', 'name_en', 'description_en'] as const;
+
+/**
+ * Feature 172 (FR-041 import) — the keys of the Page Builder content attributes
+ * among a file's columns. Asked of `catalog` once per import, and only when the
+ * file carries a column this adapter does not read itself: a document is never
+ * an importable cell, whatever its column is called.
+ */
+async function contentColumnsOf(
+  ports: ImportExportPorts,
+  records: ReadonlyArray<Record<string, string>>,
+): Promise<string[]> {
+  const known = new Set<string>(IMPORT_HEADER);
+  const foreign = new Set<string>();
+  for (const record of records) {
+    for (const column of Object.keys(record)) {
+      if (!known.has(column) && parseScopedStatusColumn(column) === null) foreign.add(column);
+    }
+  }
+  if (foreign.size === 0) return [];
+  const contentKeys = await ports.catalogBulkImport.contentAttributeKeys();
+  return contentKeys.filter((key) => foreign.has(key));
+}
+
 const EXPORT_HEADER = [
   'id',
   'sku',
@@ -81,7 +105,7 @@ export function productsAdapter(ports: ImportExportPorts): ImportExportAdapter {
       return (await ports.catalogProducts.listAll()).map(exportRowOf);
     },
 
-    importHeader: ['sku', 'status', 'visibility', 'name_en', 'description_en'] as const,
+    importHeader: IMPORT_HEADER,
     // Feature 160 (FR-043) — a product has no price of its own; prices are set
     // in price books. A file still carrying a price column is refused rather
     // than imported without it.
@@ -94,8 +118,19 @@ export function productsAdapter(ports: ImportExportPorts): ImportExportAdapter {
     async importRows(records): Promise<BulkImportReport> {
       const errors: BulkImportRowError[] = [];
       const rows: ProductImportRow[] = [];
+      const contentColumns = await contentColumnsOf(ports, records);
 
       for (const [index, record] of records.entries()) {
+        // Feature 172 (FR-041, research R-20 (3)) — a value under a content
+        // attribute's column is refused per row, naming the attribute; the
+        // row's other cells are still validated below, so every problem shows
+        // at once. The file is then not imported, as with any row error.
+        for (const key of contentColumns) {
+          if ((record[key] ?? '').trim() !== '') {
+            errors.push({ index, reason: `content attribute "${key}" cannot be imported` });
+          }
+        }
+
         const sku = record['sku']?.trim();
         if (!sku) {
           errors.push({ index, reason: 'sku is required' });

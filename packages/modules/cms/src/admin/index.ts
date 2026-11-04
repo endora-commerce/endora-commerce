@@ -221,5 +221,12 @@ export const contributions: AdminContributions = {
       weight: 100,
       requiredPermission: READ_PERMISSION,
     }),
+    // Feature 172 — the same canvas on the product content screen, under the
+    // same read code: seeing a product's content document is a read, and the
+    // save is `catalog`'s, behind its own write code.
+    zoneComponent('product.content.editor', () => import('./zones/ProductContentEditor.js'), {
+      weight: 100,
+      requiredPermission: READ_PERMISSION,
+    }),
   ],
 };

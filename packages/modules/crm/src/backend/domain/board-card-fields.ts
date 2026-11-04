@@ -6,6 +6,7 @@ import {
   opportunityBoardBuiltinFieldRef,
   opportunityBoardCustomFieldRef,
   type CustomFieldDefinitionWithOptions,
+  type CustomFieldValueType,
   type OpportunityBoardBuiltinFieldKey,
   type OpportunityBoardCardField,
   type OpportunityBoardFieldKind,
@@ -58,8 +59,24 @@ export function builtinBoardCardFields(quoteRequestsPresent: boolean): Opportuni
   }));
 }
 
+/** A definition whose value type is one of the card field kinds. */
+export type BoardCardFieldDefinition = CustomFieldDefinitionWithOptions & {
+  readonly definition: { readonly valueType: Exclude<CustomFieldValueType, 'page_builder'> };
+};
+
+/**
+ * Whether a definition can be shown on a card. A Page Builder document
+ * (feature 172) is not a field value, and `custom_fields` admits that type on
+ * `product` alone — this keeps the board right even so.
+ */
+export function isBoardCardFieldDefinition(
+  entry: CustomFieldDefinitionWithOptions,
+): entry is BoardCardFieldDefinition {
+  return entry.definition.valueType !== 'page_builder';
+}
+
 /** A custom field of the `opportunity` host type as a card field. */
-export function customBoardCardField(entry: CustomFieldDefinitionWithOptions): OpportunityBoardCardField {
+export function customBoardCardField(entry: BoardCardFieldDefinition): OpportunityBoardCardField {
   const { definition, options } = entry;
   return {
     ref: opportunityBoardCustomFieldRef(definition.key),

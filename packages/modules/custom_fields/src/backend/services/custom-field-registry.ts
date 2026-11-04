@@ -63,6 +63,15 @@ export interface SupportedEntityMeta {
    * hosts make the conversion.
    */
   readonly carryTargets?: readonly SupportedEntityType[];
+  /**
+   * Optional Page Builder marker (feature 172). When present, definitions of
+   * this entity type may take the `page_builder` value type — a Page Builder
+   * document per language, which the host stores in its own storage rather
+   * than in the value bag. On any other type the value type is refused with
+   * `value_type_unsupported`. Generic, like the markers above: the core asks
+   * only whether the type offers it, never which host stores the documents.
+   */
+  readonly pageBuilderValues?: true;
 }
 
 export const SUPPORTED_ENTITIES: Record<SupportedEntityType, SupportedEntityMeta> = {
@@ -93,6 +102,8 @@ export const SUPPORTED_ENTITIES: Record<SupportedEntityType, SupportedEntityMeta
       labelKey: 'customFields.managedBy.catalogAttributes',
       route: '/catalog/attributes',
     },
+    // Feature 172 — product content attributes hold Page Builder documents.
+    pageBuilderValues: true,
   },
   opportunity: {
     labelKey: 'customFields.entity.opportunity',
@@ -150,4 +161,9 @@ export function carryTargetsOf(entityType: string): readonly SupportedEntityType
 /** Whether definitions of `entityType` may be marked as list filters (feature 157). */
 export function offersListFilter(entityType: string): boolean {
   return isSupportedEntityType(entityType) && SUPPORTED_ENTITIES[entityType].listFilter === true;
+}
+
+/** Whether definitions of `entityType` may take the `page_builder` value type (feature 172). */
+export function offersPageBuilderValues(entityType: string): boolean {
+  return isSupportedEntityType(entityType) && SUPPORTED_ENTITIES[entityType].pageBuilderValues === true;
 }

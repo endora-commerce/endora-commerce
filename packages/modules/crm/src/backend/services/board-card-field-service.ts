@@ -13,6 +13,7 @@ import { CRM_SETTING_CODES } from '../../manifest.js';
 import {
   builtinBoardCardFields,
   customBoardCardField,
+  isBoardCardFieldDefinition,
   namesCustomBoardField,
   resolveBoardCardFields,
   storedBoardCardFieldRefs,
@@ -95,7 +96,8 @@ export class BoardCardFieldService {
     const definitions = await this.deps.definitions.listForEntity('opportunity');
     return [
       ...builtin,
-      ...[...definitions]
+      ...definitions
+        .filter(isBoardCardFieldDefinition)
         .sort(
           (a, b) =>
             a.definition.sortOrder - b.definition.sortOrder || a.definition.key.localeCompare(b.definition.key),

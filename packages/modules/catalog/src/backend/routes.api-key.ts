@@ -96,7 +96,8 @@ export async function registerCatalogApiKeyRoutes(
       '/api/v1/catalog/attribute-sets/:id',
       { preHandler: requireApiKey('catalog:read') },
       async (request) => {
-        const detail = await attrSetService.getSetDetail(request.params.id);
+        // Feature 172 (FR-042) — content attributes are not offered for mapping.
+        const detail = await attrSetService.getSetDetail(request.params.id, { includeContent: false });
         return { data: detail };
       },
     );

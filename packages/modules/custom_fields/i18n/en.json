@@ -87,6 +87,7 @@
   "customFields.table.emptyAction": "Add a field",
   "errors.CUSTOM_FIELD_OPTION_IN_USE": "The option “{label}” can't be removed because some records still use it. Change their value first.",
   "errors.CUSTOM_FIELD_VALUE_TYPE_LOCKED": "The type of the field “{key}” can't be changed while records hold values for it. Clear those values first.",
+  "errors.CUSTOM_FIELD_DEFINITION_INVALID.value_type_unsupported": "Fields of this record type cannot hold Page Builder content.",
   "errors.CUSTOM_FIELD_STORED_VALUES_EXIST": "Records already hold values under “{key}”, left by a field that was deleted. Create the field as internal, review those values, then change who can see it.",
   "errors.CUSTOM_FIELD_CARRY_INCOMPATIBLE": "This field cannot carry its value there.",
   "errors.CUSTOM_FIELD_CARRY_INCOMPATIBLE.target_missing": "No field with the key “{key}” exists on “{targetEntityType}”. Create it first.",

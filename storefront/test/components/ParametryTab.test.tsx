@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { renderToString } from 'react-dom/server';
 import { ParametryTab } from '../../components/attributes/ParametryTab';
 
@@ -51,5 +53,31 @@ describe('ParametryTab — SSR rendering', () => {
     expect(html).toContain('Parametry produktu');
     expect(html).toContain('Kolor');
     expect(html).toContain('Czerwony');
+  });
+});
+
+/**
+ * Feature 172 / US4 (FR-038) — "Parametry" lists labels and rendered values,
+ * never a technical key or a raw stored value. The page used to draw a second
+ * table above this one from `product.attributeValues` — every attribute, hidden
+ * ones included, by key, with `String(value)` — which is the disclosure defect.
+ */
+describe('Parametry — labels and rendered values only (FR-038)', () => {
+  it('renders each row as the label and the rendered value, never the key', () => {
+    const html = renderToString(
+      <ParametryTab
+        locale="en-US"
+        attributes={[{ key: 'gear_ratio', label: 'Gear ratio', valueType: 'select', valueRendered: 'One to thirty' }]}
+      />,
+    );
+    expect(html).toContain('Gear ratio');
+    expect(html).toContain('One to thirty');
+    expect(html).not.toContain('gear_ratio');
+  });
+
+  it('the product page draws no raw attribute-value table', () => {
+    const page = readFileSync(resolve(import.meta.dirname, '../../app/(catalog)/p/[slug]/page.tsx'), 'utf8');
+    expect(page).not.toContain('product.attributeValues');
+    expect(page).not.toContain('hasAttributeValues');
   });
 });

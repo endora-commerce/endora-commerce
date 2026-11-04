@@ -25,7 +25,7 @@ Every attribute carries:
 | `key` | Stable, URL-safe identifier — `^[a-z][a-z0-9_]*$`, unique platform-wide (case-insensitive). Used in filter URLs, search payloads, and the product JSONB key. |
 | `label` | `Record<bcp47-tag, string>` per-locale label map. |
 | `labelDefault` | Fallback label used when the active storefront / admin locale is missing from `label`. |
-| `valueType` | One of `string`, `number`, `boolean`, `price`, `date`, `select`, `multiselect`, `enum`. |
+| `valueType` | One of `string`, `number`, `boolean`, `price`, `date`, `select`, `multiselect`, `enum`, `page_builder`. |
 | `options[]` | Ordered list of selectable options — only for `select` / `multiselect` / `enum`. See [Option lists](#option-lists) below. |
 
 Plus the behavioural flags and a numeric position:
@@ -55,9 +55,28 @@ Plus the behavioural flags and a numeric position:
 | `select` | option `value` | Single choice from `options[]`. At most one option may carry `isDefault = true`. |
 | `multiselect` | array of option `value`s | Multiple choices from `options[]`. Any number of options may carry `isDefault = true`. |
 | `enum` | option `value` | Same storage shape as `select`; renders as a compact pill / segmented control on storefront filters and the PDP rather than a dropdown. |
+| `page_builder` | one Page Builder document per language, stored apart from `attribute_values` | **Page Builder content** — see [Product content](./product-content.md). |
 
 Changing `valueType` while any product carries a value the new type
 cannot represent is refused with `attribute_type_change_unsafe`.
+
+### Page Builder content
+
+A `page_builder` attribute holds a Page Builder document per language for each
+product, authored on its own screen and shown in the product page's description
+tab ([Product content](./product-content.md)). Its settings are fixed:
+
+- `languageScoped` is always `true`; `false` is refused;
+- `isSearchable`, `isFilterable`, `isVariantAxis`, `displayAsSlider`,
+  `isComparable`, `quickSearchable`, `isPromoRule`, `isPriceRule`,
+  `massEditable`, `isRequired`, `isVisibleOnProductPage` and `channelScoped`
+  stay `false`. Setting any of them on create or update is refused with
+  `400 VALIDATION_FAILED`, one detail per setting, and nothing is stored;
+- it has no options;
+- its type cannot be changed, and no attribute can be changed into it (`409`).
+
+The attribute editor hides those settings for this type, and the list shows the
+row's flags locked. The type is admissible for products only.
 
 ## Option lists
 
@@ -89,7 +108,8 @@ Admin routes are gated by `catalog:read` (list / get) /
 | `GET /api/v1/admin/catalog/attributes/:idOrKey` | admin | Single attribute read |
 | `POST /api/v1/admin/catalog/attributes` | admin | Create attribute (accepts the flags + inline `options[]` for select-style types) |
 | `PATCH /api/v1/admin/catalog/attributes/:key` | admin | Update labels and hot-toggle `isFilterable` / `isSearchable` / `isVariantAxis` / `isPromoRule` / `isPriceRule` / `isComparable` / `isVisibleOnProductPage` / `isRequired` / `filterPosition`. Re-emits `attribute.updated.v1`. |
-| `DELETE /api/v1/admin/catalog/attributes/:idOrKey` | admin | Delete; refused with `409 attribute_in_use_by_set` while any Attribute Set still references it |
+| `GET /api/v1/admin/catalog/attributes/:idOrKey/usage` | admin (`catalog:read`) | What deleting the attribute would meet: `{ attributeSetCount, productValueCount, productContentCount }` — see [Deleting an attribute](#deleting-an-attribute) |
+| `DELETE /api/v1/admin/catalog/attributes/:idOrKey` | admin (`catalog:write`) | Delete an attribute of any type; refused with `409` while an Attribute Set contains it or a product holds a value for it — see [Deleting an attribute](#deleting-an-attribute) |
 | `GET /api/v1/admin/catalog/attributes/:idOrKey/options` | admin | List option rows for select / enum / multiselect attributes |
 | `POST /api/v1/admin/catalog/attributes/:idOrKey/options` | admin | Append an option |
 | `PATCH /api/v1/admin/catalog/attribute-options/:optionId` | admin | Patch `label` / `labelDefault` / `isDefault` / `sortOrder` (option `value` is immutable) |
@@ -99,6 +119,41 @@ Filter sidebar reads consume `GET /api/v1/catalog/filters` (defined on
 the [Catalog](../catalog.md) page) — that endpoint resolves the
 currently visible filterable attributes per Sales Channel and orders
 them by `filterPosition`.
+
+## Deleting an attribute
+
+**Delete** is offered on every attribute row, whatever its type. The
+confirmation first reads `GET …/attributes/:idOrKey/usage` and says what stands
+in the way and what goes with the attribute:
+
+| Count | Meaning | Effect |
+| --- | --- | --- |
+| `attributeSetCount` | Attribute Sets that contain the attribute | Refuses: remove it from them first |
+| `productValueCount` | Products that hold a value for the key — on the product, as a per-sales-channel override, or on a variant | Refuses: clear the values first |
+| `productContentCount` | Products that carry content for a `page_builder` attribute | The content is deleted with the attribute |
+
+A deleted product does not count, and does not block the delete. The dialog and
+the delete use the same query, so a refusal can only come from a change made
+after the dialog opened; the dialog then shows the API's message.
+
+The delete removes the attribute's definition, its options, its content and its
+catalogue settings in one transaction, with one audit entry
+(`catalog.attribute.delete`, whose before-state counts the content removed). It
+then emits `attribute.updated.v1` with the key and both `isSearchable` and
+`isFilterable` set to `false`, so the search index and price lists stop using
+the key.
+
+Promotion conditions, price-list rows and feed rules that use the attribute are
+neither refused nor deleted — the catalogue cannot see them. They stop matching
+products: a promotion condition on the key no longer matches a cart line, a
+price-list row on it shows as inactive, and a feed whose selection rule names it
+records a configuration error on its next run. The confirmation says so in one
+sentence. Fix or remove them in their own screens.
+
+**Behaviour change (feature 172).** A per-sales-channel override or a variant
+value now refuses the delete, as a value on the product always did; a value on a
+deleted product no longer does; and the delete now emits
+`attribute.updated.v1`.
 
 ## Errors
 
@@ -125,11 +180,15 @@ values across the current page are omitted (no empty filter).
 
 ### PDP "Parametry produktu" tab
 
-Every PDP carries a `Parametry produktu` tab that lists every
-attribute meeting both:
+The PDP's `Parametry produktu` tab lists every attribute meeting both:
 
 - the product has a value for the attribute, **and**
 - the attribute is flagged `isVisibleOnProductPage = true`.
+
+Each row shows the attribute's label and its rendered value — never a technical
+key or a raw stored value. An attribute not flagged visible is never shown, and
+the tab itself is shown only when at least one attribute qualifies. Page Builder
+content never appears in it.
 
 For `select` / `multiselect` / `enum` values the tab renders the
 option's per-locale label, not the raw `value`. The detail payload
@@ -213,8 +272,8 @@ lists product definitions read-only and refuses mutations with
 
 ## Events emitted
 
-- `attribute.updated.v1` — picked up by the search indexer and
-  bridged to webhook subscribers.
+- `attribute.updated.v1` — on create, update and delete; picked up by the
+  search indexer and bridged to webhook subscribers.
 
 ## Audit log
 

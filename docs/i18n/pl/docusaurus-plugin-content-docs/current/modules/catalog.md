@@ -23,7 +23,7 @@ w obu przypadkach każda cena podaje swoją walutę. Niepoprawny kod jest odrzuc
 | Metoda i ścieżka | Kto | Przeznaczenie |
 | --- | --- | --- |
 | `GET /api/v1/catalog/products` | storefront / klucz API | Lista, wyszukiwanie i filtrowanie produktów w aktywnym kanale sprzedaży |
-| `GET /api/v1/catalog/products/:idOrSlug` | storefront | Szczegóły produktu (bez kwoty, gdy tryb wyświetlania cen oglądającego to *Żaden*) |
+| `GET /api/v1/catalog/products/:idOrSlug` | storefront | Szczegóły produktu (bez kwoty, gdy tryb wyświetlania cen oglądającego to *Żaden*); `?include=content` dodaje treść Page Buildera produktu ([Treść produktu](./catalog/product-content.md)) |
 | `GET /api/v1/catalog/categories` | storefront | Zagnieżdżone drzewo kategorii |
 | `GET /api/v1/catalog/categories/:id/content` | storefront | Treść strony jednej kategorii, dobrana do języka wywołującego |
 | `GET /api/v1/catalog/filters` | storefront | Atrybuty, po których można filtrować w aktywnym kanale sprzedaży |
@@ -41,7 +41,8 @@ w obu przypadkach każda cena podaje swoją walutę. Niepoprawny kod jest odrzuc
 | `GET /api/v1/admin/catalog/attributes/:idOrKey` | administrator | Odczyt jednego atrybutu |
 | `POST /api/v1/admin/catalog/attributes` | administrator | Utworzenie atrybutu (przyjmuje nowe flagi i `options[]` bezpośrednio w treści dla typów wyboru) |
 | `PATCH /api/v1/admin/catalog/attributes/:key` | administrator | Natychmiastowa zmiana `isFilterable` / `isSearchable` / `isVariantAxis` / `isPromoRule` / `isPriceRule` / `isComparable` / `isVisibleOnProductPage` / `isRequired` / `filterPosition` (ponownie emituje `attribute.updated.v1`) |
-| `DELETE /api/v1/admin/catalog/attributes/:idOrKey` | administrator | Usunięcie; odrzucane z `409 attribute_in_use_by_set`, dopóki odwołuje się do niego jakikolwiek zestaw atrybutów |
+| `GET /api/v1/admin/catalog/attributes/:idOrKey/usage` | administrator | Co napotka usunięcie atrybutu — przynależność do zestawów, wartości produktów, treść produktów ([Atrybuty](./catalog/attributes.md#usuwanie-atrybutu)) |
+| `DELETE /api/v1/admin/catalog/attributes/:idOrKey` | administrator | Usunięcie atrybutu dowolnego typu; odrzucane z `409`, dopóki zawiera go zestaw atrybutów albo nieusunięty produkt ma jego wartość (na produkcie, w kanale sprzedaży lub na wariancie) |
 | `GET /api/v1/admin/catalog/attributes/:idOrKey/options` | administrator | Lista opcji atrybutów typu select/enum/multiselect |
 | `POST /api/v1/admin/catalog/attributes/:idOrKey/options` | administrator | Dodanie opcji |
 | `PATCH /api/v1/admin/catalog/attribute-options/:optionId` | administrator | Zmiana label / labelDefault / isDefault / sortOrder (wartości `value` opcji nie można zmienić) |
@@ -53,6 +54,9 @@ w obu przypadkach każda cena podaje swoją walutę. Niepoprawny kod jest odrzuc
 | `DELETE /api/v1/admin/catalog/categories/:id` | administrator | Usunięcie miękkie; odrzucane z 409, gdy odwołuje się do niej aktywna kategoria podrzędna |
 | `GET /api/v1/admin/catalog/categories/:id/content` | administrator | Treść strony kategorii — jeden dokument Page Buildera na język ([Treść strony kategorii](./catalog/category-content.md)) |
 | `PUT /api/v1/admin/catalog/categories/:id/content` | administrator | Zastąpienie treści strony kategorii; `null` ją czyści |
+| `GET /api/v1/admin/catalog/products/:id/content` | administrator | Atrybuty treści produktu z podsumowaniem dla każdego języka ([Treść produktu](./catalog/product-content.md)) |
+| `GET /api/v1/admin/catalog/products/:id/content/:attributeKey` | administrator | Koperta jednego atrybutu treści — jeden dokument Page Buildera na język |
+| `PUT /api/v1/admin/catalog/products/:id/content/:attributeKey` | administrator | Zastąpienie koperty jednego atrybutu treści; `null` ją czyści |
 | `PUT /api/v1/catalog/products/by-sku/:sku` | klucz API | Idempotentne utworzenie lub aktualizacja (synchronizacja PIM); aktualizacja jest audytowana jako `product.update` ze wskazaniem klucza (`apiKeyId`) i nigdy nie podlega kontroli kompletności |
 
 ## Status produktu i archiwizacja
@@ -484,6 +488,8 @@ Katalog zyskał kilka dodatkowych możliwości, każda z własną stroną:
   produkty uzupełniające, wyświetlane na stronie produktu i w koszyku
 - [Produkty złożone](./catalog/composite-products.md) — `grouped` (stałe produkty podrzędne),
   `bundle` (konfigurowalne miejsca w zestawie), `virtual` (dostawa cyfrowa)
+- [Treść produktu](./catalog/product-content.md) — dokumenty Page Buildera przechowywane dla
+  produktu w atrybutach treści i wyświetlane w zakładce opisu na stronie produktu
 
 Obsługiwanych jest pięć typów produktu: `simple`, `configurable`, `grouped`, `bundle`, `virtual`.
 `simple` i `configurable` to pierwotna para; pozostałe trzy dodano później.

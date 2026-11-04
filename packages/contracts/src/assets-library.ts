@@ -46,6 +46,8 @@ export const assetReferenceKindSchema = z.enum([
   'task_attachment',
   // `specs/171-blog-i18n-authors/` US6: an administrator's author avatar.
   'admin_user_avatar',
+  // `specs/172-product-content-attributes/` FR-063: an asset embedded in a product's content attribute.
+  'product_content',
 ]);
 export type AssetReferenceKind = z.infer<typeof assetReferenceKindSchema>;
 

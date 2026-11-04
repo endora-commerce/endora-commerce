@@ -47,6 +47,13 @@ function toHttp(err: unknown): never {
       // Feature 162 — `details.code` names why the carry target was refused.
       case 'carry_incompatible':
         throw new HttpError(422, ERROR_CODES.CUSTOM_FIELD_CARRY_INCOMPATIBLE, err.message, { ...err.details });
+      // Feature 172 — a value type the entity type does not offer
+      // (`page_builder` off `product`): a malformed request, not a conflict.
+      case 'value_type_unsupported':
+        throw new HttpError(400, ERROR_CODES.CUSTOM_FIELD_DEFINITION_INVALID, err.message, {
+          code: err.code,
+          ...err.details,
+        });
       default:
         throw new HttpError(422, ERROR_CODES.CUSTOM_FIELD_DEFINITION_INVALID, err.message);
     }

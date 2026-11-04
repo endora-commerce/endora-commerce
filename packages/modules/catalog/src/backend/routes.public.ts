@@ -10,6 +10,7 @@ import {
   listingPriceChannelContext,
   productLinkKindSchema,
   productListIdsSchema,
+  productDetailQuerySchema,
   productListSortSchema,
   resolveListingCurrency,
   validateBundleConfigurationRequestSchema,
@@ -305,6 +306,9 @@ export async function registerCatalogPublicRoutes(
   app.get<{ Params: { idOrSlug: string } }>(
     '/api/v1/catalog/products/:idOrSlug',
     async (request, reply) => {
+      // Feature 172 (research R-11) — `?include=content` asks for the product
+      // page's Page Builder content; any other `include` is refused (400).
+      const query = productDetailQuerySchema.parse(request.query ?? {});
       const ctx = readContext(request);
       markPersonalisedPricing(reply, ctx.audience);
       const product = await queryService.getProductByIdOrSlug(request.params.idOrSlug, ctx);
@@ -317,6 +321,17 @@ export async function registerCatalogPublicRoutes(
       ) {
         const url = await resolvePlaceholder(ctx.resolvedChannel.code);
         if (url) product.primaryAssetUrl = url;
+      }
+      // Read only after the product was found visible to this request, and only
+      // when asked: every other read of the product — the external API, the
+      // listings, every port — stays byte-identical (FR-036, FR-042).
+      if (query.include === 'content') {
+        const contentAttributes = await queryService.getProductPageContent(
+          product.id,
+          product.attributeSet?.id,
+          ctx,
+        );
+        return { data: { ...product, contentAttributes } };
       }
       return { data: product };
     },

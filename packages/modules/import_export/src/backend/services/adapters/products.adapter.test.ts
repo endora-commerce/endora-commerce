@@ -108,3 +108,55 @@ describe('products adapter — scoped status columns (163)', () => {
     expect(imported).toEqual([]);
   });
 });
+
+/**
+ * Feature 172 (`specs/172-product-content-attributes/`, FR-041 import, research
+ * R-15, R-20 (3)) — a Page Builder content attribute is authored on the product
+ * content screen only. A products file carrying a value under a content
+ * attribute's column gets a per-row error naming the attribute; the row's
+ * other cells are still validated, so the operator sees every problem at once,
+ * and — the import being all-or-nothing — nothing is imported.
+ */
+describe('products adapter — content attribute columns (172)', () => {
+  function contentPorts(imported: ProductImportRow[][], contentAttributeKeys = vi.fn(async () => ['buying_guide'])) {
+    const base = ports(imported) as unknown as { catalogBulkImport: Record<string, unknown> };
+    base.catalogBulkImport['contentAttributeKeys'] = contentAttributeKeys;
+    return { ports: base as unknown as ImportExportPorts, contentAttributeKeys };
+  }
+
+  it('refuses a non-empty content cell per row, naming the attribute, and imports nothing', async () => {
+    const imported: ProductImportRow[][] = [];
+    const { ports: p } = contentPorts(imported);
+    const report = await productsAdapter(p).importRows!([
+      { sku: 'A', buying_guide: '<p>Guide</p>' },
+      { sku: 'B', buying_guide: '' },
+    ]);
+    expect(report).toEqual({
+      imported: 0,
+      errors: [{ index: 0, reason: 'content attribute "buying_guide" cannot be imported' }],
+    });
+    expect(imported).toEqual([]);
+  });
+
+  it('still validates the row’s other cells', async () => {
+    const imported: ProductImportRow[][] = [];
+    const { ports: p } = contentPorts(imported);
+    const report = await productsAdapter(p).importRows!([{ sku: 'A', buying_guide: 'x', status: 'sideways' }]);
+    expect(report.imported).toBe(0);
+    expect(report.errors).toEqual([
+      { index: 0, reason: 'content attribute "buying_guide" cannot be imported' },
+      { index: 0, reason: 'invalid status: sideways' },
+    ]);
+  });
+
+  it('imports a file whose content column is empty, and asks for the keys once', async () => {
+    const imported: ProductImportRow[][] = [];
+    const { ports: p, contentAttributeKeys } = contentPorts(imported);
+    const report = await productsAdapter(p).importRows!([
+      { sku: 'A', buying_guide: '' },
+      { sku: 'B', buying_guide: '  ' },
+    ]);
+    expect(report).toEqual({ imported: 2, errors: [] });
+    expect(contentAttributeKeys).toHaveBeenCalledTimes(1);
+  });
+});

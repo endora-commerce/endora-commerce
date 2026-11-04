@@ -27,6 +27,8 @@ const R7_MAP = [
   { legacy: 'enum', cf: 'select', selectDisplay: 'pill', numericKind: null },
   { legacy: 'select', cf: 'select', selectDisplay: 'dropdown', numericKind: null },
   { legacy: 'multiselect', cf: 'multiselect', selectDisplay: null, numericKind: null },
+  // Feature 172 (research R-4) — Page Builder content, one name in all three vocabularies.
+  { legacy: 'page_builder', cf: 'page_builder', selectDisplay: null, numericKind: null },
 ] as const;
 
 describe('research §R7 type map (feature 061, T015)', () => {
@@ -42,7 +44,7 @@ describe('research §R7 type map (feature 061, T015)', () => {
     ).toBe(entry.legacy);
   });
 
-  it('is bijective across all eight legacy values', () => {
+  it('is bijective across every legacy value', () => {
     const triples = R7_MAP.map((e) => JSON.stringify(legacyToCfType(e.legacy)));
     expect(new Set(triples).size).toBe(R7_MAP.length);
   });
@@ -82,5 +84,17 @@ describe('research §R7 type map (feature 061, T015)', () => {
       numericKind: null,
     });
     expect(dbToApiAttributeType('enum', false).type).toBe('select');
+  });
+
+  it('round-trips the API page_builder form (feature 172, research R-4)', () => {
+    const resolved = resolveAttributeApiType({ type: 'page_builder' });
+    expect(resolved).toEqual({ valueType: 'page_builder', displayAsSlider: false });
+    expect(legacyToCfType('page_builder')).toEqual({
+      cfValueType: 'page_builder',
+      selectDisplay: null,
+      numericKind: null,
+    });
+    expect(cfToLegacyValueType('page_builder', null, null)).toBe('page_builder');
+    expect(dbToApiAttributeType('page_builder', false)).toEqual({ type: 'page_builder', numericKind: null });
   });
 });
