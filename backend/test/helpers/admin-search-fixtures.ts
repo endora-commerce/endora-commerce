@@ -13,6 +13,7 @@ import {
 import { SEED_DELIVERY_METHOD_ID, SEED_PAYMENT_METHOD_ID } from './seed-commerce.js';
 import { withSystemScope } from '../../src/tenancy/escape-hatch.js';
 import { bindOrganizationsToFixtureChannelsSql } from './sales-channel-access.js';
+import { predefinedRoleIdOf } from './seed-organization-roles.js';
 
 /**
  * Fixtures for `specs/150-admin-global-search/`'s server-bound tests.
@@ -107,7 +108,7 @@ export async function seedCustomer(
     passwordHash: 'x'.repeat(60),
     firstName: over.firstName ?? 'Gs',
     lastName: over.lastName ?? 'Customer',
-    role: 'organization_admin',
+    organizationRoleId: await predefinedRoleIdOf(em, organizationId, 'administrator'),
     emailVerifiedAt: new Date(),
   } as never);
   await em.persistAndFlush(customer);

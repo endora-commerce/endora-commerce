@@ -31,6 +31,49 @@ the `(customer, organization)` pair on the session.
 The two converters accept an optional `itemIds: string[]` body. Empty or
 missing array means "convert every item on the list".
 
+The default list has its own three routes: `GET /api/v1/shopping-lists/default`
+(created on first read when missing), `POST /api/v1/shopping-lists/default/items`
+and `POST /api/v1/shopping-lists/:id/set-default`.
+
+## Organization permissions
+
+The module declares two organization permissions, which an Organization's
+administrator grants per role (`organizations`). Both are member-default, so an
+Organization's *Member* role holds them from the start and nothing changes for
+existing members.
+
+| Code | Label | Gates |
+| --- | --- | --- |
+| `shopping_lists.create` | Create and edit shopping lists | `POST /api/v1/shopping-lists`, `PATCH` / `DELETE …/:id`, `POST …/:id/items`, `PATCH` / `DELETE …/:id/items/:itemId`, `DELETE …/:id/items`, `POST …/default/items`, `POST …/:id/set-default` |
+| `shopping_lists.convert` | Convert shopping lists into quote requests and carts | `POST …/:id/convert-to-cart` (with `carts.create`), `POST …/:id/convert-to-rfq` (with `quote_requests.create`) |
+
+- **Reading stays open.** Listing one's own lists, reading one, and reading the
+  default list need no permission.
+- **A conversion needs two permissions**: `shopping_lists.convert` and the
+  target's create permission, which `carts` and `quote_requests` declare. They
+  are two separate checks, judged in that order; a refusal names the first one
+  missing.
+- **A refusal** is `403 ORGANIZATION_PERMISSION_REQUIRED` with the code and its
+  translated label in `details`, answered before the request body or the list
+  is looked at.
+- **Saving a cart line to a list** (`POST /api/v1/cart/items/:itemId/save-to-shopping-list`)
+  is a `carts` route; it needs `shopping_lists.create` too.
+- **The default list is still provisioned** for every new member of an
+  Organization, whatever their role: it is the platform's, not a write of the
+  member's.
+- **Switched off**, the module takes both permissions off the role editor and
+  off every member's effective permissions; the grants stay stored and apply
+  again once it is switched back on.
+
+On the storefront a member without `shopping_lists.create` still reads their
+lists. The lists page and a list's page offer no create, rename, delete,
+quantity or remove controls; *Add to shopping list* is not offered on the
+product page or the product cards, nor *Save to list* on a cart line. The page says why in one line: *"Your
+role allows viewing shopping lists but not changing them."* Converting a list
+(all lines or the selected ones) into the cart is offered only with
+`shopping_lists.convert` and `carts.create`, and into a quote request only with
+`shopping_lists.convert` and `quote_requests.create`.
+
 ## Conversion semantics
 
 `ShoppingListService` partitions the requested items by their referencing

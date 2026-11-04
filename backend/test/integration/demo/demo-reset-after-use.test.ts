@@ -119,6 +119,10 @@ const KEPT_REFERENCES: Readonly<Record<string, string>> = {
   // it was made for, whether or not either still exists.
   'audit_log_entries.object_id': 'append-only audit trail',
   'audit_log_entries.impersonated_customer_account_id': 'append-only audit trail',
+  // The customer who acted for themselves (`specs/170-organization-roles/`
+  // migration M1): the demo buyer's own writes name them, as they name an
+  // impersonated one.
+  'audit_log_entries.actor_customer_account_id': 'append-only audit trail',
   // A log of messages that were really sent, and of bell entries an
   // administrator was really shown.
   'email_deliveries.document_id': 'delivery log of messages already sent',
@@ -617,12 +621,21 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
     // ── a colleague in the same organisation ───────────────────────────────
     const colleagueId = await add('customer_accounts', {
       organization_id: organizationId,
-      role: 'regular_user',
+      // Left to the database: the default trigger (M3, as M5 redefines it)
+      // names the Organization's own Member role (`specs/170-organization-roles/`).
+      // A filler uuid would name no role, and the composite foreign key refuses it.
+      organization_role_id: null,
     });
+    // An invitation has no default since M4 dropped its legacy `role`: it names
+    // the Organization's own Member role, as the invitation Command does.
+    const [memberRole] = await query<{ id: string }>(
+      `select id from organization_roles where organization_id = $1 and kind = 'member'`,
+      [organizationId],
+    );
     await add('organization_invitations', {
       organization_id: organizationId,
       invited_by_customer_account_id: customerAccountId,
-      role: 'regular_user',
+      organization_role_id: memberRole!.id,
     });
     await add('organization_sales_rep_assignments', { organization_id: organizationId });
     // Feature 154 — the demo seed binds its organisation to the default channel
@@ -1154,9 +1167,15 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
     await db.query(`update organizations set path = '/' || id || '/' where id = $1`, [
       organizationId,
     ]);
+    const [administrator] = await query<{ id: string }>(
+      `select id from organization_roles where organization_id = $1 and kind = 'administrator'`,
+      [organizationId],
+    );
     const customerAccountId = await insert('real', 'customer_accounts', {
       organization_id: organizationId,
-      role: 'organization_admin',
+      // The buyer administers the organisation: its predefined Administrator
+      // role, which the organisation's own insert created (M2's trigger).
+      organization_role_id: administrator!.id,
     });
     const creditLimitId = await insert('real', 'credit_limits', {
       organization_id: organizationId,

@@ -16,13 +16,49 @@ Trasy administracyjne są chronione przez `orders:read` (odczyt) i `orders:write
 | Metoda i ścieżka | Kto | Przeznaczenie |
 | --- | --- | --- |
 | `POST /api/v1/orders` | klient | Złożenie zamówienia z aktywnego koszyka |
-| `GET /api/v1/orders` | klient | Lista zamówień ograniczona rolą (zwykły użytkownik lub administrator organizacji) |
+| `GET /api/v1/orders` | klient | Lista zamówień: własne albo całej organizacji z uprawnieniem `orders.view_organization` (zob. niżej) |
 | `GET /api/v1/orders/:id` | klient | Szczegóły zamówienia |
 | `GET /api/v1/orders/:id/invoice` | klient | Pobranie faktury PDF |
 | `GET /api/v1/admin/orders` | administrator | Lista wszystkich zamówień (we wszystkich organizacjach) |
 | `GET /api/v1/admin/orders/:id` | administrator | Szczegóły zamówienia (bez ograniczenia do klienta) |
 | `POST /api/v1/admin/orders/:id/status` | administrator | Zmiana statusu (audytowana) |
 | `POST /api/v1/admin/orders/:id/payment-status` | administrator | Zmiana statusu płatności (audytowana) |
+
+## Kto widzi zamówienie współpracownika
+
+Kupujący widzi zamówienia, które sam złożył. Każde inne zamówienie jego organizacji — na liście,
+na stronie szczegółów i w każdej akcji, która czyta zamówienie jako źródło (ponowienie zamówienia,
+utworzenie z niego zapytania ofertowego, zgłoszenie do niego zwrotu lub reklamacji, jego faktury) —
+wymaga uprawnienia organizacji
+**Wyświetlanie zamówień organizacji** (`orders.view_organization`), które deklaruje ten moduł:
+
+| Rola | Czy je ma |
+| --- | --- |
+| *Administrator* | zawsze (domyślnie ma każde uprawnienie) |
+| *Członek* | nie, chyba że administrator organizacji nada je tej roli |
+| rola własna | gdy rola je nadaje |
+
+Bez tego uprawnienia zamówienie współpracownika odpowiada `404`, dokładnie tak jak zamówienie innej
+organizacji, nigdy `403`. Z nim zasięgiem jest organizacja; logowanie centrali z włączonym
+roll-upem obejmuje także jej poddrzewo — roll-up poszerza zasięg, ale nigdy nie nadaje uprawnienia.
+
+Zgłoszenie zwrotu lub reklamacji do zamówienia współpracownika wymaga ponadto uprawnienia modułu
+`returns` **Zgłaszanie zwrotów i reklamacji** (`returns.create`); sprawa zostaje zgłoszona w imieniu
+członka, który ją rozpoczyna (zob. stronę `returns`).
+
+W storefroncie lista zamówień i strona zamówienia pokazują członkowi z tym uprawnieniem zamówienie
+współpracownika tak samo jak jego własne. Strona zamówienia proponuje **Zgłoś zwrot / reklamację** (lub
+**Złóż reklamację**) tylko członkowi, którego rola ma `returns.create`.
+
+Ponowne zamówienie i kopia jako zapytanie ofertowe są oceniane także według tego, co tworzą:
+`POST /api/v1/orders/:id/reorder` zastępuje aktywny koszyk i wymaga `carts.create`, a
+`POST /api/v1/orders/:id/clone-to-quote` tworzy zapytanie ofertowe i wymaga `quote_requests.create`.
+Uprawnienie jest sprawdzane przed odczytaniem zamówienia, więc członek, który go nie ma, otrzymuje
+`403 ORGANIZATION_PERMISSION_REQUIRED` bez względu na to, jakie zamówienie wskazuje identyfikator,
+a członek, który je ma, podlega następnie opisanemu wyżej zasięgowi zamówień. Gdy moduł
+`quote_requests` jest wyłączony, jego kod niczego nie nadaje, więc kopia kupującego zostaje odrzucona
+tym samym `403`. Strona zamówienia proponuje **Zamów ponownie → koszyk** i **Zamów ponownie →
+zapytanie ofertowe** tylko członkowi z odpowiednim kodem.
 
 ## Który kanał sprzedaży zapisuje zamówienie
 
@@ -114,20 +150,22 @@ wcale, nie zauważy zmiany.
 
 ## Akceptacja koszyka przy składaniu zamówienia
 
-W organizacji, która wymaga akceptacji koszyków, zamówienie z koszyka członka można złożyć dopiero
-po akceptacji przez administratora organizacji. Zanim cokolwiek zostanie zarezerwowane lub zapisane,
-składanie zamówienia pyta moduł koszyków i odrzuca koszyk objęty tym wymogiem, który nie jest
-`approved`, z kodem `409 ORDER_CART_APPROVAL_REQUIRED`; `details` zawiera `cartId`, `approvalStatus`
+Członek, którego rola nie ma uprawnienia *Składanie zamówień bez akceptacji*
+(`carts.order_without_approval`, deklarowanego przez moduł koszyków), może zamówić koszyk dopiero
+wtedy, gdy zaakceptuje go współpracownik uprawniony do akceptowania koszyków. Zanim cokolwiek
+zostanie zarezerwowane lub zapisane, składanie zamówienia pyta moduł koszyków, odczytując rolę
+właściciela koszyka w tej chwili, i odrzuca taki koszyk, który nie jest `approved`, z kodem
+`409 ORDER_CART_APPROVAL_REQUIRED`; `details` zawiera `cartId`, `approvalStatus`
 oraz `code` nazywający stan:
 
 | `details.code` | Koszyk | Komunikat (po polsku) |
 | --- | --- | --- |
-| `cart_approval_not_submitted` | nigdy nieprzekazany do akceptacji | *„Twoja organizacja wymaga akceptacji koszyka przed zamówieniem. Najpierw wyślij ten koszyk do akceptacji.”* |
-| `cart_approval_pending` | czeka na administratora | *„Ten koszyk czeka na akceptację administratora Twojej organizacji. Zamówienie złożysz, gdy koszyk zostanie zaakceptowany.”* |
-| `cart_approval_rejected` | odrzucony | *„Administrator Twojej organizacji odrzucił ten koszyk, więc nie można go zamówić.”* |
+| `cart_approval_not_submitted` | nigdy nieprzekazany do akceptacji | *„Twoja rola wymaga akceptacji tego koszyka przed zamówieniem. Najpierw wyślij go do akceptacji.”* |
+| `cart_approval_pending` | czeka na osobę akceptującą | *„Ten koszyk czeka na akceptację osoby zatwierdzającej w Twojej organizacji. Zamówienie złożysz, gdy koszyk zostanie zaakceptowany.”* |
+| `cart_approval_rejected` | odrzucony | *„Ten koszyk został odrzucony przez osobę zatwierdzającą w Twojej organizacji, więc nie można go zamówić.”* |
 
-Koszyk pozostaje bez zmian. Reguła nie dotyczy własnego koszyka administratora organizacji (nie
-potrzebuje on akceptacji), żadnego koszyka organizacji, która nie wymaga akceptacji, ani zamówień
+Koszyk pozostaje bez zmian. Reguła nie dotyczy koszyka żadnego członka, którego rola ma
+uprawnienie *Składanie zamówień bez akceptacji* (*Administrator* ma je zawsze), ani zamówień
 składanych z koszyka roboczego — tworzenia zamówienia w panelu administracyjnym, zakupu jednym
 kliknięciem i zewnętrznego API zamówień — które nie składają koszyka członka.
 
@@ -390,7 +428,8 @@ złożenie zamówienia niczego nie ogłasza.
   których nie przeniesiono do zamówienia — zob. *Notatka systemowa* niżej.
 - **Ponowne zamówienie** — `…/:id/reorder` odtwarza koszyk (zależnie od ustawienia
   `orders.reorder_enabled`); **kopia jako zapytanie ofertowe** — `…/:id/clone-to-quote`
-  (zamówienie bez pozycji daje `409 ORDER_CLONE_NO_LINES`, a bez modułu `quote_requests` —
+  (zamówienie bez pozycji daje `409 ORDER_CLONE_NO_LINES`; bez modułu `quote_requests` kopia
+  kupującego jest odrzucana z `403 ORGANIZATION_PERMISSION_REQUIRED`, a kopia operatora z
   `503 MODULE_DISABLED`).
 
 ### Ekran tworzenia zamówienia
@@ -809,9 +848,11 @@ szablon platformy.
 
 - **Adaptery płatności** — zobacz moduł `payment_methods`. `placeOrder` rozpoczyna płatność przez
   `PaymentAdapterRegistry`; nowe metody rejestrują adapter zamiast zmieniać usługę zamówień.
-- **Zakres dostępu** — `order-access-service.ts` to jedyne miejsce egzekwujące regułę dostępu dla
-  zwykłego użytkownika, administratora organizacji i administratora platformy; nowe rodzaje
-  użytkowników dodaje się właśnie tam.
+- **Zakres dostępu** — `order-access-service.ts` to jedyne miejsce egzekwujące zakres zamówień
+  kupującego (własne albo całej organizacji z `orders.view_organization`, o które pyta
+  `organizationPermissionPort`); przechodzą przez nie lista, szczegóły, ponowienie zamówienia,
+  utworzenie zapytania ofertowego i `OrderReadPort.findByIdForCustomer`. Moduły `invoices` i `returns`
+  korzystają z niego przez ten port.
 - **Panele na ekranie zamówienia** — strefa panelu administracyjnego `order.detail.after` jest
   osadzona raz, na końcu ekranu zamówienia, pod jego zakładkami, i przekazuje wkładowi
   `{ orderId }`. Moduł dodaje panel, deklarując `zoneComponent('order.detail.after', …)` we

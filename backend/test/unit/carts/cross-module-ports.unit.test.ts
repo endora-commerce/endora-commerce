@@ -393,7 +393,7 @@ describe('carts — cart-to-quote conversion hands quote_requests the cart price
       catalog,
       {} as SalesChannelMembershipPort,
     );
-    const ctx = { customerAccountId: 'cust-1', organizationId: 'org-1', isOrgAdmin: false };
+    const ctx = { customerAccountId: 'cust-1', organizationId: 'org-1' };
 
     const result = await service.convertToQuoteRequest(cartRow(), ctx, 'Please quote');
 
@@ -454,7 +454,7 @@ describe('carts — cart-to-quote conversion sends the packaging unit by id (fea
       catalog,
       {} as SalesChannelMembershipPort,
     );
-    const ctx = { customerAccountId: 'cust-1', organizationId: 'org-1', isOrgAdmin: false };
+    const ctx = { customerAccountId: 'cust-1', organizationId: 'org-1' };
 
     await service.convertToQuoteRequest(cartRow(), ctx);
 

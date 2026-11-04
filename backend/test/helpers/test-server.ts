@@ -2336,6 +2336,8 @@ export async function setupBackendServer(
               customer: {
                 customerAccountId: request.testActor.customerAccountId,
                 organizationId: request.testActor.organizationId,
+                // As production's `cartActorResolver` (feature 170, R-15).
+                organizationRoleId: request.testActor.organizationRoleId ?? null,
               },
             };
           }
@@ -2463,15 +2465,14 @@ export async function setupBackendServer(
       // asking, the organization's tax rate, and the subtree the RFQ admin scope
       // rolls up over.
       composedModules.contribute({
+        // `specs/170-organization-roles/` WP-05 — no legacy role read: the
+        // module asks `organizationPermissionPort` who sees the whole
+        // Organization (R-30), which reads the account's role itself.
         rfqCustomerContextResolver: async (request: FastifyRequest) => {
           const ctx = customerResolver(request, options);
-          const account = await identityPorts().customerAccountReadPort.findById(
-            ctx.customerAccountId,
-          );
           return {
             customerAccountId: ctx.customerAccountId,
             organizationId: ctx.organizationId,
-            isOrgAdmin: account?.role === 'organization_admin',
           };
         },
         rfqAdminContextResolver: async (request: FastifyRequest) => {
@@ -2983,6 +2984,7 @@ function customerResolver(
   customerAccountId: string;
   organizationId: string;
   impersonatorAdminUserId?: string | null;
+  organizationRoleId?: string | null;
 } {
   refuseAnonymousAsComposed(request, options);
   if (request.testActor?.kind !== 'customer') {
@@ -2999,6 +3001,8 @@ function customerResolver(
     customerAccountId: request.testActor.customerAccountId,
     organizationId: request.testActor.organizationId ?? TEST_ORGANIZATION_ID,
     impersonatorAdminUserId: request.testActor.impersonatorAdminUserId,
+    // As production's `customerContextResolver` (feature 170, R-15).
+    organizationRoleId: request.testActor.organizationRoleId ?? null,
   };
 }
 

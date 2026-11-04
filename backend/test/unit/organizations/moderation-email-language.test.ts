@@ -40,6 +40,24 @@ import { OrganizationModerationService } from '../../../../packages/modules/orga
 
 const CHANNEL = '00000000-0000-0000-0000-0000000000aa';
 const BUYER = 'org-admin@buyer.example';
+/** The Organization's *Administrator* role (`specs/170-organization-roles/` WP-03). */
+const ADMINISTRATOR_ROLE_ID = '00000000-0000-4000-8000-0000000170a1';
+
+/**
+ * The recipient is the first member holding the *Administrator* role, judged
+ * by the role id (`specs/170-organization-roles/` WP-03, T060): a member listed
+ * first is skipped.
+ */
+const MEMBERS = [
+  { organizationRoleId: '00000000-0000-4000-8000-0000000170b2', email: 'member@buyer.example' },
+  { organizationRoleId: ADMINISTRATOR_ROLE_ID, email: BUYER },
+];
+
+/** The fake unit of work answers the Organization, and the role row for an `OrganizationRole` lookup. */
+function findOneFor(organization: Organization) {
+  return async (entity: { name?: string } | undefined): Promise<unknown> =>
+    entity?.name === 'OrganizationRole' ? { id: ADMINISTRATOR_ROLE_ID } : organization;
+}
 const ORG_NAME = 'Acme Sp. z o.o.';
 
 /** The per-language default this module ships, keyed by the code it ships it under. */
@@ -137,9 +155,7 @@ function harness(options: { channelLanguage: string | null; senderWired?: boolea
     async transactional<T>(cb: (tem: unknown) => Promise<T>): Promise<T> {
       return cb(em);
     },
-    async findOne(): Promise<Organization> {
-      return organization;
-    },
+    findOne: findOneFor(organization),
     async flush(): Promise<void> {},
   };
 
@@ -168,7 +184,7 @@ function harness(options: { channelLanguage: string | null; senderWired?: boolea
     mailer,
     {
       async listByOrganization() {
-        return [{ role: 'organization_admin', email: BUYER }];
+        return MEMBERS;
       },
     } as unknown as CustomerAccountReadPort,
     async () => 'manual',
@@ -227,9 +243,7 @@ describe('organizations — the moderation e-mails are sent in the recipient\'s 
       async transactional<T>(cb: (tem: unknown) => Promise<T>): Promise<T> {
         return cb(em);
       },
-      async findOne(): Promise<Organization> {
-        return organization;
-      },
+      findOne: findOneFor(organization),
       async flush(): Promise<void> {},
     };
     const templateEmail = makeTemplateEmail({
@@ -249,7 +263,7 @@ describe('organizations — the moderation e-mails are sent in the recipient\'s 
       { async send() { return { status: 'sent' as const }; } },
       {
         async listByOrganization() {
-          return [{ role: 'organization_admin', email: BUYER }];
+          return MEMBERS;
         },
       } as unknown as CustomerAccountReadPort,
       async () => 'manual',

@@ -10,6 +10,7 @@ import type {
   CustomerAccountLifecycleWritePort,
   CustomerAccountMemberWritePort,
   CustomerAccountReadPort,
+  CustomerAccountRoleCommandPort,
   CustomerAuthPort,
   CustomerAuthenticationThrottlePort,
   CustomerGroupReadPort,
@@ -20,6 +21,7 @@ import type {
   CustomerRollupScopePort,
   MfaEnrolmentStatePort,
   MfaLoginPort,
+  OrganizationRoleReadPort,
 } from '@endora-commerce/contracts';
 import type {
   AttemptCounterStore,
@@ -48,6 +50,7 @@ import {
   CustomerAccountReadService,
   CustomerPasswordStateService,
   CustomerPasswordVerificationService,
+  createCustomerAccountRoleCommandPort,
   createCustomerAuthPort,
   createCustomerRolePort,
 } from './services/customer-account-ports.js';
@@ -61,7 +64,6 @@ import { CustomerGroupReadService } from './services/customer-group-read-port.js
 import { CustomerGroupService } from './services/customer-group-service.js';
 import { CustomerRollupScopeService } from './services/customer-rollup-scope.js';
 import { PasswordResetService } from './services/password-reset-service.js';
-import { RoleService } from './services/role-service.js';
 import type { TwoFactorEnrolmentReader } from './services/two-factor-enrolments.js';
 
 /**
@@ -165,7 +167,6 @@ export interface CustomerAccountsCradle {
   readonly customerAuthService: CustomerAuthService;
   readonly passwordResetService: PasswordResetService;
   readonly customerAuthenticationThrottle: CustomerAuthenticationThrottle;
-  readonly customerRoleService: RoleService;
   readonly customerGroupService: CustomerGroupService;
 }
 
@@ -208,6 +209,13 @@ export function registerModule(ctx: ModuleContext): void {
   const mfaEnrolmentStatePort = lazyPort<MfaEnrolmentStatePort>(ctx, 'mfaEnrolmentStatePort');
 
   /**
+   * `specs/170-organization-roles/` — which roles an Organization has is
+   * `organizations`' fact (this module already declares that module). Resolved
+   * per call, like every port above; never captured into a singleton.
+   */
+  const organizationRoles = lazyPort<OrganizationRoleReadPort>(ctx, 'organizationRoleReadPort');
+
+  /**
    * The degrade is performed by **not resolving**, exactly as the login port's
    * getter below does it — presence is decided first and there is deliberately
    * no `catch` anywhere near the port. A buyer's own account page is the wrong
@@ -234,9 +242,10 @@ export function registerModule(ctx: ModuleContext): void {
   // crossing a boundary is the problem this feature exists to remove — so they
   // get record-returning siblings rather than a rename. `customerAuthPort` and
   // `customerRolePort` are what the consumers rewired to — `customers` was the
-  // last of them, in issue #195 — and `customerAuthService` /
-  // `customerRoleService` stay registered because those two adapters are built
-  // over them.
+  // last of them, in issue #195 — and `customerAuthService` stays registered
+  // because that adapter is built over it. `customerRoleService` went with
+  // `RoleService` (`specs/170-organization-roles/` WP-02b): `customerRolePort`
+  // runs the member Commands itself.
   // ---------------------------------------------------------------------------
 
   ctx.di.providePort<CustomerAccountReadPort>(
@@ -244,7 +253,7 @@ export function registerModule(ctx: ModuleContext): void {
     ctx
       .asFunction(
         ({ emFactory }: CustomerAccountsCradle) =>
-          new CustomerAccountReadService(emFactory, twoFactorEnrolments),
+          new CustomerAccountReadService(emFactory, twoFactorEnrolments, organizationRoles),
       )
       .singleton(),
   );
@@ -260,8 +269,11 @@ export function registerModule(ctx: ModuleContext): void {
     'customerAccountMemberWritePort',
     ctx
       .asFunction(
-        ({ emFactory, auditLogService }: CustomerAccountsCradle) =>
-          new CustomerAccountMemberWriteService(emFactory, twoFactorEnrolments, auditLogService),
+        ({ emFactory, auditLogService, commandBus }: CustomerAccountsCradle) =>
+          new CustomerAccountMemberWriteService(emFactory, twoFactorEnrolments, auditLogService, {
+            commandBus,
+            roles: organizationRoles,
+          }),
       )
       .singleton(),
   );
@@ -384,14 +396,32 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   );
 
+  /**
+   * The member-management surface `organizations` calls, over the member
+   * Commands (`specs/170-organization-roles/` WP-02b) — it adapted
+   * `RoleService`, which wrote and audited by hand and is gone.
+   */
   ctx.di.providePort<CustomerRolePort>(
     'customerRolePort',
     ctx
-      .asFunction(() =>
-        createCustomerRolePort(
-          () => ctx.cradle<CustomerAccountsCradle>().customerRoleService,
-          twoFactorEnrolments,
-        ),
+      .asFunction(({ emFactory, commandBus }: CustomerAccountsCradle) =>
+        createCustomerRolePort({ emFactory, commandBus, roles: organizationRoles, twoFactorEnrolments }),
+      )
+      .singleton(),
+  );
+
+  /**
+   * `specs/170-organization-roles/` WP-02b — the role assignment as a Command
+   * factory (`contracts/commands-audit-events.md` §2; research R-22).
+   * `organizations` runs `changeRole` as a child of `organization_role.delete`
+   * through `ctx.run`, so a deleted role's holders move in that Command's
+   * transaction, each with its own audit entry.
+   */
+  ctx.di.providePort<CustomerAccountRoleCommandPort>(
+    'customerAccountRoleCommandPort',
+    ctx
+      .asFunction(({ emFactory }: CustomerAccountsCradle) =>
+        createCustomerAccountRoleCommandPort({ emFactory, roles: organizationRoles }),
       )
       .singleton(),
   );
@@ -478,23 +508,13 @@ export function registerModule(ctx: ModuleContext): void {
   );
 
   ctx.di.providePort(
-    'customerRoleService',
-    ctx
-      .asFunction(
-        ({ emFactory, auditLogService }: CustomerAccountsCradle) =>
-          new RoleService(emFactory, auditLogService),
-      )
-      .singleton(),
-  );
-
-  ctx.di.providePort(
     'customerOrgResolver',
     ctx
       .asFunction(
         ({ emFactory }: CustomerAccountsCradle) =>
           async (
             customerAccountId: string,
-          ): Promise<{ organizationId: string | null; active: boolean } | null> => {
+          ): Promise<{ organizationId: string | null; active: boolean; organizationRoleId: string } | null> => {
             // Runs in the auth hook, before a tenant context exists, so the
             // read is system-scoped — identity resolution precedes tenancy.
             return withSystemScope('auth: resolve customer org', async () => {
@@ -507,6 +527,12 @@ export function registerModule(ctx: ModuleContext): void {
               return {
                 organizationId: customer.organizationId ?? null,
                 active: customer.blockedAt == null && customer.deletedAt == null,
+                // `specs/170-organization-roles/` research R-15 — the member's
+                // role, stamped on the actor out of the read this hook makes
+                // anyway, so a permission check needs no read of its own. Read
+                // fresh on every request: an assignment change applies to the
+                // next request on every process.
+                organizationRoleId: customer.organizationRoleId,
               };
             });
           },
@@ -652,8 +678,11 @@ export function registerModule(ctx: ModuleContext): void {
                 passwordSetAt: null,
                 firstName: '',
                 lastName: '',
-                role: 'regular_user',
                 organizationId: organization.id,
+                // The individual administers their personal Organization (owner
+                // ruling PR-3, research R-34) — the provisioning answer's id,
+                // because the role row exists only in this transaction.
+                organizationRoleId: organization.administratorRoleId,
                 emailVerifiedAt: new Date(),
               });
               // The other way an account is created without an admin —

@@ -7,6 +7,7 @@ import {
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { CustomerAuthorityService } from './customer-authority-service.js';
+import type { OrganizationDepletionGuard } from './organization-depletion-guard.js';
 import type {
   ModerationActor,
   SessionRevoker,
@@ -36,6 +37,11 @@ export class CustomerDeletionService {
     private readonly personalOrganizations: PersonalOrganizationPort,
     private readonly authority: CustomerAuthorityService,
     private readonly sessions: SessionRevoker,
+    /**
+     * `specs/170-organization-roles/` WP-03 — the last-administrator question,
+     * by role and for company Organizations only (owner ruling PR-3).
+     */
+    private readonly depletion: OrganizationDepletionGuard,
   ) {}
 
   async softDelete(
@@ -48,20 +54,15 @@ export class CustomerDeletionService {
       throw new HttpError(409, ERROR_CODES.CUSTOMER_ALREADY_DELETED, 'Customer is already deleted.');
     }
 
-    // Refuse to strand an org without an admin.
-    if (customer.organizationId && customer.role === 'organization_admin') {
-      const remaining = await this.accounts.countByOrganizationRole(
-        customer.organizationId,
-        'organization_admin',
-        { excludeCustomerAccountId: customer.id, activeOnly: true },
+    // Refuse to strand a company Organization without an administrator. A
+    // personal Organization's sole member is its administrator; deleting them
+    // is how that Organization ends (PR-3).
+    if (await this.depletion.wouldLeaveWithoutAdministrator(customer)) {
+      throw new HttpError(
+        409,
+        ERROR_CODES.ORG_OWNER_DEPLETION,
+        'Cannot delete the last organization administrator.',
       );
-      if (remaining === 0) {
-        throw new HttpError(
-          409,
-          ERROR_CODES.ORG_OWNER_DEPLETION,
-          'Cannot delete the last organization administrator.',
-        );
-      }
     }
 
     const deleted = await this.accountWrites.softDelete(customer.id, {

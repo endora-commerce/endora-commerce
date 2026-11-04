@@ -54,6 +54,9 @@ export class ReturnListService {
       totalRefundAmount: Number(rc.totalRefundAmount),
       currency: rc.currency,
       submittedAt: rc.submittedAt.toISOString(),
+      // Inherited from the case summary (`specs/170-organization-roles/`
+      // FR-053): the account that filed the case.
+      customerAccountId: rc.customerAccountId,
       customerName: null,
       organizationName: null,
     }));

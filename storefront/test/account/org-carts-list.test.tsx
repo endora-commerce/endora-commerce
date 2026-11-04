@@ -8,6 +8,8 @@ import type { OrgCartSummary } from '../../lib/api/cart';
  * filter it passes to the API.
  */
 let locale = 'en-US';
+let isPersonal = false;
+let permissions: string[] = ['carts.approve'];
 let carts: OrgCartSummary[] = [];
 const filters: unknown[] = [];
 
@@ -25,8 +27,12 @@ vi.mock('../../lib/i18n/navigation', () => ({
 }));
 vi.mock('../../lib/api/account', () => ({
   getMe: async () => ({
-    customerAccount: { id: 'admin-1', role: 'organization_admin' },
-    organization: { id: 'org-1', name: 'Acme' },
+    customerAccount: {
+      id: 'buyer-1',
+      organizationRole: { id: 'role-1', kind: 'custom', name: 'Purchasing' },
+      permissions,
+    },
+    organization: { id: 'org-1', name: 'Acme', isPersonal },
   }),
 }));
 vi.mock('../../lib/api/cart', () => ({
@@ -61,6 +67,33 @@ beforeEach(() => {
   locale = 'en-US';
   carts = [summary('c1', 'pending'), summary('c2', 'not_required')];
   filters.length = 0;
+  isPersonal = false;
+  permissions = ['carts.approve'];
+});
+
+/**
+ * Feature 170 (FR-057, FR-070a) — the list follows `carts.approve` (FR-033),
+ * not the Administrator role, and a personal Organization is sent back to the
+ * account page.
+ */
+describe('organization carts list — who may see it (feature 170)', () => {
+  it('lists the carts for an approver who is not the administrator', async () => {
+    const html = await render();
+    expect(html).toContain('href="/organization/carts/c1"');
+  });
+
+  it('refuses a member without carts.approve, and reads nothing', async () => {
+    permissions = ['carts.create'];
+    const html = await render();
+    expect(html).toContain('Only members allowed to approve carts can see this page.');
+    expect(filters).toEqual([]);
+  });
+
+  it('sends the member of a personal Organization to the account page', async () => {
+    isPersonal = true;
+    await expect(render()).rejects.toThrow('redirect /account');
+    expect(filters).toEqual([]);
+  });
 });
 
 describe('organization carts list — issue #650', () => {

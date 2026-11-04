@@ -2,10 +2,10 @@ import { z } from 'zod';
 import {
   addressSnapshotSchema,
   isoDateTimeSchema,
-  organizationRoleSchema,
   uuidSchema,
 } from './common.js';
 import { fulfilmentStrategySchema, type FulfilmentStrategy } from './inventory.js';
+import { organizationRoleRefSchema } from './organization-roles.js';
 import { SalesChannelOptionSchema } from './sales-channels.js';
 import { foldDiacritics } from './text-normalization.js';
 
@@ -150,7 +150,13 @@ export const customerAccountSchema = z.object({
   email: z.string().email(),
   firstName: z.string(),
   lastName: z.string(),
-  role: organizationRoleSchema,
+  /**
+   * The member's role (`specs/170-organization-roles/`, FR-008, FR-056); it
+   * replaced the legacy two-value `role`, removed by WP-12 (FR-073).
+   */
+  organizationRole: organizationRoleRefSchema,
+  /** The member's effective organization permissions, sorted (FR-056). */
+  permissions: z.array(z.string()),
   emailVerifiedAt: isoDateTimeSchema.nullable(),
   twoFactorEnabled: z.boolean(),
   createdAt: isoDateTimeSchema,
@@ -227,7 +233,12 @@ export const customerLoginRequestSchema = z.object({
  * `'noop'`; see `cartMergeOutcomePublicSchema` below.
  */
 export const cartMergeOutcomeSchema = z.object({
-  outcome: z.enum(['adopted', 'merged', 'noop_empty', 'noop_no_anon']),
+  /**
+   * `skipped_permission` (owner ruling PR-12, `specs/170-organization-roles/`):
+   * the member's role lacks `carts.create`, so sign-in did not merge the guest
+   * basket. The HTTP narrowing reports it as `'noop'`.
+   */
+  outcome: z.enum(['adopted', 'merged', 'noop_empty', 'noop_no_anon', 'skipped_permission']),
   movedLineCount: z.number().int().min(0),
   summedLineCount: z.number().int().min(0),
   destinationCartId: uuidSchema,
@@ -258,7 +269,10 @@ export const customerLoginResponseSchema = z.object({
       id: uuidSchema,
       email: z.string().email(),
       organizationId: uuidSchema.nullable(),
-      role: organizationRoleSchema,
+      /** The member's role (FR-056); it replaced the legacy `role` (FR-073). */
+      organizationRole: organizationRoleRefSchema,
+      /** The member's effective organization permissions, sorted (FR-056). */
+      permissions: z.array(z.string()),
       twoFactorEnabled: z.boolean(),
     }),
     cartMerge: cartMergeOutcomePublicSchema.nullable().optional(),
@@ -286,19 +300,10 @@ export type CreateAddressRequest = z.infer<typeof createAddressRequestSchema>;
 export const updateAddressRequestSchema = createAddressRequestSchema.partial();
 export type UpdateAddressRequest = z.infer<typeof updateAddressRequestSchema>;
 
-export const inviteMemberRequestSchema = z.object({
-  email: z.string().email(),
-  role: organizationRoleSchema.optional(),
-});
-
 export const acceptInvitationRequestSchema = z.object({
   password: z.string().min(12),
   firstName: z.string().min(1).max(120),
   lastName: z.string().min(1).max(120),
-});
-
-export const changeMemberRoleRequestSchema = z.object({
-  role: organizationRoleSchema,
 });
 
 /** Platform admin — PATCH `/admin/organizations/:id` */
@@ -323,21 +328,6 @@ export const adminPatchOrganizationRequestSchema = z.object({
 /** Platform admin — POST `/admin/organizations/:id/recover-admin-access` */
 export const adminRecoverOrgAccessRequestSchema = z.object({
   promoteCustomerAccountId: uuidSchema,
-});
-
-/** Platform admin — POST `/admin/organizations/:id/members` (direct create) */
-export const adminDirectMemberRequestSchema = z.object({
-  email: z.string().email(),
-  firstName: z.string().min(1).max(120),
-  lastName: z.string().min(1).max(120),
-  password: z.string().min(12).max(256),
-  role: organizationRoleSchema.optional(),
-});
-
-/** Platform admin — PATCH member role */
-export const adminPatchMemberRoleRequestSchema = z.object({
-  role: organizationRoleSchema,
-  expectedUpdatedAt: z.string().optional(),
 });
 
 /**
@@ -483,7 +473,6 @@ export interface OrganizationRecord {
   rejectedAt: Date | null;
   approvedAt: Date | null;
   approvedByAdminUserId: string | null;
-  requiresCartApproval: boolean;
   fulfilmentStrategy: FulfilmentStrategy | null;
   fulfilmentStrategyWarehouseOrder: string[] | null;
   parentId: string | null;
@@ -623,44 +612,6 @@ export interface OrganizationInheritancePort {
   creditOwner(organizationId: string): Promise<OrganizationCreditOwner>;
 }
 
-/** What a cart-approval-policy write answers with. */
-export interface CartApprovalPolicyWriteResult {
-  readonly organization: OrganizationRecord;
-  /**
-   * `false` when the row already carried the requested value, so nothing was
-   * written and nothing was audited. It is part of the return type rather than
-   * something the caller re-derives from a read, because the caller's cascade
-   * hangs off it: `carts` resets its pending and approved carts when — and only
-   * when — the policy actually moved to `false`.
-   */
-  readonly changed: boolean;
-}
-
-/**
- * Container name: `organizationCartApprovalWritePort`. Owner: `organizations`.
- *
- * The per-organisation "an Org Admin must approve a cart before checkout"
- * policy (feature 027 US4). `carts` drives both surfaces that flip it — the
- * platform-admin route and the Org-Admin self-service one — but the column is
- * this module's, so the operation is (issue #175, D-78 step 1).
- *
- * The write runs through `CommandBus.run`, so it carries the audit row it had
- * never had while `carts` was writing the column directly, with the actor
- * derived from the caller's ambient context (Constitution XIII). The cart
- * cascade that follows a switch-off stays with `carts`: those are its rows, and
- * they are audited in its own per-cart trail.
- *
- * This module is non-deactivatable, so the gate the port registration applies
- * cannot be reached; the registration is a `providePort` anyway, for the reason
- * its siblings give.
- */
-export interface OrganizationCartApprovalWritePort {
-  setCartApprovalPolicy(
-    organizationId: string,
-    requiresCartApproval: boolean,
-  ): Promise<CartApprovalPolicyWriteResult>;
-}
-
 /** The three allow-list kinds an organisation can restrict. */
 export type OrganizationAllowListKind =
   | 'paymentMethodIds'
@@ -688,6 +639,16 @@ export interface OrganizationRestrictionPort {
     organizationId: string,
     kind: OrganizationAllowListKind,
   ): Promise<string[] | null>;
+}
+
+/**
+ * A personal organisation as {@link PersonalOrganizationPort.provisionPersonalOrganization}
+ * answers it: the record, and the id of its *Administrator* role — the role
+ * its single member holds (`specs/170-organization-roles/`, owner ruling PR-3,
+ * research R-34), which a caller moving the account there writes with it.
+ */
+export interface ProvisionedPersonalOrganizationRecord extends OrganizationRecord {
+  administratorRoleId: string;
 }
 
 /**
@@ -733,7 +694,7 @@ export interface PersonalOrganizationPort {
    * Idempotent: the personal organisation's `taxId` is derived from the account
    * id, so a second call re-finds the row rather than creating a second one.
    */
-  provisionPersonalOrganization(customerAccountId: string): Promise<OrganizationRecord>;
+  provisionPersonalOrganization(customerAccountId: string): Promise<ProvisionedPersonalOrganizationRecord>;
 
   /**
    * Feature 051, the other end of the same rule — the retention sweep's

@@ -47,7 +47,6 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | --- | --- | --- |
 | `carts:read` | View customer carts | — |
 | `carts:reject` | Reject a cart pending organization approval | — |
-| `customers:manage` | Manage customer organizations | — |
 
 ## Command palette
 

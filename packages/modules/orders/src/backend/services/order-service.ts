@@ -161,7 +161,7 @@ export type {
   PaymentPlacementApplyPort,
   PromotionUsageFinalizer,
 };
-import { OrderAccessService } from './order-access-service.js';
+import type { OrderAccessService } from './order-access-service.js';
 import { assertMethodsOfferedInChannel } from './method-channel-gate.js';
 import type {
   AddressReadPort,
@@ -272,6 +272,13 @@ export interface CustomerContext {
    * (FR-042 / R-12) and emit an audit entry.
    */
   impersonatorAdminUserId?: string | null;
+  /**
+   * The customer's organization role, when the request's actor carries it
+   * (`specs/170-organization-roles/` R-15). Placement hands it to `carts`' approval
+   * rule for the customer's own basket, so the rule reads no account (FR-080).
+   * Absent — an administrator's or an API client's placement — the rule reads it.
+   */
+  organizationRoleId?: string | null;
 }
 
 /**
@@ -464,7 +471,13 @@ const NO_QUOTE_REQUEST_SOURCE: QuoteRequestSourceAssessment = Object.freeze({
 });
 
 export class OrderService {
-  private readonly accessService: OrderAccessService;
+  /**
+   * The buyer's order read scope. `null` for a service built without one — a
+   * placement-only rig — whose scoped reads then refuse rather than guess
+   * (`specs/170-organization-roles/` WP-07: the rule needs
+   * `organizationPermissionPort`, which the neighbour group does not carry).
+   */
+  private readonly accessService: OrderAccessService | null;
 
   /**
    * The two method modules' registries and the order-status references, held
@@ -642,8 +655,7 @@ export class OrderService {
       );
     }
     this.neighbours = paymentDeps.neighbours;
-    this.accessService =
-      accessService ?? new OrderAccessService(paymentDeps.neighbours.customerAccountRead);
+    this.accessService = accessService ?? null;
     this.paymentAdaptersAccessor = paymentDeps?.paymentAdapters;
     this.orderStatusRegistryAccessor = paymentDeps?.orderStatusRegistry;
     this.shippingAdaptersAccessor = paymentDeps?.shippingAdapters;
@@ -1843,7 +1855,14 @@ export class OrderService {
       // never the member's basket the approval was asked for.
       if (
         !workingBasketId &&
-        (await this.neighbours.cartPlacementApply.awaitsApproval({ cart, organizationId: ctx.organizationId }))
+        (await this.neighbours.cartPlacementApply.awaitsApproval({
+          cart,
+          organizationId: ctx.organizationId,
+          // The placer's own role, only for the placer's own basket (FR-080).
+          ...(ctx.organizationRoleId && cart.customerAccountId === ctx.customerAccountId
+            ? { organizationRoleId: ctx.organizationRoleId }
+            : {}),
+        }))
       ) {
         throw cartApprovalRequired(cart);
       }
@@ -2855,17 +2874,20 @@ export class OrderService {
   }
 
   /**
-   * Delegates to OrderAccessService (T145). The rule itself — Organization
-   * Admin sees all org orders, Regular User sees only their own — lives
-   * there so any module that needs to enforce it imports the service
-   * rather than duplicating the SQL. Out-of-scope reads return no rows
-   * and the caller raises 404, never 403, to avoid leaking existence.
+   * Delegates to OrderAccessService (T145). The rule itself — a holder of
+   * `orders.view_organization` sees all org orders, anyone else only their
+   * own — lives there so any module that needs to enforce it imports the
+   * service rather than duplicating the SQL. Out-of-scope reads return no
+   * rows and the caller raises 404, never 403, to avoid leaking existence.
    */
   async #scopedOrderWhere(
     em: EntityManager,
     ctx: CustomerContext,
     extra: Record<string, unknown> = {},
   ): Promise<Record<string, unknown>> {
+    if (!this.accessService) {
+      throw new Error('OrderService: a scoped order read needs the OrderAccessService it was built without.');
+    }
     return this.accessService.scopedWhereWithEm(em, ctx, extra);
   }
 

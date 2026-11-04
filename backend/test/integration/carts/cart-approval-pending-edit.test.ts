@@ -9,7 +9,9 @@ import {
 import { CustomerAccount, Organization } from '../../helpers/package-entities.js';
 import { CUSTOMER_COOKIES } from '../../helpers/test-actors.js';
 import { addOrganizationChannels } from '../../helpers/sales-channel-access.js';
+import { requireCartApprovalForMembers } from '../../helpers/cart-approval-roles.js';
 import { SEED_PRODUCT_101_ID, SEED_PRODUCT_102_ID } from '../../helpers/seed-catalog.js';
+import { predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 
 /**
  * Issue #649 — a cart awaiting approval that its member changes goes back to
@@ -69,13 +71,15 @@ describe('an edit to a pending cart returns it to its pre-submission state (issu
       taxId: `PL649${ORG.replace(/\D/g, '').slice(0, 7).padEnd(7, '0')}`,
       status: 'active',
       vatStatus: 'vat_payer',
-      requiresCartApproval: true,
       registeredAddress: { street: 'ul. Akceptacji 7', city: 'Warszawa', postalCode: '00-649', country: 'PL' },
     });
     await em.flush();
+    // `specs/170-organization-roles/` WP-04 — approval is the role's: the
+    // *Member* role as M2 maps an approval-requiring Organization.
+    await requireCartApprovalForMembers(em, ORG);
     const accounts = [
-      { ...MEMBER, role: 'regular_user' as const, label: 'member' },
-      { ...ADMIN, role: 'organization_admin' as const, label: 'admin' },
+      { ...MEMBER, role: 'member' as const, label: 'member' },
+      { ...ADMIN, role: 'administrator' as const, label: 'admin' },
     ];
     for (const account of accounts) {
       em.create(CustomerAccount, {
@@ -85,7 +89,7 @@ describe('an edit to a pending cart returns it to its pre-submission state (issu
         passwordHash: 'not-a-real-hash',
         firstName: 'Issue649',
         lastName: account.label,
-        role: account.role,
+        organizationRoleId: await predefinedRoleIdOf(em, ORG, account.role),
         emailVerifiedAt: new Date(),
       });
     }

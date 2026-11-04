@@ -19,6 +19,7 @@ import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 import { hashPassword } from '@endora-commerce/platform/kernel';
 import { seedPriceBookSql } from '../../helpers/price-book-sql.js';
 import { bindOrganizationsToFixtureChannelsSql } from '../../helpers/sales-channel-access.js';
+import { predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 
 /**
  * Feature 062 / T015 — bulk pricing parity (SC-001).
@@ -147,7 +148,7 @@ describe('External bulk pricing parity with cart pricing (062 / T015, SC-001)', 
       passwordHash,
       firstName: 'Parity',
       lastName: 'OrgB',
-      role: 'organization_admin',
+      organizationRoleId: await predefinedRoleIdOf(em, ORG_B_ID, 'administrator'),
       emailVerifiedAt: new Date(),
     });
     await em.persistAndFlush(customerB);

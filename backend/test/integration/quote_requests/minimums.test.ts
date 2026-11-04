@@ -83,7 +83,6 @@ describe('155 — buyer quote-request writes refuse lines below a minimum [integ
         passwordHash: 'x'.repeat(60),
         firstName: '148',
         lastName: 'locked',
-        role: 'regular_user',
       });
       await fork.persistAndFlush(account);
       await fork.persistAndFlush(fork.create(QuoteRequestOrgPolicy, { organizationId: org.id, priceProposalsAllowed: false }));

@@ -26,6 +26,7 @@ import type {
   EmailDefaultsRegistryPort,
   OrderReadPort,
   OrganizationDetailsPort,
+  OrganizationPermissionPort,
   OrganizationTaxProfilePort,
   QuoteRequestReadPort,
   RfqCustomerPort,
@@ -229,8 +230,10 @@ function warnOnce(condition: string, message: string): void {
  *
  * Both bodies are this module's own and carry no deployment judgement. They
  * read `request.actor`, which is the platform's decoration since T118b, and
- * three ports this manifest already declares as binding `dependencies`:
- * `customer_accounts`, `admin_users` and `admin_roles`. A root that wants a
+ * the admin one reads two ports this manifest already declares as binding
+ * `dependencies`: `admin_users` and `admin_roles` (the customer one read
+ * `customer_accounts` for the legacy role until `specs/170-organization-roles/`
+ * WP-05). A root that wants a
  * different answer still contributes one — the test harness does, and its
  * divergence is deliberate — which is what the window is for.
  */
@@ -238,7 +241,10 @@ function registerActorResolvers(ctx: ModuleContext): void {
   ctx.di.register({
     /**
      * Who is asking, in this module's shape: the account, its Organization and
-     * whether the caller administers it.
+     * the role the actor carries (`specs/170-organization-roles/`, R-15).
+     * Whether the caller sees the whole Organization is not stated here: the
+     * service asks `organizationPermissionPort` (R-30), so the legacy `role`
+     * column is no longer read.
      *
      * The Organization guard asserts an invariant rather than describing a
      * business state (D-178) — `customer_accounts.organization_id` is `NOT NULL`
@@ -250,7 +256,6 @@ function registerActorResolvers(ctx: ModuleContext): void {
      */
     rfqCustomerContextResolver: ctx
       .asFunction(() => {
-        const accounts = lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort');
         return async (request: FastifyRequest) => {
           const actor = request.actor as Actor | undefined;
           if (actor?.kind !== 'customer') {
@@ -264,11 +269,10 @@ function registerActorResolvers(ctx: ModuleContext): void {
               { code: 'customer_account_organization_missing' },
             );
           }
-          const account = await accounts.findById(actor.customerAccountId);
           return {
             customerAccountId: actor.customerAccountId,
             organizationId: actor.organizationId,
-            isOrgAdmin: account?.role === 'organization_admin',
+            organizationRoleId: actor.organizationRoleId ?? null,
           };
         };
       })
@@ -490,6 +494,12 @@ export function registerModule(ctx: ModuleContext): void {
           organizations: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
           adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
           orders: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
+          // `specs/170-organization-roles/` — the customer routes' permission
+          // guards (FR-040) and the *Administrator*-only Organization-wide
+          // visibility (R-30). `organizations` is a binding dependency; the
+          // port is resolved per call, so its effective state decides.
+          organizationPermissions: () =>
+            lazyPort<OrganizationPermissionPort>(ctx, 'organizationPermissionPort'),
           // The completion reactor's second look at an order whose commit was
           // still in flight (`specs/143-crm-sales-opportunities/`, FR-104). Off
           // the bus's chain, so in a system scope of its own — the handler's

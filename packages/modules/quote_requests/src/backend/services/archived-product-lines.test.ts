@@ -145,7 +145,7 @@ describe('163 P-3 — a quote request refuses an archived product', () => {
       catalogAvailability: { filterAvailable },
     } as never);
 
-    const ctx = { customerAccountId: CUSTOMER_ID, organizationId: ORG_ID, isOrgAdmin: false };
+    const ctx = { customerAccountId: CUSTOMER_ID, organizationId: ORG_ID };
     const refused = await refusalOf(
       service.createForCustomer(ctx, { items: [{ productId: ARCHIVED_ID, quantity: 1 }] } as never),
     );

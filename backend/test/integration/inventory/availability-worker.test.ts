@@ -10,6 +10,7 @@ import { AvailabilityNotification, type ProductRow } from '../../helpers/package
 import { Product } from '../../helpers/package-entities.js';
 import { CustomerAccount } from '../../helpers/package-entities.js';
 import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
+import { TEST_CUSTOMER_ID } from '../../helpers/test-actors.js';
 
 /**
  * The container's own registrations — feature 075, Phase C. The worker takes
@@ -55,7 +56,7 @@ describe('AvailabilityWorker.dispatchForStockIncrease', () => {
     // worker itself is untouched by that — it reads under `withSystemScope`, a
     // deliberate cross-tenant grant, so the fan-out still reaches every
     // organisation and these assertions mean exactly what they meant before.
-    customer = await h.em().findOneOrFail(CustomerAccount, { role: 'organization_admin' });
+    customer = await h.em().findOneOrFail(CustomerAccount, { id: TEST_CUSTOMER_ID });
   });
 
   afterAll(async () => {

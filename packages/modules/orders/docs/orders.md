@@ -16,13 +16,53 @@ Admin routes are gated by `orders:read` (read) / `orders:write` (mutations).
 | Verb + Path | Audience | Purpose |
 | --- | --- | --- |
 | `POST /api/v1/orders` | customer | Place order from active Cart |
-| `GET /api/v1/orders` | customer | List orders scoped by Role (Regular vs Org Admin) |
+| `GET /api/v1/orders` | customer | List orders: own orders, or the Organization's with `orders.view_organization` (see below) |
 | `GET /api/v1/orders/:id` | customer | Order detail |
 | `GET /api/v1/orders/:id/invoice` | customer | Download invoice PDF |
 | `GET /api/v1/admin/orders` | admin | List every order (cross-organization) |
 | `GET /api/v1/admin/orders/:id` | admin | Order detail (bypasses customer scope) |
 | `POST /api/v1/admin/orders/:id/status` | admin | Status transition (audited) |
 | `POST /api/v1/admin/orders/:id/payment-status` | admin | Payment status transition (audited) |
+
+## Who sees a colleague's order
+
+A buyer sees the orders they placed. Every other order of their Organization —
+in the list, on its detail page, and in every action that reads an order as
+its source (reorder, clone to a quote request, starting a return or a complaint
+from it, its invoices) — needs the
+organization permission **View the organization's orders**
+(`orders.view_organization`), which this module declares:
+
+| Role | Holds it |
+| --- | --- |
+| *Administrator* | always (every permission, implicitly) |
+| *Member* | no, unless the Organization's administrator grants it to the role |
+| a custom role | when the role grants it |
+
+Without the permission a colleague's order answers `404`, exactly as an order
+of another Organization does, never `403`. With it the reach is the
+Organization; a head-office login with roll-up enabled reaches its subtree as
+well — roll-up widens the reach, it never grants the permission.
+
+Starting a return or a complaint from a colleague's order also needs the
+`returns` module's **Create returns and complaints** (`returns.create`); the case
+is filed in the name of the member who starts it (see the `returns` page).
+
+On the storefront the order list and the order page show a colleague's order to
+a member holding the permission exactly as their own. The order page offers
+**Request return / complaint** (or **File a complaint**) only to a member whose
+role holds `returns.create`.
+
+Reordering and cloning to a quote request are also judged by what they build:
+`POST /api/v1/orders/:id/reorder` replaces the active cart and needs
+`carts.create`, `POST /api/v1/orders/:id/clone-to-quote` creates a quote request
+and needs `quote_requests.create`. The permission is checked before the order
+is read, so a member lacking it gets `403 ORGANIZATION_PERMISSION_REQUIRED`
+whichever order the id names, and a member holding it then meets the order
+scope above. With `quote_requests` switched off its code grants nothing, so the
+buyer's clone is refused with that same `403`. The order page offers **Order
+again → cart** and **Order again → quote request** only to a member holding the
+matching code.
 
 ## Which sales channel an order records
 
@@ -114,21 +154,23 @@ all, sees no change.
 
 ## Cart approval at placement
 
-In an Organization that requires cart approval, a member's basket is ordered only
-once the Organization administrator has approved it. Placement asks the Carts
-module before anything is reserved or written, and refuses a basket the policy
-applies to that is not `approved` with `409 ORDER_CART_APPROVAL_REQUIRED`;
+A member whose role lacks *Place orders without approval*
+(`carts.order_without_approval`, declared by the Carts module) orders a basket
+only once a colleague allowed to approve carts has approved it. Placement asks
+the Carts module before anything is reserved or written, reading the basket
+owner's role at that moment, and refuses such a basket that is not `approved`
+with `409 ORDER_CART_APPROVAL_REQUIRED`;
 `details` carries `cartId`, `approvalStatus` and a `code` naming the state:
 
 | `details.code` | Basket | Sentence (English) |
 | --- | --- | --- |
-| `cart_approval_not_submitted` | never sent for approval | *"Your organization requires baskets to be approved before ordering. Send this basket for approval first."* |
-| `cart_approval_pending` | awaiting the administrator | *"This basket is awaiting approval by your organization administrator. You can place the order once it is approved."* |
-| `cart_approval_rejected` | rejected | *"Your organization administrator rejected this basket, so it cannot be ordered."* |
+| `cart_approval_not_submitted` | never sent for approval | *"Your role requires approval of this cart before it can be ordered. Send it for approval first."* |
+| `cart_approval_pending` | awaiting an approver | *"This cart is awaiting approval by an approver in your organization. You can place the order once it is approved."* |
+| `cart_approval_rejected` | rejected | *"This cart was rejected by an approver in your organization, so it cannot be ordered."* |
 
-The basket is kept as it was. Unaffected: the Organization administrator's own
-basket (they need no approval), every basket of an Organization that does not
-require approval, and orders placed from a working basket — admin order
+The basket is kept as it was. Unaffected: the basket of every member whose role
+holds *Place orders without approval* (*Administrator* always does), and orders
+placed from a working basket — admin order
 creation, one-click buy and the external order API — which do not place the
 member's basket.
 
@@ -412,7 +454,8 @@ that fails announces nothing.
 - **Reorder** — `…/:id/reorder` rebuilds the cart (gated by
   `orders.reorder_enabled`); **clone-to-quote** — `…/:id/clone-to-quote` (an
   order with no lines is `409 ORDER_CLONE_NO_LINES`; with `quote_requests` absent,
-  `503 MODULE_DISABLED`).
+  the buyer's clone is refused `403 ORGANIZATION_PERMISSION_REQUIRED` and the
+  operator's `503 MODULE_DISABLED`).
 
 ### The Create order screen
 
@@ -867,8 +910,11 @@ payment e-mail renderer registry (`payments/services/payment-email-renderer.ts`)
   dispatches start-payment through the `PaymentAdapterRegistry`; new methods
   register an adapter rather than editing the order service.
 - **Access scoping** — `order-access-service.ts` is the single place that
-  enforces the Regular User / Organization Admin / Admin User scoping rule;
-  add new actor kinds here.
+  enforces the buyer's order scope (own orders, or the Organization's with
+  `orders.view_organization`, asked of `organizationPermissionPort`); the list,
+  the detail, reorder, clone to a quote request and
+  `OrderReadPort.findByIdForCustomer` all go through it. `invoices` and
+  `returns` reach it through that port.
 - **Panels on the order screen** — the admin zone `order.detail.after` is
   mounted once at the end of an order's screen, below its tabs, and hands a
   contribution `{ orderId }`. A module adds a panel by declaring

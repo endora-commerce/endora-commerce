@@ -13,6 +13,7 @@ import { tForLocale } from '../../../../lib/i18n/messages';
 import { codeLabel } from '../../../../lib/account/labels';
 import { format } from '../../../../lib/i18n/format';
 import { LocalizedLink } from '../../../../lib/i18n/localized-link';
+import { organizationAreaAccess } from '../../../../lib/account/organization-area';
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -22,14 +23,15 @@ import { LocalizedLink } from '../../../../lib/i18n/localized-link';
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 /**
- * Organization-Administrator visibility view (feature 027 US4).
+ * The Organization's carts, for the members who may approve them (feature 027
+ * US4; feature 170, FR-033).
  *
  * Lists every cart owned by a member of the caller's Organization, each
  * linked to its detail (`[id]/page.tsx`, where a pending one is approved or
- * rejected — issue #650).
- * The role gate is enforced by the backend (`CustomerAccount.role ===
- * 'organization_admin'`); ordinary members hitting this URL get a 403
- * which we surface as an inline message.
+ * rejected — issue #650). The backend gates the list on `carts.approve`
+ * (`403` otherwise); the page asks the same of the session to say so rather
+ * than render an empty screen, and sends a personal Organization's member to
+ * the account page (FR-070a).
  *
  * Browser-verification note: layout + status-badge styling needs eyes.
  * The data flow is a plain server-side fetch.
@@ -44,14 +46,15 @@ export default async function OrganizationCartsPage({
   const session = await getSessionCookie();
   if (!session) return await localeRedirect('/login');
   const me = await getMe(session);
-  if (!me.organization) return await localeRedirect('/account');
+  const access = organizationAreaAccess(me, 'carts');
+  if (access === 'absent' || !me.organization) return await localeRedirect('/account');
   const { locale } = await getServerContext();
   const t = tForLocale(locale);
-  if (me.customerAccount.role !== 'organization_admin') {
+  if (access === 'refused') {
     return (
       <>
         <h2>{t('account.orgCarts.heading')}</h2>
-        <p className="b2b-auth__error">{t('account.orgCarts.adminOnly')}</p>
+        <p className="b2b-auth__error">{t('account.orgCarts.approverOnly')}</p>
       </>
     );
   }

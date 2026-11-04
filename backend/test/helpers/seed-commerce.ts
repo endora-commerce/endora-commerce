@@ -13,6 +13,7 @@ import { STUB_CUSTOMER_PASSWORD } from './seed-organizations.js';
 import { Order } from './package-entities.js';
 import { bindOrganizationsToFixtureChannelsSql } from './sales-channel-access.js';
 import { systemDefaultSalesChannelId } from './sales-channel-fixtures.js';
+import { predefinedRoleIdOf } from './seed-organization-roles.js';
 
 /**
  * Deterministic fixture IDs referenced by the US2 contract tests.
@@ -126,7 +127,7 @@ export async function seedSuspendedOrganization(em: EntityManager): Promise<void
     passwordHash,
     firstName: 'Suspended',
     lastName: 'Customer',
-    role: 'organization_admin',
+    organizationRoleId: await predefinedRoleIdOf(em, TEST_SUSPENDED_ORGANIZATION_ID, 'administrator'),
     emailVerifiedAt: new Date(),
   });
   // Needs a non-empty cart so the order-place path passes the CART_EMPTY check
@@ -162,7 +163,7 @@ export async function seedStockRaceFixture(em: EntityManager): Promise<void> {
     passwordHash,
     firstName: 'Race',
     lastName: 'A',
-    role: 'regular_user',
+    organizationRoleId: await predefinedRoleIdOf(em, TEST_ORGANIZATION_ID, 'member'),
     emailVerifiedAt: new Date(),
   });
   const b = em.create(CustomerAccount, {
@@ -172,7 +173,7 @@ export async function seedStockRaceFixture(em: EntityManager): Promise<void> {
     passwordHash,
     firstName: 'Race',
     lastName: 'B',
-    role: 'regular_user',
+    organizationRoleId: await predefinedRoleIdOf(em, TEST_ORGANIZATION_ID, 'member'),
     emailVerifiedAt: new Date(),
   });
   await em.persistAndFlush([a, b]);

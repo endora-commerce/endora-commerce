@@ -1166,14 +1166,17 @@ export interface OrderReadPort {
   findById(id: string): Promise<OrderRecord | null>;
   /**
    * The order with this id **if this customer may read it**, else `null` — the
-   * rule `GET /api/v1/orders/:id` applies: a regular member reaches only the
-   * orders they placed, an `organization_admin` every order of their
-   * Organization (or of its roll-up subtree, through the tenant filter).
+   * rule `GET /api/v1/orders/:id` applies (`specs/170-organization-roles/`
+   * FR-049): a member whose organization role holds `orders.view_organization`
+   * (*Administrator* included) reaches every order of their Organization (or
+   * of its roll-up subtree, through the tenant filter); anyone else only the
+   * orders they placed.
    *
    * Published for `invoices`' buyer routes (issue #669), which used to accept
-   * any order of the caller's Organization. A consumer serving a customer an
-   * order-scoped resource asks this rather than restating the rule against
-   * `customer_accounts`. `null` is the caller's 404, never a 403, so an order
+   * any order of the caller's Organization; `returns` judges the order a
+   * return or complaint is started from with it too (FR-054). A consumer
+   * serving a customer an order-scoped resource asks this rather than
+   * restating the rule. `null` is the caller's 404, never a 403, so an order
    * the customer may not see is indistinguishable from one that does not exist.
    */
   findByIdForCustomer(

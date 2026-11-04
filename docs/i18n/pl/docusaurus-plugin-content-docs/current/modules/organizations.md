@@ -6,14 +6,15 @@ description: Organizacje klientów, rejestracja, zaproszenia
 # `organizations`
 
 Organizacje klientów — rejestracja, weryfikacja e-mailem, zarządzanie członkami, zaproszenia i
-zawieszanie. Pierwszy użytkownik rejestrujący organizację zostaje jej administratorem
-(`organization_admin`).
+zawieszanie. Pierwszy użytkownik rejestrujący organizację otrzymuje jej rolę Administrator
+(zob. *Role* niżej).
 
 ## API publiczne
 
-Trasy dostępne tylko dla administratora organizacji są chronione po stronie serwera funkcją
-`assertOrganizationAdmin`. Trasy administracyjne platformy (`/api/v1/admin/*`) są chronione przez
-`customers:manage`.
+Trasy oznaczone *administrator organizacji* są zastrzeżone dla członka z rolą Administrator
+organizacji — sprawdza to serwer przez `organizationPermissionPort.isAdministrator` i odmawia
+z `403 FORBIDDEN`; żadne uprawnienie ich nie nadaje (zob. *Role* niżej). Trasy administracyjne
+platformy (`/api/v1/admin/*`) są chronione przez `customers:manage`.
 
 | Metoda i ścieżka | Kto | Przeznaczenie |
 | --- | --- | --- |
@@ -23,31 +24,31 @@ Trasy dostępne tylko dla administratora organizacji są chronione po stronie se
 | `POST /api/v1/auth/customer/logout` | klient | Zakończenie sesji |
 | `POST /api/v1/auth/password-reset/request` | anonimowy | Zawsze 202 (ochrona przed sprawdzaniem, czy konto istnieje) |
 | `POST /api/v1/auth/password-reset/confirm` | anonimowy | Użycie tokenu resetu z e-maila. Wykorzystanie tokenu wylogowuje konto ze **wszystkich** sesji, unieważnia pozostałe niewykorzystane tokeny resetu i wycofuje każde rozpoczęte, a niedokończone logowanie. |
-| `GET /api/v1/me` | klient | Bieżący klient i jego organizacja oraz `impersonation: { impersonatorAdminUserId }`, gdy administrator działa jako kupujący |
+| `GET /api/v1/me` | klient | Bieżący klient (z `organizationRole` i `permissions`) i jego organizacja oraz `impersonation: { impersonatorAdminUserId }`, gdy administrator działa jako kupujący |
 | `POST /api/v1/me/password` | klient | Zmiana hasła (odrzucana przy błędnym `currentPassword`). Udana zmiana wylogowuje konto ze wszystkich pozostałych sesji (sesja, z której wysłano żądanie, zostaje), unieważnia niewykorzystane tokeny resetu hasła i wycofuje każde rozpoczęte, a niedokończone logowanie. |
-| `GET /api/v1/organizations/mine/members` | administrator organizacji | Lista członków |
+| `GET /api/v1/organizations/mine/members` | administrator organizacji | Lista członków, każdy z `organizationRole` |
 | `DELETE /api/v1/organizations/mine/members/:id` | administrator organizacji | Usunięcie członka (z ochroną ostatniego administratora) |
-| `PATCH /api/v1/organizations/mine/members/:id/role` | administrator organizacji | Nadanie lub odebranie roli administratora (z ochroną ostatniego administratora) |
-| `GET /api/v1/organizations/mine/invitations` | administrator organizacji | Lista oczekujących zaproszeń |
-| `POST /api/v1/organizations/mine/invitations` | administrator organizacji | Zaproszenie nowego użytkownika; e-mail z linkiem wysyła wstrzyknięty mechanizm poczty |
+| `PATCH /api/v1/organizations/mine/members/:id/role` | administrator organizacji | Przypisanie roli (`{ roleId }`; z ochroną ostatniego administratora) |
+| `GET /api/v1/organizations/mine/invitations` | administrator organizacji | Lista oczekujących zaproszeń (nieprzyjętych, nieunieważnionych i niewygasłych), każde z `organizationRole` |
+| `POST /api/v1/organizations/mine/invitations` | administrator organizacji | Zaproszenie nowego użytkownika (`{ email, roleId? }`, domyślnie rola Członek); e-mail z linkiem wysyła wstrzyknięty mechanizm poczty |
 | `DELETE /api/v1/organizations/mine/invitations/:id` | administrator organizacji | Unieważnienie oczekującego zaproszenia |
-| `POST /api/v1/organizations/invitations/:token/accept` | anonimowy | Przyjęcie zaproszenia, utworzenie konta klienta |
+| `POST /api/v1/organizations/invitations/:token/accept` | anonimowy | Przyjęcie zaproszenia, utworzenie konta klienta z rolą wskazaną w zaproszeniu |
 | `GET /api/v1/organizations/mine/addresses` | klient | Lista adresów dostawy i do faktury |
-| `POST /api/v1/organizations/mine/addresses` | klient | Utworzenie adresu |
-| `PATCH /api/v1/organizations/mine/addresses/:id` | klient | Aktualizacja |
-| `DELETE /api/v1/organizations/mine/addresses/:id` | klient | Usunięcie |
+| `POST /api/v1/organizations/mine/addresses` | klient (`addresses.manage`) | Utworzenie adresu |
+| `PATCH /api/v1/organizations/mine/addresses/:id` | klient (`addresses.manage`) | Aktualizacja |
+| `DELETE /api/v1/organizations/mine/addresses/:id` | klient (`addresses.manage`) | Usunięcie |
 | `GET /api/v1/admin/organizations` | administrator | Lista z `filter[status]` / `filter[vatStatus]` / `q` |
 | `POST /api/v1/admin/organizations` | administrator (`customers:manage`) | Utworzenie organizacji z jej kanałami sprzedaży (zob. *Kanały sprzedaży* niżej) |
 | `GET /api/v1/admin/organizations/sales-channel-options` | administrator (`customers:manage`) | Kanały oferowane w formularzu tworzenia |
 | `GET /api/v1/admin/organizations/:id/sales-channels` | administrator (`customers:read` lub `customers:manage`) | Kanały przypisane do organizacji i kanały, które można jej przypisać. Przedstawiciel handlowy widzi tylko przypisane mu organizacje; każda inna odpowiada `404 NOT_FOUND`, jak organizacja, która nie istnieje |
 | `PUT /api/v1/admin/organizations/:id/sales-channels` | administrator (`customers:manage`) | Zastąpienie przypisanych kanałów (`{ salesChannelIds }`, co najmniej jeden); `404 NOT_FOUND` poza organizacjami przedstawiciela handlowego, jak przy odczycie |
-| `GET /api/v1/admin/organizations/:id` | administrator | Organizacja z listą członków (`updatedAt`, członkowie z `lastLoginAt`) |
+| `GET /api/v1/admin/organizations/:id` | administrator | Organizacja z listą członków (`updatedAt`, członkowie z `lastLoginAt` i `organizationRole`; `predefinedRoles` podaje role Administrator i Członek) |
 | `PATCH /api/v1/admin/organizations/:id` | administrator | Zmiana nazwy, `status` lub `vatStatus`; opcjonalne `expectedUpdatedAt` → `409 VERSION_CONFLICT`, gdy dane są nieaktualne |
-| `POST /api/v1/admin/organizations/:id/members/invite` | administrator | Zaproszenie e-mailem z rolą (z poziomu platformy) |
-| `POST /api/v1/admin/organizations/:id/members` | administrator | Bezpośrednie utworzenie członka z hasłem |
-| `PATCH /api/v1/admin/organizations/:id/members/:customerAccountId/role` | administrator | Zmiana roli; opcjonalne `expectedUpdatedAt` członka |
+| `POST /api/v1/admin/organizations/:id/members/invite` | administrator | Zaproszenie e-mailem (`{ email, roleId? }`, domyślnie rola Członek; z poziomu platformy) |
+| `POST /api/v1/admin/organizations/:id/members` | administrator | Bezpośrednie utworzenie członka z hasłem (`roleId?`, domyślnie rola Członek) |
+| `PATCH /api/v1/admin/organizations/:id/members/:customerAccountId/role` | administrator | Przypisanie roli (`{ roleId, expectedUpdatedAt? }`) |
 | `DELETE /api/v1/admin/organizations/:id/members/:customerAccountId` | administrator | Usunięcie miękkie członka (z ochroną ostatniego administratora) |
-| `POST /api/v1/admin/organizations/:id/recover-admin-access` | administrator | Procedura awaryjna — nadanie istniejącemu członkowi roli `organization_admin` |
+| `POST /api/v1/admin/organizations/:id/recover-admin-access` | administrator | Procedura awaryjna — nadanie istniejącemu członkowi roli Administrator |
 
 Ustaw **`SMTP_URL`** w środowisku backendu, aby poczta była wysyłana przez SMTP, a nie wypisywana do
 konsoli.
@@ -315,6 +316,10 @@ edycji.
   `20260825T141659_customer_accounts_organization_required` w `customer_accounts`.
 - `20260717T151403_organizations_personal_organizations.ts` — dodaje `organizations.is_personal` i tworzy organizację prywatną
   dla każdego wcześniej istniejącego konta bez organizacji (zobacz „Organizacje prywatne” niżej).
+- `20261103T173304_organizations_organization_roles.ts` — tworzy `organization_roles`, daje każdej organizacji role
+  Administrator i Członek (oraz wyzwalacz, który robi to dla każdej nowej), odbiera roli Członek dwa kody akceptacji
+  koszyka tam, gdzie organizacja wymagała akceptacji koszyków, i daje każdemu zaproszeniu odwołanie do roli (zobacz
+  „Role” niżej).
 
 ### Organizacje prywatne (B2C)
 
@@ -350,6 +355,172 @@ przy samodzielnej rejestracji i przy logowaniu przez zewnętrznego dostawcę to�
 
 Organizacje firmowe (B2B) pozostają bez zmian — reguła jednoosobowości (`assertMembershipAllowed`)
 odrzuca tylko dodanie drugiego członka do organizacji prywatnej.
+
+## Role
+
+Każda organizacja ma role, a każdy członek ma dokładnie jedną z nich. Rola to
+zestaw **uprawnień organizacji** — działań kupującego, takich jak *tworzenie
+koszyków* czy *akceptowanie koszyków* — z których każde deklaruje moduł, którego
+działanie ono chroni, w swoim manifeście (`organizationPermissions`). Uprawnienia
+organizacji to inny słownik niż uprawnienia operatora z `/admin-roles`
+(`<moduł>.<działanie>` wobec `<obszar>:<działanie>`) i te dwa słowniki nigdy się
+nie mieszają.
+
+- **Administrator** — rola predefiniowana. Ma wszystkie uprawnienia wszystkich
+  włączonych modułów, także uprawnienia dodane później, i jako jedyna może
+  zarządzać członkami, zaproszeniami i rolami. Nie można jej edytować ani usunąć.
+- **Członek** — rola predefiniowana. Domyślna rola nowego członka. Jej
+  uprawnienia można zmieniać, ale nie można jej przemianować ani usunąć.
+  Uprawnienie, które moduł deklaruje jako *domyślne dla członka*, rola Członek
+  ma od chwili, gdy ten moduł zostanie po raz pierwszy zaoferowany organizacji;
+  gdy administrator zapisze rolę Członek bez niego, nie zostanie ono nadane
+  ponownie.
+- **Role własne** — do 50 w organizacji, każda z nazwą niepowtarzalną w obrębie
+  organizacji (porównywaną bez względu na wielkość liter i nigdy równą nazwie
+  roli predefiniowanej w żadnym z dostarczanych języków) i opcjonalnym opisem.
+
+Obie role predefiniowane powstają razem z organizacją, niezależnie od tego,
+która ścieżka ją tworzy (wyzwalacz w bazie danych). Organizacja prywatna (B2C)
+także ma obie role, ale nie ma zarządzania rolami: jej jedyny członek jest jej
+Administratorem.
+
+Uprawnienia modułu, który jest wyłączony, nie ma nikt i nie pokazuje go edytor;
+rola, która je nadawała, zachowuje to nadanie, więc ponowne włączenie modułu je
+przywraca. Zmiany ról obowiązują od następnego żądania: każdy proces przechowuje
+role organizacji w pamięci najwyżej 30 sekund i usuwa wpis, gdy tylko którykolwiek
+proces ogłosi zmianę.
+
+Każda zmiana roli to Komenda — `organization_role.create`,
+`organization_role.update`, `organization_role.delete` — audytowana na
+organizacji, ze wskazaniem członka lub operatora, który jej dokonał, oraz z
+nazwą, rodzajem i posortowaną listą uprawnień roli przed zmianą i po niej.
+Zapisanie roli bez zmian niczego nie rejestruje.
+
+| Metoda + ścieżka | Kto | Cel |
+| --- | --- | --- |
+| `GET /api/v1/organizations/mine/roles` | administrator organizacji | Wszystkie role z liczbą członków i oczekujących zaproszeń (oczekujące: nieprzyjęte, nieanulowane i niewygasłe) |
+| `GET /api/v1/organizations/mine/roles/:id` | administrator organizacji | Jedna rola |
+| `POST /api/v1/organizations/mine/roles` | administrator organizacji | Utworzenie roli własnej (`{ name, description?, permissions }`) |
+| `PATCH /api/v1/organizations/mine/roles/:id` | administrator organizacji | Edycja roli (`{ expectedVersion, name?, description?, permissions? }`) |
+| `DELETE /api/v1/organizations/mine/roles/:id` | administrator organizacji | Usunięcie roli własnej (`{ expectedVersion, replacementRoleId? }`) |
+| `GET /api/v1/organizations/mine/permission-catalogue` | administrator organizacji | Dostępne uprawnienia pogrupowane według modułów, w języku żądania |
+| `GET /api/v1/organizations/mine/role` | klient | Własna rola członka i to, na co pozwala |
+| `GET /api/v1/admin/organizations/:id/roles` | admin (`organizations:read-roles` lub `organizations:manage-roles`) | Jak lista w sklepie |
+| `GET /api/v1/admin/organizations/:id/permission-catalogue` | admin (`organizations:read-roles` lub `organizations:manage-roles`) | Jak katalog w sklepie |
+| `POST /api/v1/admin/organizations/:id/roles` | admin (`organizations:manage-roles`) | Utworzenie roli własnej |
+| `PATCH /api/v1/admin/organizations/:id/roles/:roleId` | admin (`organizations:manage-roles`) | Edycja roli |
+| `DELETE /api/v1/admin/organizations/:id/roles/:roleId` | admin (`organizations:manage-roles`) | Usunięcie roli własnej |
+
+Każde ciało żądania jest ścisłe: ciało, które wciąż wysyła dawne pole `role`, jest
+odrzucane z `400 VALIDATION_FAILED`. Rola innej organizacji oraz każda ścieżka ról
+organizacji prywatnej odpowiada `404`. Odmowy to
+`409 ORGANIZATION_ROLE_NAME_TAKEN`, `409 ORGANIZATION_ROLE_STALE` (rola zmieniła
+się od chwili odczytu), `422 ORGANIZATION_ROLE_LIMIT_REACHED`,
+`409 ORGANIZATION_ROLE_PROTECTED`, `422 ORGANIZATION_ROLE_REPLACEMENT_REQUIRED`
+i `422 ORGANIZATION_PERMISSION_UNKNOWN`. Działanie kupującego odrzucone z powodu
+braku uprawnienia odpowiada `403 ORGANIZATION_PERMISSION_REQUIRED`, z kodem
+uprawnienia i jego etykietą w `details`.
+
+Inne moduły pytają, czy członek może coś zrobić, przez
+`organizationPermissionPort` (`can`, `assert`, `isAdministrator`, `effective`,
+`rolesHolding`) i chronią swoje ścieżki funkcją `organizationPermissionPreHandler`
+z `@endora-commerce/contracts`. `organizationRoleReadPort.predefinedRoleId` podaje
+identyfikator roli Administrator lub Członek organizacji.
+
+### Role w storefroncie
+
+Administratorzy organizacji zarządzają rolami w obszarze konta. To, co widzi każdy członek, zależy
+od jego roli i od rodzaju organizacji:
+
+- **Nawigacja konta.** *Członkowie* i *Role* są widoczne dla członków z rolą *Administrator*;
+  *Koszyki do akceptacji* — dla członków, których rola ma uprawnienie *Akceptowanie i odrzucanie
+  koszyków współpracowników* (`carts.approve`), z liczbą oczekujących koszyków. Członek
+  organizacji prywatnej (B2C) nie widzi żadnej z tych trzech pozycji, choć ma rolę
+  *Administrator*, a te strony odsyłają go do `/account`. Każdy inny, kto otworzy taką stronę,
+  dowiaduje się, kto może z niej korzystać — na przykład *„Rolami mogą zarządzać tylko
+  administratorzy organizacji.”*
+- **Role** (`/organization/roles`) to lista wszystkich ról z rodzajem (*Wbudowana* albo
+  *Własna*), liczbą członków, oczekujących zaproszeń i uprawnieniami, oraz przycisk **Nowa
+  rola**. Każda rola otwiera się na własnej stronie (`/organization/roles/<id>`): *Administrator*
+  jest pokazany jako rola ze wszystkimi uprawnieniami i nie można go zmienić; *Członek* zachowuje
+  nazwę i przyjmuje tylko zmiany uprawnień; rolę własną można przemianować, opisać, edytować i
+  usunąć. Usunięcie roli, którą mają członkowie lub oczekujące zaproszenia, wymaga wskazania
+  roli, do której zostaną przeniesieni; usunięcia nie można cofnąć.
+- **Nowa rola zaczyna bez żadnych uprawnień.** Strona tworzenia (`/organization/roles/new`)
+  otwiera się z odznaczonymi wszystkimi uprawnieniami i nie proponuje „skopiuj z innej roli”;
+  rola utworzona bez zaznaczeń na nic nie pozwala. Uprawnienia są pogrupowane według modułów, z
+  etykietą i opisem w języku strony, a przy *Zakupie jednym kliknięciem* widnieje uwaga, że działa
+  on tylko razem z uprawnieniem *Składanie zamówień bez akceptacji*.
+- **Dwóch administratorów edytuje tę samą rolę.** Drugi zapis jest odrzucany; strona zachowuje
+  wpisane dane i proponuje wczytanie aktualnego stanu roli.
+- **Członkowie** (`/organization/members`) pokazuje rolę każdego członka jako listę wyboru ról
+  organizacji, a formularz zaproszenia wskazuje rolę nowego członka, z domyślnie wybraną rolą
+  *Członek*.
+- **Strona konta** pokazuje członkowi jego rolę i zrozumiałą listę tego, na co ona pozwala (*Na
+  co pozwala Twoja rola*), przetłumaczoną przez API; rola, która na nic nie pozwala, mówi o tym
+  wprost. Członek organizacji prywatnej nie widzi ani roli, ani listy.
+
+### Role w panelu administracyjnym
+
+Ekran szczegółów organizacji ma zakładkę **Role**. Widzi ją operator z uprawnieniem
+`organizations:read-roles` lub `organizations:manage-roles`, i nigdy dla organizacji prywatnej.
+Z uprawnieniem do odczytu zakładka jest tylko do odczytu; z `organizations:manage-roles` operator
+tworzy, edytuje i usuwa role według tych samych reguł co w storefroncie — formularz tworzenia
+również otwiera się z odznaczonymi wszystkimi uprawnieniami, a rolę, którą ktoś ma, można usunąć
+tylko ze wskazaniem roli zastępczej. Tabela członków na tym samym ekranie pokazuje rolę każdego
+członka, a operatorowi z `customers:manage` — listę wyboru roli. Zakładka prowadzi do historii
+organizacji w dzienniku audytu, gdzie zapisana jest każda zmiana roli.
+
+### Członkowie, zaproszenia i sesja
+
+Rola członka jest wskazywana przez swój identyfikator wszędzie, gdzie żądanie ją
+podaje, i pokazywana jako `organizationRole: { id, name, kind }` wszędzie, gdzie
+odpowiedź ją pokazuje — w odpowiedzi logowania, `GET /api/v1/me`,
+`GET /api/v1/me/customer`, przyjęciu zaproszenia, listach członków i zaproszeń,
+liście członków w panelu operatora i odpowiedzi rozpoczęcia impersonacji. `name`
+roli predefiniowanej jest tłumaczone na język odpowiedzi; rola własna ma swoją
+nazwę. Widoki sesji (logowanie, `GET /api/v1/me`, `GET /api/v1/me/customer`,
+przyjęcie zaproszenia) zawierają też `permissions` — kody uprawnień, które członek
+faktycznie ma — aby sklep mógł ukryć to, czego członek nie może zrobić. Żadne
+żądanie ani odpowiedź nie zawiera już dawnego pola `role`
+(`organization_admin` / `regular_user`).
+
+- **Zastrzeżone dla Administratora.** Zarządzanie członkami (lista, zmiana ról,
+  usuwanie), zaproszeniami i rolami oraz ustawianie zasad uwierzytelniania
+  dwuskładnikowego organizacji są zastrzeżone dla roli Administrator. Rola
+  własna mająca wszystkie uprawnienia wciąż otrzymuje odmowę.
+- **Ostatni administrator.** Przeniesienie ostatniego aktywnego Administratora do
+  innej roli jest odrzucane z `409 CANNOT_DEMOTE_LAST_ADMIN`, jego usunięcie
+  z `409 CANNOT_REMOVE_LAST_ADMIN`, a unieważnienie jedynego oczekującego
+  zaproszenia z rolą Administrator w organizacji bez aktywnego Administratora
+  z `409 CANNOT_REVOKE_LAST_ADMIN_INVITE`; wygasłe zaproszenie nie jest
+  oczekujące. Zablokowani administratorzy się nie
+  liczą.
+- **Zaproszenia.** Zaproszenie wskazuje rolę organizacji — rolę Członek, gdy
+  żądanie nie wskazuje żadnej; rola innej organizacji daje `404`. E-mail
+  z zaproszeniem pokazuje etykietę roli w języku e-maila (rola własna — swoją
+  nazwę). Lista oczekujących pomija zaproszenia przyjęte, unieważnione
+  i wygasłe.
+- **Adresy.** Tworzenie, edycja i usuwanie wspólnych adresów organizacji wymaga
+  uprawnienia `addresses.manage` (deklarowanego przez `addresses`, domyślnie
+  w roli Członek); ich odczyt — nie.
+- **Organizacje prywatne.** Jedyny członek organizacji prywatnej ma jej rolę
+  Administrator. Trasy członków i zaproszeń odpowiadają mu jak każdemu
+  administratorowi (lista członków zawiera tylko jego, lista zaproszeń jest
+  pusta); zaproszenie jest odrzucane z `422 VALIDATION_FAILED`, bo organizacja
+  jest prywatna, zanim rola zostanie sprawdzona. Sklep ukrywa tam ekrany
+  organizacji na podstawie `organization.isPersonal`, nigdy roli.
+- **Logowanie i koszyk gościa.** Gdy loguje się członek, którego rola nie ma
+  uprawnienia *Tworzenie i edycja koszyków*, jego koszyk gościa nie jest łączony:
+  logowanie odpowiada `cartMerge.outcome = 'noop'` i zachowuje ciasteczko
+  `b2b_cart_anon`, więc koszyk gościa wciąż istnieje.
+
+Przypisanie roli, usunięcie członka i awaryjne nadanie roli Administrator
+uruchamiają polecenia `customer_account.change_role` /
+`customer_account.remove_member` modułu `customer_accounts`; utworzenie
+i unieważnienie zaproszenia — `organization_invitation.create` /
+`organization_invitation.revoke`. Każde jest audytowane względem organizacji,
+z członkiem lub operatorem, który działał.
 
 ## Wyszukiwanie globalne
 

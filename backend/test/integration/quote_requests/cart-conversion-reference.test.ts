@@ -116,7 +116,7 @@ describe('146 — cart conversion stores the cart price as the reference [integr
   });
 
   describe('an in-process caller passing an invalid lineReferencePrices entry (T6)', () => {
-    const ctx = { customerAccountId: TEST_CUSTOMER_ID, organizationId: TEST_ORGANIZATION_ID, isOrgAdmin: false };
+    const ctx = { customerAccountId: TEST_CUSTOMER_ID, organizationId: TEST_ORGANIZATION_ID };
     const input = { items: [{ productId: SEED_PRODUCT_101_ID, quantity: 1 }] };
 
     const countRequests = async () => {

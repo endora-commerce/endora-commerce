@@ -6,6 +6,7 @@ import {
   setDefaultShoppingList,
 } from '../../../lib/api/shopping-lists';
 import { getSessionCookie } from '../../../lib/session';
+import { getCommerceAbilitiesAction } from '../../../lib/actions/cart';
 import { StorefrontApiError } from '../../../lib/api/client';
 import { DeleteShoppingListButton } from '../../../components/shopping-lists/DeleteShoppingListButton';
 import type { Metadata } from 'next';
@@ -25,6 +26,10 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
  * Shopping lists list (T205). Shows every list owned by the current
  * customer with item counts; lets the buyer create new lists and
  * delete old ones.
+ *
+ * `specs/170-organization-roles/` (FR-047): creating, deleting and choosing the
+ * default list need `shopping_lists.create`; reading does not. A member
+ * without it reads the lists and is told why the controls are not there.
  */
 
 export default async function ShoppingListsPage({
@@ -36,6 +41,7 @@ export default async function ShoppingListsPage({
   if (!session) return await localeRedirect('/login?next=/account/shopping-lists');
   const lists = await listShoppingLists(session);
   const params = await searchParams;
+  const { editShoppingLists: canEdit } = await getCommerceAbilitiesAction();
   const { locale } = await getServerContext();
   const t = tForLocale(locale);
 
@@ -44,25 +50,32 @@ export default async function ShoppingListsPage({
       <h2>{t('account.shoppingLists.heading')}</h2>
       <p className="b2b-auth__hint">{t('account.shoppingLists.intro')}</p>
       {params.error ? <p className="b2b-auth__error">{params.error}</p> : null}
+      {!canEdit ? (
+        <p className="b2b-auth__hint" role="note">
+          {t('commerce.shoppingLists.readOnlyNote')}
+        </p>
+      ) : null}
 
-      <form action={createAction} className="flex items-end gap-2">
-        <div className="flex flex-1 flex-col gap-1">
-          <label htmlFor="new-name" className="text-sm text-fg-soft">
-            {t('account.shoppingLists.create.label')}
-          </label>
-          <input
-            id="new-name"
-            name="name"
-            required
-            maxLength={160}
-            placeholder={t('account.shoppingLists.create.placeholder')}
-            className="w-full rounded-md border border-line px-3 py-2 text-sm"
-          />
-        </div>
-        <button type="submit" className="btn btn--primary">
-          {t('account.shoppingLists.create.submit')}
-        </button>
-      </form>
+      {canEdit ? (
+        <form action={createAction} className="flex items-end gap-2">
+          <div className="flex flex-1 flex-col gap-1">
+            <label htmlFor="new-name" className="text-sm text-fg-soft">
+              {t('account.shoppingLists.create.label')}
+            </label>
+            <input
+              id="new-name"
+              name="name"
+              required
+              maxLength={160}
+              placeholder={t('account.shoppingLists.create.placeholder')}
+              className="w-full rounded-md border border-line px-3 py-2 text-sm"
+            />
+          </div>
+          <button type="submit" className="btn btn--primary">
+            {t('account.shoppingLists.create.submit')}
+          </button>
+        </form>
+      ) : null}
 
       {lists.length === 0 ? (
         <p className="muted">{t('account.shoppingLists.empty')}</p>
@@ -88,6 +101,8 @@ export default async function ShoppingListsPage({
                 <td>
                   {l.isDefault ? (
                     <span className="industria-status industria-status--paid">{t('account.shoppingLists.isDefault')}</span>
+                  ) : !canEdit ? (
+                    <span className="text-subtle">—</span>
                   ) : (
                     <form action={setDefaultAction} style={{ display: 'inline' }}>
                       <input type="hidden" name="id" value={l.id} />
@@ -98,7 +113,7 @@ export default async function ShoppingListsPage({
                   )}
                 </td>
                 <td>
-                  {l.isDefault ? (
+                  {l.isDefault || !canEdit ? (
                     // The default list can't be deleted — only cleared (from the
                     // list detail page). Keep it as the customer's permanent anchor.
                     <span className="text-subtle">—</span>

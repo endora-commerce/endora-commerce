@@ -16,13 +16,14 @@ import { Organization } from '../entities/organization.entity.js';
 import { EmailVerificationToken } from '../entities/email-verification-token.entity.js';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
 import type { AuditPort, SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
+import { predefinedRoleIdOn } from './organization-role-store.js';
 
 /**
  * Registration flow (T117, FR-040).
  *
  * - Creates the Organization in `pending_verification`.
- * - Creates the first CustomerAccount with `role='organization_admin'`, email
- *   unverified, argon2-hashed password.
+ * - Creates the first CustomerAccount holding the Organization's
+ *   *Administrator* role, email unverified, argon2-hashed password.
  * - Issues an EmailVerificationToken; the raw token is returned so callers
  *   can dispatch the email. Only its sha256 hash is stored.
  * - Emits `organization.registered.v1`.
@@ -190,7 +191,10 @@ export class RegistrationService {
       password: req.firstUser.password,
       firstName: req.firstUser.firstName,
       lastName: req.firstUser.lastName,
-      role: 'organization_admin',
+      // The registering user administers the new Organization
+      // (`specs/170-organization-roles/` WP-02b). Read on this `em`: the role
+      // row was written by the Organization's own insert trigger.
+      organizationRoleId: await predefinedRoleIdOn(em, organization.id, 'administrator'),
     });
 
     const rawToken = randomBytes(32).toString('base64url');

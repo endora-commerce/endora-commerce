@@ -14,7 +14,7 @@ import { oauthBinding } from '../../helpers/oauth-binding.js';
  * flows and asserts each action string is recorded.
  */
 const CUSTOMER = { b2b_session: 'stub-customer-session' };
-const ORG_ADMIN = CUSTOMER; // TEST_CUSTOMER is the organization_admin
+const ORG_ADMIN = CUSTOMER; // TEST_CUSTOMER holds Administrator
 const PLATFORM_ADMIN = { b2b_admin_session: 'stub-admin-session' };
 
 function totp(secret: string, offsetMs = 0): string {

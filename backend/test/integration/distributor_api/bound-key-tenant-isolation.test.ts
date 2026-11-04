@@ -48,7 +48,6 @@ describe('Bound api-key tenant isolation (062 / Principle XI)', () => {
       passwordHash: 'x',
       firstName: 'Isolation',
       lastName: 'B',
-      role: 'regular_user',
       emailVerifiedAt: new Date(),
     });
     await em.persistAndFlush(customerB);

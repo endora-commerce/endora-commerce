@@ -982,11 +982,6 @@ export interface QuoteRequestReadPort {
 export interface RfqCustomerContext {
   customerAccountId: string;
   organizationId: string;
-  /**
-   * True when the account holds the org-admin role on the current
-   * organisation (FR-011 — broader visibility).
-   */
-  isOrgAdmin: boolean;
 }
 
 /**

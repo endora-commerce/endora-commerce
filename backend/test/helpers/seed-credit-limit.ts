@@ -11,6 +11,7 @@ import {
 import { Order } from './package-entities.js';
 import { systemDefaultSalesChannelId } from './sales-channel-fixtures.js';
 import { Payment } from './package-entities.js';
+import { predefinedRoleIdOf } from './seed-organization-roles.js';
 
 /**
  * US6 fixture IDs.
@@ -58,7 +59,7 @@ export async function seedCreditLimitRaceFixture(em: EntityManager): Promise<voi
     passwordHash,
     firstName: 'CL',
     lastName: 'A',
-    role: 'regular_user',
+    organizationRoleId: await predefinedRoleIdOf(em, TEST_ORGANIZATION_ID, 'member'),
     emailVerifiedAt: new Date(),
   });
   const b = em.create(CustomerAccount, {
@@ -68,7 +69,7 @@ export async function seedCreditLimitRaceFixture(em: EntityManager): Promise<voi
     passwordHash,
     firstName: 'CL',
     lastName: 'B',
-    role: 'regular_user',
+    organizationRoleId: await predefinedRoleIdOf(em, TEST_ORGANIZATION_ID, 'member'),
     emailVerifiedAt: new Date(),
   });
   await em.persistAndFlush([a, b]);

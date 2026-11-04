@@ -7,15 +7,9 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import {
-  AdminUser,
-  Cart,
-  CartItem,
-  CustomerAccount,
-  Organization,
-  QuoteRequest,
-} from '../../helpers/package-entities.js';
-import { CUSTOMER_COOKIES, TEST_ADMIN_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { AdminUser, Cart, CartItem, QuoteRequest } from '../../helpers/package-entities.js';
+import { TEST_ADMIN_ID } from '../../helpers/test-actors.js';
+import { seedCartOrganization, type CartFixtureOrganization } from '../../helpers/cart-approval-roles.js';
 import { DECLARED_ERROR_TRANSLATION_TARGETS } from '../../helpers/error-code-targets.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 
@@ -45,16 +39,18 @@ const ADMIN_COOKIE = { b2b_session: 'stub-admin-session' };
 
 const SENTENCES = {
   CART_APPROVAL_NOT_REQUIRED: {
-    en: 'Your organization does not require orders to be approved, so this cart does not need to be sent for approval. Place the order directly.',
-    pl: 'Twoja organizacja nie wymaga akceptacji zamówień, więc tego koszyka nie trzeba wysyłać do akceptacji. Złóż zamówienie bezpośrednio.',
+    en: 'Your role lets you place orders without approval, so this cart does not need to be sent for approval. Place the order directly.',
+    pl: 'Twoja rola pozwala składać zamówienia bez akceptacji, więc tego koszyka nie trzeba wysyłać do akceptacji. Złóż zamówienie bezpośrednio.',
   },
   CART_APPROVAL_ALREADY_SUBMITTED: {
     en: 'This cart has already been sent for approval.',
     pl: 'Ten koszyk został już wysłany do akceptacji.',
   },
-  CART_APPROVAL_SELF_SUBMIT: {
-    en: 'As an organization administrator you place orders directly, so your own cart is not sent for approval.',
-    pl: 'Jako administrator organizacji składasz zamówienia bezpośrednio, więc Twój koszyk nie jest wysyłany do akceptacji.',
+  // `specs/170-organization-roles/` R-36 — an approver deciding on their own
+  // pending cart; it replaces `CART_APPROVAL_SELF_SUBMIT`, no longer raised.
+  CART_APPROVAL_SELF_APPROVE: {
+    en: 'You cannot approve or reject your own cart. Another person in your organization who approves carts has to decide on it.',
+    pl: 'Nie możesz zaakceptować ani odrzucić własnego koszyka. Decyzję musi podjąć inna osoba w Twojej organizacji, która akceptuje koszyki.',
   },
   CART_APPROVAL_NOT_PENDING: {
     en: 'This cart is not awaiting approval, so it cannot be approved or rejected.',
@@ -73,72 +69,43 @@ const SENTENCES = {
 
 describe('cart approval, reject and conversion refusals carry their own code (issue #86)', () => {
   let h: BackendServerHandle;
-  const RUN = randomUUID().slice(0, 8);
-  const MEMBER_ID = randomUUID();
-  const ORG_ADMIN_ID = randomUUID();
-  const MEMBER_COOKIE = `stub-i86-approval-member-${RUN}`;
-  const OTHER_MEMBER_ID = randomUUID();
-  const OTHER_MEMBER_COOKIE = `stub-i86-approval-other-member-${RUN}`;
-  const ORG_ADMIN_COOKIE = `stub-i86-approval-admin-${RUN}`;
-  let policyBefore = false;
+  // `specs/170-organization-roles/` WP-04 — approval is judged by the role
+  // (`carts.order_without_approval`, `carts.approve`), so the fixture is an
+  // Organization of its own whose *Member* role was mapped as M2 maps an
+  // approval-requiring one, and an approver who needs approval themself.
+  let org: CartFixtureOrganization;
+  let MEMBER_ID: string;
+  let MEMBER_COOKIE: string;
+  let OTHER_MEMBER_COOKIE: string;
+  let ORG_ADMIN_COOKIE: string;
+  let APPROVER_COOKIE: string;
   let channelId: string;
 
   beforeAll(async () => {
     h = await setupBackendServer();
     const em = h.em();
     channelId = (await em.findOneOrFail(SalesChannel, { code: 'pl_retail' })).id;
-    em.create(CustomerAccount, {
-      id: MEMBER_ID,
-      organizationId: TEST_ORGANIZATION_ID,
-      email: `i86-approval-member-${RUN}@example.com`,
-      passwordHash: 'not-a-real-hash',
-      firstName: 'Approval',
-      lastName: 'Member',
-      role: 'regular_user',
-      emailVerifiedAt: new Date(),
+    org = await seedCartOrganization(h, {
+      label: 'Issue 86 approval',
+      approvalRequired: true,
+      members: {
+        MEMBER: 'member',
+        OTHER_MEMBER: 'member',
+        ORG_ADMIN: 'administrator',
+        APPROVER: { permissions: ['carts.create', 'carts.approve'] },
+      },
     });
-    em.create(CustomerAccount, {
-      id: OTHER_MEMBER_ID,
-      organizationId: TEST_ORGANIZATION_ID,
-      email: `i86-approval-other-member-${RUN}@example.com`,
-      passwordHash: 'not-a-real-hash',
-      firstName: 'Approval',
-      lastName: 'Other member',
-      role: 'regular_user',
-      emailVerifiedAt: new Date(),
-    });
-    em.create(CustomerAccount, {
-      id: ORG_ADMIN_ID,
-      organizationId: TEST_ORGANIZATION_ID,
-      email: `i86-approval-admin-${RUN}@example.com`,
-      passwordHash: 'not-a-real-hash',
-      firstName: 'Approval',
-      lastName: 'Admin',
-      role: 'organization_admin',
-      emailVerifiedAt: new Date(),
-    });
-    await em.flush();
-    CUSTOMER_COOKIES[MEMBER_COOKIE] = { customerAccountId: MEMBER_ID, organizationId: TEST_ORGANIZATION_ID };
-    CUSTOMER_COOKIES[OTHER_MEMBER_COOKIE] = { customerAccountId: OTHER_MEMBER_ID, organizationId: TEST_ORGANIZATION_ID };
-    CUSTOMER_COOKIES[ORG_ADMIN_COOKIE] = { customerAccountId: ORG_ADMIN_ID, organizationId: TEST_ORGANIZATION_ID };
-    const org = await em.findOneOrFail(Organization, { id: TEST_ORGANIZATION_ID });
-    policyBefore = org.requiresCartApproval;
+    MEMBER_ID = org.actors['MEMBER']!.id;
+    MEMBER_COOKIE = org.actors['MEMBER']!.cookie;
+    OTHER_MEMBER_COOKIE = org.actors['OTHER_MEMBER']!.cookie;
+    ORG_ADMIN_COOKIE = org.actors['ORG_ADMIN']!.cookie;
+    APPROVER_COOKIE = org.actors['APPROVER']!.cookie;
   }, 60_000);
 
   afterAll(async () => {
-    delete CUSTOMER_COOKIES[MEMBER_COOKIE];
-    delete CUSTOMER_COOKIES[OTHER_MEMBER_COOKIE];
-    delete CUSTOMER_COOKIES[ORG_ADMIN_COOKIE];
-    await setPolicy(policyBefore);
+    org?.release();
     await teardownBackendServer(h);
   });
-
-  async function setPolicy(requiresCartApproval: boolean): Promise<void> {
-    const em = h.em();
-    const org = await em.findOneOrFail(Organization, { id: TEST_ORGANIZATION_ID });
-    org.requiresCartApproval = requiresCartApproval;
-    await em.flush();
-  }
 
   async function addLine(cookie: string): Promise<void> {
     const res = await h.app.inject({
@@ -176,7 +143,7 @@ describe('cart approval, reject and conversion refusals carry their own code (is
     const em = h.em();
     const cart = em.create(Cart, {
       customerAccountId: randomUUID(),
-      organizationId: TEST_ORGANIZATION_ID,
+      organizationId: org.organizationId,
       salesChannelId: channelId,
       status: state.status,
     });
@@ -208,25 +175,16 @@ describe('cart approval, reject and conversion refusals carry their own code (is
 
   describe('submit for approval', () => {
     it.each(['en', 'pl'] as const)(
-      'CART_APPROVAL_NOT_REQUIRED (%s) — the Organization requires no approval',
+      'CART_APPROVAL_NOT_REQUIRED (%s) — the buyer holds carts.order_without_approval (an administrator)',
       async (language) => {
-        await setPolicy(false);
-        await addLine(MEMBER_COOKIE);
-        expectRefusal(await submit(MEMBER_COOKIE, language), 'CART_APPROVAL_NOT_REQUIRED', language);
-      },
-    );
-
-    it.each(['en', 'pl'] as const)(
-      'CART_APPROVAL_SELF_SUBMIT (%s) — an Organization administrator submits their own cart',
-      async (language) => {
-        await setPolicy(true);
+        // Was `CART_APPROVAL_SELF_SUBMIT` before 170 (expected difference F3,
+        // `contracts/migration-and-replay.md` §6.1 row 22).
         await addLine(ORG_ADMIN_COOKIE);
-        expectRefusal(await submit(ORG_ADMIN_COOKIE, language), 'CART_APPROVAL_SELF_SUBMIT', language);
+        expectRefusal(await submit(ORG_ADMIN_COOKIE, language), 'CART_APPROVAL_NOT_REQUIRED', language);
       },
     );
 
     it('CART_APPROVAL_ALREADY_SUBMITTED — a cart already sent, in both languages, with its state in details', async () => {
-      await setPolicy(true);
       await addLine(MEMBER_COOKIE);
       const cartId = await cartIdOf(MEMBER_COOKIE);
       // A real first submit: since issue #619 it is stored, so the second is refused.
@@ -258,6 +216,56 @@ describe('cart approval, reject and conversion refusals carry their own code (is
       });
       const error = expectRefusal(res, 'CART_APPROVAL_NOT_PENDING', language);
       expect(error.details).toEqual({ cartId, approvalStatus: 'not_required' });
+    });
+
+    it.each([
+      ['approve', 'en'],
+      ['approve', 'pl'],
+      ['reject', 'en'],
+      ['reject', 'pl'],
+    ] as const)('CART_APPROVAL_SELF_APPROVE — an approver may not %s their own pending cart (%s)', async (action, language) => {
+      // The approver's role holds `carts.approve` and not
+      // `carts.order_without_approval`, so their own basket goes for approval.
+      await addLine(APPROVER_COOKIE);
+      const cartId = await cartIdOf(APPROVER_COOKIE);
+      const sent = await submit(APPROVER_COOKIE, 'en');
+      if (sent.statusCode !== 200) {
+        // A previous case left this basket pending already.
+        expect((sent.json() as ErrorBody).error.code, sent.body).toBe(ERROR_CODES.CART_APPROVAL_ALREADY_SUBMITTED);
+      }
+      const res = await h.app.inject({
+        method: 'POST',
+        url: `/api/v1/organization/carts/${cartId}/${action}`,
+        cookies: { b2b_session: APPROVER_COOKIE },
+        headers: { ...CHANNEL, 'accept-language': language, 'content-type': 'application/json' },
+        payload: action === 'reject' ? { reason: 'My own' } : {},
+      });
+      const error = expectRefusal(res, 'CART_APPROVAL_SELF_APPROVE', language);
+      expect(error.details).toEqual({ cartId });
+      const [row] = (await h
+        .em()
+        .getConnection()
+        .execute(`select "approval_status" from "carts" where "id" = ?`, [cartId])) as Array<{ approval_status: string }>;
+      expect(row?.approval_status).toBe('pending');
+    });
+
+    it("CART_APPROVAL_NOT_PENDING is judged before self-approval: an approver's own cart that is not pending (R-36)", async () => {
+      const em = h.em();
+      const cart = em.create(Cart, {
+        customerAccountId: org.actors['APPROVER']!.id,
+        organizationId: org.organizationId,
+        salesChannelId: channelId,
+        status: 'completed',
+      });
+      await em.persistAndFlush(cart);
+      const res = await h.app.inject({
+        method: 'POST',
+        url: `/api/v1/organization/carts/${cart.id}/approve`,
+        cookies: { b2b_session: APPROVER_COOKIE },
+        headers: { ...CHANNEL, 'accept-language': 'en', 'content-type': 'application/json' },
+        payload: {},
+      });
+      expectRefusal(res, 'CART_APPROVAL_NOT_PENDING', 'en');
     });
   });
 
@@ -302,7 +310,7 @@ describe('cart approval, reject and conversion refusals carry their own code (is
     it.each(['en', 'pl'] as const)('RFQ_EMPTY (%s) — the quote request has no lines', async (language) => {
       const em = h.em();
       const qr = em.create(QuoteRequest, {
-        organizationId: TEST_ORGANIZATION_ID,
+        organizationId: org.organizationId,
         customerAccountId: MEMBER_ID,
       });
       await em.persistAndFlush(qr);
@@ -321,7 +329,7 @@ describe('cart approval, reject and conversion refusals carry their own code (is
     for (const code of [
       ERROR_CODES.CART_APPROVAL_NOT_REQUIRED,
       ERROR_CODES.CART_APPROVAL_ALREADY_SUBMITTED,
-      ERROR_CODES.CART_APPROVAL_SELF_SUBMIT,
+      ERROR_CODES.CART_APPROVAL_SELF_APPROVE,
       ERROR_CODES.CART_APPROVAL_NOT_PENDING,
       ERROR_CODES.CART_ALREADY_TERMINAL,
     ]) {

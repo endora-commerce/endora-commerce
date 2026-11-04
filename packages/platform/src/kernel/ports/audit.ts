@@ -99,6 +99,11 @@ export interface AuditPort {
 export interface RecordAuditInput {
   actorAdminUserId?: string | null;
   impersonatedCustomerAccountId?: string | null;
+  /**
+   * The Customer Account that acted for itself (`specs/170-organization-roles/`,
+   * research R-21). `null` under impersonation, which the two fields above record.
+   */
+  actorCustomerAccountId?: string | null;
   action: string;
   objectType: string;
   objectId: string;

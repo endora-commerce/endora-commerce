@@ -102,10 +102,6 @@ export type OrderStatus = z.infer<typeof orderStatusSchema>;
 export const paymentStatusSchema = z.enum(['awaiting_payment', 'paid', 'failed', 'deferred', 'refunded']);
 export type PaymentStatus = z.infer<typeof paymentStatusSchema>;
 
-/** Roles within a Customer Organization (FR-042). */
-export const organizationRoleSchema = z.enum(['organization_admin', 'regular_user']);
-export type OrganizationRole = z.infer<typeof organizationRoleSchema>;
-
 /** Supported Sales Channel visibility modes (R-18 + FR-106). */
 export const productVisibilitySchema = z.enum(['public', 'logged_in_only', 'organization_restricted']);
 export type ProductVisibility = z.infer<typeof productVisibilitySchema>;

@@ -3,6 +3,8 @@ import type {
   CustomerAccountReadPort,
   CustomerAuthPort,
   OrderListPort,
+  OrganizationPermissionPort,
+  OrganizationRoleReadPort,
   RfqCustomerPort,
 } from '@endora-commerce/contracts';
 import {
@@ -52,6 +54,12 @@ export interface CustomersSelfDeps {
    * route file no longer needs at all.
    */
   accounts: CustomerAccountReadPort;
+  /**
+   * `specs/170-organization-roles/` WP-03 — the profile names the member's
+   * role and effective permissions (FR-008, FR-056), not the legacy enum.
+   */
+  organizationRoles: Pick<OrganizationRoleReadPort, 'roleRef'>;
+  organizationPermissions: Pick<OrganizationPermissionPort, 'effective'>;
   requireCustomer: RequireCustomerGuard;
   resolveCustomerActor: ResolveCustomerActor;
   customerAuthService: CustomerAuthPort;
@@ -91,6 +99,23 @@ export async function registerCustomersSelfRoutes(
           'Customer not found.',
         );
       }
+      const [organizationRole, effective] = await Promise.all([
+        deps.organizationRoles.roleRef(
+          customer.organizationId,
+          customer.organizationRoleId,
+          await request.responseLanguage(),
+        ),
+        deps.organizationPermissions.effective({
+          customerAccountId: customer.id,
+          organizationId: customer.organizationId,
+          organizationRoleId: customer.organizationRoleId,
+        }),
+      ]);
+      if (!organizationRole) {
+        // Every account holds a role of its own Organization (a composite
+        // foreign key): a role the port cannot find is a broken invariant.
+        throw new HttpError(500, ERROR_CODES.INTERNAL, "The customer's organization role could not be found.");
+      }
       return {
         data: {
           id: customer.id,
@@ -100,6 +125,8 @@ export async function registerCustomersSelfRoutes(
           organizationId: customer.organizationId ?? null,
           customerGroupId: customer.customerGroupId ?? null,
           twoFactorEnabled: customer.twoFactorEnabled,
+          organizationRole,
+          permissions: [...effective.permissions],
         },
       };
     },
@@ -163,10 +190,10 @@ export async function registerCustomersSelfRoutes(
       if (actor.organizationId === null) {
         return { data: [] };
       }
+      // The customer's own quote requests only — never the Organization's.
       const data = await rfqService.listForCustomer({
         customerAccountId: actor.customerAccountId,
         organizationId: actor.organizationId,
-        isOrgAdmin: false,
       });
       return { data };
     },

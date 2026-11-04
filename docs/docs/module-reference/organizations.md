@@ -40,6 +40,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | `addresses` | gating only | resolves `addressServicePort`; withheld from `dependencies` because the install order cannot carry the edge |
 | `customer_accounts` | gating only | resolves `customerAccountMemberWritePort`; withheld from `dependencies` because the install order cannot carry the edge |
 | `customer_accounts` | gating only | resolves `customerAccountReadPort`; withheld from `dependencies` because the install order cannot carry the edge |
+| `customer_accounts` | gating only | resolves `customerAccountRoleCommandPort`; withheld from `dependencies` because the install order cannot carry the edge |
 | `customer_accounts` | gating only | resolves `customerAuthPort`; withheld from `dependencies` because the install order cannot carry the edge |
 | `customer_accounts` | gating only | resolves `customerRolePort`; withheld from `dependencies` because the install order cannot carry the edge |
 | `customer_accounts` | gating only | resolves `passwordResetService`; withheld from `dependencies` because the install order cannot carry the edge |
@@ -55,6 +56,8 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | `customers:manage` | Manage customer organizations | — |
 | `customers:read` | View customers | — |
 | `organizations:assign-sales-rep` | Assign sales representatives to organizations | — |
+| `organizations:manage-roles` | Manage organization roles | `organizations:read-roles` |
+| `organizations:read-roles` | View organization roles | — |
 
 ## Command palette
 

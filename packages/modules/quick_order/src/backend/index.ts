@@ -13,6 +13,7 @@ import type {
   DefaultPreferencePort,
   DeliveryMethodReadPort,
   OrderPlacementPort,
+  OrganizationPermissionPort,
   OrganizationRestrictionPort,
   PaymentMethodReadPort,
   RfqCustomerPort,
@@ -210,6 +211,10 @@ export function registerModule(ctx: ModuleContext): void {
             // strict mode refuses a transient inside a longer-lived object.
             lazyPort<CartWritePort>(ctx, 'cartWritePort'),
             lazyPort<RfqCustomerPort>(ctx, 'rfqService'),
+            // `specs/170-organization-roles/` — a buyer's build is judged by
+            // the target's create permission. `organizations` is a binding
+            // dependency already, and non-deactivatable.
+            lazyPort<OrganizationPermissionPort>(ctx, 'organizationPermissionPort'),
           ),
       )
       .singleton(),
@@ -285,6 +290,9 @@ export function registerModule(ctx: ModuleContext): void {
             // Feature 155 (FR-010) — the default quantity is the product's
             // minimum; a gated port, so held lazily like the two above.
             lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
+            // `specs/170-organization-roles/` (FR-050, #653) — one-click needs
+            // `quick_order.one_click` and `carts.order_without_approval`.
+            lazyPort<OrganizationPermissionPort>(ctx, 'organizationPermissionPort'),
           ),
       )
       .singleton(),
@@ -304,6 +312,11 @@ export function registerModule(ctx: ModuleContext): void {
       req: FastifyRequest,
     ): { customerAccountId: string; organizationId: string } =>
       cradle().customerContextResolver(req);
+    // `specs/170-organization-roles/` — the route guards' port. A lazy proxy
+    // resolving per call, handed to the guards behind a thunk, so nothing
+    // holds a port resolved at registration (`module-composition.md` item 4a).
+    const permissions = lazyPort<OrganizationPermissionPort>(ctx, 'organizationPermissionPort');
+    const organizationPermissions = (): OrganizationPermissionPort => permissions;
 
     /**
      * Read **platform-wide** (feature 072, D-41 case c). The manifest has
@@ -364,6 +377,7 @@ export function registerModule(ctx: ModuleContext): void {
       // Issue #174 — one port where three deps used to be, and the type-ahead
       // is scoped to the request's sales channel because `catalog` scopes it.
       catalogQuickSearch: lazyPort<CatalogQuickSearchPort>(ctx, 'catalogQuickSearchPort'),
+      organizationPermissions,
     });
 
     await registerQuickOrderAdminRoutes(app, {
@@ -377,6 +391,7 @@ export function registerModule(ctx: ModuleContext): void {
     await registerQuickOrderPreferenceRoutes(app, {
       service: preferenceService,
       customerAccounts: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+      organizationPermissions,
       requireCustomer,
       resolveCustomerContext,
     });
@@ -393,6 +408,7 @@ export function registerModule(ctx: ModuleContext): void {
       service: oneClickService,
       requireCustomer,
       resolveCustomerContext,
+      organizationPermissions,
     });
   });
 }

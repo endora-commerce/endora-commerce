@@ -13,6 +13,7 @@ import {
 } from '../../helpers/test-server.js';
 import { PasswordResetToken, Session } from '../../helpers/package-entities.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 
 /**
  * A customer's password change withdraws what the old password had been
@@ -126,7 +127,7 @@ describe('customer password change and reset — sessions, reset tokens, pending
       password: PASSWORDS[0]!,
       firstName: 'Change',
       lastName: 'Sessions',
-      role: 'regular_user',
+      organizationRoleId: await predefinedRoleIdOf(h.em(), TEST_ORGANIZATION_ID, 'member'),
     });
     await h.em().flush();
     customerId = created.id;

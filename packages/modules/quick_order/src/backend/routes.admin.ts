@@ -18,6 +18,13 @@ import { getResolvedChannel, type RequireAdminFactory } from '@endora-commerce/p
  * organization (`onBehalfOf`), priced under that organization's price list.
  * Guarded by the `orders:write` permission.
  *
+ * **Not judged by organization permissions** (`specs/170-organization-roles/`
+ * research R-26): an operator is not a member and holds no organization role.
+ * The build is marked `actor: 'operator'`, which is what skips the buyer's
+ * `carts.create` / `quote_requests.create` judgement; what it produces is still
+ * judged when the member acts on it — placing the basket needs approval as for
+ * any basket of theirs.
+ *
  * **A permission is not a tenant gate.** `onBehalfOf` names the customer
  * account and the organization the built Cart or Quote Request is written to,
  * and it arrives in the request body. No filter can reach it: MikroORM applies
@@ -107,7 +114,6 @@ export async function registerQuickOrderAdminRoutes(
         {
           customerAccountId: body.onBehalfOf.customerAccountId,
           organizationId: body.onBehalfOf.organizationId,
-          isOrgAdmin: false,
           // The basket of the channel this request resolves to — the system
           // default unless the operator's request names another
           // (`specs/154-sales-channel-access/`).

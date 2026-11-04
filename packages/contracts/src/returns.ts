@@ -135,6 +135,16 @@ export const returnCaseSummarySchema = z.object({
   totalRefundAmount: z.number().finite(),
   currency: z.string().length(3),
   submittedAt: isoDateTimeSchema,
+  /**
+   * Who filed the case (`specs/170-organization-roles/` FR-053, research R-41
+   * item 6). A buyer whose role holds `returns.view_organization` lists the
+   * Organization's cases, so the summary names its filer — as the order summary
+   * carries `placedByCustomerAccountId` — and the storefront can tell a
+   * colleague's case, whose follow-up actions stay the filer's, from the
+   * caller's own. Additive: the detail always carried it, and the operator's
+   * row (`adminReturnRowSchema`) inherits it through `.extend`.
+   */
+  customerAccountId: uuidSchema,
 });
 export type ReturnCaseSummary = z.infer<typeof returnCaseSummarySchema>;
 

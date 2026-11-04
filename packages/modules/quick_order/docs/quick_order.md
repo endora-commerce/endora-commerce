@@ -42,6 +42,29 @@ cart, the quote request's reference prices for a request. The admin twins
 (`/api/v1/admin/quick-order/import` + `/build`, guarded by `orders:write`)
 build on behalf of a chosen customer via `onBehalfOf`.
 
+**Organization permissions.** The buyer's import needs `carts.create` **or**
+`quote_requests.create`: a file can become either a basket or a quote request,
+so a member allowed to do either may preview it. A member holding neither is
+refused `403 ORGANIZATION_PERMISSION_REQUIRED` naming `carts.create`, before the
+file is parsed — a malformed file gets the same answer. A permission whose
+module is switched off grants nothing, so with `quote_requests` off only
+`carts.create` admits the import. The buyer's build needs
+the target's create permission — `carts.create` for target `cart`,
+`quote_requests.create` for target `quote_request` — judged first, before the
+items are looked at. Both permissions are declared by `carts` and
+`quote_requests`; a refusal is `403 ORGANIZATION_PERMISSION_REQUIRED` naming the
+code. The admin twins are gated by the operator permission `orders:write` only:
+an operator holds no organization role, so the customer an on-behalf build is
+for is not judged. What it produces is judged when the customer acts on it.
+
+On the storefront the quick-order page (`/quick-order`) follows the same rule. A
+member holding neither code is told, instead of being shown the import: *"Your
+role does not allow adding products to the cart or requesting quotes, so quick
+order is not available to you."* After an import, **Add all to cart** is offered
+only with `carts.create` and **Send as quote request** only with
+`quote_requests.create`, so a member holding only the second imports a file and
+can only request a quote.
+
 **Order minimums in the file.** The preview judges each product's minimum in
 pieces on the product's **total across the whole file** — duplicate rows
 merged, then every variant of the product summed — never together with the
@@ -91,7 +114,11 @@ delivery method, billing address, shipping address — per target
 re-check (active / org-allowed / address exists → otherwise dropped to null).
 
 - Storefront: a customer manages their own defaults (`/preferences`); checkout
-  pre-selects the resolved defaults.
+  pre-selects the resolved defaults. A member holding their Organization's
+  *Administrator* role also manages the Organization scope and the defaults of
+  the Organization's other members. That is reserved to *Administrator* — it is
+  not a permission, no other role can be granted it, and anyone else is refused
+  `403 FORBIDDEN`.
 - Admin: `/api/v1/admin/quick-order/preferences` — a platform admin manages any
   scope; a salesperson only their assigned organizations and those orgs'
   customers. Every change is audited.
@@ -105,7 +132,9 @@ lines and respecting the `orders.reorder_enabled` setting.
 
 ### 5. One-click buy
 
-When `quick_order.one_click_buy_enabled` is on for the buyer's sales channel
+When the buyer's role holds **One-click purchase** (`quick_order.one_click`)
+**and** **Place orders without approval** (`carts.order_without_approval`),
+`quick_order.one_click_buy_enabled` is on for the buyer's sales channel
 **and** the buyer has all four eligible defaults, the product page shows a
 "Buy in one click" button. It skips Cart and Checkout: the order is placed from
 the defaults and the buyer is routed by the payment `nextAction` (gateway
@@ -124,6 +153,31 @@ payment or delivery method), deletes the working basket again.
 Same validations as a normal order (org active, minimum value, credit limit,
 stock, minimum order quantity). For a `simple` or `configurable` product with
 a minimum order quantity, one click orders that minimum instead of 1.
+
+**Who may buy in one click.** One-click purchase is an organization permission,
+`quick_order.one_click`, declared by this module and member-default. It also
+needs `carts.order_without_approval`: a member whose carts need approval cannot
+buy round it. `GET /api/v1/quick-order/one-click/eligibility` judges the role
+first, in this order:
+
+| `reason` | When |
+| --- | --- |
+| `permission_required` | the role lacks `quick_order.one_click` (also when it lacks both) |
+| `cart_approval_required` | the role holds it but lacks `carts.order_without_approval` |
+| `setting_disabled` | the setting is off for the channel |
+| `missing_defaults` | one of the four defaults does not resolve |
+
+`POST /api/v1/quick-order/one-click` is refused on the same rule, before the
+working basket is written: `403 ORGANIZATION_PERMISSION_REQUIRED` naming
+`quick_order.one_click`, or `carts.order_without_approval` when only that one is
+missing. The storefront hides the button whenever eligibility is disabled. When
+the module is switched off, its permission leaves the role editor and every
+member's effective permissions; the grants stay stored and apply again once it
+is switched back on.
+
+On upgrade, an Organization's *Member* role is granted `quick_order.one_click`
+only where it is granted `carts.order_without_approval` — that is, only in an
+Organization that did not require cart approval.
 
 ## Settings
 

@@ -489,6 +489,8 @@ describe('POST /api/v1/quick-order/one-click — placement', () => {
         cradle().orderPlacementPort,
         async () => true,
         cradle().catalogProductReadPort,
+        // `specs/170-organization-roles/` (FR-050) — the buyer's role is judged too.
+        (h.container.cradle as unknown as { organizationPermissionPort: unknown }).organizationPermissionPort,
       );
       const before = await orderCount();
       await expect(oneClick.place(CTX, { productId: A.id, quantity: 5 }, channelId)).rejects.toMatchObject({

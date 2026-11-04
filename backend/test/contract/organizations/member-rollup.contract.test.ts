@@ -6,6 +6,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { CustomerAccount } from '../../helpers/package-entities.js';
+import { predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 
 /**
  * Feature 056 (T032) — admin toggles the customer-side roll-up capability.
@@ -37,7 +38,7 @@ describe('admin set member roll-up capability (T032)', () => {
       passwordHash: 'x',
       firstName: 'Mem',
       lastName: 'Ber',
-      role: 'organization_admin',
+      organizationRoleId: await predefinedRoleIdOf(em, orgId, 'administrator'),
     });
     await em.persistAndFlush(member);
     memberId = member.id;
@@ -56,6 +57,10 @@ describe('admin set member roll-up capability (T032)', () => {
     });
     expect(on.statusCode).toBe(200);
     expect((on.json() as { data: { subtreeRollupEnabled: boolean } }).data.subtreeRollupEnabled).toBe(true);
+    // `specs/170-organization-roles/` FR-008, FR-073 — the member names its role, not the legacy enum.
+    const onMember = (on.json() as { data: Record<string, unknown> }).data;
+    expect(onMember['organizationRole']).toMatchObject({ kind: 'administrator', name: 'Administrator' });
+    expect(onMember).not.toHaveProperty('role');
 
     const em = h.em();
     em.clear();

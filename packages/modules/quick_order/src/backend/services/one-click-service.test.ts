@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
-import type {
-  CartWritePort,
-  CatalogProductReadPort,
-  OrderPlacementPort,
-  PlacedOrderRecord,
-  QuickOrderResolvedDefaults,
+import {
+  ERROR_CODES,
+  type CartWritePort,
+  type CatalogProductReadPort,
+  type OrderPlacementPort,
+  type OrganizationPermissionPort,
+  type PlacedOrderRecord,
+  type QuickOrderResolvedDefaults,
 } from '@endora-commerce/contracts';
 import { OneClickService } from './one-click-service.js';
 import type { DefaultPreferenceService } from './default-preference-service.js';
@@ -39,6 +41,42 @@ const REFUSING_PLACEMENT: OrderPlacementPort = {
 const ctx = { customerAccountId: 'cust-1', organizationId: 'org-1' };
 
 /**
+ * `specs/170-organization-roles/` (FR-050, R-6) — a permission port answering
+ * from a fixed set of held codes. `assert` refuses the way the real port does:
+ * `403 ORGANIZATION_PERMISSION_REQUIRED` naming the code.
+ */
+function permissionsHolding(
+  held: readonly string[],
+): OrganizationPermissionPort & { calls: string[] } {
+  const calls: string[] = [];
+  const can = async (_subject: unknown, code: string): Promise<boolean> => {
+    calls.push(code);
+    return held.includes(code);
+  };
+  return {
+    calls,
+    can,
+    assert: async (subject, code) => {
+      if (!(await can(subject, code))) {
+        throw Object.assign(new Error(`permission ${code} required`), {
+          statusCode: 403,
+          code: ERROR_CODES.ORGANIZATION_PERMISSION_REQUIRED,
+          details: { permission: code },
+        });
+      }
+    },
+    isAdministrator: async () => false,
+    effective: async () => ({ role: { id: 'role-1', kind: 'custom' }, permissions: [...held] }),
+    rolesHolding: async () => [],
+  };
+}
+
+const ONE_CLICK = 'quick_order.one_click';
+const ORDER_WITHOUT_APPROVAL = 'carts.order_without_approval';
+/** A member holding both codes one-click needs (FR-050). */
+const ALLOW_ALL = permissionsHolding([ONE_CLICK, ORDER_WITHOUT_APPROVAL]);
+
+/**
  * Feature 155 (FR-010, R12.3) — the catalogue read the default quantity comes
  * from. Answers `null` for every id unless given records.
  */
@@ -61,8 +99,9 @@ describe('OneClickService.eligibility', () => {
       REFUSING_PLACEMENT,
       async () => false,
       catalogOf(),
+      ALLOW_ALL,
     );
-    expect(await svc.eligibility('cust-1', CHANNEL_ID)).toEqual({
+    expect(await svc.eligibility(ctx, CHANNEL_ID)).toEqual({
       enabled: false,
       reason: 'setting_disabled',
     });
@@ -75,8 +114,9 @@ describe('OneClickService.eligibility', () => {
       REFUSING_PLACEMENT,
       async () => true,
       catalogOf(),
+      ALLOW_ALL,
     );
-    expect(await svc.eligibility('cust-1', CHANNEL_ID)).toEqual({
+    expect(await svc.eligibility(ctx, CHANNEL_ID)).toEqual({
       enabled: false,
       reason: 'missing_defaults',
     });
@@ -89,8 +129,9 @@ describe('OneClickService.eligibility', () => {
       REFUSING_PLACEMENT,
       async () => true,
       catalogOf(),
+      ALLOW_ALL,
     );
-    expect(await svc.eligibility('cust-1', CHANNEL_ID)).toEqual({ enabled: true, reason: null });
+    expect(await svc.eligibility(ctx, CHANNEL_ID)).toEqual({ enabled: true, reason: null });
   });
 
   /**
@@ -109,12 +150,13 @@ describe('OneClickService.eligibility', () => {
       REFUSING_PLACEMENT,
       resolveOneClickEnabled,
       catalogOf(),
+      ALLOW_ALL,
     );
 
-    await svc.eligibility('cust-1', CHANNEL_ID);
+    await svc.eligibility(ctx, CHANNEL_ID);
     expect(resolveOneClickEnabled).toHaveBeenCalledWith(CHANNEL_ID);
 
-    await svc.eligibility('cust-1', null);
+    await svc.eligibility(ctx, null);
     expect(resolveOneClickEnabled).toHaveBeenLastCalledWith(null);
   });
 });
@@ -127,6 +169,7 @@ describe('OneClickService.place', () => {
       REFUSING_PLACEMENT,
       async () => false,
       catalogOf(),
+      ALLOW_ALL,
     );
     await expect(svc.place(ctx, { productId: 'p-1' }, CHANNEL_ID)).rejects.toMatchObject({
       statusCode: 422,
@@ -142,7 +185,7 @@ describe('OneClickService.place', () => {
     const cart = { replaceItemsForCustomer, addItems } as unknown as CartWritePort;
     const placement = { placeOrder } as unknown as OrderPlacementPort;
 
-    const svc = new OneClickService(prefStub(FULL_DEFAULTS), cart, placement, async () => true, catalogOf());
+    const svc = new OneClickService(prefStub(FULL_DEFAULTS), cart, placement, async () => true, catalogOf(), ALLOW_ALL);
     const order = await svc.place(
       ctx,
       { productId: 'p-1', quantity: 2, idempotencyKey: 'k-1' },
@@ -199,7 +242,7 @@ describe('OneClickService.place', () => {
       addItems: vi.fn(async () => ({ cart: {}, items: [], outcomes: [] })),
     } as unknown as CartWritePort;
 
-    const svc = new OneClickService(prefStub(FULL_DEFAULTS), cart, placement, async () => true, catalogOf());
+    const svc = new OneClickService(prefStub(FULL_DEFAULTS), cart, placement, async () => true, catalogOf(), ALLOW_ALL);
     const order = await svc.place(ctx, { productId: 'p-1' }, CHANNEL_ID);
 
     expect(order.nextAction).toEqual(nextAction);
@@ -222,7 +265,7 @@ describe('OneClickService.place', () => {
     } as unknown as CartWritePort;
     const placement = { placeOrder } as unknown as OrderPlacementPort;
 
-    const svc = new OneClickService(prefStub(FULL_DEFAULTS), cart, placement, async () => true, catalogOf());
+    const svc = new OneClickService(prefStub(FULL_DEFAULTS), cart, placement, async () => true, catalogOf(), ALLOW_ALL);
     await svc.place(ctx, { productId: 'p-1' }, CHANNEL_ID);
 
     expect((addItems.mock.calls[0] as unknown[])[0]).toEqual({
@@ -251,6 +294,7 @@ describe('OneClickService.place', () => {
         placement,
         async () => true,
         catalogOf(product ? [product] : []),
+        ALLOW_ALL,
       );
       await svc.place(
         ctx,
@@ -284,5 +328,104 @@ describe('OneClickService.place', () => {
     it('passes an explicit quantity through, below the minimum included', async () => {
       expect(await quantityPlaced({ id: 'p-a', type: 'simple', minOrderQuantity: 10 }, 5)).toBe(5);
     });
+  });
+});
+
+/**
+ * `specs/170-organization-roles/` WP-06 (T084; FR-050, US 4.1–4.3, R-6, owner
+ * rulings OR-1, OR-6, PR-8) — one-click is a permission of its own, and it also
+ * needs *Place orders without approval*: the two codes are judged in that
+ * order, before the setting and the defaults, by the eligibility answer and by
+ * the placement alike. Issue #653: a member whose cart needs approval could buy
+ * with one click and bypass it.
+ */
+describe('OneClickService — organization permissions (FR-050)', () => {
+  function service(
+    permissions: OrganizationPermissionPort,
+    overrides: { cart?: CartWritePort; placement?: OrderPlacementPort; enabled?: () => Promise<boolean> } = {},
+  ): OneClickService {
+    return new OneClickService(
+      prefStub(FULL_DEFAULTS),
+      overrides.cart ?? ({} as CartWritePort),
+      overrides.placement ?? REFUSING_PLACEMENT,
+      overrides.enabled ?? (async () => true),
+      catalogOf(),
+      permissions,
+    );
+  }
+
+  it('answers permission_required for a member without quick_order.one_click', async () => {
+    const svc = service(permissionsHolding([ORDER_WITHOUT_APPROVAL]));
+    expect(await svc.eligibility(ctx, CHANNEL_ID)).toEqual({ enabled: false, reason: 'permission_required' });
+  });
+
+  it('answers cart_approval_required for a holder of quick_order.one_click without carts.order_without_approval', async () => {
+    const svc = service(permissionsHolding([ONE_CLICK]));
+    expect(await svc.eligibility(ctx, CHANNEL_ID)).toEqual({ enabled: false, reason: 'cart_approval_required' });
+  });
+
+  it('judges quick_order.one_click first: a member lacking both reads permission_required (PR-8)', async () => {
+    const permissions = permissionsHolding([]);
+    const svc = service(permissions);
+    expect(await svc.eligibility(ctx, CHANNEL_ID)).toEqual({ enabled: false, reason: 'permission_required' });
+    expect(permissions.calls[0]).toBe(ONE_CLICK);
+  });
+
+  it('judges the permissions before the setting and the defaults', async () => {
+    const enabled = vi.fn(async () => false);
+    const svc = service(permissionsHolding([ONE_CLICK]), { enabled });
+    expect(await svc.eligibility(ctx, CHANNEL_ID)).toEqual({ enabled: false, reason: 'cart_approval_required' });
+    expect(enabled).not.toHaveBeenCalled();
+  });
+
+  it('judges the member it is asked about — account and Organization', async () => {
+    const can = vi.fn(async () => true);
+    const permissions = { ...permissionsHolding([]), can };
+    await service(permissions).eligibility({ ...ctx, organizationRoleId: 'role-9' }, CHANNEL_ID);
+    expect(can).toHaveBeenCalledWith(
+      { customerAccountId: 'cust-1', organizationId: 'org-1', organizationRoleId: 'role-9' },
+      ONE_CLICK,
+    );
+  });
+
+  it('is enabled for a holder of both codes when the setting and the defaults allow it', async () => {
+    const svc = service(permissionsHolding([ONE_CLICK, ORDER_WITHOUT_APPROVAL]));
+    expect(await svc.eligibility(ctx, CHANNEL_ID)).toEqual({ enabled: true, reason: null });
+  });
+
+  it.each([
+    ['lacking both', ONE_CLICK, [] as string[]],
+    ['lacking quick_order.one_click', ONE_CLICK, [ORDER_WITHOUT_APPROVAL]],
+    ['lacking carts.order_without_approval', ORDER_WITHOUT_APPROVAL, [ONE_CLICK]],
+  ])('refuses placement for a member %s with 403 naming %s, before any basket write', async (_who, missing, held) => {
+    const addItems = vi.fn(async () => {
+      throw new Error('the basket must not be written');
+    });
+    const replaceItemsForCustomer = vi.fn(async () => {
+      throw new Error('the basket must not be written');
+    });
+    const cart = { addItems, replaceItemsForCustomer } as unknown as CartWritePort;
+    const svc = service(permissionsHolding(held), { cart });
+    await expect(svc.place(ctx, { productId: 'p-1', quantity: 1 }, CHANNEL_ID)).rejects.toMatchObject({
+      statusCode: 403,
+      code: ERROR_CODES.ORGANIZATION_PERMISSION_REQUIRED,
+      details: { permission: missing },
+    });
+    expect(addItems).not.toHaveBeenCalled();
+    expect(replaceItemsForCustomer).not.toHaveBeenCalled();
+  });
+
+  it('places as today for a holder of both codes', async () => {
+    const addItems = vi.fn(async () => ({ cart: { id: 'working-1' }, items: [], outcomes: [] }));
+    const placeOrder = vi.fn(
+      async () => ({ id: 'o-1', status: 'new', nextAction: null }) as unknown as PlacedOrderRecord,
+    );
+    const svc = service(permissionsHolding([ONE_CLICK, ORDER_WITHOUT_APPROVAL]), {
+      cart: { addItems } as unknown as CartWritePort,
+      placement: { placeOrder } as unknown as OrderPlacementPort,
+    });
+    const order = await svc.place(ctx, { productId: 'p-1', quantity: 1 }, CHANNEL_ID);
+    expect(order.id).toBe('o-1');
+    expect(addItems).toHaveBeenCalledTimes(1);
   });
 });

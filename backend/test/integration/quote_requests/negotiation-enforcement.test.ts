@@ -22,6 +22,7 @@ import {
 import { setEscapeHatchAuditSink, withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 import { runWithTenantContext, type TenantContext } from '../../../src/tenancy/tenant-context.js';
 import { bindOrganizationsToFixtureChannelsSql } from '../../helpers/sales-channel-access.js';
+import { moveAccountToOrganization, predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 
 /**
  * Feature 146, Phase 10 (T065, T065a) — the price-negotiation lock, enforced in
@@ -102,7 +103,12 @@ describe('146 — price-negotiation lock enforcement [integration]', () => {
     em: EntityManager,
     organizationId: string,
     key: string,
-    role: 'organization_admin' | 'regular_user' = 'regular_user',
+    /**
+     * The *Administrator* role of `organizationId` for an administrator
+     * (`specs/170-organization-roles/` WP-05); absent, the account holds
+     * *Member*. The legacy `role` is dual-written to match (research R-23).
+     */
+    administratorRoleId?: string,
   ): CustomerAccount =>
     em.create(CustomerAccount, {
       organizationId,
@@ -110,7 +116,7 @@ describe('146 — price-negotiation lock enforcement [integration]', () => {
       passwordHash: 'x'.repeat(60),
       firstName: '146',
       lastName: key,
-      role,
+      ...(administratorRoleId ? { organizationRoleId: administratorRoleId } : {}),
     });
 
   /** Register a stub session for the account, carrying the organization the session was opened in. */
@@ -187,12 +193,13 @@ describe('146 — price-negotiation lock enforcement [integration]', () => {
       // Feature 154 — the three tenants shop on the stores the harness seeds.
       await bindOrganizationsToFixtureChannelsSql(em, [orgLocked, orgFree, orgOther]);
 
+      const freeAdministrator = await predefinedRoleIdOf(em, orgFree, 'administrator');
       const accounts = {
         lockedBuyer: newAccount(em, orgLocked, 'locked'),
         overrideAllowed: newAccount(em, orgLocked, 'override-allowed'),
         overrideLocked: newAccount(em, orgFree, 'override-locked'),
-        adminAllowed: newAccount(em, orgFree, 'admin-allowed', 'organization_admin'),
-        adminLocked: newAccount(em, orgFree, 'admin-locked', 'organization_admin'),
+        adminAllowed: newAccount(em, orgFree, 'admin-allowed', freeAdministrator),
+        adminLocked: newAccount(em, orgFree, 'admin-locked', freeAdministrator),
         colleagueAllowed: newAccount(em, orgFree, 'colleague-allowed'),
         otherBuyer: newAccount(em, orgOther, 'other'),
         movedToFree: newAccount(em, orgLocked, 'moved-to-free'),
@@ -565,7 +572,8 @@ describe('146 — price-negotiation lock enforcement [integration]', () => {
     it('moved account: from a locked organization to an allowed one, its old draft follows the new one (D-3L)', async () => {
       const id = await createOk(movedToFree, [{ productId: SEED_PRODUCT_101_ID, quantity: 2 }]);
       expect((await requestRow(id)).organizationId).toBe(orgLocked);
-      await h.em().getConnection().execute(`update "customer_accounts" set "organization_id" = ? where "id" = ?`, [orgFree, movedToFree]);
+      // The role moves with the Organization (`specs/170-organization-roles/` WP-02b).
+      await moveAccountToOrganization(h.em(), movedToFree, orgFree);
       // The session still names the organization it was opened in, which is the draft's stamp.
       const res = await patch(movedToFree, id, {
         items: [{ productId: SEED_PRODUCT_101_ID, quantity: 2, desiredUnitPrice: 70 }],
@@ -576,7 +584,8 @@ describe('146 — price-negotiation lock enforcement [integration]', () => {
     it('moved account: from an allowed organization to a locked one, its old draft is refused (D-3L)', async () => {
       const id = await createOk(movedToLocked, [{ productId: SEED_PRODUCT_101_ID, quantity: 2 }]);
       expect((await requestRow(id)).organizationId).toBe(orgFree);
-      await h.em().getConnection().execute(`update "customer_accounts" set "organization_id" = ? where "id" = ?`, [orgLocked, movedToLocked]);
+      // The role moves with the Organization (`specs/170-organization-roles/` WP-02b).
+      await moveAccountToOrganization(h.em(), movedToLocked, orgLocked);
       expectRefusal(
         await patch(movedToLocked, id, { items: [{ productId: SEED_PRODUCT_101_ID, quantity: 2, desiredUnitPrice: 70 }] }),
       );

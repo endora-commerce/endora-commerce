@@ -444,6 +444,8 @@ describe('155 — placement and the checkout preview refuse below-minimum lines 
       async () => true,
       // Phase 9 (T071) — the default-quantity read; unused here, the quantity is explicit.
       (h.container.cradle as unknown as { catalogProductReadPort: unknown }).catalogProductReadPort,
+      // `specs/170-organization-roles/` (FR-050) — the buyer's role is judged too.
+      (h.container.cradle as unknown as { organizationPermissionPort: unknown }).organizationPermissionPort,
     );
     const ordersBefore = await orderCount();
     await expect(oneClick.place(CTX, { productId: A.id, quantity: 5 }, BASKET_CTX.salesChannelId)).rejects.toMatchObject({

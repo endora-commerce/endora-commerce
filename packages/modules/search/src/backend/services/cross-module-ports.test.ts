@@ -84,7 +84,6 @@ function organizationRecord(id: string, customerGroupId: string | null): Organiz
     rejectedAt: null,
     approvedAt: null,
     approvedByAdminUserId: null,
-    requiresCartApproval: false,
     fulfilmentStrategy: null,
     fulfilmentStrategyWarehouseOrder: null,
     parentId: null,

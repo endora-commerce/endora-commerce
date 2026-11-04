@@ -31,13 +31,23 @@ describe('GET /api/v1/me', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json() as {
       data: {
-        customerAccount: { id: string; email: string; role: string; organizationId: string };
+        customerAccount: {
+          id: string;
+          email: string;
+          organizationId: string;
+          organizationRole: { id: string; name: string; kind: string };
+          permissions: string[];
+        };
         organization: { id: string; name: string; status: string };
       };
     };
     expect(body.data.customerAccount.id).toBeTruthy();
     expect(body.data.customerAccount.email).toContain('@');
     expect(body.data.organization.id).toBe(body.data.customerAccount.organizationId);
+    // `specs/170-organization-roles/` FR-056, FR-073 — the role, not the legacy enum.
+    expect(body.data.customerAccount.organizationRole.kind).toBe('administrator');
+    expect(Array.isArray(body.data.customerAccount.permissions)).toBe(true);
+    expect(body.data.customerAccount).not.toHaveProperty('role');
   });
 
   it('rejects anonymous callers with 401 UNAUTHORIZED', async () => {

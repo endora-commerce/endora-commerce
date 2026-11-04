@@ -10,11 +10,12 @@ import {
 } from './seed-commerce.js';
 import { STUB_CUSTOMER_PASSWORD } from './seed-organizations.js';
 import { Order } from './package-entities.js';
+import { predefinedRoleIdOf } from './seed-organization-roles.js';
 
 /**
  * Fixture for T169 (Regular User scoping).
  *
- * Seeds a second customer (regular_user role) inside TEST_ORGANIZATION_ID + an
+ * Seeds a second customer (holding Member) inside TEST_ORGANIZATION_ID + an
  * Order placed by TEST_CUSTOMER_ID (the org admin). The regular user must
  * receive 404 on GET /orders/:id for that order; the admin must receive 200.
  */
@@ -31,7 +32,7 @@ export async function seedRoleScopingFixture(em: EntityManager): Promise<void> {
     passwordHash,
     firstName: 'Reg',
     lastName: 'Ular',
-    role: 'regular_user',
+    organizationRoleId: await predefinedRoleIdOf(em, TEST_ORGANIZATION_ID, 'member'),
     emailVerifiedAt: new Date(),
   });
   await em.persistAndFlush(regular);

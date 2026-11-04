@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@endora-commerce/contracts';
-import { CustomerAccount, Organization, Product } from '../../helpers/package-entities.js';
+import { CustomerAccount, Product } from '../../helpers/package-entities.js';
+import { assignOrganizationRole } from '../../helpers/seed-organization-roles.js';
+import { seedRoleGranting } from '../../helpers/cart-approval-roles.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -55,7 +57,6 @@ describe('155 — submit-for-approval refuses a basket below a minimum [contract
   const COOKIE = `stub-148-approval-member-${RUN}`;
   const cookies = { b2b_session: COOKIE };
   let product: MinimumProductFixture;
-  let policyBefore = false;
 
   beforeAll(async () => {
     h = await setupBackendServer();
@@ -75,26 +76,17 @@ describe('155 — submit-for-approval refuses a basket below a minimum [contract
       passwordHash: 'not-a-real-hash',
       firstName: 'Approval',
       lastName: 'Member',
-      role: 'regular_user',
       emailVerifiedAt: new Date(),
     });
     await em.persistAndFlush(member);
+    // `specs/170-organization-roles/` WP-04 — the member's basket needs approval
+    // because their role lacks `carts.order_without_approval` (R-4).
+    await assignOrganizationRole(em, MEMBER_ID, await seedRoleGranting(em, TEST_ORGANIZATION_ID, ['carts.create']));
     CUSTOMER_COOKIES[COOKIE] = { customerAccountId: MEMBER_ID, organizationId: TEST_ORGANIZATION_ID };
-
-    const org = await em.findOneOrFail(Organization, { id: TEST_ORGANIZATION_ID });
-    policyBefore = org.requiresCartApproval;
-    org.requiresCartApproval = true;
-    await em.flush();
   }, 60_000);
 
   afterAll(async () => {
     delete CUSTOMER_COOKIES[COOKIE];
-    const em = h.em();
-    const org = await em.findOne(Organization, { id: TEST_ORGANIZATION_ID });
-    if (org) {
-      org.requiresCartApproval = policyBefore;
-      await em.flush();
-    }
     await teardownBackendServer(h);
   });
 

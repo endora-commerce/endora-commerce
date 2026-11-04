@@ -37,6 +37,7 @@ import {
   PaymentMethod,
   StockAllocation,
 } from '../../helpers/package-entities.js';
+import { predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 
 /**
  * An Organization's payment- and delivery-method allow-lists bind order
@@ -348,7 +349,7 @@ describe('order placement honours the Organization method allow-lists', () => {
       passwordHash: await hashPassword(STUB_CUSTOMER_PASSWORD),
       firstName: 'Buyer',
       lastName: 'B',
-      role: 'organization_admin',
+      organizationRoleId: await predefinedRoleIdOf(em, OTHER_TEST_ORGANIZATION_ID, 'administrator'),
       emailVerifiedAt: new Date(),
     });
     for (const [id, kind] of [

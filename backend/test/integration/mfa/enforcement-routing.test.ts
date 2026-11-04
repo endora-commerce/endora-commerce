@@ -14,8 +14,8 @@ import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
  * is routed into mandatory setup at login and enrols via a setup ticket
  * (no session until activation).
  */
-const ORG_ADMIN = { b2b_session: 'stub-customer-session' }; // TEST_CUSTOMER (organization_admin)
-const REGULAR = { b2b_session: 'stub-customer-session-rfq' }; // regular_user
+const ORG_ADMIN = { b2b_session: 'stub-customer-session' }; // TEST_CUSTOMER, the Administrator role
+const REGULAR = { b2b_session: 'stub-customer-session-rfq' }; // the Member role
 const PLATFORM_ADMIN = { b2b_admin_session: 'stub-admin-session' };
 const RESTRICTED_ADMIN = { b2b_admin_session: 'stub-restricted-admin-session' };
 

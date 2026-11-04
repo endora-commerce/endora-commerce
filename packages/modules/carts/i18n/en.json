@@ -5,9 +5,9 @@
   "errors.CART_QUANTITY_INVALID": "The quantity must be at least {minimum}.",
   "errors.CART_PRODUCT_UNPRICED": "This product has no price, so it cannot be added to the cart.",
   "errors.CART_PRICE_CHANGED": "The prices in your cart have changed. Review your cart and place the order again.",
-  "errors.CART_APPROVAL_NOT_REQUIRED": "Your organization does not require orders to be approved, so this cart does not need to be sent for approval. Place the order directly.",
+  "errors.CART_APPROVAL_NOT_REQUIRED": "Your role lets you place orders without approval, so this cart does not need to be sent for approval. Place the order directly.",
   "errors.CART_APPROVAL_ALREADY_SUBMITTED": "This cart has already been sent for approval.",
-  "errors.CART_APPROVAL_SELF_SUBMIT": "As an organization administrator you place orders directly, so your own cart is not sent for approval.",
+  "errors.CART_APPROVAL_SELF_APPROVE": "You cannot approve or reject your own cart. Another person in your organization who approves carts has to decide on it.",
   "errors.CART_APPROVAL_NOT_PENDING": "This cart is not awaiting approval, so it cannot be approved or rejected.",
   "errors.CART_ALREADY_TERMINAL": "This cart is already completed or rejected, so it cannot be rejected.",
   "errors.CART_COUPON_REJECTED": "This coupon code could not be applied.",
@@ -70,11 +70,7 @@
   "conversion.banner.list_added": "We've added the contents of \"{listName}\" to your cart.",
   "conversion.banner.lines_dropped_during_conversion": "Some lines were skipped during conversion — see the panel below.",
 
-  "approval.banner.pending": "Your cart is awaiting approval by an organization administrator.",
   "approval.banner.approved": "Your cart has been approved and is ready for checkout.",
-  "approval.banner.rejected": "Your cart was rejected by an organization administrator.",
-  "approval.banner.policy_on": "Your organization now requires cart approval before checkout.",
-  "approval.banner.policy_off": "Cart approval is no longer required by your organization.",
   "approval.reject_reason.prompt": "Why are you rejecting this cart?",
   "approval.reject_reason.placeholder": "Short explanation visible to the buyer",
   "approval.reject_reason.required": "Please provide a rejection reason.",
@@ -88,23 +84,19 @@
   "abandonment.email.body": "A cart belonging to {ownerDisplayName} has been inactive for the configured threshold and has been marked Abandoned.",
 
   "reject.email.subject": "Your cart was rejected",
-  "reject.email.body": "An administrator rejected your cart. Reason: {reason}",
 
   "upsells.heading": "You might also need",
   "upsells.empty": "No suggestions for this cart.",
-  "policy.title": "Cart approval",
-  "policy.description": "When this is on, ordinary members of this organization must submit their cart for an Organization Administrator's approval before they can check out.",
-  "policy.on": "Approval required before checkout",
-  "policy.off": "No approval required",
-  "policy.hint": "Turning the policy off returns every pending or approved cart in this organization to “not required”, and each change is recorded in the audit trail.",
-  "policy.saving": "Saving…",
-  "policy.turnedOn": "Cart approval is now required for this organization.",
-  "policy.turnedOff": "Cart approval is no longer required; pending carts were released.",
-  "policy.loadError": "Failed to load the cart-approval policy.",
-  "policy.saveError": "Failed to update the policy.",
 
   "nav.carts.label": "Carts",
   "actions.openCarts.label": "Carts",
   "actions.openCarts.description": "Browse customer carts and their approval status",
-  "actions.openCarts.keywords": "cart, carts, abandoned"
+  "actions.openCarts.keywords": "cart, carts, abandoned",
+
+  "organizationPermissions.carts.create.label": "Create and edit carts",
+  "organizationPermissions.carts.create.description": "Add products to a cart, change quantities, apply coupons and build carts from quotes, lists and quick order.",
+  "organizationPermissions.carts.approve.label": "Approve and reject colleagues' carts",
+  "organizationPermissions.carts.approve.description": "See the organization's carts and approve or reject the ones sent for approval.",
+  "organizationPermissions.carts.order_without_approval.label": "Place orders without approval",
+  "organizationPermissions.carts.order_without_approval.description": "Order a cart directly, without sending it for approval first."
 }

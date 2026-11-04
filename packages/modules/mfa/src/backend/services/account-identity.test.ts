@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type {
   AdminUserRecord,
   CustomerAccountRecord,
+  OrganizationPermissionPort,
+  OrganizationPermissionSubject,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import {
@@ -29,30 +31,53 @@ function customer(overrides: Partial<CustomerAccountRecord> = {}): CustomerAccou
     id: 'c-1',
     email: 'buyer@example.com',
     organizationId: 'org-1',
-    role: 'organization_admin',
+    organizationRoleId: 'role-administrator',
     ...overrides,
   } as CustomerAccountRecord;
 }
 
+/**
+ * `specs/170-organization-roles/` WP-03 (T058, FR-011) — the MFA policy is the
+ * administrator's by **role kind**, asked of `organizationPermissionPort`; the
+ * legacy `role` column is not read.
+ */
+function permissions(administratorRoleIds: readonly string[] = ['role-administrator']): Pick<
+  OrganizationPermissionPort,
+  'isAdministrator'
+> & { subjects: OrganizationPermissionSubject[] } {
+  const subjects: OrganizationPermissionSubject[] = [];
+  return {
+    subjects,
+    async isAdministrator(subject) {
+      subjects.push(subject);
+      return administratorRoleIds.includes(subject.organizationRoleId ?? '');
+    },
+  };
+}
+
 describe('createOrganizationAdminResolver', () => {
   it('answers the caller organisation and the acting account id', async () => {
-    const resolve = createOrganizationAdminResolver({
-      findById: async () => customer(),
-    });
+    const port = permissions();
+    const resolve = createOrganizationAdminResolver({ findById: async () => customer() }, port);
 
     await expect(resolve('c-1')).resolves.toEqual({ organizationId: 'org-1', actor: 'c-1' });
+    expect(port.subjects).toEqual([
+      { customerAccountId: 'c-1', organizationId: 'org-1', organizationRoleId: 'role-administrator' },
+    ]);
   });
 
   it.each([
     ['no such account', null],
-    ['a member who is not an organisation administrator', { ...customer(), role: 'buyer' }],
+    ['a member whose role is not the administrator kind', { ...customer(), organizationRoleId: 'role-member' }],
+    ['a custom role, whatever it grants', { ...customer(), organizationRoleId: 'role-custom-everything' }],
     // `CustomerAccountRecord.organizationId` is `string` since D-178, so this
     // case is the bridge's own guard preserved rather than a reachable state.
     ['an administrator with no organisation', { ...customer(), organizationId: null }],
   ])('refuses %s with 403', async (_label, record) => {
-    const resolve = createOrganizationAdminResolver({
-      findById: async () => record as CustomerAccountRecord | null,
-    });
+    const resolve = createOrganizationAdminResolver(
+      { findById: async () => record as CustomerAccountRecord | null },
+      permissions(),
+    );
 
     await expect(resolve('c-1')).rejects.toMatchObject({
       statusCode: 403,
@@ -61,14 +86,29 @@ describe('createOrganizationAdminResolver', () => {
   });
 
   it('lets a disabled owner through rather than reporting "not an administrator"', async () => {
-    const resolve = createOrganizationAdminResolver({
-      findById: async () => {
-        throw new DisabledOwner('MODULE_DISABLED');
+    const resolve = createOrganizationAdminResolver(
+      {
+        findById: async () => {
+          throw new DisabledOwner('MODULE_DISABLED');
+        },
       },
-    });
+      permissions(),
+    );
 
     // The failure mode a `catch` here would produce is a 403 — indistinguishable
     // from a real refusal, and on a policy write.
+    await expect(resolve('c-1')).rejects.toBeInstanceOf(DisabledOwner);
+  });
+
+  it('lets a disabled permission owner through too', async () => {
+    const resolve = createOrganizationAdminResolver(
+      { findById: async () => customer() },
+      {
+        isAdministrator: async () => {
+          throw new DisabledOwner('MODULE_DISABLED');
+        },
+      },
+    );
     await expect(resolve('c-1')).rejects.toBeInstanceOf(DisabledOwner);
   });
 });
@@ -170,7 +210,7 @@ describe('createAccountPasswordVerifier', () => {
 
 describe('the refusals are HTTP errors the envelope can carry', () => {
   it('throws `HttpError`, not a bare Error', async () => {
-    const resolve = createOrganizationAdminResolver({ findById: async () => null });
+    const resolve = createOrganizationAdminResolver({ findById: async () => null }, permissions());
     await expect(resolve('c-1')).rejects.toBeInstanceOf(HttpError);
   });
 });

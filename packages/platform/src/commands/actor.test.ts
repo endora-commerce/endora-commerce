@@ -15,6 +15,7 @@ describe('command actor mapping (feature 054, FR-001 / Principle XI)', () => {
     expect(actorFromContext(ctx)).toEqual({
       actorAdminUserId: 'admin-1',
       impersonatedCustomerAccountId: null,
+      actorCustomerAccountId: null,
       kind: 'admin',
     });
   });
@@ -30,6 +31,23 @@ describe('command actor mapping (feature 054, FR-001 / Principle XI)', () => {
     expect(actorFromContext(ctx)).toEqual({
       actorAdminUserId: 'admin-9',
       impersonatedCustomerAccountId: 'cust-1',
+      // The impersonated customer did not act; the administrator did (R-21, SC-006).
+      actorCustomerAccountId: null,
+      kind: 'customer',
+    });
+  });
+
+  it('maps a customer acting for themselves onto actorCustomerAccountId (feature 170, R-21)', () => {
+    const ctx: TenantContext = {
+      mode: 'single-org',
+      organizationId: 'org-1',
+      customerAccountId: 'cust-3',
+      actor: { kind: 'customer', id: 'cust-3' },
+    };
+    expect(actorFromContext(ctx)).toEqual({
+      actorAdminUserId: null,
+      impersonatedCustomerAccountId: null,
+      actorCustomerAccountId: 'cust-3',
       kind: 'customer',
     });
   });
@@ -39,6 +57,7 @@ describe('command actor mapping (feature 054, FR-001 / Principle XI)', () => {
     expect(actorFromContext(ctx)).toEqual({
       actorAdminUserId: null,
       impersonatedCustomerAccountId: null,
+      actorCustomerAccountId: null,
       kind: 'system',
     });
   });
@@ -63,7 +82,12 @@ describe('command actor mapping (feature 054, FR-001 / Principle XI)', () => {
         return resolveCommandActor();
       }),
     );
-    expect(actor).toEqual({ actorAdminUserId: 'admin-7', impersonatedCustomerAccountId: null, kind: 'admin' });
+    expect(actor).toEqual({
+      actorAdminUserId: 'admin-7',
+      impersonatedCustomerAccountId: null,
+      actorCustomerAccountId: null,
+      kind: 'admin',
+    });
   });
 
   it('refuses to act for nobody', async () => {

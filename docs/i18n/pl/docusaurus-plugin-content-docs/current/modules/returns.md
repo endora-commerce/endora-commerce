@@ -18,7 +18,7 @@ Trasy administracyjne są chronione przez `returns:read` (odczyt) i `returns:wri
 | --- | --- | --- |
 | `GET /api/v1/orders/:orderId/returnable` | klient | Pozycje, które można zwrócić, i warunki dla zamówienia |
 | `POST /api/v1/returns` | klient | Otwarcie sprawy zwrotu lub reklamacji |
-| `GET /api/v1/returns` | klient | Lista spraw wywołującego |
+| `GET /api/v1/returns` | klient | Lista spraw wywołującego albo całej organizacji (zob. *Kto może zgłosić, zobaczyć i prowadzić sprawę*) |
 | `GET /api/v1/returns/:id` | klient | Szczegóły sprawy (tylko komentarze widoczne dla klienta) |
 | `POST /api/v1/returns/:id/comments` | klient | Odpowiedź w sprawie |
 | `POST /api/v1/returns/:id/select-delivery-method` | klient | Wybór metody dostawy zwrotu |
@@ -37,6 +37,60 @@ Trasy administracyjne są chronione przez `returns:read` (odczyt) i `returns:wri
 | `GET\|POST /api/v1/admin/returns/list-views` | administrator | Własne zapisane widoki wywołującego i wszystkie udostępnione / zapisanie widoku |
 | `PATCH\|DELETE /api/v1/admin/returns/list-views/:id` | administrator | Zmiana / usunięcie zapisanego widoku (właściciel albo administrator platformy w przypadku widoku udostępnionego) |
 | `…/statuses`, `…/transitions`, `…/reasons`, `…/delivery-methods` | administrator | Konfiguracja |
+
+## Kto może zgłosić, zobaczyć i prowadzić sprawę
+
+W storefroncie zasięg kupującego wynika z jego roli w organizacji. Ten moduł deklaruje dwa uprawnienia
+organizacji, które administrator organizacji nadaje poszczególnym rolom:
+
+| Uprawnienie | Kod | Czy ma je *Członek* |
+| --- | --- | --- |
+| **Zgłaszanie zwrotów i reklamacji** | `returns.create` | tak (domyślne uprawnienie członka) |
+| **Wyświetlanie zwrotów i reklamacji organizacji** | `returns.view_organization` | nie |
+
+*Administrator* ma oba, tak jak ma każde uprawnienie. Jeden kod obejmuje zarówno zwroty, jak i
+reklamacje: to jeden formularz i jedna trasa.
+
+- **Zgłoszenie sprawy** (`POST /api/v1/returns`) wymaga `returns.create`. Bez niego żądanie zostaje
+  odrzucone z kodem `403 ORGANIZATION_PERMISSION_REQUIRED`, wskazującym uprawnienie, zanim zamówienie
+  zostanie odczytane; nic nie powstaje.
+- **Do jakich zamówień można zgłosić sprawę**: do każdego zamówienia, które kupujący może odczytać —
+  złożonego przez siebie oraz zamówienia współpracownika, gdy jego rola ma uprawnienie modułu `orders`
+  **Wyświetlanie zamówień organizacji** (`orders.view_organization`). Zasada należy do modułu `orders`
+  i działa przez `OrderReadPort.findByIdForCustomer`, więc zgadza się z listą zamówień. Zamówienie
+  poza zasięgiem odpowiada `404` zarówno przy odczycie pozycji do zwrotu, jak i przy zgłoszeniu.
+  Sprawa zgłoszona do zamówienia współpracownika jest zgłaszana w imieniu członka, który ją
+  rozpoczął: to do niego trafiają jej e-maile, a współpracownik, który złożył zamówienie, widzi sprawę
+  tylko z uprawnieniem `returns.view_organization`.
+- **Wyświetlanie spraw** (`GET /api/v1/returns`, `GET /api/v1/returns/:id`): sprawy zgłoszone przez
+  kupującego albo — z `returns.view_organization` — wszystkie sprawy jego organizacji, a w przypadku
+  logowania centrali z włączonym roll-upem także jej poddrzewa. Roll-up poszerza zasięg, ale nigdy nie
+  nadaje uprawnienia. Sprawa poza zasięgiem odpowiada `404`, nigdy `403`. Każda sprawa na liście
+  zawiera `customerAccountId`, czyli członka, który ją zgłosił.
+- **Prowadzenie sprawy** — komentowanie, dodawanie plików, wybór sposobu odesłania zwrotu i
+  anulowanie — pozostaje w gestii członka, który ją zgłosił, niezależnie od uprawnień innych osób;
+  każdemu innemu te żądania odpowiadają `404`. Żadne z nich nie wymaga `returns.create`, więc członek,
+  którego rola straci to uprawnienie, nadal może prowadzić sprawy zgłoszone wcześniej. Odczyt pozycji
+  zamówienia, które można zwrócić, również nie wymaga uprawnienia.
+
+Przed wprowadzeniem ról organizacji każdy kupujący — także administrator — widział i zgłaszał sprawy
+tylko do zamówień, które sam złożył. *Członek* zachowuje dokładnie ten zakres; administrator widzi
+teraz wszystkie sprawy organizacji i może zgłosić sprawę do zamówienia współpracownika.
+
+W storefroncie:
+
+- **Zwroty** (`/returns`) to lista spraw, które członek może zobaczyć. Sprawa współpracownika jest
+  oznaczona *Zgłoszone przez współpracownika*. **Zgłoś nowy zwrot** widzi tylko członek, którego
+  rola ma `returns.create`; strona zamówienia pokazuje swój przycisk zwrotu lub reklamacji według
+  tej samej reguły.
+- Bez `returns.create` strona nowej sprawy (`/returns/new`) zamiast formularza wyjaśnia: *„Twoja rola nie obejmuje uprawnienia „Zgłaszanie zwrotów i reklamacji”, więc nie możesz zgłosić zwrotu ani reklamacji. Jeśli go potrzebujesz, poproś administratora organizacji.”*
+- Sprawa współpracownika otwiera się tylko do odczytu. Strona nie pokazuje pola komentarza,
+  dodawania załączników, wyboru metody dostawy zwrotu ani przycisku anulowania i wyjaśnia to w
+  jednym zdaniu: *„To zgłoszenie złożył współpracownik. Możesz je przeglądać, ale dodawać wiadomości i wprowadzać zmiany może tylko osoba, która je złożyła.”* Wiadomości zgłaszającego są podpisane *Współpracownik*, a nie *Ty*.
+
+Gdy moduł jest wyłączony, oba uprawnienia znikają z katalogu uprawnień organizacji i z efektywnych
+uprawnień każdego członka; zapisane w roli nadanie zostaje zachowane i znów działa po ponownym
+włączeniu modułu.
 
 ## Statusy i przejścia (konfigurowalne)
 
@@ -142,6 +196,10 @@ pozostają bez zmian: ich pozycje nie mają zapisanej wartości i nadal podlegaj
 Moduł odczytuje i zmienia dane innych domen wyłącznie przez udokumentowane porty, nigdy przez
 importy wnętrza innych modułów:
 
+- `OrderReadPort.findByIdForCustomer` (orders) — czy kupujący może odczytać zamówienie, do którego
+  zgłasza sprawę (własne albo współpracownika z `orders.view_organization`).
+- `OrganizationPermissionPort` (organizations) — `returns.create` i `returns.view_organization`,
+  sprawdzane przy każdym żądaniu.
 - `OrderReturnContextPort` (orders) — kwoty zapłacone za każdą pozycję i czas osiągnięcia statusu
   kończącego realizację oraz `returnableAtPurchase` każdej pozycji (`true`/`false` zapisane przy
   składaniu zamówienia, `null` dla zamówienia złożonego, zanim zaczęto je zapisywać). Moduł Orders

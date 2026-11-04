@@ -258,6 +258,16 @@ export async function measureActorScope(
       expectStatus(registered, 201, `POST ${REGISTER_PATH}`);
       const organizationId = stringAt(dataOf(registered), ['organization', 'id'], 'the registration');
       const email = `a17-member-${label}-${run}@instance.acceptance.invalid`;
+      // The role whose order list is scoped by the ambient tenant filter alone
+      // (see `evaluateA17`): the Organization's predefined Administrator, by id
+      // (`specs/170-organization-roles/` FR-062, FR-073).
+      const detail = await call(base, 'GET', `${ADMIN_ORGANIZATIONS_PATH}/${organizationId}`, { cookie: adminCookie });
+      expectStatus(detail, 200, `GET ${ADMIN_ORGANIZATIONS_PATH}/:id`);
+      const predefinedRoles = dataOf(detail)['predefinedRoles'];
+      const administrator = Array.isArray(predefinedRoles)
+        ? (predefinedRoles as Array<Record<string, unknown>>).find((role) => role['kind'] === 'administrator')
+        : undefined;
+      const administratorRoleId = stringAt(administrator ?? {}, ['id'], 'the Administrator role');
       const member = await call(base, 'POST', `${ADMIN_ORGANIZATIONS_PATH}/${organizationId}/members`, {
         cookie: adminCookie,
         body: {
@@ -265,9 +275,7 @@ export async function measureActorScope(
           firstName: 'Acceptance',
           lastName: label,
           password: MEMBER_PASSWORD,
-          // The role whose order list is scoped by the ambient tenant filter
-          // alone (see `evaluateA17`).
-          role: 'organization_admin',
+          roleId: administratorRoleId,
         },
       });
       expectStatus(member, 201, `POST ${ADMIN_ORGANIZATIONS_PATH}/:id/members`);

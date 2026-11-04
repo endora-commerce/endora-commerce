@@ -32,9 +32,9 @@
   "errors.ORDER_SALES_CHANNEL_MISMATCH": "Your basket belongs to a different store. Open the basket in this store and place the order again.",
   "errors.ORDER_SALES_CHANNEL_NOT_ALLOWED": "This sales channel is not one of the organization's active sales channels. Choose one of them.",
   "errors.ORDER_CART_APPROVAL_REQUIRED": "This basket must be approved by your organization before the order can be placed.",
-  "errors.ORDER_CART_APPROVAL_REQUIRED.cart_approval_not_submitted": "Your organization requires baskets to be approved before ordering. Send this basket for approval first.",
-  "errors.ORDER_CART_APPROVAL_REQUIRED.cart_approval_pending": "This basket is awaiting approval by your organization administrator. You can place the order once it is approved.",
-  "errors.ORDER_CART_APPROVAL_REQUIRED.cart_approval_rejected": "Your organization administrator rejected this basket, so it cannot be ordered.",
+  "errors.ORDER_CART_APPROVAL_REQUIRED.cart_approval_not_submitted": "Your role requires approval of this cart before it can be ordered. Send it for approval first.",
+  "errors.ORDER_CART_APPROVAL_REQUIRED.cart_approval_pending": "This cart is awaiting approval by an approver in your organization. You can place the order once it is approved.",
+  "errors.ORDER_CART_APPROVAL_REQUIRED.cart_approval_rejected": "This cart was rejected by an approver in your organization, so it cannot be ordered.",
   "errors.ORDER_SAVED_VIEW_NAME_TAKEN": "You already have a saved view with this name on the order list. Choose a different name.",
   "errors.ORDER_DELIVERY_METHOD_UNAVAILABLE": "The selected delivery method is not available for this order. Choose another delivery method.",
   "errors.ORDER_DELIVERY_METHOD_UNAVAILABLE.delivery_method_not_allowed_for_organization": "The selected delivery method is not available to this organization. Choose another delivery method.",
@@ -145,5 +145,7 @@
   "actions.openOrders.keywords": "orders, sales",
   "actions.newOrder.keywords": "order, new, create",
   "actions.orderStatusConfig.keywords": "statuses, lifecycle",
-  "emails.orderConfirmation.sample.shippingAddressText": "  Anna Nowak\n  1 Main Street"
+  "emails.orderConfirmation.sample.shippingAddressText": "  Anna Nowak\n  1 Main Street",
+  "organizationPermissions.orders.view_organization.label": "View the organization's orders",
+  "organizationPermissions.orders.view_organization.description": "See every order placed in the organization and act on a colleague's order: reorder it, quote it, start a return or complaint from it and download its documents."
 }

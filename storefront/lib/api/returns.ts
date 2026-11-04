@@ -11,6 +11,12 @@ export interface ReturnCaseSummary {
   rmaNumber: string | null;
   kind: 'return' | 'complaint';
   orderId: string;
+  /**
+   * The member who filed the case (feature 170, `contracts/storefront-api.md` §5). A holder of
+   * `returns.view_organization` lists colleagues' cases too; their follow-up actions stay the
+   * filer's (FR-053, Q-R2 = A).
+   */
+  customerAccountId: string;
   statusCode: string;
   statusLabel: string;
   totalRefundAmount: number;

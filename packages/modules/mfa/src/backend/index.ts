@@ -14,6 +14,7 @@ import type {
   MfaEnrolmentCountPort,
   MfaEnrolmentStatePort,
   MfaLoginPort,
+  OrganizationPermissionPort,
 } from '@endora-commerce/contracts';
 import type {
   AuditPort,
@@ -214,7 +215,12 @@ export function registerModule(ctx: ModuleContext): void {
             'customerAccountReadPort',
           );
           const adminUsers = lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort');
-          const resolveOrganizationAdmin = createOrganizationAdminResolver(customerAccounts);
+          // `specs/170-organization-roles/` WP-03 (FR-011) — the policy is the
+          // administrator's by role kind, asked of `organizations`' port.
+          const resolveOrganizationAdmin = createOrganizationAdminResolver(
+            customerAccounts,
+            lazyPort<OrganizationPermissionPort>(ctx, 'organizationPermissionPort'),
+          );
           // Feature 154 — kernel-provided and ungated, like the membership
           // port; a proxy so the singleton holds no captured value.
           const customerChannelAccess = createCustomerChannelAccess(

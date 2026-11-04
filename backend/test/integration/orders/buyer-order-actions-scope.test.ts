@@ -6,7 +6,8 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { CUSTOMER_COOKIES, TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { seedMemberWithPermissions } from '../../helpers/seed-organization-roles.js';
 import { TEST_CL_CUSTOMER_A_ID, TEST_CL_CUSTOMER_B_ID } from '../../helpers/seed-credit-limit.js';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
@@ -22,23 +23,33 @@ import {
 /**
  * Issue #665 — an action a buyer takes on an order *by its id* resolves that
  * order through the same scope the read does (`OrderAccessService`): a
- * `regular_user` reaches only the orders they placed, an `organization_admin`
+ * Member reaches only the orders they placed, an Administrator
  * every order of the Organization. An order outside that scope answers 404,
  * exactly as `GET /api/v1/orders/:id` does, and nothing is created.
  *
+ * `specs/170-organization-roles/` WP-07 (FR-049, OR-5) — the scope's rule is
+ * the permission `orders.view_organization`: a *Member* (no such code by
+ * default) reaches only the orders they placed, the *Administrator* (every
+ * code implicitly) and any role granting the code every order of the
+ * Organization.
+ *
  * Actors, all in TEST_ORGANIZATION_ID:
- *   - A — `regular_user`, `stub-customer-session-cl-a`, places the order;
- *   - B — `regular_user`, `stub-customer-session-cl-b`, a colleague;
- *   - the org admin — `stub-customer-session` (TEST_CUSTOMER_ID).
+ *   - A — *Member*, `stub-customer-session-cl-a`, places the order;
+ *   - B — *Member*, `stub-customer-session-cl-b`, a colleague;
+ *   - C — this file's own account, a custom role granting
+ *     `orders.view_organization` and nothing else;
+ *   - the org admin — *Administrator*, `stub-customer-session` (TEST_CUSTOMER_ID).
  */
 const MEMBER_A = { b2b_session: 'stub-customer-session-cl-a' };
 const MEMBER_B = { b2b_session: 'stub-customer-session-cl-b' };
+const VIEWER_C = { b2b_session: 'stub-customer-session-665-c' };
 const ORG_ADMIN = { b2b_session: 'stub-customer-session' };
 const OPERATOR = { b2b_session: 'stub-admin-session' };
 
 describe('#665 — buyer order actions follow the order read scope', () => {
   let h: BackendServerHandle;
   let orderOfA = '';
+  let viewerC = '';
 
   const countRequestsOf = async (customerAccountId: string): Promise<number> => {
     const em = h.em();
@@ -63,12 +74,31 @@ describe('#665 — buyer order actions follow the order read scope', () => {
           passwordHash,
           firstName: 'Member',
           lastName: letter.toUpperCase(),
-          role: 'regular_user',
           emailVerifiedAt: new Date(),
         }),
       );
     }
     await em.flush();
+
+    const viewer = em.create(CustomerAccount, {
+      organizationId: TEST_ORGANIZATION_ID,
+      email: `scope-665-c-${Date.now()}@example.com`,
+      passwordHash,
+      firstName: 'Member',
+      lastName: 'C',
+      emailVerifiedAt: new Date(),
+    });
+    await em.persistAndFlush(viewer);
+    viewerC = viewer.id;
+    await seedMemberWithPermissions(em, {
+      organizationId: TEST_ORGANIZATION_ID,
+      customerAccountId: viewerC,
+      // Since `specs/170-organization-roles/` WP-16 the reorder needs
+      // `carts.create` and the clone `quote_requests.create`; C holds both so
+      // that the scope, which this file is about, is what answers.
+      permissions: ['orders.view_organization', 'carts.create', 'quote_requests.create'],
+    });
+    CUSTOMER_COOKIES[VIEWER_C.b2b_session] = { customerAccountId: viewerC, organizationId: TEST_ORGANIZATION_ID };
 
     const order = em.create(Order, {
       organizationId: TEST_ORGANIZATION_ID,
@@ -104,6 +134,7 @@ describe('#665 — buyer order actions follow the order read scope', () => {
   }, 60_000);
 
   afterAll(async () => {
+    delete CUSTOMER_COOKIES[VIEWER_C.b2b_session];
     await teardownBackendServer(h);
   });
 
@@ -160,6 +191,20 @@ describe('#665 — buyer order actions follow the order read scope', () => {
       expect(rfq.customerAccountId).toBe(TEST_CUSTOMER_ID);
     });
 
+    it('C, a colleague holding orders.view_organization, cloning A’s order creates C’s own request', async () => {
+      const res = await h.app.inject({
+        method: 'POST',
+        url: `/api/v1/orders/${orderOfA}/clone-to-quote`,
+        cookies: VIEWER_C,
+      });
+      expect(res.statusCode, res.body).toBe(200);
+      const { quoteRequestId } = (res.json() as { data: { quoteRequestId: string } }).data;
+      const em = h.em();
+      em.clear();
+      const rfq = await em.findOneOrFail(QuoteRequest, { id: quoteRequestId });
+      expect(rfq.customerAccountId).toBe(viewerC);
+    });
+
     it('the operator clone is unchanged: it creates the request for the order’s placer', async () => {
       const res = await h.app.inject({
         method: 'POST',
@@ -185,6 +230,15 @@ describe('#665 — buyer order actions follow the order read scope', () => {
       });
       expect(res.statusCode, res.body).toBe(404);
       expect((res.json() as { error: { code: string } }).error.code).toBe(ERROR_CODES.ORDER_NOT_FOUND);
+    });
+
+    it('C, holding orders.view_organization, reordering A’s order is served', async () => {
+      const res = await h.app.inject({
+        method: 'POST',
+        url: `/api/v1/orders/${orderOfA}/reorder`,
+        cookies: VIEWER_C,
+      });
+      expect(res.statusCode, res.body).toBe(200);
     });
 
     it('A reordering their own order is served', async () => {

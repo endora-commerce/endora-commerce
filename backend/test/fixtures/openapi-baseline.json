@@ -597,6 +597,33 @@
         }
       }
     },
+    "/api/v1/admin/blog/addresses": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/blog/addresses/{id}": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/blog/author-candidates": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/blog/categories": {
       "get": {
         "responses": {
@@ -647,6 +674,31 @@
     },
     "/api/v1/admin/blog/categories/{id}/description": {
       "put": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/blog/categories/{id}/url-keys": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/blog/categories/{id}/url-redirects/{redirectId}": {
+      "delete": {
         "responses": {
           "200": {
             "description": "OK"
@@ -758,6 +810,31 @@
     },
     "/api/v1/admin/blog/posts/{id}/unpublish": {
       "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/blog/posts/{id}/url-keys": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/blog/posts/{id}/url-redirects/{redirectId}": {
+      "delete": {
         "responses": {
           "200": {
             "description": "OK"
@@ -4862,22 +4939,6 @@
         }
       }
     },
-    "/api/v1/admin/organizations/{id}/cart-approval-policy": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      },
-      "patch": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
     "/api/v1/admin/organizations/{id}/credit-inheritance-mode": {
       "put": {
         "responses": {
@@ -4980,6 +5041,15 @@
         }
       }
     },
+    "/api/v1/admin/organizations/{id}/permission-catalogue": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/organizations/{id}/quote-price-negotiation": {
       "get": {
         "responses": {
@@ -5049,6 +5119,38 @@
       }
     },
     "/api/v1/admin/organizations/{id}/restrictions/warehouses": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/organizations/{id}/roles": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/organizations/{id}/roles/{roleId}": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
       "patch": {
         "responses": {
           "200": {
@@ -8336,6 +8438,15 @@
         }
       }
     },
+    "/api/v1/blog/routing": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/blog/tag-by-code": {
       "get": {
         "responses": {
@@ -9160,15 +9271,6 @@
         }
       }
     },
-    "/api/v1/organization/policies/cart-approval": {
-      "patch": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
     "/api/v1/organizations/invitations/{token}/accept": {
       "post": {
         "responses": {
@@ -9254,6 +9356,63 @@
       }
     },
     "/api/v1/organizations/mine/members/{id}/role": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/mine/permission-catalogue": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/mine/role": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/mine/roles": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/mine/roles/{id}": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
       "patch": {
         "responses": {
           "200": {

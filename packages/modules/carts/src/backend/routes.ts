@@ -17,6 +17,8 @@ import {
   convertCartToQrSchema,
   ERROR_CODES,
   OrganizationCannotTransactError,
+  organizationPermissionPreHandler,
+  type OrganizationPermissionPort,
   type CatalogProductAvailabilityPort,
   type CatalogProductUrlKeyReadPort,
   type CatalogProductReadPort,
@@ -71,6 +73,12 @@ export interface CartsDeps {
    * handler does not.
    */
   requireCustomer: RequireCustomerGuard;
+  /**
+   * `organizations`' permission port, resolved per request through this thunk
+   * (`specs/170-organization-roles/` `contracts/organization-permission-port.md`
+   * §5) — the route guards' only way to it, never a captured port.
+   */
+  organizationPermissions: () => OrganizationPermissionPort;
   /**
    * Feature 027 — Up-sell aggregator. Optional so legacy compositions
    * that haven't yet wired the new service still build successfully;
@@ -140,7 +148,16 @@ export interface CartsDeps {
     droppedLines: Array<{ productId: string; productName: string; reason: string; minimum?: number }>;
   }>;
   resolveCartActor: (request: FastifyRequest) => {
-    customer?: { customerAccountId: string; organizationId: string | null };
+    /**
+     * `organizationRoleId` — the member's role as the auth hook stamped it
+     * (research R-15), so the cart answer's approval rule needs no read of the
+     * account (FR-080). Absent where a composition does not know it.
+     */
+    customer?: {
+      customerAccountId: string;
+      organizationId: string | null;
+      organizationRoleId?: string | null;
+    };
     anonymousToken?: string;
   };
   emFactory: () => EntityManager;
@@ -171,13 +188,17 @@ export interface CartsDeps {
   assertOrganizationCanTransact?: (organizationId: string) => Promise<void>;
   /**
    * Issue #619 — whether this signed-in buyer's basket must be sent for
-   * approval before it is ordered: the Organization requires cart approval and
-   * the buyer is not its administrator (`CartApprovalService.submissionRequired`).
+   * approval before it is ordered: their role lacks
+   * `carts.order_without_approval` (`CartApprovalService.submissionRequired`).
    * The cart answers read it to emit `primaryCta: 'submit_for_approval'`; it
    * was hard-wired to `false`, so the storefront never offered the submit and
    * offered checkout instead.
    */
-  cartApprovalPolicy: (buyer: { customerAccountId: string; organizationId: string }) => Promise<boolean>;
+  cartApprovalPolicy: (buyer: {
+    customerAccountId: string;
+    organizationId: string;
+    organizationRoleId?: string | null;
+  }) => Promise<boolean>;
 }
 
 /**
@@ -220,6 +241,44 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
     cartActorOnRequestChannel(deps.resolveCartActor, request);
 
   /**
+   * `specs/170-organization-roles/` `contracts/storefront-api.md` §5 (FR-030,
+   * FR-040): a signed-in member whose role lacks `carts.create` is refused
+   * every basket mutation and every builder of a basket, `403
+   * ORGANIZATION_PERMISSION_REQUIRED`, before the handler runs. The routes a
+   * guest uses today take the guard with `guests: 'pass'` — a guest keeps the
+   * guest basket, unjudged (owner ruling PR-4, research R-35); the builders,
+   * which need a session, take it after `requireCustomer`. Reading the basket
+   * stays open (R-5).
+   */
+  const createsCartsOrGuest = organizationPermissionPreHandler(deps.organizationPermissions, 'carts.create', {
+    guests: 'pass',
+  });
+  const createsCarts = [
+    deps.requireCustomer,
+    organizationPermissionPreHandler(deps.organizationPermissions, 'carts.create'),
+  ];
+  /**
+   * The gates naming another module's code (T137): saving a line to a list
+   * is a `shopping_lists.create` action, turning the basket into a quote
+   * request a `quote_requests.create` one, and building a basket from a list
+   * needs `shopping_lists.convert`, judged before `carts.create` — two guards,
+   * never a combined code.
+   */
+  const createsShoppingLists = [
+    deps.requireCustomer,
+    organizationPermissionPreHandler(deps.organizationPermissions, 'shopping_lists.create'),
+  ];
+  const createsQuoteRequests = [
+    deps.requireCustomer,
+    organizationPermissionPreHandler(deps.organizationPermissions, 'quote_requests.create'),
+  ];
+  const convertsShoppingListsToCarts = [
+    deps.requireCustomer,
+    organizationPermissionPreHandler(deps.organizationPermissions, 'shopping_lists.convert'),
+    organizationPermissionPreHandler(deps.organizationPermissions, 'carts.create'),
+  ];
+
+  /**
    * The basket a read addresses, or `null` for none: a customer's is created on
    * first read as it always was; an anonymous token names no basket on a
    * channel its basket is not of.
@@ -234,7 +293,13 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
    * this basket can carry.
    */
   const answer = async (
-    actor: { customer?: { customerAccountId: string; organizationId: string | null } },
+    actor: {
+      customer?: {
+        customerAccountId: string;
+        organizationId: string | null;
+        organizationRoleId?: string | null;
+      };
+    },
     payload: CartFullPayload,
   ): Promise<{ data: CartFullPayload }> => {
     const customer = actor.customer;
@@ -247,6 +312,7 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
     const requiresApproval = await deps.cartApprovalPolicy({
       customerAccountId: customer.customerAccountId,
       organizationId: customer.organizationId,
+      organizationRoleId: customer.organizationRoleId ?? null,
     });
     return {
       data: {
@@ -473,7 +539,7 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
 
   app.post(
     '/api/v1/cart/items',
-    { schema: { body: addCartItemRequestSchema } },
+    { preHandler: createsCartsOrGuest, schema: { body: addCartItemRequestSchema } },
     async (request, reply) => {
       let actor = resolveCartActor(request);
       // If neither side identified, mint an anonymous token and echo it back —
@@ -512,7 +578,7 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
 
   app.patch<{ Params: { itemId: string } }>(
     '/api/v1/cart/items/:itemId',
-    { schema: { body: updateCartItemRequestSchema } },
+    { preHandler: createsCartsOrGuest, schema: { body: updateCartItemRequestSchema } },
     async (request) => {
       const actor = resolveCartActor(request);
       const body = updateCartItemRequestSchema.parse(request.body);
@@ -529,6 +595,7 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
 
   app.delete<{ Params: { itemId: string } }>(
     '/api/v1/cart/items/:itemId',
+    { preHandler: createsCartsOrGuest },
     async (request) => {
       const actor = resolveCartActor(request);
       const result = await cartService.removeItem(actor, request.params.itemId);
@@ -562,7 +629,7 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
    */
   app.post<{ Params: { itemId: string } }>(
     '/api/v1/cart/items/:itemId/save-to-shopping-list',
-    { preHandler: deps.requireCustomer, schema: { body: saveCartItemToListSchema } },
+    { preHandler: createsShoppingLists, schema: { body: saveCartItemToListSchema } },
     async (request, reply) => {
       const actor = resolveCartActor(request);
       if (!actor.customer) {
@@ -608,7 +675,7 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
    */
   app.post(
     '/api/v1/cart/coupon',
-    { schema: { body: applyCartCouponSchema } },
+    { preHandler: createsCartsOrGuest, schema: { body: applyCartCouponSchema } },
     async (request) => {
       const actor = resolveCartActor(request);
       if (!actor.customer && !actor.anonymousToken) {
@@ -668,7 +735,7 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
   /**
    * Convenience alias for `POST /api/v1/cart/coupon` with `code=null`.
    */
-  app.delete('/api/v1/cart/coupon', async (request) => {
+  app.delete('/api/v1/cart/coupon', { preHandler: createsCartsOrGuest }, async (request) => {
     const actor = resolveCartActor(request);
     if (!actor.customer && !actor.anonymousToken) {
       throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Cart not found.');
@@ -689,7 +756,7 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
    */
   app.post(
     '/api/v1/cart/convert-to-quote-request',
-    { preHandler: deps.requireCustomer, schema: { body: convertCartToQrSchema } },
+    { preHandler: createsQuoteRequests, schema: { body: convertCartToQrSchema } },
     async (request) => {
       const actor = resolveCartActor(request);
       if (!actor.customer) {
@@ -711,7 +778,6 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
         {
           customerAccountId: actor.customer.customerAccountId,
           organizationId: actor.customer.organizationId,
-          isOrgAdmin: false,
         },
         body.note,
         {
@@ -736,6 +802,7 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
    */
   app.post<{ Params: { quoteRequestId: string } }>(
     '/api/v1/cart/from-quote-request/:quoteRequestId',
+    { preHandler: createsCarts },
     async (request) => {
       const actor = resolveCartActor(request);
       if (!actor.customer) {
@@ -758,6 +825,7 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
    */
   app.post<{ Params: { shoppingListId: string } }>(
     '/api/v1/cart/from-shopping-list/:shoppingListId',
+    { preHandler: convertsShoppingListsToCarts },
     async (request) => {
       const actor = resolveCartActor(request);
       if (!actor.customer) {

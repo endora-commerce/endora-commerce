@@ -2,8 +2,8 @@ import { Invoice } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import type {
-  CustomerAccountReadPort,
   DocumentRenderPort,
+  OrganizationPermissionPort,
   TransactionalEmailSendInput,
   TransactionalEmailSender,
   TransactionalSendOutcome,
@@ -94,7 +94,7 @@ audit);
     await h.settings.adminService.setValueForAllChannels('invoices.storefront_base_url', 'https://shop.example.com', null, audit);
 
     sender = new CapturingSender();
-    const orderReadPort = new OrderReadService(h.em, h.container.resolve<CustomerAccountReadPort>('customerAccountReadPort'));
+    const orderReadPort = new OrderReadService(h.em, h.container.resolve<OrganizationPermissionPort>('organizationPermissionPort'));
     const invoiceService = new InvoiceService(
       h.em,
       orderReadPort,
@@ -163,10 +163,10 @@ audit);
     const id = await issue();
     const logged: Array<{ message: string; context: Record<string, unknown> }> = [];
     const throwingDispatcher = new InvoiceEmailDispatcher({
-      orderReadPort: new OrderReadService(h.em, h.container.resolve<CustomerAccountReadPort>('customerAccountReadPort')),
+      orderReadPort: new OrderReadService(h.em, h.container.resolve<OrganizationPermissionPort>('organizationPermissionPort')),
       invoiceService: new InvoiceService(
         h.em,
-        new OrderReadService(h.em, h.container.resolve<CustomerAccountReadPort>('customerAccountReadPort')),
+        new OrderReadService(h.em, h.container.resolve<OrganizationPermissionPort>('organizationPermissionPort')),
         new InvoiceNumberGenerator(createSettingsPatternResolver(h.settings.settingsService)),
         new SellerSettingsResolver(h.settings.settingsService),
       ),

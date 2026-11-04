@@ -2,6 +2,7 @@ import type {
   CustomerAccountReadPort,
   CustomerAccountRecord,
   OrganizationDetailsPort,
+  OrganizationPermissionPort,
   TransactionalEmailSender,
 } from '@endora-commerce/contracts';
 import { ModuleDisabledError, rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
@@ -27,7 +28,7 @@ export {
 export type CartApprovalEmailNotSentReason =
   /** No transactional sender is wired in this composition. */
   | 'no_sender'
-  /** No address resolves: the buyer is gone, or the Organization has no administrator to tell. */
+  /** No address resolves: the buyer is gone, or nobody in the Organization approves carts. */
   | 'no_recipient'
   /** The operator switched this e-mail off on the templates screen. */
   | 'deactivated'
@@ -50,10 +51,12 @@ export interface CartApprovalEmailDeps {
    * `undefined` until that module has announced it.
    */
   sender: () => TransactionalEmailSender | undefined;
-  /** `customer_accounts`' read port — the buyer, the actor and the Organization's administrators. */
+  /** `customer_accounts`' read port — the buyer, the actor and the Organization's approvers. */
   customerAccounts: Pick<CustomerAccountReadPort, 'findById' | 'listByOrganization'>;
   /** `organizations`' read port — the Organization's name. */
   organizations: Pick<OrganizationDetailsPort, 'findById'>;
+  /** `organizations`' permission port — which roles hold `carts.approve` (FR-033). */
+  permissions: Pick<OrganizationPermissionPort, 'rolesHolding'>;
   /** The default language of a store (sales channel), `null` when it does not resolve. */
   channelLanguage: (salesChannelId: string) => Promise<string | null>;
   /** Where a send that did not happen is reported. */
@@ -61,20 +64,25 @@ export interface CartApprovalEmailDeps {
 }
 
 /**
- * Who is told a cart waits for approval: the Organization's administrators —
- * active, not blocked, not anonymised — and never the buyer who submitted it,
- * even should they hold the role (an administrator's own cart is never sent
- * for approval, so this is a guard, not a rule that bites).
+ * Who is told a cart waits for approval: the members whose role holds
+ * `carts.approve` (`specs/170-organization-roles/` FR-033; the administrator
+ * role among them) — active, not blocked, not anonymised — and never the buyer
+ * who submitted it, even when their own role holds it: nobody decides on their
+ * own cart (`CART_APPROVAL_SELF_APPROVE`).
  */
-export async function organizationAdminRecipients(
+export async function approverRecipients(
   accounts: Pick<CustomerAccountReadPort, 'listByOrganization'>,
+  permissions: Pick<OrganizationPermissionPort, 'rolesHolding'>,
   organizationId: string,
   submitterId: string,
 ): Promise<CustomerAccountRecord[]> {
-  const members = await accounts.listByOrganization(organizationId, { activeOnly: true });
+  const [members, approverRoles] = await Promise.all([
+    accounts.listByOrganization(organizationId, { activeOnly: true }),
+    permissions.rolesHolding(organizationId, 'carts.approve'),
+  ]);
   return members.filter(
     (member) =>
-      member.role === 'organization_admin' &&
+      approverRoles.includes(member.organizationRoleId) &&
       member.id !== submitterId &&
       member.blockedAt === null &&
       member.anonymizedAt === null &&
@@ -87,7 +95,7 @@ export async function organizationAdminRecipients(
  *
  * A customer account records no language preference, so the one the platform
  * knows for its reader is the language of the store the cart belongs to —
- * where the buyer shops and where the administrator approves — as `orders`,
+ * where the buyer shops and where the approver approves — as `orders`,
  * `returns` and `organizations`' invitation do. `en-US` when the store has
  * none, which is what the sender falls back to as well.
  */
@@ -104,14 +112,14 @@ function displayName(account: CustomerAccountRecord | null): string {
  * The cart-approval e-mails (issue #651), as the {@link CartEmailDispatch}
  * `CartApprovalService` calls after each transition has been flushed:
  *
- * - **submitted** → every administrator of the buyer's Organization, one
- *   message each;
+ * - **submitted** → every member of the buyer's Organization whose role holds
+ *   `carts.approve`, one message each;
  * - **approved** → the buyer, naming who approved it;
  * - **rejected** → the buyer, with the reason.
  *
  * **Fire-and-forget, and audible.** A message that does not go out is named in
- * the log and never raised — one administrator's mail server refusing does not
- * stop the next administrator being told. The one thing it does not contain is
+ * the log and never raised — one approver's mail server refusing does not
+ * stop the next approver being told. The one thing it does not contain is
  * a module switched off, which is a presence answer about the capability and
  * not a failed message (`rethrowIfModuleDisabled`, issue #84): it is logged and
  * travels on, and `CartApprovalService.dispatch` absorbs it after the write.
@@ -212,22 +220,27 @@ export function createCartApprovalEmailDispatch(deps: CartApprovalEmailDeps): Ca
     async onSubmittedForApproval({ cart, submitter }): Promise<void> {
       const code = CART_APPROVAL_REQUESTED_EMAIL_CODE;
       const context = { cartId: cart.id, code };
-      const { buyer, admins, language, organizationName } = await resolving(context, async () => {
-        const [buyerRecord, adminRecords, facts] = await Promise.all([
+      const { buyer, approvers, language, organizationName } = await resolving(context, async () => {
+        const [buyerRecord, approverRecords, facts] = await Promise.all([
           deps.customerAccounts.findById(submitter.customerAccountId),
-          organizationAdminRecipients(deps.customerAccounts, submitter.organizationId, submitter.customerAccountId),
+          approverRecipients(
+            deps.customerAccounts,
+            deps.permissions,
+            submitter.organizationId,
+            submitter.customerAccountId,
+          ),
           scope(cart),
         ]);
-        return { buyer: buyerRecord, admins: adminRecords, ...facts };
+        return { buyer: buyerRecord, approvers: approverRecords, ...facts };
       });
-      if (admins.length === 0) return notSent(context, 'no_recipient');
+      if (approvers.length === 0) return notSent(context, 'no_recipient');
       const submittedAt = (cart.submittedForApprovalAt ?? new Date()).getTime();
-      for (const admin of admins) {
-        // One message per administrator and per submission: a cart re-armed and
+      for (const approver of approvers) {
+        // One message per approver and per submission: a cart re-armed and
         // sent again is a new message, a retry of the same one is not.
-        await send(cart, code, admin, {
+        await send(cart, code, approver, {
           language,
-          messageId: `${code}:${cart.id}:${submittedAt}:${admin.id}`,
+          messageId: `${code}:${cart.id}:${submittedAt}:${approver.id}`,
           variables: {
             buyer: { name: displayName(buyer), email: buyer?.email ?? '' },
             organization: { name: organizationName },

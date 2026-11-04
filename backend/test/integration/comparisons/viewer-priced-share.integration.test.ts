@@ -12,6 +12,7 @@ import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { Product } from '../../helpers/package-entities.js';
 import { CustomerAccount } from '../../helpers/package-entities.js';
 import { bindOrganizationsToFixtureChannelsSql } from '../../helpers/sales-channel-access.js';
+import { predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 
 /**
  * A share token grants the comparison, never what is in it.
@@ -213,7 +214,7 @@ async function seedBuyers(h: BackendServerHandle): Promise<void> {
       passwordHash: 'not-used-by-the-stub-cookie-path',
       firstName: 'Compare',
       lastName: 'Buyer',
-      role: 'organization_admin',
+      organizationRoleId: await predefinedRoleIdOf(em, orgId, 'administrator'),
       emailVerifiedAt: new Date(),
     });
     CUSTOMER_COOKIES[cookie] = { customerAccountId: customerId, organizationId: orgId };

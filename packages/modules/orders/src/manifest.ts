@@ -699,6 +699,24 @@ export const manifest = defineModuleManifest({
     nonDeactivatable: true,
     reason: 'The order is the transaction this platform exists to record.',
   },
+  /**
+   * `specs/170-organization-roles/` (FR-049, owner ruling OR-5) — the buyer-side
+   * permission that widens the order scope from the orders a member placed to
+   * every order of their Organization, and every action reading one as its
+   * source: reorder, clone to a quote request, its documents. Enforced in
+   * `services/order-access-service.ts`. Not member-default: *Member* keeps its
+   * own orders only, as a regular user did; *Administrator* holds it
+   * implicitly. Labels in `i18n/{en,pl}.json`.
+   */
+  organizationPermissions: [
+    {
+      code: 'orders.view_organization',
+      label: "View the organization's orders",
+      description:
+        "See every order placed in the organization and act on a colleague's order: reorder it, quote it, start a return or complaint from it and download its documents.",
+      memberDefault: false,
+    },
+  ],
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
   // Feature 047 — transactional emails owned by this module. Default subject +

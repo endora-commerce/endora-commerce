@@ -6,7 +6,8 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
-import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { TEST_CUSTOMER_RFQ_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { assignOrganizationRole, predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 
 /**
  * `specs/110-instance-repository/` T118c — `mfa` resolves its four identity
@@ -37,7 +38,7 @@ import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
  */
 const CUSTOMER = { b2b_session: 'stub-customer-session' };
 const CUSTOMER_EMAIL = 'stub-customer@example.com';
-/** `stub-customer-session-rfq` is a `regular_user` of the same organisation. */
+/** `stub-customer-session-rfq` holds the *Member* role of the same organisation. */
 const REGULAR_USER = { b2b_session: 'stub-customer-session-rfq' };
 const PLATFORM_ADMIN = { b2b_admin_session: 'stub-admin-session' };
 const ADMIN_EMAIL = 'platform-admin@example.com';
@@ -185,6 +186,30 @@ describe('mfa resolves its own identity reads (T118c)', () => {
       });
 
       expect(res.statusCode).toBe(403);
+    });
+
+    it('judges the administrator by the role it holds (FR-011)', async () => {
+      // `specs/170-organization-roles/` WP-03 (T058): the same member, moved to
+      // the Administrator role by its id alone, may set the policy; back on
+      // Member it may not.
+      const em = h.em();
+      const member = await predefinedRoleIdOf(em, TEST_ORGANIZATION_ID, 'member');
+      await em.execute(`update "customer_accounts" set "organization_role_id" = ? where "id" = ?`, [
+        await predefinedRoleIdOf(em, TEST_ORGANIZATION_ID, 'administrator'),
+        TEST_CUSTOMER_RFQ_ID,
+      ]);
+      try {
+        const res = await h.app.inject({
+          method: 'PUT',
+          url: '/api/v1/account/organization/mfa-policy',
+          cookies: REGULAR_USER,
+          // The value the administrator set above, so no later case moves.
+          payload: { enforceTotp: true },
+        });
+        expect(res.statusCode, res.body).toBe(200);
+      } finally {
+        await assignOrganizationRole(em, TEST_CUSTOMER_RFQ_ID, member);
+      }
     });
 
     it('refuses an anonymous caller with 401', async () => {

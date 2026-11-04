@@ -27,13 +27,15 @@ import { randomUUID } from 'crypto';
  * `'completed'` beside `converted_to_quote_request_id`.
  *
  * `approval_status` is the orthogonal sub-state that gates checkout when
- * the Organization's `requires_cart_approval` policy is `true`. Self-
- * approval exemption: a cart created by an Org Admin is born with
- * `approval_status='not_required'` regardless of the policy. Post-approval
- * mutation re-arms `approved → pending` (see CartApprovalService).
+ * the owner's organization role lacks `carts.order_without_approval`
+ * (`specs/170-organization-roles/`, OR-3 — it replaced the Organization's
+ * `requires_cart_approval` policy and the administrator exemption). Every
+ * cart is born `not_required`; placement judges the owner's permission, not
+ * this column alone (research R-25). Post-approval mutation re-arms
+ * `approved → pending` (see CartApprovalService).
  *
  * `version` is the optimistic-lock token used by the approval / mutation
- * race (buyer-vs-Org-Admin) — aligned with the convention shared by
+ * race (buyer-vs-approver) — aligned with the convention shared by
  * features 003 / 026.
  */
 @CustomerScoped()

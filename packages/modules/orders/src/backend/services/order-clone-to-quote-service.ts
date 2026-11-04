@@ -2,7 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
   type CreateQuoteRequest,
-  type CustomerAccountReadPort,
+  type OrganizationPermissionPort,
   type RfqCustomerPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -43,9 +43,9 @@ export class OrderCloneToQuoteService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly getRfqService: () => RfqCustomerPort | null,
-    customerAccountRead: CustomerAccountReadPort,
+    organizationPermissions: OrganizationPermissionPort,
   ) {
-    this.#access = new OrderAccessService(customerAccountRead);
+    this.#access = new OrderAccessService(organizationPermissions);
   }
 
   /**
@@ -65,10 +65,11 @@ export class OrderCloneToQuoteService {
     }
     const em = this.emFactory();
     // Issue #665 — the order is resolved through the rule the read applies
-    // (`OrderAccessService`): a regular member reaches only the orders they
-    // placed, an organization admin every order of the Organization. Anything
-    // else is answered as an order that does not exist, as `GET /orders/:id`
-    // answers it. The operator route passes the order's placer, who is always
+    // (`OrderAccessService`): a member reaches only the orders they placed, a
+    // holder of `orders.view_organization` (the *Administrator* implicitly)
+    // every order of the Organization (`specs/170-organization-roles/`
+    // FR-049). Anything else is answered as an order that does not exist, as
+    // `GET /orders/:id` answers it. The operator route passes the order's placer, who is always
     // in scope, so its behaviour is unchanged.
     const order = await em.findOne(Order, await this.#access.scopedWhere(ctx, { id: orderId }));
     if (!order) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
@@ -96,10 +97,6 @@ export class OrderCloneToQuoteService {
       {
         customerAccountId: ctx.customerAccountId,
         organizationId: ctx.organizationId,
-        // Issue #665 — `createForCustomer` reads no role, and the request is
-        // the caller's own. Stated as `false`, as every other creating caller
-        // states it: a missing value must never be read as "admin".
-        isOrgAdmin: false,
       },
       input,
       options.actor === 'operator'

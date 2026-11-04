@@ -2,6 +2,7 @@ import { Cart, CartItem } from '../../helpers/package-entities.js';
 import { randomUUID } from 'crypto';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { OrganizationPermissionPort } from '@endora-commerce/contracts';
 
 import {
   setupBackendServer,
@@ -114,6 +115,7 @@ describe('Order reorder', () => {
       cartWritePortOf(h),
       ports.catalogProductRead,
       ports.customerAccountRead,
+      h.container.resolve<OrganizationPermissionPort>('organizationPermissionPort'),
       resolveReorderEnabled,
       mailer,
     );

@@ -1,0 +1,15 @@
+---
+'@endora-commerce/mod-organizations': minor
+---
+
+Members, invitations, session views and addresses by organization role (`specs/170-organization-roles/`, WP-03). Breaking for an HTTP client:
+
+- Requests name a role by id, and every body is strict — a body that still sends `role` is `400 VALIDATION_FAILED`: `PATCH /api/v1/organizations/mine/members/:id/role` takes `{ roleId }` (was `{ role }`); `POST /api/v1/organizations/mine/invitations` and `POST /api/v1/admin/organizations/:id/members/invite` take `{ email, roleId? }` (was `{ email, role? }`; default: the organization's *Member* role); `POST /api/v1/admin/organizations/:id/members` takes `roleId?` (was `role?`); `PATCH /api/v1/admin/organizations/:id/members/:customerAccountId/role` takes `{ roleId, expectedUpdatedAt? }` (was `{ role, expectedUpdatedAt? }`). A role of another organization is `404`.
+- Responses drop `role` (`organization_admin` / `regular_user`) and carry `organizationRole: { id, name, kind }`: the login answer, `GET /api/v1/me` and the invitation accept (each with `permissions: string[]`), the members and invitations lists, the operator's member roster and member answers. `GET /api/v1/admin/organizations/:id` also answers `predefinedRoles` (the organization's *Administrator* and *Member* role references), for a role select an operator without `organizations:read-roles` can fill.
+- Managing members and invitations is reserved to the *Administrator* role (`403 FORBIDDEN` otherwise, whatever the role's permissions); a personal organization's member is its administrator, and inviting there is `422 VALIDATION_FAILED`.
+- `GET /api/v1/organizations/mine/invitations` no longer lists expired invitations, and an expired administrator invitation no longer counts as the way back in for `409 CANNOT_REVOKE_LAST_ADMIN_INVITE`, nor does a blocked administrator count as an active one.
+- Creating, editing and deleting an organization address needs the `addresses.manage` permission (`403 ORGANIZATION_PERMISSION_REQUIRED`).
+- Invitations are created and revoked by the audited Commands `organization_invitation.create` / `organization_invitation.revoke`; the operator's role change and *recover administrator access* run `customer_account.change_role`. The hand-written audit actions `organization.invite`, `organization.invite_sent`, `organization.invite_revoke`, `customer_account.admin_role_change` and `organization.break_glass_admin_promoted` are no longer recorded.
+- The invitation e-mail shows the role's own label in the e-mail's language (#667).
+- A login whose guest-basket merge was skipped for permission answers `cartMerge.outcome = 'noop'` and keeps the `b2b_cart_anon` cookie.
+- `InvitationService` takes one `InvitationServiceDeps` object (was positional arguments) and `invite(actor, { email, roleId? })` (was `{ email, role? }`); `buildInvitationEmail` takes `roleLabel` and `organizationRoleId` (was `role`). `organizationsModule` requires `commandBus`, `organizationRoles`, `customerAccountRoles` and `resolveEmailLanguage`. `OrganizationContextService.loadCartApprovalPolicy` is removed.

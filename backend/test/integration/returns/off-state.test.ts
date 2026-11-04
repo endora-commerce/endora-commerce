@@ -13,6 +13,7 @@ import { cartWritePortOf } from '../../helpers/orders-neighbour-ports.js';
 import { checkOutBasket, whenOrderCreatedSettled } from '../../helpers/quote-conversion.js';
 import { buyerChannelIds, createMinimumProduct, minimumFixtureRun } from '../../helpers/order-minimum-fixture.js';
 import { systemDefaultSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
+import { makeMember, makeOrganization, releaseMembers, type ReturnsFixtureMember } from './organization-fixtures.js';
 
 /**
  * `returns` off-state — Constitution XVII item 6.
@@ -162,4 +163,98 @@ describe('returns off-state (Constitution XVII)', () => {
       Object.fromEntries((context?.lines ?? []).map((l) => [l.productId, l.returnableAtPurchase])),
     ).toEqual({ [R.id]: true, [N.id]: false });
   }, 120_000);
+
+  /**
+   * `specs/170-organization-roles/` WP-14, T146 (FR-007, FR-025, SC-007; US 8).
+   * The two organization permissions this module declares (OR-11) follow its
+   * presence: while `returns` is off, `returns.create` and
+   * `returns.view_organization` leave the permission catalogue, every
+   * member's effective set (`GET …/mine/role`) and the session's
+   * `permissions` (`GET /api/v1/me`); a custom role's stored grant of them is
+   * kept; on reactivation both are back everywhere.
+   */
+  describe('the returns organization permissions (170 WP-14)', () => {
+    const CODES = ['returns.create', 'returns.view_organization'] as const;
+    let administrator: ReturnsFixtureMember;
+    let member: ReturnsFixtureMember;
+    let holder: ReturnsFixtureMember;
+
+    beforeAll(async () => {
+      const em = h.em();
+      const org = await makeOrganization(em, 'WP14 Off-state');
+      administrator = await makeMember(em, org, 'administrator', { label: 'OffAdmin' });
+      member = await makeMember(em, org, 'member', { label: 'OffMember' });
+      holder = await makeMember(em, org, { permissions: [...CODES] }, { label: 'OffHolder' });
+    });
+
+    afterAll(() => {
+      releaseMembers();
+    });
+
+    const get = async (who: ReturnsFixtureMember, url: string) => {
+      const res = await h.app.inject({ method: 'GET', url, cookies: { b2b_session: who.cookie } });
+      expect(res.statusCode, `${url}: ${res.body}`).toBe(200);
+      return res.json() as { data: unknown };
+    };
+    const catalogueCodes = async (): Promise<string[]> => {
+      const body = (await get(administrator, '/api/v1/organizations/mine/permission-catalogue')) as {
+        data: { groups: Array<{ permissions: Array<{ code: string }> }> };
+      };
+      return body.data.groups.flatMap((g) => g.permissions.map((p) => p.code));
+    };
+    const roleCodes = async (who: ReturnsFixtureMember): Promise<string[]> => {
+      const body = (await get(who, '/api/v1/organizations/mine/role')) as {
+        data: { permissions: Array<{ code: string }> };
+      };
+      return body.data.permissions.map((p) => p.code);
+    };
+    const sessionCodes = async (who: ReturnsFixtureMember): Promise<string[]> => {
+      const body = (await get(who, '/api/v1/me')) as { data: { customerAccount: { permissions: string[] } } };
+      return body.data.customerAccount.permissions;
+    };
+    const storedGrants = async (): Promise<string[]> => {
+      const [row] = (await h.em().getConnection().execute(
+        `select "permissions" from "organization_roles" where "id" = ?`,
+        [holder.roleId],
+      )) as Array<{ permissions: string[] }>;
+      return row!.permissions;
+    };
+
+    async function expectPresent(): Promise<void> {
+      expect(await catalogueCodes()).toEqual(expect.arrayContaining([...CODES]));
+      for (const who of [administrator, holder]) {
+        expect(await roleCodes(who)).toEqual(expect.arrayContaining([...CODES]));
+        expect(await sessionCodes(who)).toEqual(expect.arrayContaining([...CODES]));
+      }
+      // *Member* holds the member default and not the other code.
+      expect(await roleCodes(member)).toContain('returns.create');
+      expect(await roleCodes(member)).not.toContain('returns.view_organization');
+      expect(await sessionCodes(member)).toContain('returns.create');
+      expect(await storedGrants()).toEqual(expect.arrayContaining([...CODES]));
+    }
+
+    it('are offered and held while on — the positive control', async () => {
+      await expectPresent();
+    });
+
+    it.each(['deactivated', 'platform-unavailable'] as const)(
+      'while %s they leave the catalogue and every effective set, keep the stored grant, and are back after',
+      async (axis) => {
+        await withModuleOff('returns', axis, async () => {
+          const catalogue = await catalogueCodes();
+          for (const who of [administrator, member, holder]) {
+            const role = await roleCodes(who);
+            const session = await sessionCodes(who);
+            for (const code of CODES) {
+              expect(catalogue).not.toContain(code);
+              expect(role).not.toContain(code);
+              expect(session).not.toContain(code);
+            }
+          }
+          expect(await storedGrants()).toEqual(expect.arrayContaining([...CODES]));
+        });
+        await expectPresent();
+      },
+    );
+  });
 });

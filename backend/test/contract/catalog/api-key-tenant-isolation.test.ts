@@ -14,6 +14,7 @@ import { Category } from '../../helpers/package-entities.js';
 import { CustomerAccount } from '../../helpers/package-entities.js';
 import { hashPassword } from '@endora-commerce/platform/kernel';
 import { seedPriceBookSql } from '../../helpers/price-book-sql.js';
+import { predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 
 /**
  * Feature 062 / T016 — tenant + channel isolation on the external catalog
@@ -100,7 +101,7 @@ describe('External catalog tenant/channel isolation (062 / T016, SC-002)', () =>
       passwordHash,
       firstName: 'Isolation',
       lastName: 'OrgB',
-      role: 'organization_admin',
+      organizationRoleId: await predefinedRoleIdOf(em, ORG_B_ID, 'administrator'),
       emailVerifiedAt: new Date(),
     });
     await em.persistAndFlush(customerB);

@@ -27,6 +27,15 @@ export class AuditLogEntry {
   @Index()
   impersonatedCustomerAccountId?: string | null;
 
+  /**
+   * The Customer Account that performed the action **for itself** — a storefront
+   * member acting in their own Organization (`specs/170-organization-roles/`,
+   * research R-21, SC-006). Null for operator, system and API-key entries, and
+   * under impersonation, which the two columns above record.
+   */
+  @Property({ type: 'uuid', nullable: true })
+  actorCustomerAccountId?: string | null;
+
   @Property({ type: 'datetime' })
   @Index()
   actedAt: Date = new Date();

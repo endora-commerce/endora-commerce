@@ -50,6 +50,23 @@ const list: ShoppingList = {
 
 let lists: ShoppingList[] = [];
 
+// Offline (170 WP-10): the page reads the member's role through `/api/v1/me`; answered here
+// for a member whose role allows every commerce action, so the page renders as it always did.
+vi.mock('../../../lib/api/account', () => ({
+  getMe: async () => ({
+    customerAccount: {
+      organizationRole: { id: 'role-admin', kind: 'administrator', name: 'Administrator' },
+      permissions: [
+        'carts.create',
+        'quote_requests.create',
+        'shopping_lists.create',
+        'shopping_lists.convert',
+      ],
+    },
+    organization: null,
+    impersonation: null,
+  }),
+}));
 vi.mock('../../../lib/session', () => ({ getSessionCookie: async () => 'session-cookie' }));
 vi.mock('../../../lib/server-context', () => ({
   getServerContext: async () => ({ locale, ctx: {} }),

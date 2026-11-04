@@ -158,8 +158,10 @@ export const manifest = defineModuleManifest({
    *
    * **`CANNOT_DEMOTE_LAST_ADMIN` and `CANNOT_REMOVE_LAST_ADMIN`** read like
    * `organizations` and are not. The invariant they protect is counted over
-   * `CustomerAccount.role` inside one organization, in this module's
-   * `role-service.ts`, which is the only thing in the tree that raises either;
+   * the accounts holding the organization's *Administrator* role, in this
+   * module's `customer_account.change_role` / `customer_account.remove_member`
+   * Commands (`commands/`, `specs/170-organization-roles/` WP-02b; they replaced
+   * `role-service.ts`), which are the only things in the tree that raise either;
    * `organizations` owns the organization, this module owns its membership.
    *
    * **The two of them arrive with a sentence, and it is a new one.** Both

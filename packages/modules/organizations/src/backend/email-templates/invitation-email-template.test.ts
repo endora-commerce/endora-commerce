@@ -4,6 +4,11 @@ import { buildInvitationEmail } from './invitation.js';
 /**
  * T178 — pure template builder. The renderer is keyboard-only because
  * production composition wires whatever Mailer transport it likes.
+ *
+ * `specs/170-organization-roles/` WP-03 (T055; #667, FR-008, US 5.1a): the
+ * role is shown with the role's own label — the caller resolves it, a
+ * predefined role's translated name or a custom role's name verbatim — and the
+ * builder never spells a role itself.
  */
 
 describe('buildInvitationEmail', () => {
@@ -13,7 +18,8 @@ describe('buildInvitationEmail', () => {
     inviteeEmail: 'invitee@example.com',
     inviterName: 'Jane Doe',
     organizationName: 'Acme Polska',
-    role: 'regular_user' as const,
+    roleLabel: 'Member',
+    organizationRoleId: '00000000-0000-4000-8000-000000000170',
     expiresAt: new Date('2026-05-09T00:00:00.000Z'),
     acceptBaseUrl: 'https://shop.example.com',
   };
@@ -28,10 +34,16 @@ describe('buildInvitationEmail', () => {
     expect(out.text).toContain('expires 2026-05-09');
   });
 
-  it('uses an Org Admin role label when role is organization_admin', () => {
-    const out = buildInvitationEmail({ ...base, role: 'organization_admin' });
-    expect(out.text).toContain('as Organization Admin.');
-    expect(out.meta?.['role']).toBe('organization_admin');
+  it('shows the label it is given, a custom role’s name verbatim', () => {
+    const out = buildInvitationEmail({ ...base, roleLabel: 'Zakupowiec — Główny' });
+    expect(out.text).toContain('as Zakupowiec — Główny.');
+    expect(out.text).not.toContain('Organization Admin');
+  });
+
+  it('names the role by id in the delivery metadata, not by the legacy enum', () => {
+    const out = buildInvitationEmail(base);
+    expect(out.meta?.['organizationRoleId']).toBe(base.organizationRoleId);
+    expect(out.meta).not.toHaveProperty('role');
   });
 
   it('strips a trailing slash from the base URL when building the accept link', () => {

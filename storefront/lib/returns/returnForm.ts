@@ -1,5 +1,6 @@
 import type { ReturnableLine, ReturnableResponse } from '../api/returns';
 import { tForLocale } from '../i18n/messages';
+import { can, type OrganizationPermissionSession } from '../organization-permissions';
 
 /**
  * Feature 155 (FR-018, FR-020, FR-021) — the storefront's reading of an order's returnability
@@ -119,12 +120,17 @@ export interface OrderReturnAction {
 /**
  * The entry point the order detail shows (FR-021): a return (the form offers complaints too)
  * when the order is eligible, a complaint for `no_returnable_lines`, nothing otherwise.
+ *
+ * Feature 170 (FR-052, FR-057): `mayOpen` is `mayStartReturn(session)` — a member whose role
+ * cannot open a case is offered neither entry, whatever the order allows.
  */
 export function orderReturnAction(
   returnable: ReturnableResponse,
   orderId: string,
   locale: string,
+  mayOpen: boolean,
 ): OrderReturnAction | null {
+  if (!mayOpen) return null;
   const t = tForLocale(locale);
   const mode = modeOf(returnable);
   if (mode === 'return_and_complaint') {
@@ -138,4 +144,28 @@ export function orderReturnAction(
     };
   }
   return null;
+}
+
+/** The organization permission that opens a return or a complaint (feature 170, FR-052). */
+const RETURNS_CREATE = 'returns.create';
+
+/**
+ * Whether the member may open a return or a complaint — `returns.create` (feature 170, FR-052,
+ * FR-057). `null` is a session `/api/v1/me` did not answer for: the page stays as it was before
+ * roles existed and the server's gate words any refusal, as `commerceAbilities` does for the
+ * commerce surfaces. Presentation only; `POST /api/v1/returns` is the boundary.
+ */
+export function mayStartReturn(session: OrganizationPermissionSession | null | undefined): boolean {
+  if (!session) return true;
+  return can(session, RETURNS_CREATE);
+}
+
+/**
+ * Whether a case was filed by someone other than the viewer — a colleague's case, which a holder
+ * of `returns.view_organization` reads but cannot act on (feature 170, FR-053, Q-R2 = A). Either
+ * id unknown reads as the viewer's own case: the page as today, the server answering `404` to a
+ * follow-up that is not theirs.
+ */
+export function filedByColleague(filerId: string | null | undefined, viewerId: string | null | undefined): boolean {
+  return Boolean(filerId && viewerId && filerId !== viewerId);
 }

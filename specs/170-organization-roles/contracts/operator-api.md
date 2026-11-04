@@ -63,5 +63,7 @@ the audit entry names the operator. A scoped operator outside the Organization's
 - New `packages/modules/organizations/src/admin/components/OrganizationRolesTab.tsx`, mounted only
   when the operator holds one of the two codes and the Organization is not personal: table of roles,
   editor grouped by module (admin-kit primitives, Principle IX), delete dialog with replacement
-  select, and a *History* link to `/audit-log?objectType=organization&objectId=<id>` (R-32).
+  select, and a *History* link to `/audit-log?objectType=organization&objectId=<id>` (R-32). The
+  create editor opens with every permission unchecked and offers no copy of another role (OR-9,
+  FR-004a, R-39); the *member-default* hint beside a code stays, as a description of *Member*.
 - Every string in `organizations`' admin bundle, EN + PL; `i18n:hardcoded` stays at its ledger.

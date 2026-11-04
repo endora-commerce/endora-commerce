@@ -4,7 +4,9 @@ import { z } from 'zod';
 import type {
   CorrectiveInvoicePort,
   CreditTopupPort,
+  OrderReadPort,
   OrderReturnContextPort,
+  OrganizationPermissionPort,
   PaymentRefundPort,
 } from '@endora-commerce/contracts';
 import type { EventBus } from '@endora-commerce/platform/events';
@@ -14,6 +16,7 @@ import { RETURNS_SETTING_CODES } from '../manifest.js';
 import { ReturnStatusGraphService } from './services/return-status-graph-service.js';
 import { ReturnTransitionService } from './services/return-transition-service.js';
 import { ReturnCaseService } from './services/return-case-service.js';
+import { ReturnCaseScope } from './services/return-case-scope.js';
 import { ReturnCommentService } from './services/return-comment-service.js';
 import { ReturnSettlementService } from './services/return-settlement-service.js';
 import { ReturnDeliveryMethodService } from './services/return-delivery-method-service.js';
@@ -44,6 +47,17 @@ export interface ReturnsModuleOptions {
   resolveCustomerAccountId: (req: FastifyRequest) => string;
   resolveAdminUserId: (req: FastifyRequest) => string;
   orderContext: OrderReturnContextPort;
+  /**
+   * `orders`' customer-scoped order reader: the order a buyer starts a return
+   * from must be one they may read (`specs/170-organization-roles/` FR-054).
+   */
+  orderReadPort: OrderReadPort;
+  /**
+   * `organizations`' permission port, a `lazyPort` proxy resolved per call:
+   * `returns.create` gates opening a case, `returns.view_organization` widens
+   * the buyer's case list and read (`specs/170-organization-roles/` OR-11).
+   */
+  organizationPermissions: OrganizationPermissionPort;
   /** Settlement ports (US5). Money refunds, corrective invoices, credit top-up. */
   paymentRefund: PaymentRefundPort;
   correctiveInvoice: CorrectiveInvoicePort;
@@ -114,6 +128,8 @@ export function returnsModule(
     graphService,
     transitions,
     orderContext,
+    orderRead: options.orderReadPort,
+    scope: new ReturnCaseScope(options.organizationPermissions),
     resolveFreeReturnDays,
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
   });
@@ -165,6 +181,7 @@ export function returnsModule(
     attachmentService,
     requireCustomer: options.requireCustomer,
     resolveCustomerAccountId: options.resolveCustomerAccountId,
+    organizationPermissions: () => options.organizationPermissions,
   });
 
   await registerReturnsAdminRoutes(app, {

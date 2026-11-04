@@ -1124,6 +1124,8 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     ): {
       customerAccountId: string;
       organizationId: string;
+      /** The member's organization role, when the auth hook knows it (feature 170, R-15). */
+      organizationRoleId: string | null;
       impersonatorAdminUserId?: string | null;
     } => {
       if (request.actor.kind !== 'customer') {
@@ -1140,6 +1142,7 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
       return {
         customerAccountId: request.actor.customerAccountId,
         organizationId: request.actor.organizationId,
+        organizationRoleId: request.actor.organizationRoleId ?? null,
         impersonatorAdminUserId: request.actor.impersonatorAdminUserId ?? null,
       };
     },
@@ -1163,6 +1166,7 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
           customer: {
             customerAccountId: request.actor.customerAccountId,
             organizationId: request.actor.organizationId,
+            organizationRoleId: request.actor.organizationRoleId ?? null,
           },
         };
       }
@@ -1210,6 +1214,7 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
       return {
         customerAccountId: request.actor.customerAccountId,
         organizationId: request.actor.organizationId ?? null,
+        organizationRoleId: request.actor.organizationRoleId ?? null,
       };
     },
   });

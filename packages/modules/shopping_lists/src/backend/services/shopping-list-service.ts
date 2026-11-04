@@ -424,7 +424,7 @@ export class ShoppingListService {
     let added = 0;
     if (kept.length > 0) {
       const rfq = await this.rfqService.createForCustomer(
-        { ...ctx, isOrgAdmin: false },
+        ctx,
         {
           items: kept.map((item) => ({
             productId: item.productId,

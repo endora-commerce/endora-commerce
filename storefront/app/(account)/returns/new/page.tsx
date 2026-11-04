@@ -9,7 +9,10 @@ import {
 import { getSessionCookie } from '../../../../lib/session';
 import { getServerContext } from '../../../../lib/server-context';
 import { tForLocale } from '../../../../lib/i18n/messages';
+import { getMe } from '../../../../lib/api/account';
+import { memberSession } from '../../../../lib/commerce-permissions';
 import {
+  mayStartReturn,
   parseReturnKind,
   returnFormHref,
   returnFormModel,
@@ -47,6 +50,24 @@ export default async function NewReturnPage({
   if (!session) return await localeRedirect('/login?next=/returns/new');
   const [{ orderId, kind: kindParam }, { locale }] = await Promise.all([searchParams, getServerContext()]);
   const t = tForLocale(locale);
+
+  // Feature 170 (FR-052, FR-057): without `returns.create` the whole page would end in a refusal,
+  // so it says why instead — before any order is read, as the server's gate is judged. A session
+  // that cannot be read keeps today's page; `POST /api/v1/returns` is the boundary.
+  const me = await getMe(session).catch(() => null);
+  if (!mayStartReturn(memberSession(me))) {
+    return (
+      <div className="b2b-auth max-w-[720px]">
+        <h1>{t('returns.new.heading')}</h1>
+        <p role="note" className="rounded-md border border-line bg-surface-alt px-[14px] py-[10px] text-[13px] text-fg-soft">
+          {t('account.returns.new.notAllowed')}
+        </p>
+        <p>
+          <LocalizedLink href="/returns">{t('returns.new.backToReturns')}</LocalizedLink>
+        </p>
+      </div>
+    );
+  }
 
   // Step 1 — choose an order.
   if (!orderId) {

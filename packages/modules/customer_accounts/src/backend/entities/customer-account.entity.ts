@@ -17,7 +17,7 @@ export class CustomerAccount {
     | 'id'
     | 'createdAt'
     | 'updatedAt'
-    | 'role'
+    | 'organizationRoleId'
     | 'emailVerifiedAt'
     | 'passwordSetAt'
     | 'twoFactorConfirmedAt'
@@ -95,9 +95,26 @@ export class CustomerAccount {
   @Property({ type: 'string', length: 120 })
   lastName!: string;
 
-  @Property({ type: 'string', length: 32 })
-  @Index()
-  role: 'organization_admin' | 'regular_user' = 'regular_user';
+  /**
+   * The organization role this account holds (`specs/170-organization-roles/`
+   * data-model §2): a composite foreign key `(organization_id,
+   * organization_role_id)` into `organization_roles`, so it can only name a role
+   * of this account's own Organization, and a role an account holds — removed
+   * accounts included — cannot be deleted.
+   *
+   * Optional here only because the `before insert` trigger (migration M3, as
+   * M5 redefines it) fills it for a row inserted without one (research R-28):
+   * the personal Organization's *Administrator*, else its *Member*. Every
+   * production write passes it — the write ports require it — so the trigger
+   * serves fixtures that create the entity directly. The value such a row gets
+   * is in the database, not on this instance, until it is re-read.
+   *
+   * `nullable: true` is the ORM's side of that bargain, not the column's: the
+   * column is `NOT NULL`, and without the flag MikroORM refuses to flush an
+   * instance that leaves the property for the trigger to fill.
+   */
+  @Property({ type: 'uuid', nullable: true })
+  organizationRoleId!: string;
 
   @Property({ type: 'datetime', nullable: true })
   emailVerifiedAt?: Date | null;

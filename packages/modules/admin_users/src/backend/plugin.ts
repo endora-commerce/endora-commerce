@@ -5,6 +5,7 @@ import type {
   AuthSessionPort,
   CustomerAccountReadPort,
   MfaLoginPort,
+  OrganizationRoleReadPort,
   PermissionCataloguePort,
   PermissionReadPort,
 } from '@endora-commerce/contracts';
@@ -54,6 +55,8 @@ export interface AdminModuleOptions {
   adminRolePort: AdminRolePort;
   /** `customer_accounts` — who an impersonation is started against. */
   customerAccountReadPort: CustomerAccountReadPort;
+  /** `organizations` — the role an impersonation acts under, named on its answer (`specs/170-organization-roles/`). */
+  organizationRoleReadPort: Pick<OrganizationRoleReadPort, 'roleRef'>;
   requireAdmin: RequireAdminFactory;
   /** Resolves the current admin's id from `request.actor` (prod) or
    *  `request.testActor` (test harness). Used by `GET /admin/me`. */
@@ -174,6 +177,7 @@ export function adminModule(
         // (feature 080, T051) — the module already had the right resolver in
         // hand for `GET /admin/me`.
         resolveAdminUserId: (req) => options.resolveAdminContext(req).adminUserId,
+        organizationRoles: options.organizationRoleReadPort,
       });
       await registerAdminUsersAdminRoutes(app, {
         adminUserService,

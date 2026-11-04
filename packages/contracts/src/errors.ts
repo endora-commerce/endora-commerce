@@ -150,6 +150,22 @@ export const ERROR_CODES = {
   ORGANIZATION_HAS_CHILDREN: 'ORGANIZATION_HAS_CHILDREN',
   // Feature 056 — a re-parent would create a cycle or exceed the depth bound.
   ORGANIZATION_TREE_INVALID: 'ORGANIZATION_TREE_INVALID',
+  // Feature 170 — organization roles and permissions (`specs/170-organization-roles/`,
+  // `contracts/organization-permission-port.md` §3). Declared by `organizations`.
+  // A member's role lacks the organization permission a buyer action needs (403).
+  ORGANIZATION_PERMISSION_REQUIRED: 'ORGANIZATION_PERMISSION_REQUIRED',
+  // A custom role's name is another role's, or a predefined role's label (409).
+  ORGANIZATION_ROLE_NAME_TAKEN: 'ORGANIZATION_ROLE_NAME_TAKEN',
+  // A role write carried an `expectedVersion` that is no longer current (409).
+  ORGANIZATION_ROLE_STALE: 'ORGANIZATION_ROLE_STALE',
+  // The Organization already holds the maximum number of custom roles (422).
+  ORGANIZATION_ROLE_LIMIT_REACHED: 'ORGANIZATION_ROLE_LIMIT_REACHED',
+  // An edit, rename or delete a predefined role does not allow (409).
+  ORGANIZATION_ROLE_PROTECTED: 'ORGANIZATION_ROLE_PROTECTED',
+  // Deleting a role somebody holds needs a different replacement role (422).
+  ORGANIZATION_ROLE_REPLACEMENT_REQUIRED: 'ORGANIZATION_ROLE_REPLACEMENT_REQUIRED',
+  // A submitted permission code no module declares (422).
+  ORGANIZATION_PERMISSION_UNKNOWN: 'ORGANIZATION_PERMISSION_UNKNOWN',
   EMAIL_ALREADY_REGISTERED: 'EMAIL_ALREADY_REGISTERED',
   EMAIL_ALREADY_IN_ORGANIZATION: 'EMAIL_ALREADY_IN_ORGANIZATION',
   EMAIL_BELONGS_TO_ANOTHER_ORGANIZATION: 'EMAIL_BELONGS_TO_ANOTHER_ORGANIZATION',
@@ -197,12 +213,20 @@ export const ERROR_CODES = {
   CART_PRICE_CHANGED: 'CART_PRICE_CHANGED',
   // Issue #86 — the cart-approval and admin-reject refusals, raised as
   // `VALIDATION_FAILED` with a machine token as the message until then.
-  /** The Organization does not require cart approval, so the cart is not sent for it. */
+  /**
+   * The buyer's role holds `carts.order_without_approval`, so the cart is not
+   * sent for approval (`specs/170-organization-roles/`; was: the Organization
+   * requires no approval).
+   */
   CART_APPROVAL_NOT_REQUIRED: 'CART_APPROVAL_NOT_REQUIRED',
   /** The cart has already been sent for approval (`details.approvalStatus`). */
   CART_APPROVAL_ALREADY_SUBMITTED: 'CART_APPROVAL_ALREADY_SUBMITTED',
-  /** An Organization administrator orders directly; their own cart is not sent for approval. */
-  CART_APPROVAL_SELF_SUBMIT: 'CART_APPROVAL_SELF_SUBMIT',
+  /**
+   * An approver may not approve or reject their own pending cart
+   * (`specs/170-organization-roles/` FR-032, R-36; `details.cartId`). A cart that
+   * is not pending is refused `CART_APPROVAL_NOT_PENDING` first.
+   */
+  CART_APPROVAL_SELF_APPROVE: 'CART_APPROVAL_SELF_APPROVE',
   /** The cart is not awaiting approval, so it cannot be approved or rejected (`details.approvalStatus`). */
   CART_APPROVAL_NOT_PENDING: 'CART_APPROVAL_NOT_PENDING',
   /** The cart is already completed or rejected, so it cannot be rejected (`details.status`). */

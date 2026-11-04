@@ -12,6 +12,7 @@ import {
 } from '../../helpers/test-server.js';
 import { PasswordResetToken } from '../../helpers/package-entities.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 
 /**
  * Repeated wrong customer passwords and repeated password-reset requests are
@@ -76,7 +77,7 @@ describe('customer authentication throttle', () => {
       password: PASSWORD,
       firstName: 'Throttle',
       lastName: `Buyer ${sequence}`,
-      role: 'regular_user',
+      organizationRoleId: await predefinedRoleIdOf(h.em(), TEST_ORGANIZATION_ID, 'member'),
     });
     await h.em().flush();
     return { id: created.id, email };

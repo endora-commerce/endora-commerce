@@ -130,7 +130,6 @@ function organizationRecord(
     rejectedAt: null,
     approvedAt: null,
     approvedByAdminUserId: null,
-    requiresCartApproval: false,
     fulfilmentStrategy: null,
     fulfilmentStrategyWarehouseOrder: null,
     parentId: null,

@@ -4,11 +4,13 @@ import {
   type CustomerAccountReadPort,
   type CustomerAccountRecord,
   type OrganizationDetailsPort,
+  type OrganizationRoleReadPort,
   type PersonalOrganizationPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { CustomerAuthorityService } from './customer-authority-service.js';
 import type { ModerationActor } from './customer-moderation-service.js';
+import { OrganizationDepletionGuard } from './organization-depletion-guard.js';
 
 /**
  * CustomerOrgAssignmentService — assign a Customer to an Organization, or
@@ -32,6 +34,9 @@ import type { ModerationActor } from './customer-moderation-service.js';
  * depletion guard stay here, because they are this module's policy.
  */
 export class CustomerOrgAssignmentService {
+  /** `specs/170-organization-roles/` WP-03 — the last-administrator question, by role (T063). */
+  private readonly depletion: OrganizationDepletionGuard;
+
   constructor(
     private readonly accounts: CustomerAccountReadPort,
     private readonly accountWrites: CustomerAccountLifecycleWritePort,
@@ -39,7 +44,14 @@ export class CustomerOrgAssignmentService {
     private readonly authority: CustomerAuthorityService,
     /** D-178 — where a detached member goes. */
     private readonly personalOrganizations: PersonalOrganizationPort,
-  ) {}
+    /**
+     * `specs/170-organization-roles/` WP-02b — the predefined role an account
+     * holds in the company it is assigned to.
+     */
+    private readonly organizationRoles: Pick<OrganizationRoleReadPort, 'predefinedRoleId'>,
+  ) {
+    this.depletion = new OrganizationDepletionGuard({ accounts, organizations, organizationRoles });
+  }
 
   async assign(
     customerAccountId: string,
@@ -60,7 +72,30 @@ export class CustomerOrgAssignmentService {
 
     return this.accountWrites.setOrganization(customer.id, organizationId, {
       actorAdminUserId: actor.adminUserId,
+      organizationRoleId: await this.roleInTarget(customer, organizationId),
     });
+  }
+
+  /**
+   * The role the account holds in the Organization it is assigned to
+   * (`specs/170-organization-roles/` owner ruling PR-11, research R-34): the
+   * target's *Administrator* when it administers the **company** it comes from,
+   * else the target's *Member* — a custom role does not travel. Written with
+   * the Organization, because the composite foreign key refuses the old one.
+   *
+   * An account coming from its own **personal** Organization lands on *Member*,
+   * whatever it holds there: it administers that Organization by construction
+   * (owner ruling PR-3), not by anybody's decision. That is the outcome before
+   * `specs/170-organization-roles/`, kept.
+   */
+  private async roleInTarget(customer: CustomerAccountRecord, organizationId: string): Promise<string> {
+    const source = await this.organizations.findById(customer.organizationId);
+    const administersCompany =
+      source !== null &&
+      !source.isPersonal &&
+      customer.organizationRoleId ===
+        (await this.organizationRoles.predefinedRoleId(customer.organizationId, 'administrator'));
+    return this.organizationRoles.predefinedRoleId(organizationId, administersCompany ? 'administrator' : 'member');
   }
 
   /**
@@ -83,24 +118,20 @@ export class CustomerOrgAssignmentService {
     const personal = await this.personalOrganizations.provisionPersonalOrganization(customer.id);
     if (customer.organizationId === personal.id) return customer; // already their own
 
-    // Refuse to strand the org without an admin.
-    if (customer.role === 'organization_admin') {
-      const remaining = await this.accounts.countByOrganizationRole(
-        customer.organizationId,
-        'organization_admin',
-        { excludeCustomerAccountId: customer.id, activeOnly: true },
+    // Refuse to strand a company Organization without an administrator.
+    if (await this.depletion.wouldLeaveWithoutAdministrator(customer)) {
+      throw new HttpError(
+        409,
+        ERROR_CODES.ORG_OWNER_DEPLETION,
+        'Cannot unassign the last organization administrator.',
       );
-      if (remaining === 0) {
-        throw new HttpError(
-          409,
-          ERROR_CODES.ORG_OWNER_DEPLETION,
-          'Cannot unassign the last organization administrator.',
-        );
-      }
     }
 
+    // The individual administers their own personal Organization (owner
+    // ruling PR-3); its Administrator role comes with the provisioning answer.
     return this.accountWrites.detachToPersonalOrganization(customer.id, personal.id, {
       actorAdminUserId: actor.adminUserId,
+      organizationRoleId: personal.administratorRoleId,
     });
   }
 

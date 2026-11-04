@@ -9,7 +9,8 @@ import type { CommandActor } from './command.js';
  *  - impersonation present → real admin id + impersonated customer id;
  *  - admin actor           → admin id;
  *  - system actor          → null admin id (worker/escape-hatch);
- *  - customer (no impersonation) → null admin id (a customer acting on their own).
+ *  - customer (no impersonation) → null admin id, and the customer's own id on
+ *    `actorCustomerAccountId` (a customer acting on their own; feature 170, R-21).
  *
  * Fail-closed: with no ambient context this throws {@link MissingTenantContextError},
  * so a Command can never run unscoped.
@@ -28,6 +29,7 @@ export function actorFromContext(ctx: TenantContext): CommandActor {
     return {
       actorAdminUserId: ctx.impersonation.realAdminUserId,
       impersonatedCustomerAccountId: ctx.impersonation.impersonatedCustomerAccountId,
+      actorCustomerAccountId: null,
       kind: ctx.actor.kind,
     };
   }
@@ -35,13 +37,25 @@ export function actorFromContext(ctx: TenantContext): CommandActor {
     return {
       actorAdminUserId: ctx.actor.id ?? null,
       impersonatedCustomerAccountId: null,
+      actorCustomerAccountId: null,
       kind: 'admin',
     };
   }
-  // system or plain customer — no acting admin id.
+  if (ctx.actor.kind === 'customer') {
+    // A customer acting for themselves — no acting admin id, and the account
+    // is the actor.
+    return {
+      actorAdminUserId: null,
+      impersonatedCustomerAccountId: null,
+      actorCustomerAccountId: ctx.actor.id ?? ctx.customerAccountId ?? null,
+      kind: 'customer',
+    };
+  }
+  // system or api key — no acting admin id and no acting customer.
   return {
     actorAdminUserId: null,
     impersonatedCustomerAccountId: null,
+    actorCustomerAccountId: null,
     kind: ctx.actor.kind,
   };
 }

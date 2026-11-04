@@ -512,20 +512,6 @@ export type OrgCartDetailView = z.infer<typeof orgCartDetailViewSchema>;
 export const orgCartDetailViewResponseSchema = z.object({ data: orgCartDetailViewSchema });
 export type OrgCartDetailViewResponse = z.infer<typeof orgCartDetailViewResponseSchema>;
 
-export const setCartApprovalPolicySchema = z.object({
-  requiresCartApproval: z.boolean(),
-});
-export type SetCartApprovalPolicy = z.infer<typeof setCartApprovalPolicySchema>;
-
-export const cartApprovalPolicyResponseSchema = z.object({
-  data: z.object({
-    organizationId: uuidSchema,
-    requiresCartApproval: z.boolean(),
-    updatedAt: isoDateTimeSchema,
-  }),
-});
-export type CartApprovalPolicyResponse = z.infer<typeof cartApprovalPolicyResponseSchema>;
-
 export const rejectOrgCartSchema = z.object({
   reason: z.string().min(1).max(2000),
 });

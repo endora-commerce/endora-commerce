@@ -657,7 +657,8 @@ opens.
    performs one HTTP request per gated action per member, and asserts the outcome table committed
    at `backend/test/fixtures/organization-roles/pre-upgrade-outcomes.ts`. The table is recorded by
    the code it describes.
-2. **WP-13, on the integration branch** — `backend/test/integration/organizations/
+2. **WP-13, on the integration branch** *(brought forward to WP-13a in Wave 2 and closed by WP-13;
+   R-38)* — `backend/test/integration/organizations/
    roles-upgrade-replay.test.ts` takes a migrated clone (`backend/test/helpers/migrated-database.ts`),
    runs the `down()` statements of M5, M4, M3, M2 in that order to reach the pre-170 schema, inserts
    the same population with raw SQL in the old shape, runs the `up()` statements of M2–M5 (the
@@ -925,3 +926,239 @@ administrator a colleague is about to join who cannot. The oracle recorded it (�
 **Alternatives rejected.** *List expired invitations with a status* — a new response field and UI
 nobody asked for. *A sweep that deletes expired invitations* — destructive, and loses the audit
 trail of who was invited.
+
+## R-38 — The replay replaces the live oracle on the integration branch from Wave 2 *(architect, 2026-11-03)*
+
+**Context.** On the integration branch the WP-00 oracle runs *live*: it creates its Organizations
+on the already-migrated schema, so B's *Member* comes from M2's insert trigger and holds every
+member default, `carts.order_without_approval` and `quick_order.one_click` included. FR-071's
+mapping runs only inside M2's `up()`, so the live oracle never sees it. WP-04 (#709) consequently
+moved four rows that are **not** in §6.1 — `cart.read:B.regular@pl_b2b_vip`,
+`order.place:B.regular@pl_retail`, `order.place:B.regular@pl_b2b_vip`,
+`cart.submitForApproval:B.regular` — and WP-06 (#707) cannot move §6.1 rows 23–24 at all. The four
+are artefacts of the seed, not of the design: after WP-04 nothing can set `requires_cart_approval`
+on an Organization (the policy endpoints are gone), so a company Organization with the flag set and
+an unmapped *Member* is a state no upgraded database can reach. Independently of those four rows,
+WP-03 (#710) showed the live oracle's second blind spot: it sends the legacy `role` request bodies,
+which WP-03's strict schemas refuse with `400`, so nine rows move for no design reason —
+`invitation.create{Member,Administrator}:{A,B}.admin`, `member.changeRole:{A,B}.admin`, and
+`P.owner`'s rows 9, 10 and 13 (`400` instead of §6.1's `422`/`422`/`200`); its other seven differing
+rows (1, 2, 8, 11, 12, 25, 26) match §6.1. The body mapping (`roleToRoleId`) exists only for the
+replay. So the integration branch needs both what the live oracle cannot do — the pre-migration seed
+and the body mapping — and only the replay does both. Beyond that,
+the live oracle asserts `PRE_UPGRADE_OUTCOMES` with no difference allowed, so the first merge that
+lands a §6.1 row (WP-03 or WP-04) turns it red by design, and after WP-12 it no longer type-checks
+(it seeds `role` and `requiresCartApproval` through the entities).
+
+**Decision.** Bring the replay forward (option (a)) as a new work package **WP-13a**, test-only,
+merging into the integration branch **before WP-03, WP-04 and WP-06**:
+
+1. `roles-upgrade-replay.test.ts` is written now, in its final shape, but over the migrations that
+   exist: migrated clone → `down()` of M3, M2 → `ORACLE_POPULATION` inserted with raw SQL in the
+   pre-170 shape → `up()` of M2, M3 → boot → replay → per-row comparison → the data assertions →
+   second `up()` changes nothing. WP-12 adds M5 and M4 to the two lists in the merge request that
+   adds them (it has to: the raw-SQL insert names columns M4/M5 drop).
+2. `EXPECTED_DIFFERENCES` (T125) and its self-check (T124) are written in WP-13a, not WP-13. Each
+   entry gains `landedBy` — the work package whose merge moves it (WP-03, WP-04 or WP-06). That is
+   an **allocation**, not behaviour: `before` and `after` still move only with an owner ruling;
+   a wrong `landedBy` is corrected by the architect in the merge request that finds it.
+3. A ledger, `backend/test/fixtures/organization-roles/landed-work-packages.ts`, records which of
+   the three have merged. **While a work package is not landed its rows must equal `before`; once it
+   is, they must equal `after`; every other row equals `PRE_UPGRADE_OUTCOMES`** — strict in both
+   directions at every merge. The landing package flips its own entry in its own merge request.
+   The WP-03 entry also switches request bodies from `role` to `roleId` (`roleToRoleId`), because
+   WP-03 is the package that changes that API shape.
+4. WP-13a **retires** `roles-upgrade-oracle.test.ts` (`git rm`, content never edited) in the same
+   merge request, after showing on one tree that both are green: the live oracle against
+   `PRE_UPGRADE_OUTCOMES`, and the replay with an empty ledger against the same table, all 319
+   rows. That equality is what proves the replay's copied observation functions (`send`, `observe`)
+   observe exactly what the oracle's did. The fixture `pre-upgrade-outcomes.ts` stays frozen and
+   unedited; it is the record, and the replay is its only reader from then on. The oracle file
+   stays on `master` until the integration pull request (T116) and in history at `6ddb4210d`.
+5. WP-13 shrinks to the close-out: delete the ledger and the interim branch, so the replay asserts
+   every §6.1 row at `after` unconditionally, and run SC-004.
+
+**Rationale.** The instrument that matters is the one the release will meet: an upgraded database.
+Only the replay exercises M2's FR-071 mapping and M3's backfill, so only the replay can tell a seed
+artefact from a defect, and it does so at the merge that would introduce the defect rather than at
+WP-13, when ten packages are tangled together. The ledger keeps it as strict as the frozen oracle
+was (no row may drift, in or out of the table) while letting the table land one package at a time.
+Building the raw-SQL population now is also cheaper than after WP-12: the legacy columns are still
+in the schema, so the pre-170 shape is today's shape minus M2/M3's additions.
+
+**Alternatives rejected.**
+
+- *(b) A live mode with the §6.1 table plus a "live-seed artefact" list.* It needs a new harness
+  anyway (the frozen file cannot apply any table), and the artefact list is a set of rows whose only
+  justification is "the seed is unrealistic". Its promised self-check — "the replay matches each
+  artefact row later" — needs the replay, so (b) is (a) plus a weaker instrument in front of it.
+  It also never moves rows 23–24, so #653's fix (WP-06) would merge unobserved.
+- *(c) The live oracle master-only, rely on WP-13.* Leaves Waves 2 and 3 — every behavioural change
+  in the feature — without the instrument WP-00 was built for, and turns the integration branch red
+  at the first §6.1 merge in any case (the file is on the branch). Defects would surface in WP-13 as
+  one tangle.
+- *Tolerant interim mode (a table row may equal `before` or `after` until WP-13), no ledger.* No
+  ledger edits, but a row could land early, late or flip back unobserved; the ledger costs one line
+  per landing package.
+- *Keep the live oracle beside the replay, excluded from the run on the integration branch.* An
+  excluded file is dead code that fails type-check after WP-12 and asserts pre-upgrade behaviour on
+  `master` after T116; the record it guards is the fixture, which stays.
+- *Seed live, then re-run M2's `up()` statements over the population.* Applies the FR-071 marker
+  (idempotent, `member_defaults_offered = '{}'`), but the accounts come from the trigger, not M3's
+  backfill, so the upgrade path is still not tested.
+
+**Risk.** The test server opens the ORM with `DATABASE_URL` captured at import
+(`backend/test/helpers/test-server.ts`), and no in-process precedent boots it against a clone
+(`price_lists/fresh-install.test.ts` spawns a CLI). T130 proves this first; the expected route is
+setting `DATABASE_URL` to the clone before a dynamic `import()` of the helper (vitest isolates each
+file's module graph). The risk existed for WP-13 already; WP-13a meets it earlier.
+
+## R-39 — A new custom role starts empty (owner ruling OR-9, Q1 = a, 2026-11-04)
+
+**Decision.** A custom role holds exactly the codes submitted when it is created. Both create forms —
+the storefront's (WP-09) and the Admin UI's Roles tab (WP-08) — open with every permission unchecked
+and offer no "copy from *Member*"; the Admin UI's *member-default* hint beside a code stays, because
+it describes *Member*, not the new role.
+
+**Already true in the backend (WP-02a, checked on `feat/170-organization-roles` at `400d3a65f`).**
+`organization_role.create`
+(`packages/modules/organizations/src/backend/commands/organization-role-create.command.ts`) merges the
+submitted codes into `{ kind: 'custom', permissions: [], memberDefaultsOffered: [] }` and stores only
+the submitted present codes; `grantedCodes`
+(`packages/modules/organizations/src/backend/services/organization-role-catalogue.ts`) adds unoffered
+member defaults for `kind === 'member'` only, so a custom role created with `permissions: []` holds
+nothing — asserted by `organization-role-catalogue.test.ts` (*custom: stored grants intersected with
+presence, never a default*). `createOrganizationRoleRequestSchema` accepts an empty array. The Admin UI
+form already starts empty (`OrganizationRolesTab.tsx`: `new Set(role?.permissions ?? [])` with
+`role === null` in create mode); T140 pins that with a test so it cannot regress. No backend change.
+
+**Alternatives rejected.** *Pre-tick the member defaults* (the form's earlier draft) — it makes a new
+role a silent copy of *Member*'s defaults, which is precisely what OR-9 refuses. *Copy from a chosen
+role* — a convenience the owner declined; it can be added later without touching the data model.
+
+## R-40 — Quick-order import admits either target's permission (owner ruling OR-10, Q2 = b, 2026-11-04)
+
+**Decision.** `POST /api/v1/quick-order/import` is guarded by a module-local pre-handler in
+`packages/modules/quick_order/src/backend/routes.ts`, declared after `requireCustomer` and before the
+body is parsed: `can(subject, 'carts.create') || can(subject, 'quote_requests.create')`, judged in that
+order; when neither holds it calls `assert(subject, 'carts.create', { language })`, which throws the
+standard `403 ORGANIZATION_PERMISSION_REQUIRED` with `details.permission = 'carts.create'` and its
+translated label (`contracts/organization-permission-port.md` §3). The subject is built from the actor
+exactly as `organizationPermissionPreHandler` builds it (`organizationRoleId` included), and both codes
+are module-local string constants, which the inventory resolves. `POST /api/v1/quick-order/build`
+is unchanged: its target in the body is judged by `QuickOrderBuildService.build` (WP-06, T085/T088).
+
+**What is on the integration branch today.** WP-06 (#707) guards the import with
+`organizationPermissionPreHandler(organizationPermissions, 'carts.create')`, and
+`backend/test/contract/quick_order/quick-order-permissions.contract.test.ts` asserts *refuses a member
+without carts.create, before the file is parsed* and *serves a holder of carts.create*. The first of
+those stays true only for a member holding neither code, which is the test T139 rewrites.
+
+**Why name `carts.create` in the refusal.** The refusal shape names one permission and changing it
+for one route would be a contract change for one consumer. The import page's primary action is the
+cart; a member who holds neither code is told about the cart permission, and the storefront hides the
+import from such a member anyway (WP-10).
+
+**Alternatives rejected.** *An `anyOf` option on the shared `organizationPermissionPreHandler`*
+(contracts) — one consumer, a contract change and a second refusal shape for the inventory's scanner
+to learn; YAGNI. *Judging inside the handler* — the consumer checklist (`organization-permission-port.md`
+§5 item 3) puts route gates in `preHandler`s, and a handler check would run after the body parse.
+*A `details.permissions` array naming both* — a new refusal shape, see above. *No gate at all* (the
+import writes nothing) — it discloses SKU-to-product resolution to a member who can do nothing with
+it, and the owner ruled for a gate.
+
+## R-41 — Returns and complaints by permission (owner ruling OR-11, Q3 = b, 2026-11-04)
+
+**What is there today** (`packages/modules/returns/`, `feat/170-organization-roles` at `400d3a65f`).
+`routes.customer.ts` serves eight buyer routes behind `requireCustomer` only, passing the account id
+alone. `ReturnCaseService.getReturnable` and `.createCase` read `orderReturnContextPort.getReturnContext`
+and answer `404 NOT_FOUND` unless `ctx.customerAccountId` — the order's placer — equals the caller;
+`listForCustomer`, `getForCustomer` and `cancelByCustomer` filter `{ customerAccountId }`; comments,
+attachments and the delivery-method choice look the case up the same way. So **every** buyer —
+administrator included — is placer-only, and WP-07's test
+`backend/test/integration/orders/colleague-orders-permission.test.ts` records it (*gets the answer the
+administrator gets today on starting a return from it (placer only, 404)*). `ReturnCase` is
+`@OrgScoped()` with a nullable `organizationId`, so the tenant filter already bounds every read to the
+caller's Organization (subtree for a roll-up login). The manifest declares no `organizationPermissions`
+and does **not** list `organizations` in `dependencies`. The oracle has no returns family (35 families,
+`backend/test/fixtures/organization-roles/pre-upgrade-outcomes.ts`).
+
+**Decision.**
+
+1. **Two codes, declared by `returns`** (FR-020: the owner of the gated action):
+   `returns.create` — *Create returns and complaints*, member-default; `returns.view_organization` —
+   *View the organization's returns and complaints*, not member-default. *Administrator* holds both
+   (FR-002). Labels and descriptions EN+PL in `packages/modules/returns/i18n/{en,pl}.json` under
+   `organizationPermissions.<code>.{label,description}`. One code covers both case kinds: a return and
+   a complaint are one form and one route (`POST /api/v1/returns` with `kind`).
+2. **`returns.create` gates the submission only**: `POST /api/v1/returns` gets
+   `organizationPermissionPreHandler(() => permissions, 'returns.create')` after `requireCustomer`.
+   `GET /api/v1/orders/:orderId/returnable` is a read and stays open (as `GET /api/v1/cart`, R-5); the
+   storefront hides *Start a return* by `can(session, 'returns.create')`. The follow-up routes on a case
+   one filed — comments, attachments, delivery method, cancel — stay open to the filer: they continue
+   a case, they do not open one, and refusing them would strand a case filed before a role change.
+3. **`returns.view_organization` widens the list and the read, exactly as `orders.view_organization`
+   widens orders** (`packages/modules/orders/src/backend/services/order-access-service.ts`): a holder's
+   `GET /api/v1/returns` and `GET /api/v1/returns/:id` drop the `customerAccountId` predicate and rely
+   on the always-on tenant filter; anyone else keeps `{ customerAccountId }`. A module-local scope
+   helper in `returns` (one method, the port asked through `lazyPort`) is the single home of that rule
+   inside the module. Out of reach is "no row", answered `404 NOT_FOUND` as today.
+4. **The follow-up actions stay the filer's** (owner's answer to Q-R2: A): their lookups keep
+   `{ id, customerAccountId }`, so a viewer's comment or cancel on a colleague's case answers
+   `404 NOT_FOUND`, unchanged; the storefront offers none of them on a case that is not the viewer's.
+5. **Starting a return from a colleague's order** (owner's answer to Q-R1: A): the order is judged by
+   `orderReadPort.findByIdForCustomer(orderId, { customerAccountId, organizationId })`
+   (`packages/contracts/src/orders.ts`), which applies `OrderAccessService.scopedWhere` — so a member
+   holding `orders.view_organization` (or *Administrator*) reaches a colleague's order and everyone else
+   only their own. It replaces the `ctx.customerAccountId !== customerAccountId` comparison in
+   `getReturnable` and `createCase`; `getReturnContext` is still read for the lines. The case is filed
+   in the starter's name (`ReturnCase.customerAccountId` = the caller, unchanged meaning: "who filed
+   it"), so the e-mails go to the starter and the placer sees the case only through
+   `returns.view_organization`. **No contract change**: `findByIdForCustomer` is already published, and
+   `returns` already depends on `orders`.
+6. **The case summary names its filer**: `returnCaseSummarySchema` (`packages/contracts/src/returns.ts`)
+   gains `customerAccountId: uuidSchema` (additive), as the order summary carries
+   `placedByCustomerAccountId`, so the storefront can mark a colleague's case and withhold its actions.
+   `returnCaseDetailSchema` already carries the field and keeps it through `.extend`; the operator's
+   `adminReturnRowSchema` extends the summary too, so its row mapper fills it as well. No name is
+   added; the order list shows none either.
+7. **Dependency edge**: `returns`' manifest adds `organizations` to `dependencies` — the consumer
+   checklist's precondition (`organization-permission-port.md` §5 item 2) and what
+   `check:port-dependencies` asks of a `lazyPort(ctx, 'organizationPermissionPort')`. `organizations` is
+   `nonDeactivatable`, so the bind costs no operator a control (the reasoning `returns`' manifest
+   already gives for `transactional_emails`).
+8. **No new error code**: `403 ORGANIZATION_PERMISSION_REQUIRED` (`organizations`', WP-01/WP-02a) and
+   `404 NOT_FOUND` (`returns`' existing answer) cover every refusal, so `check:error-translations`
+   gains nothing and the EN+PL obligation is the two codes' labels and descriptions.
+9. **No oracle row moves**: the frozen oracle has no returns request, so §6.1 keeps its 26 rows and the
+   landing ledger keeps its three entries; the deliberate changes the oracle cannot see are listed in
+   `contracts/migration-and-replay.md` §6.3. `returns.create` reaches every existing *Member*
+   implicitly as an unoffered member default (R-17) — no migration, and the replay's step-6 assertion
+   already derives the member defaults from the catalogue.
+
+**Rationale.** It is the smallest design that removes "who placed the order" as the only criterion
+while leaving *Member* exactly where it was: the member-default `returns.create` keeps every member's
+submission, the non-default `returns.view_organization` keeps their list placer-only, and the order
+scope keeps their submissions to their own orders. It reuses WP-07's rule rather than restating it: the
+list widening is the same "drop the account predicate, keep the tenant filter" move, and the
+colleague-order judgement is `orders`' own published reader.
+
+**Alternatives rejected.**
+
+- *Reuse `orders.view_organization` for the case list.* No new code, but it ties two duties a
+  purchasing department separates (an accountant who sees orders, a quality manager who handles
+  complaints), and it makes `returns` enforce a code it does not own for its own resource (FR-020).
+- *A separate `/api/v1/organization/returns` route, like the organization carts queue.* Keeps
+  `GET /api/v1/returns` byte-identical for administrators, but duplicates the list and its storefront
+  page; orders — the precedent the owner named — widened the existing list.
+- *`returns.view_organization` also opens the follow-up actions* (Q-R2's option B). A viewer could
+  then cancel a colleague's complaint; that is a management capability, not a read, and nobody has
+  asked for it.
+- *Placer-only submission for every role* (Q-R1's option B). Smaller still, but it leaves FR-049's
+  *returns started from it* meaning nothing and makes an administrator who sees a colleague's order
+  unable to act on it, unlike reorder and clone-to-quote.
+- *Gating `GET …/returnable` on `returns.create`.* It is the read the storefront uses to decide whether
+  the order *can* be returned; gating it couples a read to a write permission, against R-5's rule for
+  reads.
+- *Extending `OrderReturnContextPort.getReturnContext` with a buyer scope.* A contract change for what
+  `findByIdForCustomer` already answers.

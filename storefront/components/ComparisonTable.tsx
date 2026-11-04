@@ -50,6 +50,11 @@ export function ComparisonTable(props: {
   readonly locale?: string;
   /** The active sales channel, sent on the browser-side calls. Supplied by the page. */
   readonly salesChannelCode: string | undefined;
+  /**
+   * `specs/170-organization-roles/` (FR-030, FR-057) — whether the buyer's role holds
+   * `carts.create`; resolved by the server page. A visitor keeps it (PR-4). Defaults to `true`.
+   */
+  readonly canAddToCart?: boolean;
 }): ReactNode {
   const locale = props.locale ?? 'en-US';
   const t = tForLocale(locale);
@@ -214,17 +219,7 @@ export function ComparisonTable(props: {
               <th scope="row">{t('commerce.compare.actionRow')}</th>
               {view.products.map((p) => (
                 <td key={p.id}>
-                  <div className="industria-compare-table__actions">
-                    <CompareAddToCartButton
-                      productId={p.id}
-                      disabled={!p.available}
-                      minOrderQuantity={p.minOrderQuantity ?? null}
-                      locale={locale}
-                    />
-                    <LocalizedAnchor href={`/p/${p.slug}`} className="btn btn--outline btn--sm">
-                      {t('commerce.compare.productPage')}
-                    </LocalizedAnchor>
-                  </div>
+                  <CompareActionCell product={p} canAddToCart={props.canAddToCart ?? true} locale={locale} />
                 </td>
               ))}
             </tr>
@@ -448,5 +443,32 @@ function PlaceholderGlyph(): ReactNode {
       <circle cx="9" cy="9" r="1.5" />
       <path d="M21 15l-5-5L7 19" />
     </svg>
+  );
+}
+
+/**
+ * One product's actions in the comparison: add-to-cart, offered only when the buyer's role holds
+ * `carts.create` (170, FR-057), and the way to the product page, always.
+ */
+export function CompareActionCell(props: {
+  readonly product: Pick<ComparisonOwnerView['products'][number], 'id' | 'slug' | 'available' | 'minOrderQuantity'>;
+  readonly canAddToCart: boolean;
+  readonly locale: string;
+}): ReactNode {
+  const { product: p, locale } = props;
+  return (
+    <div className="industria-compare-table__actions">
+      {props.canAddToCart ? (
+        <CompareAddToCartButton
+          productId={p.id}
+          disabled={!p.available}
+          minOrderQuantity={p.minOrderQuantity ?? null}
+          locale={locale}
+        />
+      ) : null}
+      <LocalizedAnchor href={`/p/${p.slug}`} className="btn btn--outline btn--sm">
+        {tForLocale(locale)('commerce.compare.productPage')}
+      </LocalizedAnchor>
+    </div>
   );
 }

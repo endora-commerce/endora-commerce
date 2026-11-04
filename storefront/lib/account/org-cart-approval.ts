@@ -19,6 +19,9 @@ const FAILED = 'FAILED';
 
 const ERROR_KEYS = {
   CART_APPROVAL_NOT_PENDING: 'account.orgCart.error.CART_APPROVAL_NOT_PENDING',
+  // Feature 170 (FR-032): one's own pending cart, and a role without `carts.approve`.
+  CART_APPROVAL_SELF_APPROVE: 'account.orgCart.error.CART_APPROVAL_SELF_APPROVE',
+  ORGANIZATION_PERMISSION_REQUIRED: 'account.orgCart.error.ORGANIZATION_PERMISSION_REQUIRED',
   NOT_FOUND: 'account.orgCart.error.NOT_FOUND',
   FORBIDDEN: 'account.orgCart.error.FORBIDDEN',
   REASON_REQUIRED: 'account.orgCart.error.REASON_REQUIRED',

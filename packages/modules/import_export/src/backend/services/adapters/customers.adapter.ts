@@ -23,7 +23,11 @@ export function customersAdapter(ports: ImportExportPorts): ImportExportAdapter 
       'organization_name',
       'first_name',
       'last_name',
-      'role',
+      // The role the account holds (`specs/170-organization-roles/` WP-12,
+      // owner ruling 2026-11-04): its name — a predefined role's English
+      // label — and its kind, where the legacy two-value `role` column was.
+      'organization_role_name',
+      'organization_role_kind',
       'email_verified_at',
       'last_login_at',
     ] as const,
@@ -40,12 +44,21 @@ export function customersAdapter(ports: ImportExportPorts): ImportExportAdapter 
       );
       const orgs = orgIds.length > 0 ? await ports.organizations.findByIds(orgIds) : [];
       const orgNameById = new Map(orgs.map((o) => [o.id, o.name]));
+      // One read per distinct role, through the role cache.
+      const roleByKey = new Map<string, { name: string; kind: string } | null>();
+      for (const a of accounts) {
+        const key = `${a.organizationId}:${a.organizationRoleId}`;
+        if (roleByKey.has(key)) continue;
+        const ref = await ports.organizationRoles.roleRef(a.organizationId, a.organizationRoleId);
+        roleByKey.set(key, ref ? { name: ref.name, kind: ref.kind } : null);
+      }
       return accounts.map((a) => [
         a.email,
         a.organizationId ? (orgNameById.get(a.organizationId) ?? '') : '',
         a.firstName,
         a.lastName,
-        a.role,
+        roleByKey.get(`${a.organizationId}:${a.organizationRoleId}`)?.name ?? '',
+        roleByKey.get(`${a.organizationId}:${a.organizationRoleId}`)?.kind ?? '',
         a.emailVerifiedAt?.toISOString() ?? '',
         a.lastLoginAt?.toISOString() ?? '',
       ]);

@@ -32,6 +32,7 @@ import type {
   OrderStatusAnnouncePort,
   OrderTransitionPort,
   OrganizationDetailsPort,
+  OrganizationPermissionPort,
   OrganizationRestrictionPort,
   PaymentEmailRendererPort,
   PaymentMethodReadPort,
@@ -607,6 +608,11 @@ export function registerModule(ctx: ModuleContext): void {
               'catalogProductAvailabilityPort',
             ),
             customerAccountRead: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+            // `specs/170-organization-roles/` FR-049 — the buyer's order read
+            // scope asks whether the buyer holds `orders.view_organization`.
+            // `organizations` is non-deactivatable and a binding dependency,
+            // so this is the port itself, resolved per call.
+            organizationPermissions: lazyPort<OrganizationPermissionPort>(ctx, 'organizationPermissionPort'),
             organizationDetails: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
             // The Organization's method allow-lists, which placement and the
             // total preview refuse against. `organizations` is a binding
@@ -909,7 +915,7 @@ export function registerModule(ctx: ModuleContext): void {
         ({ emFactory }: OrdersCradle) =>
           new OrderReadService(
             emFactory,
-            lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+            lazyPort<OrganizationPermissionPort>(ctx, 'organizationPermissionPort'),
           ),
       )
       .singleton(),

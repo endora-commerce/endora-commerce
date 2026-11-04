@@ -17,6 +17,17 @@ Adresy pocztowe klientów, przypisane do organizacji. Każdy adres ma rodzaj `ki
 | `PATCH /api/v1/organizations/mine/addresses/:id` | Aktualizacja |
 | `DELETE /api/v1/organizations/mine/addresses/:id` | Usunięcie (odrzucane, gdy adres jest używany przez zamówienie — `409 ADDRESS_IN_USE`) |
 
+Trasy obsługuje moduł `organizations`. Tworzenie, aktualizacja i usuwanie wymagają uprawnienia
+organizacji **`addresses.manage`**, które deklaruje ten moduł (*Zarządzanie adresami organizacji*):
+członek, którego rola go nie ma, otrzymuje odmowę `403 ORGANIZATION_PERMISSION_REQUIRED`. Listę
+może odczytać każdy członek. Uprawnienie ma domyślnie rola Członek, a rola Administrator zawsze;
+organizacja odbiera je, edytując rolę.
+
+W storefroncie strona adresów organizacji (`/organization/addresses`) pokazuje listę adresów
+każdemu członkowi, a formularz dodawania i przyciski *Usuń* tylko członkowi, którego rola ma to
+uprawnienie. Pozostali widzą zamiast formularza jedno zdanie: *Twoja rola nie pozwala dodawać ani
+usuwać adresów. Możesz je przeglądać i używać przy składaniu zamówienia.*
+
 ## Encje
 
 `Address` — częściowy indeks unikalny `(organization_id, kind) WHERE is_default = true` wymusza na

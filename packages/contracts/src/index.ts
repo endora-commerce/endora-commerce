@@ -263,6 +263,9 @@ export * from './kernel.js';
 // Fastify-free, so the platform and every module can name one shape instead of
 // restating it (`specs/110-instance-repository/` T118b).
 export * from './actor.js';
+// Organization roles and permissions — the buyer's role vocabulary, the
+// permission port and its route guard (`specs/170-organization-roles/`).
+export * from './organization-roles.js';
 // Port contracts published by feature 075's Phase P for providers that had no
 // contracts file of their own.
 export * from './auth.js';

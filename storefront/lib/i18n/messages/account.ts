@@ -17,7 +17,7 @@ import { defineMessages } from './define';
  * English writes the same sentence for its three non-`one` forms. `pluralKey`
  * in `lib/account/labels.tsx` picks the form.
  *
- * Code labels (`account.paymentStatus.<code>`, `account.role.<code>`, …) are read
+ * Code labels (`account.paymentStatus.<code>`, `account.cartStatus.<code>`, …) are read
  * through `codeLabel`, which shows the raw code for a value this catalogue does
  * not know rather than the key.
  */
@@ -51,6 +51,9 @@ export const account = defineMessages({
     'account.nav.organization': 'Organization',
     'account.nav.organizationAddresses': 'Org addresses',
     'account.nav.members': 'Members',
+    'account.nav.roles': 'Roles',
+    'account.nav.cartsToApprove': 'Carts to approve',
+    'account.nav.cartsToApproveCount': 'Carts to approve ({count})',
 
     // Profile (`/account`).
     'account.profile.heading': 'Your profile',
@@ -60,10 +63,9 @@ export const account = defineMessages({
     'account.profile.twoFactorEnabled': 'Enabled',
     'account.profile.twoFactorDisabled': 'Disabled',
     'account.profile.organization': 'Organization',
-
-    // A customer account's role in its organization.
-    'account.role.organization_admin': 'Organization Admin',
-    'account.role.regular_user': 'Regular User',
+    'account.profile.allows.heading': 'What your role allows',
+    'account.profile.allows.item': '{label} — {description}',
+    'account.profile.allows.none': 'Your role does not allow any of the actions an organization can grant.',
 
     // Change password (`/account/password`).
     'account.password.heading': 'Change password',
@@ -89,6 +91,9 @@ export const account = defineMessages({
     'account.addresses.makeDefault': 'Make default',
     'account.addresses.shared.heading': 'Organization addresses',
     'account.addresses.shared.hint': 'Shared addresses you can use at checkout.',
+    // Feature 170 (WP-16, OR-8) — said in place of the add form to a member without `addresses.manage`.
+    'account.addresses.manageNotAllowed':
+      'Your role does not allow adding or removing addresses. You can still view them and use them at checkout.',
     'account.addresses.add.heading': 'Add an address',
     'account.addresses.add.street': 'Street',
     'account.addresses.add.country': 'Country',
@@ -114,7 +119,9 @@ export const account = defineMessages({
 
     // Members (`/organization/members`).
     'account.members.heading': 'Members',
-    'account.members.adminRequired': 'This page requires the Organization Admin role.',
+    'account.members.adminRequired': 'Only the organization’s administrators can manage members.',
+    'account.members.roleOf': 'Role of {name}',
+    'account.members.manageRoles': 'Manage roles',
     'account.members.invited': 'Invitation sent to {email}.',
     'account.members.revoked': 'Invitation revoked.',
     'account.members.col.actions': 'Actions',
@@ -129,9 +136,73 @@ export const account = defineMessages({
     'account.members.removeFailed': 'Could not remove the member.',
     'account.members.revokeFailed': 'Could not revoke the invitation.',
 
+    // Roles (`/organization/roles`, feature 170).
+    'account.roles.heading': 'Roles',
+    'account.roles.intro': 'A role decides what its members may do in your organization. Every member holds one role.',
+    'account.roles.adminRequired': 'Only the organization’s administrators can manage roles.',
+    'account.roles.new': 'New role',
+    'account.roles.back': 'All roles',
+    'account.roles.col.name': 'Name',
+    'account.roles.col.kind': 'Type',
+    'account.roles.col.members': 'Members',
+    'account.roles.col.invitations': 'Pending invitations',
+    'account.roles.col.permissions': 'Permissions',
+    'account.roles.col.actions': 'Actions',
+    'account.roles.kind.builtIn': 'Built-in',
+    'account.roles.kind.custom': 'Custom',
+    'account.roles.allPermissions': 'All permissions',
+    'account.roles.editPermissions': 'Edit permissions',
+    'account.roles.edit': 'Edit',
+    'account.roles.loadFailed': 'Could not load the roles.',
+    'account.roles.retry': 'Try again',
+    'account.roles.notFound': 'This role does not exist or is not in your organization.',
+    'account.roles.done.created': 'Role created.',
+    'account.roles.done.saved': 'Role saved.',
+    'account.roles.done.deleted': 'Role deleted. Members moved: {members}. Pending invitations moved: {invitations}.',
+    'account.roles.editor.name': 'Role name',
+    'account.roles.editor.nameHint': 'Up to 80 characters, unique in your organization.',
+    'account.roles.editor.description': 'Description (optional)',
+    'account.roles.editor.permissions': 'What this role allows',
+    'account.roles.editor.permissionsHint': 'Tick what members holding this role may do. Anything left unticked is not allowed.',
+    'account.roles.editor.noPermissions': 'No permission can be granted right now.',
+    'account.roles.editor.catalogueFailed': 'Could not load the permissions. Try again.',
+    'account.roles.editor.oneClickNote': 'Works only together with “{permission}”.',
+    'account.roles.editor.create': 'Create role',
+    'account.roles.editor.creating': 'Creating…',
+    'account.roles.editor.save': 'Save role',
+    'account.roles.editor.saving': 'Saving…',
+    'account.roles.editor.memberHint': '{role} is built in: its name stays and it cannot be deleted. Choose what it allows.',
+    'account.roles.editor.administratorHint':
+      '{role} holds every permission and manages members and roles. It cannot be changed.',
+    'account.roles.delete.toggle': 'Delete this role…',
+    'account.roles.delete.held': 'Members holding it: {members}. Pending invitations: {invitations}. They move to the role you choose.',
+    'account.roles.delete.unheld': 'Nobody holds this role, so nobody moves.',
+    'account.roles.delete.replacement': 'Move them to',
+    'account.roles.delete.irreversible': 'Deleting a role cannot be undone.',
+    'account.roles.delete.confirm': 'Delete role',
+    'account.roles.delete.deleting': 'Deleting…',
+    'account.roles.error.ORGANIZATION_ROLE_NAME_TAKEN':
+      'A role with this name already exists in your organization. Choose another name.',
+    'account.roles.error.ORGANIZATION_ROLE_STALE':
+      'Someone changed this role while you were editing it. Its current state is shown: review it and save again.',
+    'account.roles.error.ORGANIZATION_ROLE_LIMIT_REACHED':
+      'Your organization already has 50 custom roles, the most it can hold.',
+    'account.roles.error.ORGANIZATION_ROLE_PROTECTED': 'The Administrator and Member roles cannot be renamed or deleted.',
+    'account.roles.error.ORGANIZATION_ROLE_REPLACEMENT_REQUIRED':
+      'Members or invitations hold this role: choose the role they move to.',
+    'account.roles.error.ORGANIZATION_PERMISSION_UNKNOWN':
+      'One of the permissions is no longer available. Review the list and save again.',
+    'account.roles.error.NOT_FOUND': 'This role does not exist or is not in your organization.',
+    'account.roles.error.FORBIDDEN': 'Only the organization’s administrators can manage roles.',
+    'account.roles.error.VALIDATION_FAILED': 'Check the name: it must be 1 to 80 characters long.',
+    'account.roles.error.FAILED': 'The role could not be saved. Try again.',
+    'account.roles.form.stale':
+      'Someone changed this role while you were editing it. Your changes are still here, but they cannot be saved over theirs: reload the role to see its current state.',
+    'account.roles.form.reload': 'Reload the role',
+
     // Organization carts (`/organization/carts`).
     'account.orgCarts.heading': 'Organization carts',
-    'account.orgCarts.adminOnly': 'Only Organization Administrators can see this page.',
+    'account.orgCarts.approverOnly': 'Only members allowed to approve carts can see this page.',
     'account.orgCarts.loadFailed': 'Could not load the organization carts.',
     'account.orgCarts.intro':
       'Every cart in the {organization} organization — including members’ active carts, carts awaiting approval, and past ones.',
@@ -169,12 +240,14 @@ export const account = defineMessages({
     'account.orgCart.reject': 'Reject cart',
     'account.orgCart.rejecting': 'Rejecting…',
     'account.orgCart.notPending': 'This cart is not awaiting approval, so there is nothing to decide.',
+    'account.orgCart.ownCart': 'This is your own cart: another member allowed to approve carts answers it.',
     'account.orgCart.done.approved': 'The cart was approved. Its owner can now place the order.',
     'account.orgCart.done.rejected': 'The cart was rejected. Its owner will see the reason in their cart.',
-    'account.orgCart.error.CART_APPROVAL_NOT_PENDING':
-      'This cart is no longer awaiting approval: it has already been answered, or the approval policy was turned off.',
+    'account.orgCart.error.CART_APPROVAL_NOT_PENDING': 'This cart is no longer awaiting approval: it has already been answered.',
+    'account.orgCart.error.CART_APPROVAL_SELF_APPROVE': 'You cannot approve or reject your own cart.',
+    'account.orgCart.error.ORGANIZATION_PERMISSION_REQUIRED': 'Your role does not allow approving or rejecting carts.',
     'account.orgCart.error.NOT_FOUND': 'This cart does not exist or is not in your organization.',
-    'account.orgCart.error.FORBIDDEN': 'Only Organization Administrators can approve or reject carts.',
+    'account.orgCart.error.FORBIDDEN': 'Only members allowed to approve carts can approve or reject them.',
     'account.orgCart.error.REASON_REQUIRED': 'Give a reason for the rejection: its owner will see it.',
     'account.orgCart.error.REASON_TOO_LONG': 'The reason is too long: use up to 2000 characters.',
     'account.orgCart.error.FAILED': 'The answer could not be saved. Try again.',
@@ -185,18 +258,7 @@ export const account = defineMessages({
     'account.cartApprovalStatus.not_required': 'Not required',
     'account.cartApprovalStatus.pending': 'Awaiting approval',
     'account.cartApprovalStatus.approved': 'Approved',
-    'account.cartApprovalStatus.rejected_by_org_admin': 'Rejected by an administrator',
-
-    // Cart approval policy (`/organization/settings/cart-approval`).
-    'account.cartApproval.heading': 'Cart approval policy',
-    'account.cartApproval.adminOnly': 'Only Organization Administrators can change this policy.',
-    'account.cartApproval.intro':
-      'When this policy is on, ordinary members of {organization} must submit their cart for an Organization Administrator’s approval before checkout. Turning it off immediately releases every pending or approved cart in the organization from approval.',
-    'account.cartApproval.turnedOn': 'Policy turned on.',
-    'account.cartApproval.turnedOff': 'Policy turned off.',
-    'account.cartApproval.require': 'Require cart approval',
-    'account.cartApproval.notRequired': 'No approval required',
-    'account.cartApproval.failed': 'Could not update the policy.',
+    'account.cartApprovalStatus.rejected_by_org_admin': 'Rejected by an approver',
 
     // Default ordering preferences (`/preferences`).
     'account.preferences.heading': 'Default ordering preferences',
@@ -278,6 +340,13 @@ export const account = defineMessages({
     'account.return.addMessage': 'Add a message',
     'account.return.send': 'Send',
     'account.return.closed': 'This case is closed.',
+    // Feature 170 (OR-11): returns by organization permission.
+    'account.returns.filedByColleague': 'Filed by a colleague',
+    'account.returns.new.notAllowed':
+      'Your role does not include the “Create returns and complaints” permission, so you can’t start a return or a complaint. Ask your organization’s administrator if you need it.',
+    'account.return.colleagueReadOnly':
+      'This case was filed by a colleague. You can read it, but only they can add messages or change it.',
+    'account.returnAuthor.colleague': 'Colleague',
     'account.returnAuthor.admin': 'Customer service',
     'account.returnAuthor.customer': 'You',
 
@@ -432,6 +501,9 @@ export const account = defineMessages({
     'account.nav.organization': 'Organizacja',
     'account.nav.organizationAddresses': 'Adresy organizacji',
     'account.nav.members': 'Członkowie',
+    'account.nav.roles': 'Role',
+    'account.nav.cartsToApprove': 'Koszyki do akceptacji',
+    'account.nav.cartsToApproveCount': 'Koszyki do akceptacji ({count})',
 
     'account.profile.heading': 'Twój profil',
     'account.profile.verified': '(zweryfikowany)',
@@ -440,9 +512,9 @@ export const account = defineMessages({
     'account.profile.twoFactorEnabled': 'Włączone',
     'account.profile.twoFactorDisabled': 'Wyłączone',
     'account.profile.organization': 'Organizacja',
-
-    'account.role.organization_admin': 'Administrator organizacji',
-    'account.role.regular_user': 'Użytkownik',
+    'account.profile.allows.heading': 'Na co pozwala Twoja rola',
+    'account.profile.allows.item': '{label} — {description}',
+    'account.profile.allows.none': 'Twoja rola nie pozwala na żadne z działań, które organizacja może przyznać.',
 
     'account.password.heading': 'Zmiana hasła',
     'account.password.updated': 'Hasło zostało zmienione.',
@@ -466,6 +538,8 @@ export const account = defineMessages({
     'account.addresses.makeDefault': 'Ustaw jako domyślny',
     'account.addresses.shared.heading': 'Adresy organizacji',
     'account.addresses.shared.hint': 'Wspólne adresy, których możesz użyć przy składaniu zamówienia.',
+    'account.addresses.manageNotAllowed':
+      'Twoja rola nie pozwala dodawać ani usuwać adresów. Możesz je przeglądać i używać przy składaniu zamówienia.',
     'account.addresses.add.heading': 'Dodaj adres',
     'account.addresses.add.street': 'Ulica i numer',
     'account.addresses.add.country': 'Kraj',
@@ -489,7 +563,9 @@ export const account = defineMessages({
     'account.vatStatus.reverse_charge': 'Odwrotne obciążenie',
 
     'account.members.heading': 'Członkowie',
-    'account.members.adminRequired': 'Ta strona wymaga roli administratora organizacji.',
+    'account.members.adminRequired': 'Członkami mogą zarządzać tylko administratorzy organizacji.',
+    'account.members.roleOf': 'Rola: {name}',
+    'account.members.manageRoles': 'Zarządzaj rolami',
     'account.members.invited': 'Wysłano zaproszenie na adres {email}.',
     'account.members.revoked': 'Zaproszenie zostało cofnięte.',
     'account.members.col.actions': 'Działania',
@@ -504,8 +580,74 @@ export const account = defineMessages({
     'account.members.removeFailed': 'Nie udało się usunąć członka organizacji.',
     'account.members.revokeFailed': 'Nie udało się cofnąć zaproszenia.',
 
+    'account.roles.heading': 'Role',
+    'account.roles.intro': 'Rola określa, co jej członkowie mogą robić w Twojej organizacji. Każdy członek ma jedną rolę.',
+    'account.roles.adminRequired': 'Rolami mogą zarządzać tylko administratorzy organizacji.',
+    'account.roles.new': 'Nowa rola',
+    'account.roles.back': 'Wszystkie role',
+    'account.roles.col.name': 'Nazwa',
+    'account.roles.col.kind': 'Rodzaj',
+    'account.roles.col.members': 'Członkowie',
+    'account.roles.col.invitations': 'Oczekujące zaproszenia',
+    'account.roles.col.permissions': 'Uprawnienia',
+    'account.roles.col.actions': 'Działania',
+    'account.roles.kind.builtIn': 'Wbudowana',
+    'account.roles.kind.custom': 'Własna',
+    'account.roles.allPermissions': 'Wszystkie uprawnienia',
+    'account.roles.editPermissions': 'Edytuj uprawnienia',
+    'account.roles.edit': 'Edytuj',
+    'account.roles.loadFailed': 'Nie udało się wczytać ról.',
+    'account.roles.retry': 'Spróbuj ponownie',
+    'account.roles.notFound': 'Ta rola nie istnieje albo nie należy do Twojej organizacji.',
+    'account.roles.done.created': 'Rola została utworzona.',
+    'account.roles.done.saved': 'Rola została zapisana.',
+    'account.roles.done.deleted': 'Rola została usunięta. Przeniesieni członkowie: {members}. Przeniesione zaproszenia: {invitations}.',
+    'account.roles.editor.name': 'Nazwa roli',
+    'account.roles.editor.nameHint': 'Do 80 znaków, niepowtarzalna w Twojej organizacji.',
+    'account.roles.editor.description': 'Opis (opcjonalnie)',
+    'account.roles.editor.permissions': 'Na co pozwala ta rola',
+    'account.roles.editor.permissionsHint':
+      'Zaznacz, co mogą robić członkowie z tą rolą. Wszystko, czego nie zaznaczysz, będzie niedozwolone.',
+    'account.roles.editor.noPermissions': 'Obecnie nie można przyznać żadnego uprawnienia.',
+    'account.roles.editor.catalogueFailed': 'Nie udało się wczytać uprawnień. Spróbuj ponownie.',
+    'account.roles.editor.oneClickNote': 'Działa tylko razem z uprawnieniem „{permission}”.',
+    'account.roles.editor.create': 'Utwórz rolę',
+    'account.roles.editor.creating': 'Tworzenie…',
+    'account.roles.editor.save': 'Zapisz rolę',
+    'account.roles.editor.saving': 'Zapisywanie…',
+    'account.roles.editor.memberHint':
+      '{role} to rola wbudowana: jej nazwa się nie zmienia i nie można jej usunąć. Wybierz, na co pozwala.',
+    'account.roles.editor.administratorHint':
+      '{role} ma wszystkie uprawnienia i zarządza członkami oraz rolami. Tej roli nie można zmienić.',
+    'account.roles.delete.toggle': 'Usuń tę rolę…',
+    'account.roles.delete.held':
+      'Członkowie z tą rolą: {members}. Oczekujące zaproszenia: {invitations}. Przejdą do roli, którą wybierzesz.',
+    'account.roles.delete.unheld': 'Nikt nie ma tej roli, więc nikt nie zostanie przeniesiony.',
+    'account.roles.delete.replacement': 'Przenieś ich do roli',
+    'account.roles.delete.irreversible': 'Usunięcia roli nie można cofnąć.',
+    'account.roles.delete.confirm': 'Usuń rolę',
+    'account.roles.delete.deleting': 'Usuwanie…',
+    'account.roles.error.ORGANIZATION_ROLE_NAME_TAKEN':
+      'Rola o tej nazwie już istnieje w Twojej organizacji. Wybierz inną nazwę.',
+    'account.roles.error.ORGANIZATION_ROLE_STALE':
+      'Ktoś zmienił tę rolę podczas Twojej edycji. Widzisz jej aktualny stan: sprawdź go i zapisz ponownie.',
+    'account.roles.error.ORGANIZATION_ROLE_LIMIT_REACHED':
+      'Twoja organizacja ma już 50 własnych ról, czyli najwięcej, ile może mieć.',
+    'account.roles.error.ORGANIZATION_ROLE_PROTECTED': 'Ról Administrator i Członek nie można przemianować ani usunąć.',
+    'account.roles.error.ORGANIZATION_ROLE_REPLACEMENT_REQUIRED':
+      'Tę rolę mają członkowie lub zaproszenia: wybierz rolę, do której zostaną przeniesieni.',
+    'account.roles.error.ORGANIZATION_PERMISSION_UNKNOWN':
+      'Jedno z uprawnień nie jest już dostępne. Sprawdź listę i zapisz ponownie.',
+    'account.roles.error.NOT_FOUND': 'Ta rola nie istnieje albo nie należy do Twojej organizacji.',
+    'account.roles.error.FORBIDDEN': 'Rolami mogą zarządzać tylko administratorzy organizacji.',
+    'account.roles.error.VALIDATION_FAILED': 'Sprawdź nazwę: musi mieć od 1 do 80 znaków.',
+    'account.roles.error.FAILED': 'Nie udało się zapisać roli. Spróbuj ponownie.',
+    'account.roles.form.stale':
+      'Ktoś zmienił tę rolę podczas Twojej edycji. Twoje zmiany wciąż tu są, ale nie można ich zapisać w miejsce tamtych: wczytaj rolę ponownie, aby zobaczyć jej aktualny stan.',
+    'account.roles.form.reload': 'Wczytaj rolę ponownie',
+
     'account.orgCarts.heading': 'Koszyki organizacji',
-    'account.orgCarts.adminOnly': 'Tę stronę widzą tylko administratorzy organizacji.',
+    'account.orgCarts.approverOnly': 'Tę stronę widzą tylko członkowie, którzy mogą akceptować koszyki.',
     'account.orgCarts.loadFailed': 'Nie udało się wczytać koszyków organizacji.',
     'account.orgCarts.intro':
       'Wszystkie koszyki organizacji {organization} — w tym aktywne koszyki członków, koszyki czekające na akceptację i koszyki archiwalne.',
@@ -542,12 +684,14 @@ export const account = defineMessages({
     'account.orgCart.reject': 'Odrzuć koszyk',
     'account.orgCart.rejecting': 'Odrzucanie…',
     'account.orgCart.notPending': 'Ten koszyk nie oczekuje na akceptację, więc nie ma tu nic do zdecydowania.',
+    'account.orgCart.ownCart': 'To Twój własny koszyk: odpowie na niego inny członek, który może akceptować koszyki.',
     'account.orgCart.done.approved': 'Koszyk został zaakceptowany. Jego właściciel może teraz złożyć zamówienie.',
     'account.orgCart.done.rejected': 'Koszyk został odrzucony. Jego właściciel zobaczy powód w swoim koszyku.',
-    'account.orgCart.error.CART_APPROVAL_NOT_PENDING':
-      'Ten koszyk nie oczekuje już na akceptację: decyzja już zapadła albo zasada akceptacji została wyłączona.',
+    'account.orgCart.error.CART_APPROVAL_NOT_PENDING': 'Ten koszyk nie oczekuje już na akceptację: decyzja już zapadła.',
+    'account.orgCart.error.CART_APPROVAL_SELF_APPROVE': 'Nie możesz zaakceptować ani odrzucić własnego koszyka.',
+    'account.orgCart.error.ORGANIZATION_PERMISSION_REQUIRED': 'Twoja rola nie pozwala akceptować ani odrzucać koszyków.',
     'account.orgCart.error.NOT_FOUND': 'Ten koszyk nie istnieje albo nie należy do Twojej organizacji.',
-    'account.orgCart.error.FORBIDDEN': 'Tylko administratorzy organizacji mogą akceptować i odrzucać koszyki.',
+    'account.orgCart.error.FORBIDDEN': 'Akceptować i odrzucać koszyki mogą tylko członkowie, którym na to pozwolono.',
     'account.orgCart.error.REASON_REQUIRED': 'Podaj powód odrzucenia: właściciel koszyka go zobaczy.',
     'account.orgCart.error.REASON_TOO_LONG': 'Powód jest za długi: użyj maksymalnie 2000 znaków.',
     'account.orgCart.error.FAILED': 'Nie udało się zapisać decyzji. Spróbuj ponownie.',
@@ -558,17 +702,7 @@ export const account = defineMessages({
     'account.cartApprovalStatus.not_required': 'Nie wymaga akceptacji',
     'account.cartApprovalStatus.pending': 'Oczekuje na akceptację',
     'account.cartApprovalStatus.approved': 'Zaakceptowany',
-    'account.cartApprovalStatus.rejected_by_org_admin': 'Odrzucony przez administratora',
-
-    'account.cartApproval.heading': 'Zasada akceptacji koszyków',
-    'account.cartApproval.adminOnly': 'Tylko administratorzy organizacji mogą zmienić tę zasadę.',
-    'account.cartApproval.intro':
-      'Gdy ta zasada jest włączona, zwykli członkowie organizacji {organization} przed złożeniem zamówienia muszą przesłać koszyk do akceptacji administratora organizacji. Jej wyłączenie natychmiast zwalnia z akceptacji każdy oczekujący lub zaakceptowany koszyk w organizacji.',
-    'account.cartApproval.turnedOn': 'Zasada została włączona.',
-    'account.cartApproval.turnedOff': 'Zasada została wyłączona.',
-    'account.cartApproval.require': 'Wymagaj akceptacji koszyków',
-    'account.cartApproval.notRequired': 'Bez akceptacji',
-    'account.cartApproval.failed': 'Nie udało się zmienić zasady.',
+    'account.cartApprovalStatus.rejected_by_org_admin': 'Odrzucony przez akceptującego',
 
     'account.preferences.heading': 'Domyślne ustawienia zamówień',
     'account.preferences.hint':
@@ -646,6 +780,13 @@ export const account = defineMessages({
     'account.return.addMessage': 'Dodaj wiadomość',
     'account.return.send': 'Wyślij',
     'account.return.closed': 'To zgłoszenie jest zamknięte.',
+    // Feature 170 (OR-11): returns by organization permission.
+    'account.returns.filedByColleague': 'Zgłoszone przez współpracownika',
+    'account.returns.new.notAllowed':
+      'Twoja rola nie obejmuje uprawnienia „Zgłaszanie zwrotów i reklamacji”, więc nie możesz zgłosić zwrotu ani reklamacji. Jeśli go potrzebujesz, poproś administratora organizacji.',
+    'account.return.colleagueReadOnly':
+      'To zgłoszenie złożył współpracownik. Możesz je przeglądać, ale dodawać wiadomości i wprowadzać zmiany może tylko osoba, która je złożyła.',
+    'account.returnAuthor.colleague': 'Współpracownik',
     'account.returnAuthor.admin': 'Obsługa klienta',
     'account.returnAuthor.customer': 'Ty',
 

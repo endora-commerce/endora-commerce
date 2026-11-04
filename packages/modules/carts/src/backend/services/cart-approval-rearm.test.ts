@@ -17,7 +17,7 @@ function harness(approvalStatus: CartApprovalStatus) {
   const service = new CartApprovalService(
     emFactory as unknown as () => EntityManager,
     { recordWithin } as unknown as CartAuditService,
-    ...([{}, {}, {}, {}, {}, {}] as unknown as [never, never, never, never, never, never]),
+    ...([{}, {}, {}, {}, {}] as unknown as [never, never, never, never, never]),
   );
   const em = { flush: vi.fn(), persist: vi.fn() } as unknown as EntityManager;
   const cart = {

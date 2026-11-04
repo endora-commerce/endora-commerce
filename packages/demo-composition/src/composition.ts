@@ -158,7 +158,7 @@ interface CustomerAccountRow {
   passwordSetAt?: Date | null;
   firstName: string;
   lastName: string;
-  role: string;
+  organizationRoleId?: string;
   emailVerifiedAt?: Date | null;
 }
 interface OrganizationRow {
@@ -1164,9 +1164,21 @@ const STEPS: readonly CompositionStep[] = [
            on conflict do nothing`,
         [organization.id],
       );
+      // The buyer administers the demo organisation (`specs/170-organization-roles/`):
+      // its predefined Administrator role, which the organisation's own insert
+      // created. The role is written with the Organization — the composite
+      // foreign key refuses a role of any other one.
+      const [administrator] = (await em.execute(
+        `select id from organization_roles where organization_id = ? and kind = 'administrator'`,
+        [organization.id],
+      )) as Array<{ id: string }>;
+      if (administrator === undefined) {
+        throw new Error('The demo organisation has no Administrator role — migration M2 has not run.');
+      }
       const existing = await em.findOne(CustomerAccount, { email: DEMO_BUYER_EMAIL });
       if (existing !== null) {
         existing.organizationId = organization.id;
+        existing.organizationRoleId = administrator.id;
         await em.flush();
         return;
       }
@@ -1181,7 +1193,7 @@ const STEPS: readonly CompositionStep[] = [
         passwordSetAt: new Date(),
         firstName: 'Demo',
         lastName: 'Buyer',
-        role: 'organization_admin',
+        organizationRoleId: administrator.id,
         emailVerifiedAt: new Date(),
       });
       await em.persistAndFlush(buyer);

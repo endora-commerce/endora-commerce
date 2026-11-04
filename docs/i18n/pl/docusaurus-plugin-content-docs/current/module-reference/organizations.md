@@ -39,6 +39,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | `addresses` | tylko bramkowanie | rozwiązuje `addressServicePort`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |
 | `customer_accounts` | tylko bramkowanie | rozwiązuje `customerAccountMemberWritePort`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |
 | `customer_accounts` | tylko bramkowanie | rozwiązuje `customerAccountReadPort`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |
+| `customer_accounts` | tylko bramkowanie | rozwiązuje `customerAccountRoleCommandPort`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |
 | `customer_accounts` | tylko bramkowanie | rozwiązuje `customerAuthPort`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |
 | `customer_accounts` | tylko bramkowanie | rozwiązuje `customerRolePort`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |
 | `customer_accounts` | tylko bramkowanie | rozwiązuje `passwordResetService`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |
@@ -55,6 +56,8 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | `customers:manage` | Manage customer organizations | — |
 | `customers:read` | View customers | — |
 | `organizations:assign-sales-rep` | Assign sales representatives to organizations | — |
+| `organizations:manage-roles` | Manage organization roles | `organizations:read-roles` |
+| `organizations:read-roles` | View organization roles | — |
 
 ## Paleta poleceń
 

@@ -13,6 +13,7 @@ import {
 } from '../../helpers/test-server.js';
 import { PLATFORM_ADMIN_ROLE_ID } from '../../helpers/seed-admins.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 
 /**
  * Removing a second factor withdraws what was obtained while it stood.
@@ -161,7 +162,7 @@ describe('MFA — removing a factor withdraws sessions and pending logins', () =
       password: PASSWORD,
       firstName: 'Factor',
       lastName: 'Removal',
-      role: 'regular_user',
+      organizationRoleId: await predefinedRoleIdOf(h.em(), TEST_ORGANIZATION_ID, 'member'),
     });
     await h.em().flush();
     customerId = created.id;

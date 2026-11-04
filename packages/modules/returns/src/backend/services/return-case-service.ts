@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import type {
   CreateReturnCaseRequest,
+  OrderReadPort,
   OrderReturnContextPort,
   ReturnableResponse,
   ReturnCaseDetail,
@@ -21,6 +22,7 @@ import { isWithinFreeWindow } from '../domain/free-return-window.js';
 import { approvedAmount, caseDefaultRefunds } from '../domain/refund-math.js';
 import type { ReturnStatusGraphService } from './return-status-graph-service.js';
 import type { ReturnTransitionService } from './return-transition-service.js';
+import type { ReturnCaseScope, ReturnCustomerContext } from './return-case-scope.js';
 import {
   checkRequestedQuantities,
   isLineReturnable,
@@ -36,6 +38,14 @@ export interface ReturnCaseServiceDeps {
   graphService: ReturnStatusGraphService;
   transitions: ReturnTransitionService;
   orderContext: OrderReturnContextPort;
+  /**
+   * `orders`' customer-scoped order reader (`specs/170-organization-roles/`
+   * FR-054, Q-R1 = A): whether the buyer may start a return from an order is
+   * whether they may read it, decided by `orders` itself.
+   */
+  orderRead: Pick<OrderReadPort, 'findByIdForCustomer'>;
+  /** The buyer's case scope — own cases, or the Organization's (FR-053). */
+  scope: ReturnCaseScope;
   /** Free-return window in days for a sales channel (0 = no free-return option). */
   resolveFreeReturnDays: (salesChannelId: string) => Promise<number>;
   /** Injected for deterministic tests; defaults to `new Date()`. */
@@ -58,10 +68,30 @@ export class ReturnCaseService {
     return this.deps.now ? this.deps.now() : new Date();
   }
 
+  /**
+   * The order a buyer starts a return from, if they may read it
+   * (`specs/170-organization-roles/` FR-054, Q-R1 = A): their own order, or a
+   * colleague's when their role holds `orders.view_organization`. The rule is
+   * `orders`' — `findByIdForCustomer` applies the one `GET /api/v1/orders/:id`
+   * applies — so the two never disagree. Before feature 170 this compared the
+   * order's placer with the caller, for every buyer, administrator included.
+   * Out of reach is `404`, indistinguishable from an order that does not exist.
+   */
+  private async assertOrderReadable(orderId: string, customer: ReturnCustomerContext): Promise<void> {
+    const order = customer.organizationId
+      ? await this.deps.orderRead.findByIdForCustomer(orderId, {
+          customerAccountId: customer.customerAccountId,
+          organizationId: customer.organizationId,
+        })
+      : null;
+    if (!order) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Order not found.');
+  }
+
   /** Lines a customer may still return for an order, with the eligibility verdict. */
-  async getReturnable(orderId: string, customerAccountId: string): Promise<ReturnableResponse> {
+  async getReturnable(orderId: string, customer: ReturnCustomerContext): Promise<ReturnableResponse> {
+    await this.assertOrderReadable(orderId, customer);
     const ctx = await this.deps.orderContext.getReturnContext(orderId);
-    if (!ctx || ctx.customerAccountId !== customerAccountId) {
+    if (!ctx) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Order not found.');
     }
     const consumed = await this.consumedQuantities(orderId);
@@ -93,13 +123,20 @@ export class ReturnCaseService {
     return { eligible: true, freeReturnEligible, lines };
   }
 
-  /** Open a return/complaint case (FR-001/002/003/005). */
+  /**
+   * Open a return/complaint case (FR-001/002/003/005). The route has already
+   * judged `returns.create` (`specs/170-organization-roles/` FR-052); the case
+   * is filed in the **starter's** name — `customerAccountId` means "who filed
+   * it", so its e-mails go to the starter, whoever placed the order (FR-054).
+   */
   async createCase(
     input: CreateReturnCaseRequest,
-    customerAccountId: string,
+    customer: ReturnCustomerContext,
   ): Promise<ReturnCaseDetail> {
+    const customerAccountId = customer.customerAccountId;
+    await this.assertOrderReadable(input.orderId, customer);
     const ctx = await this.deps.orderContext.getReturnContext(input.orderId);
-    if (!ctx || ctx.customerAccountId !== customerAccountId) {
+    if (!ctx) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Order not found.');
     }
     if (ctx.completingStatusEnteredAt === null) {
@@ -270,25 +307,34 @@ export class ReturnCaseService {
     return this.mapDetail(this.deps.emFactory(), caseId, { customerView: true });
   }
 
-  async listForCustomer(customerAccountId: string): Promise<ReturnCaseSummary[]> {
+  /**
+   * The buyer's case list: the cases they filed, or every case of their
+   * Organization with `returns.view_organization` (`ReturnCaseScope`, FR-053).
+   */
+  async listForCustomer(customer: ReturnCustomerContext): Promise<ReturnCaseSummary[]> {
     const em = this.deps.emFactory();
     const cases = await em.find(
       ReturnCase,
-      { customerAccountId },
+      await this.deps.scope.where(customer),
       { orderBy: { submittedAt: 'desc' } },
     );
     const graph = await this.deps.graphService.loadGraph();
     return cases.map((rc) => this.toSummary(rc, graph.get(rc.statusCode)?.defaultName ?? rc.statusCode));
   }
 
-  async getForCustomer(id: string, customerAccountId: string): Promise<ReturnCaseDetail> {
+  /** One case, within the same scope as {@link listForCustomer}; out of it is `404`. */
+  async getForCustomer(id: string, customer: ReturnCustomerContext): Promise<ReturnCaseDetail> {
     const em = this.deps.emFactory();
-    const rc = await em.findOne(ReturnCase, { id, customerAccountId });
+    const rc = await em.findOne(ReturnCase, await this.deps.scope.where(customer, { id }));
     if (!rc) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
     return this.mapDetail(em, rc.id, { customerView: true });
   }
 
-  /** Customer withdraws their own case (if the workflow permits the transition). */
+  /**
+   * Customer withdraws their own case (if the workflow permits the transition).
+   * The filer's only, whatever the caller's permissions: seeing a colleague's
+   * case does not open its actions (`specs/170-organization-roles/` Q-R2 = A).
+   */
   async cancelByCustomer(id: string, customerAccountId: string): Promise<ReturnCaseDetail> {
     const em = this.deps.emFactory();
     const rc = await em.findOne(ReturnCase, { id, customerAccountId });
@@ -338,6 +384,9 @@ export class ReturnCaseService {
       totalRefundAmount: Number(rc.totalRefundAmount),
       currency: rc.currency,
       submittedAt: rc.submittedAt.toISOString(),
+      // The filer (`specs/170-organization-roles/` FR-053): a holder of
+      // `returns.view_organization` lists colleagues' cases too.
+      customerAccountId: rc.customerAccountId,
     };
   }
 

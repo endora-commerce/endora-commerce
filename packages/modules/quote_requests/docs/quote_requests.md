@@ -29,21 +29,23 @@ Six values, replacing the foundation-era set:
 
 ## Public surface
 
-Customer endpoints require a customer session; admin endpoints are
+Customer endpoints require a customer session, and the three that create a
+quote request or fill a basket also an organization permission of the
+member's role — see *Organization permissions*; admin endpoints are
 gated by `rfqs:handle`. PATCH-shaped endpoints accept `If-Match`
 versions for optimistic concurrency, and customer accept/reject
 revision additionally pin `expectedRevisionNumber`.
 
 | Verb + Path | Audience | Purpose |
 | --- | --- | --- |
-| `GET /api/v1/quote-requests` | customer | List visible Quote Requests (org-admin role expands to whole-org visibility). |
+| `GET /api/v1/quote-requests` | customer | List visible Quote Requests (the *Administrator* role expands to whole-org visibility — see *Visibility model*). |
 | `GET /api/v1/quote-requests/:id` | customer | Detail with optional `comparisonAgainstLastSeen` block while awaiting acceptance. |
-| `POST /api/v1/quote-requests` | customer | Create + submit in one call. |
+| `POST /api/v1/quote-requests` | customer | Create + submit in one call. Needs `quote_requests.create`. |
 | `PATCH /api/v1/quote-requests/:id` | customer | Edit a Pending RFQ that the internal side has not yet revised — see *Customer draft edits*. |
 | `POST /api/v1/quote-requests/:id/accept-revision` | customer | Accept the seller's latest revision (also covers `Created from admin`). Needs an offer from the seller with every line priced — see *Agreed prices*. |
 | `POST /api/v1/quote-requests/:id/reject-revision` | customer | Reject the latest revision with optional reason. |
-| `POST /api/v1/quote-requests/:id/resubmit` | customer | Clone an old Quote Request into a new Pending one at the customer's current prices. |
-| `POST /api/v1/quote-requests/:id/convert-to-order` | customer | Seed the customer's cart from an Approved RFQ at the agreed unit prices and return the checkout URL. |
+| `POST /api/v1/quote-requests/:id/resubmit` | customer | Clone an old Quote Request into a new Pending one at the customer's current prices. Needs `quote_requests.create`. |
+| `POST /api/v1/quote-requests/:id/convert-to-order` | customer | Seed the customer's cart from an Approved RFQ at the agreed unit prices and return the checkout URL. Needs `carts.create`. |
 | `GET /api/v1/admin/quote-requests` | admin | List, scoped by sales-rep assignment + filterable by status / organization. |
 | `GET /api/v1/admin/quote-requests/:id` | admin | Detail with full actor identity in the event log, and per line the reference price and the customer's proposal — see *Reference price*. |
 | `GET /api/v1/admin/quote-requests/:id/history` | admin | The request's history as readable entries — see *History*. |
@@ -550,8 +552,45 @@ not see gets the same `404` as for an id that does not exist, on every admin
 quote-request route — the detail, the history and every action. (Earlier releases answered
 `403` on some of those routes, which told the caller the request existed.)
 
-A customer with the `org_admin` role on their own organization sees
-every Quote Request in the organization, not just their own.
+A member holding their organization's *Administrator* role sees every Quote
+Request in the organization, not just their own — on the list, the detail and
+every action that names one. Every other member sees only their own; a
+colleague's answers `404`. The rule reads the role the member holds, never the
+legacy `role` column, and no organization permission widens it: a custom role
+granting every code still sees only its own requests. (When internal approval
+of quote requests ships, this visibility moves to a permission of its own.)
+
+`RfqCustomerPort.listForCustomer` — what `customers` reads for a buyer's own
+list and for one customer's list in the Admin UI — always answers the requests
+that account itself raised, whatever role it holds.
+
+## Organization permissions
+
+`quote_requests` declares one organization permission — a code an
+Organization's administrator grants to a role on the storefront role screens
+(see the `organizations` module):
+
+| Code | Label | Member role holds it by default | Gates |
+| --- | --- | --- | --- |
+| `quote_requests.create` | Create quote requests | yes | `POST /api/v1/quote-requests` and `POST /api/v1/quote-requests/:id/resubmit`; the modules that create a quote request for the buyer — from a cart, a shopping list, a quick-order build — check it too |
+
+`POST /api/v1/quote-requests/:id/convert-to-order` fills the buyer's basket, so
+it is gated by the `carts` module's `carts.create` instead.
+
+A member whose role lacks the code is refused `403
+ORGANIZATION_PERMISSION_REQUIRED`, naming the permission, before the body is
+validated or the quote request is looked up. An anonymous visitor still gets
+`401`. While `quote_requests` is switched off, its code leaves the permission
+catalogue and every member's effective permissions; a role's stored grant is
+kept, and is effective again when the module is switched back on.
+
+On the storefront a member without `quote_requests.create` is offered no
+add-to-quote button on the product page or the product cards and no *Convert to quote
+request* on the cart. The quote-request draft stays reviewable, but its submit
+button is disabled with the reason beside it: *"Your role does not allow
+sending quote requests."* On a quote request's page, resubmitting is offered
+only with `quote_requests.create`, and placing the order from an approved
+request only with `carts.create`.
 
 ## Custom fields
 

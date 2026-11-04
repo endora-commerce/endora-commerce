@@ -1,6 +1,5 @@
-import { createHash, randomBytes, randomUUID } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import {
   ERROR_CODES,
   normalizeEmailAddress,
@@ -8,16 +7,21 @@ import {
   type CustomerAccountReadPort,
   type CustomerAccountRecord,
   type EmailMailerPort,
+  type SupportedLanguage,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { Organization } from '../entities/organization.entity.js';
 import { OrganizationInvitation } from '../entities/organization-invitation.entity.js';
-import { recordAuditFromContext } from '@endora-commerce/platform/commands';
+import type { OrganizationRole } from '../entities/organization-role.entity.js';
+import { recordAuditFromContext, type Command } from '@endora-commerce/platform/commands';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { currentSalesChannel } from '@endora-commerce/platform/kernel';
 import { storefrontPagePathFor } from '@endora-commerce/contracts';
 import { buildInvitationEmail } from '../email-templates/invitation.js';
+import { makeCreateOrganizationInvitationCommand } from '../commands/organization-invitation-create.command.js';
+import { makeRevokeOrganizationInvitationCommand } from '../commands/organization-invitation-revoke.command.js';
 import { noopOrgTemplateEmail, type OrgTemplateEmail } from './org-template-email.js';
+import type { OrganizationsTranslate } from './organizations-prose.js';
 import {
   emitCustomerAccountCreated,
   type OrganizationEventBus,
@@ -27,27 +31,35 @@ import {
  * InvitationService (T173, FR-043).
  *
  * Rules:
- *   - Org Admin invites by email + role. Existing CustomerAccount with that
- *     email rejects with EMAIL_ALREADY_IN_ORGANIZATION (same org) or
+ *   - An Organization's administrator invites by email and, optionally, a role
+ *     **id** of that Organization — its *Member* role when none is named
+ *     (`specs/170-organization-roles/` WP-03, FR-005). Existing
+ *     CustomerAccount with that email rejects with
+ *     EMAIL_ALREADY_IN_ORGANIZATION (same org) or
  *     EMAIL_BELONGS_TO_ANOTHER_ORGANIZATION (different org).
+ *   - A personal Organization cannot invite (feature 051) — refused first,
+ *     before the role is resolved (owner ruling PR-3, R-34).
  *   - One pending invitation per (org, email) — partial unique index in
  *     migration 005 enforces this.
+ *   - Creating and revoking run as the `organization_invitation.create` /
+ *     `.revoke` Commands (Principle XIII; FR-065).
  *   - acceptByToken: anonymous flow that needs password + first/last name.
- *     Creates the CustomerAccount with role from the invitation, marks the
- *     invitation consumed.
- *   - revoke: soft-clears the pending invitation.
+ *     Creates the CustomerAccount with the role the invitation names, marks
+ *     the invitation consumed.
+ *   - Pending means neither accepted, revoked nor expired (FR-010a, PR-7).
  */
 
 const INVITATION_TTL_DAYS = 14;
 
+/** The predefined roles' English names — the in-code fallback e-mail is English. */
+const PREDEFINED_ROLE_ENGLISH_NAMES: Readonly<Record<'administrator' | 'member', string>> = {
+  administrator: 'Administrator',
+  member: 'Member',
+};
+
 export interface InvitationResult {
   invitation: OrganizationInvitation;
   rawToken: string;
-}
-
-export interface InvitationServiceOptions {
-  /** Storefront base used when building the redemption link. */
-  acceptBaseUrl?: string;
 }
 
 /**
@@ -67,38 +79,55 @@ export interface InvitationAccountPorts {
   write: CustomerAccountMemberWritePort;
 }
 
+export interface InvitationServiceDeps {
+  readonly emFactory: () => EntityManager;
+  readonly accounts: InvitationAccountPorts;
+  /** Runs the two invitation Commands (Principle XIII). */
+  readonly commandBus: { run<T>(command: Command<T>): Promise<T> };
+  readonly mailer?: EmailMailerPort | null;
+  /** Storefront base used when building the redemption link. */
+  readonly acceptBaseUrl?: string;
+  readonly events?: OrganizationEventBus;
+  readonly templateEmail?: OrgTemplateEmail;
+  /** The invitation accept's audit row (the accept is anonymous and not a Command). */
+  readonly auditLog?: AuditPort;
+  /**
+   * This module's bundle, for the role label the template e-mail shows
+   * (#667, FR-008). Absent, the English label.
+   */
+  readonly translate?: OrganizationsTranslate;
+  /**
+   * The language the template e-mail is written in — the system-default sales
+   * channel's, which is what `templateEmailPort` resolves (the invitee's own
+   * language is not known). Absent, English.
+   */
+  readonly resolveEmailLanguage?: () => Promise<SupportedLanguage>;
+}
+
 export class InvitationService {
   private readonly mailer: EmailMailerPort | null;
   private readonly acceptBaseUrl: string;
-
   private readonly templateEmail: OrgTemplateEmail;
 
-  constructor(
-    private readonly emFactory: () => EntityManager,
-    private readonly accounts: InvitationAccountPorts,
-    mailer?: EmailMailerPort | null,
-    options?: InvitationServiceOptions,
-    private readonly events?: OrganizationEventBus,
-    templateEmail?: OrgTemplateEmail,
-    private readonly auditLog?: AuditPort,
-  ) {
-    this.mailer = mailer ?? null;
-    this.acceptBaseUrl = options?.acceptBaseUrl ?? 'https://storefront.local';
-    this.templateEmail = templateEmail ?? noopOrgTemplateEmail;
+  constructor(private readonly deps: InvitationServiceDeps) {
+    this.mailer = deps.mailer ?? null;
+    this.acceptBaseUrl = deps.acceptBaseUrl ?? 'https://storefront.local';
+    this.templateEmail = deps.templateEmail ?? noopOrgTemplateEmail;
   }
 
   async invite(
     actor: { organizationId: string; customerAccountId?: string | null },
-    input: { email: string; role?: 'organization_admin' | 'regular_user' },
+    input: { email: string; roleId?: string },
   ): Promise<InvitationResult> {
-    const em = this.emFactory();
-    const role = input.role ?? 'regular_user';
+    const em = this.deps.emFactory();
     // This module keeps a row of its own on the same address, so it folds it
     // the same way the account table does rather than by a private rule.
     const invitedEmail = normalizeEmailAddress(input.email);
 
     // Feature 051 — a personal (B2C) organization is single-member by
-    // definition; it cannot invite additional members.
+    // definition; it cannot invite additional members. First, before the role
+    // is resolved (owner ruling PR-3): its administrator is answered by the
+    // Organization's kind, whatever role id it sent.
     const actorOrg = await em.findOne(Organization, { id: actor.organizationId });
     if (actorOrg?.isPersonal) {
       throw new HttpError(
@@ -109,7 +138,7 @@ export class InvitationService {
     }
 
     // Pre-check existing membership.
-    const existingByEmail = await this.accounts.read.findByEmail(invitedEmail);
+    const existingByEmail = await this.deps.accounts.read.findByEmail(invitedEmail);
     if (existingByEmail) {
       if (existingByEmail.organizationId === actor.organizationId) {
         throw new HttpError(
@@ -126,40 +155,21 @@ export class InvitationService {
     }
 
     const rawToken = randomBytes(32).toString('base64url');
-    const invitation = em.create(OrganizationInvitation, {
-      organizationId: actor.organizationId,
-      invitedByCustomerAccountId: actor.customerAccountId ?? null,
-      email: invitedEmail,
-      role,
-      tokenHash: sha256Hex(rawToken),
-      expiresAt: new Date(Date.now() + INVITATION_TTL_DAYS * 24 * 60 * 60 * 1_000),
-    });
-    if (this.auditLog) {
-      recordAuditFromContext(this.auditLog, em, {
-        action: 'organization.invite',
-        objectType: 'organization',
-        objectId: actor.organizationId,
-        stateBefore: null,
-        stateAfter: { email: invitedEmail, role },
-      });
-    }
-    try {
-      await em.persistAndFlush(invitation);
-    } catch (err) {
-      if (err instanceof UniqueConstraintViolationException) {
-        throw new HttpError(
-          409,
-          ERROR_CODES.EMAIL_ALREADY_IN_ORGANIZATION,
-          'A pending invitation for this email already exists.',
-        );
-      }
-      throw err;
-    }
+    const { invitation, role } = await this.deps.commandBus.run(
+      makeCreateOrganizationInvitationCommand({
+        organizationId: actor.organizationId,
+        invitedByCustomerAccountId: actor.customerAccountId ?? null,
+        email: invitedEmail,
+        roleId: input.roleId,
+        tokenHash: sha256Hex(rawToken),
+        expiresAt: new Date(Date.now() + INVITATION_TTL_DAYS * 24 * 60 * 60 * 1_000),
+      }),
+    );
 
     if (this.mailer || this.templateEmail !== noopOrgTemplateEmail) {
-      const organization = await em.findOne(Organization, { id: actor.organizationId });
+      const organization = actorOrg ?? (await em.findOne(Organization, { id: actor.organizationId }));
       const inviter = actor.customerAccountId
-        ? await this.accounts.read.findById(actor.customerAccountId)
+        ? await this.deps.accounts.read.findById(actor.customerAccountId)
         : null;
       const inviterName = inviter
         ? [inviter.firstName, inviter.lastName].filter(Boolean).join(' ').trim() || inviter.email
@@ -171,7 +181,9 @@ export class InvitationService {
         inviteeEmail: invitation.email,
         inviterName,
         organizationName,
-        role: invitation.role,
+        // The in-code builder writes English, so it shows the English label.
+        roleLabel: await this.roleLabel(role, 'en'),
+        organizationRoleId: invitation.organizationRoleId,
         expiresAt: invitation.expiresAt,
         acceptBaseUrl: this.acceptBaseUrl,
         // Feature 167 — the invitee's language is not known: the channel default.
@@ -185,7 +197,8 @@ export class InvitationService {
         variables: {
           organizationName,
           inviterName,
-          roleLabel: invitation.role === 'organization_admin' ? 'Organization Admin' : 'Member',
+          // #667 — the role's own label, in the language the template is sent in.
+          roleLabel: await this.roleLabel(role, await this.emailLanguage()),
           acceptUrl,
           expiresOn: invitation.expiresAt.toISOString().slice(0, 10),
         },
@@ -212,18 +225,21 @@ export class InvitationService {
   }
 
   /**
-   * Lists every pending invitation on the actor's organization. "Pending"
-   * means not yet consumed and not revoked; expired rows are intentionally
-   * still surfaced so the admin can see what needs cleaning up.
+   * Lists every pending invitation on the actor's organization: neither
+   * accepted, revoked nor expired — the acceptance path's own test of expiry
+   * (FR-010a, owner ruling PR-7, research R-37). An expired invitation cannot
+   * be accepted, so listing it would tell the administrator a colleague is
+   * about to join who cannot.
    */
   async listPending(actor: { organizationId: string }): Promise<OrganizationInvitation[]> {
-    const em = this.emFactory();
+    const em = this.deps.emFactory();
     return em.find(
       OrganizationInvitation,
       {
         organizationId: actor.organizationId,
         consumedAt: null,
         revokedAt: null,
+        expiresAt: { $gt: new Date() },
       },
       { orderBy: { createdAt: 'desc' } },
     );
@@ -233,51 +249,29 @@ export class InvitationService {
     actor: { organizationId: string },
     invitationId: string,
   ): Promise<void> {
-    const em = this.emFactory();
-    const invitation = await em.findOne(OrganizationInvitation, {
-      id: invitationId,
-      organizationId: actor.organizationId,
-    });
-    if (!invitation) {
-      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Invitation not found.');
-    }
-    if (invitation.consumedAt || invitation.revokedAt) return;
+    await this.deps.commandBus.run(
+      makeRevokeOrganizationInvitationCommand(
+        { accounts: this.deps.accounts.read },
+        { organizationId: actor.organizationId, invitationId },
+      ),
+    );
+  }
 
-    if (invitation.role === 'organization_admin') {
-      const adminCount = await this.accounts.read.countByOrganizationRole(
-        actor.organizationId,
-        'organization_admin',
-        { activeOnly: true },
-      );
-      if (adminCount === 0) {
-        const otherPending = await em.count(OrganizationInvitation, {
-          organizationId: actor.organizationId,
-          role: 'organization_admin',
-          consumedAt: null,
-          revokedAt: null,
-          id: { $ne: invitation.id },
-        });
-        if (otherPending === 0) {
-          throw new HttpError(
-            409,
-            ERROR_CODES.CANNOT_REVOKE_LAST_ADMIN_INVITE,
-            'Cannot revoke the only pending administrator invitation while the organization has no active administrator.',
-          );
-        }
-      }
-    }
+  /** A role's label (FR-008): a predefined role's name in `language`, a custom role's own name. */
+  private async roleLabel(
+    role: Pick<OrganizationRole, 'kind' | 'name'>,
+    language: SupportedLanguage,
+  ): Promise<string> {
+    if (role.kind === 'custom') return role.name ?? '';
+    const english = PREDEFINED_ROLE_ENGLISH_NAMES[role.kind];
+    if (!this.deps.translate) return english;
+    const key = `organizationRoles.${role.kind}.name`;
+    const text = await this.deps.translate(key, language);
+    return text === key || text === `organizations.${key}` ? english : text;
+  }
 
-    invitation.revokedAt = new Date();
-    if (this.auditLog) {
-      recordAuditFromContext(this.auditLog, em, {
-        action: 'organization.invite_revoke',
-        objectType: 'organization',
-        objectId: invitation.organizationId,
-        stateBefore: { email: invitation.email, role: invitation.role },
-        stateAfter: null,
-      });
-    }
-    await em.flush();
+  private async emailLanguage(): Promise<SupportedLanguage> {
+    return this.deps.resolveEmailLanguage ? this.deps.resolveEmailLanguage() : 'en';
   }
 
   /**
@@ -298,7 +292,7 @@ export class InvitationService {
     rawToken: string,
     input: { password: string; firstName: string; lastName: string },
   ): Promise<{ customerAccount: CustomerAccountRecord }> {
-    const em = this.emFactory();
+    const em = this.deps.emFactory();
     const tokenHash = sha256Hex(rawToken);
     const invitation = await em.findOne(OrganizationInvitation, { tokenHash });
     if (!invitation || invitation.consumedAt || invitation.revokedAt) {
@@ -319,7 +313,7 @@ export class InvitationService {
     // FR-041: at most one CustomerAccount per email installation-wide. The
     // owner re-checks inside `create`; this one keeps the invitation
     // unconsumed when the address is already taken.
-    const existing = await this.accounts.read.findByEmail(invitation.email);
+    const existing = await this.deps.accounts.read.findByEmail(invitation.email);
     if (existing) {
       throw new HttpError(
         409,
@@ -332,31 +326,37 @@ export class InvitationService {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization no longer exists.');
     }
 
-    const customer = await this.accounts.write.create({
+    const customer = await this.deps.accounts.write.create({
       organizationId: invitation.organizationId,
       email: invitation.email,
       password: input.password,
       firstName: input.firstName,
       lastName: input.lastName,
-      role: invitation.role,
+      // The role the invitation names (`specs/170-organization-roles/`
+      // data-model §3).
+      organizationRoleId: invitation.organizationRoleId,
       // Accepting an invitation implies a confirmed address: it was delivered
       // to that address.
       emailVerified: true,
     });
     invitation.consumedAt = new Date();
-    if (this.auditLog) {
-      recordAuditFromContext(this.auditLog, em, {
+    if (this.deps.auditLog) {
+      recordAuditFromContext(this.deps.auditLog, em, {
         action: 'organization.invite_accept',
         objectType: 'organization',
         objectId: invitation.organizationId,
         stateBefore: null,
-        stateAfter: { email: invitation.email, role: invitation.role, customerAccountId: customer.id },
+        stateAfter: {
+          email: invitation.email,
+          organizationRoleId: invitation.organizationRoleId,
+          customerAccountId: customer.id,
+        },
       });
     }
     await em.flush();
 
-    if (this.events) {
-      emitCustomerAccountCreated(this.events, customer.id, invitation.organizationId);
+    if (this.deps.events) {
+      emitCustomerAccountCreated(this.deps.events, customer.id, invitation.organizationId);
     }
 
     return { customerAccount: customer };
@@ -367,7 +367,7 @@ export class InvitationService {
    * integration tests can complete the accept step without the email.
    */
   async latestUnconsumedTokenInvitationId(): Promise<string | null> {
-    const em = this.emFactory();
+    const em = this.deps.emFactory();
     const row = await em.findOne(
       OrganizationInvitation,
       { consumedAt: null, revokedAt: null },
@@ -380,6 +380,3 @@ export class InvitationService {
 function sha256Hex(input: string): string {
   return createHash('sha256').update(input, 'utf8').digest('hex');
 }
-
-// silence unused — randomUUID may be needed by callers later
-void randomUUID;

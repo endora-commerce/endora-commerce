@@ -28,21 +28,22 @@ Sześć wartości, które zastąpiły zestaw z wczesnej wersji platformy:
 
 ## Publiczne API
 
-Endpointy klienta wymagają sesji klienta; endpointy administracyjne są chronione uprawnieniem
-`rfqs:handle`. Endpointy wykonujące zmiany (typu PATCH) przyjmują wersję w nagłówku `If-Match` na
+Endpointy klienta wymagają sesji klienta, a trzy z nich, które tworzą zapytanie ofertowe lub
+wypełniają koszyk, także uprawnienia organizacyjnego roli członka — zob. *Uprawnienia
+organizacyjne*; endpointy administracyjne są chronione uprawnieniem `rfqs:handle`. Endpointy wykonujące zmiany (typu PATCH) przyjmują wersję w nagłówku `If-Match` na
 potrzeby optymistycznej kontroli współbieżności, a akceptacja i odrzucenie wersji przez klienta
 dodatkowo wymagają podania `expectedRevisionNumber`.
 
 | Metoda + ścieżka | Odbiorca | Cel |
 | --- | --- | --- |
-| `GET /api/v1/quote-requests` | klient | Lista widocznych zapytań ofertowych (rola org-admin rozszerza widoczność na całą organizację). |
+| `GET /api/v1/quote-requests` | klient | Lista widocznych zapytań ofertowych (rola *Administrator* rozszerza widoczność na całą organizację — zob. *Model widoczności*). |
 | `GET /api/v1/quote-requests/:id` | klient | Szczegóły, z opcjonalnym blokiem `comparisonAgainstLastSeen`, gdy zapytanie czeka na akceptację. |
-| `POST /api/v1/quote-requests` | klient | Utworzenie i wysłanie w jednym wywołaniu. |
+| `POST /api/v1/quote-requests` | klient | Utworzenie i wysłanie w jednym wywołaniu. Wymaga `quote_requests.create`. |
 | `PATCH /api/v1/quote-requests/:id` | klient | Edycja zapytania w statusie Pending, którego strona wewnętrzna jeszcze nie zmieniła — zob. *Edycja szkicu przez klienta*. |
 | `POST /api/v1/quote-requests/:id/accept-revision` | klient | Akceptacja najnowszej wersji przygotowanej przez sprzedawcę (dotyczy też `Created from admin`). Wymaga oferty sprzedawcy z wyceną każdej pozycji — zob. *Uzgodnione ceny*. |
 | `POST /api/v1/quote-requests/:id/reject-revision` | klient | Odrzucenie najnowszej wersji z opcjonalnym powodem. |
-| `POST /api/v1/quote-requests/:id/resubmit` | klient | Skopiowanie starego zapytania do nowego, w statusie Pending, według bieżących cen klienta. |
-| `POST /api/v1/quote-requests/:id/convert-to-order` | klient | Wypełnienie koszyka klienta pozycjami zapytania w statusie Approved po uzgodnionych cenach jednostkowych i zwrócenie adresu procesu zamówienia. |
+| `POST /api/v1/quote-requests/:id/resubmit` | klient | Skopiowanie starego zapytania do nowego, w statusie Pending, według bieżących cen klienta. Wymaga `quote_requests.create`. |
+| `POST /api/v1/quote-requests/:id/convert-to-order` | klient | Wypełnienie koszyka klienta pozycjami zapytania w statusie Approved po uzgodnionych cenach jednostkowych i zwrócenie adresu procesu zamówienia. Wymaga `carts.create`. |
 | `GET /api/v1/admin/quote-requests` | administrator | Lista zawężona do przypisań opiekuna handlowego, z filtrami według statusu i organizacji. |
 | `GET /api/v1/admin/quote-requests/:id` | administrator | Szczegóły z pełną tożsamością wykonawców w dzienniku zdarzeń oraz, dla każdej pozycji, ceną referencyjną i propozycją klienta — zob. *Cena referencyjna*. |
 | `GET /api/v1/admin/quote-requests/:id/history` | administrator | Historia zapytania w postaci czytelnych wpisów — zob. *Historia*. |
@@ -500,8 +501,41 @@ sam `404` co dla nieistniejącego identyfikatora, na każdym endpoincie administ
 ofertowych — szczegółach, historii i każdej akcji. (We wcześniejszych wersjach część z nich
 odpowiadała `403`, co zdradzało, że zapytanie istnieje).
 
-Klient z rolą `org_admin` we własnej organizacji widzi każde zapytanie ofertowe tej organizacji, a
-nie tylko własne.
+Członek, który ma w swojej organizacji rolę *Administrator*, widzi każde zapytanie ofertowe tej
+organizacji, a nie tylko własne — na liście, w szczegółach i w każdej akcji, która wskazuje
+zapytanie. Każdy inny członek widzi tylko własne; zapytanie współpracownika odpowiada `404`. Reguła
+czyta rolę, którą członek ma, nigdy dawnej kolumny `role`, i żadne uprawnienie organizacyjne jej nie
+poszerza: rola niestandardowa z każdym kodem nadal widzi tylko własne zapytania. (Gdy pojawi się
+wewnętrzna akceptacja zapytań ofertowych, ta widoczność przejdzie na osobne uprawnienie).
+
+`RfqCustomerPort.listForCustomer` — z którego `customers` czyta własną listę kupującego i listę
+jednego klienta w panelu administracyjnym — zawsze zwraca zapytania wysłane przez to konto, bez
+względu na jego rolę.
+
+## Uprawnienia organizacyjne
+
+`quote_requests` deklaruje jedno uprawnienie organizacyjne — kod, który administrator organizacji
+nadaje roli na ekranach ról w sklepie (zob. moduł `organizations`):
+
+| Kod | Etykieta | Rola Członek ma je domyślnie | Chroni |
+| --- | --- | --- | --- |
+| `quote_requests.create` | Tworzenie zapytań ofertowych | tak | `POST /api/v1/quote-requests` i `POST /api/v1/quote-requests/:id/resubmit`; moduły, które tworzą zapytanie ofertowe w imieniu kupującego — z koszyka, z listy zakupowej, z szybkiego zamówienia — także je sprawdzają |
+
+`POST /api/v1/quote-requests/:id/convert-to-order` wypełnia koszyk kupującego, więc chroni go
+uprawnienie `carts.create` modułu `carts`.
+
+Członek, którego rola nie ma tego kodu, dostaje odmowę `403 ORGANIZATION_PERMISSION_REQUIRED` z
+nazwą uprawnienia, zanim treść żądania zostanie zwalidowana i zanim zapytanie zostanie odszukane.
+Anonimowy gość nadal dostaje `401`. Gdy `quote_requests` jest wyłączony, jego kod znika z katalogu
+uprawnień i z efektywnych uprawnień każdego członka; zapisane nadanie w roli zostaje i znów działa
+po ponownym włączeniu modułu.
+
+W storefroncie członek bez `quote_requests.create` nie widzi przycisku dodawania do zapytania na stronie
+produktu ani na kartach produktów, ani *Zamień na zapytanie ofertowe* w koszyku. Szkic zapytania
+ofertowego można nadal przejrzeć, ale przycisk wysyłania jest nieaktywny, a obok widnieje powód:
+*„Twoja rola nie pozwala wysyłać zapytań ofertowych.”* Na stronie zapytania ofertowego ponowne
+wysłanie jest dostępne tylko z `quote_requests.create`, a złożenie zamówienia z zaakceptowanego
+zapytania — tylko z `carts.create`.
 
 ## Pola niestandardowe
 

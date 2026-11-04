@@ -6,7 +6,9 @@ import type {
   CustomerAccountReadPort,
   EmailDefaultsRegistryPort,
   EmailMailerPort,
+  OrderReadPort,
   OrderReturnContextPort,
+  OrganizationPermissionPort,
   PaymentRefundPort,
   ReturnRefundReadPort,
   TransactionalEmailSender,
@@ -164,6 +166,12 @@ export function registerModule(ctx: ModuleContext): void {
           // The `lazyPort` proxy resolves per call, so the gate still answers at
           // the settlement it is about rather than at composition.
           orderContext: lazyPort<OrderReturnContextPort>(ctx, 'orderReturnContextPort'),
+          // `specs/170-organization-roles/` OR-11 (research R-41). `orders`'
+          // customer-scoped reader judges the order a return is started from,
+          // and `organizations`' permission port the two `returns` codes. Both
+          // are `lazyPort` proxies resolved per call, never captured.
+          orderReadPort: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
+          organizationPermissions: lazyPort<OrganizationPermissionPort>(ctx, 'organizationPermissionPort'),
           paymentRefund: lazyPort<PaymentRefundPort>(ctx, 'paymentRefundPort'),
           correctiveInvoice: lazyPort<CorrectiveInvoicePort>(ctx, 'correctiveInvoicePort'),
           creditTopup: lazyPort<CreditTopupPort>(ctx, 'creditTopupPort'),

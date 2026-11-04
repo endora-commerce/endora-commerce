@@ -12,7 +12,7 @@ Porządkowanie koszyków z maja 2026 rozszerzyło podstawowy moduł koszyka o pe
 (`active` / `abandoned` / `completed` / `rejected`), niezależny od niego stan akceptacji, przypisanie
 do kanału sprzedaży, zapis ostatniej aktywności, stosowanie kuponów przez moduł promocji, propozycje
 droższych zamienników, trzy rodzaje zamiany (koszyk ↔ zapytanie ofertowe, lista zakupów → koszyk),
-wgląd administratora organizacji w koszyki i akceptację koszyków, wyszukiwanie porzuconych koszyków
+akceptację koszyków zależną od ról członków organizacji, wyszukiwanie porzuconych koszyków
 oraz ekrany podglądu dla administratora platformy.
 
 ## Jeden koszyk na sklep
@@ -48,13 +48,13 @@ go w sklepie, do którego jego organizacja nie jest przypisana.
         │                                            ▼                 │
         │                                  [ active / pending ]        │
         │                                            │                 │
-        │                                            ├──(org-admin     │
+        │                                            ├──(approver      │
         │                                            │   approve)──▶   │
         │                                            │  [ active /     │
         │                                            │   approved ]    │
         │                                            │     │           │
         │                                            ▼     ▼           │
-        │  (org-admin reject)                  [ rejected / rejected_by_org_admin ]
+        │  (approver reject)                   [ rejected / rejected_by_org_admin ]
         │
         ▼
 [ abandoned ] ◀──(sweep: last_activity_at < threshold)── [ active / * ]
@@ -85,29 +85,68 @@ go o jeden krok — w tej samej transakcji co zmiana i z wpisem audytu
 - koszyk `approved` wraca do `pending`, więc zmieniony koszyk musi zostać ponownie zaakceptowany,
   zanim zostanie z niego złożone zamówienie;
 - koszyk `pending` wraca do `not_required` — stanu, z którego został przekazany do akceptacji —
-  więc administrator nigdy nie akceptuje innej zawartości niż przekazana. Koszyk znika z listy
-  oczekujących administratora, jego akceptacja lub odrzucenie zwraca `CART_APPROVAL_NOT_PENDING`,
+  więc akceptujący nigdy nie akceptuje innej zawartości niż przekazana. Koszyk znika z listy
+  oczekujących, jego akceptacja lub odrzucenie zwraca `CART_APPROVAL_NOT_PENDING`,
   a kupujący ponownie widzi **Zgłoś do akceptacji** (`primaryCta: 'submit_for_approval'`).
 
 Odrzucony koszyk jest zamknięty (`status: 'rejected'`) i nie można go ponownie przekazać, więc
 koszyk `pending` zawsze został przekazany ze stanu `not_required`.
 
-Brak akceptowania własnych koszyków: koszyk utworzony przez administratora organizacji powstaje z
-`approval_status='not_required'`, niezależnie od ustawienia akceptacji w organizacji.
+### Akceptacja według roli
 
-Główna akcja: dla członka organizacji, która wymaga akceptacji koszyków, koszyk jeszcze nieprzekazany
-ma `primaryCta: 'submit_for_approval'`, przekazany — `awaiting_approval`, a zaakceptowany —
-`checkout`. Własny koszyk administratora organizacji oraz każdy koszyk organizacji, która nie wymaga
-akceptacji, ma `checkout`.
+To, czy koszyk wymaga akceptacji, kto go akceptuje i kto w ogóle może go wypełniać, określają trzy
+uprawnienia roli członka w organizacji (role edytuje w sklepie administrator organizacji;
+*Administrator* ma wszystkie uprawnienia):
 
-Kto działa na koszyku członka: administrator organizacji wyświetla listę, szczegóły, akceptuje i
-odrzuca koszyki wszystkich członków swojej organizacji, a zamówienie z zaakceptowanego koszyka składa
-członek, do którego koszyk należy. Koszyk innej organizacji zwraca `404`, tak samo jak nieistniejący;
-członek, który nie jest administratorem, dostaje odmowę `403`. Wyłączenie wymogu akceptacji przywraca
-każdy oczekujący lub zaakceptowany koszyk organizacji do `not_required`.
+| Uprawnienie | Kod | Domyślnie dla roli *Członek* | Co rozstrzyga |
+| --- | --- | --- | --- |
+| Tworzenie i edycja koszyków | `carts.create` | tak | Dodawanie, zmianę i usuwanie pozycji, dodawanie i usuwanie kuponu, tworzenie koszyka z zapytania ofertowego, listy zakupów lub szybkiego zamówienia oraz łączenie koszyka gościa przy logowaniu |
+| Akceptowanie i odrzucanie koszyków współpracowników | `carts.approve` | nie | Wyświetlanie listy i szczegółów koszyków organizacji oraz akceptowanie lub odrzucanie koszyków przekazanych do akceptacji |
+| Składanie zamówień bez akceptacji | `carts.order_without_approval` | tak | Zamawianie koszyka bezpośrednio; członek, którego rola go nie ma, najpierw przekazuje koszyk do akceptacji |
 
-W sklepie administrator robi to w sekcji **Organizacja → Koszyki** (`/organization/carts`): listę
-można zawęzić do koszyków oczekujących na akceptację, a każdy koszyk otwiera się na własnej stronie
+Zastępują one przełącznik *Akceptacja koszyków* organizacji: organizacja, która miała go włączony,
+po aktualizacji zachowuje się tak samo, ponieważ jej rola *Członek* nie dostaje uprawnienia
+*Składanie zamówień bez akceptacji* (ani *Zakupu jednym kliknięciem*). Aby wymagać akceptacji tylko od
+niektórych członków, nadaj im rolę bez *Składania zamówień bez akceptacji*.
+
+- Członek bez uprawnienia *Tworzenie i edycja koszyków* dostaje odmowę każdej zmiany koszyka z kodem
+  `403 ORGANIZATION_PERMISSION_REQUIRED`, wskazującym uprawnienie; odczyt koszyka
+  (`GET /api/v1/cart`) nadal działa, więc nagłówki stron zachowują licznik koszyka. Niezalogowany
+  odwiedzający korzysta z koszyka gościa dokładnie tak jak dotąd. Gdy taki członek się loguje, jego
+  koszyk gościa **nie** jest łączony — pozostaje bez zmian, ze swoimi pozycjami — a samo logowanie
+  się udaje.
+- Członek bez uprawnienia *Składanie zamówień bez akceptacji* widzi `primaryCta:
+  'submit_for_approval'` dla koszyka jeszcze nieprzekazanego, `awaiting_approval` dla przekazanego i
+  `checkout` dla zaakceptowanego; wszyscy pozostali widzą `checkout`. Przekazanie koszyka do akceptacji,
+  gdy rola ma to uprawnienie, jest odrzucane z `422 CART_APPROVAL_NOT_REQUIRED` (także dla
+  administratora).
+- Osoba z uprawnieniem *Akceptowanie i odrzucanie koszyków współpracowników* wyświetla listę,
+  szczegóły, akceptuje i odrzuca koszyki wszystkich członków swojej organizacji, tak jak wcześniej
+  administrator; zamówienie z zaakceptowanego koszyka składa członek, do którego koszyk należy. Koszyk
+  innej organizacji zwraca `404`, tak samo jak nieistniejący; członek bez tego uprawnienia dostaje
+  odmowę `403 ORGANIZATION_PERMISSION_REQUIRED`. Koszyk, który nie oczekuje na akceptację, daje
+  `422 CART_APPROVAL_NOT_PENDING` niezależnie od właściciela, a nikt nie akceptuje ani nie odrzuca
+  własnego oczekującego koszyka: `422 CART_APPROVAL_SELF_APPROVE`.
+- Gdy rola zyskuje uprawnienie *Składanie zamówień bez akceptacji* albo członek przechodzi do roli,
+  która je ma, jego koszyki oczekujące na akceptację wracają do `not_required` (w audycie jako
+  `approval_policy_reset`). Gdy rola traci to uprawnienie, zaakceptowany koszyk pozostaje
+  zaakceptowany.
+
+To, co kupujący widzi w storefroncie, wynika z tych samych trzech uprawnień. Zalogowany członek bez
+uprawnienia *Tworzenie i edycja koszyków* nie widzi dodawania do koszyka na stronie produktu, na
+kartach produktów ani na stronie porównania; jego strona koszyka pokazuje pozycje bez zmiany ilości,
+przycisków usuwania i pola kuponu, i wyjaśnia to w jednym zdaniu: *„Twoja rola nie pozwala zmieniać
+koszyka. Możesz go przeglądać i zamówić.”* Niezalogowany odwiedzający widzi to wszystko jak dotąd.
+*Zapisz na liście* przy pozycji koszyka zależy od `shopping_lists.create`, a *Zamień na zapytanie
+ofertowe* — od `quote_requests.create`. Członek bez uprawnienia *Składanie zamówień bez akceptacji*
+widzi *„Twoja rola wymaga akceptacji koszyka przed realizacją zamówienia.”* i przycisk **Zgłoś do
+akceptacji** zamiast przejścia do kasy; po wysłaniu koszyk informuje, że oczekuje na akceptację w
+organizacji, a po odrzuceniu wskazuje *osobę zatwierdzającą w Twojej organizacji*.
+
+Akceptujący działa w sekcji **Koszyki do akceptacji** w nawigacji konta (widocznej dla osób z
+uprawnieniem *Akceptowanie i odrzucanie koszyków współpracowników*, z liczbą oczekujących koszyków;
+nigdy w organizacji prywatnej), która otwiera `/organization/carts` na koszykach oczekujących na
+akceptację. Listę można zawęzić do koszyków oczekujących na akceptację, a każdy koszyk otwiera się na własnej stronie
 (`/organization/carts/<id>`) z właścicielem, pozycjami, sumą i czasem przesłania. Oczekujący koszyk
 oferuje **Zaakceptuj koszyk** oraz — za rozwijanym przełącznikiem — **Odrzuć koszyk**, które wymaga
 podania powodu o długości do 2000 znaków. Strona potwierdza decyzję albo nazywa odmowę — na
@@ -124,10 +163,11 @@ także dla koszyka anonimowego, ma wartość `null`. Pozycje odrzuconego koszyka
 nowego.
 
 Składanie zamówienia egzekwuje akceptację: koszyk członka, który nie jest `approved` — nigdy
-nieprzekazany, czekający na administratora albo odrzucony — zostaje odrzucony przy składaniu
+nieprzekazany, czekający na akceptującego albo odrzucony — zostaje odrzucony przy składaniu
 zamówienia z kodem `409 ORDER_CART_APPROVAL_REQUIRED`, zanim cokolwiek zostanie zarezerwowane lub
-zapisane; koszyk pozostaje bez zmian. Reguła jest ta sama, którą stosuje przekazanie do akceptacji:
-organizacja wymaga akceptacji koszyków, a właściciel koszyka nie jest jej administratorem. Obowiązuje
+zapisane; koszyk pozostaje bez zmian. Reguła jest ta sama, którą stosuje przekazanie do akceptacji,
+sprawdzana w chwili składania zamówienia: właściciel koszyka nie ma uprawnienia *Składanie zamówień
+bez akceptacji*. Obowiązuje
 niezależnie od tego, co pokazuje storefront — zarówno dla `POST /api/v1/orders`, jak i dla strony
 kasy. Strona modułu zamówień, w części *Akceptacja koszyka przy składaniu zamówienia*, wymienia
 komunikaty.
@@ -138,17 +178,17 @@ Każdy krok akceptacji wysyła e-mail, gdy krok zostanie już zapisany:
 
 | E-mail (kod szablonu) | Kiedy | Do kogo |
 | --- | --- | --- |
-| Koszyk przekazany do akceptacji (`cart_approval_requested`) | Członek przekazuje koszyk do akceptacji | Każdy administrator organizacji członka — osobna wiadomość dla każdego. Administrator zablokowany, usunięty lub zanonimizowany nie dostaje wiadomości. |
-| Koszyk zaakceptowany (`cart_approved`) | Administrator akceptuje koszyk | Członek, do którego koszyk należy, z informacją, kto go zaakceptował |
-| Koszyk odrzucony (`cart_rejected`) | Administrator odrzuca koszyk | Członek, do którego koszyk należy, z powodem podanym przez administratora |
+| Koszyk przekazany do akceptacji (`cart_approval_requested`) | Członek przekazuje koszyk do akceptacji | Każdy członek organizacji, którego rola ma uprawnienie *Akceptowanie i odrzucanie koszyków współpracowników* (także administratorzy) — osobna wiadomość dla każdego, nigdy dla nadawcy. Członek zablokowany, usunięty lub zanonimizowany nie dostaje wiadomości. |
+| Koszyk zaakceptowany (`cart_approved`) | Akceptujący akceptuje koszyk | Członek, do którego koszyk należy, z informacją, kto go zaakceptował |
+| Koszyk odrzucony (`cart_rejected`) | Akceptujący odrzuca koszyk | Członek, do którego koszyk należy, z powodem podanym przez akceptującego |
 
 - Wiadomości są pisane w domyślnym języku sklepu (kanału sprzedaży), do którego należy koszyk, a po
   angielsku, gdy sklep nie ma języka domyślnego. Konto klienta nie zapisuje własnego języka, więc
   język sklepu jest jedynym, jaki platforma zna dla odbiorcy.
 - Temat i treść każdej wiadomości są dostarczane po angielsku i po polsku; można je edytować dla
   każdego języka i sklepu albo wyłączyć na ekranie szablonów e-maili (grupa *carts*). Wiadomości nie
-  zawierają linku: odbiorca loguje się na swoje konto, aby działać — administrator w sekcji
-  **Organizacja → Koszyki** (`/organization/carts`), kupujący na stronie swojego koszyka.
+  zawierają linku: odbiorca loguje się na swoje konto, aby działać — akceptujący w sekcji
+  **Koszyki do akceptacji** (`/organization/carts`), kupujący na stronie swojego koszyka.
 - Wiadomość, której nie da się wysłać — brak serwera poczty, wyłączony szablon, serwer poczty odbiorcy
   ją odrzuca — nigdy nie cofa ani nie przerywa kroku akceptacji. Trafia do logu serwera jako
   *„the cart approval e-mail was not sent”*, z koszykiem, kodem szablonu i powodem.
@@ -159,32 +199,38 @@ Każdy krok akceptacji wysyła e-mail, gdy krok zostanie już zapisany:
 
 | Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
-| `GET /api/v1/cart` | Aktywny koszyk kanału sprzedaży żądania (tworzony przy pierwszym odczycie); odpowiedź zawiera `status`, `approvalStatus`, `salesChannelId`, `grandTotal`, `discount`, `primaryCta`, `droppedLines`, `couponDroppedThisRead`, `lastActivityAt`, `previousRejection` |
-| `POST /api/v1/cart/items` | Dodanie pozycji (limit 200 pozycji) |
-| `PATCH /api/v1/cart/items/:itemId` | Zmiana ilości (`0` usuwa pozycję) |
-| `DELETE /api/v1/cart/items/:itemId` | Usunięcie pozycji |
-| `POST /api/v1/cart/items/:itemId/save-to-shopping-list` | Przeniesienie pozycji na listę zakupów |
+| `GET /api/v1/cart` | Aktywny koszyk kanału sprzedaży żądania (tworzony przy pierwszym odczycie); odpowiedź zawiera `status`, `approvalStatus`, `salesChannelId`, `grandTotal`, `discount`, `primaryCta`, `droppedLines`, `couponDroppedThisRead`, `lastActivityAt`, `previousRejection`. Nie wymaga żadnego uprawnienia |
+| `POST /api/v1/cart/items` | Dodanie pozycji (limit 200 pozycji) — `carts.create` dla zalogowanego członka; gość nie jest sprawdzany |
+| `PATCH /api/v1/cart/items/:itemId` | Zmiana ilości (`0` usuwa pozycję) — jak wyżej |
+| `DELETE /api/v1/cart/items/:itemId` | Usunięcie pozycji — jak wyżej |
+| `POST /api/v1/cart/items/:itemId/save-to-shopping-list` | Przeniesienie pozycji na listę zakupów — `shopping_lists.create` |
 | `POST /api/v1/cart/touch` | Jawny sygnał otwarcia strony; aktualizuje `last_activity_at` i przywraca porzucony koszyk |
 | `GET /api/v1/cart/upsells?limit=N` | Pasek droższych zamienników z `product_links` katalogu (kind = `up_sell`) |
-| `POST /api/v1/cart/coupon` | Zastosowanie (albo zamiana, albo usunięcie) aktywnego kodu kuponu; przy odrzuceniu 422 `CART_COUPON_REJECTED` z powodem |
-| `DELETE /api/v1/cart/coupon` | To samo co `POST {code: null}` |
-| `POST /api/v1/cart/convert-to-quote-request` | Koszyk → zapytanie ofertowe; koszyk źródłowy przechodzi w stan `completed` z ustawionym `converted_to_quote_request_id` |
-| `POST /api/v1/cart/from-quote-request/:qrId` | Zapytanie ofertowe → koszyk; ceny pozycji są wyznaczane ponownie według bieżących cen klienta |
-| `POST /api/v1/cart/from-shopping-list/:listId` | Lista zakupów → koszyk; ceny są wyznaczane ponownie |
+| `POST /api/v1/cart/coupon` | Zastosowanie (albo zamiana, albo usunięcie) aktywnego kodu kuponu; przy odrzuceniu 422 `CART_COUPON_REJECTED` z powodem — `carts.create` dla zalogowanego członka; gość nie jest sprawdzany |
+| `DELETE /api/v1/cart/coupon` | To samo co `POST {code: null}` — jak wyżej |
+| `POST /api/v1/cart/convert-to-quote-request` | Koszyk → zapytanie ofertowe; koszyk źródłowy przechodzi w stan `completed` z ustawionym `converted_to_quote_request_id` — `quote_requests.create` |
+| `POST /api/v1/cart/from-quote-request/:qrId` | Zapytanie ofertowe → koszyk; ceny pozycji są wyznaczane ponownie według bieżących cen klienta — `carts.create` |
+| `POST /api/v1/cart/from-shopping-list/:listId` | Lista zakupów → koszyk; ceny są wyznaczane ponownie — `shopping_lists.convert`, sprawdzane najpierw, oraz `carts.create` |
+| `POST /api/v1/cart/submit-for-approval` | Kupujący przekazuje koszyk do akceptacji. Odrzucane z `422 CART_APPROVAL_NOT_REQUIRED`, gdy rola kupującego ma `carts.order_without_approval`, z `422 CART_APPROVAL_ALREADY_SUBMITTED` dla koszyka już przekazanego oraz dla koszyka poniżej minimum — zob. *Minimalne ilości zamówienia* |
 
-### Storefront (administrator organizacji)
+Odmowa z powodu brakującego uprawnienia to `403 ORGANIZATION_PERMISSION_REQUIRED` z kodem uprawnienia
+w `details.permission` i jego przetłumaczoną nazwą w `details.permissionLabel`.
+
+### Storefront (akceptujący)
 
 | Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
 | `GET /api/v1/organization/carts` | Lista wszystkich koszyków w organizacji wywołującego |
 | `GET /api/v1/organization/carts/:id` | Szczegóły koszyka członka organizacji wraz z pozycjami (`items`: nazwa, SKU, ilość, cena jednostkowa i wartość pozycji w zapisanej wysokości) |
-| `PATCH /api/v1/organization/policies/cart-approval` | Włączenie lub wyłączenie `requires_cart_approval` dla organizacji |
-| `POST /api/v1/cart/submit-for-approval` | Kupujący przekazuje koszyk do akceptacji administratorowi organizacji. Odrzucane z `422 CART_APPROVAL_NOT_REQUIRED`, gdy akceptacja jest wyłączona, z `422 CART_APPROVAL_SELF_SUBMIT` dla samych administratorów organizacji, z `422 CART_APPROVAL_ALREADY_SUBMITTED` dla koszyka już przekazanego oraz dla koszyka poniżej minimum — zob. *Minimalne ilości zamówienia* |
-| `POST /api/v1/organization/carts/:id/approve` | Akceptacja oczekującego koszyka; koszyk, który nie oczekuje na akceptację, daje `422 CART_APPROVAL_NOT_PENDING` |
-| `POST /api/v1/organization/carts/:id/reject` | Odrzucenie oczekującego koszyka z wymaganym powodem; koszyk, który nie oczekuje na akceptację, daje `422 CART_APPROVAL_NOT_PENDING` |
+| `POST /api/v1/organization/carts/:id/approve` | Akceptacja oczekującego koszyka; koszyk, który nie oczekuje na akceptację, daje `422 CART_APPROVAL_NOT_PENDING`, własny oczekujący koszyk — `422 CART_APPROVAL_SELF_APPROVE` |
+| `POST /api/v1/organization/carts/:id/reject` | Odrzucenie oczekującego koszyka z wymaganym powodem; odmowy jak przy akceptacji |
 
-Dostęp do każdej trasy `organization/*` wymaga `CustomerAccount.role === 'organization_admin'`.
-Koszyki innej organizacji zwracają 404 (tak samo jak nieistniejące, by nie ujawniać ich istnienia).
+Dostęp do każdej trasy `organization/*` wymaga uprawnienia organizacji `carts.approve`. Koszyki innej
+organizacji zwracają 404 (tak samo jak nieistniejące, by nie ujawniać ich istnienia). Przełącznik
+*Akceptacja koszyków* organizacji (`PATCH /api/v1/organization/policies/cart-approval`) i jego
+odpowiednik dla operatora (`GET`/`PATCH /api/v1/admin/organizations/:id/cart-approval-policy`, wraz z
+panelem w szczegółach organizacji w panelu administracyjnym) zostały usunięte: o akceptacji decydują
+role.
 
 ### Panel administracyjny
 
@@ -267,6 +313,11 @@ Ustawienia tworzy przy starcie backendu ManifestReconciler cyklu życia modułó
 otrzymują cenę, po której klient może je zamówić; ciasteczko koszyka anonimowego jest unieważniane w
 tej samej operacji. Anonimowy koszyk źródłowy dostaje `status` `'completed'` (a nie
 `'abandoned'`), aby wyszukiwanie porzuconych koszyków nie wysłało później zbędnego powiadomienia.
+
+Członek, którego rola nie ma uprawnienia *Tworzenie i edycja koszyków* (`carts.create`), nie jest
+łączony: wynik to `skipped_permission`, żadna pozycja nie jest przenoszona, nic nie trafia do audytu, a
+koszyk gościa pozostaje `active` ze swoim tokenem i pozycjami. Logowanie się udaje i nie zgłasza
+łączenia.
 
 ## Wyszukiwanie porzuconych koszyków
 

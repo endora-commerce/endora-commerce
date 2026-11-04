@@ -32,9 +32,9 @@
   "errors.ORDER_SALES_CHANNEL_MISMATCH": "Twój koszyk należy do innego sklepu. Otwórz koszyk w tym sklepie i złóż zamówienie ponownie.",
   "errors.ORDER_SALES_CHANNEL_NOT_ALLOWED": "Ten kanał sprzedaży nie należy do aktywnych kanałów sprzedaży organizacji. Wybierz jeden z nich.",
   "errors.ORDER_CART_APPROVAL_REQUIRED": "Ten koszyk musi zostać zaakceptowany przez Twoją organizację, zanim złożysz zamówienie.",
-  "errors.ORDER_CART_APPROVAL_REQUIRED.cart_approval_not_submitted": "Twoja organizacja wymaga akceptacji koszyka przed zamówieniem. Najpierw wyślij ten koszyk do akceptacji.",
-  "errors.ORDER_CART_APPROVAL_REQUIRED.cart_approval_pending": "Ten koszyk czeka na akceptację administratora Twojej organizacji. Zamówienie złożysz, gdy koszyk zostanie zaakceptowany.",
-  "errors.ORDER_CART_APPROVAL_REQUIRED.cart_approval_rejected": "Administrator Twojej organizacji odrzucił ten koszyk, więc nie można go zamówić.",
+  "errors.ORDER_CART_APPROVAL_REQUIRED.cart_approval_not_submitted": "Twoja rola wymaga akceptacji tego koszyka przed zamówieniem. Najpierw wyślij go do akceptacji.",
+  "errors.ORDER_CART_APPROVAL_REQUIRED.cart_approval_pending": "Ten koszyk czeka na akceptację osoby zatwierdzającej w Twojej organizacji. Zamówienie złożysz, gdy koszyk zostanie zaakceptowany.",
+  "errors.ORDER_CART_APPROVAL_REQUIRED.cart_approval_rejected": "Ten koszyk został odrzucony przez osobę zatwierdzającą w Twojej organizacji, więc nie można go zamówić.",
   "errors.ORDER_SAVED_VIEW_NAME_TAKEN": "Masz już zapisany widok o tej nazwie na liście zamówień. Wybierz inną nazwę.",
   "errors.ORDER_DELIVERY_METHOD_UNAVAILABLE": "Wybrana metoda dostawy nie jest dostępna dla tego zamówienia. Wybierz inną metodę dostawy.",
   "errors.ORDER_DELIVERY_METHOD_UNAVAILABLE.delivery_method_not_allowed_for_organization": "Wybrana metoda dostawy nie jest dostępna dla tej organizacji. Wybierz inną metodę dostawy.",
@@ -147,5 +147,7 @@
   "actions.openOrders.keywords": "zamówienia, sprzedaż",
   "actions.newOrder.keywords": "zamówienie, nowe, utwórz",
   "actions.orderStatusConfig.keywords": "statusy, cykl życia",
-  "emails.orderConfirmation.sample.shippingAddressText": "  Anna Nowak\n  ul. Główna 1"
+  "emails.orderConfirmation.sample.shippingAddressText": "  Anna Nowak\n  ul. Główna 1",
+  "organizationPermissions.orders.view_organization.label": "Wyświetlanie zamówień organizacji",
+  "organizationPermissions.orders.view_organization.description": "Przeglądanie wszystkich zamówień złożonych w organizacji i działanie na zamówieniu współpracownika: ponawianie go, tworzenie z niego zapytania ofertowego, zgłaszanie do niego zwrotu lub reklamacji i pobieranie jego dokumentów."
 }
