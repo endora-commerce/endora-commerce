@@ -1259,7 +1259,7 @@
   "productEditor.gallery.itemOption": "{item} · {file}",
   "productEditor.scopeOverview.wholeChannelColumn": "Cały kanał",
   "productEditor.scopeOverview.nothingSetChannel": "Nic nie ustawiono dla całego kanału.",
-  "productEditor.scopeOverview.confirmReset.title": "Użyć wartości z zakresu: {parent}? {field} w {scope}",
+  "productEditor.scopeOverview.confirmReset.title": "Użyć wartości z zakresu: {parent} — {field} w {scope}?",
   "productEditor.scopeOverview.confirmReset.body": "Wartość „{field}” ustawiona dla {scope} zostanie usunięta i znowu będzie obowiązywać wartość z zakresu: {parent}.",
   "productEditor.scopeOverview.confirmDelete.title": "Usunąć {field} w {scope}?",
   "productEditor.scopeOverview.confirmDelete.body": "Zapisana wartość „{field}” dla {scope} zostanie usunięta na stałe. Teraz nie obowiązuje, więc klient nie zobaczy żadnej zmiany.",

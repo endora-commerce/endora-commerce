@@ -14,11 +14,16 @@ import corePl from '../../../../packages/modules/_i18n/i18n/pl.json';
 
 const LEFT_OUT = new Set(['productsList.bulkEdit.scopedStatus.inherit']);
 
+/** The core bundle's 170 surface is the ScopedField; the rest of it belongs to other screens. */
+function scopedField(bundle: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(Object.entries(bundle).filter(([key]) => key.startsWith('scopedField.')));
+}
+
 const bundles: Array<[string, Record<string, string>, RegExp]> = [
   ['catalog en', catalogEn, /Scope overview|scope overview|Scopes tab|Use inherited|use inherited/],
-  ['catalog pl', catalogPl, /Przegląd zakresów|przegląd zakresów|[Oo]kn[oa] publikacji|karcie Zakresy|zakładkę Zakresy|Użyj dziedziczonego|Użyć dziedziczonego/],
-  ['core en', coreEn, /Use inherited/],
-  ['core pl', corePl, /Użyj dziedziczonego/],
+  ['catalog pl', catalogPl, /Przegl\u0105d zakres\u00f3w|przegl\u0105d zakres\u00f3w|[Oo]kn[oa] publikacji|karcie Zakresy|zak\u0142adk\u0119 Zakresy|U\u017cyj dziedziczonego|U\u017cy\u0107 dziedziczonego/],
+  ['core en', scopedField(coreEn), /Use inherited/],
+  ['core pl', scopedField(corePl), /U\u017cyj dziedziczonego/],
 ];
 
 describe('one vocabulary on the 170 surfaces (owner, 2026-11-04)', () => {
@@ -35,8 +40,8 @@ describe('one vocabulary on the 170 surfaces (owner, 2026-11-04)', () => {
   });
 
   it('the inherit action has one Polish form', () => {
-    const form = 'Użyj wartości z zakresu: {scope}';
+    const form = 'U\u017cyj warto\u015bci z zakresu: {scope}';
     expect(corePl['scopedField.useParent']).toBe(form);
-    expect(catalogPl['productEditor.save.error.requiredEmptyScoped']).toContain(`„${form}”`);
+    expect(catalogPl['productEditor.save.error.requiredEmptyScoped']).toContain(`\u201e${form}\u201d`);
   });
 });
