@@ -427,6 +427,50 @@ Inne moduły pytają, czy członek może coś zrobić, przez
 z `@endora-commerce/contracts`. `organizationRoleReadPort.predefinedRoleId` podaje
 identyfikator roli Administrator lub Członek organizacji.
 
+### Role w storefroncie
+
+Administratorzy organizacji zarządzają rolami w obszarze konta. To, co widzi każdy członek, zależy
+od jego roli i od rodzaju organizacji:
+
+- **Nawigacja konta.** *Członkowie* i *Role* są widoczne dla członków z rolą *Administrator*;
+  *Koszyki do akceptacji* — dla członków, których rola ma uprawnienie *Akceptowanie i odrzucanie
+  koszyków współpracowników* (`carts.approve`), z liczbą oczekujących koszyków. Członek
+  organizacji prywatnej (B2C) nie widzi żadnej z tych trzech pozycji, choć ma rolę
+  *Administrator*, a te strony odsyłają go do `/account`. Każdy inny, kto otworzy taką stronę,
+  dowiaduje się, kto może z niej korzystać — na przykład *„Rolami mogą zarządzać tylko
+  administratorzy organizacji.”*
+- **Role** (`/organization/roles`) to lista wszystkich ról z rodzajem (*Wbudowana* albo
+  *Własna*), liczbą członków, oczekujących zaproszeń i uprawnieniami, oraz przycisk **Nowa
+  rola**. Każda rola otwiera się na własnej stronie (`/organization/roles/<id>`): *Administrator*
+  jest pokazany jako rola ze wszystkimi uprawnieniami i nie można go zmienić; *Członek* zachowuje
+  nazwę i przyjmuje tylko zmiany uprawnień; rolę własną można przemianować, opisać, edytować i
+  usunąć. Usunięcie roli, którą mają członkowie lub oczekujące zaproszenia, wymaga wskazania
+  roli, do której zostaną przeniesieni; usunięcia nie można cofnąć.
+- **Nowa rola zaczyna bez żadnych uprawnień.** Strona tworzenia (`/organization/roles/new`)
+  otwiera się z odznaczonymi wszystkimi uprawnieniami i nie proponuje „skopiuj z innej roli”;
+  rola utworzona bez zaznaczeń na nic nie pozwala. Uprawnienia są pogrupowane według modułów, z
+  etykietą i opisem w języku strony, a przy *Zakupie jednym kliknięciem* widnieje uwaga, że działa
+  on tylko razem z uprawnieniem *Składanie zamówień bez akceptacji*.
+- **Dwóch administratorów edytuje tę samą rolę.** Drugi zapis jest odrzucany; strona zachowuje
+  wpisane dane i proponuje wczytanie aktualnego stanu roli.
+- **Członkowie** (`/organization/members`) pokazuje rolę każdego członka jako listę wyboru ról
+  organizacji, a formularz zaproszenia wskazuje rolę nowego członka, z domyślnie wybraną rolą
+  *Członek*.
+- **Strona konta** pokazuje członkowi jego rolę i zrozumiałą listę tego, na co ona pozwala (*Na
+  co pozwala Twoja rola*), przetłumaczoną przez API; rola, która na nic nie pozwala, mówi o tym
+  wprost. Członek organizacji prywatnej nie widzi ani roli, ani listy.
+
+### Role w panelu administracyjnym
+
+Ekran szczegółów organizacji ma zakładkę **Role**. Widzi ją operator z uprawnieniem
+`organizations:read-roles` lub `organizations:manage-roles`, i nigdy dla organizacji prywatnej.
+Z uprawnieniem do odczytu zakładka jest tylko do odczytu; z `organizations:manage-roles` operator
+tworzy, edytuje i usuwa role według tych samych reguł co w storefroncie — formularz tworzenia
+również otwiera się z odznaczonymi wszystkimi uprawnieniami, a rolę, którą ktoś ma, można usunąć
+tylko ze wskazaniem roli zastępczej. Tabela członków na tym samym ekranie pokazuje rolę każdego
+członka, a operatorowi z `customers:manage` — listę wyboru roli. Zakładka prowadzi do historii
+organizacji w dzienniku audytu, gdzie zapisana jest każda zmiana roli.
+
 ### Członkowie, zaproszenia i sesja
 
 Rola członka jest wskazywana przez swój identyfikator wszędzie, gdzie żądanie ją

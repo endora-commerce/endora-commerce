@@ -65,6 +65,15 @@ existing members.
   off every member's effective permissions; the grants stay stored and apply
   again once it is switched back on.
 
+On the storefront a member without `shopping_lists.create` still reads their
+lists. The lists page and a list's page offer no create, rename, delete,
+quantity or remove controls; *Add to shopping list* is not offered on the
+product page or the product cards, nor *Save to list* on a cart line. The page says why in one line: *"Your
+role allows viewing shopping lists but not changing them."* Converting a list
+(all lines or the selected ones) into the cart is offered only with
+`shopping_lists.convert` and `carts.create`, and into a quote request only with
+`shopping_lists.convert` and `quote_requests.create`.
+
 ## Conversion semantics
 
 `ShoppingListService` partitions the requested items by their referencing

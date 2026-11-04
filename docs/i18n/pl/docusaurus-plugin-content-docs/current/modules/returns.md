@@ -77,6 +77,17 @@ Przed wprowadzeniem ról organizacji każdy kupujący — także administrator �
 tylko do zamówień, które sam złożył. *Członek* zachowuje dokładnie ten zakres; administrator widzi
 teraz wszystkie sprawy organizacji i może zgłosić sprawę do zamówienia współpracownika.
 
+W storefroncie:
+
+- **Zwroty** (`/returns`) to lista spraw, które członek może zobaczyć. Sprawa współpracownika jest
+  oznaczona *Zgłoszone przez współpracownika*. **Zgłoś nowy zwrot** widzi tylko członek, którego
+  rola ma `returns.create`; strona zamówienia pokazuje swój przycisk zwrotu lub reklamacji według
+  tej samej reguły.
+- Bez `returns.create` strona nowej sprawy (`/returns/new`) zamiast formularza wyjaśnia: *„Twoja rola nie obejmuje uprawnienia „Zgłaszanie zwrotów i reklamacji”, więc nie możesz zgłosić zwrotu ani reklamacji. Jeśli go potrzebujesz, poproś administratora organizacji.”*
+- Sprawa współpracownika otwiera się tylko do odczytu. Strona nie pokazuje pola komentarza,
+  dodawania załączników, wyboru metody dostawy zwrotu ani przycisku anulowania i wyjaśnia to w
+  jednym zdaniu: *„To zgłoszenie złożył współpracownik. Możesz je przeglądać, ale dodawać wiadomości i wprowadzać zmiany może tylko osoba, która je złożyła.”* Wiadomości zgłaszającego są podpisane *Współpracownik*, a nie *Ty*.
+
 Gdy moduł jest wyłączony, oba uprawnienia znikają z katalogu uprawnień organizacji i z efektywnych
 uprawnień każdego członka; zapisane w roli nadanie zostaje zachowane i znów działa po ponownym
 włączeniu modułu.

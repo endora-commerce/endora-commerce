@@ -132,8 +132,21 @@ niektórych członków, nadaj im rolę bez *Składania zamówień bez akceptacji
   `approval_policy_reset`). Gdy rola traci to uprawnienie, zaakceptowany koszyk pozostaje
   zaakceptowany.
 
-W sklepie akceptujący robi to w sekcji **Organizacja → Koszyki** (`/organization/carts`): listę
-można zawęzić do koszyków oczekujących na akceptację, a każdy koszyk otwiera się na własnej stronie
+To, co kupujący widzi w storefroncie, wynika z tych samych trzech uprawnień. Zalogowany członek bez
+uprawnienia *Tworzenie i edycja koszyków* nie widzi dodawania do koszyka na stronie produktu, na
+kartach produktów ani na stronie porównania; jego strona koszyka pokazuje pozycje bez zmiany ilości,
+przycisków usuwania i pola kuponu, i wyjaśnia to w jednym zdaniu: *„Twoja rola nie pozwala zmieniać
+koszyka. Możesz go przeglądać i zamówić.”* Niezalogowany odwiedzający widzi to wszystko jak dotąd.
+*Zapisz na liście* przy pozycji koszyka zależy od `shopping_lists.create`, a *Zamień na zapytanie
+ofertowe* — od `quote_requests.create`. Członek bez uprawnienia *Składanie zamówień bez akceptacji*
+widzi *„Twoja rola wymaga akceptacji koszyka przed realizacją zamówienia.”* i przycisk **Zgłoś do
+akceptacji** zamiast przejścia do kasy; po wysłaniu koszyk informuje, że oczekuje na akceptację w
+organizacji, a po odrzuceniu wskazuje *osobę zatwierdzającą w Twojej organizacji*.
+
+Akceptujący działa w sekcji **Koszyki do akceptacji** w nawigacji konta (widocznej dla osób z
+uprawnieniem *Akceptowanie i odrzucanie koszyków współpracowników*, z liczbą oczekujących koszyków;
+nigdy w organizacji prywatnej), która otwiera `/organization/carts` na koszykach oczekujących na
+akceptację. Listę można zawęzić do koszyków oczekujących na akceptację, a każdy koszyk otwiera się na własnej stronie
 (`/organization/carts/<id>`) z właścicielem, pozycjami, sumą i czasem przesłania. Oczekujący koszyk
 oferuje **Zaakceptuj koszyk** oraz — za rozwijanym przełącznikiem — **Odrzuć koszyk**, które wymaga
 podania powodu o długości do 2000 znaków. Strona potwierdza decyzję albo nazywa odmowę — na
@@ -175,7 +188,7 @@ Każdy krok akceptacji wysyła e-mail, gdy krok zostanie już zapisany:
 - Temat i treść każdej wiadomości są dostarczane po angielsku i po polsku; można je edytować dla
   każdego języka i sklepu albo wyłączyć na ekranie szablonów e-maili (grupa *carts*). Wiadomości nie
   zawierają linku: odbiorca loguje się na swoje konto, aby działać — akceptujący w sekcji
-  **Organizacja → Koszyki** (`/organization/carts`), kupujący na stronie swojego koszyka.
+  **Koszyki do akceptacji** (`/organization/carts`), kupujący na stronie swojego koszyka.
 - Wiadomość, której nie da się wysłać — brak serwera poczty, wyłączony szablon, serwer poczty odbiorcy
   ją odrzuca — nigdy nie cofa ani nie przerywa kroku akceptacji. Trafia do logu serwera jako
   *„the cart approval e-mail was not sent”*, z koszykiem, kodem szablonu i powodem.

@@ -1,8 +1,19 @@
 ---
-title: Permissions — three notions, and which one you are looking at
+title: Permissions — admin and organization codes, and which one you are looking at
+description: How admin permission codes and organization permission codes are declared, granted, enforced and switched off.
 ---
 
 # Permissions
+
+The platform has **two permission vocabularies**, and they never meet:
+
+| Vocabulary | Who holds it | Shape | Declared in a manifest as | Granted on |
+| --- | --- | --- | --- | --- |
+| Admin (operator) permissions | platform administrators, through admin roles | `<area>:<action>`, e.g. `catalog:write` | `permissions` | `/admin-roles` in the Admin UI |
+| Organization permissions | members of a customer Organization, through organization roles | `<module>.<action>`, e.g. `carts.approve` | `organizationPermissions` | the Organization's *Roles* screen on the storefront, and the *Roles* tab of the Organization in the Admin UI |
+
+No string may be both. The first half of this page is the admin vocabulary; the
+second, [Organization permissions](#organization-permissions), is the buyer's.
 
 An admin permission in this platform is a code, and a code has **three separate
 notions attached to it**. Only one of them used to be visible anywhere, and that
@@ -188,3 +199,251 @@ grantable code is enforced — plus label coverage and the `requires` declaratio
 The second answers a question the two-direction sweep structurally cannot:
 whether the code a palette action declares is the one enforced on that action's
 own route.
+
+## Organization permissions
+
+An organization permission says what a **member of a customer Organization** may
+do on the storefront: fill a cart, approve a colleague's cart, request a quote,
+see the Organization's orders. Each Organization has **roles**, each member holds
+exactly one, and a role is a set of these codes. The Organization's administrator
+edits the roles on the storefront (`/organization/roles`); an operator can view
+and repair them on the Organization's *Roles* tab in the Admin UI, with the admin
+permissions `organizations:read-roles` and `organizations:manage-roles`.
+
+The roles, the role cache, the permission port and the refusal belong to
+`organizations`. The **codes** do not: each is declared by the module whose
+buyer action it gates.
+
+### The roles
+
+| Role | Kind | What it holds |
+| --- | --- | --- |
+| *Administrator* | `administrator` | Every **present** code, including codes declared after the role was created. It cannot be edited, renamed or deleted, and it alone holds the reserved capabilities: managing members, invitations and roles, the Organization's two-factor policy and the Organization-wide one-click defaults. A custom role holding every code is still not the administrator. |
+| *Member* | `member` | The default role of a new member. Its codes are editable; it cannot be renamed or deleted. A code declared `memberDefault: true` is held by *Member* from the moment its module is first offered to the Organization — and never granted again once an administrator has saved *Member* without it, through any module switch or reinstall (`member_defaults_offered` on the role row). |
+| custom | `custom` | Exactly the codes ticked when it was saved. **A new custom role starts with none**: the storefront and Admin UI create forms open with every permission unchecked and offer no "copy from another role", and `memberDefault` is at most a hint there — it is granted to *Member* only. A role saved with nothing ticked allows nothing. Up to 50 per Organization. |
+
+Both predefined roles are created with the Organization by a database trigger,
+whichever path creates it.
+
+**A personal (B2C) Organization's only member holds *Administrator***, on
+every path that puts an account there — self-registration, federated sign-in,
+`ensureForCustomerAccount` and the operator's detach. That is what lets a B2C buyer do everything a buyer can without a second rule. What a
+personal Organization must not show — *Members*, *Roles*, *Carts to approve*,
+the role line on the account page — is hidden because the Organization is
+personal (`organization.isPersonal`), **never by reading the role**. Its member
+and invitation routes answer as for any administrator; only its role
+routes answer `404`.
+
+### Declaring a code
+
+A module declares its codes in its own `manifest.ts`, beside the operator
+`permissions` field, which is untouched:
+
+```ts
+organizationPermissions: [
+  {
+    code: 'carts.approve',
+    label: "Approve and reject colleagues' carts",
+    description: 'See the carts of the organization and approve or reject the ones sent for approval.',
+    memberDefault: false,
+  },
+],
+```
+
+- **The code is `<manifest id>.<action>`** in lower snake case
+  (`ORGANIZATION_PERMISSION_CODE` in `packages/contracts/src/modules.ts`).
+  `defineModuleManifest` refuses, when the manifest is defined, a code outside
+  the module's own namespace and a code declared twice.
+- **`label` and `description` are the English fallback.** The translations are
+  in the module's own `i18n/en.json` and `i18n/pl.json`, under
+  `organizationPermissions.<code>.label` and
+  `organizationPermissions.<code>.description` — both keys, both languages.
+- **`memberDefault`** decides whether *Member* receives the code when it is first
+  offered, as above. Choose `true` for what every buyer could do before the code
+  existed, so that adding the code changes nothing for anybody.
+
+**A custom or overlay module declares its own codes**, in its own manifest and
+namespace, exactly as a core module does (constitution XIV, XV): an overlay
+module under `backend/src/apps/<deployment>/modules/<id>/` gates its buyer
+action with `<id>.<action>`. It never adds a code to a core module's manifest,
+and never reuses one: a code is declared by one module, and its prefix says
+which.
+
+The codes this release declares:
+
+| Code | Declared by | *Member* holds it by default |
+| --- | --- | --- |
+| `carts.create` | `carts` | yes |
+| `carts.approve` | `carts` | no |
+| `carts.order_without_approval` | `carts` | yes |
+| `quote_requests.create` | `quote_requests` | yes |
+| `shopping_lists.create` | `shopping_lists` | yes |
+| `shopping_lists.convert` | `shopping_lists` | yes |
+| `quick_order.one_click` | `quick_order` | yes |
+| `orders.view_organization` | `orders` | no |
+| `addresses.manage` | `addresses` | yes |
+| `returns.create` | `returns` | yes |
+| `returns.view_organization` | `returns` | no |
+
+Each module's own page says what its codes gate.
+
+### Enforcing a code on a route
+
+The route guard is `organizationPermissionPreHandler` from
+`@endora-commerce/contracts` (`packages/contracts/src/organization-roles.ts`),
+declared after `requireCustomer`:
+
+```ts
+// In the module's composition: a proxy that resolves the port on every call.
+const permissions = lazyPort<OrganizationPermissionPort>(ctx, 'organizationPermissionPort');
+
+// In its routes (the `carts` module's `routes.organization.ts`):
+const approver = [requireCustomer, organizationPermissionPreHandler(() => permissions, 'carts.approve')];
+app.post('/api/v1/organization/carts/:id/approve', { preHandler: approver }, handler);
+```
+
+- **The port is reached through a thunk, on every request** — never captured
+  into a singleton at registration.
+- **A customer actor is judged**, impersonation included: the guard builds the
+  subject from `request.actor` (`customerAccountId`, `organizationId`,
+  `organizationRoleId`) and calls `assert` in the response language.
+- **`guests`** decides what happens to a request without a customer.
+  `'refuse'`, the default, answers `401 UNAUTHORIZED`. `'pass'` lets it through
+  **unjudged**, and is only for routes that admit a guest today: the guest
+  basket's line and coupon routes in `carts`. An anonymous
+  visitor keeps the guest basket exactly as before roles existed.
+- **A composite action is two guards**, never a combined code: converting a
+  shopping list into a cart is `shopping_lists.convert` and then `carts.create`,
+  and the refusal names the first one missing.
+- **An either-of action is a module-local guard.** The quick-order import
+  previews a file that may become a cart or a quote request, so it admits
+  `carts.create` **or** `quote_requests.create`.
+  `importPermissionPreHandler` in the `quick_order` module's `routes.ts` builds the subject as the shared guard does, asks `can` for each code in
+  turn, and when neither holds calls `assert` with the first, so the refusal
+  keeps its one shape. The build that follows is judged by its target alone.
+
+The refusal is the same everywhere:
+
+```json
+HTTP/1.1 403
+{ "error": {
+    "code": "ORGANIZATION_PERMISSION_REQUIRED",
+    "message": "Your role does not allow this: “Create quote requests”.",
+    "details": { "permission": "quote_requests.create", "permissionLabel": "Create quote requests" } } }
+```
+
+It is distinct from `401` (not signed in), `503 MODULE_DISABLED` (the module is
+off; its own seam answers first) and `404`. **Reach is answered with `404`, not
+`403`:** a colleague's order without `orders.view_organization`, another
+Organization's role, a case the member may not see — each answers as an id that
+does not exist (constitution XI).
+
+### Asking inside a service
+
+`organizationPermissionPort` (owner: `organizations`) answers the questions a
+guard cannot:
+
+| Method | Use |
+| --- | --- |
+| `can(subject, code)` | A yes/no for a call to action or a widened read, e.g. whether the orders list reaches colleagues' orders |
+| `assert(subject, code, { language })` | The guard's refusal, from inside a service — the quick-order build judges its body's target this way |
+| `isAdministrator(subject)` | The reserved capabilities, which follow the role **kind**, not a code |
+| `effective(subject)` | The member's role and sorted present codes — what the session views carry as `permissions` |
+| `rolesHolding(organizationId, code)` | The role ids whose effective set holds a code, *Administrator* included — e.g. who receives the "cart sent for approval" e-mail |
+
+`organizationRoleReadPort` answers role facts: `predefinedRoleId(organizationId,
+kind)` for an Organization's *Administrator* or *Member*, `findRole` and
+`roleRef` for a role named by id (`null` for another Organization's role). It
+reads committed rows; a caller that has just created the Organization in its own
+open transaction takes the *Administrator* id from the provisioning answer
+instead.
+
+Both are reached with `lazyPort` and a string-literal name. A subject whose role
+cannot be found fails **closed**: `can` and `isAdministrator` answer `false`,
+`effective` an empty set. A code outside the vocabulary is a programming error:
+`can` answers `false`, `assert` throws `500`. Roll-up (a head-office login
+acting across its subtree) widens where a code reaches; it never adds a code.
+
+Role changes apply on the member's next request. Each process caches an
+Organization's roles for at most 30 seconds and drops the entry when any
+process announces a change; assignments are not cached.
+
+### Code arguments the inventory can read
+
+`backend/test/contract/admin_users/permission-inventory.test.ts` holds the
+organization vocabulary to the same two-way sweep as the admin one (its
+`[organization-permissions]` block; the scanner is
+`backend/test/helpers/organization-permissions.ts`). It reads every
+`organizationPermissionPreHandler(…, code)` and every `can`, `assert` and
+`rolesHolding` member call in a file that names the port, in core modules,
+module packages and the active overlay, and reports:
+
+| Finding | Meaning |
+| --- | --- |
+| `cross-vocabulary` | a string declared as both an admin and an organization code |
+| `foreign-declarer` | a code whose prefix is not its declaring module |
+| `undeclared-check` | a code a guard or a port call names that no manifest declares |
+| `unchecked-declaration` | a declared code nothing enforces — a grant that grants nothing |
+| `missing-label` / `split-label` | a code without its label or description in English, or in one shipped language and not the other |
+| `unresolved-argument` | a code argument the scanner cannot read |
+
+So **write the code argument in a form the scanner resolves**: a string literal;
+a module-local `const` bound to one; a `const` in a file imported by a relative
+path; or a member `NAME.key` of a `const` object literal of such strings. A code
+computed at run time, imported through a package specifier or built from a
+template with an interpolation is `unresolved-argument`, and the test is red. An
+implementation that forwards its own typed parameter (the port's `assert`
+calling `this.can(subject, code)`) is a runtime value, not a site; its caller is
+checked instead. Run it with:
+
+```bash
+pnpm --filter backend exec vitest run test/contract/admin_users/permission-inventory.test.ts
+```
+
+### On the storefront
+
+`storefront/lib/organization-permissions.ts` is the storefront's one reading of
+the role: `can(session, code)` for a buyer action and `isAdministrator(session)`
+for the organization-management screens, over the `permissions` and
+`organizationRole` that `GET /api/v1/me` carries. Both are **presentation
+only** — the backend's guards are the boundary, and an action shown that the
+server refuses is the safe failure. What a member lacks is hidden or disabled,
+or a page says why in one line (*"Your role does not allow changing the
+cart…"*). A signed-out visitor is not judged at all: add-to-cart and cart
+editing stay offered. `storefront/lib/commerce-permissions.ts` spells the
+commerce rules once over `can`; `storefront/lib/account/organization-area.ts`
+decides the *Members*, *Roles* and *Carts to approve* screens, by role and by
+`isPersonal`.
+
+### When a module is switched off
+
+A code whose declaring module is not present — on either axis, platform
+availability or operator activation — **leaves the catalogue**: the role editors
+do not list it, nobody holds it (*Administrator* included) and it is not in any
+member's `permissions`. **Grants are kept.** A save cannot drop what the editor
+could not show, so when the module comes back every role holds exactly what it
+held before. The module's own routes answer `503 MODULE_DISABLED` meanwhile. A
+code that no installed module declares any more — its module was uninstalled —
+is ignored when reading and dropped from a role the next time that role is saved.
+
+### A rule for module authors: only the filer acts on a return case
+
+`returns.view_organization` lets a member **read** colleagues' returns and
+complaints; it never lets them act on one. Commenting,
+attaching files, choosing the return delivery method and cancelling stay with
+the member who filed the case, whatever anyone else's permissions.
+
+Any future control on a return case — a new follow-up action, an attachment
+type, a delivery option, a way to withdraw — must apply the same rule:
+
+- **Backend:** look the case up by `{ id, customerAccountId }` of the caller, as
+  the existing follow-up services do, and answer anyone else `404 NOT_FOUND`.
+  Do not widen it through the `returns` module's read scope
+  (`return-case-scope.ts`), which is for the list and the detail only.
+- **Storefront:** offer the control only when
+  `filedByColleague(case.customerAccountId, viewerId)` is false
+  (`storefront/lib/returns/returnForm.ts`); on a colleague's case the detail page
+  shows its one-line read-only note instead.
+
+A new code that would let somebody act on a colleague's case is a product
+decision, not an implementation detail: decide it in the specification first.

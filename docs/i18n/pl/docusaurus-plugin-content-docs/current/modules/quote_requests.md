@@ -530,6 +530,13 @@ Anonimowy gość nadal dostaje `401`. Gdy `quote_requests` jest wyłączony, jeg
 uprawnień i z efektywnych uprawnień każdego członka; zapisane nadanie w roli zostaje i znów działa
 po ponownym włączeniu modułu.
 
+W storefroncie członek bez `quote_requests.create` nie widzi przycisku dodawania do zapytania na stronie
+produktu ani na kartach produktów, ani *Zamień na zapytanie ofertowe* w koszyku. Szkic zapytania
+ofertowego można nadal przejrzeć, ale przycisk wysyłania jest nieaktywny, a obok widnieje powód:
+*„Twoja rola nie pozwala wysyłać zapytań ofertowych.”* Na stronie zapytania ofertowego ponowne
+wysłanie jest dostępne tylko z `quote_requests.create`, a złożenie zamówienia z zaakceptowanego
+zapytania — tylko z `carts.create`.
+
 ## Pola niestandardowe
 
 Zapytania ofertowe przyjmują pola niestandardowe, definiowane na ekranie **Pola niestandardowe**.

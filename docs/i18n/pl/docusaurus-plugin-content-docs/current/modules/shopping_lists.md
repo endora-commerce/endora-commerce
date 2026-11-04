@@ -60,6 +60,14 @@ i dla dotychczasowych członków nic się nie zmienia.
 - **Po wyłączeniu** modułu oba uprawnienia znikają z edytora ról i z efektywnych uprawnień każdego
   członka; przyznane uprawnienia pozostają zapisane i obowiązują ponownie po włączeniu modułu.
 
+W storefroncie członek bez `shopping_lists.create` nadal czyta swoje listy. Strona list i strona
+listy nie pokazują tworzenia, zmiany nazwy, usuwania, zmiany ilości ani usuwania pozycji; *Dodaj do
+listy zakupów* nie jest dostępne na stronie produktu ani na kartach produktów, a *Zapisz na liście*
+— przy pozycji koszyka. Strona wyjaśnia to w jednym zdaniu: *„Twoja rola pozwala przeglądać listy zakupów, ale nie pozwala ich
+zmieniać.”* Przeniesienie listy (wszystkich pozycji albo zaznaczonych) do koszyka jest dostępne tylko
+z `shopping_lists.convert` i `carts.create`, a do zapytania ofertowego — tylko z
+`shopping_lists.convert` i `quote_requests.create`.
+
 ## Jak działa przeniesienie
 
 `ShoppingListService` dzieli wskazane pozycje według statusu produktu, do którego się odwołują:
