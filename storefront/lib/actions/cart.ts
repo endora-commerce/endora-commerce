@@ -1,13 +1,15 @@
 'use server';
 
+import { getMe } from '../api/account';
 import { addCartItem, getCartItemCount, type CartCookieJar } from '../api/cart';
 import { StorefrontApiError } from '../api/client';
+import { commerceAbilities, memberSession, type CommerceAbilities } from '../commerce-permissions';
 import { getAnonCartCookie, getSessionCookie, setAnonCartCookie } from '../session';
 
 /**
  * Server actions for the cart calls that client components make outside a
- * form: the header's count read and the one-click add on a product card or a
- * comparison column.
+ * form: the header's count read, the one-click add on a product card or a
+ * comparison column, and what the buyer's role lets them do.
  *
  * These must run on the server, for the reason `lib/actions/shoppingList.ts`
  * records for the heart: `b2b_session` and `b2b_cart_anon` are httpOnly cookies
@@ -65,4 +67,18 @@ export async function addProductToCartAction(input: {
     // `detail`, not `message`: the latter carries the `CODE: ` prefix meant for logs.
     return { ok: false, message: err instanceof StorefrontApiError ? err.detail : null };
   }
+}
+
+/**
+ * `specs/170-organization-roles/` (FR-057) — what the buyer in front of the
+ * page may do, for the server pages that do not read `/api/v1/me` themselves
+ * and for the product cards, which are client components. A signed-out
+ * visitor, or a session `/api/v1/me` does not answer for, gets the visitor's
+ * flags (owner ruling PR-4): the backend's guards stay the boundary.
+ */
+export async function getCommerceAbilitiesAction(): Promise<CommerceAbilities> {
+  const session = await getSessionCookie();
+  if (!session) return commerceAbilities(null);
+  const me = await getMe(session).catch(() => null);
+  return commerceAbilities(memberSession(me));
 }

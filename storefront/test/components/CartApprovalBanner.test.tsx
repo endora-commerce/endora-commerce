@@ -5,9 +5,10 @@ import { CartApprovalBanner } from '../../components/CartApprovalBanner';
 /**
  * Feature 027 US4 — SSR contract for CartApprovalBanner.
  *
- * Five variants:
- *   1. status='not_required' + policyOff → renders nothing
- *   2. status='not_required' + policyOn  → "submit for approval" CTA
+ * Five variants (`specs/170-organization-roles/` FR-057: the submit prompt follows the cart's
+ * `primaryCta`, the backend's verdict from the member's role — never an Organization flag):
+ *   1. status='not_required' + primaryCta='checkout'            → renders nothing
+ *   2. status='not_required' + primaryCta='submit_for_approval' → "submit for approval" CTA
  *   3. status='pending'                  → pending notice
  *   4. status='approved'                 → approved notice
  *   5. status='rejected_by_org_admin'    → rejection notice with reason
@@ -20,16 +21,16 @@ const STRINGS = {
   approved: 'Approved, ready for checkout.',
   rejected: (reason: string | null) =>
     reason ? `Rejected: ${reason}` : 'Rejected.',
-  policyOn: 'Your organization requires cart approval.',
+  submissionRequired: 'Your role requires approval of this cart.',
   submitButton: 'Submit for approval',
 };
 
 describe('CartApprovalBanner — SSR rendering', () => {
-  it('renders empty when policy is off and approval is not_required', () => {
+  it('renders empty when the CTA is checkout and approval is not_required', () => {
     const html = renderToString(
       <CartApprovalBanner
         approvalStatus="not_required"
-        policyOn={false}
+        primaryCta="checkout"
         rejectedReason={null}
         submitForApprovalAction={noopAction}
         strings={STRINGS}
@@ -38,17 +39,17 @@ describe('CartApprovalBanner — SSR rendering', () => {
     expect(html).toBe('');
   });
 
-  it('renders the "submit for approval" CTA when policy is on but not_required', () => {
+  it('renders the "submit for approval" CTA when the CTA says so', () => {
     const html = renderToString(
       <CartApprovalBanner
         approvalStatus="not_required"
-        policyOn={true}
+        primaryCta="submit_for_approval"
         rejectedReason={null}
         submitForApprovalAction={noopAction}
         strings={STRINGS}
       />,
     );
-    expect(html).toContain('Your organization requires cart approval');
+    expect(html).toContain('Your role requires approval of this cart');
     expect(html).toContain('Submit for approval');
   });
 
@@ -56,7 +57,7 @@ describe('CartApprovalBanner — SSR rendering', () => {
     const html = renderToString(
       <CartApprovalBanner
         approvalStatus="pending"
-        policyOn={true}
+        primaryCta="awaiting_approval"
         rejectedReason={null}
         submitForApprovalAction={noopAction}
         strings={STRINGS}
@@ -70,7 +71,7 @@ describe('CartApprovalBanner — SSR rendering', () => {
     const html = renderToString(
       <CartApprovalBanner
         approvalStatus="approved"
-        policyOn={true}
+        primaryCta="checkout"
         rejectedReason={null}
         submitForApprovalAction={noopAction}
         strings={STRINGS}
@@ -83,7 +84,7 @@ describe('CartApprovalBanner — SSR rendering', () => {
     const html = renderToString(
       <CartApprovalBanner
         approvalStatus="rejected_by_org_admin"
-        policyOn={true}
+        primaryCta="checkout"
         rejectedReason="Out of budget"
         submitForApprovalAction={noopAction}
         strings={STRINGS}

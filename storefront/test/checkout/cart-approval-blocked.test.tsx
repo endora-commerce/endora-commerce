@@ -25,7 +25,6 @@ function cta(overrides: Partial<CartPrimaryCtaProps> = {}): string {
     <CartPrimaryCta
       cta="submit_for_approval"
       authenticated
-      submitForApprovalNeeded={false}
       canTransact
       moderationMessage={null}
       submitAction={noop}
@@ -67,10 +66,12 @@ describe('CartPrimaryCta — submit for approval', () => {
     expect(describedNote(html)).toBe('Fix the lines to submit for approval.');
   });
 
-  it('blocks the legacy submitForApprovalNeeded path the same way', () => {
-    const html = cta({ cta: 'checkout', submitForApprovalNeeded: true, linesBlockCheckout: true });
-    expect(html).not.toContain('<form');
-    expect(describedNote(html)).toBe('Fix the lines to submit for approval.');
+  it('follows `cta` alone — no approval flag beside it turns checkout into a submit (170 FR-057)', () => {
+    // The Organization-wide approval switch is gone (FR-031); `primaryCta` is the backend's
+    // verdict from the member's role, and a stray legacy prop changes nothing.
+    const html = cta({ cta: 'checkout', ...({ submitForApprovalNeeded: true } as object) });
+    expect(html).toContain('href="/checkout"');
+    expect(html).not.toContain('Submit for approval');
   });
 
   it('keeps the checkout block with its own note and id', () => {
@@ -92,7 +93,7 @@ describe('CartApprovalBanner — submit while a line blocks', () => {
     pending: 'Awaiting approval.',
     approved: 'Approved.',
     rejected: () => 'Rejected.',
-    policyOn: 'Your organization requires cart approval.',
+    submissionRequired: 'Your role requires approval of this cart before checkout.',
     submitButton: 'Submit for approval',
   };
 
@@ -100,14 +101,14 @@ describe('CartApprovalBanner — submit while a line blocks', () => {
     const html = renderToString(
       <CartApprovalBanner
         approvalStatus="not_required"
-        policyOn
+        primaryCta="submit_for_approval"
         rejectedReason={null}
         submitForApprovalAction={noop}
         linesBlockedNote="Fix the lines to submit for approval."
         strings={STRINGS}
       />,
     );
-    expect(html).toContain('Your organization requires cart approval.');
+    expect(html).toContain('Your role requires approval of this cart before checkout.');
     expect(html).not.toContain('<form');
     expect(html).toMatch(/<button[^>]*type="button"[^>]*disabled/);
     expect(describedNote(html)).toBe('Fix the lines to submit for approval.');

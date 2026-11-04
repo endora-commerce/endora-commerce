@@ -87,7 +87,12 @@ export interface CartSummary {
   appliedPromotions?: Array<{ promotionId: string; couponId: string | null; amount: number; currency: string }>;
   /** Feature 027 — grand total after the optional discount. */
   grandTotal?: { amount: number; currency: string };
-  /** Feature 027 — buyer-facing primary CTA derived from the two-axis state. */
+  /**
+   * Feature 027 — buyer-facing primary CTA derived from the two-axis state. Since
+   * `specs/170-organization-roles/` (FR-031, FR-057) `submit_for_approval` means the member's
+   * role lacks `carts.order_without_approval`; the cart page follows this field alone. Absent on
+   * a guest basket.
+   */
   primaryCta?:
     | 'checkout'
     | 'submit_for_approval'
@@ -489,6 +494,11 @@ export interface OrgCartsListResponse {
  * policy. Requires `organization_admin` role; on `false`, every pending/
  * approved cart in the Organization is reset to `not_required` server-
  * side.
+ *
+ * @deprecated `specs/170-organization-roles/` (OR-3) removed the endpoint:
+ * approval follows the member's role (`carts.order_without_approval`), and the
+ * cart page reads it from `primaryCta`. Kept only until its last caller, the
+ * cart-approval settings page, is deleted (WP-09); then this goes (WP-12).
  */
 export async function setCartApprovalPolicy(
   jar: CartCookieJar,
@@ -511,8 +521,8 @@ export async function setCartApprovalPolicy(
 
 /**
  * Feature 027 US4 — list every cart in the caller's Organization.
- * Requires the caller's CustomerAccount.role === 'organization_admin';
- * a 403 is returned otherwise.
+ * Requires the caller's role to hold `carts.approve` (`specs/170-organization-roles/`,
+ * FR-033); a 403 is returned otherwise.
  */
 export async function listOrganizationCarts(
   jar: CartCookieJar,

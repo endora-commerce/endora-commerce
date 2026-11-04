@@ -32,6 +32,7 @@ import { CartDroppedLinesBanner } from '../../../components/CartDroppedLinesBann
 import { CartApprovalBanner } from '../../../components/CartApprovalBanner';
 import { CartPrimaryCta } from '../../../components/CartPrimaryCta';
 import { getMe } from '../../../lib/api/account';
+import { commerceAbilities, memberSession } from '../../../lib/commerce-permissions';
 import { getProductDisplayMode, PRICING_UNAVAILABLE } from '../../../lib/api/pricing';
 import { lineAmountHalfUp, type DisplayMode } from '@endora-commerce/contracts';
 import type { Metadata } from 'next';
@@ -127,12 +128,12 @@ export default async function CartPage({
     ? await getMe(session).catch(() => null)
     : null;
   const canTransact = me?.organization?.canTransact ?? true;
-  // The backend answers `primaryCta: 'submit_for_approval'` for a basket its
-  // Organization's policy says must be sent (issue #619); any other approval
-  // state than `not_required` means the policy was on when it was sent.
-  const requiresApproval =
-    cart.primaryCta === 'submit_for_approval' ||
-    (cart.approvalStatus !== undefined && cart.approvalStatus !== 'not_required');
+  // `specs/170-organization-roles/` (FR-030, FR-047, FR-057) — what the
+  // member's role lets them do here. A signed-out visitor (`me === null`)
+  // keeps editing the guest basket (owner ruling PR-4). Whether the basket
+  // must be sent for approval is not judged here at all: the backend answers
+  // it in `primaryCta` from the role (issue #619, FR-031).
+  const abilities = commerceAbilities(memberSession(me));
 
   const { locale, ctx } = await getServerContext();
 
@@ -171,7 +172,7 @@ export default async function CartPage({
   const previousRejection = cart.previousRejection ? (
     <CartApprovalBanner
       approvalStatus="rejected_by_org_admin"
-      policyOn={false}
+      primaryCta={cart.primaryCta}
       rejectedReason={cart.previousRejection.reason}
       submitForApprovalAction={submitForApprovalAction}
       strings={{ ...strings.approvalBanner, rejected: strings.previousRejection }}
@@ -195,7 +196,6 @@ export default async function CartPage({
   }
 
   const primaryCta = cart.primaryCta ?? (canTransact ? 'checkout' : 'blocked_by_organization');
-  const submitForApprovalNeeded = requiresApproval && cart.approvalStatus === 'not_required';
 
   return (
     <div className="mx-auto max-w-[1360px] px-[24px] pt-[8px] pb-[64px]">
@@ -219,7 +219,7 @@ export default async function CartPage({
       {cart.approvalStatus ? (
         <CartApprovalBanner
           approvalStatus={cart.approvalStatus}
-          policyOn={requiresApproval}
+          primaryCta={cart.primaryCta}
           rejectedReason={null}
           submitForApprovalAction={submitForApprovalAction}
           linesBlockedNote={cartBlocksCheckout(cart) ? tForLocale(locale)('cart.approvalBlocked') : null}
@@ -250,6 +250,14 @@ export default async function CartPage({
         />
       ) : null}
 
+      {!abilities.editCart ? (
+        // R-12 — the member would look for the stepper and the remove button; say why they are
+        // not there, once, rather than leave the lines silently inert.
+        <div className="mb-3 rounded-md border border-line bg-surface-alt px-[14px] py-[10px] text-[13px] text-fg-soft" role="note">
+          {strings.readOnlyNote}
+        </div>
+      ) : null}
+
       {params.error && !cart.items.some((it) => cartLineEditError(params, it.id) !== null) ? (
         <div className="mb-3 rounded-md border border-[#fecaca] bg-[#fef2f2] px-[14px] py-[10px] text-[13px] text-[#b91c1c]" role="alert">
           {params.error}
@@ -276,6 +284,8 @@ export default async function CartPage({
                 locale={locale}
                 displayMode={displayMode}
                 editError={cartLineEditError(params, it.id)}
+                editable={abilities.editCart}
+                canSaveToList={abilities.editShoppingLists}
                 strings={strings.line}
               />
             ))}
@@ -284,12 +294,14 @@ export default async function CartPage({
               <LocalizedLink href="/catalog" className="btn btn--ghost">
                 ← {strings.continueShopping}
               </LocalizedLink>
-              <CartConvertButtons
-                disabled={cart.items.length === 0}
-                disabledReason={null}
-                convertToQrAction={convertToQrAction}
-                strings={strings.convertButtons}
-              />
+              {abilities.requestQuote ? (
+                <CartConvertButtons
+                  disabled={cart.items.length === 0}
+                  disabledReason={null}
+                  convertToQrAction={convertToQrAction}
+                  strings={strings.convertButtons}
+                />
+              ) : null}
             </div>
           </div>
 
@@ -309,41 +321,42 @@ export default async function CartPage({
             strings={strings.totals}
           />
 
-          <CartCouponInput
-            appliedCode={cart.discount?.code ?? null}
-            droppedOnRead={cart.couponDroppedThisRead ?? null}
-            applyError={
-              params.couponError
-                ? {
-                    reason: params.couponError as
-                      | 'invalid_code'
-                      | 'expired'
-                      | 'below_min_spend'
-                      | 'wrong_channel'
-                      | 'wrong_customer_group'
-                      | 'wrong_organization'
-                      | 'coupon_format_invalid',
-                    ...(params.couponShortfall && params.couponShortfallCurrency
-                      ? {
-                          shortfall: {
-                            amount: Number(params.couponShortfall),
-                            currency: params.couponShortfallCurrency,
-                          },
-                        }
-                      : {}),
-                  }
-                : null
-            }
-            applyAction={applyCouponAction}
-            clearAction={clearCouponAction}
-            strings={strings.coupon}
-          />
+          {abilities.editCart ? (
+            <CartCouponInput
+              appliedCode={cart.discount?.code ?? null}
+              droppedOnRead={cart.couponDroppedThisRead ?? null}
+              applyError={
+                params.couponError
+                  ? {
+                      reason: params.couponError as
+                        | 'invalid_code'
+                        | 'expired'
+                        | 'below_min_spend'
+                        | 'wrong_channel'
+                        | 'wrong_customer_group'
+                        | 'wrong_organization'
+                        | 'coupon_format_invalid',
+                      ...(params.couponShortfall && params.couponShortfallCurrency
+                        ? {
+                            shortfall: {
+                              amount: Number(params.couponShortfall),
+                              currency: params.couponShortfallCurrency,
+                            },
+                          }
+                        : {}),
+                    }
+                  : null
+              }
+              applyAction={applyCouponAction}
+              clearAction={clearCouponAction}
+              strings={strings.coupon}
+            />
+          ) : null}
 
           <div className="mt-4">
             <CartPrimaryCta
               cta={primaryCta}
               authenticated={me !== null}
-              submitForApprovalNeeded={submitForApprovalNeeded}
               canTransact={canTransact}
               moderationMessage={me?.organization?.moderationMessage ?? null}
               submitAction={submitForApprovalAction}
@@ -583,6 +596,7 @@ function STRINGS(locale: string): {
   dropped: Parameters<typeof CartDroppedLinesBanner>[0]['strings'];
   approvalBanner: Parameters<typeof CartApprovalBanner>[0]['strings'];
   previousRejection: (reason: string | null) => string;
+  readOnlyNote: string;
   upsells: Parameters<typeof UpsellStrip>[0]['strings'];
   banner: { qrCreated: string; listAdded: (listName: string) => string };
   cta: {
@@ -680,13 +694,14 @@ function STRINGS(locale: string): {
         reason
           ? format(t('commerce.cart.approval.rejectedWithReason'), { reason })
           : t('commerce.cart.approval.rejected'),
-      policyOn: t('commerce.cart.approval.policyOn'),
+      submissionRequired: t('commerce.cart.approval.submissionRequired'),
       submitButton: t('commerce.common.submitForApproval'),
     },
     previousRejection: (reason: string | null) =>
       reason
         ? format(t('commerce.cart.approval.previousRejectedWithReason'), { reason })
         : t('commerce.cart.approval.previousRejected'),
+    readOnlyNote: t('commerce.cart.readOnlyNote'),
     upsells: {
       heading: t('commerce.cart.upsells.heading'),
       noPriceLabel: t('commerce.common.priceOnRequest'),

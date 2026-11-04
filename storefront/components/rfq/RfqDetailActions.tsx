@@ -33,6 +33,13 @@ export interface RfqDetailActionsProps {
   rejectAction: (formData: FormData) => Promise<void>;
   convertAction: (formData: FormData) => Promise<void>;
   resubmitAction: (formData: FormData) => Promise<void>;
+  /**
+   * `specs/170-organization-roles/` (FR-030, FR-057) — "place order" fills the basket, so it is
+   * offered only when the member's role holds `carts.create`. Defaults to `true`.
+   */
+  canConvert?: boolean;
+  /** FR-040 — resubmitting raises a new quote request: `quote_requests.create`. Defaults to `true`. */
+  canResubmit?: boolean;
 }
 
 const NOTICE_ID = 'rfq-validity-notice';
@@ -48,6 +55,8 @@ export function RfqDetailActions({
   rejectAction,
   convertAction,
   resubmitAction,
+  canConvert = true,
+  canResubmit = true,
 }: RfqDetailActionsProps): ReactNode {
   const t = tForLocale(locale);
   /**
@@ -106,7 +115,7 @@ export function RfqDetailActions({
           </>
         ) : null}
 
-        {status === 'Approved' ? (
+        {status === 'Approved' && canConvert ? (
           <form action={convertAction}>
             <input type="hidden" name="rfqId" value={rfqId} />
             <button
@@ -120,12 +129,14 @@ export function RfqDetailActions({
           </form>
         ) : null}
 
-        <form action={resubmitAction}>
-          <input type="hidden" name="rfqId" value={rfqId} />
-          <button type="submit" className={anythingBlocked ? 'btn btn--dark' : 'btn btn--outline'}>
-            {t('quoteRequests.resubmit')}
-          </button>
-        </form>
+        {canResubmit ? (
+          <form action={resubmitAction}>
+            <input type="hidden" name="rfqId" value={rfqId} />
+            <button type="submit" className={anythingBlocked ? 'btn btn--dark' : 'btn btn--outline'}>
+              {t('quoteRequests.resubmit')}
+            </button>
+          </form>
+        ) : null}
       </div>
     </>
   );

@@ -91,8 +91,8 @@ beforeEach(() => {
 
 describe('cart page — the rejection of the previous basket (issue #650)', () => {
   it.each([
-    ['en-US', 'Your previous cart was rejected by an organization administrator. Reason: Over the quarterly budget'],
-    ['pl-PL', 'Twój poprzedni koszyk został odrzucony przez administratora organizacji. Powód: Over the quarterly budget'],
+    ['en-US', 'Your previous cart was rejected by an approver in your organization. Reason: Over the quarterly budget'],
+    ['pl-PL', 'Twój poprzedni koszyk został odrzucony przez osobę zatwierdzającą w Twojej organizacji. Powód: Over the quarterly budget'],
   ])('tells the buyer on the empty basket that replaced it, in %s', async (l, sentence) => {
     locale = l;
     cart = { ...summary([]), previousRejection: REJECTION };
@@ -104,14 +104,14 @@ describe('cart page — the rejection of the previous basket (issue #650)', () =
   it('tells them on a refilled basket too', async () => {
     cart = { ...summary([line('1', 1)]), approvalStatus: 'not_required', previousRejection: REJECTION };
     const html = await render();
-    expect(html).toContain('Your previous cart was rejected by an organization administrator. Reason: Over the quarterly budget');
+    expect(html).toContain('Your previous cart was rejected by an approver in your organization. Reason: Over the quarterly budget');
     expect(html).toContain('Proceed to checkout');
   });
 
   it('says it without a reason when none was stored', async () => {
     cart = { ...summary([]), previousRejection: { ...REJECTION, reason: null } };
     const html = await render();
-    expect(html).toContain('Your previous cart was rejected by an organization administrator.');
+    expect(html).toContain('Your previous cart was rejected by an approver in your organization.');
     expect(html).not.toContain('Reason:');
   });
 

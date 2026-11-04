@@ -57,6 +57,12 @@ import { LocalizedLink, LocalizedAnchor } from '../../lib/i18n/localized-link';
 export function RfqDraftView(props: {
   locale: string;
   priceProposalsAllowed: boolean;
+  /**
+   * `specs/170-organization-roles/` (FR-040, FR-057) — whether the buyer's role holds
+   * `quote_requests.create`. Without it the draft stays reviewable and the submit is disabled
+   * with the reason beside it. Defaults to `true`; a visitor keeps it and signs in on submit.
+   */
+  canSubmit?: boolean;
 }): ReactNode {
   const t = strings(props.locale);
   const proposalsAllowed = props.priceProposalsAllowed;
@@ -117,8 +123,9 @@ export function RfqDraftView(props: {
     ? Number(moneySum(items.map((i) => lineAmountHalfUp(effectiveUnitPrice(i, proposalsAllowed) ?? 0, i.quantity))))
     : null;
 
+  const canSubmit = props.canSubmit ?? true;
   const submit = async (): Promise<void> => {
-    if (items.length === 0 || submitting) return;
+    if (items.length === 0 || submitting || !canSubmit) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -261,15 +268,12 @@ export function RfqDraftView(props: {
             className="mt-1 w-full resize-y rounded-sm border border-line px-[10px] py-[8px] text-[13px]"
           />
 
-          <button
-            type="button"
-            onClick={(): void => void submit()}
-            disabled={submitting}
-            className="btn btn--dark btn--lg btn--block mt-4"
-            style={submitting ? { opacity: 0.6, cursor: 'wait' } : undefined}
-          >
-            {submitting ? t.submitting : t.submit}
-          </button>
+          <DraftSubmitButton
+            t={t}
+            canSubmit={canSubmit}
+            submitting={submitting}
+            onSubmit={(): void => void submit()}
+          />
 
           <p className="mt-[12px] border-t border-line pt-[12px] text-[12px] text-muted">
             {t.note}
@@ -311,6 +315,56 @@ function effectiveUnitPrice(line: RfqDraftItem, proposalsAllowed: boolean): numb
  * Said once above the lines rather than on every line (Law of Proximity: it
  * describes the whole request, not one product).
  */
+const SUBMIT_NOT_ALLOWED_ID = 'rfq-draft-submit-not-allowed';
+
+/**
+ * The draft's primary control. 170 (FR-040, R-12): a member whose role lacks
+ * `quote_requests.create` would look for it here, so it stays in place, disabled,
+ * with the reason as visible text it points at — not a silently missing button.
+ */
+export function DraftSubmitButton({
+  t,
+  canSubmit,
+  submitting,
+  onSubmit,
+}: {
+  t: Strings;
+  canSubmit: boolean;
+  submitting: boolean;
+  onSubmit: () => void;
+}): ReactNode {
+  if (!canSubmit) {
+    return (
+      <>
+        <button
+          type="button"
+          disabled
+          aria-disabled
+          aria-describedby={SUBMIT_NOT_ALLOWED_ID}
+          className="btn btn--dark btn--lg btn--block mt-4"
+          style={{ opacity: 0.55, cursor: 'not-allowed' }}
+        >
+          {t.submit}
+        </button>
+        <p id={SUBMIT_NOT_ALLOWED_ID} className="m-0 mt-2 text-[12px] font-medium text-warn">
+          {t.submitNotAllowed}
+        </p>
+      </>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={onSubmit}
+      disabled={submitting}
+      className="btn btn--dark btn--lg btn--block mt-4"
+      style={submitting ? { opacity: 0.6, cursor: 'wait' } : undefined}
+    >
+      {submitting ? t.submitting : t.submit}
+    </button>
+  );
+}
+
 export function LockedPricingNote({ t }: { t: Strings }): ReactNode {
   return (
     <p
@@ -575,6 +629,7 @@ export interface Strings {
   notePlaceholder: string;
   submit: string;
   submitting: string;
+  submitNotAllowed: string;
   note: string;
   errorGeneric: string;
 }
@@ -610,6 +665,7 @@ export function strings(locale: string): Strings {
     notePlaceholder: t('commerce.rfqDraft.notePlaceholder'),
     submit: t('commerce.rfqDraft.submit'),
     submitting: t('commerce.rfqDraft.submitting'),
+    submitNotAllowed: t('commerce.rfqDraft.submitNotAllowed'),
     note: t('commerce.rfqDraft.afterSubmitNote'),
     errorGeneric: t('commerce.rfqDraft.errorGeneric'),
   };

@@ -10,6 +10,7 @@ import {
   updateShoppingListItem,
 } from '../../../../lib/api/shopping-lists';
 import { getSessionCookie } from '../../../../lib/session';
+import { getCommerceAbilitiesAction } from '../../../../lib/actions/cart';
 import { StorefrontApiError } from '../../../../lib/api/client';
 import { getServerContext } from '../../../../lib/server-context';
 import { getProductBySlug } from '../../../../lib/api/catalog';
@@ -49,6 +50,11 @@ interface ResolvedProduct {
  * checkboxes feed an `itemIds` array to the server actions for the
  * "Convert selected" variant; archived skips are surfaced via a banner
  * after conversion.
+ *
+ * `specs/170-organization-roles/` (FR-047, FR-048): renaming and editing the
+ * list need `shopping_lists.create`; each conversion needs
+ * `shopping_lists.convert` plus its target's create code. What the member's
+ * role does not allow is not offered, and a read-only list says so.
  */
 
 export default async function ShoppingListDetailPage({
@@ -75,6 +81,9 @@ export default async function ShoppingListDetailPage({
   const sp = await searchParams;
   const { ctx, locale } = await getServerContext();
   const t = tForLocale(locale);
+  const abilities = await getCommerceAbilitiesAction();
+  const canEdit = abilities.editShoppingLists;
+  const canConvert = abilities.convertListToCart || abilities.convertListToQuote;
   let list;
   try {
     list = await getShoppingList(session, id);
@@ -161,25 +170,33 @@ export default async function ShoppingListDetailPage({
         </p>
       ) : null}
 
-      <form action={renameAction} className="flex items-end gap-2">
-        <input type="hidden" name="listId" value={list.id} />
-        <div className="flex flex-1 flex-col gap-1">
-          <label htmlFor="rename" className="text-sm text-fg-soft">
-            {t('account.shoppingList.rename.label')}
-          </label>
-          <input
-            id="rename"
-            name="name"
-            defaultValue={list.name}
-            required
-            maxLength={160}
-            className="w-full rounded-md border border-line px-3 py-2 text-sm"
-          />
-        </div>
-        <button type="submit" className="btn btn--outline">
-          {t('account.shoppingList.rename.submit')}
-        </button>
-      </form>
+      {!canEdit ? (
+        <p className="b2b-auth__hint" role="note">
+          {t('commerce.shoppingLists.readOnlyNote')}
+        </p>
+      ) : null}
+
+      {canEdit ? (
+        <form action={renameAction} className="flex items-end gap-2">
+          <input type="hidden" name="listId" value={list.id} />
+          <div className="flex flex-1 flex-col gap-1">
+            <label htmlFor="rename" className="text-sm text-fg-soft">
+              {t('account.shoppingList.rename.label')}
+            </label>
+            <input
+              id="rename"
+              name="name"
+              defaultValue={list.name}
+              required
+              maxLength={160}
+              className="w-full rounded-md border border-line px-3 py-2 text-sm"
+            />
+          </div>
+          <button type="submit" className="btn btn--outline">
+            {t('account.shoppingList.rename.submit')}
+          </button>
+        </form>
+      ) : null}
 
       <h3 className="mt-10 mb-4">{t('account.common.items')}</h3>
       {list.items.length === 0 ? (
@@ -197,10 +214,12 @@ export default async function ShoppingListDetailPage({
           Instead we declare every form once here as a sibling of the table and
           wire the in-cell controls to them via the HTML `form` attribute.
         */}
-        <form id="sl-convert" action={convertSelectedToCartAction}>
-          <input type="hidden" name="listId" value={list.id} />
-        </form>
-        {list.items.map((it) => (
+        {canConvert ? (
+          <form id="sl-convert" action={convertSelectedToCartAction}>
+            <input type="hidden" name="listId" value={list.id} />
+          </form>
+        ) : null}
+        {canEdit ? list.items.map((it) => (
           <Fragment key={`forms-${it.id}`}>
             {/* `noValidate`: the browser's own `min` bubble speaks the browser's language. The
                 action validates and the row says what is wrong beside the field (U4). */}
@@ -213,23 +232,25 @@ export default async function ShoppingListDetailPage({
               <input type="hidden" name="itemId" value={it.id} />
             </form>
           </Fragment>
-        ))}
+        )) : null}
         <table className="b2b-account__table">
             <thead>
               <tr>
-                <th></th>
+                {canConvert ? <th></th> : null}
                 <th>{t('account.common.product')}</th>
                 <th>{t('account.common.quantity')}</th>
                 <th>{t('account.shoppingList.col.note')}</th>
-                <th></th>
+                {canEdit ? <th></th> : null}
               </tr>
             </thead>
             <tbody>
               {list.items.map((it) => (
                 <tr key={it.id}>
-                  <td>
-                    <input type="checkbox" name="itemIds" value={it.id} form="sl-convert" />
-                  </td>
+                  {canConvert ? (
+                    <td>
+                      <input type="checkbox" name="itemIds" value={it.id} form="sl-convert" />
+                    </td>
+                  ) : null}
                   <td>
                     {(() => {
                       const product = productsById.get(it.productId);
@@ -255,39 +276,62 @@ export default async function ShoppingListDetailPage({
                     ) : null}
                   </td>
                   <td>
-                    <UpdateQtyForm
-                      itemId={it.id}
-                      qty={it.quantity}
-                      label={t('common.quantity')}
-                      saveLabel={t('shoppingList.qty.save')}
-                      error={sp.qtyError === it.id ? t('shoppingList.qty.invalid') : null}
-                    />
+                    {canEdit ? (
+                      <UpdateQtyForm
+                        itemId={it.id}
+                        qty={it.quantity}
+                        label={t('common.quantity')}
+                        saveLabel={t('shoppingList.qty.save')}
+                        error={sp.qtyError === it.id ? t('shoppingList.qty.invalid') : null}
+                      />
+                    ) : (
+                      it.quantity
+                    )}
                   </td>
                   <td>{it.note ?? ''}</td>
-                  <td>
-                    <RemoveItemForm itemId={it.id} label={t('account.common.remove')} />
-                  </td>
+                  {canEdit ? (
+                    <td>
+                      <RemoveItemForm itemId={it.id} label={t('account.common.remove')} />
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>
           </table>
-          <div className="mt-6 mb-10 flex flex-wrap gap-2">
-            <button type="submit" form="sl-convert" formAction={convertAllToCartAction} className="btn btn--primary">
-              {t('account.shoppingList.toCart.all')}
-            </button>
-            <button type="submit" form="sl-convert" className="btn btn--outline">
-              {t('account.shoppingList.toCart.selected')}
-            </button>
-            <button type="submit" form="sl-convert" formAction={convertAllToRfqAction} className="btn btn--outline">
-              {t('account.shoppingList.toQuote.all')}
-            </button>
-            <button type="submit" form="sl-convert" formAction={convertSelectedToRfqAction} className="btn btn--outline">
-              {t('account.shoppingList.toQuote.selected')}
-            </button>
+          {canConvert ? (
+            <div className="mt-6 mb-10 flex flex-wrap gap-2">
+              {abilities.convertListToCart ? (
+                <>
+                  <button type="submit" form="sl-convert" formAction={convertAllToCartAction} className="btn btn--primary">
+                    {t('account.shoppingList.toCart.all')}
+                  </button>
+                  <button type="submit" form="sl-convert" className="btn btn--outline">
+                    {t('account.shoppingList.toCart.selected')}
+                  </button>
+                </>
+              ) : null}
+              {abilities.convertListToQuote ? (
+                <>
+                  <button
+                    type="submit"
+                    form="sl-convert"
+                    formAction={convertAllToRfqAction}
+                    className={abilities.convertListToCart ? 'btn btn--outline' : 'btn btn--primary'}
+                  >
+                    {t('account.shoppingList.toQuote.all')}
+                  </button>
+                  <button type="submit" form="sl-convert" formAction={convertSelectedToRfqAction} className="btn btn--outline">
+                    {t('account.shoppingList.toQuote.selected')}
+                  </button>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+        {canEdit ? (
+          <div className="mb-10 flex flex-wrap gap-2 border-t border-line pt-6">
+            <ClearListButton listId={list.id} locale={locale} clearAction={clearListAction} />
           </div>
-        <div className="mb-10 flex flex-wrap gap-2 border-t border-line pt-6">
-          <ClearListButton listId={list.id} locale={locale} clearAction={clearListAction} />
-        </div>
+        ) : null}
         </>
       )}
     </>
