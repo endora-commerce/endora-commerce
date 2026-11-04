@@ -422,6 +422,12 @@ Branch `wp/170-14b-returns-storefront`.
 - [ ] T114 [WP-13] SC-004: run the `backend/test/perf/carts/` harness on cart, checkout and placement on the previous release and on the branch; p95 within 5 %; record numbers in the MR (FR-080) — backend perf — T113
 - [ ] T115 [WP-13] Verify; merge into the integration branch — T114
 
+### Integration-branch upkeep
+
+Owned by no work package: a derived fixture that Waves 1–3 moved without re-recording.
+
+- [x] T154 Re-record the OpenAPI baseline (`UPDATE_OPENAPI_BASELINE=1`, the test's header) after WP-02a (#701: `mine/roles[/:id]`, `mine/permission-catalogue`, `mine/role`, operator `…/:id/roles[/:roleId]`, `…/:id/permission-catalogue`) and WP-04 (#709: `PATCH /organization/policies/cart-approval` and operator `GET/PATCH …/cart-approval-policy` removed); the diff is those nine paths only, no surviving path or method changed (`contracts/storefront-api.md`, `contracts/operator-api.md` §4) — backend test — `backend/test/fixtures/openapi-baseline.json` — none
+
 ### Integration PR
 
 - [ ] T116 Open `feat/170-organization-roles` → `master`: complete suite locally (`pnpm --filter backend run test`, the one place it is required), `quickstart.md` walked §1–§8, every check of §8 pasted; no new changeset beyond the WPs' — T115
