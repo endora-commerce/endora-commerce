@@ -9,6 +9,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
+import { SEED_DELIVERY_METHOD_ID, SEED_PAYMENT_METHOD_ID } from '../../helpers/seed-commerce.js';
 
 /**
  * A member's cart answers judge their permissions with the role their session
@@ -161,5 +162,52 @@ describe("carts — a member's cart answers judge the session's role, with no re
     const calls = await judged(() => inject('GET', '/api/v1/cart'), 200);
     expect(calls.map((c) => c.code)).toContain('carts.order_without_approval');
     expect(calls.filter((c) => c.organizationRoleId !== roleId)).toEqual([]);
+  });
+
+  // `orders` asks `carts` (`CartPlacementApplyPort.awaitsApproval`) whether the
+  // placer's own basket still awaits approval; the placer's role is the actor's.
+  it('POST /api/v1/orders — the approval rule names the role, and the account is not read for it', async () => {
+    const address = await inject('POST', '/api/v1/organizations/mine/addresses', {
+      kind: 'delivery',
+      recipientName: 'Cart Reads',
+      street: 'ul. Odczytu 3',
+      city: 'Warszawa',
+      postalCode: '00-171',
+      country: 'PL',
+      isDefault: true,
+    });
+    expect(address.statusCode, address.body).toBe(201);
+    const addressId = (address.json() as { data: { id: string } }).data.id;
+    const add = await inject('POST', '/api/v1/cart/items', {
+      productId: SEED_PRODUCT_101_ID,
+      quantity: 1,
+    });
+    expect(add.statusCode, add.body).toBe(200);
+
+    // The fallback's signature: `customer_accounts`' member read loads the
+    // account's MFA enrolments with it, and nothing else on placement does.
+    const queries: string[] = [];
+    const knex = h.em().getKnex();
+    const listener = (query: { sql: string }) => {
+      if (recording) queries.push(query.sql);
+    };
+    knex.on('query', listener);
+    try {
+      const calls = await judged(
+        () =>
+          inject('POST', '/api/v1/orders', {
+            deliveryAddressId: addressId,
+            billingAddressId: addressId,
+            deliveryMethodId: SEED_DELIVERY_METHOD_ID,
+            paymentMethodId: SEED_PAYMENT_METHOD_ID,
+          }),
+        201,
+      );
+      expect(calls.map((c) => c.code)).toContain('carts.order_without_approval');
+      expect(calls.filter((c) => c.organizationRoleId !== roleId)).toEqual([]);
+      expect(queries.filter((sql) => sql.includes('"mfa_enrolments"'))).toEqual([]);
+    } finally {
+      knex.off('query', listener);
+    }
   });
 });
