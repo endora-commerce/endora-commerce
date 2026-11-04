@@ -46,7 +46,7 @@ describe('feed run diagnostics [integration]', () => {
 
     channelId = (await em.findOneOrFail(SalesChannel, { code: 'pl_retail' })).id;
 
-    // One product with no price at all, and one with no `pl` translation. Both
+    // One product with no price at all, and one with only a Global text. Both
     // are otherwise perfectly eligible, so their absence from the file can only
     // be explained by the defect the test seeded.
     em.create(Product, {
@@ -66,7 +66,7 @@ describe('feed run diagnostics [integration]', () => {
       type: 'simple',
       status: 'active',
       visibility: 'public',
-      // English only: a `pl` feed has to walk the fallback chain for this one.
+      // Only the Global text (no channel or channel x language override): a `pl` feed reads it.
       name: 'English only',
       description: 'English only',
     });
@@ -138,13 +138,13 @@ describe('feed run diagnostics [integration]', () => {
     expect(priceless?.sku).toBe('DIAG-NO-PRICE');
     expect(priceless?.productId).toBe(NO_PRICE_ID);
 
-    // The English-only product is a warning, not a skip: the fallback chain
-    // filled it, and the operator is told which language was actually used.
-    expect(reasons).toContain('missing_translation');
-    const untranslated = issues.find(
-      (issue) => issue.reason === 'missing_translation' && issue.productId === NO_TRANSLATION_ID,
-    );
-    expect(untranslated?.severity).toBe('warning');
+    // Feature 170 (FR-014, `contracts/readers.md` §1): the product with only a Global text is
+    // not a defect. The Global value satisfies every (channel, language), so there is no
+    // language fallback to report and the product is not skipped.
+    expect(reasons).not.toContain('missing_translation');
+    expect(
+      issues.filter((issue) => issue.productId === NO_TRANSLATION_ID && issue.severity === 'skip'),
+    ).toEqual([]);
 
     // The seeded catalogue carries no images at all.
     expect(reasons).toContain('missing_image');
