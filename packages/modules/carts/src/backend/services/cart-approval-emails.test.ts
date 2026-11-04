@@ -14,17 +14,24 @@ import {
   CART_REJECTED_EMAIL_CODE,
   approvalEmailLanguage,
   createCartApprovalEmailDispatch,
-  organizationAdminRecipients,
+  approverRecipients,
   type CartApprovalEmailDeps,
 } from './cart-approval-emails.js';
 
 /**
  * Issue #651 — the cart-approval e-mails, which `CartApprovalService` called
  * through an optional `CartEmailDispatch` the composition never supplied.
+ *
+ * `specs/170-organization-roles/` WP-04 (FR-033) — the "submitted" e-mail goes
+ * to every member whose role holds `carts.approve` (`rolesHolding`), not to the
+ * accounts carrying the legacy administrator value.
  */
 
 const ORG = 'org-1';
 const CHANNEL = 'channel-pl';
+const ADMINISTRATOR_ROLE = '00000000-0000-4000-8000-0000000170a1';
+const MEMBER_ROLE = '00000000-0000-4000-8000-0000000170b2';
+const APPROVER_ROLE = '00000000-0000-4000-8000-0000000170c3';
 
 function account(overrides: Partial<CustomerAccountRecord> & { id: string }): CustomerAccountRecord {
   return {
@@ -33,7 +40,7 @@ function account(overrides: Partial<CustomerAccountRecord> & { id: string }): Cu
     firstName: 'First',
     lastName: overrides.id,
     role: 'regular_user',
-    organizationRoleId: '00000000-0000-4000-8000-0000000170b2',
+    organizationRoleId: MEMBER_ROLE,
     emailVerifiedAt: new Date(),
     twoFactorEnabled: false,
     lastLoginAt: null,
@@ -55,13 +62,15 @@ function account(overrides: Partial<CustomerAccountRecord> & { id: string }): Cu
 }
 
 const BUYER = account({ id: 'buyer', firstName: 'Anna', lastName: 'Kowalska' });
-const ADMIN_1 = account({ id: 'admin-1', role: 'organization_admin', firstName: 'Jan', lastName: 'Nowak' });
-const ADMIN_2 = account({ id: 'admin-2', role: 'organization_admin' });
-const BLOCKED_ADMIN = account({ id: 'admin-blocked', role: 'organization_admin', blockedAt: new Date() });
-const ANONYMISED_ADMIN = account({ id: 'admin-anon', role: 'organization_admin', anonymizedAt: new Date() });
+const ADMIN_1 = account({ id: 'admin-1', organizationRoleId: ADMINISTRATOR_ROLE, firstName: 'Jan', lastName: 'Nowak' });
+const APPROVER = account({ id: 'approver', organizationRoleId: APPROVER_ROLE });
+const BLOCKED_ADMIN = account({ id: 'admin-blocked', organizationRoleId: ADMINISTRATOR_ROLE, blockedAt: new Date() });
+const ANONYMISED_ADMIN = account({ id: 'admin-anon', organizationRoleId: ADMINISTRATOR_ROLE, anonymizedAt: new Date() });
 const OTHER_MEMBER = account({ id: 'member-2' });
+// The buyer holds `carts.approve` too: they are still never told of their own cart.
+const APPROVING_BUYER = account({ id: 'buyer', organizationRoleId: APPROVER_ROLE, firstName: 'Anna', lastName: 'Kowalska' });
 
-const MEMBERS = [ADMIN_1, ADMIN_2, BLOCKED_ADMIN, ANONYMISED_ADMIN, BUYER, OTHER_MEMBER];
+const MEMBERS = [ADMIN_1, APPROVER, BLOCKED_ADMIN, ANONYMISED_ADMIN, BUYER, OTHER_MEMBER];
 
 function cart(overrides: Partial<Cart> = {}): Cart {
   return {
@@ -104,23 +113,35 @@ function harness(options: {
     organizations: {
       findById: vi.fn(async (id: string) => (id === ORG ? ({ id, name: 'Acme Sp. z o.o.' } as OrganizationRecord) : null)),
     },
+    permissions: {
+      rolesHolding: vi.fn(async (organizationId: string, code: string) =>
+        organizationId === ORG && code === 'carts.approve' ? [ADMINISTRATOR_ROLE, APPROVER_ROLE] : [],
+      ),
+    },
     channelLanguage: vi.fn(async () => (options.channelLanguage === undefined ? 'pl-PL' : options.channelLanguage)),
     log,
   };
   return { dispatch: createCartApprovalEmailDispatch(deps), deps, sent, log, sender };
 }
 
-describe('organizationAdminRecipients (issue #651)', () => {
-  it('answers the active, unblocked administrators of the Organization, never the submitter', async () => {
+describe('approverRecipients (issue #651, FR-033)', () => {
+  it('answers the active, unblocked members whose role holds carts.approve, never the submitter', async () => {
     const { deps } = harness();
-    const recipients = await organizationAdminRecipients(deps.customerAccounts, ORG, BUYER.id);
-    expect(recipients.map((r) => r.id)).toEqual([ADMIN_1.id, ADMIN_2.id]);
+    const recipients = await approverRecipients(deps.customerAccounts, deps.permissions, ORG, BUYER.id);
+    expect(recipients.map((r) => r.id)).toEqual([ADMIN_1.id, APPROVER.id]);
     expect(deps.customerAccounts.listByOrganization).toHaveBeenCalledWith(ORG, { activeOnly: true });
+    expect(deps.permissions.rolesHolding).toHaveBeenCalledWith(ORG, 'carts.approve');
   });
 
-  it('answers nobody for an Organization without an administrator', async () => {
+  it('never answers the submitter, even when their own role holds carts.approve', async () => {
+    const { deps } = harness({ members: [ADMIN_1, APPROVING_BUYER] });
+    const recipients = await approverRecipients(deps.customerAccounts, deps.permissions, ORG, APPROVING_BUYER.id);
+    expect(recipients.map((r) => r.id)).toEqual([ADMIN_1.id]);
+  });
+
+  it('answers nobody for an Organization where no role holds carts.approve', async () => {
     const { deps } = harness({ members: [BUYER, OTHER_MEMBER] });
-    expect(await organizationAdminRecipients(deps.customerAccounts, ORG, BUYER.id)).toEqual([]);
+    expect(await approverRecipients(deps.customerAccounts, deps.permissions, ORG, BUYER.id)).toEqual([]);
   });
 });
 
@@ -134,13 +155,13 @@ describe('approvalEmailLanguage (issue #651)', () => {
 });
 
 describe('createCartApprovalEmailDispatch (issue #651)', () => {
-  it('on submit, tells every administrator of the Organization, once each, in the store’s language', async () => {
+  it('on submit, tells every member who approves carts, once each, in the store’s language', async () => {
     const { dispatch, sent, deps } = harness();
     await dispatch.onSubmittedForApproval({
       cart: cart(),
       submitter: { customerAccountId: BUYER.id, organizationId: ORG },
     });
-    expect(sent.map((s) => s.to)).toEqual([ADMIN_1.email, ADMIN_2.email]);
+    expect(sent.map((s) => s.to)).toEqual([ADMIN_1.email, APPROVER.email]);
     for (const message of sent) {
       expect(message.code).toBe(CART_APPROVAL_REQUESTED_EMAIL_CODE);
       expect(message.language).toBe('pl-PL');
@@ -247,7 +268,7 @@ describe('createCartApprovalEmailDispatch (issue #651)', () => {
     expect(log).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ reason: 'deactivated' }));
   });
 
-  it('a send that raises is contained and logged, and the next administrator is still told', async () => {
+  it('a send that raises is contained and logged, and the next approver is still told', async () => {
     const failing = harness();
     let calls = 0;
     failing.deps.sender = () => ({
@@ -265,7 +286,7 @@ describe('createCartApprovalEmailDispatch (issue #651)', () => {
         submitter: { customerAccountId: BUYER.id, organizationId: ORG },
       }),
     ).resolves.toBeUndefined();
-    expect(failing.sent.map((s) => s.to)).toEqual([ADMIN_2.email]);
+    expect(failing.sent.map((s) => s.to)).toEqual([APPROVER.email]);
     expect(failing.log).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({ reason: 'failed', error: 'smtp down', recipientId: ADMIN_1.id }),

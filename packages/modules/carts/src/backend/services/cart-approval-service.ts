@@ -8,10 +8,8 @@ import type {
   CatalogProductAvailabilityPort,
   CatalogProductReadPort,
   CustomerAccountReadPort,
-  OrganizationCartApprovalWritePort,
-  OrganizationDetailsPort,
   OrderQuoteSourcePort,
-  OrganizationRecord,
+  OrganizationPermissionPort,
 } from '@endora-commerce/contracts';
 import type { CartAuditService } from './cart-audit-service.js';
 import { assertCartMeetsMinimums, toCartMinimumItem } from './cart-minimums.js';
@@ -27,17 +25,28 @@ import { approvalSubmissionRequired } from './cart-approval-policy.js';
  * `approval_status` of `not_required` / `pending` / `approved` /
  * `rejected_by_org_admin`. Transitions:
  *
- *   not_required  → pending (buyer submits, when org policy is on)
- *   pending       → approved (org-admin approves)
- *   pending       → rejected_by_org_admin (org-admin rejects; main
- *                                          status also flips to `rejected`)
+ *   not_required  → pending (buyer submits; their role lacks
+ *                            `carts.order_without_approval`)
+ *   pending       → approved (a holder of `carts.approve` approves)
+ *   pending       → rejected_by_org_admin (a holder of `carts.approve`
+ *                                          rejects; main status also flips
+ *                                          to `rejected`)
  *   approved      → pending (buyer mutates cart post-approval; re-arm)
  *   pending       → not_required (buyer mutates cart while it awaits
  *                                 approval; must submit again, issue #649)
- *   pending|approved → not_required (org turns the policy off)
+ *   pending       → not_required (the owner's role gains
+ *                                 `carts.order_without_approval`, or the
+ *                                 owner moves to a role holding it — FR-034)
  *
- * Self-approval exemption: a cart whose owner is themself an Org Admin
- * is born `not_required` regardless of policy.
+ * `specs/170-organization-roles/` (OR-3) replaced the Organization's
+ * `requires_cart_approval` switch and the administrator exemption with the
+ * buyer's own `carts.order_without_approval` (`cart-approval-policy.ts`), and
+ * "an administrator decides" with `carts.approve`. No approver decides on their
+ * own pending cart (`CART_APPROVAL_SELF_APPROVE`).
+ *
+ * The `org_admin` actor type on the cart's own audit rows names the deciding
+ * member's side of the transition, as it always has; it is a value of this
+ * module's audit vocabulary, not a role check.
  */
 
 export interface ApproveActor {
@@ -77,18 +86,14 @@ export class CartApprovalService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly cartAuditService: CartAuditService,
-    /** `organizations`' read model — the approval policy and its owner row. */
-    private readonly organizations: OrganizationDetailsPort,
     /**
-     * `organizations`' write surface for the policy column (issue #175). The
-     * two `setPolicy*` methods below used to assign
-     * `organizations.requires_cart_approval` on that module's entity; the write
-     * belongs to its owner, which audits it through the Command Bus. What stays
-     * here is the cascade over this module's own carts.
+     * `organizations`' permission port (`specs/170-organization-roles/`) — the
+     * buyer's `carts.order_without_approval`, and which roles hold it when the
+     * cascade (FR-034) asks. Reached lazily; never captured by the caller.
      */
-    private readonly organizationCartApproval: OrganizationCartApprovalWritePort,
-    /** `customer_accounts`' read model — the submitting buyer's role. */
-    private readonly customerAccounts: CustomerAccountReadPort,
+    private readonly permissions: Pick<OrganizationPermissionPort, 'can' | 'rolesHolding'>,
+    /** `customer_accounts`' read model — who holds a role, for the cascade. */
+    private readonly customerAccounts: Pick<CustomerAccountReadPort, 'listByOrganization'>,
     /**
      * Feature 155 (owner ruling 2026-10-18) — the basket's products and units, so a
      * basket below a minimum is refused before it is sent for approval.
@@ -126,23 +131,22 @@ export class CartApprovalService {
 
   /**
    * Whether `buyer`'s basket must be sent for approval before it is ordered
-   * (issue #619): their Organization requires cart approval and they are not
-   * its administrator — the two conditions {@link submitForApproval} refuses
-   * on, read as a yes/no for the cart's primary call to action.
+   * (issue #619): their role lacks `carts.order_without_approval` — the
+   * condition {@link submitForApproval} refuses on, read as a yes/no for the
+   * cart's primary call to action.
    */
   async submissionRequired(buyer: ApproveActor): Promise<boolean> {
-    return approvalSubmissionRequired(
-      { organizations: this.organizations, customerAccounts: this.customerAccounts },
-      buyer,
-    );
+    return approvalSubmissionRequired({ permissions: this.permissions }, buyer);
   }
 
   /**
-   * Buyer submits the cart for Org-Admin approval. Refuses if:
+   * Buyer submits the cart for approval. Refuses if:
    *   - the cart is empty
-   *   - the policy is off (approval not required)
-   *   - the buyer is themself an Org Admin (self-approval exemption)
    *   - approval_status is already non-`not_required`
+   *   - the buyer's role holds `carts.order_without_approval`, so approval is
+   *     not required (`CART_APPROVAL_NOT_REQUIRED` — an administrator
+   *     included, who was refused `CART_APPROVAL_SELF_SUBMIT` before
+   *     `specs/170-organization-roles/`)
    *   - a line is below a minimum or its product is gone (feature 155, owner
    *     ruling 2026-10-18, FR-039) — the refusal placement would give, with the
    *     quote-line exemption honoured only once `orders` confirms the quote
@@ -183,21 +187,11 @@ export class CartApprovalService {
       );
     }
 
-    const org = await this.organizations.findById(actor.organizationId);
-    if (!org || !org.requiresCartApproval) {
+    if (!(await this.submissionRequired(actor))) {
       throw new HttpError(
         422,
         ERROR_CODES.CART_APPROVAL_NOT_REQUIRED,
-        'The organization does not require cart approval.',
-      );
-    }
-
-    const buyer = await this.customerAccounts.findById(actor.customerAccountId);
-    if (buyer?.role === 'organization_admin') {
-      throw new HttpError(
-        422,
-        ERROR_CODES.CART_APPROVAL_SELF_SUBMIT,
-        'An organization administrator places orders directly; their own cart is not sent for approval.',
+        'Your role lets you place orders without approval; this cart is not sent for approval.',
       );
     }
 
@@ -252,13 +246,20 @@ export class CartApprovalService {
     return cart;
   }
 
-  /** Org Admin approves a pending cart. */
+  /**
+   * A holder of `carts.approve` approves a pending cart — the route has judged
+   * the permission. The cart's state is checked before its owner (owner ruling
+   * PR-9, R-36): a cart that is not pending is `CART_APPROVAL_NOT_PENDING`
+   * whoever owns it, and only one's own **pending** cart is
+   * `CART_APPROVAL_SELF_APPROVE`.
+   */
   async approve(cartId: string, actor: ApproveActor): Promise<Cart> {
     const em = this.emFactory();
     const cart = await this.#organizationCart(em, cartId, actor);
     if (cart.approvalStatus !== 'pending') {
       throw notPending(cart);
     }
+    refuseOwnCart(cart, actor);
     cart.approvalStatus = 'approved';
     cart.approvedAt = new Date();
     cart.approvedByCustomerAccountId = actor.customerAccountId;
@@ -279,13 +280,14 @@ export class CartApprovalService {
     return cart;
   }
 
-  /** Org Admin rejects a pending cart with a reason. */
+  /** A holder of `carts.approve` rejects a pending cart with a reason; checked as {@link approve}. */
   async reject(cartId: string, actor: ApproveActor, reason: string): Promise<Cart> {
     const em = this.emFactory();
     const cart = await this.#organizationCart(em, cartId, actor);
     if (cart.approvalStatus !== 'pending') {
       throw notPending(cart);
     }
+    refuseOwnCart(cart, actor);
     cart.approvalStatus = 'rejected_by_org_admin';
     cart.status = 'rejected';
     cart.rejectedAt = new Date();
@@ -310,10 +312,10 @@ export class CartApprovalService {
   }
 
   /**
-   * A cart of the administrator's own Organization, loaded into `em` (issue
-   * #619). A member's cart is outside the administrator's customer filter, so
-   * it is read through {@link readOrganizationCarts}; a cart of another
-   * Organization, a working basket and an unknown id are all the same 404.
+   * A cart of the approver's own Organization, loaded into `em` (issue #619). A
+   * member's cart is outside the approver's customer filter, so it is read
+   * through {@link readOrganizationCarts}; a cart of another Organization, a
+   * working basket and an unknown id are all the same 404.
    */
   async #organizationCart(em: EntityManager, cartId: string, actor: ApproveActor): Promise<Cart> {
     const cart = await readOrganizationCarts(actor.organizationId, () =>
@@ -326,100 +328,77 @@ export class CartApprovalService {
   }
 
   /**
-   * The current policy, for a platform admin (feature 091, P7b;
-   * `contracts/admin-component-contribution.md` §10.5).
+   * FR-034 — `roleId` of `organizationId` gained `carts.order_without_approval`
+   * (`organization_role.permissions_changed.v1`): every `pending` cart of an
+   * account holding the role returns to `not_required`.
+   */
+  async onRoleGainedOrderWithoutApproval(organizationId: string, roleId: string): Promise<void> {
+    const members = await this.customerAccounts.listByOrganization(organizationId, { activeOnly: true });
+    await this.releasePendingApprovals(
+      organizationId,
+      members.filter((member) => member.organizationRoleId === roleId).map((member) => member.id),
+      { reason: 'organization_role_permissions_changed', roleId },
+    );
+  }
+
+  /**
+   * FR-034 — `customerAccountId` moved from `fromRoleId` to `toRoleId`
+   * (`customer_account.organization_role_changed.v1`): when the new role holds
+   * `carts.order_without_approval` and the old one did not, the account's
+   * `pending` carts return to `not_required`. A role that no longer exists — a
+   * deleted role's holders are moved as its children — reads as not holding it.
+   */
+  async onMemberRoleChanged(input: {
+    organizationId: string;
+    customerAccountId: string;
+    fromRoleId: string;
+    toRoleId: string;
+  }): Promise<void> {
+    if (input.fromRoleId === input.toRoleId) return;
+    const holding = await this.permissions.rolesHolding(input.organizationId, 'carts.order_without_approval');
+    if (!holding.includes(input.toRoleId) || holding.includes(input.fromRoleId)) return;
+    await this.releasePendingApprovals(input.organizationId, [input.customerAccountId], {
+      reason: 'organization_role_changed',
+      roleId: input.toRoleId,
+    });
+  }
+
+  /**
+   * The cascade's one write: every `pending` cart of `customerAccountIds` in
+   * `organizationId` returns to `not_required`, audited in this module's own
+   * per-cart trail as `approval_policy_reset` — the transition switching the
+   * old policy off made (`carts.md` § *Lifecycle*) — by the system, with what
+   * caused it in the metadata. An `approved` cart stays approved (FR-034).
    *
-   * The read half of {@link setPolicyByAdmin}, added because the admin
-   * contribution that renders the toggle has to know what to render it in.
-   * Until P7b that value crossed as a prop — `initialRequiresCartApproval`, out
-   * of `organizations`' detail payload — and a zone's props may not carry it:
-   * the other three contributors to `organization.detail.after` want neither
-   * the prop nor the request behind it.
-   *
-   * It reads through `organizations`' own port rather than this module's
-   * tables, which is the direction the write has taken since issue #175: the
-   * column belongs to that module.
+   * The read crosses the customer filter through {@link readOrganizationCarts}
+   * and names the Organization in its own `where`; it is reached from a
+   * subscriber, so the ambient scope is the system's.
    */
-  async getPolicyByAdmin(organizationId: string): Promise<OrganizationRecord> {
-    const organization = await this.organizations.findById(organizationId);
-    if (!organization) {
-      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'organization_not_found');
-    }
-    return organization;
-  }
-
-  /**
-   * Platform-admin variant of {@link setPolicyForOrganization}. Same
-   * semantics (policy-off cascades a reset of every pending/approved
-   * cart in the Org) but the actor is a platform admin rather than an
-   * Org Admin — recorded as `actorType: 'platform_admin'` in the
-   * audit row.
-   */
-  async setPolicyByAdmin(
+  private async releasePendingApprovals(
     organizationId: string,
-    adminUserId: string,
-    requires: boolean,
-  ): Promise<OrganizationRecord> {
-    const { organization, changed } =
-      await this.organizationCartApproval.setCartApprovalPolicy(organizationId, requires);
-    if (changed && !requires) {
-      await this.resetPendingApprovals(organizationId, 'platform_admin', adminUserId);
-    }
-    return organization;
-  }
-
-  /**
-   * Org Admin toggles the per-Organization `requires_cart_approval` policy.
-   * On `false`: every `pending` or `approved` cart in the Org returns to
-   * `not_required` and is audited as `approval_policy_reset`.
-   */
-  async setPolicyForOrganization(
-    organizationId: string,
-    actor: ApproveActor,
-    requires: boolean,
-  ): Promise<OrganizationRecord> {
-    if (organizationId !== actor.organizationId) {
-      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'organization_not_found');
-    }
-    const { organization, changed } =
-      await this.organizationCartApproval.setCartApprovalPolicy(organizationId, requires);
-    if (changed && !requires) {
-      await this.resetPendingApprovals(organizationId, 'org_admin', actor.customerAccountId);
-    }
-    return organization;
-  }
-
-  /**
-   * The half of a policy switch-off that belongs to this module: every
-   * `pending` or `approved` cart in the Organization returns to
-   * `not_required`, audited as `approval_policy_reset` in this module's own
-   * per-cart trail with the actor that switched the policy off.
-   */
-  private async resetPendingApprovals(
-    organizationId: string,
-    actorType: 'platform_admin' | 'org_admin',
-    actorId: string,
+    customerAccountIds: readonly string[],
+    cause: { reason: string; roleId: string },
   ): Promise<void> {
+    if (customerAccountIds.length === 0) return;
     const em = this.emFactory();
-    // Issue #619 — an Organization administrator's own customer filter hides
-    // every member's cart, so the reset used to reach only the administrator's.
     const affected = await readOrganizationCarts(organizationId, () =>
       em.find(Cart, {
         organizationId,
-        approvalStatus: { $in: ['pending', 'approved'] satisfies CartApprovalStatus[] },
+        customerAccountId: { $in: [...customerAccountIds] },
+        approvalStatus: 'pending',
       }),
     );
     if (affected.length === 0) return;
     const audits = affected.map((cart) => {
-      const prev = cart.approvalStatus;
       cart.approvalStatus = 'not_required';
+      cart.submittedForApprovalAt = null;
       return {
         cartId: cart.id,
-        actorType,
-        actorId,
+        actorType: 'system' as const,
         action: 'approval_policy_reset' as const,
-        fromState: prev,
+        fromState: 'pending',
         toState: 'not_required',
+        metadata: { ...cause },
       };
     });
     this.cartAuditService.recordWithin(em, audits);
@@ -470,6 +449,21 @@ export class CartApprovalService {
         toState: to,
       },
     ]);
+  }
+}
+
+/**
+ * `specs/170-organization-roles/` FR-032 (R-36) — nobody decides on their own
+ * pending cart, whatever their role holds. Checked after {@link notPending}.
+ */
+function refuseOwnCart(cart: Cart, actor: ApproveActor): void {
+  if (cart.customerAccountId !== null && cart.customerAccountId === actor.customerAccountId) {
+    throw new HttpError(
+      422,
+      ERROR_CODES.CART_APPROVAL_SELF_APPROVE,
+      'You cannot approve or reject your own cart.',
+      { cartId: cart.id },
+    );
   }
 }
 

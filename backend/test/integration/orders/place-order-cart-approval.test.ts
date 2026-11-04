@@ -10,6 +10,7 @@ import {
 import { CustomerAccount, Organization } from '../../helpers/package-entities.js';
 import { CUSTOMER_COOKIES } from '../../helpers/test-actors.js';
 import { addOrganizationChannels } from '../../helpers/sales-channel-access.js';
+import { requireCartApprovalForMembers } from '../../helpers/cart-approval-roles.js';
 import { SEED_DELIVERY_METHOD_ID, SEED_PAYMENT_METHOD_ID } from '../../helpers/seed-commerce.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 
@@ -81,9 +82,9 @@ describe('orders — placement refuses a basket that awaits approval (#648)', ()
   beforeAll(async () => {
     h = await setupBackendServer();
     const em = h.em();
-    for (const [id, suffix, requiresCartApproval] of [
-      [ORG_POLICY, 'A', true],
-      [ORG_OPEN, 'B', false],
+    for (const [id, suffix] of [
+      [ORG_POLICY, 'A'],
+      [ORG_OPEN, 'B'],
     ] as const) {
       em.create(Organization, {
         id,
@@ -91,11 +92,14 @@ describe('orders — placement refuses a basket that awaits approval (#648)', ()
         taxId: `PL648${suffix}${id.replace(/\D/g, '').slice(0, 7).padEnd(7, '0')}`,
         status: 'active',
         vatStatus: 'vat_payer',
-        requiresCartApproval,
         registeredAddress: { street: 'ul. Akceptacji 8', city: 'Warszawa', postalCode: '00-648', country: 'PL' },
       });
     }
     await em.flush();
+    // `specs/170-organization-roles/` — approval is the role's
+    // (`carts.order_without_approval`): ORG_POLICY's *Member* role as M2 maps an
+    // approval-requiring Organization; ORG_OPEN's keeps every member default.
+    await requireCartApprovalForMembers(em, ORG_POLICY);
     const accounts = [
       { ...MEMBER, organizationId: ORG_POLICY, role: 'regular_user' as const, label: 'member' },
       { ...ADMIN, organizationId: ORG_POLICY, role: 'organization_admin' as const, label: 'admin' },

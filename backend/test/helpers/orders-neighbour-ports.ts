@@ -171,11 +171,13 @@ export function orderServiceNeighbours(
         base.organizationDetails,
       ),
       base.catalogProductRead,
-      // Issue #648 — the reads the cart-approval gate is judged from.
-      {
-        organizations: base.organizationDetails,
-        customerAccounts: new CustomerAccountReadService(emFactory, twoFactorEnrolmentsFor(emFactory, 'customer')),
-      },
+      // Issue #648 — the read the cart-approval gate is judged from: the
+      // owner's `carts.order_without_approval` (`specs/170-organization-roles/`
+      // R-25). A hand-built rig has no role cache to judge it with, and its
+      // buyers hold the *Member* default, so it answers as that default does;
+      // the refusal itself is driven over the composed server
+      // (`test/integration/orders/place-order-cart-approval.test.ts`).
+      { permissions: { can: async (_subject, code) => code === 'carts.order_without_approval' } },
     ),
     cartRead: new CartReadService(emFactory),
     // An accessor, because `invoices` is switchable. A rig that wants the

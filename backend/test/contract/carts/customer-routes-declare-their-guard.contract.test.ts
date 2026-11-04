@@ -7,8 +7,10 @@ import {
 } from '../../helpers/test-server.js';
 
 /**
- * The four `carts` customer routes that declare a body schema answer a caller
- * with no customer session before they validate the body.
+ * The three `carts` customer routes that declare a body schema answer a caller
+ * with no customer session before they validate the body. (A fourth, the
+ * Organization's cart-approval policy, was removed with the policy by
+ * `specs/170-organization-roles/` — `cart-approval.contract.test.ts`.)
  *
  * Each used to check the session inside its handler, which runs after schema
  * validation: an anonymous request with a malformed body was told which fields
@@ -28,11 +30,6 @@ describe('carts customer routes — session before validation', () => {
   });
 
   const routes = [
-    {
-      method: 'PATCH',
-      url: '/api/v1/organization/policies/cart-approval',
-      invalid: { requiresCartApproval: 'yes' },
-    },
     {
       method: 'POST',
       url: `/api/v1/organization/carts/${randomUUID()}/reject`,

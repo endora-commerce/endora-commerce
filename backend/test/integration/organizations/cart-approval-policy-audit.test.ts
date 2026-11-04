@@ -1,6 +1,6 @@
-import { Cart } from '../../helpers/package-entities.js';
 import { Organization } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { OrganizationCartApprovalWritePort } from '@endora-commerce/contracts';
 
 import {
   setupBackendServer,
@@ -8,15 +8,11 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 
-import {
-  TEST_CUSTOMER_ID,
-  TEST_CUSTOMER_RFQ_ID,
-  TEST_ORGANIZATION_ID,
-} from '../../helpers/test-actors.js';
+import { TEST_ADMIN_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 
 import { AuditLogEntry } from '@endora-commerce/platform/kernel';
-
-
+import { resolveTenantContext } from '@endora-commerce/platform/composition';
+import { runWithTenantContext } from '../../../src/tenancy/tenant-context.js';
 
 /**
  * Issue #175 — `organizations.requires_cart_approval` is written by its owner,
@@ -29,9 +25,14 @@ import { AuditLogEntry } from '@endora-commerce/platform/kernel';
  * **this flip has never had an audit row on the `organizations` side.** Under
  * Constitution XIII it must, so the port runs a Command.
  *
- * The cart cascade stays where it is — it is `carts`' own rows, audited in
- * `carts`' own trail — and this file asserts it still happens, so the write's
- * relocation is not mistaken for a licence to change what it does.
+ * `specs/170-organization-roles/` WP-04 (OR-3) removed both HTTP routes that
+ * reached this port — the operator's `…/cart-approval-policy` and the
+ * Organization administrator's `PATCH /api/v1/organization/policies/cart-approval`
+ * — and the cart cascade behind them: approval is a role's
+ * `carts.order_without_approval` now, and the cascade is a `carts` subscriber
+ * (`backend/test/integration/carts/cart-approval-role-cascade.test.ts`). The
+ * Command and its port stay until WP-12 deletes them with the column, so this
+ * file drives the port itself until then.
  */
 describe('cart-approval policy — owner-side write, audited (issue #175)', () => {
   let h: BackendServerHandle;
@@ -49,19 +50,21 @@ describe('cart-approval policy — owner-side write, audited (issue #175)', () =
     await teardownBackendServer(h);
   });
 
-  it('audits the platform-admin flip, with the acting admin and before/after state', async () => {
+  /** The Command runs under a platform admin's context, as the removed route did. */
+  const runAsAdminActor = <T>(adminUserId: string, fn: () => Promise<T>): Promise<T> =>
+    runWithTenantContext(resolveTenantContext({ kind: 'admin', adminUserId }, { allowAll: true }), fn);
+
+  const port = (): OrganizationCartApprovalWritePort =>
+    h.container.resolve('organizationCartApprovalWritePort') as OrganizationCartApprovalWritePort;
+
+  it('audits the flip, with the acting admin and before/after state', async () => {
     expect(await policyAudits()).toHaveLength(0);
 
-    const res = await h.app.inject({
-      method: 'PATCH',
-      url: `/api/v1/admin/organizations/${orgId}/cart-approval-policy`,
-      payload: { requiresCartApproval: true },
-      cookies: { b2b_session: 'stub-admin-session' },
-    });
-    expect(res.statusCode).toBe(200);
-    expect((res.json() as { data: { requiresCartApproval: boolean } }).data.requiresCartApproval).toBe(
-      true,
+    const { organization, changed } = await runAsAdminActor(TEST_ADMIN_ID, () =>
+      port().setCartApprovalPolicy(orgId, true),
     );
+    expect(changed).toBe(true);
+    expect(organization.requiresCartApproval).toBe(true);
 
     const rows = await policyAudits();
     expect(rows).toHaveLength(1);
@@ -76,87 +79,26 @@ describe('cart-approval policy — owner-side write, audited (issue #175)', () =
     expect(org!.requiresCartApproval).toBe(true);
   });
 
-  it('writes no second audit row when the requested value is already set', async () => {
+  it('writes no second audit row when the requested value is already set, and switches back', async () => {
     const before = (await policyAudits()).length;
-
-    const res = await h.app.inject({
-      method: 'PATCH',
-      url: `/api/v1/admin/organizations/${orgId}/cart-approval-policy`,
-      payload: { requiresCartApproval: true },
-      cookies: { b2b_session: 'stub-admin-session' },
-    });
-    expect(res.statusCode).toBe(200);
+    const again = await runAsAdminActor(TEST_ADMIN_ID, () => port().setCartApprovalPolicy(orgId, true));
+    expect(again.changed).toBe(false);
     expect(await policyAudits()).toHaveLength(before);
+
+    // Put the fixture back, so a file that runs after this one sees the
+    // organisation it was seeded with.
+    const off = await runAsAdminActor(TEST_ADMIN_ID, () => port().setCartApprovalPolicy(orgId, false));
+    expect(off.changed).toBe(true);
+    expect(await policyAudits()).toHaveLength(before + 1);
   });
 
-  it('audits the org-admin flip and still cascades the cart reset', async () => {
-    // The acting Org Admin's own cart. `Cart` is `@CustomerScoped`, so under a
-    // customer request the cascade only ever reached the caller's own carts —
-    // a pre-existing tenant-scope limitation of this cascade, unchanged here
-    // and deliberately not papered over by the fixture. The platform-admin
-    // path below is the one that reaches another member's cart.
-    const em = h.em();
-    const pending = em.create(Cart, {
-      customerAccountId: TEST_CUSTOMER_ID,
-      organizationId: orgId,
-      status: 'active',
-      approvalStatus: 'pending',
-    });
-    await em.persistAndFlush(pending);
-
-    const before = (await policyAudits()).length;
+  it('is not reachable over HTTP any more (OR-3)', async () => {
     const res = await h.app.inject({
-      method: 'PATCH',
-      url: '/api/v1/organization/policies/cart-approval',
-      payload: { requiresCartApproval: false },
-      cookies: { b2b_session: 'stub-customer-session' },
-    });
-    expect(res.statusCode).toBe(200);
-
-    const rows = await policyAudits();
-    expect(rows).toHaveLength(before + 1);
-    const latest = rows[rows.length - 1]!;
-    // An Org Admin is a customer actor, so the platform audit row carries no
-    // acting admin id — the fact recorded is that the policy changed.
-    expect(latest.actorAdminUserId ?? null).toBeNull();
-    expect((latest.stateBefore as { requiresCartApproval?: boolean } | null)?.requiresCartApproval)
-      .toBe(true);
-    expect((latest.stateAfter as { requiresCartApproval?: boolean } | null)?.requiresCartApproval)
-      .toBe(false);
-
-    // Unchanged by the relocation: turning the policy off returns the pending
-    // or approved carts the caller can see to `not_required`.
-    const reset = await h.em().findOne(Cart, { id: pending.id });
-    expect(reset!.approvalStatus).toBe('not_required');
-  });
-
-  it('still cascades another member’s cart when a platform admin switches the policy off', async () => {
-    const on = await h.app.inject({
       method: 'PATCH',
       url: `/api/v1/admin/organizations/${orgId}/cart-approval-policy`,
       payload: { requiresCartApproval: true },
       cookies: { b2b_session: 'stub-admin-session' },
     });
-    expect(on.statusCode).toBe(200);
-
-    const em = h.em();
-    const pending = em.create(Cart, {
-      customerAccountId: TEST_CUSTOMER_RFQ_ID,
-      organizationId: orgId,
-      status: 'active',
-      approvalStatus: 'pending',
-    });
-    await em.persistAndFlush(pending);
-
-    const off = await h.app.inject({
-      method: 'PATCH',
-      url: `/api/v1/admin/organizations/${orgId}/cart-approval-policy`,
-      payload: { requiresCartApproval: false },
-      cookies: { b2b_session: 'stub-admin-session' },
-    });
-    expect(off.statusCode).toBe(200);
-
-    const reset = await h.em().findOne(Cart, { id: pending.id });
-    expect(reset!.approvalStatus).toBe('not_required');
+    expect(res.statusCode).toBe(404);
   });
 });

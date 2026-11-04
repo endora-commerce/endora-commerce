@@ -793,13 +793,14 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'raised as `VALIDATION_FAILED` with the token `approval_already_initiated` as its message. ' +
       'The one raise site is `carts`\' `CartApprovalService.submitForApproval`.',
   },
-  CART_APPROVAL_SELF_SUBMIT: {
+  CART_APPROVAL_SELF_APPROVE: {
     to: 'carts',
     reason:
-      'Minted for the refusal of an Organization administrator sending their own cart for ' +
-      'approval (issue #86). It was raised as `VALIDATION_FAILED` with the token ' +
-      '`org_admin_self_submit` as its message. The one raise site is `carts`\' ' +
-      '`CartApprovalService.submitForApproval`.',
+      'Minted by feature 170 (`specs/170-organization-roles/` WP-04, research R-36) for the ' +
+      'refusal of an approver approving or rejecting their own pending cart (422, ' +
+      '`details: { cartId }`). It replaces `CART_APPROVAL_SELF_SUBMIT` (an administrator sending ' +
+      'their own cart for approval), removed with its last raise site. The raise sites are `carts`\' `CartApprovalService.approve` and `reject`, after the ' +
+      'not-pending check.',
   },
   CART_APPROVAL_NOT_PENDING: {
     to: 'carts',

@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import {
@@ -6,9 +5,11 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { CustomerAccount, Organization } from '../../helpers/package-entities.js';
-import { CUSTOMER_COOKIES } from '../../helpers/test-actors.js';
-import { addOrganizationChannels } from '../../helpers/sales-channel-access.js';
+import {
+  seedCartOrganization,
+  type CartFixtureActor,
+  type CartFixtureOrganization,
+} from '../../helpers/cart-approval-roles.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 
 /**
@@ -26,10 +27,13 @@ import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
  * Every assertion about a write reads the **stored** row, never only the
  * reply: the reply of defect 1 was the in-memory object, and was right.
  *
- * The fixture owns both Organizations, so the policy it switches on is nobody
- * else's: Org A requires approval and has two members and an administrator;
- * Org B is a foreign Organization with an administrator of its own, who must
- * see none of Org A's carts (Principle XI — 404, never 403).
+ * The fixture owns both Organizations, so the roles it maps are nobody else's:
+ * Org A's members need approval, and it has two of them, an administrator and
+ * an approver who is not one; Org B is a foreign Organization with an
+ * administrator of its own, who must see none of Org A's carts (Principle XI —
+ * 404, never 403). Since `specs/170-organization-roles/` the policy switch is
+ * gone; a role gaining `carts.order_without_approval` resets pending carts,
+ * which `cart-approval-role-cascade.test.ts` covers.
  */
 
 const CHANNEL = { 'x-sales-channel': 'pl_retail' };
@@ -46,64 +50,46 @@ interface CartRow {
 
 describe('cart approval, end to end (issue #619)', () => {
   let h: BackendServerHandle;
-  const RUN = randomUUID().slice(0, 8);
-  const ORG_A = randomUUID();
-  const ORG_B = randomUUID();
-  const MEMBER = { id: randomUUID(), cookie: `stub-i619-member-${RUN}` };
-  const OTHER_MEMBER = { id: randomUUID(), cookie: `stub-i619-other-member-${RUN}` };
-  const ADMIN_A = { id: randomUUID(), cookie: `stub-i619-admin-a-${RUN}` };
-  const ADMIN_B = { id: randomUUID(), cookie: `stub-i619-admin-b-${RUN}` };
+  // `specs/170-organization-roles/` WP-04 — "requires approval" is the role's
+  // (`carts.order_without_approval`), so Org A's *Member* role is mapped as M2
+  // maps an approval-requiring Organization; "may approve" is `carts.approve`,
+  // which an administrator holds and APPROVER holds without being one.
+  let orgA: CartFixtureOrganization;
+  let orgB: CartFixtureOrganization;
+  let MEMBER: CartFixtureActor;
+  let OTHER_MEMBER: CartFixtureActor;
+  let ADMIN_A: CartFixtureActor;
+  let APPROVER: CartFixtureActor;
+  let ADMIN_B: CartFixtureActor;
   let memberCartId: string;
 
   beforeAll(async () => {
     h = await setupBackendServer();
-    const em = h.em();
-    for (const [id, suffix] of [
-      [ORG_A, 'A'],
-      [ORG_B, 'B'],
-    ] as const) {
-      em.create(Organization, {
-        id,
-        name: `Issue 619 Org ${suffix} ${RUN}`,
-        taxId: `PL619${suffix}${id.replace(/\D/g, '').slice(0, 7).padEnd(7, '0')}`,
-        status: 'active',
-        vatStatus: 'vat_payer',
-        requiresCartApproval: true,
-        registeredAddress: { street: 'ul. Akceptacji 6', city: 'Warszawa', postalCode: '00-619', country: 'PL' },
-      });
-    }
-    await em.flush();
-    const accounts = [
-      { ...MEMBER, organizationId: ORG_A, role: 'regular_user' as const, label: 'member' },
-      { ...OTHER_MEMBER, organizationId: ORG_A, role: 'regular_user' as const, label: 'other-member' },
-      { ...ADMIN_A, organizationId: ORG_A, role: 'organization_admin' as const, label: 'admin-a' },
-      { ...ADMIN_B, organizationId: ORG_B, role: 'organization_admin' as const, label: 'admin-b' },
-    ];
-    for (const account of accounts) {
-      em.create(CustomerAccount, {
-        id: account.id,
-        organizationId: account.organizationId,
-        email: `i619-${account.label}-${RUN}@example.com`,
-        passwordHash: 'not-a-real-hash',
-        firstName: 'Issue619',
-        lastName: account.label,
-        role: account.role,
-        emailVerifiedAt: new Date(),
-      });
-    }
-    await em.flush();
-    await addOrganizationChannels(h, ORG_A, ['pl_retail']);
-    await addOrganizationChannels(h, ORG_B, ['pl_retail']);
-    for (const account of accounts) {
-      CUSTOMER_COOKIES[account.cookie] = {
-        customerAccountId: account.id,
-        organizationId: account.organizationId,
-      };
-    }
+    orgA = await seedCartOrganization(h, {
+      label: 'Issue 619 Org A',
+      approvalRequired: true,
+      members: {
+        MEMBER: 'member',
+        OTHER_MEMBER: 'member',
+        ADMIN_A: 'administrator',
+        APPROVER: { permissions: ['carts.create', 'carts.approve', 'carts.order_without_approval'] },
+      },
+    });
+    orgB = await seedCartOrganization(h, {
+      label: 'Issue 619 Org B',
+      approvalRequired: true,
+      members: { ADMIN_B: 'administrator' },
+    });
+    MEMBER = orgA.actors['MEMBER']!;
+    OTHER_MEMBER = orgA.actors['OTHER_MEMBER']!;
+    ADMIN_A = orgA.actors['ADMIN_A']!;
+    APPROVER = orgA.actors['APPROVER']!;
+    ADMIN_B = orgB.actors['ADMIN_B']!;
   }, 60_000);
 
   afterAll(async () => {
-    for (const actor of [MEMBER, OTHER_MEMBER, ADMIN_A, ADMIN_B]) delete CUSTOMER_COOKIES[actor.cookie];
+    orgA?.release();
+    orgB?.release();
     await teardownBackendServer(h);
   });
 
@@ -194,7 +180,7 @@ describe('cart approval, end to end (issue #619)', () => {
     expect((detail.json() as { data: Record<string, unknown> }).data).toMatchObject({
       id: memberCartId,
       ownerCustomerAccountId: MEMBER.id,
-      ownerDisplayName: `i619-member-${RUN}@example.com`,
+      ownerDisplayName: MEMBER.email,
       approvalStatus: 'pending',
       itemCount: 1,
     });
@@ -214,7 +200,7 @@ describe('cart approval, end to end (issue #619)', () => {
     expect((await stored(memberCartId)).approval_status).toBe('pending');
   });
 
-  it('a member who is not an administrator is refused (403) and the cart is unchanged', async () => {
+  it('a member without carts.approve is refused (403 naming the code) and the cart is unchanged', async () => {
     for (const [method, path, payload] of [
       ['GET', '', undefined],
       ['POST', '/approve', {}],
@@ -222,7 +208,9 @@ describe('cart approval, end to end (issue #619)', () => {
     ] as const) {
       const res = await call(OTHER_MEMBER, method, `/api/v1/organization/carts/${memberCartId}${path}`, payload);
       expect(res.statusCode, `${method} ${path}: ${res.body}`).toBe(403);
-      expect((res.json() as { error: { code: string } }).error.code).toBe(ERROR_CODES.FORBIDDEN);
+      const { error } = res.json() as { error: { code: string; details?: { permission?: string } } };
+      expect(error.code).toBe(ERROR_CODES.ORGANIZATION_PERMISSION_REQUIRED);
+      expect(error.details?.permission).toBe('carts.approve');
     }
     expect((await call(OTHER_MEMBER, 'GET', '/api/v1/organization/carts')).statusCode).toBe(403);
     expect((await stored(memberCartId)).approval_status).toBe('pending');
@@ -292,29 +280,21 @@ describe('cart approval, end to end (issue #619)', () => {
     expect(read.data).toMatchObject({ approvalStatus: 'not_required', primaryCta: 'checkout' });
   });
 
-  it("switching the policy off returns a member's pending cart to not_required, stored", async () => {
+  it('a holder of carts.approve who is not an administrator reaches and approves a member cart', async () => {
     await addLine(OTHER_MEMBER);
     const submit = await call(OTHER_MEMBER, 'POST', '/api/v1/cart/submit-for-approval');
     expect(submit.statusCode, submit.body).toBe(200);
     const cartId = (
       (await call(OTHER_MEMBER, 'GET', '/api/v1/cart')).json() as { data: { id: string } }
     ).data.id;
-    expect((await stored(cartId)).approval_status).toBe('pending');
+    expect(await listedIds(APPROVER, '?approvalStatus=pending')).toContain(cartId);
+    const detail = await call(APPROVER, 'GET', `/api/v1/organization/carts/${cartId}`);
+    expect(detail.statusCode, detail.body).toBe(200);
 
-    const res = await h.app.inject({
-      method: 'PATCH',
-      url: '/api/v1/organization/policies/cart-approval',
-      cookies: { b2b_session: ADMIN_A.cookie },
-      headers: { ...CHANNEL, 'content-type': 'application/json' },
-      payload: { requiresCartApproval: false },
-    });
+    const res = await call(APPROVER, 'POST', `/api/v1/organization/carts/${cartId}/approve`, {});
     expect(res.statusCode, res.body).toBe(200);
-
-    expect((await stored(cartId)).approval_status).toBe('not_required');
-    expect(await auditActions(cartId)).toContain('approval_policy_reset');
-    const read = (await call(OTHER_MEMBER, 'GET', '/api/v1/cart')).json() as {
-      data: { approvalStatus: string; primaryCta: string };
-    };
-    expect(read.data).toMatchObject({ approvalStatus: 'not_required', primaryCta: 'checkout' });
+    const row = await stored(cartId);
+    expect(row.approval_status).toBe('approved');
+    expect(row.approved_by_customer_account_id).toBe(APPROVER.id);
   });
 });

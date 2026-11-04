@@ -277,7 +277,6 @@ export const LEGACY_PERMISSION_LABELS: Readonly<Record<string, number>> = {
   assets_library: 2,
   audit_logs: 1,
   blog: 2,
-  'carts+customers+organizations': 1,
   carts: 2,
   catalog: 2,
   cms: 2,
@@ -287,7 +286,11 @@ export const LEGACY_PERMISSION_LABELS: Readonly<Record<string, number>> = {
   currencies: 2,
   custom_fields: 2,
   customer_accounts: 2,
-  'customers+organizations': 1,
+  // `customers:manage` moved here from `carts+customers+organizations` when
+  // `specs/170-organization-roles/` (OR-3) took the cart-approval policy proxy,
+  // and with it `carts`' co-declaration of the code, away: the same label, one
+  // owner fewer — not a new label in the shared bundle.
+  'customers+organizations': 2,
   delivery_methods: 2,
   dictionaries: 1,
   google_analytics: 2,
