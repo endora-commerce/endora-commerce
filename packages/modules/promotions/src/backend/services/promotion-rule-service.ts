@@ -1,4 +1,4 @@
-import type { CartLine, PromotionCriterion } from '@endora-commerce/contracts';
+import type { AttributeValueType, CartLine, PromotionCriterion } from '@endora-commerce/contracts';
 
 /**
  * Feature 012 / US8 — pure rule evaluator for the promotions module.
@@ -28,15 +28,10 @@ export interface PromotionRuleAttributeLookup {
   get(key: string): {
     id: string;
     key: string;
-    valueType:
-      | 'string'
-      | 'number'
-      | 'boolean'
-      | 'date'
-      | 'enum'
-      | 'select'
-      | 'multiselect'
-      | 'price';
+    // The contract's vocabulary, not a copy of it: a copy is what drifts when
+    // the vocabulary grows (feature 172 added `page_builder`, which never
+    // reaches a rule — such an attribute is held at `isPromoRule: false`).
+    valueType: AttributeValueType;
     isPromoRule: boolean;
     options: Array<{ value: string }>;
   } | null;
@@ -131,15 +126,7 @@ export function matches(
 function scalarEquals(
   raw: unknown,
   expected: unknown,
-  valueType:
-    | 'string'
-    | 'number'
-    | 'boolean'
-    | 'date'
-    | 'enum'
-    | 'select'
-    | 'multiselect'
-    | 'price',
+  valueType: AttributeValueType,
 ): boolean {
   if (valueType === 'number' || valueType === 'price') {
     return Number(raw) === Number(expected);

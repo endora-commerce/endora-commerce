@@ -516,6 +516,27 @@ export const AdminZoneNameSchema = z.enum([
    */
   'category.content.editor',
   /**
+   * The editor of one product content attribute's Page Builder document, one
+   * language at a time (`specs/172-product-content-attributes/`).
+   *
+   * Mounted **once** on `catalog`'s product content screen
+   * (`ProductContentPage.tsx`), named from the host's own words for the place
+   * (Z14): the screen is the product's *content*, the place is its *editor*.
+   * Props: {@link ProductContentEditorZoneProps}.
+   *
+   * **The direction is inverted, as on `category.content.editor` and for the
+   * same reason.** `catalog` is `nonDeactivatable` and `cms` is switchable, so
+   * `catalog` can neither declare an edge to the Page Builder's owner (it would
+   * make `cms.enabled` a dead switch) nor import it undeclared. The host owns
+   * the document, its storage and its save; whoever owns a Page Builder
+   * contributes the canvas and reports edits through `onChange`. `catalog`
+   * names no module. A platform with no contributor shows the host's own
+   * notice (Z15) and offers no save, and the stored content stays stored —
+   * unlike category content it is not rendered on the storefront while the
+   * CMS is off (spec FR-051, owner ruling OR-7).
+   */
+  'product.content.editor',
+  /**
    * Below the field of one setting on the Settings screen.
    *
    * Mounted **once per setting row** by `settings`' row editor
@@ -628,6 +649,26 @@ export interface CategoryEditorZoneProps {
  */
 export interface CategoryContentEditorZoneProps {
   readonly categoryId: string;
+  /** The content language being edited — a key of the stored envelope. */
+  readonly language: string;
+  /** That language's Page Builder document, or `null` when none is stored. */
+  readonly data: unknown;
+  /** Reports the edited document. The host saves; the contributor never does. */
+  readonly onChange: (data: unknown) => void;
+}
+
+/**
+ * A zone mounted once on the product content screen, around one content
+ * attribute's Page Builder document in one language.
+ *
+ * {@link CategoryContentEditorZoneProps}' terms: the document is `unknown` on
+ * both sides of the seam, the host re-mounts the zone per language, and the
+ * contributor reports every edit through `onChange` and never saves.
+ */
+export interface ProductContentEditorZoneProps {
+  readonly productId: string;
+  /** The content attribute being edited (its immutable key). */
+  readonly attributeKey: string;
   /** The content language being edited — a key of the stored envelope. */
   readonly language: string;
   /** That language's Page Builder document, or `null` when none is stored. */
@@ -875,6 +916,7 @@ export interface AdminZonePropsMap extends Record<AdminZoneName, object> {
   'order.entry.tabs': OrderEntryTabsZoneProps;
   'ledger.section.tabs': LedgerSectionTabsZoneProps;
   'category.content.editor': CategoryContentEditorZoneProps;
+  'product.content.editor': ProductContentEditorZoneProps;
   'settings.setting.after': SettingsSettingAfterZoneProps;
   'task.detail.after': TaskDetailZoneProps;
 }

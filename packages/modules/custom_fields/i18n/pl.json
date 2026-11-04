@@ -87,6 +87,7 @@
   "customFields.table.emptyAction": "Dodaj nowe pole",
   "errors.CUSTOM_FIELD_OPTION_IN_USE": "Nie można usunąć opcji „{label}”, bo używają jej niektóre rekordy. Najpierw zmień ich wartość.",
   "errors.CUSTOM_FIELD_VALUE_TYPE_LOCKED": "Nie można zmienić typu pola „{key}”, dopóki rekordy mają w nim wartości. Najpierw usuń te wartości.",
+  "errors.CUSTOM_FIELD_DEFINITION_INVALID.value_type_unsupported": "Pola tego typu rekordu nie mogą zawierać treści Page Builder.",
   "errors.CUSTOM_FIELD_STORED_VALUES_EXIST": "Rekordy mają już wartości pod kluczem „{key}”, pozostawione przez usunięte pole. Utwórz pole jako wewnętrzne, przejrzyj te wartości, a potem zmień, kto je widzi.",
   "errors.CUSTOM_FIELD_CARRY_INCOMPATIBLE": "To pole nie może tam przenieść swojej wartości.",
   "errors.CUSTOM_FIELD_CARRY_INCOMPATIBLE.target_missing": "Dla typu „{targetEntityType}” nie ma pola o kluczu „{key}”. Najpierw je utwórz.",

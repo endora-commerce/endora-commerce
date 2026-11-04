@@ -1122,6 +1122,15 @@
         }
       }
     },
+    "/api/v1/admin/catalog/attributes/{idOrKey}/usage": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/catalog/bulk-operations": {
       "get": {
         "responses": {
@@ -1356,6 +1365,31 @@
     },
     "/api/v1/admin/catalog/products/{id}/bundle-slots/{slotId}/options/{optionId}": {
       "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/catalog/products/{id}/content": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/catalog/products/{id}/content/{attributeKey}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
         "responses": {
           "200": {
             "description": "OK"

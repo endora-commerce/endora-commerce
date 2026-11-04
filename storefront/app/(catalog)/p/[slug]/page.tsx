@@ -52,6 +52,8 @@ import {
 } from '../../../../lib/api/quick-order';
 import { getServerContext } from '../../../../lib/server-context';
 import { alternateLanguages, productById, productIdForKey } from './resolution';
+import { productTabPlan } from '../../../../lib/catalog/product-tabs';
+import { ProductDescriptionPanel } from '../../../../components/catalog/ProductDescriptionPanel';
 import { tForLocale } from '../../../../lib/i18n/messages';
 import { cartActionFailure } from '../../../../lib/cart-action-failure';
 import { withoutViewer } from '../../../../lib/api/client';
@@ -138,7 +140,7 @@ export default async function ProductPage({
   const { slug } = await params;
   const search = searchParams ? await searchParams : {};
   const selectedVariantSku = typeof search.variant === 'string' ? search.variant : null;
-  const { ctx, locale } = await getServerContext();
+  const { ctx, locale, modules } = await getServerContext();
   const t = tForLocale(locale);
 
   // Feature 163 — which product the key names here, or the permanent redirect to
@@ -221,71 +223,42 @@ export default async function ProductPage({
 
   // Industria PDP detail tabs (below the gallery). "Opis" (description) is the
   // lead tab; "Parametry" and "Załączniki" are added only when they have
-  // content — mirroring the reference `.tabs`/`.tabpanel` section.
-  const visibleAttributes =
-    (product as { visibleAttributes?: Array<{ key: string; label: string; valueType: string; valueRendered: string }> })
-      .visibleAttributes ?? null;
-  const hasAttributeValues = Object.keys(product.attributeValues).length > 0;
+  // content — mirroring the reference `.tabs`/`.tabpanel` section. Which tabs,
+  // and what each holds, is `productTabPlan`'s to decide (feature 172).
+  // Feature 172 — a content attribute counts toward "Opis" only when it would
+  // draw something here: blocks of switched-off modules draw nothing, and with
+  // the CMS off no content is drawn at all (FR-051). The backend omits it too
+  // (research R-13); this check closes the window in which a cached product
+  // read still carries content after the CMS was switched off.
+  const tabPlan = productTabPlan(product, {
+    pageBuilderPresent: modules.isPresent('cms'),
+    absentModuleIds: modules.absentIds,
+  });
   const productTabs: ProductTab[] = [];
-  if (product.description) {
+  if (tabPlan.description) {
     productTabs.push({
       id: 'description',
       label: t('product.tabs.description'),
-      panel: (
-        <p className="max-w-[70ch] whitespace-pre-line text-[15px] leading-[1.7] text-muted">
-          {product.description}
-        </p>
-      ),
+      // The plain description, then each content attribute (feature 172, FR-030).
+      panel: <ProductDescriptionPanel text={tabPlan.description.text} content={tabPlan.description.content} />,
     });
   }
-  if (hasAttributeValues || (visibleAttributes && visibleAttributes.length > 0)) {
+  if (tabPlan.parameters) {
     productTabs.push({
       id: 'parameters',
       label: t('product.tabs.parameters'),
-      panel: (
-        <div className="flex flex-col gap-6">
-          {hasAttributeValues ? (
-            <div>
-              {product.attributeSet ? (
-                <p className="mb-2 text-[0.875rem] text-muted">
-                  {product.attributeSet.name[locale] ??
-                    product.attributeSet.name['en-US'] ??
-                    Object.values(product.attributeSet.name)[0] ??
-                    product.attributeSet.code}
-                </p>
-              ) : null}
-              <table className="w-full border-collapse">
-                <tbody>
-                  {Object.entries(product.attributeValues).map(([key, value]) => (
-                    <tr key={key}>
-                      <th
-                        scope="row"
-                        className="border-b border-line p-[8px] text-left text-[13px] font-medium text-muted"
-                      >
-                        {key}
-                      </th>
-                      <td className="border-b border-line p-[8px] text-left font-mono text-[13px]">
-                        {String(value)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : null}
-          {/* Feature 012 / US6 — "Parametry produktu": only attributes the
-              operator flagged isVisibleOnProductPage AND that have a value on
-              this product. Renders null when nothing matches (FR-030). */}
-          <ParametryTab attributes={visibleAttributes} locale={locale} />
-        </div>
-      ),
+      // Feature 012 / US6 — "Parametry produktu": only attributes the operator
+      // flagged isVisibleOnProductPage AND that have a value on this product.
+      // Feature 172 (US4, FR-038) removed the raw table that used to sit above
+      // it and listed every stored value, hidden ones included, by key.
+      panel: <ParametryTab attributes={tabPlan.parameters} locale={locale} />,
     });
   }
-  if (product.attachments && product.attachments.length > 0) {
+  if (tabPlan.attachments !== null && product.attachments) {
     productTabs.push({
       id: 'attachments',
       label: t('product.tabs.attachments'),
-      count: product.attachments.length,
+      count: tabPlan.attachments,
       panel: <AttachmentsList attachments={product.attachments} locale={locale} />,
     });
   }

@@ -221,6 +221,10 @@ const SUBJECTS: readonly Subject[] = [
       // "Archived products" target; the same screen and code as the index.
       ['/catalog/products/archived', 'catalog:read'],
       ['/catalog/products/:id', 'catalog:read'],
+      // Feature 172 — one content attribute of one product, added after this
+      // batch: a detail route reached from the content card on the product's
+      // Attributes tab, so it has no sidebar row and no palette action.
+      ['/catalog/products/:id/content/:attributeKey', 'catalog:read'],
       ['/catalog/categories', 'catalog:read'],
       // The category page content screen, added after this batch: a detail
       // route reached from the tree's **Content** row action, so it has no

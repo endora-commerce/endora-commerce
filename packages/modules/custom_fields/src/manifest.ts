@@ -93,7 +93,9 @@ export const manifest = defineModuleManifest({
         'target_unavailable',
       ],
     },
-    { code: 'CUSTOM_FIELD_DEFINITION_INVALID' },
+    // Feature 172 — a value type the entity type does not offer (`page_builder`
+    // off `product`) is the one refusal of this code that names its reason.
+    { code: 'CUSTOM_FIELD_DEFINITION_INVALID', tokens: ['value_type_unsupported'] },
     { code: 'CUSTOM_FIELD_FILTER_UNAVAILABLE' },
     { code: 'CUSTOM_FIELD_HOST_MANAGED' },
     { code: 'CUSTOM_FIELD_KEY_CONFLICT' },

@@ -141,6 +141,7 @@ const modules = [
       'modules/catalog/packaging-units',
       'modules/catalog/per-channel-per-language-overrides',
       'modules/catalog/attachments',
+      'modules/catalog/product-content',
       'modules/catalog/gallery-and-labels',
       'modules/catalog/product-links',
       'modules/catalog/url-keys-and-redirects',

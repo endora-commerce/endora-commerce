@@ -88,6 +88,7 @@ import {
   type OverrideRow,
   type ProductAudience,
   type ProductDetail,
+  type ProductPageContentAttribute,
   type ProductListSort,
   type ProductPagePaths,
   type ProductSummary,
@@ -99,6 +100,8 @@ import { HttpError } from '@endora-commerce/platform/http';
 import { encodeCursor, decodeCursor } from '@endora-commerce/platform/http';
 import { attributeFilterMatches } from './attribute-filter-match.js';
 import { productSummaryText } from './product-summary-text.js';
+import { resolvePageBuilderLanguage, type PageBuilderEnvelope } from './page-builder-content.js';
+import { contentAttributeMembers, type SetMemberRow } from './product-content.service.js';
 
 /** A uuid as the database spells one — anything else is a 404 or a discarded cursor, not a query. */
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -110,18 +113,11 @@ const CATEGORY_ID_RE = UUID_RE;
 const MAX_CATEGORY_DEPTH = 64;
 
 /**
- * Whether a Page Builder document would render anything: a block at the top
- * level, or in a legacy `zones` bucket. An editor that was opened and saved
- * untouched stores a document with neither.
+ * Moved to `page-builder-content.ts` by feature 172, with the rest of the Page
+ * Builder helpers category and product content share; re-exported here for
+ * its existing importers.
  */
-export function hasPageBuilderBlocks(tree: Record<string, unknown>): boolean {
-  if (Array.isArray(tree['content']) && tree['content'].length > 0) return true;
-  const zones = tree['zones'];
-  if (zones && typeof zones === 'object') {
-    return Object.values(zones).some((zone) => Array.isArray(zone) && zone.length > 0);
-  }
-  return false;
-}
+export { hasPageBuilderBlocks } from './page-builder-content.js';
 
 function encodeObjectCursor(value: object): string {
   return encodeCursor(JSON.stringify(value));
@@ -697,6 +693,14 @@ export class CatalogQueryService {
      * composition without it, like `seo` off, serves the derived metadata.
      */
     private readonly seoProductMeta?: ResolveSeoProductMeta,
+    /**
+     * Feature 172 (FR-051, research R-13, owner ruling OR-8) — whether the Page
+     * Builder's owner is effectively present. It gates one projection only: the
+     * product page's `contentAttributes`. Optional only in the signature, and an
+     * unwired probe answers "absent", so a composition that forgets it serves no
+     * content rather than content the operator may have switched off.
+     */
+    private readonly isPageBuilderPresent?: () => boolean,
   ) {}
 
   #requireCursorSeal(): CatalogCursorSeal {
@@ -2700,21 +2704,66 @@ export class CatalogQueryService {
       parentId = parent.parentCategoryId ?? null;
     }
 
-    const languages = category.content?.languages ?? {};
-    const candidates = [
-      ctx.preferredLanguage,
-      ctx.resolvedChannel.defaultLanguage,
-      'en-US',
-      'en',
-      ...Object.keys(languages),
-    ].filter((v): v is string => typeof v === 'string');
-    for (const language of candidates) {
-      const tree = languages[language];
-      if (tree !== undefined && hasPageBuilderBlocks(tree)) {
-        return { categoryId: category.id, language, content: tree };
-      }
+    // Feature 172 (research R-12) — the one language walk product content shares.
+    const resolved = resolvePageBuilderLanguage(category.content?.languages ?? {}, ctx);
+    return resolved
+      ? { categoryId: category.id, language: resolved.language, content: resolved.document }
+      : { categoryId: category.id, language: null, content: null };
+  }
+
+  /**
+   * Feature 172 (`specs/172-product-content-attributes/`, FR-030, FR-033,
+   * FR-061, research R-11) — the product page's Page Builder content
+   * attributes, each resolved to one language.
+   *
+   * Called by the public product route **after** `getProductByIdOrSlug` has
+   * decided the product is visible to this request (channel, audience,
+   * organisation): it adds no read path of its own around those rules
+   * (Principles XI, XII), and the external API and every port never call it
+   * (FR-042). Candidates are the `page_builder` members of the product's
+   * **current** set, by position then key; a document is resolved by the
+   * language walk category content uses, and an attribute with no language
+   * holding a block is left out. No label is carried (FR-037).
+   */
+  async getProductPageContent(
+    productId: string,
+    attributeSetId: string | null | undefined,
+    ctx: CatalogQueryContext,
+  ): Promise<ProductPageContentAttribute[]> {
+    // FR-051 — with the CMS off the page carries no content; the rows stay
+    // untouched (FR-050, SC-004) and come back with it (FR-052).
+    if (!this.isPageBuilderPresent?.()) return [];
+    if (!attributeSetId) return [];
+    const em = this.emFactory();
+    const rows = (await em.execute(
+      `select custom_field_definition_id, position from attribute_set_attributes where attribute_set_id = ?`,
+      [attributeSetId],
+    )) as SetMemberRow[];
+    if (rows.length === 0) return [];
+    const members = contentAttributeMembers(rows, await this.#requireAttributeRead().listAll());
+    if (members.length === 0) return [];
+    const values = (await em.execute(
+      `select pcv.product_attribute_id, pcv.content
+         from product_content_values pcv
+         join products p on p.id = pcv.product_id
+        where pcv.product_id = ? and p.deleted_at is null
+          and pcv.product_attribute_id in (${members.map(() => '?').join(', ')})`,
+      [productId, ...members.map((member) => member.attributeId)],
+    )) as Array<{ product_attribute_id: string; content: PageBuilderEnvelope | string }>;
+    const contentByAttribute = new Map(
+      values.map((row) => [
+        row.product_attribute_id,
+        (typeof row.content === 'string' ? JSON.parse(row.content) : row.content) as PageBuilderEnvelope,
+      ]),
+    );
+    const resolved: ProductPageContentAttribute[] = [];
+    for (const member of members) {
+      const envelope = contentByAttribute.get(member.attributeId);
+      if (!envelope) continue;
+      const chosen = resolvePageBuilderLanguage(envelope.languages ?? {}, ctx);
+      if (chosen) resolved.push({ key: member.key, language: chosen.language, content: chosen.document });
     }
-    return { categoryId: category.id, language: null, content: null };
+    return resolved;
   }
 
   // ------------------------------------------------------------------

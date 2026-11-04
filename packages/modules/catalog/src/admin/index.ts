@@ -123,6 +123,17 @@ export const contributions: AdminContributions = {
       requiredPermission: READ_PERMISSION,
     },
     {
+      // Feature 172 — one Page Builder content attribute of one product. A
+      // detail screen reached from the content card on the product's
+      // Attributes tab, so it takes no sidebar row and no palette action of its
+      // own (`:param` segments: no action can target it). Read-gated like the
+      // product: the screen withholds Save from anyone without
+      // `catalog:write`, which the save route enforces.
+      path: `${ROUTE_PATH}/:id/content/:attributeKey`,
+      component: () => import('./pages/ProductContentPage.js'),
+      requiredPermission: READ_PERMISSION,
+    },
+    {
       path: '/catalog/categories',
       component: () => import('./pages/CategoriesTree.js'),
       requiredPermission: READ_PERMISSION,

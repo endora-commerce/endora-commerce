@@ -202,12 +202,14 @@ const SUBJECTS: readonly Subject[] = [
       'appShell.nav.cmsTemplates',
       'appShell.nav.cmsHooks',
     ],
-    // One, added after this batch: the Page Builder canvas on `catalog`'s
-    // category content screen. `catalog` is `nonDeactivatable` and `cms` is
-    // not, so it cannot take `./admin-ui`'s published component the way `blog`
-    // does; the direction is inverted and `cms` contributes
-    // (`admin/test/modules/cms/category-content-zone.test.tsx`).
-    zones: ['category.content.editor'],
+    // Two, added after this batch: the Page Builder canvas on `catalog`'s
+    // category content screen and on its product content screen (feature
+    // 172). `catalog` is `nonDeactivatable` and `cms` is not, so it cannot take
+    // `./admin-ui`'s published component the way `blog` does; the direction is
+    // inverted and `cms` contributes
+    // (`admin/test/modules/cms/category-content-zone.test.tsx`,
+    // `admin/test/modules/cms/product-content-zone.test.tsx`).
+    zones: ['category.content.editor', 'product.content.editor'],
     surfaceDirectories: ['cms'],
     locked: false,
   },

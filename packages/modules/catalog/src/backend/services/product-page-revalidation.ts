@@ -43,6 +43,28 @@ export interface ProductPageRevalidationDeps {
  * capped pending set, so a hung storefront grows nothing. Best-effort: a failed key
  * read or call is logged, and never reaches the write that announced it.
  */
+/**
+ * The events after which one product's cached storefront pages are dropped
+ * (`productChanged`): the availability-changing writes of feature 163 (T155
+ * finding CACHE-1), and a saved content attribute value (feature 172, FR-035) —
+ * which has an event of its own precisely so it re-indexes nothing.
+ */
+export const PRODUCT_PAGE_CHANGE_EVENTS = [
+  'product.updated.v1',
+  'product.archived.v1',
+  'product.content.updated.v1',
+] as const;
+
+/** The subscriber for {@link PRODUCT_PAGE_CHANGE_EVENTS}: the payload's `productId`, if it names one. */
+export function productPageChangeHandler(
+  revalidation: () => Pick<ProductPageRevalidation, 'productChanged'>,
+): (payload: unknown) => void {
+  return (payload) => {
+    const productId = (payload as { productId?: unknown } | null)?.productId;
+    if (typeof productId === 'string') revalidation().productChanged(productId);
+  };
+}
+
 export class ProductPageRevalidation {
   readonly #pending = new Set<string>();
   /** Keys that cannot be read from the database any more (a deleted product's former keys). */

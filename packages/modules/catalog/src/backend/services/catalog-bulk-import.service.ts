@@ -5,6 +5,7 @@ import {
   toScopeChannel,
   type BulkImportReport,
   type BulkImportRowError,
+  type CatalogAttributeReadPort,
   type CatalogBulkImportPort,
   type CategoryImportRow,
   type ProductImportRow,
@@ -81,7 +82,30 @@ export class CatalogBulkImportService implements CatalogBulkImportPort {
       emFactory: () => EntityManager;
       eventBus?: Pick<EventBus, 'emit'>;
     },
+    /**
+     * Feature 172 (FR-041) — the attribute read that says which keys are Page
+     * Builder content attributes. Optional for the compositions that import no
+     * products file.
+     */
+    private readonly attributes?: Pick<CatalogAttributeReadPort, 'listAll'>,
   ) {}
+
+  /**
+   * Feature 172 (FR-041) — the keys of the Page Builder content attributes,
+   * sorted. Content is authored on the product content screen only, so the
+   * products importer refuses a cell under one of these keys. Unwired, it
+   * throws rather than answer "none", which would let such a cell through.
+   */
+  async contentAttributeKeys(): Promise<string[]> {
+    if (!this.attributes) {
+      throw new Error('CatalogBulkImportService: the attribute read is not wired.');
+    }
+    const views = await this.attributes.listAll();
+    return views
+      .filter((view) => view.valueType === 'page_builder')
+      .map((view) => view.key)
+      .sort();
+  }
 
   /** Feature 163 (FR-092) — every channel's scope columns, and each product's overrides in them. */
   async exportScopedStatuses(): Promise<ScopedStatusExport> {

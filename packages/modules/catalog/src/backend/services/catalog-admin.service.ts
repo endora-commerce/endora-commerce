@@ -9,6 +9,7 @@ import {
   // Aliased: the private method below keeps the name, so the shared function
   // needs one the class body cannot shadow.
   slugify as slugifyText,
+  type AdminAttributeUsage,
   type CatalogAdminAuditContext,
   type CreateAttributeRequest,
   type CreateProductRequest,
@@ -38,6 +39,15 @@ export interface CatalogEvents extends Record<string, EventBase> {
     isSearchable: boolean;
     isFilterable: boolean;
   };
+  /**
+   * Feature 172 (research R-9) — one product × content attribute value was
+   * saved, and nothing else of the product changed. A separate event rather
+   * than a cause of `product.updated.v1`, because that one is what `search`,
+   * `seo` and `price_lists` react to, and a content document is on none of
+   * their projections: saving a paragraph drops the product's storefront page
+   * cache and re-indexes nothing (FR-035).
+   */
+  'product.content.updated.v1': EventBase & { productId: string; attributeKey: string };
 }
 
 export type CatalogEventBus = EventBus<CatalogEvents>;
@@ -111,6 +121,8 @@ import {
   type AttributeOptionResult,
 } from '../commands/attribute-commands.js';
 import { requireLinkableAsset, type LinkableAssetReader } from './linkable-asset.js';
+import { assertNoContentAttributeValues } from './content-attribute-rules.js';
+import { readAttributeUsage } from './attribute-usage.js';
 
 // Feature 061 — the API-form mapping helpers moved next to the R7 map; the
 // re-exports keep the long-standing import site (routes, tests) stable.
@@ -259,6 +271,16 @@ export class CatalogAdminService {
     return this.completenessGate?.mode();
   }
 
+  /**
+   * Feature 172 (FR-014) — the early refusal of a content attribute's key on a
+   * product write, before any row is read or a transaction opened. Reads the
+   * attribute model only when the write carries attribute values at all.
+   */
+  async #refuseContentAttributeValues(attributeValues: Record<string, unknown> | undefined): Promise<void> {
+    if (!attributeValues || Object.keys(attributeValues).length === 0) return;
+    assertNoContentAttributeValues(attributeValues, await this.#requireAttributeRead().listAll());
+  }
+
   #requireAttributeRead(): CatalogAttributeReadService {
     if (!this.attributeRead) {
       throw new Error(
@@ -350,6 +372,9 @@ export class CatalogAdminService {
     _auditCtx?: AdminAuditContext,
   ): Promise<Product> {
     refusePriceFields(req.attributeValues as Record<string, unknown> | undefined, 'attributeValues.');
+    // Feature 172 (FR-014) — refused before the Command opens a transaction;
+    // the set guard inside it refuses the same keys again for every other path.
+    await this.#refuseContentAttributeValues(req.attributeValues as Record<string, unknown> | undefined);
     // Feature 002 (T047): cross-field validation for virtual download
     // fields. Zod's .refine() catches most cases at the boundary; the
     // service-level guard is the belt-and-braces backstop for any
@@ -560,6 +585,8 @@ export class CatalogAdminService {
    * back to the legacy `updateProduct` when no bus is injected (bus-less tests).
    */
   async updateProductAudited(id: string, req: UpdateProductRequest, gate?: ProductUpdateGate): Promise<Product> {
+    // Feature 172 (FR-014) — before the transaction, as on create.
+    await this.#refuseContentAttributeValues(req.attributeValues as Record<string, unknown> | undefined);
     if (!this.commandBus) return this.updateProduct(id, req, undefined, gate);
     return this.commandBus.run(this.#updateProductCommand(id, req, gate));
   }
@@ -975,10 +1002,26 @@ export class CatalogAdminService {
         : {}),
       });
       await cem.flush();
+      // Feature 172 (FR-060, research R-16) — the product's Page Builder content
+      // is copied in this transaction, atomic with the row it belongs to. The
+      // audit row counts the attributes, never the documents.
+      const copiedContent = (await cem.execute(
+        `insert into product_content_values
+           (id, product_id, product_attribute_id, content, summary, created_at, updated_at)
+         select gen_random_uuid(), ?, product_attribute_id, content, summary, now(), now()
+           from product_content_values where product_id = ?
+         returning id`,
+        [dupId, source.id],
+      )) as Array<{ id: string }>;
       return {
         result: created,
         before: null,
-        after: { sku: newSku, slug: newSlug, sourceProductId: id },
+        after: {
+          sku: newSku,
+          slug: newSlug,
+          sourceProductId: id,
+          contentAttributeCount: copiedContent.length,
+        },
       };
     });
 
@@ -1959,6 +2002,20 @@ export class CatalogAdminService {
   }
 
   /**
+   * Feature 172 (FR-007 – FR-009, research R-21) — what deleting the attribute
+   * would meet, for the attributes screen's confirmation dialog. The same query
+   * the delete Command's guard runs, so the dialog and the refusal agree.
+   */
+  async getAttributeUsage(idOrKey: string): Promise<AdminAttributeUsage> {
+    const attr = await this.getAttributeByIdOrKey(idOrKey);
+    return readAttributeUsage(this.emFactory(), {
+      definitionId: attr.customFieldDefinitionId,
+      extensionId: attr.id,
+      key: attr.key,
+    });
+  }
+
+  /**
    * Feature 012 — delete an attribute. Refused while any Attribute Set or
    * product still references it (FR-006). The structured error names the
    * dependent rows so the admin UI can guide the operator. Deletes the
@@ -2141,6 +2198,13 @@ export class CatalogAdminService {
     if (!attributeValues) return;
     const keys = Object.keys(attributeValues);
     if (keys.length === 0) return;
+    const views = await this.#requireAttributeRead().listAll();
+    // Feature 172 (FR-014, research R-7) — a Page Builder content attribute's
+    // key is refused **before** the `existingKeys` exemption below: whether it
+    // is new to this save or resent as "already stored", its value is a
+    // document authored on the product content screen, never an attribute
+    // value. This is the one guard every product write crosses.
+    assertNoContentAttributeValues(attributeValues, views);
 
     // Feature 061 — set membership is keyed by definition id; the key lives on
     // the definition, resolved through the composed view (Principle I).
@@ -2155,7 +2219,6 @@ export class CatalogAdminService {
        where attribute_set_id = ?`,
       [attributeSetId],
     )) as Array<{ custom_field_definition_id: string }>;
-    const views = await this.#requireAttributeRead().listAll();
     const keyByDefinitionId = new Map(views.map((v) => [v.customFieldDefinitionId, v.key]));
     const allowed = new Set(
       rows

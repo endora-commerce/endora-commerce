@@ -11,7 +11,7 @@ import { registerCatalogAssetReferences } from '../../../../packages/modules/cat
 import { AssetReferenceRegistry } from '../../../../packages/modules/assets_library/src/backend/services/reference-registry.js';
 
 /**
- * The five catalog asset-reference descriptors over the real schema
+ * The six catalog asset-reference descriptors over the real schema
  * (`specs/166-asset-reference-visibility/` research R-6, tasks.md T011).
  *
  * Catalog had no reference-scanner test. What this pins is the batched
@@ -143,7 +143,7 @@ describe('catalog asset references — attribution and batching (feature 166, R-
 
     const out = await registry.findReferencesMany([x, y, unused]);
 
-    expect(counted.statements(), 'one statement per descriptor, five descriptors').toBe(5);
+    expect(counted.statements(), 'one statement per descriptor, six descriptors').toBe(6);
     expect(out.get(x)).toHaveLength(2);
     expect(out.get(x)).toEqual(
       expect.arrayContaining([
@@ -181,9 +181,107 @@ describe('catalog asset references — attribution and batching (feature 166, R-
 
     const { unrestricted, restricted } = registry.partition();
     expect(restricted).toEqual([]);
-    expect(unrestricted).toHaveLength(5);
+    expect(unrestricted).toHaveLength(6);
     const hits = (await Promise.all(unrestricted.map((d) => d.findReferences([x, randomUUID()])))).flat();
     expect(hits).toHaveLength(2);
     for (const hit of hits) expect(hit.assetId).toBe(x);
   });
+
+  // Feature 172 (`specs/172-product-content-attributes/`, FR-062, FR-063, US6 #5,
+  // research R-17) — a library asset embedded in a product's Page Builder
+  // content attribute is in use by that product.
+  describe('product content (feature 172)', () => {
+    async function contentAttributeOn(productId: string): Promise<string> {
+      const conn = h.orm.em.getConnection();
+      const key = `ar_content_${randomUUID().slice(0, 6)}`;
+      const attribute = await h.app.inject({
+        method: 'POST',
+        url: '/api/v1/admin/catalog/attributes',
+        payload: {
+          key,
+          label: { 'en-US': 'Asset guide' },
+          labelDefault: 'Asset guide',
+          type: 'page_builder',
+          isSearchable: false,
+          isFilterable: false,
+          isVariantAxis: false,
+        },
+        cookies: adminCookie,
+      });
+      expect(attribute.statusCode, attribute.body).toBe(201);
+      const attributeId = (attribute.json() as { data: { id: string } }).data.id;
+      const set = await h.app.inject({
+        method: 'POST',
+        url: '/api/v1/admin/catalog/attribute-sets',
+        payload: { code: `ar_set_${key}`, name: { 'en-US': 'Asset set' } },
+        cookies: adminCookie,
+      });
+      const setId = (set.json() as { data: { id: string } }).data.id;
+      await h.app.inject({
+        method: 'POST',
+        url: `/api/v1/admin/catalog/attribute-sets/${setId}/attributes`,
+        payload: { assignments: [{ attributeId, position: 0 }] },
+        cookies: adminCookie,
+      });
+      await conn.execute(`update products set attribute_set_id = ? where id = ?`, [setId, productId]);
+      return key;
+    }
+
+    async function embed(productId: string, key: string, assetId: string): Promise<void> {
+      const put = await h.app.inject({
+        method: 'PUT',
+        url: `/api/v1/admin/catalog/products/${productId}/content/${key}`,
+        payload: {
+          content: {
+            languages: {
+              'en-US': { root: { props: {} }, content: [{ type: 'LibraryImage', props: { id: 'img', assetId } }] },
+            },
+          },
+        },
+        cookies: adminCookie,
+      });
+      expect(put.statusCode, put.body).toBe(200);
+    }
+
+    it('names the product, and blocks deleting the asset (FR-063, US6 #5)', async () => {
+      const asset = await seedAsset();
+      const productId = await createProduct('CONTENT');
+      const key = await contentAttributeOn(productId);
+      await embed(productId, key, asset);
+
+      const registry = new AssetReferenceRegistry();
+      registerCatalogAssetReferences(registry, () => h.em(), h.catalogAttributeRead);
+      const hits = (await registry.findReferencesMany([asset])).get(asset);
+      expect(hits).toEqual([
+        expect.objectContaining({ kind: 'product_content', entityId: productId, assetId: asset }),
+      ]);
+      expect(hits![0]!.label).toContain('R6 refs CONTENT');
+      expect(hits![0]!.label).toContain(key);
+
+      const del = await h.app.inject({ method: 'DELETE', url: `/api/v1/admin/assets/${asset}`, cookies: adminCookie });
+      expect(del.statusCode, del.body).toBe(409);
+      expect(del.json()).toMatchObject({ error: { code: 'ASSET_REFERENCED' } });
+      expect((del.json() as { error: { details: Array<{ path: string }> } }).error.details).toEqual([
+        expect.objectContaining({ path: 'product_content' }),
+      ]);
+    });
+
+    it('does not report a soft-deleted product’s content (FR-062)', async () => {
+      const asset = await seedAsset();
+      const productId = await createProduct('GONE');
+      const key = await contentAttributeOn(productId);
+      await embed(productId, key, asset);
+      const deleted = await h.app.inject({
+        method: 'DELETE',
+        url: `/api/v1/admin/catalog/products/${productId}`,
+        cookies: adminCookie,
+      });
+      expect(deleted.statusCode, deleted.body).toBeLessThan(300);
+
+      const registry = new AssetReferenceRegistry();
+      registerCatalogAssetReferences(registry, () => h.em());
+      expect((await registry.findReferencesMany([asset])).get(asset)).toEqual([]);
+    });
+  });
 });
+

@@ -31,6 +31,9 @@ const EXPECTED: Record<AttributeValueType, { plain: ApiAttributeType; slider: Ap
   multiselect: { plain: 'multiselect', slider: 'multiselect' },
   price: { plain: 'price', slider: 'slider' },
   select: { plain: 'select', slider: 'select' },
+  // Feature 172 (research R-4) — Page Builder content is its own API type; a
+  // slider flag means nothing on it.
+  page_builder: { plain: 'page_builder', slider: 'page_builder' },
 };
 
 describe('apiAttributeTypeOf', () => {

@@ -23,7 +23,7 @@ Każdy atrybut ma:
 | `key` | Stały identyfikator, bezpieczny w adresach URL — `^[a-z][a-z0-9_]*$`, unikalny w całej platformie (bez rozróżniania wielkości liter). Używany w adresach filtrów, danych wyszukiwarki i jako klucz w JSONB produktu. |
 | `label` | Etykiety w poszczególnych językach, `Record<bcp47-tag, string>`. |
 | `labelDefault` | Etykieta zastępcza, gdy dla aktywnego języka storefrontu lub panelu nie ma wpisu w `label`. |
-| `valueType` | Jedno z `string`, `number`, `boolean`, `price`, `date`, `select`, `multiselect`, `enum`. |
+| `valueType` | Jedno z `string`, `number`, `boolean`, `price`, `date`, `select`, `multiselect`, `enum`, `page_builder`. |
 | `options[]` | Posortowana lista opcji do wyboru — tylko dla `select` / `multiselect` / `enum`. Zobacz [Listy opcji](#listy-opcji) niżej. |
 
 Do tego flagi zachowania i pozycja liczbowa:
@@ -53,9 +53,28 @@ Do tego flagi zachowania i pozycja liczbowa:
 | `select` | `value` opcji | Jeden wybór z `options[]`. Najwyżej jedna opcja może mieć `isDefault = true`. |
 | `multiselect` | tablica wartości `value` opcji | Wiele wyborów z `options[]`. Dowolna liczba opcji może mieć `isDefault = true`. |
 | `enum` | `value` opcji | Zapis taki sam jak `select`; w filtrach storefrontu i na stronie produktu wyświetla się jako zwarte przyciski zamiast listy rozwijanej. |
+| `page_builder` | jeden dokument Page Buildera na język, przechowywany poza `attribute_values` | **Treść Page Builder** — zobacz [Treść produktu](./product-content.md). |
 
 Zmiana `valueType` jest odrzucana z `attribute_type_change_unsafe`, gdy którykolwiek produkt ma
 wartość, której nowy typ nie potrafi przedstawić.
+
+### Treść Page Builder
+
+Atrybut `page_builder` przechowuje dla każdego produktu jeden dokument Page Buildera na język. Treść
+edytuje się na osobnym ekranie, a sklep pokazuje ją w zakładce opisu na stronie produktu
+([Treść produktu](./product-content.md)). Ustawienia tego typu są stałe:
+
+- `languageScoped` jest zawsze `true`; wartość `false` jest odrzucana;
+- `isSearchable`, `isFilterable`, `isVariantAxis`, `displayAsSlider`, `isComparable`,
+  `quickSearchable`, `isPromoRule`, `isPriceRule`, `massEditable`, `isRequired`,
+  `isVisibleOnProductPage` i `channelScoped` pozostają `false`. Ustawienie którejkolwiek z nich przy
+  tworzeniu lub zmianie jest odrzucane z `400 VALIDATION_FAILED`, z osobną pozycją dla każdego
+  ustawienia, i nic nie zostaje zapisane;
+- atrybut nie ma opcji;
+- typu nie można zmienić ani zmienić na niego typu innego atrybutu (`409`).
+
+Edytor atrybutu ukrywa te ustawienia dla tego typu, a lista pokazuje flagi wiersza jako
+zablokowane. Typ jest dostępny wyłącznie dla produktów.
 
 ## Listy opcji
 
@@ -85,7 +104,8 @@ Trasy administracyjne są chronione przez `catalog:read` (lista i odczyt) i `cat
 | `GET /api/v1/admin/catalog/attributes/:idOrKey` | administrator | Odczyt jednego atrybutu |
 | `POST /api/v1/admin/catalog/attributes` | administrator | Utworzenie atrybutu (flagi i `options[]` bezpośrednio w treści dla typów wyboru) |
 | `PATCH /api/v1/admin/catalog/attributes/:key` | administrator | Zmiana etykiet i natychmiastowa zmiana `isFilterable` / `isSearchable` / `isVariantAxis` / `isPromoRule` / `isPriceRule` / `isComparable` / `isVisibleOnProductPage` / `isRequired` / `filterPosition`. Ponownie emituje `attribute.updated.v1`. |
-| `DELETE /api/v1/admin/catalog/attributes/:idOrKey` | administrator | Usunięcie; odrzucane z `409 attribute_in_use_by_set`, dopóki odwołuje się do niego jakikolwiek zestaw atrybutów |
+| `GET /api/v1/admin/catalog/attributes/:idOrKey/usage` | administrator (`catalog:read`) | Co napotka usunięcie atrybutu: `{ attributeSetCount, productValueCount, productContentCount }` — zobacz [Usuwanie atrybutu](#usuwanie-atrybutu) |
+| `DELETE /api/v1/admin/catalog/attributes/:idOrKey` | administrator (`catalog:write`) | Usunięcie atrybutu dowolnego typu; odrzucane z `409`, dopóki zawiera go zestaw atrybutów albo produkt ma jego wartość — zobacz [Usuwanie atrybutu](#usuwanie-atrybutu) |
 | `GET /api/v1/admin/catalog/attributes/:idOrKey/options` | administrator | Lista opcji atrybutów select / enum / multiselect |
 | `POST /api/v1/admin/catalog/attributes/:idOrKey/options` | administrator | Dodanie opcji |
 | `PATCH /api/v1/admin/catalog/attribute-options/:optionId` | administrator | Zmiana `label` / `labelDefault` / `isDefault` / `sortOrder` (wartości `value` opcji nie można zmienić) |
@@ -94,6 +114,39 @@ Trasy administracyjne są chronione przez `catalog:read` (lista i odczyt) i `cat
 Panel filtrów korzysta z `GET /api/v1/catalog/filters` (opisanego na stronie
 [katalogu](../catalog.md)) — ten endpoint wyznacza widoczne obecnie atrybuty filtrowalne w danym
 kanale sprzedaży i sortuje je według `filterPosition`.
+
+## Usuwanie atrybutu
+
+Akcja **Usuń** jest dostępna w każdym wierszu listy atrybutów, niezależnie od typu. Okno
+potwierdzenia najpierw odczytuje `GET …/attributes/:idOrKey/usage` i pokazuje, co blokuje usunięcie
+i co zostanie usunięte razem z atrybutem:
+
+| Licznik | Znaczenie | Skutek |
+| --- | --- | --- |
+| `attributeSetCount` | Zestawy atrybutów, które zawierają atrybut | Blokuje: najpierw usuń go z tych zestawów |
+| `productValueCount` | Produkty z wartością tego klucza — na produkcie, jako nadpisanie w kanale sprzedaży albo na wariancie | Blokuje: najpierw wyczyść te wartości |
+| `productContentCount` | Produkty z treścią atrybutu `page_builder` | Treść zostaje usunięta razem z atrybutem |
+
+Usunięty produkt nie jest liczony i nie blokuje usunięcia. Okno i samo usunięcie korzystają z tego
+samego zapytania, więc odmowa może wynikać tylko ze zmiany wprowadzonej po otwarciu okna; okno
+pokazuje wtedy komunikat API.
+
+Usunięcie kasuje definicję atrybutu, jego opcje, jego treść i ustawienia katalogu w jednej
+transakcji, z jednym wpisem audytu (`catalog.attribute.delete`, którego stan „przed” podaje liczbę
+usuniętych treści). Następnie emituje `attribute.updated.v1` z kluczem oraz `isSearchable` i
+`isFilterable` ustawionymi na `false`, dzięki czemu indeks wyszukiwarki i cenniki przestają używać
+tego klucza.
+
+Warunki promocji, wiersze cenników i reguły feedów, które używają atrybutu, nie blokują usunięcia
+ani nie są usuwane — katalog ich nie widzi. Przestają pasować do produktów: warunek promocji na tym
+kluczu nie pasuje już do żadnej pozycji koszyka, wiersz cennika jest pokazywany jako nieaktywny, a
+feed, którego reguła wyboru wskazuje ten klucz, przy następnym uruchomieniu zapisuje błąd
+konfiguracji. Okno potwierdzenia mówi o tym jednym zdaniem. Popraw je albo usuń na ich własnych
+ekranach.
+
+**Zmiana zachowania (funkcja 172).** Nadpisanie w kanale sprzedaży albo wartość wariantu blokuje
+teraz usunięcie, tak jak zawsze blokowała je wartość na produkcie; wartość na usuniętym produkcie
+już go nie blokuje; usunięcie emituje teraz `attribute.updated.v1`.
 
 ## Błędy
 
@@ -119,8 +172,7 @@ bieżącej stronie są pomijane (nie ma pustych filtrów).
 
 ### Zakładka „Parametry produktu”
 
-Każda strona produktu ma zakładkę `Parametry produktu`, która wymienia każdy atrybut spełniający oba
-warunki:
+Zakładka `Parametry produktu` na stronie produktu wymienia każdy atrybut spełniający oba warunki:
 
 - produkt ma wartość tego atrybutu, **oraz**
 - atrybut ma flagę `isVisibleOnProductPage = true`.
@@ -128,6 +180,11 @@ warunki:
 Dla wartości `select` / `multiselect` / `enum` zakładka pokazuje etykietę opcji w danym języku, a nie
 surowe `value`. To pole w szczegółach produktu buduje
 `CatalogQueryService.buildVisibleAttributesProjection()`.
+
+Każdy wiersz pokazuje etykietę atrybutu i sformatowaną wartość — nigdy klucz techniczny ani surową
+zapisaną wartość. Atrybut bez flagi widoczności nigdy się nie pojawia, a sama zakładka jest
+pokazywana tylko wtedy, gdy co najmniej jeden atrybut spełnia warunki. Treść Page Builder nigdy
+się w niej nie pojawia.
 
 ### Indeks wyszukiwarki
 
@@ -194,8 +251,8 @@ zmiany z `409 host_managed`.
 
 ## Emitowane zdarzenia
 
-- `attribute.updated.v1` — odbiera je indeksowanie wyszukiwarki i jest przekazywane subskrybentom
-  webhooków.
+- `attribute.updated.v1` — przy utworzeniu, zmianie i usunięciu; odbiera je indeksowanie
+  wyszukiwarki i jest przekazywane subskrybentom webhooków.
 
 ## Dziennik audytu
 

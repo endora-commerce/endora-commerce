@@ -34,7 +34,15 @@ export const supportedEntityTypeSchema = z.enum([
 ]);
 export type SupportedEntityType = z.infer<typeof supportedEntityTypeSchema>;
 
-/** The set of runtime value types. `text` is stored as a string; `select` stores one option value; `multiselect` an array. */
+/**
+ * The set of runtime value types. `text` is stored as a string; `select` stores one option value; `multiselect` an array.
+ *
+ * `page_builder` (feature 172) is a Page Builder document per language. It is
+ * never a field value: the generic value path refuses it, no list filter
+ * applies to it, and a definition may take it only on an entity type whose
+ * registry entry offers it (`product` alone) — the document lives in its
+ * host's own storage.
+ */
 export const customFieldValueTypeSchema = z.enum([
   'text',
   'number',
@@ -42,6 +50,7 @@ export const customFieldValueTypeSchema = z.enum([
   'date',
   'select',
   'multiselect',
+  'page_builder',
 ]);
 export type CustomFieldValueType = z.infer<typeof customFieldValueTypeSchema>;
 
@@ -255,6 +264,9 @@ export const CUSTOM_FIELD_FILTER_OPERATORS: Readonly<
   date: ['from', 'to'],
   select: ['in'],
   multiselect: ['in'],
+  // Feature 172 — a Page Builder document is not a filterable value: every
+  // operator on such a field is refused, never ignored.
+  page_builder: [],
 };
 
 /**
@@ -466,6 +478,8 @@ export const CUSTOM_FIELD_DEFINITION_ERROR_CODES = [
   'list_filter_unsupported',
   // Feature 162 — a carry target turned on that cannot take the definition's values.
   'carry_incompatible',
+  // Feature 172 — a value type the definition's entity type does not offer (`page_builder` off `product`).
+  'value_type_unsupported',
 ] as const;
 export type CustomFieldDefinitionErrorCode =
   (typeof CUSTOM_FIELD_DEFINITION_ERROR_CODES)[number];

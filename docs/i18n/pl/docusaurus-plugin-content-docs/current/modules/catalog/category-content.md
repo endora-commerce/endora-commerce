@@ -27,6 +27,9 @@ Akcja **Treść** jest widoczna tylko wtedy, gdy włączony jest moduł dostarcz
 (moduł CMS) i masz do niego dostęp. Zapisana już treść pozostaje zachowana, gdy ten moduł jest
 wyłączony.
 
+W odróżnieniu od [treści produktu](./product-content.md), która przy wyłączonym module CMS jest
+ukryta, treść kategorii jest nadal wyświetlana w sklepie.
+
 ## W sklepie
 
 Strona kategorii wyświetla treść między nagłówkiem kategorii a paskiem narzędzi listy, wyłącznie

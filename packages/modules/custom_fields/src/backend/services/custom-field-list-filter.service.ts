@@ -95,6 +95,10 @@ function predicates(column: string, definition: CachedDefinition['definition'], 
               [key, key, ...filter.in],
             ],
           ];
+    case 'page_builder':
+      // Feature 172 — no operator applies to a Page Builder document, so the
+      // operator check refuses every filter on one before this is reached.
+      return [];
     default:
       return [];
   }

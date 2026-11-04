@@ -16,6 +16,7 @@ import {
   isEntityTypeServed,
   isSupportedEntityType,
   offersListFilter,
+  offersPageBuilderValues,
 } from './custom-field-registry.js';
 
 /**
@@ -46,7 +47,8 @@ export class CustomFieldDefinitionError extends Error {
       | 'key_changed'
       | 'invalid_key'
       | 'list_filter_unsupported'
-      | 'carry_incompatible',
+      | 'carry_incompatible'
+      | 'value_type_unsupported',
     message: string,
     /**
      * What a refusal's sentence names (feature 157): the field `key`, an
@@ -98,6 +100,37 @@ export function assertListFilterSupported(entityType: string, listFilter: boolea
     throw new CustomFieldDefinitionError(
       'list_filter_unsupported',
       `Fields of entity type "${entityType}" cannot be used as list filters.`,
+    );
+  }
+}
+
+/**
+ * `page_builder` only where the entity type's registry entry offers it
+ * (feature 172, research R-5): a Page Builder document is stored by its host,
+ * so a type whose host stores none must not accept a definition of it.
+ */
+export function assertValueTypeOffered(entityType: string, valueType: string): void {
+  if (valueType === 'page_builder' && !offersPageBuilderValues(entityType)) {
+    throw new CustomFieldDefinitionError(
+      'value_type_unsupported',
+      `Fields of entity type "${entityType}" cannot hold Page Builder content.`,
+      { valueType },
+    );
+  }
+}
+
+/**
+ * A definition's value type never moves to or from `page_builder` (feature
+ * 172, FR-005), whatever the stored values: a document and a field value are
+ * not convertible into each other.
+ */
+export function assertValueTypeChangeAllowed(key: string, from: string, to: string | undefined): void {
+  if (to === undefined || to === from) return;
+  if (from === 'page_builder' || to === 'page_builder') {
+    throw new CustomFieldDefinitionError(
+      'value_type_locked',
+      `The value type of "${key}" cannot be changed to or from Page Builder content.`,
+      { key },
     );
   }
 }
@@ -241,6 +274,7 @@ export async function applyCreateDefinition(
   if (!isSupportedEntityType(input.entityType)) {
     throw new CustomFieldDefinitionError('entity_type_unknown', `Unknown entity type "${input.entityType}".`);
   }
+  assertValueTypeOffered(input.entityType, input.valueType);
   assertOptionsRule(input.valueType, input.options);
   assertListFilterSupported(input.entityType, input.listFilter);
   assertCarryPairsOffered(input.entityType, input.key, input.carryTo);
@@ -285,6 +319,7 @@ export async function applyUpdateDefinition(
 ): Promise<CustomFieldDefinition> {
   const def = await em.findOne(CustomFieldDefinition, { id });
   if (!def) throw new CustomFieldDefinitionError('not_found', `Custom field ${id} not found.`);
+  assertValueTypeChangeAllowed(def.key, def.valueType, patch.valueType);
   assertListFilterSupported(def.entityType, patch.listFilter);
   assertCarryPairsOffered(
     def.entityType,

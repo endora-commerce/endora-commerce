@@ -120,9 +120,18 @@ export async function listProducts(
 export async function getProductBySlug(
   slug: string,
   ctx: RequestContext,
+  /**
+   * Feature 172 (research R-11) — `include: ['content']` asks for the product
+   * page's Page Builder content attributes. Only the product page asks: the
+   * other readers of a product (shopping lists, block data, draft minimums)
+   * would carry documents they never draw. The read keeps the product's own
+   * cache tags, so a saved content change drops it (FR-035).
+   */
+  options: { include?: readonly 'content'[] } = {},
 ): Promise<ProductDetail> {
   const params = new URLSearchParams();
   setCurrency(params, ctx);
+  if (options.include && options.include.length > 0) params.set('include', options.include.join(','));
   const res = await apiGetForViewer<{ data: ProductDetail }>(
     withQuery(`/api/v1/catalog/products/${encodeURIComponent(slug)}`, params),
     ctx,

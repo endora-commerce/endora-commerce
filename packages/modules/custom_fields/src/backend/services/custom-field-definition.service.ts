@@ -33,6 +33,7 @@ import {
   applyUpdateOption,
   assertListFilterSupported,
   assertOptionsRule,
+  assertValueTypeOffered,
   CustomFieldDefinitionError,
 } from './custom-field-definition-apply.js';
 import {
@@ -189,6 +190,7 @@ export class CustomFieldDefinitionService implements DefinitionSource, CustomFie
     if (!isSupportedEntityType(input.entityType)) {
       throw new CustomFieldDefinitionError('entity_type_unknown', `Unknown entity type "${input.entityType}".`);
     }
+    assertValueTypeOffered(input.entityType, input.valueType);
     assertOptionsRule(input.valueType, input.options);
     assertListFilterSupported(input.entityType, input.listFilter);
     const existing = await this.emFactory().findOne(CustomFieldDefinition, {

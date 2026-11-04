@@ -79,6 +79,8 @@ export const attributeValueTypeSchema = z.enum([
   'multiselect',
   'price',
   'select',
+  // Feature 172 (research R-4) — a Page Builder document per language.
+  'page_builder',
 ]);
 export type AttributeValueType = z.infer<typeof attributeValueTypeSchema>;
 
@@ -93,6 +95,8 @@ export const apiAttributeTypeSchema = z.enum([
   'multiselect',
   'price',
   'slider',
+  // Feature 172 (research R-4) — the same name in all three vocabularies.
+  'page_builder',
 ]);
 export type ApiAttributeType = z.infer<typeof apiAttributeTypeSchema>;
 
@@ -127,6 +131,8 @@ export function apiAttributeTypeOf(
     case 'boolean':
     case 'date':
       return 'input';
+    case 'page_builder':
+      return 'page_builder';
   }
 }
 
@@ -341,6 +347,33 @@ export type SeoMeta = z.infer<typeof seoMetaSchema>;
  * The exported `productLinkSummarySchema` below is the canonical name —
  * this `*Inline` alias exists only to avoid a circular import.
  */
+/** One language's Page Builder document. Opaque beyond being a JSON object. */
+const pageBuilderTreeSchema = z.record(z.string(), z.unknown());
+
+/**
+ * Feature 172 — one content attribute as the product page renders it: the
+ * attribute's key, the language its document was resolved to (FR-033), and
+ * that one document. No label: the storefront prints no heading of its own
+ * (OR-4, FR-037).
+ */
+export const productPageContentAttributeSchema = z.object({
+  key: z.string(),
+  language: z.string(),
+  content: pageBuilderTreeSchema,
+});
+export type ProductPageContentAttribute = z.infer<typeof productPageContentAttributeSchema>;
+
+/**
+ * Feature 172 (research R-11) — the query of `GET /api/v1/catalog/products/:idOrSlug`.
+ * `include=content` asks for `contentAttributes`; without it the response is
+ * what it was before content attributes existed. Not strict: the route's
+ * other query parameters are not this schema's to judge.
+ */
+export const productDetailQuerySchema = z.object({
+  include: z.enum(['content']).optional(),
+});
+export type ProductDetailQuery = z.infer<typeof productDetailQuerySchema>;
+
 const productLinkSummarySchemaInline = z.object({
   id: uuidSchema,
   kind: z.enum(['related', 'up_sell', 'cross_sell']),
@@ -529,6 +562,14 @@ export const productDetailSchema = productSummarySchema.extend({
       }),
     )
     .optional(),
+  /**
+   * Feature 172 (FR-030, FR-036) — the product's Page Builder content
+   * attributes, each already resolved to one language, in attribute-set
+   * position order. Present **only** when the request asked for it with
+   * `?include=content`; `[]` when asked and nothing renders. No label is
+   * carried (FR-037).
+   */
+  contentAttributes: z.array(productPageContentAttributeSchema).optional(),
   /**
    * Feature 043 — named packaging units (e.g. "Paleta" = 480 pieces) the
    * buyer can order by. Present only for eligible product types
@@ -1360,15 +1401,23 @@ export type UpdateCategoryRequest = z.infer<typeof updateCategoryRequestSchema>;
 // --- Category page content ---------------------------------------------------
 
 /**
- * The ceiling on one category's stored content envelope, in UTF-8 bytes of its
- * JSON serialisation — every language together.
+ * The ceiling on one stored Page Builder content envelope — a category's
+ * content, or one product × content attribute value — in UTF-8 bytes of its
+ * JSON serialisation, every language together.
  *
  * One mebibyte, because that is what a CMS page is held to today: the CMS
  * declares no limit of its own and is bounded by the HTTP layer's default body
  * limit, which is this number. Stated here so the bound also holds for a
  * caller that does not arrive over HTTP.
  */
-export const CATEGORY_CONTENT_MAX_BYTES = 1_048_576;
+export const PAGE_BUILDER_CONTENT_MAX_BYTES = 1_048_576;
+
+/**
+ * The category content ceiling — {@link PAGE_BUILDER_CONTENT_MAX_BYTES}, kept
+ * under its own name for its existing readers. Product content (feature 172)
+ * is held to the same number.
+ */
+export const CATEGORY_CONTENT_MAX_BYTES = PAGE_BUILDER_CONTENT_MAX_BYTES;
 
 /**
  * The UTF-8 length of a string, counted rather than encoded: this package
@@ -1392,9 +1441,6 @@ function utf8ByteLength(text: string): number {
   }
   return bytes;
 }
-
-/** One language's Page Builder document. Opaque beyond being a JSON object. */
-const pageBuilderTreeSchema = z.record(z.string(), z.unknown());
 
 /**
  * The content an operator authors for a category's storefront page: one Page
@@ -1449,6 +1495,82 @@ export const categoryPageContentSchema = z.object({
   content: pageBuilderTreeSchema.nullable(),
 });
 export type CategoryPageContent = z.infer<typeof categoryPageContentSchema>;
+
+// --- Product content attributes (feature 172) -------------------------------
+
+/**
+ * One product × content attribute value: a Page Builder document per
+ * language, the category envelope under the same ceiling. `null` means no
+ * value. The writer drops a language with no block and stores nothing when
+ * none remains (FR-013), so a stored envelope always holds a block.
+ */
+export const productContentEnvelopeSchema = z
+  .object({
+    languages: z.record(z.string().min(2).max(35), pageBuilderTreeSchema),
+  })
+  .strict()
+  .refine(
+    (envelope) =>
+      utf8ByteLength(JSON.stringify(envelope)) <= PAGE_BUILDER_CONTENT_MAX_BYTES,
+    { message: `Product content must not exceed ${PAGE_BUILDER_CONTENT_MAX_BYTES} bytes.` },
+  )
+  .nullable();
+export type ProductContentEnvelope = z.infer<typeof productContentEnvelopeSchema>;
+
+/** `PUT /api/v1/admin/catalog/products/:id/content/:attributeKey` — replaces the value. */
+export const putProductContentRequestSchema = z
+  .object({ content: productContentEnvelopeSchema })
+  .strict();
+export type PutProductContentRequest = z.infer<typeof putProductContentRequestSchema>;
+
+/** The single read and the write's answer: the whole stored (normalised) envelope. */
+export const adminProductContentSchema = z.object({
+  productId: uuidSchema,
+  attributeKey: z.string(),
+  content: productContentEnvelopeSchema,
+});
+export type AdminProductContent = z.infer<typeof adminProductContentSchema>;
+
+/** One stored language of a content value, as the product form's card shows it — never the document. */
+export const adminProductContentLanguageStatusSchema = z.object({
+  language: z.string(),
+  filled: z.boolean(),
+  blocks: z.number().int().nonnegative(),
+  excerpt: z.string().nullable(),
+});
+export type AdminProductContentLanguageStatus = z.infer<typeof adminProductContentLanguageStatusSchema>;
+
+/** One content attribute of the product's saved attribute set, with its stored languages. */
+export const adminProductContentAttributeSchema = z.object({
+  /** `product_attributes.id`. */
+  attributeId: uuidSchema,
+  key: z.string(),
+  label: z.record(z.string(), z.string()),
+  labelDefault: z.string(),
+  position: z.number().int().nonnegative(),
+  languages: z.array(adminProductContentLanguageStatusSchema),
+});
+export type AdminProductContentAttribute = z.infer<typeof adminProductContentAttributeSchema>;
+
+/** `GET /api/v1/admin/catalog/products/:id/content` — the cards, by position then key. */
+export const adminProductContentListSchema = z.object({
+  productId: uuidSchema,
+  attributeSetId: uuidSchema.nullable(),
+  attributes: z.array(adminProductContentAttributeSchema),
+});
+export type AdminProductContentList = z.infer<typeof adminProductContentListSchema>;
+
+/**
+ * `GET /api/v1/admin/catalog/attributes/:idOrKey/usage` — what deleting an
+ * attribute of any type would meet (feature 172, FR-007). `productValueCount`
+ * is the count the delete guard refuses on, from the same query.
+ */
+export const adminAttributeUsageSchema = z.object({
+  attributeSetCount: z.number().int().nonnegative(),
+  productValueCount: z.number().int().nonnegative(),
+  productContentCount: z.number().int().nonnegative(),
+});
+export type AdminAttributeUsage = z.infer<typeof adminAttributeUsageSchema>;
 
 // --- Storefront list/query ---------------------------------------------------
 
@@ -2886,6 +3008,12 @@ export interface CatalogBulkImportPort {
   importProducts(rows: readonly ProductImportRow[]): Promise<BulkImportReport>;
   /** Feature 163 (FR-092) — the scoped-status columns of a products export, and their values. */
   exportScopedStatuses(): Promise<ScopedStatusExport>;
+  /**
+   * Feature 172 (FR-041) — the keys of the Page Builder content attributes. A
+   * products file may not carry a value under one: content is authored on the
+   * product content screen only, so an importer refuses such a cell per row.
+   */
+  contentAttributeKeys(): Promise<string[]>;
 }
 
 // --- the attribute read model ------------------------------------------------

@@ -26,7 +26,9 @@ export type DbAttributeValueType =
   | 'enum'
   | 'date'
   | 'multiselect'
-  | 'price';
+  | 'price'
+  // Feature 172 (research R-4) — a Page Builder document per language.
+  | 'page_builder';
 
 // ---------------------------------------------------------------------------
 // Feature 061 — legacy 8-value form ⇄ Custom Fields triple (research §R7).
@@ -42,7 +44,8 @@ export type CfAttributeValueType =
   | 'boolean'
   | 'date'
   | 'select'
-  | 'multiselect';
+  | 'multiselect'
+  | 'page_builder';
 
 /** Extension refinement: how a cf `select` renders (legacy `enum` vs `select`). */
 export type SelectDisplay = 'pill' | 'dropdown';
@@ -78,6 +81,8 @@ export function legacyToCfType(valueType: LegacyAttributeValueType): CfTypeTripl
       return { cfValueType: 'select', selectDisplay: 'dropdown', numericKind: null };
     case 'multiselect':
       return { cfValueType: 'multiselect', selectDisplay: null, numericKind: null };
+    case 'page_builder':
+      return { cfValueType: 'page_builder', selectDisplay: null, numericKind: null };
     default: {
       const _exhaustive: never = valueType;
       throw new InvalidAttributeMappingError(
@@ -111,6 +116,8 @@ export function cfToLegacyValueType(
       return selectDisplay === 'pill' ? 'enum' : 'select';
     case 'multiselect':
       return 'multiselect';
+    case 'page_builder':
+      return 'page_builder';
     default:
       throw new InvalidAttributeMappingError(
         `Unsupported cf attribute valueType: ${cfValueType}`,
@@ -160,6 +167,8 @@ export function resolveAttributeApiType(req: {
       return { valueType: 'multiselect', displayAsSlider: false };
     case 'price':
       return { valueType: 'price', displayAsSlider: req.displayAsSlider ?? false };
+    case 'page_builder':
+      return { valueType: 'page_builder', displayAsSlider: false };
     case 'slider': {
       // Zod refine catches the missing-numericKind path; this is a
       // belt-and-braces guard for direct service callers (seeders, etc).
