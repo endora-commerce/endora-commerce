@@ -273,6 +273,10 @@ const SEED_DELTA: Readonly<Record<string, number>> = {
   admin_roles: 1,
   admin_users: 3,
   organizations: 1,
+  // `specs/170-organization-roles/` (PR-2): the `after insert on organizations`
+  // trigger gives that Organization its two predefined roles, Administrator
+  // and Member.
+  organization_roles: 2,
   // `customer_accounts`' own demo data (feature 160): the VIP group of E3.
   customer_groups: 1,
   taxes: 1,
