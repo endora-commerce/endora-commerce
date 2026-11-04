@@ -190,14 +190,14 @@ Każdy krok akceptacji wysyła e-mail, gdy krok zostanie już zapisany:
 | `POST /api/v1/cart/items` | Dodanie pozycji (limit 200 pozycji) — `carts.create` dla zalogowanego członka; gość nie jest sprawdzany |
 | `PATCH /api/v1/cart/items/:itemId` | Zmiana ilości (`0` usuwa pozycję) — jak wyżej |
 | `DELETE /api/v1/cart/items/:itemId` | Usunięcie pozycji — jak wyżej |
-| `POST /api/v1/cart/items/:itemId/save-to-shopping-list` | Przeniesienie pozycji na listę zakupów |
+| `POST /api/v1/cart/items/:itemId/save-to-shopping-list` | Przeniesienie pozycji na listę zakupów — `shopping_lists.create` |
 | `POST /api/v1/cart/touch` | Jawny sygnał otwarcia strony; aktualizuje `last_activity_at` i przywraca porzucony koszyk |
 | `GET /api/v1/cart/upsells?limit=N` | Pasek droższych zamienników z `product_links` katalogu (kind = `up_sell`) |
 | `POST /api/v1/cart/coupon` | Zastosowanie (albo zamiana, albo usunięcie) aktywnego kodu kuponu; przy odrzuceniu 422 `CART_COUPON_REJECTED` z powodem — `carts.create` dla zalogowanego członka; gość nie jest sprawdzany |
 | `DELETE /api/v1/cart/coupon` | To samo co `POST {code: null}` — jak wyżej |
-| `POST /api/v1/cart/convert-to-quote-request` | Koszyk → zapytanie ofertowe; koszyk źródłowy przechodzi w stan `completed` z ustawionym `converted_to_quote_request_id` |
+| `POST /api/v1/cart/convert-to-quote-request` | Koszyk → zapytanie ofertowe; koszyk źródłowy przechodzi w stan `completed` z ustawionym `converted_to_quote_request_id` — `quote_requests.create` |
 | `POST /api/v1/cart/from-quote-request/:qrId` | Zapytanie ofertowe → koszyk; ceny pozycji są wyznaczane ponownie według bieżących cen klienta — `carts.create` |
-| `POST /api/v1/cart/from-shopping-list/:listId` | Lista zakupów → koszyk; ceny są wyznaczane ponownie — `carts.create` |
+| `POST /api/v1/cart/from-shopping-list/:listId` | Lista zakupów → koszyk; ceny są wyznaczane ponownie — `shopping_lists.convert`, sprawdzane najpierw, oraz `carts.create` |
 | `POST /api/v1/cart/submit-for-approval` | Kupujący przekazuje koszyk do akceptacji. Odrzucane z `422 CART_APPROVAL_NOT_REQUIRED`, gdy rola kupującego ma `carts.order_without_approval`, z `422 CART_APPROVAL_ALREADY_SUBMITTED` dla koszyka już przekazanego oraz dla koszyka poniżej minimum — zob. *Minimalne ilości zamówienia* |
 
 Odmowa z powodu brakującego uprawnienia to `403 ORGANIZATION_PERMISSION_REQUIRED` z kodem uprawnienia
