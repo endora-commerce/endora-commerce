@@ -31,7 +31,8 @@ const me: MeResult = {
     firstName: 'Anna',
     lastName: 'Nowak',
     organizationRole: { id: '00000000-0000-4000-8000-0000000000a1', kind: 'administrator', name: 'Administrator' },
-    permissions: ['carts.create', 'carts.approve'],
+    // The Administrator holds every code; these are the ones the pages read.
+    permissions: ['carts.create', 'carts.approve', 'addresses.manage'],
     emailVerifiedAt: '2026-01-01T00:00:00.000Z',
     twoFactorEnabled: false,
   },

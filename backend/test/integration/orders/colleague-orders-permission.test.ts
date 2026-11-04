@@ -147,11 +147,14 @@ describe('170 WP-07 — colleagues’ orders need orders.view_organization (FR-0
     accounts.headPlain = await makeAccount(em, ids.head, { rollup: true });
     accounts.branchPlacer = await makeAccount(em, ids.branch);
 
-    // The custom roles hold the one code under test and nothing else.
+    // The custom roles hold the one code under test and nothing else — save
+    // the flat viewer's two action codes: since WP-16 the reorder needs
+    // `carts.create` and the clone `quote_requests.create`, judged before the
+    // order scope this file is about (`order-actions-permissions.test.ts`).
     await seedMemberWithPermissions(em, {
       organizationId: ids.org,
       customerAccountId: accounts.viewer,
-      permissions: ['orders.view_organization'],
+      permissions: ['orders.view_organization', 'carts.create', 'quote_requests.create'],
     });
     await seedMemberWithPermissions(em, {
       organizationId: ids.head,
