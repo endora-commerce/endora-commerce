@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { getSessionCookie, clearSessionCookie } from '../../lib/session';
 import { getMe } from '../../lib/api/account';
+import { listOrganizationCarts } from '../../lib/api/cart';
 import { logoutCustomer } from '../../lib/api/auth';
 import { StorefrontApiError } from '../../lib/api/client';
 import { ImpersonationBanner } from '../../components/ImpersonationBanner';
@@ -9,12 +10,20 @@ import { localeRedirect } from '../../lib/i18n/navigation';
 import { LocalizedLink } from '../../lib/i18n/localized-link';
 import { getServerContext } from '../../lib/server-context';
 import { tForLocale } from '../../lib/i18n/messages';
+import { format } from '../../lib/i18n/format';
+import { organizationAreaAccess } from '../../lib/account/organization-area';
 
 /**
  * Authenticated route-group layout (T154 + T155). Loads `/me` once for the
  * sidebar so individual pages don't have to re-fetch the customer just to
  * render the navigation. If the session is missing or expired, the layout
  * redirects to `/login?next=...` instead of leaking a half-rendered page.
+ *
+ * Feature 170 (FR-057, FR-070a): *Members* and *Roles* are offered to the
+ * Organization's administrators and *Carts to approve* to the members holding
+ * `carts.approve`, with the count of carts waiting — none of the three in a
+ * personal Organization, whose member is its Administrator
+ * (`lib/account/organization-area.ts`).
  */
 export default async function AccountLayout({
   children,
@@ -34,9 +43,11 @@ export default async function AccountLayout({
     throw err;
   }
 
-  const isAdmin = me.customerAccount.role === 'organization_admin';
   const { locale, modules } = await getServerContext();
   const t = tForLocale(locale);
+  const manages = organizationAreaAccess(me, 'members') === 'allowed';
+  const approves = organizationAreaAccess(me, 'carts') === 'allowed';
+  const waiting = approves ? await pendingCartCount(session) : null;
 
   return (
     <section className="b2b-account">
@@ -82,7 +93,19 @@ export default async function AccountLayout({
             ) : null}
             <LocalizedLink href="/organization">{t('account.nav.organization')}</LocalizedLink>
             <LocalizedLink href="/organization/addresses">{t('account.nav.organizationAddresses')}</LocalizedLink>
-            {isAdmin ? <LocalizedLink href="/organization/members">{t('account.nav.members')}</LocalizedLink> : null}
+            {manages ? (
+              <>
+                <LocalizedLink href="/organization/members">{t('account.nav.members')}</LocalizedLink>
+                <LocalizedLink href="/organization/roles">{t('account.nav.roles')}</LocalizedLink>
+              </>
+            ) : null}
+            {approves ? (
+              <LocalizedLink href="/organization/carts?approval=pending">
+                {waiting
+                  ? format(t('account.nav.cartsToApproveCount'), { count: waiting.toLocaleString(locale) })
+                  : t('account.nav.cartsToApprove')}
+              </LocalizedLink>
+            ) : null}
           </>
         ) : null}
         <SignOutButton signOut={logoutAction} locale={locale} />
@@ -90,6 +113,19 @@ export default async function AccountLayout({
       <div className="b2b-account__panel">{children}</div>
     </section>
   );
+}
+
+/**
+ * How many of the Organization's carts await an answer, or `null` when the
+ * count cannot be read — the link is offered either way, only its count is not.
+ */
+async function pendingCartCount(session: string): Promise<number | null> {
+  try {
+    const res = await listOrganizationCarts({ session }, { approvalStatus: ['pending'] });
+    return res.meta.totalCount;
+  } catch {
+    return null;
+  }
 }
 
 async function logoutAction(): Promise<void> {

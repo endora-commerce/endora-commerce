@@ -41,27 +41,41 @@ vi.mock('../../lib/api/cms', () => ({
   },
 }));
 
-const me: MeResult = {
-  customerAccount: {
-    id: 'acc-1',
-    organizationId: 'org-1',
-    email: 'anna@example.com',
-    firstName: 'Anna',
-    lastName: 'Nowak',
-    role: 'organization_admin',
-    emailVerifiedAt: '2026-01-01T00:00:00.000Z',
-    twoFactorEnabled: false,
-  },
-  organization: {
-    id: 'org-1',
-    name: 'Acme',
-    taxId: '1234567890',
-    status: 'active',
-    vatStatus: 'vat_payer',
-    registeredAddress: { street: 'Main 1', city: 'Gdansk', postalCode: '80-001', country: 'PL' },
-  },
-  impersonation: null,
-};
+const ADMINISTRATOR = { id: '00000000-0000-4000-8000-0000000000a1', kind: 'administrator', name: 'Administrator' } as const;
+
+function session(
+  role: MeResult['customerAccount']['organizationRole'] = ADMINISTRATOR,
+  permissions: string[] = ['carts.create', 'carts.approve', 'carts.order_without_approval'],
+  isPersonal = false,
+): MeResult {
+  return {
+    customerAccount: {
+      id: 'acc-1',
+      organizationId: 'org-1',
+      email: 'anna@example.com',
+      firstName: 'Anna',
+      lastName: 'Nowak',
+      organizationRole: role,
+      permissions,
+      emailVerifiedAt: '2026-01-01T00:00:00.000Z',
+      twoFactorEnabled: false,
+    },
+    organization: {
+      id: 'org-1',
+      name: 'Acme',
+      taxId: '1234567890',
+      status: 'active',
+      vatStatus: 'vat_payer',
+      isPersonal,
+      registeredAddress: { street: 'Main 1', city: 'Gdansk', postalCode: '80-001', country: 'PL' },
+    },
+    impersonation: null,
+  };
+}
+
+let me: MeResult = session();
+let pendingCarts: number | Error = 2;
+const cartListCalls: unknown[] = [];
 
 /** A presence set in which exactly the named modules are off. */
 function presenceWithout(...absent: string[]): ModulePresenceSet {
@@ -92,6 +106,13 @@ vi.mock('../../lib/server-context', async () => {
 });
 vi.mock('../../lib/api/account', () => ({ getMe: async () => me }));
 vi.mock('../../lib/api/auth', () => ({ logoutCustomer: async () => undefined }));
+vi.mock('../../lib/api/cart', () => ({
+  listOrganizationCarts: async (_jar: unknown, filter: unknown) => {
+    cartListCalls.push(filter);
+    if (pendingCarts instanceof Error) throw pendingCarts;
+    return { data: [], meta: { page: 1, pageSize: 20, totalCount: pendingCarts } };
+  },
+}));
 
 const { default: AccountLayout } = await import('../../app/(account)/layout');
 const { Header } = await import('../../components/Header');
@@ -141,6 +162,9 @@ const originalFetch = globalThis.fetch;
 beforeEach(() => {
   modules = presenceWithout();
   modulesFromBackend = false;
+  me = session();
+  pendingCarts = 2;
+  cartListCalls.length = 0;
 });
 afterEach(() => {
   globalThis.fetch = originalFetch;
@@ -185,6 +209,64 @@ describe('account navigation — module presence (issue #666)', () => {
     modulesFromBackend = true;
     const html = await accountNav();
     for (const { href } of ACCOUNT_LINKS) expect(html).toContain(`href="${href}"`);
+  });
+});
+
+/**
+ * Feature 170 (FR-057, FR-070a, PR-3, PR-10) — *Members* and *Roles* follow the
+ * Administrator role, *Carts to approve* follows `carts.approve`, and none of
+ * the three is offered in a personal Organization, whose member holds
+ * Administrator: that gate is the Organization's kind, never the role. `carts`
+ * and `organizations` are non-deactivatable, so no presence gate applies.
+ */
+describe('account navigation — the organization area (feature 170)', () => {
+  const MEMBERS = 'href="/organization/members"';
+  const ROLES = 'href="/organization/roles"';
+  const CARTS = 'href="/organization/carts?approval=pending"';
+
+  it('offers members, roles and the carts to approve, with their count, to an administrator', async () => {
+    const html = await accountNav();
+    expect(html).toContain(MEMBERS);
+    expect(html).toContain(ROLES);
+    expect(html).toContain(CARTS);
+    expect(html.replaceAll('<!-- -->', '')).toContain('Carts to approve (2)');
+    expect(cartListCalls).toEqual([{ approvalStatus: ['pending'] }]);
+  });
+
+  it('offers only the carts to approve to an approver who is not the administrator', async () => {
+    me = session({ id: '00000000-0000-4000-8000-0000000000c1', kind: 'custom', name: 'Purchasing' }, ['carts.approve']);
+    const html = await accountNav();
+    expect(html).toContain(CARTS);
+    expect(html).not.toContain(MEMBERS);
+    expect(html).not.toContain(ROLES);
+  });
+
+  it('offers none of the three to a member without carts.approve, and counts nothing', async () => {
+    me = session({ id: '00000000-0000-4000-8000-0000000000b1', kind: 'member', name: 'Member' }, ['carts.create']);
+    const html = await accountNav();
+    for (const href of [MEMBERS, ROLES, CARTS]) expect(html).not.toContain(href);
+    expect(cartListCalls).toEqual([]);
+  });
+
+  it('offers none of the three in a personal Organization, although its member is the Administrator', async () => {
+    me = session(ADMINISTRATOR, ['carts.create', 'carts.approve', 'carts.order_without_approval'], true);
+    const html = await accountNav();
+    for (const href of [MEMBERS, ROLES, CARTS]) expect(html).not.toContain(href);
+    expect(html).toContain('href="/organization/addresses"');
+    expect(cartListCalls).toEqual([]);
+  });
+
+  it('shows no count when nothing is waiting', async () => {
+    pendingCarts = 0;
+    const html = (await accountNav()).replaceAll('<!-- -->', '');
+    expect(html).toContain(CARTS);
+    expect(html).toMatch(/>Carts to approve<\/a>/);
+  });
+
+  it('keeps the link without a count when the count cannot be read', async () => {
+    pendingCarts = new Error('HTTP 503');
+    const html = (await accountNav()).replaceAll('<!-- -->', '');
+    expect(html).toMatch(/>Carts to approve<\/a>/);
   });
 });
 

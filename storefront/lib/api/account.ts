@@ -1,3 +1,4 @@
+import type { OrganizationRoleRef } from '@endora-commerce/contracts';
 import { apiGetAuthed, apiMutate } from './mutations';
 
 /**
@@ -12,7 +13,14 @@ export interface CurrentCustomer {
   email: string;
   firstName: string;
   lastName: string;
-  role: 'organization_admin' | 'regular_user';
+  /**
+   * Feature 170 (FR-056) — the member's organization role, named in the
+   * response language. Read it through `isAdministrator` and `can` in
+   * `lib/organization-permissions.ts`, never directly.
+   */
+  organizationRole: OrganizationRoleRef;
+  /** The role's effective organization permission codes (FR-056). */
+  permissions: string[];
   emailVerifiedAt: string | null;
   twoFactorEnabled: boolean;
 }
@@ -30,6 +38,12 @@ export interface CurrentOrganization {
   taxId: string;
   status: OrganizationLifecycleStatus | string;
   vatStatus: string;
+  /**
+   * A personal (B2C) Organization: its one member holds *Administrator*, yet
+   * the storefront offers it none of the organization-management screens —
+   * gated on this flag, never on the role (feature 170, PR-3, FR-070a).
+   */
+  isPersonal: boolean;
   registeredAddress: { street: string; city: string; postalCode: string; country: string };
   version?: number;
   /**

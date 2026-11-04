@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
 import { getSessionCookie } from '../../../lib/session';
 import { getServerContext } from '../../../lib/server-context';
-import { getMe } from '../../../lib/api/account';
+import { getMe, type MeResult } from '../../../lib/api/account';
 import { getMyCreditLimit } from '../../../lib/api/credit-limit';
+import { getMyRole, type OwnRole } from '../../../lib/api/organization';
 import {
   fetchPwaConfig,
   getPushPreferences,
@@ -16,7 +17,7 @@ import {
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../lib/i18n/navigation';
 import { tForLocale } from '../../../lib/i18n/messages';
-import { codeLabel } from '../../../lib/account/labels';
+import { richText } from '../../../lib/account/labels';
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -29,6 +30,12 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
  * Account profile (T154). Read-only summary of the current customer +
  * their organization role. Profile-edit is intentionally out of scope for
  * MVP — buyers update their name via support to keep audit trails simple.
+ *
+ * Feature 170 (FR-058): the role is the member's organization role, and the
+ * page lists what it allows in plain language — `GET …/mine/role`, translated
+ * by the API. When that read fails the role still shows from the session and
+ * only the list is left out. A personal Organization's member sees neither,
+ * and the list is not read (owner ruling on PR #715).
  */
 export default async function AccountProfilePage({
   searchParams,
@@ -43,12 +50,19 @@ export default async function AccountProfilePage({
   // The push section (`specs/149-pwa-order-status-push/`) is read beside the
   // profile: the public config says what the channel offers, the preferences
   // what this customer chose. Either failing hides the section.
-  const [me, creditLimit, pwaConfig, pushPreferences] = await Promise.all([
-    getMe(session),
+  const mePromise = getMe(session);
+  // The own-role read waits only for `/me`, and is skipped where no role is shown.
+  const ownRolePromise = mePromise.then((me) =>
+    showsRole(me) ? getMyRole(session, ctx).catch((): OwnRole | null => null) : null,
+  );
+  const [me, creditLimit, pwaConfig, pushPreferences, ownRole] = await Promise.all([
+    mePromise,
     getMyCreditLimit(session),
     fetchPwaConfig(ctx.salesChannelCode),
     getPushPreferences(session, ctx),
+    ownRolePromise,
   ]);
+  const role = showsRole(me) ? (ownRole?.role ?? me.customerAccount.organizationRole) : null;
 
   return (
     <>
@@ -77,10 +91,12 @@ export default async function AccountProfilePage({
               )}
             </td>
           </tr>
-          <tr>
-            <th scope="row">{t('account.common.role')}</th>
-            <td>{codeLabel(t, 'account.role', me.customerAccount.role)}</td>
-          </tr>
+          {role ? (
+            <tr>
+              <th scope="row">{t('account.common.role')}</th>
+              <td>{role.name}</td>
+            </tr>
+          ) : null}
           <tr>
             <th scope="row">{t('account.profile.twoFactor')}</th>
             <td>{me.customerAccount.twoFactorEnabled
@@ -93,6 +109,25 @@ export default async function AccountProfilePage({
           </tr>
         </tbody>
       </table>
+      {role && ownRole ? (
+        <section aria-labelledby="role-allows-heading" className="mt-6">
+          <h3 id="role-allows-heading">{t('account.profile.allows.heading')}</h3>
+          {ownRole.permissions.length === 0 ? (
+            <p className="text-[13px] text-muted">{t('account.profile.allows.none')}</p>
+          ) : (
+            <ul className="m-0 grid list-disc gap-1 pl-5 text-[13px]">
+              {ownRole.permissions.map((p) => (
+                <li key={p.code}>
+                  {richText(t('account.profile.allows.item'), {
+                    label: <strong className="font-medium">{p.label}</strong>,
+                    description: p.description,
+                  })}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ) : null}
       <PushNotificationsSection
         config={pwaConfig}
         preferences={pushPreferences}
@@ -103,6 +138,17 @@ export default async function AccountProfilePage({
       />
     </>
   );
+}
+
+/**
+ * Whether the profile shows the member's role and what it allows: only in a
+ * company Organization. A personal Organization's member holds *Administrator*
+ * (PR-3), which says nothing useful to a B2C buyer, so neither is shown nor read
+ * there (owner ruling on PR #715) — the same `isPersonal` gate as the
+ * organization screens.
+ */
+function showsRole(me: MeResult): boolean {
+  return me.organization !== null && me.organization.isPersonal !== true;
 }
 
 async function savePushPreferencesAction(formData: FormData): Promise<void> {
