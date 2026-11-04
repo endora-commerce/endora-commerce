@@ -50,6 +50,16 @@ W storefroncie lista zamówień i strona zamówienia pokazują członkowi z tym 
 współpracownika tak samo jak jego własne. Strona zamówienia proponuje **Zgłoś zwrot / reklamację** (lub
 **Złóż reklamację**) tylko członkowi, którego rola ma `returns.create`.
 
+Ponowne zamówienie i kopia jako zapytanie ofertowe są oceniane także według tego, co tworzą:
+`POST /api/v1/orders/:id/reorder` zastępuje aktywny koszyk i wymaga `carts.create`, a
+`POST /api/v1/orders/:id/clone-to-quote` tworzy zapytanie ofertowe i wymaga `quote_requests.create`.
+Uprawnienie jest sprawdzane przed odczytaniem zamówienia, więc członek, który go nie ma, otrzymuje
+`403 ORGANIZATION_PERMISSION_REQUIRED` bez względu na to, jakie zamówienie wskazuje identyfikator,
+a członek, który je ma, podlega następnie opisanemu wyżej zasięgowi zamówień. Gdy moduł
+`quote_requests` jest wyłączony, jego kod niczego nie nadaje, więc kopia kupującego zostaje odrzucona
+tym samym `403`. Strona zamówienia proponuje **Zamów ponownie → koszyk** i **Zamów ponownie →
+zapytanie ofertowe** tylko członkowi z odpowiednim kodem.
+
 ## Który kanał sprzedaży zapisuje zamówienie
 
 Zamówienie zapisuje jeden kanał sprzedaży. Skąd on pochodzi, zależy od tego, kto
@@ -145,9 +155,9 @@ oraz `code` nazywający stan:
 
 | `details.code` | Koszyk | Komunikat (po polsku) |
 | --- | --- | --- |
-| `cart_approval_not_submitted` | nigdy nieprzekazany do akceptacji | *„Twoja organizacja wymaga akceptacji koszyka przed zamówieniem. Najpierw wyślij ten koszyk do akceptacji.”* |
-| `cart_approval_pending` | czeka na osobę akceptującą | *„Ten koszyk czeka na akceptację administratora Twojej organizacji. Zamówienie złożysz, gdy koszyk zostanie zaakceptowany.”* |
-| `cart_approval_rejected` | odrzucony | *„Administrator Twojej organizacji odrzucił ten koszyk, więc nie można go zamówić.”* |
+| `cart_approval_not_submitted` | nigdy nieprzekazany do akceptacji | *„Twoja rola wymaga akceptacji tego koszyka przed zamówieniem. Najpierw wyślij go do akceptacji.”* |
+| `cart_approval_pending` | czeka na osobę akceptującą | *„Ten koszyk czeka na akceptację osoby zatwierdzającej w Twojej organizacji. Zamówienie złożysz, gdy koszyk zostanie zaakceptowany.”* |
+| `cart_approval_rejected` | odrzucony | *„Ten koszyk został odrzucony przez osobę zatwierdzającą w Twojej organizacji, więc nie można go zamówić.”* |
 
 Koszyk pozostaje bez zmian. Reguła nie dotyczy koszyka żadnego członka, którego rola ma
 uprawnienie *Składanie zamówień bez akceptacji* (*Administrator* ma je zawsze), ani zamówień
@@ -413,7 +423,8 @@ złożenie zamówienia niczego nie ogłasza.
   których nie przeniesiono do zamówienia — zob. *Notatka systemowa* niżej.
 - **Ponowne zamówienie** — `…/:id/reorder` odtwarza koszyk (zależnie od ustawienia
   `orders.reorder_enabled`); **kopia jako zapytanie ofertowe** — `…/:id/clone-to-quote`
-  (zamówienie bez pozycji daje `409 ORDER_CLONE_NO_LINES`, a bez modułu `quote_requests` —
+  (zamówienie bez pozycji daje `409 ORDER_CLONE_NO_LINES`; bez modułu `quote_requests` kopia
+  kupującego jest odrzucana z `403 ORGANIZATION_PERMISSION_REQUIRED`, a kopia operatora z
   `503 MODULE_DISABLED`).
 
 ### Ekran tworzenia zamówienia

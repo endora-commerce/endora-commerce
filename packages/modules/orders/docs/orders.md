@@ -53,6 +53,17 @@ a member holding the permission exactly as their own. The order page offers
 **Request return / complaint** (or **File a complaint**) only to a member whose
 role holds `returns.create`.
 
+Reordering and cloning to a quote request are also judged by what they build:
+`POST /api/v1/orders/:id/reorder` replaces the active cart and needs
+`carts.create`, `POST /api/v1/orders/:id/clone-to-quote` creates a quote request
+and needs `quote_requests.create`. The permission is checked before the order
+is read, so a member lacking it gets `403 ORGANIZATION_PERMISSION_REQUIRED`
+whichever order the id names, and a member holding it then meets the order
+scope above. With `quote_requests` switched off its code grants nothing, so the
+buyer's clone is refused with that same `403`. The order page offers **Order
+again → cart** and **Order again → quote request** only to a member holding the
+matching code.
+
 ## Which sales channel an order records
 
 An order records one sales channel. Where it comes from depends on who places
@@ -147,9 +158,9 @@ with `409 ORDER_CART_APPROVAL_REQUIRED`;
 
 | `details.code` | Basket | Sentence (English) |
 | --- | --- | --- |
-| `cart_approval_not_submitted` | never sent for approval | *"Your organization requires baskets to be approved before ordering. Send this basket for approval first."* |
-| `cart_approval_pending` | awaiting an approver | *"This basket is awaiting approval by your organization administrator. You can place the order once it is approved."* |
-| `cart_approval_rejected` | rejected | *"Your organization administrator rejected this basket, so it cannot be ordered."* |
+| `cart_approval_not_submitted` | never sent for approval | *"Your role requires approval of this cart before it can be ordered. Send it for approval first."* |
+| `cart_approval_pending` | awaiting an approver | *"This cart is awaiting approval by an approver in your organization. You can place the order once it is approved."* |
+| `cart_approval_rejected` | rejected | *"This cart was rejected by an approver in your organization, so it cannot be ordered."* |
 
 The basket is kept as it was. Unaffected: the basket of every member whose role
 holds *Place orders without approval* (*Administrator* always does), and orders
@@ -437,7 +448,8 @@ that fails announces nothing.
 - **Reorder** — `…/:id/reorder` rebuilds the cart (gated by
   `orders.reorder_enabled`); **clone-to-quote** — `…/:id/clone-to-quote` (an
   order with no lines is `409 ORDER_CLONE_NO_LINES`; with `quote_requests` absent,
-  `503 MODULE_DISABLED`).
+  the buyer's clone is refused `403 ORGANIZATION_PERMISSION_REQUIRED` and the
+  operator's `503 MODULE_DISABLED`).
 
 ### The Create order screen
 

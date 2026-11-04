@@ -1414,7 +1414,8 @@ export async function registerOrderRoutes(
    * holder exactly as before, `404 ORDER_NOT_FOUND` out of it. With
    * `quote_requests` off its code leaves every member's effective set
    * (FR-007), so the clone is refused by the guard, before the service's
-   * `MODULE_DISABLED`. The operator routes are untouched.
+   * `MODULE_DISABLED` — a `403`, as the owner confirmed on 2026-11-04. The
+   * operator routes are untouched.
    */
   const reordersIntoCart = [
     requireCustomer,

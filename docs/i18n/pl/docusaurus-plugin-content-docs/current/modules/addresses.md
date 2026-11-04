@@ -23,10 +23,10 @@ członek, którego rola go nie ma, otrzymuje odmowę `403 ORGANIZATION_PERMISSIO
 może odczytać każdy członek. Uprawnienie ma domyślnie rola Członek, a rola Administrator zawsze;
 organizacja odbiera je, edytując rolę.
 
-W storefroncie strona adresów organizacji (`/organization/addresses`) nadal pokazuje każdemu
-członkowi przyciski dodawania i usuwania; członkowi, którego rola nie ma tego uprawnienia, zapis
-pokazuje zdanie odmowy — *Twoja rola nie pozwala na to: „Zarządzanie adresami organizacji”. Poproś
-administratora swojej organizacji o to uprawnienie.* — i niczego nie zmienia.
+W storefroncie strona adresów organizacji (`/organization/addresses`) pokazuje listę adresów
+każdemu członkowi, a formularz dodawania i przyciski *Usuń* tylko członkowi, którego rola ma to
+uprawnienie. Pozostali widzą zamiast formularza jedno zdanie: *Twoja rola nie pozwala dodawać ani
+usuwać adresów. Możesz je przeglądać i używać przy składaniu zamówienia.*
 
 ## Encje
 
