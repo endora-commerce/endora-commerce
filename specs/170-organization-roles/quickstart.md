@@ -95,7 +95,9 @@ pnpm --filter backend run i18n:hardcoded
 # the inventory (research R-14) — both commands must print nothing outside migrations and tests
 R14_GLOBS=(--glob '!**/*.test.ts' --glob '!**/*.test.tsx' --glob '!**/test/**' --glob '!**/docs/**'
    --glob '!**/dist/**' --glob '!**/migrations/**' --glob '!**/*.md' --glob '!specs/**' --glob '!**/ledgers/**')
-rg "organization_admin|regular_user|isOrgAdmin|CustomerAccountRole|organizationRoleSchema|countByOrganizationRole|requiresCartApproval" \
+# word boundaries: `CustomerAccountRole` must not match 170's own `CustomerAccountRole*Command*`
+# symbols, nor `organization_admin` the audit action `customer_account.promote_organization_admin`
+rg "\b(organization_admin|regular_user|isOrgAdmin|CustomerAccountRole|organizationRoleSchema|countByOrganizationRole|requiresCartApproval)\b" \
    "${R14_GLOBS[@]}" .
 # the legacy `OrganizationRole` type of `@endora-commerce/contracts`. The `organizations` entity
 # class has the same name, so skip its declaration and every file that imports it (one scope

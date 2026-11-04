@@ -12,6 +12,7 @@ import type {
   ImpersonationPort,
   MfaEnrolmentStatePort,
   MfaLoginPort,
+  OrganizationRoleReadPort,
   PermissionCataloguePort,
   PermissionReadPort,
 } from '@endora-commerce/contracts';
@@ -134,6 +135,7 @@ export function registerModule(ctx: ModuleContext): void {
             ctx,
             'customerAccountReadPort',
           ),
+          organizationRoleReadPort: lazyPort<OrganizationRoleReadPort>(ctx, 'organizationRoleReadPort'),
           requireAdmin: (permission) => async (req, reply) =>
             ctx.cradle<AdminUsersCradle>().requireAdmin(permission)(req, reply),
           resolveAdminContext: (req) => ctx.cradle<AdminUsersCradle>().adminContextResolver(req),

@@ -154,9 +154,9 @@ export const customerAccountSchema = z.object({
    * The member's role (`specs/170-organization-roles/`, FR-008, FR-056); it
    * replaced the legacy two-value `role`, removed by WP-12 (FR-073).
    */
-  organizationRole: organizationRoleRefSchema.optional(),
-  /** The member's effective organization permissions, sorted (FR-056). Optional until filled. */
-  permissions: z.array(z.string()).optional(),
+  organizationRole: organizationRoleRefSchema,
+  /** The member's effective organization permissions, sorted (FR-056). */
+  permissions: z.array(z.string()),
   emailVerifiedAt: isoDateTimeSchema.nullable(),
   twoFactorEnabled: z.boolean(),
   createdAt: isoDateTimeSchema,
@@ -270,9 +270,9 @@ export const customerLoginResponseSchema = z.object({
       email: z.string().email(),
       organizationId: uuidSchema.nullable(),
       /** The member's role (FR-056); it replaced the legacy `role` (FR-073). */
-      organizationRole: organizationRoleRefSchema.optional(),
+      organizationRole: organizationRoleRefSchema,
       /** The member's effective organization permissions, sorted (FR-056). */
-      permissions: z.array(z.string()).optional(),
+      permissions: z.array(z.string()),
       twoFactorEnabled: z.boolean(),
     }),
     cartMerge: cartMergeOutcomePublicSchema.nullable().optional(),

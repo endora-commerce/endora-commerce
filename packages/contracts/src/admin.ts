@@ -84,9 +84,9 @@ export const impersonationStartResponseSchema = z.object({
     lastName: z.string(),
     /**
      * The impersonated member's role — whose permissions the impersonation acts
-     * under (spec *Impersonation*); replaces `role`.
+     * under (spec *Impersonation*); it replaced the legacy `role` (FR-073).
      */
-    organizationRole: organizationRoleRefSchema.optional(),
+    organizationRole: organizationRoleRefSchema,
   }),
 });
 export type ImpersonationStartResponse = z.infer<typeof impersonationStartResponseSchema>;

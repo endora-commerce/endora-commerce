@@ -60,6 +60,7 @@ describe('POST /api/v1/admin/organizations/:id/impersonate — the acting admin'
     await app.register(cookie);
     app.setValidatorCompiler(validatorCompiler);
     app.setSerializerCompiler(serializerCompiler);
+    app.decorateRequest('responseLanguage', async () => 'en');
     // The production request shape: the auth plugin decorates `request.actor`
     // and nothing decorates `request.testActor`.
     app.addHook('onRequest', async (request: FastifyRequest) => {
