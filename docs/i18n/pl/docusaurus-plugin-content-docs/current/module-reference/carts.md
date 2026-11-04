@@ -47,7 +47,6 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | --- | --- | --- |
 | `carts:read` | View customer carts | — |
 | `carts:reject` | Reject a cart pending organization approval | — |
-| `customers:manage` | Manage customer organizations | — |
 
 ## Paleta poleceń
 
