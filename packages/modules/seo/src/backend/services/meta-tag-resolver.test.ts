@@ -10,8 +10,8 @@ import type { SeoMetaOverride } from '../entities/seo-meta-override.entity.js';
  */
 
 describe('buildRuleMeta', () => {
-  // Feature 170: a product's name and description are one Global string (170-shim until T121
-  // derives them at (C, L) through `effectiveTexts`).
+  // Feature 170: the rule builder reads the product's name and description as one string each;
+  // the resolver hands it the effective texts at (C, L) (`effectiveTexts`, T121).
   it('derives the product rule from the Global texts', () => {
     const product = { name: 'Polska nazwa', description: 'Polski opis' } as unknown as CatalogProductRecord;
     const meta = buildRuleMeta('product', { product }, 'pl-PL');
