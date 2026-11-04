@@ -5,7 +5,8 @@
 // run a single batched query (`asset_id = ANY($1)`) and join back to the
 // parent row's display info for the human-readable label rendered in the
 // admin "in use by" dialog; the fifth looks inside a category's page content,
-// where the reference is a string in a Page Builder document.
+// and the sixth inside a product's Page Builder content attributes (feature
+// 172), where the reference is a string in a Page Builder document.
 
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
@@ -14,9 +15,19 @@ import type {
   AssetReferenceRegistryPort,
 } from '@endora-commerce/contracts';
 
+/**
+ * The attribute read model's one method the product-content descriptor needs:
+ * the key of a content attribute, for its label. Optional — without it the
+ * label names the attribute by id — and asked only when a hit was found.
+ */
+export interface CatalogAssetReferenceAttributeKeys {
+  listAll(): Promise<ReadonlyArray<{ id: string; key: string }>>;
+}
+
 export function registerCatalogAssetReferences(
   registry: AssetReferenceRegistryPort,
   emFactory: () => EntityManager,
+  attributeRead?: CatalogAssetReferenceAttributeKeys,
 ): void {
   const descriptors: AssetReferenceDescriptor[] = [
     productGalleryDescriptor(emFactory),
@@ -24,6 +35,7 @@ export function registerCatalogAssetReferences(
     productVirtualDownloadDescriptor(emFactory),
     categoryMainImageDescriptor(emFactory),
     categoryContentDescriptor(emFactory),
+    productContentDescriptor(emFactory, attributeRead),
   ];
   for (const d of descriptors) registry.register(d);
 }
@@ -185,6 +197,54 @@ function categoryContentDescriptor(
         kind: 'category_content',
         entityId: r.category_id,
         label: `Category "${pickName(r.category_name)}" — page content`,
+      }));
+    },
+  };
+}
+
+/**
+ * Feature 172 (`specs/172-product-content-attributes/`, FR-062, FR-063, research
+ * R-17) — a library asset embedded in a product's Page Builder content
+ * attribute. The category-content idiom over `product_content_values`: one
+ * statement per batch, every string value of each document walked once
+ * (`strict $.**`). The hit names the **product**, so the "in use by" dialog
+ * points at the product whose content holds it. A soft-deleted product's
+ * content is unreachable (owner ruling OR-6), so it holds nothing in use.
+ */
+function productContentDescriptor(
+  emFactory: () => EntityManager,
+  attributeRead: CatalogAssetReferenceAttributeKeys | undefined,
+): AssetReferenceDescriptor {
+  return {
+    ownerModuleId: 'catalog',
+    async findReferences(assetIds: string[]): Promise<AssetReferenceHit[]> {
+      const asked = textArrayLiteral(assetIds);
+      if (asked === null) return [];
+      const rows = (await emFactory().execute(
+        `select distinct p.id::text as product_id, p.name as product_name,
+                pcv.product_attribute_id::text as attribute_id, v.value #>> '{}' as asset_id
+           from product_content_values pcv
+           join products p on p.id = pcv.product_id
+           cross join lateral jsonb_path_query(pcv.content, 'strict $.**') as v(value)
+          where p.deleted_at is null
+            and jsonb_typeof(v.value) = 'string'
+            and v.value #>> '{}' = any(?::text[])`,
+        [asked],
+      )) as Array<{
+        product_id: string;
+        product_name: Record<string, string> | string;
+        attribute_id: string;
+        asset_id: string;
+      }>;
+      if (rows.length === 0) return [];
+      // The key lives on the definition, which is `custom_fields`' row: it is
+      // asked of the attribute read model, never joined here.
+      const keys = new Map((attributeRead ? await attributeRead.listAll() : []).map((a) => [a.id, a.key]));
+      return rows.map((r) => ({
+        assetId: r.asset_id,
+        kind: 'product_content',
+        entityId: r.product_id,
+        label: `Product "${pickName(r.product_name)}" — content "${keys.get(r.attribute_id) ?? r.attribute_id}"`,
       }));
     },
   };

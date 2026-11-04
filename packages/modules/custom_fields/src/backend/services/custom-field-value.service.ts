@@ -222,6 +222,10 @@ export function coerce(
       }
       return { value: [...(raw as string[])] };
     }
+    case 'page_builder':
+      // Feature 172 — a Page Builder document lives in its host's own storage
+      // and is never a value of the bag.
+      return { code: 'wrong_type', message: 'Page Builder content is not a field value.' };
     default:
       return { code: 'wrong_type', message: `Unsupported value type "${valueType}".` };
   }

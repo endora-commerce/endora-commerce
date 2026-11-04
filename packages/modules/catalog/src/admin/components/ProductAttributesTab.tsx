@@ -1,8 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import type { AdminProductContentList } from '@endora-commerce/contracts';
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Input, Label, Select, Checkbox, MultiSelect } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { AdminZone } from '@endora-commerce/admin-kit/zones';
+import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
+import { ProductContentCard, type ProductContentCardBlocker } from './ProductContentCard.js';
 
 /**
  * The locales this screen edits product copy in — the same list
@@ -36,7 +38,9 @@ type ValueType =
   | 'date'
   | 'multiselect'
   | 'price'
-  | 'select';
+  | 'select'
+  // Feature 172 — a Page Builder content attribute: a card, never an input.
+  | 'page_builder';
 
 interface SetAttribute {
   id: string;
@@ -70,18 +74,30 @@ export interface ProductAttributesTabProps {
    */
   productId?: string | null | undefined;
   attributeSetId: string;
+  /**
+   * Feature 172 — the attribute set the product is saved with. A content
+   * attribute is edited on its own screen against the saved set, so while the
+   * Details tab has chosen another one the card offers no editing.
+   */
+  savedAttributeSetId?: string | undefined;
   values: Record<string, unknown>;
   onChange: (key: string, value: unknown) => void;
 }
 
+/** Never called: the card only counts the editor's contributors (Z15). */
+const NO_EDIT = (): void => undefined;
+
 export function ProductAttributesTab({
   productId,
   attributeSetId,
+  savedAttributeSetId,
   values,
   onChange,
 }: ProductAttributesTabProps): ReactNode {
   const t = useTranslation('catalog');
   const [attributes, setAttributes] = useState<SetAttribute[]>([]);
+  // Feature 172 — the stored languages of each content attribute, by key.
+  const [contentByKey, setContentByKey] = useState<Record<string, AdminProductContentList['attributes'][number]>>({});
   const [optionsByAttr, setOptionsByAttr] = useState<Record<string, AttributeOption[]>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -118,6 +134,18 @@ export function ProductAttributesTab({
         );
         if (cancelled) return;
         setOptionsByAttr(Object.fromEntries(entries));
+
+        // Feature 172 — one read of the content summaries, only for a saved
+        // product whose set has a content attribute (research R-3).
+        if (productId && attrs.some((a) => a.valueType === 'page_builder')) {
+          const content = await apiClient.get<{ data: AdminProductContentList }>(
+            `/api/v1/admin/catalog/products/${productId}/content`,
+          );
+          if (cancelled) return;
+          setContentByKey(Object.fromEntries(content.data.attributes.map((a) => [a.key, a])));
+        } else {
+          setContentByKey({});
+        }
       } catch (err) {
         if (cancelled) return;
         setError(
@@ -132,7 +160,17 @@ export function ProductAttributesTab({
     return (): void => {
       cancelled = true;
     };
-  }, [attributeSetId, t]);
+  }, [attributeSetId, productId, t]);
+
+  // Z15 — whether anyone contributes the content editor, counted with the same
+  // zone the content screen mounts, so the card and the screen cannot disagree.
+  const contentEditors = useAdminZone('product.content.editor', {
+    productId: productId ?? '',
+    attributeKey: '',
+    language: LOCALES[0],
+    data: null,
+    onChange: NO_EDIT,
+  });
 
   if (!attributeSetId) {
     return <div className="b2b-help">{t('productEditor.attributes.noSet')}</div>;
@@ -157,20 +195,58 @@ export function ProductAttributesTab({
         {t('productEditor.attributes.help')}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        {attributes.map((attr) => (
-          <AttributeField
-            key={attr.id}
-            attr={attr}
-            options={optionsByAttr[attr.id] ?? []}
-            value={values[attr.key]}
-            onChange={(v): void => onChange(attr.key, v)}
-            noneLabel={t('productEditor.attributes.selectNone')}
-            productId={productId}
-          />
-        ))}
+        {attributes.map((attr) =>
+          attr.valueType === 'page_builder' ? (
+            <ProductContentCard
+              key={attr.id}
+              productId={productId}
+              attributeKey={attr.key}
+              label={pickLabel(attr.label, attr.key)}
+              languages={[
+                ...new Set<string>([
+                  ...LOCALES,
+                  ...(contentByKey[attr.key]?.languages ?? []).map((status) => status.language),
+                ]),
+              ]}
+              stored={contentByKey[attr.key]?.languages ?? []}
+              preferredLanguage={LOCALES[0]}
+              blocker={contentCardBlocker({
+                productId,
+                attributeSetId,
+                savedAttributeSetId,
+                editors: contentEditors.length,
+              })}
+            />
+          ) : (
+            <AttributeField
+              key={attr.id}
+              attr={attr}
+              options={optionsByAttr[attr.id] ?? []}
+              value={values[attr.key]}
+              onChange={(v): void => onChange(attr.key, v)}
+              noneLabel={t('productEditor.attributes.selectNone')}
+              productId={productId}
+            />
+          ),
+        )}
       </div>
     </div>
   );
+}
+
+/** Why a content card offers no editing, or `null` (contracts/admin-surfaces.md §4). */
+function contentCardBlocker(input: {
+  productId: string | null | undefined;
+  attributeSetId: string;
+  savedAttributeSetId: string | undefined;
+  editors: number;
+}): ProductContentCardBlocker {
+  if (!input.productId) return 'saveFirst';
+  if (input.savedAttributeSetId !== undefined && input.savedAttributeSetId !== input.attributeSetId) {
+    return 'saveSetFirst';
+  }
+  if (input.editors === 0) return 'noEditor';
+  return null;
 }
 
 function AttributeField({

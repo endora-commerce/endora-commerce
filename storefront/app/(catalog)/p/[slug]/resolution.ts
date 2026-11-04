@@ -60,7 +60,8 @@ export async function productIdForKey(key: string, ctx: RequestContext): Promise
  */
 export async function productById(productId: string, ctx: RequestContext): Promise<ProductDetail> {
   try {
-    return await getProductBySlug(productId, ctx);
+    // Feature 172 — the page's own read is the one that draws content attributes.
+    return await getProductBySlug(productId, ctx, { include: ['content'] });
   } catch (err) {
     if (err instanceof StorefrontApiError && (err.status === 404 || err.status === 410)) notFound();
     throw err;

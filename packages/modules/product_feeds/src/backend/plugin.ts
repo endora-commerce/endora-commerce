@@ -44,7 +44,10 @@ import { ItemFieldResolver } from './services/item-field-resolver.js';
 import type { ItemFieldResolverPort } from './services/item-field-resolver.interface.js';
 import { FeedTemplateService } from './services/feed-template.service.js';
 import { FeedTemplateIoService } from './services/feed-template-io.service.js';
-import type { ProductFieldDefinition } from './services/field-source-catalogue.js';
+import {
+  feedableProductFieldDefinitions,
+  type ProductFieldDefinition,
+} from './services/field-source-catalogue.js';
 import { ProductFeedService } from './services/product-feed.service.js';
 import { TemplatePreviewService } from './services/template-preview.service.js';
 import {
@@ -848,12 +851,15 @@ export function productFeedsModule(
    */
   const listProductFieldDefinitions = async (): Promise<ProductFieldDefinition[]> => {
     const definitions = await options.customFieldDefinitions.listForEntity('product');
-    return definitions.map(({ definition }) => ({
-      key: definition.key,
-      label: definition.labelDefault || definition.key,
-      description: null,
-      valueType: definition.valueType,
-    }));
+    // Feature 172 (FR-044) — a Page Builder content attribute is never a feed field.
+    return feedableProductFieldDefinitions(
+      definitions.map(({ definition }) => ({
+        key: definition.key,
+        label: definition.labelDefault || definition.key,
+        description: null,
+        valueType: definition.valueType,
+      })),
+    );
   };
   const listProductFieldKeys = async (): Promise<Set<string>> =>
     new Set((await listProductFieldDefinitions()).map((entry) => entry.key));

@@ -52,6 +52,7 @@ import {
   type CategoryEventBus,
 } from './services/category-admin.service.js';
 import { AttributeSetService } from './services/attribute-set.service.js';
+import { ProductContentService } from './services/product-content.service.js';
 import { GalleryService } from './services/gallery.service.js';
 import { AttachmentService } from './services/attachment.service.js';
 import { PackagingUnitService } from './services/packaging-unit.service.js';
@@ -150,6 +151,12 @@ export interface CatalogModuleOptions {
    * Optional: without it the page serves its derived metadata.
    */
   resolveSeoProductMeta?: ResolveSeoProductMeta;
+  /**
+   * Feature 172 (FR-051, research R-13) — whether the Page Builder's owner is
+   * effectively present; gates the product page's `contentAttributes`. Optional:
+   * without it the page carries no content.
+   */
+  isPageBuilderPresent?: () => boolean;
   /**
    * Feature 163 (T118c) — `seo`'s scopes of a product for the scope overview; answers
    * `[]` while `seo` is not effectively present. Optional: without it the overview lists
@@ -365,6 +372,8 @@ export function catalogModule(options: CatalogModuleOptions) {
       options.cursorSeal,
       // Feature 163 — the page's metadata through `seo`, presence-probed by the caller.
       options.resolveSeoProductMeta,
+      // Feature 172 — the product page's content, presence-probed by the caller.
+      options.isPageBuilderPresent,
     );
     // Feature 163 (FR-060, FR-061) — the completeness gate, composed into the
     // operator's admin services only (this file); the integration ports registered in
@@ -614,9 +623,18 @@ export function catalogModule(options: CatalogModuleOptions) {
       ? new UrlKeyService(options.emFactory, options.salesChannelMembership, options.commandBus)
       : undefined;
 
+    // Feature 172 — a product's Page Builder content attributes. Needs the
+    // Command Bus (every save is the audited `product.content.update`) and the
+    // attribute read model (which set members are content attributes).
+    const productContentService =
+      options.commandBus && attributeReadService
+        ? new ProductContentService(options.emFactory, options.commandBus, attributeReadService)
+        : undefined;
+
     await registerCatalogAdminRoutes(app, {
       adminService,
       categoryAdminService,
+      ...(productContentService ? { productContentService } : {}),
       attributeSetService,
       galleryService,
       attachmentService,

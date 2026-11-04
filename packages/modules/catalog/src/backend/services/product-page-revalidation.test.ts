@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StorefrontRevalidator } from '@endora-commerce/platform/http';
-import { ProductPageRevalidation, REVALIDATION_DEBOUNCE_MS, REVALIDATION_MAX_PENDING } from './product-page-revalidation.js';
+import {
+  PRODUCT_PAGE_CHANGE_EVENTS,
+  ProductPageRevalidation,
+  REVALIDATION_DEBOUNCE_MS,
+  REVALIDATION_MAX_PENDING,
+  productPageChangeHandler,
+} from './product-page-revalidation.js';
 
 /**
  * Feature 163 (T155 finding CACHE-1; security review M2, code review m1–m3) — after
@@ -200,5 +206,27 @@ describe('ProductPageRevalidation', () => {
     await settle(revalidation);
     expect(keysOf).not.toHaveBeenCalled();
     expect(revalidate).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Feature 172 (FR-035, research R-9) — a saved product content value drops the
+ * product's cached storefront pages, so the next load shows it. It does so on
+ * its own event, `product.content.updated.v1`, which nothing re-indexes on.
+ */
+describe('product page change subscriptions', () => {
+  it('include product.content.updated.v1 beside the availability events', () => {
+    expect([...PRODUCT_PAGE_CHANGE_EVENTS].sort()).toEqual(
+      ['product.archived.v1', 'product.content.updated.v1', 'product.updated.v1'].sort(),
+    );
+  });
+
+  it('hand the payload’s productId to productChanged', () => {
+    const productChanged = vi.fn();
+    const handler = productPageChangeHandler(() => ({ productChanged }));
+    handler({ productId: P1, attributeKey: 'buying_guide' });
+    handler({ attributeKey: 'no_product' });
+    handler(null);
+    expect(productChanged.mock.calls).toEqual([[P1]]);
   });
 });

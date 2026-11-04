@@ -7,7 +7,7 @@ import { PageBuilderRender } from './PageBuilderRender';
  * a document with neither; this is the same test on this side of the wire, so
  * an empty wrapper never reaches the page whichever backend answered.
  */
-function hasBlocks(content: unknown): content is Record<string, unknown> {
+export function hasBlocks(content: unknown): content is Record<string, unknown> {
   if (!content || typeof content !== 'object' || Array.isArray(content)) return false;
   const tree = content as Record<string, unknown>;
   if (Array.isArray(tree['content']) && tree['content'].length > 0) return true;

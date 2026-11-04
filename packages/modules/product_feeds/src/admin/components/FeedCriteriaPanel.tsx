@@ -37,6 +37,8 @@ interface AdminAttributeOption {
   key: string;
   label: Record<string, string>;
   labelDefault: string;
+  /** The API form of the attribute's value type. */
+  type?: string;
 }
 
 export interface FeedCriteriaPanelProps {
@@ -161,10 +163,14 @@ export function FeedCriteriaPanel(props: FeedCriteriaPanelProps): ReactNode {
 
   const attributeFields = useMemo<RuleAttributeField[]>(
     () =>
-      attributes.map((attribute) => ({
-        attributeKey: attribute.key,
-        label: localized(attribute.label, attribute.labelDefault || attribute.key),
-      })),
+      attributes
+        // Feature 172 (FR-044) — a Page Builder content attribute holds a
+        // document, which no selection rule can compare.
+        .filter((attribute) => attribute.type !== 'page_builder')
+        .map((attribute) => ({
+          attributeKey: attribute.key,
+          label: localized(attribute.label, attribute.labelDefault || attribute.key),
+        })),
     [attributes, localized],
   );
 

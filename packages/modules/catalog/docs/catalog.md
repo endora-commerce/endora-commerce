@@ -24,7 +24,7 @@ otherwise; every price names its currency either way. A malformed code is refuse
 | Verb + Path | Audience | Purpose |
 | --- | --- | --- |
 | `GET /api/v1/catalog/products` | storefront / API key | List/search/filter products in the active Sales Channel |
-| `GET /api/v1/catalog/products/:idOrSlug` | storefront | Product detail (no amount where the viewer's price display mode is *None*) |
+| `GET /api/v1/catalog/products/:idOrSlug` | storefront | Product detail (no amount where the viewer's price display mode is *None*); `?include=content` adds the product's Page Builder content ([Product content](./catalog/product-content.md)) |
 | `GET /api/v1/catalog/categories` | storefront | Nested category tree |
 | `GET /api/v1/catalog/categories/:id/content` | storefront | One category's page content, resolved to the caller's language |
 | `GET /api/v1/catalog/filters` | storefront | Filterable attributes for the active Sales Channel |
@@ -42,7 +42,8 @@ otherwise; every price names its currency either way. A malformed code is refuse
 | `GET /api/v1/admin/catalog/attributes/:idOrKey` | admin | Single attribute read |
 | `POST /api/v1/admin/catalog/attributes` | admin | Create attribute (accepts the new flags + inline `options[]` for select-style types) |
 | `PATCH /api/v1/admin/catalog/attributes/:key` | admin | Hot-toggle `isFilterable` / `isSearchable` / `isVariantAxis` / `isPromoRule` / `isPriceRule` / `isComparable` / `isVisibleOnProductPage` / `isRequired` / `filterPosition` (re-emits `attribute.updated.v1`) |
-| `DELETE /api/v1/admin/catalog/attributes/:idOrKey` | admin | Delete; refused with `409 attribute_in_use_by_set` while any Attribute Set still references it |
+| `GET /api/v1/admin/catalog/attributes/:idOrKey/usage` | admin | What deleting the attribute would meet — set memberships, product values, product content ([Attributes](./catalog/attributes.md#deleting-an-attribute)) |
+| `DELETE /api/v1/admin/catalog/attributes/:idOrKey` | admin | Delete an attribute of any type; refused with `409` while an Attribute Set contains it or a live product holds a value for it (on the product, per sales channel or on a variant) |
 | `GET /api/v1/admin/catalog/attributes/:idOrKey/options` | admin | List option-list rows for select/enum/multiselect attributes |
 | `POST /api/v1/admin/catalog/attributes/:idOrKey/options` | admin | Append an option |
 | `PATCH /api/v1/admin/catalog/attribute-options/:optionId` | admin | Patch label / labelDefault / isDefault / sortOrder (option `value` is immutable) |
@@ -54,6 +55,9 @@ otherwise; every price names its currency either way. A malformed code is refuse
 | `DELETE /api/v1/admin/catalog/categories/:id` | admin | Soft-delete; rejects with 409 if any active child still references the row |
 | `GET /api/v1/admin/catalog/categories/:id/content` | admin | The category's page content — one Page Builder document per language ([Category page content](./catalog/category-content.md)) |
 | `PUT /api/v1/admin/catalog/categories/:id/content` | admin | Replace the category's page content; `null` clears it |
+| `GET /api/v1/admin/catalog/products/:id/content` | admin | The product's content attributes with a per-language summary ([Product content](./catalog/product-content.md)) |
+| `GET /api/v1/admin/catalog/products/:id/content/:attributeKey` | admin | One content attribute's envelope — one Page Builder document per language |
+| `PUT /api/v1/admin/catalog/products/:id/content/:attributeKey` | admin | Replace one content attribute's envelope; `null` clears it |
 | `PUT /api/v1/catalog/products/by-sku/:sku` | API key | Idempotent upsert (PIM sync); an update is audited as `product.update` naming the key (`apiKeyId`) and is never checked for completeness |
 
 ## Product status and archiving
@@ -510,6 +514,9 @@ The catalog grew several capability surfaces, each with its own page:
 - [Composite Products](./catalog/composite-products.md) — `grouped`
   (fixed children), `bundle` (configurable slots), `virtual` (digital
   delivery)
+- [Product content](./catalog/product-content.md) — Page Builder documents
+  kept per product in content attributes and shown in the product page's
+  description tab
 
 Five product types are now supported: `simple`, `configurable`,
 `grouped`, `bundle`, `virtual`. `simple` and `configurable` are the

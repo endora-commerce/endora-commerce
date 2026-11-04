@@ -22,6 +22,11 @@ import {
   validateOptionList,
 } from '../services/attribute-option-validator.js';
 import type { CatalogAttributeOptionView } from '../services/catalog-attribute-read.service.js';
+import {
+  assertContentAttributeShape,
+  assertTypeChangeAllowed,
+} from '../services/content-attribute-rules.js';
+import { readAttributeUsage } from '../services/attribute-usage.js';
 
 /**
  * Catalog attribute + option Commands (feature 061, Principle XIII).
@@ -34,9 +39,10 @@ import type { CatalogAttributeOptionView } from '../services/catalog-attribute-r
  * writes exactly one audit row per operator action; the caller
  * (CatalogAdminService) publishes the CF cache invalidation post-commit.
  *
- * `attribute.updated.v1` keeps its legacy emission points: attribute create +
- * every attribute update — never option CRUD (reindex trigger contract,
- * research §R10).
+ * `attribute.updated.v1` is emitted on attribute create, every attribute
+ * update and — since feature 172 (research R-21) — attribute delete, with both
+ * flags `false` there, so `search` and `price_lists` drop the key from what they
+ * compute. Never on option CRUD (reindex trigger contract, research §R10).
  */
 
 /**
@@ -109,6 +115,9 @@ function toCatalogHttpError(err: unknown, keyForMessage?: string): never {
       case 'value_type_locked':
       case 'option_in_use':
         throw new HttpError(409, ERROR_CODES.VALIDATION_FAILED, err.message);
+      // Feature 172 — a value type the host does not offer: a malformed request.
+      case 'value_type_unsupported':
+        throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, err.message);
       default:
         throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, err.message);
     }
@@ -187,6 +196,28 @@ export function createAttributeCommand(
           `displayAsSlider is only valid for valueType="number" or "price"; got "${resolved.valueType}".`,
         );
       }
+      // Feature 172 (research R-6) — a Page Builder content attribute holds
+      // every capability off and is always language-scoped (FR-003, FR-004).
+      const languageScoped =
+        resolved.valueType === 'page_builder'
+          ? assertContentAttributeShape({
+              isSearchable: req.isSearchable,
+              isFilterable: req.isFilterable,
+              isVariantAxis: req.isVariantAxis,
+              // The type resolver drops the flag for a non-numeric type; the
+              // request is judged on what it asked for.
+              displayAsSlider: req.displayAsSlider ?? resolved.displayAsSlider,
+              isComparable: req.isComparable,
+              quickSearchable: req.quickSearchable,
+              isPromoRule: req.isPromoRule,
+              isPriceRule: req.isPriceRule,
+              massEditable: req.massEditable,
+              isRequired: req.isRequired,
+              isVisibleOnProductPage: req.isVisibleOnProductPage,
+              channelScoped: req.channelScoped,
+              languageScoped: req.languageScoped,
+            }).languageScoped
+          : (req.languageScoped ?? false);
       const labelDefault =
         req.labelDefault ??
         req.label['en-US'] ??
@@ -251,7 +282,7 @@ export function createAttributeCommand(
         filterPosition: req.filterPosition ?? 0,
         isVisibleOnProductPage: req.isVisibleOnProductPage ?? false,
         channelScoped: req.channelScoped ?? false,
-        languageScoped: req.languageScoped ?? false,
+        languageScoped,
         massEditable: req.massEditable ?? false,
         quickSearchable: req.quickSearchable ?? false,
       });
@@ -339,10 +370,12 @@ export function updateAttributeCommand(
         ext.displayAsSlider = resolved.displayAsSlider;
       } else if (req.displayAsSlider !== undefined) {
         // Same valueType-vs-displayAsSlider rule as create.
+        // A content attribute's refusal names the flag (feature 172, below).
         if (
           req.displayAsSlider &&
           currentLegacyType !== 'number' &&
-          currentLegacyType !== 'price'
+          currentLegacyType !== 'price' &&
+          currentLegacyType !== 'page_builder'
         ) {
           throw new HttpError(
             400,
@@ -351,6 +384,27 @@ export function updateAttributeCommand(
           );
         }
         ext.displayAsSlider = req.displayAsSlider;
+      }
+      // Feature 172 (research R-6) — the type never moves to or from
+      // `page_builder` (FR-005), and a content attribute is judged on its
+      // **effective** flags: the stored ones with this patch applied.
+      assertTypeChangeAllowed(currentLegacyType, newLegacyType);
+      if (newLegacyType === 'page_builder') {
+        assertContentAttributeShape({
+          isSearchable: ext.isSearchable,
+          isFilterable: ext.isFilterable,
+          isVariantAxis: ext.isVariantAxis,
+          displayAsSlider: req.displayAsSlider ?? ext.displayAsSlider,
+          isComparable: ext.isComparable,
+          quickSearchable: ext.quickSearchable,
+          isPromoRule: ext.isPromoRule,
+          isPriceRule: ext.isPriceRule,
+          massEditable: ext.massEditable,
+          isRequired: req.isRequired ?? def.required,
+          isVisibleOnProductPage: ext.isVisibleOnProductPage,
+          channelScoped: ext.channelScoped,
+          languageScoped: ext.languageScoped,
+        });
       }
       const triple = legacyToCfType(newLegacyType);
       ext.selectDisplay = triple.selectDisplay;
@@ -411,35 +465,35 @@ export function deleteAttributeCommand(
       if (!ext) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Attribute "${target.idOrKey}" not found.`);
       }
-      // `em.execute`, not `em.getConnection().execute`: a Command's `run` is
-      // inside `CommandBus.run`'s transaction, and a connection-level execute
-      // takes its own connection — so these reference guards read the state
-      // outside the very transaction whose write they are guarding (issue #200).
-      const setRefs = (await em
-        .execute<Array<{ attribute_set_id: string }>>(
-          `select attribute_set_id from attribute_set_attributes where custom_field_definition_id = ?`,
-          [target.definitionId],
-        )) as Array<{ attribute_set_id: string }>;
-      if (setRefs.length > 0) {
+      // Feature 172 (research R-21) — the guard reads the same usage the admin
+      // dialog shows (`GET …/attributes/:idOrKey/usage`), on this Command's
+      // EntityManager so it sees the state of the transaction it guards
+      // (issue #200).
+      const usage = await readAttributeUsage(em, target);
+      if (usage.attributeSetCount > 0) {
         throw new HttpError(
           409,
           ERROR_CODES.VALIDATION_FAILED,
-          `Attribute is still referenced by ${setRefs.length} attribute set(s); remove from sets first.`,
+          `Attribute is still referenced by ${usage.attributeSetCount} attribute set(s); remove from sets first.`,
         );
       }
-      const productRefs = (await em
-        .execute<Array<{ count: string }>>(
-          `select count(*)::text as count from products where attribute_values \\? ?`,
-          [target.key],
-        )) as Array<{ count: string }>;
-      const productCount = Number(productRefs[0]?.count ?? '0');
-      if (productCount > 0) {
+      // A baseline value, a per-channel override or a variant value on a
+      // product that is not soft-deleted. Operator data is never erased by side
+      // effect (feature 012 FR-006); a soft-deleted product no longer blocks.
+      if (usage.productValueCount > 0) {
         throw new HttpError(
           409,
           ERROR_CODES.VALIDATION_FAILED,
-          `Attribute is still referenced by ${productCount} product(s); clear values first.`,
+          `Attribute is still referenced by ${usage.productValueCount} product(s); clear values first.`,
         );
       }
+      // Page Builder content goes with its attribute (FR-007) — every row,
+      // a soft-deleted product's too; the FK cascade is the backstop. The audit
+      // row records how many, never a document.
+      const removedContent = (await em.execute(
+        `delete from product_content_values where product_attribute_id = ? returning id`,
+        [target.extensionId],
+      )) as Array<{ id: string }>;
       // Remove the extension FIRST (FK RESTRICT extension → definition), then
       // the definition (+ options) through the apply seam.
       em.remove(ext);
@@ -452,10 +506,24 @@ export function deleteAttributeCommand(
       await em.flush();
       return {
         result: undefined,
-        before: { key: target.key, valueType: target.legacyValueType },
+        before: {
+          key: target.key,
+          valueType: target.legacyValueType,
+          productContentCount: removedContent.length,
+        },
         after: null,
       };
     },
+    // Research R-21 — the key is now neither searchable nor filterable: `search`
+    // rebuilds its attribute settings and `price_lists` recomputes its surface.
+    event: () =>
+      attributeEvent({
+        extensionId: target.extensionId,
+        definitionId: target.definitionId,
+        key: target.key,
+        isSearchable: false,
+        isFilterable: false,
+      }),
   };
 }
 

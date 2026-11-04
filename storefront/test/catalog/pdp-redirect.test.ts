@@ -161,7 +161,8 @@ describe('productById (T155, B4)', () => {
     const product = { id: 'p-1' };
     catalogApi.getProductBySlug.mockResolvedValue(product);
     await expect(productById('p-1', ctx)).resolves.toBe(product);
-    expect(catalogApi.getProductBySlug).toHaveBeenCalledWith('p-1', ctx);
+    // Feature 172 — the page's own read asks for the content attributes too.
+    expect(catalogApi.getProductBySlug).toHaveBeenCalledWith('p-1', ctx, { include: ['content'] });
   });
 
   it.each([404, 410])('answers not-found for a %i (gone between the resolve and the read)', async (status) => {

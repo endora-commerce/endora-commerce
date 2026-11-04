@@ -447,7 +447,7 @@ ORDER_NOT_FOUND` out of it).
 - [x] T112 [WP-13] [US2] Close the replay (written by T131, extended by T138): delete `landed-work-packages.ts`, the interim branch of the comparison and the self-check's ledger clause, so every §6.1 row must equal its `after`; the replay then is, in full: migrated clone → boot → `down()` M5, M4, M3, M2 → raw-SQL `ORACLE_POPULATION` in the pre-170 shape → `up()` M2–M5 → replay `ORACLE_REQUESTS` in order (body `role` → `roleId` via the fixture's mapping) → assert **per row** on the whole `{ status, code }`: a row of `EXPECTED_DIFFERENCES` equals its `after`, every other row equals `PRE_UPGRADE_OUTCOMES` (never a status-only comparison, PR-5) → data assertions (FR-071; `P.owner` holds *Administrator*, PR-3) → second `up()` changes nothing (FR-072, FR-074, SC-002) — backend test — `backend/test/integration/organizations/roles-upgrade-replay.test.ts` (new), imports `backend/test/fixtures/organization-roles/{pre-upgrade-outcomes,expected-differences}.ts` — T111, T125 *(WP-13: the ledger, its branch and the self-check clause deleted; the replay green, 26 rows at `after`, 293 at `PRE_UPGRADE_OUTCOMES`; a mutation returning `before` reds exactly the 26)*
 - [x] T113 [WP-13] Fix whatever the replay reveals in the owning module (a separate commit per module, test first); neither a changed oracle row nor an edit of `EXPECTED_DIFFERENCES` is an allowed fix — a row of the table that does not reach its `after` goes to the owner — T112 *(WP-13: the replay revealed nothing. SC-004 revealed the cart answer's approval rule judging the buyer without `organizationRoleId`, so the port read the account and its MFA enrolments on every cart read and write (FR-080): fixed in `carts`, test first (`backend/test/contract/carts/cart-permission-reads.contract.test.ts`), with the harness's real-session actor made to carry the role as production's does. Placement likewise, after the lead's ruling: `CartPlacementApplyPort.awaitsApproval` takes the owner's optional `organizationRoleId` and `orders` passes the placer's for their own basket)*
 - [x] T114 [WP-13] SC-004: run the `backend/test/perf/carts/` harness on cart, checkout and placement on the previous release and on the branch; p95 within 5 %; record numbers in the MR (FR-080) — backend perf — T113 *(WP-13: new `backend/test/perf/carts/member-checkout.bench.ts` for a signed-in member beside the anonymous `cart-routes.bench.ts`; six alternating rounds per tree, numbers in the MR)*
-- [ ] T115 [WP-13] Verify; merge into the integration branch — T114
+- [x] T115 [WP-13] Verify; merge into the integration branch — T114
 
 ### Integration-branch upkeep
 
@@ -457,7 +457,7 @@ Owned by no work package: a derived fixture that Waves 1–3 moved without re-re
 
 ### Integration PR
 
-- [ ] T116 Open `feat/170-organization-roles` → `master`: complete suite locally (`pnpm --filter backend run test`, the one place it is required), `quickstart.md` walked §1–§8, every check of §8 pasted; no new changeset beyond the WPs' — T115
+- [x] T116 Open `feat/170-organization-roles` → `master`: complete suite locally (`pnpm --filter backend run test`, the one place it is required), `quickstart.md` walked §1–§8, every check of §8 pasted; no new changeset beyond the WPs' — T115 (done in #733 and #736; owner ruling 2026-11-04: quickstart §1–§6 are covered by the automated suites, with a manual pass on demo after the merge)
 
 ---
 

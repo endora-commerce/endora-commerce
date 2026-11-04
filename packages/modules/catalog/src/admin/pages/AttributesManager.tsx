@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useId, useMemo, useState, type FormEvent, type ReactNode } from 'react';
-import { Pencil } from 'lucide-react';
-import { getAttributeScope, isSystemAttributeKey } from '@endora-commerce/contracts';
+import { Pencil, Trash2 } from 'lucide-react';
+import { getAttributeScope, isSystemAttributeKey, type AdminAttributeUsage } from '@endora-commerce/contracts';
 import { ApiError, apiClient, useAuth } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { ModalDialog } from '@endora-commerce/admin-kit/components';
@@ -19,8 +19,17 @@ import { pickLocalized } from '../lib/scope-overview.js';
 // `multiselect` and `price`; 061 keeps the legacy `select` (dropdown
 // single-select, vs `enum` = pill). The presentation hint
 // `displayAsSlider` is honored only when valueType ∈ (number, price).
-const VALUE_TYPES = ['string', 'number', 'boolean', 'enum', 'select', 'multiselect', 'price'] as const;
+// Feature 172 adds `page_builder` — a Page Builder document per language,
+// authored on the product content screen and never an ordinary value.
+const VALUE_TYPES = ['string', 'number', 'boolean', 'enum', 'select', 'multiselect', 'price', 'page_builder'] as const;
 type ValueType = (typeof VALUE_TYPES)[number];
+
+/**
+ * Feature 172 (research R-6) — a content attribute holds every capability off
+ * and is always language-scoped; the server refuses anything else, so the form
+ * offers none of it.
+ */
+const isContentType = (valueType: ValueType): boolean => valueType === 'page_builder';
 
 /** Select-style types carry a list of options (backend `SELECT_STYLE_VALUE_TYPES`). */
 const isOptionType = (valueType: ValueType): boolean =>
@@ -116,6 +125,8 @@ export function AttributesManager(): ReactNode {
   const [narrowing, setNarrowing] = useState(false);
   const language = useContext(AppLanguageContext)?.language ?? 'en';
   const narrowingBodyId = useId();
+  // Feature 172 (OR-5) — the attribute whose Delete confirmation is open.
+  const [deleting, setDeleting] = useState<AdminAttribute | null>(null);
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -353,6 +364,18 @@ export function AttributesManager(): ReactNode {
         </ModalDialog>
       ) : null}
 
+      {deleting ? (
+        <DeleteAttributeDialog
+          attribute={deleting}
+          onClose={(): void => setDeleting(null)}
+          onDeleted={async (): Promise<void> => {
+            setDeleting(null);
+            if (editingId === deleting.id) setEditingId(null);
+            await refresh();
+          }}
+        />
+      ) : null}
+
       {editingAttr ? (
         <Card className="mb-4">
           <CardHeader>
@@ -438,15 +461,21 @@ export function AttributesManager(): ReactNode {
                         <code className="font-mono text-xs">{a.key}</code>
                       </TableCell>
                       <TableCell>{a.label['en-US'] ?? Object.values(a.label)[0] ?? ''}</TableCell>
-                      <TableCell>{a.valueType}</TableCell>
+                      <TableCell>
+                        {isContentType(a.valueType) ? t('attributes.type.pageBuilder') : a.valueType}
+                      </TableCell>
                       <TableCell className="text-muted-foreground">
                         {a.enumValues && a.enumValues.length ? a.enumValues.join(', ') : '—'}
                       </TableCell>
                       {FLAG_KEYS.map((key) => (
-                        <TableCell key={key}>
+                        <TableCell
+                          key={key}
+                          title={isContentType(a.valueType) ? t('attributes.pageBuilder.flagsLocked') : undefined}
+                        >
                           <Checkbox
                             checked={draft[key]}
                             aria-label={`${a.key}-${key}`}
+                            disabled={isContentType(a.valueType)}
                             onChange={(e): void => toggleFlag(a.id, key, e.target.checked)}
                           />
                         </TableCell>
@@ -463,6 +492,18 @@ export function AttributesManager(): ReactNode {
                           <Pencil />
                           {t('attributes.action.edit')}
                         </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="ml-2"
+                          onClick={(): void => {
+                            setDeleting(a);
+                            setInfo(null);
+                          }}
+                        >
+                          <Trash2 />
+                          {t('attributes.delete.action')}
+                        </Button>
                       </TableCell>
                     </TableRow>
                   );
@@ -473,6 +514,110 @@ export function AttributesManager(): ReactNode {
         </CardContent>
       </Card>
     </>
+  );
+}
+
+/**
+ * Feature 172 (FR-007 – FR-009, owner ruling OR-5, research R-21) — the Delete
+ * confirmation, for every attribute type. It reads what the delete would meet
+ * from `GET …/attributes/:idOrKey/usage`, the query the delete guard runs: a set
+ * membership or a product value disables confirm and says why, Page Builder
+ * content is counted because it goes with the attribute, and other modules'
+ * rules — which this module cannot count — are named in one fixed sentence.
+ */
+function DeleteAttributeDialog({
+  attribute,
+  onClose,
+  onDeleted,
+}: {
+  attribute: AdminAttribute;
+  onClose: () => void;
+  onDeleted: () => Promise<void>;
+}): ReactNode {
+  const t = useTranslation('catalog');
+  const language = useContext(AppLanguageContext)?.language ?? 'en';
+  const bodyId = useId();
+  const [usage, setUsage] = useState<AdminAttributeUsage | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const path = `/api/v1/admin/catalog/attributes/${attribute.key}`;
+
+  useEffect(() => {
+    let live = true;
+    apiClient
+      .get<{ data: AdminAttributeUsage }>(`${path}/usage`)
+      .then((res) => {
+        if (live) setUsage(res.data);
+      })
+      .catch((err: unknown) => {
+        if (live) setError(err instanceof ApiError ? err.envelope.error.message : t('attributes.delete.error'));
+      });
+    return (): void => {
+      live = false;
+    };
+  }, [path, t]);
+
+  const blocked = !usage || usage.attributeSetCount > 0 || usage.productValueCount > 0;
+
+  const confirm = async (): Promise<void> => {
+    if (blocked || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await apiClient.delete(path);
+      await onDeleted();
+    } catch (err) {
+      // A set membership or a value added since the dialog opened: the API's
+      // own message says which.
+      setError(err instanceof ApiError ? err.envelope.error.message : t('attributes.delete.error'));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <ModalDialog
+      title={t('attributes.delete.title', { attribute: pickLocalized(attribute.label, language) || attribute.key })}
+      onClose={onClose}
+      busy={busy}
+      aria-describedby={bodyId}
+      footer={
+        <>
+          <Button type="button" variant="outline" disabled={busy} onClick={onClose}>
+            {t('attributes.action.cancel')}
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={blocked || busy}
+            aria-busy={busy || undefined}
+            onClick={(): void => {
+              void confirm();
+            }}
+          >
+            {t('attributes.delete.confirm')}
+          </Button>
+        </>
+      }
+    >
+      <div id={bodyId} className="space-y-2 text-sm">
+        {error ? (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
+        {usage === null && !error ? <p className="text-muted-foreground">{t('attributes.loading')}</p> : null}
+        {usage && usage.attributeSetCount > 0 ? (
+          <p>{t('attributes.delete.inSets', { count: String(usage.attributeSetCount) })}</p>
+        ) : null}
+        {usage && usage.productValueCount > 0 ? (
+          <p>{t('attributes.delete.hasValues', { count: String(usage.productValueCount) })}</p>
+        ) : null}
+        {usage && usage.productContentCount > 0 ? (
+          <p>{t('attributes.delete.contentCount', { count: String(usage.productContentCount) })}</p>
+        ) : null}
+        <p className="text-muted-foreground">{t('attributes.delete.foreignRules')}</p>
+      </div>
+    </ModalDialog>
   );
 }
 
@@ -543,22 +688,25 @@ function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormPro
   const scopeEditable = showScope && !systemAttribute && canWrite;
   const scopeHelpId = useId();
 
+  const isContent = isContentType(valueType);
+  // A capability ticked before Page Builder content was chosen is hidden, so it
+  // is not sent either; the server keeps the scope (language-scoped) itself.
   const collect = (): AttributeFormValues => ({
     key,
     labelEn,
     labelPl,
     valueType,
     enumValues,
-    isSearchable,
-    isFilterable,
-    isVariantAxis,
-    displayAsSlider,
-    isComparable,
-    massEditable,
-    quickSearchable,
-    isPromoRule,
-    isPriceRule,
-    scope: scopeEditable ? { channelScoped, languageScoped } : null,
+    isSearchable: isContent ? false : isSearchable,
+    isFilterable: isContent ? false : isFilterable,
+    isVariantAxis: isContent ? false : isVariantAxis,
+    displayAsSlider: isContent ? false : displayAsSlider,
+    isComparable: isContent ? false : isComparable,
+    massEditable: isContent ? false : massEditable,
+    quickSearchable: isContent ? false : quickSearchable,
+    isPromoRule: isContent ? false : isPromoRule,
+    isPriceRule: isContent ? false : isPriceRule,
+    scope: scopeEditable && !isContent ? { channelScoped, languageScoped } : null,
   });
 
   const reset = (): void => {
@@ -615,7 +763,7 @@ function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormPro
           >
             {VALUE_TYPES.map((v) => (
               <option key={v} value={v}>
-                {v}
+                {isContentType(v) ? t('attributes.type.pageBuilder') : v}
               </option>
             ))}
           </Select>
@@ -668,44 +816,49 @@ function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormPro
           </label>
         </div>
       ) : null}
-      <div className="space-y-2">
-        <label className="flex items-center gap-2 text-sm">
-          <Checkbox checked={isSearchable} onChange={(e): void => setIsSearchable(e.target.checked)} />
-          {t('attributes.flag.searchable')}
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <Checkbox checked={isFilterable} onChange={(e): void => setIsFilterable(e.target.checked)} />
-          {t('attributes.flag.filterable')}
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <Checkbox checked={isVariantAxis} onChange={(e): void => setIsVariantAxis(e.target.checked)} />
-          {t('attributes.flag.variantAxis')}
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <Checkbox checked={isComparable} onChange={(e): void => setIsComparable(e.target.checked)} />
-          {t('attributes.flag.comparable')}
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <Checkbox checked={massEditable} onChange={(e): void => setMassEditable(e.target.checked)} />
-          {t('attributes.flag.massEditable')}
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <Checkbox
-            checked={quickSearchable}
-            onChange={(e): void => setQuickSearchable(e.target.checked)}
-          />
-          {t('attributes.column.quickSearchable')}
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <Checkbox checked={isPromoRule} onChange={(e): void => setIsPromoRule(e.target.checked)} />
-          {t('attributes.flag.promoRule')}
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <Checkbox checked={isPriceRule} onChange={(e): void => setIsPriceRule(e.target.checked)} />
-          {t('attributes.flag.priceRule')}
-        </label>
-      </div>
-      {showScope ? (
+      {isContent ? (
+        <p className="text-sm text-muted-foreground">{t('attributes.pageBuilder.languageNote')}</p>
+      ) : null}
+      {isContent ? null : (
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox checked={isSearchable} onChange={(e): void => setIsSearchable(e.target.checked)} />
+            {t('attributes.flag.searchable')}
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox checked={isFilterable} onChange={(e): void => setIsFilterable(e.target.checked)} />
+            {t('attributes.flag.filterable')}
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox checked={isVariantAxis} onChange={(e): void => setIsVariantAxis(e.target.checked)} />
+            {t('attributes.flag.variantAxis')}
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox checked={isComparable} onChange={(e): void => setIsComparable(e.target.checked)} />
+            {t('attributes.flag.comparable')}
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox checked={massEditable} onChange={(e): void => setMassEditable(e.target.checked)} />
+            {t('attributes.flag.massEditable')}
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox
+              checked={quickSearchable}
+              onChange={(e): void => setQuickSearchable(e.target.checked)}
+            />
+            {t('attributes.column.quickSearchable')}
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox checked={isPromoRule} onChange={(e): void => setIsPromoRule(e.target.checked)} />
+            {t('attributes.flag.promoRule')}
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox checked={isPriceRule} onChange={(e): void => setIsPriceRule(e.target.checked)} />
+            {t('attributes.flag.priceRule')}
+          </label>
+        </div>
+      )}
+      {showScope && !isContent ? (
         <fieldset className="space-y-2" aria-describedby={scopeHelpId}>
           <legend className="text-sm font-medium">{t('attributes.scope.legend')}</legend>
           <label className="flex items-center gap-2 text-sm">

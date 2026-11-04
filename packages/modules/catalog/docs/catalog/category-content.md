@@ -29,6 +29,9 @@ The **Content** action appears only while a module that provides a Page Builder
 (the CMS module) is enabled and you have access to it. Content that is already
 stored is kept while that module is off.
 
+Unlike [product content](./product-content.md), which is hidden while the CMS
+module is off, category content keeps rendering on the storefront.
+
 ## On the storefront
 
 The category page renders the content between the category heading and the

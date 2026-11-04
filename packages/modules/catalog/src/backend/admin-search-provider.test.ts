@@ -137,3 +137,24 @@ describe('catalog admin search providers — mapping', () => {
     });
   });
 });
+
+/**
+ * Feature 172 (`specs/172-product-content-attributes/`, FR-045, research
+ * R-15) — the admin product search matches SKU, name, slug and quick-search
+ * attribute values, and never a product's Page Builder content: the content
+ * lives in its own table, which the search's query does not read, and a
+ * content attribute cannot be quick-searchable (research R-6).
+ */
+describe('admin product search — no Page Builder content (feature 172)', () => {
+  it('offers no content field, and its query reads no content table', () => {
+    const product = createProductAdminSearchProvider({
+      search: async () => ({ rows: [], hasMore: false }),
+      translate: async (key) => key,
+    });
+    expect(product.fields.map((f) => f.code)).not.toContain('content');
+    const source = readFileSync(new URL('./services/catalog-admin-search.service.ts', import.meta.url), 'utf8');
+    expect(source).not.toMatch(/product_content_values|ProductContentValue|page_builder/);
+    // Quick-search attributes are chosen by the flag a content attribute cannot carry.
+    expect(source).toMatch(/listByFlag\('quickSearchable'\)/);
+  });
+});

@@ -188,6 +188,9 @@ export function ProductEditor(): ReactNode {
   // Feature 002 (T034) — Attribute Set selector
   const [attributeSets, setAttributeSets] = useState<AdminAttributeSet[]>([]);
   const [attributeSetId, setAttributeSetId] = useState<string>('');
+  // Feature 172 — the set the product is saved with: content attributes are
+  // edited on their own screen against it, not against an unsaved choice.
+  const [savedAttributeSetId, setSavedAttributeSetId] = useState<string | undefined>(undefined);
   // Editable attribute values keyed by attribute `key` (Attributes tab).
   const [attrValues, setAttrValues] = useState<Record<string, unknown>>({});
   // Feature 163 (FR-023) — the global publication window, as `datetime-local`
@@ -290,6 +293,7 @@ export function ProductEditor(): ReactNode {
         setDescription(loadedDescription);
         setAttrValues(p.attributeValues ?? {});
         setAttributeSetId(p.attributeSetId);
+        setSavedAttributeSetId(p.attributeSetId);
         setCategoryIds(p.categoryIds ?? []);
         // Feature 163 — the global window is read from the scopes answer (the
         // product answer does not carry it). A failed read leaves the fields
@@ -1053,6 +1057,7 @@ export function ProductEditor(): ReactNode {
             <ProductAttributesTab
               productId={id}
               attributeSetId={attributeSetId}
+              savedAttributeSetId={savedAttributeSetId}
               values={attrValues}
               onChange={handleAttrChange}
             />
