@@ -2984,6 +2984,7 @@ function customerResolver(
   customerAccountId: string;
   organizationId: string;
   impersonatorAdminUserId?: string | null;
+  organizationRoleId?: string | null;
 } {
   refuseAnonymousAsComposed(request, options);
   if (request.testActor?.kind !== 'customer') {
@@ -3000,6 +3001,8 @@ function customerResolver(
     customerAccountId: request.testActor.customerAccountId,
     organizationId: request.testActor.organizationId ?? TEST_ORGANIZATION_ID,
     impersonatorAdminUserId: request.testActor.impersonatorAdminUserId,
+    // As production's `customerContextResolver` (feature 170, R-15).
+    organizationRoleId: request.testActor.organizationRoleId ?? null,
   };
 }
 
