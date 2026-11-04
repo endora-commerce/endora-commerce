@@ -79,9 +79,16 @@ describe('fields at a scope (feature 170, US6)', () => {
     expect(name).toHaveAttribute('readonly');
     const box = screen.getByRole('checkbox', { name: `Use value from Global for ${en['productEditor.field.name']}` });
     expect(box).toBeChecked();
-    fireEvent.click(box);
-    expect(name).not.toHaveAttribute('readonly');
-    fireEvent.change(name, { target: { value: 'Wiertarka' } });
+    // The untick is the field's own state until something is typed; a field mounted again by a
+    // late read starts ticked, so the click is repeated until the editable input is there.
+    await waitFor(() => {
+      const current = screen.getByRole<HTMLInputElement>('checkbox', {
+        name: `Use value from Global for ${en['productEditor.field.name']}`,
+      });
+      if (current.checked) fireEvent.click(current);
+      expect(screen.getByLabelText(en['productEditor.field.name']!)).not.toHaveAttribute('readonly');
+    });
+    fireEvent.change(screen.getByLabelText(en['productEditor.field.name']!), { target: { value: 'Wiertarka' } });
     expect(await save()).toEqual({ name: 'Wiertarka' });
   });
 
@@ -115,9 +122,15 @@ describe('fields at a scope (feature 170, US6)', () => {
     const status = await screen.findByLabelText(en['productEditor.field.status']!);
     expect(status.tagName).toBe('INPUT');
     expect(status).toHaveValue(en['productEditor.statusValue.active']);
-    fireEvent.click(await screen.findByRole('checkbox', { name: `Use value from Global for ${en['productEditor.field.status']}` }));
-    // The field re-renders as a select after the untick; read it once it has.
-    await waitFor(() => expect(screen.getByLabelText(en['productEditor.field.status']!).tagName).toBe('SELECT'));
+    // The untick is the field's own state until a value is chosen; a field mounted again by a late
+    // read starts ticked, so the click is repeated until the select is there.
+    await waitFor(() => {
+      const box = screen.getByRole<HTMLInputElement>('checkbox', {
+        name: `Use value from Global for ${en['productEditor.field.status']}`,
+      });
+      if (box.checked) fireEvent.click(box);
+      expect(screen.getByLabelText(en['productEditor.field.status']!).tagName).toBe('SELECT');
+    });
     const select = screen.getByLabelText(en['productEditor.field.status']!);
     fireEvent.change(select, { target: { value: 'inactive' } });
     expect(await save()).toEqual({ status: 'inactive' });

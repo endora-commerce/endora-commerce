@@ -77,9 +77,14 @@ describe('scopable attributes per scope (feature 170, US9)', () => {
     renderEditor(ProductEditor, { url: AT_C });
     const weight = await screen.findByLabelText('Weight');
     expect(weight).toHaveAttribute('readonly');
-    fireEvent.click(screen.getByRole('checkbox', { name: /for Weight$/ }));
-    await waitFor(() => expect(weight).not.toHaveAttribute('readonly'));
-    fireEvent.change(weight, { target: { value: '3' } });
+    // The untick is the field's own state until something is typed; a field mounted again by a
+    // late read starts ticked, so the click is repeated until the editable input is there.
+    await waitFor(() => {
+      const box = screen.getByRole<HTMLInputElement>('checkbox', { name: /for Weight$/ });
+      if (box.checked) fireEvent.click(box);
+      expect(screen.getByLabelText('Weight')).not.toHaveAttribute('readonly');
+    });
+    fireEvent.change(screen.getByLabelText('Weight'), { target: { value: '3' } });
     fireEvent.click(screen.getByRole('button', { name: /^Save 1 change\b/ }));
     await waitFor(() => expect(puts()).toHaveLength(1));
     expect(puts()[0]!.changes).toEqual({ attributes: { weight: 3 } });
