@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { SalesChannel, Setting, SettingValue } from '@endora-commerce/platform/kernel';
+import { Setting } from '@endora-commerce/platform/kernel';
 import { CRM_ADMIN, CRM_API } from './seed-crm.js';
 import type { BackendServerHandle } from './test-server.js';
 
@@ -63,9 +63,12 @@ export function uploadCrmAttachment(
 }
 
 /**
- * Give a media-library setting a value for the duration of a test, as a
- * per-channel override — the manifest's default stays untouched. Returns the
- * function that puts back what was there.
+ * Give a media-library setting a value for the duration of a test, the way the
+ * Admin Settings screen stores it: as the platform-wide `global_value`, with the
+ * settings cache dropped so the next read sees it. A per-channel row would be
+ * ignored — every `assets.*` setting is read platform-wide (issue #333). The
+ * manifest's default stays untouched. Returns the function that puts back what
+ * was there.
  */
 export async function overrideAssetSetting(
   h: BackendServerHandle,
@@ -74,26 +77,16 @@ export async function overrideAssetSetting(
 ): Promise<() => Promise<void>> {
   const em = h.em();
   const setting = await em.findOneOrFail(Setting, { code });
-  const existing = await em.findOne(SettingValue, { setting });
-  const had = existing !== null;
-  const before: unknown = existing?.value;
-  if (existing) {
-    existing.value = value;
-  } else {
-    const channel = await em.findOneOrFail(SalesChannel, { code: 'default' });
-    em.create(SettingValue, { setting, salesChannel: channel, value });
-  }
+  const before: unknown = setting.globalValue ?? null;
+  setting.globalValue = value;
   await em.flush();
+  await h.settings.cache.invalidate(code);
   return async () => {
     const restore = h.em();
-    const row = await restore.findOne(SettingValue, { setting: { code } });
-    if (!row) return;
-    if (had) {
-      row.value = before;
-      await restore.flush();
-    } else {
-      await restore.removeAndFlush(row);
-    }
+    const row = await restore.findOneOrFail(Setting, { code });
+    row.globalValue = before;
+    await restore.flush();
+    await h.settings.cache.invalidate(code);
   };
 }
 

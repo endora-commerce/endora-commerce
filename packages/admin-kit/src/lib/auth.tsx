@@ -57,6 +57,10 @@ export interface AdminMe {
     status: 'active' | 'inactive';
     /** Feature 019 — Admin UI preferred language; null = no preference saved (default to English). */
     preferredLanguage: 'en' | 'pl' | null;
+    /** Feature 171 (US6) — the author avatar, a library asset id. */
+    avatarAssetId?: string | null;
+    /** Feature 171 (US6) — the author biography per language. */
+    bio?: Record<string, string> | null;
   };
   role: {
     id: string;

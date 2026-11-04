@@ -22,6 +22,7 @@ export const content = defineMessages({
     /** `{tag}` is the tag's name. */
     'content.blog.tagTitle': '#{tag} — Blog',
     'content.blog.latestPosts': 'Latest posts',
+    'content.blog.author': 'Author',
     'content.blog.noPosts': 'No posts yet — check back soon.',
     'content.blog.categories': 'Categories',
     'content.blog.category.empty': 'No posts in this category yet.',
@@ -78,6 +79,7 @@ export const content = defineMessages({
     'content.blog.categoryTitle': '{category} — Blog',
     'content.blog.tagTitle': '#{tag} — Blog',
     'content.blog.latestPosts': 'Najnowsze wpisy',
+    'content.blog.author': 'Autor',
     'content.blog.noPosts': 'Nie ma jeszcze wpisów — zajrzyj tu wkrótce.',
     'content.blog.categories': 'Kategorie',
     'content.blog.category.empty': 'W tej kategorii nie ma jeszcze wpisów.',

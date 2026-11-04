@@ -12,12 +12,10 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { overrideAssetSetting } from '../../helpers/crm-attachment-upload.js';
 
-import { Setting } from '@endora-commerce/platform/kernel';
 
-import { SettingValue } from '@endora-commerce/platform/kernel';
 
-import { SalesChannel } from '@endora-commerce/platform/kernel';
 
 
 /**
@@ -60,21 +58,17 @@ function buildMultipart(parts: Array<{ name: string; filename?: string; mime?: s
 describe('admin asset mutate (T036)', () => {
   let h: BackendServerHandle;
   let baseDir: string;
+  let restoreBaseDir: (() => Promise<void>) | undefined;
 
   beforeAll(async () => {
     h = await setupBackendServer();
     baseDir = await mkdtemp(join(tmpdir(), 'assets-library-mutate-'));
-    const em = h.em();
-    const setting = await em.findOneOrFail(Setting, { code: 'assets.local.base_dir' });
-    const channel = await em.findOneOrFail(SalesChannel, { code: 'default' });
-    const existing = await em.findOne(SettingValue, { setting });
-    if (existing) existing.value = baseDir;
-    else em.create(SettingValue, { setting, salesChannel: channel, value: baseDir });
-    await em.flush();
+    restoreBaseDir = await overrideAssetSetting(h, 'assets.local.base_dir', baseDir);
     h.assetsLibrary.adapters.invalidate();
   });
 
   afterAll(async () => {
+    await restoreBaseDir?.();
     await teardownBackendServer(h);
     await rm(baseDir, { recursive: true, force: true });
   });

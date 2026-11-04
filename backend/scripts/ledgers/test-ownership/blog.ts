@@ -43,7 +43,6 @@ const SCHEDULED: TestOwnershipLedgerEntry = {
  * scheduling an impossible move is worse than no entry.
  */
 export const entries: Readonly<Record<string, TestOwnershipLedgerEntry>> = {
-  'backend/test/integration/blog/url-prefix-validation.test.ts': SCHEDULED,
   'backend/test/unit/blog/blog-cache.test.ts': SCHEDULED,
   'backend/test/unit/blog/settings-resolver.test.ts': SCHEDULED,
   'backend/test/unit/kernel/lazy-registration.test.ts': SCHEDULED,

@@ -17,6 +17,10 @@ import type {
   PatchBlogTagRequest,
   PutBlogCategoryDescriptionRequest,
   PutBlogPostContentRequest,
+  BlogUrlKeyEntityKind,
+  BlogUrlKeysResponse,
+  BlogUrlPrefixRow,
+  PutBlogUrlKeysRequest,
 } from '@endora-commerce/contracts';
 
 export type {
@@ -37,6 +41,10 @@ export type {
   PatchBlogTagRequest,
   PutBlogCategoryDescriptionRequest,
   PutBlogPostContentRequest,
+  BlogUrlKeyEntityKind,
+  BlogUrlKeysResponse,
+  BlogUrlPrefixRow,
+  PutBlogUrlKeysRequest,
 };
 
 export interface ListBlogPostsQuery {
@@ -325,5 +333,38 @@ export const blogClient = {
       `/api/v1/admin/blog/tags/${encodeURIComponent(id)}/inbound-references`,
     );
     return out.data;
+  },
+
+  // ── Feature 171 — URL keys and the blog's addresses ─────────────────
+
+  async getUrlKeys(kind: BlogUrlKeyEntityKind, id: string): Promise<BlogUrlKeysResponse> {
+    const out = await apiClient.get<{ data: BlogUrlKeysResponse }>(
+      `/api/v1/admin/blog/${kind === 'post' ? 'posts' : 'categories'}/${encodeURIComponent(id)}/url-keys`,
+    );
+    return out.data;
+  },
+
+  async putUrlKeys(kind: BlogUrlKeyEntityKind, id: string, body: PutBlogUrlKeysRequest): Promise<BlogUrlKeysResponse> {
+    const out = await apiClient.put<{ data: BlogUrlKeysResponse }>(
+      `/api/v1/admin/blog/${kind === 'post' ? 'posts' : 'categories'}/${encodeURIComponent(id)}/url-keys`,
+      body,
+    );
+    return out.data;
+  },
+
+  async deleteUrlRedirect(kind: BlogUrlKeyEntityKind, id: string, redirectId: string): Promise<void> {
+    await apiClient.delete(
+      `/api/v1/admin/blog/${kind === 'post' ? 'posts' : 'categories'}/${encodeURIComponent(id)}/url-redirects/${encodeURIComponent(redirectId)}`,
+    );
+  },
+
+  async listUrlPrefixes(salesChannelId?: string): Promise<BlogUrlPrefixRow[]> {
+    const query = salesChannelId ? `?salesChannelId=${encodeURIComponent(salesChannelId)}` : '';
+    const out = await apiClient.get<{ data: BlogUrlPrefixRow[] }>(`/api/v1/admin/blog/addresses${query}`);
+    return out.data;
+  },
+
+  async forgetUrlPrefix(id: string): Promise<void> {
+    await apiClient.delete(`/api/v1/admin/blog/addresses/${encodeURIComponent(id)}`);
   },
 };

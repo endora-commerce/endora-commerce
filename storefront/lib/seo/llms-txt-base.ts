@@ -90,6 +90,11 @@ export interface LlmsTxtBaseInput {
    * ignored, so this can remove a line and can never add one.
    */
   readonly unservedPaths: readonly string[];
+  /**
+   * Feature 171 — a listed page served under another address than its route: the
+   * blog under the operator's prefix. Linked there, under the page's own title.
+   */
+  readonly servedAt?: Readonly<Record<string, string>> | undefined;
 }
 
 /**
@@ -119,7 +124,7 @@ function headingText(shopName: string): string {
 }
 
 /** The generated part, ending in exactly one line break. */
-export function renderLlmsTxtBase({ shopName, unservedPaths }: LlmsTxtBaseInput): string {
+export function renderLlmsTxtBase({ shopName, unservedPaths, servedAt }: LlmsTxtBaseInput): string {
   const pages = SITEMAP_STATIC_ROUTES.filter(
     (path) => !(Object.hasOwn(LLMS_TXT_CONDITIONAL_PAGES, path) && unservedPaths.includes(path)),
   );
@@ -128,7 +133,7 @@ export function renderLlmsTxtBase({ shopName, unservedPaths }: LlmsTxtBaseInput)
     '',
     '## Pages',
     '',
-    ...pages.map((path) => `- [${LLMS_TXT_PAGE_TITLES[path] ?? path}](${absoluteUrl(path)})`),
+    ...pages.map((path) => `- [${LLMS_TXT_PAGE_TITLES[path] ?? path}](${absoluteUrl(servedAt?.[path] ?? path)})`),
     '',
     '## Sitemap',
     '',

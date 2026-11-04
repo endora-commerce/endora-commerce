@@ -105,6 +105,8 @@ const admin = (id: string, overrides: Partial<AdminUserRecord> = {}): AdminUserR
   twoFactorEnabled: false,
   lastLoginAt: null,
   preferredLanguage: null,
+  avatarAssetId: null,
+  bio: null,
   createdAt: new Date(0),
   updatedAt: new Date(0),
   deletedAt: null,

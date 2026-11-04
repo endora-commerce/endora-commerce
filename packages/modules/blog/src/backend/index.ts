@@ -4,12 +4,21 @@ import type {
   AdminRolePort,
   AssetReferenceRegistryPort,
   AssetReadPort,
+  AdminUserReadPort,
   AssetsLibraryPort,
+  CmsPageReadPort,
+  CmsReservedSegmentRegistryPort,
   DictionaryValidator,
+  SettingWriteValidatorRegistryPort,
   SystemRoleCodePort,
   DictionaryReferenceRegistryPort,
 } from '@endora-commerce/contracts';
-import type { ModuleContext, RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { CommandBus } from '@endora-commerce/platform/commands';
+import type {
+  ModuleContext,
+  RequireAdminFactory,
+  SalesChannelResolutionPort,
+} from '@endora-commerce/platform/kernel';
 import {
   effectiveState,
   lazyPort,
@@ -29,6 +38,11 @@ import {
   type BlogStorefrontDeps,
 } from './services/blog-storefront-resolver.js';
 import { registerBlogAssetReferences } from './services/blog-asset-references.js';
+import { BlogUrlPrefixService } from './services/blog-url-prefix-service.js';
+import { BlogUrlKeyService } from './services/blog-url-keys.js';
+import { BlogAuthors } from './services/blog-authors.js';
+import { prefixFor } from './services/blog-storefront-resolver.js';
+import { BLOG_SETTING_CODES } from '../manifest.js';
 import { seedDefaultCategory } from './services/seed-default-category.js';
 import { seedBlogRoles } from './services/seed-roles.js';
 import { registerBlogAdminRoutes } from './routes.admin.js';
@@ -45,6 +59,9 @@ import { BlogPostRelatedProduct } from './entities/blog-post-related-product.ent
 import { BlogPostSalesChannel } from './entities/blog-post-sales-channel.entity.js';
 import { BlogPostTag } from './entities/blog-post-tag.entity.js';
 import { BlogTag } from './entities/blog-tag.entity.js';
+import { BlogUrlPrefix } from './entities/blog-url-prefix.entity.js';
+import { BlogUrlKey } from './entities/blog-url-key.entity.js';
+import { BlogUrlRedirect } from './entities/blog-url-redirect.entity.js';
 
 /**
  * The Blog module's backend entry point — feature 016, converted to feature
@@ -84,6 +101,13 @@ export interface BlogCradle {
   readonly assetReferenceRegistry: AssetReferenceRegistryPort;
   /** Owned by `dictionaries`: validates language-scope fields (feature 017). */
   readonly dictionaryValidator: DictionaryValidator | undefined;
+  /** Platform-owned: the audited write path (Constitution XIII). */
+  readonly commandBus: CommandBus;
+  /**
+   * Owned by `cms`: the first segments other modules serve, which a page slug may
+   * not take (feature 171). An ungated contribution registry.
+   */
+  readonly cmsReservedSegmentRegistry: CmsReservedSegmentRegistryPort;
   /** Cross-module storefront ports (asset URL signing, product cards). */
   readonly blogStorefrontDeps: BlogStorefrontDeps | undefined;
 
@@ -93,6 +117,9 @@ export interface BlogCradle {
   readonly blogCategoryService: BlogCategoryService;
   readonly blogTagService: BlogTagService;
   readonly blogStorefrontResolver: BlogStorefrontResolver;
+  readonly blogUrlPrefixService: BlogUrlPrefixService;
+  readonly blogUrlKeyService: BlogUrlKeyService;
+  readonly blogAuthors: BlogAuthors;
 }
 
 /**
@@ -136,15 +163,27 @@ export function registerModule(ctx: ModuleContext): void {
       )
       .singleton(),
 
+    // Feature 171 (US7) — a post's author, an administrator read through the port.
+    blogAuthors: ctx
+      .asFunction(
+        () =>
+          new BlogAuthors(
+            lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
+            publicAssetUrlResolver(lazyPort<AssetsLibraryPort>(ctx, 'assetsLibraryPort')),
+          ),
+      )
+      .singleton(),
+
     blogPostService: ctx
       .asFunction(
-        ({ emFactory, blogCacheService }: BlogCradle) =>
+        ({ emFactory, blogCacheService, blogAuthors }: BlogCradle) =>
           new BlogPostService(
             emFactory,
             blogCacheService,
             lazyPort<DictionaryValidator>(ctx, 'dictionaryValidator'),
             // Feature 166 (FR-006) — a main image the caller may not see is not linked.
             lazyPort<AssetReadPort>(ctx, 'assetReadPort'),
+            blogAuthors,
           ),
       )
       .singleton(),
@@ -171,7 +210,7 @@ export function registerModule(ctx: ModuleContext): void {
 
     blogStorefrontResolver: ctx
       .asFunction(
-        ({ emFactory, blogSettingsResolver, blogStorefrontDeps, blogCacheService }: BlogCradle) =>
+        ({ emFactory, blogSettingsResolver, blogStorefrontDeps, blogCacheService, blogAuthors }: BlogCradle) =>
           new BlogStorefrontResolver(
             emFactory,
             blogSettingsResolver,
@@ -179,36 +218,114 @@ export function registerModule(ctx: ModuleContext): void {
               resolveAssetUrl: publicAssetUrlResolver(
                 lazyPort<AssetsLibraryPort>(ctx, 'assetsLibraryPort'),
               ),
+              // Feature 171 — a former URL key redirects only while `seo` is present.
+              seoPresent: () => effectiveState.isPresent('seo'),
+              authors: blogAuthors,
               ...(blogStorefrontDeps ?? {}),
             },
             blogCacheService,
           ),
       )
       .singleton(),
+
+    // Feature 171 (US4) — per-language URL keys of posts and categories.
+    blogUrlKeyService: ctx
+      .asFunction(
+        ({ emFactory, commandBus, blogSettingsResolver, blogCacheService }: BlogCradle) =>
+          new BlogUrlKeyService({
+            emFactory,
+            commandBus,
+            seoPresent: () => effectiveState.isPresent('seo'),
+            channelById: (id) => lazyPort<SalesChannelResolutionPort>(ctx, 'salesChannelResolutionPort').getById(id),
+            prefixFor: async (salesChannelId, languageCode) =>
+              prefixFor(await blogSettingsResolver.getResolved(salesChannelId), languageCode),
+            invalidate: async () => {
+              await blogCacheService?.invalidateAll();
+            },
+          }),
+      )
+      .singleton(),
+
+    // Feature 171 — the URL prefix's write rule, history and storefront routing.
+    blogUrlPrefixService: ctx
+      .asFunction(
+        ({ emFactory, blogSettingsResolver, commandBus }: BlogCradle) =>
+          new BlogUrlPrefixService({
+            emFactory,
+            settingsResolver: blogSettingsResolver,
+            settings: lazyPort<SettingsServicePort>(ctx, 'settingsReadPort'),
+            listChannels: () => lazyPort<SalesChannelResolutionPort>(ctx, 'salesChannelResolutionPort').listAll(),
+            // A switched-off `cms` serves no page, so no page holds an address.
+            cmsFirstSegments: async (salesChannelId) =>
+              effectiveState.isPresent('cms')
+                ? lazyPort<CmsPageReadPort>(ctx, 'cmsPageReadPort').firstSegmentsInChannel(salesChannelId)
+                : [],
+            commandBus,
+            seoPresent: () => effectiveState.isPresent('seo'),
+          }),
+      )
+      .singleton(),
   });
 
   ctx.routes(async (app) => {
-    const { blogPostService, blogCategoryService, blogTagService, requireAdmin } =
+    const { blogPostService, blogCategoryService, blogTagService, blogUrlPrefixService, blogUrlKeyService, blogAuthors, requireAdmin } =
       ctx.cradle<BlogCradle>();
     await registerBlogAdminRoutes(app, {
       postService: blogPostService,
       categoryService: blogCategoryService,
       tagService: blogTagService,
+      urlPrefixService: blogUrlPrefixService,
+      urlKeyService: blogUrlKeyService,
+      authors: blogAuthors,
       ...(requireAdmin ? { requireAdmin } : {}),
     });
   });
 
   ctx.routes(async (app) => {
-    const { blogStorefrontResolver } = ctx.cradle<BlogCradle>();
-    await registerBlogStorefrontRoutes(app, { storefrontResolver: blogStorefrontResolver });
+    const { blogStorefrontResolver, blogUrlPrefixService } = ctx.cradle<BlogCradle>();
+    await registerBlogStorefrontRoutes(app, {
+      storefrontResolver: blogStorefrontResolver,
+      urlPrefixService: blogUrlPrefixService,
+    });
   });
 
   // R9 — a `blog.*` settings write wipes the storefront blog cache, so the next
   // read picks up the new value.
+  //
+  // Feature 171 — a prefix write also records the prefix the channels serve now,
+  // so the one they served before becomes a former address that redirects.
   ctx.subscribe('settings.value_changed', async (payload) => {
-    const code = (payload as { settingCode?: string } | null)?.settingCode;
+    const event = payload as { settingCode?: string; salesChannelIds?: string[]; globalValueUpdated?: boolean } | null;
+    const code = event?.settingCode;
     if (code === undefined || !code.startsWith('blog.')) return;
-    await ctx.cradle<BlogCradle>().blogCacheService?.invalidateAll();
+    const { blogCacheService, blogUrlPrefixService } = ctx.cradle<BlogCradle>();
+    const prefixCodes: string[] = [BLOG_SETTING_CODES.URL_PREFIX, BLOG_SETTING_CODES.URL_PREFIX_BY_LANGUAGE];
+    if (prefixCodes.includes(code) && effectiveState.isPresent('blog')) {
+      if (event?.globalValueUpdated) await blogUrlPrefixService.syncAllChannels();
+      else await blogUrlPrefixService.syncChannels(event?.salesChannelIds ?? []);
+    }
+    await blogCacheService?.invalidateAll();
+  });
+
+  /**
+   * Feature 171 — two **contribution** hooks, unprobed (D-68): the prefix's write
+   * rule into `settings`' validator registry, and the blog's addresses into `cms`'
+   * reserved-segment registry. Both registries skip a contributor whose module is
+   * off, so a switched-off blog neither judges the setting nor claims a segment.
+   */
+  ctx.onBoot(() => {
+    // The service is resolved per call, not here: a contribution hook reaches the
+    // two registries and nothing else.
+    const prefixes = (): BlogUrlPrefixService => ctx.cradle<BlogCradle>().blogUrlPrefixService;
+    lazyPort<SettingWriteValidatorRegistryPort>(ctx, 'settingWriteValidatorRegistry').register({
+      contributorModuleId: 'blog',
+      codes: [BLOG_SETTING_CODES.URL_PREFIX, BLOG_SETTING_CODES.URL_PREFIX_BY_LANGUAGE],
+      validate: (input) => prefixes().validator().validate(input),
+    });
+    ctx.cradle<BlogCradle>().cmsReservedSegmentRegistry.register({
+      contributorModuleId: 'blog',
+      segmentsFor: (salesChannelId) => prefixes().claimedSegments(salesChannelId),
+    });
   });
 
   /**
@@ -329,4 +446,7 @@ export const entities = [
   BlogPostSalesChannel,
   BlogPostTag,
   BlogTag,
+  BlogUrlPrefix,
+  BlogUrlKey,
+  BlogUrlRedirect,
 ];

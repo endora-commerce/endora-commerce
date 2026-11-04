@@ -42,33 +42,49 @@ import type { UnservedPages } from './llms-txt';
 export const BLOG_INDEX_PATH = '/api/v1/blog/by-channel';
 
 /**
+ * Where the blog index is served, from its `200` body: under the operator's prefix
+ * (feature 171), or at the storefront's own `/blog` when the body names none.
+ * `null` for a body that is not one.
+ */
+export function blogServedAt(body: unknown): string | null {
+  if (typeof body !== 'object' || body === null) return null;
+  const prefix = ((body as { data?: { urlPrefix?: unknown } }).data ?? {}).urlPrefix;
+  return typeof prefix === 'string' && /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(prefix) ? `/${prefix}` : '/blog';
+}
+
+/**
  * One cache per condition, keyed by the name `LLMS_TXT_CONDITIONAL_PAGES`
- * gives it. A `200` is "served"; what the body holds is the page's business.
+ * gives it. A `200` is "served", and its value is the address the page is
+ * served at.
  */
 const CONDITIONS: Readonly<
   Record<
     (typeof LLMS_TXT_CONDITIONAL_PAGES)[LlmsTxtConditionalPath],
-    (channelCode: string | undefined) => Promise<CrawlerRead<true>>
+    (channelCode: string | undefined) => Promise<CrawlerRead<string>>
   >
 > = {
-  blog: createChannelCache<true>(PROCESS_READER_DEPS, {
+  blog: createChannelCache<string>(PROCESS_READER_DEPS, {
     path: BLOG_INDEX_PATH,
-    parse: (body) => (typeof body === 'object' && body !== null ? true : null),
+    parse: blogServedAt,
   }).read,
 };
 
 /** Never rejects: the caches turn every failure into an answer. */
 export async function readUnservedPages(channelCode: string | undefined): Promise<UnservedPages> {
   const paths: string[] = [];
+  const servedAt: Record<string, string> = {};
   let certain = true;
   await Promise.all(
     (Object.keys(LLMS_TXT_CONDITIONAL_PAGES) as LlmsTxtConditionalPath[]).map(async (path) => {
       const read = await CONDITIONS[LLMS_TXT_CONDITIONAL_PAGES[path]](channelCode);
-      if (read.kind === 'value') return;
+      if (read.kind === 'value') {
+        if (read.value !== path) servedAt[path] = read.value;
+        return;
+      }
       paths.push(path);
       // "Could not ask, and nothing was ever known."
       if (read.kind === 'unknown') certain = false;
     }),
   );
-  return { paths, certain };
+  return { paths, certain, servedAt };
 }

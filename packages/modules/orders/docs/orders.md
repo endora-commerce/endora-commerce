@@ -84,17 +84,23 @@ is refused with `422 VALIDATION_FAILED` and
 `requestedSalesChannelId` and `resolvedSalesChannelId`), before anything is
 written — the basket is left as it was.
 
-In admin order creation the body's `salesChannelId` has to name an existing
-channel: one that names no channel is refused with `404 NOT_FOUND` before
-anything is written, the customer's basket included. The ordered products are
-checked against **that** channel's assortment, not the one the admin request
-itself resolved — a product the chosen channel does not sell is refused with
+In admin order creation the body's `salesChannelId` is required and has to be
+one of the **customer's organization's active sales channels** — the channels
+the organization is assigned to and that are switched on. Any other channel —
+one assigned only to other organizations, one that is switched off, or one
+that does not exist — is refused with `422 ORDER_SALES_CHANNEL_NOT_ALLOWED`
+before anything is written, the customer's basket and any new address
+included. `POST /api/v1/admin/orders/preview` answers the same, so the screen
+is never shown totals for an order it cannot create. There is no fallback: a
+request without `salesChannelId` is refused with `400 VALIDATION_FAILED`, never
+placed on a default channel. This is the rule a quote request created on a
+customer's behalf follows. The ordered products are checked against **that**
+channel's assortment, not the one the admin request itself resolved — a
+product the chosen channel does not sell is refused with
 `404 PRODUCT_NOT_FOUND`, and one it sells is accepted even when the system
-default does not sell it. Admin creation does accept a channel that exists but
-is switched off, which the storefront refuses with `422`
-`order_sales_channel_mismatch`. A product outside the chosen channel's
-assortment is refused before the customer's basket is touched, so the basket
-is left as it was.
+default does not sell it. A product outside the chosen channel's assortment is
+refused before the customer's basket is touched, so the basket is left as it
+was.
 
 What is read from an order's channel:
 
@@ -453,13 +459,25 @@ that fails announces nothing.
 
 ### The Create order screen
 
+**The sales channel is chosen among the customer's organization's active
+sales channels.** The **Sales channel** field offers nothing until a customer is
+chosen; it then offers exactly the channels the server accepts — never another
+active channel, nor an inactive one the organization is assigned to. The only
+channel is preselected; with several the operator chooses. A `salesChannelId`
+in the query string is preselected only when it is one of them, and dropped
+otherwise. Choosing a customer of another organization clears the choice. When
+the organization has no active sales channel the screen says so and **Create
+order** stays disabled until it is assigned to one; when its channels cannot be
+read the screen says so with a **Retry** button, and nothing can be sent.
+
 **Items and the order summary appear once the customer and the sales channel
 are chosen.** They are the two inputs pricing needs; the payment method, the
 delivery method and the addresses do not gate anything. Until both are set, one
 hint names what is still missing. Clearing either field hides both sections
 again without discarding the lines, which come back when the field is set. A
 screen opened with `customerAccountId` and `salesChannelId` in its query string
-shows **Items** at once.
+shows **Items** as soon as the organization's channels are read and the named
+one is among them.
 
 **Products are added in two ways.**
 

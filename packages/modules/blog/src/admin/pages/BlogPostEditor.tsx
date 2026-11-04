@@ -16,6 +16,8 @@ import { PostStatusBadge } from '../components/PostStatusBadge.js';
 import { RelatedPostsPicker } from '../components/RelatedPostsPicker.js';
 import { RelatedProductsPicker } from '../components/RelatedProductsPicker.js';
 import { TagPicker } from '../components/TagPicker.js';
+import { UrlKeysPanel } from '../components/UrlKeysPanel.js';
+import { AuthorPicker } from '../components/AuthorPicker.js';
 
 interface FormState {
   name: string;
@@ -27,6 +29,23 @@ interface FormState {
   metaTitle: string;
   metaDescription: string;
   metaKeywords: string;
+}
+
+/** The fields a post holds per language. */
+type LanguageFields = Pick<FormState, 'name' | 'metaTitle' | 'metaDescription' | 'metaKeywords'>;
+
+/** A language's fields as last saved (the name falls back to English for display). */
+function savedFields(post: BlogPostDetail, language: string): LanguageFields {
+  return {
+    name: pickValue(post.name, language) || pickValue(post.name, 'en-US'),
+    metaTitle: pickValue(post.metaTitle, language),
+    metaDescription: pickValue(post.metaDescription, language),
+    metaKeywords: pickValue(post.metaKeywords, language),
+  };
+}
+
+function languageFieldsOf(form: FormState): LanguageFields {
+  return { name: form.name, metaTitle: form.metaTitle, metaDescription: form.metaDescription, metaKeywords: form.metaKeywords };
 }
 
 const blankForm: FormState = {
@@ -99,6 +118,12 @@ export function BlogPostEditor(): ReactNode {
   // Whether the canvas holds something the server does not: the content request
   // is sent only then, so saving a slug does not rewrite an untouched canvas.
   const [contentDirty, setContentDirty] = useState(false);
+  /**
+   * The unsaved edits of the languages not on screen — their fields when changed and
+   * their canvas when touched — kept across a language switch and saved together
+   * with the language on screen. Without it a switch threw the edits away.
+   */
+  const [stash, setStash] = useState<Record<string, { fields?: LanguageFields; canvas?: Data }>>({});
   const [error, setError] = useState<string | null>(null);
   // Which field a refused save was about, so the field itself says so.
   const [problem, setProblem] = useState<BlogEditorProblem | null>(null);
@@ -109,15 +134,13 @@ export function BlogPostEditor(): ReactNode {
     (loaded: BlogPostDetail, language: string | null) => {
       const lang = language ?? loaded.languages[0] ?? 'en-US';
       setForm({
-        name: pickValue(loaded.name, lang) || pickValue(loaded.name, 'en-US'),
         slug: loaded.slug,
         active: loaded.active,
         description: loaded.description ?? '',
         mainImageAssetId: loaded.mainImageAssetId ?? '',
-        metaTitle: pickValue(loaded.metaTitle, lang),
-        metaDescription: pickValue(loaded.metaDescription, lang),
-        metaKeywords: pickValue(loaded.metaKeywords, lang),
+        ...savedFields(loaded, lang),
       });
+      setStash({});
     },
     [],
   );
@@ -158,8 +181,9 @@ export function BlogPostEditor(): ReactNode {
   }, [isNew]);
 
   /**
-   * Another language's fields and canvas, read from the post as it was last
-   * saved.
+   * Another language's fields and canvas: its unsaved edits when it has any, else
+   * what was last saved. The language being left keeps its own unsaved edits in the
+   * stash, and the fields every language shares (slug, image, …) are not touched.
    *
    * Done where the language is chosen rather than in an effect over `post`: the
    * tag and related-content pickers save on their own and answer with a new
@@ -169,13 +193,27 @@ export function BlogPostEditor(): ReactNode {
    */
   const switchLanguage = useCallback(
     (language: string) => {
+      const leaving = activeLanguage;
       setActiveLanguage(language);
       if (!post) return;
-      reloadFormFromPost(post, language);
-      setDraftData(dataFor(post, language));
-      setContentDirty(false);
+      const next = { ...stash };
+      if (leaving && leaving !== language) {
+        const fields = languageFieldsOf(form);
+        const changed = JSON.stringify(fields) !== JSON.stringify(savedFields(post, leaving));
+        const kept = { ...next[leaving] };
+        if (changed) kept.fields = fields;
+        else delete kept.fields;
+        if (contentDirty && draftData) kept.canvas = draftData;
+        if (kept.fields || kept.canvas) next[leaving] = kept;
+        else delete next[leaving];
+      }
+      const arriving = next[language];
+      setStash(next);
+      setForm((f) => ({ ...f, ...(arriving?.fields ?? savedFields(post, language)) }));
+      setDraftData(arriving?.canvas ?? dataFor(post, language));
+      setContentDirty(Boolean(arriving?.canvas));
     },
-    [post, reloadFormFromPost],
+    [activeLanguage, contentDirty, draftData, form, post, stash],
   );
 
   const refuse = useCallback(
@@ -246,33 +284,50 @@ export function BlogPostEditor(): ReactNode {
     setSaving(true);
     setError(null);
     const lang = activeLanguage ?? 'en-US';
+    // Every language with unsaved fields, the one on screen included.
+    const fieldsByLanguage: Record<string, LanguageFields> = {
+      ...Object.fromEntries(
+        Object.entries(stash).flatMap(([language, kept]) => (kept.fields ? [[language, kept.fields]] : [])),
+      ),
+      [lang]: languageFieldsOf(form),
+    };
+    const perLanguage = (key: keyof LanguageFields): Record<string, string> =>
+      Object.fromEntries(Object.entries(fieldsByLanguage).map(([language, fields]) => [language, fields[key]]));
+    // Every touched canvas, the one on screen included.
+    const canvases: Record<string, Data> = {
+      ...Object.fromEntries(
+        Object.entries(stash).flatMap(([language, kept]) => (kept.canvas ? [[language, kept.canvas]] : [])),
+      ),
+      ...(contentDirty && draftData ? { [lang]: draftData } : {}),
+    };
     try {
       let updated = await blogClient.patchPost(post.id, {
-        name: { ...post.name, [lang]: form.name },
+        name: { ...post.name, ...perLanguage('name') },
         slug: form.slug,
         active: form.active,
         description: form.description || null,
         mainImageAssetId: form.mainImageAssetId || null,
         salesChannelIds: scope.salesChannelIds,
         languages: scope.languages,
-        metaTitle: { ...(post.metaTitle ?? {}), [lang]: form.metaTitle },
-        metaDescription: { ...(post.metaDescription ?? {}), [lang]: form.metaDescription },
-        metaKeywords: { ...(post.metaKeywords ?? {}), [lang]: form.metaKeywords },
+        metaTitle: { ...(post.metaTitle ?? {}), ...perLanguage('metaTitle') },
+        metaDescription: { ...(post.metaDescription ?? {}), ...perLanguage('metaDescription') },
+        metaKeywords: { ...(post.metaKeywords ?? {}), ...perLanguage('metaKeywords') },
         version: post.version,
       });
       // The fields are stored from here on, whatever the canvas request does.
       setPost(updated);
-      if (contentDirty && activeLanguage && draftData) {
+      if (Object.keys(canvases).length > 0) {
         updated = await blogClient.putPostContent(post.id, {
           content: {
             schema_version: updated.content.schema_version ?? 1,
-            languages: { ...updated.content.languages, [activeLanguage]: draftData },
+            languages: { ...updated.content.languages, ...canvases },
           },
           version: updated.version,
         });
         setPost(updated);
         setContentDirty(false);
       }
+      setStash({});
       setInfo(t('messages.saved'));
       return true;
     } catch (err) {
@@ -296,6 +351,26 @@ export function BlogPostEditor(): ReactNode {
         const updated = await blogClient.setPostTags(post.id, tagIds, post.version);
         setPost(updated);
         setInfo(t('messages.tagsUpdated', { count: tagIds.length }));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setSaving(false);
+      }
+    },
+    [post, t],
+  );
+
+  /** Feature 171 (US7) — the post's author, saved on its own like the tags. */
+  const onSaveAuthor = useCallback(
+    async (authorAdminUserId: string | null) => {
+      if (!post) return;
+      setSaving(true);
+      setError(null);
+      setInfo(null);
+      try {
+        const updated = await blogClient.patchPost(post.id, { authorAdminUserId, version: post.version });
+        setPost(updated);
+        setInfo(t('author.updated'));
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
       } finally {
@@ -496,7 +571,9 @@ export function BlogPostEditor(): ReactNode {
             activeLanguage={activeLanguage}
             onResolveLanguageContent={(language) =>
               structuredClone(
-                language === activeLanguage && draftData ? draftData : (dataFor(post, language) ?? emptyCanvas()),
+                language === activeLanguage && draftData
+                  ? draftData
+                  : (stash[language]?.canvas ?? dataFor(post, language) ?? emptyCanvas()),
               )
             }
             resource={{ type: 'blog_post', id: post.id }}
@@ -575,6 +652,29 @@ export function BlogPostEditor(): ReactNode {
               </div>
             </CardContent>
           </Card>
+
+          {post ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">{t('author.title')}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <AuthorPicker value={post.author ?? null} disabled={saving} onChange={(id) => void onSaveAuthor(id)} />
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {post && activeLanguage ? (
+            <UrlKeysPanel
+              kind="post"
+              entityId={post.id}
+              language={activeLanguage}
+              // The keys' save bumps the post's version; the form's edits stay.
+              onSaved={() =>
+                void blogClient.getPost(post.id).then((fresh) => setPost((p) => (p ? { ...p, version: fresh.version } : fresh)))
+              }
+            />
+          ) : null}
 
           <ScopePicker value={scope} onChange={setScope} />
 

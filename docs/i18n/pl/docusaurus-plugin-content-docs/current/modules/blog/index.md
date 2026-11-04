@@ -51,9 +51,11 @@ wpis nie ma obrazu lub zasób nie jest publiczny.
 
 ## Adresy i trasy
 
-Storefront ma jedną trasę Next.js przechwytującą wszystkie ścieżki,
-`storefront/app/(blog)/[[...slug]]/page.tsx`. Mechanizm dopasowania odczytuje wyznaczone dla kanału
-`blog.url_prefix` z [modułu ustawień](../settings/index.md) i kieruje żądanie:
+Storefront serwuje blog z jednej trasy Next.js przechwytującej wszystkie ścieżki,
+`storefront/app/blog/[[...slug]]/page.tsx`. Publicznym adresem jest `blog.url_prefix` kanału z
+[modułu ustawień](../settings/index.md): middleware storefrontu odczytuje routing bloga dla kanału
+(`GET /api/v1/blog/routing`, przechowywany przez minutę dla każdego kanału) i kieruje `/<prefix>/…` na
+tę trasę, po prefiksie języka dodawanym przez ustawienie adresów kanału (`/pl/aktualnosci/…`). Trasy:
 
 | Wzorzec adresu (po wyznaczeniu kanału) | Wyświetla                              |
 | -------------------------------------- | ------------------------------------ |
@@ -61,6 +63,16 @@ Storefront ma jedną trasę Next.js przechwytującą wszystkie ścieżki,
 | `/<prefix>/tag/<code>`                 | Widok tagu — stronicowane karty wpisów z tym tagiem |
 | `/<prefix>/<slug>`                     | Strona kategorii (gdy slug pasuje do `blog_categories.slug`) |
 | `/<prefix>/<slug>`                     | Strona wpisu (gdy slug pasuje do `blog_posts.slug`) |
+
+Gdy prefiks jest inny niż `blog`, żądanie `/blog/…` dostaje odpowiedź **301** do tego samego widoku
+pod prefiksem; tak samo — gdy moduł SEO jest włączony — żądanie **dawnego prefiksu** kanału. Zmiana
+adresu bloga nie psuje więc zapisanych linków. Blog zapamiętuje każdy prefiks, którego kanał używał;
+dawny prefiks można usunąć (`DELETE /api/v1/admin/blog/addresses/:id`), a wtedy przestaje
+przekierowywać.
+
+Każdy adres bloga w odpowiedzi dla storefrontu — karty wpisów, kafelki kategorii, tagi, okruszki,
+własny `url` wpisu — składa backend funkcją `blogPath` z `@endora-commerce/contracts`, więc zawiera już
+prefiks języka i prefiks bloga. Storefront nie składa żadnego adresu sam.
 
 Rozstrzygnięcie odbywa się w **jednym** wywołaniu backendu — `GET /api/v1/blog/by-slug?slug=…` —
 które zwraca unię rozłączną (`{ kind: 'category' | 'post', … }`). Dwa kanały MOGĄ używać tego samego
@@ -159,13 +171,91 @@ wydań minor.
 | Kod                  | Typ    | Wartość domyślna | Uwagi                                                |
 | --------------------- | ------- | ------: | ---------------------------------------------------- |
 | `blog.enabled`        | boolean | `true`  | Wyłącza blog w danym kanale.                         |
-| `blog.url_prefix`     | string  | `blog`  | Jeden segment adresu, `^[a-z0-9-]+$`. Segmenty zarezerwowane przez Next.js są odrzucane. |
-| `blog.latest_count`   | number  | `5`     | Liczba najnowszych wpisów na stronie głównej bloga.                            |
-| `blog.posts_per_page` | number  | `12`    | Liczba wpisów na stronie w widokach kategorii i tagu.           |
+| `blog.url_prefix`     | string  | `blog`  | Jeden segment adresu, `^[a-z0-9-]+$`. Zobacz *Adres bloga* niżej. |
+| `blog.url_prefix_by_language` | json | `{}` | Prefiks dla języka, zastępujący dla niego `blog.url_prefix`: `{"pl-PL": "aktualnosci", "en-US": "news"}`. |
+| `blog.latest_count`   | number  | `5`     | Domyślna liczba wpisów w bloku Page Buildera *Najnowsze wpisy*. |
+| `blog.posts_per_page` | number  | `12`    | Liczba wpisów na stronie głównej bloga oraz w widokach kategorii i tagu. |
 
 Zmiana dowolnego ustawienia `blog.*` czyści wspólną pamięć podręczną ustawień w miejscu zapisu, a
 potem emituje zdarzenie `EventBus`, które czyści pamięć podręczną storefrontu (zobacz *Strategia
 pamięci podręcznej* niżej).
+
+### Adres bloga
+
+Zapis `blog.url_prefix` ocenia sam blog, przez walidatory zapisu modułu ustawień — tak samo na
+ekranie ustawień, jak w API ustawień. Wartość jest odrzucana, gdy:
+
+- nie jest jednym segmentem z małych liter, cyfr i łączników — `400 BLOG_URL_PREFIX_INVALID`;
+- jest segmentem zarezerwowanym przez storefront: `api`, `tag`, `author` i pozostałymi segmentami,
+  które rezerwuje blog, albo jednym z `cms.reserved_slug_segments` wdrożenia —
+  `409 BLOG_URL_PREFIX_RESERVED`;
+- jest prefiksem języka dowolnego kanału sprzedaży (`pl`, `en`, …) albo pierwszym segmentem sluga
+  strony CMS w kanale — `409 BLOG_URL_PREFIX_CONFLICT`.
+
+Samo `blog` jest zawsze przyjmowane. W drugą stronę: strona CMS, której slug zaczyna się od bieżącego
+lub dawnego prefiksu bloga w kanale, jest odrzucana z `409 CMS_SLUG_RESERVED` (`claimedBy: "blog"`) —
+gdy moduł bloga jest wyłączony, nie rezerwuje niczego.
+
+### Prefiks dla języka
+
+`blog.url_prefix_by_language` nadaje językowi własny prefiks — `/pl/aktualnosci/…` i
+`/en/news/…` w jednym kanale — i podlega tym samym regułom, dla każdego języka; język, którego
+kanał nie ma, jest odrzucany z `400 BLOG_URL_PREFIX_INVALID`. Język bez wpisu używa
+`blog.url_prefix`. Żądanie bloga w danym języku pod prefiksem innego języka dostaje `301` na
+właściwy. Każdy prefiks, którego język używał, zostaje zapamiętany jako dawny adres, tak jak
+dla prefiksu domyślnego kanału.
+
+Ekran **Blog → Adresy bloga** w panelu wyświetla dla każdego kanału sprzedaży bieżące i dawne
+prefiksy i pozwala usunąć dawny.
+
+## Języki
+
+Wpis lub kategoria istnieje w storefroncie w przypisanych mu językach. Żądany w innym języku
+daje `404` i nie pojawia się na żadnej liście w tym języku — na stronie głównej bloga, w
+kategorii, w tagu, w `/posts`, w powiązanych wpisach, jako etykieta kategorii na karcie ani w
+okruszkach wpisu. Język żądania jest najpierw dopasowywany do języków kanału (`en` znajduje
+`en-US`). Kategoria bez żadnego przypisanego języka — utworzona przy instalacji `Default` —
+jest w każdym.
+
+Aby opublikowany wpis był napisany w każdym ze swoich języków, jego publikacja oraz zapis już
+opublikowanego są odrzucane z `422 BLOG_LANGUAGE_INCOMPLETE`, gdy w przypisanym języku brakuje
+nazwy — albo treści, jeśli wpis ma treść w jakimkolwiek języku. Szczegóły podają każde brakujące
+`<pole>.<język>`. Szkic może być niekompletny. Kategoria wymaga nazwy w każdym swoim języku przy
+każdym zapisie.
+
+## Adresy w poszczególnych językach
+
+Wpis lub kategoria może mieć **klucz adresu w każdym języku** — `jak-wybrac-wiertarke` po
+polsku, `how-to-choose-a-drill` po angielsku — ustawiany w karcie **Adres** edytora dla
+edytowanego języka. Język bez klucza używa bazowego sluga. Klucz:
+
+- działa tylko we własnym języku;
+- jest unikalny w kanale sprzedaży i języku wśród wpisów **i** kategorii
+  (`409 BLOG_URL_KEY_TAKEN`); ten sam klucz w innym języku jest wolny;
+- po zmianie zostawia **przekierowanie**, a bazowy slug języka z własnym kluczem też
+  przekierowuje — przekierowania wskazują wpis, nigdy klucz, więc się nie łańcuchują, i działają
+  tylko przy włączonym module SEO;
+- może przejąć przekierowanie innego wpisu dopiero po potwierdzeniu w edytorze
+  (`409 BLOG_URL_KEY_REDIRECT_TAKEOVER_REQUIRED`, potem ten sam `PUT` z `confirmTakeover`).
+
+Zmiana bazowego sluga zostawia dawny slug jako przekierowanie w każdym języku bez klucza.
+Odpowiedzi dla wpisu i kategorii zawierają `alternates` — ścieżkę w każdym języku kanału, w
+którym istnieją — które storefront zapisuje jako linki `hreflang` i wykorzystuje w przełączniku
+języka. Każdy zapis kluczy to jedno audytowane polecenie (`blog.url_keys.update`,
+`blog.url_redirect.delete`).
+
+## Autorzy
+
+Wpis może wskazać jednego **autora**: administratora wybieranego w edytorze spośród aktywnych
+(`GET /api/v1/admin/blog/author-candidates`, `blog.write` — bez uprawnień administratora;
+odpowiada tylko imionami i avatarami). Storefront pokazuje imię i nazwisko autora, avatar oraz
+*o mnie* w języku strony (a gdy go brak — w domyślnym języku kanału) na stronie wpisu, imię i
+nazwisko na kartach, a w danych strukturalnych wpisu — autora jako `Person`. Avatar i *o mnie*
+edytuje się na stronie własnego profilu administratora (zobacz moduł `admin_users`).
+Nieaktywny administrator nadal jest pokazywany jako autor; usunięty — nie, i nic o nim nie
+zostaje przy wpisie. Odpowiedź z wpisem jest w pamięci podręcznej tylko z identyfikatorem
+autora, więc zmiana profilu widać od razu. `GET /api/v1/blog/posts?authorId=…` zwraca wpisy
+jednego autora.
 
 ## Role w panelu administracyjnym
 
@@ -184,13 +274,20 @@ kolejnych uruchomieniach i odświeża tylko kanoniczną listę uprawnień, gdy s
 
 | Metoda | Ścieżka                                  | Zwraca                                                  |
 | ------ | ------------------------------------- | -------------------------------------------------------- |
-| GET    | `/api/v1/blog/by-channel`             | `BlogIndexResponse` — najnowsze wpisy i kategorie pierwszego poziomu |
+| GET    | `/api/v1/blog/by-channel?page=…`      | `BlogIndexResponse` — strona wpisów (`posts.data`, `posts.pagination`) według `posts_per_page`, kategorie pierwszego poziomu na stronie 1 |
 | GET    | `/api/v1/blog/by-slug?slug=…`         | `BlogBySlugResponse` w postaci unii rozłącznej (kategoria / wpis)     |
 | GET    | `/api/v1/blog/tag-by-code?code=…`     | `BlogTagByCodeResponse` — stronicowane wpisy z danym tagiem       |
-| GET    | `/api/v1/blog/posts?limit=…&categorySlug=…` | `{ data: BlogPostCard[] }` — najnowsze opublikowane wpisy, od najnowszego |
+| GET    | `/api/v1/blog/posts?page=…&perPage=…&categorySlug=…&tagCode=…&authorId=…` | `{ data: BlogPostCard[], pagination }` — opublikowane wpisy, od najnowszego, strona po stronie |
+| GET    | `/api/v1/blog/routing`                | `BlogRoutingResponse` — prefiks kanału dla każdego języka i dawne prefiksy; `404 BLOG_DISABLED`, gdy blog jest w kanale wyłączony |
 
-`/posts` zasila blok najnowszych wpisów. `limit` to 1–24 (domyślnie 6); większa
-wartość daje `400`. Nieznany `categorySlug` daje pustą listę zamiast 404, więc
+W panelu, dla adresów bloga: `GET /api/v1/admin/blog/addresses?salesChannelId=…` (`blog.read`)
+wyświetla bieżące i dawne prefiksy, a `DELETE /api/v1/admin/blog/addresses/:id` (`blog.write`)
+usuwa dawny — jako audytowane polecenie `blog.url_prefix.forget`.
+
+`/posts` zasila blok najnowszych wpisów i każdego klienta headless. `perPage` (albo jego
+starsza nazwa `limit`) to 1–24, domyślnie 6; większa wartość daje `400`. `pagination` podaje
+`page`, `perPage`, `totalItems` i `totalPages`; strona poza ostatnią daje pustą listę z
+prawdziwymi sumami (strony samego storefrontu dają w tym miejscu `404`). Filtry można łączyć. Nieznany `categorySlug` daje pustą listę zamiast 404, więc
 blok, którego kategorię usunięto, po prostu nic nie pokazuje. Kanał z
 `blog.enabled = false` także zwraca pustą listę. Każda karta zawiera
 `mainImageUrl`, `primaryCategoryName` (etykietę kategorii) i `url`

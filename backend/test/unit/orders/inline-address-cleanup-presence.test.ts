@@ -107,6 +107,8 @@ describe('OrderCreationAdminService — inline-address cleanup', () => {
       orderService,
       addressServiceFailingCleanupWith(cleanupError),
       customerAccountRead,
+      // Issue #515 — the order's channel is one of the Organization's active channels.
+      { listChannelsForEntity: async () => [{ id: CHANNEL_ID, active: true }] },
     );
 
   const input = {

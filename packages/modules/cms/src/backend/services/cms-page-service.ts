@@ -174,6 +174,21 @@ export class CmsPageService {
     this.languagePrefixesResolver = resolver;
   }
 
+  /**
+   * Feature 171 (research R5) — first segments other modules serve in the given
+   * channels (the blog's prefixes), each with the module that claims it. Absent
+   * until `registerModule` installs it, which claims nothing.
+   */
+  private claimedSegmentsResolver:
+    | ((salesChannelIds: readonly string[]) => Promise<ReadonlyMap<string, string>>)
+    | null = null;
+
+  setClaimedSegmentsResolver(
+    resolver: ((salesChannelIds: readonly string[]) => Promise<ReadonlyMap<string, string>>) | null,
+  ): void {
+    this.claimedSegmentsResolver = resolver;
+  }
+
   /** The channels' language prefixes → channel codes (feature 167). */
   async languagePrefixes(): Promise<ReadonlyMap<string, readonly string[]>> {
     return this.languagePrefixesResolver ? this.languagePrefixesResolver() : new Map();
@@ -204,9 +219,22 @@ export class CmsPageService {
    * `{segment}` placeholder in the operator's own language (§5.4): the code for
    * a consumer to branch on, the sentence for the operator to read.
    */
-  private async assertSlugNotReserved(slug: string): Promise<void> {
+  private async assertSlugNotReserved(slug: string, salesChannelIds: readonly string[]): Promise<void> {
     const segment = firstSlugSegment(slug);
     if (segment.length === 0) return;
+    // Feature 171 — a segment another module serves in one of the page's channels
+    // (the blog's prefix) is that module's address there, never the page's.
+    const claimedBy = this.claimedSegmentsResolver
+      ? (await this.claimedSegmentsResolver(salesChannelIds)).get(segment)
+      : undefined;
+    if (claimedBy !== undefined) {
+      throw new HttpError(
+        409,
+        ERROR_CODES.CMS_SLUG_RESERVED,
+        `The first path segment "${segment}" is served by the ${claimedBy} module in this sales channel.`,
+        { segment, claimedBy },
+      );
+    }
     const reserved = await this.reservedSegments();
     // Feature 167 (FR-040, OR-5, OR-12) — a language prefix of any channel is the
     // storefront's too: the URL `/<prefix>/…` is that language's page, never the
@@ -512,7 +540,9 @@ export class CmsPageService {
     // against the deployment's configuration and touches no row, so opening a
     // transaction to refuse it would hold a connection for the length of a
     // settings read.
-    for (const slug of this.requestedSlugs(input.slug, input.translations)) await this.assertSlugNotReserved(slug);
+    for (const slug of this.requestedSlugs(input.slug, input.translations)) {
+      await this.assertSlugNotReserved(slug, input.salesChannelIds);
+    }
     const translations = normalizeTranslations(input.translations ?? {});
     this.assertTranslationsInLanguages(translations, input.languages);
     const id = randomUUID();
@@ -600,7 +630,11 @@ export class CmsPageService {
     // would make every page whose slug predates the deployment's reserved set
     // uneditable — a rule that punishes the operator for a decision somebody
     // else made later.
-    for (const slug of this.requestedSlugs(input.slug, input.translations)) await this.assertSlugNotReserved(slug);
+    const requested = this.requestedSlugs(input.slug, input.translations);
+    if (requested.length > 0) {
+      const channelIds = input.salesChannelIds ?? (await this.channelIdsFor(id));
+      for (const slug of requested) await this.assertSlugNotReserved(slug, channelIds);
+    }
     const translations = input.translations !== undefined ? normalizeTranslations(input.translations) : undefined;
     const slugsToInvalidate = new Set<string>();
     let addressesMoved = false;

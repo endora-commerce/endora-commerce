@@ -124,6 +124,19 @@ export const manifest = defineModuleManifest({
    */
   nonBindingDependencies: [
     {
+      moduleId: 'assets_library',
+      name: 'assetReadPort',
+      kind: 'degrades-without',
+      whenAbsent:
+        'An administrator cannot set an author avatar while the library is off; the one already ' +
+        'set is kept and comes back with the library. Everything else on the profile still saves.',
+      reason:
+        'Feature 171 (US6): the avatar must name a live library asset, which only `assets_library` ' +
+        'can answer. That module depends on this one (it reads `adminUserReadPort`), so the edge ' +
+        'cannot be a dependency without a cycle. The check asks for the module first and answers ' +
+        '`MODULE_DISABLED` without resolving the port, so nothing is laundered out of a closed gate.',
+    },
+    {
       moduleId: 'mfa',
       name: 'mfaLoginPort',
       kind: 'degrades-without',
@@ -225,6 +238,8 @@ export const manifest = defineModuleManifest({
    * supplies the one they already have.
    */
   errorCodes: [
+    // Feature 171 (US6) — an author avatar that names no library asset.
+    { code: 'ADMIN_USER_AVATAR_NOT_FOUND' },
     { code: 'ADMIN_AUTHENTICATION_THROTTLED' },
     { code: 'ADMIN_AUTHENTICATION_UNAVAILABLE' },
     { code: 'ADMIN_USER_OUTRANKS_ACTOR' },

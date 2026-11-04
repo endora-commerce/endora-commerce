@@ -79,16 +79,21 @@ istniejący, nieistniejący albo wyłączony — jest odrzucane odpowiedzią
 (szczegóły zawierają `requestedSalesChannelId` i `resolvedSalesChannelId`), zanim
 cokolwiek zostanie zapisane — koszyk pozostaje bez zmian.
 
-Przy tworzeniu zamówienia w panelu pole `salesChannelId` w treści żądania musi
-wskazywać istniejący kanał: żądanie wskazujące kanał, którego nie ma, jest
-odrzucane odpowiedzią `404 NOT_FOUND`, zanim cokolwiek zostanie zapisane — także
-koszyk klienta. Zamawiane produkty są sprawdzane względem asortymentu **tego**
+Przy tworzeniu zamówienia w panelu pole `salesChannelId` w treści żądania jest
+wymagane i musi wskazywać jeden z **aktywnych kanałów sprzedaży organizacji
+klienta** — kanałów, do których organizacja jest przypisana i które są włączone.
+Każdy inny kanał — przypisany tylko do innych organizacji, wyłączony albo
+nieistniejący — jest odrzucany odpowiedzią `422 ORDER_SALES_CHANNEL_NOT_ALLOWED`,
+zanim cokolwiek zostanie zapisane, także koszyk klienta i nowy adres.
+`POST /api/v1/admin/orders/preview` odpowiada tak samo, więc ekran nigdy nie
+pokazuje podsumowania zamówienia, którego nie da się utworzyć. Nie ma kanału
+zastępczego: żądanie bez `salesChannelId` jest odrzucane odpowiedzią
+`400 VALIDATION_FAILED`, a nie składane w kanale domyślnym. Tę samą zasadę
+stosuje zapytanie ofertowe tworzone w imieniu klienta. Zamawiane produkty są sprawdzane względem asortymentu **tego**
 kanału, a nie kanału rozpoznanego dla samego żądania panelu — produkt, którego
 wybrany kanał nie sprzedaje, jest odrzucany odpowiedzią `404 PRODUCT_NOT_FOUND`,
 a produkt, który sprzedaje, jest przyjmowany, nawet jeśli kanał domyślny go nie
-sprzedaje. Tworzenie zamówienia w panelu przyjmuje natomiast kanał, który istnieje,
-ale jest wyłączony — sklep odrzuca taki kanał odpowiedzią `422`
-`order_sales_channel_mismatch`. Produkt spoza asortymentu wybranego kanału jest
+sprzedaje. Produkt spoza asortymentu wybranego kanału jest
 odrzucany, zanim koszyk klienta zostanie naruszony, więc koszyk pozostaje bez zmian.
 
 Z kanału zamówienia odczytywane są:
@@ -429,12 +434,23 @@ złożenie zamówienia niczego nie ogłasza.
 
 ### Ekran tworzenia zamówienia
 
+**Kanał sprzedaży wybiera się spośród aktywnych kanałów sprzedaży organizacji klienta.** Pole
+**Kanał sprzedaży** niczego nie proponuje, dopóki nie wybrano klienta; potem proponuje dokładnie te
+kanały, które przyjmuje serwer — nigdy innego aktywnego kanału ani wyłączonego kanału, do którego
+organizacja jest przypisana. Jedyny kanał jest wybierany od razu; przy kilku wybiera operator.
+`salesChannelId` w adresie jest wybierany tylko wtedy, gdy należy do tych kanałów, a w przeciwnym
+razie jest pomijany. Wybranie klienta innej organizacji czyści wybór. Gdy organizacja nie ma
+aktywnego kanału sprzedaży, ekran to mówi, a przycisk **Utwórz zamówienie** pozostaje nieaktywny,
+dopóki nie zostanie ona przypisana do takiego kanału; gdy nie da się wczytać jej kanałów, ekran to
+mówi i pokazuje przycisk **Ponów**, a niczego nie można wysłać.
+
 **Sekcje Pozycje i podsumowanie zamówienia pojawiają się dopiero po wybraniu klienta i kanału
 sprzedaży.** To dwie dane, których potrzebuje wycena; metoda płatności, metoda dostawy i adresy
 niczego nie blokują. Dopóki obie nie są ustawione, jedna podpowiedź mówi, czego jeszcze brakuje.
 Wyczyszczenie któregoś z tych pól znowu ukrywa obie sekcje, ale nie usuwa pozycji — wracają, gdy
 pole zostanie ponownie ustawione. Ekran otwarty z `customerAccountId` i `salesChannelId` w adresie
-od razu pokazuje sekcję **Pozycje**.
+pokazuje sekcję **Pozycje**, gdy tylko kanały organizacji zostaną wczytane, a wskazany kanał
+jest wśród nich.
 
 **Produkty dodaje się na dwa sposoby.**
 

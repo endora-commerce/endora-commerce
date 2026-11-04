@@ -227,8 +227,10 @@ const SUBJECTS: readonly Subject[] = [
       ['/blog/categories/new', 'blog.write'],
       ['/blog/categories/:id', 'blog.read'],
       ['/blog/tags', 'blog.read'],
+      // Feature 171 — the blog's addresses per sales channel.
+      ['/blog/addresses', 'blog.read'],
     ],
-    navTargets: ['/blog/posts', '/blog/categories', '/blog/tags'],
+    navTargets: ['/blog/posts', '/blog/categories', '/blog/tags', '/blog/addresses'],
     retiredSharedKeys: [
       'appShell.nav.blogPosts',
       'appShell.nav.blogCategories',

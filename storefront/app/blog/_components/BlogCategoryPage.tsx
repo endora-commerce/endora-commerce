@@ -7,7 +7,6 @@ import { Pagination } from './Pagination';
 import { PostCard } from './PostCard';
 import { tForLocale } from '../../../lib/i18n/messages';
 
-const BLOG_PREFIX = '/blog';
 
 export function BlogCategoryPage({
   payload,
@@ -59,7 +58,7 @@ export function BlogCategoryPage({
             </div>
           )}
           <Pagination
-            basePath={`${BLOG_PREFIX}/${category.slug}`}
+            basePath={category.url ?? `/blog/${category.slug}`}
             page={posts.pagination.page}
             totalPages={posts.pagination.totalPages}
             locale={locale}

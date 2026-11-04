@@ -63,6 +63,8 @@ export interface AdminModuleOptions {
   resolveAdminContext: (req: FastifyRequest) => { adminUserId: string };
   /** Feature 042 — lazily resolved MFA login port (absent ⇒ password-only). */
   getMfaLoginPort?: () => MfaLoginPort | undefined;
+  /** Feature 171 (US6) — whether a live library asset has this id (the avatar check). */
+  assetExists?: (assetId: string) => Promise<boolean>;
   /**
    * Which admins hold a second factor. Required, not optional: the field it
    * feeds has a value on every response that carries an admin user, and the
@@ -147,6 +149,7 @@ export function adminModule(
     options.authSessionPort,
     options.auditLogService,
     options.getMfaLoginPort,
+    options.assetExists,
   );
   const adminPreferenceService = new AdminPreferenceService(options.emFactory, options.log);
   const handle: AdminModuleHandle = {

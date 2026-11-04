@@ -1,26 +1,33 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { Setting, SettingValue } from '@endora-commerce/platform/kernel';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import { assetsLibraryModule } from '../plugin.js';
 import { Asset } from '../entities/asset.entity.js';
 import { AssetFolder } from '../entities/asset-folder.entity.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * The settings the platform-wide read answers from: `globalValue ?? defaultValue`
+ * — what `settingsReadPort.getMany(codes, null)` resolves (issue #333). A
+ * per-channel row is modelled only to show it is never the answer.
+ */
+interface SettingRow {
+  missing?: boolean;
+  defaultValue?: unknown;
+  globalValue?: unknown;
+  channelValue?: unknown;
+}
+
 // Exercise the production composition, including the settings reader, without
 // storage or a database. The entity manager models one folder and one asset.
-function fixture(options: { missing?: boolean; defaultValue?: unknown; globalValue?: unknown; override?: unknown } = {}) {
+function fixture(options: SettingRow = {}) {
   const asset = Object.assign(new Asset(), { filename: 'retention.png' });
   const folder = Object.assign(new AssetFolder(), { name: 'Retention' });
   asset.folderId = folder.id;
-  const setting = { defaultValue: options.defaultValue ?? 30, globalValue: options.globalValue };
   const flush = vi.fn(async () => undefined);
   const em = {
     findOne: vi.fn(async (entity: unknown) => {
-      if (entity === Setting) return options.missing ? null : setting;
-      if (entity === SettingValue) {
-        return 'override' in options ? { value: options.override } : null;
-      }
       if (entity === Asset) return asset;
       if (entity === AssetFolder) return folder;
       throw new Error('Unexpected entity');
@@ -30,8 +37,26 @@ function fixture(options: { missing?: boolean; defaultValue?: unknown; globalVal
     remove: vi.fn(),
     flush,
   } as unknown as EntityManager;
+  const settings: Pick<SettingsReadPort, 'getMany'> = {
+    getMany: async (codes, salesChannelId) => {
+      // A channel-scoped read would be a defect in itself: these settings are
+      // platform-wide, so a non-null channel answers with its own row.
+      const out = new Map();
+      for (const code of codes) {
+        if (code !== 'assets.soft_delete_retention_days' || options.missing) {
+          out.set(code, { ok: false, error: 'not_registered' });
+        } else if (salesChannelId !== null && 'channelValue' in options) {
+          out.set(code, { ok: true, value: options.channelValue });
+        } else {
+          out.set(code, { ok: true, value: options.globalValue ?? options.defaultValue ?? 30 });
+        }
+      }
+      return out;
+    },
+  };
   const { handle } = assetsLibraryModule({
     emFactory: () => em,
+    settings,
     publicApiBaseUrl: 'https://api.example.test',
     requireAdmin: () => async () => undefined,
     isModulePresent: () => true,
@@ -44,15 +69,16 @@ describe('soft-delete retention setting (#322)', () => {
   const cases = [
     { name: 'global seven-day override', options: { globalValue: 7 }, days: 7 },
     { name: 'global zero-day override (held to the one-day floor)', options: { globalValue: 0 }, days: 1 },
-    { name: 'channel override ahead of global override', options: { globalValue: 90, override: 7 }, days: 7 },
-    { name: 'configured seven days', options: { override: 7 }, days: 7 },
-    { name: 'configured ninety days', options: { override: 90 }, days: 90 },
-    { name: 'zero days (held to the one-day floor)', options: { override: 0 }, days: 1 },
+    // Issue #333: a per-channel row is not the answer for a platform-wide setting.
+    { name: 'global override, a channel row beside it ignored', options: { globalValue: 90, channelValue: 7 }, days: 90 },
+    { name: 'configured seven days', options: { globalValue: 7 }, days: 7 },
+    { name: 'configured ninety days', options: { globalValue: 90 }, days: 90 },
+    { name: 'zero days (held to the one-day floor)', options: { globalValue: 0 }, days: 1 },
     { name: 'manifest default without an override', options: { defaultValue: 14 }, days: 14 },
     { name: 'missing setting', options: { missing: true }, days: 30 },
-    { name: 'negative value', options: { override: -1 }, days: 30 },
-    { name: 'non-finite value', options: { override: Infinity }, days: 30 },
-    { name: 'unparseable value', options: { override: 'invalid' }, days: 30 },
+    { name: 'negative value', options: { globalValue: -1 }, days: 30 },
+    { name: 'non-finite value', options: { globalValue: Infinity }, days: 30 },
+    { name: 'unparseable value', options: { globalValue: 'invalid' }, days: 30 },
   ];
 
   describe.each(cases)('$name', ({ options, days }) => {
@@ -74,11 +100,11 @@ describe('soft-delete retention setting (#322)', () => {
   });
 
   it('reads changes live: a repeated delete reports the current setting, the stored deadline keeps the first', async () => {
-    const options = { override: 7 };
+    const options: SettingRow = { globalValue: 7 };
     const { handle, asset } = fixture(options);
     const first = await handle.service.softDelete(asset.id);
     const stored = asset.purgeAfterAt;
-    options.override = 90;
+    options.globalValue = 90;
     // specs/156-asset-stable-url/ owner ruling P1: the reported date follows
     // the setting read now, which is what the sweep uses.
     const repeated = await handle.service.softDelete(asset.id);

@@ -31,6 +31,10 @@ export interface AdminUserRecord {
   lastLoginAt: Date | null;
   /** Admin-UI language override, or `null` to follow the platform default. */
   preferredLanguage: string | null;
+  /** Feature 171 (US6) — the author avatar, a library asset id. */
+  avatarAssetId: string | null;
+  /** Feature 171 (US6) — the author biography per language. */
+  bio: Record<string, string> | null;
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;
@@ -67,6 +71,11 @@ export interface AdminUserReadPort {
   listAll(options?: AdminUserLookupOptions): Promise<AdminUserRecord[]>;
   /** Admins holding a given role — the guard against deleting a role in use. */
   listByRoleId(adminRoleId: string): Promise<AdminUserRecord[]>;
+  /**
+   * Feature 171 (US6) — the non-deleted admins whose avatar is one of these assets:
+   * the library's "is this asset in use?" question.
+   */
+  findByAvatarAssetIds(assetIds: readonly string[]): Promise<AdminUserRecord[]>;
 }
 
 /**

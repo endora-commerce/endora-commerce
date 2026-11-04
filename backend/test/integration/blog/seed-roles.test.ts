@@ -56,6 +56,9 @@ function realAdminRolePort(db: TestDb): AdminRolePort {
     listByRoleId: () => {
       throw new Error('the seeder never deletes a role, so nothing counts its holders');
     },
+    findByAvatarAssetIds: () => {
+      throw new Error('the seeder never reads an admin user');
+    },
   };
   const service = new AdminRoleService(
     () => db.em(),

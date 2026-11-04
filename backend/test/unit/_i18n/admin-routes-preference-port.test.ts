@@ -34,6 +34,8 @@ function record(preferredLanguage: string | null): AdminUserRecord {
     twoFactorEnabled: false,
     lastLoginAt: null,
     preferredLanguage,
+    avatarAssetId: null,
+    bio: null,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-02T00:00:00.000Z'),
     deletedAt: null,

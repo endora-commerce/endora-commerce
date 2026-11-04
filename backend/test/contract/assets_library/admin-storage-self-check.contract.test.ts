@@ -7,9 +7,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Setting } from '@endora-commerce/platform/kernel';
-import { SettingValue } from '@endora-commerce/platform/kernel';
-import { SalesChannel } from '@endora-commerce/platform/kernel';
+import { overrideAssetSetting } from '../../helpers/crm-attachment-upload.js';
 
 /**
  * T073 — Contract test: storage self-check + state endpoints.
@@ -18,21 +16,17 @@ import { SalesChannel } from '@endora-commerce/platform/kernel';
 describe('admin storage self-check + state (T073)', () => {
   let h: BackendServerHandle;
   let baseDir: string;
+  let restoreBaseDir: (() => Promise<void>) | undefined;
 
   beforeAll(async () => {
     h = await setupBackendServer();
     baseDir = await mkdtemp(join(tmpdir(), 'assets-library-self-check-'));
-    const em = h.em();
-    const setting = await em.findOneOrFail(Setting, { code: 'assets.local.base_dir' });
-    const channel = await em.findOneOrFail(SalesChannel, { code: 'default' });
-    const existing = await em.findOne(SettingValue, { setting });
-    if (existing) existing.value = baseDir;
-    else em.create(SettingValue, { setting, salesChannel: channel, value: baseDir });
-    await em.flush();
+    restoreBaseDir = await overrideAssetSetting(h, 'assets.local.base_dir', baseDir);
     h.assetsLibrary.adapters.invalidate();
   });
 
   afterAll(async () => {
+    await restoreBaseDir?.();
     await teardownBackendServer(h);
     await rm(baseDir, { recursive: true, force: true });
   });

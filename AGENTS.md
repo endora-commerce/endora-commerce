@@ -289,6 +289,6 @@ never a copy — `.agents/skills/ux-laws/SKILL.md` is one. Update it in place.
 See "Repo map" above.
 
 ## Recent Changes
+- 171-blog-i18n-authors
 - 170-organization-roles
 - 170-forms-module
-- 169-page-builder-contact-form

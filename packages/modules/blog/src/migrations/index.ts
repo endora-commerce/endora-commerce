@@ -31,15 +31,24 @@
 import { Migration20260506T081055BlogInit } from './20260506T081055_blog_init.js';
 import { Migration20260903T101744BlogNamespaceBlockNames } from './20260903T101744_blog_namespace_block_names.js';
 import { Migration20261023T063013BlogPostMainImage } from './20261023T063013_blog_post_main_image.js';
+import { Migration20261103T112345BlogUrlPrefixes } from './20261103T112345_blog_url_prefixes.js';
+import { Migration20261103T134216BlogUrlKeysAndRedirects } from './20261103T134216_blog_url_keys_and_redirects.js';
+import { Migration20261103T140555BlogPostAuthor } from './20261103T140555_blog_post_author.js';
 
 export const migrations = [
   Migration20260506T081055BlogInit,
   Migration20260903T101744BlogNamespaceBlockNames,
   Migration20261023T063013BlogPostMainImage,
+  Migration20261103T112345BlogUrlPrefixes,
+  Migration20261103T134216BlogUrlKeysAndRedirects,
+  Migration20261103T140555BlogPostAuthor,
 ];
 
 export {
   Migration20260506T081055BlogInit,
   Migration20260903T101744BlogNamespaceBlockNames,
   Migration20261023T063013BlogPostMainImage,
+  Migration20261103T112345BlogUrlPrefixes,
+  Migration20261103T134216BlogUrlKeysAndRedirects,
+  Migration20261103T140555BlogPostAuthor,
 };

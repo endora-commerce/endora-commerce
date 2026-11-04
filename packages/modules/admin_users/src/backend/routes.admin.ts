@@ -174,6 +174,9 @@ export async function registerAdminUsersAdminRoutes(
           ...(body.password !== undefined
             ? { password: body.password, currentPassword: body.currentPassword }
             : {}),
+          // Feature 171 (US6) — the author profile.
+          ...(body.avatarAssetId !== undefined ? { avatarAssetId: body.avatarAssetId } : {}),
+          ...(body.bio !== undefined ? { bio: body.bio } : {}),
         },
         {
           sessionCookieValue: cookies?.[ADMIN_SESSION_COOKIE_NAME],
@@ -259,6 +262,8 @@ export async function registerAdminUsersAdminRoutes(
           ...(body.lastName !== undefined ? { lastName: body.lastName } : {}),
           ...(body.adminRoleId !== undefined ? { adminRoleId: body.adminRoleId } : {}),
           ...(body.status !== undefined ? { status: body.status } : {}),
+          ...(body.avatarAssetId !== undefined ? { avatarAssetId: body.avatarAssetId } : {}),
+          ...(body.bio !== undefined ? { bio: body.bio } : {}),
         },
         await actorAuthority(request),
       );
@@ -371,6 +376,9 @@ function serializeAdminUser(u: AdminUser, twoFactorEnabled: boolean) {
     // Feature 019: surface the per-user Admin UI language preference so the
     // SPA's TranslationProvider can seed itself without a separate fetch.
     preferredLanguage: u.preferredLanguage ?? null,
+    // Feature 171 (US6) — the public author profile.
+    avatarAssetId: u.avatarAssetId ?? null,
+    bio: u.bio ?? null,
     lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
     createdAt: u.createdAt.toISOString(),
     updatedAt: u.updatedAt.toISOString(),

@@ -997,6 +997,10 @@ export const CONTRIBUTION_POLICY_STATED: Readonly<Record<string, 'skip' | 'honou
   // whose recorded owner is not effectively present, and `PlanExecutorService`
   // re-checks at execution.
   'prompt_actions:promptActionToolRegistry': 'skip',
+  // Skipped: a surface. `CmsReservedSegmentRegistry.claimedIn` drops every contributor
+  // whose recorded module is not effectively present — a switched-off blog serves no
+  // address, so a page may take it (feature 171, research R5).
+  'cms:cmsReservedSegmentRegistry': 'skip',
   // Skipped: a surface. `AdminSearchProviderRegistry.listPresent` /
   // `listVisible` drop every provider whose recorded module is not effectively
   // present, so a switched-off owner's record type is neither searched nor

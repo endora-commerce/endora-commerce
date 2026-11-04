@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { isoDateTimeSchema, uuidSchema } from './common.js';
+import { organizationRoleRefSchema } from './organization-roles.js';
 
 /**
  * Customers (Klienci) module — feature 040.
@@ -125,6 +126,10 @@ export const customerSelfProfileSchema = z.object({
   organizationId: uuidSchema.nullable(),
   customerGroupId: uuidSchema.nullable(),
   twoFactorEnabled: z.boolean(),
+  /** The member's role (`specs/170-organization-roles/` FR-056); it replaced the legacy `role`. */
+  organizationRole: organizationRoleRefSchema,
+  /** The member's effective organization permissions, sorted (FR-056). */
+  permissions: z.array(z.string()),
 });
 export type CustomerSelfProfile = z.infer<typeof customerSelfProfileSchema>;
 

@@ -7,6 +7,7 @@ import type {
   AdminRolePort,
   AdminUserPreferencePort,
   AdminUserReadPort,
+  AssetReadPort,
   AuthSessionPort,
   CustomerAccountReadPort,
   ImpersonationPort,
@@ -17,7 +18,7 @@ import type {
   PermissionReadPort,
 } from '@endora-commerce/contracts';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
-import { lazyPort } from '@endora-commerce/platform/kernel';
+import { lazyPort, requireModuleEnabled } from '@endora-commerce/platform/kernel';
 import { effectiveState } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory, SettingsReadPort } from '@endora-commerce/platform/kernel';
 import { adminModule } from './plugin.js';
@@ -147,6 +148,13 @@ export function registerModule(ctx: ModuleContext): void {
           // branch — the password-only fallback of feature 042 FR-033 — is what
           // `undefined` selects.
           getMfaLoginPort: () => (effectiveState.isPresent('mfa') ? mfaLoginPort : undefined),
+          // Feature 171 (US6) — the avatar must be a live library asset. With the
+          // library absent no avatar can be set, decided before the port is
+          // resolved (the `mfa` shape above): a `MODULE_DISABLED` answer.
+          assetExists: async (assetId) => {
+            requireModuleEnabled('assets_library');
+            return (await lazyPort<AssetReadPort>(ctx, 'assetReadPort').findById(assetId, { liveOnly: true })) !== null;
+          },
           twoFactorEnrolments,
           // Kernel-owned and lazy for the reason every port above is: this
           // registration is a singleton, and a cradle parameter would resolve

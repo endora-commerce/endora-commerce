@@ -597,6 +597,33 @@
         }
       }
     },
+    "/api/v1/admin/blog/addresses": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/blog/addresses/{id}": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/blog/author-candidates": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/blog/categories": {
       "get": {
         "responses": {
@@ -647,6 +674,31 @@
     },
     "/api/v1/admin/blog/categories/{id}/description": {
       "put": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/blog/categories/{id}/url-keys": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/blog/categories/{id}/url-redirects/{redirectId}": {
+      "delete": {
         "responses": {
           "200": {
             "description": "OK"
@@ -758,6 +810,31 @@
     },
     "/api/v1/admin/blog/posts/{id}/unpublish": {
       "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/blog/posts/{id}/url-keys": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/blog/posts/{id}/url-redirects/{redirectId}": {
+      "delete": {
         "responses": {
           "200": {
             "description": "OK"
@@ -8353,6 +8430,15 @@
       }
     },
     "/api/v1/blog/posts": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/blog/routing": {
       "get": {
         "responses": {
           "200": {

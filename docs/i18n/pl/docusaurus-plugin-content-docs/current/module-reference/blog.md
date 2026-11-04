@@ -30,6 +30,7 @@ Operator włącza i wyłącza ten moduł na **/platform/modules**. Decyduje o ty
 | Moduł | Wiążąca | Co to oznacza |
 | --- | --- | --- |
 | `admin_roles` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
+| `admin_users` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `assets_library` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `auth` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `catalog` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
@@ -51,6 +52,7 @@ _Brak._
 | `open-blog-categories` | `/blog/categories` | `blog.read` |
 | `open-blog-posts` | `/blog/posts` | `blog.read` |
 | `open-blog-tags` | `/blog/tags` | `blog.read` |
+| `open-blog-addresses` | `/blog/addresses` | `blog.read` |
 
 ## Ustawienia
 
@@ -61,6 +63,7 @@ _Brak._
 | `blog.latest_count` | Latest posts on the blog index | `number` |
 | `blog.posts_per_page` | Posts per page in Category and Tag views | `number` |
 | `blog.url_prefix` | Blog URL prefix | `string` |
+| `blog.url_prefix_by_language` | Blog URL prefix per language | `json` |
 
 ## Tłumaczenia
 

@@ -61,6 +61,9 @@ describe('blog off-state (Constitution XVII)', () => {
         { url: '/api/v1/blog/tag-by-code?code=news', headers: channel },
         // Feature 163 — the card list behind `blog.LatestPosts`.
         { url: '/api/v1/blog/posts?limit=3', headers: channel },
+        // Feature 171 — the storefront middleware's routing read, and the former-prefix list.
+        { url: '/api/v1/blog/routing', headers: channel },
+        { url: '/api/v1/admin/blog/addresses', cookies: admin },
       ],
       adminPresence: { cookies: admin },
       settingWrite: { code: BLOG_SETTING_CODES.POSTS_PER_PAGE, value: 10, cookies: admin },

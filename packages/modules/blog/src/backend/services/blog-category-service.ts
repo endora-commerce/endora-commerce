@@ -12,6 +12,8 @@ import {
   type PutBlogCategoryDescriptionRequest,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
+import { assertCategoryLanguagesComplete } from './blog-language-completeness.js';
+import { forgetEntityUrls, redirectFormerSlug } from './blog-url-keys.js';
 import { assertLinkableAsset, type LinkableAssetReader } from './linkable-asset.js';
 import { assertSlugAvailable } from './blog-slug-collision.js';
 import type { BlogCacheService } from './blog-cache.js';
@@ -180,6 +182,8 @@ export class BlogCategoryService {
         );
       }
 
+      // Feature 171 — a category is named in every language it is in.
+      await assertCategoryLanguagesComplete(tx, id);
       return this.getByIdInTx(tx, id);
     });
     // A first-level category is in the storefront index from the moment it
@@ -278,6 +282,8 @@ export class BlogCategoryService {
           `update blog_category_sales_channels set slug = ? where blog_category_id = ?`,
           [input.slug, id],
         );
+        // Feature 171 (OR-8) — the former slug keeps answering, as a redirect.
+        await redirectFormerSlug(tx, { kind: 'category', id }, existing.slug);
       }
       if (channelChange) {
         await this.replaceChannels(tx, id, input.salesChannelIds!, input.slug ?? existing.slug);
@@ -288,6 +294,7 @@ export class BlogCategoryService {
         await this.replaceLanguages(tx, id, input.languages);
       }
 
+      await assertCategoryLanguagesComplete(tx, id);
       const detail = await this.getByIdInTx(tx, id);
       await this.invalidateCache(existing.slug, detail.slug);
       return detail;
@@ -418,6 +425,8 @@ export class BlogCategoryService {
         `update blog_categories set deleted_at = now(), updated_at = now() where id = ?`,
         [id],
       );
+      // Feature 171 — the category's keys and redirects go with it.
+      await forgetEntityUrls(tx, { kind: 'category', id });
       await tx.execute(
         `update blog_category_sales_channels set deleted_at = now() where blog_category_id = ?`,
         [id],
