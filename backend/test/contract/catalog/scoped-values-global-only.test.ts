@@ -182,6 +182,65 @@ describe('172 — the save checks Global-only fields like PATCH (code review 1)'
     expect(row).toMatchObject({ s: setId, v: { [voltage]: '230 V' } });
   });
 
+  it('a Global attribute cell needs every required attribute of the set, staged or not; Channel and Channel x language do not (owner decision 2026-11-04)', async () => {
+    // A set holding one optional scopable attribute and one required one; the product is moved
+    // onto it by SQL, so its required attribute is empty and the save does not stage it.
+    const setId = randomUUID();
+    await fx.sql(
+      `insert into attribute_sets (id, code, name, is_system, created_at, updated_at)
+       values (?, ?, '{"en-US":"SV170 C"}'::jsonb, false, now(), now())`,
+      [setId, `sv170c_${fx.run}`],
+    );
+    sets.push(setId);
+    const suffix = fx.run.replace(/-/g, '');
+    const finish = `finish_${suffix}`;
+    const rating = `rating_${suffix}`;
+    for (const [position, input] of [
+      { key: finish, scopable: true, isRequired: false },
+      { key: rating, scopable: false, isRequired: true },
+    ].entries()) {
+      const created = await createAttributeFixture(h.em().fork(), {
+        key: input.key,
+        label: { 'en-US': input.key },
+        labelDefault: input.key,
+        valueType: 'string' as never,
+        scopable: input.scopable,
+        isRequired: input.isRequired,
+      });
+      await fx.sql(
+        `insert into attribute_set_attributes (attribute_set_id, custom_field_definition_id, position) values (?, ?, ?)`,
+        [setId, (created.definition as { id: string }).id, position],
+      );
+    }
+    const channel = await fx.channel(['pl-PL', 'en-US']);
+    const id = await fx.product({ channels: [channel] });
+    await fx.sql(`update products set attribute_set_id = ?, attribute_values = '{}'::jsonb where id = ?`, [setId, id]);
+    const stored = async () =>
+      (await fx.sql<{ v: Record<string, unknown> }>(`select attribute_values as v from products where id = ?`, [id]))[0]!.v;
+
+    // Global: one unrelated cell is refused for the unstaged required attribute, nothing written.
+    const global = await fx.put(id, {}, { attributes: { [finish]: 'Matte' } });
+    expect(global.statusCode, global.body).toBe(422);
+    expect(global.json()).toMatchObject(refusal(`attribute:${rating}`, 'required_empty'));
+    expect(await stored()).toEqual({});
+
+    // The same staged change at Channel and at Channel x language is saved.
+    const atChannel = await fx.put(id, { channelId: channel }, { attributes: { [finish]: 'Matte' } });
+    expect(atChannel.statusCode, atChannel.body).toBe(200);
+    const atLanguage = await fx.put(id, { channelId: channel, languageCode: 'pl-PL' }, { attributes: { [finish]: 'Mat' } });
+    expect(atLanguage.statusCode, atLanguage.body).toBe(200);
+    expect((await fx.read(id, { channelId: channel })).attributes.find((a) => a.key === finish)?.view).toMatchObject({ value: 'Matte' });
+    expect(
+      (await fx.read(id, { channelId: channel, languageCode: 'pl-PL' })).attributes.find((a) => a.key === finish)?.view,
+    ).toMatchObject({ value: 'Mat' });
+
+    // A Global save carrying no attribute cell is not refused for the empty required attribute.
+    const noAttribute = await fx.put(id, {}, { name: 'Renamed' });
+    expect(noAttribute.statusCode, noAttribute.body).toBe(200);
+    expect((await fx.read(id)).fields.name).toMatchObject({ value: 'Renamed' });
+    expect(await stored()).toEqual({});
+  });
+
   it('a category that does not exist, or is deleted, is subject_not_found; existing ones are stored', async () => {
     const id = await fx.product();
     const live = await category();
