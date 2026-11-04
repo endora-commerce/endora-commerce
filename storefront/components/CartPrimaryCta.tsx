@@ -10,7 +10,6 @@ export interface CartPrimaryCtaProps {
   cta: NonNullable<CartSummary['primaryCta']>;
   /** Whether the buyer has a valid customer session (resolved `/me`). */
   authenticated: boolean;
-  submitForApprovalNeeded: boolean;
   canTransact: boolean;
   moderationMessage: string | null;
   submitAction: (formData: FormData) => Promise<void>;
@@ -60,11 +59,15 @@ function BlockedPrimary({ label, noteId, note }: { label: string; noteId: string
  * The cart page's primary CTA. Source of truth is the backend's `cart.primaryCta` field; the
  * page's fallback covers anonymous carts (the backend can't compute `primaryCta` without an org
  * context). Feature 027 T096; feature 155 blocks checkout and approval on the same verdict.
+ *
+ * `specs/170-organization-roles/` (FR-031, FR-057): `cta` alone decides between checkout and
+ * "Submit for approval" — the backend derives it from the member's role
+ * (`carts.order_without_approval`); the Organization-wide approval flag this used to accept beside
+ * it is gone.
  */
 export function CartPrimaryCta({
   cta,
   authenticated,
-  submitForApprovalNeeded,
   canTransact,
   moderationMessage,
   submitAction,
@@ -94,7 +97,7 @@ export function CartPrimaryCta({
       </button>
     );
   }
-  if (submitForApprovalNeeded || cta === 'submit_for_approval') {
+  if (cta === 'submit_for_approval') {
     if (linesBlockCheckout) {
       // Owner ruling 2026-10-18 — a basket that cannot be ordered cannot be sent for approval
       // either; the server refuses it with the minimum code, so the control is not offered.

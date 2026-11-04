@@ -37,7 +37,8 @@ import { getStorefrontQuoteRequestSettings } from '../../../../lib/api/rfq';
 import { getProductBySlug, resolveProductKey } from '../../../../lib/api/catalog';
 import { getResolvedPrice, PRICING_UNAVAILABLE } from '../../../../lib/api/pricing';
 import { getStorefrontProductStock } from '../../../../lib/api/inventory';
-import { getMe } from '../../../../lib/api/account';
+import { getMe, type MeResult } from '../../../../lib/api/account';
+import { commerceAbilities, memberSession } from '../../../../lib/commerce-permissions';
 import { addCartItem, type CartCookieJar } from '../../../../lib/api/cart';
 import {
   getAnonCartCookie,
@@ -148,7 +149,13 @@ export default async function ProductPage({
   const primaryCategory = product.categories[0];
   const rfqSettings = await getStorefrontQuoteRequestSettings();
   const stock = await getStorefrontProductStock(product.id, ctx);
-  const customerEmail = await readCustomerEmail();
+  const member = await readMember();
+  const customerEmail = member?.customerAccount.email ?? null;
+  // `specs/170-organization-roles/` (FR-030, FR-040, FR-047, FR-057; research
+  // R-12) — each action the member's role does not allow is hidden: on a
+  // product page its absence explains itself. A signed-out visitor keeps
+  // add-to-cart and the rest exactly as before (owner ruling PR-4).
+  const abilities = commerceAbilities(memberSession(member));
   /**
    * D-287 P0 — **one** resolution prices this page. The product detail carries
    * the base / sale / display-mode split (`resolvedPrice`) from the resolution
@@ -203,12 +210,13 @@ export default async function ProductPage({
 
   // The "Add to compare" toggle rides in the ProductBuyActions second row when
   // that row renders; otherwise it's shown on its own below the action zone.
-  const buyShowCart = !!price && !stock?.showNotifyButton;
-  const buyShowQuote = rfqSettings.showAddToQuoteOnPdp;
+  const buyShowCart = !!price && !stock?.showNotifyButton && abilities.editCart;
+  const buyShowQuote = rfqSettings.showAddToQuoteOnPdp && abilities.requestQuote;
+  const buyRowOffered = (!!price && abilities.editCart) || buyShowQuote;
   const buyActionsRendered =
     (product.type === 'simple' || product.type === 'configurable') &&
     !isQuoteOnly &&
-    (!!price || buyShowQuote) &&
+    buyRowOffered &&
     (buyShowCart || buyShowQuote);
 
   // Industria PDP detail tabs (below the gallery). "Opis" (description) is the
@@ -380,15 +388,17 @@ export default async function ProductPage({
               */}
             {product.type === 'simple' || product.type === 'configurable' ? (
               isQuoteOnly ? (
-                <QuoteRequestCta
-                  productId={product.id}
-                  productSlug={product.slug}
-                  productName={product.name}
-                  unitPrice={price ?? null}
-                  variant="pdp"
-                  minOrderQuantity={product.minOrderQuantity ?? null}
-                  locale={locale}
-                />
+                abilities.requestQuote ? (
+                  <QuoteRequestCta
+                    productId={product.id}
+                    productSlug={product.slug}
+                    productName={product.name}
+                    unitPrice={price ?? null}
+                    variant="pdp"
+                    minOrderQuantity={product.minOrderQuantity ?? null}
+                    locale={locale}
+                  />
+                ) : null
               ) : (
                 <>
                   {stock?.showNotifyButton ? (
@@ -408,15 +418,15 @@ export default async function ProductPage({
                       }}
                     />
                   ) : null}
-                  {price || rfqSettings.showAddToQuoteOnPdp ? (
+                  {buyRowOffered ? (
                     <ProductBuyActions
                       productId={product.id}
                       productSlug={product.slug}
                       productName={product.name}
                       unitPrice={price ?? null}
                       {...(selectedVariantId ? { variantId: selectedVariantId } : {})}
-                      showCart={!!price && !stock?.showNotifyButton}
-                      showQuote={rfqSettings.showAddToQuoteOnPdp}
+                      showCart={buyShowCart}
+                      showQuote={buyShowQuote}
                       packagingUnits={product.packagingUnits}
                       singlePieceLabel={t('product.packaging.singlePiece')}
                       piecesLabel={t('product.packaging.pieces')}
@@ -426,16 +436,18 @@ export default async function ProductPage({
                       addToCartLabel={t('product.addToCart')}
                       // Secondary actions row, next to compare + quote.
                       leadingAction={
-                        <AddToShoppingListButton
-                          locale={locale}
-                          apiBase={PDP_API_BASE}
-                          productId={product.id}
-                          {...(selectedVariantId ? { variantId: selectedVariantId } : {})}
-                          label={t('card.list.add')}
-                          removeLabel={t('card.list.remove')}
-                          showLabel
-                          className="btn btn--outline h-[40px] w-full justify-center md:w-auto"
-                        />
+                        abilities.editShoppingLists ? (
+                          <AddToShoppingListButton
+                            locale={locale}
+                            apiBase={PDP_API_BASE}
+                            productId={product.id}
+                            {...(selectedVariantId ? { variantId: selectedVariantId } : {})}
+                            label={t('card.list.add')}
+                            removeLabel={t('card.list.remove')}
+                            showLabel
+                            className="btn btn--outline h-[40px] w-full justify-center md:w-auto"
+                          />
+                        ) : null
                       }
                       // Secondary actions row, alongside the shopping-list + quote.
                       compareAction={
@@ -447,9 +459,9 @@ export default async function ProductPage({
                         />
                       }
                     />
-                  ) : (
-                    // No buy-actions row (no price and RFQ-on-PDP off): still
-                    // offer the shopping-list heart on its own.
+                  ) : abilities.editShoppingLists ? (
+                    // No buy-actions row (no price and RFQ-on-PDP off, or neither
+                    // offered to this member): still offer the shopping-list heart.
                     <AddToShoppingListButton
                       locale={locale}
                       apiBase={PDP_API_BASE}
@@ -458,7 +470,9 @@ export default async function ProductPage({
                       label={t('card.list.add')}
                       removeLabel={t('card.list.remove')}
                     />
-                  )}
+                  ) : null}
+                  {/* FR-051 — only when eligibility answers enabled: the backend judges the
+                      member's `quick_order.one_click` and `carts.order_without_approval` first. */}
                   {oneClickEnabled && price ? (
                     <form action={oneClickAction} style={{ display: 'inline-flex', gap: 8 }}>
                       <input type="hidden" name="productId" value={product.id} />
@@ -473,7 +487,7 @@ export default async function ProductPage({
                 </>
               )
             ) : null}
-            {product.type === 'virtual' && product.virtual ? (
+            {product.type === 'virtual' && product.virtual && abilities.editCart ? (
               <VirtualCta
                 productId={product.id}
                 virtual={product.virtual}
@@ -517,7 +531,7 @@ export default async function ProductPage({
             />
           ) : null}
 
-          {product.type === 'grouped' && product.groupedItems ? (
+          {product.type === 'grouped' && product.groupedItems && abilities.editCart ? (
             <GroupedSummary
               items={product.groupedItems}
               addToCartLabel={t('product.grouped.addBundleToCart')}
@@ -526,7 +540,7 @@ export default async function ProductPage({
             />
           ) : null}
 
-          {product.type === 'bundle' && product.bundleSlots ? (
+          {product.type === 'bundle' && product.bundleSlots && abilities.editCart ? (
             <BundleConfigurator
               productSlug={product.slug}
               slots={product.bundleSlots}
@@ -563,13 +577,17 @@ export default async function ProductPage({
   );
 }
 
-async function readCustomerEmail(): Promise<string | null> {
+/**
+ * The signed-in buyer's `/api/v1/me`, or `null` for a visitor or a session it
+ * does not answer for — read once for the notify dialog's e-mail and the
+ * member's role (170, FR-057).
+ */
+async function readMember(): Promise<MeResult | null> {
   const cookieStore = await cookies();
   const session = cookieStore.get('b2b_session')?.value;
   if (!session) return null;
   try {
-    const me = await getMe(session);
-    return me.customerAccount.email;
+    return await getMe(session);
   } catch {
     return null;
   }

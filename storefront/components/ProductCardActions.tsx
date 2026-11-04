@@ -10,7 +10,13 @@ import {
   removeFromDefaultListAction,
 } from '../lib/actions/shoppingList';
 import { addRfqDraftItem } from '../lib/rfqDraft';
-import { addProductToCartAction } from '../lib/actions/cart';
+import { addProductToCartAction, getCommerceAbilitiesAction } from '../lib/actions/cart';
+import {
+  cardActionVisibility,
+  VISITOR_ABILITIES,
+  type CommerceAbilities,
+  type ProductCardButtonsConfig,
+} from '../lib/commerce-permissions';
 import { channelHeaders } from '../lib/channel/channel-header';
 import { cardAddToCartPayload, quoteAddQuantity } from '../lib/orderMinimum';
 import { productCardActionLabels, type CardActionState } from '../lib/buyActionLabels';
@@ -26,12 +32,19 @@ import { useLocalizedPath } from '../lib/i18n/localized-link';
  * dispatches `b2b:shopping-list:changed` so the header heart badge updates;
  * "add to cart" dispatches `b2b:cart:changed`; "add to quote" links to the
  * product page's quote section (full quantity / variant selection lives there).
+ *
+ * `specs/170-organization-roles/` (FR-057): a button also needs the buyer's
+ * role to allow it (`cardActionVisibility`); what the role allows is read once
+ * per page load through a server action, beside the settings, so a list-only
+ * member's cards offer no cart button. A visitor keeps every button (PR-4).
  */
 
-interface ButtonsConfig {
-  showAddToCart: boolean;
-  showAddToShoppingList: boolean;
-  showAddToQuote: boolean;
+type ButtonsConfig = ProductCardButtonsConfig;
+
+/** Settings and abilities, resolved together so the card renders once, in its final shape. */
+interface CardState {
+  config: ButtonsConfig;
+  abilities: CommerceAbilities;
 }
 
 /** Per channel: the toggles are channel-scoped settings. */
@@ -51,6 +64,14 @@ function loadConfig(apiBase: string, channelCode: string | undefined): Promise<B
     cachedConfig.set(key, config);
   }
   return config;
+}
+
+/** The buyer's abilities, once per page load; on any failure the visitor's (the backend still guards). */
+let cachedAbilities: Promise<CommerceAbilities> | null = null;
+
+function loadAbilities(): Promise<CommerceAbilities> {
+  cachedAbilities ??= getCommerceAbilitiesAction().catch(() => VISITOR_ABILITIES);
+  return cachedAbilities;
 }
 
 type ActionState = CardActionState;
@@ -83,7 +104,7 @@ export function ProductCardActions(props: {
    */
   locale?: string | undefined;
 }): ReactNode {
-  const [cfg, setCfg] = useState<ButtonsConfig | null>(null);
+  const [cfg, setCfg] = useState<CardState | null>(null);
   const [cartState, setCartState] = useState<ActionState>('idle');
   const [listState, setListState] = useState<ActionState>('idle');
   /** Whether this product is currently in the customer's default list. */
@@ -93,9 +114,11 @@ export function ProductCardActions(props: {
 
   useEffect(() => {
     let cancelled = false;
-    void loadConfig(props.apiBase, props.salesChannelCode).then((c) => {
-      if (!cancelled) setCfg(c);
-    });
+    void Promise.all([loadConfig(props.apiBase, props.salesChannelCode), loadAbilities()]).then(
+      ([config, abilities]) => {
+        if (!cancelled) setCfg({ config, abilities });
+      },
+    );
     return () => {
       cancelled = true;
     };
@@ -195,9 +218,8 @@ export function ProductCardActions(props: {
     window.setTimeout(() => setQuoteState('idle'), 1500);
   };
 
-  const anyVisible =
-    (cfg.showAddToCart && props.buyable) || cfg.showAddToShoppingList || cfg.showAddToQuote;
-  if (!anyVisible) return null;
+  const visible = cardActionVisibility(cfg.config, cfg.abilities, props.buyable);
+  if (!visible.cart && !visible.list && !visible.quote) return null;
 
   // Order: shopping list → quote → cart. Each action is an icon button (icons
   // consistent with the header) and reveals its label as a tooltip on hover.
@@ -212,7 +234,7 @@ export function ProductCardActions(props: {
 
   return (
     <div className="mt-[10px] flex flex-wrap gap-[6px]">
-      {cfg.showAddToShoppingList ? (
+      {visible.list ? (
         <WithTooltip label={labels.list}>
           <button
             type="button"
@@ -226,7 +248,7 @@ export function ProductCardActions(props: {
           </button>
         </WithTooltip>
       ) : null}
-      {cfg.showAddToQuote ? (
+      {visible.quote ? (
         <WithTooltip label={labels.quote}>
           <button
             type="button"
@@ -238,7 +260,7 @@ export function ProductCardActions(props: {
           </button>
         </WithTooltip>
       ) : null}
-      {cfg.showAddToCart && props.buyable ? (
+      {visible.cart ? (
         <WithTooltip label={labels.cart}>
           <button
             type="button"

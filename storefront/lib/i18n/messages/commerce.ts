@@ -82,16 +82,19 @@ export const commerce = defineMessages({
     'commerce.cart.dropped.reason.outOfStock': 'out of stock',
     'commerce.cart.dropped.reason.noPriceInCustomerList': 'no price available',
     'commerce.cart.dropped.reason.removedByConversion': 'skipped during conversion',
-    'commerce.cart.approval.pending': 'Your cart is awaiting approval by an organization administrator.',
+    // `specs/170-organization-roles/` — approval follows the member's role, and an approver is
+    // anyone holding `carts.approve`, not only the administrator (FR-031, FR-032).
+    'commerce.cart.approval.pending': 'Your cart is awaiting approval in your organization.',
     'commerce.cart.approval.approved': 'Your cart has been approved and is ready for checkout.',
-    'commerce.cart.approval.rejected': 'Your cart was rejected by an organization administrator.',
+    'commerce.cart.approval.rejected': 'Your cart was rejected by an approver in your organization.',
     'commerce.cart.approval.rejectedWithReason':
-      'Your cart was rejected by an organization administrator. Reason: {reason}',
-    'commerce.cart.approval.policyOn': 'Your organization requires cart approval before checkout.',
+      'Your cart was rejected by an approver in your organization. Reason: {reason}',
+    'commerce.cart.approval.submissionRequired': 'Your role requires approval of this cart before checkout.',
     'commerce.cart.approval.previousRejected':
-      'Your previous cart was rejected by an organization administrator.',
+      'Your previous cart was rejected by an approver in your organization.',
     'commerce.cart.approval.previousRejectedWithReason':
-      'Your previous cart was rejected by an organization administrator. Reason: {reason}',
+      'Your previous cart was rejected by an approver in your organization. Reason: {reason}',
+    'commerce.cart.readOnlyNote': 'Your role does not allow changing the cart. You can still view it and order it.',
     'commerce.cart.upsells.heading': 'You might also need',
     'commerce.cart.banner.qrCreated': "We've sent your cart to sales as a new quote request.",
     'commerce.cart.banner.listAdded': 'Saved line to your "{list}" list.',
@@ -231,6 +234,11 @@ export const commerce = defineMessages({
     'commerce.pdp.oneClick': 'Buy in one click',
     'commerce.pdp.datasheet': 'Datasheet',
 
+    // ── quick order and shopping lists (`specs/170-organization-roles/`, FR-047, owner ruling Q2(b))
+    'commerce.quickOrder.notAllowed':
+      'Your role does not allow adding products to the cart or requesting quotes, so quick order is not available to you.',
+    'commerce.shoppingLists.readOnlyNote': 'Your role allows viewing shopping lists but not changing them.',
+
     // ── file dropzone (quick order)
     'commerce.dropzone.reading': 'Reading file…',
     'commerce.dropzone.selected': 'Selected: {name}',
@@ -304,16 +312,17 @@ export const commerce = defineMessages({
     'commerce.cart.dropped.reason.outOfStock': 'brak na stanie',
     'commerce.cart.dropped.reason.noPriceInCustomerList': 'brak ceny dla Twojego konta',
     'commerce.cart.dropped.reason.removedByConversion': 'pominięto podczas konwersji',
-    'commerce.cart.approval.pending': 'Twój koszyk oczekuje na akceptację administratora organizacji.',
+    'commerce.cart.approval.pending': 'Twój koszyk oczekuje na akceptację w Twojej organizacji.',
     'commerce.cart.approval.approved': 'Twój koszyk został zaakceptowany i jest gotowy do realizacji.',
-    'commerce.cart.approval.rejected': 'Twój koszyk został odrzucony przez administratora organizacji.',
+    'commerce.cart.approval.rejected': 'Twój koszyk został odrzucony przez osobę zatwierdzającą w Twojej organizacji.',
     'commerce.cart.approval.rejectedWithReason':
-      'Twój koszyk został odrzucony przez administratora organizacji. Powód: {reason}',
-    'commerce.cart.approval.policyOn': 'Twoja organizacja wymaga akceptacji koszyka przed realizacją.',
+      'Twój koszyk został odrzucony przez osobę zatwierdzającą w Twojej organizacji. Powód: {reason}',
+    'commerce.cart.approval.submissionRequired': 'Twoja rola wymaga akceptacji koszyka przed realizacją zamówienia.',
     'commerce.cart.approval.previousRejected':
-      'Twój poprzedni koszyk został odrzucony przez administratora organizacji.',
+      'Twój poprzedni koszyk został odrzucony przez osobę zatwierdzającą w Twojej organizacji.',
     'commerce.cart.approval.previousRejectedWithReason':
-      'Twój poprzedni koszyk został odrzucony przez administratora organizacji. Powód: {reason}',
+      'Twój poprzedni koszyk został odrzucony przez osobę zatwierdzającą w Twojej organizacji. Powód: {reason}',
+    'commerce.cart.readOnlyNote': 'Twoja rola nie pozwala zmieniać koszyka. Możesz go przeglądać i zamówić.',
     'commerce.cart.upsells.heading': 'Możesz też potrzebować',
     'commerce.cart.banner.qrCreated': 'Twój koszyk został wysłany do działu sprzedaży jako nowe zapytanie ofertowe.',
     'commerce.cart.banner.listAdded': 'Pozycja została zapisana na liście „{list}”.',
@@ -452,6 +461,11 @@ export const commerce = defineMessages({
     'commerce.pdp.sku': 'Kod:',
     'commerce.pdp.oneClick': 'Kup jednym kliknięciem',
     'commerce.pdp.datasheet': 'Karta katalogowa',
+
+    // ── quick order and shopping lists (`specs/170-organization-roles/`, FR-047, owner ruling Q2(b))
+    'commerce.quickOrder.notAllowed':
+      'Twoja rola nie pozwala dodawać produktów do koszyka ani wysyłać zapytań ofertowych, dlatego szybkie zamówienie jest dla Ciebie niedostępne.',
+    'commerce.shoppingLists.readOnlyNote': 'Twoja rola pozwala przeglądać listy zakupów, ale nie pozwala ich zmieniać.',
 
     // ── file dropzone (quick order)
     'commerce.dropzone.reading': 'Wczytywanie pliku…',

@@ -377,10 +377,17 @@ describe('product page — actions per the member’s role (FR-057)', () => {
     expect(await renderPdp()).toContain(buyOneClick);
   });
 
-  it('hides the grouped and bundle add-to-cart without `carts.create`', async () => {
+  it('hides the grouped add-to-cart without `carts.create`', async () => {
     product = simpleProduct({
       type: 'grouped',
-      groupedItems: [{ productId: 'p2', name: 'Nut', sku: 'NUT-1', quantity: 1, price: null }],
+      groupedItems: [
+        {
+          id: 'g1',
+          position: 0,
+          quantity: 1,
+          product: { id: 'p2', sku: 'NUT-1', slug: 'nut', name: 'Nut', primaryAssetUrl: null, price: null },
+        },
+      ],
     });
     const grouped = en('product.grouped.addBundleToCart');
     expect(await renderPdp()).toContain(grouped);

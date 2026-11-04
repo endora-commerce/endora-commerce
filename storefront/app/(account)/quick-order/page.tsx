@@ -17,6 +17,8 @@ import {
 } from '../../../lib/batchReport';
 import { tForLocale, type MessageKey } from '../../../lib/i18n/messages';
 import { getSessionCookie } from '../../../lib/session';
+import { getCommerceAbilitiesAction } from '../../../lib/actions/cart';
+import type { CommerceAbilities } from '../../../lib/commerce-permissions';
 import { getServerContext } from '../../../lib/server-context';
 import { StorefrontApiError } from '../../../lib/api/client';
 import { FileDropzone } from '../../../components/FileDropzone';
@@ -48,6 +50,11 @@ const CSV_SAMPLE = ['sku,quantity', 'EXAMPLE-SIMPLE-001,10', 'EXAMPLE-BLUE-002,5
  *
  * The preview lives in the URL (base64) on the second step so the page is
  * fully server-rendered; only the dropzone is a small client component.
+ *
+ * `specs/170-organization-roles/` (owner ruling Q2(b), 2026-11-04): the page is
+ * open to a member holding `carts.create` **or** `quote_requests.create`; each
+ * target is offered only to the holder of its own code. A member with neither
+ * is told why instead of being handed an import that would be refused.
  */
 
 interface PreviewState {
@@ -85,6 +92,7 @@ export default async function QuickOrderPage({
   const session = await getSessionCookie();
   if (!session) return await localeRedirect('/login?next=/account/quick-order');
   const sp = await searchParams;
+  const abilities = await getCommerceAbilitiesAction();
 
   const preview = sp.preview ? decodePreview(sp.preview) : null;
   const searchQuery = sp.q?.trim() ?? '';
@@ -100,6 +108,16 @@ export default async function QuickOrderPage({
   const notAdded = notAddedReport.lines;
   const notAddedCount = notAdded.length + (notAdded.length > 0 ? notAddedReport.more : 0);
   const sentCount = Math.max(Number.parseInt(sp.sent ?? '', 10) || 0, notAddedCount);
+  if (!abilities.useQuickOrder) {
+    return (
+      <>
+        <h2>{t('quickOrder.page.heading')}</h2>
+        <p className="b2b-auth__hint" role="note">
+          {t('commerce.quickOrder.notAllowed')}
+        </p>
+      </>
+    );
+  }
   const searchResults = searchQuery
     ? await searchProducts(session, searchQuery, ctx).catch(() => [])
     : [];
@@ -244,11 +262,11 @@ export default async function QuickOrderPage({
         </table>
       ) : null}
 
-      {preview ? <PreviewPanel preview={preview} locale={locale} /> : null}
+      {preview ? <PreviewPanel preview={preview} locale={locale} abilities={abilities} /> : null}
 
       {/* Feature 044 / US7 — sticky mobile bar: recognised summary + add-all.
           A spacer reserves room so it never covers the rejected-rows table. */}
-      {preview && preview.recognized.length > 0 ? (
+      {preview && preview.recognized.length > 0 && abilities.editCart ? (
         <>
           <div className="h-[84px] md:hidden" aria-hidden="true" />
           <form action={confirmAction} className="m-actionbar">
@@ -276,7 +294,15 @@ export default async function QuickOrderPage({
   );
 }
 
-function PreviewPanel({ preview, locale }: { preview: PreviewState; locale: string }): ReactNode {
+function PreviewPanel({
+  preview,
+  locale,
+  abilities,
+}: {
+  preview: PreviewState;
+  locale: string;
+  abilities: Pick<CommerceAbilities, 'editCart' | 'requestQuote'>;
+}): ReactNode {
   const totals = summarizeQuickOrderPreview(preview);
   const t = tForLocale(locale);
   return (
@@ -353,12 +379,16 @@ function PreviewPanel({ preview, locale }: { preview: PreviewState; locale: stri
           <form action={confirmAction}>
             <input type="hidden" name="preview" value={encodePreview(preview)} />
             <div className="b2b-auth__actions">
-              <button type="submit" name="target" value="cart">
-                {t('quickOrder.preview.addAll')}
-              </button>
-              <button type="submit" name="target" value="quote_request">
-                {t('quickOrder.preview.sendAsQuote')}
-              </button>
+              {abilities.editCart ? (
+                <button type="submit" name="target" value="cart">
+                  {t('quickOrder.preview.addAll')}
+                </button>
+              ) : null}
+              {abilities.requestQuote ? (
+                <button type="submit" name="target" value="quote_request">
+                  {t('quickOrder.preview.sendAsQuote')}
+                </button>
+              ) : null}
             </div>
           </form>
         </>

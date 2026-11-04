@@ -63,6 +63,14 @@ interface CartLineProps {
    * language) shown beside the field, and the value the buyer typed kept in it.
    */
   editError?: CartLineEditError | null;
+  /**
+   * `specs/170-organization-roles/` (FR-030, FR-057) — `false` for a signed-in member whose role
+   * lacks `carts.create`: the quantity is shown as text and no line can be changed or removed.
+   * The page states why once, above the lines. Defaults to `true` (a guest always edits, PR-4).
+   */
+  editable?: boolean;
+  /** FR-047 — `false` for a member whose role lacks `shopping_lists.create`. Defaults to `true`. */
+  canSaveToList?: boolean;
   strings: {
     qtyLabel: string;
     unitPriceLabel: string;
@@ -88,6 +96,8 @@ export function CartLine({
   locale,
   displayMode = 'net_only',
   editError = null,
+  editable = true,
+  canSaveToList = true,
   strings,
 }: CartLineProps): ReactNode {
   const suffixFor = (kind: 'net' | 'gross' | null): string =>
@@ -200,7 +210,7 @@ export function CartLine({
               </svg>
               {belowText}
             </span>
-            {fixQuantity !== null ? (
+            {fixQuantity !== null && editable ? (
               // Its own form: the stepper's input holds a value below its `min`, and a form
               // with an invalid control refuses every native submit.
               <form action={updateAction}>
@@ -222,14 +232,14 @@ export function CartLine({
             ) : null}
           </div>
         ) : null}
-        {gone ? null : (
+        {gone || !editable ? null : (
           // U4 — the refused edit's sentence. Mounted empty on every line so the polite live
           // region exists before it carries text (WCAG 4.1.3); the input points at it.
           <p id={qtyErrorId} role="status" className="m-0 text-[12px] font-semibold text-bad">
             {editError?.message ?? ''}
           </p>
         )}
-        {gone ? null : (
+        {gone || !canSaveToList ? null : (
           <form action={saveToListAction} className="mt-1">
             <input type="hidden" name="itemId" value={line.id} />
             <button
@@ -244,6 +254,12 @@ export function CartLine({
 
       {gone ? (
         <span className="max-[720px]:[grid-area:stepper]" aria-hidden="true" />
+      ) : !editable ? (
+        // A read-only line still says how many it holds: the number, without a control.
+        <span className="font-mono text-[13px] text-fg max-[720px]:[grid-area:stepper]">
+          <span className="sr-only">{strings.qtyLabel}: </span>
+          {line.quantity}
+        </span>
       ) : (
         // `noValidate`: the browser's own `min` bubble speaks the browser's language and refuses
         // the 0 that removes the line (FR-007). The server action validates and the buyer reads
@@ -312,23 +328,27 @@ export function CartLine({
         {renderPrice(line.lineTotal)}
       </span>
 
-      <form action={removeAction} className="max-[720px]:justify-self-start max-[720px]:[grid-area:actions]">
-        <input type="hidden" name="itemId" value={line.id} />
-        <button
-          type="submit"
-          className="grid h-[28px] w-[28px] cursor-pointer place-items-center rounded-sm border border-transparent bg-transparent text-muted transition hover:bg-surface-alt hover:text-bad"
-          aria-label={strings.removeLabel}
-          title={strings.removeLabel}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="3 6 5 6 21 6" />
-            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-            <path d="M10 11v6" />
-            <path d="M14 11v6" />
-            <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
-          </svg>
-        </button>
-      </form>
+      {editable ? (
+        <form action={removeAction} className="max-[720px]:justify-self-start max-[720px]:[grid-area:actions]">
+          <input type="hidden" name="itemId" value={line.id} />
+          <button
+            type="submit"
+            className="grid h-[28px] w-[28px] cursor-pointer place-items-center rounded-sm border border-transparent bg-transparent text-muted transition hover:bg-surface-alt hover:text-bad"
+            aria-label={strings.removeLabel}
+            title={strings.removeLabel}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+              <path d="M10 11v6" />
+              <path d="M14 11v6" />
+              <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
+            </svg>
+          </button>
+        </form>
+      ) : (
+        <span className="max-[720px]:[grid-area:actions]" aria-hidden="true" />
+      )}
     </div>
   );
 }
