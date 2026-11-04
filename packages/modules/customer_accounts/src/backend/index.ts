@@ -678,7 +678,6 @@ export function registerModule(ctx: ModuleContext): void {
                 passwordSetAt: null,
                 firstName: '',
                 lastName: '',
-                role: 'regular_user',
                 organizationId: organization.id,
                 // The individual administers their personal Organization (owner
                 // ruling PR-3, research R-34) — the provisioning answer's id,

@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
-  type CustomerAccountRole,
   type OrganizationRoleReadPort,
   type OrganizationRoleSummary,
 } from '@endora-commerce/contracts';
@@ -28,8 +27,6 @@ export interface CustomerAccountRoleRow {
   id: string;
   organizationId: string;
   organizationRoleId: string;
-  /** @deprecated Dual-written with `organizationRoleId` until the legacy removal (research R-23). */
-  role: CustomerAccountRole;
   deletedAt?: Date | null;
 }
 
@@ -63,11 +60,6 @@ export interface CustomerAccountRoleCommandDeps {
 
 export function memberNotFound(): HttpError {
   return new HttpError(404, ERROR_CODES.NOT_FOUND, 'Member not found.');
-}
-
-/** The legacy value that matches a role kind (research R-23): only *Administrator* is `organization_admin`. */
-export function legacyRoleOf(kind: OrganizationRoleSummary['kind']): CustomerAccountRole {
-  return kind === 'administrator' ? 'organization_admin' : 'regular_user';
 }
 
 /**

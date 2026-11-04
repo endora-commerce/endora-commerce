@@ -9,7 +9,6 @@ import {
   type CustomerAccountProfilePatch,
   type CustomerAccountReadPort,
   type CustomerAccountRecord,
-  type CustomerAccountRole,
   type CustomerAuthPort,
   type CustomerPasswordStatePort,
   type CustomerPasswordVerificationPort,
@@ -69,7 +68,6 @@ export function toCustomerAccountRecord(
     email: account.email,
     firstName: account.firstName,
     lastName: account.lastName,
-    role: account.role,
     organizationRoleId: account.organizationRoleId,
     emailVerifiedAt: account.emailVerifiedAt ?? null,
     twoFactorEnabled,
@@ -119,15 +117,28 @@ function activeFilter(options?: CustomerAccountLookupOptions): { deletedAt?: nul
   return options?.activeOnly ? { deletedAt: null } : {};
 }
 
+/**
+ * The member order both member lists answer in: the Organization's
+ * *Administrator* holders first, each group by creation date — what ordering by
+ * the legacy two-value role gave, before `specs/170-organization-roles/` WP-12
+ * dropped it. A stable sort over rows already in creation order.
+ */
+function administratorsFirst(accounts: CustomerAccount[], administratorRoleId: string): CustomerAccount[] {
+  const rank = (account: CustomerAccount): number => (account.organizationRoleId === administratorRoleId ? 0 : 1);
+  return [...accounts].sort((a, b) => rank(a) - rank(b));
+}
+
 export class CustomerAccountReadService implements CustomerAccountReadPort {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly twoFactorEnrolments: TwoFactorEnrolmentReader,
     /**
-     * `organizations`' role read port, for {@link countAdministrators} only
+     * `organizations`' role read port, for {@link countAdministrators} and the
+     * administrators-first order of {@link listByOrganization}
      * (`specs/170-organization-roles/`): which role is the Organization's
      * *Administrator* is that module's fact. Optional so the hand-built test
-     * services that never count administrators need not wire it.
+     * services that never ask need not wire it; without it the list is in
+     * creation order.
      */
     private readonly roles?: Pick<OrganizationRoleLookup, 'predefinedRoleId'>,
   ) {}
@@ -190,29 +201,12 @@ export class CustomerAccountReadService implements CustomerAccountReadPort {
     const accounts = await this.emFactory().find(
       CustomerAccount,
       { organizationId, ...activeFilter(options) },
-      { orderBy: { role: 'asc', createdAt: 'asc' } },
+      { orderBy: { createdAt: 'asc' } },
     );
-    return toCustomerAccountRecords(this.twoFactorEnrolments, accounts);
-  }
-
-  async countByOrganizationRole(
-    organizationId: string,
-    role: CustomerAccountRole,
-    options?: {
-      excludeCustomerAccountId?: string;
-      activeOnly?: boolean;
-      notBlocked?: boolean;
-    },
-  ): Promise<number> {
-    return this.emFactory().count(CustomerAccount, {
-      organizationId,
-      role,
-      ...(options?.activeOnly ? { deletedAt: null } : {}),
-      ...(options?.notBlocked ? { blockedAt: null } : {}),
-      ...(options?.excludeCustomerAccountId
-        ? { id: { $ne: options.excludeCustomerAccountId } }
-        : {}),
-    });
+    const ordered = this.roles
+      ? administratorsFirst(accounts, await this.roles.predefinedRoleId(organizationId, 'administrator'))
+      : accounts;
+    return toCustomerAccountRecords(this.twoFactorEnrolments, ordered);
   }
 
   async countAdministrators(
@@ -382,14 +376,12 @@ export class CustomerAccountMemberWriteService implements CustomerAccountMemberW
       passwordSetAt: new Date(),
       firstName: input.firstName,
       lastName: input.lastName,
-      role: input.role,
       organizationRoleId: input.organizationRoleId,
       ...(input.emailVerified ? { emailVerifiedAt: new Date() } : {}),
     });
     this.#audit(em, 'customer_account.create', account.id, null, {
       organizationId: account.organizationId ?? null,
       email: account.email,
-      role: account.role,
       organizationRoleId: account.organizationRoleId,
     });
     try {
@@ -597,12 +589,9 @@ export function createCustomerAuthPort(
 /**
  * The member-management surface `organizations` calls (`customerRolePort`),
  * over the member Commands since `specs/170-organization-roles/` WP-02b — it
- * adapted `RoleService`, which wrote and audited by hand.
- *
- * `changeRole` still takes the **legacy** value its callers send until WP-03
- * moves them to `{ roleId }`: it names the Organization's predefined role of
- * that kind, so a member holding a custom role who is "changed to
- * `regular_user`" lands on *Member*.
+ * adapted `RoleService`, which wrote and audited by hand. A role change is the
+ * `customer_account.change_role` Command, through
+ * {@link createCustomerAccountRoleCommandPort}.
  */
 export function createCustomerRolePort(deps: {
   emFactory: () => EntityManager;
@@ -616,29 +605,12 @@ export function createCustomerRolePort(deps: {
       const members = await deps.emFactory().find(
         CustomerAccount,
         { organizationId, deletedAt: null },
-        { orderBy: { role: 'asc', createdAt: 'asc' } },
+        { orderBy: { createdAt: 'asc' } },
       );
-      return toCustomerAccountRecords(deps.twoFactorEnrolments, members);
-    },
-    async changeRole(organizationId, targetCustomerAccountId, newRole) {
-      const roleId = await deps.roles.predefinedRoleId(
-        organizationId,
-        newRole === 'organization_admin' ? 'administrator' : 'member',
+      return toCustomerAccountRecords(
+        deps.twoFactorEnrolments,
+        administratorsFirst(members, await deps.roles.predefinedRoleId(organizationId, 'administrator')),
       );
-      await deps.commandBus.run(
-        makeChangeCustomerAccountRoleCommand(commandDeps, {
-          organizationId,
-          customerAccountId: targetCustomerAccountId,
-          roleId,
-        }),
-      );
-      const account = await deps.emFactory().findOneOrFail(
-        CustomerAccount,
-        { id: targetCustomerAccountId },
-        // The Command wrote on its own transaction; this unit of work may hold the row as it was.
-        { refresh: true },
-      );
-      return toOneCustomerAccountRecord(deps.twoFactorEnrolments, account);
     },
     async removeMember(organizationId, targetCustomerAccountId) {
       await deps.commandBus.run(

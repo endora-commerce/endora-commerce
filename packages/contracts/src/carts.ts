@@ -512,28 +512,6 @@ export type OrgCartDetailView = z.infer<typeof orgCartDetailViewSchema>;
 export const orgCartDetailViewResponseSchema = z.object({ data: orgCartDetailViewSchema });
 export type OrgCartDetailViewResponse = z.infer<typeof orgCartDetailViewResponseSchema>;
 
-/**
- * @deprecated The per-Organization cart-approval policy is replaced by the
- * `carts.order_without_approval` organization permission
- * (`specs/170-organization-roles/`, OR-3, FR-031); removed with the policy endpoints.
- */
-export const setCartApprovalPolicySchema = z.object({
-  requiresCartApproval: z.boolean(),
-});
-/** @deprecated See {@link setCartApprovalPolicySchema}. */
-export type SetCartApprovalPolicy = z.infer<typeof setCartApprovalPolicySchema>;
-
-/** @deprecated See {@link setCartApprovalPolicySchema}. */
-export const cartApprovalPolicyResponseSchema = z.object({
-  data: z.object({
-    organizationId: uuidSchema,
-    requiresCartApproval: z.boolean(),
-    updatedAt: isoDateTimeSchema,
-  }),
-});
-/** @deprecated See {@link setCartApprovalPolicySchema}. */
-export type CartApprovalPolicyResponse = z.infer<typeof cartApprovalPolicyResponseSchema>;
-
 export const rejectOrgCartSchema = z.object({
   reason: z.string().min(1).max(2000),
 });

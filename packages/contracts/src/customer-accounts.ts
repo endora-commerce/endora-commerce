@@ -98,13 +98,6 @@ export interface CustomerGroupReadPort {
 
 // --- records -----------------------------------------------------------------
 
-/**
- * @deprecated Replaced by the account's organization role id
- * (`specs/170-organization-roles/`, research R-23); kept, dual-written, until
- * the legacy removal.
- */
-export type CustomerAccountRole = 'organization_admin' | 'regular_user';
-
 export type CustomerAccountBlockSource = 'staff' | 'org_owner';
 
 /**
@@ -127,8 +120,6 @@ export interface CustomerAccountRecord {
   email: string;
   firstName: string;
   lastName: string;
-  /** @deprecated The role id replaces it (`specs/170-organization-roles/`, research R-23). */
-  role: CustomerAccountRole;
   /**
    * The organization role the account holds — a role of {@link organizationId}
    * (`specs/170-organization-roles/` data-model §2; a composite foreign key in
@@ -211,37 +202,18 @@ export interface CustomerAccountReadPort {
     options?: CustomerAccountLookupOptions,
   ): Promise<CustomerAccountRecord | null>;
 
-  /** Members of an organisation, ordered by role then creation date. */
+  /** Members of an organisation: its *Administrator* holders first, then by creation date. */
   listByOrganization(
     organizationId: string,
     options?: CustomerAccountLookupOptions,
   ): Promise<CustomerAccountRecord[]>;
 
   /**
-   * How many accounts in the organisation hold the role, optionally ignoring
-   * one id and optionally counting only unblocked accounts. This is the shape
-   * the "an organisation may not lose its last admin" rule is spelled with, in
-   * three modules, three slightly different ways.
-   *
-   * @deprecated Replaced by `countAdministrators` over the administrator-kind
-   * role (`specs/170-organization-roles/` `contracts/commands-audit-events.md` §3).
-   */
-  countByOrganizationRole(
-    organizationId: string,
-    role: CustomerAccountRole,
-    options?: {
-      excludeCustomerAccountId?: string;
-      activeOnly?: boolean;
-      notBlocked?: boolean;
-    },
-  ): Promise<number>;
-
-  /**
    * How many accounts of the organisation hold its *Administrator* role — the
    * predicate the "an organisation keeps at least one administrator" rule is
    * spelled with since `specs/170-organization-roles/`
-   * (`contracts/commands-audit-events.md` §3). The options are
-   * {@link countByOrganizationRole}'s, which it replaces.
+   * (`contracts/commands-audit-events.md` §3): optionally ignoring one id, and
+   * optionally counting only active or only unblocked accounts.
    *
    * A count, not a guard: it takes no lock. The member Commands that must not
    * race (`customer_account.change_role`, `customer_account.remove_member`)
@@ -305,12 +277,6 @@ export interface CustomerAccountCreateInput {
   firstName: string;
   lastName: string;
   /**
-   * @deprecated The role id replaces it (`specs/170-organization-roles/`, research R-23).
-   * Dual-written with {@link organizationRoleId} until the legacy removal, so
-   * the caller passes the value that matches it.
-   */
-  role: CustomerAccountRole;
-  /**
    * The organization role the account will hold, a role of
    * {@link organizationId}. Required: no production path relies on the
    * database's default (research R-28).
@@ -359,7 +325,7 @@ export interface CustomerAccountProfilePatch {
  * organisation panel" rather than "this account's e-mail changed" — and both
  * are kept, which is what the role endpoint has always recorded.
  *
- * `changeRole` is **not** here: {@link CustomerRolePort} already owns it, with
+ * A role change is **not** here: {@link CustomerAccountRoleCommandPort} owns it, with
  * the "an organisation keeps at least one admin" guard.
  * {@link CustomerAccountMemberWritePort.promoteToOrganizationAdmin} is a
  * different question — the break-glass path an operator reaches *because* an
@@ -711,11 +677,6 @@ export interface CustomerRollupScopePort {
  */
 export interface CustomerRolePort {
   listMembers(organizationId: string): Promise<CustomerAccountRecord[]>;
-  changeRole(
-    organizationId: string,
-    targetCustomerAccountId: string,
-    newRole: CustomerAccountRole,
-  ): Promise<CustomerAccountRecord>;
   removeMember(organizationId: string, targetCustomerAccountId: string): Promise<void>;
 }
 
@@ -790,7 +751,7 @@ export interface CustomerAccountRoleChangeCommand {
  * of the Organization or a role the Organization does not have, and `409
  * CANNOT_DEMOTE_LAST_ADMIN` when it would leave the Organization without an
  * active administrator — counted under a `for update` lock on the holders
- * (research R-29). Dual-writes the legacy `role` until the legacy removal.
+ * (research R-29).
  *
  * `holdersOf` lists every account holding the role — blocked and soft-deleted
  * ones included, because the foreign key does not distinguish them.
@@ -854,9 +815,6 @@ export interface CustomerAccountWriteRequestMeta {
  * destination's *Administrator* for a personal Organization (from the
  * provisioning answer), else the destination's predefined role of the kind the
  * account held (owner ruling PR-11).
- *
- * The legacy `role` is not rewritten by a move: it travels unchanged, as it
- * always has, until the legacy removal.
  */
 export interface CustomerAccountOrganizationMoveInput {
   actorAdminUserId: string;
@@ -952,7 +910,7 @@ export interface CustomerAccountAdminSearchPort {
  * staff member may act on this customer, and whether blocking them would
  * strand an organisation without an administrator, are `customers`' questions
  * and stay there — the counting half of the second one is
- * {@link CustomerAccountReadPort.countByOrganizationRole}, which already
+ * {@link CustomerAccountReadPort.countAdministrators}, which already
  * exists. What moves is the write and the one audit row that describes it, so
  * that a row on this table is never written by a module that does not own it
  * and never written without being recorded. Unlike

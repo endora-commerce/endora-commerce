@@ -168,10 +168,6 @@ export class QuickOrderBuildService {
     const rfqCtx = {
       customerAccountId: ctx.customerAccountId,
       organizationId: ctx.organizationId,
-      // Still a required field of `RfqCustomerContext` until the legacy enum
-      // goes (`specs/170-organization-roles/` WP-12). A literal, not a role
-      // read: `quote_requests` decides visibility by its own question (R-30).
-      isOrgAdmin: false,
     };
     const request = {
       items: items.map((item) => ({

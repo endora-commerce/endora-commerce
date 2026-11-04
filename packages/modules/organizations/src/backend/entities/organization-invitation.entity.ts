@@ -34,22 +34,11 @@ export class OrganizationInvitation {
   email!: string;
 
   /**
-   * The legacy two-value role, kept and **dual-written** beside
-   * {@link organizationRoleId} until the feature's legacy-removal package drops
-   * it (`specs/170-organization-roles/`, research R-23; migration M4).
-   *
-   * @deprecated Read `organizationRoleId`.
-   */
-  @Property({ type: 'string', length: 32 })
-  role: 'organization_admin' | 'regular_user' = 'regular_user';
-
-  /**
    * The role the invitee will hold (`specs/170-organization-roles/`, data-model
    * §3). A composite foreign key `(organization_id, organization_role_id)` into
    * `organization_roles`, so it can only name a role of this invitation's own
-   * Organization, and a role an invitation still names cannot be deleted. A raw
-   * insert that names none is filled from `role` by migration M2's `before
-   * insert` trigger.
+   * Organization, and a role an invitation still names cannot be deleted.
+   * Required: since migration M4 dropped the legacy `role`, no trigger fills it.
    */
   @Property({ type: 'uuid' })
   organizationRoleId!: string;

@@ -424,10 +424,7 @@ export class ShoppingListService {
     let added = 0;
     if (kept.length > 0) {
       const rfq = await this.rfqService.createForCustomer(
-        // `isOrgAdmin` is still a required field of `RfqCustomerContext` until
-        // the legacy enum goes (`specs/170-organization-roles/` WP-12). A
-        // literal, not a role read: the converted request is the member's own.
-        { ...ctx, isOrgAdmin: false },
+        ctx,
         {
           items: kept.map((item) => ({
             productId: item.productId,

@@ -23,7 +23,9 @@ export function customersAdapter(ports: ImportExportPorts): ImportExportAdapter 
       'organization_name',
       'first_name',
       'last_name',
-      'role',
+      // The role the account holds, by id (`specs/170-organization-roles/`
+      // WP-12): the legacy two-value `role` this column carried is gone.
+      'organization_role_id',
       'email_verified_at',
       'last_login_at',
     ] as const,
@@ -45,7 +47,7 @@ export function customersAdapter(ports: ImportExportPorts): ImportExportAdapter 
         a.organizationId ? (orgNameById.get(a.organizationId) ?? '') : '',
         a.firstName,
         a.lastName,
-        a.role,
+        a.organizationRoleId,
         a.emailVerifiedAt?.toISOString() ?? '',
         a.lastLoginAt?.toISOString() ?? '',
       ]);

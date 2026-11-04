@@ -167,7 +167,7 @@ describe('QuickOrderBuildService — target quote_request', () => {
     // The RFQ context carries the buyer's identity, not the build's channel.
     const { salesChannelId: _channel, ...identity } = BUYER;
     expect(createForCustomer).toHaveBeenCalledWith(
-      { ...identity, isOrgAdmin: false },
+      identity,
       {
         items: [
           { productId: A, variantId: RED, quantity: 5 },

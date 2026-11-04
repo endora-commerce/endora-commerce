@@ -78,7 +78,6 @@ class MemoryAccounts implements CustomerAccountRoleStore {
       id: randomUUID(),
       organizationId,
       organizationRoleId,
-      role: 'regular_user' as CustomerAccountRoleRow['role'],
       deletedAt: options.deleted ? new Date() : null,
       blockedAt: options.blocked ? new Date() : null,
     };
@@ -134,7 +133,7 @@ async function refusal(promise: Promise<unknown>): Promise<{ statusCode: number;
 }
 
 describe('customer_account.change_role', () => {
-  it('moves the account to the role, dual-writes the legacy enum and audits against the Organization', async () => {
+  it('moves the account to the role, writes no legacy enum and audits against the Organization', async () => {
     const { accounts, deps, admin, member } = fixture();
     accounts.seed(ORG, admin.id); // a second administrator, so the first may be demoted
     const target = accounts.seed(ORG, member.id);
@@ -146,7 +145,8 @@ describe('customer_account.change_role', () => {
     });
     expect(promote).toMatchObject({ action: 'customer_account.change_role', objectType: 'organization', objectId: ORG });
     const outcome = await run(promote);
-    expect(accounts.rows.get(target.id)).toMatchObject({ organizationRoleId: admin.id, role: 'organization_admin' });
+    expect(accounts.rows.get(target.id)).toMatchObject({ organizationRoleId: admin.id });
+    expect(accounts.rows.get(target.id)).not.toHaveProperty('role');
     expect(outcome.skipAudit).toBeFalsy();
     expect(outcome.before).toEqual({
       customerAccountId: target.id,
@@ -171,17 +171,17 @@ describe('customer_account.change_role', () => {
       roleId: member.id,
     });
     await run(demote);
-    expect(accounts.rows.get(target.id)).toMatchObject({ organizationRoleId: member.id, role: 'regular_user' });
+    expect(accounts.rows.get(target.id)).toMatchObject({ organizationRoleId: member.id });
   });
 
-  it('writes the legacy regular_user for a custom role and names the custom role in the audit', async () => {
+  it('moves the account to a custom role and names the custom role in the audit', async () => {
     const { roles, accounts, deps, member } = fixture();
     const buyer = roles.add(ORG, 'custom', 'Buyer');
     const target = accounts.seed(ORG, member.id);
     const outcome = await run(
       makeChangeCustomerAccountRoleCommand(deps, { organizationId: ORG, customerAccountId: target.id, roleId: buyer.id }),
     );
-    expect(accounts.rows.get(target.id)).toMatchObject({ organizationRoleId: buyer.id, role: 'regular_user' });
+    expect(accounts.rows.get(target.id)).toMatchObject({ organizationRoleId: buyer.id });
     expect(outcome.after).toEqual({ customerAccountId: target.id, role: { id: buyer.id, name: 'Buyer', kind: 'custom' } });
   });
 
@@ -278,7 +278,7 @@ describe('customer_account.remove_member', () => {
 });
 
 describe('customer_account.promote_organization_admin', () => {
-  it('assigns the administrator role with its legacy enum, audits against the Organization and emits the change', async () => {
+  it('assigns the administrator role, audits against the Organization and emits the change', async () => {
     const { accounts, deps, admin, member } = fixture();
     const target = accounts.seed(ORG, member.id);
     const command = makePromoteOrganizationAdminCommand(deps, { organizationId: ORG, customerAccountId: target.id });
@@ -288,7 +288,8 @@ describe('customer_account.promote_organization_admin', () => {
       objectId: ORG,
     });
     const outcome = await run(command);
-    expect(accounts.rows.get(target.id)).toMatchObject({ organizationRoleId: admin.id, role: 'organization_admin' });
+    expect(accounts.rows.get(target.id)).toMatchObject({ organizationRoleId: admin.id });
+    expect(accounts.rows.get(target.id)).not.toHaveProperty('role');
     expect(outcome.after).toEqual({ customerAccountId: target.id, role: { id: admin.id, name: null, kind: 'administrator' } });
     expect(command.event?.(outcome.result)?.eventName).toBe('customer_account.organization_role_changed.v1');
   });
@@ -296,7 +297,6 @@ describe('customer_account.promote_organization_admin', () => {
   it('is idempotent on an account that already holds it', async () => {
     const { accounts, deps, admin } = fixture();
     const target = accounts.seed(ORG, admin.id);
-    target.role = 'organization_admin';
     const command = makePromoteOrganizationAdminCommand(deps, { organizationId: ORG, customerAccountId: target.id });
     const outcome = await run(command);
     expect(outcome.skipAudit).toBe(true);

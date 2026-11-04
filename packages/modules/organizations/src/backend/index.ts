@@ -19,7 +19,6 @@ import type {
   DictionaryValidator,
   EmailDefaultsRegistryPort,
   EmailMailerPort,
-  OrganizationCartApprovalWritePort,
   OrganizationDetailsPort,
   OrganizationInheritancePort,
   OrganizationPermissionPort,
@@ -75,7 +74,6 @@ import {
 } from './services/sales-rep-assignment-service.js';
 import { OrgRegistrationNotifier } from './services/org-registration-notifier.js';
 import type { OrganizationsTranslate } from './services/organizations-prose.js';
-import { makeSetCartApprovalPolicyCommand } from './commands/set-cart-approval-policy.command.js';
 import { Organization } from './entities/organization.entity.js';
 import { OrganizationRole } from './entities/organization-role.entity.js';
 import {
@@ -843,33 +841,6 @@ export function registerModule(ctx: ModuleContext): void {
             },
           };
         },
-      )
-      .singleton(),
-  );
-
-  /**
-   * Issue #175 — the cart-approval policy write.
-   *
-   * `carts` drives both surfaces that flip `requires_cart_approval` but the
-   * column is this module's, and it was writing it by holding this module's
-   * entity — the last entry in that module's cross-module import ledger. D-78
-   * step 1 puts the operation with the owner, and publishing it settled the
-   * question the direct write had been ducking: the flip had no audit row on
-   * this side, and Constitution XIII says it must have one. Hence a Command,
-   * whose actor the bus derives from the caller's ambient context.
-   *
-   * The cascade over `carts`' own rows stays with `carts`, keyed off `changed`.
-   */
-  ctx.di.providePort<OrganizationCartApprovalWritePort>(
-    'organizationCartApprovalWritePort',
-    ctx
-      .asFunction(
-        ({ commandBus }: OrganizationsCradle): OrganizationCartApprovalWritePort => ({
-          setCartApprovalPolicy: (organizationId, requiresCartApproval) =>
-            commandBus.run(
-              makeSetCartApprovalPolicyCommand({ organizationId, requiresCartApproval }),
-            ),
-        }),
       )
       .singleton(),
   );

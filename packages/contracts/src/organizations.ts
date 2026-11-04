@@ -2,7 +2,6 @@ import { z } from 'zod';
 import {
   addressSnapshotSchema,
   isoDateTimeSchema,
-  organizationRoleSchema,
   uuidSchema,
 } from './common.js';
 import { fulfilmentStrategySchema, type FulfilmentStrategy } from './inventory.js';
@@ -152,14 +151,8 @@ export const customerAccountSchema = z.object({
   firstName: z.string(),
   lastName: z.string(),
   /**
-   * @deprecated No longer sent since `specs/170-organization-roles/` WP-03
-   * (FR-073): read `organizationRole`. Optional so a response without it
-   * parses; removed with the legacy enum.
-   */
-  role: organizationRoleSchema.optional(),
-  /**
-   * The member's role (`specs/170-organization-roles/`, FR-008, FR-056);
-   * replaces `role`. Optional on the schema only until the legacy removal.
+   * The member's role (`specs/170-organization-roles/`, FR-008, FR-056); it
+   * replaced the legacy two-value `role`, removed by WP-12 (FR-073).
    */
   organizationRole: organizationRoleRefSchema.optional(),
   /** The member's effective organization permissions, sorted (FR-056). Optional until filled. */
@@ -276,12 +269,7 @@ export const customerLoginResponseSchema = z.object({
       id: uuidSchema,
       email: z.string().email(),
       organizationId: uuidSchema.nullable(),
-      /**
-       * @deprecated No longer sent since `specs/170-organization-roles/` WP-03
-       * (FR-073): read `organizationRole`. Removed with the legacy enum.
-       */
-      role: organizationRoleSchema.optional(),
-      /** The member's role (FR-056); replaces `role`. */
+      /** The member's role (FR-056); it replaced the legacy `role` (FR-073). */
       organizationRole: organizationRoleRefSchema.optional(),
       /** The member's effective organization permissions, sorted (FR-056). */
       permissions: z.array(z.string()).optional(),
@@ -312,21 +300,10 @@ export type CreateAddressRequest = z.infer<typeof createAddressRequestSchema>;
 export const updateAddressRequestSchema = createAddressRequestSchema.partial();
 export type UpdateAddressRequest = z.infer<typeof updateAddressRequestSchema>;
 
-/** @deprecated Use `inviteMemberToRoleRequestSchema` (`./organization-roles.ts`): `{ email, roleId? }`, strict. */
-export const inviteMemberRequestSchema = z.object({
-  email: z.string().email(),
-  role: organizationRoleSchema.optional(),
-});
-
 export const acceptInvitationRequestSchema = z.object({
   password: z.string().min(12),
   firstName: z.string().min(1).max(120),
   lastName: z.string().min(1).max(120),
-});
-
-/** @deprecated Use `assignMemberRoleRequestSchema` (`./organization-roles.ts`): `{ roleId }`, strict. */
-export const changeMemberRoleRequestSchema = z.object({
-  role: organizationRoleSchema,
 });
 
 /** Platform admin — PATCH `/admin/organizations/:id` */
@@ -351,26 +328,6 @@ export const adminPatchOrganizationRequestSchema = z.object({
 /** Platform admin — POST `/admin/organizations/:id/recover-admin-access` */
 export const adminRecoverOrgAccessRequestSchema = z.object({
   promoteCustomerAccountId: uuidSchema,
-});
-
-/** Platform admin — POST `/admin/organizations/:id/members` (direct create) */
-export const adminDirectMemberRequestSchema = z.object({
-  email: z.string().email(),
-  firstName: z.string().min(1).max(120),
-  lastName: z.string().min(1).max(120),
-  password: z.string().min(12).max(256),
-  /** @deprecated Use `adminDirectMemberToRoleRequestSchema`'s `roleId` (`./organization-roles.ts`). */
-  role: organizationRoleSchema.optional(),
-});
-
-/**
- * Platform admin — PATCH member role
- *
- * @deprecated Use `adminAssignMemberRoleRequestSchema` (`./organization-roles.ts`): `{ roleId, expectedUpdatedAt? }`, strict.
- */
-export const adminPatchMemberRoleRequestSchema = z.object({
-  role: organizationRoleSchema,
-  expectedUpdatedAt: z.string().optional(),
 });
 
 /**
@@ -516,11 +473,6 @@ export interface OrganizationRecord {
   rejectedAt: Date | null;
   approvedAt: Date | null;
   approvedByAdminUserId: string | null;
-  /**
-   * @deprecated Replaced by the `carts.order_without_approval` organization
-   * permission (`specs/170-organization-roles/`, OR-3, FR-031); removed with the column.
-   */
-  requiresCartApproval: boolean;
   fulfilmentStrategy: FulfilmentStrategy | null;
   fulfilmentStrategyWarehouseOrder: string[] | null;
   parentId: string | null;
@@ -658,49 +610,6 @@ export interface OrganizationCreditOwner {
  */
 export interface OrganizationInheritancePort {
   creditOwner(organizationId: string): Promise<OrganizationCreditOwner>;
-}
-
-/**
- * What a cart-approval-policy write answers with.
- *
- * @deprecated The policy is replaced by `carts.order_without_approval` (`specs/170-organization-roles/`, OR-3).
- */
-export interface CartApprovalPolicyWriteResult {
-  readonly organization: OrganizationRecord;
-  /**
-   * `false` when the row already carried the requested value, so nothing was
-   * written and nothing was audited. It is part of the return type rather than
-   * something the caller re-derives from a read, because the caller's cascade
-   * hangs off it: `carts` resets its pending and approved carts when — and only
-   * when — the policy actually moved to `false`.
-   */
-  readonly changed: boolean;
-}
-
-/**
- * Container name: `organizationCartApprovalWritePort`. Owner: `organizations`.
- *
- * The per-organisation "an Org Admin must approve a cart before checkout"
- * policy (feature 027 US4). `carts` drives both surfaces that flip it — the
- * platform-admin route and the Org-Admin self-service one — but the column is
- * this module's, so the operation is (issue #175, D-78 step 1).
- *
- * The write runs through `CommandBus.run`, so it carries the audit row it had
- * never had while `carts` was writing the column directly, with the actor
- * derived from the caller's ambient context (Constitution XIII). The cart
- * cascade that follows a switch-off stays with `carts`: those are its rows, and
- * they are audited in its own per-cart trail.
- *
- * This module is non-deactivatable, so the gate the port registration applies
- * cannot be reached; the registration is a `providePort` anyway, for the reason
- * its siblings give.
- */
-/** @deprecated The policy is replaced by `carts.order_without_approval` (`specs/170-organization-roles/`, OR-3). */
-export interface OrganizationCartApprovalWritePort {
-  setCartApprovalPolicy(
-    organizationId: string,
-    requiresCartApproval: boolean,
-  ): Promise<CartApprovalPolicyWriteResult>;
 }
 
 /** The three allow-list kinds an organisation can restrict. */

@@ -4,7 +4,6 @@ import type { Command } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { OrganizationInvitation } from '../entities/organization-invitation.entity.js';
 import { OrganizationRole } from '../entities/organization-role.entity.js';
-import { legacyRoleOfKind } from '../services/organization-role-store.js';
 
 export interface CreateOrganizationInvitationInput {
   readonly organizationId: string;
@@ -29,8 +28,7 @@ export interface CreatedOrganizationInvitation {
  * Creates a pending invitation holding a role of the inviting Organization:
  * the one named, else its *Member* role. A role the Organization does not have
  * — another Organization's included — is `404`, as if it did not exist (FR-005,
- * Principle XI). The legacy `role` is dual-written from the role's kind until
- * the legacy removal (research R-23, `legacyRoleOfKind`). A second pending
+ * Principle XI). A second pending
  * invitation for the same address is the partial unique index's `409
  * EMAIL_ALREADY_IN_ORGANIZATION`.
  *
@@ -61,7 +59,6 @@ export function makeCreateOrganizationInvitationCommand(
         organizationId: input.organizationId,
         invitedByCustomerAccountId: input.invitedByCustomerAccountId,
         email: input.email,
-        role: legacyRoleOfKind(role.kind),
         organizationRoleId: role.id,
         tokenHash: input.tokenHash,
         expiresAt: input.expiresAt,

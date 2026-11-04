@@ -108,7 +108,6 @@ describe('#665 — OrderCloneToQuoteService resolves the order through the read 
     expect(createForCustomer.mock.calls[0]?.[0]).toEqual({
       customerAccountId: 'member-b',
       organizationId: 'org-1',
-      isOrgAdmin: false,
     });
   });
 });

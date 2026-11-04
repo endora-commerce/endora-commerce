@@ -110,7 +110,6 @@ export async function registerImpersonationRoutes(
             email: result.impersonatedCustomerAccount.email,
             firstName: result.impersonatedCustomerAccount.firstName,
             lastName: result.impersonatedCustomerAccount.lastName,
-            role: result.impersonatedCustomerAccount.role,
           },
         },
       };

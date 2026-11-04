@@ -16,9 +16,9 @@ import { ERROR_CODES } from './errors.js';
  * one and the two never meet (FR-020, research R-2).
  *
  * Normative: `specs/170-organization-roles/contracts/organization-permission-port.md`
- * and `contracts/storefront-api.md` §2. The legacy two-value enum
- * (`organizationRoleSchema` in `./common.ts`) stays beside these until the
- * feature's legacy-removal package deletes it (research R-23).
+ * and `contracts/storefront-api.md` §2. They replaced the legacy two-value role
+ * enum, removed with its columns by the feature's legacy-removal package
+ * (research R-23).
  */
 
 // --- Kinds and references ----------------------------------------------------

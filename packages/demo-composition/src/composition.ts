@@ -158,7 +158,6 @@ interface CustomerAccountRow {
   passwordSetAt?: Date | null;
   firstName: string;
   lastName: string;
-  role: string;
   organizationRoleId?: string;
   emailVerifiedAt?: Date | null;
 }
@@ -1180,7 +1179,6 @@ const STEPS: readonly CompositionStep[] = [
       if (existing !== null) {
         existing.organizationId = organization.id;
         existing.organizationRoleId = administrator.id;
-        existing.role = 'organization_admin';
         await em.flush();
         return;
       }
@@ -1195,7 +1193,6 @@ const STEPS: readonly CompositionStep[] = [
         passwordSetAt: new Date(),
         firstName: 'Demo',
         lastName: 'Buyer',
-        role: 'organization_admin',
         organizationRoleId: administrator.id,
         emailVerifiedAt: new Date(),
       });

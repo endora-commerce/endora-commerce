@@ -70,11 +70,7 @@
   "conversion.banner.list_added": "Zawartość listy \"{listName}\" została dodana do koszyka.",
   "conversion.banner.lines_dropped_during_conversion": "Niektóre pozycje zostały pominięte podczas konwersji — zobacz panel poniżej.",
 
-  "approval.banner.pending": "Twój koszyk oczekuje na akceptację administratora organizacji.",
   "approval.banner.approved": "Twój koszyk został zaakceptowany i jest gotowy do realizacji.",
-  "approval.banner.rejected": "Twój koszyk został odrzucony przez administratora organizacji.",
-  "approval.banner.policy_on": "Twoja organizacja wymaga teraz akceptacji koszyka przed realizacją.",
-  "approval.banner.policy_off": "Twoja organizacja nie wymaga już akceptacji koszyka.",
   "approval.reject_reason.prompt": "Dlaczego odrzucasz ten koszyk?",
   "approval.reject_reason.placeholder": "Krótkie wyjaśnienie widoczne dla kupującego",
   "approval.reject_reason.required": "Podaj powód odrzucenia.",
@@ -88,7 +84,6 @@
   "abandonment.email.body": "Koszyk klienta {ownerDisplayName} został oznaczony jako Porzucony po przekroczeniu progu nieaktywności.",
 
   "reject.email.subject": "Twój koszyk został odrzucony",
-  "reject.email.body": "Administrator odrzucił Twój koszyk. Powód: {reason}",
 
   "upsells.heading": "Możesz też potrzebować",
   "upsells.empty": "Brak sugestii dla tego koszyka.",
