@@ -38,6 +38,7 @@ An operator switches this module on and off on **/platform/modules**. The choice
 | `inventory` | no | degrades-without `inventoryStockReadPort` — The import/export centre stops offering the Stock entity; every other entity is unaffected. |
 | `orders` | no | degrades-without `orderReadPort` — The import/export centre stops offering the Orders export; every other entity is unaffected. |
 | `organizations` | no | degrades-without `organizationDetailsPort` — The import/export centre stops offering the Customers export; every other entity is unaffected. |
+| `organizations` | no | degrades-without `organizationRoleReadPort` — The import/export centre stops offering the Customers export; every other entity is unaffected. |
 
 ## Permissions
 

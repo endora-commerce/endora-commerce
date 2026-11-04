@@ -34,6 +34,13 @@ code they hold.
 A sales representative restricted to assigned organizations exports only those
 organizations' customers and orders — the same rows the customers and orders lists show them.
 
+The customers sheet has the columns `email`, `organization_name`, `first_name`, `last_name`,
+`organization_role_name`, `organization_role_kind`, `email_verified_at` and `last_login_at`.
+`organization_role_name` is the name of the role the account holds in its organization (the
+English label for the predefined *Administrator* and *Member* roles, a custom role's own name).
+`organization_role_kind` is `administrator`, `member` or `custom`. They replace the `role` column
+(`organization_admin` / `regular_user`) of earlier releases.
+
 ## Import semantics
 
 Every import runs inside one MikroORM transaction. If any single row

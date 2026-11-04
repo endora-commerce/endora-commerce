@@ -9,6 +9,7 @@ import type {
   InventoryStockReadPort,
   OrderReadPort,
   OrganizationDetailsPort,
+  OrganizationRoleReadPort,
 } from '@endora-commerce/contracts';
 
 /**
@@ -32,6 +33,8 @@ export interface ImportExportPorts {
   readonly orders: OrderReadPort;
   readonly customerAccounts: CustomerAccountReadPort;
   readonly organizations: OrganizationDetailsPort;
+  /** The role each account holds, named on the customers sheet (`specs/170-organization-roles/`). */
+  readonly organizationRoles: Pick<OrganizationRoleReadPort, 'roleRef'>;
 }
 
 export interface ImportExportAdapter {

@@ -124,6 +124,8 @@ schema. A personal Organization's account re-derives as `organization_admin`, no
 it held before the upgrade; the replay inserts its population **after** the downs (§6 step 3), so no
 oracle row passes through that re-derivation.
 
+*Owner ruling, 2026-11-04 (#729):* WP-12 guards M2's and M3's legacy-reading backfills by the column's presence, so a second `up()` of M2–M5 after M4/M5 (§6 step 7, FR-074) changes nothing. That edit to the two already-merged migrations is accepted.
+
 ## 5. WP-00 — the oracle (on `master`, before any 170 code)
 
 `backend/test/integration/organizations/roles-upgrade-oracle.test.ts` plus

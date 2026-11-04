@@ -34,6 +34,13 @@ do których ma uprawnienie.
 Przedstawiciel handlowy ograniczony do przypisanych organizacji eksportuje tylko klientów
 i zamówienia tych organizacji — te same wiersze, które widzi na listach klientów i zamówień.
 
+Arkusz klientów ma kolumny `email`, `organization_name`, `first_name`, `last_name`,
+`organization_role_name`, `organization_role_kind`, `email_verified_at` i `last_login_at`.
+`organization_role_name` to nazwa roli, którą konto ma w swojej organizacji (angielska etykieta
+dla ról predefiniowanych *Administrator* i *Member*, własna nazwa roli niestandardowej).
+`organization_role_kind` przyjmuje wartość `administrator`, `member` lub `custom`. Zastępują one
+kolumnę `role` (`organization_admin` / `regular_user`) z wcześniejszych wersji.
+
 ## Jak działa import
 
 Każdy import działa w jednej transakcji MikroORM. Jeśli choć jeden wiersz nie przejdzie walidacji,
