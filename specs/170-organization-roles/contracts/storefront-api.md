@@ -78,7 +78,7 @@ no "copy from *Member*"; `memberDefault` in the catalogue describes *Member* and
 | `PATCH /api/v1/organizations/mine/addresses/:id` | C, P(`addresses.manage`) |
 | `DELETE /api/v1/organizations/mine/addresses/:id` | C, P(`addresses.manage`) |
 
-## 5. Commerce gates — WP-04 to WP-07, WP-14 (returns, OR-11), WP-15 (quick-order import, OR-10)
+## 5. Commerce gates — WP-04 to WP-07, WP-14 (returns, OR-11), WP-15 (quick-order import, OR-10), WP-16 (reorder, clone to quote)
 
 | Endpoint (owner file) | New guard |
 | --- | --- |
@@ -103,7 +103,9 @@ no "copy from *Member*"; `memberDefault` in the catalogue describes *Member* and
 | `GET /api/v1/quick-order/one-click/eligibility` (or the eligibility field the PDP reads) | answers `disabled` with reason `permission_required` (no `quick_order.one_click`) or `cart_approval_required` (holds it, but no `carts.order_without_approval`), checked in that order and before the setting and default reasons (FR-050); lacking both reads `permission_required` |
 | `POST /api/v1/quick-order/one-click` | refused before any basket write: `403 ORGANIZATION_PERMISSION_REQUIRED` for the first missing of the two codes, in the same order (`quick_order.one_click` first) |
 | `PUT /api/v1/quick-order/preferences` with Organization scope | A (FR-012; was `role === 'organization_admin'`) |
-| Orders list/read, reorder, clone to quote, returns started from an order, its documents (`orders`, `returns`, `invoices` through `OrderReadPort`) | colleague's order reachable only with `orders.view_organization`; without it the order is `404`, never `403` (Principle XI existence rule). Starting a return also needs `returns.create` (row below) |
+| Orders list/read, reorder, clone to quote, returns started from an order, its documents (`orders`, `returns`, `invoices` through `OrderReadPort`) | colleague's order reachable only with `orders.view_organization`; without it the order is `404`, never `403` (Principle XI existence rule). Reorder and clone to quote also need their own code (the two rows below), starting a return `returns.create` (row below) |
+| `POST /api/v1/orders/:id/reorder` (`orders/routes.ts`) | P(`carts.create`) — it replaces the active basket (WP-16). Judged after `requireCustomer` and **before** the order is read, as the composite gates above are: a member lacking the code → `403 ORGANIZATION_PERMISSION_REQUIRED` whichever order the id names (own, colleague's, none); a holder then meets the order scope unchanged (`404 ORDER_NOT_FOUND` out of it). The operator route `POST /api/v1/admin/orders/:id/reorder` is unchanged |
+| `POST /api/v1/orders/:id/clone-to-quote` (`orders/routes.ts`) | P(`quote_requests.create`) — it creates a quote request (WP-16); the same check order as the reorder. With `quote_requests` off its code leaves every effective set (FR-007), so the guard refuses (`403` naming the code) before the service's `503 MODULE_DISABLED`, which only the operator route still meets (owner ruling of 2026-11-04: the buyer's answer stays `403`). The operator route `POST /api/v1/admin/orders/:id/clone-to-quote` is unchanged |
 | `POST /api/v1/returns` (`returns/routes.customer.ts`) | P(`returns.create`) — `403 ORGANIZATION_PERMISSION_REQUIRED` before the order is read (FR-052); then the order through `orderReadPort.findByIdForCustomer` — out of the member's order scope → `404 NOT_FOUND` (FR-054, Q-R1 = A; today: placer only) |
 | `GET /api/v1/orders/:orderId/returnable` (`returns`) | none (a read, FR-052); the order through `orderReadPort.findByIdForCustomer` → `404 NOT_FOUND` out of scope (FR-054; today: placer only) |
 | `GET /api/v1/returns`, `GET /api/v1/returns/:id` (`returns`) | holder of `returns.view_organization` (or *Administrator*): every case of the Organization through the tenant filter (subtree for a roll-up login); anyone else: the cases they filed; out of reach → `404 NOT_FOUND` (FR-053). `ReturnCaseSummary` gains `customerAccountId` (the filer, additive) |

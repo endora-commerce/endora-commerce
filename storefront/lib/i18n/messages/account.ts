@@ -91,6 +91,9 @@ export const account = defineMessages({
     'account.addresses.makeDefault': 'Make default',
     'account.addresses.shared.heading': 'Organization addresses',
     'account.addresses.shared.hint': 'Shared addresses you can use at checkout.',
+    // Feature 170 (WP-16, OR-8) — said in place of the add form to a member without `addresses.manage`.
+    'account.addresses.manageNotAllowed':
+      'Your role does not allow adding or removing addresses. You can still view them and use them at checkout.',
     'account.addresses.add.heading': 'Add an address',
     'account.addresses.add.street': 'Street',
     'account.addresses.add.country': 'Country',
@@ -535,6 +538,8 @@ export const account = defineMessages({
     'account.addresses.makeDefault': 'Ustaw jako domyślny',
     'account.addresses.shared.heading': 'Adresy organizacji',
     'account.addresses.shared.hint': 'Wspólne adresy, których możesz użyć przy składaniu zamówienia.',
+    'account.addresses.manageNotAllowed':
+      'Twoja rola nie pozwala dodawać ani usuwać adresów. Możesz je przeglądać i używać przy składaniu zamówienia.',
     'account.addresses.add.heading': 'Dodaj adres',
     'account.addresses.add.street': 'Ulica i numer',
     'account.addresses.add.country': 'Kraj',

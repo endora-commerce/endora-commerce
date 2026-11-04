@@ -95,7 +95,10 @@ describe('#665 — buyer order actions follow the order read scope', () => {
     await seedMemberWithPermissions(em, {
       organizationId: TEST_ORGANIZATION_ID,
       customerAccountId: viewerC,
-      permissions: ['orders.view_organization'],
+      // Since `specs/170-organization-roles/` WP-16 the reorder needs
+      // `carts.create` and the clone `quote_requests.create`; C holds both so
+      // that the scope, which this file is about, is what answers.
+      permissions: ['orders.view_organization', 'carts.create', 'quote_requests.create'],
     });
     CUSTOMER_COOKIES[VIEWER_C.b2b_session] = { customerAccountId: viewerC, organizationId: TEST_ORGANIZATION_ID };
 

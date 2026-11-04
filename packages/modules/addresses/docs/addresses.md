@@ -25,10 +25,10 @@ permission is held by the Member role by default and by Administrator always;
 an organization withdraws it by editing a role.
 
 On the storefront the organization's address page (`/organization/addresses`)
-still shows its add and remove controls to every member; for a member whose role
-lacks the permission, saving shows the refusal's sentence — *Your role does not
-allow this: “Manage organization addresses”. Ask an administrator of your
-organization for this permission.* — and nothing changes.
+shows the address list to every member, and the add form and the *Remove*
+buttons only to a member whose role holds the permission. Anyone else reads one
+line instead of the form: *Your role does not allow adding or removing
+addresses. You can still view them and use them at checkout.*
 
 ## Entities
 

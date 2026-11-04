@@ -17,6 +17,7 @@ import {
   firstLanguageTag,
   isCustomFieldFilterUnavailableFailure,
   isCustomFieldValidationFailure,
+  organizationPermissionPreHandler,
   OrganizationCannotTransactError,
   orderPreviewTotalRequestSchema,
   placeOrderRequestSchema,
@@ -42,6 +43,7 @@ import type {
   LinePricePort,
   LinePricesPort,
   OrganizationDetailsPort,
+  OrganizationPermissionPort,
   PaymentMethodReadPort,
 } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
@@ -196,7 +198,22 @@ export interface OrdersDeps {
   customFieldListFilter?: CustomFieldListFilterPort;
   /** Feature 055 — audits the custom-field write co-transactionally when provided. */
   commandBus?: CommandBus;
+  /**
+   * `organizations`' permission port, resolved per request
+   * (`module-composition.md` item 4a) — the buyer's reorder and clone gates
+   * (`specs/170-organization-roles/` WP-16).
+   */
+  organizationPermissions: () => OrganizationPermissionPort;
 }
+
+/**
+ * The organization permissions the buyer's order actions are judged by
+ * (`specs/170-organization-roles/` WP-16, `contracts/storefront-api.md` §5).
+ * Declared by `carts` and `quote_requests`; module-local constants, which the
+ * permission inventory resolves.
+ */
+const CARTS_CREATE = 'carts.create';
+const QUOTE_REQUESTS_CREATE = 'quote_requests.create';
 
 export async function registerOrderRoutes(
   app: FastifyInstance,
@@ -1382,10 +1399,37 @@ export async function registerOrderRoutes(
     },
   );
 
+  /**
+   * `specs/170-organization-roles/` WP-16 (FR-030, FR-040) — the two buyer
+   * actions that build something from a past order are judged by what they
+   * build: the reorder replaces the active basket (`carts.create`), the clone
+   * creates a quote request (`quote_requests.create`).
+   *
+   * The permission is judged **first**, after `requireCustomer` and before the
+   * order is read, as every composite gate of WP-04, WP-06 and WP-14 judges
+   * it: a member lacking the code is refused `403
+   * ORGANIZATION_PERMISSION_REQUIRED` whichever order the id names — their
+   * own, a colleague's or none — so the refusal says nothing of the order.
+   * The order scope (FR-049, `orders.view_organization`) then answers a
+   * holder exactly as before, `404 ORDER_NOT_FOUND` out of it. With
+   * `quote_requests` off its code leaves every member's effective set
+   * (FR-007), so the clone is refused by the guard, before the service's
+   * `MODULE_DISABLED` — a `403`, as the owner confirmed on 2026-11-04. The
+   * operator routes are untouched.
+   */
+  const reordersIntoCart = [
+    requireCustomer,
+    organizationPermissionPreHandler(deps.organizationPermissions, CARTS_CREATE),
+  ];
+  const clonesToQuoteRequest = [
+    requireCustomer,
+    organizationPermissionPreHandler(deps.organizationPermissions, QUOTE_REQUESTS_CREATE),
+  ];
+
   // --- Reorder (feature 038 US6) ----------------------------------------
   app.post<{ Params: { id: string } }>(
     '/api/v1/orders/:id/reorder',
-    { preHandler: requireCustomer },
+    { preHandler: reordersIntoCart },
     async (request) => {
       const ctx = resolveCustomerContext(request);
       // Issue #665 — the service resolves the order through the read scope and
@@ -1441,7 +1485,7 @@ export async function registerOrderRoutes(
 
   app.post<{ Params: { id: string } }>(
     '/api/v1/orders/:id/clone-to-quote',
-    { preHandler: requireCustomer },
+    { preHandler: clonesToQuoteRequest },
     async (request) => {
       const ctx = resolveCustomerContext(request);
       // Issue #665 — the service resolves the order through the read scope and

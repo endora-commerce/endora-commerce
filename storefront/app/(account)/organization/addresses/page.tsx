@@ -8,6 +8,9 @@ import { localeRedirect } from '../../../../lib/i18n/navigation';
 import { getServerContext } from '../../../../lib/server-context';
 import { tForLocale, type MessageKey } from '../../../../lib/i18n/messages';
 import { codeLabel } from '../../../../lib/account/labels';
+import { getMe } from '../../../../lib/api/account';
+import { memberSession } from '../../../../lib/commerce-permissions';
+import { mayManageOrganizationAddresses } from '../../../../lib/account/organization-addresses';
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -17,9 +20,16 @@ import { codeLabel } from '../../../../lib/account/labels';
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 /**
- * Organization addresses (T155). Anyone in the org can list/create/remove
- * delivery + billing addresses; the backend tags one of each kind as the
- * default for downstream checkout (FR-046).
+ * Organization addresses (T155). Anyone in the org can list the delivery and
+ * billing addresses; the backend tags one of each kind as the default for
+ * downstream checkout (FR-046).
+ *
+ * Feature 170 (`specs/170-organization-roles/` WP-16; FR-057, OR-8) — adding
+ * and removing one needs `addresses.manage`, which the API enforces. A member
+ * whose role lacks it reads the list without the *Remove* buttons and gets one
+ * line saying why in place of the add form (owner ruling of 2026-11-04: a
+ * member who cannot act is not shown the controls). A session that cannot be
+ * read keeps today's page — the API is the gate.
  */
 
 export default async function AddressesPage({
@@ -30,7 +40,8 @@ export default async function AddressesPage({
   const session = await getSessionCookie();
   if (!session) return await localeRedirect('/login');
   const params = await searchParams;
-  const addresses = await listAddresses(session);
+  const [addresses, me] = await Promise.all([listAddresses(session), getMe(session).catch(() => null)]);
+  const canManage = mayManageOrganizationAddresses(memberSession(me));
   const { locale } = await getServerContext();
   const t = tForLocale(locale);
 
@@ -52,7 +63,7 @@ export default async function AddressesPage({
             <th>{t('account.addresses.col.recipient')}</th>
             <th>{t('account.addresses.col.address')}</th>
             <th>{t('account.addresses.col.default')}</th>
-            <th></th>
+            {canManage ? <th></th> : null}
           </tr>
         </thead>
         <tbody>
@@ -64,68 +75,76 @@ export default async function AddressesPage({
                 {a.street}, {a.postalCode} {a.city}, {a.country}
               </td>
               <td>{a.isDefault ? t('account.addresses.isDefaultShort') : ''}</td>
-              <td>
-                <form action={removeAddressAction}>
-                  <input type="hidden" name="id" value={a.id} />
-                  <button type="submit">{t('account.common.remove')}</button>
-                </form>
-              </td>
+              {canManage ? (
+                <td>
+                  <form action={removeAddressAction}>
+                    <input type="hidden" name="id" value={a.id} />
+                    <button type="submit">{t('account.common.remove')}</button>
+                  </form>
+                </td>
+              ) : null}
             </tr>
           ))}
         </tbody>
       </table>
 
-      <h3>{t('account.addresses.add.heading')}</h3>
-      <form action={createAddressAction} className="b2b-auth__form">
-        <div className="b2b-auth__row">
-          <div className="b2b-auth__field">
-            <label htmlFor="addr-kind">{t('account.addresses.col.kind')}</label>
-            <select id="addr-kind" name="kind" defaultValue="delivery">
-              <option value="delivery">{t('account.addressKind.delivery')}</option>
-              <option value="billing">{t('account.addressKind.billing')}</option>
-            </select>
-          </div>
-          <div className="b2b-auth__field">
-            <label htmlFor="addr-recipient">{t('account.addresses.col.recipient')}</label>
-            <input id="addr-recipient" name="recipientName" required maxLength={160} placeholder=" " />
-          </div>
-        </div>
-        <div className="b2b-auth__field">
-          <label htmlFor="addr-street">{t('account.addresses.add.street')}</label>
-          <input id="addr-street" name="street" required maxLength={255} placeholder=" " />
-        </div>
-        <div className="b2b-auth__row">
-          <div className="b2b-auth__field">
-            <label htmlFor="addr-city">{t('checkout.address.city')}</label>
-            <input id="addr-city" name="city" required maxLength={120} placeholder=" " />
-          </div>
-          <div className="b2b-auth__field">
-            <label htmlFor="addr-postal">{t('checkout.address.postalCode')}</label>
-            <input id="addr-postal" name="postalCode" required maxLength={20} placeholder=" " />
-          </div>
-        </div>
-        <div className="b2b-auth__row">
-          <div className="b2b-auth__field">
-            <label htmlFor="addr-country">{t('account.addresses.add.country')}</label>
-            <CountryPicker
-              id="addr-country"
-              name="country"
-              required
-              defaultValue="PL"
-            />
-          </div>
-          <div className="b2b-auth__field">
-            <label htmlFor="addr-phone">{t('checkout.address.phone')}</label>
-            <input id="addr-phone" name="phone" maxLength={32} placeholder=" " />
-          </div>
-        </div>
-        <label>
-          <input type="checkbox" name="isDefault" value="true" /> {t('account.addresses.add.makeDefault')}
-        </label>
-        <div className="b2b-auth__actions">
-          <button type="submit">{t('account.addresses.add.submit')}</button>
-        </div>
-      </form>
+      {canManage ? (
+        <>
+          <h3>{t('account.addresses.add.heading')}</h3>
+          <form action={createAddressAction} className="b2b-auth__form">
+            <div className="b2b-auth__row">
+              <div className="b2b-auth__field">
+                <label htmlFor="addr-kind">{t('account.addresses.col.kind')}</label>
+                <select id="addr-kind" name="kind" defaultValue="delivery">
+                  <option value="delivery">{t('account.addressKind.delivery')}</option>
+                  <option value="billing">{t('account.addressKind.billing')}</option>
+                </select>
+              </div>
+              <div className="b2b-auth__field">
+                <label htmlFor="addr-recipient">{t('account.addresses.col.recipient')}</label>
+                <input id="addr-recipient" name="recipientName" required maxLength={160} placeholder=" " />
+              </div>
+            </div>
+            <div className="b2b-auth__field">
+              <label htmlFor="addr-street">{t('account.addresses.add.street')}</label>
+              <input id="addr-street" name="street" required maxLength={255} placeholder=" " />
+            </div>
+            <div className="b2b-auth__row">
+              <div className="b2b-auth__field">
+                <label htmlFor="addr-city">{t('checkout.address.city')}</label>
+                <input id="addr-city" name="city" required maxLength={120} placeholder=" " />
+              </div>
+              <div className="b2b-auth__field">
+                <label htmlFor="addr-postal">{t('checkout.address.postalCode')}</label>
+                <input id="addr-postal" name="postalCode" required maxLength={20} placeholder=" " />
+              </div>
+            </div>
+            <div className="b2b-auth__row">
+              <div className="b2b-auth__field">
+                <label htmlFor="addr-country">{t('account.addresses.add.country')}</label>
+                <CountryPicker
+                  id="addr-country"
+                  name="country"
+                  required
+                  defaultValue="PL"
+                />
+              </div>
+              <div className="b2b-auth__field">
+                <label htmlFor="addr-phone">{t('checkout.address.phone')}</label>
+                <input id="addr-phone" name="phone" maxLength={32} placeholder=" " />
+              </div>
+            </div>
+            <label>
+              <input type="checkbox" name="isDefault" value="true" /> {t('account.addresses.add.makeDefault')}
+            </label>
+            <div className="b2b-auth__actions">
+              <button type="submit">{t('account.addresses.add.submit')}</button>
+            </div>
+          </form>
+        </>
+      ) : (
+        <p className="b2b-auth__hint">{t('account.addresses.manageNotAllowed')}</p>
+      )}
     </>
   );
 }

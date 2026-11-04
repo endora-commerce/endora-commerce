@@ -16,6 +16,7 @@ import { getReturnable } from '../../../../lib/api/returns';
 import { mayStartReturn, orderReturnAction, type OrderReturnAction } from '../../../../lib/returns/returnForm';
 import { getMe } from '../../../../lib/api/account';
 import { memberSession } from '../../../../lib/commerce-permissions';
+import { orderBuyerActions } from '../../../../lib/orders/order-actions';
 import { listMyOrderInvoices, invoiceDownloadUrl } from '../../../../lib/api/invoices';
 import { getSessionCookie } from '../../../../lib/session';
 import { getServerContext } from '../../../../lib/server-context';
@@ -136,21 +137,25 @@ export default async function OrderConfirmationPage({
   // platform decides it and sends the answer; see `lib/order-cancel.ts`.
   const canCancel = offersCancellation(order);
 
+  // Feature 170 (`specs/170-organization-roles/`, FR-057) — the member's role decides which of
+  // the order's actions are offered: *Order again → cart* with `carts.create`, *Order again →
+  // quote request* with `quote_requests.create` (WP-16), a return with `returns.create` (WP-14b).
+  // Read once for all three; a session that cannot be read keeps today's page, the API being the
+  // gate.
+  const member = memberSession(await getMe(session).catch(() => null));
+  const actions = orderBuyerActions(member);
+
   // Surface a return/complaint entry point directly on the order — a return when
   // any line is returnable, a complaint when none is (feature 155, FR-018/FR-021:
   // `eligible: false` with `no_returnable_lines` still takes a complaint), nothing
   // otherwise. Falls back to hidden on any error so the page never breaks.
   //
-  // Feature 170 (FR-052, FR-057): only for a member whose role holds `returns.create`. The
-  // session is read only when the order offers an entry at all, and a session that cannot be
-  // read keeps today's entry — `POST /api/v1/returns` is the gate.
+  // Feature 170 (FR-052, FR-057): only for a member whose role holds `returns.create`. A session
+  // that cannot be read keeps today's entry — `POST /api/v1/returns` is the gate.
   let returnAction: OrderReturnAction | null = null;
   try {
     const returnable = await getReturnable(session, id);
-    if (orderReturnAction(returnable, order.id, locale, true)) {
-      const me = await getMe(session).catch(() => null);
-      returnAction = orderReturnAction(returnable, order.id, locale, mayStartReturn(memberSession(me)));
-    }
+    returnAction = orderReturnAction(returnable, order.id, locale, mayStartReturn(member));
   } catch {
     returnAction = null;
   }
@@ -209,18 +214,22 @@ export default async function OrderConfirmationPage({
       ) : null}
 
       <div className="mb-6 flex flex-wrap gap-2">
-        <form action={reorderAction} className="inline">
-          <input type="hidden" name="id" value={order.id} />
-          <button type="submit" className="btn btn--outline btn--sm">
-            {t('account.order.reorderToCart')}
-          </button>
-        </form>
-        <form action={reorderToQuoteAction} className="inline">
-          <input type="hidden" name="id" value={order.id} />
-          <button type="submit" className="btn btn--outline btn--sm">
-            {t('account.order.reorderToQuote')}
-          </button>
-        </form>
+        {actions.reorder ? (
+          <form action={reorderAction} className="inline">
+            <input type="hidden" name="id" value={order.id} />
+            <button type="submit" className="btn btn--outline btn--sm">
+              {t('account.order.reorderToCart')}
+            </button>
+          </form>
+        ) : null}
+        {actions.cloneToQuote ? (
+          <form action={reorderToQuoteAction} className="inline">
+            <input type="hidden" name="id" value={order.id} />
+            <button type="submit" className="btn btn--outline btn--sm">
+              {t('account.order.reorderToQuote')}
+            </button>
+          </form>
+        ) : null}
         {returnAction ? (
           <LocalizedLink href={returnAction.href} className="btn btn--outline btn--sm">
             {returnAction.label}

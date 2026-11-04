@@ -332,7 +332,7 @@ directions), every backend legacy read removed from converted modules.
 
 ---
 
-## Phase 4 — Wave 3: storefront (WP-09 ∥ WP-10; may draft during Wave 2, merge after their APIs), and the 2026-11-04 packages WP-15, WP-14, WP-14b
+## Phase 4 — Wave 3: storefront (WP-09 ∥ WP-10; may draft during Wave 2, merge after their APIs), and the 2026-11-04 packages WP-15, WP-14, WP-14b, WP-16
 
 ### WP-09 — organization area (merge after WP-02a, WP-03, WP-04)
 
@@ -392,6 +392,33 @@ Branch `wp/170-14b-returns-storefront`.
 - [x] T150 [P] [WP-14b] [US9] Failing tests: the order detail's *Start a return* / *File a complaint* action is not rendered for a member without `returns.create` (`can(session, 'returns.create')`) and is rendered as today otherwise; `/returns/new` for such a member shows a plain-language notice naming the permission instead of the form, with no submit; the returns list of a member holding `returns.view_organization` marks a case whose `customerAccountId` is not the session's as filed by a colleague (EN+PL); a colleague's case detail renders no comment form, attachment upload, delivery-method choice or cancel (Q-R2 = A); a member without the code sees the page as today — storefront — `storefront/test/account/{order-detail-return-action,returns-new-returnable,i18n/orders-returns}.test.tsx`, `storefront/test/account/returns-organization-permissions.test.tsx` (new) — T147
 - [x] T151 [WP-14b] [US9] Implement: `app/(account)/orders/[id]/page.tsx` (the action by `can`), `lib/returns/returnForm.ts` (`orderReturnAction` told whether the member may open one), `app/(account)/returns/{page,new/page,[id]/page}.tsx`, `lib/api/returns.ts` (`ReturnCaseSummary.customerAccountId`), the returns keys of `lib/i18n/messages/account.ts` (EN+PL); Server Components preserved (VII); T150 green — storefront — T150, WP-14 merged, WP-09 merged
 - [ ] T152 [WP-14b] Verify (`pnpm --filter storefront run test`, typecheck, lint, `check:rsc-discipline`, `i18n:hardcoded`); merge before WP-11 — T151
+
+### WP-16 — reorder and clone-to-quote by permission, approval wording, addresses controls (owner ruling of 2026-11-04 after the WP-11 review, #727)
+
+**Goal**: FR-030 and FR-040 on the two buyer actions that build something from a past order, which
+WP-07 left judged by the order scope alone; FR-057 on the order detail and `/organization/addresses`;
+FR-031's wording in placement's `ORDER_CART_APPROVAL_REQUIRED` sentences. **Gate**: WP-04, WP-05,
+WP-07, WP-09, WP-10 and WP-14b merged (all done); may run beside WP-11 and WP-12. **Merge before**
+WP-13. **Independent test**: a member whose role lacks `carts.create` is refused the reorder of their
+own order, and is not offered it on the order detail. Branch `wp/170-16-order-actions`. Moves no oracle
+row and flips no ledger entry (§6.3): every oracle member holds *Member* or *Administrator*, both
+holding the two codes.
+
+**Check order** (the route comment states it): `requireCustomer` → the permission → the order scope —
+as every composite gate of WP-04, WP-06 and WP-14 is judged. A member lacking the code gets `403
+ORGANIZATION_PERMISSION_REQUIRED` whichever order the id names (their own, a colleague's, none), so the
+refusal says nothing of the order; a holder then meets the FR-049 scope unchanged (`404
+ORDER_NOT_FOUND` out of it).
+
+- [x] T155 [P] [WP-16] [US1] Failing tests: `POST /api/v1/orders/:id/reorder` by a member whose custom role lacks `carts.create` → `403 ORGANIZATION_PERMISSION_REQUIRED`, `details.permission = 'carts.create'`, EN and PL sentence, on their own order, a colleague's and an id that is no order, with every basket of theirs unchanged; `POST …/clone-to-quote` likewise for `quote_requests.create`, with no quote request created; a holder of the code is served on their own order and still gets `404 ORDER_NOT_FOUND` on a colleague's without `orders.view_organization`; a signed-out caller `401`; off-state: with `quote_requests` off on either axis the clone is refused by the guard naming `quote_requests.create` (its code leaves the effective set, FR-007; it was `503 MODULE_DISABLED` from the service before; the owner kept `403` on 2026-11-04) and nothing is created, served again after; WP-07's and #665's viewers gain `carts.create` and `quote_requests.create` so their rows keep answering the scope — backend test — `backend/test/integration/orders/order-actions-permissions.test.ts` (new), `backend/test/integration/orders/{colleague-orders-permission,buyer-order-actions-scope}.test.ts` — WP-07 merged
+- [x] T156 [P] [WP-16] [US1] Failing storefront tests: the order detail renders *Order again → cart* only with `carts.create` and *Order again → quote request* only with `quote_requests.create` (EN+PL; hidden, not explained, as WP-14b's return entry), both when the session cannot be read; the account i18n fixture's *Member* holds its defaults — storefront — `storefront/test/account/order-detail-buyer-actions.test.tsx` (new), `storefront/test/account/i18n/orders-returns.test.tsx` — WP-10, WP-14b merged
+- [x] T157 [P] [WP-16] [US1] Failing storefront tests: `/organization/addresses` keeps the list for every member and renders the add form and the *Remove* buttons only with `addresses.manage`; a member without it reads one line saying why (EN+PL) in place of the form; today's page when the session cannot be read; the account i18n fixture's *Administrator* holds `addresses.manage` — storefront — `storefront/test/account/organization-addresses-permissions.test.tsx` (new), `storefront/test/account/i18n/account-pages.test.tsx` — WP-03, WP-09 merged
+- [x] T158 [P] [WP-16] [US3] Failing bundle test: the three `errors.ORDER_CART_APPROVAL_REQUIRED.cart_approval_{not_submitted,pending,rejected}` sentences name no administrator and no Organization-wide requirement, and use the owner-accepted storefront wording (*your role requires approval of this cart*, *an approver in your organization*; PL *Twoja rola wymaga akceptacji tego koszyka*, *osoba zatwierdzająca w Twojej organizacji*) — orders — `packages/modules/orders/src/backend/cart-approval-wording.test.ts` (new) — WP-04 merged
+- [x] T159 [WP-16] [US1] Gates: `organizationPermissionPreHandler(deps.organizationPermissions, CARTS_CREATE)` on the buyer's reorder and `(…, QUOTE_REQUESTS_CREATE)` on the buyer's clone, after `requireCustomer` (module-local string constants, which the inventory resolves); `OrdersDeps.organizationPermissions` resolved per request from the plugin's port; the check order in the route comment; operator routes untouched; T155 green — orders — `packages/modules/orders/src/backend/{routes.ts,plugin.ts}` — T155
+- [x] T160 [WP-16] [US3] The three sentences EN+PL in the orders bundles; T158 green. `carts`' error sentences already follow the role (`CART_APPROVAL_NOT_REQUIRED`, `…_SELF_APPROVE`); its non-error `approval.banner.*` and `reject.email.body` keys still name an administrator but no code reads them (reported, not edited) — orders — `packages/modules/orders/i18n/{en,pl}.json` — T158
+- [x] T161 [WP-16] [US1] Storefront: `lib/orders/order-actions.ts` (new, over `commerceAbilities`) read by `app/(account)/orders/[id]/page.tsx`, which now reads the session once for its three role-judged actions; `lib/account/organization-addresses.ts` (new, `can(…, 'addresses.manage')`) read by `app/(account)/organization/addresses/page.tsx`; `account.addresses.manageNotAllowed` EN+PL in `lib/i18n/messages/account.ts`; Server Components preserved (VII); T156, T157 green — storefront — T156, T157
+- [x] T162 [WP-16] Docs EN+PL+pin after #727 merges: the orders page's buyer actions (the two codes) and its `ORDER_CART_APPROVAL_REQUIRED` sentence table, the addresses page's storefront controls — `packages/modules/orders/docs/orders.md`, `plpage(orders)`, `packages/modules/addresses/docs/addresses.md`, `plpage(addresses)` — T159, T160, T161, #727 merged
+- [ ] T163 [WP-16] Changesets `.changeset/170-16-orders-actions.md` (`@endora-commerce/mod-orders`, `minor`: the buyer's reorder refused `403 ORGANIZATION_PERMISSION_REQUIRED` without `carts.create`, the clone without `quote_requests.create`; the three sentences reworded) and the empty `.changeset/170-16-storefront-order-actions.md` (storefront only); verify (standing obligations 1–5, the replay among the targeted files — it must move no row, §6.3; the permission inventory green; `pnpm --filter storefront run test`, `check:rsc-discipline`); merge before WP-13 — T159, T160, T161
 
 ---
 
@@ -457,11 +484,13 @@ is released. Nothing here may declare those two codes (R-30).
                           · WP-15 (T139–T142, after 05/06/08 — all merged; OR-9, OR-10)
                           · WP-14 (T143–T149, T153, after 07 — merged; OR-11)
                           · WP-14b (T150–T152, after WP-14 and WP-09)
-            ─► WP-11 (T103–T104; after WP-14, WP-14b, WP-15 too) ─► WP-12 (T105–T111, T138) ─► WP-13 (T112–T115) ─► T116
+                          · WP-16 (T155–T163, after 04/05/07/09/10/14b — all merged; beside WP-11 and WP-12, before WP-13)
+            ─► WP-11 (T103–T104; after WP-14, WP-14b, WP-15 too) ─► WP-12 (T105–T111, T138) ─► WP-13 (T112–T115; after WP-16 too) ─► T116
 ```
 
 Inside the 2026-11-04 packages: T139 ∥ T140 → T141 → T142; T143 ∥ T144 ∥ T145 ∥ T146 → T147 →
-T148 → T149, with T153 beside T147; T150 → T151 → T152. WP-14, WP-14b and WP-15 flip no `LANDED` entry and add no
+T148 → T149, with T153 beside T147; T150 → T151 → T152; T155 ∥ T156 ∥ T157 ∥ T158 → T159, T160, T161 → T162 → T163.
+WP-14, WP-14b, WP-15 and WP-16 flip no `LANDED` entry and add no
 `EXPECTED_DIFFERENCES` row (`contracts/migration-and-replay.md` §6.3); each still pastes the replay's
 run.
 
@@ -522,7 +551,7 @@ WP-06) as the business reason for the feature, then US 1's storefront (WP-09/10)
 | FR-023 | T027 → T034 |
 | FR-024 | T027, T042 → T034, T047 |
 | FR-025 | T025, T027, T070, T087, T146 → T032, T034, T148 |
-| FR-030 | T067, T085, T121 (guest basket, PR-4) → T073, T088; T100 → T101 (signed-out add-to-cart) |
+| FR-030 | T067, T085, T121 (guest basket, PR-4) → T073, T088; T100 → T101 (signed-out add-to-cart); T155 → T159 (reorder, WP-16) |
 | FR-030a | T126 → T127 (merge judged and skipped); T015 (outcome value); T128 → T129 (login keeps the cookie) — PR-12 |
 | FR-030b | T139 → T141 (the import's either-of guard, OR-10); T100 → T101 (the import's visibility) |
 | FR-031 | T068, T071 → T074, T076 |
@@ -530,7 +559,7 @@ WP-06) as the business reason for the feature, then US 1's storefront (WP-09/10)
 | FR-033 | T068 → T074 |
 | FR-034 | T069 → T075 |
 | FR-035 | T068 → T074 |
-| FR-040 | T067, T080, T085, T086 → T073, T081, T088, T089 |
+| FR-040 | T067, T080, T085, T086 → T073, T081, T088, T089; T155 → T159 (clone to quote, WP-16) |
 | FR-041 | P2 form (administrator visibility, R-30): T080 → T081; permission form deferred to P3 |
 | FR-042 – FR-046 | **deferred to P3** (no task here, by design) |
 | FR-047 | T067, T086 → T073, T089 |
@@ -543,7 +572,7 @@ WP-06) as the business reason for the feature, then US 1's storefront (WP-09/10)
 | FR-054 | T145 → T148 — OR-11, Q-R1 = A |
 | FR-055 | T007, T025, T028 → T013, T032, T035 |
 | FR-056 | T053 → T059; T097 → T098 |
-| FR-057 | T097, T100, T150 → T098, T101, T151 |
+| FR-057 | T097, T100, T150 → T098, T101, T151; T156, T157 → T161 (order-again actions, organization addresses, WP-16) |
 | FR-058 | T028, T097 → T035, T098 |
 | FR-060 | T028, T094 → T035, T095 |
 | FR-061 | T028, T094 → T035, T036, T095 |
@@ -620,3 +649,8 @@ automated test; it is checked in the `quickstart.md` §2 walk-through (T116).
    (`contracts/migration-and-replay.md` §6.3). OR-11 leaves three design questions to the owner,
    Q-R1 to Q-R3 (`plan.md` *OR-11's design questions*), answered the same day (A, A, accepted); WP-14's tasks
    follow those answers, and T153 (the stale `findByIdForCustomer` comment) was added with them.
+9. **Owner ruling of 2026-11-04 after the WP-11 review (#727)** — adds WP-16 (T155–T163): the buyer's
+   reorder and clone-to-quote judged by `carts.create` and `quote_requests.create` (permission before
+   the order scope), placement's approval sentences in the storefront's wording, and the addresses
+   page's controls by `addresses.manage`. It has no section in `plan.md`; this file and
+   `contracts/storefront-api.md` §5 carry it. It moves no oracle row (§6.3).

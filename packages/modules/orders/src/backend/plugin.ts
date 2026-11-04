@@ -681,6 +681,7 @@ export function commerceModule(options: OrdersModuleOptions) {
       ...(options.customFieldValues ? { customFieldValues: options.customFieldValues } : {}),
       ...(options.customFieldListFilter ? { customFieldListFilter: options.customFieldListFilter } : {}),
       ...(options.commandBus ? { commandBus: options.commandBus } : {}),
+      organizationPermissions: () => options.organizationPermissions,
     });
 
     // Feature 062 — external orders namespace for bound api keys. Mounted only
