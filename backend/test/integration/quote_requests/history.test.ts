@@ -422,7 +422,6 @@ describe('146 — readable history: authority and bounds [integration]', () => {
         lastName: 'Buyer',
         // The role held is the one the platform judges
         // (`specs/170-organization-roles/`); the legacy `role` is dual-written.
-        role: 'organization_admin',
         organizationRoleId: await predefinedRoleIdOf(em, stranger.id, 'administrator'),
       });
       const gone = em.create(CustomerAccount, {
@@ -431,7 +430,6 @@ describe('146 — readable history: authority and bounds [integration]', () => {
         passwordHash: 'x'.repeat(60),
         firstName: 'Deleted',
         lastName: 'Buyer',
-        role: 'regular_user',
         deletedAt: new Date(),
       });
       await em.persistAndFlush([account, gone]);

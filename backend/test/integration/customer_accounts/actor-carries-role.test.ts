@@ -77,8 +77,8 @@ describe('the actor carries the organization role', () => {
     account = randomUUID();
     await h.em().getConnection().execute(
       `insert into "customer_accounts"
-         ("id","organization_id","email","password_hash","first_name","last_name","role","created_at","updated_at")
-       values (?, ?, ?, 'x', 'Actor', 'Role', 'regular_user', now(), now())`,
+         ("id","organization_id","email","password_hash","first_name","last_name","created_at","updated_at")
+       values (?, ?, ?, 'x', 'Actor', 'Role', now(), now())`,
       [account, TEST_ORGANIZATION_ID, `${account.slice(0, 8)}@actor-role.example`],
     );
   });

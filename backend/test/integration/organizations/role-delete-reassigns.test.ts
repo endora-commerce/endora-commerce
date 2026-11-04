@@ -59,9 +59,9 @@ describe('organization_role.delete with holders', () => {
       const id = randomUUID();
       await sql(
         `insert into "customer_accounts"
-           ("id","organization_id","email","password_hash","first_name","last_name","role",
+           ("id","organization_id","email","password_hash","first_name","last_name",
             "organization_role_id","blocked_at","deleted_at","created_at","updated_at")
-         values (?, ?, ?, 'x', 'Held', 'Role', 'regular_user', ?, ?, ?, now(), now())`,
+         values (?, ?, ?, 'x', 'Held', 'Role', ?, ?, ?, now(), now())`,
         [
           id,
           TEST_ORGANIZATION_ID,
@@ -76,8 +76,8 @@ describe('organization_role.delete with holders', () => {
     const invitation = randomUUID();
     await sql(
       `insert into "organization_invitations"
-         ("id","organization_id","email","role","organization_role_id","token_hash","expires_at","created_at","updated_at")
-       values (?, ?, ?, 'regular_user', ?, ?, now() + interval '7 days', now(), now())`,
+         ("id","organization_id","email","organization_role_id","token_hash","expires_at","created_at","updated_at")
+       values (?, ?, ?, ?, ?, now() + interval '7 days', now(), now())`,
       [invitation, TEST_ORGANIZATION_ID, `${invitation.slice(0, 8)}@role-delete.example`, roleId, `hash-${invitation}`],
     );
     return { accounts, invitation };
@@ -138,12 +138,6 @@ describe('organization_role.delete with holders', () => {
     expect(await heldRoles(accounts)).toEqual([replacement, replacement, replacement]);
     expect(await invitationRole(invitation)).toBe(replacement);
     expect(await sql(`select 1 from "organization_roles" where "id" = ?`, [role.id])).toEqual([]);
-    // The legacy column follows the reference (R-23 dual-write).
-    const legacy = await sql<{ role: string }>(
-      `select distinct "role" from "customer_accounts" where "id" in (?, ?, ?)`,
-      accounts,
-    );
-    expect(legacy).toEqual([{ role: 'regular_user' }]);
 
     const entries = await auditSince(since);
     expect(entries.filter((e) => e.action === 'organization_role.delete')).toEqual([

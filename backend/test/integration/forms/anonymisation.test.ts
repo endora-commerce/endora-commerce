@@ -73,7 +73,6 @@ describe('forms — erasure of an anonymised customer account (FR-047)', () => {
       passwordHash: 'x'.repeat(60),
       firstName: 'Erasure',
       lastName: label,
-      role: 'regular_user',
       emailVerifiedAt: new Date(),
       deletedAt: due ? new Date(Date.now() - 3 * YEAR) : null,
     } as never);

@@ -44,13 +44,12 @@ describe('revoking the last administrator invitation', () => {
     const id = randomUUID();
     await h.em().execute(
       `insert into "customer_accounts"
-         ("id","organization_id","email","password_hash","first_name","last_name","role","organization_role_id","blocked_at","created_at","updated_at")
-       values (?, ?, ?, 'x', 'Re', 'Voke', ?, ?, ?, now(), now())`,
+         ("id","organization_id","email","password_hash","first_name","last_name","organization_role_id","blocked_at","created_at","updated_at")
+       values (?, ?, ?, 'x', 'Re', 'Voke', ?, ?, now(), now())`,
       [
         id,
         organizationId,
         `${id.slice(0, 8)}@revoke.example`,
-        kind === 'administrator' ? 'organization_admin' : 'regular_user',
         await predefinedRoleIdOf(h.em(), organizationId, kind),
         blocked ? new Date() : null,
       ],
@@ -61,8 +60,8 @@ describe('revoking the last administrator invitation', () => {
     const id = randomUUID();
     await h.em().execute(
       `insert into "organization_invitations"
-         ("id","organization_id","email","role","organization_role_id","token_hash","expires_at","created_at","updated_at")
-       values (?, ?, ?, 'organization_admin', ?, ?, ?, now(), now())`,
+         ("id","organization_id","email","organization_role_id","token_hash","expires_at","created_at","updated_at")
+       values (?, ?, ?, ?, ?, ?, now(), now())`,
       [
         id,
         organizationId,

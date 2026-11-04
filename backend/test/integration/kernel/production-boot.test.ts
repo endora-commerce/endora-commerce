@@ -15,6 +15,7 @@ import {
   Organization,
 } from '../../helpers/package-entities.js';
 import { bindOrganizationsToFixtureChannelsSql } from '../../helpers/sales-channel-access.js';
+import { predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 
 /**
  * The production root actually boots (feature 072, D-40).
@@ -360,7 +361,7 @@ describe('the production composition root boots', () => {
               passwordHash: 'x'.repeat(60),
               firstName: 'Two',
               lastName: 'Sessions',
-              role: 'organization_admin',
+              organizationRoleId: await predefinedRoleIdOf(em, OWN_ORGANIZATION_ID, 'administrator'),
               emailVerifiedAt: new Date(),
             }),
           );

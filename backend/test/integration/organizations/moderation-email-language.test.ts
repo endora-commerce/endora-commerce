@@ -11,6 +11,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 
 /**
  * `specs/093-backend-delivered-prose/` § Out of scope — the seam-B carve-out,
@@ -64,7 +65,7 @@ describe('organizations — moderation e-mails are rendered from a template, in 
         passwordHash: 'x'.repeat(60),
         firstName: 'Org',
         lastName: 'Admin',
-        role: 'organization_admin',
+        organizationRoleId: await predefinedRoleIdOf(em, organization.id, 'administrator'),
         emailVerifiedAt: new Date(),
       }),
     );

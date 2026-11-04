@@ -31,11 +31,6 @@ import { seedOtherTestOrganization } from '../../helpers/seed-organizations.js';
  * An operator's assign to a company lands on the target's predefined role of the
  * kind held; the composite foreign key refuses any role of the previous
  * Organization, so no path can leave one behind.
- *
- * The legacy `role` of a personal Organization's account is left as it was —
- * `regular_user` for a self-registered individual — exactly as M3 leaves it
- * (`contracts/migration-and-replay.md` §3), so `customers`' depletion guards,
- * which still read it until WP-03, do not start refusing B2C deletions.
  */
 
 const ADMIN = { b2b_session: 'stub-admin-session' };
@@ -59,9 +54,9 @@ describe('a personal Organization is administered by its member', () => {
     return (await h.em().getConnection().execute(statement, params)) as T[];
   }
 
-  async function account(id: string): Promise<{ organization_id: string; organization_role_id: string; role: string }> {
-    const [row] = await sql<{ organization_id: string; organization_role_id: string; role: string }>(
-      `select "organization_id","organization_role_id","role" from "customer_accounts" where "id" = ?`,
+  async function account(id: string): Promise<{ organization_id: string; organization_role_id: string }> {
+    const [row] = await sql<{ organization_id: string; organization_role_id: string }>(
+      `select "organization_id","organization_role_id" from "customer_accounts" where "id" = ?`,
       [id],
     );
     return row!;
@@ -110,14 +105,14 @@ describe('a personal Organization is administered by its member', () => {
     return (res.json() as { data: { customerAccount: { id: string } } }).data.customerAccount.id;
   }
 
-  async function insertCompanyAccount(organizationId: string, roleIdValue: string, legacy: string): Promise<string> {
+  async function insertCompanyAccount(organizationId: string, roleIdValue: string): Promise<string> {
     const id = randomUUID();
     await sql(
       `insert into "customer_accounts"
-         ("id","organization_id","email","password_hash","first_name","last_name","role",
+         ("id","organization_id","email","password_hash","first_name","last_name",
           "organization_role_id","created_at","updated_at")
-       values (?, ?, ?, 'x', 'Com', 'Pany', ?, ?, now(), now())`,
-      [id, organizationId, `${id.slice(0, 8)}@personal-admin.example`, legacy, roleIdValue],
+       values (?, ?, ?, 'x', 'Com', 'Pany', ?, now(), now())`,
+      [id, organizationId, `${id.slice(0, 8)}@personal-admin.example`, roleIdValue],
     );
     return id;
   }
@@ -160,7 +155,6 @@ describe('a personal Organization is administered by its member', () => {
   it('self-registration (createStandalone)', async () => {
     const id = await register();
     await expectPersonalAdministrator(id);
-    expect((await account(id)).role).toBe('regular_user');
   });
 
   it("the federated sign-in's account creation", async () => {
@@ -170,14 +164,13 @@ describe('a personal Organization is administered by its member', () => {
     );
     expect(created).not.toBeNull();
     await expectPersonalAdministrator(created!.id);
-    expect((await account(created!.id)).role).toBe('regular_user');
   });
 
   it('ensureForCustomerAccount, when it has to provision', async () => {
     // The repair arm is reached only by an account whose Organization cannot be
     // found; the read port is narrowed to say so, everything else is the real
     // composition.
-    const id = await insertCompanyAccount(TEST_ORGANIZATION_ID, await roleId(TEST_ORGANIZATION_ID, 'member'), 'regular_user');
+    const id = await insertCompanyAccount(TEST_ORGANIZATION_ID, await roleId(TEST_ORGANIZATION_ID, 'member'));
     const real = await cradle.customerAccountReadPort.findById(id);
     const service = new PersonalOrganizationService(() => h.em().fork(), {
       read: { ...cradle.customerAccountReadPort, findById: async () => ({ ...real!, organizationId: randomUUID() }) },
@@ -188,7 +181,7 @@ describe('a personal Organization is administered by its member', () => {
   });
 
   it("the operator's detach to the personal Organization", async () => {
-    const id = await insertCompanyAccount(TEST_ORGANIZATION_ID, await roleId(TEST_ORGANIZATION_ID, 'member'), 'regular_user');
+    const id = await insertCompanyAccount(TEST_ORGANIZATION_ID, await roleId(TEST_ORGANIZATION_ID, 'member'));
     await detach(id);
     await expectPersonalAdministrator(id);
   });
@@ -218,8 +211,8 @@ describe('a personal Organization is administered by its member', () => {
 
   describe("the operator's assign to a company keeps the kind held (PR-11)", () => {
     it('an administrator stays an administrator, and a member stays a member', async () => {
-      const admin = await insertCompanyAccount(TEST_ORGANIZATION_ID, await roleId(TEST_ORGANIZATION_ID, 'administrator'), 'organization_admin');
-      const member = await insertCompanyAccount(TEST_ORGANIZATION_ID, await roleId(TEST_ORGANIZATION_ID, 'member'), 'regular_user');
+      const admin = await insertCompanyAccount(TEST_ORGANIZATION_ID, await roleId(TEST_ORGANIZATION_ID, 'administrator'));
+      const member = await insertCompanyAccount(TEST_ORGANIZATION_ID, await roleId(TEST_ORGANIZATION_ID, 'member'));
       await assignTo(admin, OTHER_TEST_ORGANIZATION_ID);
       await assignTo(member, OTHER_TEST_ORGANIZATION_ID);
       expect((await account(admin)).organization_role_id).toBe(await roleId(OTHER_TEST_ORGANIZATION_ID, 'administrator'));
@@ -233,7 +226,7 @@ describe('a personal Organization is administered by its member', () => {
          values (?, ?, 'custom', ?, ?)`,
         [custom, TEST_ORGANIZATION_ID, `Travel ${custom.slice(0, 6)}`, `travel ${custom.slice(0, 6)}`],
       );
-      const holder = await insertCompanyAccount(TEST_ORGANIZATION_ID, custom, 'regular_user');
+      const holder = await insertCompanyAccount(TEST_ORGANIZATION_ID, custom);
       await assignTo(holder, OTHER_TEST_ORGANIZATION_ID);
       expect((await account(holder)).organization_role_id).toBe(await roleId(OTHER_TEST_ORGANIZATION_ID, 'member'));
     });
@@ -244,7 +237,6 @@ describe('a personal Organization is administered by its member', () => {
       const row = await account(id);
       expect(row.organization_id).toBe(OTHER_TEST_ORGANIZATION_ID);
       expect(row.organization_role_id).toBe(await roleId(OTHER_TEST_ORGANIZATION_ID, 'member'));
-      expect(row.role).toBe('regular_user');
     });
   });
 });

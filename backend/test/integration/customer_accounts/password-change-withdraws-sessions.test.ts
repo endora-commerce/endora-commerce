@@ -127,7 +127,6 @@ describe('customer password change and reset — sessions, reset tokens, pending
       password: PASSWORDS[0]!,
       firstName: 'Change',
       lastName: 'Sessions',
-      role: 'regular_user',
       organizationRoleId: await predefinedRoleIdOf(h.em(), TEST_ORGANIZATION_ID, 'member'),
     });
     await h.em().flush();

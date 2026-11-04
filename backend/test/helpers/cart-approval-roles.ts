@@ -4,7 +4,7 @@ import type { BackendServerHandle } from './test-server.js';
 import { CustomerAccount, Organization } from './package-entities.js';
 import { CUSTOMER_COOKIES } from './test-actors.js';
 import { addOrganizationChannels } from './sales-channel-access.js';
-import { assignOrganizationRole } from './seed-organization-roles.js';
+import { assignOrganizationRole, predefinedRoleIdOf } from './seed-organization-roles.js';
 
 /**
  * Organization fixtures for `carts`' permission tests
@@ -120,7 +120,7 @@ export async function seedCartOrganization(
       passwordHash: 'not-a-real-hash',
       firstName: 'Wp04',
       lastName: key,
-      role: role === 'administrator' ? 'organization_admin' : 'regular_user',
+      organizationRoleId: await predefinedRoleIdOf(em, organizationId, role === 'administrator' ? 'administrator' : 'member'),
       emailVerifiedAt: new Date(),
     });
     await em.flush();

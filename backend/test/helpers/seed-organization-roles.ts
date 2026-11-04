@@ -62,9 +62,7 @@ export async function seedCustomOrganizationRole(
 
 /**
  * Makes `customerAccountId` hold `roleId` — a role of the account's own
- * Organization (the composite foreign key refuses any other). The legacy
- * `role` is dual-written as the platform does (research R-23): only the
- * *Administrator* role is `organization_admin`.
+ * Organization (the composite foreign key refuses any other).
  */
 export async function assignOrganizationRole(
   em: Queryable,
@@ -74,8 +72,7 @@ export async function assignOrganizationRole(
   await rows(
     em,
     `update "customer_accounts" a
-        set "organization_role_id" = r."id",
-            "role" = case when r."kind" = 'administrator' then 'organization_admin' else 'regular_user' end
+        set "organization_role_id" = r."id"
        from "organization_roles" r
       where a."id" = ? and r."id" = ? and r."organization_id" = a."organization_id"`,
     [customerAccountId, roleId],

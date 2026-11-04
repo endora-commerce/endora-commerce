@@ -11,7 +11,7 @@ import { CUSTOMER_COOKIES } from '../../helpers/test-actors.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { systemDefaultSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
 import { bindOrganizationsToFixtureChannelsSql } from '../../helpers/sales-channel-access.js';
-import { seedMemberWithPermissions } from '../../helpers/seed-organization-roles.js';
+import { predefinedRoleIdOf, seedMemberWithPermissions } from '../../helpers/seed-organization-roles.js';
 import { CustomerAccount, Order, OrderItem, Organization } from '../../helpers/package-entities.js';
 import { OrganizationTreeService } from '../../../../packages/modules/organizations/src/backend/services/organization-tree-service.js';
 import { seedInvoiceableOrder, setSellerSettings } from '../invoices/helpers.js';
@@ -58,7 +58,7 @@ async function makeRootOrg(em: EntityManager, name: string): Promise<Organizatio
 async function makeAccount(
   em: EntityManager,
   organizationId: string,
-  options: { role?: 'organization_admin' | 'regular_user'; rollup?: boolean } = {},
+  options: { role?: 'administrator' | 'member'; rollup?: boolean } = {},
 ): Promise<string> {
   const account = em.create(CustomerAccount, {
     organizationId,
@@ -66,7 +66,7 @@ async function makeAccount(
     passwordHash: 'x',
     firstName: 'WP07',
     lastName: 'Buyer',
-    role: options.role ?? 'regular_user',
+    organizationRoleId: await predefinedRoleIdOf(em, organizationId, options.role ?? 'member'),
     subtreeRollupEnabled: options.rollup ?? false,
     emailVerifiedAt: new Date(),
   });
@@ -142,7 +142,7 @@ describe('170 WP-07 — colleagues’ orders need orders.view_organization (FR-0
     accounts.placer = await makeAccount(em, ids.org);
     accounts.plain = await makeAccount(em, ids.org);
     accounts.viewer = await makeAccount(em, ids.org);
-    accounts.admin = await makeAccount(em, ids.org, { role: 'organization_admin' });
+    accounts.admin = await makeAccount(em, ids.org, { role: 'administrator' });
     accounts.headViewer = await makeAccount(em, ids.head, { rollup: true });
     accounts.headPlain = await makeAccount(em, ids.head, { rollup: true });
     accounts.branchPlacer = await makeAccount(em, ids.branch);

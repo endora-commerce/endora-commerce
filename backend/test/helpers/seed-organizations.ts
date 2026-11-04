@@ -98,7 +98,6 @@ export async function seedOtherTestCustomer(
       passwordHash: await hashPassword(STUB_CUSTOMER_PASSWORD),
       firstName: 'Stub',
       lastName: 'Other',
-      role: 'regular_user',
       organizationRoleId: await predefinedRoleIdOf(em, organizationId, 'member'),
       emailVerifiedAt: new Date(),
     }),
@@ -133,7 +132,6 @@ export async function seedTestOrganizations(em: EntityManager): Promise<void> {
     passwordHash,
     firstName: 'Stub',
     lastName: 'Customer',
-    role: 'organization_admin',
     organizationRoleId: await predefinedRoleIdOf(em, TEST_ORGANIZATION_ID, 'administrator'),
     emailVerifiedAt: new Date(),
   });
@@ -144,7 +142,6 @@ export async function seedTestOrganizations(em: EntityManager): Promise<void> {
     passwordHash,
     firstName: 'Stub',
     lastName: 'RFQ',
-    role: 'regular_user',
     organizationRoleId: await predefinedRoleIdOf(em, TEST_ORGANIZATION_ID, 'member'),
     emailVerifiedAt: new Date(),
   });
@@ -155,7 +152,6 @@ export async function seedTestOrganizations(em: EntityManager): Promise<void> {
     passwordHash,
     firstName: 'Stub',
     lastName: 'Empty',
-    role: 'regular_user',
     organizationRoleId: await predefinedRoleIdOf(em, TEST_ORGANIZATION_ID, 'member'),
     emailVerifiedAt: new Date(),
   });

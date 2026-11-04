@@ -108,7 +108,6 @@ export async function seedCustomer(
     passwordHash: 'x'.repeat(60),
     firstName: over.firstName ?? 'Gs',
     lastName: over.lastName ?? 'Customer',
-    role: 'organization_admin',
     organizationRoleId: await predefinedRoleIdOf(em, organizationId, 'administrator'),
     emailVerifiedAt: new Date(),
   } as never);

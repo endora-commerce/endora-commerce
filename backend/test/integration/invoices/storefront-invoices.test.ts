@@ -118,11 +118,11 @@ describe('invoices — storefront customer download (US4)', () => {
   // A regular member reaches only the orders they placed; an Organization admin
   // reaches every order of the Organization; anyone else gets 404.
   describe('order read scope inside one Organization (issue #669)', () => {
-    // Member A — `regular_user` in the test Organization, places the order.
+    // Member A — holding Member in the test Organization, places the order.
     const MEMBER_A = { b2b_session: 'stub-customer-session-rfq' };
-    // Member B — another `regular_user` of the same Organization.
+    // Member B — another Member of the same Organization.
     const MEMBER_B = { b2b_session: 'stub-empty-draft-customer-session' };
-    // `organization_admin` of the same Organization.
+    // The Administrator of the same Organization.
     const ORG_ADMIN = CUSTOMER_COOKIE;
     // A buyer of a different Organization.
     const OTHER_ORG = { b2b_session: 'stub-customer-session-other-org' };

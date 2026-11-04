@@ -17,6 +17,7 @@ import { OrganizationTreeService } from '../../../../packages/modules/organizati
 import { CUSTOMER_COOKIES } from '../../helpers/test-actors.js';
 import { Order } from '../../helpers/package-entities.js';
 import { bindOrganizationsToFixtureChannelsSql } from '../../helpers/sales-channel-access.js';
+import { predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 
 /**
  * Feature 056 (T032) — customer-side roll-up.
@@ -97,7 +98,7 @@ async function makeOrgAdmin(
     passwordHash: 'x',
     firstName: 'Head',
     lastName: 'Office',
-    role: 'organization_admin',
+    organizationRoleId: await predefinedRoleIdOf(em, orgId, 'administrator'),
     subtreeRollupEnabled: rollup,
   });
   await em.persistAndFlush(acc);

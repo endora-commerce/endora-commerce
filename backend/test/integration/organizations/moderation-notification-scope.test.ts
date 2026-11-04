@@ -13,6 +13,7 @@ import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
 
 
 import { CustomerAccount } from '../../helpers/package-entities.js';
+import { predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 
 
 
@@ -80,7 +81,7 @@ describe('organizations — the moderation notification crosses tenants (feature
     await teardownBackendServer(h);
   });
 
-  /** A pending organisation plus the `organization_admin` who should be told. */
+  /** A pending organisation plus the Administrator who should be told. */
   const seedPendingOrg = async (
     label: string,
   ): Promise<{ organization: Organization; email: string }> => {
@@ -105,7 +106,7 @@ describe('organizations — the moderation notification crosses tenants (feature
         passwordHash: 'x'.repeat(60),
         firstName: 'Org',
         lastName: 'Admin',
-        role: 'organization_admin',
+        organizationRoleId: await predefinedRoleIdOf(em, organization.id, 'administrator'),
         emailVerifiedAt: new Date(),
       }),
     );

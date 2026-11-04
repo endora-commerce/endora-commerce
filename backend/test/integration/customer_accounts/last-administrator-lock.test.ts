@@ -51,9 +51,11 @@ describe('two administrators stepping down at once', () => {
       const id = randomUUID();
       await sql(
         `insert into "customer_accounts"
-           ("id","organization_id","email","password_hash","first_name","last_name","role","created_at","updated_at")
-         values (?, ?, ?, 'x', 'Ad', 'Min', 'organization_admin', now(), now())`,
-        [id, organizationId, `${id.slice(0, 8)}@last-admin-lock.example`],
+           ("id","organization_id","email","password_hash","first_name","last_name","organization_role_id","created_at","updated_at")
+         values (?, ?, ?, 'x', 'Ad', 'Min',
+                 (select "id" from "organization_roles" where "organization_id" = ? and "kind" = 'administrator'),
+                 now(), now())`,
+        [id, organizationId, `${id.slice(0, 8)}@last-admin-lock.example`, organizationId],
       );
       admins.push(id);
     }

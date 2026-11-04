@@ -13,6 +13,7 @@ import { addOrganizationChannels } from '../../helpers/sales-channel-access.js';
 import { requireCartApprovalForMembers } from '../../helpers/cart-approval-roles.js';
 import { SEED_DELIVERY_METHOD_ID, SEED_PAYMENT_METHOD_ID } from '../../helpers/seed-commerce.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
+import { predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 
 const bundle = (language: 'en' | 'pl'): Record<string, string> =>
   JSON.parse(
@@ -101,10 +102,10 @@ describe('orders — placement refuses a basket that awaits approval (#648)', ()
     // approval-requiring Organization; ORG_OPEN's keeps every member default.
     await requireCartApprovalForMembers(em, ORG_POLICY);
     const accounts = [
-      { ...MEMBER, organizationId: ORG_POLICY, role: 'regular_user' as const, label: 'member' },
-      { ...ADMIN, organizationId: ORG_POLICY, role: 'organization_admin' as const, label: 'admin' },
-      { ...OPEN_MEMBER, organizationId: ORG_OPEN, role: 'regular_user' as const, label: 'open-member' },
-      { ...OPEN_ADMIN, organizationId: ORG_OPEN, role: 'organization_admin' as const, label: 'open-admin' },
+      { ...MEMBER, organizationId: ORG_POLICY, role: 'member' as const, label: 'member' },
+      { ...ADMIN, organizationId: ORG_POLICY, role: 'administrator' as const, label: 'admin' },
+      { ...OPEN_MEMBER, organizationId: ORG_OPEN, role: 'member' as const, label: 'open-member' },
+      { ...OPEN_ADMIN, organizationId: ORG_OPEN, role: 'administrator' as const, label: 'open-admin' },
     ];
     for (const account of accounts) {
       em.create(CustomerAccount, {
@@ -114,7 +115,7 @@ describe('orders — placement refuses a basket that awaits approval (#648)', ()
         passwordHash: 'not-a-real-hash',
         firstName: 'Issue648',
         lastName: account.label,
-        role: account.role,
+        organizationRoleId: await predefinedRoleIdOf(em, account.organizationId, account.role),
         emailVerifiedAt: new Date(),
       });
     }

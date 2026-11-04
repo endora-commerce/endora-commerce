@@ -117,7 +117,7 @@ describe('business registration — the registering store becomes the channel (T
     const invite = await h.app.inject({
       method: 'POST',
       url: '/api/v1/organizations/mine/invitations',
-      payload: { email: `rc-invited-${Date.now()}@example.test`, role: 'regular_user' },
+      payload: { email: `rc-invited-${Date.now()}@example.test` },
       cookies: { b2b_session: 'stub-customer-session' },
     });
     expect(invite.statusCode, invite.body).toBe(201);

@@ -76,7 +76,6 @@ describe('155 — submit-for-approval refuses a basket below a minimum [contract
       passwordHash: 'not-a-real-hash',
       firstName: 'Approval',
       lastName: 'Member',
-      role: 'regular_user',
       emailVerifiedAt: new Date(),
     });
     await em.persistAndFlush(member);

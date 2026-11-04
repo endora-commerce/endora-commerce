@@ -39,7 +39,6 @@ function customerRecord(over: Partial<CustomerAccountRecord> = {}): CustomerAcco
     email: 'buyer@example.test',
     firstName: 'Buyer',
     lastName: 'One',
-    role: 'regular_user',
     organizationRoleId: '00000000-0000-4000-8000-0000000170b2',
     emailVerifiedAt: null,
     twoFactorEnabled: false,

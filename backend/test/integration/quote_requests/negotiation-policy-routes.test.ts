@@ -160,7 +160,6 @@ describe('146 — price-negotiation admin and storefront routes [integration]', 
           passwordHash: 'x'.repeat(60),
           firstName: '146',
           lastName: label,
-          role: 'regular_user',
         });
       const ca = account(orgA, 'a');
       const cb = account(orgB, 'b');

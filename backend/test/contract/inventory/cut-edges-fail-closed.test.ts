@@ -9,6 +9,7 @@ import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { StockLevel } from '../../helpers/package-entities.js';
 import { AvailabilityNotification } from '../../helpers/package-entities.js';
 import { CustomerAccount } from '../../helpers/package-entities.js';
+import { TEST_CUSTOMER_ID } from '../../helpers/test-actors.js';
 
 /**
  * Feature 075, Phase C — the `inventory` cut fails closed.
@@ -67,7 +68,7 @@ describe('inventory — the cut edges fail closed (feature 075, Phase C)', () =>
 
     // Likewise for the notification queue: the customer lookup only happens for
     // rows that carry a customer account.
-    const customer = await em.findOneOrFail(CustomerAccount, { role: 'organization_admin' });
+    const customer = await em.findOneOrFail(CustomerAccount, { id: TEST_CUSTOMER_ID });
     em.create(AvailabilityNotification, {
       productId: SEED_PRODUCT_101_ID,
       customerAccountId: customer.id,

@@ -44,7 +44,6 @@ describe('146 — History attributes a colleague\'s decision to the user who mad
         lastName: 'Colleague',
         // B sees A's request because B holds the *Administrator* role
         // (`specs/170-organization-roles/` R-30); the legacy `role` is dual-written.
-        role: 'organization_admin',
         organizationRoleId: await predefinedRoleIdOf(em, TEST_ORGANIZATION_ID, 'administrator'),
       });
       await em.persistAndFlush(b);

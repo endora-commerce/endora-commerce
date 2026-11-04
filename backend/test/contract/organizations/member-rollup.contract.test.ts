@@ -6,6 +6,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { CustomerAccount } from '../../helpers/package-entities.js';
+import { predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 
 /**
  * Feature 056 (T032) — admin toggles the customer-side roll-up capability.
@@ -37,7 +38,7 @@ describe('admin set member roll-up capability (T032)', () => {
       passwordHash: 'x',
       firstName: 'Mem',
       lastName: 'Ber',
-      role: 'organization_admin',
+      organizationRoleId: await predefinedRoleIdOf(em, orgId, 'administrator'),
     });
     await em.persistAndFlush(member);
     memberId = member.id;

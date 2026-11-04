@@ -90,8 +90,8 @@ describe('storefront organization roles', () => {
     );
     await em.getConnection().execute(
       `insert into "customer_accounts"
-         ("id","organization_id","email","password_hash","first_name","last_name","role","created_at","updated_at")
-       values (?, ?, ?, 'x', 'Per', 'Sonal', 'organization_admin', now(), now())`,
+         ("id","organization_id","email","password_hash","first_name","last_name","created_at","updated_at")
+       values (?, ?, ?, 'x', 'Per', 'Sonal', now(), now())`,
       [personalAccount, personalOrg, `${personalAccount.slice(0, 8)}@roles-personal.example`],
     );
     // Feature 154 — an Organization with no sales channel may not use the store at all.
@@ -138,9 +138,9 @@ describe('storefront organization roles', () => {
         const id = randomUUID();
         await em.getConnection().execute(
           `insert into "organization_invitations"
-             ("id","organization_id","email","role","organization_role_id","token_hash","expires_at",
+             ("id","organization_id","email","organization_role_id","token_hash","expires_at",
               "consumed_at","revoked_at","created_at","updated_at")
-           values (?, ?, ?, 'regular_user', ?, ?, ?, ?, ?, now(), now())`,
+           values (?, ?, ?, ?, ?, ?, ?, ?, now(), now())`,
           [id, TEST_ORGANIZATION_ID, `${id.slice(0, 8)}@roles-pending.example`, role.id, `h-${id}`, expiresAt, consumedAt, revokedAt],
         );
       }

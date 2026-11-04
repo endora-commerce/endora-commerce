@@ -9,7 +9,7 @@ import {
 import { OrderAccessService } from '../../../../packages/modules/orders/src/backend/services/order-access-service.js';
 import { CustomerAccount } from '../../helpers/package-entities.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
-import { seedMemberWithPermissions } from '../../helpers/seed-organization-roles.js';
+import { seedMemberWithPermissions, predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 
 /**
  * T145 — OrderAccessService scopes Orders by who may see them:
@@ -51,7 +51,6 @@ describe('OrderAccessService.scopedWhere', () => {
         passwordHash: 'x',
         firstName: 'T145',
         lastName: label,
-        role: 'regular_user',
       });
     const viewer = make('viewer');
     const member = make('member');
@@ -71,7 +70,7 @@ describe('OrderAccessService.scopedWhere', () => {
 
   it('delegates org scoping to the tenant filter for the Administrator (no explicit predicate)', async () => {
     const admin = await h.em().findOneOrFail(CustomerAccount, {
-      role: 'organization_admin',
+      organizationRoleId: await predefinedRoleIdOf(h.em(), TEST_ORGANIZATION_ID, 'administrator'),
       organizationId: TEST_ORGANIZATION_ID,
     });
     const where = await svc.scopedWhere({
@@ -103,7 +102,7 @@ describe('OrderAccessService.scopedWhere', () => {
 
   it('preserves caller-supplied extra clauses', async () => {
     const admin = await h.em().findOneOrFail(CustomerAccount, {
-      role: 'organization_admin',
+      organizationRoleId: await predefinedRoleIdOf(h.em(), TEST_ORGANIZATION_ID, 'administrator'),
       organizationId: TEST_ORGANIZATION_ID,
     });
     const where = await svc.scopedWhere(
