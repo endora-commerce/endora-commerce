@@ -46,7 +46,8 @@ vi.mock('meilisearch', () => {
 
 const { SearchIndexer } = await import('./search-indexer.js');
 
-const CHANNEL = { id: 'ch-1', code: 'pl_retail', defaultLanguage: 'pl-PL' };
+// Feature 172 — the indexer reads the channel's languages: one `texts.<L>` per language it offers.
+const CHANNEL = { id: 'ch-1', code: 'pl_retail', defaultLanguage: 'pl-PL', languages: ['pl-PL'] };
 
 function productRecord(attributeValues: Record<string, unknown>): CatalogProductRecord {
   return {
@@ -55,8 +56,8 @@ function productRecord(attributeValues: Record<string, unknown>): CatalogProduct
     slug: 'slug-p1',
     type: 'simple',
     status: 'active',
-    name: { 'en-US': 'Product p1' },
-    description: {},
+    name: 'Product p1',
+    description: '',
     stockMode: null,
     visibility: 'public',
     attributeValues,
