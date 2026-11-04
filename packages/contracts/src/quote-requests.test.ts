@@ -408,7 +408,7 @@ describe('in-process ports (type level)', () => {
       },
       listForCustomer: async (): Promise<QuoteRequestSummary[]> => [],
     };
-    const ctx: RfqCustomerContext = { customerAccountId: ID(12), organizationId: ID(11), isOrgAdmin: false };
+    const ctx: RfqCustomerContext = { customerAccountId: ID(12), organizationId: ID(11) };
     const input: CreateQuoteRequest = { items: [line(1), line(2)] };
 
     await port.createForCustomer(ctx, input);
