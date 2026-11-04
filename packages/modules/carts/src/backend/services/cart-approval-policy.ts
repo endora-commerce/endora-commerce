@@ -7,6 +7,19 @@ export interface CartApprovalPolicyReads {
 }
 
 /**
+ * Whose basket the rule is judged for. `organizationRoleId` is the buyer's role
+ * when the caller already knows it — the requester's own, which the auth hook
+ * stamps on the actor (research R-15). With it the port judges from its cache
+ * alone; without it the port reads the account first, which is a read per
+ * request on the cart path (FR-080, SC-004).
+ */
+export interface CartApprovalBuyer {
+  readonly customerAccountId: string;
+  readonly organizationId: string;
+  readonly organizationRoleId?: string | null;
+}
+
+/**
  * Whether `buyer`'s basket must be approved before it is ordered: their role
  * does not hold `carts.order_without_approval` (`specs/170-organization-roles/`,
  * OR-3; research R-4, which replaced the Organization's `requires_cart_approval`
@@ -20,10 +33,14 @@ export interface CartApprovalPolicyReads {
  */
 export async function approvalSubmissionRequired(
   reads: CartApprovalPolicyReads,
-  buyer: { customerAccountId: string; organizationId: string },
+  buyer: CartApprovalBuyer,
 ): Promise<boolean> {
   return !(await reads.permissions.can(
-    { customerAccountId: buyer.customerAccountId, organizationId: buyer.organizationId },
+    {
+      customerAccountId: buyer.customerAccountId,
+      organizationId: buyer.organizationId,
+      ...(buyer.organizationRoleId ? { organizationRoleId: buyer.organizationRoleId } : {}),
+    },
     'carts.order_without_approval',
   ));
 }

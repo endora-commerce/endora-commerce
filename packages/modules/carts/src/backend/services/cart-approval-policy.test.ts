@@ -69,4 +69,16 @@ describe('approvalSubmissionRequired', () => {
     expect(await approvalSubmissionRequired(reads(), { customerAccountId: MEMBER, organizationId: ORG })).toBe(true);
     expect(await approvalSubmissionRequired(reads(), { customerAccountId: TRUSTED, organizationId: ORG })).toBe(false);
   });
+
+  // `specs/170-organization-roles/` FR-080 (WP-13, T113): the requester's role,
+  // which the actor carries, is handed on so the port judges from its cache.
+  it("hands the port the buyer's role when the caller knows it, and none when it does not", async () => {
+    const policy = reads();
+    await approvalSubmissionRequired(policy, { customerAccountId: MEMBER, organizationId: ORG, organizationRoleId: 'role-1' });
+    await approvalSubmissionRequired(policy, { customerAccountId: MEMBER, organizationId: ORG, organizationRoleId: null });
+    expect(policy.can.mock.calls.map(([subject]) => subject)).toStrictEqual([
+      { customerAccountId: MEMBER, organizationId: ORG, organizationRoleId: 'role-1' },
+      { customerAccountId: MEMBER, organizationId: ORG },
+    ]);
+  });
 });

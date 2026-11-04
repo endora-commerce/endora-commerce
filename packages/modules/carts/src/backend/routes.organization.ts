@@ -82,7 +82,12 @@ export interface CartsOrganizationRoutesDeps {
   /** Declared on the routes that validate a body, so it runs before validation. */
   requireCustomer: RequireCustomerGuard;
   resolveCartActor: (request: FastifyRequest) => {
-    customer?: { customerAccountId: string; organizationId: string | null };
+    /** `organizationRoleId` as in `CartsDeps.resolveCartActor` (research R-15, FR-080). */
+    customer?: {
+      customerAccountId: string;
+      organizationId: string | null;
+      organizationRoleId?: string | null;
+    };
     anonymousToken?: string;
   };
 }
@@ -221,6 +226,7 @@ export async function registerCartsOrganizationRoutes(
       {
         customerAccountId: actor.customer.customerAccountId,
         organizationId: actor.customer.organizationId,
+        organizationRoleId: actor.customer.organizationRoleId ?? null,
       },
       { language },
     );

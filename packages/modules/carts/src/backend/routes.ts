@@ -148,7 +148,16 @@ export interface CartsDeps {
     droppedLines: Array<{ productId: string; productName: string; reason: string; minimum?: number }>;
   }>;
   resolveCartActor: (request: FastifyRequest) => {
-    customer?: { customerAccountId: string; organizationId: string | null };
+    /**
+     * `organizationRoleId` — the member's role as the auth hook stamped it
+     * (research R-15), so the cart answer's approval rule needs no read of the
+     * account (FR-080). Absent where a composition does not know it.
+     */
+    customer?: {
+      customerAccountId: string;
+      organizationId: string | null;
+      organizationRoleId?: string | null;
+    };
     anonymousToken?: string;
   };
   emFactory: () => EntityManager;
@@ -185,7 +194,11 @@ export interface CartsDeps {
    * was hard-wired to `false`, so the storefront never offered the submit and
    * offered checkout instead.
    */
-  cartApprovalPolicy: (buyer: { customerAccountId: string; organizationId: string }) => Promise<boolean>;
+  cartApprovalPolicy: (buyer: {
+    customerAccountId: string;
+    organizationId: string;
+    organizationRoleId?: string | null;
+  }) => Promise<boolean>;
 }
 
 /**
@@ -280,7 +293,13 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
    * this basket can carry.
    */
   const answer = async (
-    actor: { customer?: { customerAccountId: string; organizationId: string | null } },
+    actor: {
+      customer?: {
+        customerAccountId: string;
+        organizationId: string | null;
+        organizationRoleId?: string | null;
+      };
+    },
     payload: CartFullPayload,
   ): Promise<{ data: CartFullPayload }> => {
     const customer = actor.customer;
@@ -293,6 +312,7 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
     const requiresApproval = await deps.cartApprovalPolicy({
       customerAccountId: customer.customerAccountId,
       organizationId: customer.organizationId,
+      organizationRoleId: customer.organizationRoleId ?? null,
     });
     return {
       data: {
