@@ -303,3 +303,28 @@ equal its `after`, and `landedBy` remains in the table as provenance.
 entry `false` passes against the same table, all 319 rows. That equality is what proves the replay's
 copies of the oracle's `send` and `observe` observe exactly what the oracle did; both outputs go in
 the merge request.
+
+### 6.3 Deliberate changes the oracle does not observe (OR-9 to OR-11, 2026-11-04)
+
+The owner's rulings of 2026-11-04 change behaviour on routes the frozen oracle never calls: it has no
+returns family, no quick-order import family and no role-creation family (§5's 35 families,
+`backend/test/fixtures/organization-roles/pre-upgrade-outcomes.ts`). **They therefore move no row**:
+§6.1 keeps its 26 rows, `EXPECTED_DIFFERENCES` and its self-check are not edited, and the landing
+ledger of §6.2 gains no entry. The oracle cannot gain rows either — it is frozen — so the changes are
+stated here, as PR-12's sign-in merge is in `plan.md`, and each is asserted by its own package's tests
+instead.
+
+| Ruling | Route | Before 170 | After | Who is affected on upgrade | Asserted by |
+| --- | --- | --- | --- | --- | --- |
+| OR-11 (FR-053) | `GET /api/v1/returns` | the caller's own cases | an administrator (and any holder of `returns.view_organization`): every case of the Organization | every administrator of a company Organization whose colleagues have cases | T144 |
+| OR-11 (FR-053) | `GET /api/v1/returns/:id` of a colleague's case | `404 NOT_FOUND` | `200` for an administrator | as above | T144 |
+| OR-11 (FR-054, Q-R1 = A only) | `GET /api/v1/orders/:orderId/returnable`, `POST /api/v1/returns` for a colleague's order | `404 NOT_FOUND` | `200` / `201` for an administrator (and any holder of `orders.view_organization` with `returns.create`) | every administrator of a company Organization | T145 (and WP-07's `colleague-orders-permission.test.ts` row, flipped there) |
+| OR-11 (FR-052) | `POST /api/v1/returns` by a role lacking `returns.create` | — (no such role existed) | `403 ORGANIZATION_PERMISSION_REQUIRED` | nobody: *Member* holds the code as an unoffered member default (R-17), *Administrator* holds every code | T143 |
+| OR-10 (FR-030b) | `POST /api/v1/quick-order/import` | open to every signed-in member | `carts.create` or `quote_requests.create` | nobody: *Member* holds both in every Organization (FR-071 withholds neither) | T139 |
+| OR-9 (FR-004a) | role creation | — (no roles) | a new custom role holds exactly what was ticked | nobody: no custom role exists before the upgrade | R-39's existing tests, T140 |
+
+**What the implementing merge requests flip**: nothing in `landed-work-packages.ts` or
+`expected-differences.ts`. WP-14 and WP-15 run the replay as every package does (standing obligation
+2) and must show every row exactly where the ledger at that moment puts it; a moved row is a defect in
+their own package, not an allocation. The *Member* data assertion of §6 step 6 already derives the
+member defaults from the composed catalogue, so `returns.create` joins it without an edit.

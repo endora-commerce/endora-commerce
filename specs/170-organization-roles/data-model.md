@@ -152,6 +152,8 @@ Derived sets (all computed in memory from the composed manifests, never stored):
 | `quick_order.one_click` | `quick_order` | P2 | yes, except FR-071 | one-click (FR-050, with `carts.order_without_approval`) |
 | `orders.view_organization` | `orders` | P2 | no | colleagues' orders and every action reading one (FR-049) |
 | `addresses.manage` | `addresses` | P2 | yes | org address create/update/delete (FR-014a) |
+| `returns.create` | `returns` | P2 | yes | opening a return or a complaint (FR-052, OR-11) |
+| `returns.view_organization` | `returns` | P2 | no | the Organization's return and complaint cases, list and read (FR-053, OR-11) |
 | `quote_requests.approve` | `quote_requests` | **P3** | no | internal RFQ approval and org-wide RFQ visibility (FR-041, FR-043) |
 | `quote_requests.send_without_approval` | `quote_requests` | **P3** | yes | bypass of internal approval (FR-042) |
 

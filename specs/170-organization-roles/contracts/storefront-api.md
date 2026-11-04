@@ -53,6 +53,11 @@ OrganizationRoleView = {
 `OrganizationRoleView.permissions` omits grants of absent modules (they are kept server-side,
 FR-025); the editor therefore never has to round-trip them.
 
+**A new custom role is created with exactly the submitted `permissions`** (OR-9, FR-004a, R-39):
+`permissions: []` is valid and creates a role that allows nothing; no member default is added to a
+custom role, ever. The storefront create form opens with every catalogue entry unchecked and offers
+no "copy from *Member*"; `memberDefault` in the catalogue describes *Member* and is not a pre-tick.
+
 ## 3. Members and invitations — `organizations/routes.members.ts` — WP-03
 
 | Method & path | Guards | Change |
@@ -73,7 +78,7 @@ FR-025); the editor therefore never has to round-trip them.
 | `PATCH /api/v1/organizations/mine/addresses/:id` | C, P(`addresses.manage`) |
 | `DELETE /api/v1/organizations/mine/addresses/:id` | C, P(`addresses.manage`) |
 
-## 5. Commerce gates — WP-04 to WP-07
+## 5. Commerce gates — WP-04 to WP-07, WP-14 (returns, OR-11), WP-15 (quick-order import, OR-10)
 
 | Endpoint (owner file) | New guard |
 | --- | --- |
@@ -92,12 +97,18 @@ FR-025); the editor therefore never has to round-trip them.
 | `POST /api/v1/shopping-lists`, `PATCH`/`DELETE /api/v1/shopping-lists/:id`, `…/items`, `…/items/:itemId`, `…/default/items`, `…/set-default` | P(`shopping_lists.create`) |
 | `POST /api/v1/shopping-lists/:id/convert-to-cart` | P(`shopping_lists.convert`), P(`carts.create`) |
 | `POST /api/v1/shopping-lists/:id/convert-to-rfq` | P(`shopping_lists.convert`), P(`quote_requests.create`) |
-| `POST /api/v1/quick-order/build` (`mode: cart`), `POST /api/v1/quick-order/import` | P(`carts.create`) |
+| `POST /api/v1/quick-order/build` (`mode: cart`) | P(`carts.create`) |
+| `POST /api/v1/quick-order/import` | **either** `carts.create` **or** `quote_requests.create` (OR-10, FR-030b; was P(`carts.create`), WP-06) — a module-local pre-handler after `requireCustomer`, before the body is parsed, asking `can` for `carts.create` then `quote_requests.create`; a member holding neither → `403 ORGANIZATION_PERMISSION_REQUIRED` with `details.permission = 'carts.create'` (raised by `assert(…, 'carts.create')`, R-40). The import writes nothing; the build that follows is judged by its target (the two `build` rows) |
 | `POST /api/v1/quick-order/build` (`mode: quote`) | P(`quote_requests.create`) — inside the handler's mode branch, through `assert`, since the mode is in the body |
 | `GET /api/v1/quick-order/one-click/eligibility` (or the eligibility field the PDP reads) | answers `disabled` with reason `permission_required` (no `quick_order.one_click`) or `cart_approval_required` (holds it, but no `carts.order_without_approval`), checked in that order and before the setting and default reasons (FR-050); lacking both reads `permission_required` |
 | `POST /api/v1/quick-order/one-click` | refused before any basket write: `403 ORGANIZATION_PERMISSION_REQUIRED` for the first missing of the two codes, in the same order (`quick_order.one_click` first) |
 | `PUT /api/v1/quick-order/preferences` with Organization scope | A (FR-012; was `role === 'organization_admin'`) |
-| Orders list/read, reorder, clone to quote, returns started from an order, its documents (`orders`, `returns`, `invoices` through `OrderReadPort`) | colleague's order reachable only with `orders.view_organization`; without it the order is `404`, never `403` (Principle XI existence rule) |
+| Orders list/read, reorder, clone to quote, returns started from an order, its documents (`orders`, `returns`, `invoices` through `OrderReadPort`) | colleague's order reachable only with `orders.view_organization`; without it the order is `404`, never `403` (Principle XI existence rule). Starting a return also needs `returns.create` (row below) |
+| `POST /api/v1/returns` (`returns/routes.customer.ts`) | P(`returns.create`) — `403 ORGANIZATION_PERMISSION_REQUIRED` before the order is read (FR-052); then the order through `orderReadPort.findByIdForCustomer` — out of the member's order scope → `404 NOT_FOUND` (FR-054, Q-R1 recommended form; today: placer only) |
+| `GET /api/v1/orders/:orderId/returnable` (`returns`) | none (a read, FR-052); the order through `orderReadPort.findByIdForCustomer` → `404 NOT_FOUND` out of scope (FR-054; today: placer only) |
+| `GET /api/v1/returns`, `GET /api/v1/returns/:id` (`returns`) | holder of `returns.view_organization` (or *Administrator*): every case of the Organization through the tenant filter (subtree for a roll-up login); anyone else: the cases they filed; out of reach → `404 NOT_FOUND` (FR-053). `ReturnCaseSummary` gains `customerAccountId` (the filer, additive) |
+| `POST /api/v1/returns/:id/comments`, `…/attachments`, `…/select-delivery-method`, `…/cancel` (`returns`) | unchanged: the filer only, anyone else `404 NOT_FOUND`, whatever their permissions (FR-053, Q-R2 recommended form); `returns.create` is **not** required (FR-052) |
+| `GET /api/v1/returns/reasons` | unchanged, open to every signed-in member |
 | MFA policy (`mfa/routes.org.ts`) | A (FR-011, unchanged rule) |
 
 The exact route list is the implementing WP's to enumerate from its route files; this table names

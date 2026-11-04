@@ -2,7 +2,7 @@
 
 **Feature Branch**: `spec/organization-roles`
 **Created**: 2026-11-03
-**Status**: Draft — owner rulings OR-1 to OR-8 recorded 2026-11-03; oracle rulings PR-3 to PR-12 (`plan.md`) recorded 2026-11-03 from the WP-00 oracle (#689); no open questions; `plan.md` and `tasks.md` merged (#683), implementation not started
+**Status**: Draft — owner rulings OR-1 to OR-8 recorded 2026-11-03; oracle rulings PR-3 to PR-12 (`plan.md`) recorded 2026-11-03 from the WP-00 oracle (#689); owner rulings OR-9 to OR-11 recorded 2026-11-04 (the Wave 3 questions Q1–Q3); OR-11's design questions Q-R1 to Q-R3 open (`plan.md` *Open questions*); `plan.md` and `tasks.md` merged (#683), Waves 0–2 merged on `feat/170-organization-roles`
 **Input**: Owner request (translated from Polish): *"Customers should be able, within their
 Organization, to define their own Roles and assign them to Organization Members. Roles carry
 permissions over the actions an Organization member can perform. The Organization Administrator
@@ -93,6 +93,27 @@ them away entirely.
   (`packages/modules/organizations/src/backend/routes.customer.ts`). Reading addresses stays open to
   every member. FR-014a.
 
+## Owner rulings of 2026-11-04 *(binding; the Wave 3 questions Q1–Q3)*
+
+The three questions are cited in the work-package briefs as *Q1*, *Q2* and *Q3*; they are not the
+spec-phase *Q-1* to *Q-3* below, which is why they are recorded here as OR-9 to OR-11.
+
+- **OR-9 (Q1 = a) — A new custom role starts with no permissions.** The create form, on the
+  storefront and in the Admin UI alike, opens with every permission unchecked; there is no "copy
+  from *Member*" and no pre-ticked member-default. Member-default permissions apply to the *Member*
+  role only (FR-023). FR-004a.
+- **OR-10 (Q2 = b) — Importing a quick-order list needs "Create and edit carts" or "Create quote
+  requests".** The import only reads the file and resolves its rows, so either permission admits
+  it; what the member then does with the rows is still gated on its own — adding them to the cart
+  needs `carts.create`, sending them as a quote request needs `quote_requests.create`. FR-030b.
+- **OR-11 (Q3 = b) — Returns and complaints are governed by organization permissions in this
+  feature.** Until now only the member who placed an order could open or see its returns and
+  complaints — administrators included. The `returns` module declares **"Create returns and
+  complaints"** (`returns.create`, member-default) and **"View the organization's returns and
+  complaints"** (`returns.view_organization`, not member-default; *Administrator* holds it
+  implicitly, FR-002). *Member* keeps exactly today's reach. FR-052–FR-054, User Story 9. The
+  design's open points (Q-R1 to Q-R3) are in `plan.md` *Open questions*.
+
 ## Resolved questions *(kept for the record; rulings above)*
 
 - **Q-1** — Options were A (act on colleagues' RFQs), B (internal approval before sending), C
@@ -145,6 +166,10 @@ one inside it succeeds.
 5. **Given** a member who is not the administrator, **When** they open the Roles or Members screen
    or call their endpoints, **Then** they are refused; role and member management are never
    grantable (FR-010).
+6. **Given** an administrator opening the form to create a role — on the storefront, or an operator
+   in the Admin UI — **When** the form appears, **Then** every permission is unchecked and nothing
+   offers to copy another role; saving it with nothing ticked creates a role that allows nothing
+   (FR-004a, OR-9).
 
 ---
 
@@ -165,7 +190,8 @@ pending invitations of both kinds; run the upgrade; replay one request per gated
 and compare the outcome with the pre-upgrade outcome. Every outcome is identical except the rows the
 design deliberately changes, each listed by request with its old and new outcome — the #653 bypass
 closed, the personal Organization's member now an administrator, refusal codes that now name the
-permission, expired invitations no longer listed (FR-072).
+permission, expired invitations no longer listed — plus, outside the recorded oracle, an
+administrator's wider reach over returns and complaints (OR-11) (FR-072).
 
 **Acceptance Scenarios**:
 
@@ -324,6 +350,43 @@ When the operator switches it back on, every role holds again exactly what it he
 2. **Given** the module switched back on, **When** a member acts, **Then** the grants held before
    apply again; nothing was lost.
 
+---
+
+### User Story 9 — Returns and complaints follow the role (Priority: P2)
+
+Ewa runs customer service for *Acme Sp. z o.o.* Today she can see only the returns she filed
+herself. Anna gives Ewa's role *View the organization's returns and complaints*; Ewa now sees every
+return and complaint filed in Acme. Piotr's role *Junior buyer* does not hold *Create returns and
+complaints*, so the storefront offers him no "Start a return" and the backend refuses him if he
+tries. Everyone holding *Member* keeps exactly what they had: their own returns, for their own
+orders (OR-11).
+
+**Why this priority**: returns were the one buyer action left judged by "who placed the order"
+rather than by the role; without this, a purchasing department cannot delegate complaint handling.
+
+**Independent Test**: over HTTP, as members holding each combination of the two codes, list and
+read returns and start one; compare with the scenarios below.
+
+**Acceptance Scenarios**:
+
+1. **Given** a member whose role lacks `returns.create`, **When** they submit a return or a
+   complaint for their own order, **Then** it is refused `403 ORGANIZATION_PERMISSION_REQUIRED`
+   naming *Create returns and complaints*, and nothing is created (FR-052).
+2. **Given** a member holding *Member* after the upgrade, **When** they list, read and start
+   returns, **Then** they see and can act on exactly the returns they filed and start returns only
+   for orders they placed, as before (FR-052, FR-053, FR-072).
+3. **Given** a member whose role holds `returns.view_organization` (or *Administrator*), **When**
+   they list returns, **Then** they see every return and complaint of their Organization (its
+   subtree for a roll-up login) and can open each; another Organization's case answers `404`
+   (FR-053, Principle XI).
+4. **Given** such a member opening a colleague's case, **When** they look for the case's actions,
+   **Then** commenting, cancelling, attaching files and choosing the return delivery method stay the
+   filer's: the storefront offers none of them and the backend answers those requests as it does
+   today, `404 NOT_FOUND` (FR-053; `plan.md` Q-R2).
+5. **Given** a member holding `returns.create` **and** `orders.view_organization`, **When** they
+   start a return from a colleague's order, **Then** it is accepted and filed in their own name
+   (FR-054; `plan.md` Q-R1).
+
 ### Edge Cases
 
 - **Last administrator.** An Organization always has at least one active member holding
@@ -353,7 +416,11 @@ When the operator switches it back on, every role holds again exactly what it he
 - **Composite actions.** Converting a shopping list into a quote request needs *Convert shopping
   lists* **and** *Create quote requests*; into a cart, *Convert shopping lists* **and** *Create carts*.
   Converting a cart into a quote request needs *Create quote requests*. Converting an approved quote
-  into a cart needs *Create carts*.
+  into a cart needs *Create carts*. Starting a return from a colleague's order needs *Create
+  returns and complaints* **and** *View the organization's orders* (FR-054).
+- **Either-of actions.** Importing a quick-order file needs *Create carts* **or** *Create quote
+  requests* (OR-10); the import writes nothing, and the build that follows is judged by its target.
+  A member holding neither is refused naming *Create and edit carts*, the first of the two.
 - **Concurrent edits.** Two administrators editing the same role: the second save is refused as
   stale rather than silently overwriting.
 - **A member's role changes mid-session.** The next request is judged by the new role (FR-082); no
@@ -381,6 +448,10 @@ When the operator switches it back on, every role holds again exactly what it he
 - **FR-004**: An administrator MUST be able to create, rename, describe, edit the permissions of
   and delete custom roles. A role name MUST be 1–80 characters and unique within the Organization,
   ignoring case and surrounding whitespace. An Organization MAY hold at most 50 custom roles.
+- **FR-004a** *(OR-9)*: A new custom role MUST hold exactly the permissions ticked when it is
+  created — nothing implicit: the storefront and the Admin UI create forms MUST open with every
+  permission unchecked and MUST NOT offer to copy another role's permissions, and a role created
+  with none MUST allow nothing. (Member-default permissions reach the *Member* role only, FR-023.)
 - **FR-005**: Roles MUST be Organization-scoped: a role is visible to, assignable in and evaluated
   for its own Organization only; any request naming another Organization's role MUST be answered as
   if the role did not exist (Principle XI).
@@ -417,7 +488,7 @@ When the operator switches it back on, every role holds again exactly what it he
 - **FR-021**: Each declaration MUST carry a label and a one-sentence description in English and
   Polish, and whether the permission is **member-default** (granted to an Organization's *Member*
   role when first offered to it, FR-023).
-- **FR-022**: This feature MUST declare these permissions, each in the phase shown. The nine **P2**
+- **FR-022**: This feature MUST declare these permissions, each in the phase shown. The eleven **P2**
   codes ship in the P1+P2 release; the two **P3** codes MUST NOT be declared before P3, which
   introduces the internal RFQ approval they govern (OR-2, FR-042–FR-046; `research.md` R-30):
 
@@ -432,6 +503,8 @@ When the operator switches it back on, every role holds again exactly what it he
   | `quick_order.one_click` | quick_order | One-click purchase (OR-1) | yes (FR-071) | P2 |
   | `orders.view_organization` | orders | View the organization's orders (OR-5) | no | P2 |
   | `addresses.manage` | addresses | Manage organization addresses (OR-8) | yes | P2 |
+  | `returns.create` | returns | Create returns and complaints (OR-11) | yes | P2 |
+  | `returns.view_organization` | returns | View the organization's returns and complaints (OR-11) | no | P2 |
   | `quote_requests.approve` | quote_requests | Approve quote requests | no | **P3** |
   | `quote_requests.send_without_approval` | quote_requests | Send quote requests without approval (OR-2) | yes | **P3** |
 
@@ -457,6 +530,12 @@ When the operator switches it back on, every role holds again exactly what it he
 - **FR-030a** *(PR-12)*: Merging a guest basket into the member's basket at sign-in MUST require
   `carts.create`. For a member whose role lacks it the merge MUST be skipped — no line moves and the
   guest basket stays as it was — and the sign-in MUST still succeed.
+- **FR-030b** *(OR-10)*: Importing a quick-order list (pasted CSV, or an uploaded CSV or `.xlsx`
+  file) MUST require `carts.create` **or** `quote_requests.create`, and MUST be refused before the
+  file is read for a member holding neither — `403 ORGANIZATION_PERMISSION_REQUIRED` naming
+  `carts.create`, the first of the two. The build that uses the imported rows stays gated by its
+  target alone: into the cart by `carts.create` (FR-030), into a quote request by
+  `quote_requests.create` (FR-040).
 - **FR-031**: A cart of a member whose role lacks `carts.order_without_approval` MUST be submitted
   for approval and approved before an order can be placed from it; every other member's cart MUST
   NOT require approval. The Organization-wide *requires cart approval* switch MUST be removed.
@@ -505,7 +584,25 @@ When the operator switches it back on, every role holds again exactly what it he
   order as its source — reorder, clone to quote request (#665), returns started from it, its
   documents — MUST require `orders.view_organization` (or *Administrator*), with the reach the
   administrator has today (own Organization; subtree for a roll-up login). Without it a member
-  sees and acts on only the orders they placed.
+  sees and acts on only the orders they placed. Starting a return also needs `returns.create`
+  (FR-052, FR-054).
+
+**Returns and complaints (OR-11)**
+
+- **FR-052**: Opening a return or a complaint MUST require `returns.create`, refused
+  `403 ORGANIZATION_PERMISSION_REQUIRED` before any order is read. Reading which lines of an order
+  are still returnable, reading one's own cases, and the follow-up actions on a case one filed —
+  comments, attachments, choosing the return delivery method, cancelling — MUST NOT require it.
+- **FR-053**: Listing and reading the Organization's returns and complaints — the cases filed by any
+  of its members — MUST require `returns.view_organization` (or *Administrator*), with the reach
+  FR-049 gives over orders (own Organization; subtree for a roll-up login). Without it a member sees
+  only the cases they filed. A case outside the member's reach MUST answer `404`, never `403`
+  (Principle XI). Seeing a colleague's case MUST NOT open its follow-up actions: they stay the
+  filer's, and are answered `404 NOT_FOUND` to anyone else, as today *(`plan.md` Q-R2)*.
+- **FR-054** *(form pending `plan.md` Q-R1; this is the recommended one)*: A return or complaint MAY
+  be started from any order the member may read under FR-049 — their own, or a colleague's with
+  `orders.view_organization` — and MUST be filed in the name of the member who starts it. An order
+  the member may not read MUST answer `404`, for the returnable-lines read and the submission alike.
 
 **One-click purchase (OR-1, OR-6)**
 
@@ -524,9 +621,11 @@ When the operator switches it back on, every role holds again exactly what it he
 - **FR-056**: The member's own session view MUST include their role (id, name, kind) and their
   effective permission codes, so the storefront hides or disables actions the member cannot take.
 - **FR-057**: The storefront MUST hide or disable every action the member lacks the permission for:
-  add-to-cart and cart editing, quick order, one-click, request a quote, shopping-list creation and
-  conversion, and the carts approval queue; the account navigation MUST show *Members* and *Roles*
-  to administrators and *Carts to approve* to approvers.
+  add-to-cart and cart editing, quick order (its import shown to a holder of either FR-030b code),
+  one-click, request a quote, shopping-list creation and conversion, the carts approval queue,
+  starting a return or a complaint, and the follow-up actions on a colleague's return case (FR-053);
+  the account navigation MUST show *Members* and *Roles* to administrators and *Carts to approve* to
+  approvers.
 - **FR-058**: The account page MUST show the member their role and a plain-language list of what it
   allows.
 
@@ -570,7 +669,11 @@ When the operator switches it back on, every role holds again exactly what it he
   outcome (`contracts/migration-and-replay.md` §6.1, PR-5): one-click purchase by a member of an
   Organization that required cart approval (#653, PR-6); every outcome of a personal Organization's
   member, whose refusals become an administrator's answers (FR-070a, PR-3); refusals that now carry
-  the permission's code; and expired invitations no longer listed (FR-010a, PR-7). (The removal of the
+  the permission's code; and expired invitations no longer listed (FR-010a, PR-7). Two further
+  deliberate changes lie outside the recorded oracle, which has no returns family, and are listed in
+  `contracts/migration-and-replay.md` §6.3 instead of §6.1: an administrator's returns list and
+  case reads reach the Organization's cases (FR-053), and — in FR-054's recommended form — an
+  administrator may start a return from a colleague's order (OR-11). (The removal of the
   `role` field changes the API shape, not any member's outcome.)
 - **FR-073**: The legacy `role` field MUST be removed from every request and response in the same
   release (OR-4): responses carry the member's role (id, name, kind) and effective permissions, and
@@ -620,6 +723,8 @@ Measured on `origin/master` at `75b069175`, excluding tests, docs, `dist/` and m
 | `shopping_lists` | 1 / 1 | `shopping-list-service.ts`; write and convert routes gated; manifest declares two permissions |
 | `orders` | 2 / 3 | `order-access-service.ts` (colleagues' orders → `orders.view_organization`), `order-clone-to-quote-service.ts` (honours the same permission once #665's scope fix lands); manifest declares one permission |
 | `addresses` | 0 / 0 | OR-8: manifest declares `addresses.manage`; the write routes in `organizations/routes.customer.ts` enforce it (#668) |
+| `returns` | 0 / 0 | OR-11: manifest declares `returns.create` and `returns.view_organization` and gains the `organizations` dependency; `routes.customer.ts` gates the submission; `return-case-service.ts` widens the list and read by permission and judges the order through `orderReadPort.findByIdForCustomer` instead of comparing the placer (FR-052–FR-054) |
+| `quick_order` (OR-10) | — | `routes.ts`: the import's guard admits `carts.create` or `quote_requests.create` (FR-030b) |
 | `mfa` | 2 / 2 | `account-identity.ts`, `routes.org.ts` — *Administrator* check |
 | `storefront` | 9 / 33 | `(account)/layout.tsx`, `organization/members`, `organization/carts`, `organization/settings/cart-approval` (removed), `lib/api/{account,cart,organization}.ts`, `lib/i18n/messages/account.ts`, `CartApprovalBanner.tsx`; new `organization/roles` pages; permission-aware buttons on PDP, cart, quick order, quote requests, shopping lists |
 | `demo-composition` (counted above), `backend/scripts/acceptance/instance-actor-scope.ts`, `backend/test/helpers/` (seed-commerce, seed-credit-limit, seed-organizations, seed-roles, test-server, admin-search-fixtures) | outside the count | Seeds and fixtures build roles instead of enum values |
@@ -661,6 +766,14 @@ Measured on `origin/master` at `75b069175`, excluding tests, docs, `dist/` and m
 > **Colleagues' orders.** Seeing every order of the Organization is now the permission *View the
 > organization's orders*. Administrators hold it; *Member* does not, as before. Grant it to any role
 > that should see colleagues' orders.
+>
+> **Returns and complaints.** Opening one is now the permission *Create returns and complaints*,
+> which *Member* holds, so nothing changes for members. Seeing every return and complaint of the
+> Organization is the new permission *View the organization's returns and complaints*: **an
+> administrator now sees the returns and complaints of every member**, where before they saw only
+> their own; *Member* does not hold it. An administrator — and any role holding *View the
+> organization's orders* — can also start a return from a colleague's order *(pending `plan.md`
+> Q-R1)*.
 >
 > **Operator roles.** Two new operator permissions, `organizations:read-roles` and
 > `organizations:manage-roles`, gate the new Roles tab. *Platform administrator* has them; grant
