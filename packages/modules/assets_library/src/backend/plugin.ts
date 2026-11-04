@@ -20,14 +20,19 @@ import {
   type AssetRetentionSweeper,
 } from './jobs/retention-sweeper.js';
 import { createSettingsView } from './services/storage/settings-view.js';
-import { Setting } from '@endora-commerce/platform/kernel';
-import { SettingValue } from '@endora-commerce/platform/kernel';
 import { registerAssetsLibraryAdminRoutes } from './routes.admin.js';
 import { registerAssetsLibraryPublicRoutes } from './routes.public.js';
-import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory, SettingsReadPort } from '@endora-commerce/platform/kernel';
 
 export interface AssetsLibraryModuleOptions {
   emFactory: () => EntityManager;
+  /**
+   * The platform's settings read. Every `assets.*` setting is read through it,
+   * platform-wide (issue #333). Required, for the reason `requireAdmin` is: a
+   * module that falls back to reading the `settings` table itself answers with
+   * the manifest default while the operator's saved value sits beside it.
+   */
+  settings: Pick<SettingsReadPort, 'getMany'>;
   /** HMAC signer for local-FS private URLs. Uses ASSETS_LIBRARY_HMAC_KEY by default. */
   signer?: HmacSigner;
   /**
@@ -91,35 +96,12 @@ export interface AssetsLibraryModuleHandle {
   sweeper: AssetRetentionSweeper;
 }
 
-
-async function loadUploadPolicy(emFactory: () => EntityManager): Promise<{
-  allowedTypes: string[];
-  maxFileSizeMb: number;
-}> {
-  const em = emFactory();
-  const allowed = await em.findOne(Setting, { code: 'assets.allowed_file_types' });
-  const allowedOverride = allowed
-    ? await em.findOne(SettingValue, { setting: allowed })
-    : null;
-  const allowedRaw = allowedOverride
-    ? allowedOverride.value
-    : allowed?.defaultValue ?? ['*'];
-  const allowedTypes = Array.isArray(allowedRaw) ? allowedRaw.map(String) : ['*'];
-
-  const max = await em.findOne(Setting, { code: 'assets.max_file_size_mb' });
-  const maxOverride = max ? await em.findOne(SettingValue, { setting: max }) : null;
-  const maxRaw = maxOverride ? maxOverride.value : max?.defaultValue ?? 0;
-  const maxFileSizeMb = typeof maxRaw === 'number' ? maxRaw : Number(maxRaw) || 0;
-
-  return { allowedTypes, maxFileSizeMb };
-}
-
 export function assetsLibraryModule(options: AssetsLibraryModuleOptions): {
   plugin: (app: FastifyInstance) => Promise<void>;
   handle: AssetsLibraryModuleHandle;
 } {
   let cachedSigner: HmacSigner | undefined = options.signer;
-  const settings = createSettingsView(options.emFactory);
+  const settings = createSettingsView(options.settings);
   const loadRetentionDays = () => settings.softDeleteRetentionDays();
   const adapters = new AdapterRegistry({
     settings,
@@ -141,7 +123,7 @@ export function assetsLibraryModule(options: AssetsLibraryModuleOptions): {
     adapters,
     referenceRegistry,
     visibility,
-    loadUploadPolicy: () => loadUploadPolicy(options.emFactory),
+    loadUploadPolicy: () => settings.uploadPolicy(),
     loadRetentionDays,
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
     ...(options.commandBus ? { commandBus: options.commandBus } : {}),
@@ -167,7 +149,7 @@ export function assetsLibraryModule(options: AssetsLibraryModuleOptions): {
     // a restart. Loosening it (or switching from a finite cap to "no cap")
     // requires a backend restart for the multipart parser to pick up the
     // new `fileSize` value.
-    const initialPolicy = await loadUploadPolicy(options.emFactory);
+    const initialPolicy = await settings.uploadPolicy();
     const FALLBACK_HARD_CEILING_BYTES = 5 * 1024 * 1024 * 1024; // 5 GiB
     const multipartFileSize =
       initialPolicy.maxFileSizeMb > 0

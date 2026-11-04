@@ -28,6 +28,7 @@ describe('asset retention setting (#322)', () => {
     em.remove(overrides);
     if (assetIds.length) em.remove(await em.find(Asset, { id: { $in: assetIds } }));
     await em.flush();
+    await h.settings.cache.invalidate('assets.soft_delete_retention_days');
     // Children first; recursive deletion normally already removed these rows.
     for (const id of folderIds.reverse()) {
       const folder = await em.findOne(AssetFolder, { id });
@@ -49,6 +50,8 @@ describe('asset retention setting (#322)', () => {
     // The Admin Settings screen stores its all-channels override here.
     setting.globalValue = days ?? null;
     await em.flush();
+    // The platform read is cached; the admin write drops the entry, and so must this.
+    await h.settings.cache.invalidate('assets.soft_delete_retention_days');
   }
 
   async function createAsset(folderId: string | null = null) {
