@@ -2336,6 +2336,8 @@ export async function setupBackendServer(
               customer: {
                 customerAccountId: request.testActor.customerAccountId,
                 organizationId: request.testActor.organizationId,
+                // As production's `cartActorResolver` (feature 170, R-15).
+                organizationRoleId: request.testActor.organizationRoleId ?? null,
               },
             };
           }

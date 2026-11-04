@@ -35,6 +35,13 @@ export interface TestCustomerActor {
   customerAccountId: string;
   /** Null for no-org Customer accounts (feature 026 US2). */
   organizationId: string | null;
+  /**
+   * The member's organization role, as production's auth hook stamps it from
+   * the account read it makes anyway (`specs/170-organization-roles/` R-15).
+   * Set for a real session; a stub cookie leaves it out, so the permission port
+   * reads the account itself, which is the fallback it keeps for that case.
+   */
+  organizationRoleId?: string | null;
   impersonatorAdminUserId: string | null;
 }
 
@@ -516,6 +523,7 @@ export function registerTestAuth(app: FastifyInstance, deps: TestAuthDeps): void
               kind: 'customer',
               customerAccountId: customer.id,
               organizationId: customer.organizationId ?? null,
+              organizationRoleId: customer.organizationRoleId,
               impersonatorAdminUserId: resolved.session.impersonatorAdminUserId ?? null,
             });
             return;
