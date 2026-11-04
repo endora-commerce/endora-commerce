@@ -177,5 +177,7 @@
   "history.carryReason.audience_mismatch": "the quote request's field is visible to customers, but the sales opportunity's field is internal",
   "history.carryReason.value_invalid": "the value is not valid for the quote request's field",
   "history.carryReasonUnknown": "the value could not be carried",
-  "actions.openInbox.keywords": "request, offer"
+  "actions.openInbox.keywords": "request, offer",
+  "organizationPermissions.quote_requests.create.label": "Create quote requests",
+  "organizationPermissions.quote_requests.create.description": "Ask for a quote from scratch or by resubmitting one, and turn a cart, a shopping list or a quick order into a quote request."
 }

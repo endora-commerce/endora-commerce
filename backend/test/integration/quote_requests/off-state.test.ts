@@ -21,6 +21,7 @@ import {
   TEST_ORGANIZATION_ID,
 } from '../../helpers/test-actors.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
+import { seedCustomOrganizationRole } from '../../helpers/seed-organization-roles.js';
 import { Order, Product } from '../../helpers/package-entities.js';
 import {
   acceptedQuoteRequest,
@@ -804,6 +805,87 @@ describe('quote_requests off-state, from a package (Constitution XVII)', () => {
         expect(await valuesOf('quote_requests', quoteRequestId)).toEqual(valuesBefore);
         expect(await carrySkipEvents(quoteRequestId)).toBe(0);
         expect(await opportunityHistory(opportunity.id)).toEqual(historyBefore);
+      },
+    );
+  });
+  /**
+   * `specs/170-organization-roles/` WP-05, T080 (FR-007, FR-025, US 8): the one
+   * organization permission this module declares follows its presence. While
+   * the module is off, `quote_requests.create` leaves the permission catalogue
+   * and every member's effective set; a role's stored grant of it is kept; on
+   * reactivation it is back in both.
+   */
+  describe('the quote_requests.create organization permission (170 WP-05)', () => {
+    const CODE = 'quote_requests.create';
+    const RUN = randomUUID().slice(0, 8);
+    const MEMBER_COOKIE = `stub-170-05-off-state-member-${RUN}`;
+    let grantingRoleId: string;
+
+    beforeAll(async () => {
+      const conn = h.em().getConnection();
+      const accountId = randomUUID();
+      // No role named: the R-28 trigger gives the account the Organization's *Member*.
+      await conn.execute(
+        `insert into "customer_accounts"
+           ("id","organization_id","email","password_hash","first_name","last_name","role","created_at","updated_at")
+         values (?, ?, ?, 'x', 'Off', 'State', 'regular_user', now(), now())`,
+        [accountId, TEST_ORGANIZATION_ID, `off-state-${RUN}@rfq-permission.example`],
+      );
+      CUSTOMER_COOKIES[MEMBER_COOKIE] = { customerAccountId: accountId, organizationId: TEST_ORGANIZATION_ID };
+      grantingRoleId = await seedCustomOrganizationRole(h.em(), {
+        organizationId: TEST_ORGANIZATION_ID,
+        name: `Off-state RFQ ${RUN}`,
+        permissions: [CODE],
+      });
+    });
+
+    afterAll(() => {
+      delete CUSTOMER_COOKIES[MEMBER_COOKIE];
+    });
+
+    const catalogueCodes = async (): Promise<string[]> => {
+      const res = await h.app.inject({
+        method: 'GET',
+        url: '/api/v1/organizations/mine/permission-catalogue',
+        cookies: customer,
+      });
+      expect(res.statusCode, res.body).toBe(200);
+      const body = res.json() as { data: { groups: Array<{ permissions: Array<{ code: string }> }> } };
+      return body.data.groups.flatMap((g) => g.permissions.map((p) => p.code));
+    };
+    const memberCodes = async (): Promise<string[]> => {
+      const res = await h.app.inject({
+        method: 'GET',
+        url: '/api/v1/organizations/mine/role',
+        cookies: { b2b_session: MEMBER_COOKIE },
+      });
+      expect(res.statusCode, res.body).toBe(200);
+      return (res.json() as { data: { permissions: Array<{ code: string }> } }).data.permissions.map((p) => p.code);
+    };
+    const storedGrants = async (): Promise<string[]> => {
+      const [row] = (await h.em().getConnection().execute(
+        `select "permissions" from "organization_roles" where "id" = ?`,
+        [grantingRoleId],
+      )) as Array<{ permissions: string[] }>;
+      return row!.permissions;
+    };
+
+    it('is offered and held while on — the positive control', async () => {
+      expect(await catalogueCodes()).toContain(CODE);
+      expect(await memberCodes()).toContain(CODE);
+    });
+
+    it.each(['deactivated', 'platform-unavailable'] as const)(
+      'while %s it leaves the catalogue and the effective set, keeps the stored grant, and is back after',
+      async (axis) => {
+        await withModuleOff('quote_requests', axis, async () => {
+          expect(await catalogueCodes()).not.toContain(CODE);
+          expect(await memberCodes()).not.toContain(CODE);
+          expect(await storedGrants()).toContain(CODE);
+        });
+        expect(await catalogueCodes()).toContain(CODE);
+        expect(await memberCodes()).toContain(CODE);
+        expect(await storedGrants()).toContain(CODE);
       },
     );
   });

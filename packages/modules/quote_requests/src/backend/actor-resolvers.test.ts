@@ -58,10 +58,13 @@ describe('quote_requests — the actor resolvers it defaults', () => {
     expect(container.hasRegistration('rfqAdminContextResolver')).toBe(true);
   });
 
-  it('answers the customer context from the actor and the account read port', async () => {
+  it('answers the customer context from the actor alone — its role, and no legacy role read', async () => {
+    // `specs/170-organization-roles/` WP-05 (R-15, R-30): the account read
+    // port is not asked; whether the caller sees the whole Organization is
+    // the service's question to `organizationPermissionPort`.
     const container = contextFor({
       customerAccountReadPort: {
-        findById: () => Promise.resolve({ role: 'organization_admin' }),
+        findById: () => Promise.reject(new Error('the legacy role is not read')),
       },
     });
     const resolve = container.cradle
@@ -69,17 +72,25 @@ describe('quote_requests — the actor resolvers it defaults', () => {
 
     await expect(
       resolve(
-        requestWith({ kind: 'customer', customerAccountId: 'cust-1', organizationId: 'org-1' }),
+        requestWith({
+          kind: 'customer',
+          customerAccountId: 'cust-1',
+          organizationId: 'org-1',
+          organizationRoleId: 'role-1',
+        }),
       ),
     ).resolves.toEqual({
       customerAccountId: 'cust-1',
       organizationId: 'org-1',
-      isOrgAdmin: true,
+      organizationRoleId: 'role-1',
     });
+    await expect(
+      resolve(requestWith({ kind: 'customer', customerAccountId: 'cust-1', organizationId: 'org-1' })),
+    ).resolves.toEqual({ customerAccountId: 'cust-1', organizationId: 'org-1', organizationRoleId: null });
   });
 
   it('refuses a non-customer caller with a 401 rather than an undefined context', async () => {
-    const container = contextFor({ customerAccountReadPort: { findById: () => Promise.resolve(null) } });
+    const container = contextFor({});
     const resolve = container.cradle
       .rfqCustomerContextResolver as (request: FastifyRequest) => Promise<unknown>;
     await expect(resolve(requestWith({ kind: 'anonymous' }))).rejects.toBeInstanceOf(HttpError);
