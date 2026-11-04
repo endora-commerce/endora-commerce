@@ -4,7 +4,6 @@ import {
   EXPECTED_DIFFERENCES,
   type ExpectedDifferenceFamily,
 } from '../../fixtures/organization-roles/expected-differences.js';
-import { LANDED } from '../../fixtures/organization-roles/landed-work-packages.js';
 import {
   ORACLE_REQUESTS,
   PRE_UPGRADE_OUTCOMES,
@@ -13,7 +12,9 @@ import {
 /**
  * The self-check of the roles upgrade's expected differences —
  * `specs/170-organization-roles/` T124 (WP-13a; research R-38;
- * `contracts/migration-and-replay.md` §6.1, §6.2; owner rulings PR-5, PR-6).
+ * `contracts/migration-and-replay.md` §6.1; owner rulings PR-5, PR-6). Its
+ * clause on the interim landing ledger (§6.2) went with the ledger in T112 (WP-13);
+ * `landedBy` is provenance from then on.
  *
  * No services: it reads three fixtures, so it runs on every merge request,
  * which the replay that consumes the table does not (D-198). What it holds is
@@ -108,11 +109,5 @@ describe('170 — the expected differences of the roles upgrade (§6.1)', () => 
   it('allocates every row to the package §6.1 says lands it', () => {
     const allocation = Object.fromEntries(entries.map(([id, row]) => [id, row.landedBy]));
     expect(allocation).toEqual(LANDS_IN);
-  });
-
-  // R-38 — WP-13 deletes the ledger and, with it, this clause.
-  it('names only packages the landing ledger records (§6.2)', () => {
-    const ledger = new Set(Object.keys(LANDED));
-    expect(entries.filter(([, row]) => !ledger.has(row.landedBy)).map(([id]) => id)).toEqual([]);
   });
 });
