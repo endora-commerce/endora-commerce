@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useId, useRef, useState, type ReactNode } from 'react';
 import { Button } from '@endora-commerce/admin-kit/ui';
 import { ModalDialog } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -15,6 +15,7 @@ export function useConfirmRemoval(): {
   dialog: ReactNode;
 } {
   const t = useTranslation('catalog');
+  const bodyId = useId();
   const [question, setQuestion] = useState<string | null>(null);
   const resolver = useRef<((answer: boolean) => void) | null>(null);
 
@@ -37,7 +38,7 @@ export function useConfirmRemoval(): {
       <ModalDialog
         title={question}
         onClose={(): void => settle(false)}
-        aria-describedby="product-editor-confirm-removal-body"
+        aria-describedby={bodyId}
         footer={
           <>
             <Button type="button" variant="outline" className="max-lg:min-h-11" onClick={(): void => settle(false)}>
@@ -49,7 +50,7 @@ export function useConfirmRemoval(): {
           </>
         }
       >
-        <p id="product-editor-confirm-removal-body" className="text-sm">
+        <p id={bodyId} className="text-sm">
           {t('productEditor.confirmRemoval.body')}
         </p>
       </ModalDialog>

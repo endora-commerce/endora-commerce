@@ -115,7 +115,7 @@ export function DetailsTab({
                   label: `${s.code}${s.isSystem ? t('productEditor.attributeSet.systemSuffix') : ''}`,
                 })),
                 // The list could not be read: keep the current set selectable rather than blank.
-                ...(p.value && !attributeSets.some((s) => s.id === p.value)
+                ...(referenceError && p.value && !attributeSets.some((s) => s.id === p.value)
                   ? [{ value: p.value, label: t('productEditor.attributeSet.unlisted') }]
                   : []),
               ]}
