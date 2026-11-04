@@ -354,6 +354,9 @@ describe('the legacy role is removed (R-23, WP-12)', () => {
     expect(parsed.permissions).toEqual(['carts.create']);
     expect(parsed).not.toHaveProperty('role');
     expect(Object.keys(customerAccountSchema.shape)).not.toContain('role');
+    // Required since the legacy removal: every producer sends both (WP-12).
+    expect(customerAccountSchema.safeParse({ ...base, permissions: [] }).success).toBe(false);
+    expect(customerAccountSchema.safeParse({ ...base, organizationRole }).success).toBe(false);
   });
 
   it('the login response carries them, and no role', () => {
@@ -373,6 +376,9 @@ describe('the legacy role is removed (R-23, WP-12)', () => {
     expect(parsed.data.customerAccount.organizationRole).toEqual(organizationRole);
     expect(parsed.data.customerAccount.permissions).toEqual([]);
     expect(parsed.data.customerAccount).not.toHaveProperty('role');
+    const account = { id: ROLE_ID, email: 'a@example.test', organizationId: OTHER_ID, twoFactorEnabled: false };
+    expect(customerLoginResponseSchema.safeParse({ data: { customerAccount: { ...account, permissions: [] } } }).success).toBe(false);
+    expect(customerLoginResponseSchema.safeParse({ data: { customerAccount: { ...account, organizationRole } } }).success).toBe(false);
   });
 
   it('the impersonation start response carries organizationRole, and no role', () => {
@@ -389,5 +395,11 @@ describe('the legacy role is removed (R-23, WP-12)', () => {
     });
     expect(parsed.impersonatedCustomerAccount.organizationRole).toEqual(organizationRole);
     expect(parsed.impersonatedCustomerAccount).not.toHaveProperty('role');
+    expect(
+      impersonationStartResponseSchema.safeParse({
+        impersonationSessionId: ROLE_ID,
+        impersonatedCustomerAccount: { id: OTHER_ID, email: 'a@example.test', firstName: 'Ada', lastName: 'Lovelace' },
+      }).success,
+    ).toBe(false);
   });
 });
