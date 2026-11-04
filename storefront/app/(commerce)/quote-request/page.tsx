@@ -3,6 +3,7 @@ import { RfqDraftView } from '../../../components/rfq/RfqDraftView';
 import { getServerContext } from '../../../lib/server-context';
 import { getSessionCookie } from '../../../lib/session';
 import { getQuoteRequestNegotiation } from '../../../lib/api/rfq';
+import { getCommerceAbilitiesAction } from '../../../lib/actions/cart';
 import type { Metadata } from 'next';
 
 /**
@@ -23,9 +24,22 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
  * here, on the server, with the buyer's own session and no shared cache, and
  * handed to the view. An anonymous visitor has no session and is shown the
  * input (fail-open display; the API decides on submit).
+ *
+ * `specs/170-organization-roles/` (FR-040, FR-057): submitting needs the
+ * member's `quote_requests.create`; a visitor keeps the submit (and signs in).
  */
 export default async function QuoteRequestDraftPage(): Promise<ReactNode> {
-  const [{ locale }, session] = await Promise.all([getServerContext(), getSessionCookie()]);
+  const [{ locale }, session, abilities] = await Promise.all([
+    getServerContext(),
+    getSessionCookie(),
+    getCommerceAbilitiesAction(),
+  ]);
   const priceProposalsAllowed = await getQuoteRequestNegotiation(session);
-  return <RfqDraftView locale={locale} priceProposalsAllowed={priceProposalsAllowed} />;
+  return (
+    <RfqDraftView
+      locale={locale}
+      priceProposalsAllowed={priceProposalsAllowed}
+      canSubmit={abilities.requestQuote}
+    />
+  );
 }

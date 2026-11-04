@@ -33,6 +33,11 @@ export interface RfqDetailActionsProps {
   rejectAction: (formData: FormData) => Promise<void>;
   convertAction: (formData: FormData) => Promise<void>;
   resubmitAction: (formData: FormData) => Promise<void>;
+  /**
+   * `specs/170-organization-roles/` (FR-030, FR-057) — "place order" fills the basket, so it is
+   * offered only when the member's role holds `carts.create`. Defaults to `true`.
+   */
+  canConvert?: boolean;
 }
 
 const NOTICE_ID = 'rfq-validity-notice';
@@ -48,6 +53,7 @@ export function RfqDetailActions({
   rejectAction,
   convertAction,
   resubmitAction,
+  canConvert = true,
 }: RfqDetailActionsProps): ReactNode {
   const t = tForLocale(locale);
   /**
@@ -106,7 +112,7 @@ export function RfqDetailActions({
           </>
         ) : null}
 
-        {status === 'Approved' ? (
+        {status === 'Approved' && canConvert ? (
           <form action={convertAction}>
             <input type="hidden" name="rfqId" value={rfqId} />
             <button

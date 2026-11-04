@@ -9,6 +9,7 @@ import {
   type RfqStatus,
 } from '../../../../lib/api/rfq';
 import { getSessionCookie } from '../../../../lib/session';
+import { getCommerceAbilitiesAction } from '../../../../lib/actions/cart';
 import { getServerContext } from '../../../../lib/server-context';
 import { StorefrontApiError } from '../../../../lib/api/client';
 import { formatMoney } from '../../../../lib/i18n/money';
@@ -86,6 +87,8 @@ export default async function QuoteRequestDetailPage({
     throw err;
   }
   const sp = await searchParams;
+  // 170 (FR-030, FR-057) — "place order" fills the basket: `carts.create`.
+  const abilities = await getCommerceAbilitiesAction();
   // The server's clock, taken once so the meta sentence and the gate below it
   // cannot disagree about which side of the deadline this render is on.
   const now = new Date();
@@ -293,6 +296,7 @@ export default async function QuoteRequestDetailPage({
         rejectAction={rejectAction}
         convertAction={convertAction}
         resubmitAction={resubmitAction}
+        canConvert={abilities.editCart}
       />
 
       {rfq.events.length > 0 ? (
