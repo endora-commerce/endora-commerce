@@ -79,10 +79,19 @@ export function ImportProfilesSection({
         </Button>
       </CardHeader>
       <CardContent className="space-y-3">
-        {loading ? <p className="text-sm text-muted-foreground">{t('importProfiles.loading')}</p> : null}
+        <p role="status" className={loading ? 'text-sm text-muted-foreground' : 'sr-only'}>
+          {loading ? t('importProfiles.loading') : ''}
+        </p>
         {loadError ? (
           <Alert variant="destructive">
-            <AlertDescription>{t('importProfiles.error.load')}</AlertDescription>
+            <AlertDescription>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="flex-1">{t('importProfiles.error.load')}</span>
+                <Button type="button" variant="outline" size="sm" className="max-lg:min-h-11" onClick={onChanged} disabled={loading}>
+                  {t('importProfiles.retry')}
+                </Button>
+              </div>
+            </AlertDescription>
           </Alert>
         ) : null}
         {!loading && !loadError && profiles.length === 0 ? (
@@ -116,7 +125,8 @@ export function ImportProfilesSection({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        aria-label={t('importProfiles.edit')}
+                        className="max-lg:min-h-11 max-lg:min-w-11"
+                        aria-label={t('importProfiles.editNamed', { name: profile.name })}
                         onClick={(): void => setEditing(profile)}
                       >
                         <Pencil />
@@ -125,7 +135,8 @@ export function ImportProfilesSection({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        aria-label={t('importProfiles.deleteAction')}
+                        className="max-lg:min-h-11 max-lg:min-w-11"
+                        aria-label={t('importProfiles.deleteNamed', { name: profile.name })}
                         onClick={(): void => {
                           setDeleteError(null);
                           setDeleting(profile);

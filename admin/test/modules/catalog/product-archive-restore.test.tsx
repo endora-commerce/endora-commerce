@@ -185,7 +185,7 @@ describe('ProductEditor — two status values (FR-010)', () => {
     renderEditor();
     await openProductMenu(user);
     await user.click(screen.getByRole('menuitem', { name: tr('productEditor.action.duplicate') }));
-    const dialog = await screen.findByRole('dialog', { name: tr('productEditor.duplicateTitle') });
+    const dialog = await screen.findByRole('dialog', { name: tr('productEditor.duplicateTitle', { product: 'Oak chair' }) });
     expect(dialog).toHaveAccessibleDescription(tr('productEditor.duplicateConfirm'));
     expect(tr('productEditor.duplicateConfirm')).toMatch(/every scope .* except status and URL keys/);
     expect(tr('productEditor.duplicateConfirm')).not.toMatch(/draft/i);

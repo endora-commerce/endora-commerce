@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { CategoryTreePicker, OrganizationPickerMulti, ScopedFieldGrid, type ScopedFieldControlProps } from '@endora-commerce/admin-kit/components';
-import { Input } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Input } from '@endora-commerce/admin-kit/ui';
 import { useContext } from 'react';
 import { AppLanguageContext, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
@@ -23,6 +23,9 @@ export interface DetailsTabProps {
   attributeSets: ReadonlyArray<{ id: string; code: string; isSystem: boolean }>;
   categories: ReadonlyArray<{ id: string; parentCategoryId: string | null; name: Record<string, string>; slug: string; sortOrder: number }>;
   categoriesLoading: boolean;
+  /** The category or attribute-set list could not be read: shown as an error with a retry. */
+  referenceError?: boolean;
+  onRetryReference?: () => void;
 }
 
 type Audience = { visibility: 'public' | 'logged_in_only' | 'organization_restricted'; allowedOrganizationIds: string[] };
@@ -37,7 +40,13 @@ function Section({ title, children }: { title: string; children: ReactNode }): R
   );
 }
 
-export function DetailsTab({ attributeSets, categories, categoriesLoading }: DetailsTabProps): ReactNode {
+export function DetailsTab({
+  attributeSets,
+  categories,
+  categoriesLoading,
+  referenceError = false,
+  onRetryReference,
+}: DetailsTabProps): ReactNode {
   const t = useTranslation('catalog');
   const adminLanguage = useContext(AppLanguageContext)?.language ?? 'en';
   const ctx = useProductEditor();
@@ -58,6 +67,21 @@ export function DetailsTab({ attributeSets, categories, categoriesLoading }: Det
   return (
     <div className="b2b-col" style={{ gap: 18 }}>
       <AdminZone name="product.editor.details.before" props={{ productId: ctx.productId }} />
+
+      {referenceError ? (
+        <Alert variant="destructive" data-testid="product-reference-error">
+          <AlertDescription>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="flex-1">{t('productEditor.reference.error')}</span>
+              {onRetryReference ? (
+                <Button type="button" variant="outline" size="sm" className="max-lg:min-h-11" onClick={onRetryReference}>
+                  {t('productEditor.reference.retry')}
+                </Button>
+              ) : null}
+            </div>
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       <Section title={t('productEditor.section.identity')}>
         <EditorField<string>
@@ -85,10 +109,16 @@ export function DetailsTab({ attributeSets, categories, categoriesLoading }: Det
           render={(p): ReactNode => (
             <SelectControl
               {...p}
-              options={attributeSets.map((s) => ({
-                value: s.id,
-                label: `${s.code}${s.isSystem ? t('productEditor.attributeSet.systemSuffix') : ''}`,
-              }))}
+              options={[
+                ...attributeSets.map((s) => ({
+                  value: s.id,
+                  label: `${s.code}${s.isSystem ? t('productEditor.attributeSet.systemSuffix') : ''}`,
+                })),
+                // The list could not be read: keep the current set selectable rather than blank.
+                ...(p.value && !attributeSets.some((s) => s.id === p.value)
+                  ? [{ value: p.value, label: t('productEditor.attributeSet.unlisted') }]
+                  : []),
+              ]}
             />
           )}
         />
@@ -188,6 +218,7 @@ export function DetailsTab({ attributeSets, categories, categoriesLoading }: Det
                   selectedIds={p.value ?? []}
                   onChange={(ids: string[]): void => p.onChange(ids)}
                   loading={categoriesLoading}
+                  error={referenceError ? t('productEditor.reference.categoriesUnavailable') : null}
                 />
               </div>
             )

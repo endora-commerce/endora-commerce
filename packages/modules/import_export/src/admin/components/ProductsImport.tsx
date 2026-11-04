@@ -1,7 +1,7 @@
-import { useId, useState, type ChangeEvent, type ReactNode } from 'react';
+import { useEffect, useId, useState, type ChangeEvent, type ReactNode } from 'react';
 import { FileSearch } from 'lucide-react';
 import type { ImportProfile } from '@endora-commerce/contracts';
-import { apiClient } from '@endora-commerce/admin-kit/lib';
+import { apiClient, cn } from '@endora-commerce/admin-kit/lib';
 import {
   Alert,
   AlertDescription,
@@ -95,6 +95,12 @@ export function ProductsImport({ profiles, profilesLoading }: ProductsImportProp
   const t = useTranslation('import_export');
   const profileSelectId = useId();
   const [profileId, setProfileId] = useState('');
+  const profileHintId = useId();
+  // With exactly one profile there is nothing to choose: preselect it (final design review).
+  useEffect(() => {
+    if (profileId === '' && profiles.length === 1) setProfileId(profiles[0]!.id);
+    if (profileId !== '' && !profiles.some((profile) => profile.id === profileId)) setProfileId('');
+  }, [profiles, profileId]);
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<{ csv: string; report: ProductsImportReport } | null>(null);
   const [applied, setApplied] = useState<ProductsImportReport | null>(null);
@@ -173,7 +179,10 @@ export function ProductsImport({ profiles, profilesLoading }: ProductsImportProp
           size="sm"
           variant={pending === null ? 'default' : 'outline'}
           disabled={busy || profileId === ''}
-          className={profileId === '' ? 'cursor-not-allowed opacity-50' : busy ? 'cursor-wait opacity-70' : 'cursor-pointer'}
+          className={cn(
+            'max-lg:min-h-11 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2',
+            profileId === '' ? 'cursor-not-allowed opacity-50' : busy ? 'cursor-wait opacity-70' : 'cursor-pointer',
+          )}
         >
           <label className="relative">
             <FileSearch />
@@ -182,6 +191,7 @@ export function ProductsImport({ profiles, profilesLoading }: ProductsImportProp
               type="file"
               accept=".csv,text/csv"
               disabled={busy || profileId === ''}
+              aria-describedby={profileId === '' && !noProfile ? profileHintId : undefined}
               onChange={(event): void => {
                 void onFile(event);
               }}
@@ -191,6 +201,11 @@ export function ProductsImport({ profiles, profilesLoading }: ProductsImportProp
         </Button>
       </div>
       {noProfile ? <p className="text-xs text-muted-foreground">{t('products.noProfile')}</p> : null}
+      {profileId === '' && !noProfile && !profilesLoading ? (
+        <p id={profileHintId} className="text-xs text-muted-foreground">
+          {t('products.chooseProfileFirst')}
+        </p>
+      ) : null}
 
       {requestError ? (
         <Alert variant="destructive">

@@ -146,6 +146,10 @@ describe('one Save of the current scope (feature 170, US7)', () => {
     await waitFor(() => expect(description).toHaveAttribute('aria-invalid', 'true'));
     expect(description).toHaveAccessibleDescription(expect.stringContaining(en['productEditor.save.reason.invalid']!));
     expect(description).toHaveValue('Bad');
+    // One field: the singular form, not "field(s)" (final design review).
+    expect(screen.getByTestId('product-save-error')).toHaveTextContent(
+      en['productEditor.save.error.fields.one']!.replace('{count}', '1'),
+    );
   });
 
   it('the completeness gate refuses per (channel, language) and nothing is saved', async () => {

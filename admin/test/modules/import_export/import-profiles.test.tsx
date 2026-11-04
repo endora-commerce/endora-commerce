@@ -99,6 +99,11 @@ function keyBundle(): Bundle {
   ) as Record<string, string>;
   const entries: Record<string, string> = {};
   for (const key of Object.keys(en)) entries[key] = key;
+  // Composed labels keep their parameters, so a row's controls stay distinguishable.
+  entries['importProfiles.mapping.rowLabel'] = '{label}, row {row}';
+  entries['importProfiles.mapping.removeRow'] = 'importProfiles.mapping.removeRow {row}';
+  entries['importProfiles.editNamed'] = 'importProfiles.editNamed {name}';
+  entries['importProfiles.deleteNamed'] = 'importProfiles.deleteNamed {name}';
   return { import_export: entries };
 }
 
@@ -173,6 +178,11 @@ describe('Import profiles section', () => {
     renderPage(['catalog:write']);
     const section = await screen.findByRole('region', { name: 'importProfiles.title' });
     expect(await within(section).findByText('importProfiles.error.load')).toBeTruthy();
+    // A retry reads the list again (final design review: no dead end).
+    api.get.mockImplementation(async (url: string) => getHandler(url));
+    fireEvent.click(within(section).getByRole('button', { name: 'importProfiles.retry' }));
+    expect(await within(section).findByText(profile.name)).toBeTruthy();
+    expect(within(section).queryByText('importProfiles.error.load')).toBeNull();
   });
 
   it('creates a profile with a mapping row whose target is a channel and language', async () => {
@@ -188,11 +198,11 @@ describe('Import profiles section', () => {
       target: { value: 'en_US' },
     });
     fireEvent.click(within(dialog).getByRole('button', { name: 'importProfiles.mapping.add' }));
-    fireEvent.change(within(dialog).getByLabelText('importProfiles.mapping.sourceLocale'), {
+    fireEvent.change(within(dialog).getByLabelText('importProfiles.mapping.sourceLocale, row 1'), {
       target: { value: 'pl_PL' },
     });
-    fireEvent.click(await within(dialog).findByRole('button', { name: 'importProfiles.mapping.targets' }));
-    fireEvent.click(await within(dialog).findByLabelText('pl_retail / pl-PL'));
+    fireEvent.click(await within(dialog).findByRole('button', { name: 'importProfiles.mapping.targets, row 1' }));
+    fireEvent.click(await within(dialog).findByLabelText(/^pl_retail \/ Polish/));
     fireEvent.click(within(dialog).getByRole('button', { name: 'importProfiles.save' }));
     await waitFor(() => expect(api.post).toHaveBeenCalled());
     expect(api.post).toHaveBeenCalledWith('/api/v1/admin/import-export/profiles', {
@@ -235,7 +245,7 @@ describe('Import profiles section', () => {
   it('edits a profile through PATCH and warns about a target whose channel no longer exists', async () => {
     renderPage(['catalog:write']);
     const section = await screen.findByRole('region', { name: 'importProfiles.title' });
-    fireEvent.click(await within(section).findByRole('button', { name: 'importProfiles.edit' }));
+    fireEvent.click(await within(section).findByRole('button', { name: `importProfiles.editNamed ${profile.name}` }));
     const dialog = await screen.findByRole('dialog');
     expect(await within(dialog).findByText('importProfiles.mapping.missingChannel')).toBeTruthy();
     fireEvent.click(within(dialog).getByRole('button', { name: 'importProfiles.save' }));
@@ -261,12 +271,47 @@ describe('Import profiles section', () => {
     fireEvent.click(await within(section).findByRole('button', { name: 'importProfiles.create' }));
     const dialog = await screen.findByRole('dialog');
     expect(await within(dialog).findByText('importProfiles.error.channels')).toBeTruthy();
+    // Retrying in place reads the targets again; nothing has to be closed and reopened.
+    channelsForbidden = false;
+    fireEvent.click(within(dialog).getByRole('button', { name: 'importProfiles.retry' }));
+    await waitFor(() => expect(within(dialog).queryByText('importProfiles.error.channels')).toBeNull());
+  });
+
+  it('marks and focuses the field a validation problem names, row by row', async () => {
+    profiles = [];
+    renderPage(['catalog:write']);
+    const section = await screen.findByRole('region', { name: 'importProfiles.title' });
+    fireEvent.click(await within(section).findByRole('button', { name: 'importProfiles.create' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText('importProfiles.field.name'), { target: { value: 'Rows' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'importProfiles.mapping.add' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'importProfiles.mapping.add' }));
+    fireEvent.change(within(dialog).getByLabelText('importProfiles.mapping.sourceLocale, row 1'), { target: { value: 'pl_PL' } });
+    fireEvent.change(within(dialog).getByLabelText('importProfiles.mapping.sourceLocale, row 2'), { target: { value: 'not a locale!' } });
+    // Row 1 has no target yet: the first problem in reading order is row 1's targets.
+    fireEvent.click(within(dialog).getByRole('button', { name: 'importProfiles.save' }));
+    await waitFor(() =>
+      expect(within(dialog).getByRole('button', { name: 'importProfiles.mapping.targets, row 1' })).toHaveFocus(),
+    );
+    fireEvent.click(within(dialog).getByRole('button', { name: 'importProfiles.mapping.targets, row 1' }));
+    fireEvent.click(await within(dialog).findByLabelText(/^pl_retail \/ Polish/));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'importProfiles.save' }));
+    const second = within(dialog).getByLabelText('importProfiles.mapping.sourceLocale, row 2');
+    await waitFor(() => expect(second).toHaveAttribute('aria-invalid', 'true'));
+    expect(second).toHaveFocus();
+    expect(second).toHaveAccessibleDescription('importProfiles.error.locale');
+    expect(within(dialog).getByLabelText('importProfiles.mapping.sourceLocale, row 1')).not.toHaveAttribute('aria-invalid');
+    expect(api.post).not.toHaveBeenCalled();
+
+    // Removing a row keeps the focus in the dialog.
+    fireEvent.click(within(dialog).getByRole('button', { name: 'importProfiles.mapping.removeRow 2' }));
+    expect(within(dialog).getByRole('button', { name: 'importProfiles.mapping.add' })).toHaveFocus();
   });
 
   it('deletes a profile only after confirmation', async () => {
     renderPage(['catalog:write']);
     const section = await screen.findByRole('region', { name: 'importProfiles.title' });
-    fireEvent.click(await within(section).findByRole('button', { name: 'importProfiles.deleteAction' }));
+    fireEvent.click(await within(section).findByRole('button', { name: `importProfiles.deleteNamed ${profile.name}` }));
     const dialog = await screen.findByRole('dialog');
     expect(api.delete).not.toHaveBeenCalled();
     fireEvent.click(within(dialog).getByRole('button', { name: 'importProfiles.delete.confirm' }));
@@ -277,13 +322,23 @@ describe('Import profiles section', () => {
 });
 
 describe('Products import: required profile, dry run, then Apply', () => {
-  it('cannot start an import until a profile is chosen', async () => {
+  it('cannot start an import until a profile is chosen, and says why', async () => {
+    profiles = [profile, { ...profile, id: '00000000-0000-4000-8000-0000000000a2', name: 'Second' }];
     renderPage(['catalog:write']);
     const card = within(await productsCard());
+    await card.findByRole('option', { name: 'Second' });
     const fileInput = card.getByLabelText('products.checkFile') as HTMLInputElement;
     expect(fileInput.disabled).toBe(true);
+    expect(fileInput).toHaveAccessibleDescription('products.chooseProfileFirst');
     fireEvent.change(card.getByLabelText('products.profile'), { target: { value: profile.id } });
     expect(fileInput.disabled).toBe(false);
+  });
+
+  it('preselects the only profile there is', async () => {
+    renderPage(['catalog:write']);
+    const card = within(await productsCard());
+    await waitFor(() => expect(card.getByLabelText('products.profile')).toHaveValue(profile.id));
+    expect((card.getByLabelText('products.checkFile') as HTMLInputElement).disabled).toBe(false);
   });
 
   it('points to the profiles section when no profile exists', async () => {
