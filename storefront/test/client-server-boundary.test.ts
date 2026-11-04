@@ -39,7 +39,7 @@ function valueSpecifiers(source: string): string[] {
   for (const m of source.matchAll(re)) {
     if (m[2]) continue; // `import type …` / `export type …`
     if (m[1] === 'export' && !m[3]) continue;
-    specs.push(m[4]);
+    specs.push(m[4]!);
   }
   return specs;
 }

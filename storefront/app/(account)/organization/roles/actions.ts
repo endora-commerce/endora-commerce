@@ -6,11 +6,11 @@ import { localeRedirect } from '../../../../lib/i18n/navigation';
 import {
   createRoleRequest,
   deleteRoleRequest,
-  roleFailureCode,
   roleIdOf,
   updateRoleRequest,
   type RoleFormState,
 } from '../../../../lib/account/organization-roles';
+import { roleFailureCode } from '../../../../lib/account/organization-role-failure';
 
 /**
  * The administrator's role writes (`specs/170-organization-roles/`, FR-004,
