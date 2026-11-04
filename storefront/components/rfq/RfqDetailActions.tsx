@@ -38,6 +38,8 @@ export interface RfqDetailActionsProps {
    * offered only when the member's role holds `carts.create`. Defaults to `true`.
    */
   canConvert?: boolean;
+  /** FR-040 — resubmitting raises a new quote request: `quote_requests.create`. Defaults to `true`. */
+  canResubmit?: boolean;
 }
 
 const NOTICE_ID = 'rfq-validity-notice';
@@ -54,6 +56,7 @@ export function RfqDetailActions({
   convertAction,
   resubmitAction,
   canConvert = true,
+  canResubmit = true,
 }: RfqDetailActionsProps): ReactNode {
   const t = tForLocale(locale);
   /**
@@ -126,12 +129,14 @@ export function RfqDetailActions({
           </form>
         ) : null}
 
-        <form action={resubmitAction}>
-          <input type="hidden" name="rfqId" value={rfqId} />
-          <button type="submit" className={anythingBlocked ? 'btn btn--dark' : 'btn btn--outline'}>
-            {t('quoteRequests.resubmit')}
-          </button>
-        </form>
+        {canResubmit ? (
+          <form action={resubmitAction}>
+            <input type="hidden" name="rfqId" value={rfqId} />
+            <button type="submit" className={anythingBlocked ? 'btn btn--dark' : 'btn btn--outline'}>
+              {t('quoteRequests.resubmit')}
+            </button>
+          </form>
+        ) : null}
       </div>
     </>
   );

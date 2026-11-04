@@ -87,7 +87,8 @@ export default async function QuoteRequestDetailPage({
     throw err;
   }
   const sp = await searchParams;
-  // 170 (FR-030, FR-057) — "place order" fills the basket: `carts.create`.
+  // 170 (FR-030, FR-040, FR-057) — "place order" fills the basket (`carts.create`);
+  // "resubmit" raises a new quote request (`quote_requests.create`).
   const abilities = await getCommerceAbilitiesAction();
   // The server's clock, taken once so the meta sentence and the gate below it
   // cannot disagree about which side of the deadline this render is on.
@@ -297,6 +298,7 @@ export default async function QuoteRequestDetailPage({
         convertAction={convertAction}
         resubmitAction={resubmitAction}
         canConvert={abilities.editCart}
+        canResubmit={abilities.requestQuote}
       />
 
       {rfq.events.length > 0 ? (
