@@ -45,6 +45,8 @@ describe("carts — a member's cart answers judge the session's role, with no re
   /** Every subject the permission port was asked about while `recording`, with the code. */
   const asked: Array<{ method: string; code: string; subject: OrganizationPermissionSubject }> = [];
   let recording = false;
+  /** The port's account reads (`resolveAccountRoleId`, two queries each) while `recording`. */
+  let accountReads = 0;
 
   const inject = (method: 'GET' | 'POST', url: string, payload?: Record<string, unknown>) =>
     h.app.inject({
@@ -125,6 +127,20 @@ describe("carts — a member's cart answers judge the session's role, with no re
         }) as OrganizationPermissionPort[M];
     port.can = record('can')(port.can);
     port.assert = record('assert')(port.assert);
+    // The fallback itself — the account and its MFA enrolments read for a
+    // subject that names no role — counted where it happens.
+    const deps = (
+      port as unknown as {
+        deps: {
+          resolveAccountRoleId: (subject: OrganizationPermissionSubject) => Promise<string | null>;
+        };
+      }
+    ).deps;
+    const resolveAccountRoleId = deps.resolveAccountRoleId;
+    deps.resolveAccountRoleId = (subject) => {
+      if (recording) accountReads += 1;
+      return resolveAccountRoleId(subject);
+    };
   }, 120_000);
 
   afterAll(async () => {
@@ -136,6 +152,7 @@ describe("carts — a member's cart answers judge the session's role, with no re
     status: number,
   ) => {
     asked.length = 0;
+    accountReads = 0;
     recording = true;
     const res = await call();
     recording = false;
@@ -156,17 +173,19 @@ describe("carts — a member's cart answers judge the session's role, with no re
       expect.arrayContaining(['carts.create', 'carts.order_without_approval']),
     );
     expect(calls.filter((c) => c.organizationRoleId !== roleId)).toEqual([]);
+    expect(accountReads).toBe(0);
   });
 
   it('GET /api/v1/cart — the approval policy names the role', async () => {
     const calls = await judged(() => inject('GET', '/api/v1/cart'), 200);
     expect(calls.map((c) => c.code)).toContain('carts.order_without_approval');
     expect(calls.filter((c) => c.organizationRoleId !== roleId)).toEqual([]);
+    expect(accountReads).toBe(0);
   });
 
   // `orders` asks `carts` (`CartPlacementApplyPort.awaitsApproval`) whether the
   // placer's own basket still awaits approval; the placer's role is the actor's.
-  it('POST /api/v1/orders — the approval rule names the role, and the account is not read for it', async () => {
+  it('POST /api/v1/orders — the approval rule names the role, and no account is read for it', async () => {
     const address = await inject('POST', '/api/v1/organizations/mine/addresses', {
       kind: 'delivery',
       recipientName: 'Cart Reads',
@@ -184,30 +203,18 @@ describe("carts — a member's cart answers judge the session's role, with no re
     });
     expect(add.statusCode, add.body).toBe(200);
 
-    // The fallback's signature: `customer_accounts`' member read loads the
-    // account's MFA enrolments with it, and nothing else on placement does.
-    const queries: string[] = [];
-    const knex = h.em().getKnex();
-    const listener = (query: { sql: string }) => {
-      if (recording) queries.push(query.sql);
-    };
-    knex.on('query', listener);
-    try {
-      const calls = await judged(
-        () =>
-          inject('POST', '/api/v1/orders', {
-            deliveryAddressId: addressId,
-            billingAddressId: addressId,
-            deliveryMethodId: SEED_DELIVERY_METHOD_ID,
-            paymentMethodId: SEED_PAYMENT_METHOD_ID,
-          }),
-        201,
-      );
-      expect(calls.map((c) => c.code)).toContain('carts.order_without_approval');
-      expect(calls.filter((c) => c.organizationRoleId !== roleId)).toEqual([]);
-      expect(queries.filter((sql) => sql.includes('"mfa_enrolments"'))).toEqual([]);
-    } finally {
-      knex.off('query', listener);
-    }
+    const calls = await judged(
+      () =>
+        inject('POST', '/api/v1/orders', {
+          deliveryAddressId: addressId,
+          billingAddressId: addressId,
+          deliveryMethodId: SEED_DELIVERY_METHOD_ID,
+          paymentMethodId: SEED_PAYMENT_METHOD_ID,
+        }),
+      201,
+    );
+    expect(calls.map((c) => c.code)).toContain('carts.order_without_approval');
+    expect(calls.filter((c) => c.organizationRoleId !== roleId)).toEqual([]);
+    expect(accountReads).toBe(0);
   });
 });
