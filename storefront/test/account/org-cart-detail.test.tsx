@@ -13,7 +13,8 @@ import type { OrgCartDetail } from '../../lib/api/cart';
  * assertion.
  */
 let locale = 'en-US';
-let role: 'organization_admin' | 'regular_user' = 'organization_admin';
+let permissions: string[] = ['carts.approve'];
+let isPersonal = false;
 let detail: OrgCartDetail | null = null;
 let loadError: Error | null = null;
 
@@ -31,8 +32,12 @@ vi.mock('../../lib/i18n/navigation', () => ({
 }));
 vi.mock('../../lib/api/account', () => ({
   getMe: async () => ({
-    customerAccount: { id: 'admin-1', role },
-    organization: { id: 'org-1', name: 'Acme' },
+    customerAccount: {
+      id: 'approver-1',
+      organizationRole: { id: 'role-1', kind: 'custom', name: 'Purchasing' },
+      permissions,
+    },
+    organization: { id: 'org-1', name: 'Acme', isPersonal },
   }),
 }));
 vi.mock('../../lib/api/cart', () => ({
@@ -88,7 +93,8 @@ async function render(searchParams: Record<string, string> = {}): Promise<string
 
 beforeEach(() => {
   locale = 'en-US';
-  role = 'organization_admin';
+  permissions = ['carts.approve'];
+  isPersonal = false;
   detail = pendingCart();
   loadError = null;
 });
@@ -155,7 +161,7 @@ describe('organization cart detail — issue #650', () => {
   });
 
   it.each([
-    ['en-US', 'CART_APPROVAL_NOT_PENDING', 'This cart is no longer awaiting approval'],
+    ['en-US', 'CART_APPROVAL_NOT_PENDING', 'This cart is no longer awaiting approval: it has already been answered.'],
     ['pl-PL', 'CART_APPROVAL_NOT_PENDING', 'Ten koszyk nie oczekuje już na akceptację'],
     ['en-US', 'REASON_REQUIRED', 'Give a reason for the rejection'],
     ['pl-PL', 'REASON_REQUIRED', 'Podaj powód odrzucenia'],
@@ -193,11 +199,36 @@ describe('organization cart detail — issue #650', () => {
     expect(await render()).toContain('Could not load the cart.');
   });
 
-  it('refuses a member who is not an administrator', async () => {
-    role = 'regular_user';
+  it('refuses a member without carts.approve (feature 170, FR-033)', async () => {
+    permissions = ['carts.create'];
     const html = await render();
-    expect(html).toContain('Only Organization Administrators can see this page.');
+    expect(html).toContain('Only members allowed to approve carts can see this page.');
     expect(html).not.toContain('Approve cart');
+  });
+
+  it('sends the member of a personal Organization to the account page (FR-070a)', async () => {
+    isPersonal = true;
+    await expect(render()).rejects.toThrow('redirect /account');
+  });
+
+  it('offers no decision on the approver’s own pending cart, and says who answers it (FR-032)', async () => {
+    detail = pendingCart({ ownerCustomerAccountId: 'approver-1' });
+    const html = await render();
+    expect(html).not.toContain('Approve cart');
+    expect(html).not.toContain('<textarea');
+    expect(html).toContain('This is your own cart: another member allowed to approve carts answers it.');
+  });
+
+  it.each([
+    ['en-US', 'CART_APPROVAL_SELF_APPROVE', 'You cannot approve or reject your own cart.'],
+    ['pl-PL', 'CART_APPROVAL_SELF_APPROVE', 'Nie możesz zaakceptować ani odrzucić własnego koszyka.'],
+    ['en-US', 'ORGANIZATION_PERMISSION_REQUIRED', 'Your role does not allow approving or rejecting carts.'],
+    ['pl-PL', 'ORGANIZATION_PERMISSION_REQUIRED', 'Twoja rola nie pozwala akceptować ani odrzucać koszyków.'],
+  ])('names the feature-170 refusal in %s (%s)', async (l, error, sentence) => {
+    locale = l;
+    const html = await render({ error });
+    expect(html).toContain(sentence);
+    expect(html).toContain('role="alert"');
   });
 
   it('renders in Polish with no English left in the decision', async () => {

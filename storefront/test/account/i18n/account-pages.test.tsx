@@ -10,11 +10,17 @@ import { POLISH_DIACRITIC, visibleText } from './text';
  * Issue #85 — the account shell and the organization pages render the shop's
  * language: the sidebar, the profile (role and organization status were codes
  * until now), the password, preferences and newsletter pages, both address
- * books, the members, carts and cart-approval pages, and the credit-limit
- * widget's counted sentence, in `en-US` and `pl-PL`.
+ * books, the members and carts pages, and the credit-limit widget's counted
+ * sentence, in `en-US` and `pl-PL`.
+ *
+ * Feature 170 (FR-056, FR-058) — the role is the member's organization role,
+ * named by the API in the page's language, and the profile lists what it
+ * allows. The cart-approval policy page is gone (OR-3): approval follows the
+ * role.
  */
 
 let locale = 'en-US';
+let ownPermissions: Array<{ code: string; label: string; description: string }> = [];
 
 const me: MeResult = {
   customerAccount: {
@@ -23,7 +29,8 @@ const me: MeResult = {
     email: 'anna@example.com',
     firstName: 'Anna',
     lastName: 'Nowak',
-    role: 'organization_admin',
+    organizationRole: { id: '00000000-0000-4000-8000-0000000000a1', kind: 'administrator', name: 'Administrator' },
+    permissions: ['carts.create', 'carts.approve'],
     emailVerifiedAt: '2026-01-01T00:00:00.000Z',
     twoFactorEnabled: false,
   },
@@ -33,6 +40,7 @@ const me: MeResult = {
     taxId: '1234567890',
     status: 'active',
     vatStatus: 'vat_payer',
+    isPersonal: false,
     registeredAddress: { street: 'Main 1', city: 'Gdańsk', postalCode: '80-001', country: 'PL' },
   },
   impersonation: null,
@@ -87,14 +95,28 @@ vi.mock('../../../lib/api/organization', () => ({
   createAddress: async () => undefined,
   deleteAddress: async () => undefined,
   listMembers: async () => [
-    { id: 'acc-2', firstName: 'Jan', lastName: 'Kowalski', email: 'jan@example.com', role: 'regular_user' },
+    {
+      id: 'acc-2',
+      firstName: 'Jan',
+      lastName: 'Kowalski',
+      email: 'jan@example.com',
+      organizationRole: { id: '00000000-0000-4000-8000-0000000000b1', kind: 'member', name: locale === 'pl-PL' ? 'Członek' : 'Member' },
+    },
   ],
+  listRoles: async () => [
+    { id: '00000000-0000-4000-8000-0000000000a1', kind: 'administrator', name: 'Administrator', permissions: [] },
+    { id: '00000000-0000-4000-8000-0000000000b1', kind: 'member', name: locale === 'pl-PL' ? 'Członek' : 'Member', permissions: [] },
+  ],
+  getMyRole: async () => ({
+    role: { id: '00000000-0000-4000-8000-0000000000a1', kind: 'administrator', name: 'Administrator' },
+    permissions: ownPermissions,
+  }),
   listPendingInvitations: async () => [
     {
       id: 'inv-1',
       organizationId: 'org-1',
       email: 'ola@example.com',
-      role: 'organization_admin',
+      organizationRole: { id: '00000000-0000-4000-8000-0000000000a1', kind: 'administrator', name: 'Administrator' },
       invitedByCustomerAccountId: null,
       expiresAt: '2026-11-10T00:00:00.000Z',
       createdAt: '2026-11-01T00:00:00.000Z',
@@ -122,7 +144,6 @@ vi.mock('../../../lib/api/cart', () => ({
     ],
     meta: { page: 1, pageSize: 20, totalCount: 1 },
   }),
-  setCartApprovalPolicy: async () => undefined,
 }));
 vi.mock('../../../lib/api/methods', () => ({
   listPaymentMethods: async () => [],
@@ -157,26 +178,42 @@ describe('account shell — the shop language (issue #85)', () => {
     const { en, pl } = await both(() => Layout({ children: null }));
     // The links sit side by side with no text between them.
     expect(en).toContain('ProfileMy addressesChange passwordOrdersReturnsQuote requestsShopping lists');
-    expect(en).toContain('OrganizationOrg addressesMembers');
+    expect(en).toContain('OrganizationOrg addressesMembersRolesCarts to approve (1)');
     expect(en).not.toMatch(POLISH_DIACRITIC);
     expect(pl).toContain('ProfilMoje adresyZmień hasłoZamówieniaZwrotyZapytania ofertoweListy zakupów');
-    expect(pl).toContain('OrganizacjaAdresy organizacjiCzłonkowie');
+    expect(pl).toContain('OrganizacjaAdresy organizacjiCzłonkowieRoleKoszyki do akceptacji (1)');
     expect(en).toContain('Sign out');
     expect(pl).toContain('Wyloguj się');
   });
 
   it('renders the profile, with the role and the two-factor state as words', async () => {
+    ownPermissions = [
+      { code: 'carts.create', label: 'Create and edit carts', description: 'Add products to a cart.' },
+      { code: 'carts.approve', label: "Approve and reject colleagues' carts", description: 'Answer carts sent for approval.' },
+    ];
     const { default: Page } = await import('../../../app/(account)/account/page');
     const { en, pl } = await both(() => Page({ searchParams: Promise.resolve({}) }));
     expect(en).toContain('Your profile');
-    expect(en).toContain('Role Organization Admin');
+    expect(en).toContain('Role Administrator');
+    expect(en).toContain('What your role allows');
+    expect(en).toContain('Create and edit carts — Add products to a cart.');
+    expect(en).toContain("Approve and reject colleagues' carts — Answer carts sent for approval.");
     expect(en).toContain('Two-step verification Disabled');
     expect(en).toContain('(verified)');
     expect(en).not.toMatch(POLISH_DIACRITIC);
     expect(pl).toContain('Twój profil');
-    expect(pl).toContain('Rola Administrator organizacji');
+    expect(pl).toContain('Rola Administrator');
+    expect(pl).toContain('Na co pozwala Twoja rola');
     expect(pl).toContain('Weryfikacja dwuetapowa Wyłączone');
     expect(pl).toContain('(zweryfikowany)');
+  });
+
+  it('says so when the role allows none of the organization’s actions (FR-058)', async () => {
+    ownPermissions = [];
+    const { default: Page } = await import('../../../app/(account)/account/page');
+    const { en, pl } = await both(() => Page({ searchParams: Promise.resolve({}) }));
+    expect(en).toContain('Your role does not allow any of the actions an organization can grant.');
+    expect(pl).toContain('Twoja rola nie pozwala na żadne z działań, które organizacja może przyznać.');
   });
 
   it('renders the password page in both languages', async () => {
@@ -272,7 +309,7 @@ describe('organization pages — the shop language (issue #85)', () => {
     expect(en).not.toMatch(POLISH_DIACRITIC);
     expect(pl).toContain('Wysłano zaproszenie na adres ola@example.com.');
     expect(pl).toContain('Imię i nazwisko E-mail Rola Działania');
-    expect(pl).toContain('Użytkownik');
+    expect(pl).toContain('Członek');
     expect(pl).toContain('Oczekujące zaproszenia');
     expect(pl).toContain('Wyślij zaproszenie');
   });
@@ -288,19 +325,6 @@ describe('organization pages — the shop language (issue #85)', () => {
     expect(pl).toContain('Wszystkie koszyki organizacji Acme');
     expect(pl).toContain('Aktywny Oczekuje na akceptację');
     expect(pl).toContain('Oczekujące na akceptację');
-  });
-
-  it('renders the cart-approval policy in both languages', async () => {
-    const { default: Page } = await import('../../../app/(account)/organization/settings/cart-approval/page');
-    const { en, pl } = await both(() => Page({ searchParams: Promise.resolve({ ok: 'on' }) }));
-    expect(en).toContain('Cart approval policy');
-    expect(en).toContain('ordinary members of Acme must submit their cart');
-    expect(en).toContain('Policy turned on.');
-    expect(en).toContain('Require cart approval');
-    expect(pl).toContain('Zasada akceptacji koszyków');
-    expect(pl).toContain('zwykli członkowie organizacji Acme');
-    expect(pl).toContain('Zasada została włączona.');
-    expect(pl).toContain('Wymagaj akceptacji koszyków');
   });
 });
 
