@@ -28,7 +28,8 @@ Admin routes are gated by `orders:read` (read) / `orders:write` (mutations).
 
 A buyer sees the orders they placed. Every other order of their Organization —
 in the list, on its detail page, and in every action that reads an order as
-its source (reorder, clone to a quote request, its invoices) — needs the
+its source (reorder, clone to a quote request, starting a return or a complaint
+from it, its invoices) — needs the
 organization permission **View the organization's orders**
 (`orders.view_organization`), which this module declares:
 
@@ -41,8 +42,11 @@ organization permission **View the organization's orders**
 Without the permission a colleague's order answers `404`, exactly as an order
 of another Organization does, never `403`. With it the reach is the
 Organization; a head-office login with roll-up enabled reaches its subtree as
-well — roll-up widens the reach, it never grants the permission. Returns are
-not widened: a return is started by the buyer who placed the order.
+well — roll-up widens the reach, it never grants the permission.
+
+Starting a return or a complaint from a colleague's order also needs the
+`returns` module's **Create returns and complaints** (`returns.create`); the case
+is filed in the name of the member who starts it (see the `returns` page).
 
 ## Which sales channel an order records
 
@@ -872,7 +876,8 @@ payment e-mail renderer registry (`payments/services/payment-email-renderer.ts`)
   enforces the buyer's order scope (own orders, or the Organization's with
   `orders.view_organization`, asked of `organizationPermissionPort`); the list,
   the detail, reorder, clone to a quote request and
-  `OrderReadPort.findByIdForCustomer` all go through it.
+  `OrderReadPort.findByIdForCustomer` all go through it. `invoices` and
+  `returns` reach it through that port.
 - **Panels on the order screen** — the admin zone `order.detail.after` is
   mounted once at the end of an order's screen, below its tabs, and hands a
   contribution `{ orderId }`. A module adds a panel by declaring
