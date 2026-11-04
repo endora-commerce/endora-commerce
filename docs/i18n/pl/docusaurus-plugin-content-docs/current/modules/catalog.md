@@ -97,7 +97,7 @@ niczego nie zmienia — bez wpisu audytu i bez zdarzenia.
 - **Strona produktu.** Strona zarchiwizowanego produktu odpowiada `410 PRODUCT_ARCHIVED`
   („usunięty”), ale tylko kupującemu, który w przeciwnym razie mógłby go tam zobaczyć:
   sprawdzenie pomija archiwizację i czyta status globalny jako `active`, a wszystkie statusy
-  kanału i pary kanał × język, przynależność do kanału, języki kanału, okno publikacji i
+  kanału i pary kanał × język, przynależność do kanału, języki kanału, okres publikacji i
   odbiorcy nadal obowiązują. Wszędzie indziej, a także dla każdego produktu wyłączonego bez
   archiwizacji, strona odpowiada `404` dokładnie tak jak dla produktu, który nie istnieje.
 - **Lista w panelu.** Zarchiwizowane produkty są domyślnie ukryte niezależnie od statusu;
@@ -151,9 +151,9 @@ dzieje, gdy czegoś brakuje:
   `completeness_gate`.
 
 Sprawdzana jest wyłącznie zmiana statusu. Produkt, który staje się dostępny, bo
-dołącza do kanału, kanał zyskuje język, otwiera się jego okno publikacji, zmienia się
+dołącza do kanału, kanał zyskuje język, zaczyna się jego okres publikacji, zmienia się
 jego grupa odbiorców albo zostaje przywrócony z archiwum, nie jest sprawdzany — braki w
-każdym kanale i języku pokazuje wtedy **przegląd zakresów** w edytorze produktu.
+każdym kanale i języku pokazuje wtedy **mapa zakresów** w edytorze produktu.
 Ustawienie `active` dla zarchiwizowanego produktu jest sprawdzane jak każda zmiana
 statusu, choć produkt pozostaje zarchiwizowany. Importy, synchronizacja z PIM i upsert
 przez klucz API nigdy nie są sprawdzane.

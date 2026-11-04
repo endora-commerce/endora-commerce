@@ -107,7 +107,28 @@ describe('the scope map switches the editor scope (feature 170, US12)', () => {
   it('a reset keeps working beside the links (FR-101)', async () => {
     renderEditor(ProductEditor, { url: SCOPES_TAB });
     const table = await map();
-    fireEvent.click(within(table).getByRole('button', { name: /^Use inherited for .* in Retail PL$/ }));
+    fireEvent.click(within(table).getByRole('button', { name: /^Use value from Global for .* in Retail PL$/ }));
     await waitFor(() => expect(api.patch).toHaveBeenCalledWith(`${BASE}/scopes`, expect.anything()));
+  });
+
+  // Owner decision 2026-11-04: one name per place. The tab and the table are the "Scope map", and a
+  // reset names the scope the value then comes from: Global for a channel, the channel for a cell.
+  it('the tab and the table are the Scope map; a reset names the scope the value comes from', async () => {
+    renderEditor(ProductEditor, { url: SCOPES_TAB });
+    const table = await screen.findByRole('table', { name: 'Scope map' });
+    expect(screen.getByRole('tab', { name: 'Scope map' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByText(/Scope overview|Use inherited/)).toBeNull();
+    const channelReset = within(table).getByRole('button', { name: /^Use value from Global for .* in Retail PL$/ });
+    expect(channelReset).toHaveTextContent('Use value from Global');
+    const cellReset = within(table).getByRole('button', {
+      name: `Use value from Retail PL for ${en['productEditor.scopeOverview.field.urlKey']} in Retail PL · PL-PL`,
+    });
+    expect(cellReset).toHaveTextContent('Use value from Retail PL');
+    fireEvent.click(cellReset);
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveAccessibleName(
+      `Use value from Retail PL for ${en['productEditor.scopeOverview.field.urlKey']} in Retail PL · PL-PL?`,
+    );
+    expect(within(dialog).getByRole('button', { name: 'Use value from Retail PL' })).toBeInTheDocument();
   });
 });

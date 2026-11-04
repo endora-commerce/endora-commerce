@@ -24,7 +24,7 @@ sprzedaje w jednym języku. Wartość pochodzi z najwęższego poziomu, który j
 | Pozostałe atrybuty zakresowe (liczby, listy wyboru, wartości logiczne) | tak | tak | — |
 | Atrybuty nieoznaczone jako zakresowe | tak | — | — |
 | Status | tak | tak | tak |
-| Okno publikacji, odbiorcy, minimalna ilość zamówienia, możliwość zwrotu | tak | tak | — |
+| Okres publikacji, odbiorcy, minimalna ilość zamówienia, możliwość zwrotu | tak | tak | — |
 | Klucz URL | tak | tak | tak |
 | Tekst alternatywny w galerii, ukrycie zdjęcia, role w galerii | tak | tak | tak |
 | Nazwa, opis i ukrycie załącznika | tak | tak | tak |
@@ -74,7 +74,7 @@ i puste pole wymagane są odrzucane kodem `SCOPED_VALUE_INVALID`.
 ## Kanały, z których produkt znika
 
 Wartość zapisana dla kanału, w którym produkt nie jest już sprzedawany, albo dla języka, którego kanał już nie
-oferuje, zostaje zachowana, ale jest pomijana. Przegląd zakresów pokazuje takie wiersze, aby można je było usunąć;
+oferuje, zostaje zachowana, ale jest pomijana. Mapa zakresów pokazuje takie wiersze, aby można je było usunąć;
 zaczynają znów obowiązywać, gdy produkt wróci do tego kanału lub języka.
 
 ## Duplikowanie produktu

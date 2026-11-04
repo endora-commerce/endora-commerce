@@ -74,7 +74,7 @@ empty required field are refused with `SCOPED_VALUE_INVALID`.
 ## Channels a product leaves
 
 A value stored for a channel the product is no longer sold on, or for a language the channel no longer offers, is
-kept but ignored. The scope overview lists such rows so they can be removed; they come back into effect if the
+kept but ignored. The scope map lists such rows so they can be removed; they come back into effect if the
 product returns to that channel or language.
 
 ## Duplicating a product

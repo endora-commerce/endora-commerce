@@ -124,6 +124,8 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
     request: ScopeFieldRequest;
     field: string;
     scope: string;
+    /** A reset's source once done: Global for a channel, the channel for a cell (`''` for a delete). */
+    parent: string;
   } | null>(null);
 
   useEffect(() => {
@@ -207,11 +209,11 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
   );
 
   /** Every reset passes here: a text value asks first (UX-1 = A), anything else is one click. */
-  const reset = (request: ScopeFieldRequest | null, field: string, scope: string): void => {
+  const reset = (request: ScopeFieldRequest | null, field: string, scope: string, parent: string): void => {
     if (!request) return;
     if (isTextField(field)) {
       dialogFinalFocus.current = null;
-      setConfirming({ kind: 'reset', request, field, scope });
+      setConfirming({ kind: 'reset', request, field, scope, parent });
       return;
     }
     void run(request, 'productEditor.scopeOverview.resetDone');
@@ -314,6 +316,7 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
             <tbody>
               {overview.channels.map((channel) => {
                 const name = pickLocalized(channel.name, language);
+                const globalName = t('productEditor.scope.global');
                 const rowFields =
                   overview.channelRows.find((r) => r.channelId === channel.channelId)?.overriddenFields ?? [];
                 return (
@@ -348,10 +351,15 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
                               : null
                           }
                           resetLabel={(field): string =>
-                            t('productEditor.scopeOverview.resetAria', { field: fieldLabel(field), scope: name })
+                            t('productEditor.scopeOverview.resetAria', {
+                              field: fieldLabel(field),
+                              scope: name,
+                              parent: globalName,
+                            })
                           }
+                          parent={globalName}
                           busy={busy}
-                          onReset={(request, field): void => reset(request, field, name)}
+                          onReset={(request, field): void => reset(request, field, name, globalName)}
                           t={t}
                         />
                       ) : (
@@ -370,11 +378,12 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
                             <OverviewCell
                               cell={cell}
                               scopeName={scopeName}
+                              channelName={name}
                               links={links}
                               canWrite={canWrite}
                               busy={busy}
                               fieldLabel={fieldLabel}
-                              onReset={(request, field): void => reset(request, field, scopeName)}
+                              onReset={(request, field): void => reset(request, field, scopeName, name)}
                               t={t}
                             />
                           ) : (
@@ -420,6 +429,7 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
                       request,
                       field: orphan.field,
                       scope: orphanScope(orphan, channelName),
+                      parent: '',
                     });
                   }}
                   t={t}
@@ -436,7 +446,7 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
             confirming.kind === 'reset'
               ? 'productEditor.scopeOverview.confirmReset.title'
               : 'productEditor.scopeOverview.confirmDelete.title',
-            { field: fieldLabel(confirming.field), scope: confirming.scope },
+            { field: fieldLabel(confirming.field), scope: confirming.scope, parent: confirming.parent },
           )}
           aria-describedby={confirmBodyId}
           busy={busy}
@@ -465,6 +475,7 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
                   confirming.kind === 'reset'
                     ? 'productEditor.scopeOverview.reset'
                     : 'productEditor.scopeOverview.orphans.delete',
+                  { parent: confirming.parent },
                 )}
               </Button>
             </>
@@ -475,7 +486,7 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
               confirming.kind === 'reset'
                 ? 'productEditor.scopeOverview.confirmReset.body'
                 : 'productEditor.scopeOverview.confirmDelete.body',
-              { field: fieldLabel(confirming.field), scope: confirming.scope },
+              { field: fieldLabel(confirming.field), scope: confirming.scope, parent: confirming.parent },
             )}
           </p>
         </ModalDialog>
@@ -505,6 +516,7 @@ const STATUS_SOURCE_KEYS: Record<ScopeOverviewCell['statusSource'], string> = {
 function OverviewCell({
   cell,
   scopeName,
+  channelName,
   links,
   canWrite,
   busy,
@@ -514,6 +526,8 @@ function OverviewCell({
 }: {
   cell: ScopeOverviewCell;
   scopeName: string;
+  /** A cell's value comes from its channel once reset. */
+  channelName: string;
   links?: ScopeMapLinks | undefined;
   canWrite: boolean;
   busy: boolean;
@@ -564,7 +578,12 @@ function OverviewCell({
                 </span>
                 {request ? (
                   <ResetButton
-                    label={t('productEditor.scopeOverview.resetAria', { field: fieldLabel(field), scope: scopeName })}
+                    label={t('productEditor.scopeOverview.resetAria', {
+                      field: fieldLabel(field),
+                      scope: scopeName,
+                      parent: channelName,
+                    })}
+                    parent={channelName}
                     busy={busy}
                     onClick={(): void => onReset(request, field)}
                     t={t}
@@ -592,6 +611,7 @@ function FieldList({
   fieldLabel,
   resetFor,
   resetLabel,
+  parent,
   busy,
   onReset,
   t,
@@ -600,6 +620,7 @@ function FieldList({
   fieldLabel: (field: string) => string;
   resetFor: (field: string) => ScopeFieldRequest | null;
   resetLabel: (field: string) => string;
+  parent: string;
   busy: boolean;
   onReset: (request: ScopeFieldRequest | null, field: string) => void;
   t: Translate;
@@ -612,7 +633,13 @@ function FieldList({
           <li key={field} className="b2b-row" style={{ gap: 8, alignItems: 'center' }}>
             <span>{fieldLabel(field)}</span>
             {request ? (
-              <ResetButton label={resetLabel(field)} busy={busy} onClick={(): void => onReset(request, field)} t={t} />
+              <ResetButton
+                label={resetLabel(field)}
+                parent={parent}
+                busy={busy}
+                onClick={(): void => onReset(request, field)}
+                t={t}
+              />
             ) : null}
           </li>
         );
@@ -623,11 +650,13 @@ function FieldList({
 
 function ResetButton({
   label,
+  parent,
   busy,
   onClick,
   t,
 }: {
   label: string;
+  parent: string;
   busy: boolean;
   onClick: () => void;
   t: Translate;
@@ -644,7 +673,7 @@ function ResetButton({
       onClick={onClick}
       style={{ minHeight: 24, minWidth: 24 }}
     >
-      <RotateCcw size={12} aria-hidden="true" /> {t('productEditor.scopeOverview.reset')}
+      <RotateCcw size={12} aria-hidden="true" /> {t('productEditor.scopeOverview.reset', { parent })}
     </Button>
   );
 }

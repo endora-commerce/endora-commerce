@@ -84,7 +84,7 @@ z `{ "op": "empty" }`), pozostaje wartością, gdy konektor wysyła ją wewnątr
 `catalogProductScopeWritePort` przyjmuje: `name`, `description`, `attribute:<key>` (atrybuty
 z zestawu atrybutów produktu, sprawdzane według typu wartości i poziomów),
 `gallery:<itemId>:altText`, `attachment:<id>:name` i `:description`, `packagingUnit:<id>:name`,
-`urlKey`, `status` oraz okno publikacji `window`. Status, okno publikacji i klucz URL przechodzą
+`urlKey`, `status` oraz okres publikacji `window`. Status, okres publikacji i klucz URL przechodzą
 tę samą walidację i tę samą bramkę kompletności co edytor.
 
 Odrzuca z kodem `not_supported`: `audience`, `product.*`, `seo:*`, `galleryRole:*`, `*:hidden`,

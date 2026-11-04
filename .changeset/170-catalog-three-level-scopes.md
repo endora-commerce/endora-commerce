@@ -15,3 +15,4 @@
 - **Products import.** A re-imported unchanged file writes nothing (FR-114); a cell that writes what the scope already holds is dropped.
 - `editor-preference` without a resolved admin answers `403 FORBIDDEN`.
 - `POST /api/v1/admin/catalog/products/:id/duplicate` writes one audit entry, the `product.duplicate` Command's (it names `sourceProductId`, `sku` and what was copied); the second, route-level entry is gone.
+- **One vocabulary in the editor, en + pl.** The product's scope overview tab and table are the **Scope map** (`Mapa zakresów`), the publication window is `Okres publikacji` in Polish everywhere, and a reset on the Scope map reads "Use value from <scope>" naming the scope the value then comes from (Global for a channel, the channel for a channel and language). The `productEditor.scopeOverview.reset`, `resetAria`, `confirmReset.title` and `confirmReset.body` values take a new `{parent}` parameter.

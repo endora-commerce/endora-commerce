@@ -147,7 +147,7 @@ decides what happens when something is missing:
 
 Only a status change is checked. A product that goes live because it joins a channel,
 a channel gains a language, its publication window opens, its audience changes, or it
-is restored is not checked; the **scope overview** of the product editor shows what is
+is restored is not checked; the **scope map** of the product editor shows what is
 missing at every channel and language instead. Setting an archived product `active` is
 checked like any status change, although the product stays archived. Imports, PIM
 synchronisation and the API-key upsert are never checked.

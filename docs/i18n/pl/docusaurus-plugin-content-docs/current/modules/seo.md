@@ -632,7 +632,7 @@ danego języka.
 Trasa publiczna (`GET /catalog/sitemap.xml`) zwraca treść z pamięci podręcznej; gdy wiersz jest
 starszy niż `staleAfterMs` (domyślnie 6 h), mapa jest generowana od razu w trakcie żądania. Zmiana
 produktu, która wpływa na zawartość mapy — jego status (globalny, w kanale lub w kanale i języku),
-archiwizacja, okno publikacji (również chwila, w której okno się otwiera lub zamyka), grupa
+archiwizacja, okres publikacji (również chwila, w której ten okres się zaczyna lub kończy), grupa
 odbiorców (globalna lub kanału) albo klucze URL — oznacza
 mapy wszystkich kanałów w pamięci podręcznej jako nieaktualne, więc następne żądanie buduje je od
 nowa. Odpowiedź ma nagłówek `Cache-Control: public, max-age=3600`, więc poprawnie działające CDN

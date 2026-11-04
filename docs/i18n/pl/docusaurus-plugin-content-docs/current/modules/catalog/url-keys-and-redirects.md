@@ -124,7 +124,7 @@ których każda ma zakres (`{}`, `{ channelId }` albo `{ channelId, languageCode
 wartość w kodowaniu zapisu — brak wartości oznacza brak zmiany, `null` celowo pustą wartość, a
 `{ "inherit": true }` usunięcie własnej wartości. Konektor może zapisać nazwę, opis, wartości
 atrybutów, tekst alternatywny obrazu w galerii, nazwy i opisy załączników, nazwy jednostek
-opakowania, status, okno publikacji i klucz URL. Każde inne pole — grupa odbiorców, pola produktu
+opakowania, status, okres publikacji i klucz URL. Każde inne pole — grupa odbiorców, pola produktu
 wyłącznie globalne, SEO, role obrazów w galerii, flagi ukrycia, minimalna ilość zamówienia i
 możliwość zwrotu — jest odrzucane w danej komórce z kodem `not_supported`; reszta wywołania jest
 mimo to stosowana. Jak języki z PIM stają się zakresami, określa mapowanie w profilu importu,
