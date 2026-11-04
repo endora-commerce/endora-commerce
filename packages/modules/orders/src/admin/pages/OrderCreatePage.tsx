@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Copy, Info, Split, Trash2 } from 'lucide-react';
-import type { AdminOrderPreviewMessageCode } from '@endora-commerce/contracts';
+import type {
+  AdminOrderPreviewMessageCode,
+  OrganizationSalesChannelOption,
+  OrganizationSalesChannelsResponse,
+} from '@endora-commerce/contracts';
 import {
   ApiError,
   apiClient,
@@ -132,13 +136,6 @@ function productLine(item: ProductBrowserItem, groupKey: string | null, key: str
   };
 }
 
-interface SalesChannelSummary {
-  id: string;
-  code: string;
-  name: Record<string, string>;
-  active: boolean;
-}
-
 interface MethodSummary {
   id: string;
   code: string;
@@ -168,6 +165,29 @@ export function methodsOfferedInChannel<M extends { salesChannelIds?: string[] }
   });
 }
 
+/**
+ * Issue #515 — the channels an operator may place the customer's order on:
+ * exactly the set the API accepts (`POST /api/v1/admin/orders` refuses anything
+ * else with `422 ORDER_SALES_CHANNEL_NOT_ALLOWED`), the customer's
+ * Organization's own active channels. Never another active channel, nor the
+ * system default: an Organization with no active channel of its own gets an
+ * empty list, and the screen says so and sends nothing.
+ *
+ * The preselection is the channel the page was opened with when it is one of
+ * them, else the only choice when there is one, else none — the operator
+ * chooses. A channel handed over in the link that is not allowed is dropped
+ * rather than sent blind.
+ */
+export function orderChannelChoices(
+  assignment: Pick<OrganizationSalesChannelsResponse['data'], 'assignedSalesChannelIds' | 'options'>,
+  requested: string,
+): { options: OrganizationSalesChannelOption[]; preselected: string } {
+  const assigned = new Set(assignment.assignedSalesChannelIds);
+  const options = assignment.options.filter((c) => c.active && assigned.has(c.id));
+  if (requested && options.some((c) => c.id === requested)) return { options, preselected: requested };
+  return { options, preselected: options.length === 1 ? options[0]!.id : '' };
+}
+
 function toMethodOptions(methods: readonly MethodSummary[]): ComboboxOption<string>[] {
   return methods.map((m) => ({
     value: m.id,
@@ -188,6 +208,8 @@ interface AdminCustomerListItem {
   firstName: string;
   lastName: string;
   organizationName: string | null;
+  /** The customer's Organization — whose channels the order may be placed on (issue #515). */
+  organizationId?: string | null;
 }
 
 interface AddressSummary {
@@ -340,6 +362,11 @@ function CustomerPicker(props: {
   onChange: (next: string | null) => void;
   /** Narrows the search to one organization's customers, and offers them at once. */
   organizationId?: string;
+  /**
+   * The chosen customer's Organization, once its row is known — `''` while it
+   * is not (issue #515: the order's channels are that Organization's).
+   */
+  onOrganizationChange: (organizationId: string) => void;
 }): ReactNode {
   const t = useTranslation('core');
   const [options, setOptions] = useState<ComboboxOption<string>[]>([]);
@@ -424,6 +451,11 @@ function CustomerPicker(props: {
   );
 
   const selected = props.value ? cache.get(props.value) : undefined;
+  const selectedOrganizationId = selected?.organizationId ?? '';
+  const { onOrganizationChange } = props;
+  useEffect(() => {
+    onOrganizationChange(selectedOrganizationId);
+  }, [selectedOrganizationId, onOrganizationChange]);
 
   return (
     <Combobox<string>
@@ -588,7 +620,12 @@ export function OrderCreatePage(): ReactNode {
   const [openedWith] = useState(() => readOpenedWith(searchParams));
 
   const [customerAccountId, setCustomerAccountId] = useState(openedWith.customerAccountId);
-  const [salesChannelId, setSalesChannelId] = useState(openedWith.salesChannelId);
+  const [organizationId, setOrganizationId] = useState('');
+  // Issue #515 — the order's channel, chosen among the customer's
+  // Organization's active channels once they are read. Until they are, no
+  // channel is chosen: not even the one the link named, which is kept only if
+  // it is one of them.
+  const [salesChannelId, setSalesChannelId] = useState('');
   const [deliveryMethodId, setDeliveryMethodId] = useState('');
   const [paymentMethodId, setPaymentMethodId] = useState('');
   const [deliveryChoice, setDeliveryChoice] = useState<AddressChoice>({ mode: 'existing', id: '' });
@@ -623,6 +660,10 @@ export function OrderCreatePage(): ReactNode {
   // The address the page chose by itself for a customer it was opened with —
   // a selection nobody made is not a draft to warn about.
   const arrivedAddressId = useRef('');
+  // The same for the channel: the one the page chose (from the link, or the
+  // only one offered), so dropping a link's channel that is not allowed is not
+  // a change the operator made either.
+  const arrivedChannelId = useRef('');
   const addressIsDraft = (c: AddressChoice): boolean =>
     addressHasContent(c) && !(c.mode === 'existing' && c.id === arrivedAddressId.current);
 
@@ -631,7 +672,7 @@ export function OrderCreatePage(): ReactNode {
   const dirty =
     !submitted &&
     (customerAccountId !== openedWith.customerAccountId ||
-      salesChannelId !== openedWith.salesChannelId ||
+      salesChannelId !== arrivedChannelId.current ||
       deliveryMethodId !== '' ||
       paymentMethodId !== '' ||
       customerNote !== '' ||
@@ -641,8 +682,56 @@ export function OrderCreatePage(): ReactNode {
       groups.length > 0);
   useUnsavedChangesPrompt(dirty);
 
-  // Static reference lists, loaded once on mount.
-  const [channelOptions, setChannelOptions] = useState<ComboboxOption<string>[]>([]);
+  // Issue #515 — the customer's Organization's channels. `null` while there is
+  // no Organization or its channels are being read; empty when it has no
+  // active channel, which the screen says, sending nothing. A failed read says
+  // so with a retry, and nothing is sent either: the server would only refuse.
+  const [channelChoices, setChannelChoices] = useState<OrganizationSalesChannelOption[] | null>(null);
+  const [channelsLoading, setChannelsLoading] = useState(false);
+  const [channelsFailed, setChannelsFailed] = useState(false);
+  const [channelsAttempt, setChannelsAttempt] = useState(0);
+  const channelsReadFor = useRef('');
+  useEffect(() => {
+    // A retry keeps the failure on screen until it is answered; a new Organization starts afresh.
+    if (channelsReadFor.current !== organizationId) {
+      channelsReadFor.current = organizationId;
+      setChannelsFailed(false);
+    }
+    setChannelChoices(null);
+    setSalesChannelId('');
+    arrivedChannelId.current = '';
+    setChannelsLoading(Boolean(organizationId));
+    if (!organizationId) return undefined;
+    let alive = true;
+    void apiClient
+      .get<OrganizationSalesChannelsResponse>(`/api/v1/admin/organizations/${organizationId}/sales-channels`)
+      .then((res) => {
+        if (!alive) return;
+        if (!Array.isArray(res.data?.options)) {
+          setChannelsFailed(true);
+          return;
+        }
+        const { options, preselected } = orderChannelChoices(res.data, openedWith.salesChannelId);
+        setChannelsFailed(false);
+        setChannelChoices(options);
+        arrivedChannelId.current = preselected;
+        setSalesChannelId(preselected);
+      })
+      .catch(() => {
+        if (alive) setChannelsFailed(true);
+      })
+      .finally(() => {
+        if (alive) setChannelsLoading(false);
+      });
+    return (): void => {
+      alive = false;
+    };
+  }, [organizationId, channelsAttempt, openedWith.salesChannelId]);
+  const channelOptions = useMemo<ComboboxOption<string>[]>(
+    () =>
+      (channelChoices ?? []).map((c) => ({ value: c.id, label: pickName(c.name, c.code), description: c.code })),
+    [channelChoices],
+  );
   // The active methods as loaded; the two selects offer the ones the chosen
   // channel offers, so the lists follow the channel select.
   const [paymentMethods, setPaymentMethods] = useState<MethodSummary[]>([]);
@@ -682,21 +771,11 @@ export function OrderCreatePage(): ReactNode {
     let alive = true;
     void (async (): Promise<void> => {
       try {
-        const [channels, payments, deliveries] = await Promise.all([
-          apiClient.get<{ items: SalesChannelSummary[] }>(
-            '/api/v1/admin/sales-channels?pageSize=100&activeOnly=true',
-          ),
+        const [payments, deliveries] = await Promise.all([
           apiClient.get<{ data: MethodSummary[] }>('/api/v1/admin/payment-methods'),
           apiClient.get<{ data: MethodSummary[] }>('/api/v1/admin/delivery-methods'),
         ]);
         if (!alive) return;
-        setChannelOptions(
-          channels.items.map((c) => ({
-            value: c.id,
-            label: pickName(c.name, c.code),
-            description: c.code,
-          })),
-        );
         setPaymentMethods(payments.data.filter((m) => m.status === 'active'));
         setDeliveryMethods(deliveries.data.filter((m) => m.status === 'active'));
       } catch (err) {
@@ -964,7 +1043,10 @@ export function OrderCreatePage(): ReactNode {
   // Items and Order summary need the two inputs pricing needs (FR-021);
   // payment, delivery and addresses do not gate them.
   const canPrice = customerAccountId !== '' && salesChannelId !== '';
-  const gateHint = canPrice
+  // With the Organization's channels unreadable, or none of them active, the
+  // alert beside the field says why; "choose a sales channel" would be wrong.
+  const channelBlocked = channelsFailed || (channelChoices !== null && channelChoices.length === 0);
+  const gateHint = canPrice || (customerAccountId !== '' && channelBlocked)
     ? null
     : customerAccountId === '' && salesChannelId === ''
       ? t('orderCreate.gate.missingBoth')
@@ -1013,14 +1095,51 @@ export function OrderCreatePage(): ReactNode {
               value={customerAccountId === '' ? null : customerAccountId}
               onChange={(next): void => setCustomerAccountId(next ?? '')}
               organizationId={openedWith.organizationId}
+              onOrganizationChange={setOrganizationId}
             />
           </div>
-          {selectField(
-            'salesChannelId',
-            t('orderCreate.field.salesChannel'),
-            salesChannelId,
-            setSalesChannelId,
-            channelOptions,
+          {channelsFailed ? (
+            // Not read, so nothing to offer and nothing sent: said, with a way back.
+            <Alert variant="destructive">
+              <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+                <span>{t('orderCreate.channelsLoadError')}</span>
+                <Button
+                  className="min-h-11 sm:min-h-8"
+                  variant="outline"
+                  size="sm"
+                  disabled={channelsLoading}
+                  onClick={(): void => setChannelsAttempt((n) => n + 1)}
+                >
+                  {t('common.action.retry')}
+                </Button>
+              </AlertDescription>
+            </Alert>
+          ) : channelChoices !== null && channelChoices.length === 0 ? (
+            // Nothing the API would accept: said, never papered over.
+            <Alert variant="destructive">
+              <AlertDescription>{t('orderCreate.noChannelWarning')}</AlertDescription>
+            </Alert>
+          ) : (
+            <div className="space-y-1">
+              <Label htmlFor="salesChannelId">{t('orderCreate.field.salesChannel')}</Label>
+              <Combobox<string>
+                id="salesChannelId"
+                ariaLabel="salesChannelId"
+                options={channelOptions}
+                value={salesChannelId === '' ? null : salesChannelId}
+                onChange={(next): void => setSalesChannelId(next ?? '')}
+                disabled={channelChoices === null}
+                placeholder={t('orderCreate.placeholder.select')}
+                emptyMessage={t('orderCreate.empty.options')}
+              />
+              {channelChoices === null ? (
+                <p className="text-xs text-muted-foreground">
+                  {channelsLoading ? t('orderCreate.loading') : t('orderCreate.address.selectCustomerFirst')}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">{t('orderCreate.hint.salesChannel')}</p>
+              )}
+            </div>
           )}
           {selectField(
             'paymentMethodId',

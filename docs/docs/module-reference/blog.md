@@ -30,6 +30,7 @@ An operator switches this module on and off on **/platform/modules**. The choice
 | Module | Binding | What it means |
 | --- | --- | --- |
 | `admin_roles` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
+| `admin_users` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `assets_library` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `auth` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `catalog` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
@@ -48,6 +49,7 @@ _None._
 | Action | Opens | Permission |
 | --- | --- | --- |
 | `new-post` | `/blog/posts/new` | `blog.write` |
+| `open-blog-addresses` | `/blog/addresses` | `blog.read` |
 | `open-blog-categories` | `/blog/categories` | `blog.read` |
 | `open-blog-posts` | `/blog/posts` | `blog.read` |
 | `open-blog-tags` | `/blog/tags` | `blog.read` |
@@ -61,6 +63,7 @@ _None._
 | `blog.latest_count` | Latest posts on the blog index | `number` |
 | `blog.posts_per_page` | Posts per page in Category and Tag views | `number` |
 | `blog.url_prefix` | Blog URL prefix | `string` |
+| `blog.url_prefix_by_language` | Blog URL prefix per language | `json` |
 
 ## Translations
 

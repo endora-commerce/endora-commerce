@@ -71,6 +71,7 @@ import type { OrderComment } from './entities/order-comment.entity.js';
 import type { OrderReorderService } from './services/order-reorder-service.js';
 import type { OrderCloneToQuoteService } from './services/order-clone-to-quote-service.js';
 import type { OrderCreationAdminService } from './services/order-creation-admin-service.js';
+import { assertChannelAllowedForOrganization } from './services/organization-channel-gate.js';
 import type { CustomerOrderCancellationService } from './services/order-cancellation-service.js';
 import type { PurchaseConversionService } from './services/purchase-conversion-service.js';
 import { Order } from './entities/order.entity.js';
@@ -882,13 +883,6 @@ export async function registerOrderRoutes(
       if (!customer.organizationId) {
         throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'Customer has no organization.');
       }
-      // Exactly the channel the operator chose: it is the one pricing reads and
-      // the one assortment is checked against. A stale id is refused, never
-      // replaced by another active channel (feature 145, research R-7) — a
-      // preview priced on one channel and checked against another answers
-      // neither question.
-      const salesChannel = await em.findOne(SalesChannel, { id: body.salesChannelId });
-      if (!salesChannel) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Sales channel not found.');
       const salesChannelMembership = deps.salesChannelMembership;
       if (!salesChannelMembership) {
         throw new HttpError(
@@ -897,6 +891,23 @@ export async function registerOrderRoutes(
           'Order preview requires the salesChannelMembership port, which is not wired.',
         );
       }
+      // Issue #515 — the refusal creating this order would raise: the channel
+      // must be one of the customer's Organization's active assigned channels.
+      // An unassigned, inactive or nonexistent channel gets the one answer, so
+      // the form is never shown totals for an order it cannot create.
+      await assertChannelAllowedForOrganization(
+        salesChannelMembership,
+        customer.organizationId,
+        body.salesChannelId,
+      );
+      // Exactly the channel the operator chose: it is the one pricing reads and
+      // the one assortment is checked against. A stale id is refused, never
+      // replaced by another active channel (feature 145, research R-7) — a
+      // preview priced on one channel and checked against another answers
+      // neither question. Past the gate above the row exists; the 404 is the
+      // answer to a channel deleted between the two reads.
+      const salesChannel = await em.findOne(SalesChannel, { id: body.salesChannelId });
+      if (!salesChannel) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Sales channel not found.');
       const organization = await deps.organizationDetails.findById(customer.organizationId);
       // The refusal creating this order would raise, so the form is not shown
       // totals for a method the customer's Organization may not use. Only the

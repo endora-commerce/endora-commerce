@@ -16,7 +16,11 @@ import {
   orderEmailNotSent,
   sendOrderTransactionalEmail,
 } from './transactional-email-helper.js';
-import { rethrowIfModuleDisabled, SalesChannel } from '@endora-commerce/platform/kernel';
+import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
+import {
+  assertChannelAllowedForOrganization,
+  type OrganizationChannelsRead,
+} from './organization-channel-gate.js';
 import { assertWithinAdminOrderItemBound } from './request-minimums.js';
 import { planAdminLineGrouping } from '../domain/quote-line-groups.js';
 
@@ -75,6 +79,12 @@ export class OrderCreationAdminService {
     private readonly orderService: OrderService,
     private readonly addressService: AddressServicePort,
     private readonly customerAccountRead: CustomerAccountReadPort,
+    /**
+     * Issue #515 — the customer's Organization's channels, which the order's
+     * channel must be one of. Required, though it may be `undefined` where the
+     * module is composed without the port: `create` then fails closed.
+     */
+    private readonly salesChannelMembership: OrganizationChannelsRead | undefined,
     private readonly mailer?: EmailMailerPort,
     private readonly getTransactionalEmailSender?: () => TransactionalEmailSender | undefined,
   ) {}
@@ -109,17 +119,20 @@ export class OrderCreationAdminService {
     const organizationId = customer.organizationId;
     const customerCtx = { customerAccountId: input.customerAccountId, organizationId };
 
-    // The operator names the order's channel, so it has to be one. Placement
-    // falls back to the system default for a channel it cannot find, which is
-    // right for a storefront request that named none and wrong here: the
-    // order would land on a channel nobody chose. Refused before anything is
-    // written — the customer's basket included.
-    const channel = await em.findOne(
-      SalesChannel,
-      { id: input.salesChannelId },
-      { fields: ['id'] },
+    // The operator names the order's channel, and it has to be one of the
+    // customer's Organization's active assigned channels (issue #515) — the
+    // channels its members may shop on, and the rule the on-behalf quote
+    // request follows. An unassigned, inactive or nonexistent channel is
+    // refused alike with `422 ORDER_SALES_CHANNEL_NOT_ALLOWED`, never replaced
+    // by another: placement falls back to the system default for a channel it
+    // cannot find, which is right for a storefront request that named none and
+    // wrong here. Refused before anything is written — the working basket and
+    // the inline addresses included.
+    await assertChannelAllowedForOrganization(
+      this.salesChannelMembership,
+      organizationId,
+      input.salesChannelId,
     );
-    if (!channel) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Sales channel not found.');
 
     // The customer's Organization allow-lists bind the operator too. Asked
     // here as well as inside `placeOrder`, because this method writes a working

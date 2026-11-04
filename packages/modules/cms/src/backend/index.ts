@@ -33,6 +33,7 @@ import { CmsBlockSeedService } from './services/cms-block-seed-port.js';
 import { storefrontTagsFor } from './services/cms-content-invalidator.js';
 import { CmsPageReadService } from './services/cms-page-read-port.js';
 import { lazyPort, type ModuleContext } from '@endora-commerce/platform/kernel';
+import { CmsReservedSegmentRegistry } from './services/reserved-segment-registry.js';
 import { effectiveState } from '@endora-commerce/platform/kernel';
 import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory, SalesChannelResolutionPort } from '@endora-commerce/platform/kernel';
@@ -180,6 +181,8 @@ export interface CmsCradle {
   readonly resolvedModuleRegistry: ReadonlyArray<{ manifest: ModuleManifest }>;
   readonly cms: CmsResult;
   readonly cmsReferenceRegistry: CmsResult['handle']['referenceRegistry'];
+  /** Feature 171 — first segments other modules serve, per channel. */
+  readonly cmsReservedSegmentRegistry: CmsReservedSegmentRegistry;
   /**
    * Feature 151 — the `fetch` the Page Builder translation calls its model
    * provider with. `undefined` (the platform's `fetch`) everywhere but a test
@@ -460,6 +463,10 @@ export function registerModule(ctx: ModuleContext): void {
         // Feature 167 (FR-040) — every channel's language prefixes and split aliases,
         // asked per save through the kernel's channel port, so a language added to a
         // channel reserves its prefix at once.
+        // Feature 171 — segments another module serves in the page's channels.
+        result.handle.setClaimedSegmentsResolver((salesChannelIds) =>
+          ctx.cradle<CmsCradle>().cmsReservedSegmentRegistry.claimedIn(salesChannelIds),
+        );
         result.handle.setLanguagePrefixesResolver(async () =>
           channelLanguagePrefixes(
             await lazyPort<SalesChannelResolutionPort>(ctx, 'salesChannelResolutionPort').listAll(),
@@ -528,6 +535,13 @@ export function registerModule(ctx: ModuleContext): void {
     cmsReferenceRegistry: ctx
       .asFunction(({ cms }: CmsCradle) => cms.handle.referenceRegistry)
       .singleton(),
+    /**
+     * Feature 171 (research R5) — first segments other modules serve on the
+     * storefront, per channel (the blog's prefixes). An ungated contribution
+     * registry like the one above: a module pushes a contributor from a boot
+     * hook, and a switched-off contributor claims nothing.
+     */
+    cmsReservedSegmentRegistry: ctx.asFunction(() => new CmsReservedSegmentRegistry()).singleton(),
   });
 
   /**

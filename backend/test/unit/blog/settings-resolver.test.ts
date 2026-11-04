@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BlogSettingsResolver } from '../../../../packages/modules/blog/src/backend/services/blog-settings-resolver.js';
 import type { SettingsServicePort } from '../../../../packages/modules/blog/src/backend/services/blog-settings-resolver.js';
-import { HttpError } from '@endora-commerce/platform/http';
 import {
   BLOG_DEFAULT_ENABLED,
   BLOG_DEFAULT_LATEST_COUNT,
@@ -28,6 +27,7 @@ describe('BlogSettingsResolver (T015)', () => {
     expect(out).toEqual({
       enabled: BLOG_DEFAULT_ENABLED,
       urlPrefix: BLOG_DEFAULT_URL_PREFIX,
+      urlPrefixByLanguage: {},
       latestCount: BLOG_DEFAULT_LATEST_COUNT,
       postsPerPage: BLOG_DEFAULT_POSTS_PER_PAGE,
     });
@@ -46,6 +46,7 @@ describe('BlogSettingsResolver (T015)', () => {
     expect(out).toEqual({
       enabled: false,
       urlPrefix: 'aktualnosci',
+      urlPrefixByLanguage: {},
       latestCount: 8,
       postsPerPage: 16,
     });
@@ -75,30 +76,7 @@ describe('BlogSettingsResolver (T015)', () => {
     expect(out.urlPrefix).toBe(BLOG_DEFAULT_URL_PREFIX);
   });
 
-  it('assertValidPrefix accepts blog and aktualnosci', () => {
-    expect(() => BlogSettingsResolver.assertValidPrefix('blog')).not.toThrow();
-    expect(() => BlogSettingsResolver.assertValidPrefix('aktualnosci')).not.toThrow();
-    expect(() => BlogSettingsResolver.assertValidPrefix('a1-b2')).not.toThrow();
-  });
-
-  it('assertValidPrefix refuses empty + uppercase + path-like values', () => {
-    expect(() => BlogSettingsResolver.assertValidPrefix('')).toThrow(HttpError);
-    expect(() => BlogSettingsResolver.assertValidPrefix('Blog')).toThrow(HttpError);
-    expect(() => BlogSettingsResolver.assertValidPrefix('news/posts')).toThrow(HttpError);
-  });
-
-  it('assertValidPrefix refuses reserved Next.js segments', () => {
-    for (const reserved of ['api', '_next', 'manifest.webmanifest', 'sitemap.xml']) {
-      let caught: HttpError | null = null;
-      try {
-        BlogSettingsResolver.assertValidPrefix(reserved);
-      } catch (e) {
-        caught = e as HttpError;
-      }
-      // 'manifest.webmanifest' contains a dot which fails the regex first → 400.
-      // pure-letter reserved values pass the regex and are caught by the
-      // reserved-segment branch → 409.
-      expect(caught).toBeInstanceOf(HttpError);
-    }
-  });
+  // The `blog.url_prefix` write rule moved to `BlogUrlPrefixService.validator()`,
+  // registered with the settings module (feature 171); it is exercised through the
+  // Settings API in `test/integration/blog/url-prefix-validation.test.ts`.
 });

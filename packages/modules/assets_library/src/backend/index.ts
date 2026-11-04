@@ -10,7 +10,7 @@ import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { effectiveState, lazyPort, resolvePublicApiBaseUrl } from '@endora-commerce/platform/kernel';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
-import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory, SettingsReadPort } from '@endora-commerce/platform/kernel';
 import { assetsLibraryModule } from './plugin.js';
 import { AssetReadService } from './services/asset-read-port.js';
 import { ObjectStorageAdapter } from './services/storage/object-storage-port.js';
@@ -70,6 +70,11 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(({ emFactory, auditLogService, commandBus }: AssetsLibraryCradle) =>
         assetsLibraryModule({
           emFactory,
+          // Issue #333 — every `assets.*` setting through the platform's read,
+          // platform-wide, so the value an operator saves in Admin Settings is
+          // the value used. Resolved per call: `settingsReadPort` is kernel-owned
+          // and needs no manifest edge.
+          settings: lazyPort<SettingsReadPort>(ctx, 'settingsReadPort'),
           // D-223 — this module resolves the deployment's public API origin
           // itself, the idiom `payu`, `tpay` and `inpost` already use for their
           // callback origins, and every URL it produces is built on it when the
@@ -129,6 +134,29 @@ export function registerModule(ctx: ModuleContext): void {
     assetReferenceRegistry: ctx
       .asFunction(({ assetsLibrary }: AssetsLibraryCradle) => assetsLibrary.handle.referenceRegistry)
       .singleton(),
+  });
+
+  /**
+   * Feature 171 (US6, research R9) — an administrator's author avatar is a use of the
+   * asset. `admin_users` cannot contribute the descriptor itself: this module depends
+   * on it, so the edge would be a cycle. The descriptor is registered here and reads
+   * through the port `admin_users` publishes; `admin_users` is non-deactivatable, and a
+   * deleted administrator holds no avatar.
+   */
+  ctx.onBoot(() => {
+    ctx.cradle<AssetsLibraryCradle>().assetsLibrary.handle.referenceRegistry.register({
+      ownerModuleId: 'admin_users',
+      async findReferences(assetIds: string[]) {
+        if (assetIds.length === 0) return [];
+        const admins = await lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort').findByAvatarAssetIds(assetIds);
+        return admins.map((admin) => ({
+          assetId: admin.avatarAssetId!,
+          kind: 'admin_user_avatar',
+          entityId: admin.id,
+          label: `Administrator "${`${admin.firstName} ${admin.lastName}`.trim() || admin.email}"`,
+        }));
+      },
+    });
   });
 
   // ---------------------------------------------------------------------------

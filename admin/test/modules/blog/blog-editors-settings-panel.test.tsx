@@ -216,6 +216,10 @@ beforeEach(() => {
     for (const s of screens) {
       if (s.detailPath.test(path)) return Promise.resolve({ data: s.stored } as never);
     }
+    // Feature 171 — the address panel reads the entry's URL keys.
+    if (path.endsWith('/url-keys')) {
+      return Promise.resolve({ data: { slug: 'stored', keys: [], effective: [], version: 3 } } as never);
+    }
     // The tag, related-post and related-product pickers list what they offer.
     return Promise.resolve({
       data: [],
@@ -312,6 +316,35 @@ describe.each(screens)('$name in the shared editor shell', (screenUnderTest) => 
     fireEvent.click(screen.getByRole('button', { name: shell('hideSettings') }));
 
     expect(window.localStorage.getItem(PAGE_BUILDER_EDITOR_SETTINGS_STORAGE_KEY)).toBe('0');
+  });
+
+  it('keeps unsaved edits of every language across a language switch, and saves them together', async () => {
+    renderEditor(screenUnderTest, 'entity-1');
+    await loaded();
+
+    // English: a new name and an edited canvas, not saved.
+    fireEvent.change(nameField(), { target: { value: 'English name' } });
+    fireEvent.click(screen.getByRole('button', { name: 'edit canvas' }));
+
+    // Polish: its own name and canvas.
+    fireEvent.click(screen.getByRole('tab', { name: 'pl-PL' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('canvas-stub').getAttribute('data-content-key')).toBe('entity-1:pl-PL');
+    });
+    fireEvent.change(nameField(), { target: { value: 'Polska nazwa' } });
+    fireEvent.click(screen.getByRole('button', { name: 'edit canvas' }));
+
+    // Back to English: the unsaved English name is still there.
+    fireEvent.click(screen.getByRole('tab', { name: 'en-US' }));
+    await waitFor(() => expect(nameField().value).toBe('English name'));
+
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(put).toHaveBeenCalled());
+    const [, patchBody] = patch.mock.calls[0] as [string, Record<string, unknown>];
+    expect(patchBody['name']).toEqual({ 'en-US': 'English name', 'pl-PL': 'Polska nazwa' });
+    const [, putBody] = put.mock.calls[0] as [string, { content?: { languages: Record<string, unknown> }; description?: { languages: Record<string, unknown> } }];
+    const languages = (putBody.content ?? putBody.description)!.languages;
+    expect(Object.keys(languages).sort()).toEqual(['en-US', 'pl-PL']);
   });
 
   it('saves the fields and an edited canvas with one action, in the two requests there always were', async () => {
@@ -545,6 +578,9 @@ describe('BlogPostEditor — the main image (feature 163)', () => {
         return Promise.resolve({ ...channel, languages: ['en-US', 'pl-PL'] } as never);
       }
       if (postScreen.detailPath.test(path)) return Promise.resolve({ data: withImage } as never);
+      if (path.endsWith('/url-keys')) {
+        return Promise.resolve({ data: { slug: 'stored', keys: [], effective: [], version: 3 } } as never);
+      }
       return Promise.resolve({ data: [], pagination: { page: 1, perPage: 50, totalPages: 1, totalItems: 0 } } as never);
     });
     renderEditor(postScreen, 'entity-1');

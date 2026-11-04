@@ -19,7 +19,9 @@ export class AdminUser {
     | 'twoFactorConfirmedAt'
     | 'lastLoginAt'
     | 'deletedAt'
-    | 'preferredLanguage';
+    | 'preferredLanguage'
+    | 'avatarAssetId'
+    | 'bio';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -74,6 +76,14 @@ export class AdminUser {
    */
   @Property({ type: 'string', length: 12, nullable: true })
   preferredLanguage?: string | null;
+
+  /** Feature 171 (US6) — the author avatar, a library asset id; no foreign key (see the migration). */
+  @Property({ type: 'uuid', fieldName: 'avatar_asset_id', nullable: true })
+  avatarAssetId?: string | null;
+
+  /** Feature 171 (US6) — the author biography per language. */
+  @Property({ type: 'json', nullable: true })
+  bio?: Record<string, string> | null;
 
   @Property({ type: 'datetime', onCreate: () => new Date() })
   createdAt: Date = new Date();

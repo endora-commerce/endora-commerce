@@ -3,7 +3,8 @@ import type { BlogCategoryTile } from '@endora-commerce/contracts';
 import { LocalizedLink } from '../../../lib/i18n/localized-link';
 import { tForLocale } from '../../../lib/i18n/messages';
 
-const BLOG_PREFIX = '/blog';
+// Feature 171 — the backend composes every blog URL (`blogPath`); the `/blog` fallback only
+// serves a payload cached before it did.
 
 interface CategoryTreeProps {
   /** Direct child categories of the current category (one level deep). */
@@ -25,7 +26,7 @@ export function CategoryTree({ children, currentSlug, locale }: CategoryTreeProp
         {children.map((c) => (
           <li key={c.id}>
             <LocalizedLink
-              href={`${BLOG_PREFIX}/${c.slug}`}
+              href={c.url ?? `/blog/${c.slug}`}
               className={`block rounded px-2 py-1 hover:bg-[--surface-alt] ${
                 c.slug === currentSlug
                   ? 'border-l-2 border-[--brand-700] font-medium text-[--brand-700]'

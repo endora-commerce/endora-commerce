@@ -42,8 +42,8 @@ export class BlogCacheService {
     this.enabled = (options.enabled ?? true) && this.ttlSeconds > 0;
   }
 
-  static composeIndexKey(channelCode: string, language: string): string {
-    return `${channelLanguagePrefix(channelCode, language)}:index`;
+  static composeIndexKey(channelCode: string, language: string, page = 1): string {
+    return `${channelLanguagePrefix(channelCode, language)}:index:p${page}`;
   }
 
   static composeCategoryKey(
@@ -68,14 +68,14 @@ export class BlogCacheService {
     return `${channelLanguagePrefix(channelCode, language)}:tag:${code}:p${page}`;
   }
 
-  /** The card list behind `GET /api/v1/blog/posts` (feature 163). */
+  /** One page of the card list behind `GET /api/v1/blog/posts` (feature 163, paged by 171). */
   static composeListKey(
     channelCode: string,
     language: string,
-    limit: number,
-    categorySlug: string | null,
+    query: { page: number; perPage: number; categorySlug: string | null; tagCode: string | null; authorId?: string | null },
   ): string {
-    return `${channelLanguagePrefix(channelCode, language)}:list:${categorySlug ?? '*'}:n${limit}`;
+    const filters = `c=${query.categorySlug ?? '*'}:t=${query.tagCode ?? '*'}:a=${query.authorId ?? '*'}`;
+    return `${channelLanguagePrefix(channelCode, language)}:list:${filters}:p${query.page}:n${query.perPage}`;
   }
 
   async get<T>(key: string): Promise<T | null> {
@@ -125,7 +125,8 @@ export class BlogCacheService {
   async invalidatePost(channelCode: string, slug: string): Promise<void> {
     await this.scanDelete(`${BLOG_CACHE_KEY_PREFIX}${channelCode}:*:post:${slug}`);
     // Indices and category/tag pages may include the post — coarsely drop them.
-    await this.scanDelete(`${BLOG_CACHE_KEY_PREFIX}${channelCode}:*:index`);
+    await this.scanDelete(`${BLOG_CACHE_KEY_PREFIX}${channelCode}:*:index:*`);
+    await this.scanDelete(`${BLOG_CACHE_KEY_PREFIX}${channelCode}:*:list:*`);
     await this.scanDelete(`${BLOG_CACHE_KEY_PREFIX}${channelCode}:*:category:*`);
     await this.scanDelete(`${BLOG_CACHE_KEY_PREFIX}${channelCode}:*:tag:*`);
   }

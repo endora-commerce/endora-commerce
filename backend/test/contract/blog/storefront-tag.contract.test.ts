@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, blogPath, type BlogPathView } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -108,9 +108,12 @@ describe('storefront blog tag-by-code contract (T063)', () => {
     expect(body.tag.name).toBe(code);
     expect(body.posts.data.some((p) => p.slug === created.postSlug)).toBe(true);
     expect(body.posts.pagination.perPage).toBe(12);
+    // Feature 171 — composed by `blogPath`, under the language's path prefix (167).
+    const channel = await h.em().findOneOrFail(SalesChannel, { code: defaultChannelCode });
+    const at = (view: BlogPathView) => blogPath({ ...view, languageCode: 'en-US', channel, prefix: 'blog' });
     expect(body.breadcrumb).toEqual([
-      { name: 'Blog', url: '/blog' },
-      { name: code, url: `/blog/tag/${code}` },
+      { name: 'Blog', url: at({ view: 'index' }) },
+      { name: code, url: at({ view: 'tag', code }) },
     ]);
   });
 

@@ -1,6 +1,4 @@
 import { z } from 'zod';
-import { ERROR_CODES, BLOG_RESERVED_URL_PREFIXES } from '@endora-commerce/contracts';
-import { HttpError } from '@endora-commerce/platform/http';
 import {
   BLOG_DEFAULT_ENABLED,
   BLOG_DEFAULT_LATEST_COUNT,
@@ -21,12 +19,15 @@ import {
  * `resolveMaxProducts` pattern).
  */
 export interface SettingsServicePort {
-  get<T>(code: string, salesChannelId: string, schema: z.ZodType<T>): Promise<T>;
+  /** `salesChannelId` null is a platform-wide read (the kernel port's D-41 tier). */
+  get<T>(code: string, salesChannelId: string | null, schema: z.ZodType<T>): Promise<T>;
 }
 
 export interface ResolvedBlogSettings {
   enabled: boolean;
   urlPrefix: string;
+  /** Feature 171 (US5) — language code → prefix, overriding `urlPrefix` for that language. */
+  urlPrefixByLanguage: Record<string, string>;
   latestCount: number;
   postsPerPage: number;
 }
@@ -41,10 +42,11 @@ export interface ResolvedBlogSettings {
  *   - range clamps for `latestCount` and `postsPerPage` (any stored value
  *     ≤ 0 falls back to the documented default with a logged warning —
  *     the caller is the Settings admin form, which has already validated
- *     the value, so this branch is a defence-in-depth safeguard);
- *   - a pure `assertValidPrefix(value)` validator used as the setter
- *     callback for `blog.url_prefix` (per the spec FR-024 + the
- *     reference-scan contract § R-5).
+ *     the value, so this branch is a defence-in-depth safeguard).
+ *
+ * The `blog.url_prefix` write rule is `BlogUrlPrefixService.validator()`,
+ * registered with the settings module (feature 171); the regex below only
+ * keeps a value stored before that rule existed from reaching a URL.
  */
 const URL_PREFIX_REGEX = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
 
@@ -64,6 +66,12 @@ export class BlogSettingsResolver {
       z.string(),
       BLOG_DEFAULT_URL_PREFIX,
     );
+    const byLanguageRaw = await this.readWithFallback(
+      BLOG_SETTING_CODES.URL_PREFIX_BY_LANGUAGE,
+      salesChannelId,
+      z.unknown(),
+      {},
+    );
     const latestCount = await this.readWithFallback(
       BLOG_SETTING_CODES.LATEST_COUNT,
       salesChannelId,
@@ -80,6 +88,7 @@ export class BlogSettingsResolver {
     return {
       enabled,
       urlPrefix: URL_PREFIX_REGEX.test(urlPrefixRaw) ? urlPrefixRaw : BLOG_DEFAULT_URL_PREFIX,
+      urlPrefixByLanguage: validPrefixMap(byLanguageRaw),
       latestCount: clampPositiveInt(latestCount, BLOG_DEFAULT_LATEST_COUNT),
       postsPerPage: clampPositiveInt(postsPerPage, BLOG_DEFAULT_POSTS_PER_PAGE),
     };
@@ -97,34 +106,20 @@ export class BlogSettingsResolver {
       return fallback;
     }
   }
-
-  /**
-   * Pure validator wired into the Settings module's setter callback for
-   * the `blog.url_prefix` key. Refuses an invalid shape, a reserved
-   * Next.js segment, or a value already owned by another storefront route
-   * (the cross-module owner check is delegated; v1 only enforces the
-   * shape + reserved-segments rule).
-   */
-  static assertValidPrefix(value: unknown): asserts value is string {
-    if (typeof value !== 'string' || !URL_PREFIX_REGEX.test(value)) {
-      throw new HttpError(
-        400,
-        ERROR_CODES.BLOG_URL_PREFIX_INVALID,
-        'Blog URL prefix must match ^[a-z0-9-]+$ (1–64 characters).',
-      );
-    }
-    if (BLOG_RESERVED_URL_PREFIXES.has(value)) {
-      throw new HttpError(
-        409,
-        ERROR_CODES.BLOG_URL_PREFIX_RESERVED,
-        `URL prefix "${value}" is reserved by the storefront and cannot be assigned to the blog.`,
-      );
-    }
-  }
 }
 
 function clampPositiveInt(raw: unknown, fallback: number): number {
   if (typeof raw !== 'number' || !Number.isFinite(raw)) return fallback;
   const n = Math.floor(raw);
   return n >= 1 ? n : fallback;
+}
+
+/** The well-formed entries of a stored per-language prefix map; anything else is dropped. */
+function validPrefixMap(raw: unknown): Record<string, string> {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return {};
+  const out: Record<string, string> = {};
+  for (const [language, prefix] of Object.entries(raw)) {
+    if (typeof prefix === 'string' && URL_PREFIX_REGEX.test(prefix)) out[language] = prefix;
+  }
+  return out;
 }

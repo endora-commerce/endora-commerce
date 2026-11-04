@@ -8,6 +8,7 @@
 import { z } from 'zod';
 import { cmsContentEnvelopeSchema } from './cms.js';
 import { isoDateTimeSchema, multilingualStringSchema, uuidSchema } from './common.js';
+import { storefrontPagePath, type ChannelUrlFacts } from './storefront-language-path.js';
 
 // ────────────────────────────────────────────────────────────────────
 // Domain primitives
@@ -106,6 +107,27 @@ export const blogPostTagRefSchema = z.object({
 });
 export type BlogPostTagRef = z.infer<typeof blogPostTagRefSchema>;
 
+/**
+ * Feature 171 (US7) — a post's author as the admin editor sees it: an administrator,
+ * whose `state` says whether they can still be picked (`inactive`) or are gone
+ * (`deleted` — the storefront then shows no author).
+ */
+export const blogPostAuthorAdminSchema = z.object({
+  id: uuidSchema,
+  name: z.string(),
+  avatarUrl: z.string().nullable(),
+  state: z.enum(['active', 'inactive', 'deleted']),
+});
+export type BlogPostAuthorAdmin = z.infer<typeof blogPostAuthorAdminSchema>;
+
+/** `GET /api/v1/admin/blog/author-candidates` — who may be named the author: active administrators, nothing else about them. */
+export const blogAuthorCandidateSchema = z.object({
+  id: uuidSchema,
+  name: z.string(),
+  avatarUrl: z.string().nullable(),
+});
+export type BlogAuthorCandidate = z.infer<typeof blogAuthorCandidateSchema>;
+
 export const blogPostDetailSchema = blogPostSummarySchema.extend({
   metaTitle: multilingualStringSchema.nullable(),
   metaDescription: multilingualStringSchema.nullable(),
@@ -115,6 +137,8 @@ export const blogPostDetailSchema = blogPostSummarySchema.extend({
   tags: z.array(blogPostTagRefSchema),
   relatedPostIds: z.array(uuidSchema),
   relatedProductIds: z.array(uuidSchema),
+  /** Feature 171 (US7). Optional for clients that predate it. */
+  author: blogPostAuthorAdminSchema.nullable().optional(),
 });
 export type BlogPostDetail = z.infer<typeof blogPostDetailSchema>;
 
@@ -124,6 +148,8 @@ export const createBlogPostRequestSchema = z.object({
   active: z.boolean().default(true),
   description: z.string().nullable().optional(),
   mainImageAssetId: uuidSchema.nullable().optional(),
+  /** Feature 171 (US7) — the administrator named as the post's author; `null` names none. */
+  authorAdminUserId: uuidSchema.nullable().optional(),
   salesChannelIds: z.array(uuidSchema).min(1),
   languages: z.array(z.string().min(2)).min(1),
   categoryIds: z.array(uuidSchema).default([]),
@@ -325,6 +351,155 @@ export type BlogTagInboundReferencesResponse = z.infer<
 >;
 
 // ────────────────────────────────────────────────────────────────────
+// Storefront paths — feature 171 (`specs/171-blog-i18n-authors/`)
+// ────────────────────────────────────────────────────────────────────
+
+/** Which blog view a path names. Posts and categories share one URL space (`entry`). */
+export type BlogPathView =
+  | { view: 'index'; page?: number | undefined }
+  | { view: 'entry'; key: string; page?: number | undefined }
+  | { view: 'tag'; code: string; page?: number | undefined };
+
+/** The logical (language-less) blog path: `/<prefix>[/<key> | /tag/<code>][?page=N]`. */
+function blogLogicalPath(input: BlogPathView & { prefix: string }): string {
+  let path = `/${input.prefix}`;
+  if (input.view === 'entry') path += `/${encodeURIComponent(input.key)}`;
+  if (input.view === 'tag') path += `/tag/${encodeURIComponent(input.code)}`;
+  if (input.page !== undefined && input.page >= 2) path += `?page=${input.page}`;
+  return path;
+}
+
+/**
+ * The storefront path of a blog view under the blog prefix of its language and the
+ * language's path prefix (feature 167): `/pl/aktualnosci/porady`, `/en/news/tag/diy`.
+ *
+ * **This is the only place a blog URL is composed.** Every blog URL the platform
+ * emits — cards, tiles, tag chips, breadcrumbs, canonical and alternate URLs, the
+ * sitemap — is built here by the backend, as product URLs are by `productPath`.
+ * Page 1 carries no `?page=` (it is the canonical URL). Throws on a language the
+ * channel does not have.
+ */
+export function blogPath(
+  input: BlogPathView & { languageCode: string; channel: ChannelUrlFacts; prefix: string },
+): string {
+  return storefrontPagePath({
+    path: blogLogicalPath(input),
+    languageCode: input.languageCode,
+    channel: input.channel,
+  });
+}
+
+/** The unprefixed blog path — the `x-default` target. */
+export function blogDefaultPath(input: BlogPathView & { prefix: string }): string {
+  return blogLogicalPath(input);
+}
+
+/**
+ * `GET /api/v1/blog/routing` — what the storefront middleware maps the public blog
+ * prefix with (feature 171, `contracts/storefront-api.md`). One channel: the resolved one.
+ */
+export const blogRoutingResponseSchema = z.object({
+  data: z.object({
+    /** `blog.url_prefix` of the channel. */
+    defaultPrefix: blogUrlPrefixSchema,
+    /** Every language of the channel → its effective prefix. */
+    prefixes: z.record(z.string(), blogUrlPrefixSchema),
+    /** Prefixes the channel served before; empty while `seo` is absent (redirects are its to serve). */
+    formerPrefixes: z.array(
+      z.object({
+        /** `null` = a former channel default. */
+        languageCode: z.string().nullable(),
+        prefix: blogUrlPrefixSchema,
+      }),
+    ),
+  }),
+});
+export type BlogRoutingResponse = z.infer<typeof blogRoutingResponseSchema>;
+export type BlogRouting = BlogRoutingResponse['data'];
+
+/** One row of `GET /api/v1/admin/blog/addresses` (feature 171, data-model §1.3). */
+export const blogUrlPrefixRowSchema = z.object({
+  id: uuidSchema,
+  salesChannelId: uuidSchema,
+  languageCode: z.string().nullable(),
+  prefix: blogUrlPrefixSchema,
+  state: z.enum(['current', 'former']),
+  updatedAt: isoDateTimeSchema,
+});
+export type BlogUrlPrefixRow = z.infer<typeof blogUrlPrefixRowSchema>;
+
+// ────────────────────────────────────────────────────────────────────
+// Per-language URL keys — feature 171 (US4, data-model §1.1–1.2)
+// ────────────────────────────────────────────────────────────────────
+
+export const blogUrlKeyEntityKindSchema = z.enum(['post', 'category']);
+export type BlogUrlKeyEntityKind = z.infer<typeof blogUrlKeyEntityKindSchema>;
+
+/**
+ * `GET /api/v1/admin/blog/{posts|categories}/:id/url-keys`. `keys` are the language
+ * keys the editor set; a language without one is served at `slug`. `effective` is the
+ * key and path per (channel, language) the entity is served at. `redirects` is omitted
+ * while `seo` is absent — serving them is its decision.
+ */
+export const blogUrlKeysResponseSchema = z.object({
+  slug: blogSlugSchema,
+  keys: z.array(z.object({ languageCode: z.string(), key: blogSlugSchema })),
+  effective: z.array(
+    z.object({ salesChannelId: uuidSchema, languageCode: z.string(), key: blogSlugSchema, path: z.string() }),
+  ),
+  redirects: z.array(z.object({ id: uuidSchema, languageCode: z.string(), key: blogSlugSchema })).optional(),
+  version: z.number().int(),
+});
+export type BlogUrlKeysResponse = z.infer<typeof blogUrlKeysResponseSchema>;
+
+/**
+ * `PUT …/url-keys`. Each entry sets (or, with `key: null`, removes) the key of one
+ * language; languages not named are left alone. A key another entity holds as a
+ * redirect is refused with `BLOG_URL_KEY_REDIRECT_TAKEOVER_REQUIRED` until the retry
+ * names it in `confirmTakeover`.
+ */
+export const putBlogUrlKeysRequestSchema = z.object({
+  keys: z.array(z.object({ languageCode: z.string().min(2), key: blogSlugSchema.nullable() })),
+  confirmTakeover: z.array(z.object({ languageCode: z.string().min(2), key: blogSlugSchema })).optional(),
+  version: z.number().int(),
+});
+export type PutBlogUrlKeysRequest = z.infer<typeof putBlogUrlKeysRequestSchema>;
+
+/** The other languages of a post or category page, for `hreflang` and the language switcher. */
+export const blogAlternatesSchema = z.object({
+  /** Language code → path, for every language of the channel the entity is in. */
+  languages: z.record(z.string(), z.string()),
+  /** The unprefixed path of the channel's default language, when the entity is in it. */
+  xDefault: z.string().nullable(),
+});
+export type BlogAlternates = z.infer<typeof blogAlternatesSchema>;
+
+/** A former key or pre-171 slug of the request language: the storefront answers 301 to `path`. */
+export const blogRedirectResolutionSchema = z.object({
+  kind: z.literal('redirect'),
+  path: z.string(),
+  permanent: z.literal(true),
+});
+export type BlogRedirectResolution = z.infer<typeof blogRedirectResolutionSchema>;
+
+/**
+ * Feature 171 (US7) — the author on a post card: an administrator's display name and
+ * avatar, and nothing else about them (no e-mail, role or status).
+ */
+export const blogAuthorCardSchema = z.object({
+  id: uuidSchema,
+  name: z.string(),
+  avatarUrl: z.string().nullable(),
+});
+export type BlogAuthorCard = z.infer<typeof blogAuthorCardSchema>;
+
+/** The author on the post page: the card plus the biography in the request language, else the channel default. */
+export const blogAuthorSchema = blogAuthorCardSchema.extend({
+  bio: z.string().nullable(),
+});
+export type BlogAuthor = z.infer<typeof blogAuthorSchema>;
+
+// ────────────────────────────────────────────────────────────────────
 // Storefront resolved payloads
 // ────────────────────────────────────────────────────────────────────
 
@@ -342,6 +517,12 @@ export const blogPostCardSchema = z.object({
    * still parses.
    */
   primaryCategoryName: z.string().nullable().optional(),
+  /** Feature 171 — the storefront path, composed by {@link blogPath}. Optional so a payload cached before it existed still parses. */
+  url: z.string().optional(),
+  /** Feature 171 (US7) — the administrator named as author, whoever they are now. */
+  authorId: uuidSchema.nullable().optional(),
+  /** Feature 171 (US7) — the author, filled per request (never cached); `null` when there is none. */
+  author: blogAuthorCardSchema.nullable().optional(),
 });
 export type BlogPostCard = z.infer<typeof blogPostCardSchema>;
 
@@ -351,24 +532,43 @@ export const BLOG_POSTS_LIST_MAX_LIMIT = 24;
 export const BLOG_POSTS_LIST_DEFAULT_LIMIT = 6;
 
 /**
- * `GET /api/v1/blog/posts` — the newest published posts of the resolved
- * channel, optionally from one category (feature 163). An unknown category
- * yields an empty list rather than a 404, so a stale block setting renders
- * nothing.
+ * `GET /api/v1/blog/posts` — the published posts of the resolved channel, newest
+ * first, page by page (feature 163; paginated by feature 171, US2), optionally
+ * filtered by category, tag and author. An unknown filter value yields an empty list
+ * rather than a 404, so a stale block setting renders nothing.
+ *
+ * `perPage` is the page size; `limit` stays as its synonym for the callers written
+ * before pagination, and `perPage` wins when both are sent. With neither, the page
+ * size is {@link BLOG_POSTS_LIST_DEFAULT_LIMIT}, as before. A page past the last
+ * answers an empty `data` with the real totals.
  */
-export const blogPostsListQuerySchema = z.object({
-  limit: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .max(BLOG_POSTS_LIST_MAX_LIMIT)
-    .default(BLOG_POSTS_LIST_DEFAULT_LIMIT),
-  categorySlug: blogSlugSchema.optional(),
-});
+export const blogPostsListQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).default(1),
+    perPage: z.coerce.number().int().min(1).max(BLOG_POSTS_LIST_MAX_LIMIT).optional(),
+    limit: z.coerce.number().int().min(1).max(BLOG_POSTS_LIST_MAX_LIMIT).optional(),
+    categorySlug: blogSlugSchema.optional(),
+    tagCode: blogTagCodeSchema.optional(),
+    authorId: uuidSchema.optional(),
+  })
+  .transform(({ perPage, limit, ...rest }) => ({
+    ...rest,
+    perPage: perPage ?? limit ?? BLOG_POSTS_LIST_DEFAULT_LIMIT,
+  }));
 export type BlogPostsListQuery = z.infer<typeof blogPostsListQuerySchema>;
+
+export const blogPaginationSchema = z.object({
+  page: z.number().int().positive(),
+  perPage: z.number().int().positive(),
+  totalPages: z.number().int().nonnegative(),
+  totalItems: z.number().int().nonnegative(),
+});
+export type BlogPagination = z.infer<typeof blogPaginationSchema>;
 
 export const blogPostsListResponseSchema = z.object({
   data: z.array(blogPostCardSchema),
+  /** Feature 171 — optional so a response from a backend that predates it still parses. */
+  pagination: blogPaginationSchema.optional(),
 });
 export type BlogPostsListResponse = z.infer<typeof blogPostsListResponseSchema>;
 
@@ -409,23 +609,23 @@ export const blogCategoryTileSchema = z.object({
   name: z.string(),
   slug: blogSlugSchema,
   mainImageUrl: z.string().nullable(),
+  /** Feature 171 — the storefront path, composed by {@link blogPath}. Optional so a payload cached before it existed still parses. */
+  url: z.string().optional(),
 });
 export type BlogCategoryTile = z.infer<typeof blogCategoryTileSchema>;
 
 export const blogIndexResponseSchema = z.object({
   urlPrefix: blogUrlPrefixSchema,
+  /** Feature 171 — the storefront path, composed by {@link blogPath}. Optional so a payload cached before it existed still parses. */
+  url: z.string().optional(),
+
+  /** @deprecated Since feature 171 — equals `posts.data`; read `posts`. */
   latestPosts: z.array(blogPostCardSchema),
+  /** Feature 171 — the index's page of posts. Optional so a payload cached before it existed still parses. */
+  posts: z.object({ data: z.array(blogPostCardSchema), pagination: blogPaginationSchema }).optional(),
   topLevelCategories: z.array(blogCategoryTileSchema),
 });
 export type BlogIndexResponse = z.infer<typeof blogIndexResponseSchema>;
-
-export const blogPaginationSchema = z.object({
-  page: z.number().int().positive(),
-  perPage: z.number().int().positive(),
-  totalPages: z.number().int().nonnegative(),
-  totalItems: z.number().int().nonnegative(),
-});
-export type BlogPagination = z.infer<typeof blogPaginationSchema>;
 
 export const blogBreadcrumbEntrySchema = z.object({
   name: z.string(),
@@ -444,6 +644,10 @@ export const blogResolvedCategorySchema = z.object({
   metaKeywords: z.string().nullable(),
   childCategories: z.array(blogCategoryTileSchema),
   breadcrumb: z.array(blogBreadcrumbEntrySchema),
+  /** Feature 171 — the storefront path, composed by {@link blogPath}. Optional so a payload cached before it existed still parses. */
+  url: z.string().optional(),
+  /** Feature 171 — the category in the channel's other languages. */
+  alternates: blogAlternatesSchema.optional(),
 });
 export type BlogResolvedCategory = z.infer<typeof blogResolvedCategorySchema>;
 
@@ -451,6 +655,8 @@ export const blogResolvedTagRefSchema = z.object({
   id: uuidSchema,
   code: blogTagCodeSchema,
   name: z.string(),
+  /** Feature 171 — the storefront path, composed by {@link blogPath}. Optional so a payload cached before it existed still parses. */
+  url: z.string().optional(),
 });
 export type BlogResolvedTagRef = z.infer<typeof blogResolvedTagRefSchema>;
 
@@ -487,6 +693,14 @@ export const blogResolvedPostSchema = z.object({
     z.object({ id: uuidSchema, name: z.string(), slug: blogSlugSchema }),
   ),
   breadcrumb: z.array(blogBreadcrumbEntrySchema),
+  /** Feature 171 — the storefront path, composed by {@link blogPath}. Optional so a payload cached before it existed still parses. */
+  url: z.string().optional(),
+  /** Feature 171 — the post in the channel's other languages. */
+  alternates: blogAlternatesSchema.optional(),
+  /** Feature 171 (US7) — the administrator named as author, whoever they are now. */
+  authorId: uuidSchema.nullable().optional(),
+  /** Feature 171 (US7) — the author, filled per request (never cached); `null` when there is none. */
+  author: blogAuthorSchema.nullable().optional(),
 });
 export type BlogResolvedPost = z.infer<typeof blogResolvedPostSchema>;
 
@@ -509,6 +723,8 @@ export type BlogBySlugPostResponse = z.infer<typeof blogBySlugPostResponseSchema
 export const blogBySlugResponseSchema = z.discriminatedUnion('kind', [
   blogBySlugCategoryResponseSchema,
   blogBySlugPostResponseSchema,
+  // Feature 171 — a former key, or a pre-171 slug of a language that has its own key.
+  blogRedirectResolutionSchema,
 ]);
 export type BlogBySlugResponse = z.infer<typeof blogBySlugResponseSchema>;
 
@@ -518,6 +734,8 @@ export const blogTagByCodeResponseSchema = z.object({
     code: blogTagCodeSchema,
     name: z.string(),
     description: z.string().nullable(),
+    /** Feature 171 — the storefront path, composed by {@link blogPath}. Optional so a payload cached before it existed still parses. */
+    url: z.string().optional(),
   }),
   posts: z.object({
     data: z.array(blogPostCardSchema),
@@ -535,6 +753,7 @@ export type BlogTagByCodeResponse = z.infer<typeof blogTagByCodeResponseSchema>;
 export const BLOG_SETTING_CODES = {
   ENABLED: 'blog.enabled',
   URL_PREFIX: 'blog.url_prefix',
+  URL_PREFIX_BY_LANGUAGE: 'blog.url_prefix_by_language',
   LATEST_COUNT: 'blog.latest_count',
   POSTS_PER_PAGE: 'blog.posts_per_page',
 } as const;
@@ -552,6 +771,10 @@ export const BLOG_SETTING_DEFAULTS = {
  * setter callback (R-5) refuses any value in this set.
  */
 export const BLOG_RESERVED_URL_PREFIXES = new Set<string>([
+  // Feature 171 — the blog's own fixed sub-segments (OR-6): `/<prefix>/tag/…` and the
+  // reserved `/<prefix>/author/…` would read as a prefix of their own.
+  'tag',
+  'author',
   'api',
   '_next',
   'manifest.webmanifest',

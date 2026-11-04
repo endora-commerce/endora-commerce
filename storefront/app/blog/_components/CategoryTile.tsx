@@ -2,12 +2,13 @@ import type { ReactNode } from 'react';
 import type { BlogCategoryTile } from '@endora-commerce/contracts';
 import { LocalizedLink } from '../../../lib/i18n/localized-link';
 
-const BLOG_PREFIX = '/blog';
+// Feature 171 — the backend composes every blog URL (`blogPath`); the `/blog` fallback only
+// serves a payload cached before it did.
 
 export function CategoryTile({ category }: { category: BlogCategoryTile }): ReactNode {
   return (
     <LocalizedLink
-      href={`${BLOG_PREFIX}/${category.slug}`}
+      href={category.url ?? `/blog/${category.slug}`}
       data-test="category-tile"
       className="group flex flex-col overflow-hidden rounded-lg border border-[--line] bg-[--surface] transition hover:shadow-lg"
     >

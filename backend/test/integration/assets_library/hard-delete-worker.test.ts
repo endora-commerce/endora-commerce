@@ -12,14 +12,12 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { overrideAssetSetting } from '../../helpers/crm-attachment-upload.js';
 
 import { HardDeleteAssetWorker } from '../../../../packages/modules/assets_library/src/backend/jobs/hard-delete-asset.job.js';
 
-import { Setting } from '@endora-commerce/platform/kernel';
 
-import { SettingValue } from '@endora-commerce/platform/kernel';
 
-import { SalesChannel } from '@endora-commerce/platform/kernel';
 
 
 /**
@@ -29,18 +27,13 @@ import { SalesChannel } from '@endora-commerce/platform/kernel';
 describe('hard-delete worker (T099)', () => {
   let h: BackendServerHandle;
   let baseDir: string;
+  let restoreBaseDir: (() => Promise<void>) | undefined;
   let worker: HardDeleteAssetWorker;
 
   beforeAll(async () => {
     h = await setupBackendServer();
     baseDir = await mkdtemp(join(tmpdir(), 'assets-library-hard-delete-'));
-    const em = h.em();
-    const setting = await em.findOneOrFail(Setting, { code: 'assets.local.base_dir' });
-    const channel = await em.findOneOrFail(SalesChannel, { code: 'default' });
-    const existing = await em.findOne(SettingValue, { setting });
-    if (existing) existing.value = baseDir;
-    else em.create(SettingValue, { setting, salesChannel: channel, value: baseDir });
-    await em.flush();
+    restoreBaseDir = await overrideAssetSetting(h, 'assets.local.base_dir', baseDir);
     h.assetsLibrary.adapters.invalidate();
     // Feature 156: the worker takes the sweep's dependencies, and due-ness is
     // `deleted_at` + the retention it is given (specs/156-asset-stable-url/ T041a).
@@ -53,6 +46,7 @@ describe('hard-delete worker (T099)', () => {
   });
 
   afterAll(async () => {
+    await restoreBaseDir?.();
     await teardownBackendServer(h);
     await rm(baseDir, { recursive: true, force: true });
   });

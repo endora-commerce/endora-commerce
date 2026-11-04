@@ -124,6 +124,10 @@ describe('an asset a deactivated blog still references cannot be deleted (D-68)'
       // deactivated post still carries a language code, so `languages` must
       // still refuse to delete one out from under it (feature 077, D-87).
       languageReferenceRegistry: new LanguageReferenceRegistry(),
+      // Feature 171 — the blog URL prefix's two contributions: the setting's write
+      // rule and the first segments it claims from CMS pages.
+      settingWriteValidatorRegistry: { register: () => {}, forCode: () => [] },
+      cmsReservedSegmentRegistry: { register: () => {} },
     });
     const composed = composeModules([{ id: 'blog', version: '1.0.0', registerModule }], {
       container,

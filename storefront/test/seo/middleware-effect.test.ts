@@ -41,6 +41,11 @@ vi.mock('../../lib/seo/crawler-policy', () => ({
 vi.mock('../../lib/channel/channel-identity', () => ({
   readChannelIdentity: vi.fn(async () => state.identity),
 }));
+// Feature 171 — the middleware's blog routing read: no blog mapping here.
+vi.mock('../../lib/blog/blog-routing', () => ({
+  readBlogRouting: vi.fn(async () => null),
+  blogRouteDecision: vi.fn(() => null),
+}));
 vi.mock('../../lib/api/backend-reachability', () => ({
   backendReachability: vi.fn(async () => {
     state.probes += 1;

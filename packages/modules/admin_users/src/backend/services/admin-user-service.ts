@@ -90,11 +90,17 @@ export interface CreateAdminUserInput {
   adminRoleId?: string | null;
 }
 
-export interface UpdateAdminUserInput {
+export interface UpdateAdminUserInput extends AuthorProfileInput {
   firstName?: string;
   lastName?: string;
   adminRoleId?: string | null;
   status?: 'active' | 'inactive';
+}
+
+/** Feature 171 (US6) — the public author profile; `null` clears a field. */
+export interface AuthorProfileInput {
+  avatarAssetId?: string | null | undefined;
+  bio?: Record<string, string> | null | undefined;
 }
 
 /**
@@ -104,7 +110,7 @@ export interface UpdateAdminUserInput {
  * refusal in {@link AdminUserService.updateSelf} instead of compiling its way
  * past it.
  */
-export interface UpdateOwnAdminUserInput {
+export interface UpdateOwnAdminUserInput extends AuthorProfileInput {
   firstName?: string;
   lastName?: string;
   password?: string;
@@ -238,7 +244,38 @@ export class AdminUserService {
      * withdrawn with the password they were issued under.
      */
     private readonly getMfaLoginPort?: () => MfaLoginPort | undefined,
+    /**
+     * Feature 171 (US6) — whether a live library asset has this id. Absent in a
+     * composition without the library, where an avatar cannot be set.
+     */
+    private readonly assetExists?: (assetId: string) => Promise<boolean>,
   ) {}
+
+  /**
+   * Feature 171 (US6) — the author profile fields of a write, onto the row. An avatar
+   * must name a live library asset; with no library present one cannot be set.
+   */
+  async #applyAuthorProfile(user: AdminUser, input: AuthorProfileInput): Promise<boolean> {
+    let changed = false;
+    if (input.avatarAssetId !== undefined) {
+      if (input.avatarAssetId !== null && !(await this.assetExists?.(input.avatarAssetId))) {
+        throw new HttpError(
+          422,
+          ERROR_CODES.ADMIN_USER_AVATAR_NOT_FOUND,
+          'The avatar is not an asset in the library.',
+          [{ path: 'avatarAssetId', issue: 'no such asset' }],
+        );
+      }
+      user.avatarAssetId = input.avatarAssetId;
+      changed = true;
+    }
+    if (input.bio !== undefined) {
+      const bio = input.bio === null ? null : Object.fromEntries(Object.entries(input.bio).filter(([, text]) => text.trim() !== ''));
+      user.bio = bio !== null && Object.keys(bio).length > 0 ? bio : null;
+      changed = true;
+    }
+    return changed;
+  }
 
   /**
    * Withdraw what the account's credential had already been exchanged for:
@@ -415,7 +452,13 @@ export class AdminUserService {
     if (input.firstName !== undefined) user.firstName = input.firstName;
     if (input.lastName !== undefined) user.lastName = input.lastName;
     if (input.status !== undefined) user.status = input.status;
-    this.#audit(em, 'admin_user.update', user.id, null, { email: user.email, status: user.status });
+    await this.#applyAuthorProfile(user, input);
+    this.#audit(em, 'admin_user.update', user.id, null, {
+      email: user.email,
+      status: user.status,
+      avatarAssetId: user.avatarAssetId ?? null,
+      bio: user.bio ?? null,
+    });
     await em.flush();
     // A deactivated account must not keep answering on the sessions it already
     // holds, nor finish a login it had begun.
@@ -494,7 +537,8 @@ export class AdminUserService {
       if (input.password === currentPassword) throw newPasswordUnchangedRefusal();
       passwordHash = await hashPassword(input.password);
     }
-    const editsProfile = input.firstName !== undefined || input.lastName !== undefined;
+    const editsAuthorProfile = await this.#applyAuthorProfile(user, input);
+    const editsProfile = input.firstName !== undefined || input.lastName !== undefined || editsAuthorProfile;
     const keep =
       passwordHash === undefined
         ? undefined
@@ -509,7 +553,12 @@ export class AdminUserService {
       });
     }
     if (editsProfile || passwordHash === undefined) {
-      this.#audit(em, 'admin_user.update', user.id, null, { email: user.email, status: user.status });
+      this.#audit(em, 'admin_user.update', user.id, null, {
+        email: user.email,
+        status: user.status,
+        avatarAssetId: user.avatarAssetId ?? null,
+        bio: user.bio ?? null,
+      });
     }
     await em.flush();
     if (passwordHash !== undefined) await this.#withdrawCredentials(user.id, keep);

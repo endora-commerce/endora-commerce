@@ -23,9 +23,11 @@ import { Order, StockLevel } from '../../helpers/package-entities.js';
  * Edges around `POST /api/v1/admin/orders` and the optional `salesChannelId`
  * of `CartWritePort.addItem`, beside `admin-create-sales-channel.test.ts`.
  *
- * - An existing but inactive channel is NOT refused on admin create: the
- *   existence check is a plain lookup. Pinned as current behaviour, not as a
- *   requirement — change it deliberately or not at all.
+ * - An existing but inactive channel is refused on admin create, even when
+ *   the customer's Organization is assigned to it: the order's channel must be
+ *   one of the Organization's **active** channels (issue #515, which changed
+ *   the behaviour this file used to pin — a plain existence lookup that
+ *   answered 201).
  * - A conflicting `X-Sales-Channel` header on the admin request does not
  *   override the body's channel.
  * - A buyer cannot reach the new field through the storefront cart route: an
@@ -94,11 +96,12 @@ describe('POST /api/v1/admin/orders — sales channel edges', () => {
     return { statusCode: res.statusCode, body, raw: res.body };
   }
 
-  it('does not refuse an existing but inactive channel (current behaviour)', async () => {
+  it('refuses an inactive channel the Organization is assigned to with 422 ORDER_SALES_CHANNEL_NOT_ALLOWED', async () => {
+    const ordersBefore = await h.em().count(Order, { salesChannelId: inactive.id });
     const res = await create(inactive.id, inactive.soldHereId);
-    expect(res.statusCode, res.raw).toBe(201);
-    const order = await h.em().findOne(Order, { id: res.body.data!.id });
-    expect(order?.salesChannelId).toBe(inactive.id);
+    expect(res.statusCode, res.raw).toBe(422);
+    expect(res.body.error?.code).toBe(ERROR_CODES.ORDER_SALES_CHANNEL_NOT_ALLOWED);
+    expect(await h.em().count(Order, { salesChannelId: inactive.id })).toBe(ordersBefore);
   });
 
   it('lets the body channel win over a conflicting X-Sales-Channel header', async () => {

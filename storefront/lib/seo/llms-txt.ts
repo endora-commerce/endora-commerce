@@ -90,6 +90,8 @@ export interface UnservedPages {
    * is served for the request in hand and may be kept by no cache.
    */
   readonly certain: boolean;
+  /** Feature 171 — where a served page lives when that is not its route (the blog's prefix). */
+  readonly servedAt?: Readonly<Record<string, string>>;
 }
 
 export interface LlmsTxtDeps {
@@ -164,6 +166,7 @@ export async function llmsTxtResponse(request: Request, deps: LlmsTxtDeps): Prom
   const base = renderLlmsTxtBase({
     shopName: configuration.shop.name,
     unservedPaths: unserved.paths,
+    servedAt: unserved.servedAt,
   });
 
   if (new URL(request.url).searchParams.get('part') === 'base') {

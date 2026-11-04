@@ -44,6 +44,8 @@ export const assetReferenceKindSchema = z.enum([
   'project_attachment',
   // `specs/165-task-management/` FR-008: a file attached to a Task.
   'task_attachment',
+  // `specs/171-blog-i18n-authors/` US6: an administrator's author avatar.
+  'admin_user_avatar',
 ]);
 export type AssetReferenceKind = z.infer<typeof assetReferenceKindSchema>;
 

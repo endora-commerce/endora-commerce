@@ -49,6 +49,7 @@ import { Migration20260425T053028AdminUsersInit } from '@endora-commerce/mod-adm
 import { Migration20260819T155150AdminUsersFoldEmailCase } from '@endora-commerce/mod-admin-users/migrations';
 import { Migration20260825T124801AdminUsersDropLegacyTwoFactorSecret } from '@endora-commerce/mod-admin-users/migrations';
 import { Migration20261027T160234AdminUsersAdminUserPreferences } from '@endora-commerce/mod-admin-users/migrations';
+import { Migration20261103T140300AdminUsersAuthorProfile } from '@endora-commerce/mod-admin-users/migrations';
 
 // ── analytics ───────────────────────────────────────────────────────────────
 import { Migration20260425T143139AnalyticsInit } from '@endora-commerce/mod-analytics/migrations';
@@ -65,6 +66,9 @@ import { Migration20261018T141739AssetsLibraryAssetVersionsPermalinks } from '@e
 import { Migration20260506T081055BlogInit } from '@endora-commerce/mod-blog/migrations';
 import { Migration20260903T101744BlogNamespaceBlockNames } from '@endora-commerce/mod-blog/migrations';
 import { Migration20261023T063013BlogPostMainImage } from '@endora-commerce/mod-blog/migrations';
+import { Migration20261103T112345BlogUrlPrefixes } from '@endora-commerce/mod-blog/migrations';
+import { Migration20261103T134216BlogUrlKeysAndRedirects } from '@endora-commerce/mod-blog/migrations';
+import { Migration20261103T140555BlogPostAuthor } from '@endora-commerce/mod-blog/migrations';
 
 // ── carts ───────────────────────────────────────────────────────────────────
 import { Migration20260611T140352CartsConsolidation } from '@endora-commerce/mod-carts/migrations';
@@ -440,6 +444,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('admin_users', Migration20260819T155150AdminUsersFoldEmailCase),
   migration('admin_users', Migration20260825T124801AdminUsersDropLegacyTwoFactorSecret),
   migration('admin_users', Migration20261027T160234AdminUsersAdminUserPreferences),
+  migration('admin_users', Migration20261103T140300AdminUsersAuthorProfile),
 
   // ── analytics ───────────────────────────────────────────────────────────────
   migration('analytics', Migration20260425T143139AnalyticsInit),
@@ -456,6 +461,9 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('blog', Migration20260506T081055BlogInit),
   migration('blog', Migration20260903T101744BlogNamespaceBlockNames),
   migration('blog', Migration20261023T063013BlogPostMainImage),
+  migration('blog', Migration20261103T112345BlogUrlPrefixes),
+  migration('blog', Migration20261103T134216BlogUrlKeysAndRedirects),
+  migration('blog', Migration20261103T140555BlogPostAuthor),
 
   // ── carts ───────────────────────────────────────────────────────────────────
   migration('carts', Migration20260611T140352CartsConsolidation),

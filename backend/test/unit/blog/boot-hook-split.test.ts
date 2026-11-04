@@ -65,6 +65,10 @@ async function composeBlog(): Promise<Composed> {
     redis: undefined,
     assetReferenceRegistry,
     languageReferenceRegistry,
+    // Feature 171 — the blog URL prefix's two contributions: the setting's write
+    // rule and the first segments it claims from CMS pages.
+    settingWriteValidatorRegistry: { register: () => {}, forCode: () => [] },
+    cmsReservedSegmentRegistry: { register: () => {} },
   });
   const composed = composeModules([{ id: 'blog', version: '1.0.0', registerModule }], {
     container,

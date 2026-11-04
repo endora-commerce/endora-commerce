@@ -664,6 +664,9 @@ export const manifest = defineModuleManifest({
     { code: 'ORDER_NOT_FOUND' },
     // Feature 154 — placement refuses a basket of another sales channel.
     { code: 'ORDER_SALES_CHANNEL_MISMATCH' },
+    // Issue #515 — an operator's order on a customer's behalf names a channel
+    // that is not one of the customer's Organization's active channels.
+    { code: 'ORDER_SALES_CHANNEL_NOT_ALLOWED' },
     // Issue #648 — placement refuses a basket that awaits its Organization's
     // approval, with a token per approval state.
     {

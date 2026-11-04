@@ -256,6 +256,13 @@ export const ERROR_CODES = {
   /** 422 — the basket handed to placement belongs to another sales channel (feature 154). */
   ORDER_SALES_CHANNEL_MISMATCH: 'ORDER_SALES_CHANNEL_MISMATCH',
   /**
+   * 422 — the sales channel of an order an operator creates on a customer's
+   * behalf (`POST /api/v1/admin/orders`, and its `/preview`) is not one of the
+   * customer's Organization's active assigned channels — an unassigned, an
+   * inactive or a nonexistent one alike (issue #515).
+   */
+  ORDER_SALES_CHANNEL_NOT_ALLOWED: 'ORDER_SALES_CHANNEL_NOT_ALLOWED',
+  /**
    * 409 — the basket's Organization requires cart approval, its owner is not
    * the Organization administrator and the basket is not `approved` (issue
    * #648). `details: { code, cartId, approvalStatus }`, the token
@@ -524,6 +531,18 @@ export const ERROR_CODES = {
   BLOG_TAG_IN_USE: 'BLOG_TAG_IN_USE',
   BLOG_URL_PREFIX_INVALID: 'BLOG_URL_PREFIX_INVALID',
   BLOG_URL_PREFIX_RESERVED: 'BLOG_URL_PREFIX_RESERVED',
+  // Feature 171 — a prefix equal to a language prefix or a CMS page's first segment; a former prefix to forget that is not one.
+  BLOG_URL_PREFIX_CONFLICT: 'BLOG_URL_PREFIX_CONFLICT',
+  BLOG_URL_PREFIX_NOT_FOUND: 'BLOG_URL_PREFIX_NOT_FOUND',
+  // Feature 171 — a post or category not written in every language assigned to it.
+  BLOG_LANGUAGE_INCOMPLETE: 'BLOG_LANGUAGE_INCOMPLETE',
+  // Feature 171 — an author's avatar names no library asset, and a post's author no active administrator.
+  ADMIN_USER_AVATAR_NOT_FOUND: 'ADMIN_USER_AVATAR_NOT_FOUND',
+  BLOG_AUTHOR_NOT_FOUND: 'BLOG_AUTHOR_NOT_FOUND',
+  // Feature 171 — per-language URL keys of posts and categories.
+  BLOG_URL_KEY_TAKEN: 'BLOG_URL_KEY_TAKEN',
+  BLOG_URL_KEY_REDIRECT_TAKEOVER_REQUIRED: 'BLOG_URL_KEY_REDIRECT_TAKEOVER_REQUIRED',
+  BLOG_URL_REDIRECT_NOT_FOUND: 'BLOG_URL_REDIRECT_NOT_FOUND',
   BLOG_DISABLED: 'BLOG_DISABLED',
   BLOG_ASSET_KIND_MISMATCH: 'BLOG_ASSET_KIND_MISMATCH',
   BLOG_RELATED_POST_SELF_REFERENCE: 'BLOG_RELATED_POST_SELF_REFERENCE',
