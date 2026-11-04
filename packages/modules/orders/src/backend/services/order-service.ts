@@ -272,6 +272,13 @@ export interface CustomerContext {
    * (FR-042 / R-12) and emit an audit entry.
    */
   impersonatorAdminUserId?: string | null;
+  /**
+   * The customer's organization role, when the request's actor carries it
+   * (`specs/170-organization-roles/` R-15). Placement hands it to `carts`' approval
+   * rule for the customer's own basket, so the rule reads no account (FR-080).
+   * Absent — an administrator's or an API client's placement — the rule reads it.
+   */
+  organizationRoleId?: string | null;
 }
 
 /**
@@ -1848,7 +1855,14 @@ export class OrderService {
       // never the member's basket the approval was asked for.
       if (
         !workingBasketId &&
-        (await this.neighbours.cartPlacementApply.awaitsApproval({ cart, organizationId: ctx.organizationId }))
+        (await this.neighbours.cartPlacementApply.awaitsApproval({
+          cart,
+          organizationId: ctx.organizationId,
+          // The placer's own role, only for the placer's own basket (FR-080).
+          ...(ctx.organizationRoleId && cart.customerAccountId === ctx.customerAccountId
+            ? { organizationRoleId: ctx.organizationRoleId }
+            : {}),
+        }))
       ) {
         throw cartApprovalRequired(cart);
       }

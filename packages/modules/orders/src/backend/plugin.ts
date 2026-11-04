@@ -92,6 +92,8 @@ export interface OrdersModuleOptions {
     customerAccountId: string;
     organizationId: string;
     impersonatorAdminUserId?: string | null;
+    /** The member's role as the auth hook stamped it (feature 170, R-15). */
+    organizationRoleId?: string | null;
   };
   /** Audit-log writer; OrderService stamps order.place_on_behalf rows on impersonated checkouts. */
   auditLogService?: AuditPort;
