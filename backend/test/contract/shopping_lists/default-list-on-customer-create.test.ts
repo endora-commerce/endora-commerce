@@ -29,6 +29,8 @@ describe('Default shopping list — eager provisioning on customer create', () =
   });
 
   it('provisions a Default list when an admin creates a customer', async () => {
+    // WP-03 of `specs/170-organization-roles/`: the body names a role id, not the legacy enum.
+    const memberRoleId = await predefinedRoleIdOf(h.em(), TEST_ORGANIZATION_ID, 'member');
     const res = await h.app.inject({
       method: 'POST',
       url: `/api/v1/admin/organizations/${TEST_ORGANIZATION_ID}/members`,
@@ -38,7 +40,7 @@ describe('Default shopping list — eager provisioning on customer create', () =
         password: 'stub-password-change-me-1234',
         firstName: 'Eager',
         lastName: 'Provision',
-        role: 'regular_user',
+        roleId: memberRoleId,
       },
     });
     expect(res.statusCode).toBe(201);
@@ -97,7 +99,7 @@ describe('Default shopping list — eager provisioning on customer create', () =
         password: 'stub-password-change-me-1234',
         firstName: 'Without',
         lastName: 'Create',
-        role: 'regular_user',
+        roleId: memberRoleId,
       },
     });
     expect(res.statusCode, res.body).toBe(201);

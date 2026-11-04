@@ -244,6 +244,26 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
     deps.requireCustomer,
     organizationPermissionPreHandler(deps.organizationPermissions, 'carts.create'),
   ];
+  /**
+   * The gates naming another module's code (T137): saving a line to a list
+   * is a `shopping_lists.create` action, turning the basket into a quote
+   * request a `quote_requests.create` one, and building a basket from a list
+   * needs `shopping_lists.convert`, judged before `carts.create` — two guards,
+   * never a combined code.
+   */
+  const createsShoppingLists = [
+    deps.requireCustomer,
+    organizationPermissionPreHandler(deps.organizationPermissions, 'shopping_lists.create'),
+  ];
+  const createsQuoteRequests = [
+    deps.requireCustomer,
+    organizationPermissionPreHandler(deps.organizationPermissions, 'quote_requests.create'),
+  ];
+  const convertsShoppingListsToCarts = [
+    deps.requireCustomer,
+    organizationPermissionPreHandler(deps.organizationPermissions, 'shopping_lists.convert'),
+    organizationPermissionPreHandler(deps.organizationPermissions, 'carts.create'),
+  ];
 
   /**
    * The basket a read addresses, or `null` for none: a customer's is created on
@@ -589,7 +609,7 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
    */
   app.post<{ Params: { itemId: string } }>(
     '/api/v1/cart/items/:itemId/save-to-shopping-list',
-    { preHandler: deps.requireCustomer, schema: { body: saveCartItemToListSchema } },
+    { preHandler: createsShoppingLists, schema: { body: saveCartItemToListSchema } },
     async (request, reply) => {
       const actor = resolveCartActor(request);
       if (!actor.customer) {
@@ -716,7 +736,7 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
    */
   app.post(
     '/api/v1/cart/convert-to-quote-request',
-    { preHandler: deps.requireCustomer, schema: { body: convertCartToQrSchema } },
+    { preHandler: createsQuoteRequests, schema: { body: convertCartToQrSchema } },
     async (request) => {
       const actor = resolveCartActor(request);
       if (!actor.customer) {
@@ -784,11 +804,9 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
    * through the `appendShoppingListToCart` port. Composition wires that
    * port at boot time.
    */
-  // `shopping_lists.convert` joins `carts.create` here once `shopping_lists`
-  // declares it (WP-06 of `specs/170-organization-roles/`), judged first.
   app.post<{ Params: { shoppingListId: string } }>(
     '/api/v1/cart/from-shopping-list/:shoppingListId',
-    { preHandler: createsCarts },
+    { preHandler: convertsShoppingListsToCarts },
     async (request) => {
       const actor = resolveCartActor(request);
       if (!actor.customer) {
