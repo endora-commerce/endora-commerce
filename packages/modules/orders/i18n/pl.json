@@ -30,6 +30,7 @@
   "errors.ORDER_NOT_FOUND": "Nie znaleziono zamówienia.",
   "errors.ORDER_NOT_CANCELLABLE": "Tego zamówienia nie można już anulować.",
   "errors.ORDER_SALES_CHANNEL_MISMATCH": "Twój koszyk należy do innego sklepu. Otwórz koszyk w tym sklepie i złóż zamówienie ponownie.",
+  "errors.ORDER_SALES_CHANNEL_NOT_ALLOWED": "Ten kanał sprzedaży nie należy do aktywnych kanałów sprzedaży organizacji. Wybierz jeden z nich.",
   "errors.ORDER_CART_APPROVAL_REQUIRED": "Ten koszyk musi zostać zaakceptowany przez Twoją organizację, zanim złożysz zamówienie.",
   "errors.ORDER_CART_APPROVAL_REQUIRED.cart_approval_not_submitted": "Twoja organizacja wymaga akceptacji koszyka przed zamówieniem. Najpierw wyślij ten koszyk do akceptacji.",
   "errors.ORDER_CART_APPROVAL_REQUIRED.cart_approval_pending": "Ten koszyk czeka na akceptację administratora Twojej organizacji. Zamówienie złożysz, gdy koszyk zostanie zaakceptowany.",

@@ -33,7 +33,11 @@ import { Cart, CartItem, Order, StockLevel } from '../../helpers/package-entitie
  *    a product B sells and the default does not was refused, and a product the
  *    default sells and B does not was accepted.
  * 2. A `salesChannelId` naming no channel was accepted: placement fell back to
- *    the system default and answered 201 on a channel nobody chose.
+ *    the system default and answered 201 on a channel nobody chose. It was
+ *    refused `404 NOT_FOUND` from then on, and since issue #515 with `422
+ *    ORDER_SALES_CHANNEL_NOT_ALLOWED` — the answer for every channel that is not
+ *    one of the customer's Organization's active channels, so the refusal does
+ *    not tell which ids exist.
  *
  * The probe channel sells `soldHereId` only. `beforeAll` removes that product
  * from the system-default channel, so the two products separate the channels:
@@ -92,7 +96,7 @@ describe('POST /api/v1/admin/orders — the order\'s sales channel decides', () 
     return { statusCode: res.statusCode, body, raw: res.body };
   }
 
-  it('refuses a salesChannelId naming no channel with 404 NOT_FOUND, writing nothing', async () => {
+  it('refuses a salesChannelId naming no channel with 422 ORDER_SALES_CHANNEL_NOT_ALLOWED, writing nothing', async () => {
     const em = h.em();
     await em.nativeDelete(Cart, { customerAccountId: TEST_CUSTOMER_ID, status: 'active' });
     await seedCartForStubCustomer(em);
@@ -100,8 +104,8 @@ describe('POST /api/v1/admin/orders — the order\'s sales channel decides', () 
 
     const res = await create('00000000-0000-4000-8000-00000000dead', probe.notSoldHereId);
 
-    expect(res.statusCode, res.raw).toBe(404);
-    expect(res.body.error?.code).toBe(ERROR_CODES.NOT_FOUND);
+    expect(res.statusCode, res.raw).toBe(422);
+    expect(res.body.error?.code).toBe(ERROR_CODES.ORDER_SALES_CHANNEL_NOT_ALLOWED);
 
     const after = h.em();
     expect(await after.count(Order, { placedByCustomerAccountId: TEST_CUSTOMER_ID })).toBe(

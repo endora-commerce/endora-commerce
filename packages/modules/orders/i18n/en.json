@@ -30,6 +30,7 @@
   "errors.ORDER_NOT_FOUND": "Order not found.",
   "errors.ORDER_NOT_CANCELLABLE": "This order can no longer be cancelled.",
   "errors.ORDER_SALES_CHANNEL_MISMATCH": "Your basket belongs to a different store. Open the basket in this store and place the order again.",
+  "errors.ORDER_SALES_CHANNEL_NOT_ALLOWED": "This sales channel is not one of the organization's active sales channels. Choose one of them.",
   "errors.ORDER_CART_APPROVAL_REQUIRED": "This basket must be approved by your organization before the order can be placed.",
   "errors.ORDER_CART_APPROVAL_REQUIRED.cart_approval_not_submitted": "Your organization requires baskets to be approved before ordering. Send this basket for approval first.",
   "errors.ORDER_CART_APPROVAL_REQUIRED.cart_approval_pending": "This basket is awaiting approval by your organization administrator. You can place the order once it is approved.",

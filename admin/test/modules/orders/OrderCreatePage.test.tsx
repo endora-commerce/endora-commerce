@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
+import { orgSalesChannels } from './org-sales-channels';
 
 /**
  * The real providers, not a stubbed hook (feature 091, P3 and P4d).
@@ -71,6 +72,7 @@ const CUSTOMER = {
   firstName: 'Jan',
   lastName: 'Kowalski',
   organizationName: 'Acme',
+  organizationId: 'org-1',
 };
 const ORG_ADDRESS = {
   id: 'addr-1',
@@ -132,8 +134,8 @@ beforeEach(() => {
     if (path === '/api/v1/admin/customers/cust-1') return Promise.resolve({ data: CUSTOMER });
     if (path.startsWith('/api/v1/admin/customers')) return Promise.resolve({ data: [CUSTOMER] });
     if (path.startsWith('/api/v1/admin/catalog/products')) return Promise.resolve({ data: [PRODUCT] });
-    if (path.startsWith('/api/v1/admin/sales-channels')) {
-      return Promise.resolve({ items: [{ id: 'chan-1', code: 'CH', name: { 'en-US': 'Channel 1' }, active: true }] });
+    if (path.endsWith('/sales-channels')) {
+      return Promise.resolve(orgSalesChannels([{ id: 'chan-1', code: 'CH', name: { 'en-US': 'Channel 1' }, active: true }]));
     }
     if (path.startsWith('/api/v1/admin/payment-methods')) {
       return Promise.resolve({ data: [{ id: 'pay-1', code: 'PM', name: { 'en-US': 'Payment 1' }, status: 'active' }] });
@@ -218,13 +220,13 @@ describe('OrderCreatePage', () => {
   it('clears a chosen method when the channel is changed to one that does not offer it', async () => {
     const reference = getSpy.getMockImplementation()!;
     getSpy.mockImplementation((path: string) => {
-      if (path.startsWith('/api/v1/admin/sales-channels')) {
-        return Promise.resolve({
-          items: [
+      if (path.endsWith('/sales-channels')) {
+        return Promise.resolve(
+          orgSalesChannels([
             { id: 'chan-1', code: 'CH1', name: { 'en-US': 'Channel 1' }, active: true },
             { id: 'chan-2', code: 'CH2', name: { 'en-US': 'Channel 2' }, active: true },
-          ],
-        });
+          ]),
+        );
       }
       if (path.startsWith('/api/v1/admin/delivery-methods')) {
         return Promise.resolve({

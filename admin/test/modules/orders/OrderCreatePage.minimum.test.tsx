@@ -7,6 +7,7 @@ import { StrictMode, type ReactElement } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { TranslationProvider } from '@endora-commerce/admin-kit/i18n';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
+import { orgSalesChannels } from './org-sales-channels';
 
 /**
  * Feature 155, T107 — the admin create-order preview names a line below its
@@ -112,7 +113,7 @@ function servePreview(body: PreviewBody): unknown {
   };
 }
 
-const CUSTOMER = { id: 'cust-1', email: 'jan@acme.test', firstName: 'Jan', lastName: 'Kowalski', organizationName: 'Acme' };
+const CUSTOMER = { id: 'cust-1', email: 'jan@acme.test', firstName: 'Jan', lastName: 'Kowalski', organizationName: 'Acme', organizationId: 'org-1' };
 
 beforeEach(() => {
   getSpy.mockReset();
@@ -126,8 +127,8 @@ beforeEach(() => {
       const row = CATALOG.find((p) => p.id === path.slice(LIST_PATH.length + 1));
       return row ? Promise.resolve({ data: row }) : Promise.reject(new Error('not found'));
     }
-    if (path.startsWith('/api/v1/admin/sales-channels')) {
-      return Promise.resolve({ items: [{ id: 'chan-1', code: 'CH', name: { 'en-US': 'Channel 1' }, active: true }] });
+    if (path.endsWith('/sales-channels')) {
+      return Promise.resolve(orgSalesChannels([{ id: 'chan-1', code: 'CH', name: { 'en-US': 'Channel 1' }, active: true }]));
     }
     return Promise.resolve({ data: [] });
   });
@@ -163,7 +164,9 @@ function renderPage(language: Language): ReturnType<typeof render> {
 }
 
 async function quickAdd(user: ReturnType<typeof userEvent.setup>, language: Language, name: string): Promise<void> {
-  const quick = screen.getByRole('combobox', { name: tr(language, 'orderCreate.items.quickSearch') });
+  // Items shows once the customer's Organization's channels are read and the
+  // link's channel is among them (issue #515).
+  const quick = await screen.findByRole('combobox', { name: tr(language, 'orderCreate.items.quickSearch') });
   await user.clear(quick);
   await user.type(quick, name);
   await user.click(await screen.findByRole('option', { name: new RegExp(name) }));

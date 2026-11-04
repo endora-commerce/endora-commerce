@@ -232,6 +232,13 @@ export const ERROR_CODES = {
   /** 422 — the basket handed to placement belongs to another sales channel (feature 154). */
   ORDER_SALES_CHANNEL_MISMATCH: 'ORDER_SALES_CHANNEL_MISMATCH',
   /**
+   * 422 — the sales channel of an order an operator creates on a customer's
+   * behalf (`POST /api/v1/admin/orders`, and its `/preview`) is not one of the
+   * customer's Organization's active assigned channels — an unassigned, an
+   * inactive or a nonexistent one alike (issue #515).
+   */
+  ORDER_SALES_CHANNEL_NOT_ALLOWED: 'ORDER_SALES_CHANNEL_NOT_ALLOWED',
+  /**
    * 409 — the basket's Organization requires cart approval, its owner is not
    * the Organization administrator and the basket is not `approved` (issue
    * #648). `details: { code, cartId, approvalStatus }`, the token

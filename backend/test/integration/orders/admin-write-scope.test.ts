@@ -23,6 +23,7 @@ import { ADMIN_COOKIES, TEST_CUSTOMER_ID } from '../../helpers/test-actors.js';
 
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { systemDefaultSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
+import { bindOrganizationsToFixtureChannelsSql } from '../../helpers/sales-channel-access.js';
 import { Order, OrderComment } from '../../helpers/package-entities.js';
 
 
@@ -155,6 +156,10 @@ describe('Admin order routes honour the sales-rep assignment scope (feature 085 
     await em.persistAndFlush([rep, assigned, foreign]);
     assignedOrgId = assigned.id;
     foreignOrgId = foreign.id;
+    // Issue #515 — the admin create and preview accept only a channel the
+    // customer's Organization is assigned to; these Organizations are written
+    // directly, so they are bound to the fixture channels here.
+    await bindOrganizationsToFixtureChannelsSql(em, [assignedOrgId, foreignOrgId]);
 
     await em.persistAndFlush(
       em.create(OrganizationSalesRepAssignment, {

@@ -27,7 +27,7 @@ import {
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
-import { getTenantContext } from '@endora-commerce/platform/tenancy';
+import { getTenantContext, isOrgInScope } from '@endora-commerce/platform/tenancy';
 import type { OrganizationTreeService } from './services/organization-tree-service.js';
 import { hasChildrenRefusal } from './services/organization-tree-service.js';
 import { makeSetParentCommand } from './commands/set-parent.command.js';
@@ -409,7 +409,17 @@ export async function registerOrganizationsAdminRoutes(
       };
     };
 
+    /**
+     * The Organization, when it exists **and the acting administrator can see
+     * it** (issue #515). `Organization` is a global entity, so no tenant filter
+     * narrows the read: a sales representative confined to their own
+     * Organizations reached every Organization's assignment here, and with
+     * `customers:manage` could replace it. Outside the request's reach the
+     * answer is the one a nonexistent Organization gets — `404 NOT_FOUND`,
+     * decided before the row is read — so it is no existence probe either.
+     */
     const requireOrganization = async (em: EntityManager, id: string): Promise<Organization> => {
+      if (!isOrgInScope(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
       const org = await em.findOne(Organization, { id, deletedAt: null });
       if (!org) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
       return org;

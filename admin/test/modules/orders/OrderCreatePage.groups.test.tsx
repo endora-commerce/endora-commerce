@@ -9,6 +9,7 @@ import { formatMoney } from '@endora-commerce/admin-kit/lib';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 import { expectNoAxeViolations } from '../../helpers/axe';
+import { orgSalesChannels } from './org-sales-channels';
 
 /**
  * Feature 159, T062 — the create-order screen groups its lines
@@ -52,7 +53,7 @@ const ORDERS_EN = JSON.parse(
   readFileSync(join(REPO_ROOT, 'packages/modules/orders/i18n/en.json'), 'utf8'),
 ) as Record<string, string>;
 
-const CUSTOMER = { id: 'cust-1', email: 'jan@acme.test', firstName: 'Jan', lastName: 'Kowalski', organizationName: 'Acme' };
+const CUSTOMER = { id: 'cust-1', email: 'jan@acme.test', firstName: 'Jan', lastName: 'Kowalski', organizationName: 'Acme', organizationId: 'org-1' };
 const ORG_ADDRESS = {
   id: 'addr-1',
   recipientName: 'Acme HQ',
@@ -99,8 +100,8 @@ beforeEach(() => {
       const q = new URLSearchParams(path.split('?')[1] ?? '').get('q') ?? '';
       return Promise.resolve({ data: PRODUCTS.filter((p) => p.name['en-US'].toLowerCase().startsWith(q.toLowerCase())) });
     }
-    if (path.startsWith('/api/v1/admin/sales-channels')) {
-      return Promise.resolve({ items: [{ id: 'chan-1', code: 'CH', name: { 'en-US': 'Channel 1' }, active: true }] });
+    if (path.endsWith('/sales-channels')) {
+      return Promise.resolve(orgSalesChannels([{ id: 'chan-1', code: 'CH', name: { 'en-US': 'Channel 1' }, active: true }]));
     }
     if (path.startsWith('/api/v1/admin/payment-methods')) {
       return Promise.resolve({ data: [{ id: 'pay-1', code: 'PM', name: { 'en-US': 'Payment 1' }, status: 'active' }] });

@@ -1146,6 +1146,16 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'placement earns when the basket it is handed belongs to another sales channel. The raise ' +
       'site is `orders`\' placement; the noun is the order.',
   },
+  ORDER_SALES_CHANNEL_NOT_ALLOWED: {
+    to: 'orders',
+    reason:
+      'Minted by issue #515 for an operator\'s order on a customer\'s behalf — `POST ' +
+      '/api/v1/admin/orders` and its preview — whose sales channel is not one of the customer\'s ' +
+      'Organization\'s active assigned channels: unassigned, inactive or nonexistent alike. The ' +
+      'noun is the order\'s channel and the raise sites are `orders`\' admin create and preview. ' +
+      '`RFQ_SALES_CHANNEL_NOT_ALLOWED` is not reused: its sentence speaks of a quote request, and ' +
+      '`SALES_CHANNEL_NOT_PERMITTED` speaks to a signed-in buyer.',
+  },
   ORDER_CART_APPROVAL_REQUIRED: {
     to: 'orders',
     reason:
