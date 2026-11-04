@@ -383,13 +383,9 @@ export async function registerCatalogAdminRoutes(
     '/api/v1/admin/catalog/products/:id/duplicate',
     { preHandler: requireAdmin('catalog:write') },
     async (request, reply) => {
+      // The duplicate is one audited Command (`product.duplicate`, FR-119) whose entry already
+      // names the source and the new SKU: no second, route-level audit entry.
       const dup = await adminService.duplicateProduct(request.params.id);
-      await auditEmit(request, {
-        action: 'product.duplicate',
-        objectType: 'product',
-        objectId: dup.id,
-        stateAfter: { sourceProductId: request.params.id, sku: dup.sku },
-      });
       reply.status(201);
       return { data: serializeAdminProduct(dup) };
     },

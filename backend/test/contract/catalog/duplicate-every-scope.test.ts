@@ -189,16 +189,17 @@ describe('170 FR-119 — duplicate copies every scope (T151)', () => {
     expect((await fx.read(copy, CL(a, 'pl-PL'))).fields.urlKey.source).not.toBe('set');
   });
 
-  it('records one product.duplicate Command entry naming what it copied', async () => {
+  it('records exactly one product.duplicate audit entry, the Command\'s, naming what it copied', async () => {
+    // One Command, one audit row (final security review): the route adds no second entry.
     const entries = await fx.sql<{ state_after: Record<string, unknown> }>(
       `select state_after from audit_log_entries
-        where object_type = 'product' and object_id = ? and action = 'product.duplicate'
-          and state_after -> 'copied' is not null`,
+        where object_type = 'product' and object_id = ? and action = 'product.duplicate'`,
       [copy],
     );
     expect(entries).toHaveLength(1);
     expect(entries[0]!.state_after).toMatchObject({
       sourceProductId: source,
+      sku: expect.any(String),
       copied: {
         valueOverrides: 5,
         channelScopes: 1,

@@ -47,7 +47,11 @@ const MAX_LENGTH: Readonly<Record<SeoProductMetaField, number>> = {
   ogImageUrl: 2048,
 };
 
-/** An `og:image` URL: `http(s)` with no credentials, or a site-relative path (R21; re-checked at render). */
+/**
+ * An `og:image` URL: `http(s)` with no credentials, or a site-relative path (R21). Checked at write
+ * time only — by this port and by the legacy PUT (`ogImageUrlSchema`) — so no unsafe value is ever
+ * stored; the render path does not re-check it.
+ */
 export function isSafeOgImageUrl(value: string): boolean {
   return ogImageUrlSchema.safeParse(value).success && !/^https?:\/\/[^/?#]*@/i.test(value);
 }

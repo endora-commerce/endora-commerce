@@ -14,3 +14,4 @@
 - **Connector port v2.** `catalogProductScopeWritePort.applyScopes` takes cells `{ scope, field, value }` in the write encoding, applies them per cell and reports refusals (`not_supported`, `SCOPE_INVALID`, `FIELD_NOT_AT_SCOPE`, `required_empty`, `not_emptyable`, `inherit_at_global`, `subject_not_found`, `invalid`); a cell whose op is not exactly `set`, `empty` or `inherit` is `422 VALIDATION_FAILED`. URL keys from an integration are never forced. `catalogProductValueOverrideWritePort` is retired; an external connector must move to v2.
 - **Products import.** A re-imported unchanged file writes nothing (FR-114); a cell that writes what the scope already holds is dropped.
 - `editor-preference` without a resolved admin answers `403 FORBIDDEN`.
+- `POST /api/v1/admin/catalog/products/:id/duplicate` writes one audit entry, the `product.duplicate` Command's (it names `sourceProductId`, `sku` and what was copied); the second, route-level entry is gone.
