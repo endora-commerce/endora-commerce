@@ -14,8 +14,11 @@ import { seedMemberWithPermissions } from '../../helpers/seed-organization-roles
  * Quick order by organization permission (`specs/170-organization-roles/`
  * WP-06, T085; `contracts/storefront-api.md` §5; FR-012, FR-030, FR-040, R-26).
  *
- *  - `POST /api/v1/quick-order/import` and `…/build` with `target: cart` need
- *    `carts.create`; `…/build` with `target: quote_request` needs
+ *  - `POST /api/v1/quick-order/import` needs `carts.create` or
+ *    `quote_requests.create` (WP-15, OR-10, FR-030b, R-40); a member holding
+ *    neither is refused naming `carts.create`.
+ *  - `…/build` with `target: cart` needs `carts.create`; with
+ *    `target: quote_request` it needs
  *    `quote_requests.create`. The target is in the body, so the build judges
  *    it in its own branch — still before any line is resolved or written.
  *  - `PUT /api/v1/quick-order/preferences` for the Organization scope stays
@@ -47,6 +50,7 @@ describe('quick order — organization permission gates', () => {
   let cartsOnly: Member;
   let quotesOnly: Member;
   let everything: Member;
+  let neither: Member;
 
   async function member(label: string, permissions: readonly string[]): Promise<Member> {
     const id = randomUUID();
@@ -102,6 +106,7 @@ describe('quick order — organization permission gates', () => {
     h = await setupBackendServer();
     cartsOnly = await member('carts-only', ['carts.create']);
     quotesOnly = await member('quotes-only', ['quote_requests.create']);
+    neither = await member('neither', []);
     // Every grantable code a role can hold here — still not the administrator.
     everything = await member('everything', [
       'carts.create',
@@ -119,13 +124,53 @@ describe('quick order — organization permission gates', () => {
     await teardownBackendServer(h);
   });
 
+  /**
+   * The import admits either target's permission (owner ruling OR-10,
+   * FR-030b, R-40): `carts.create` **or** `quote_requests.create`, judged after
+   * `requireCustomer` and before the file is parsed. A member holding neither
+   * is refused naming `carts.create`. The build that follows still judges its
+   * own target.
+   */
   describe('POST /api/v1/quick-order/import', () => {
-    it('refuses a member without carts.create, before the file is parsed', async () => {
-      const res = await h.app.inject({
+    const CSV = 'sku,quantity\nEXAMPLE-SIMPLE-001,1';
+
+    function importAs(who: Member | null, payload: Record<string, unknown> = { csv: CSV }) {
+      return h.app.inject({
         method: 'POST',
         url: '/api/v1/quick-order/import',
-        cookies: quotesOnly.cookies,
-        payload: { csv: 'sku,quantity\nEXAMPLE-SIMPLE-001,1' },
+        ...(who ? { cookies: who.cookies } : {}),
+        payload,
+      });
+    }
+
+    function recognisedSkus(body: string): string[] {
+      return (JSON.parse(body) as { data: { recognized: Array<{ sku: string }> } }).data.recognized.map((r) => r.sku);
+    }
+
+    it('serves a member holding quote_requests.create and not carts.create', async () => {
+      const res = await importAs(quotesOnly);
+      expect(res.statusCode, res.body).toBe(200);
+      expect(recognisedSkus(res.body)).toEqual(['EXAMPLE-SIMPLE-001']);
+    });
+
+    it('serves a holder of carts.create', async () => {
+      const res = await importAs(cartsOnly);
+      expect(res.statusCode, res.body).toBe(200);
+      expect(recognisedSkus(res.body)).toEqual(['EXAMPLE-SIMPLE-001']);
+    });
+
+    it('refuses a member holding neither, naming carts.create, before the file is parsed', async () => {
+      const res = await importAs(neither);
+      expect(res.statusCode, res.body).toBe(403);
+      expect(refusal(res.body)).toEqual({
+        code: ERROR_CODES.ORGANIZATION_PERMISSION_REQUIRED,
+        permission: 'carts.create',
+      });
+    });
+
+    it('refuses a member holding neither the same way when the file is malformed — 403, not a parse failure', async () => {
+      const res = await importAs(neither, {
+        file: { filename: 'broken.xlsx', contentBase64: Buffer.from('not a workbook').toString('base64') },
       });
       expect(res.statusCode, res.body).toBe(403);
       expect(refusal(res.body)).toEqual({
@@ -134,14 +179,33 @@ describe('quick order — organization permission gates', () => {
       });
     });
 
-    it('serves a holder of carts.create', async () => {
-      const res = await h.app.inject({
-        method: 'POST',
-        url: '/api/v1/quick-order/import',
-        cookies: cartsOnly.cookies,
-        payload: { csv: 'sku,quantity\nEXAMPLE-SIMPLE-001,1' },
+    it('keeps the target gated: the quote-only importer cannot build a cart', async () => {
+      expect((await importAs(quotesOnly)).statusCode).toBe(200);
+      const before = await cartRows(quotesOnly.id);
+      const res = await build(quotesOnly, 'cart');
+      expect(res.statusCode, res.body).toBe(403);
+      expect(refusal(res.body)).toEqual({
+        code: ERROR_CODES.ORGANIZATION_PERMISSION_REQUIRED,
+        permission: 'carts.create',
       });
-      expect(res.statusCode, res.body).toBe(200);
+      expect(await cartRows(quotesOnly.id)).toEqual(before);
+    });
+
+    it('keeps the target gated: the cart-only importer cannot build a quote request', async () => {
+      expect((await importAs(cartsOnly)).statusCode).toBe(200);
+      const before = await quoteRequestCount(cartsOnly.id);
+      const res = await build(cartsOnly, 'quote_request');
+      expect(res.statusCode, res.body).toBe(403);
+      expect(refusal(res.body)).toEqual({
+        code: ERROR_CODES.ORGANIZATION_PERMISSION_REQUIRED,
+        permission: 'quote_requests.create',
+      });
+      expect(await quoteRequestCount(cartsOnly.id)).toBe(before);
+    });
+
+    it('still answers 401 to a signed-out caller', async () => {
+      const res = await importAs(null);
+      expect(res.statusCode, res.body).toBe(401);
     });
   });
 

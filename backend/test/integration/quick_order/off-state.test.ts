@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { OrganizationPermissionPort } from '@endora-commerce/contracts';
+import { ERROR_CODES, type OrganizationPermissionPort } from '@endora-commerce/contracts';
 import { QUICK_ORDER_SETTING_CODES } from '@endora-commerce/mod-quick-order';
 import {
   setupBackendServer,
@@ -8,7 +8,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { expectModuleAbsent, withModuleOff, type OffStateAxis } from '../../helpers/off-state.js';
-import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { CUSTOMER_COOKIES, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { seedMemberWithPermissions } from '../../helpers/seed-organization-roles.js';
 
 /**
@@ -160,5 +160,65 @@ describe('quick_order off-state (Constitution XVII)', () => {
         expect(await storedGrants()).toEqual(before);
       },
     );
+  });
+  /**
+   * `specs/170-organization-roles/` WP-15 (T139; OR-10, FR-030b, FR-007) — the
+   * import admits `carts.create` or `quote_requests.create`, and an absent
+   * module's code grants nothing. With `quote_requests` off, a member whose role
+   * holds only `quote_requests.create` holds nothing the import accepts, so it
+   * is refused naming `carts.create`; switched back on, the same member is
+   * served again with nothing re-granted.
+   */
+  describe('the import by either target follows quote_requests\' presence', () => {
+    const cookie = 'stub-quick-order-off-state-quotes-only';
+    const CSV = 'sku,quantity\nEXAMPLE-SIMPLE-001,1';
+
+    function importCsv() {
+      return h.app.inject({
+        method: 'POST',
+        url: '/api/v1/quick-order/import',
+        cookies: { b2b_session: cookie },
+        payload: { csv: CSV },
+      });
+    }
+
+    beforeAll(async () => {
+      const id = randomUUID();
+      const em = h.em();
+      await em.getConnection().execute(
+        `insert into "customer_accounts"
+           ("id","organization_id","email","password_hash","first_name","last_name","created_at","updated_at")
+         values (?, ?, ?, 'x', 'Quotes', 'Only', now(), now())`,
+        [id, TEST_ORGANIZATION_ID, `${id.slice(0, 8)}@quick-order-off-state.example`],
+      );
+      await seedMemberWithPermissions(em, {
+        organizationId: TEST_ORGANIZATION_ID,
+        customerAccountId: id,
+        permissions: ['quote_requests.create'],
+      });
+      (h.container.cradle as unknown as { organizationRoleCache: { invalidateLocal(id?: string): void } })
+        .organizationRoleCache.invalidateLocal(TEST_ORGANIZATION_ID);
+      CUSTOMER_COOKIES[cookie] = { customerAccountId: id, organizationId: TEST_ORGANIZATION_ID };
+    });
+
+    afterAll(() => {
+      delete CUSTOMER_COOKIES[cookie];
+    });
+
+    it('refuses the quote-only member while quote_requests is off, naming carts.create, and serves them after', async () => {
+      const on = await importCsv();
+      expect(on.statusCode, on.body).toBe(200);
+
+      await withModuleOff('quote_requests', 'deactivated', async () => {
+        const off = await importCsv();
+        expect(off.statusCode, off.body).toBe(403);
+        const error = (off.json() as { error: { code: string; details?: { permission?: string } } }).error;
+        expect(error.code).toBe(ERROR_CODES.ORGANIZATION_PERMISSION_REQUIRED);
+        expect(error.details?.permission).toBe('carts.create');
+      });
+
+      const back = await importCsv();
+      expect(back.statusCode, back.body).toBe(200);
+    });
   });
 });

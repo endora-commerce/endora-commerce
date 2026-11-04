@@ -267,6 +267,41 @@ describe('OrganizationRolesTab — managing with organizations:manage-roles', ()
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
+  /**
+   * T140 (owner ruling OR-9, FR-004a, R-39) — characterization: a new custom
+   * role starts with no permissions. The editor ticks nothing, the
+   * *member-default* hint is a hint and not a selection, there is no control to
+   * copy another role's permissions, and saving untouched sends `permissions: []`.
+   */
+  it('opens the create editor empty: nothing ticked, the member-default hint only, no copy-from-role, and saves []', async () => {
+    postSpy.mockResolvedValue({ data: { ...ROLES[3], id: '00000000-0000-4000-8000-000000000006', name: 'Viewer' } });
+    renderTab(['organizations:manage-roles']);
+
+    fireEvent.click(await screen.findByRole('button', { name: tr('roles.action.create') }));
+    const dialog = await screen.findByRole('dialog', { name: tr('roles.editor.createTitle') });
+
+    const boxes = within(dialog).getAllByRole('checkbox');
+    expect(boxes).toHaveLength(3);
+    for (const box of boxes) expect(box).not.toBeChecked();
+    // The two member defaults (carts.create, shopping_lists.create) carry the
+    // hint, and the hint ticks neither.
+    expect(within(dialog).getAllByText(tr('roles.editor.memberDefault')).length).toBe(2);
+    expect(within(dialog).getByRole('checkbox', { name: /Add to the basket/ })).not.toBeChecked();
+    expect(within(dialog).getByRole('checkbox', { name: /Create shopping lists/ })).not.toBeChecked();
+
+    // No copy-from-role control: no role picker, and no existing role offered.
+    expect(within(dialog).queryByRole('combobox')).toBeNull();
+    expect(within(dialog).queryByRole('listbox')).toBeNull();
+    expect(within(dialog).queryByRole('button', { name: /copy/i })).toBeNull();
+    for (const role of ROLES) expect(within(dialog).queryByText(role.name)).toBeNull();
+
+    fireEvent.change(within(dialog).getByLabelText(tr('roles.editor.field.name')), { target: { value: 'Viewer' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: tr('roles.action.save') }));
+
+    await waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
+    expect(postSpy).toHaveBeenCalledWith(ROLES_PATH, { name: 'Viewer', permissions: [] });
+  });
+
   it('edits a custom role against the version it read', async () => {
     patchSpy.mockResolvedValue({ data: ROLES[2] });
     renderTab(['organizations:manage-roles']);
