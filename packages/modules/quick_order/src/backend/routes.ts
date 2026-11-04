@@ -1,12 +1,13 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
+  CustomerSessionRequiredError,
   firstLanguageTag,
-  organizationPermissionPreHandler,
   quickOrderBuildRequestSchema,
   quickOrderImportRequestSchema,
   quickOrderSearchQuerySchema,
   type CatalogQuickSearchPort,
   type OrganizationPermissionPort,
+  type OrganizationPermissionSubject,
 } from '@endora-commerce/contracts';
 import { getResolvedChannel } from '@endora-commerce/platform/kernel';
 import { productAudienceOf } from '@endora-commerce/platform/http';
@@ -25,12 +26,45 @@ import { parseImportRequest } from './services/import-from-request.js';
  * cart / RFQ mutation are gated to logged-in buyers.
  *
  * **By organization permission (`specs/170-organization-roles/`, FR-030,
- * FR-040; `contracts/storefront-api.md` §5).** The import fills a basket, so it
- * needs `carts.create` — a guard after `requireCustomer`, answered before the
- * file is parsed. The build's target is in its body, so the build judges
- * `carts.create` or `quote_requests.create` itself, first thing
- * (`QuickOrderBuildService.build`). The type-ahead is a read and stays open.
+ * FR-030b, FR-040; `contracts/storefront-api.md` §5).** The import previews a
+ * file that may become either a basket or a quote request, so it admits
+ * `carts.create` **or** `quote_requests.create` (owner ruling OR-10, R-40) — a
+ * module-local guard after `requireCustomer`, answered before the file is
+ * parsed; a member holding neither is refused naming `carts.create`. The
+ * build's target is in its body, so the build judges `carts.create` or
+ * `quote_requests.create` itself, first thing (`QuickOrderBuildService.build`).
+ * The type-ahead is a read and stays open.
  */
+
+const CARTS_CREATE = 'carts.create';
+const QUOTE_REQUESTS_CREATE = 'quote_requests.create';
+
+/**
+ * The import's guard (OR-10, FR-030b, R-40): either target's create permission
+ * admits it, judged in that order. The subject is built from the actor exactly
+ * as `organizationPermissionPreHandler` builds it. When neither holds, the
+ * port's `assert` raises the standard `403 ORGANIZATION_PERMISSION_REQUIRED`
+ * naming `carts.create` — the import's primary target — so the refusal keeps
+ * its one shape. A code whose module is off grants nothing (FR-007), so with
+ * `quote_requests` off only `carts.create` admits.
+ */
+function importPermissionPreHandler(
+  getPort: () => OrganizationPermissionPort,
+): (request: FastifyRequest) => Promise<void> {
+  return async (request) => {
+    const actor = request.actor;
+    if (actor.kind !== 'customer') throw new CustomerSessionRequiredError();
+    const subject: OrganizationPermissionSubject = {
+      customerAccountId: actor.customerAccountId,
+      organizationId: actor.organizationId ?? '',
+      organizationRoleId: actor.organizationRoleId ?? null,
+    };
+    const port = getPort();
+    if (await port.can(subject, CARTS_CREATE)) return;
+    if (await port.can(subject, QUOTE_REQUESTS_CREATE)) return;
+    await port.assert(subject, CARTS_CREATE, { language: await request.responseLanguage() });
+  };
+}
 
 export interface QuickOrderRoutesDeps {
   pipeline: QuickOrderImportPipeline;
@@ -63,7 +97,7 @@ export async function registerQuickOrderRoutes(
   app.post(
     '/api/v1/quick-order/import',
     {
-      preHandler: [requireCustomer, organizationPermissionPreHandler(organizationPermissions, 'carts.create')],
+      preHandler: [requireCustomer, importPermissionPreHandler(organizationPermissions)],
       schema: { body: quickOrderImportRequestSchema },
     },
     async (request) => {

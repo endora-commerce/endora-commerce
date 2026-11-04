@@ -42,8 +42,13 @@ cart, the quote request's reference prices for a request. The admin twins
 (`/api/v1/admin/quick-order/import` + `/build`, guarded by `orders:write`)
 build on behalf of a chosen customer via `onBehalfOf`.
 
-**Organization permissions.** The buyer's import needs `carts.create`, since it
-fills a basket; it is refused before the file is parsed. The buyer's build needs
+**Organization permissions.** The buyer's import needs `carts.create` **or**
+`quote_requests.create`: a file can become either a basket or a quote request,
+so a member allowed to do either may preview it. A member holding neither is
+refused `403 ORGANIZATION_PERMISSION_REQUIRED` naming `carts.create`, before the
+file is parsed — a malformed file gets the same answer. A permission whose
+module is switched off grants nothing, so with `quote_requests` off only
+`carts.create` admits the import. The buyer's build needs
 the target's create permission — `carts.create` for target `cart`,
 `quote_requests.create` for target `quote_request` — judged first, before the
 items are looked at. Both permissions are declared by `carts` and

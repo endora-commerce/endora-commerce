@@ -39,8 +39,13 @@ Odpowiedniki w panelu administracyjnym
 (`/api/v1/admin/quick-order/import` i `/build`, chronione przez `orders:write`) budują koszyk lub
 zapytanie w imieniu wybranego klienta przez `onBehalfOf`.
 
-**Uprawnienia w organizacji.** Import kupującego wymaga `carts.create`, bo wypełnia koszyk; odmowa
-pada, zanim plik zostanie odczytany. Budowanie przez kupującego wymaga uprawnienia do utworzenia
+**Uprawnienia w organizacji.** Import kupującego wymaga `carts.create` **albo**
+`quote_requests.create`: z pliku może powstać koszyk lub zapytanie ofertowe, więc podgląd widzi
+członek, który może zrobić którekolwiek z nich. Członek bez obu uprawnień dostaje odmowę
+`403 ORGANIZATION_PERMISSION_REQUIRED` z kodem `carts.create`, zanim plik zostanie odczytany —
+uszkodzony plik dostaje tę samą odpowiedź. Uprawnienie modułu, który jest wyłączony, niczego nie
+daje, więc gdy `quote_requests` jest wyłączony, import dopuszcza tylko `carts.create`. Budowanie
+przez kupującego wymaga uprawnienia do utworzenia
 celu — `carts.create` dla celu `cart`, `quote_requests.create` dla celu `quote_request` —
 sprawdzanego na samym początku, zanim pozycje zostaną odczytane. Oba uprawnienia deklarują moduły
 `carts` i `quote_requests`; odmowa to `403 ORGANIZATION_PERMISSION_REQUIRED` z nazwą kodu.
