@@ -17,6 +17,7 @@ import {
 import { CartSubmitButton } from '../../../../../components/CartSubmitButton';
 import { organizationAreaAccess } from '../../../../../lib/account/organization-area';
 import { NetMoney, OrgCartOwner } from '../../../../../components/account/OrgCartParts';
+import { orgCartOrderHref } from '../../../../../lib/account/org-cart-order';
 import { approveCartAction, rejectCartAction } from './actions';
 
 /**
@@ -104,6 +105,7 @@ export default async function OrganizationCartPage({
   const pending = cart.approvalStatus === 'pending';
   const ownCart = cart.ownerCustomerAccountId === me.customerAccount.id;
   const net = t('commerce.common.net');
+  const orderHref = orgCartOrderHref(cart, me.customerAccount);
 
   return (
     <>
@@ -152,6 +154,14 @@ export default async function OrganizationCartPage({
             <dd className="m-0">{when(cart.rejectedAt)}</dd>
             <dt className="text-muted">{t('account.orgCart.rejectedReason')}</dt>
             <dd className="m-0 whitespace-pre-line">{cart.rejectedReason ?? '—'}</dd>
+          </>
+        ) : null}
+        {orderHref ? (
+          <>
+            <dt className="text-muted">{t('account.orders.col.order')}</dt>
+            <dd className="m-0">
+              <LocalizedLink href={orderHref}>{t('account.orgCart.viewOrder')}</LocalizedLink>
+            </dd>
           </>
         ) : null}
         <dt className="text-muted">{t('account.common.total')}</dt>

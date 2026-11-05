@@ -169,6 +169,7 @@ export async function registerCartsOrganizationRoutes(
         id: cart.id,
         ownerCustomerAccountId: cart.customerAccountId ?? null,
         ...cartOwnerIdentity(owner, cart.customerAccountId ?? ''),
+        orderId: cart.completedOrderId ?? null,
         status: cart.status,
         approvalStatus: cart.approvalStatus,
         itemCount: items.length,

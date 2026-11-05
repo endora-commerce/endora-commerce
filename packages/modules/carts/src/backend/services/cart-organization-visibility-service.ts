@@ -88,6 +88,7 @@ export class CartOrganizationVisibilityService {
             id: cart.id,
             ownerCustomerAccountId: cart.customerAccountId!,
             ...cartOwnerIdentity(owner, cart.customerAccountId!),
+            orderId: cart.completedOrderId ?? null,
             status: cart.status,
             approvalStatus: cart.approvalStatus,
             itemCount: ic.count,

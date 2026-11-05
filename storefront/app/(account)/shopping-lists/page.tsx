@@ -14,6 +14,7 @@ import { localeRedirect } from '../../../lib/i18n/navigation';
 import { LocalizedLink } from '../../../lib/i18n/localized-link';
 import { getServerContext } from '../../../lib/server-context';
 import { tForLocale, type MessageKey } from '../../../lib/i18n/messages';
+import { shoppingListDisplayName } from '../../../lib/shopping-list-name';
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -95,7 +96,7 @@ export default async function ShoppingListsPage({
             {lists.map((l) => (
               <tr key={l.id}>
                 <td>
-                  <LocalizedLink href={`/shopping-lists/${l.id}`}>{l.name}</LocalizedLink>
+                  <LocalizedLink href={`/shopping-lists/${l.id}`}>{shoppingListDisplayName(l, t)}</LocalizedLink>
                 </td>
                 <td>{l.items.length}</td>
                 <td>{new Date(l.updatedAt).toLocaleString(locale)}</td>
@@ -121,7 +122,7 @@ export default async function ShoppingListsPage({
                   ) : (
                     <DeleteShoppingListButton
                       listId={l.id}
-                      listName={l.name}
+                      listName={shoppingListDisplayName(l, t)}
                       locale={locale}
                       deleteAction={deleteAction}
                     />

@@ -41,6 +41,28 @@ export const shoppingListSchema = z.object({
 });
 export type ShoppingList = z.infer<typeof shoppingListSchema>;
 
+/**
+ * The name `shopping_lists` stores on the default list it creates for every
+ * customer (at registration, or on the first default-list read). It is data,
+ * written in no language in particular (issue #751).
+ */
+export const SHOPPING_LIST_AUTO_DEFAULT_NAME = 'Default';
+
+/**
+ * Whether `list` is the default list the platform created and nobody renamed —
+ * the list a storefront names in the shop language rather than by its stored
+ * name (owner ruling on PR #760, issue #751).
+ *
+ * No column records "never renamed", so the marker is the default flag and the
+ * stored name together, matched exactly. A list the customer renamed is theirs;
+ * a list named `Default` that is not the default one is a name like any other.
+ * The cost of not adding a column: a customer who types exactly `Default` as the
+ * default list's name sees it in the shop language — the same word.
+ */
+export function isAutoDefaultShoppingList(list: { readonly name: string; readonly isDefault: boolean }): boolean {
+  return list.isDefault && list.name === SHOPPING_LIST_AUTO_DEFAULT_NAME;
+}
+
 /** Lightweight default-list view for the storefront header heart badge. */
 export const defaultShoppingListSummarySchema = z.object({
   id: uuidSchema,

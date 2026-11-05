@@ -48,6 +48,7 @@ import { droppedBelowMinimumReason } from '../../../lib/batchReport';
 import { tForLocale } from '../../../lib/i18n/messages';
 import { format } from '../../../lib/i18n/format';
 import { pluralKey } from '../../../lib/i18n/plural';
+import { shoppingListDisplayName } from '../../../lib/shopping-list-name';
 import { formatMoney } from '../../../lib/i18n/money';
 import { formatCount } from '../../../lib/orderMinimum';
 import { cartActionFailure } from '../../../lib/cart-action-failure';
@@ -504,7 +505,7 @@ async function saveToListAction(formData: FormData): Promise<void> {
     }
     const target = lists[0]!;
     await saveCartItemToShoppingList(jar, itemId, target.id);
-    return await localeRedirect(`/cart?listAdded=${encodeURIComponent(target.name)}`);
+    return await localeRedirect(`/cart?listAdded=${encodeURIComponent(shoppingListDisplayName(target, t))}`);
   } catch (err) {
     const message =
       err instanceof StorefrontApiError ? err.detail : t('commerce.cart.error.saveToListFailed');
