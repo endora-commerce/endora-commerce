@@ -8,7 +8,6 @@ import {
 import type {
   AssetReadPort,
   AssetReferenceRegistryPort,
-  AssetsLibraryPort,
   CatalogCategoryReadPort,
   CmsBlockReadPort,
   CmsExternalReferenceScanner,
@@ -168,17 +167,16 @@ export function registerModule(ctx: ModuleContext): void {
            * captures a gated registration — a captured gate keeps answering
            * after its owner is switched off.
            *
-           * Two of them are `assets_library`'s, because neither answers the
-           * whole question: `AssetRecord` carries the stored `kind` and no
-           * resolved URL, `AssetDetail` carries the URL and no `kind`, and
-           * `resolveUrl` is published on no port (D-223).
+           * `assets_library`'s is the read port alone: it answers the stored
+           * `kind` and, through `resolveUrls`, the URL — never `getAsset`, whose
+           * detail walks every page, block and menu for its "used by" list
+           * (issue #685).
            */
           const ports: MegamenuCrossModulePorts = {
             categories: lazyPort<CatalogCategoryReadPort>(ctx, 'catalogCategoryReadPort'),
             pages: lazyPort<CmsPageReadPort>(ctx, 'cmsPageReadPort'),
             blocks: lazyPort<CmsBlockReadPort>(ctx, 'cmsBlockReadPort'),
             assets: lazyPort<AssetReadPort>(ctx, 'assetReadPort'),
-            assetLibrary: lazyPort<AssetsLibraryPort>(ctx, 'assetsLibraryPort'),
             customerGroups: lazyPort<CustomerGroupReadPort>(ctx, 'customerGroupReadPort'),
             customerAccounts: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
             organizations: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),

@@ -6,7 +6,7 @@ import {
   CMS_CONTENT_CHANGED_EVENT,
   cmsColorPaletteSchema,
   type AssetReferenceRegistryPort,
-  type AssetsLibraryPort,
+  type AssetReadPort,
   type CmsBlockSeedPort,
   type CmsColorPalette,
   type CmsContentChange,
@@ -268,7 +268,7 @@ export function registerModule(ctx: ModuleContext): void {
      */
     cmsAssetResolver: ctx
       .asFunction((): CmsAssetResolver =>
-        createAssetEmbedResolver(lazyPort<AssetsLibraryPort>(ctx, 'assetsLibraryPort')),
+        createAssetEmbedResolver(lazyPort<AssetReadPort>(ctx, 'assetReadPort')),
       )
       .singleton(),
 
@@ -486,8 +486,8 @@ export function registerModule(ctx: ModuleContext): void {
         // caring where in a composition that happens. The `undefined` branch
         // that used to stand here went with the contribution point (T118c):
         // there is no composition in which the name is unset any more.
-        result.handle.setAssetResolver(async (assetId) =>
-          ctx.cradle<CmsCradle>().cmsAssetResolver(assetId),
+        result.handle.setAssetResolver(async (assetIds) =>
+          ctx.cradle<CmsCradle>().cmsAssetResolver(assetIds),
         );
 
         /**
