@@ -9,7 +9,7 @@ import {
   SEED_PRODUCT_102_ID,
 } from '../../helpers/seed-catalog.js';
 import { Product } from '../../helpers/package-entities.js';
-import { CUSTOMER_COOKIES, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { CUSTOMER_COOKIES } from '../../helpers/test-actors.js';
 
 /**
  * Feature 024 / T005-T008 — Integration tests against a real PostgreSQL
@@ -210,12 +210,13 @@ describe('recent-activity — a customer acting for themselves is named as the a
     });
     expect(res.statusCode, res.body).toBe(200);
     const body = res.json() as { data: Array<{ actorDisplayName: string; actorKind: string }> };
-    const [org] = (await h.em().getConnection().execute(
-      `select "name" from "organizations" where "id" = ?`,
-      [TEST_ORGANIZATION_ID],
-    )) as Array<{ name: string }>;
+    const [account] = (await h.em().getConnection().execute(
+      `select "first_name", "last_name", "email" from "customer_accounts" where "id" = ?`,
+      [CUSTOMER_COOKIES['stub-customer-session']!.customerAccountId],
+    )) as Array<{ first_name: string; last_name: string; email: string }>;
+    const personLabel = `${account!.first_name} ${account!.last_name} (${account!.email})`;
     const row = body.data.find((r) => r.actorKind === 'customer');
     expect(row).toBeDefined();
-    expect(row!.actorDisplayName).toBe(org!.name);
+    expect(row!.actorDisplayName).toBe(personLabel);
   });
 });

@@ -96,16 +96,17 @@ describe('GET /api/v1/admin/audit-log', () => {
       }>;
     };
     const entry = body.data.find((e) => e.stateAfter?.['invitationId'] === invitationId);
-    const [org] = (await h.em().getConnection().execute(
-      `select "name" from "organizations" where "id" = ?`,
-      [TEST_ORGANIZATION_ID],
-    )) as Array<{ name: string }>;
+    const [account] = (await h.em().getConnection().execute(
+      `select "first_name", "last_name", "email" from "customer_accounts" where "id" = ?`,
+      [CUSTOMER_COOKIES['stub-customer-session']!.customerAccountId],
+    )) as Array<{ first_name: string; last_name: string; email: string }>;
+    const personLabel = `${account!.first_name} ${account!.last_name} (${account!.email})`;
     expect(entry).toMatchObject({
       actorAdminUserId: null,
       impersonatedCustomerAccountId: null,
       actorCustomerAccountId: CUSTOMER_COOKIES['stub-customer-session']!.customerAccountId,
-      // The customer-account audit reference: the Organization's name.
-      actorCustomerLabel: org!.name,
+      // The customer-account audit reference names the person (owner ruling on PR #744).
+      actorCustomerLabel: personLabel,
     });
   });
 
