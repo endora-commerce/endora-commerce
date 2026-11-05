@@ -1,9 +1,11 @@
 ---
+'@endora-commerce/demo-composition': patch
 '@endora-commerce/mod-admin-actions': patch
 '@endora-commerce/mod-assets-library': patch
 '@endora-commerce/mod-catalog': patch
 '@endora-commerce/mod-cms': patch
 '@endora-commerce/mod-comparisons': patch
+'@endora-commerce/mod-crm': patch
 '@endora-commerce/mod-custom-fields': patch
 '@endora-commerce/mod-i18n': patch
 '@endora-commerce/mod-import-export': patch
@@ -24,6 +26,12 @@ before them. For example, "Quote Requests" becomes "Quote requests", "CMS Pages"
 "CMS pages" and the "Quick Order" settings group becomes "Quick order". Polish strings are
 unchanged. Product names keep their capitals: Page Builder, Google Analytics, LinkedIn and
 Meta among them.
+
+The admin search group labels change the same way: "Quote Requests" becomes "Quote requests"
+and "Sales Opportunities" becomes "Sales opportunities". The demo megamenu's English button
+label becomes "Quick order". The demo seed does not rewrite a menu it has already created, so an
+existing demo database keeps "Quick Order" until it is seeded afresh or the label is edited on
+the megamenu screen.
 
 The settings group names are updated in the database the next time the settings manifest
 reconciler runs at boot. Nothing has to be migrated.

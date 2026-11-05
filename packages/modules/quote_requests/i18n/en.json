@@ -40,7 +40,7 @@
   "negotiation.saved": "Saved.",
   "negotiation.saveError": "Could not save the price negotiation setting. The previous value is kept.",
   "negotiation.readOnlyHint": "You can view this setting. Changing it requires the permission to manage customers.",
-  "adminSearch.group.label": "Quote Requests",
+  "adminSearch.group.label": "Quote requests",
   "adminSearch.field.number": "Quote Request number",
   "adminSearch.field.organizationName": "Organization name",
   "adminSearch.field.customer": "Customer name or e-mail",

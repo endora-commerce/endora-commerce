@@ -829,7 +829,7 @@ const STEPS: readonly CompositionStep[] = [
         parentId: null,
         position: 1,
         kind: 'button',
-        labels: { 'pl-PL': 'Szybkie zamówienie', 'en-US': 'Quick Order' },
+        labels: { 'pl-PL': 'Szybkie zamówienie', 'en-US': 'Quick order' },
         target: { url: '/quick-order', variant: 'primary' },
         presentation: 'link',
         alignment: 'end',
