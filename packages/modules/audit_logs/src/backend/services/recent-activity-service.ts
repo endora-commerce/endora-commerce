@@ -59,8 +59,13 @@ export interface RecentActivityItem {
    */
   icon: KnownIconName;
   labelKey: string;
+  /**
+   * Who acted, already labelled. For `customer` it is the bare customer label
+   * (issue #741): the card adds the translated "Customer:" prefix, which is
+   * what tells it apart from an admin's name.
+   */
   actorDisplayName: string;
-  actorKind: 'admin' | 'system';
+  actorKind: 'admin' | 'customer' | 'system';
   targetType: string;
   targetId: string;
   targetDisplayName: string;
@@ -147,7 +152,12 @@ export class RecentActivityService {
     const [customerNames, ...targetBuckets] = await Promise.all([
       this.references.resolve(
         'customer_account',
-        uniqueNonNull(rows.map((r) => r.impersonatedCustomerAccountId ?? null)),
+        uniqueNonNull(
+          rows.flatMap((r) => [
+            r.impersonatedCustomerAccountId ?? null,
+            r.actorCustomerAccountId ?? null,
+          ]),
+        ),
       ),
       ...TARGET_REFERENCE_TYPES.map((type) =>
         this.references.resolve(type, uniqueByType(rows, type)),
@@ -239,10 +249,19 @@ function buildItem(
   if (!descriptor) return null;
 
   // --- Actor ---
-  const actorKind: 'admin' | 'system' = r.actorAdminUserId ? 'admin' : 'system';
+  // A customer acting for themselves (feature 170, R-21; issue #741) is its
+  // own kind: the row has no admin id, and reading it as "System" names nobody.
+  const actorKind: RecentActivityItem['actorKind'] = r.actorAdminUserId
+    ? 'admin'
+    : r.actorCustomerAccountId
+      ? 'customer'
+      : 'system';
   let actorDisplayName: string;
   if (r.actorAdminUserId) {
     actorDisplayName = lookups.adminNames.get(r.actorAdminUserId) ?? 'Admin';
+  } else if (r.actorCustomerAccountId) {
+    actorDisplayName =
+      lookups.customerNames.get(r.actorCustomerAccountId)?.label ?? r.actorCustomerAccountId;
   } else {
     actorDisplayName = 'System';
   }

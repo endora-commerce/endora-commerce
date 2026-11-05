@@ -1,8 +1,9 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import type { z } from 'zod';
-import type { AuditLogEntry, AuditLogEntryResponse, auditLogEntrySchema } from './admin.js';
+import type { AuditLogEntry, AuditLogEntryResponse } from './admin.js';
 import {
   adminMeResponseSchema,
+  auditLogEntrySchema,
   updateAdminUserRequestSchema,
   updateAdminUserSelfRequestSchema,
 } from './admin.js';
@@ -129,5 +130,33 @@ describe('AuditLogEntryResponse', () => {
 
   it('keeps the deprecated `AuditLogEntry` as an alias of it', () => {
     expectTypeOf<AuditLogEntry>().toEqualTypeOf<AuditLogEntryResponse>();
+  });
+
+  /**
+   * Issue #741 (`specs/170-organization-roles/` FR-065): a customer acting for
+   * themselves is the row's actor. Additive — a payload without the key, as an
+   * older server sends it, still parses.
+   */
+  it('carries the acting customer, and accepts a row without it', () => {
+    const row = {
+      id: '00000000-0000-4000-8000-000000000741',
+      actorAdminUserId: null,
+      impersonatedCustomerAccountId: null,
+      actedAt: '2026-11-05T10:00:00.000Z',
+      action: 'organization_role.create',
+      objectType: 'organization',
+      objectId: '00000000-0000-4000-8000-000000000001',
+      stateBefore: null,
+      stateAfter: null,
+      ipAddress: null,
+      userAgent: null,
+      requestId: null,
+    };
+    const customerId = '00000000-0000-4000-8000-0000000000c1';
+    expect(auditLogEntrySchema.parse({ ...row, actorCustomerAccountId: customerId })).toMatchObject({
+      actorCustomerAccountId: customerId,
+    });
+    expect(auditLogEntrySchema.safeParse({ ...row, actorCustomerAccountId: 'not-a-uuid' }).success).toBe(false);
+    expect(auditLogEntrySchema.safeParse(row).success).toBe(true);
   });
 });

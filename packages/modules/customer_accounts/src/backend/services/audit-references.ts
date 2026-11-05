@@ -1,21 +1,21 @@
-import type { AuditReferenceRegistryPort, OrganizationDetailsPort } from '@endora-commerce/contracts';
+import type { AuditReferenceRegistryPort } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
 
 /**
- * What an impersonated customer is called on an audit row (feature 075, D-87
- * drain).
+ * What a customer is called on an audit row (feature 075, D-87 drain).
  *
  * `audit_logs` used to answer this with a `customer_accounts left join
  * organizations` written into its own service — one statement crossing two
- * module boundaries. The organisation name is still preferred over the account
- * e-mail, because that is what an operator reading "acted as …" recognises; it
- * comes from `organizationDetailsPort` now, an edge this module already declares
- * and has always had a foreign key for.
+ * module boundaries. The answer is this module's now, pushed into the reader's
+ * registry.
  *
- * There is no `catch` around that port on purpose. It is gated, and a gate that
- * says no must not be turned into a blank name here — the reader's own
- * enumeration policy is what degrades this whole bucket, one level up.
+ * **The label names the person** — `<first> <last> (<e-mail>)`, or the e-mail
+ * alone when the account has no name (owner ruling on PR #744, issue #741). It
+ * used to be the Organization's name, which says nothing in an Organization's
+ * own history: every member's change there read as the Organization. One
+ * label serves both readers of this type — a customer acting for themselves
+ * on the storefront, and the customer an admin impersonated.
  *
  * No `url`: an audit actor is a person, not a row the card links to. That was
  * already true of the SQL this replaces.
@@ -23,7 +23,6 @@ import { CustomerAccount } from '../entities/customer-account.entity.js';
 export function registerCustomerAccountAuditReferences(
   registry: AuditReferenceRegistryPort,
   emFactory: () => EntityManager,
-  organizationDetails: OrganizationDetailsPort,
 ): void {
   registry.register({
     ownerModuleId: 'customer_accounts',
@@ -32,27 +31,21 @@ export function registerCustomerAccountAuditReferences(
       const accounts = await emFactory().find(
         CustomerAccount,
         { id: { $in: [...ids] } },
-        { fields: ['id', 'email', 'organizationId'] },
+        { fields: ['id', 'email', 'firstName', 'lastName'] },
       );
-      if (accounts.length === 0) return [];
-
-      const organizationIds = [
-        ...new Set(accounts.map((a) => a.organizationId).filter((id): id is string => !!id)),
-      ];
-      const names = new Map<string, string>();
-      if (organizationIds.length > 0) {
-        for (const org of await organizationDetails.findByIds(organizationIds)) {
-          names.set(org.id, org.name);
-        }
-      }
-
       return accounts.map((account) => ({
         id: account.id,
-        label:
-          (account.organizationId ? names.get(account.organizationId) : undefined) ??
-          account.email,
+        label: personLabel(account),
         url: null,
       }));
     },
   });
+}
+
+function personLabel(account: Pick<CustomerAccount, 'email' | 'firstName' | 'lastName'>): string {
+  const name = [account.firstName, account.lastName]
+    .map((part) => (part ?? '').trim())
+    .filter((part) => part.length > 0)
+    .join(' ');
+  return name.length > 0 ? `${name} (${account.email})` : account.email;
 }

@@ -11,6 +11,7 @@ import { codeLabel } from '../../../../lib/account/labels';
 import { getMe } from '../../../../lib/api/account';
 import { memberSession } from '../../../../lib/commerce-permissions';
 import { mayManageOrganizationAddresses } from '../../../../lib/account/organization-addresses';
+import { organizationAreaAccess } from '../../../../lib/account/organization-area';
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -30,6 +31,10 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
  * line saying why in place of the add form (owner ruling of 2026-11-04: a
  * member who cannot act is not shown the controls). A session that cannot be
  * read keeps today's page — the API is the gate.
+ *
+ * Issue #757 — a personal Organization's member, as an org-less customer, is
+ * sent to their own address book, `/addresses`, which lists the
+ * Organization's addresses beside theirs (the FR-070a gate).
  */
 
 export default async function AddressesPage({
@@ -41,6 +46,7 @@ export default async function AddressesPage({
   if (!session) return await localeRedirect('/login');
   const params = await searchParams;
   const [addresses, me] = await Promise.all([listAddresses(session), getMe(session).catch(() => null)]);
+  if (me && organizationAreaAccess(me, 'addresses') === 'absent') return await localeRedirect('/addresses');
   const canManage = mayManageOrganizationAddresses(memberSession(me));
   const { locale } = await getServerContext();
   const t = tForLocale(locale);

@@ -156,7 +156,7 @@ describe('quote-request detail — "place order" needs `carts.create`', () => {
 
   it('the page passes the member’s `carts.create`', async () => {
     const page = async (): Promise<string> =>
-      html(await QuoteRequestDetailPage({ params: Promise.resolve({ id: 'rfq-1' }), searchParams: Promise.resolve({}) }));
+      html(await QuoteRequestDetailPage({ params: Promise.resolve({ id: '00000000-0000-4000-8000-0000000000a1' }), searchParams: Promise.resolve({}) }));
     expect(await page()).toContain(placeOrder);
     abilities = noCart;
     expect(await page()).not.toContain(placeOrder);
@@ -193,7 +193,7 @@ describe('quote-request detail — "resubmit" needs `quote_requests.create` (FR-
 
   it('the page passes the member’s `quote_requests.create`', async () => {
     const page = async (): Promise<string> =>
-      html(await QuoteRequestDetailPage({ params: Promise.resolve({ id: 'rfq-1' }), searchParams: Promise.resolve({}) }));
+      html(await QuoteRequestDetailPage({ params: Promise.resolve({ id: '00000000-0000-4000-8000-0000000000a1' }), searchParams: Promise.resolve({}) }));
     expect(await page()).toContain(resubmit);
     abilities = noQuote;
     expect(await page()).not.toContain(resubmit);

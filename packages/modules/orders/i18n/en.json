@@ -1,4 +1,5 @@
 {
+  "module.name": "Orders",
   "actions.openOrders.label": "Open orders",
   "actions.openOrders.description": "View and manage customer orders",
   "actions.newOrder.label": "New order",

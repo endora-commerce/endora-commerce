@@ -64,7 +64,7 @@ const { default: ShoppingListDetailPage } = await import('../../app/(account)/sh
 
 async function render(sp: Record<string, string>): Promise<string> {
   const tree = await ShoppingListDetailPage({
-    params: Promise.resolve({ id: 'l1' }),
+    params: Promise.resolve({ id: '00000000-0000-4000-8000-0000000000f1' }),
     searchParams: Promise.resolve(sp),
   });
   return renderToString(<>{tree}</>);

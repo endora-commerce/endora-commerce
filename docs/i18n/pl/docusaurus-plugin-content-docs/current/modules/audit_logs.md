@@ -8,13 +8,20 @@ description: Dziennik audytu wrażliwych operacji
 Dziennik audytu każdej wrażliwej operacji, do którego można wyłącznie dopisywać. Każdy wpis
 zapisuje, kto, co i kiedy zrobił — a podczas logowania jako klient także w czyim imieniu.
 
+Wykonawca jest jednym z trzech. Administrator (`actorAdminUserId`) jest pokazywany z imieniem,
+nazwiskiem i adresem e-mail. Klient działający we własnym imieniu w sklepie
+(`actorCustomerAccountId`), na przykład administrator organizacji zarządzający rolami,
+zaproszeniami lub członkami, jest pokazywany jako *Klient: …*. Wpis bez żadnego z nich jest
+pokazywany jako *system*. Podczas logowania jako klient wpis wskazuje faktycznego administratora,
+a klienta zapisuje w `impersonatedCustomerAccountId`; `actorCustomerAccountId` pozostaje wtedy puste.
+
 ## API publiczne
 
 Wymaga uprawnienia `audit_log:read`.
 
 | Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
-| `GET /api/v1/admin/audit-log` | Zapytanie do dziennika. Filtry: `filter[actor]`, `filter[customer]`, `filter[action]`, `filter[objectType]`, `filter[objectId]`. Domyślnie `limit=100`, najwyżej 500. Każdy wiersz zawiera od razu JSON `stateBefore` / `stateAfter`, aby przeglądarka w panelu mogła pokazać różnice obok siebie bez drugiego zapytania. |
+| `GET /api/v1/admin/audit-log` | Zapytanie do dziennika. Filtry: `filter[actor]`, `filter[customer]`, `filter[action]`, `filter[objectType]`, `filter[objectId]`. Domyślnie `limit=100`, najwyżej 500. Każdy wiersz zawiera od razu JSON `stateBefore` / `stateAfter`, aby przeglądarka w panelu mogła pokazać różnice obok siebie bez drugiego zapytania. Wiersz zawiera też `actorCustomerAccountId` i `actorCustomerLabel` — etykietę klienta w dzienniku audytu: osobę w postaci *Imię Nazwisko (e-mail)*, a gdy konto nie ma imienia ani nazwiska — sam adres e-mail. Klient, pod którego podszywa się administrator, jest opisywany tak samo. |
 
 ## Zapisywanie
 
@@ -32,7 +39,8 @@ Command Bus zapisuje wpis.
 
 ## Encje
 
-`AuditLogEntry` — `actorAdminUserId`, opcjonalne `impersonatedCustomerAccountId`, `action`,
+`AuditLogEntry` — `actorAdminUserId`, opcjonalne `impersonatedCustomerAccountId`, opcjonalne
+`actorCustomerAccountId`, `action`,
 `objectType`, `objectId`, `stateBefore`, `stateAfter`, `ipAddress`, `userAgent`, `requestId`,
 `actedAt`.
 

@@ -11,7 +11,7 @@ import { LocalizedLink } from '../../lib/i18n/localized-link';
 import { getServerContext } from '../../lib/server-context';
 import { tForLocale } from '../../lib/i18n/messages';
 import { format } from '../../lib/i18n/format';
-import { organizationAreaAccess } from '../../lib/account/organization-area';
+import { isCompanyOrganization, organizationAreaAccess } from '../../lib/account/organization-area';
 
 /**
  * Authenticated route-group layout (T154 + T155). Loads `/me` once for the
@@ -23,7 +23,9 @@ import { organizationAreaAccess } from '../../lib/account/organization-area';
  * Organization's administrators and *Carts to approve* to the members holding
  * `carts.approve`, with the count of carts waiting — none of the three in a
  * personal Organization, whose member is its Administrator
- * (`lib/account/organization-area.ts`).
+ * (`lib/account/organization-area.ts`). Nor, since issue #757, the
+ * *Organization* and *Org addresses* links or the Organization's name under the
+ * customer's: a personal Organization is not a company.
  */
 export default async function AccountLayout({
   children,
@@ -45,6 +47,7 @@ export default async function AccountLayout({
 
   const { locale, modules } = await getServerContext();
   const t = tForLocale(locale);
+  const company = organizationAreaAccess(me, 'summary') === 'allowed';
   const manages = organizationAreaAccess(me, 'members') === 'allowed';
   const approves = organizationAreaAccess(me, 'carts') === 'allowed';
   const waiting = approves ? await pendingCartCount(session) : null;
@@ -60,7 +63,9 @@ export default async function AccountLayout({
       ) : null}
       <aside className="b2b-account__nav" aria-label={t('nav.account')}>
         <strong>{me.customerAccount.firstName} {me.customerAccount.lastName}</strong>
-        {me.organization ? <span className="muted">{me.organization.name}</span> : null}
+        {me.organization && isCompanyOrganization(me.organization) ? (
+          <span className="muted">{me.organization.name}</span>
+        ) : null}
         <LocalizedLink href="/account">{t('account.nav.profile')}</LocalizedLink>
         <LocalizedLink href="/addresses">{t('account.nav.addresses')}</LocalizedLink>
         <LocalizedLink href="/account/password">{t('account.nav.password')}</LocalizedLink>
@@ -91,8 +96,12 @@ export default async function AccountLayout({
             {modules.isPresent('quick_order') ? (
               <LocalizedLink href="/quick-order">{t('account.nav.quickOrder')}</LocalizedLink>
             ) : null}
-            <LocalizedLink href="/organization">{t('account.nav.organization')}</LocalizedLink>
-            <LocalizedLink href="/organization/addresses">{t('account.nav.organizationAddresses')}</LocalizedLink>
+            {company ? (
+              <>
+                <LocalizedLink href="/organization">{t('account.nav.organization')}</LocalizedLink>
+                <LocalizedLink href="/organization/addresses">{t('account.nav.organizationAddresses')}</LocalizedLink>
+              </>
+            ) : null}
             {manages ? (
               <>
                 <LocalizedLink href="/organization/members">{t('account.nav.members')}</LocalizedLink>

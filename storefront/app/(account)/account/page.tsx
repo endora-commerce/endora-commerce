@@ -18,6 +18,7 @@ import type { Metadata } from 'next';
 import { localeRedirect } from '../../../lib/i18n/navigation';
 import { tForLocale } from '../../../lib/i18n/messages';
 import { richText } from '../../../lib/account/labels';
+import { isCompanyOrganization, isPersonalOrganization } from '../../../lib/account/organization-area';
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -103,10 +104,13 @@ export default async function AccountProfilePage({
                 ? t('account.profile.twoFactorEnabled')
                 : t('account.profile.twoFactorDisabled')}</td>
           </tr>
-          <tr>
-            <th scope="row">{t('account.profile.organization')}</th>
-            <td>{me.organization?.name ?? '—'}</td>
-          </tr>
+          {/* A personal Organization is not a company: no row names it (issue #757). */}
+          {isPersonalOrganization(me.organization) ? null : (
+            <tr>
+              <th scope="row">{t('account.profile.organization')}</th>
+              <td>{me.organization?.name ?? '—'}</td>
+            </tr>
+          )}
         </tbody>
       </table>
       {role && ownRole ? (
@@ -148,7 +152,7 @@ export default async function AccountProfilePage({
  * organization screens.
  */
 function showsRole(me: MeResult): boolean {
-  return me.organization !== null && me.organization.isPersonal !== true;
+  return isCompanyOrganization(me.organization);
 }
 
 async function savePushPreferencesAction(formData: FormData): Promise<void> {

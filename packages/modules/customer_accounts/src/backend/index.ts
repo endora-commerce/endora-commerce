@@ -3,7 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
 import { CUSTOMER_ACCOUNT_ANONYMIZED_EVENT, type ChannelMemberEntityType } from '@endora-commerce/contracts';
 import { normalizeEmailAddress } from '@endora-commerce/contracts';
-import type { AuditReferenceRegistryPort, OrganizationDetailsPort } from '@endora-commerce/contracts';
+import type { AuditReferenceRegistryPort } from '@endora-commerce/contracts';
 import type {
   AuthSessionPort,
   CustomerAccountAdminSearchPort,
@@ -752,8 +752,9 @@ export function registerModule(ctx: ModuleContext): void {
   });
 
   /**
-   * What an audit row about an impersonated customer is called, and where the admin app shows it
-   * (feature 075, D-87 drain).
+   * What an audit row calls a customer — one who acted for themselves, or one an
+   * admin impersonated — and where the admin app shows it (feature 075, D-87
+   * drain; issue #741).
    *
    * `audit_logs` used to answer both by hand — one SQL statement naming this
    * module's table, and this module's admin route spelled into its own switch.
@@ -774,7 +775,6 @@ export function registerModule(ctx: ModuleContext): void {
     registerCustomerAccountAuditReferences(
       lazyPort<AuditReferenceRegistryPort>(ctx, 'auditReferenceRegistry'),
       ctx.cradle<CustomerAccountsCradle>().emFactory,
-      lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
     );
   });
 }

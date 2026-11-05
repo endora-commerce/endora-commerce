@@ -205,7 +205,7 @@ describe('account returns — the shop language (issue #85)', () => {
   it('renders the case in both languages', async () => {
     const { default: Page } = await import('../../../app/(account)/returns/[id]/page');
     locale = 'en-US';
-    const en = await render(Page({ params: Promise.resolve({ id: 'r1' }) }));
+    const en = await render(Page({ params: Promise.resolve({ id: '00000000-0000-4000-8000-0000000000e1' }) }));
     expect(en).toContain('← Back to returns');
     expect(en).toContain('Return case');
     expect(en).toContain('Status: Submitted · Complaint');
@@ -214,7 +214,7 @@ describe('account returns — the shop language (issue #85)', () => {
     expect(en).toContain('Add a message');
     expect(en).not.toMatch(POLISH_DIACRITIC);
     locale = 'pl-PL';
-    const pl = await render(Page({ params: Promise.resolve({ id: 'r1' }) }));
+    const pl = await render(Page({ params: Promise.resolve({ id: '00000000-0000-4000-8000-0000000000e1' }) }));
     expect(pl).toContain('← Wróć do zwrotów');
     expect(pl).toContain('Zgłoszenie zwrotu');
     expect(pl).toContain('Status: Submitted · Reklamacja');

@@ -36,21 +36,24 @@ const { RecentActivityCard } = await import(
   '../../../../packages/admin-shell/src/modules/home/RecentActivityCard'
 );
 
+const CORE = passthroughBundle('core', [
+  'home.recentActivity.title',
+  'home.recentActivity.subtitle',
+  'home.activity.empty',
+  'home.activity.error',
+  'home.activity.retry',
+  'home.activity.viewAll',
+  'home.activity.time.justNow',
+  'home.activity.time.minutesAgo',
+  'home.activity.time.hoursAgo',
+  'home.activity.time.yesterday',
+  'home.activity.time.daysAgo',
+  'home.activity.verb.unknown',
+]);
+
 const BUNDLE = {
-  ...passthroughBundle('core', [
-    'home.recentActivity.title',
-    'home.recentActivity.subtitle',
-    'home.activity.empty',
-    'home.activity.error',
-    'home.activity.retry',
-    'home.activity.viewAll',
-    'home.activity.time.justNow',
-    'home.activity.time.minutesAgo',
-    'home.activity.time.hoursAgo',
-    'home.activity.time.yesterday',
-    'home.activity.time.daysAgo',
-    'home.activity.verb.unknown',
-  ]),
+  // Issue #741 — a real template, so the test sees the name substituted.
+  core: { ...CORE['core'], 'home.activity.actor.customer': 'Customer: {name}' },
   // Since feature 080's T042j the verb lives in the **declaring module's**
   // namespace, not in `core`: that is what lets a packaged module ship its own
   // translation of its own action (D-163.1).
@@ -151,6 +154,31 @@ describe('<RecentActivityCard />', () => {
     const row = screen.getByTestId('recent-activity-row');
     expect(row.tagName).toBe('A');
     expect(row.getAttribute('href')).toBe('/catalog/products/p1');
+  });
+
+  it('prefixes a customer actor, so it reads apart from an admin (issue #741)', async () => {
+    getSpy.mockResolvedValue({
+      data: [
+        {
+          id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+          actedAt: new Date().toISOString(),
+          action: 'product.update',
+          module: 'catalog',
+          icon: 'Edit',
+          labelKey: 'activity.verb.product.update',
+          actorDisplayName: 'Demo Buyer Org',
+          actorKind: 'customer',
+          targetType: 'product',
+          targetId: 'p1',
+          targetDisplayName: 'CABLE-LIY-1.5-50',
+          targetUrl: null,
+          summary: null,
+        },
+      ],
+      pagination: { limit: 8, fetchedAt: '' },
+    });
+    renderCard();
+    await waitFor(() => expect(screen.getByText('Customer: Demo Buyer Org')).toBeInTheDocument());
   });
 
   it('renders a disabled (non-anchor) row when targetUrl is null', async () => {
