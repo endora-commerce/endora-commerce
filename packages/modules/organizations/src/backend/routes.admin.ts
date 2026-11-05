@@ -66,6 +66,7 @@ import {
 } from './services/organization-restriction-service.js';
 import type { OrganizationEffectivePriceListsService } from './services/organization-effective-pricelists-service.js';
 import type { OrganizationTaxIdValidationService } from './services/organization-tax-id-validation-service.js';
+import { serializeTaxIdValidation } from './registry-lookup/validation-record.js';
 import {
   approveOrganizationSchema,
   rejectOrganizationSchema,
@@ -714,19 +715,10 @@ export async function registerOrganizationsAdminRoutes(
       { preHandler: requireAdmin('customers:manage') },
       async (request) => {
         const items = await taxIdValidationService.listForOrganization(request.params.id);
-        return {
-          items: items.map((r) => ({
-            id: r.id,
-            provider: r.provider,
-            outcome: r.outcome,
-            taxIdValue: r.taxIdValue,
-            legalNameReturned: r.legalNameReturned ?? null,
-            addressReturned: r.addressReturned ?? null,
-            errorKind: r.errorKind ?? null,
-            requestedByAdminUserId: r.requestedByAdminUserId ?? null,
-            createdAt: r.createdAt.toISOString(),
-          })),
-        };
+        // Feature 173 — typed by `organizationTaxIdValidationRecordSchema`, with
+        // where the row came from, a registration row's registry snapshot and
+        // submitted values, and the divergence computed on read (research R-14).
+        return { items: items.map(serializeTaxIdValidation) };
       },
     );
 
@@ -744,15 +736,7 @@ export async function registerOrganizationsAdminRoutes(
           actorAdminUserId: resolveAdminUserId(request),
         });
         return {
-          id: result.record.id,
-          provider: result.record.provider,
-          outcome: result.record.outcome,
-          taxIdValue: result.record.taxIdValue,
-          legalNameReturned: result.record.legalNameReturned ?? null,
-          addressReturned: result.record.addressReturned ?? null,
-          errorKind: result.record.errorKind ?? null,
-          requestedByAdminUserId: result.record.requestedByAdminUserId ?? null,
-          createdAt: result.record.createdAt.toISOString(),
+          ...serializeTaxIdValidation(result.record),
           organization: result.organization,
         };
       },

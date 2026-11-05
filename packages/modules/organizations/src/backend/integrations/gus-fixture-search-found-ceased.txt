@@ -1,0 +1,27 @@
+
+--uuid:00000000-0000-4000-8000-000000000173+id=1
+Content-ID: <http://tempuri.org/0>
+Content-Transfer-Encoding: 8bit
+Content-Type: application/xop+xml;charset=utf-8;type="application/soap+xml"
+
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:a="http://www.w3.org/2005/08/addressing"><s:Header><a:Action s:mustUnderstand="1">http://CIS/BIR/PUBL/2014/07/IUslugaBIRzewnPubl/DaneSzukajPodmiotyResponse</a:Action></s:Header><s:Body><DaneSzukajPodmiotyResponse xmlns="http://CIS/BIR/PUBL/2014/07"><DaneSzukajPodmiotyResult>&lt;root&gt;&#xD;
+  &lt;dane&gt;&#xD;
+    &lt;Regon&gt;123456785&lt;/Regon&gt;&#xD;
+    &lt;Nip&gt;5260250995&lt;/Nip&gt;&#xD;
+    &lt;StatusNip /&gt;&#xD;
+    &lt;Nazwa&gt;PRZYKŁADOWA SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ "TEST" &amp;amp; WSPÓLNICY&lt;/Nazwa&gt;&#xD;
+    &lt;Wojewodztwo&gt;MAZOWIECKIE&lt;/Wojewodztwo&gt;&#xD;
+    &lt;Powiat&gt;Testowy&lt;/Powiat&gt;&#xD;
+    &lt;Gmina&gt;Testowa&lt;/Gmina&gt;&#xD;
+    &lt;Miejscowosc&gt;Warszawa&lt;/Miejscowosc&gt;&#xD;
+    &lt;KodPocztowy&gt;00-001&lt;/KodPocztowy&gt;&#xD;
+    &lt;Ulica&gt;ul. Testowa&lt;/Ulica&gt;&#xD;
+    &lt;NrNieruchomosci&gt;12&lt;/NrNieruchomosci&gt;&#xD;
+    &lt;NrLokalu /&gt;&#xD;
+    &lt;Typ&gt;P&lt;/Typ&gt;&#xD;
+    &lt;SilosID&gt;6&lt;/SilosID&gt;&#xD;
+    &lt;DataZakonczeniaDzialalnosci&gt;2024-06-30&lt;/DataZakonczeniaDzialalnosci&gt;&#xD;
+    &lt;MiejscowoscPoczty&gt;Warszawa&lt;/MiejscowoscPoczty&gt;&#xD;
+  &lt;/dane&gt;&#xD;
+&lt;/root&gt;</DaneSzukajPodmiotyResult></DaneSzukajPodmiotyResponse></s:Body></s:Envelope>
+--uuid:00000000-0000-4000-8000-000000000173+id=1--

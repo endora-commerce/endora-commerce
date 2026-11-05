@@ -281,6 +281,105 @@ nigdy nie kończy się błędem z powodu problemu zewnętrznego.
 | `POST /api/v1/admin/organizations/:id/vat-validations` | Jedna próba walidacji (`providerHint`, `applyAutoFill`) |
 | `GET /api/v1/admin/organizations/:id/vat-validations` | Historia, od najnowszych |
 
+Każdy wpis historii mówi, skąd pochodzi: `origin: 'admin'` dla „Zweryfikuj teraz”, `'registration'` dla
+danych z rejestru, które przyniosła samodzielna rejestracja (zobacz niżej). Wpis z rejestracji ma też
+`registryDetails`, `submittedValues` i `divergence`; wpis administratora ma we wszystkich trzech `null`.
+Kształt opisuje `organizationTaxIdValidationRecordSchema` w `@endora-commerce/contracts`.
+
+### Pobieranie danych firmy z rejestru przy rejestracji
+
+Firma rejestrująca się w sklepie może pobrać swoje dane z publicznego rejestru po numerze podatkowym,
+a formularz rejestracji wypełnia się nimi. Każde uzupełnione pole można zmienić; dane mają charakter
+wyłącznie informacyjny i żaden wynik wyszukiwania — brak w rejestrze, firma niebędąca czynnym
+podatnikiem VAT, awaria rejestru — nie blokuje rejestracji. **Funkcja jest domyślnie wyłączona.**
+
+**Rejestry i wybór rejestru.** Numer jest najpierw normalizowany (usuwane są spacje, myślniki i
+kropki, rozpoznawany jest unijny przedrostek kraju, `GR` jest czytane jako `EL` z VIES), a suma
+kontrolna polskiego NIP-u jest sprawdzana **zanim** zostanie odpytany jakikolwiek rejestr: błędny numer
+albo kraj spoza UE nie powodują żadnego zapytania.
+
+- **Polskie NIP-y** trafiają do rejestrów wybranych w ustawieniu *rejestry dla polskich NIP-ów*:
+  - `gus_mf` (domyślnie) — **GUS REGON** (BIR1.1) i **Biała lista podatników VAT** Ministerstwa
+    Finansów równolegle. GUS dostarcza pełną nazwę, REGON i uporządkowany adres; Biała lista — status
+    VAT, a także dane, gdy GUS nie jest skonfigurowany, nie odpowiada albo nie zna numeru.
+  - `gus` — wyłącznie GUS REGON. Biała lista nie jest odpytywana, więc jej dzienny limit zostaje dla
+    „Zweryfikuj teraz”; status VAT jest pokazywany jako *niesprawdzony*. **Bez działających danych
+    dostępowych GUS ustawienie `gus` oznacza, że dla polskich NIP-ów nie ma wyszukiwania wcale** — każde
+    polskie wyszukiwanie odpowiada „rejestr niedostępny”. Wybierz je dopiero wtedy, gdy dane dostępowe
+    GUS działają.
+  - `mf` — wyłącznie Biała lista. Klucz GUS nie jest potrzebny, ale adres przychodzi jako jeden wiersz i
+    jest dzielony na ulicę, kod pocztowy i miasto najlepiej, jak się da; czego nie da się podzielić,
+    uzupełnia kupujący.
+- **Pozostałe unijne numery VAT** zawsze trafiają do **VIES**, niezależnie od ustawienia dla Polski.
+  Niektóre państwa (m.in. Niemcy) nie udostępniają nazwy ani adresu: kupujący dowiaduje się, że numer
+  jest prawidłowy, i wpisuje dane sam.
+
+**Ustawienia** (grupa *Organizations* na ekranie Ustawienia; otwiera go akcja palety poleceń
+*Ustawienia pobierania danych firmy przy rejestracji*):
+
+| Ustawienie | Wartość domyślna | Znaczenie |
+| --- | --- | --- |
+| `organizations.registration.registry_lookup_enabled` | `false` | Włącza wyszukiwanie. Po wyłączeniu sklep pokazuje formularz do ręcznego wypełnienia, a `POST /api/v1/organizations/registry-lookup` odpowiada dokładnie tak jak nieistniejąca ścieżka. Działa bez restartu. |
+| `organizations.registration.registry_lookup_pl_sources` | `gus_mf` | `gus_mf` \| `gus` \| `mf`, jak wyżej. Odczytywane przy każdym wyszukiwaniu; nieczytelna wartość liczy się jako `gus_mf`. Ekran Ustawienia ostrzega obok niego, gdy wybrano `gus`, a nie wybrano danych dostępowych GUS. |
+| `organizations.registration.gus_credentials` | puste | Dane dostępowe GUS REGON używane przez wyszukiwanie. Opcjonalne przy `gus_mf` i `mf`. |
+
+**Dane dostępowe GUS.** Utwórz je na ekranie **Dane dostępowe** z typem *GUS REGON registry (BIR1.1)*:
+**klucz użytkownika** wydany przez GUS (tajny — przechowywany w postaci zaszyfrowanej, pokazywany
+zamaskowany, nigdy nie zwracany w całości) oraz **środowisko**, *Production* albo *Test*. Zmiana
+środowiska wymaga ponownego podania klucza. Aby wypróbować wyszukiwanie bez klucza produkcyjnego,
+użyj środowiska *Test* z publicznym kluczem testowym GUS `abcde12345abcde12345`; rejestr testowy
+zawiera dane zanonimizowane. Następnie wskaż te dane dostępowe w
+`organizations.registration.gus_credentials`. Gdy moduł `credentials` jest wyłączony, gdy danych
+dostępowych nie da się odczytać albo gdy GUS odrzuci klucz, polskie wyszukiwania działają tak jak bez
+danych dostępowych.
+
+Klient GUS korzysta z wbudowanego w Node magazynu certyfikatów, który akceptuje serwery GUS i VIES;
+wdrożenie, które go zastępuje (`--use-openssl-ca`, własny pakiet urzędów certyfikacji), musi zadbać o to,
+by nadal im ufało.
+
+**Limity i pamięć podręczna.** Wyszukiwanie nie jest otwartym pośrednikiem do rejestrów:
+
+- **Na klienta:** 10 wyszukiwań na 10 minut z jednego adresu (powyżej `429 RATE_LIMITED`). Sklep
+  przekazuje `X-Forwarded-For` kupującego, więc limit liczy kupującego tylko tam, gdzie backend ufa
+  sklepowi jako pośrednikowi (`TRUSTED_PROXY_HOPS` / `TRUSTED_PROXY_ADDRESSES`); bez tego wszyscy
+  kupujący sklepu renderowanego po stronie serwera dzielą jeden limit.
+- **Na rejestr, dla całej platformy:** GUS i VIES — 300 zapytań na godzinę (UTC); Biała lista — 60 na
+  dobę według czasu warszawskiego, co zostawia resztę jej dziennego limitu na adres IP (100 zapytań
+  `search`) dla „Zweryfikuj teraz”. Po wyczerpaniu limitu rejestr jest traktowany jako niedostępny;
+  rejestr wyłączony ustawieniem dla Polski nie zużywa limitu wcale.
+- **Pamięć podręczna:** odpowiedzi są zapamiętywane według kraju, wyboru rejestrów dla Polski i numeru
+  — znalezione na 6 godzin, nieznalezione na 30 minut, niedostępne na 60 sekund — więc powtórne
+  wyszukiwanie nie odpytuje rejestru, a zmiana wyboru rejestrów nigdy nie zwraca odpowiedzi pobranej
+  przy poprzednim wyborze.
+- **Czas:** wyszukiwanie odpowiada w ciągu 8 sekund, niezależnie od rejestrów.
+- **Redis:** pamięć podręczna, limity i identyfikatory wyszukiwań są przechowywane w Redisie. Gdy Redis
+  zawodzi, wyszukiwanie odpowiada „rejestr niedostępny” zamiast działać bez limitów; rejestracja działa
+  normalnie.
+
+Odpowiedź nigdy nie zdradza, czy dany numer należy już do organizacji na tej platformie; rejestracja
+odrzuca duplikat istniejącym kodem 409.
+
+**Co widzą moderatorzy.** Rejestracja poprzedzona wyszukiwaniem zapisuje jeden wpis w historii
+walidacji VAT, oznaczony jako *Rejestracja*, z odpowiedzią rejestru (źródło, pełna nazwa, adres, REGON,
+status VAT i działalności, obowiązujący wybór rejestrów dla Polski, rejestry, które zawiodły albo nie
+zostały odpytane) i danymi wpisanymi przez klienta. Panel pokazuje kartę *Dane z rejestru przy
+rejestracji* z jednym i drugim obok siebie i oznacza każde pole, które **się różni**; różnice wyłącznie
+w wielkości liter, znakach diakrytycznych, odstępach, interpunkcji albo popularnym zapisie formy
+prawnej (`sp. z o.o.`, `S.A.` …) się nie liczą. Organizacja oczekująca na weryfikację, której dane się
+różnią, pokazuje komunikat w akcjach moderacji. Pola samej organizacji zawierają to, co wpisał klient —
+pełną nazwę z rejestru można przejąć wyłącznie przez „Zweryfikuj i uzupełnij pełną nazwę”.
+
+**Bez JavaScriptu.** Przycisk *Pobierz dane firmy* wysyła formularz na serwer, a strona wraca z
+uzupełnionymi polami firmy i wszystkim innym, co wpisał kupujący — poza hasłem, które nigdy nie jest
+odsyłane — bez żadnych danych w pasku adresu. Naciśnięcie Enter w polu poniżej NIP-u pobiera wtedy dane
+zamiast rejestrować; z JavaScriptem Enter pobiera dane tylko w polu NIP.
+
+| Metoda i ścieżka | Przeznaczenie |
+| --- | --- |
+| `GET /api/v1/organizations/registration-options` | Czy wyszukiwanie jest włączone i dla których krajów (sklep zapamiętuje odpowiedź do 5 minut i odświeża ją po zmianie ustawienia) |
+| `POST /api/v1/organizations/registry-lookup` | Jedno wyszukiwanie (`{ taxId, country }`); odpowiada `found`, `not_found`, `unavailable`, `invalid_tax_id` albo `unsupported_country` wraz z `lookupId` |
+| `POST /api/v1/organizations/register` | Przyjmuje opcjonalne `registryLookupId` na najwyższym poziomie; dane z rejestru są odczytywane z magazynu platformy, nigdy z żądania |
+
 ### Lista wyboru i wyszukiwanie bez polskich znaków
 
 Panel dostarcza komponenty wielokrotnego użytku `<OrganizationPicker>` (wybór jednej organizacji) i
@@ -301,6 +400,9 @@ edycji.
 | --- | --- | --- | --- |
 | `organizations.moderation.mode` | wyliczenie `string` | `'manual'` | `manual` ⇒ pending_verification; `auto` ⇒ active od razu po rejestracji |
 | `organizations.notifications.new_registration_recipients` | tablica `json` | `[]` | Adresy e-mail powiadamiane o nowej organizacji |
+| `organizations.registration.registry_lookup_enabled` | `boolean` | `false` | Pobieranie danych firmy z rejestru przy rejestracji (zobacz wyżej) |
+| `organizations.registration.registry_lookup_pl_sources` | wyliczenie `string` | `'gus_mf'` | Rejestry odpytywane o polski NIP: `gus_mf` \| `gus` \| `mf` |
+| `organizations.registration.gus_credentials` | `credential_ref` | `''` | Dane dostępowe GUS REGON (typ `organizations_gus_bir`) |
 
 ### Migracje
 
@@ -320,6 +422,9 @@ edycji.
   Administrator i Członek (oraz wyzwalacz, który robi to dla każdej nowej), odbiera roli Członek dwa kody akceptacji
   koszyka tam, gdzie organizacja wymagała akceptacji koszyków, i daje każdemu zaproszeniu odwołanie do roli (zobacz
   „Role” niżej).
+- `20261105T121034_organizations_registry_lookup_provenance.ts` — dodaje do `organization_tax_id_validations`
+  kolumny `origin` (`admin` dla każdego istniejącego wiersza), `registry_details` i `submitted_values` oraz dopuszcza
+  dostawcę `gus_pl` (zobacz „Pobieranie danych firmy z rejestru przy rejestracji” wyżej).
 
 ### Organizacje prywatne (B2C)
 

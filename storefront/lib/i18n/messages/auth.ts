@@ -51,6 +51,34 @@ export const auth = defineMessages({
     'auth.register.country': 'Country',
     'auth.register.ownerLegend': 'Account owner',
     'auth.register.failed': 'Registration failed. Please try again.',
+    // Feature 173 — the company registry lookup on the registration form.
+    'auth.register.lookup.button': 'Fetch company data',
+    'auth.register.lookup.hint':
+      'Enter your NIP or EU VAT number and choose the country, and we will fill in your company details from the public registry. You can change them before you create the account.',
+    'auth.register.lookup.loading': 'Fetching company data…',
+    'auth.register.lookup.found':
+      'Company details filled in from {source}. Check them and correct anything out of date.',
+    'auth.register.lookup.source.gus': 'the GUS REGON registry',
+    'auth.register.lookup.source.mf': 'the Ministry of Finance VAT White List',
+    'auth.register.lookup.source.vies': 'the EU VIES system',
+    'auth.register.lookup.vat.active': 'VAT status: active VAT payer.',
+    'auth.register.lookup.vat.exempt':
+      'VAT status: exempt from VAT. You can still register; our team will review your application.',
+    'auth.register.lookup.vat.notRegistered':
+      'The registry reports this company is not registered for VAT. You can still register; our team will review your application.',
+    'auth.register.lookup.vat.unknown': 'VAT status not checked.',
+    'auth.register.lookup.ceased': 'The registry reports that this company has ceased its activity.',
+    'auth.register.lookup.noDetails':
+      'This VAT number is valid, but the registry does not share company details for this country. Enter them below.',
+    'auth.register.lookup.notFound':
+      'We could not find this tax ID in the registry. Check the number or enter your company details below.',
+    'auth.register.lookup.unavailable': 'The registry is not responding right now. Enter your company details below.',
+    'auth.register.lookup.invalidTaxId': 'This tax ID does not look valid. Check the number.',
+    'auth.register.lookup.unsupportedCountry':
+      'Automatic lookup is not available for this country. Enter your company details below.',
+    'auth.register.lookup.rateLimited':
+      'Too many lookups in a short time. Wait a few minutes or enter your company details below.',
+    'auth.register.lookup.filledMark': 'Filled from the registry',
     // Individual (org-less) registration.
     'auth.registerCustomer.heading': 'Create your account',
     'auth.registerCustomer.intro':
@@ -176,6 +204,32 @@ export const auth = defineMessages({
     'auth.register.country': 'Kraj',
     'auth.register.ownerLegend': 'Właściciel konta',
     'auth.register.failed': 'Rejestracja nie powiodła się. Spróbuj ponownie.',
+    'auth.register.lookup.button': 'Pobierz dane firmy',
+    'auth.register.lookup.hint':
+      'Wpisz NIP lub unijny numer VAT i wybierz kraj, a uzupełnimy dane firmy z publicznego rejestru. Przed założeniem konta możesz je zmienić.',
+    'auth.register.lookup.loading': 'Pobieramy dane firmy…',
+    'auth.register.lookup.found': 'Dane firmy uzupełnione z {source}. Sprawdź je i popraw, jeśli są nieaktualne.',
+    'auth.register.lookup.source.gus': 'rejestru REGON (GUS)',
+    'auth.register.lookup.source.mf': 'Białej listy podatników VAT',
+    'auth.register.lookup.source.vies': 'systemu VIES',
+    'auth.register.lookup.vat.active': 'Status VAT: czynny podatnik VAT.',
+    'auth.register.lookup.vat.exempt':
+      'Status VAT: zwolniony z VAT. Mimo to możesz się zarejestrować — nasz zespół zweryfikuje zgłoszenie.',
+    'auth.register.lookup.vat.notRegistered':
+      'Według rejestru firma nie jest zarejestrowana jako podatnik VAT. Mimo to możesz się zarejestrować — nasz zespół zweryfikuje zgłoszenie.',
+    'auth.register.lookup.vat.unknown': 'Status VAT nie został sprawdzony.',
+    'auth.register.lookup.ceased': 'Według rejestru firma zakończyła działalność.',
+    'auth.register.lookup.noDetails':
+      'Ten numer VAT jest prawidłowy, ale rejestr nie udostępnia danych firm z tego kraju. Wpisz je poniżej.',
+    'auth.register.lookup.notFound':
+      'Nie znaleźliśmy tego numeru w rejestrze. Sprawdź numer albo wpisz dane firmy poniżej.',
+    'auth.register.lookup.unavailable': 'Rejestr w tej chwili nie odpowiada. Wpisz dane firmy poniżej.',
+    'auth.register.lookup.invalidTaxId': 'Ten numer wygląda na nieprawidłowy. Sprawdź go.',
+    'auth.register.lookup.unsupportedCountry':
+      'Automatyczne pobieranie danych nie jest dostępne dla tego kraju. Wpisz dane firmy poniżej.',
+    'auth.register.lookup.rateLimited':
+      'Zbyt wiele zapytań w krótkim czasie. Odczekaj kilka minut albo wpisz dane firmy poniżej.',
+    'auth.register.lookup.filledMark': 'Uzupełniono z rejestru',
     'auth.registerCustomer.heading': 'Załóż konto',
     'auth.registerCustomer.intro':
       'Zarejestruj konto osobiste, aby przeglądać ofertę i składać zamówienia. Konto można później powiązać z organizacją.',

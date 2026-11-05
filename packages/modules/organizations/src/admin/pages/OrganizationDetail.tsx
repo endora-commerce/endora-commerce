@@ -11,12 +11,16 @@ import { ModerationActionsPanel } from '../panels/ModerationActionsPanel.js';
 import { ApplicablePriceListsPanel } from '../panels/ApplicablePriceListsPanel.js';
 import { HierarchyPanel } from '../panels/HierarchyPanel.js';
 import { VatValidationPanel } from '../panels/VatValidationPanel.js';
+import { newestRegistrationRow } from '../panels/vat-validation-view.js';
 import { RestrictionsPanel } from '../panels/RestrictionsPanel.js';
 import { SalesChannelsPanel } from '../panels/SalesChannelsPanel.js';
 import { CustomFieldValuesPanel } from '@endora-commerce/admin-kit/components';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+
+/** The VAT validation panel's heading — where the moderation notice's link lands. */
+const VAT_VALIDATION_HEADING_ID = 'organization-vat-validation';
 
 interface OrgMember {
   id: string;
@@ -57,7 +61,7 @@ interface OrgDetail {
   approvedByAdminUserId?: string | null;
   vatValidation?: {
     outcome: 'validated' | 'failed' | 'deferred' | 'unverified' | null;
-    provider: 'vies' | 'mf_pl' | 'format_only' | null;
+    provider: 'vies' | 'mf_pl' | 'format_only' | 'gus_pl' | null;
     validatedAt: string | null;
   };
   updatedAt?: string;
@@ -83,6 +87,9 @@ export function OrganizationDetail(): ReactNode {
   const canReadRoles = isVisible({ module: 'organizations', requiredPermission: READ_ROLES });
   const { id = '' } = useParams<{ id: string }>();
   const [org, setOrg] = useState<OrgDetail | null>(null);
+  // Feature 173 — the newest registration-time lookup's differing fields, as
+  // the VAT validation panel loaded them, for the moderation notice.
+  const [registryDivergenceCount, setRegistryDivergenceCount] = useState(0);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -385,6 +392,8 @@ export function OrganizationDetail(): ReactNode {
           blockedReason={org.blockedReason ?? null}
           rejectedReason={org.rejectedReason ?? null}
           approvedAt={org.approvedAt ?? null}
+          registryDivergenceCount={registryDivergenceCount}
+          vatValidationAnchorId={VAT_VALIDATION_HEADING_ID}
           onChanged={refresh}
         />
       </div>
@@ -749,6 +758,10 @@ export function OrganizationDetail(): ReactNode {
             provider: org.vatValidation?.provider ?? null,
             validatedAt: org.vatValidation?.validatedAt ?? null,
           }}
+          headingId={VAT_VALIDATION_HEADING_ID}
+          onHistoryLoaded={(items) =>
+            setRegistryDivergenceCount(newestRegistrationRow(items)?.divergence?.length ?? 0)
+          }
           onChanged={refresh}
         />
       </div>

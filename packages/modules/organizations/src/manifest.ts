@@ -40,6 +40,11 @@ export const ORGANIZATIONS_SETTING_CODES = {
   // Feature 056 — platform-wide factory default for credit inheritance across the
   // organization tree; a per-org `credit_inheritance_mode` column overrides it.
   CREDIT_INHERITANCE_MODE: 'organizations.hierarchy.credit_inheritance_mode',
+  // Feature 173 — the company registry lookup at storefront registration
+  // (`specs/173-registration-registry-lookup/`, data-model §4).
+  REGISTRY_LOOKUP_ENABLED: 'organizations.registration.registry_lookup_enabled',
+  GUS_CREDENTIALS: 'organizations.registration.gus_credentials',
+  REGISTRY_LOOKUP_PL_SOURCES: 'organizations.registration.registry_lookup_pl_sources',
 } as const;
 
 const settings = defineModuleSettingsManifest({
@@ -72,6 +77,39 @@ const settings = defineModuleSettingsManifest({
       groupCode: 'organizations',
       valueType: 'string',
       defaultValue: 'shared_pool',
+    },
+    // Feature 173 (`contracts/admin-surfaces.md` §2). Platform-wide: the
+    // registries a business is looked up in are the deployment's choice, not a
+    // storefront's (owner decision OD-2). Off by default (OD-6), so merging
+    // sends no tax ID to a public registry before an operator decides to.
+    {
+      code: ORGANIZATIONS_SETTING_CODES.REGISTRY_LOOKUP_ENABLED,
+      name: 'Registration — company registry lookup',
+      description:
+        'Lets a business registering on the storefront fetch its company data (legal name, address, VAT status) from the public registry by tax ID: GUS REGON and the Ministry of Finance VAT White List for Polish NIPs, VIES for other EU VAT numbers. The data only pre-fills the form; the customer can change it and registration never depends on it. The registry answer is kept with the new organization for moderation. When off, the storefront shows the manual form and the lookup endpoint is absent.',
+      groupCode: 'organizations',
+      valueType: 'boolean',
+      defaultValue: false,
+    },
+    {
+      code: ORGANIZATIONS_SETTING_CODES.GUS_CREDENTIALS,
+      name: 'Registration — GUS REGON credentials',
+      description:
+        'The GUS REGON (BIR1.1) credential configuration (Credentials screen) whose user key the company lookup uses for Polish NIPs. Optional: without it, or when it cannot be used, Polish lookups use the Ministry of Finance VAT White List alone, whose address is less structured.',
+      groupCode: 'organizations',
+      valueType: 'credential_ref',
+      configurationType: 'organizations_gus_bir',
+      defaultValue: '',
+    },
+    {
+      code: ORGANIZATIONS_SETTING_CODES.REGISTRY_LOOKUP_PL_SOURCES,
+      name: 'Registration — registries for Polish NIPs',
+      description:
+        'Which public registries the company lookup asks for a Polish NIP. gus_mf (default): GUS REGON for the name and the structured address, together with the Ministry of Finance VAT White List for the VAT status; the White List also supplies the data when GUS is not configured or does not answer. gus: GUS REGON only — the White List is never asked, which keeps its daily limit for "Validate now" on the organization screen; the VAT status is not checked. Without a working GUS credential, gus means there is no lookup for Polish NIPs at all. mf: the White List only — no GUS key needed, but the address arrives as one line and is split as well as possible; GUS is never asked. EU VAT numbers from other countries always use VIES.',
+      groupCode: 'organizations',
+      valueType: 'string',
+      enumOptions: ['gus_mf', 'gus', 'mf'],
+      defaultValue: 'gus_mf',
     },
   ],
 });
@@ -240,6 +278,27 @@ export const manifest = defineModuleManifest({
    */
   nonBindingDependencies: [
     {
+      moduleId: 'credentials',
+      name: 'configurationTypeRegistry',
+      kind: 'contributes-to',
+      reason:
+        'Feature 173. A push, from a contribution-only boot hook, of the GUS REGON credential type ' +
+        'this module owns. The registry enumerates only types whose owner is present; nothing is read back. ' +
+        'Not `dependencies`: this module is the non-deactivatable tenancy root, so the edge would make ' +
+        '`credentials.enabled` a dead switch.',
+    },
+    {
+      moduleId: 'credentials',
+      name: 'credentialsService',
+      kind: 'degrades-without',
+      whenAbsent:
+        'the registration company lookup cannot use GUS; Polish lookups use the Ministry of Finance VAT White List alone',
+      reason:
+        'Feature 173 (research R-12). The lookup asks whether `credentials` is present, then resolves ' +
+        'the GUS credential through this port per lookup; an absent owner or an unresolvable credential ' +
+        'is the documented "GUS not configured" path (owner decision OD-1). The `cms` translation precedent.',
+    },
+    {
       moduleId: 'admin_search',
       name: 'adminSearchProviderRegistry',
       kind: 'contributes-to',
@@ -405,6 +464,21 @@ export const manifest = defineModuleManifest({
       keywords: ['organization', 'new', 'create'],
       keywordsKey: 'actions.newOrganization.keywords',
       weight: 210,
+    },
+    // Feature 173 (`contracts/admin-surfaces.md` §5, Principle XVI) — the three
+    // registration-lookup settings. The generic Settings screen has no
+    // per-group address (the cms / google_tag_manager precedent), so the action
+    // opens `/settings`, under the code that screen enforces.
+    {
+      id: 'open-registration-registry-lookup-settings',
+      labelKey: 'actions.openRegistrationRegistryLookupSettings.label',
+      descriptionKey: 'actions.openRegistrationRegistryLookupSettings.description',
+      icon: 'Settings',
+      targetRoute: '/settings',
+      requiredPermission: 'settings:read',
+      keywords: ['registration', 'registry', 'lookup', 'vat', 'vies', 'company', 'tax'],
+      keywordsKey: 'actions.openRegistrationRegistryLookupSettings.keywords',
+      weight: 200,
     },
   ],
   // Feature 047 — admin-editable transactional emails owned by this module.

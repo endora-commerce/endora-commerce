@@ -266,6 +266,8 @@ export * from './actor.js';
 // Organization roles and permissions — the buyer's role vocabulary, the
 // permission port and its route guard (`specs/170-organization-roles/`).
 export * from './organization-roles.js';
+// The company registry lookup at storefront registration (`specs/173-registration-registry-lookup/`).
+export * from './organization-registry-lookup.js';
 // Port contracts published by feature 075's Phase P for providers that had no
 // contracts file of their own.
 export * from './auth.js';

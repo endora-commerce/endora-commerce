@@ -1,6 +1,7 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
 import { OrgScoped } from '@endora-commerce/platform/tenancy';
 import { randomUUID } from 'crypto';
+import type { RegistryDetails, SubmittedCompanyValues } from '@endora-commerce/contracts';
 import type {
   VatValidationOutcome,
   VatValidationProvider,
@@ -21,7 +22,10 @@ export class OrganizationTaxIdValidation {
     | 'legalNameReturned'
     | 'addressReturned'
     | 'errorKind'
-    | 'requestedByAdminUserId';
+    | 'requestedByAdminUserId'
+    | 'origin'
+    | 'registryDetails'
+    | 'submittedValues';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -53,7 +57,24 @@ export class OrganizationTaxIdValidation {
 
   @Property({ type: 'datetime' })
   createdAt: Date = new Date();
+
+  /**
+   * Feature 173 — `admin` for an administrator's "Validate now", `registration`
+   * for the registry lookup a self-registration carried (data-model §1).
+   */
+  @Property({ type: 'string', length: 16, default: 'admin' })
+  origin: TaxIdValidationOrigin = 'admin';
+
+  /** Feature 173 — the registry's extra details; registration rows only. */
+  @Property({ type: 'json', nullable: true })
+  registryDetails?: RegistryDetails | null;
+
+  /** Feature 173 — what the registrant submitted; registration rows only, no personal data. */
+  @Property({ type: 'json', nullable: true })
+  submittedValues?: SubmittedCompanyValues | null;
 }
+
+export type TaxIdValidationOrigin = 'admin' | 'registration';
 
 export interface ReturnedAddress {
   line1?: string | null;

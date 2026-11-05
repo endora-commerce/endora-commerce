@@ -3,6 +3,8 @@ import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Textarea } from '@endora-commerce/admin-kit/ui';
 import { OrganizationStatusBadge } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { TriangleAlert } from 'lucide-react';
+import { showRegistryDivergenceNotice } from './vat-validation-view.js';
 
 export interface ModerationActionsPanelProps {
   organizationId: string;
@@ -11,6 +13,14 @@ export interface ModerationActionsPanelProps {
   blockedReason?: string | null;
   rejectedReason?: string | null;
   approvedAt?: string | null;
+  /**
+   * Feature 173 — how many fields of the newest registration-time lookup differ
+   * from what the customer submitted. A pending Organization with any shows a
+   * notice pointing at the VAT validation panel (FR-023).
+   */
+  registryDivergenceCount?: number;
+  /** The id of the VAT validation panel's heading, the notice's link target. */
+  vatValidationAnchorId?: string;
   /** Called after a successful transition so the parent can re-fetch. */
   onChanged: () => void | Promise<void>;
 }
@@ -39,6 +49,7 @@ interface ModalState {
  */
 export function ModerationActionsPanel(props: ModerationActionsPanelProps): ReactNode {
   const t = useTranslation('core');
+  const tm = useTranslation('organizations');
   const [modal, setModal] = useState<ModalState | null>(null);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
@@ -119,6 +130,23 @@ export function ModerationActionsPanel(props: ModerationActionsPanelProps): Reac
         {info ? (
           <Alert variant="success">
             <AlertDescription>{info}</AlertDescription>
+          </Alert>
+        ) : null}
+        {showRegistryDivergenceNotice(props.status, props.registryDivergenceCount) ? (
+          // Icon and text, never colour alone (WCAG 1.4.1); phrased without a
+          // plural form, which the admin kit's resolver does not have. A polite
+          // status, not the Alert's default `role="alert"`: it appears once the
+          // VAT history has loaded and must not interrupt (WCAG 4.1.3).
+          <Alert variant="warning" role="status" data-notice="registry-divergence">
+            <TriangleAlert aria-hidden="true" className="h-4 w-4" />
+            <AlertDescription>
+              {tm('moderation.registryDivergence', { count: String(props.registryDivergenceCount ?? 0) })}{' '}
+              {props.vatValidationAnchorId ? (
+                <a className="underline" href={`#${props.vatValidationAnchorId}`}>
+                  {tm('moderation.registryDivergenceLink')}
+                </a>
+              ) : null}
+            </AlertDescription>
           </Alert>
         ) : null}
 

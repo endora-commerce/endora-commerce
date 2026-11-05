@@ -203,3 +203,49 @@ describe('ModerationActionsPanel — interaction', () => {
     );
   });
 });
+
+describe('ModerationActionsPanel — registry divergence notice (feature 173, T060)', () => {
+  const NOTICE_BUNDLE = {
+    ...BUNDLE,
+    organizations: {
+      'moderation.registryDivergence': 'Fields differing from the registry: {count}.',
+      'moderation.registryDivergenceLink': 'Go to VAT validation',
+    },
+  };
+
+  it('a pending organization with differing fields gets a polite status, icon and text, linking to the VAT panel', () => {
+    renderWithI18n(
+      <ModerationActionsPanel
+        organizationId="org-1"
+        status="pending_verification"
+        version={0}
+        registryDivergenceCount={2}
+        vatValidationAnchorId="organization-vat-validation"
+        onChanged={onChangedSpy}
+      />,
+      NOTICE_BUNDLE,
+    );
+    // It arrives after the VAT history loads, so it must not interrupt (role="alert").
+    const notice = screen.getByRole('status');
+    expect(notice).toHaveTextContent('Fields differing from the registry: 2.');
+    expect(notice.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
+    expect(screen.getByRole('link', { name: 'Go to VAT validation' })).toHaveAttribute(
+      'href',
+      '#organization-vat-validation',
+    );
+  });
+
+  it('no notice once the organization is no longer pending', () => {
+    renderWithI18n(
+      <ModerationActionsPanel
+        organizationId="org-1"
+        status="active"
+        version={1}
+        registryDivergenceCount={2}
+        onChanged={onChangedSpy}
+      />,
+      NOTICE_BUNDLE,
+    );
+    expect(screen.queryByText(/differing from the registry/)).toBeNull();
+  });
+});

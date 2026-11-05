@@ -50,6 +50,13 @@ vi.mock('../../lib/api/auth', () => ({
   verifyEmail: vi.fn(async () => {
     if (verify.fails) throw new Error('network');
   }),
+  registerOrganization: vi.fn(),
+}));
+// Feature 173 — the registration page renders the registry lookup when it is on.
+vi.mock('../../lib/api/registry-lookup', () => ({
+  REGISTRATION_OPTIONS_TAG: 'organizations:registration-options',
+  getRegistrationOptions: vi.fn(async () => ({ enabled: true, countries: ['PL'] })),
+  lookupCompany: vi.fn(),
 }));
 
 const { default: LoginPage } = await import('../../app/(auth)/login/page');
@@ -123,8 +130,24 @@ inBoth('the forced 2FA setup page', () => render(SetupPage), {
 });
 
 inBoth('the business registration form', () => render(RegisterPage), {
-  'en-US': ['Create your business account', 'Legal name', 'Tax ID', 'Postal code', 'Account owner'],
-  'pl-PL': ['Załóż konto firmowe', 'Pełna nazwa firmy', 'NIP', 'Kod pocztowy', 'Właściciel konta'],
+  'en-US': [
+    'Create your business account',
+    'Legal name',
+    'Tax ID',
+    'Postal code',
+    'Account owner',
+    'Fetch company data',
+    'Enter your NIP or EU VAT number and choose the country',
+  ],
+  'pl-PL': [
+    'Załóż konto firmowe',
+    'Pełna nazwa firmy',
+    'NIP',
+    'Kod pocztowy',
+    'Właściciel konta',
+    'Pobierz dane firmy',
+    'Wpisz NIP lub unijny numer VAT i wybierz kraj',
+  ],
 });
 
 inBoth(

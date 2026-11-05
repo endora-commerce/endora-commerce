@@ -8,6 +8,8 @@ import type {
   AdminNotificationRecordPort,
   AdminTenantScopePort,
   AdminUserReadPort,
+  ConfigurationTypeRegistryPort,
+  CredentialsPort,
   CreditLimitReadPort,
   CustomFieldValuePort,
   CustomerAccountMemberWritePort,
@@ -48,8 +50,11 @@ import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import { ORGANIZATIONS_SETTING_CODES } from '../manifest.js';
 import {
   creditInheritanceModeSchema,
+  gusCredentialsRefSchema,
   moderationModeSchema,
   notificationRecipientsSchema,
+  registryLookupEnabledSchema,
+  registryLookupPlSourcesSchema,
 } from './schemas/settings.js';
 import { createAdminTenantScopePort } from './services/admin-tenant-scope.js';
 import { createOrganizationAdminSearchProvider } from './admin-search-provider.js';
@@ -96,9 +101,22 @@ import {
 import { predefinedRoleIdOn } from './services/organization-role-store.js';
 import { ViesClient } from './integrations/vies-client.js';
 import { MinisterstwoFinansowClient } from './integrations/ministerstwo-finansow-client.js';
+import { GusBirClient } from './integrations/gus-bir-client.js';
+import type { GusCredential, OrganizationsRegistryClients } from './registry-lookup/company-registry-port.js';
+import { MfRegistryAdapter, ViesRegistryAdapter } from './registry-lookup/registry-adapters.js';
+import { RegistryLookupStore, type RegistryLookupRedis } from './registry-lookup/registry-lookup-store.js';
+import { RegistryLookupService } from './registry-lookup/registry-lookup-service.js';
+import {
+  ORGANIZATIONS_GUS_CREDENTIAL_TYPE,
+  gusBirConfigurationType,
+} from './registry-lookup/gus-credential.type.js';
+import { GUS_REQUEST_TIMEOUT_MS, GUS_TOTAL_TIMEOUT_MS } from './registry-lookup/limits.js';
 import type { OrganizationEventBus } from './services/registration-service.js';
 import { organizationsModule, type OrganizationsModuleOptions } from './plugin.js';
 import { registerOrganizationsSalesRepRoutes } from './routes.sales-reps.js';
+import { registerRegistryLookupRoutes } from './routes.registry-lookup.js';
+import { registrationOptionsRevalidation } from './registry-lookup/registration-options-revalidation.js';
+import { StorefrontRevalidator } from '@endora-commerce/platform/http';
 import {
   EMAIL_VERIFICATION_DEFAULT,
   NEW_ORG_REGISTRATION_DEFAULT,
@@ -283,6 +301,18 @@ export interface OrganizationsCradle {
     readonly vies: VatValidator;
     readonly mfPl: VatValidator;
   };
+  /**
+   * Feature 173 — contribution point: the three registry clients the
+   * registration company lookup composes. Production registers the real ones,
+   * sharing the White List and VIES client **instances** with
+   * `organizationsTaxIdClients`, so one throttle stands in front of each
+   * registry's per-IP limit; the harness contributes counting fakes, because no
+   * test may open a socket to GUS, the White List or VIES.
+   */
+  readonly organizationsRegistryClients: OrganizationsRegistryClients;
+  /** Feature 173 — the lookup's Redis store (answer cache, tickets, budgets) and its service. */
+  readonly organizationsRegistryLookupStore: RegistryLookupStore;
+  readonly organizationsRegistryLookupService: RegistryLookupService;
   readonly organizationReadPort: OrganizationReadPort;
   readonly organizationRestrictionPort: OrganizationRestrictionService;
   readonly organizationTreeService: OrganizationTreeService;
@@ -306,7 +336,7 @@ export interface OrganizationsCradle {
    * core manifests plus the deployment's overlay modules, a host input as it is
    * for `admin_roles`' operator catalogue.
    */
-  readonly redis: OrganizationRolePublisher;
+  readonly redis: OrganizationRolePublisher & RegistryLookupRedis;
   readonly redisSubscriber: OrganizationRoleSubscriber;
   readonly resolvedModuleRegistry: readonly OrganizationPermissionManifestEntry[];
   readonly organizationRoleCatalogue: OrganizationRoleCatalogue;
@@ -537,13 +567,100 @@ export function registerModule(ctx: ModuleContext): void {
     await organizationRoleCache.start(redisSubscriber);
   });
 
+  /**
+   * Feature 173 — one White List client and one VIES client per composition,
+   * shared by the admin "Validate now" (`organizationsTaxIdClients`) and the
+   * registration lookup (`organizationsRegistryClients`): two instances would
+   * be two throttles against one per-IP limit (research R-2).
+   */
+  let sharedRegistryHttpClients: { vies: ViesClient; mfPl: MinisterstwoFinansowClient } | undefined;
+  const registryHttpClients = (): { vies: ViesClient; mfPl: MinisterstwoFinansowClient } =>
+    (sharedRegistryHttpClients ??= { vies: new ViesClient(), mfPl: new MinisterstwoFinansowClient() });
+
+  /**
+   * The GUS client's one log line (a refused key, once an hour) goes to the
+   * Fastify logger once the app exists; before that, nowhere. Never the key or
+   * the session id — the client does not hand either to a logger.
+   */
+  const registryLogger: { current: { warn(obj: object, msg: string): void; info(obj: object, msg: string): void } | null } = {
+    current: null,
+  };
+  const delegatingLogger = {
+    warn: (obj: object, msg: string) => registryLogger.current?.warn(obj, msg),
+    info: (obj: object, msg: string) => registryLogger.current?.info(obj, msg),
+  };
+
+  /**
+   * Feature 173 — the GUS credential, resolved per lookup and only when the
+   * Polish-sources mode includes GUS (research R-12; the `cms` translation
+   * precedent). Every step fails closed to "not configured": an unreadable
+   * setting, an empty reference, `credentials` switched off, a configuration
+   * that does not resolve or is of another type, a value that is not a key and
+   * an environment.
+   */
+  const resolveGusCredential = async (): Promise<GusCredential | null> => {
+    const code = await readSetting<string>(ORGANIZATIONS_SETTING_CODES.GUS_CREDENTIALS, gusCredentialsRefSchema, '');
+    if (code.trim() === '') return null;
+    if (!effectiveState.isPresent('credentials')) return null;
+    try {
+      const resolved = await lazyPort<CredentialsPort>(ctx, 'credentialsService').resolve(code);
+      if (resolved.status !== 'ok' || resolved.typeCode !== ORGANIZATIONS_GUS_CREDENTIAL_TYPE) return null;
+      const apiKey = resolved.values['apiKey'];
+      const environment = resolved.values['environment'];
+      if (typeof apiKey !== 'string' || apiKey.trim() === '') return null;
+      if (environment !== 'production' && environment !== 'test') return null;
+      return { apiKey: apiKey.trim(), environment };
+    } catch {
+      return null;
+    }
+  };
+
+  /** The on/off switch (OD-2), read per request and fail-closed: off on any error. */
+  const readRegistryLookupEnabled = (): Promise<boolean> =>
+    readSetting<boolean>(ORGANIZATIONS_SETTING_CODES.REGISTRY_LOOKUP_ENABLED, registryLookupEnabledSchema, false);
+
   ctx.di.register({
     // Production contributes nothing and reaches the real registries.
     organizationsTaxIdClients: ctx
-      .asFunction((): OrganizationsCradle['organizationsTaxIdClients'] => ({
-        vies: new ViesClient(),
-        mfPl: new MinisterstwoFinansowClient(),
-      }))
+      .asFunction((): OrganizationsCradle['organizationsTaxIdClients'] => registryHttpClients())
+      .singleton(),
+
+    organizationsRegistryClients: ctx
+      .asFunction((): OrganizationsRegistryClients => {
+        const http = registryHttpClients();
+        return {
+          gusPl: new GusBirClient({
+            requestTimeoutMs: GUS_REQUEST_TIMEOUT_MS,
+            totalTimeoutMs: GUS_TOTAL_TIMEOUT_MS,
+            logger: delegatingLogger,
+          }),
+          mfPl: new MfRegistryAdapter(http.mfPl),
+          vies: new ViesRegistryAdapter(http.vies),
+        };
+      })
+      .singleton(),
+
+    organizationsRegistryLookupStore: ctx
+      .asFunction(({ redis }: OrganizationsCradle) => new RegistryLookupStore(redis))
+      .singleton(),
+
+    organizationsRegistryLookupService: ctx
+      .asFunction(
+        ({ organizationsRegistryLookupStore }: OrganizationsCradle) =>
+          new RegistryLookupService({
+            // Read per lookup, so a composition's contribution is what runs.
+            clients: () => cradle().organizationsRegistryClients,
+            store: organizationsRegistryLookupStore,
+            readPlSources: () =>
+              readSetting<string>(
+                ORGANIZATIONS_SETTING_CODES.REGISTRY_LOOKUP_PL_SOURCES,
+                registryLookupPlSourcesSchema,
+                'gus_mf',
+              ),
+            resolveGusCredential,
+            logger: delegatingLogger,
+          }),
+      )
       .singleton(),
 
     // Default: a login does nothing beyond logging in.
@@ -668,6 +785,13 @@ export function registerModule(ctx: ModuleContext): void {
             ),
             storefrontBaseUrl: cradle().storefrontBaseUrl,
             exposeTestProbe: cradle().organizationsExposeTestProbe,
+            // Feature 173 — read per registration; the store is this module's own.
+            registryLookup: {
+              isEnabled: readRegistryLookupEnabled,
+              readTicket: (lookupId) => cradle().organizationsRegistryLookupStore.readTicket(lookupId),
+              deleteTicket: (lookupId) => cradle().organizationsRegistryLookupStore.deleteTicket(lookupId),
+              logger: delegatingLogger,
+            },
             requireAdmin: (permission) => async (req, reply) =>
               cradle().requireAdmin(permission)(req, reply),
             requireAdminAny: (permissions) => async (req, reply) =>
@@ -1008,6 +1132,42 @@ export function registerModule(ctx: ModuleContext): void {
 
   ctx.routes(async (app) => {
     await cradle().organizations(app);
+  });
+
+  /**
+   * Feature 173 — the registration company lookup's two anonymous endpoints,
+   * always registered; the switch is read per request (research R-16).
+   */
+  /**
+   * Feature 173 — a change of the switch or the GUS credential drops the
+   * storefront's cached registration options at once rather than after their
+   * 300 s TTL (research R-11). `ctx.subscribe`, so it stops with the module;
+   * the revalidator is a no-op where `STOREFRONT_BASE_URL` / `REVALIDATE_SECRET`
+   * are unset (the `google_tag_manager` shape).
+   */
+  const registrationOptionsRevalidator = new StorefrontRevalidator({
+    baseUrl: process.env['STOREFRONT_BASE_URL'],
+    secret: process.env['REVALIDATE_SECRET'],
+  });
+  ctx.subscribe('settings.value_changed', registrationOptionsRevalidation(registrationOptionsRevalidator));
+
+  ctx.routes(async (app) => {
+    registryLogger.current = app.log;
+    registrationOptionsRevalidator.setLogger(app.log);
+    await registerRegistryLookupRoutes(app, {
+      isEnabled: readRegistryLookupEnabled,
+      lookupService: () => cradle().organizationsRegistryLookupService,
+    });
+  });
+
+  /**
+   * Feature 173 — the GUS REGON credential type this module owns, pushed into
+   * `credentials`' registry. A **contribution** hook and deliberately unprobed
+   * (the `product_feeds` shape, `specs/conventions/module-activation.md` item
+   * 3): an inert descriptor into a registry the host filters by owner presence.
+   */
+  ctx.onBoot(() => {
+    lazyPort<ConfigurationTypeRegistryPort>(ctx, 'configurationTypeRegistry').register(gusBirConfigurationType);
   });
 
   /**

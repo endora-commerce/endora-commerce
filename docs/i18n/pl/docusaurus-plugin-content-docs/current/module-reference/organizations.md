@@ -46,6 +46,8 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | `price_lists` | tylko bramkowanie | rozwiązuje `priceListReadPort`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |
 | `admin_notifications` | nie | refuses-without `adminNotificationRecordPort` — nikt nie dowiaduje się o rejestracji nowej organizacji: powiadomienie w panelu jest odrzucane, a ta odmowa wstrzymuje też e-maile o nowej rejestracji — sama rejestracja kończy się normalnie |
 | `admin_search` | nie | contributes-to `adminSearchProviderRegistry` |
+| `credentials` | nie | contributes-to `configurationTypeRegistry` |
+| `credentials` | nie | degrades-without `credentialsService` — pobieranie danych firmy przy rejestracji nie może korzystać z GUS; polskie wyszukiwania używają wyłącznie Białej listy podatników VAT Ministerstwa Finansów |
 | `credit_limits` | nie | refuses-without `creditLimitReadPort` — wyszukiwanie w strukturze organizacji, która jednostka nadrzędna ma limit kredytowy, jest odrzucane — nie korzysta z niego żaden ekran, bo jedynym wywołującym jest usługa samego tego modułu |
 
 ## Uprawnienia
@@ -65,6 +67,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | --- | --- | --- |
 | `new-organization` | `/organizations/new` | `customers:manage` |
 | `open-organizations` | `/organizations` | `customers:read` |
+| `open-registration-registry-lookup-settings` | `/settings` | `settings:read` |
 
 ## Ustawienia
 
@@ -73,6 +76,9 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | `organizations.hierarchy.credit_inheritance_mode` | Credit inheritance mode (organization hierarchy) | `string` |
 | `organizations.moderation.mode` | Moderation mode for new Organizations | `string` |
 | `organizations.notifications.new_registration_recipients` | New Organization registration — email recipients | `json` |
+| `organizations.registration.gus_credentials` | Registration — GUS REGON credentials | `credential_ref` |
+| `organizations.registration.registry_lookup_enabled` | Registration — company registry lookup | `boolean` |
+| `organizations.registration.registry_lookup_pl_sources` | Registration — registries for Polish NIPs | `string` |
 
 ## Tłumaczenia
 
