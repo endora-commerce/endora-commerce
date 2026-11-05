@@ -85,6 +85,8 @@ describe('personal address book retired; the Organization book is the one book (
   });
 
   afterAll(async () => {
+    // Leave the seeded admin on the platform default for the next file.
+    await setAdminLanguage(null);
     await teardownBackendServer(h);
   });
 
@@ -107,8 +109,23 @@ describe('personal address book retired; the Organization book is the one book (
     { method: 'POST', url: 'ADMIN', payload: ADDRESS, admin: true },
   ];
 
+  /**
+   * An admin reads errors in their own preferred language, not the request's
+   * `Accept-Language` (`_i18n/error-envelope-translation.contract.test.ts`).
+   */
+  async function setAdminLanguage(language: 'en' | 'pl' | null): Promise<void> {
+    const res = await h.app.inject({
+      method: 'PATCH',
+      url: '/api/v1/admin/me/preferred-language',
+      cookies: { b2b_session: 'stub-admin-session' },
+      payload: { preferredLanguage: language },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+  }
+
   async function send(probe: Probe, language: 'en' | 'pl') {
     const url = probe.url === 'ADMIN' ? `/api/v1/admin/customers/${customerId}/addresses` : probe.url;
+    if (probe.admin) await setAdminLanguage(language);
     return h.app.inject({
       method: probe.method,
       url,
