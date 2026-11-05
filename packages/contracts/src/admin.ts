@@ -334,6 +334,14 @@ export const auditLogEntrySchema = z.object({
   id: uuidSchema,
   actorAdminUserId: uuidSchema.nullable(),
   impersonatedCustomerAccountId: uuidSchema.nullable(),
+  /**
+   * The customer who acted for themselves — a storefront Organization
+   * administrator managing roles, invitations or members
+   * (`specs/170-organization-roles/` FR-065, R-21; issue #741). `null` for an
+   * admin, under impersonation, and for the system. Optional so a payload from
+   * a server that predates the column still parses.
+   */
+  actorCustomerAccountId: uuidSchema.nullable().optional(),
   actedAt: isoDateTimeSchema,
   action: z.string(),
   objectType: z.string(),

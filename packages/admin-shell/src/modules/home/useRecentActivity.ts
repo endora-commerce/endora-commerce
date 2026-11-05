@@ -29,7 +29,8 @@ export interface RecentActivityItem {
   /** Verb key, relative to `module`'s i18n namespace. */
   labelKey: string;
   actorDisplayName: string;
-  actorKind: 'admin' | 'system';
+  /** `customer` — a customer who acted for themselves (issue #741). */
+  actorKind: 'admin' | 'customer' | 'system';
   targetType: string;
   targetId: string;
   targetDisplayName: string;

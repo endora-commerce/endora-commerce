@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import type { AuditReferenceLabel } from '@endora-commerce/contracts';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { AuditLogEntry } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
@@ -28,13 +29,20 @@ export interface AuditLogAdminDeps {
    * column falls back to the raw id.
    */
   resolveActors?: (ids: string[]) => Promise<AuditActorIdentity[]>;
+  /**
+   * Names the customer who acted for themselves (issue #741) — the
+   * `customer_account` audit reference, the same lookup the dashboard card
+   * names an impersonated customer with. Optional, and an id it has no label
+   * for is simply absent: the viewer falls back to the raw id.
+   */
+  resolveCustomers?: (ids: string[]) => Promise<ReadonlyMap<string, AuditReferenceLabel>>;
 }
 
 export async function registerAuditLogAdminRoutes(
   app: FastifyInstance,
   deps: AuditLogAdminDeps,
 ): Promise<void> {
-  const { auditLogService, requireAdmin, resolveActors } = deps;
+  const { auditLogService, requireAdmin, resolveActors, resolveCustomers } = deps;
 
   app.get(
     '/api/v1/admin/audit-log',
@@ -56,24 +64,45 @@ export async function registerAuditLogAdminRoutes(
       const actorIds = entries
         .map((e) => e.actorAdminUserId)
         .filter((id): id is string => Boolean(id));
-      const actors = resolveActors ? await resolveActors(actorIds) : [];
+      const customerIds = [
+        ...new Set(
+          entries
+            .map((e) => e.actorCustomerAccountId)
+            .filter((id): id is string => Boolean(id)),
+        ),
+      ];
+      const [actors, customers] = await Promise.all([
+        resolveActors ? resolveActors(actorIds) : Promise.resolve([]),
+        resolveCustomers && customerIds.length > 0
+          ? resolveCustomers(customerIds)
+          : Promise.resolve(new Map<string, AuditReferenceLabel>()),
+      ]);
       const actorById = new Map(actors.map((a) => [a.id, a]));
       return {
-        data: entries.map((e) => serialize(e, actorById)),
+        data: entries.map((e) => serialize(e, actorById, customers)),
         pagination: { cursor: null, hasMore: false, limit: entries.length },
       };
     },
   );
 }
 
-function serialize(e: AuditLogEntry, actorById: Map<string, AuditActorIdentity>) {
+function serialize(
+  e: AuditLogEntry,
+  actorById: Map<string, AuditActorIdentity>,
+  customers: ReadonlyMap<string, AuditReferenceLabel>,
+) {
   const actor = e.actorAdminUserId ? actorById.get(e.actorAdminUserId) : undefined;
+  const actorCustomerAccountId = e.actorCustomerAccountId ?? null;
   return {
     id: e.id,
     actorAdminUserId: e.actorAdminUserId ?? null,
     actorName: actor ? `${actor.firstName} ${actor.lastName}`.trim() : null,
     actorEmail: actor?.email ?? null,
     impersonatedCustomerAccountId: e.impersonatedCustomerAccountId ?? null,
+    actorCustomerAccountId,
+    actorCustomerLabel: actorCustomerAccountId
+      ? (customers.get(actorCustomerAccountId)?.label ?? null)
+      : null,
     actedAt: e.actedAt.toISOString(),
     action: e.action,
     actionModuleId: moduleIdForAuditAction(e.action),
