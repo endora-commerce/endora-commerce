@@ -4,8 +4,9 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
-import { PaymentMethod } from '../../helpers/package-entities.js';
+import { ERROR_CODES } from '@endora-commerce/contracts';
+import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { CustomerAddress, PaymentMethod } from '../../helpers/package-entities.js';
 
 /**
  * Feature 039 (US2 / FR-018) — admin manages default preferences on behalf of
@@ -58,5 +59,34 @@ describe('Admin quick-order default preferences', () => {
     expect(
       (get.json() as { data: { defaultPaymentMethodId: string } }).data.defaultPaymentMethodId,
     ).toBe(paymentId);
+  });
+
+  it('refuses a personal-book address as an organization default with 403 ADDRESS_NOT_OWNED (issue #769)', async () => {
+    const em = h.em();
+    const personal = em.create(CustomerAddress, {
+      customerAccountId: TEST_CUSTOMER_ID,
+      kind: 'billing',
+      recipientName: 'Quick order admin personal address',
+      street: 'ul. Prywatna 769',
+      city: 'Warszawa',
+      postalCode: '00-769',
+      country: 'PL',
+    });
+    await em.persistAndFlush(personal);
+
+    const put = await h.app.inject({
+      method: 'PUT',
+      url: '/api/v1/admin/quick-order/preferences',
+      cookies: ADMIN_COOKIE,
+      payload: {
+        scope: 'organization',
+        scopeId: TEST_ORGANIZATION_ID,
+        defaultBillingAddressId: personal.id,
+      },
+    });
+    expect(put.statusCode).toBe(403);
+    expect((put.json() as { error: { code: string } }).error.code).toBe(
+      ERROR_CODES.ADDRESS_NOT_OWNED,
+    );
   });
 });
