@@ -144,6 +144,47 @@ describe('carts — the org-admin cart list names its owners through customer_ac
 
     expect(page.data).toHaveLength(1);
     expect(page.data[0]?.ownerDisplayName).toBe('cust-1@example.test');
+    expect(page.data[0]?.ownerEmail).toBe('cust-1@example.test');
+  });
+
+  // Issue #751 — the owner is named as the members page names a member, the
+  // e-mail travelling beside the name.
+  it('names the owner by full name, the e-mail beside it', async () => {
+    const accounts = {
+      findByIds: async (ids: readonly string[]) =>
+        ids.map((id) => ({ id, email: `${id}@example.test`, firstName: 'Jan', lastName: 'Kowalski' })),
+    } as unknown as CustomerAccountReadPort;
+
+    const service = new CartOrganizationVisibilityService(
+      ownTablesOnly({ carts: [cartRow()], items: [itemRow()] }),
+      accounts,
+    );
+    const page = await service.list('org-1');
+
+    expect(page.data[0]).toMatchObject({
+      ownerDisplayName: 'Jan Kowalski',
+      ownerEmail: 'cust-1@example.test',
+    });
+  });
+
+  it('falls back to the e-mail for an owner with a blank name, and to the id for one that is gone', async () => {
+    const blank = {
+      findByIds: async (ids: readonly string[]) =>
+        ids.map((id) => ({ id, email: `${id}@example.test`, firstName: ' ', lastName: '' })),
+    } as unknown as CustomerAccountReadPort;
+    const gone = { findByIds: async () => [] } as unknown as CustomerAccountReadPort;
+
+    const named = await new CartOrganizationVisibilityService(
+      ownTablesOnly({ carts: [cartRow()], items: [itemRow()] }),
+      blank,
+    ).list('org-1');
+    const missing = await new CartOrganizationVisibilityService(
+      ownTablesOnly({ carts: [cartRow()], items: [itemRow()] }),
+      gone,
+    ).list('org-1');
+
+    expect(named.data[0]).toMatchObject({ ownerDisplayName: 'cust-1@example.test', ownerEmail: 'cust-1@example.test' });
+    expect(missing.data[0]).toMatchObject({ ownerDisplayName: 'cust-1', ownerEmail: null });
   });
 });
 

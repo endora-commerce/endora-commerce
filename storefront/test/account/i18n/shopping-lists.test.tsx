@@ -123,6 +123,9 @@ describe('shopping-list overview — the shop language (issue #85)', () => {
     locale = 'pl-PL';
     const pl = visibleText(renderToString(<>{await Page({ searchParams: Promise.resolve({}) })}</>));
     expect(pl).toContain('Listy zakupów');
+    // Issue #751 — the column holds the list's name, not a person's.
+    expect(pl).toContain('Nazwa Pozycje Zaktualizowano Domyślna');
+    expect(pl).not.toContain('Imię i nazwisko');
     expect(pl).toContain('Utwórz nową listę');
     expect(pl).toContain('Domyślna');
     expect(pl).toContain('Ustaw jako domyślną');

@@ -49,6 +49,7 @@ function summary(id: string, approvalStatus: OrgCartSummary['approvalStatus']): 
     id,
     ownerCustomerAccountId: `owner-${id}`,
     ownerDisplayName: `${id}@acme.example`,
+    ownerEmail: `${id}@acme.example`,
     status: 'active',
     approvalStatus,
     itemCount: 1,
@@ -127,5 +128,51 @@ describe('organization carts list — issue #650', () => {
     expect(html).toContain(empty);
     expect(html).toContain(pendingTab);
     expect(html).toContain(allTab);
+  });
+});
+
+/**
+ * Issue #751 — presentation fixes from the feature 170 demo review: the owner
+ * is named as on the members page, a completed cart does not read as an empty
+ * one, and the total says it is net.
+ */
+describe('organization carts list — issue #751', () => {
+  it.each(['en-US', 'pl-PL'])('names the owner by full name, the e-mail beside it (%s)', async (l) => {
+    locale = l;
+    carts = [{ ...summary('c1', 'pending'), ownerDisplayName: 'Jan Kowalski', ownerEmail: 'jan@acme.example' }];
+    const html = await render();
+    expect(html).toMatch(/<td>Jan Kowalski<small[^>]*>jan@acme\.example<\/small><\/td>/);
+  });
+
+  it('does not repeat the e-mail when the owner has no name to show', async () => {
+    carts = [summary('c1', 'pending')];
+    const html = await render();
+    expect(html.split('c1@acme.example')).toHaveLength(2);
+  });
+
+  it.each(['en-US', 'pl-PL'])('leaves the items and total of a completed cart empty, not zero (%s)', async (l) => {
+    locale = l;
+    carts = [
+      {
+        ...summary('c3', 'not_required'),
+        status: 'completed',
+        itemCount: 0,
+        total: { amount: 0, currency: 'PLN' },
+      },
+    ];
+    const html = await render();
+    expect(html).not.toMatch(/<td>0<\/td>/);
+    expect(html).not.toContain('0,00');
+    expect(html).toMatch(/<\/span><\/td><td>—<\/td><td>—<\/td>/);
+  });
+
+  it.each([
+    ['en-US', 'net'],
+    ['pl-PL', 'netto'],
+  ])('labels the total as net, as the cart page does (%s)', async (l, net) => {
+    locale = l;
+    carts = [summary('c1', 'pending')];
+    const html = await render();
+    expect(html).toMatch(new RegExp(`10,00\\s*zł<span[^>]*>${net}</span>`));
   });
 });
