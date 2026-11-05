@@ -13,6 +13,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const state = {
   locale: 'en-US',
+  customersPresent: true,
   options: { allowRegistrationWithoutOrganization: false } as {
     allowRegistrationWithoutOrganization: boolean;
   } | null,
@@ -24,6 +25,7 @@ vi.mock('../../lib/server-context', () => ({
     anonymousAccess: true,
     ctx: { salesChannelCode: 'trade', locale: state.locale },
     urlState: { languages: [], aliases: [], current: state.locale },
+    modules: { isPresent: (id: string) => id !== 'customers' || state.customersPresent },
   })),
 }));
 vi.mock('../../lib/session', () => ({ setSessionCookie: vi.fn() }));
@@ -33,10 +35,13 @@ vi.mock('../../lib/api/customer-registration', () => ({
 }));
 
 const { default: RegisterCustomerPage } = await import('../../app/(auth)/register-customer/page');
+const { default: RegisterCustomerLayout } = await import('../../app/(auth)/register-customer/layout');
 
+/** The segment as Next.js renders it: the layout, then the page inside it. */
 async function render(searchParams: Record<string, string> = {}): Promise<string> {
   const page = await RegisterCustomerPage({ searchParams: Promise.resolve(searchParams) });
-  return renderToString(page as ReactElement).replace(/<!-- -->/g, '');
+  const tree = await RegisterCustomerLayout({ children: page as ReactElement });
+  return renderToString(tree as ReactElement).replace(/<!-- -->/g, '');
 }
 
 const COPY = {
@@ -56,6 +61,7 @@ const COPY = {
 
 beforeEach(() => {
   state.locale = 'en-US';
+  state.customersPresent = true;
   state.options = { allowRegistrationWithoutOrganization: false };
 });
 
@@ -92,6 +98,19 @@ for (const locale of ['en-US', 'pl-PL'] as const) {
       const html = await render({ orgRequired: '1' });
       expect(html).toContain(copy.notice);
       expect(html).toMatch(new RegExp(`<a[^>]*href="/register"[^>]*>${copy.link}</a>`));
+    });
+
+    // Constitution XVII — with `customers` off the page behaves as if it had
+    // never been installed: not-found, whatever the setting says.
+    it('answers not-found while the customers module is off', async () => {
+      state.locale = locale;
+      state.customersPresent = false;
+      for (const allowed of [true, false]) {
+        state.options = { allowRegistrationWithoutOrganization: allowed };
+        await expect(render()).rejects.toMatchObject({
+          digest: expect.stringContaining('404'),
+        });
+      }
     });
 
     it('renders the form when the setting cannot be read, leaving the refusal to the backend', async () => {
