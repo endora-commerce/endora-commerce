@@ -1,12 +1,14 @@
 import type {
   PatchProductScopesRequest,
-  ProductValueOverrideDelete,
-  PutGalleryChannelRolesRequest,
   PutProductUrlKeysRequest,
   ScopeMissingValue,
   ScopeOverviewResponse,
+  ScopeRef,
+  ScopedValueChanges,
+  ScopedValuesResponse,
 } from '@endora-commerce/contracts';
 import { apiClient } from '@endora-commerce/admin-kit/lib';
+import { scopeToRequest } from './scoped-editor-store.js';
 
 /**
  * Feature 163 (US4, FR-015, FR-041; `contracts/admin-scopes-api.md` §3) — the pure half of
@@ -20,12 +22,17 @@ import { apiClient } from '@endora-commerce/admin-kit/lib';
  * packaging-unit fields and `seo:<field>`: a channel's gallery roles reset through the
  * channel-roles PUT; the item-level ones are edited on the Media, Attachments and
  * Inventory tabs (the overview names no item), so they have no reset here.
+ *
+ * Feature 174 — the value overrides and the gallery roles are reset (and their orphans
+ * removed) through `PUT …/scoped-values` with `{ inherit: true }` at the cell's own scope, the
+ * version taken from a Global read (FR-101); the removed `…/value-overrides` and channel-roles
+ * routes are no longer called. The overview's Language row is T127 / T132's.
  */
 
 export type ScopeOverview = ScopeOverviewResponse['data'];
 export type ScopeOverviewCell = ScopeOverview['cells'][number];
 export type ScopeOverviewOrphan = ScopeOverview['orphans'][number];
-export type OverviewLevel = 'channel_language' | 'channel' | 'language';
+export type OverviewLevel = 'channel_language' | 'channel';
 
 const CHANNEL_FIELDS = ['status', 'window', 'audience', 'minOrderQuantity', 'returnable'] as const;
 type ChannelField = (typeof CHANNEL_FIELDS)[number];
@@ -44,20 +51,31 @@ function overrideAttributeKey(field: string): string | null {
 /** One request to the endpoint that owns the field. */
 export type ScopeFieldRequest =
   | { kind: 'scopes'; body: PatchProductScopesRequest }
-  | { kind: 'valueOverrides'; body: { upserts: []; deletes: ProductValueOverrideDelete[] } }
-  | { kind: 'urlKeys'; body: PutProductUrlKeysRequest }
-  | { kind: 'galleryRoles'; body: PutGalleryChannelRolesRequest };
+  | { kind: 'scopedValues'; scope: ScopeRef; changes: ScopedValueChanges }
+  | { kind: 'urlKeys'; body: PutProductUrlKeysRequest };
+
+const INHERIT = { inherit: true } as const;
 
 /** Every role of one channel back to the global holder. */
 function clearGalleryRoles(channelId: string): ScopeFieldRequest {
-  return { kind: 'galleryRoles', body: { channelId, roles: { baseImage: null, smallImage: null, thumbnail: null } } };
+  return {
+    kind: 'scopedValues',
+    scope: { level: 'channel', channelId },
+    changes: { gallery: { roles: { baseImage: INHERIT, smallImage: INHERIT, thumbnail: INHERIT } } },
+  };
+}
+
+/** `name` / `description` / `attribute:<key>` back to inherited at one scope. */
+function inheritValue(key: string, scope: ScopeRef): ScopeFieldRequest {
+  const changes: ScopedValueChanges =
+    key === 'name' || key === 'description' ? { [key]: INHERIT } : { attributes: { [key]: INHERIT } };
+  return { kind: 'scopedValues', scope, changes };
 }
 
 /**
- * "Reset to inherited" for one field at one level (US4 #2): the owning endpoint with
- * `null` for that field only. `null` when the level holds no override to remove — a
- * name, description or attribute at the **language** level is the product's own value
- * in that language, edited on the Details and Attributes tabs, not an override.
+ * "Reset to inherited" for one field at one level (US4 #2): the owning endpoint with an
+ * inherit for that field only (feature 174: there is no Language level, FR-010). `null`
+ * when the level holds no override to remove.
  */
 export function resetRequestFor(input: {
   field: string;
@@ -68,35 +86,28 @@ export function resetRequestFor(input: {
   const { field, level, channelId, languageCode } = input;
   if (isChannelField(field)) {
     if (level === 'channel') {
-      return { kind: 'scopes', body: { channels: [{ channelId, [field]: null }] } };
+      return { kind: 'scopes', body: { channels: [{ channelId, [field]: { inherit: true } }] } };
     }
     if (level === 'channel_language' && field === 'status') {
       return {
         kind: 'scopes',
-        body: { channels: [{ channelId, languageStatuses: [{ languageCode, status: null }] }] },
+        body: { channels: [{ channelId, languageStatuses: [{ languageCode, status: { inherit: true } }] }] },
       };
     }
     return null;
   }
   const attributeKey = overrideAttributeKey(field);
   if (attributeKey !== null) {
-    if (level === 'language') return null;
-    return {
-      kind: 'valueOverrides',
-      body: {
-        upserts: [],
-        deletes: [{ attributeKey, channelId, languageCode: level === 'channel_language' ? languageCode : null }],
-      },
-    };
+    return inheritValue(
+      attributeKey,
+      level === 'channel_language' ? { level: 'channel_language', channelId, languageCode } : { level: 'channel', channelId },
+    );
   }
   if (field === 'media:roles') return level === 'channel' ? clearGalleryRoles(channelId) : null;
   if (field === 'urlKey') {
     // A URL key has no channel-wide value: a channel row never holds one (C-7).
     if (level === 'channel') return null;
-    if (level === 'channel_language') {
-      return { kind: 'urlKeys', body: { channelKeys: [{ channelId, languageCode, key: null }] } };
-    }
-    return { kind: 'urlKeys', body: { languageKeys: [{ languageCode, key: null }] } };
+    return { kind: 'urlKeys', body: { channelKeys: [{ channelId, languageCode, key: { inherit: true } }] } };
   }
   return null;
 }
@@ -121,20 +132,22 @@ export function orphanDeleteRequest(orphan: ScopeOverviewOrphan): ScopeFieldRequ
     if (field === 'status' && languageCode !== null) {
       return {
         kind: 'scopes',
-        body: { channels: [{ channelId, languageStatuses: [{ languageCode, status: null }] }] },
+        body: { channels: [{ channelId, languageStatuses: [{ languageCode, status: { inherit: true } }] }] },
       };
     }
-    return { kind: 'scopes', body: { channels: [{ channelId, [field]: null }] } };
+    return { kind: 'scopes', body: { channels: [{ channelId, [field]: { inherit: true } }] } };
   }
   const attributeKey = overrideAttributeKey(field);
   if (attributeKey !== null) {
     if (channelId === null) return null;
-    return { kind: 'valueOverrides', body: { upserts: [], deletes: [{ attributeKey, channelId, languageCode }] } };
+    return inheritValue(
+      attributeKey,
+      languageCode === null ? { level: 'channel', channelId } : { level: 'channel_language', channelId, languageCode },
+    );
   }
   if (field === 'media:roles' && channelId !== null) return clearGalleryRoles(channelId);
-  if (field === 'urlKey' && languageCode !== null) {
-    if (channelId === null) return { kind: 'urlKeys', body: { languageKeys: [{ languageCode, key: null }] } };
-    return { kind: 'urlKeys', body: { channelKeys: [{ channelId, languageCode, key: null }] } };
+  if (field === 'urlKey' && channelId !== null) {
+    return { kind: 'urlKeys', body: { channelKeys: [{ channelId, languageCode, key: { inherit: true } }] } };
   }
   return null;
 }
@@ -143,9 +156,14 @@ export function orphanDeleteRequest(orphan: ScopeOverviewOrphan): ScopeFieldRequ
 export async function sendScopeFieldRequest(productId: string, request: ScopeFieldRequest): Promise<void> {
   const base = `/api/v1/admin/catalog/products/${encodeURIComponent(productId)}`;
   if (request.kind === 'scopes') await apiClient.patch(`${base}/scopes`, request.body);
-  else if (request.kind === 'valueOverrides') await apiClient.patch(`${base}/value-overrides`, request.body);
-  else if (request.kind === 'galleryRoles') await apiClient.put(`${base}/gallery/channel-roles`, request.body);
-  else await apiClient.put(`${base}/url-keys`, request.body);
+  else if (request.kind === 'scopedValues') {
+    const read = await apiClient.get<ScopedValuesResponse>(`${base}/scoped-values`);
+    await apiClient.put(`${base}/scoped-values`, {
+      scope: scopeToRequest(request.scope),
+      version: read.data.version,
+      changes: request.changes,
+    });
+  } else await apiClient.put(`${base}/url-keys`, request.body);
 }
 
 /** `GET …/scope-overview`. */
@@ -153,6 +171,10 @@ export async function getScopeOverview(productId: string): Promise<ScopeOverview
   const res = await apiClient.get<ScopeOverviewResponse>(
     `/api/v1/admin/catalog/products/${encodeURIComponent(productId)}/scope-overview`,
   );
+  // A malformed answer is a failed read (the overview shows Retry), never a crash.
+  if (!res?.data || !Array.isArray(res.data.channels) || !Array.isArray(res.data.cells)) {
+    throw new Error('Malformed scope overview');
+  }
   return res.data;
 }
 

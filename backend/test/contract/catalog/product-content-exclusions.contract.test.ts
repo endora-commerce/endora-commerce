@@ -60,8 +60,8 @@ describe('Product content exclusions (feature 172)', () => {
       payload: {
         sku: 'PBX-DRILL-1',
         type: 'simple',
-        name: { 'en-US': 'Exclusion drill' },
-        description: { 'en-US': 'A drill' },
+        name: 'Exclusion drill',
+        description: 'A drill',
         categoryIds: [],
         attributeSetId: setId,
         attributeValues: {},
@@ -99,17 +99,23 @@ describe('Product content exclusions (feature 172)', () => {
           `insert into sales_channel_products (sales_channel_id, product_id) values (?, ?) on conflict do nothing`,
           [channelId, productId],
         );
-      const res = await h.app.inject({
-        method: 'PATCH',
-        url: `/api/v1/admin/catalog/products/${productId}/value-overrides`,
+      // Feature 174 — channel values are written through the scoped save; `…/value-overrides` is gone.
+      const read = await h.app.inject({
+        method: 'GET',
+        url: `/api/v1/admin/catalog/products/${productId}/scoped-values?channelId=${channelId}`,
         cookies: ADMIN,
-        payload: {
-          upserts: [{ attributeKey: CONTENT_KEY, channelId, languageCode: 'pl-PL', value: { languages: {} } }],
-          deletes: [],
-        },
       });
-      expect(res.statusCode, res.body).toBeGreaterThanOrEqual(400);
-      expect(res.statusCode).toBeLessThan(500);
+      expect(read.statusCode, read.body).toBe(200);
+      const version = (read.json() as { data: { version: string } }).data.version;
+      for (const scope of [{ channelId }, { channelId, languageCode: 'pl-PL' }]) {
+        const res = await h.app.inject({
+          method: 'PUT',
+          url: `/api/v1/admin/catalog/products/${productId}/scoped-values`,
+          cookies: ADMIN,
+          payload: { scope, version, changes: { attributes: { [CONTENT_KEY]: 'x' } } },
+        });
+        expect(res.statusCode, res.body).toBe(422);
+      }
       const stored = await h
         .em()
         .getConnection()
@@ -245,8 +251,8 @@ describe('Product content exclusions (feature 172)', () => {
         payload: {
           sku: 'PBX-CREATE-REFUSED',
           type: 'simple',
-          name: { 'en-US': 'Refused' },
-          description: { 'en-US': 'Refused' },
+          name: 'Refused',
+          description: 'Refused',
           categoryIds: [],
           attributeSetId: setId,
           attributeValues: { [CONTENT_KEY]: { languages: {} } },
@@ -311,8 +317,8 @@ describe('Product content exclusions (feature 172)', () => {
         payload: {
           sku: 'PBX-UPSERT-REFUSED',
           type: 'simple',
-          name: { 'en-US': 'Upsert refused' },
-          description: { 'en-US': 'Upsert refused' },
+          name: 'Upsert refused',
+          description: 'Upsert refused',
           categoryIds: [],
           attributeSetId: setId,
           attributeValues: { [CONTENT_KEY]: '<p>html</p>' },

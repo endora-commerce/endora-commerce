@@ -15,8 +15,9 @@ interface CategoryTreeNodeRowProps {
   expanded: boolean;
   onToggleExpand: () => void;
   onToggleSelect: () => void;
-  expandLabel: string;
-  collapseLabel: string;
+  /** Called with the category's name, so every expand control names its branch. */
+  expandLabel: (name: string) => string;
+  collapseLabel: (name: string) => string;
 }
 
 export function CategoryTreeNodeRow(props: CategoryTreeNodeRowProps): ReactNode {
@@ -47,32 +48,38 @@ export function CategoryTreeNodeRow(props: CategoryTreeNodeRowProps): ReactNode 
           type="button"
           variant="ghost"
           size="sm"
-          className="h-7 w-7 shrink-0 p-0"
+          className="h-7 w-7 shrink-0 p-0 max-lg:h-11 max-lg:w-11"
           disabled={props.disabled}
           aria-expanded={props.expanded}
-          aria-label={props.expanded ? props.collapseLabel : props.expandLabel}
+          aria-label={props.expanded ? props.collapseLabel(label) : props.expandLabel(label)}
           onClick={props.onToggleExpand}
         >
           {props.expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
         </Button>
       ) : (
-        <span className="inline-block h-7 w-7 shrink-0" aria-hidden />
+        <span className="inline-block h-7 w-7 shrink-0 max-lg:w-11" aria-hidden />
       )}
-      <Checkbox
-        ref={checkboxRef}
-        checked={props.checked}
-        disabled={props.disabled}
-        aria-checked={indeterminate ? 'mixed' : props.checked}
-        aria-label={label}
-        title={label}
-        onChange={(): void => props.onToggleSelect()}
-      />
-      <span
-        className={cn('truncate text-sm', indeterminate && 'font-medium text-foreground')}
-        title={label}
+      {/* The name is part of the label, so clicking it toggles the checkbox (Fitts). */}
+      <label
+        className={cn(
+          'flex min-w-0 flex-1 items-center gap-1 max-lg:min-h-11',
+          props.disabled ? 'cursor-not-allowed' : 'cursor-pointer',
+        )}
       >
-        {label}
-      </span>
+        <Checkbox
+          ref={checkboxRef}
+          checked={props.checked}
+          disabled={props.disabled}
+          aria-checked={indeterminate ? 'mixed' : props.checked}
+          onChange={(): void => props.onToggleSelect()}
+        />
+        <span
+          className={cn('truncate text-sm', indeterminate && 'font-medium text-foreground')}
+          title={label}
+        >
+          {label}
+        </span>
+      </label>
     </div>
   );
 }

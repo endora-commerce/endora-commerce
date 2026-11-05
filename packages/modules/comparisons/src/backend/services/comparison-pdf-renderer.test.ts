@@ -124,7 +124,7 @@ function productSummary(
   return {
     id,
     sku: `SKU-${id}`,
-    name: { en: name },
+    name,
     slug: id,
     type: 'simple' as const,
     primaryAssetUrl,

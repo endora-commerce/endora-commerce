@@ -1,121 +1,74 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import {
-  setupBackendServer,
-  teardownBackendServer,
-  type BackendServerHandle,
-} from '../../helpers/test-server.js';
+import { setupBackendServer, teardownBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
+import { ADMIN, scopedValuesFixture, type ScopedValuesFixture } from '../../helpers/scoped-values-fixture.js';
 
 /**
- * Feature 022 — T021. Contract test for the modified
- * `GET /api/v1/admin/catalog/products/:id?languageCode=…` endpoint.
+ * Feature 022 (T021), on feature 174's three levels (FR-010, FR-013, FR-014) — the `resolved` block of
+ * `GET /api/v1/admin/catalog/products/:id?channelId=…&languageCode=…`.
  *
- * Asserts the `resolved` block surfaces `name` / `description` as scalars
- * picked per the language context, with the documented primary-language
- * fallback when the requested language is missing on the baseline.
+ * - the product's `name` / `description` are one Global string each;
+ * - with a channel and a language the block resolves C×L → C → G and names the source;
+ * - a language without a channel names no scope (there is no Language level): the Global value;
+ * - without either parameter there is no `resolved` block.
  *
- * Channel context (`channelId`) is exercised by US2 contract tests — this
- * test deliberately only varies `languageCode` so the US1 slice can ship
- * independently.
+ * Replaces 163's per-language baseline cases (`global+language`, the primary-language fallback).
  */
-describe('GET /api/v1/admin/catalog/products/:id?languageCode (resolver)', () => {
+describe('GET /api/v1/admin/catalog/products/:id?channelId&languageCode (resolver, feature 174)', () => {
   let h: BackendServerHandle;
+  let fx: ScopedValuesFixture;
+  let channel: string;
   let productId: string;
+
+  type Resolved = {
+    context: { channelId: string | null; languageCode: string | null };
+    name: unknown;
+    description: unknown;
+    sources: Record<string, string>;
+  };
+
+  async function get(query: string): Promise<{ resolved?: Resolved } & Record<string, unknown>> {
+    const res = await h.app.inject({ method: 'GET', url: `/api/v1/admin/catalog/products/${productId}${query}`, ...ADMIN });
+    expect(res.statusCode, res.body).toBe(200);
+    return (res.json() as { data: { resolved?: Resolved } & Record<string, unknown> }).data;
+  }
 
   beforeAll(async () => {
     h = await setupBackendServer();
-
-    const created = await h.app.inject({
-      method: 'POST',
-      url: '/api/v1/admin/catalog/products',
-      payload: {
-        sku: `RESOLVED-${Date.now()}`,
-        type: 'simple',
-        name: { 'en-US': 'Resolved EN', 'pl-PL': 'Resolved PL' },
-        description: { 'en-US': 'Description EN', 'pl-PL': 'Opis PL' },
-        categoryIds: [],
-        attributeValues: {},
-        visibility: 'public',
-      },
-      cookies: { b2b_session: 'stub-admin-session' },
-    });
-    expect(created.statusCode).toBe(201);
-    productId = (created.json() as { data: { id: string } }).data.id;
+    fx = scopedValuesFixture(() => h);
+    channel = await fx.channel(['pl-PL', 'en-US']);
+    productId = await fx.product({ channels: [channel], name: 'Resolved', description: 'Description' });
+    await fx.save(productId, { channelId: channel, languageCode: 'pl-PL' }, { name: 'Rozwiązany', description: null });
   });
 
   afterAll(async () => {
-    await teardownBackendServer(h);
+    if (h) {
+      await fx.cleanup();
+      await teardownBackendServer(h);
+    }
   });
 
-  it('languageCode=en-US returns the EN scalar for name + description', async () => {
-    const res = await h.app.inject({
-      method: 'GET',
-      url: `/api/v1/admin/catalog/products/${productId}?languageCode=en-US`,
-      cookies: { b2b_session: 'stub-admin-session' },
-    });
-    expect(res.statusCode).toBe(200);
-    const body = res.json() as {
-      data: {
-        resolved?: {
-          context: { channelId: string | null; languageCode: string | null };
-          name: unknown;
-          description: unknown;
-          attributeValues: Record<string, unknown>;
-          sources: Record<string, string>;
-        };
-      };
-    };
-    expect(body.data.resolved).toBeDefined();
-    expect(body.data.resolved!.context).toEqual({ channelId: null, languageCode: 'en-US' });
-    expect(body.data.resolved!.name).toBe('Resolved EN');
-    expect(body.data.resolved!.description).toBe('Description EN');
-    // Source SHOULD be 'global+language' since the EN slot exists on baseline.
-    expect(body.data.resolved!.sources['name']).toBe('global+language');
-    expect(body.data.resolved!.sources['description']).toBe('global+language');
+  it('resolves C×L → C → G with its source; an empty description override resolves to none', async () => {
+    const pl = (await get(`?channelId=${channel}&languageCode=pl-PL`)).resolved!;
+    expect(pl.context).toEqual({ channelId: channel, languageCode: 'pl-PL' });
+    expect(pl.name).toBe('Rozwiązany');
+    expect(pl.description).toBeNull();
+    expect(pl.sources['name']).toBe('set');
+    const en = (await get(`?channelId=${channel}&languageCode=en-US`)).resolved!;
+    expect(en.name).toBe('Resolved');
+    expect(en.sources['name']).toBe('inherited_global');
   });
 
-  it('languageCode=pl-PL returns the PL scalar for name + description', async () => {
-    const res = await h.app.inject({
-      method: 'GET',
-      url: `/api/v1/admin/catalog/products/${productId}?languageCode=pl-PL`,
-      cookies: { b2b_session: 'stub-admin-session' },
-    });
-    expect(res.statusCode).toBe(200);
-    const body = res.json() as {
-      data: { resolved?: { name: unknown; description: unknown; sources: Record<string, string> } };
-    };
-    expect(body.data.resolved).toBeDefined();
-    expect(body.data.resolved!.name).toBe('Resolved PL');
-    expect(body.data.resolved!.description).toBe('Opis PL');
-    expect(body.data.resolved!.sources['name']).toBe('global+language');
+  it('a language without a channel names no scope: the Global value', async () => {
+    const resolved = (await get('?languageCode=pl-PL')).resolved!;
+    expect(resolved.name).toBe('Resolved');
+    expect(resolved.description).toBe('Description');
+    expect(resolved.sources['name']).toBe('set');
   });
 
-  it('languageCode=de-DE falls back to the primary admin language (en-US) and reports source=global', async () => {
-    const res = await h.app.inject({
-      method: 'GET',
-      url: `/api/v1/admin/catalog/products/${productId}?languageCode=de-DE`,
-      cookies: { b2b_session: 'stub-admin-session' },
-    });
-    expect(res.statusCode).toBe(200);
-    const body = res.json() as {
-      data: { resolved?: { name: unknown; description: unknown; sources: Record<string, string> } };
-    };
-    expect(body.data.resolved).toBeDefined();
-    expect(body.data.resolved!.name).toBe('Resolved EN');
-    expect(body.data.resolved!.description).toBe('Description EN');
-    expect(body.data.resolved!.sources['name']).toBe('global');
-  });
-
-  it('omitting both query params keeps the legacy response shape (no resolved block)', async () => {
-    const res = await h.app.inject({
-      method: 'GET',
-      url: `/api/v1/admin/catalog/products/${productId}`,
-      cookies: { b2b_session: 'stub-admin-session' },
-    });
-    expect(res.statusCode).toBe(200);
-    const body = res.json() as { data: Record<string, unknown> };
-    expect(body.data).toBeDefined();
-    expect(body.data['resolved']).toBeUndefined();
-    expect(body.data['name']).toEqual({ 'en-US': 'Resolved EN', 'pl-PL': 'Resolved PL' });
+  it('without either parameter there is no resolved block, and name is the Global string', async () => {
+    const data = await get('');
+    expect(data['resolved']).toBeUndefined();
+    expect(data['name']).toBe('Resolved');
   });
 });

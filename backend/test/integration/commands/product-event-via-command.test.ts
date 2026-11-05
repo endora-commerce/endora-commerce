@@ -31,8 +31,8 @@ describe('domain event via Command — product.updated.v1 [real DB]', () => {
       payload: {
         sku: 'CMDBUS-EVT-1',
         type: 'simple',
-        name: { 'en-US': 'Evt product' },
-        description: { 'en-US': 'desc' },
+        name: 'Evt product',
+        description: 'desc',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',
@@ -52,7 +52,7 @@ describe('domain event via Command — product.updated.v1 [real DB]', () => {
     const res = await h.app.inject({
       method: 'PATCH',
       url: `/api/v1/admin/catalog/products/${id}`,
-      payload: { name: { 'en-US': 'Evt product renamed' } },
+      payload: { name: 'Evt product renamed' },
       cookies: adminCookie,
     });
     expect(res.statusCode).toBe(200);

@@ -1,0 +1,4 @@
+sku,name[en_US],name[pl_PL],name[de_DE],name@pl_b2b_vip,description@pl_retail/pl-PL,description@pl_b2b_vip/pl-PL
+DEMO-DRILL-X,Drill X,Wiertarka X,Bohrmaschine X,Drill X Pro,Wiertarka akumulatorowa X: 18 V.,NULL
+DEMO-BOLTS-0001,,Śruby 0001,Schrauben 0001,INHERIT,INHERIT,
+DEMO-WRENCHES-0002,Wrenches 0002,,,Wrenches 0002 VIP,\NULL,INHERIT

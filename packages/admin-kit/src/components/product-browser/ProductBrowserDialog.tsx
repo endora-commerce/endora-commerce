@@ -108,11 +108,6 @@ const TYPE_LABEL_KEY: Record<ProductBrowserType, string> = {
   virtual: 'productBrowser.type.virtual',
 };
 
-function secondaryName(item: ProductBrowserItem): string | null {
-  const pl = item.name['pl-PL'];
-  return pl !== undefined && pl !== productDisplayName(item) ? pl : null;
-}
-
 type ConfirmState =
   | { kind: 'idle' }
   | { kind: 'pending' }
@@ -352,17 +347,11 @@ function ProductBrowserSession(props: ProductBrowserDialogProps): ReactNode {
       render: (row): ReactNode => {
         const verdict = selectabilityOf(row);
         const name = productDisplayName(row);
-        const second = secondaryName(row);
         return (
           <div className="min-w-0 max-w-[22rem]">
             <div className="truncate font-medium" title={name}>
               {name}
             </div>
-            {second !== null ? (
-              <div className="truncate text-xs text-muted-foreground" title={second}>
-                {second}
-              </div>
-            ) : null}
             {verdict.selectable ? null : (
               <div id={`${baseId}-reason-${row.id}`} className="text-xs text-muted-foreground">
                 {t(productSelectabilityReasonKey(verdict.reason, rules))}

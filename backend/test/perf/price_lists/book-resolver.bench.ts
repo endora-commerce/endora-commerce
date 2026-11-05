@@ -50,7 +50,7 @@ describe.skipIf(!shouldRun)('price books — listing cost', () => {
     await em.getConnection().execute(
       `insert into products (id, sku, slug, type, status, name, description, visibility, attribute_values, created_at, updated_at)
        select gen_random_uuid(), 'BKB-' || ? || '-' || g, 'bkb-' || ? || '-' || g, 'simple', 'active',
-              '{"en-US":"x"}'::jsonb, '{"en-US":"x"}'::jsonb, 'public', '{}'::jsonb, now(), now()
+              'x', 'x', 'public', '{}'::jsonb, now(), now()
          from generate_series(1, ?) g`,
       [stamp, stamp, productCount],
     );

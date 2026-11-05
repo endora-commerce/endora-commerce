@@ -19,6 +19,7 @@ import {
   type CustomFieldDefinitionReadPort,
   type CustomFieldValuePort,
   type OrganizationDetailsPort,
+  type SeoProductMetaWritePort,
 } from '@endora-commerce/contracts';
 import type { EventBus } from '@endora-commerce/platform/events';
 import type { StorefrontRevalidator } from '@endora-commerce/platform/http';
@@ -34,6 +35,7 @@ import { CatalogQueryService, type CatalogCursorSeal } from './services/catalog-
 import {
   CatalogAdminService,
   type CatalogWarehouseThresholdCopy,
+  type CatalogSeoProductMetaCopy,
   type CatalogEventBus,
 } from './services/catalog-admin.service.js';
 import { CatalogAttributeReadService } from './services/catalog-attribute-read.service.js';
@@ -61,18 +63,18 @@ import { GroupedService } from './services/grouped.service.js';
 import { BundleService } from './services/bundle.service.js';
 import { ProductEditorPreferencesService } from './services/product-editor-preferences.service.js';
 import { ProductListViewService } from './services/product-list-view-service.js';
-import { ProductOverridesService } from './services/product-overrides.service.js';
 import { ProductScopesService } from './services/product-scopes.service.js';
 import { UrlKeyService } from './services/url-key.service.js';
 import { ScopeOverviewService, type ListSeoProductScopes } from './services/scope-overview.service.js';
 import { composeCompletenessGate } from './services/scope-completeness.js';
 import { AttributeScopePreviewService } from './services/attribute-scope-preview.js';
-import { ProductScopeContextService } from './services/product-scope-context.service.js';
+import { ScopedValuesService } from './services/scoped-values.service.js';
 import { ProductValueResolverService } from './services/product-value-resolver.service.js';
 import { readContext as readCatalogContext, registerCatalogPublicRoutes } from './routes.public.js';
 import { registerCatalogUrlKeyPublicRoutes } from './routes.public.url-keys.js';
 import { UrlKeyResolutionService } from './services/url-key-resolution.service.js';
 import type { ResolveSeoProductMeta } from './services/catalog-query.service.js';
+import type { ReadSeoProductScoped } from './services/scoped-values-read.service.js';
 import { registerCatalogAdminRoutes } from './routes.admin.js';
 import { registerCatalogApiKeyRoutes } from './routes.api-key.js';
 import { registerCatalogExternalRoutes } from './routes.external.js';
@@ -164,6 +166,16 @@ export interface CatalogModuleOptions {
    */
   listSeoProductScopes?: ListSeoProductScopes;
   /**
+   * Feature 174 (T123) — `seo`'s view of a product's metadata at one scope for the editor's
+   * scoped read; answers `null` while `seo` is not effectively present.
+   */
+  readSeoProductScoped?: ReadSeoProductScoped;
+  /**
+   * Feature 174 (T123, FR-091) — `seo`'s write port for the save's SEO cells, resolved only when a
+   * save changes SEO (a lazy port: with `seo` off resolving it answers `503 MODULE_DISABLED`).
+   */
+  seoProductMetaWrite?: () => Pick<SeoProductMetaWritePort<EntityManager>, 'readWithin' | 'applyWithin'>;
+  /**
    * Feature 075 — `organizations`' read port. The external namespace's price
    * decoration resolves the calling organisation through it, where it used to
    * run `em.findOne(Organization, …)` against another module's table.
@@ -210,10 +222,16 @@ export interface CatalogModuleOptions {
    */
   copyWarehouseThresholds?: CatalogWarehouseThresholdCopy;
   /**
-   * Feature 022 — language admin service used by the product scope
-   * editor's scope-context endpoint (for the primary admin language)
-   * and the resolver service (for the same). Optional: when omitted,
-   * the new admin endpoints are NOT registered.
+   * Feature 174 (FR-119) — `seo`'s product metadata copied by a duplicate, on the duplicate
+   * Command's em. Presence-decided by the wiring, like the threshold copy above.
+   */
+  copySeoProductMeta?: CatalogSeoProductMetaCopy;
+  /**
+   * Feature 022 / 163 / 174 — the platform's languages: read by the value
+   * resolver, the scope overview (the active languages of a product in no
+   * channel) and the scoped-values read (each channel language's name).
+   * Optional: when omitted the resolver and the scope overview are not
+   * registered, and the scoped-values read names a language by its code.
    */
   languageService?: LanguageReadPort;
   /**
@@ -397,6 +415,7 @@ export function catalogModule(options: CatalogModuleOptions) {
       options.copyWarehouseThresholds,
       completenessGate,
       options.assets,
+      options.copySeoProductMeta,
     );
     // Feature 163 — scoped values per channel and channel × language. Needs the
     // membership accessor for FR-014 and the C4 warning, like the overrides.
@@ -584,23 +603,6 @@ export function catalogModule(options: CatalogModuleOptions) {
           attributeReadService,
         )
       : undefined;
-    const scopeContextService =
-      options.salesChannelMembership && options.languageService
-        ? new ProductScopeContextService(
-            options.emFactory,
-            options.salesChannelMembership,
-            options.languageService,
-            editorPreferencesService,
-          )
-        : undefined;
-    const overridesService = options.salesChannelMembership
-      ? new ProductOverridesService(
-          options.emFactory,
-          options.salesChannelMembership,
-          options.commandBus,
-          attributeReadService,
-        )
-      : undefined;
 
     // Feature 163 — the scope overview (US4) reads membership through the kernel
     // accessor and, for a product in no channel, the active platform languages.
@@ -618,10 +620,41 @@ export function catalogModule(options: CatalogModuleOptions) {
     const attributeScopePreviewService = attributeReadService
       ? new AttributeScopePreviewService(options.emFactory, attributeReadService)
       : undefined;
-    // Feature 163 — URL keys per language and channel × language, and their redirects.
+    // Feature 163 / 174 (T039) — URL keys at G, C and C×L, and their redirects: the one key writer.
     const urlKeyService = options.salesChannelMembership
       ? new UrlKeyService(options.emFactory, options.salesChannelMembership, options.commandBus)
       : undefined;
+    // Feature 174 — the editor's scoped-values read and save (one Command per save).
+    const scopedValuesService =
+      options.salesChannelMembership && attributeReadService
+        ? new ScopedValuesService(
+            options.emFactory,
+            {
+              membership: options.salesChannelMembership,
+              listAttributes: () => attributeReadService.listAll(),
+              ...(options.languageService ? { languages: options.languageService } : {}),
+              ...(options.assets ? { assets: options.assets } : {}),
+              ...(options.organizations ? { organizations: options.organizations } : {}),
+              ...(options.readSeoProductScoped ? { readSeo: options.readSeoProductScoped } : {}),
+              ...(options.seoProductMetaWrite ? { seoWrite: options.seoProductMetaWrite } : {}),
+              gate: completenessGate,
+              ...(urlKeyService
+                ? {
+                    writeUrlKey: (em, input) =>
+                      urlKeyService
+                        .lockAndCheck(
+                          em,
+                          input.productId,
+                          [{ scope: input.scope, op: input.cell.op.op === 'set' ? { op: 'set', key: String(input.cell.op.value) } : { op: 'inherit' } }],
+                          { mode: 'interactive', confirmTakeover: input.confirmTakeover },
+                        )
+                        .then((effects) => ({ before: effects.before, after: effects.after })),
+                  }
+                : {}),
+            },
+            options.commandBus,
+          )
+        : undefined;
 
     // Feature 172 — a product's Page Builder content attributes. Needs the
     // Command Bus (every save is the audited `product.content.update`) and the
@@ -653,12 +686,11 @@ export function catalogModule(options: CatalogModuleOptions) {
         ? { resolveAdminAuditContext: options.resolveAdminAuditContext }
         : {}),
       ...(options.auditLogService ? { auditLogService: options.auditLogService } : {}),
-      ...(scopeContextService ? { productScopeContextService: scopeContextService } : {}),
       productEditorPreferencesService: editorPreferencesService,
       productListViewService: listViewService,
       ...(valueResolverService ? { productValueResolverService: valueResolverService } : {}),
-      ...(overridesService ? { productOverridesService: overridesService } : {}),
       ...(scopesService ? { productScopesService: scopesService } : {}),
+      ...(scopedValuesService ? { scopedValuesService } : {}),
       ...(scopeOverviewService ? { scopeOverviewService } : {}),
       ...(attributeScopePreviewService ? { attributeScopePreviewService } : {}),
       ...(urlKeyService ? { urlKeyService } : {}),

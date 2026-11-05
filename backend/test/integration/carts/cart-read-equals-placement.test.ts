@@ -67,8 +67,8 @@ describe('#168 — the cart read shows the price placement charges', () => {
       payload: {
         sku: `READ-OWN-${stamp}`,
         type: 'simple',
-        name: { 'en-US': `Own price ${stamp}` },
-        description: { 'en-US': '' },
+        name: `Own price ${stamp}`,
+        description: '',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',

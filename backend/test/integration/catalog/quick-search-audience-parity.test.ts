@@ -264,7 +264,7 @@ async function seedRow(
 ): Promise<Omit<AudienceMatrixRow, 'allowListLabel'>> {
   const product = em.create(Product, {
     type: 'simple' as const,
-    description: {},
+    description: null,
     attributeSetId: SET_ID,
     attributeValues: {},
     sku: fixture.sku,
@@ -272,7 +272,7 @@ async function seedRow(
     status: 'active',
     visibility: fixture.visibility,
     allowedOrganizationIds: fixture.allowedOrganizationIds,
-    name: { 'en-US': `Quick-search parity ${fixture.sku}` },
+    name: `Quick-search parity ${fixture.sku}`,
   });
   await em.persistAndFlush(product);
 

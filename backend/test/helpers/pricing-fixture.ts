@@ -187,8 +187,8 @@ export async function setupPricingFixture(h: BackendServerHandle): Promise<Prici
       slug: `${sku.toLowerCase()}-${stamp}`,
       type,
       status: 'active',
-      name: { 'en-US': name },
-      description: { 'en-US': name },
+      name: name,
+      description: name,
       visibility: 'public',
       attributeValues,
     });

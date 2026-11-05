@@ -191,13 +191,13 @@ export function orderChannelChoices(
 function toMethodOptions(methods: readonly MethodSummary[]): ComboboxOption<string>[] {
   return methods.map((m) => ({
     value: m.id,
-    label: pickName(m.name, m.code),
+    label: localizedLabel(m.name, m.code),
     description: m.code,
   }));
 }
 
 /** Sales-channel / method names are localized maps; pick a display string. */
-function pickName(name: Record<string, string> | undefined | null, fallback: string): string {
+function localizedLabel(name: Record<string, string> | undefined | null, fallback: string): string {
   if (!name) return fallback;
   return name['en-US'] ?? Object.values(name)[0] ?? fallback;
 }
@@ -729,7 +729,7 @@ export function OrderCreatePage(): ReactNode {
   }, [organizationId, channelsAttempt, openedWith.salesChannelId]);
   const channelOptions = useMemo<ComboboxOption<string>[]>(
     () =>
-      (channelChoices ?? []).map((c) => ({ value: c.id, label: pickName(c.name, c.code), description: c.code })),
+      (channelChoices ?? []).map((c) => ({ value: c.id, label: localizedLabel(c.name, c.code), description: c.code })),
     [channelChoices],
   );
   // The active methods as loaded; the two selects offer the ones the chosen

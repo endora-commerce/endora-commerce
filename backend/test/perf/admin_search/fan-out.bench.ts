@@ -110,7 +110,7 @@ describe.skipIf(!shouldRun)('admin global search — seven-type fan-out at the r
     await db.execute(
       `insert into products (id, sku, slug, type, status, name, description, visibility, attribute_values, created_at, updated_at)
        select gen_random_uuid(), 'PB${stamp}-' || g, 'pb-${stamp}-' || g, 'simple', 'active',
-              jsonb_build_object('en-US', 'Bench product ' || g, 'pl-PL', 'Produkt ' || g), '{"en-US":""}'::jsonb,
+              'Bench product ' || g, '',
               'public', '{}'::jsonb, now(), now()
          from generate_series(1, ${n(50_000)}) g`,
     );

@@ -113,8 +113,8 @@ describe('product feed channel isolation [integration]', () => {
         type: 'simple',
         status: 'active',
         visibility: 'public',
-        name: { 'en-US': sku },
-        description: { 'en-US': `${sku} description` },
+        name: sku,
+        description: `${sku} description`,
       });
     }
     await em.flush();

@@ -66,7 +66,7 @@ platformy, a nie tego, co akurat zostało opisane.
 | [organizations](./organizations.md) | Organizacje klientów, rejestracja, zaproszenia | @endora-commerce/mod-organizations |
 | [payment_methods](./payment_methods.md) | Skonfigurowane metody płatności | @endora-commerce/mod-payment-methods |
 | [payments](./payments.md) | Obsługa sterowników płatności i zdarzenia rozliczeń | @endora-commerce/mod-payments |
-| `pim_connector` | _brak strony_ | @endora-commerce/mod-pim-connector |
+| [Wspólna warstwa konektorów PIM](./pim_connector.md) | Kontrakt mapowania języków, gramatyka ochrony całych pól i zasady zapisu wartości zakresowych, przez które każdy konektor PIM zapisuje produkty. | @endora-commerce/mod-pim-connector |
 | [Cenniki](./price_lists.md) | Cenniki — ceny bazowe w każdej walucie, ceny katalogowe, ceny dla kupujących i ceny promocyjne w kanałach sprzedaży oraz reguły, które decydują, ile płaci każdy kupujący. | @endora-commerce/mod-price-lists |
 | [Feedy produktowe](./product_feeds.md) | Feedy produktowe w formacie dostawcy dla każdego kanału sprzedaży — generowanie według harmonogramu, adresy URL z tokenem do pobierania oraz wysyłka przez SFTP/FTP/HTTP | @endora-commerce/mod-product-feeds |
 | [projects](./projects.md) | Projekty dla zera lub wielu organizacji, prowadzone przez własne etapy przez członków pełniących role projektowe | @endora-commerce/mod-projects |

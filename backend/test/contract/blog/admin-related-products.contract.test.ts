@@ -32,8 +32,8 @@ describe('admin Blog Related Products contract (T075)', () => {
       productIds.push(id);
       await conn.execute(
         `insert into products (id, sku, name, description, slug, type, status, created_at, updated_at)
-         values (?, ?, ?::jsonb, '{}'::jsonb, ?, 'simple', 'active', now(), now())`,
-        [id, `${slug}-sku-${Date.now()}`, JSON.stringify({ 'en-US': slug }), `${slug}-${Date.now()}`],
+         values (?, ?, ?, '', ?, 'simple', 'active', now(), now())`,
+        [id, `${slug}-sku-${Date.now()}`, slug, `${slug}-${Date.now()}`],
       );
     }
   });

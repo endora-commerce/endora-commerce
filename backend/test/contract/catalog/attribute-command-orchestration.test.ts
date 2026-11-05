@@ -348,7 +348,7 @@ describe('attribute command orchestration (feature 061, T017)', () => {
         label: { 'en-US': 'Material (lang)' },
         labelDefault: 'Material (lang)',
         type: 'select',
-        languageScoped: true,
+        scopable: true,
         options: [
           { value: 'steel', labelDefault: 'Steel' },
           { value: 'stal', labelDefault: 'Stal' },
@@ -361,7 +361,7 @@ describe('attribute command orchestration (feature 061, T017)', () => {
         label: { 'en-US': 'Tags (lang)' },
         labelDefault: 'Tags (lang)',
         type: 'multiselect',
-        languageScoped: true,
+        scopable: true,
         enumValues: ['fast', 'eco', 'quiet'],
       });
       flatSelect = await createAttribute({
@@ -396,8 +396,8 @@ describe('attribute command orchestration (feature 061, T017)', () => {
         payload: {
           sku: 'ORCH-IN-USE-001',
           type: 'simple',
-          name: { 'en-US': 'In-use probe product' },
-          description: { 'en-US': 'desc' },
+          name: 'In-use probe product',
+          description: 'desc',
           categoryIds: [],
           visibility: 'public',
           attributeSetId: defaultSetId,

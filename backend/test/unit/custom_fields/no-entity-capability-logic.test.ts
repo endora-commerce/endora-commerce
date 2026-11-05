@@ -27,8 +27,7 @@ const FORBIDDEN = [
   'isPromoRule',
   'filterPosition',
   'isVisibleOnProductPage',
-  'channelScoped',
-  'languageScoped',
+  'scopable',
   'quickSearchable',
   'massEditable',
 ];

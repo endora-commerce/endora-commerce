@@ -289,7 +289,8 @@ const SEED_DELTA: Readonly<Record<string, number>> = {
   // the baseline.
   warehouse_channel_assignments: 3,
   categories: 13,
-  products: 203,
+  // 203 + feature 174's scope product, *Drill X* (`DEMO-DRILL-X`).
+  products: 204,
   grouped_items: 2,
   bundle_slots: 1,
   bundle_slot_options: 2,
@@ -304,16 +305,22 @@ const SEED_DELTA: Readonly<Record<string, number>> = {
   megamenu_items: 3,
   megamenu_bindings: 4,
   // 2 — the product↔category and channel↔product bridges
-  product_categories: 203,
-  sales_channel_products: 203,
+  product_categories: 204,
+  // 204 on the retail channel, plus *Drill X* on the VIP channel (step 2b).
+  sales_channel_products: 205,
+  // 2b — feature 174: *Drill X*'s Channel and Channel × language texts, three
+  //      states over two channels (own value, deliberately empty, inherited =
+  //      no row): retail × pl-PL name and description, VIP name, VIP × pl-PL
+  //      name and an empty description.
+  product_value_overrides: 5,
   // 3a — the demo organisation joins the VIP group: no table of its own, it
   //      sets `organizations.customer_group_id` (feature 160).
   // 3b — the demo's prices (feature 160): a base row per demo product in the
-  //      PLN base book (203), and the six rows of the E1–E3 books; the four
+  //      PLN base book (204), and the six rows of the E1–E3 books; the four
   //      books, their three audience members and four channel rows.
-  price_list_matrix_entries: 209,
+  price_list_matrix_entries: 210,
   // Feature 161 (G15): one membership line per product or variant line of the demo's books.
-  price_list_product_lines: 206,
+  price_list_product_lines: 207,
   price_lists: 4,
   price_list_audience_members: 3,
   sales_channel_price_lists: 4,
@@ -322,7 +329,8 @@ const SEED_DELTA: Readonly<Record<string, number>> = {
   //      retired non-public flag the channel used to be created with.
   setting_values: 1,
   // 4 — the stock spread across the two warehouses
-  stock_levels: 406,
+  //    (two rows per demo product: 204 × 2)
+  stock_levels: 408,
   // 5 — the demo buyer joins the demo organisation
   // (feature 154) and the demo organisation is assigned the retail store's channel
   sales_channel_organizations: 1,
@@ -540,7 +548,7 @@ describe('T226 — `endora demo seed` builds this shop', () => {
       // The baseline assertion, not the subject: without it the comparison
       // above is satisfied by a ledger somebody emptied.
       expect(Object.keys(SEED_DELTA).length).toBeGreaterThan(20);
-      expect(SEED_DELTA['products']).toBe(203);
+      expect(SEED_DELTA['products']).toBe(204);
     });
   });
 
@@ -618,7 +626,39 @@ describe('T226 — `endora demo seed` builds this shop', () => {
       // A count of the *wrong* rows is what a table-count ledger cannot see:
       // this is the same number reached through the joins rather than the
       // tables, so a bridge pointing at a stale category fails here.
-      expect(row).toEqual({ products: '203', categories: '203', channels: '203' });
+      expect(row).toEqual({ products: '204', categories: '204', channels: '204' });
+    });
+
+    it("holds Drill X's texts in all three scope states (feature 174, T024)", async () => {
+      // What `specs/174-product-editor-scope-switcher/quickstart.md` §1 walks
+      // through: an own value at Channel and at Channel × language, a
+      // deliberately empty description (`{"v": null}`), and every other scope
+      // inheriting — which is the absence of a row, so the full list is the
+      // assertion.
+      const rows = await query<{ channel: string; language: string | null; key: string; value: unknown }>(
+        shop,
+        `select case when ch.system_default then 'retail' else ch.code end as channel,
+                o.language_code as language, o.attribute_key as key, o.value
+           from product_value_overrides o
+           join products p on p.id = o.product_id
+           join sales_channels ch on ch.id = o.channel_id
+          where p.sku = 'DEMO-DRILL-X'
+          order by 1, 2 nulls first, 3`,
+      );
+      expect(rows).toEqual([
+        { channel: 'pl_b2b_vip', language: null, key: 'name', value: { v: 'Drill X Pro' } },
+        { channel: 'pl_b2b_vip', language: 'pl-PL', key: 'description', value: { v: null } },
+        { channel: 'pl_b2b_vip', language: 'pl-PL', key: 'name', value: { v: 'Wiertarka X Pro' } },
+        { channel: 'retail', language: 'pl-PL', key: 'description', value: { v: expect.stringContaining('Wiertarka') } },
+        { channel: 'retail', language: 'pl-PL', key: 'name', value: { v: 'Wiertarka X' } },
+      ]);
+      const [product] = await query<{ name: string; channels: string }>(
+        shop,
+        `select p.name,
+                (select count(*) from sales_channel_products scp where scp.product_id = p.id)::text as channels
+           from products p where p.sku = 'DEMO-DRILL-X'`,
+      );
+      expect(product).toEqual({ name: 'Drill X', channels: '2' });
     });
 
     it('assigns the demo warehouse to both sales channels', async () => {

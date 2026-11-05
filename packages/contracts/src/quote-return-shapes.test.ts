@@ -152,7 +152,7 @@ describe('comparison product summary', () => {
   const summary = {
     id: ID1,
     sku: 'SKU-1',
-    name: { en: 'Bolt' },
+    name: 'Bolt',
     slug: 'bolt',
     type: 'simple',
     primaryAssetUrl: null,

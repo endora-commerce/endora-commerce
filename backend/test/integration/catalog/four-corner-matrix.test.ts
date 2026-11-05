@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { seedScopedValues } from '../../helpers/scoped-values.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -39,8 +40,8 @@ describe('US3 — four-corner matrix (channel × language) overrides', () => {
       payload: {
         sku: `4CORNER-${Date.now()}`,
         type: 'simple',
-        name: { 'pl-PL': 'Baseline PL', 'en-US': 'Baseline EN' },
-        description: { 'pl-PL': 'Opis PL', 'en-US': 'Description EN' },
+        name: 'Baseline EN',
+        description: 'Description EN',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',
@@ -70,23 +71,13 @@ describe('US3 — four-corner matrix (channel × language) overrides', () => {
       [retailChannelId, vipChannelId],
     );
 
-    // Write all four corners in a single atomic PATCH.
-    const patch = await h.app.inject({
-      method: 'PATCH',
-      url: `/api/v1/admin/catalog/products/${productId}/value-overrides`,
-      payload: {
-        upserts: [
-          { attributeKey: 'name', channelId: vipChannelId,    languageCode: 'pl-PL', value: { v: 'VIP-PL' } },
-          { attributeKey: 'name', channelId: vipChannelId,    languageCode: 'en-US', value: { v: 'VIP-EN' } },
-          { attributeKey: 'name', channelId: retailChannelId, languageCode: 'pl-PL', value: { v: 'RETAIL-PL' } },
-          { attributeKey: 'name', channelId: retailChannelId, languageCode: 'en-US', value: { v: 'RETAIL-EN' } },
-        ],
-        deletes: [],
-      },
-      cookies: { b2b_session: 'stub-admin-session' },
-    });
-    expect(patch.statusCode).toBe(200);
-    expect((patch.json() as { data: { applied: { upserted: number } } }).data.applied.upserted).toBe(4);
+    // Feature 174 (T043) — the four corners seeded as stored (the 163 value-overrides PATCH is retired).
+    await seedScopedValues(h.em().fork(), productId, [
+      { field: 'name', scope: { level: 'channel_language', channelId: vipChannelId, languageCode: 'pl-PL' }, value: 'VIP-PL' },
+      { field: 'name', scope: { level: 'channel_language', channelId: vipChannelId, languageCode: 'en-US' }, value: 'VIP-EN' },
+      { field: 'name', scope: { level: 'channel_language', channelId: retailChannelId, languageCode: 'pl-PL' }, value: 'RETAIL-PL' },
+      { field: 'name', scope: { level: 'channel_language', channelId: retailChannelId, languageCode: 'en-US' }, value: 'RETAIL-EN' },
+    ]);
   });
 
   afterAll(async () => {
@@ -95,10 +86,10 @@ describe('US3 — four-corner matrix (channel × language) overrides', () => {
 
   it('each (channel, language) corner returns its dedicated value with no cross-talk', async () => {
     const corners: Array<{ channelId: string; lang: string; expected: string; source: string }> = [
-      { channelId: vipChannelId,    lang: 'pl-PL', expected: 'VIP-PL',    source: 'channel+language' },
-      { channelId: vipChannelId,    lang: 'en-US', expected: 'VIP-EN',    source: 'channel+language' },
-      { channelId: retailChannelId, lang: 'pl-PL', expected: 'RETAIL-PL', source: 'channel+language' },
-      { channelId: retailChannelId, lang: 'en-US', expected: 'RETAIL-EN', source: 'channel+language' },
+      { channelId: vipChannelId,    lang: 'pl-PL', expected: 'VIP-PL',    source: 'set' },
+      { channelId: vipChannelId,    lang: 'en-US', expected: 'VIP-EN',    source: 'set' },
+      { channelId: retailChannelId, lang: 'pl-PL', expected: 'RETAIL-PL', source: 'set' },
+      { channelId: retailChannelId, lang: 'en-US', expected: 'RETAIL-EN', source: 'set' },
     ];
 
     for (const c of corners) {
@@ -130,6 +121,6 @@ describe('US3 — four-corner matrix (channel × language) overrides', () => {
       data: { resolved?: { name: unknown; sources: Record<string, string> } };
     };
     expect(body.data.resolved!.name).toBe('Baseline EN');
-    expect(body.data.resolved!.sources['name']).toBe('global+language');
+    expect(body.data.resolved!.sources['name']).toBe('set');
   });
 });

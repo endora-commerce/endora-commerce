@@ -13,12 +13,11 @@ import { searchIndexerNeighbourPorts } from '../../helpers/search-indexer-ports.
  * Feature 012 / T050 — Search indexer payload widening (US7).
  *
  * Asserts that:
- *   1. The per-channel index document carries `searchableOptions` —
- *      an array of resolved per-locale option labels for every
- *      isSearchable select-style attribute the product has a value
- *      for.
- *   2. The Meilisearch settings include `searchableOptions` in the
- *      searchableAttributes list.
+ *   1. The per-channel index document carries, per channel language, the
+ *      resolved option labels of every isSearchable select-style attribute
+ *      the product has a value for — feature 174: `texts.<L>.options`
+ *      (`contracts/search-index.md` §1), where 163 had one `searchableOptions`.
+ *   2. The Meilisearch settings search `texts`.
  *   3. A search query against the rendered option label (e.g. "Red")
  *      returns the matching product, even when the raw option value
  *      is something else (e.g. "red_001").
@@ -71,8 +70,9 @@ describe('SearchIndexer — feature 012 searchableOptions payload (T050)', () =>
     if (!channel) throw new Error('test fixture must seed at least one sales channel');
     const result = await indexer.reindexChannel(em, channel);
 
-    // The settings list should include `searchableOptions`.
-    expect(result.searchableAttributes).toContain('searchableOptions');
+    // Feature 174 — the option labels are searched as part of the language-keyed texts.
+    expect(result.searchableAttributes).toContain('texts');
+    const language = channel.defaultLanguage;
 
     // Pull every indexed document and assert the new shape is present.
     // The seed associates products with the default channel through its
@@ -83,10 +83,10 @@ describe('SearchIndexer — feature 012 searchableOptions payload (T050)', () =>
     const docs = await idx.getDocuments<{
       id: string;
       attributes: Record<string, unknown>;
-      searchableOptions: string[];
+      texts: Record<string, { options: string[] }>;
     }>({ limit: 100 });
     for (const doc of docs.results) {
-      expect(Array.isArray(doc.searchableOptions)).toBe(true);
+      expect(Array.isArray(doc.texts[language]?.options)).toBe(true);
     }
 
     // For any product that carries color='red', the rendered option
@@ -94,7 +94,7 @@ describe('SearchIndexer — feature 012 searchableOptions payload (T050)', () =>
     // in the searchableOptions array.
     const reds = docs.results.filter((d) => d.attributes['color'] === 'red');
     for (const r of reds) {
-      expect(r.searchableOptions).toContain('red');
+      expect(r.texts[language]!.options).toContain('red');
     }
 
     // If any red products are indexed, searching for the rendered label
@@ -102,7 +102,7 @@ describe('SearchIndexer — feature 012 searchableOptions payload (T050)', () =>
     // provision red products in this channel — the field-shape check
     // above is enough to lock the contract.
     if (reds.length > 0) {
-      const searchHit = await idx.search('red');
+      const searchHit = await idx.search('red', { attributesToSearchOn: [`texts.${language}.options`] });
       const hitIds = searchHit.hits.map((h) => (h as { id: string }).id);
       for (const r of reds) {
         expect(hitIds).toContain(r.id);

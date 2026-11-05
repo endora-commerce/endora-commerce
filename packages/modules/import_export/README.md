@@ -17,6 +17,7 @@ A module is not imported by application code. The platform discovers the extensi
 | `@endora-commerce/mod-import-export` | the module manifest — its id, version, dependencies, settings and activation |
 | `@endora-commerce/mod-import-export/admin` | the Admin UI contribution: the screens, navigation and palette actions it adds |
 | `@endora-commerce/mod-import-export/backend` | the composition root the platform calls, with the entities, services, routes and workers it registers |
+| `@endora-commerce/mod-import-export/migrations` | the module’s own schema migrations, in the order the platform runs them |
 | `@endora-commerce/mod-import-export/tailwind.css` | the Tailwind source declaration for the admin code above |
 
 ## Depends on
@@ -31,9 +32,13 @@ Everything below is a **peer** dependency, so the application resolves exactly o
 
 **Third-party**
 
+- `@mikro-orm/core` ^6
+- `@mikro-orm/migrations` ^6
+- `@mikro-orm/postgresql` ^6
 - `fastify` ^5.11.0
 - `lucide-react` ^1 — *optional*
 - `react` ^19 — *optional*
+- `zod` ^4
 
 ## What the tarball carries
 

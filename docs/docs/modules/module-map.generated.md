@@ -66,7 +66,7 @@ of the platform, not of what happens to be written.
 | [organizations](./organizations.md) | Customer Organizations, registration, invitations | @endora-commerce/mod-organizations |
 | [payment_methods](./payment_methods.md) | Configured payment methods | @endora-commerce/mod-payment-methods |
 | [payments](./payments.md) | Payment driver dispatch + settlement events | @endora-commerce/mod-payments |
-| `pim_connector` | _no page yet_ | @endora-commerce/mod-pim-connector |
+| [PIM connector shared layer](./pim_connector.md) | The locale-mapping contract, the whole-field protection grammar and the scoped write rules every PIM connector writes products through. | @endora-commerce/mod-pim-connector |
 | [Price books](./price_lists.md) | Price books — base prices per currency, catalogue, buyer and sale prices on sales channels, and the rules that decide what each buyer pays. | @endora-commerce/mod-price-lists |
 | [Product Feeds](./product_feeds.md) | Provider-shaped product feeds per sales channel — scheduled generation, tokenised pull URLs and SFTP/FTP/HTTP push | @endora-commerce/mod-product-feeds |
 | [projects](./projects.md) | Projects for zero or more Organizations, run through their own Stages by Members holding Project Roles | @endora-commerce/mod-projects |

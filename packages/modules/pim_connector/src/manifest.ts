@@ -5,13 +5,18 @@ import { CAPABILITY_KEYS, defineModuleManifest } from '@endora-commerce/contract
  *
  * Owns mutual-exclusion registry and field-path grammar shared by UnoPim now
  * and future PIM connectors. No import pipeline.
+ *
+ * Feature 174 — it also owns the locale-mapping contract (`pim-locale-mapping.ts` in
+ * `@endora-commerce/contracts`: source locale → channel × language, the source language for
+ * Global, the planner) and the whole-field protection grammar, and ships the connector-author
+ * page in `docs/`.
  */
 
 export const manifest = defineModuleManifest({
   id: 'pim_connector',
   name: 'PIM connector shared layer',
   description:
-    'Shared operator behaviours for PIM connectors: mutual exclusion, run/issue vocabulary and field-protection path grammar.',
+    'Shared operator behaviours for PIM connectors: mutual exclusion, run/issue vocabulary, the locale-mapping contract (source locale to channel and language, source language for Global) and the whole-field protection grammar.',
   version: '1.0.0',
   dependencies: ['settings', 'admin_users'],
   activation: {
@@ -20,6 +25,7 @@ export const manifest = defineModuleManifest({
       'The shared PIM connector registry must stay available so operator activation of a PIM connector can be refused when another is already active.',
   },
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   /**
    * Feature 132 — this module **owns** the PIM connector capability and declares
    * it mutually exclusive, minting the code an operator meets

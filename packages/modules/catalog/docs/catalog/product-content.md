@@ -34,8 +34,10 @@ screens of other records do not offer it.
 ## Authoring
 
 On the product's **Attributes** tab, each content attribute of the product's
-saved attribute set is a card rather than an input. The card shows, per editing
-language, whether content is filled in, and a short summary of what is stored.
+saved attribute set is a card rather than an input, below the attribute values.
+The card shows, per editing language, whether content is filled in, and a short
+summary of what is stored. The cards are the same at every scope of the editor's
+scope switcher: content has no value per sales channel.
 **Edit content** opens the product content screen
 (`/catalog/products/:id/content/:attributeKey`). It has:
 
@@ -117,9 +119,12 @@ keeps rendering while the CMS module is off.
 
 Content attributes are deliberately left out of:
 
-- per-sales-channel overrides;
-- product export and import — export omits them, and an import row that fills
-  a content column is refused with an error naming the attribute;
+- values per sales channel or per channel language (the editor's Channel and
+  Channel × language scopes): the editor's save and the connectors' scoped write
+  refuse a content attribute's key;
+- product export and import — export omits them, and a non-empty cell under a
+  content attribute's `attribute:<key>` column is refused for that cell
+  (`content_attribute`), the rest of the row being imported;
 - the external (integration) API and PIM/ERP connectors, and the API-key read of
   an attribute set;
 - the products bulk editor;

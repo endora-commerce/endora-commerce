@@ -73,14 +73,14 @@ function tr(language: Language, key: string, params: Record<string, string | num
 
 const LIST_PATH = '/api/v1/admin/catalog/products';
 const CATALOG = [
-  { id: 'a01', sku: 'SKU-A01', slug: 'a01', name: { 'en-US': 'Bolt' }, status: 'active', type: 'simple' },
-  { id: 'a02', sku: 'SKU-A02', slug: 'a02', name: { 'en-US': 'Nut' }, status: 'active', type: 'simple' },
+  { id: 'a01', sku: 'SKU-A01', slug: 'a01', name: 'Bolt', status: 'active', type: 'simple' },
+  { id: 'a02', sku: 'SKU-A02', slug: 'a02', name: 'Nut', status: 'active', type: 'simple' },
 ];
 
 function serveCatalog(url: string): unknown {
   const q = (new URLSearchParams(url.split('?')[1] ?? '').get('q') ?? '').toLowerCase();
   const rows = CATALOG.filter(
-    (p) => q === '' || p.sku.toLowerCase().includes(q) || p.name['en-US'].toLowerCase().includes(q),
+    (p) => q === '' || p.sku.toLowerCase().includes(q) || p.name.toLowerCase().includes(q),
   );
   return {
     data: rows,
