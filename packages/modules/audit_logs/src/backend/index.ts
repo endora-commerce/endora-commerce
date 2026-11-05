@@ -197,6 +197,7 @@ export function registerModule(ctx: ModuleContext): void {
       recentActivityVisibility,
       requireAdmin,
       commandBus,
+      auditReferenceRegistry,
     } = ctx.cradle<AuditLogsCradle>();
 
     await registerAuditLogAdminRoutes(app, {
@@ -206,6 +207,9 @@ export function registerModule(ctx: ModuleContext): void {
       // work: a contributor captured once would keep naming actors long after
       // its module went away.
       resolveActors,
+      // The registry is a singleton whose enumeration policy is asked per read,
+      // so holding it here does not freeze an absent contributor's answer.
+      resolveCustomers: (ids) => auditReferenceRegistry.resolve('customer_account', ids),
     });
 
     await registerRecentActivityRoutes(app, {

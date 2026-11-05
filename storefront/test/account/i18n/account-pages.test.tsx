@@ -324,12 +324,12 @@ describe('organization pages — the shop language (issue #85)', () => {
     const { en, pl } = await both(() =>
       Page({ searchParams: Promise.resolve({ status: 'invited', email: 'ola@example.com' }) }),
     );
-    expect(en).toContain('Invitation sent to ola@example.com.');
+    expect(en).toContain('Invitation sent.');
     expect(en).toContain('Name Email Role Actions');
     expect(en).toContain('Pending invitations');
     expect(en).toContain('Send invitation');
     expect(en).not.toMatch(POLISH_DIACRITIC);
-    expect(pl).toContain('Wysłano zaproszenie na adres ola@example.com.');
+    expect(pl).toContain('Zaproszenie zostało wysłane.');
     expect(pl).toContain('Imię i nazwisko E-mail Rola Działania');
     expect(pl).toContain('Członek');
     expect(pl).toContain('Oczekujące zaproszenia');

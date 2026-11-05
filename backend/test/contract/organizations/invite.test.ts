@@ -6,7 +6,11 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { OTHER_TEST_ORGANIZATION_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import {
+  CUSTOMER_COOKIES,
+  OTHER_TEST_ORGANIZATION_ID,
+  TEST_ORGANIZATION_ID,
+} from '../../helpers/test-actors.js';
 import { seedOtherTestOrganization } from '../../helpers/seed-organizations.js';
 import { predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 import { dropOrganizationRoleCache, seedCustomRole } from './organization-role-fixtures.js';
@@ -105,12 +109,25 @@ describe('POST /api/v1/organizations/mine/invitations', () => {
     expect(res.statusCode, res.body).toBe(201);
     const invitationId = (res.json() as { data: InvitationResponse }).data.invitationId;
     const entries = (await h.em().execute(
-      `select "object_type", "object_id", "state_after" from "audit_log_entries"
+      `select "object_type", "object_id", "state_after", "actor_admin_user_id", "actor_customer_account_id"
+         from "audit_log_entries"
         where "action" = 'organization_invitation.create' and "state_after"->>'invitationId' = ?`,
       [invitationId],
-    )) as Array<{ object_type: string; object_id: string; state_after: Record<string, unknown> }>;
+    )) as Array<{
+      object_type: string;
+      object_id: string;
+      state_after: Record<string, unknown>;
+      actor_admin_user_id: string | null;
+      actor_customer_account_id: string | null;
+    }>;
     expect(entries).toHaveLength(1);
-    expect(entries[0]).toMatchObject({ object_type: 'organization', object_id: TEST_ORGANIZATION_ID });
+    // The storefront administrator who invited is the row's actor (issue #741).
+    expect(entries[0]).toMatchObject({
+      object_type: 'organization',
+      object_id: TEST_ORGANIZATION_ID,
+      actor_admin_user_id: null,
+      actor_customer_account_id: CUSTOMER_COOKIES['stub-customer-session']!.customerAccountId,
+    });
     expect(entries[0]!.state_after).toMatchObject({ email, role: { kind: 'member' } });
   });
 

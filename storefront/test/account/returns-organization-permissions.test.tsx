@@ -230,7 +230,7 @@ describe('returns list (FR-053, FR-057)', () => {
 });
 
 describe('return case detail — a colleague’s case is read-only (Q-R2 = A)', () => {
-  const render = (): Promise<string> => html(ReturnPage({ params: Promise.resolve({ id: 'r1' }) }));
+  const render = (): Promise<string> => html(ReturnPage({ params: Promise.resolve({ id: '00000000-0000-4000-8000-0000000000e1' }) }));
 
   it.each([
     ['en-US', 'This case was filed by a colleague'],

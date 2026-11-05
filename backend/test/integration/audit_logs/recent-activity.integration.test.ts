@@ -9,6 +9,7 @@ import {
   SEED_PRODUCT_102_ID,
 } from '../../helpers/seed-catalog.js';
 import { Product } from '../../helpers/package-entities.js';
+import { CUSTOMER_COOKIES } from '../../helpers/test-actors.js';
 
 /**
  * Feature 024 / T005-T008 — Integration tests against a real PostgreSQL
@@ -172,5 +173,50 @@ describe('recent-activity — impersonation context surfaces in the actor label'
     // (or email if any seed inserts one) — we only assert the wrapping
     // and that the admin name is preserved.
     expect(impersonated!.actorDisplayName.startsWith('Plat A.')).toBe(true);
+  });
+});
+
+/**
+ * Issue #741 (`specs/170-organization-roles/` FR-065): a customer acting for
+ * themselves — a storefront administrator managing roles — is a third kind of
+ * actor, neither an admin nor the system, and is named by the customer-account
+ * audit reference.
+ */
+describe('recent-activity — a customer acting for themselves is named as the actor', () => {
+  let h: BackendServerHandle;
+  const customerId = CUSTOMER_COOKIES['stub-customer-session']!.customerAccountId;
+
+  beforeAll(async () => {
+    h = await setupBackendServer();
+    await h.auditLogService.record({
+      actorAdminUserId: null,
+      actorCustomerAccountId: customerId,
+      action: 'product.update',
+      objectType: 'product',
+      objectId: SEED_PRODUCT_101_ID,
+      stateAfter: { name: { 'en-US': 'Example simple product' } },
+    });
+  });
+
+  afterAll(async () => {
+    await teardownBackendServer(h);
+  });
+
+  it('reports actorKind=customer and the customer label', async () => {
+    const res = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/audit-log/recent-activity',
+      cookies: { b2b_session: 'stub-admin-session' },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    const body = res.json() as { data: Array<{ actorDisplayName: string; actorKind: string }> };
+    const [account] = (await h.em().getConnection().execute(
+      `select "first_name", "last_name", "email" from "customer_accounts" where "id" = ?`,
+      [CUSTOMER_COOKIES['stub-customer-session']!.customerAccountId],
+    )) as Array<{ first_name: string; last_name: string; email: string }>;
+    const personLabel = `${account!.first_name} ${account!.last_name} (${account!.email})`;
+    const row = body.data.find((r) => r.actorKind === 'customer');
+    expect(row).toBeDefined();
+    expect(row!.actorDisplayName).toBe(personLabel);
   });
 });

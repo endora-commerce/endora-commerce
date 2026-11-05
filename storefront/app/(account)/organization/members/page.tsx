@@ -1,23 +1,16 @@
 import type { ReactNode } from 'react';
 import { getSessionCookie } from '../../../../lib/session';
 import { getMe } from '../../../../lib/api/account';
-import {
-  changeMemberRole,
-  inviteMember,
-  listMembers,
-  listPendingInvitations,
-  listRoles,
-  removeMember,
-  revokeInvitation,
-} from '../../../../lib/api/organization';
-import { StorefrontApiError } from '../../../../lib/api/client';
+import { listMembers, listPendingInvitations, listRoles } from '../../../../lib/api/organization';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../../lib/i18n/navigation';
 import { getServerContext } from '../../../../lib/server-context';
-import { tForLocale, type MessageKey } from '../../../../lib/i18n/messages';
+import { tForLocale } from '../../../../lib/i18n/messages';
 import { format } from '../../../../lib/i18n/format';
 import { LocalizedLink } from '../../../../lib/i18n/localized-link';
 import { organizationAreaAccess } from '../../../../lib/account/organization-area';
+import { memberErrorKey, memberStatusKey } from '../../../../lib/account/organization-members';
+import { changeRoleAction, inviteAction, removeAction, revokeAction } from './actions';
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -36,12 +29,15 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
  * Organization's roles, named by the API in the page's language; an
  * invitation names its role, *Member* preselected. A personal Organization's
  * member — its Administrator — is sent to the account page (PR-3, FR-070a).
+ *
+ * Issue #740: an action's answer arrives as `?status=` or `?error=<code>`, and
+ * the page shows only a sentence of its own for it — never text from the URL.
  */
 
 export default async function MembersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; error?: string; email?: string }>;
+  searchParams: Promise<{ status?: string; error?: string }>;
 }): Promise<ReactNode> {
   const session = await getSessionCookie();
   if (!session) return await localeRedirect('/login');
@@ -70,6 +66,8 @@ export default async function MembersPage({
     </option>
   ));
   const params = await searchParams;
+  const statusKey = memberStatusKey(params.status);
+  const errorKey = memberErrorKey(params.error);
 
   return (
     <>
@@ -79,15 +77,12 @@ export default async function MembersPage({
           {t('account.members.manageRoles')}
         </LocalizedLink>
       </div>
-      {params.status === 'invited' ? (
-        <p className="b2b-auth__success">
-          {format(t('account.members.invited'), { email: params.email ?? '' })}
+      {statusKey ? <p className="b2b-auth__success">{t(statusKey)}</p> : null}
+      {errorKey ? (
+        <p className="b2b-auth__error" role="alert">
+          {t(errorKey)}
         </p>
       ) : null}
-      {params.status === 'revoked' ? (
-        <p className="b2b-auth__success">{t('account.members.revoked')}</p>
-      ) : null}
-      {params.error ? <p className="b2b-auth__error">{params.error}</p> : null}
 
       <table className="b2b-account__table">
         <thead>
@@ -184,72 +179,4 @@ export default async function MembersPage({
       </form>
     </>
   );
-}
-
-/** A server action's own refusal, in the page's language. */
-async function failure(key: MessageKey): Promise<string> {
-  const { locale } = await getServerContext();
-  return tForLocale(locale)(key);
-}
-
-async function inviteAction(formData: FormData): Promise<void> {
-  'use server';
-  const session = await getSessionCookie();
-  if (!session) return await localeRedirect('/login');
-  const email = (formData.get('email') as string) ?? '';
-  const roleId = formData.get('roleId');
-  try {
-    await inviteMember(session, { email, ...(typeof roleId === 'string' && roleId !== '' ? { roleId } : {}) });
-  } catch (err) {
-    const message =
-      err instanceof StorefrontApiError ? err.detail : await failure('account.members.inviteFailed');
-    return await localeRedirect(`/organization/members?error=${encodeURIComponent(message)}`);
-  }
-  return await localeRedirect(`/organization/members?status=invited&email=${encodeURIComponent(email)}`);
-}
-
-async function changeRoleAction(formData: FormData): Promise<void> {
-  'use server';
-  const session = await getSessionCookie();
-  if (!session) return await localeRedirect('/login');
-  const memberId = (formData.get('memberId') as string) ?? '';
-  const roleId = (formData.get('roleId') as string) ?? '';
-  try {
-    await changeMemberRole(session, memberId, roleId);
-  } catch (err) {
-    const message =
-      err instanceof StorefrontApiError ? err.detail : await failure('account.members.roleFailed');
-    return await localeRedirect(`/organization/members?error=${encodeURIComponent(message)}`);
-  }
-  return await localeRedirect(`/organization/members`);
-}
-
-async function removeAction(formData: FormData): Promise<void> {
-  'use server';
-  const session = await getSessionCookie();
-  if (!session) return await localeRedirect('/login');
-  const memberId = (formData.get('memberId') as string) ?? '';
-  try {
-    await removeMember(session, memberId);
-  } catch (err) {
-    const message =
-      err instanceof StorefrontApiError ? err.detail : await failure('account.members.removeFailed');
-    return await localeRedirect(`/organization/members?error=${encodeURIComponent(message)}`);
-  }
-  return await localeRedirect(`/organization/members`);
-}
-
-async function revokeAction(formData: FormData): Promise<void> {
-  'use server';
-  const session = await getSessionCookie();
-  if (!session) return await localeRedirect('/login');
-  const invitationId = (formData.get('invitationId') as string) ?? '';
-  try {
-    await revokeInvitation(session, invitationId);
-  } catch (err) {
-    const message =
-      err instanceof StorefrontApiError ? err.detail : await failure('account.members.revokeFailed');
-    return await localeRedirect(`/organization/members?error=${encodeURIComponent(message)}`);
-  }
-  return await localeRedirect(`/organization/members?status=revoked`);
 }

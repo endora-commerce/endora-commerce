@@ -122,7 +122,7 @@ export const account = defineMessages({
     'account.members.adminRequired': 'Only the organization’s administrators can manage members.',
     'account.members.roleOf': 'Role of {name}',
     'account.members.manageRoles': 'Manage roles',
-    'account.members.invited': 'Invitation sent to {email}.',
+    'account.members.invited': 'Invitation sent.',
     'account.members.revoked': 'Invitation revoked.',
     'account.members.col.actions': 'Actions',
     'account.members.pending.heading': 'Pending invitations',
@@ -135,6 +135,19 @@ export const account = defineMessages({
     'account.members.roleFailed': 'Could not change the role.',
     'account.members.removeFailed': 'Could not remove the member.',
     'account.members.revokeFailed': 'Could not revoke the invitation.',
+    'account.members.error.EMAIL_ALREADY_IN_ORGANIZATION':
+      'This e-mail address already belongs to a member of your organization or has a pending invitation.',
+    'account.members.error.EMAIL_BELONGS_TO_ANOTHER_ORGANIZATION':
+      'This e-mail address belongs to a member of another organization.',
+    'account.members.error.CANNOT_DEMOTE_LAST_ADMIN':
+      'This member is your organization’s only administrator, so their role cannot be changed.',
+    'account.members.error.CANNOT_REMOVE_LAST_ADMIN':
+      'This member is your organization’s only administrator, so they cannot be removed.',
+    'account.members.error.CANNOT_REVOKE_LAST_ADMIN_INVITE':
+      'Your organization has no active administrator, so its only pending administrator invitation cannot be revoked.',
+    'account.members.error.NOT_FOUND': 'This member, invitation or role no longer exists. Reload the page and try again.',
+    'account.members.error.VALIDATION_FAILED': 'Check the e-mail address and try again.',
+    'account.members.error.FAILED': 'Something went wrong. Try again.',
 
     // Roles (`/organization/roles`, feature 170).
     'account.roles.heading': 'Roles',
@@ -569,7 +582,7 @@ export const account = defineMessages({
     'account.members.adminRequired': 'Członkami mogą zarządzać tylko administratorzy organizacji.',
     'account.members.roleOf': 'Rola: {name}',
     'account.members.manageRoles': 'Zarządzaj rolami',
-    'account.members.invited': 'Wysłano zaproszenie na adres {email}.',
+    'account.members.invited': 'Zaproszenie zostało wysłane.',
     'account.members.revoked': 'Zaproszenie zostało cofnięte.',
     'account.members.col.actions': 'Działania',
     'account.members.pending.heading': 'Oczekujące zaproszenia',
@@ -582,6 +595,19 @@ export const account = defineMessages({
     'account.members.roleFailed': 'Nie udało się zmienić roli.',
     'account.members.removeFailed': 'Nie udało się usunąć członka organizacji.',
     'account.members.revokeFailed': 'Nie udało się cofnąć zaproszenia.',
+    'account.members.error.EMAIL_ALREADY_IN_ORGANIZATION':
+      'Ten adres e-mail należy już do członka Twojej organizacji albo czeka na niego zaproszenie.',
+    'account.members.error.EMAIL_BELONGS_TO_ANOTHER_ORGANIZATION':
+      'Ten adres e-mail należy do członka innej organizacji.',
+    'account.members.error.CANNOT_DEMOTE_LAST_ADMIN':
+      'Ten członek jest jedynym administratorem Twojej organizacji, więc nie można zmienić jego roli.',
+    'account.members.error.CANNOT_REMOVE_LAST_ADMIN':
+      'Ten członek jest jedynym administratorem Twojej organizacji, więc nie można go usunąć.',
+    'account.members.error.CANNOT_REVOKE_LAST_ADMIN_INVITE':
+      'Twoja organizacja nie ma aktywnego administratora, więc nie można cofnąć jej jedynego oczekującego zaproszenia dla administratora.',
+    'account.members.error.NOT_FOUND': 'Ten członek, zaproszenie lub rola już nie istnieje. Odśwież stronę i spróbuj ponownie.',
+    'account.members.error.VALIDATION_FAILED': 'Sprawdź adres e-mail i spróbuj ponownie.',
+    'account.members.error.FAILED': 'Coś poszło nie tak. Spróbuj ponownie.',
 
     'account.roles.heading': 'Role',
     'account.roles.intro': 'Rola określa, co jej członkowie mogą robić w Twojej organizacji. Każdy członek ma jedną rolę.',

@@ -1,4 +1,5 @@
 {
+  "module.name": "Addresses",
   "errors.ADDRESS_NOT_OWNED": "That address does not belong to your organization. Choose one of your organization's saved addresses, or add a new one.",
   "organizationPermissions.addresses.manage.label": "Manage organization addresses",
   "organizationPermissions.addresses.manage.description": "Add, edit and delete the organization's shared delivery and billing addresses."

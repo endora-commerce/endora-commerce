@@ -12,6 +12,7 @@ import { getSessionCookie } from '../../../../lib/session';
 import { getCommerceAbilitiesAction } from '../../../../lib/actions/cart';
 import { getServerContext } from '../../../../lib/server-context';
 import { StorefrontApiError } from '../../../../lib/api/client';
+import { isRecordId } from '../../../../lib/record-id';
 import { formatMoney } from '../../../../lib/i18n/money';
 import { rfqValidity, rfqValidityGate } from '../../../../lib/quote-requests/validity';
 import { RfqValidityMeta } from '../../../../components/rfq/RfqValidityMeta';
@@ -70,20 +71,22 @@ export default async function QuoteRequestDetailPage({
   const { locale } = await getServerContext();
   const t = tForLocale(locale);
 
+  const notFound = (
+    <div className="mx-auto max-w-[1360px] px-[24px]" style={{ paddingTop: 24, paddingBottom: 48 }}>
+      <p className="muted">{t('account.quoteRequest.notFound')}</p>
+      <LocalizedLink href="/quote-requests" className="btn btn--outline btn--sm">
+        {t('account.quoteRequest.backToList')}
+      </LocalizedLink>
+    </div>
+  );
+  // Issue #749 — an id that cannot name a request is not asked for: the API answers it 500.
+  if (!isRecordId(id)) return notFound;
+
   let rfq: RfqDetail;
   try {
     rfq = await getRfqById(session, id);
   } catch (err) {
-    if (err instanceof StorefrontApiError && err.status === 404) {
-      return (
-        <div className="mx-auto max-w-[1360px] px-[24px]" style={{ paddingTop: 24, paddingBottom: 48 }}>
-          <p className="muted">{t('account.quoteRequest.notFound')}</p>
-          <LocalizedLink href="/quote-requests" className="btn btn--outline btn--sm">
-            {t('account.quoteRequest.backToList')}
-          </LocalizedLink>
-        </div>
-      );
-    }
+    if (err instanceof StorefrontApiError && err.status === 404) return notFound;
     throw err;
   }
   const sp = await searchParams;

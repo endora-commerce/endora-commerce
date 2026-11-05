@@ -21,6 +21,7 @@ import { listMyOrderInvoices, invoiceDownloadUrl } from '../../../../lib/api/inv
 import { getSessionCookie } from '../../../../lib/session';
 import { getServerContext } from '../../../../lib/server-context';
 import { StorefrontApiError } from '../../../../lib/api/client';
+import { isRecordId } from '../../../../lib/record-id';
 import { formatMoney } from '../../../../lib/i18n/money';
 import { tForLocale, type MessageKey } from '../../../../lib/i18n/messages';
 import { resolvePaymentReturnNotice } from '../../../../lib/orders/payment-return-notice';
@@ -74,18 +75,20 @@ export default async function OrderConfirmationPage({
   const { locale } = await getServerContext();
   const t = tForLocale(locale);
 
+  const notFound = (
+    <div className="b2b-auth">
+      <h1>{t('account.order.notFound.heading')}</h1>
+      <p className="b2b-auth__error">{t('account.order.notFound.body')}</p>
+    </div>
+  );
+  // Issue #749 — an id that cannot name an order is not asked for: the API answers it 500.
+  if (!isRecordId(id)) return notFound;
+
   let order;
   try {
     order = await getMyOrder(session, id);
   } catch (err) {
-    if (err instanceof StorefrontApiError && err.status === 404) {
-      return (
-        <div className="b2b-auth">
-          <h1>{t('account.order.notFound.heading')}</h1>
-          <p className="b2b-auth__error">{t('account.order.notFound.body')}</p>
-        </div>
-      );
-    }
+    if (err instanceof StorefrontApiError && err.status === 404) return notFound;
     throw err;
   }
 

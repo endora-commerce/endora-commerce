@@ -18,6 +18,7 @@ import { CartSubmitButton } from '../../../../../components/CartSubmitButton';
 import { organizationAreaAccess } from '../../../../../lib/account/organization-area';
 import { NetMoney, OrgCartOwner } from '../../../../../components/account/OrgCartParts';
 import { orgCartOrderHref } from '../../../../../lib/account/org-cart-order';
+import { isRecordId } from '../../../../../lib/record-id';
 import { approveCartAction, rejectCartAction } from './actions';
 
 /**
@@ -72,9 +73,11 @@ export default async function OrganizationCartPage({
   }
 
   const anon = await getAnonCartCookie();
-  let cart: OrgCartDetail | null;
+  let cart: OrgCartDetail | null = null;
   try {
-    cart = await getOrganizationCart({ session, ...(anon ? { anon } : {}) }, id, ctx);
+    // Issue #749 — an id that cannot name a cart is not asked for: the API answers it 500,
+    // which this page would word as a failed load rather than as no such cart.
+    if (isRecordId(id)) cart = await getOrganizationCart({ session, ...(anon ? { anon } : {}) }, id, ctx);
   } catch {
     return (
       <>

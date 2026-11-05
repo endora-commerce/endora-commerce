@@ -12,6 +12,7 @@ import {
 import { getSessionCookie } from '../../../../lib/session';
 import { getCommerceAbilitiesAction } from '../../../../lib/actions/cart';
 import { StorefrontApiError } from '../../../../lib/api/client';
+import { isRecordId } from '../../../../lib/record-id';
 import { getServerContext } from '../../../../lib/server-context';
 import { getProductBySlug } from '../../../../lib/api/catalog';
 import { ClearListButton } from '../../../../components/shopping-lists/ClearListButton';
@@ -85,18 +86,20 @@ export default async function ShoppingListDetailPage({
   const abilities = await getCommerceAbilitiesAction();
   const canEdit = abilities.editShoppingLists;
   const canConvert = abilities.convertListToCart || abilities.convertListToQuote;
+  const notFound = (
+    <div>
+      <h2>{t('account.shoppingList.notFound.heading')}</h2>
+      <p className="b2b-auth__error">{t('account.shoppingList.notFound.body')}</p>
+    </div>
+  );
+  // Issue #749 — an id that cannot name a list is not asked for: the API answers it 500.
+  if (!isRecordId(id)) return notFound;
+
   let list;
   try {
     list = await getShoppingList(session, id);
   } catch (err) {
-    if (err instanceof StorefrontApiError && err.status === 404) {
-      return (
-        <div>
-          <h2>{t('account.shoppingList.notFound.heading')}</h2>
-          <p className="b2b-auth__error">{t('account.shoppingList.notFound.body')}</p>
-        </div>
-      );
-    }
+    if (err instanceof StorefrontApiError && err.status === 404) return notFound;
     throw err;
   }
 
