@@ -1,4 +1,5 @@
 {
+  "module.name": "Returns",
   "settings.freeReturnDays.label": "Free-return window (days)",
   "settings.rmaNumberPrefix.label": "RMA number prefix",
   "settings.rmaNumberSuffix.label": "RMA number suffix",
