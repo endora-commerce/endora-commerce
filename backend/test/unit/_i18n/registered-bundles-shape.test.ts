@@ -322,6 +322,47 @@ describe('registered module i18n bundles — real filesystem shape', () => {
   });
 
   /**
+   * Issue #739 — a module that declares `organizationPermissions` heads its own
+   * group on the role form (storefront and the admin Roles tab), and
+   * `OrganizationRoleService.permissionCatalogue` resolves that heading from the
+   * module's `module.name` key. A missing key does not fail loudly: it falls
+   * back to the manifest's English `name`, so a Polish page shows "Orders"
+   * beside "Szybkie zamówienia".
+   *
+   * The population is every registered manifest declaring at least one
+   * permission — `REGISTERED_MANIFESTS`, not `withBundles`, so a module that
+   * declares permissions and no bundles directory fails here too — held to
+   * `SUPPORTED_LANGUAGES`, never to the languages the module happens to ship.
+   */
+  it('every module declaring organizationPermissions translates module.name in every shipped language', () => {
+    const declaring = REGISTERED_MANIFESTS.filter(
+      (e) => (e.manifest.organizationPermissions ?? []).length > 0,
+    );
+    const missing: string[] = [];
+    for (const entry of declaring) {
+      if (!entry.manifest.i18n) {
+        missing.push(`${entry.manifest.id}: declares organizationPermissions and no i18n bundles`);
+        continue;
+      }
+      const loaded = loadModuleBundles(
+        entry.manifest.id,
+        dirname(entry.filePath),
+        entry.manifest.i18n.bundlesDir,
+      );
+      for (const language of SUPPORTED_LANGUAGES) {
+        const value = loaded.byLanguage.get(language)?.['module.name'];
+        if (typeof value !== 'string' || value.trim() === '') {
+          missing.push(`${entry.manifest.id}/${language}.json → module.name`);
+        }
+      }
+    }
+    expect(missing).toEqual([]);
+    // An empty population would make the case vacuous — feature 170's own
+    // modules declare permissions, so zero means the filter broke.
+    expect(declaring.length).toBeGreaterThan(0);
+  });
+
+  /**
    * Feature 096, T208 — the title-agreement assertion
    * (`contracts/block-definition.md` §1.1's table, row 4).
    *
