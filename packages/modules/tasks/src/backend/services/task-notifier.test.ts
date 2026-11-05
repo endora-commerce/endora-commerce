@@ -38,7 +38,7 @@ describe('taskNotificationText', () => {
 
   it('a mention names the Task by its number only, from a key both bundles hold (FR-006)', () => {
     const mention = taskNotificationText.mentioned('TSK-000042');
-    expect(mention.title).toBe('You were mentioned in Task TSK-000042');
+    expect(mention.title).toBe('You were mentioned in task TSK-000042');
     expect(mention.titleMessage).toEqual({ scope: 'tasks', key: 'notifications.mention.title', params: { number: 'TSK-000042' } });
     for (const language of ['en', 'pl'] as const) {
       const template = bundle(language)[mention.titleMessage.key];
@@ -50,7 +50,7 @@ describe('taskNotificationText', () => {
 
   it('a comment names the Task by its number only, never the text, from a key both bundles hold (FR-026)', () => {
     const comment = taskNotificationText.commented('TSK-000042');
-    expect(comment.title).toBe('New comment on Task TSK-000042');
+    expect(comment.title).toBe('New comment on task TSK-000042');
     expect(comment.titleMessage).toEqual({ scope: 'tasks', key: 'notifications.comment.title', params: { number: 'TSK-000042' } });
     for (const language of ['en', 'pl'] as const) {
       const template = bundle(language)[comment.titleMessage.key];
@@ -62,7 +62,7 @@ describe('taskNotificationText', () => {
 
   it('a reminder names the Task by its number only, from a key both bundles hold (FR-034)', () => {
     const reminder = taskNotificationText.reminder('TSK-000042');
-    expect(reminder.title).toBe('Reminder: Task TSK-000042');
+    expect(reminder.title).toBe('Reminder: task TSK-000042');
     expect(reminder.titleMessage).toEqual({ scope: 'tasks', key: 'notifications.reminder.title', params: { number: 'TSK-000042' } });
     for (const language of ['en', 'pl'] as const) {
       const template = bundle(language)[reminder.titleMessage.key];

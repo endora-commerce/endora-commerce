@@ -239,7 +239,7 @@ describe('tasks — comments with references (US4)', () => {
     const [entry] = await h
       .em()
       .find(AdminNotification, { subjectId: task.id, kind: 'tasks.task.comment' }, { filters: false });
-    expect(entry!.title).toBe(`New comment on Task ${task.number}`);
+    expect(entry!.title).toBe(`New comment on task ${task.number}`);
     expect(entry!.linkPath).toBe(`/tasks/${task.id}`);
     expect(entry!.title).not.toContain('Started on it');
 
