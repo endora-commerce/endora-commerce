@@ -3,6 +3,7 @@ import { requestPasswordReset } from '../../../../lib/api/auth';
 import { StorefrontApiError } from '../../../../lib/api/client';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../../lib/i18n/navigation';
+import { RESET_REQUEST_ERRORS } from '../../../../lib/auth/auth-errors';
 import { LocalizedLink } from '../../../../lib/i18n/localized-link';
 import { getServerContext } from '../../../../lib/server-context';
 import { tForLocale } from '../../../../lib/i18n/messages';
@@ -23,7 +24,8 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 export default async function PasswordResetRequestPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; email?: string; error?: string }>;
+  /** Issue #745 — no `email`: the acknowledgement names no address, so none travels in the URL. */
+  searchParams: Promise<{ status?: string; error?: string }>;
 }): Promise<ReactNode> {
   const params = await searchParams;
   const { locale } = await getServerContext();
@@ -33,8 +35,7 @@ export default async function PasswordResetRequestPage({
       <div className="b2b-auth">
         <h1>{t('auth.passwordReset.sent.heading')}</h1>
         <p className="b2b-auth__success">
-          {t('auth.passwordReset.sent.before')} <strong>{params.email}</strong>{' '}
-          {t('auth.passwordReset.sent.after')}
+          {t('auth.passwordReset.sent.body')}
         </p>
         <p className="b2b-auth__hint">
           {t('auth.passwordReset.sent.expiry')}{' '}
@@ -48,7 +49,8 @@ export default async function PasswordResetRequestPage({
     <div className="b2b-auth">
       <h1>{t('auth.passwordReset.request.heading')}</h1>
       <p>{t('auth.passwordReset.request.intro')}</p>
-      {params.error ? <div className="b2b-auth__error">{params.error}</div> : null}
+      {/* Issue #745 — `?error=` is a code; one this page does not know reads as its own failure. */}
+      {params.error ? <div className="b2b-auth__error">{t(RESET_REQUEST_ERRORS.errorKey(params.error)!)}</div> : null}
       <form action={requestAction} className="b2b-auth__form">
         <div className="b2b-auth__field">
           <label htmlFor="reset-email">{t('auth.field.email')}</label>
@@ -74,16 +76,15 @@ async function requestAction(formData: FormData): Promise<void> {
   // limit: it is counted per address whether or not an account has it, so
   // saying "wait" reveals nothing, and saying "check your inbox" would promise
   // an e-mail that was not sent.
-  let throttled: string | null = null;
+  let throttled = false;
   try {
     await requestPasswordReset(email);
   } catch (err) {
-    if (err instanceof StorefrontApiError && err.code === 'CUSTOMER_AUTHENTICATION_THROTTLED') {
-      throttled = err.detail;
-    }
+    throttled = err instanceof StorefrontApiError && err.code === 'CUSTOMER_AUTHENTICATION_THROTTLED';
   }
-  if (throttled !== null) {
-    return await localeRedirect(`/password-reset/request?error=${encodeURIComponent(throttled)}`);
+  if (throttled) {
+    return await localeRedirect('/password-reset/request?error=CUSTOMER_AUTHENTICATION_THROTTLED');
   }
-  return await localeRedirect(`/password-reset/request?status=sent&email=${encodeURIComponent(email)}`);
+  // Issue #745 — no address in the URL: it is personal data, and the page would print it.
+  return await localeRedirect('/password-reset/request?status=sent');
 }

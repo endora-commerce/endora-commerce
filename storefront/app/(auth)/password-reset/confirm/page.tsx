@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
 import { confirmPasswordReset } from '../../../../lib/api/auth';
-import { StorefrontApiError } from '../../../../lib/api/client';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../../lib/i18n/navigation';
+import { RESET_CONFIRM_ERRORS } from '../../../../lib/auth/auth-errors';
 import { LocalizedLink } from '../../../../lib/i18n/localized-link';
 import { getServerContext } from '../../../../lib/server-context';
 import { tForLocale } from '../../../../lib/i18n/messages';
@@ -59,7 +59,8 @@ export default async function PasswordResetConfirmPage({
   return (
     <div className="b2b-auth">
       <h1>{t('auth.passwordReset.confirm.heading')}</h1>
-      {error ? <div className="b2b-auth__error">{error}</div> : null}
+      {/* Issue #745 — `?error=` is a code; one this page does not know reads as its own failure. */}
+      {error ? <div className="b2b-auth__error">{t(RESET_CONFIRM_ERRORS.errorKey(error)!)}</div> : null}
       <form action={confirmAction} className="b2b-auth__form">
         <input type="hidden" name="token" value={token} />
         <div className="b2b-auth__field">
@@ -90,12 +91,8 @@ async function confirmAction(formData: FormData): Promise<void> {
   try {
     await confirmPasswordReset(token, newPassword);
   } catch (err) {
-    const message =
-      err instanceof StorefrontApiError
-        ? err.detail
-        : tForLocale((await getServerContext()).locale)('auth.passwordReset.confirm.failed');
     return await localeRedirect(
-      `/password-reset/confirm?token=${encodeURIComponent(token)}&error=${encodeURIComponent(message)}`,
+      `/password-reset/confirm?token=${encodeURIComponent(token)}&error=${RESET_CONFIRM_ERRORS.failureCode(err, 'RESET_FAILED')}`,
     );
   }
   return await localeRedirect(`/password-reset/confirm?status=done`);

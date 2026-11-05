@@ -55,9 +55,9 @@ export default async function LoginPage({
   // honest default rendering is nothing at all.
   const { ctx, locale, modules, anonymousAccess } = await getServerContext();
   const t = tForLocale(locale);
-  // `specs/154-sales-channel-access/` — a refusal because this account may not
-  // use this store arrives as a stable code from the password step, the second
-  // factor and the federated callback alike, and is shown translated.
+  // `specs/154-sales-channel-access/`, issue #745 — every refusal arrives as a
+  // code (the federated callback's own sentences excepted, which are looked up,
+  // never printed) and is shown translated; anything else as the failure.
   const error = signInErrorMessage(params.error, locale);
   // The middleware sends an anonymous visitor of a store closed to them here.
   // Shown only while the store is closed, so a stale link cannot claim it is.
@@ -137,15 +137,12 @@ async function loginAction(formData: FormData): Promise<void> {
   // Only the network/auth call is wrapped — the `redirect()` calls below must
   // stay OUTSIDE the try, otherwise Next's `NEXT_REDIRECT` control-flow throw
   // is caught here and re-routed into the error branch, blanking the page.
-  const { locale } = await getServerContext();
-  const t = tForLocale(locale);
-
   let result;
   try {
     result = await loginCustomer({ email, password });
   } catch (err) {
-    const message = signInErrorParam(err, t('auth.login.failed'));
-    return await localeRedirect(`/login?error=${encodeURIComponent(message)}&next=${encodeURIComponent(next)}`);
+    // Issue #745 — a code travels, never the backend's sentence.
+    return await localeRedirect(`/login?error=${signInErrorParam(err, 'LOGIN_FAILED')}&next=${encodeURIComponent(next)}`);
   }
   // Feature 042 — two-step login. An account with active 2FA gets routed to the
   // second-step code screen; the opaque challenge id rides in an httpOnly cookie.
@@ -161,7 +158,7 @@ async function loginAction(formData: FormData): Promise<void> {
       begun = await beginMfaSetupTicket(result.setupTicket);
     } catch {
       return await localeRedirect(
-        `/login?error=${encodeURIComponent(t('auth.login.setupStartFailed'))}&next=${encodeURIComponent(next)}`,
+        `/login?error=SETUP_START_FAILED&next=${encodeURIComponent(next)}`,
       );
     }
     await setMfaSetupTicketCookie({
@@ -173,7 +170,7 @@ async function loginAction(formData: FormData): Promise<void> {
   }
   if (!result.sessionCookieValue) {
     return await localeRedirect(
-      `/login?error=${encodeURIComponent(t('auth.login.failed'))}&next=${encodeURIComponent(next)}`,
+      `/login?error=LOGIN_FAILED&next=${encodeURIComponent(next)}`,
     );
   }
   await setSessionCookie(result.sessionCookieValue);

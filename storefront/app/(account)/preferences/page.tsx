@@ -8,9 +8,9 @@ import {
   getQuickOrderPreference,
   upsertQuickOrderPreference,
 } from '../../../lib/api/quick-order';
-import { StorefrontApiError } from '../../../lib/api/client';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../lib/i18n/navigation';
+import { PREFERENCES_ERRORS } from '../../../lib/account/settings-errors';
 import { tForLocale } from '../../../lib/i18n/messages';
 
 /**
@@ -66,7 +66,8 @@ export default async function PreferencesPage({
       <p className="b2b-auth__hint">{t('account.preferences.hint')}</p>
 
       {sp.saved ? <p className="b2b-auth__success">{t('account.preferences.saved')}</p> : null}
-      {sp.error ? <p className="b2b-auth__error">{sp.error}</p> : null}
+      {/* Issue #745 — `?error=` is a code; one this page does not know reads as its generic failure. */}
+      {sp.error ? <p className="b2b-auth__error">{t(PREFERENCES_ERRORS.errorKey(sp.error)!)}</p> : null}
 
       <form action={saveAction} className="b2b-auth__form">
         <div className="b2b-auth__field">
@@ -162,10 +163,7 @@ async function saveAction(formData: FormData): Promise<void> {
       defaultShippingAddressId: field('defaultShippingAddressId'),
     });
   } catch (err) {
-    const message = err instanceof StorefrontApiError
-        ? err.detail
-        : tForLocale((await getServerContext()).locale)('account.preferences.failed');
-    return await localeRedirect(`/preferences?error=${encodeURIComponent(message)}`);
+    return await localeRedirect(`/preferences?error=${PREFERENCES_ERRORS.failureCode(err, 'SAVE_FAILED')}`);
   }
   return await localeRedirect('/preferences?saved=1');
 }
