@@ -436,7 +436,12 @@ od jego roli i od rodzaju organizacji:
   *Koszyki do akceptacji* — dla członków, których rola ma uprawnienie *Akceptowanie i odrzucanie
   koszyków współpracowników* (`carts.approve`), z liczbą oczekujących koszyków. Członek
   organizacji prywatnej (B2C) nie widzi żadnej z tych trzech pozycji, choć ma rolę
-  *Administrator*, a te strony odsyłają go do `/account`. Każdy inny, kto otworzy taką stronę,
+  *Administrator*, a te strony odsyłają go do `/account`. Organizacja prywatna nie jest firmą,
+  więc taki członek nie widzi też pozycji *Organizacja* ani *Adresy organizacji*: `/organization`
+  odsyła go do `/account`, a `/organization/addresses` do jego własnej książki adresowej,
+  `/addresses`, na której adresy organizacji nadal są widoczne obok jego własnych. Profil nie ma
+  dla niego wiersza *Organizacja*, a pole NIP w danych firmy do rozliczenia przy składaniu
+  zamówienia jest puste zamiast wypełnione syntetycznym NIP-em organizacji prywatnej. Każdy inny, kto otworzy taką stronę,
   dowiaduje się, kto może z niej korzystać — na przykład *„Rolami mogą zarządzać tylko
   administratorzy organizacji.”*
 - **Role** (`/organization/roles`) to lista wszystkich ról z rodzajem (*Wbudowana* albo

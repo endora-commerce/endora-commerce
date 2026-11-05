@@ -252,7 +252,10 @@ describe('account navigation — the organization area (feature 170)', () => {
     me = session(ADMINISTRATOR, ['carts.create', 'carts.approve', 'carts.order_without_approval'], true);
     const html = await accountNav();
     for (const href of [MEMBERS, ROLES, CARTS]) expect(html).not.toContain(href);
-    expect(html).toContain('href="/organization/addresses"');
+    // Nor the Organization's own pages (issue #757): a personal Organization is not a company.
+    expect(html).not.toContain('href="/organization"');
+    expect(html).not.toContain('href="/organization/addresses"');
+    expect(html).toContain('href="/addresses"');
     expect(cartListCalls).toEqual([]);
   });
 
