@@ -141,8 +141,8 @@ describe('createCatalogProductWritePort — content attribute keys (feature 172)
       port().createProduct({
         sku: 'PIM-1',
         type: 'simple',
-        name: { 'en-US': 'Drill' },
-        description: { 'en-US': '' },
+        name: 'Drill',
+        description: '',
         categoryIds: [],
         attributeValues: { color: 'red', buying_guide: '<p>Guide</p>' },
         visibility: 'public',

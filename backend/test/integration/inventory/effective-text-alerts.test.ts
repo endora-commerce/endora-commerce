@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { setupBackendServer, teardownBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
+import { TEST_CUSTOMER_ID } from '../../helpers/test-actors.js';
 import { createMinimumProduct, minimumFixtureRun, type MinimumProductFixture } from '../../helpers/order-minimum-fixture.js';
 import { clearValueOverrides } from '../../helpers/product-scope-fixture.js';
 import { seedScopedValues } from '../../helpers/scoped-values.js';
@@ -88,7 +89,7 @@ describe('173 — inventory alerts name products by their Global name [integrati
 
   async function subscribe(): Promise<void> {
     const em = h.em();
-    const customer = await em.findOneOrFail(CustomerAccount, { role: 'organization_admin' });
+    const customer = await em.findOneOrFail(CustomerAccount, { id: TEST_CUSTOMER_ID });
     await sql(`delete from availability_notifications where product_id = ?`, [drill.id]);
     em.create(AvailabilityNotification, {
       customerAccountId: customer.id,
