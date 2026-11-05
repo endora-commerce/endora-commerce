@@ -96,7 +96,13 @@ export function currentSearch(container: { getByTestId(id: string): HTMLElement 
 
 export function renderEditor(
   editor: () => ReactNode,
-  options: { url?: string; permissions?: readonly string[]; contributions?: Parameters<typeof withSession>[1]['contributions'] } = {},
+  options: {
+    url?: string;
+    permissions?: readonly string[];
+    contributions?: Parameters<typeof withSession>[1]['contributions'];
+    /** Modules the session reports switched off (every other declared module is present). */
+    absent?: readonly string[];
+  } = {},
 ): RenderResult {
   return render(
     <StrictMode>
@@ -121,7 +127,10 @@ export function renderEditor(
           </MemoryRouter>,
           {
             session: adminSession({ permissions: options.permissions ?? ['catalog:read', 'catalog:write'] }),
-            presence: modulePresence({ present: everyDeclaredModule() }),
+            presence: modulePresence({
+              present: everyDeclaredModule().filter((id) => !(options.absent ?? []).includes(id)),
+              absent: [...(options.absent ?? [])],
+            }),
             ...(options.contributions ? { contributions: options.contributions } : {}),
           },
         )}

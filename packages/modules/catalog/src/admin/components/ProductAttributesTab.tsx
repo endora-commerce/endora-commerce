@@ -1,10 +1,12 @@
 import { useContext, useEffect, useState, type ReactNode } from 'react';
+import type { AdminProductContentList } from '@endora-commerce/contracts';
 import { apiClient } from '@endora-commerce/admin-kit/lib';
 import { MultiSelect } from '@endora-commerce/admin-kit/ui';
 import { ScopedFieldGrid, type ScopedFieldControlProps } from '@endora-commerce/admin-kit/components';
 import { AppLanguageContext, useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { AdminZone } from '@endora-commerce/admin-kit/zones';
+import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
 import { EditorField, useProductEditor } from './editor/editor-context.js';
+import { PRODUCT_CONTENT_LANGUAGES, ProductContentCard, type ProductContentCardBlocker } from './ProductContentCard.js';
 import { BooleanControl, NumberControl, SelectControl, TextControl, type SelectOption } from './editor/scoped-controls.js';
 
 /**
@@ -18,6 +20,12 @@ import { BooleanControl, NumberControl, SelectControl, TextControl, type SelectO
  * attribute renders as text at every scope (US1 #2, the F2 regression).
  *
  * The option lists of select attributes come from the attribute definitions, read once per set.
+ *
+ * A Page Builder content attribute (`specs/172-product-content-attributes/`, FR-020) is no scoped
+ * value — the read does not list it — but a card below the fields: its label, a chip per editing
+ * language, a summary and **Edit content**, which opens the product content screen. The cards come
+ * from the content summaries (`GET …/content`, research R-3), read once per saved attribute set,
+ * and are the same at every scope: a document is per language, and its own screen edits every one.
  */
 
 interface SetAttribute {
@@ -42,6 +50,19 @@ function pickLabel(label: Record<string, string>, fallback: string, language = '
   return own ?? label['en-US'] ?? entries[0]?.[1] ?? fallback;
 }
 
+type ContentAttribute = AdminProductContentList['attributes'][number];
+
+/** Never called: the card only counts the editor's contributors (Z15). */
+const NO_EDIT = (): void => undefined;
+
+/** Why a content card offers no editing, or `null` (172 contracts/admin-surfaces.md §4). */
+function contentCardBlocker(input: { savedSetId: string; stagedSetId: string | undefined; editors: number }): ProductContentCardBlocker {
+  // The content screen judges membership against the saved set, so an unsaved choice blocks it.
+  if (input.stagedSetId !== undefined && input.stagedSetId !== input.savedSetId) return 'saveSetFirst';
+  if (input.editors === 0) return 'noEditor';
+  return null;
+}
+
 /** A value read as text, whatever it is; an object is never stringified into the field. */
 function asText(value: unknown): string | null {
   if (value === null || value === undefined) return null;
@@ -57,6 +78,42 @@ export function ProductAttributesTab(): ReactNode {
   const data = ctx.state.data;
   const setId = data?.product.attributeSetId ?? '';
   const [options, setOptions] = useState<Record<string, SelectOption[]>>({});
+  const [content, setContent] = useState<ContentAttribute[]>([]);
+  const staged = ctx.state.staged.get('product:attributeSetId');
+  const stagedSetId = staged?.op === 'set' && typeof staged.value === 'string' ? staged.value : undefined;
+
+  // Feature 172 — the content summaries of the saved set's content attributes, once per set.
+  useEffect(() => {
+    if (!setId) {
+      setContent([]);
+      return undefined;
+    }
+    let cancelled = false;
+    void (async (): Promise<void> => {
+      try {
+        const res = await apiClient.get<{ data: AdminProductContentList }>(
+          `/api/v1/admin/catalog/products/${encodeURIComponent(ctx.productId)}/content`,
+        );
+        if (!cancelled) setContent([...(res.data?.attributes ?? [])].sort((a, b) => a.position - b.position || a.key.localeCompare(b.key)));
+      } catch {
+        // No cards rather than a broken tab: the ordinary values do not depend on this read.
+        if (!cancelled) setContent([]);
+      }
+    })();
+    return (): void => {
+      cancelled = true;
+    };
+  }, [ctx.productId, setId]);
+
+  // Z15 — whether anyone contributes the content editor, counted with the same zone the content
+  // screen mounts, so the card and the screen cannot disagree.
+  const contentEditors = useAdminZone('product.content.editor', {
+    productId: ctx.productId,
+    attributeKey: '',
+    language: PRODUCT_CONTENT_LANGUAGES[0],
+    data: null,
+    onChange: NO_EDIT,
+  });
 
   useEffect(() => {
     if (!setId || !data) return undefined;
@@ -94,7 +151,10 @@ export function ProductAttributesTab(): ReactNode {
   }, [setId]);
 
   if (!data) return null;
-  if (data.attributes.length === 0) return <div className="b2b-help">{t('productEditor.attributes.empty')}</div>;
+  if (data.attributes.length === 0 && content.length === 0) {
+    return <div className="b2b-help">{t('productEditor.attributes.empty')}</div>;
+  }
+  const blocker = contentCardBlocker({ savedSetId: setId, stagedSetId, editors: contentEditors.length });
 
   return (
     <div className="b2b-col" style={{ gap: 16 }}>
@@ -172,6 +232,18 @@ export function ProductAttributesTab(): ReactNode {
               />
           );
         })}
+        {content.map((attr) => (
+          <ProductContentCard
+            key={attr.attributeId}
+            productId={ctx.productId}
+            attributeKey={attr.key}
+            label={pickLabel(attr.label, attr.labelDefault || attr.key, adminLanguage)}
+            languages={[...new Set<string>([...PRODUCT_CONTENT_LANGUAGES, ...attr.languages.map((status) => status.language)])]}
+            stored={attr.languages}
+            preferredLanguage={PRODUCT_CONTENT_LANGUAGES[0]}
+            blocker={blocker}
+          />
+        ))}
       </ScopedFieldGrid>
     </div>
   );
