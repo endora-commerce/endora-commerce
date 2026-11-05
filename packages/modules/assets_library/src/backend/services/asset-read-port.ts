@@ -165,6 +165,33 @@ export class AssetReadService implements AssetReadPort {
   }
 
   /**
+   * The detail's `url` for a batch: one query for the live rows and a URL build
+   * per row, signed where the row is private — the same build
+   * `AssetsLibraryService.summary` does, without the `references` walk the
+   * detail adds. An id that is not a uuid is absent without being read, as in
+   * {@link visibleToCaller}: one stray string in an editor's tree must not fail
+   * the whole batch.
+   */
+  async resolveUrls(assetIds: readonly string[]): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    const candidates = [...new Set(assetIds.filter(isAssetIdShaped))];
+    if (candidates.length === 0) return out;
+    const registry = this.adapters();
+
+    const assets = await this.emFactory().find(Asset, { id: { $in: candidates }, deletedAt: null });
+
+    for (const asset of assets) {
+      const adapter = await registry.getForBackend(asset.storageBackend);
+      const resolved = await adapter.resolveUrl({
+        locator: asset.storageLocator || asset.storageUrl,
+        visibility: asset.visibility,
+      });
+      out.set(asset.id, versionedAssetUrl(resolved.url, asset.contentVersion, asset.storageBackend));
+    }
+    return out;
+  }
+
+  /**
    * The bytes of one live asset — the port's rule, answered where the storage
    * layout is (`specs/110-instance-repository/` T118c).
    *

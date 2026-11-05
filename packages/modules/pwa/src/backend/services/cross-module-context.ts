@@ -1,8 +1,5 @@
-import type { AssetsLibraryPort } from '@endora-commerce/contracts';
-import {
-  rethrowIfModuleDisabled,
-  type SalesChannelResolutionPort,
-} from '@endora-commerce/platform/kernel';
+import type { AssetReadPort, AssetsLibraryPort } from '@endora-commerce/contracts';
+import type { SalesChannelResolutionPort } from '@endora-commerce/platform/kernel';
 
 /**
  * Everything `pwa` needs from outside itself that is not one of its own rows
@@ -27,11 +24,10 @@ import {
  * container composed (`cross-module-context.test.ts`).
  */
 export interface PwaCrossModulePorts {
-  /**
-   * `assets_library`, for the icon pipeline: the source and rendition uploads,
-   * and the URL the storefront icon route redirects to.
-   */
+  /** `assets_library`, for the icon pipeline: the source and rendition uploads. */
   readonly assets: AssetsLibraryPort;
+  /** `assets_library` again, for the URL the storefront icon route redirects to. */
+  readonly assetReads: Pick<AssetReadPort, 'resolveUrls'>;
   /**
    * The kernel's channel resolver — a platform name, not a module's, so it puts
    * nothing in this module's manifest `dependencies` (Constitution XII).
@@ -42,31 +38,19 @@ export interface PwaCrossModulePorts {
 /**
  * How a stored asset id becomes the URL the storefront icon route redirects to.
  *
- * **`getAsset`, not `resolveUrl`** (D-223): `assets_library` resolves the public
- * origin itself and every URL it returns is absolute, so `resolveUrl` is
- * published on no port and a consumer that wants a URL takes the detail that
- * already carries one. Both roots used to call `resolveUrl` and one of them used
- * to wrap it in an `absolutizePublicUrl` the other did not, so a push payload's
- * icon URL depended on which root composed the platform.
+ * **`resolveUrls`, the read port's** (D-223, issue #685): `assets_library`
+ * resolves the public origin itself and every URL it returns is absolute. Both
+ * roots used to call `resolveUrl` and one of them used to wrap it in an
+ * `absolutizePublicUrl` the other did not; it then read `getAsset`, whose detail
+ * walks every page, block and menu for its "used by" list on each call. An icon
+ * rendition pointing at a deleted asset is absent from the answer and 404s on
+ * that one size rather than 500; with no `catch`, the owner's refusal still
+ * answers as itself.
  */
 export function createAssetUrlResolver(
-  assets: Pick<AssetsLibraryPort, 'getAsset'>,
+  assets: Pick<AssetReadPort, 'resolveUrls'>,
 ): (assetId: string) => Promise<string | null> {
-  return async (assetId) => {
-    try {
-      return (await assets.getAsset(assetId)).url;
-    } catch (err) {
-      // The narrow tolerance both composition roots already carried, kept
-      // deliberately: `getAsset` throws 404 for a row that is gone, and an icon
-      // rendition pointing at a deleted asset answers 404 on that one size
-      // rather than 500. `rethrowIfModuleDisabled` is what stops the tolerance
-      // from also absorbing the owner's refusal (composition checklist item 7)
-      // — unreachable while `assets_library` declares `nonDeactivatable`, and
-      // the line that keeps this fail-closed on the day that changes.
-      rethrowIfModuleDisabled(err);
-      return null;
-    }
-  };
+  return async (assetId) => (await assets.resolveUrls([assetId])).get(assetId) ?? null;
 }
 
 /**
