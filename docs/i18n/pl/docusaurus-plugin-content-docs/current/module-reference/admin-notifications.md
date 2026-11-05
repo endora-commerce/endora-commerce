@@ -16,7 +16,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Nikt jesz
 | | |
 | --- | --- |
 | Identyfikator modułu | `admin_notifications` |
-| Nazwa | Admin Notifications |
+| Nazwa | Admin notifications |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-admin-notifications` |
 | Licencja | `MIT` |

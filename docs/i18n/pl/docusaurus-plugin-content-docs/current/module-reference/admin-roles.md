@@ -16,7 +16,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | | |
 | --- | --- |
 | Identyfikator modułu | `admin_roles` |
-| Nazwa | Admin Roles |
+| Nazwa | Admin roles |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-admin-roles` |
 | Licencja | `MIT` |

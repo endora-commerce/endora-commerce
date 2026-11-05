@@ -28,7 +28,7 @@ const demo: ModuleDemoManifest<ModuleContext> = {
  */
 export const manifest = defineModuleManifest({
   id: 'customer_accounts',
-  name: 'Customer Accounts',
+  name: 'Customer accounts',
   description:
     'Customer (B2B) account records, including organization membership and role.',
   version: '1.0.0',

@@ -11,7 +11,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
  */
 export const manifest = defineModuleManifest({
   id: 'custom_fields',
-  name: 'Custom Fields',
+  name: 'Custom fields',
   description: 'Entity-agnostic runtime custom fields for core entities.',
   version: '1.0.0',
   // `auth` owns the `requireAdmin` port the admin routes are gated by.

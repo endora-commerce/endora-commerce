@@ -16,7 +16,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | | |
 | --- | --- |
 | Identyfikator modułu | `sales_channels` |
-| Nazwa | Sales Channels |
+| Nazwa | Sales channels |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-sales-channels` |
 | Licencja | `MIT` |

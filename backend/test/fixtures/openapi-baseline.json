@@ -10099,6 +10099,15 @@
         }
       }
     },
+    "/api/v1/storefront/settings/customer-registration": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/storefront/settings/product-card-buttons": {
       "get": {
         "responses": {

@@ -16,7 +16,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | | |
 | --- | --- |
 | Identyfikator modułu | `payment_methods` |
-| Nazwa | Payment Methods |
+| Nazwa | Payment methods |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-payment-methods` |
 | Licencja | `MIT` |

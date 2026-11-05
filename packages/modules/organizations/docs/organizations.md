@@ -268,7 +268,7 @@ Two production HTTP clients implement the `VatValidator` port:
 - `ViesClient` → `POST` against the VIES REST endpoint
   (`/check-vat-number`). 5-second timeout; single abort on network
   error.
-- `MinisterstwoFinansowClient` → `GET` against `wl-api.mf.gov.pl/api/search/nip/{nip}`.
+- `MinisterstwoFinansowClient` → `GET` against `wykazpodatnikowvat.mf.gov.pl/api/search/nip/{nip}`.
   In-process 10-rps throttle; 7-day cache key on `(nip, today)` is
   baked into the service-side `OrganizationTaxIdValidation` history
   (one row per attempt).
@@ -287,6 +287,115 @@ third-party hiccup.
 | --- | --- |
 | `POST /api/v1/admin/organizations/:id/vat-validations` | Trigger one validation attempt (`providerHint`, `applyAutoFill`) |
 | `GET /api/v1/admin/organizations/:id/vat-validations` | History list, newest first |
+
+Every history item says where it came from: `origin: 'admin'` for "Validate
+now", `'registration'` for the snapshot a self-registration carried (see
+below). A registration row also carries `registryDetails`, `submittedValues`
+and `divergence`; an administrator's row has `null` in all three. The shape is
+`organizationTaxIdValidationRecordSchema` in `@endora-commerce/contracts`.
+
+### Registry lookup at registration
+
+A business registering on the storefront can fetch its company data from the
+public registry by tax ID, and the registration form is pre-filled with it.
+Every pre-filled field stays editable; the data is informational only, and no
+outcome of the lookup — not found, not an active VAT payer, a registry
+outage — ever stops a registration. **The lookup ships switched off.**
+
+**Providers and routing.** The tax ID is normalised first (spaces, dashes and
+dots removed, an EU country prefix recognised, `GR` read as VIES's `EL`), and a
+Polish NIP's checksum is verified **before** any registry is contacted: an
+invalid number or a country outside the EU contacts nothing.
+
+- **Polish NIPs** go to the registries the *Polish sources* setting selects:
+  - `gus_mf` (default) — **GUS REGON** (BIR1.1) and the **Ministry of Finance
+    VAT White List** in parallel. GUS supplies the legal name, the REGON and a
+    structured address; the White List supplies the VAT status, and the data
+    too when GUS is not configured, fails or does not know the number.
+  - `gus` — GUS REGON only. The White List is never asked, so its daily limit
+    stays for "Validate now"; the VAT status is shown as *not checked*.
+    **Without a working GUS credential, `gus` means no lookup for Polish NIPs
+    at all** — every Polish lookup answers "unavailable". Choose it only once
+    the GUS credential works.
+  - `mf` — the White List only. No GUS key is needed, but its address arrives
+    as one line and is split into street, postal code and city as well as
+    possible; what cannot be split is left for the buyer.
+- **Other EU VAT numbers** always go to **VIES**, whatever the Polish setting.
+  Some member states (Germany among them) do not disclose the name and
+  address: the buyer is told the number is valid and types the details.
+
+**Settings** (group *Organizations* on the Settings screen; the command
+palette's *Registration company lookup settings* opens it):
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `organizations.registration.registry_lookup_enabled` | `false` | Switches the lookup on. Off, the storefront shows the manual form and `POST /api/v1/organizations/registry-lookup` answers exactly as an unknown route. Takes effect without a restart. |
+| `organizations.registration.registry_lookup_pl_sources` | `gus_mf` | `gus_mf` \| `gus` \| `mf`, as above. Read per lookup; an unreadable value counts as `gus_mf`. The Settings screen warns beside it while `gus` is chosen and no GUS credential is selected. |
+| `organizations.registration.gus_credentials` | empty | The GUS REGON credential the lookup uses. Optional under `gus_mf` and `mf`. |
+
+**The GUS credential.** Create it on the **Credentials** screen with the type
+*GUS REGON registry (BIR1.1)*: the **user key** GUS issued to you (secret —
+stored encrypted, shown masked, never returned in full) and the
+**environment**, *Production* or *Test*. Changing the environment asks for the
+key again. To try the lookup without a production key, use the *Test*
+environment with GUS's public test key `abcde12345abcde12345`; the test
+registry holds anonymised data. Then select the credential in
+`organizations.registration.gus_credentials`. If the `credentials` module is
+switched off, or the credential cannot be resolved or is refused by GUS,
+Polish lookups behave as with no credential.
+
+The GUS client uses Node's bundled certificate store, which accepts the GUS and
+VIES hosts; a deployment that replaces it (`--use-openssl-ca`, a custom CA
+bundle) must make sure it still trusts them.
+
+**Limits and caching.** The lookup is not an open proxy to the registries:
+
+- **Per client:** 10 lookups per 10 minutes per address (`429 RATE_LIMITED`
+  beyond). The storefront forwards the buyer's `X-Forwarded-For`, so the
+  limit counts the buyer only where the backend trusts the storefront as a
+  proxy (`TRUSTED_PROXY_HOPS` / `TRUSTED_PROXY_ADDRESSES`); without that,
+  every buyer of a server-rendered storefront shares one bucket.
+- **Per registry, platform-wide:** GUS and VIES 300 calls per UTC hour; the
+  White List 60 per Europe/Warsaw day, which leaves the rest of its daily
+  per-IP limit (100 `search` requests) to "Validate now". Over budget, that
+  registry is treated as unavailable; a registry the Polish sources exclude
+  spends none of its budget.
+- **Cache:** answers are cached per country, Polish-sources choice and tax ID
+  — found 6 hours, not found 30 minutes, unavailable 60 seconds — so a
+  repeated lookup contacts no registry, and changing the Polish sources never
+  serves an answer fetched under the previous choice.
+- **Time:** a lookup answers within 8 seconds whatever the registries do.
+- **Redis:** the cache, the budgets and the lookup references live in Redis.
+  When Redis fails the lookup answers "unavailable" rather than running
+  unmetered; registration is unaffected.
+
+The answer never says whether a tax ID already belongs to an Organization on
+this platform; registration refuses a duplicate with the existing 409.
+
+**What moderators see.** A registration that carried a lookup stores one row in
+the VAT validation history, marked *Registration*, holding what the registry
+answered (source, legal name, address, REGON, VAT and activity status, the
+Polish sources in force, the registries that failed or were not asked) and what
+the customer submitted. The panel shows a *Registry data at registration* card
+with the two side by side and every field that **differs** marked; differences
+only in letter case, diacritics, spacing, punctuation or a common Polish
+legal-form spelling (`sp. z o.o.`, `S.A.` …) do not count. A pending
+Organization whose submission differs shows a notice in its moderation actions.
+The Organization's own fields hold what the customer submitted — the registry's
+legal name is applied only through "Validate + apply legal name".
+
+**Without JavaScript.** The *Fetch company data* button submits the form to the
+server, and the page comes back with the company fields filled and everything
+else the buyer typed kept — except the password, which is never sent back —
+with nothing in the address bar. Pressing Enter in a field below the tax ID then
+fetches rather than registers; with JavaScript, Enter fetches only in the tax ID
+field.
+
+| Verb + Path | Purpose |
+| --- | --- |
+| `GET /api/v1/organizations/registration-options` | Whether the lookup is on, and for which countries (cached by the storefront for up to 5 minutes, refreshed when the setting changes) |
+| `POST /api/v1/organizations/registry-lookup` | One lookup (`{ taxId, country }`); answers `found`, `not_found`, `unavailable`, `invalid_tax_id` or `unsupported_country` with a `lookupId` |
+| `POST /api/v1/organizations/register` | Accepts an optional top-level `registryLookupId`; the snapshot is read from the platform's own store, never from the request |
 
 ### Picker primitive + diacritic-insensitive search
 
@@ -311,6 +420,9 @@ so it is a migration of `name_search`, not an edit.
 | --- | --- | --- | --- |
 | `organizations.moderation.mode` | `string` enum | `'manual'` | `manual` ⇒ pending_verification; `auto` ⇒ active on registration |
 | `organizations.notifications.new_registration_recipients` | `json` array | `[]` | E-mail recipients for new-Organization notifications |
+| `organizations.registration.registry_lookup_enabled` | `boolean` | `false` | The registry lookup at registration (see above) |
+| `organizations.registration.registry_lookup_pl_sources` | `string` enum | `'gus_mf'` | Registries asked for a Polish NIP: `gus_mf` \| `gus` \| `mf` |
+| `organizations.registration.gus_credentials` | `credential_ref` | `''` | The GUS REGON credential (type `organizations_gus_bir`) |
 
 ### Migrations
 
@@ -335,6 +447,10 @@ so it is a migration of `name_search`, not an edit.
   so for every new one), withholds the two cart-approval codes from Member where the
   organization required cart approval, and gives every invitation a role reference
   (see "Roles" below).
+- `20261105T121034_organizations_registry_lookup_provenance.ts` — adds `origin`
+  (`admin` for every existing row), `registry_details` and `submitted_values` to
+  `organization_tax_id_validations`, and admits the `gus_pl` provider (see
+  "Registry lookup at registration" above).
 
 ### Personal organizations (B2C)
 

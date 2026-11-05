@@ -810,8 +810,12 @@ export type PriceBookRowsResponse = z.infer<typeof priceBookRowsResponseSchema>;
  */
 const targetsOf = <T extends z.ZodTypeAny>(item: T) => z.object({ data: z.object({ items: z.array(item) }) });
 
-/** `…/targets/organizations?search=` and `?ids=` (G12), scope-filtered. */
-export const priceBookTargetOrganizationSchema = z.object({ id: uuidSchema, name: z.string(), taxId: z.string() });
+/**
+ * `…/targets/organizations?search=` and `?ids=` (G12), scope-filtered. `taxId`
+ * is the picker's hint, `null` for a personal (B2C) Organization, whose tax id
+ * is an internal placeholder (#767).
+ */
+export const priceBookTargetOrganizationSchema = z.object({ id: uuidSchema, name: z.string(), taxId: z.string().nullable() });
 export type PriceBookTargetOrganization = z.infer<typeof priceBookTargetOrganizationSchema>;
 export const priceBookTargetOrganizationsResponseSchema = targetsOf(priceBookTargetOrganizationSchema);
 

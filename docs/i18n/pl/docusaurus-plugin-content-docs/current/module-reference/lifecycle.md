@@ -16,7 +16,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | | |
 | --- | --- |
 | Identyfikator modułu | `_lifecycle` |
-| Nazwa | Module Lifecycle |
+| Nazwa | Module lifecycle |
 | Wersja | `1.0.0` |
 | Pakiet | `core` |
 | Licencja | — |

@@ -26,7 +26,8 @@ interface DisplayModeOverrideRow {
 interface OrganizationRow {
   id: string;
   name: string;
-  taxId: string;
+  /** `null` for a personal Organization, whose tax id is a placeholder (#767). */
+  taxId: string | null;
 }
 /** A category as `…/price-books/targets/categories` answers it: `name` by language tag. */
 interface CategoryRow {
@@ -541,7 +542,7 @@ function AddOverrideDialog(props: {
   const candidates: { id: string; label: string; subtitle: string }[] = useMemo(() => {
     const rows: { id: string; label: string; subtitle: string }[] = [];
     if (scope === 'organization') {
-      for (const o of Object.values(orgs)) rows.push({ id: o.id, label: o.name, subtitle: o.taxId });
+      for (const o of Object.values(orgs)) rows.push({ id: o.id, label: o.name, subtitle: o.taxId ?? '' });
     } else if (scope === 'category') {
       for (const c of Object.values(cats)) rows.push({ id: c.id, label: localizedName(c.name, c.slug), subtitle: c.slug });
     } else {

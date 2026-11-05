@@ -16,7 +16,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | | |
 | --- | --- |
 | Identyfikator modułu | `prompt_actions` |
-| Nazwa | Prompt Actions |
+| Nazwa | Prompt actions |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-prompt-actions` |
 | Licencja | `MIT` |

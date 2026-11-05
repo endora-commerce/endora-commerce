@@ -26,7 +26,7 @@ export const shoppingListsSettingsManifest = defineModuleSettingsManifest({
  */
 export const manifest = defineModuleManifest({
   id: 'shopping_lists',
-  name: 'Shopping Lists',
+  name: 'Shopping lists',
   description:
     'Customer-owned saved shopping lists.',
   version: '1.0.0',

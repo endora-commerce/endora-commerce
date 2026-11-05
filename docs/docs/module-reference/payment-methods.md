@@ -16,7 +16,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | | |
 | --- | --- |
 | Module id | `payment_methods` |
-| Name | Payment Methods |
+| Name | Payment methods |
 | Version | `1.0.0` |
 | Ships from | `@endora-commerce/mod-payment-methods` |
 | Licence | `MIT` |

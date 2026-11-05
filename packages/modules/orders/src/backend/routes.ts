@@ -17,6 +17,7 @@ import {
   firstLanguageTag,
   isCustomFieldFilterUnavailableFailure,
   isCustomFieldValidationFailure,
+  organizationCompanyTaxId,
   organizationPermissionPreHandler,
   OrganizationCannotTransactError,
   orderPreviewTotalRequestSchema,
@@ -1204,7 +1205,8 @@ export async function registerOrderRoutes(
               id: organization.id,
               name: organization.name,
               legalName: organization.legalName ?? null,
-              taxId: organization.taxId,
+              taxId: organizationCompanyTaxId(organization),
+              isPersonal: organization.isPersonal,
               vatStatus: organization.vatStatus,
             }
           : null,

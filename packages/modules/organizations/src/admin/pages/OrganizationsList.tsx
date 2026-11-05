@@ -10,6 +10,7 @@ interface AdminOrganization {
   id: string;
   name: string;
   taxId: string;
+  isPersonal?: boolean;
   status: 'pending_verification' | 'active' | 'blocked' | 'rejected';
   vatStatus: 'vat_payer' | 'vat_exempt' | 'reverse_charge';
   createdAt: string;
@@ -112,9 +113,13 @@ export function OrganizationsList(): ReactNode {
                   header: t('organizations.column.name'),
                   primary: true,
                   render: (o) => <span className="font-medium">{o.name}</span>,
-                  meta: (o) => (
-                    <span className="font-mono text-xs text-muted-foreground">{o.taxId}</span>
-                  ),
+                  // A personal Organization's tax id is an internal placeholder (#767).
+                  meta: (o) =>
+                    o.isPersonal ? (
+                      <span className="text-xs text-muted-foreground">{t('organizations.personalAccount')}</span>
+                    ) : (
+                      <span className="font-mono text-xs text-muted-foreground">{o.taxId}</span>
+                    ),
                 },
                 {
                   id: 'status',

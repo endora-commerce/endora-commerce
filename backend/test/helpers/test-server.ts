@@ -8,6 +8,7 @@ import type { CredentialsService } from '../../../packages/modules/credentials/s
 import type { AdminNotificationService } from '../../../packages/modules/admin_notifications/src/backend/services/admin-notification-service.js';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
+import { FakeRegistryClients } from './fake-registry-clients.js';
 import type { Redis } from 'ioredis';
 
 import { buildServer, type ModulePlugin } from '@endora-commerce/platform/composition';
@@ -2520,6 +2521,11 @@ export async function setupBackendServer(
           vies: new FakeVatValidator('vies'),
           mfPl: new FakeVatValidator('mf_pl'),
         },
+        // Feature 173 — the registration company lookup's three registries,
+        // deterministic by the number's second-to-last character and counting
+        // their calls (`fake-registry-clients.ts`). Read per lookup by the
+        // module, so a test reaches the instance through the container.
+        organizationsRegistryClients: new FakeRegistryClients(),
         organizationsLoginHook: async (loginCtx: {
           customerAccountId: string;
           organizationId: string | null;

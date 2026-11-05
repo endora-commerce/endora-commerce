@@ -29,6 +29,12 @@ export interface RegisterOrganizationPayload {
     lastName: string;
   };
   acceptedTermsVersion: string;
+  /**
+   * Feature 173 — the reference a registry lookup answered. The backend reads
+   * the snapshot from its own store by this id; nothing else about the lookup
+   * is sent back.
+   */
+  registryLookupId?: string;
 }
 
 export interface RegisterOrganizationResult {

@@ -16,7 +16,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | | |
 | --- | --- |
 | Module id | `pwa` |
-| Name | Progressive Web App |
+| Name | Progressive web app |
 | Version | `1.0.0` |
 | Ships from | `@endora-commerce/mod-pwa` |
 | Licence | `MIT` |

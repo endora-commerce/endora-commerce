@@ -851,6 +851,27 @@
   /* Why the visitor is on the sign-in page — information, not an error. */
   .b2b-auth__notice { @apply m-0 rounded-sm border border-line bg-surface-alt px-[12px] py-[10px] text-[13px] text-fg-soft; }
   .b2b-auth__hint { @apply mt-4 text-[12px] text-muted; }
+  /* Feature 173 — the registry lookup beside the tax ID. The button is
+     bordered, never filled: "Create account" stays the one primary action
+     (Von Restorff); 44px tall, the field's own height (Fitts's Law). */
+  .b2b-auth__lookup { @apply flex items-stretch gap-2 max-[480px]:flex-col; }
+  .b2b-auth__lookup > .b2b-auth__field { @apply flex-1; }
+  .b2b-auth__secondary {
+    @apply inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-sm border border-line bg-surface px-[14px] py-[8px] text-[14px] font-medium text-fg transition-[background-color,border-color] duration-150;
+  }
+  .b2b-auth__secondary:hover { @apply border-line-strong bg-surface-alt; }
+  .b2b-auth__secondary:focus-visible { @apply outline-2 outline-offset-2 outline-[color:var(--brand-600)]; }
+  .b2b-auth__secondary[aria-disabled='true'] { @apply cursor-progress opacity-80; }
+  /* The hint and the status region as one block pulled towards the tax ID
+     row: 6px from the field instead of the form's 14px row gap (Law of
+     Proximity). The status region is never display:none — an unrendered live
+     region is not reliably announced when its text arrives (WCAG 4.1.3) — it
+     simply has no height while empty. */
+  .b2b-auth__lookup-help { @apply -mt-[8px] grid; }
+  .b2b-auth__lookup-status { @apply grid gap-1 text-[13px] text-fg-soft; }
+  .b2b-auth__lookup-status:not(:empty) { @apply mt-2; }
+  .b2b-auth__lookup-status p { @apply m-0 text-fg-soft; }
+  .b2b-auth__filled { @apply mt-1 block text-[12px] text-muted; }
   .b2b-account { @apply mx-auto grid max-w-[1360px] grid-cols-[240px_minmax(0,1fr)] gap-6 p-[24px] max-[720px]:grid-cols-1 max-[720px]:p-[16px]; }
   .b2b-account__nav { @apply flex flex-col gap-[2px]; }
   .b2b-account__nav a { @apply rounded-sm px-[12px] py-[8px] text-[13px] text-fg-soft; }

@@ -16,7 +16,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | | |
 | --- | --- |
 | Identyfikator modułu | `delivery_methods` |
-| Nazwa | Delivery Methods |
+| Nazwa | Delivery methods |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-delivery-methods` |
 | Licencja | `MIT` |

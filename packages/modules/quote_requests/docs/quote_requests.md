@@ -815,8 +815,10 @@ and date follows it, and so does the e-mail.
 
 **What the PDF prints.** The quote's **current** lines and prices, built for
 the requesting representative: the header (number, date, validity date,
-revision), the buyer organisation with its tax ID and address, the requesting
-customer and the assigned representative, the quote's note, the line items
+revision), the buyer organisation with its tax ID and address (for a personal
+(B2C) Organization, only the person's name: its tax ID is an internal
+placeholder and it has no head office), the requesting customer and the
+assigned representative, the quote's note, the line items
 table, the quote's custom fields that customers may see, and any text and logo
 the template adds. Lines without an agreed price print an empty price, and the
 totals that need every price are left out — the same rule as the quote

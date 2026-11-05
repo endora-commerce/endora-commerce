@@ -107,7 +107,7 @@ export const promptActionsSettingsManifest = settings;
 
 export const manifest = defineModuleManifest({
   id: 'prompt_actions',
-  name: 'Prompt Actions',
+  name: 'Prompt actions',
   description:
     'Natural-language prompt mode for the admin command palette: interpret an operator instruction with an LLM, preview the plan, execute it through existing module services after explicit confirmation.',
   version: '1.0.0',

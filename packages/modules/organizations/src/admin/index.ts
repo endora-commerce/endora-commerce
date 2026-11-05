@@ -27,7 +27,7 @@
  * **This entry exports data and nothing else** (R2); every component is a
  * dynamic-import factory (R6).
  */
-import type { AdminContributions } from '@endora-commerce/admin-kit/contributions';
+import { zoneComponent, type AdminContributions } from '@endora-commerce/admin-kit/contributions';
 
 /**
  * The codes that open the two screens, **any-of** because the route is any-of.
@@ -104,5 +104,17 @@ export const contributions: AdminContributions = {
       weight: 300,
       requiredPermission: [...READ_PERMISSION],
     },
+  ],
+  // Feature 173 (`specs/173-registration-registry-lookup/contracts/admin-surfaces.md`
+  // §2a) — beside this module's own Polish-sources setting on the Settings
+  // screen `settings` owns: a warning while `gus` is chosen with no GUS
+  // credential selected. Narrowed with `match`, so its chunk loads only where
+  // that row is shown; it vanishes with the module through the renderer's
+  // presence filter (the `seo` shape).
+  zones: [
+    zoneComponent('settings.setting.after', () => import('./zones/PlSourcesWarning.js'), {
+      match: { settingCode: 'organizations.registration.registry_lookup_pl_sources' },
+      requiredPermission: 'settings:read',
+    }),
   ],
 };

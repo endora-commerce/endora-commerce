@@ -38,3 +38,13 @@ export type NotificationRecipients = z.infer<typeof notificationRecipientsSchema
  */
 export const creditInheritanceModeSchema = z.enum(['shared_pool', 'independent_default']);
 export type CreditInheritanceMode = z.infer<typeof creditInheritanceModeSchema>;
+
+/**
+ * Feature 173 — the registration registry lookup's three settings
+ * (`specs/173-registration-registry-lookup/` data-model §4). The Polish-sources
+ * mode is read as any string and narrowed by `parsePlSources`, so a stored value
+ * outside the three reads as the default instead of failing the read.
+ */
+export const registryLookupEnabledSchema = z.boolean();
+export const registryLookupPlSourcesSchema = z.string();
+export const gusCredentialsRefSchema = z.string();

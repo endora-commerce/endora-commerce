@@ -108,7 +108,7 @@ const settings = defineModuleSettingsManifest({
 /** Module-lifecycle manifest (feature 018). */
 export const manifest = defineModuleManifest({
   id: 'assets_library',
-  name: 'Assets Library',
+  name: 'Assets library',
   description:
     'Storage adapter registry (local / S3 / GCS), asset upload, and reference tracking.',
   version: '1.0.0',

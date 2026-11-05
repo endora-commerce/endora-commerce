@@ -118,6 +118,22 @@ export type CustomerRegisterRequest = z.infer<
   typeof customerRegisterRequestSchema
 >;
 
+/**
+ * `GET /api/v1/storefront/settings/customer-registration` — whether the
+ * storefront may offer individual (org-less) self-registration (issue #756).
+ * It is the answer `POST /api/v1/customers/register` applies, read before the
+ * form is rendered rather than after it is submitted.
+ */
+export const customerRegistrationOptionsResponseSchema = z.object({
+  data: z.object({
+    /** `customers.allow_registration_without_organization`. */
+    allowRegistrationWithoutOrganization: z.boolean(),
+  }),
+});
+export type CustomerRegistrationOptionsResponse = z.infer<
+  typeof customerRegistrationOptionsResponseSchema
+>;
+
 export const customerSelfProfileSchema = z.object({
   id: uuidSchema,
   email: z.string().email(),

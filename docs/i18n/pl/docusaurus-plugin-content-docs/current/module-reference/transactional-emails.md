@@ -16,7 +16,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | | |
 | --- | --- |
 | Identyfikator modułu | `transactional_emails` |
-| Nazwa | Transactional Emails |
+| Nazwa | Transactional emails |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-transactional-emails` |
 | Licencja | `MIT` |

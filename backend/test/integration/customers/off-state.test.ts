@@ -72,6 +72,8 @@ describe('customers off-state (Constitution XVII)', () => {
           payload: {},
         },
         { url: '/api/v1/me/customer', headers: channel },
+        // Issue #756 — the read the registration page renders from.
+        { url: '/api/v1/storefront/settings/customer-registration', headers: channel },
       ],
       adminPresence: { cookies: admin },
       settingWrite: {

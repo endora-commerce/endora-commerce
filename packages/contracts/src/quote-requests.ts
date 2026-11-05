@@ -490,7 +490,10 @@ export const quoteRequestSchema = z.object({
       id: uuidSchema,
       name: z.string(),
       legalName: z.string().nullable(),
-      taxId: z.string(),
+      /** `null` for a personal (B2C) Organization, whose tax id is an internal placeholder (#767). */
+      taxId: z.string().nullable(),
+      /** A personal (B2C) Organization: the panel labels it an individual customer (#767). */
+      isPersonal: z.boolean(),
       vatStatus: z.string(),
     })
     .nullable()

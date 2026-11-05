@@ -56,7 +56,7 @@ export const transactionalEmailsSettingsManifest = defineModuleSettingsManifest(
 
 export const manifest = defineModuleManifest({
   id: 'transactional_emails',
-  name: 'Transactional Emails',
+  name: 'Transactional emails',
   description:
     'Admin-editable transactional email content and look (global + per sales channel), email-safe blocks/templates, variables, and preview.',
   version: '1.0.0',

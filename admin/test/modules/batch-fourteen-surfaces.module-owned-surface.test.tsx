@@ -217,7 +217,10 @@ const SUBJECTS: readonly Subject[] = [
       'appShell.nav.organizations',
       'appShell.palette.sub.customerAccounts',
     ],
-    zones: [],
+    // Feature 173 — the warning beside its own Polish-sources setting on the
+    // Settings screen (`specs/173-registration-registry-lookup/`
+    // `contracts/admin-surfaces.md` §2a), matched to that one setting code.
+    zones: ['settings.setting.after'],
     mounts: [
       ['organizations/src/admin/pages/OrganizationDetail.tsx', 'organization.detail.after'],
     ],
@@ -736,10 +739,10 @@ describe('the surfaces each module does not contribute, derived from the contrib
   it.each(SUBJECTS)('$module contributes exactly the zones its declaration names', (subject) => {
     // Ruling 1: the off-state test asserts every surface the module
     // contributes, and names the ones it does not **derived from the
-    // contribution set** rather than asserted. Two of this batch contribute to
-    // no zone at all — they are hosts and nothing else — and the third
-    // contributes two, which P7a and P7b declared while its screens were still
-    // `App.tsx`'s. Asserted as an equality, so a zone silently dropped in the
+    // contribution set** rather than asserted. `customers` contributes to no
+    // zone at all — a host and nothing else — `organizations` to one since
+    // feature 173, and `sales_channels` to the one P7a declared while its
+    // screens were still `App.tsx`'s. Asserted as an equality, so a zone silently dropped in the
     // move fails here; `product-channels-zone.test.tsx` drives the one that
     // remains over the real provider.
     const contributions = CONTRIBUTIONS.get(subject.module);

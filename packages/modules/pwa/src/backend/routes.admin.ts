@@ -13,6 +13,7 @@ import {
   PWA_PERMISSIONS,
   PWA_SETTING_CODES,
   CreatePushMessageRequestSchema,
+  organizationCompanyTaxId,
   UpdatePwaConfigRequestSchema,
 } from '@endora-commerce/contracts';
 import type {
@@ -363,7 +364,8 @@ export async function registerPwaAdminRoutes(
       // owner maintains, so "lodz" now finds "Łódź" — the local `$ilike` on
       // `name` never did.
       const rows = await deps.organizationDetails.searchByName(search, limit);
-      return { data: { items: rows.map((r) => ({ id: r.id, name: r.name, taxId: r.taxId })) } };
+      // A personal Organization's tax id is a placeholder, never a hint (#767).
+      return { data: { items: rows.map((r) => ({ id: r.id, name: r.name, taxId: organizationCompanyTaxId(r) })) } };
     },
   );
 

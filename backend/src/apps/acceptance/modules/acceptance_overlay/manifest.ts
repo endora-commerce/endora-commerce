@@ -55,7 +55,7 @@ const settings = defineModuleSettingsManifest({
 
 export const manifest = defineModuleManifest({
   id: 'acceptance_overlay',
-  name: 'Acceptance Overlay',
+  name: 'Acceptance overlay',
   description:
     "Decorates a registration owned by the acceptance criterion's fixture package, so that a deployment reaching a packaged owner is measured rather than assumed.",
   version: '1.0.0',

@@ -8,6 +8,7 @@ import { fulfilmentStrategySchema, type FulfilmentStrategy } from './inventory.j
 import { organizationRoleRefSchema } from './organization-roles.js';
 import { SalesChannelOptionSchema } from './sales-channels.js';
 import { foldDiacritics } from './text-normalization.js';
+import { registryLookupIdSchema } from './organization-registry-lookup.js';
 
 /**
  * Organizations, customer accounts, addresses, invitations — Source of truth
@@ -202,6 +203,14 @@ export const registerOrganizationRequestSchema = z.object({
     lastName: z.string().min(1).max(120),
   }),
   acceptedTermsVersion: z.string(),
+  /**
+   * Feature 173 — the reference a registry lookup answered
+   * (`organization-registry-lookup.ts`). Top-level, not inside `organization`:
+   * `AdminOrganizationCreateBodySchema` is derived from that member and the
+   * admin create must not accept it. The snapshot is read from the platform's
+   * own store by this id, never from the client (FR-019).
+   */
+  registryLookupId: registryLookupIdSchema.optional(),
 });
 export type RegisterOrganizationRequest = z.infer<typeof registerOrganizationRequestSchema>;
 
@@ -435,7 +444,8 @@ export type SalesRepOrganization = z.infer<typeof salesRepOrganizationSchema>;
 // in-process calls, not an API boundary.
 // ---------------------------------------------------------------------------
 
-export type VatValidationProvider = 'vies' | 'mf_pl' | 'format_only';
+/** `gus_pl` — feature 173: the GUS REGON registry, written by a registration-time lookup. */
+export type VatValidationProvider = 'vies' | 'mf_pl' | 'format_only' | 'gus_pl';
 
 export type VatValidationOutcome = 'validated' | 'failed' | 'deferred' | 'unverified';
 
@@ -525,6 +535,30 @@ export interface OrganizationDetailsPort {
   searchByName(query: string, limit: number): Promise<OrganizationRecord[]>;
   /** The same search, ids only — for the order list's organisation filter. */
   searchIdsByName(query: string): Promise<string[]>;
+}
+
+/**
+ * The tax id a reader may print or hand out for an Organization: a company's,
+ * never a personal (B2C) Organization's, whose `taxId` is an internal 32-hex
+ * placeholder derived from the account id (issue #767). `null` — not an empty
+ * string — when there is nothing to show, so every renderer drops its tax-id
+ * line rather than printing a label with no value.
+ *
+ * Published as a **function, not a port**, for the reason
+ * {@link normalizeOrganizationName} is: it is pure over its argument. Every
+ * module that prints an {@link OrganizationRecord}'s tax id asks it — the quote
+ * request document, the admin order and quote request panels, the price-book
+ * and push audience pickers, and the storefront's checkout — so the rule has
+ * one home.
+ */
+export function organizationCompanyTaxId(organization: {
+  /** Absent reads as a company, as a session payload without the flag does. */
+  readonly isPersonal?: boolean | undefined;
+  readonly taxId: string;
+}): string | null {
+  if (organization.isPersonal) return null;
+  const taxId = organization.taxId.trim();
+  return taxId === '' ? null : taxId;
 }
 
 /**

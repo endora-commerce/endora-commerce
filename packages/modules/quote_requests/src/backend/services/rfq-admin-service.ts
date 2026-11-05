@@ -22,6 +22,7 @@ import {
   type CustomFieldListFilterField,
   type CustomFieldListFilterPort,
   type CustomFieldValuePort,
+  organizationCompanyTaxId,
   type OrganizationDetailsPort,
   type RfqCreatedByAdminEventPayload,
   type SalesRepAssignmentPort,
@@ -415,7 +416,8 @@ export class RfqAdminService {
             id: org.id,
             name: org.name,
             legalName: org.legalName ?? null,
-            taxId: org.taxId,
+            taxId: organizationCompanyTaxId(org),
+            isPersonal: org.isPersonal,
             vatStatus: org.vatStatus,
           }
         : null,

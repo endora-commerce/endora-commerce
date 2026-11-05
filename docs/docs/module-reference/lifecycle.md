@@ -16,7 +16,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | | |
 | --- | --- |
 | Module id | `_lifecycle` |
-| Name | Module Lifecycle |
+| Name | Module lifecycle |
 | Version | `1.0.0` |
 | Ships from | `core` |
 | Licence | — |
