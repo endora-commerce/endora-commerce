@@ -139,6 +139,7 @@ export const auth = defineMessages({
     'auth.organizationSecurity.require': 'Require two-step verification for all members',
     'auth.organizationSecurity.stop': 'Stop requiring two-step verification',
     'auth.organizationSecurity.failed': 'Could not update enforcement.',
+    'auth.organizationSecurity.forbidden': 'Only the organization’s administrators can change this setting.',
     // The sign-out button (account sidebar; callers may pass their own label).
     'auth.signOut.button': 'Sign out',
   },
@@ -259,6 +260,7 @@ export const auth = defineMessages({
     'auth.organizationSecurity.require': 'Wymagaj weryfikacji dwuetapowej od wszystkich członków',
     'auth.organizationSecurity.stop': 'Wyłącz wymóg weryfikacji dwuetapowej',
     'auth.organizationSecurity.failed': 'Nie udało się zaktualizować wymogu.',
+    'auth.organizationSecurity.forbidden': 'To ustawienie mogą zmieniać tylko administratorzy organizacji.',
     'auth.signOut.button': 'Wyloguj się',
   },
 });
