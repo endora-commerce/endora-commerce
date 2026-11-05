@@ -39,7 +39,6 @@ An operator switches this module on and off on **/platform/modules**. The choice
 | `payment_methods` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `quote_requests` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `settings` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
-| `customers` | no | degrades-without `customerAddressReadPort` — a personal (buyer-owned) address stops being an eligible ordering default; the organisation’s shared addresses still resolve, and one-click buy hides itself for buyers whose default was personal |
 
 ## Permissions
 

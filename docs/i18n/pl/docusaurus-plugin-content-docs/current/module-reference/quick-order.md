@@ -39,7 +39,6 @@ Operator włącza i wyłącza ten moduł na **/platform/modules**. Decyduje o ty
 | `payment_methods` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `quote_requests` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `settings` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
-| `customers` | nie | degrades-without `customerAddressReadPort` — adres prywatny (należący do kupującego) przestaje być dopuszczalnym domyślnym adresem zamówienia; wspólne adresy organizacji nadal działają, a zakup jednym kliknięciem znika u kupujących, których domyślnym adresem był adres prywatny |
 
 ## Uprawnienia
 
